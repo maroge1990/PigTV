@@ -65,6 +65,13 @@
             </svg></span>
           <span>TV Guide</span>
         </a>
+        <a href="#" class="nav-link" data-page="recordings">
+          <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
+              class="icon">
+              <circle cx="12" cy="12" r="8" />
+            </svg></span>
+          <span>Recordings</span>
+        </a>
         <a href="#" class="nav-link" data-page="movies">
           <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
               class="icon">
@@ -308,6 +315,36 @@
           <div class="empty-state">
             <p>No EPG data available</p>
             <p class="hint">Add an EPG source in Settings</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recordings (DVR) Page -->
+      <div id="page-recordings" class="page">
+        <div class="recordings-header">
+          <h2>Recordings</h2>
+          <button id="dvr-settings-toggle" class="btn btn-sm btn-ghost">DVR Settings</button>
+        </div>
+        <div class="recordings-section" id="dvr-settings-panel" style="display: none;">
+          <h3>DVR Settings</h3>
+          <div class="record-options">
+            <label>Recordings path (inside container): <input type="text" id="dvr-setting-path" style="width: 220px;"></label>
+            <label>Default pre-buffer (min): <input type="number" id="dvr-setting-pre" min="0" max="60" style="width: 60px;"></label>
+            <label>Default post-buffer (min): <input type="number" id="dvr-setting-post" min="0" max="120" style="width: 60px;"></label>
+            <label>Max concurrent recordings: <input type="number" id="dvr-setting-max" min="1" max="10" style="width: 60px;"></label>
+            <button id="dvr-settings-save" class="btn btn-sm btn-primary">Save</button>
+          </div>
+        </div>
+        <div class="recordings-section">
+          <h3>Scheduled</h3>
+          <div id="scheduled-recordings-list" class="scheduled-recordings-list">
+            <div class="loading-state">Loading...</div>
+          </div>
+        </div>
+        <div class="recordings-section">
+          <h3>Recorded</h3>
+          <div id="recordings-list" class="recordings-list">
+            <div class="loading-state">Loading...</div>
           </div>
         </div>
       </div>
@@ -1096,19 +1133,20 @@
 
   <!-- JavaScript -->
   <script src="/js/icons.js"></script>
-  <script src="/js/api.js?v=2"></script>
+  <script src="/js/api.js?v=3"></script>
   <script src="/js/components/VideoPlayer.js?v=2"></script>
   <script src="/js/components/ChannelList.js?v=3"></script>
   <script src="/js/components/SourceManager.js?v=2"></script>
-  <script src="/js/components/EpgGuide.js?v=2"></script>
+  <script src="/js/components/EpgGuide.js?v=3"></script>
   <script src="/js/pages/HomePage.js?v=2"></script>
   <script src="/js/pages/LivePage.js?v=2"></script>
   <script src="/js/pages/Guide.js?v=2"></script>
+  <script src="/js/pages/RecordingsPage.js?v=1"></script>
   <script src="/js/pages/MoviesPage.js?v=4"></script>
   <script src="/js/pages/SeriesPage.js?v=1"></script>
   <script src="/js/pages/Settings.js?v=2"></script>
   <script src="/js/pages/WatchPage.js?v=1"></script>
-  <script src="/js/app.js?v=4"></script>
+  <script src="/js/app.js?v=5"></script>
   <script>
     // Check for SSO token in URL
     (function () {

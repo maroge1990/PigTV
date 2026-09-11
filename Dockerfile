@@ -46,8 +46,8 @@ RUN npm ci --only=production
 # Copy application files
 COPY . .
 
-# Create data and cache directories
-RUN mkdir -p /app/data /app/transcode-cache && chmod 777 /app/transcode-cache
+# Create data, cache, and DVR recordings directories
+RUN mkdir -p /app/data /app/transcode-cache /app/recordings && chmod 777 /app/transcode-cache /app/recordings
 
 # Expose port
 EXPOSE 3000

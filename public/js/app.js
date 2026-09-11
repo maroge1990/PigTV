@@ -18,6 +18,7 @@ class App {
         this.pages.home = new HomePage(this);
         this.pages.live = new LivePage(this);
         this.pages.guide = new GuidePage(this);
+        this.pages.recordings = new RecordingsPage(this);
         this.pages.movies = new MoviesPage(this);
         this.pages.series = new SeriesPage(this);
         this.pages.settings = new SettingsPage(this);

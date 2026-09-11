@@ -83,7 +83,12 @@ function getDefaultSettings() {
     // Upscaling settings
     upscaleEnabled: false,
     upscaleMethod: 'hardware',    // hardware | software
-    upscaleTarget: '1080p'        // 1080p | 4k | 720p
+    upscaleTarget: '1080p',       // 1080p | 4k | 720p
+    // DVR / Recording settings
+    recordingsPath: '/app/recordings', // Where recorded files are written (mount your storage here)
+    defaultPreBufferMin: 1,        // Minutes to start recording before the scheduled program start
+    defaultPostBufferMin: 5,       // Minutes to keep recording after the scheduled program end
+    maxConcurrentRecordings: 2     // Safety cap on simultaneous recordings
   };
 }
 

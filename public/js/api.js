@@ -160,6 +160,17 @@ const API = {
         getDefaults: () => API.request('GET', '/settings/defaults')
     },
 
+    // DVR / Recordings
+    recordings: {
+        schedule: (data) => API.request('POST', '/recordings/schedule', data),
+        getScheduled: () => API.request('GET', '/recordings/scheduled'),
+        cancelScheduled: (id) => API.request('DELETE', `/recordings/scheduled/${id}`),
+        getAll: () => API.request('GET', '/recordings'),
+        delete: (id) => API.request('DELETE', `/recordings/${id}`),
+        streamUrl: (id) => `/api/recordings/${id}/stream`,
+        downloadUrl: (id) => `/api/recordings/${id}/download`
+    },
+
     // Users (admin only)
     users: {
         getAll: () => API.request('GET', '/auth/users'),

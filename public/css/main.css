@@ -4820,3 +4820,174 @@ kbd {
     max-width: 70px;
   }
 }
+
+/* ==========================================================================
+   Recordings (DVR) Page
+   ========================================================================== */
+
+.recordings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.recordings-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.recordings-section {
+  padding: var(--space-lg);
+}
+
+.recordings-section h3 {
+  margin: 0 0 var(--space-md) 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.recordings-section + .recordings-section {
+  border-top: 1px solid var(--color-border);
+}
+
+.scheduled-recordings-list,
+.recordings-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.recording-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.recording-thumb {
+  width: 64px;
+  height: 36px;
+  object-fit: contain;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.recording-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.recording-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recording-meta {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.recording-status {
+  display: inline-block;
+  margin-top: var(--space-xs);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+}
+
+.recording-status.status-recording {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--color-error);
+}
+
+.recording-status.status-scheduled {
+  background: var(--color-accent-dim);
+  color: var(--color-accent-hover);
+}
+
+.recording-status.status-completed {
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--color-success);
+}
+
+.recording-status.status-failed,
+.recording-status.status-missed {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--color-error);
+}
+
+.recording-error {
+  margin-top: var(--space-xs);
+  font-size: 0.75rem;
+  color: var(--color-error);
+}
+
+.recording-actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+}
+
+.record-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+  font-size: 0.9rem;
+}
+
+.record-options input[type="number"] {
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  padding: 2px 6px;
+}
+
+.recording-player-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.recording-player-box {
+  position: relative;
+  width: min(90vw, 1100px);
+}
+
+.recording-player-box video {
+  width: 100%;
+  max-height: 85vh;
+  background: #000;
+  border-radius: var(--radius-md);
+}
+
+.recording-player-close {
+  position: absolute;
+  top: -40px;
+  right: 0;
+  background: none;
+  border: none;
+  color: var(--color-text-primary);
+  font-size: 2rem;
+  line-height: 1;
+  cursor: pointer;
+}

@@ -601,7 +601,7 @@ class EpgGuide {
             <div class="resize-handle"></div>
           </div>
           <div class="epg-programs">
-            ${this.renderProgrammes(channelProgrammes, this.startTime, this.endTime)}
+            ${this.renderProgrammes(channelProgrammes, this.startTime, this.endTime, sourceChannel)}
           </div>
         `;
 
@@ -780,7 +780,13 @@ class EpgGuide {
     /**
      * Render programmes for a channel
      */
-    renderProgrammes(programmes, startTime, endTime) {
+    renderProgrammes(programmes, startTime, endTime, sourceChannel) {
+        // Recordable channels must actually map to a playable stream (source + item id)
+        const canRecord = !!(sourceChannel && sourceChannel.sourceId && sourceChannel.id);
+        const channelAttrs = canRecord
+            ? `data-source-id="${sourceChannel.sourceId}" data-channel-id="${sourceChannel.id}" data-channel-name="${(sourceChannel.name || '').replace(/"/g, '&quot;')}" data-channel-logo="${(sourceChannel.tvgLogo || '').replace(/"/g, '&quot;')}"`
+            : '';
+
         if (programmes.length === 0) {
             const width = (endTime - startTime) / 60000 * this.pixelsPerMinute;
             return `<div class="epg-program" style="width: ${width}px;"><span class="epg-program-title">No data</span></div>`;
@@ -802,14 +808,17 @@ class EpgGuide {
 
             const width = (progEnd - progStart) / 60000 * this.pixelsPerMinute;
             const isCurrent = new Date(prog.start) <= now && new Date(prog.stop) > now;
+            const isRecordable = canRecord && new Date(prog.stop) > now; // can't record something already over
 
             html += `
-        <div class="epg-program ${isCurrent ? 'current' : ''}" 
+        <div class="epg-program ${isCurrent ? 'current' : ''}"
              style="width: ${width}px;"
              data-title="${prog.title || ''}"
              data-description="${prog.description || ''}"
              data-start="${prog.start}"
-             data-stop="${prog.stop}">
+             data-stop="${prog.stop}"
+             data-recordable="${isRecordable}"
+             ${channelAttrs}>
           <div class="epg-program-title">${prog.title || 'Unknown'}</div>
           <div class="epg-program-time">
             ${new Date(prog.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -885,7 +894,7 @@ class EpgGuide {
     /**
      * Show program details modal
      */
-    showProgramDetails(data) {
+    async showProgramDetails(data) {
         const modal = document.getElementById('modal');
         const title = document.getElementById('modal-title');
         const body = document.getElementById('modal-body');
@@ -895,18 +904,75 @@ class EpgGuide {
 
         const start = new Date(data.start);
         const stop = new Date(data.stop);
+        const canRecord = data.recordable === 'true' && data.sourceId && data.channelId;
+
+        // Default buffer minutes come from settings, falling back to sane defaults
+        let defaultPre = 1, defaultPost = 5;
+        try {
+            const settings = await API.settings.get();
+            if (settings.defaultPreBufferMin !== undefined) defaultPre = settings.defaultPreBufferMin;
+            if (settings.defaultPostBufferMin !== undefined) defaultPost = settings.defaultPostBufferMin;
+        } catch (e) { /* use defaults */ }
 
         body.innerHTML = `
       <p><strong>Time:</strong> ${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${stop.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
       <p><strong>Description:</strong></p>
       <p>${data.description || 'No description available'}</p>
+      ${canRecord ? `
+        <div class="record-options">
+          <label>Start recording (min before): <input type="number" id="record-pre-buffer" min="0" max="60" value="${defaultPre}" style="width: 60px;"></label>
+          <label style="margin-left: 12px;">Stop recording (min after): <input type="number" id="record-post-buffer" min="0" max="120" value="${defaultPost}" style="width: 60px;"></label>
+        </div>
+      ` : ''}
     `;
 
-        footer.innerHTML = '<button class="btn btn-secondary" id="modal-close">Close</button>';
+        footer.innerHTML = `
+      ${canRecord ? '<button class="btn btn-primary" id="modal-record">Record</button>' : ''}
+      <button class="btn btn-secondary" id="modal-close">Close</button>
+    `;
 
         modal.classList.add('active');
-        document.getElementById('modal-close').onclick = () => modal.classList.remove('active');
-        modal.querySelector('.modal-close').onclick = () => modal.classList.remove('active');
+        const close = () => modal.classList.remove('active');
+        document.getElementById('modal-close').onclick = close;
+        modal.querySelector('.modal-close').onclick = close;
+
+        if (canRecord) {
+            document.getElementById('modal-record').onclick = async () => {
+                const preBufferMin = parseInt(document.getElementById('record-pre-buffer').value, 10) || 0;
+                const postBufferMin = parseInt(document.getElementById('record-post-buffer').value, 10) || 0;
+                await this.scheduleRecording({ ...data, preBufferMin, postBufferMin });
+                close();
+            };
+        }
+    }
+
+    /**
+     * Schedule a DVR recording for an EPG program
+     */
+    async scheduleRecording(data) {
+        try {
+            await API.recordings.schedule({
+                sourceId: parseInt(data.sourceId),
+                channelItemId: data.channelId,
+                channelName: data.channelName,
+                channelLogo: data.channelLogo,
+                title: data.title,
+                description: data.description,
+                programStart: new Date(data.start).getTime(),
+                programEnd: new Date(data.stop).getTime(),
+                preBufferMin: data.preBufferMin,
+                postBufferMin: data.postBufferMin
+            });
+
+            if (window.app?.showToast) {
+                window.app.showToast(`Recording scheduled: ${data.title}`);
+            } else {
+                alert(`Recording scheduled: ${data.title}`);
+            }
+        } catch (err) {
+            console.error('Failed to schedule recording:', err);
+            alert(`Failed to schedule recording: ${err.message}`);
+        }
     }
 
     /**

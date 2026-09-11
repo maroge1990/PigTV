@@ -7,6 +7,8 @@ services:
       - "3000:3000"
     volumes:
       - ./data:/app/data
+      # DVR recordings - point this at wherever you want recorded shows stored
+      - ./recordings:/app/recordings
     restart: unless-stopped
     environment:
       - NODE_ENV=production

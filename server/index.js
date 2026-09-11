@@ -155,6 +155,16 @@ async function loadPlugins() {
 // Graceful shutdown handler for plugins with shutdown hooks
 process.on('SIGTERM', async () => {
     console.log('SIGTERM received, shutting down plugins...');
+
+    // Give any in-progress recordings a chance to close their file cleanly
+    // before the process is killed.
+    try {
+        const recordingEngine = require('./services/recordingEngine');
+        await recordingEngine.stopAllActive();
+    } catch (err) {
+        console.error('Error stopping active recordings:', err.message);
+    }
+
     for (const { name, plugin } of loadedPlugins) {
         if (plugin && typeof plugin.shutdown === 'function') {
             try {
@@ -180,6 +190,7 @@ app.use('/api/probe', require('./routes/probe'));
 app.use('/api/subtitle', require('./routes/subtitle'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/history', require('./routes/history'));
+app.use('/api/recordings', require('./routes/recordings'));
 
 // Version endpoint
 app.get('/api/version', (req, res) => {
@@ -218,6 +229,14 @@ app.listen(PORT, async () => {
             await hwDetect.detect();
         } catch (err) {
             console.warn('Hardware detection failed:', err.message);
+        }
+
+        // Start the DVR recording engine (scheduler + ffmpeg process manager)
+        try {
+            const recordingEngine = require('./services/recordingEngine');
+            recordingEngine.init({ ffmpegPath: app.locals.ffmpegPath });
+        } catch (err) {
+            console.warn('Recording engine failed to start:', err.message);
         }
     }, 5000);
 });

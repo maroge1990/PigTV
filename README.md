@@ -22,6 +22,7 @@ nodecast-tv is a modern, web-based IPTV player featuring Live TV, EPG, Movies (V
 - **🎛️ Hardware Transcoding**: GPU-accelerated transcoding with NVIDIA NVENC, AMD AMF, Intel QuickSync, and VAAPI support.
 - **🔊 Smart Audio**: Configurable 5.1→Stereo downmix presets (ITU, Night Mode, Cinematic) with automatic passthrough for compatible sources.
 - **📦 Stream Processing**: Auto-detection of stream codecs with smart remux/transcode decisions.
+- **⏺️ DVR / Recording**: Schedule recordings straight from the EPG, with configurable pre/post buffers. Recording runs server-side so it keeps going whether or not a browser is open, and survives page refreshes/restarts as long as it isn't mid-recording when the server stops.
 - **🐳 Docker Ready**: Easy deployment containerization.
 
 ## Screenshots
@@ -77,6 +78,7 @@ You can run nodecast-tv easily using Docker.
           - "3000:3000" # Host:Container
         volumes:
           - ./data:/app/data
+          - ./recordings:/app/recordings # DVR recordings - point this at your media storage
         restart: unless-stopped
         environment:
           - NODE_ENV=production
@@ -89,6 +91,12 @@ You can run nodecast-tv easily using Docker.
     ```
 
 The application will be available at `http://localhost:3000`.
+
+### DVR / Recording
+
+Click any program in the **TV Guide** and choose **Record** to schedule a recording. Each schedule can have its own pre-buffer (start early) and post-buffer (keep recording after the program's listed end time), useful for live sports or schedules that tend to run long. Defaults for both, along with the recordings storage path and a cap on simultaneous recordings, can be changed from the **DVR Settings** panel on the Recordings page.
+
+Recordings are saved as `.mkv` files (stream-copied, no re-encoding) under `/app/recordings/<Channel Name>/`, so map that path to real storage (a NAS share, an array disk, etc.) via the `recordings` volume shown above - otherwise recordings disappear when the container is recreated. The recording scheduler runs inside the server itself, so it keeps working as long as the container is running, independent of any browser tab. If the container is stopped or restarted while a recording is in progress, that recording is marked failed on the next start (the partial file, if any, is left on disk) - recordings that hadn't started yet are unaffected and will still fire on schedule.
 
 
 ### Hardware Acceleration Setup
