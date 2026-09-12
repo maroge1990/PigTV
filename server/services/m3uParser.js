@@ -188,6 +188,7 @@ async function* parseStreaming(input, batchSize = 500) {
     let currentInfo = null;
     let currentGroup = null;
     let batch = [];
+    let count = 0;
 
     let lines;
     if (typeof input === 'string') {
@@ -221,11 +222,13 @@ async function* parseStreaming(input, batchSize = 500) {
                 const groupTitle = currentInfo.groupTitle || currentGroup || 'Uncategorized';
                 const stableId = currentInfo.tvgId || generateStableId(currentInfo.name, groupTitle);
 
+                count++;
                 batch.push({
                     ...currentInfo,
                     id: stableId,
                     url: trimmed,
-                    groupTitle: groupTitle
+                    groupTitle: groupTitle,
+                    position: count
                 });
                 currentInfo = null;
 

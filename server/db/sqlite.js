@@ -67,6 +67,8 @@ function initSchema() {
             is_hidden INTEGER DEFAULT 0,
             is_favorite INTEGER DEFAULT 0,
             
+            sort_order INTEGER, -- Position in source file (M3U line number); NULL for Xtream
+            
             data JSON -- Full original JSON object
         );
         CREATE INDEX IF NOT EXISTS idx_items_source_type ON playlist_items(source_id, type);
