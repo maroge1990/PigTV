@@ -988,8 +988,14 @@ class EpgGuide {
 
         const cl = window.app.channelList;
 
+        // Navigate to the Live TV page FIRST so the player element is in
+        // the DOM when selectChannel tries to play.
+        window.app.navigateTo('live');
+
         // Ensure channels are loaded (they may not be if the user hasn't
-        // visited Live TV yet this session)
+        // visited Live TV yet this session). Wait a tick after navigation
+        // so the page controller's show() has run.
+        await new Promise(r => setTimeout(r, 100));
         if (cl.channels.length === 0) {
             await cl.loadChannels();
         }
@@ -1006,7 +1012,8 @@ class EpgGuide {
 
         if (channel) {
             await cl.selectChannel({ channelId: channel.id });
-            window.app.navigateTo('live');
+        } else {
+            console.warn('[EpgGuide] Could not find channel:', channelName, channelId);
         }
     }
 }

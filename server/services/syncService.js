@@ -103,6 +103,72 @@ class SyncService {
     }
 
     /**
+     * Only sync sources whose data is older than their configured interval.
+     * Called on server start instead of syncAll to avoid re-downloading
+     * the entire EPG (hundreds of thousands of programmes) every time
+     * the container restarts.
+     */
+    async syncIfStale() {
+        console.log('[Sync] Checking for stale sources...');
+        try {
+            const allSources = await sources.getAll();
+            const db = getDb();
+            let synced = 0;
+
+            for (const source of allSources) {
+                if (!source.enabled) continue;
+
+                // Check if we have any data at all for this source
+                const hasData = db.prepare(
+                    'SELECT COUNT(*) as c FROM playlist_items WHERE source_id = ?'
+                ).get(source.id);
+
+                if (!hasData || hasData.c === 0) {
+                    console.log(`[Sync] Source "${source.name}" has no data, syncing...`);
+                    await this.syncSource(source.id);
+                    synced++;
+                    continue;
+                }
+
+                // For EPG sources, check the cache age
+                if (source.type === 'epg') {
+                    const cache = require('./cache');
+                    const maxAgeMs = (source.syncInterval || 24) * 60 * 60 * 1000;
+                    const cached = cache.get('epg', source.id, 'data', maxAgeMs);
+                    if (!cached) {
+                        console.log(`[Sync] EPG source "${source.name}" cache is stale, syncing...`);
+                        await this.syncSource(source.id);
+                        synced++;
+                    } else {
+                        console.log(`[Sync] EPG source "${source.name}" cache is fresh, skipping`);
+                    }
+                    continue;
+                }
+
+                // For M3U/Xtream, check last sync time from source record
+                const syncInterval = (source.syncInterval || 24) * 60 * 60 * 1000;
+                const lastSync = source.lastSyncTime ? new Date(source.lastSyncTime).getTime() : 0;
+                const age = Date.now() - lastSync;
+
+                if (age > syncInterval) {
+                    console.log(`[Sync] Source "${source.name}" is stale (${Math.round(age / 3600000)}h old), syncing...`);
+                    await this.syncSource(source.id);
+                    synced++;
+                } else {
+                    console.log(`[Sync] Source "${source.name}" is fresh (${Math.round(age / 3600000)}h old), skipping`);
+                }
+            }
+
+            if (synced === 0) {
+                console.log('[Sync] All sources are fresh, no sync needed');
+            }
+            this.lastSyncTime = new Date();
+        } catch (err) {
+            console.error('[Sync] Stale check failed:', err);
+        }
+    }
+
+    /**
      * Start sync for a source
      */
     async syncSource(sourceId) {

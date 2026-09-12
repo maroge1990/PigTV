@@ -154,6 +154,29 @@ router.get('/sessions', (req, res) => {
 });
 
 /**
+ * Stop ALL active transcode sessions and kill their ffmpeg processes.
+ * DELETE /api/transcode/sessions/all
+ */
+router.delete('/sessions/all', async (req, res) => {
+    try {
+        const sessions = transcodeSession.getAllSessions();
+        let killed = 0;
+        for (const session of sessions) {
+            try {
+                await transcodeSession.removeSession(session.id);
+                killed++;
+            } catch (err) {
+                console.error(`[Transcode] Failed to kill session ${session.id}:`, err.message);
+            }
+        }
+        console.log(`[Transcode] Killed ${killed} session(s)`);
+        res.json({ success: true, killed });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
  * Direct transcode stream (backward compatible, no seeking)
  * GET /api/transcode?url=...
  * 

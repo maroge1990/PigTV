@@ -35,6 +35,23 @@ class RecordingsPage {
 
         const cvSave = document.getElementById('content-visibility-save');
         if (cvSave) cvSave.addEventListener('click', () => this.saveContentVisibility());
+
+        const killBtn = document.getElementById('kill-all-streams');
+        if (killBtn) {
+            killBtn.addEventListener('click', async () => {
+                const status = document.getElementById('kill-streams-status');
+                try {
+                    killBtn.disabled = true;
+                    const result = await API.recordings.killAllSessions();
+                    if (status) status.textContent = `Killed ${result.killed || 0} session(s)`;
+                    setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+                } catch (err) {
+                    if (status) status.textContent = 'Failed: ' + err.message;
+                } finally {
+                    killBtn.disabled = false;
+                }
+            });
+        }
     }
 
     async loadContentVisibility() {

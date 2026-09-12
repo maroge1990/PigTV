@@ -217,10 +217,12 @@ app.listen(PORT, async () => {
         console.error('Plugin initialization failed:', err);
     });
 
-    // Trigger background sync with delay to allow server to settle
+    // Start the sync timer; it checks staleness before doing work.
+    // syncAll on every startup re-downloads the entire EPG (370k+
+    // programmes from EPGenius), which takes minutes and produces
+    // megabytes of log output. Skip it when the cache is fresh.
     setTimeout(async () => {
-        await syncService.syncAll().catch(console.error);
-        // Start the server-side sync timer after initial sync
+        await syncService.syncIfStale().catch(console.error);
         await syncService.startSyncTimer().catch(console.error);
 
         // Detect hardware acceleration capabilities

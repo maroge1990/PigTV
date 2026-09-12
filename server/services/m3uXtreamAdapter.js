@@ -31,14 +31,20 @@ class M3uXtreamAdapter {
             WHERE source_id = ? AND type = 'live'
             ${!includeHidden ? 'AND is_hidden = 0' : ''}
             GROUP BY category_id
-            ORDER BY category_id ASC
+            ORDER BY MIN(sort_order) ASC, category_id ASC
         `;
 
         const rows = db.prepare(query).all(this.sourceId);
 
+        // Strip flag emoji (regional indicator pairs U+1F1E6..U+1F1FF) from
+        // display names. They render as two-letter codes on Windows because
+        // Windows doesn't support flag emoji. Keep the raw category_id
+        // unchanged so DB lookups still work.
+        const stripFlags = (s) => s ? s.replace(/[\u{1F1E6}-\u{1F1FF}]{2}/gu, '').trim() : 'Uncategorized';
+
         return rows.map(row => ({
             category_id: row.category_id || 'Uncategorized',
-            category_name: row.category_id || 'Uncategorized',
+            category_name: stripFlags(row.category_id),
             parent_id: null,
             // Bonus: include count for lazy-loading UI
             channel_count: row.channel_count

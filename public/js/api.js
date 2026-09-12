@@ -165,6 +165,11 @@ const API = {
         schedule: (data) => API.request('POST', '/recordings/schedule', data),
         getScheduled: () => API.request('GET', '/recordings/scheduled'),
         getActive: () => API.request('GET', '/recordings/active'),
+
+        // Transcode session management
+        getSessions: () => fetch('/api/transcode/sessions').then(r => r.json()),
+        killSession: (id) => fetch(`/api/transcode/${id}`, { method: 'DELETE' }).then(r => r.json()),
+        killAllSessions: () => fetch('/api/transcode/sessions/all', { method: 'DELETE' }).then(r => r.json()),
         cancelScheduled: (id) => API.request('DELETE', `/recordings/scheduled/${id}`),
         getAll: () => API.request('GET', '/recordings'),
         delete: (id) => API.request('DELETE', `/recordings/${id}`),
