@@ -180,8 +180,18 @@ class HomePage {
             }
 
             // 2. Load Recent Items
-            this.renderRecentMovies();
-            this.renderRecentSeries();
+            if (window.app?._showMovies !== false) {
+                this.renderRecentMovies();
+            } else {
+                const ms = document.getElementById('recent-movies-list');
+                if (ms) ms.closest('.dashboard-section').style.display = 'none';
+            }
+            if (window.app?._showSeries !== false) {
+                this.renderRecentSeries();
+            } else {
+                const ss = document.getElementById('recent-series-list');
+                if (ss) ss.closest('.dashboard-section').style.display = 'none';
+            }
 
         } catch (err) {
             console.error('[Dashboard] Error loading data:', err);

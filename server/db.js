@@ -84,6 +84,9 @@ function getDefaultSettings() {
     upscaleEnabled: false,
     upscaleMethod: 'hardware',    // hardware | software
     upscaleTarget: '1080p',       // 1080p | 4k | 720p
+    // UI visibility
+    showMovies: true,              // Show Movies tab and Home section
+    showSeries: true,              // Show Series tab and Home section
     // Hardware transcoding workarounds
     vaapiCpuScale: true,           // CPU decode + CPU scale + hwupload, instead of full-GPU VAAPI pipeline
     // DVR / Recording settings

@@ -166,6 +166,9 @@ class App {
         // playback might misbehave while one is running.
         this.startRecordingWatch();
 
+        // Apply Movies/Series visibility from settings
+        this.applyContentVisibility();
+
         console.log('NodeCast TV initialized');
     }
 
@@ -174,6 +177,28 @@ class App {
         update();
         if (this._recordingWatchTimer) clearInterval(this._recordingWatchTimer);
         this._recordingWatchTimer = setInterval(update, 30000);
+    }
+
+    async applyContentVisibility() {
+        try {
+            const settings = await API.settings.get();
+            const showMovies = settings.showMovies !== false;
+            const showSeries = settings.showSeries !== false;
+
+            // Nav tabs
+            document.querySelectorAll('[data-page="movies"]').forEach(el => {
+                el.style.display = showMovies ? '' : 'none';
+            });
+            document.querySelectorAll('[data-page="series"]').forEach(el => {
+                el.style.display = showSeries ? '' : 'none';
+            });
+
+            // Home page sections (Recent Movies / Recent Series)
+            this._showMovies = showMovies;
+            this._showSeries = showSeries;
+        } catch (err) {
+            // Non-fatal — tabs stay visible
+        }
     }
 
     async updateRecordingBanner() {
