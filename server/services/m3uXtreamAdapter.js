@@ -60,6 +60,7 @@ class M3uXtreamAdapter {
                 stream_url,
                 category_id,
                 added_at,
+                sort_order,
                 data
             FROM playlist_items 
             WHERE source_id = ? AND type = 'live'
@@ -73,7 +74,7 @@ class M3uXtreamAdapter {
             params.push(categoryId);
         }
 
-        query += ` ORDER BY name ASC`;
+        query += ` ORDER BY sort_order ASC, name ASC`;
 
         const rows = db.prepare(query).all(...params);
 

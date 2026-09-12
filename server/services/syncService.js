@@ -271,14 +271,15 @@ class SyncService {
             INSERT INTO playlist_items (
                 id, source_id, item_id, type, name, category_id, 
                 stream_icon, stream_url, container_extension, 
-                rating, year, added_at, data
+                rating, year, added_at, sort_order, data
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 category_id = excluded.category_id,
                 stream_icon = excluded.stream_icon,
                 container_extension = excluded.container_extension,
+                sort_order = excluded.sort_order,
                 data = excluded.data
         `);
 
@@ -328,6 +329,7 @@ class SyncService {
                     rating,
                     year,
                     added,
+                    item.sort_order || null,
                     JSON.stringify(item)
                 );
             }
@@ -518,12 +520,19 @@ class SyncService {
 
             // Map M3U channel format to our schema
             const playlistItems = batch.channels.map(ch => ({
-                stream_id: ch.id,
+                // Use a hash of the stream URL as the stable unique ID.
+                // tvg-id is NOT unique — multiple regional feeds share it
+                // for EPG matching — so using it as a primary key silently
+                // drops every duplicate after the first.
+                stream_id: ch.url
+                    ? 'm3u_' + Math.abs(Array.from(ch.url).reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0) & 0x7fffffff).toString(36)
+                    : ch.id,
                 name: ch.name,
                 category_id: ch.groupTitle || 'Uncategorized',
                 stream_icon: ch.tvgLogo,
                 stream_url: ch.url,
                 tvgId: ch.tvgId || null,
+                sort_order: totalChannels + ch.position,
             }));
 
             // Save this batch immediately (skip purge - we'll do it at the end)
