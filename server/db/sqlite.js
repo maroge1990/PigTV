@@ -37,6 +37,7 @@ function initSchema() {
             name TEXT NOT NULL,
             parent_id TEXT, -- For nested categories
             is_hidden INTEGER DEFAULT 0,
+            sort_order INTEGER, -- First-seen position in source file
             data JSON -- Extra provider data
         );
         CREATE INDEX IF NOT EXISTS idx_categories_source_type ON categories(source_id, type);
@@ -82,6 +83,11 @@ function initSchema() {
         db.exec('ALTER TABLE playlist_items ADD COLUMN sort_order INTEGER');
     } catch (e) {
         // Column already exists — expected on fresh installs or repeat starts.
+    }
+    try {
+        db.exec('ALTER TABLE categories ADD COLUMN sort_order INTEGER');
+    } catch (e) {
+        // Column already exists.
     }
 
     // EPG Programs

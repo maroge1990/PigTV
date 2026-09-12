@@ -342,6 +342,12 @@ class TranscodeSession extends EventEmitter {
         const resolution = this.getTargetHeight();
         const quality = this.options.quality || 'medium';
 
+        // Live IPTV streams have irregular timestamps. Without this, ffmpeg
+        // forces a constant frame rate and duplicates frames to fill the gaps
+        // ("More than 1000 frames duplicated"), which wastes encoder capacity
+        // and drifts further behind real time the longer the stream runs.
+        args.push('-fps_mode', 'passthrough');
+
         // Quality presets mapping
         const qualityPresets = {
             'high': { nvenc: 18, vaapi: 18, qsv: 18, amf: 18, software: 18 },
@@ -478,7 +484,15 @@ class TranscodeSession extends EventEmitter {
         if (cpuScale) {
             // Frames are in system memory (see addHwAccelInputArgs): scale on
             // the CPU, then upload to the VAAPI device for encoding.
-            args.push('-vf', `scale=-2:${height},format=nv12,hwupload`);
+            //
+            // min(ih,H) clamps rather than resizes: a 1080p source with a
+            // 1080p cap passes straight through instead of being rescaled to
+            // the same size, which on CPU-side scaling is pure wasted work.
+            // Upscaling, when explicitly enabled, still needs a real resize.
+            const scale = this.options.upscaleEnabled
+                ? `scale=-2:${height}:flags=lanczos`
+                : `scale='trunc(iw*min(1,${height}/ih)/2)*2':'min(ih,${height})'`;
+            args.push('-vf', `${scale},format=nv12,hwupload`);
         } else {
             // VAAPI filter chain:
             // 1. scale_vaapi to resize on GPU

@@ -25,6 +25,147 @@ class SettingsPage {
 
         // User management (admin only)
         this.initUserManagement();
+
+        // Recording / UI / Debug tabs
+        this.initRecordingSettings();
+        this.initUiSettings();
+        this.initDebugTools();
+    }
+
+    // ---- Recording tab -------------------------------------------------
+
+    initRecordingSettings() {
+        const saveBtn = document.getElementById('dvr-settings-save');
+        if (saveBtn) saveBtn.addEventListener('click', () => this.saveRecordingSettings());
+    }
+
+    async loadRecordingSettings() {
+        const path = document.getElementById('dvr-setting-path');
+        if (!path) return;
+        try {
+            const s = await API.settings.get();
+            path.value = s.recordingsPath || '/app/recordings';
+            document.getElementById('dvr-setting-pre').value = s.defaultPreBufferMin ?? 1;
+            document.getElementById('dvr-setting-post').value = s.defaultPostBufferMin ?? 5;
+            document.getElementById('dvr-setting-max').value = s.maxConcurrentRecordings ?? 1;
+            document.getElementById('dvr-setting-minfree').value = s.minFreeSpaceGB ?? 10;
+        } catch (err) {
+            console.error('Failed to load recording settings:', err);
+        }
+    }
+
+    async saveRecordingSettings() {
+        const status = document.getElementById('dvr-settings-status');
+        try {
+            await API.settings.update({
+                recordingsPath: document.getElementById('dvr-setting-path').value.trim() || '/app/recordings',
+                defaultPreBufferMin: parseInt(document.getElementById('dvr-setting-pre').value, 10) || 0,
+                defaultPostBufferMin: parseInt(document.getElementById('dvr-setting-post').value, 10) || 0,
+                maxConcurrentRecordings: parseInt(document.getElementById('dvr-setting-max').value, 10) || 1,
+                minFreeSpaceGB: Math.max(0, parseInt(document.getElementById('dvr-setting-minfree').value, 10) || 0)
+            });
+            if (status) {
+                status.textContent = 'Saved';
+                setTimeout(() => { status.textContent = ''; }, 2500);
+            }
+        } catch (err) {
+            if (status) status.textContent = 'Failed: ' + err.message;
+        }
+    }
+
+    // ---- UI tab --------------------------------------------------------
+
+    initUiSettings() {
+        const saveBtn = document.getElementById('content-visibility-save');
+        if (saveBtn) saveBtn.addEventListener('click', () => this.saveUiSettings());
+    }
+
+    async loadUiSettings() {
+        const movies = document.getElementById('setting-show-movies');
+        if (!movies) return;
+        try {
+            const s = await API.settings.get();
+            movies.checked = s.showMovies !== false;
+            document.getElementById('setting-show-series').checked = s.showSeries !== false;
+        } catch (err) {
+            console.error('Failed to load UI settings:', err);
+        }
+    }
+
+    async saveUiSettings() {
+        const status = document.getElementById('content-visibility-status');
+        try {
+            await API.settings.update({
+                showMovies: document.getElementById('setting-show-movies').checked,
+                showSeries: document.getElementById('setting-show-series').checked
+            });
+            if (this.app?.applyContentVisibility) await this.app.applyContentVisibility();
+            if (status) {
+                status.textContent = 'Saved';
+                setTimeout(() => { status.textContent = ''; }, 2500);
+            }
+        } catch (err) {
+            if (status) status.textContent = 'Failed: ' + err.message;
+        }
+    }
+
+    // ---- Debug tab -----------------------------------------------------
+
+    initDebugTools() {
+        const refreshBtn = document.getElementById('refresh-sessions');
+        if (refreshBtn) refreshBtn.addEventListener('click', () => this.loadActiveSessions());
+
+        const killBtn = document.getElementById('kill-all-streams');
+        if (killBtn) {
+            killBtn.addEventListener('click', async () => {
+                const status = document.getElementById('kill-streams-status');
+                killBtn.disabled = true;
+                try {
+                    const result = await API.transcode.killAllSessions();
+                    if (status) status.textContent = `Killed ${result.killed || 0} session(s)`;
+                    await this.loadActiveSessions();
+                    setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+                } catch (err) {
+                    if (status) status.textContent = 'Failed: ' + err.message;
+                } finally {
+                    killBtn.disabled = false;
+                }
+            });
+        }
+    }
+
+    async loadActiveSessions() {
+        const list = document.getElementById('active-sessions-list');
+        if (!list) return;
+        try {
+            const sessions = await API.transcode.getSessions();
+            if (!Array.isArray(sessions) || sessions.length === 0) {
+                list.innerHTML = '<span class="setting-hint">No active sessions</span>';
+                return;
+            }
+            list.innerHTML = sessions.map(sess => `
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <span class="setting-label">${sess.id}</span>
+                        <span class="setting-hint">${sess.url || ''}</span>
+                    </div>
+                    <button class="btn btn-sm btn-danger" data-kill-session="${sess.id}">Kill</button>
+                </div>
+            `).join('');
+            list.querySelectorAll('[data-kill-session]').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    btn.disabled = true;
+                    try {
+                        await API.transcode.killSession(btn.dataset.killSession);
+                        await this.loadActiveSessions();
+                    } catch (err) {
+                        btn.disabled = false;
+                    }
+                });
+            });
+        } catch (err) {
+            list.innerHTML = '<span class="setting-hint">Could not load sessions</span>';
+        }
     }
 
     initPlayerSettings() {
@@ -515,6 +656,9 @@ class SettingsPage {
     }
 
     switchTab(tabName) {
+        if (tabName === 'recording') this.loadRecordingSettings();
+        if (tabName === 'ui') this.loadUiSettings();
+        if (tabName === 'debug') this.loadActiveSessions();
         this.tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
         this.tabContents.forEach(c => c.classList.toggle('active', c.id === `tab-${tabName}`));
 

@@ -621,16 +621,15 @@ class EpgGuide {
 
         const info = row.querySelector('.epg-channel-info');
         if (info) {
-            // Name/Logo click navigates to Live TV and tunes the channel
             const channelId = row.dataset.channelId;
             const sourceId = row.dataset.sourceId;
             const channelName = row.dataset.channelName;
 
-            info.querySelector('.epg-channel-name')?.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.playChannel(channelName, channelId, sourceId);
-            });
-            info.querySelector('.epg-channel-logo')?.addEventListener('click', (e) => {
+            // The whole channel cell tunes the channel, not just the text.
+            // Anything with its own click behaviour (favourite star, the
+            // column resize handle) is excluded via closest().
+            info.addEventListener('click', (e) => {
+                if (e.target.closest('.favorite-btn') || e.target.closest('.resize-handle')) return;
                 e.stopPropagation();
                 this.playChannel(channelName, channelId, sourceId);
             });

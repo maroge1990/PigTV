@@ -5022,11 +5022,14 @@ kbd {
   50% { opacity: 0.35; }
 }
 
-/* Make EPG channel name/logo look clickable */
-.epg-channel-name,
-.epg-channel-logo {
+/* The whole EPG channel cell tunes the channel */
+.epg-channel-info {
   cursor: pointer;
 }
-.epg-channel-name:hover {
+.epg-channel-info:hover .epg-channel-name {
   color: var(--color-accent-hover);
+}
+.epg-channel-info .resize-handle,
+.epg-channel-info .favorite-btn {
+  cursor: default;
 }

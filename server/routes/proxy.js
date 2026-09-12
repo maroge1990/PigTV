@@ -17,19 +17,35 @@ const { Readable } = require('stream');
 const DEFAULT_MAX_AGE_HOURS = 24;
 
 // Helper to get formatted category list from DB
+// Flag emoji are regional-indicator pairs (U+1F1E6..U+1F1FF). Windows has no
+// glyphs for them, so Chrome falls back to rendering the two letters, which
+// looks like stray small text next to every country category. Strip them from
+// the display name only — category_id keeps the original string so all the
+// hide/show and grouping lookups keyed on it still match.
+const FLAG_EMOJI = /[\u{1F1E6}-\u{1F1FF}]{2}/gu;
+function stripFlagEmoji(name) {
+    if (!name) return name;
+    return name.replace(FLAG_EMOJI, '').replace(/\s{2,}/g, ' ').trim();
+}
+
 function getCategoriesFromDb(sourceId, type, includeHidden = false) {
     const db = getDb();
     let query = `
-        SELECT category_id, name as category_name, parent_id 
+        SELECT category_id, name as category_name, parent_id, sort_order
         FROM categories 
         WHERE source_id = ? AND type = ?
     `;
     if (!includeHidden) {
         query += ` AND is_hidden = 0`;
     }
-    query += ` ORDER BY name ASC`;
+    // Provider order first (NULLs last so a pre-migration row doesn't jump to
+    // the top), name only as a tiebreaker.
+    query += ` ORDER BY CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END, sort_order ASC, name ASC`;
     const cats = db.prepare(query).all(sourceId, type);
-    return cats;
+    return cats.map(c => ({
+        ...c,
+        category_name: stripFlagEmoji(c.category_name)
+    }));
 }
 
 // Helper to get formatted streams from DB
@@ -42,6 +58,18 @@ function getStreamsFromDb(sourceId, type, categoryId = null, includeHidden = fal
     `;
     if (!includeHidden) {
         query += ` AND is_hidden = 0`;
+        // Also exclude items whose category is hidden. A sync inserts new rows
+        // with is_hidden = 0 regardless of their category's state, so channels
+        // in a hidden category leak back into the visible list after every
+        // sync — and because the caller only fetches visible categories, their
+        // group name can't be resolved and they render as "Uncategorized".
+        query += ` AND NOT EXISTS (
+            SELECT 1 FROM categories c
+            WHERE c.source_id = playlist_items.source_id
+              AND c.type = playlist_items.type
+              AND c.category_id = playlist_items.category_id
+              AND c.is_hidden = 1
+        )`;
     }
     const params = [sourceId, type];
 
@@ -50,8 +78,9 @@ function getStreamsFromDb(sourceId, type, categoryId = null, includeHidden = fal
         params.push(categoryId);
     }
 
-    // Default sorting
-    // query += ` ORDER BY name ASC`; // Sorting usually handled by client
+    // Provider order, not alphabetical: the M3U deliberately positions
+    // placeholder/header entries above the channels they introduce.
+    query += ` ORDER BY CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END, sort_order ASC, name ASC`;
 
     const items = db.prepare(query).all(...params);
 

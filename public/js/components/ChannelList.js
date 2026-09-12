@@ -820,8 +820,12 @@ class ChannelList {
             this.groups = [];
         }
 
-        // Use Xtream API endpoints - backend now supports M3U sources too
+        // Use Xtream API endpoints - backend now supports M3U sources too.
+        // Groups are built from the visible categories, but names are resolved
+        // against the full list: a channel whose category state is out of step
+        // should still show its real group name rather than "Uncategorized".
         const categories = await API.proxy.xtream.liveCategories(sourceId);
+        const allCategories = await API.proxy.xtream.liveCategories(sourceId, { includeHidden: true });
         const streams = await API.proxy.xtream.liveStreams(sourceId);
 
         // Map categories to groups (keeping m3u sourceType for downstream compatibility)
@@ -843,7 +847,9 @@ class ChannelList {
             tvgLogo: stream.stream_icon,
             url: stream.stream_url, // M3U has direct URLs
             groupId: `m3u_${sourceId}_${stream.category_id}`,
-            groupTitle: categories.find(c => String(c.category_id) === String(stream.category_id))?.category_name || 'Uncategorized',
+            groupTitle: allCategories.find(c => String(c.category_id) === String(stream.category_id))?.category_name
+                || stream.category_id
+                || 'Uncategorized',
             sourceId,
             sourceType: 'm3u'
         }));

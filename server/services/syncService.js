@@ -289,10 +289,11 @@ class SyncService {
         console.log(`[Sync] Saving ${categories.length} ${type} categories for source ${sourceId}...`);
         const db = getDb();
         const stmt = db.prepare(`
-            INSERT INTO categories (id, source_id, category_id, type, name, parent_id, data)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO categories (id, source_id, category_id, type, name, parent_id, sort_order, data)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
+                sort_order = excluded.sort_order,
                 data = excluded.data
         `);
 
@@ -301,7 +302,8 @@ class SyncService {
                 const catId = cat.category_id; // standard xtream field
                 const name = cat.category_name;
                 const id = `${sourceId}:${catId}`;
-                stmt.run(id, sourceId, String(catId), type, name, cat.parent_id || null, JSON.stringify(cat));
+                stmt.run(id, sourceId, String(catId), type, name, cat.parent_id || null,
+                    Number.isFinite(cat.sort_order) ? cat.sort_order : null, JSON.stringify(cat));
             }
         });
 
@@ -626,10 +628,15 @@ class SyncService {
         }
 
         // Save Categories (Groups) at the end
-        const categories = Array.from(allGroups).map(name => ({
+        // allGroups is a Set, so iteration order is first-seen order in the
+        // M3U. Carry that index through as sort_order so the UI can render
+        // categories in the provider's intended sequence (header/placeholder
+        // categories sit directly above the categories they introduce).
+        const categories = Array.from(allGroups).map((name, idx) => ({
             category_id: name,
             category_name: name,
-            parent_id: null
+            parent_id: null,
+            sort_order: idx + 1
         }));
 
         await this.saveCategories(source.id, 'live', categories);

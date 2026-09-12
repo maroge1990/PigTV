@@ -331,29 +331,6 @@
       <div id="page-recordings" class="page">
         <div class="recordings-header">
           <h2>Recordings</h2>
-          <button id="dvr-settings-toggle" class="btn btn-sm btn-ghost">DVR Settings</button>
-        </div>
-        <div class="recordings-section" id="dvr-settings-panel" style="display: none;">
-          <h3>Stream Management</h3>
-          <div class="record-options" style="margin-bottom: var(--space-md);">
-            <button id="kill-all-streams" class="btn btn-sm btn-danger">Kill All Streams</button>
-            <span id="kill-streams-status" style="margin-left: 8px; font-size: 0.85rem;"></span>
-          </div>
-          <h3>Content Visibility</h3>
-          <div class="record-options" style="margin-bottom: var(--space-md);">
-            <label><input type="checkbox" id="setting-show-movies" checked> Show Movies tab</label>
-            <label><input type="checkbox" id="setting-show-series" checked> Show Series tab</label>
-            <button id="content-visibility-save" class="btn btn-sm btn-primary">Save</button>
-          </div>
-          <h3>DVR Settings</h3>
-          <div class="record-options">
-            <label>Recordings path (inside container): <input type="text" id="dvr-setting-path" style="width: 220px;"></label>
-            <label>Default pre-buffer (min): <input type="number" id="dvr-setting-pre" min="0" max="60" style="width: 60px;"></label>
-            <label>Default post-buffer (min): <input type="number" id="dvr-setting-post" min="0" max="120" style="width: 60px;"></label>
-            <label>Max concurrent recordings: <input type="number" id="dvr-setting-max" min="1" max="10" style="width: 60px;"></label>
-            <label>Minimum free space (GB): <input type="number" id="dvr-setting-minfree" min="0" max="10000" style="width: 70px;"></label>
-            <button id="dvr-settings-save" class="btn btn-sm btn-primary">Save</button>
-          </div>
         </div>
         <div class="recordings-section">
           <h3>Scheduled</h3>
@@ -455,6 +432,9 @@
             <button class="tab" data-tab="player">Player</button>
             <button class="tab" data-tab="transcode">Transcoding</button>
             <button class="tab" data-tab="content">Manage Content</button>
+            <button class="tab" data-tab="recording">Recording</button>
+            <button class="tab" data-tab="ui">UI</button>
+            <button class="tab" data-tab="debug">Debug</button>
             <button class="tab" data-tab="users" id="users-tab" style="display:none;">Users</button>
           </div>
 
@@ -820,6 +800,83 @@
           </div>
 
           <!-- Users Tab (Admin Only) -->
+          <div id="tab-recording" class="tab-content">
+            <div class="settings-section">
+              <h3>Storage</h3>
+              <div class="form-group">
+                <label for="dvr-setting-path">Recordings path (inside container)</label>
+                <input type="text" id="dvr-setting-path">
+                <span class="setting-hint">Map this container path to your storage in the Docker template.</span>
+              </div>
+              <div class="form-group">
+                <label for="dvr-setting-minfree">Minimum free space (GB)</label>
+                <input type="number" id="dvr-setting-minfree" min="0" max="10000">
+                <span class="setting-hint">Recordings are refused below this, and stopped below half of it.</span>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <h3>Scheduling Defaults</h3>
+              <div class="form-group">
+                <label for="dvr-setting-pre">Default pre-buffer (minutes)</label>
+                <input type="number" id="dvr-setting-pre" min="0" max="60">
+              </div>
+              <div class="form-group">
+                <label for="dvr-setting-post">Default post-buffer (minutes)</label>
+                <input type="number" id="dvr-setting-post" min="0" max="120">
+              </div>
+              <div class="form-group">
+                <label for="dvr-setting-max">Max concurrent recordings</label>
+                <input type="number" id="dvr-setting-max" min="1" max="10">
+                <span class="setting-hint">Keep at 1 if your provider allows a single stream.</span>
+              </div>
+              <button id="dvr-settings-save" class="btn btn-primary">Save Recording Settings</button>
+              <span id="dvr-settings-status" style="margin-left: 8px; font-size: 0.85rem;"></span>
+            </div>
+          </div>
+
+          <div id="tab-ui" class="tab-content">
+            <div class="settings-section">
+              <h3>Content Visibility</h3>
+              <div class="setting-item">
+                <label class="setting-toggle">
+                  <input type="checkbox" id="setting-show-movies" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+                <div class="setting-info">
+                  <span class="setting-label">Show Movies tab</span>
+                  <span class="setting-hint">Hides the nav tab and the Home page section.</span>
+                </div>
+              </div>
+              <div class="setting-item">
+                <label class="setting-toggle">
+                  <input type="checkbox" id="setting-show-series" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+                <div class="setting-info">
+                  <span class="setting-label">Show Series tab</span>
+                  <span class="setting-hint">Hides the nav tab and the Home page section.</span>
+                </div>
+              </div>
+              <button id="content-visibility-save" class="btn btn-primary">Save UI Settings</button>
+              <span id="content-visibility-status" style="margin-left: 8px; font-size: 0.85rem;"></span>
+            </div>
+          </div>
+
+          <div id="tab-debug" class="tab-content">
+            <div class="settings-section">
+              <h3>Stream Management</h3>
+              <p class="setting-hint">Active transcode sessions hold an ffmpeg process and a connection to
+                your provider. If a stream is left running after a browser close, kill it here.</p>
+              <div id="active-sessions-list" style="margin: var(--space-md) 0;">
+                <span class="setting-hint">Loading...</span>
+              </div>
+              <button id="refresh-sessions" class="btn btn-secondary">Refresh</button>
+              <button id="kill-all-streams" class="btn btn-danger">Kill All Streams</button>
+              <span id="kill-streams-status" style="margin-left: 8px; font-size: 0.85rem;"></span>
+            </div>
+          </div>
+
           <div id="tab-users" class="tab-content">
             <div class="settings-section">
               <h3>User Management</h3>
@@ -1153,18 +1210,18 @@
 
   <!-- JavaScript -->
   <script src="/js/icons.js"></script>
-  <script src="/js/api.js?v=4"></script>
+  <script src="/js/api.js?v=5"></script>
   <script src="/js/components/VideoPlayer.js?v=2"></script>
-  <script src="/js/components/ChannelList.js?v=3"></script>
+  <script src="/js/components/ChannelList.js?v=4"></script>
   <script src="/js/components/SourceManager.js?v=2"></script>
-  <script src="/js/components/EpgGuide.js?v=4"></script>
+  <script src="/js/components/EpgGuide.js?v=5"></script>
   <script src="/js/pages/HomePage.js?v=3"></script>
   <script src="/js/pages/LivePage.js?v=2"></script>
   <script src="/js/pages/Guide.js?v=2"></script>
-  <script src="/js/pages/RecordingsPage.js?v=3"></script>
+  <script src="/js/pages/RecordingsPage.js?v=4"></script>
   <script src="/js/pages/MoviesPage.js?v=4"></script>
   <script src="/js/pages/SeriesPage.js?v=1"></script>
-  <script src="/js/pages/Settings.js?v=2"></script>
+  <script src="/js/pages/Settings.js?v=3"></script>
   <script src="/js/pages/WatchPage.js?v=1"></script>
   <script src="/js/app.js?v=7"></script>
   <script>
