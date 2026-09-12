@@ -296,12 +296,25 @@ class TranscodeSession extends EventEmitter {
                 );
                 break;
             case 'vaapi':
-                // VAAPI hardware decoding (Linux)
-                args.push(
-                    '-hwaccel', 'vaapi',
-                    '-hwaccel_device', '/dev/dri/renderD128',
-                    '-hwaccel_output_format', 'vaapi'
-                );
+                if (this.options.vaapiCpuScale !== false) {
+                    // Some Intel iGPUs expose a VAAPI encoder but not a working
+                    // decode + VPP pipeline, so hardware decode into VAAPI
+                    // surfaces fails before any filter runs. Decode on the CPU
+                    // instead and only initialise the device for the encoder:
+                    // the filter chain in addVaapiEncoderArgs scales in software
+                    // and hwuploads the result.
+                    args.push(
+                        '-init_hw_device', 'vaapi=va:/dev/dri/renderD128',
+                        '-filter_hw_device', 'va'
+                    );
+                } else {
+                    // VAAPI hardware decoding (Linux)
+                    args.push(
+                        '-hwaccel', 'vaapi',
+                        '-hwaccel_device', '/dev/dri/renderD128',
+                        '-hwaccel_output_format', 'vaapi'
+                    );
+                }
                 break;
             case 'qsv':
                 // Intel QuickSync hardware decoding
@@ -460,11 +473,19 @@ class TranscodeSession extends EventEmitter {
      * VAAPI encoder arguments (Linux)
      */
     addVaapiEncoderArgs(args, height, qp) {
-        // VAAPI filter chain:
-        // 1. scale_vaapi to resize on GPU
-        // 2. Ensure output format is nv12 for maximum encoder compatibility
-        // The format is handled automatically when using -hwaccel_output_format vaapi
-        args.push('-vf', this.buildScaleFilter('vaapi', height));
+        const cpuScale = this.options.vaapiCpuScale !== false;
+
+        if (cpuScale) {
+            // Frames are in system memory (see addHwAccelInputArgs): scale on
+            // the CPU, then upload to the VAAPI device for encoding.
+            args.push('-vf', `scale=-2:${height},format=nv12,hwupload`);
+        } else {
+            // VAAPI filter chain:
+            // 1. scale_vaapi to resize on GPU
+            // 2. Ensure output format is nv12 for maximum encoder compatibility
+            // The format is handled automatically when using -hwaccel_output_format vaapi
+            args.push('-vf', this.buildScaleFilter('vaapi', height));
+        }
 
         // VAAPI encoder with quality setting
         // Note: -global_quality is the portable way to set quality for VAAPI
@@ -472,9 +493,15 @@ class TranscodeSession extends EventEmitter {
             '-c:v', 'h264_vaapi',
             '-profile:v', 'main',      // Use main profile for compatibility
             '-global_quality', String(qp),
-            '-bf', '3',
-            '-pix_fmt', 'yuv420p'      // Force 8-bit output for compatibility
+            '-bf', '3'
         );
+
+        if (!cpuScale) {
+            // Only meaningful when the frames are still software frames at this
+            // point; with hwupload the encoder input is already a VAAPI surface
+            // and forcing a software pixel format conflicts with it.
+            args.push('-pix_fmt', 'yuv420p');
+        }
     }
 
     /**

@@ -52,6 +52,7 @@ router.post('/session', async (req, res) => {
             upscaleEnabled: settings.upscaleEnabled || false,
             upscaleMethod: settings.upscaleMethod || 'hardware',
             upscaleTarget: settings.upscaleTarget || '1080p',
+            vaapiCpuScale: settings.vaapiCpuScale !== false, // CPU decode/scale + hwupload for iGPUs with a broken VAAPI VPP pipeline
             videoMode: videoMode, // 'copy' or 'encode'
             videoCodec: videoCodec, // 'h264', 'hevc', etc.
             audioCodec: audioCodec, // 'aac', 'ac3', etc.

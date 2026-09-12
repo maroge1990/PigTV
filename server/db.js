@@ -84,6 +84,8 @@ function getDefaultSettings() {
     upscaleEnabled: false,
     upscaleMethod: 'hardware',    // hardware | software
     upscaleTarget: '1080p',       // 1080p | 4k | 720p
+    // Hardware transcoding workarounds
+    vaapiCpuScale: true,           // CPU decode + CPU scale + hwupload, instead of full-GPU VAAPI pipeline
     // DVR / Recording settings
     recordingsPath: '/app/recordings', // Where recorded files are written (mount your storage here)
     defaultPreBufferMin: 1,        // Minutes to start recording before the scheduled program start
