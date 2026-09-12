@@ -26,11 +26,37 @@ class RecordingsPage {
             const showing = panel.style.display !== 'none';
             if (!showing) {
                 await this.loadDvrSettings();
+                await this.loadContentVisibility();
             }
             panel.style.display = showing ? 'none' : 'block';
         });
 
         saveBtn.addEventListener('click', () => this.saveDvrSettings());
+
+        const cvSave = document.getElementById('content-visibility-save');
+        if (cvSave) cvSave.addEventListener('click', () => this.saveContentVisibility());
+    }
+
+    async loadContentVisibility() {
+        try {
+            const settings = await API.settings.get();
+            document.getElementById('setting-show-movies').checked = settings.showMovies !== false;
+            document.getElementById('setting-show-series').checked = settings.showSeries !== false;
+        } catch (err) {
+            console.error('Failed to load content visibility:', err);
+        }
+    }
+
+    async saveContentVisibility() {
+        try {
+            await API.settings.update({
+                showMovies: document.getElementById('setting-show-movies').checked,
+                showSeries: document.getElementById('setting-show-series').checked
+            });
+            if (window.app) await window.app.applyContentVisibility();
+        } catch (err) {
+            alert('Failed to save: ' + err.message);
+        }
     }
 
     async loadDvrSettings() {
