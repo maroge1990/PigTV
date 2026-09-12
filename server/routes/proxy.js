@@ -325,15 +325,47 @@ router.get('/epg/:sourceId', async (req, res) => {
         const windowStart = Date.now() - (24 * 60 * 60 * 1000); // -24 hours
         const windowEnd = Date.now() + (24 * 60 * 60 * 1000);   // +24 hours
 
-        // Fetch programs within the time window
-        let programsQuery = `
-            SELECT channel_id as channelId, start_time, end_time, title, description, data 
-            FROM epg_programs 
-            WHERE source_id = ? AND end_time > ? AND start_time < ?
-        `;
+        // Collect the EPG channel IDs (tvg-id values) of visible M3U channels.
+        // The EPG source can carry programme data for tens of thousands of
+        // channels, but the user only sees the ones from their M3U that aren't
+        // hidden. Filtering here avoids sending megabytes of JSON the browser
+        // will never render.
+        //
+        // Visible tvg-ids come from live playlist_items on OTHER sources
+        // (the M3U), not from this EPG source, so we query across sources.
+        const visibleTvgIds = db.prepare(`
+            SELECT DISTINCT json_extract(data, '$.tvgId') as tvg_id
+            FROM playlist_items
+            WHERE type = 'live' AND is_hidden = 0
+              AND json_extract(data, '$.tvgId') IS NOT NULL
+              AND json_extract(data, '$.tvgId') != ''
+        `).all().map(r => r.tvg_id);
+
+        let programs;
         const params = [sourceId, windowStart, windowEnd];
 
-        const programs = db.prepare(programsQuery).all(...params);
+        if (visibleTvgIds.length > 0 && visibleTvgIds.length < 5000) {
+            // Build a temp table for efficient filtering
+            db.exec('CREATE TEMP TABLE IF NOT EXISTS _visible_epg_ids (id TEXT PRIMARY KEY)');
+            db.exec('DELETE FROM _visible_epg_ids');
+            const ins = db.prepare('INSERT OR IGNORE INTO _visible_epg_ids (id) VALUES (?)');
+            const fillVisible = db.transaction((ids) => { for (const id of ids) ins.run(id); });
+            fillVisible(visibleTvgIds);
+
+            programs = db.prepare(`
+                SELECT channel_id as channelId, start_time, end_time, title, description, data
+                FROM epg_programs
+                WHERE source_id = ? AND end_time > ? AND start_time < ?
+                  AND channel_id IN (SELECT id FROM _visible_epg_ids)
+            `).all(...params);
+        } else {
+            // Fallback: no visible channels found or too many — return everything
+            programs = db.prepare(`
+                SELECT channel_id as channelId, start_time, end_time, title, description, data
+                FROM epg_programs
+                WHERE source_id = ? AND end_time > ? AND start_time < ?
+            `).all(...params);
+        }
 
         const formattedPrograms = programs.map(p => ({
             channelId: p.channelId,
