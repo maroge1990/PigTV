@@ -582,6 +582,7 @@ class EpgGuide {
         row.className = 'epg-channel-row';
         row.dataset.channelId = sourceChannel.id;
         row.dataset.sourceId = sourceChannel.sourceId;
+        row.dataset.channelName = sourceChannel.name || '';
         row.dataset.index = index;
         // Position absolutely for virtual scrolling
         row.style.position = 'absolute';
@@ -620,14 +621,18 @@ class EpgGuide {
 
         const info = row.querySelector('.epg-channel-info');
         if (info) {
-            // Name/Logo click plays channel
+            // Name/Logo click navigates to Live TV and tunes the channel
+            const channelId = row.dataset.channelId;
+            const sourceId = row.dataset.sourceId;
+            const channelName = row.dataset.channelName;
+
             info.querySelector('.epg-channel-name')?.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.playChannel(info.querySelector('.epg-channel-name').textContent);
+                this.playChannel(channelName, channelId, sourceId);
             });
             info.querySelector('.epg-channel-logo')?.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.playChannel(info.querySelector('.epg-channel-name').textContent);
+                this.playChannel(channelName, channelId, sourceId);
             });
 
             // Favorite click
@@ -978,17 +983,30 @@ class EpgGuide {
     /**
      * Play channel from EPG
      */
-    async playChannel(channelName) {
-        // Find channel in channel list and play
-        if (window.app?.channelList) {
-            const channel = window.app.channelList.channels.find(c =>
-                c.name === channelName || c.tvgName === channelName
+    async playChannel(channelName, channelId, sourceId) {
+        if (!window.app?.channelList) return;
+
+        const cl = window.app.channelList;
+
+        // Ensure channels are loaded (they may not be if the user hasn't
+        // visited Live TV yet this session)
+        if (cl.channels.length === 0) {
+            await cl.loadChannels();
+        }
+
+        // Try ID match first (reliable), then fall back to name
+        let channel = cl.channels.find(c => c.id === channelId);
+        if (!channel && channelName) {
+            const lower = channelName.toLowerCase();
+            channel = cl.channels.find(c =>
+                (c.name || '').toLowerCase() === lower ||
+                (c.tvgName || '').toLowerCase() === lower
             );
-            if (channel) {
-                await window.app.channelList.selectChannel({ channelId: channel.id });
-                // Switch to live TV page
-                document.querySelector('[data-page="live"]').click();
-            }
+        }
+
+        if (channel) {
+            await cl.selectChannel({ channelId: channel.id });
+            window.app.navigateTo('live');
         }
     }
 }

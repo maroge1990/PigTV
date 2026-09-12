@@ -5021,3 +5021,12 @@ kbd {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
 }
+
+/* Make EPG channel name/logo look clickable */
+.epg-channel-name,
+.epg-channel-logo {
+  cursor: pointer;
+}
+.epg-channel-name:hover {
+  color: var(--color-accent-hover);
+}
