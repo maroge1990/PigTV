@@ -3,10 +3,10 @@ const router = express.Router();
 const { spawn } = require('child_process');
 const db = require('../db');
 
-// Cache of url -> audio codec name, so we only pay for the probe once per
-// stream rather than on every playback start.
-const audioCodecCache = new Map();
-const AUDIO_CODEC_CACHE_TTL = 5 * 60 * 1000;
+// Cache of url -> { video, audio } codec names, so we only pay for the probe
+// once per stream rather than on every playback start.
+const codecCache = new Map();
+const CODEC_CACHE_TTL = 5 * 60 * 1000;
 
 /**
  * Detect the codec of the first audio stream.
@@ -19,20 +19,19 @@ const AUDIO_CODEC_CACHE_TTL = 5 * 60 * 1000;
  * Returns null if ffprobe is unavailable, times out, or fails - callers then
  * fall back to the old behaviour of not applying any audio bitstream filter.
  */
-function detectAudioCodec(url, ffprobePath, userAgent, timeoutMs = 8000) {
+function detectCodecs(url, ffprobePath, userAgent, timeoutMs = 8000) {
     return new Promise((resolve) => {
         if (!ffprobePath) return resolve(null);
 
-        const cached = audioCodecCache.get(url);
-        if (cached && (Date.now() - cached.at) < AUDIO_CODEC_CACHE_TTL) {
+        const cached = codecCache.get(url);
+        if (cached && (Date.now() - cached.at) < CODEC_CACHE_TTL) {
             return resolve(cached.codec);
         }
 
         const args = [
             '-v', 'error',
             '-user_agent', userAgent,
-            '-select_streams', 'a:0',
-            '-show_entries', 'stream=codec_name',
+            '-show_entries', 'stream=codec_name,codec_type',
             '-print_format', 'json',
             '-probesize', '2000000',
             '-analyzeduration', '2000000',
@@ -48,12 +47,12 @@ function detectAudioCodec(url, ffprobePath, userAgent, timeoutMs = 8000) {
 
         let stdout = '';
         let settled = false;
-        const finish = (codec) => {
+        const finish = (codecs) => {
             if (settled) return;
             settled = true;
             clearTimeout(timer);
-            if (codec) audioCodecCache.set(url, { codec, at: Date.now() });
-            resolve(codec);
+            if (codecs) codecCache.set(url, { codec: codecs, at: Date.now() });
+            resolve(codecs);
         };
 
         const timer = setTimeout(() => {
@@ -66,8 +65,11 @@ function detectAudioCodec(url, ffprobePath, userAgent, timeoutMs = 8000) {
         proc.on('close', (code) => {
             if (code !== 0) return finish(null);
             try {
-                const parsed = JSON.parse(stdout);
-                finish(parsed?.streams?.[0]?.codec_name || null);
+                const streams = JSON.parse(stdout)?.streams || [];
+                finish({
+                    video: streams.find(s => s.codec_type === 'video')?.codec_name || null,
+                    audio: streams.find(s => s.codec_type === 'audio')?.codec_name || null
+                });
             } catch (err) {
                 finish(null);
             }
@@ -98,10 +100,17 @@ router.get('/', async (req, res) => {
     const settings = await db.settings.get();
     const userAgent = db.getUserAgent(settings);
 
-    // Work out whether the audio needs the ADTS -> ASC bitstream filter
-    const audioCodec = await detectAudioCodec(url, ffprobePath, userAgent);
+    // Work out what fix-ups the MP4 muxer needs for this stream
+    const codecs = await detectCodecs(url, ffprobePath, userAgent);
+    const audioCodec = codecs?.audio || null;
+    const videoCodec = (codecs?.video || '').toLowerCase();
     const needsAdtsToAsc = audioCodec === 'aac';
-    console.log(`[Remux] Audio codec: ${audioCodec || 'unknown'}${needsAdtsToAsc ? ' (applying aac_adtstoasc)' : ''}`);
+    // HEVC in fMP4 must be tagged hvc1 or browsers refuse the track. Without
+    // this, an HEVC channel that could be remuxed at near-zero cost falls
+    // back to a full re-encode.
+    const needsHvc1Tag = videoCodec.includes('hevc') || videoCodec.includes('h265');
+    console.log(`[Remux] Codecs: video=${videoCodec || 'unknown'}, audio=${audioCodec || 'unknown'}` +
+        `${needsAdtsToAsc ? ' (aac_adtstoasc)' : ''}${needsHvc1Tag ? ' (tag hvc1)' : ''}`);
 
     console.log(`[Remux] Starting remux for: ${url}`);
     console.log(`[Remux] Using User-Agent: ${settings.userAgentPreset}`);
@@ -155,6 +164,9 @@ router.get('/', async (req, res) => {
     if (needsAdtsToAsc) {
         // Insert just before the output argument
         args.splice(args.length - 1, 0, '-bsf:a', 'aac_adtstoasc');
+    }
+    if (needsHvc1Tag) {
+        args.splice(args.length - 1, 0, '-tag:v', 'hvc1');
     }
 
     console.log(`[Remux] Full command: ${ffmpegPath} ${args.join(' ')}`);

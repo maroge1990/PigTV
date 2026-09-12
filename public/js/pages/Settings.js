@@ -27,9 +27,40 @@ class SettingsPage {
         this.initUserManagement();
 
         // Recording / UI / Debug tabs
+        this.initHwDecodeSettings();
         this.initRecordingSettings();
         this.initUiSettings();
         this.initDebugTools();
+    }
+
+    initHwDecodeSettings() {
+        const bind = (id, key) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('change', async () => {
+                try {
+                    await API.settings.update({ [key]: el.checked });
+                } catch (err) {
+                    console.error(`Failed to save ${key}:`, err);
+                    el.checked = !el.checked;
+                }
+            });
+        };
+        bind('setting-vaapi-hw-decode', 'vaapiHwDecode');
+        bind('setting-vaapi-cpu-scale', 'vaapiCpuScale');
+    }
+
+    async loadHwDecodeSettings() {
+        const hw = document.getElementById('setting-vaapi-hw-decode');
+        if (!hw) return;
+        try {
+            const s = await API.settings.get();
+            hw.checked = s.vaapiHwDecode !== false;
+            const cpu = document.getElementById('setting-vaapi-cpu-scale');
+            if (cpu) cpu.checked = s.vaapiCpuScale !== false;
+        } catch (err) {
+            console.error('Failed to load hardware decode settings:', err);
+        }
     }
 
     // ---- Recording tab -------------------------------------------------
@@ -656,6 +687,7 @@ class SettingsPage {
     }
 
     switchTab(tabName) {
+        if (tabName === 'transcode') this.loadHwDecodeSettings();
         if (tabName === 'recording') this.loadRecordingSettings();
         if (tabName === 'ui') this.loadUiSettings();
         if (tabName === 'debug') this.loadActiveSessions();

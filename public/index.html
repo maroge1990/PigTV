@@ -630,6 +630,30 @@
             </div>
 
             <div class="settings-section">
+              <h3>Hardware Decoding</h3>
+              <div class="setting-item">
+                <label class="setting-toggle">
+                  <input type="checkbox" id="setting-vaapi-hw-decode" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+                <div class="setting-info">
+                  <span class="setting-label">Decode on the GPU</span>
+                  <span class="setting-hint">Keeps decoding off the CPU, which is the expensive half for HEVC.
+                    Falls back to software decode automatically if a session fails to start.</span>
+                </div>
+              </div>
+              <div class="setting-item">
+                <label class="setting-toggle">
+                  <input type="checkbox" id="setting-vaapi-cpu-scale" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+                <div class="setting-info">
+                  <span class="setting-label">Scale on the CPU</span>
+                  <span class="setting-hint">Works around iGPUs without a usable VAAPI scaling pipeline.
+                    Turn off to use scale_vaapi if your hardware supports it.</span>
+                </div>
+              </div>
+
               <h3>Upscaling</h3>
               <div class="setting-item">
                 <label class="setting-toggle">
@@ -1211,7 +1235,7 @@
   <!-- JavaScript -->
   <script src="/js/icons.js"></script>
   <script src="/js/api.js?v=5"></script>
-  <script src="/js/components/VideoPlayer.js?v=2"></script>
+  <script src="/js/components/VideoPlayer.js?v=3"></script>
   <script src="/js/components/ChannelList.js?v=4"></script>
   <script src="/js/components/SourceManager.js?v=2"></script>
   <script src="/js/components/EpgGuide.js?v=5"></script>
@@ -1221,7 +1245,7 @@
   <script src="/js/pages/RecordingsPage.js?v=4"></script>
   <script src="/js/pages/MoviesPage.js?v=4"></script>
   <script src="/js/pages/SeriesPage.js?v=1"></script>
-  <script src="/js/pages/Settings.js?v=3"></script>
+  <script src="/js/pages/Settings.js?v=4"></script>
   <script src="/js/pages/WatchPage.js?v=1"></script>
   <script src="/js/app.js?v=7"></script>
   <script>

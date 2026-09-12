@@ -88,7 +88,8 @@ function getDefaultSettings() {
     showMovies: true,              // Show Movies tab and Home section
     showSeries: true,              // Show Series tab and Home section
     // Hardware transcoding workarounds
-    vaapiCpuScale: true,           // CPU decode + CPU scale + hwupload, instead of full-GPU VAAPI pipeline
+    vaapiCpuScale: true,           // CPU scale + hwupload, instead of the full-GPU VAAPI pipeline
+    vaapiHwDecode: true,           // Decode on the GPU (frames returned to system memory for the CPU scale)
     // DVR / Recording settings
     recordingsPath: '/app/recordings', // Where recorded files are written (mount your storage here)
     defaultPreBufferMin: 1,        // Minutes to start recording before the scheduled program start

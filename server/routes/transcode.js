@@ -29,7 +29,7 @@ transcodeSession.startCleanupInterval();
  * Body: { url: string, seekOffset?: number }
  */
 router.post('/session', async (req, res) => {
-    const { url, seekOffset, videoMode, videoCodec, audioCodec, audioChannels } = req.body;
+    const { url, seekOffset, videoMode, videoCodec, audioCodec, audioChannels, segmentType } = req.body;
 
     if (!url) {
         return res.status(400).json({ error: 'URL is required' });
@@ -52,7 +52,9 @@ router.post('/session', async (req, res) => {
             upscaleEnabled: settings.upscaleEnabled || false,
             upscaleMethod: settings.upscaleMethod || 'hardware',
             upscaleTarget: settings.upscaleTarget || '1080p',
-            vaapiCpuScale: settings.vaapiCpuScale !== false, // CPU decode/scale + hwupload for iGPUs with a broken VAAPI VPP pipeline
+            vaapiCpuScale: settings.vaapiCpuScale !== false, // CPU scale + hwupload for iGPUs with a broken VAAPI VPP pipeline
+            vaapiHwDecode: settings.vaapiHwDecode !== false, // GPU decode, frames returned to system memory
+            segmentType: segmentType, // 'mpegts' or 'fmp4' (fmp4 allows HEVC stream copy)
             videoMode: videoMode, // 'copy' or 'encode'
             videoCodec: videoCodec, // 'h264', 'hevc', etc.
             audioCodec: audioCodec, // 'aac', 'ac3', etc.
@@ -111,7 +113,8 @@ router.get('/:sessionId/:segment', async (req, res) => {
     const { sessionId, segment } = req.params;
 
     // Only handle .ts files
-    if (!segment.endsWith('.ts')) {
+    // .ts for mpegts sessions, .m4s plus init.mp4 for fMP4 sessions
+    if (!/\.(ts|m4s|mp4)$/.test(segment)) {
         return res.status(404).json({ error: 'Invalid segment' });
     }
 

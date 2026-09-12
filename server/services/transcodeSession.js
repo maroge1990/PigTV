@@ -76,6 +76,12 @@ class TranscodeSession extends EventEmitter {
             upscaleEnabled: options.upscaleEnabled || false,
             upscaleMethod: options.upscaleMethod || 'hardware', // 'hardware' or 'software'
             upscaleTarget: options.upscaleTarget || '1080p',
+            // 'mpegts' (universal, but cannot carry HEVC for hls.js) or
+            // 'fmp4' (lets HEVC be stream-copied instead of re-encoded)
+            segmentType: options.segmentType === 'fmp4' ? 'fmp4' : 'mpegts',
+            // Decode on the GPU where possible. Independent of vaapiCpuScale,
+            // which only concerns the scaling/upload stage.
+            vaapiHwDecode: options.vaapiHwDecode !== false,
             ...options
         };
     }
@@ -84,7 +90,7 @@ class TranscodeSession extends EventEmitter {
      * Start the transcoding process
      */
     async start() {
-        if (this.status === 'running') {
+        if (this.status === 'running' || this.status === 'starting') {
             return;
         }
 
@@ -143,6 +149,25 @@ class TranscodeSession extends EventEmitter {
                     console.error(`[TranscodeSession ${this.id}] FFmpeg exited with code ${code}`);
                     this.status = 'error';
                     this.error = `FFmpeg exited with code ${code}`;
+
+                    // Hardware decode is the most likely thing to fail on an
+                    // unusual driver, and it fails immediately rather than
+                    // part-way through. If a session dies within a few seconds
+                    // of starting, retry once with decode on the CPU before
+                    // giving up, so a driver quirk degrades performance
+                    // instead of breaking playback entirely.
+                    const diedEarly = (Date.now() - this.startTime) < 10000;
+                    if (diedEarly && this.options.vaapiHwDecode !== false && !this._triedSwDecode) {
+                        this._triedSwDecode = true;
+                        this.options.vaapiHwDecode = false;
+                        console.warn(`[TranscodeSession ${this.id}] Retrying with software decode`);
+                        this.process = null;
+                        this.status = 'pending';
+                        this.start().catch(err => {
+                            console.error(`[TranscodeSession ${this.id}] Software decode retry failed:`, err.message);
+                        });
+                        return;
+                    }
                 }
                 this.process = null;
                 this.emit('exit', code);
@@ -170,8 +195,8 @@ class TranscodeSession extends EventEmitter {
      * Build FFmpeg arguments for HLS output with optional GPU encoding
      */
     buildFFmpegArgs() {
-        const segmentPattern = path.join(this.dir, 'seg%04d.m4s');
         const videoMode = this.options.videoMode || 'encode';
+        const isFmp4 = this.options.segmentType === 'fmp4';
 
         // Resolve 'auto' encoder to detected hardware, fallback to software
         let encoder = this.options.hwEncoder || 'software';
@@ -218,13 +243,21 @@ class TranscodeSession extends EventEmitter {
         if (videoMode === 'copy') {
             args.push('-c:v', 'copy');
 
-            // Critical for MKV/MP4 -> TS copy: Convert bitstream from AVCC/HVCC to Annex B
-            if (this.options.videoCodec === 'hevc' || this.options.videoCodec === 'h265') {
+            if (isFmp4) {
+                // fMP4 wants length-prefixed samples, which is what the source
+                // already has coming out of MPEG-TS via the mp4 muxer, so no
+                // Annex B conversion here. The tag matters though: hls.js and
+                // Safari both expect hvc1 for HEVC in fMP4.
+                const vc = (this.options.videoCodec || '').toLowerCase();
+                if (vc.includes('hevc') || vc.includes('h265')) {
+                    args.push('-tag:v', 'hvc1');
+                }
+            } else if (this.options.videoCodec === 'hevc' || this.options.videoCodec === 'h265') {
+                // Critical for MKV/MP4 -> TS copy: AVCC/HVCC to Annex B
                 args.push('-bsf:v', 'hevc_mp4toannexb');
             } else if (this.options.videoCodec === 'h264' || this.options.videoCodec === 'avc') {
                 args.push('-bsf:v', 'h264_mp4toannexb');
             } else {
-                // Fallback (e.g. unknown codec), try strict extraction
                 args.push('-bsf:v', 'dump_extra');
             }
         } else {
@@ -274,11 +307,23 @@ class TranscodeSession extends EventEmitter {
             '-f', 'hls',
             '-hls_time', String(SEGMENT_DURATION),
             '-hls_list_size', '0', // Keep all segments in playlist
-            '-hls_flags', 'independent_segments+append_list',
-            '-hls_segment_type', 'mpegts',
-            '-hls_segment_filename', path.join(this.dir, 'seg%04d.ts'),
-            this.playlistPath
+            '-hls_flags', 'independent_segments+append_list'
         );
+
+        if (isFmp4) {
+            args.push(
+                '-hls_segment_type', 'fmp4',
+                '-hls_fmp4_init_filename', 'init.mp4',
+                '-hls_segment_filename', path.join(this.dir, 'seg%04d.m4s')
+            );
+        } else {
+            args.push(
+                '-hls_segment_type', 'mpegts',
+                '-hls_segment_filename', path.join(this.dir, 'seg%04d.ts')
+            );
+        }
+
+        args.push(this.playlistPath);
 
         return args;
     }
@@ -296,7 +341,20 @@ class TranscodeSession extends EventEmitter {
                 );
                 break;
             case 'vaapi':
-                if (this.options.vaapiCpuScale !== false) {
+                if (this.options.vaapiCpuScale !== false && this.options.vaapiHwDecode !== false) {
+                    // Decode on the GPU but let ffmpeg hand the frames back in
+                    // system memory (no -hwaccel_output_format), so the filter
+                    // chain can scale on the CPU and hwupload for the encoder.
+                    // This avoids the VPP pipeline that is broken on this class
+                    // of iGPU while still keeping decode off the CPU, which is
+                    // the expensive half for HEVC.
+                    args.push(
+                        '-hwaccel', 'vaapi',
+                        '-hwaccel_device', '/dev/dri/renderD128',
+                        '-init_hw_device', 'vaapi=va:/dev/dri/renderD128',
+                        '-filter_hw_device', 'va'
+                    );
+                } else if (this.options.vaapiCpuScale !== false) {
                     // Some Intel iGPUs expose a VAAPI encoder but not a working
                     // decode + VPP pipeline, so hardware decode into VAAPI
                     // surfaces fails before any filter runs. Decode on the CPU
@@ -507,7 +565,12 @@ class TranscodeSession extends EventEmitter {
             '-c:v', 'h264_vaapi',
             '-profile:v', 'main',      // Use main profile for compatibility
             '-global_quality', String(qp),
-            '-bf', '3'
+            // No B-frames for live. They add reordering latency and, on Intel
+            // VAAPI, cost noticeably more than they save at these bitrates.
+            '-bf', '0',
+            // Force a keyframe on each segment boundary so the muxer can cut
+            // cleanly instead of stretching segments to the next natural IDR.
+            '-force_key_frames', `expr:gte(t,n_forced*${SEGMENT_DURATION})`
         );
 
         if (!cpuScale) {

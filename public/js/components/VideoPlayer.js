@@ -810,6 +810,47 @@ class VideoPlayer {
     }
 
     /**
+     * What this browser can actually decode, asked directly rather than
+     * assumed. Chrome on Windows plays HEVC when the platform has a decoder,
+     * Safari always does, and treating it as unsupported means re-encoding
+     * streams that would have played untouched.
+     */
+    getCodecCapabilities() {
+        if (this._codecCaps) return this._codecCaps;
+
+        const MS = window.MediaSource;
+        const supported = (type) => {
+            try {
+                if (MS && typeof MS.isTypeSupported === 'function' && MS.isTypeSupported(type)) return true;
+            } catch (e) { /* fall through */ }
+            try {
+                return this.video.canPlayType(type) === 'probably';
+            } catch (e) {
+                return false;
+            }
+        };
+
+        this._codecCaps = {
+            hevc: supported('video/mp4; codecs="hvc1.1.6.L93.B0"')
+                || supported('video/mp4; codecs="hev1.1.6.L93.B0"'),
+            av1: supported('video/mp4; codecs="av01.0.05M.08"'),
+            ac3: supported('audio/mp4; codecs="ac-3"'),
+            eac3: supported('audio/mp4; codecs="ec-3"'),
+            flac: supported('audio/mp4; codecs="flac"')
+        };
+        console.log('[Player] Codec support:', this._codecCaps);
+        return this._codecCaps;
+    }
+
+    capabilityQueryString() {
+        const caps = this.getCodecCapabilities();
+        return Object.keys(caps)
+            .filter(k => caps[k])
+            .map(k => `&${k}=1`)
+            .join('');
+    }
+
+    /**
      * Start a HLS transcode session
      */
     async startTranscodeSession(url, options = {}) {
@@ -875,7 +916,7 @@ class VideoPlayer {
             if (this.settings.autoTranscode) {
                 console.log('[Player] Auto Transcode enabled. Probing stream...');
                 try {
-                    const probeRes = await fetch(`/api/probe?url=${encodeURIComponent(streamUrl)}`);
+                    const probeRes = await fetch(`/api/probe?url=${encodeURIComponent(streamUrl)}${this.capabilityQueryString()}`);
                     const info = await probeRes.json();
                     console.log(`[Player] Probe result: video=${info.video}, audio=${info.audio}, ${info.width}x${info.height}, compatible=${info.compatible}`);
 
@@ -909,15 +950,26 @@ class VideoPlayer {
                         // Incompatible audio (AC3/EAC3/DTS) or Upscaling enabled - use transcode session
                         console.log(`[Player] Auto: Using HLS transcode session (${this.settings.upscaleEnabled ? 'Upscaling' : 'Incompatible audio/video'})`);
 
-                        // Heuristic: If video is h264, it's likely compatible, so only copy video (audio transcode only)
-                        // BUT: If upscaling is enabled, we MUST encode.
-                        const videoMode = (info.video && info.video.includes('h264') && !this.settings.upscaleEnabled) ? 'copy' : 'encode';
-                        const statusText = videoMode === 'copy' ? 'Transcoding (Audio)' : (this.settings.upscaleEnabled ? 'Upscaling' : 'Transcoding (Video)');
+                        // Only re-encode video when we actually have to. If the
+                        // client can decode the video codec, stream-copy it and
+                        // fix up only the audio: near-zero CPU instead of a full
+                        // encode. HEVC copy needs fMP4 segments, since hls.js
+                        // cannot demux HEVC out of MPEG-TS.
+                        // Upscaling is the one case that forces a real encode.
+                        const canCopyVideo = info.videoOk === true && !this.settings.upscaleEnabled;
+                        const videoMode = canCopyVideo ? 'copy' : 'encode';
+                        const segmentType = (canCopyVideo && info.videoIsHevc) ? 'fmp4' : 'mpegts';
+
+                        const statusText = canCopyVideo
+                            ? 'Transcoding (Audio)'
+                            : (this.settings.upscaleEnabled ? 'Upscaling' : 'Transcoding (Video)');
                         const statusMode = this.settings.upscaleEnabled ? 'upscaling' : 'transcoding';
 
+                        console.log(`[Player] Strategy: video=${videoMode}, segments=${segmentType}`);
                         this.updateTranscodeStatus(statusMode, statusText);
                         const playlistUrl = await this.startTranscodeSession(streamUrl, {
                             videoMode,
+                            segmentType,
                             videoCodec: info.video,
                             audioCodec: info.audio,
                             audioChannels: info.audioChannels
@@ -1007,7 +1059,7 @@ class VideoPlayer {
                 // Probe to get video codec for HEVC tag handling
                 let videoCodec = 'unknown';
                 try {
-                    const probeRes = await fetch(`/api/probe?url=${encodeURIComponent(streamUrl)}`);
+                    const probeRes = await fetch(`/api/probe?url=${encodeURIComponent(streamUrl)}${this.capabilityQueryString()}`);
                     const info = await probeRes.json();
                     videoCodec = info.video;
                 } catch (e) { console.warn('Probe failed for force audio, assuming h264'); }
