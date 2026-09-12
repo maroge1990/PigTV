@@ -111,6 +111,16 @@ router.post('/schedule', async (req, res) => {
     }
 });
 
+// In-progress recordings only. Polled by the UI to warn about stream
+// contention, so it is deliberately cheap.
+router.get('/active', (req, res) => {
+    try {
+        res.json(recordingEngine.listActive());
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // List upcoming / in-progress scheduled recordings
 router.get('/scheduled', (req, res) => {
     try {

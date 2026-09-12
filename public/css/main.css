@@ -4991,3 +4991,33 @@ kbd {
   line-height: 1;
   cursor: pointer;
 }
+
+/* ==========================================================================
+   Active recording banner
+   ========================================================================== */
+
+.recording-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(245, 158, 11, 0.12);
+  border-bottom: 1px solid var(--color-warning);
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.recording-banner-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-error);
+  animation: recording-pulse 2s ease-in-out infinite;
+}
+
+@keyframes recording-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}

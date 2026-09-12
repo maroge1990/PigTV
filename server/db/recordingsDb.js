@@ -137,6 +137,16 @@ const scheduled = {
     },
 
     // Recordings still marked in-flight from a previous process lifetime
+    findActive() {
+        const db = getDb();
+        initSchema();
+        return db.prepare(`
+            SELECT * FROM scheduled_recordings
+            WHERE status = 'recording'
+            ORDER BY program_start ASC
+        `).all();
+    },
+
     findOrphanedRecording() {
         const db = getDb();
         return db.prepare(`SELECT * FROM scheduled_recordings WHERE status = 'recording'`).all();

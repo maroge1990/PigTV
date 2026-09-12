@@ -164,6 +164,7 @@ const API = {
     recordings: {
         schedule: (data) => API.request('POST', '/recordings/schedule', data),
         getScheduled: () => API.request('GET', '/recordings/scheduled'),
+        getActive: () => API.request('GET', '/recordings/active'),
         cancelScheduled: (id) => API.request('DELETE', `/recordings/scheduled/${id}`),
         getAll: () => API.request('GET', '/recordings'),
         delete: (id) => API.request('DELETE', `/recordings/${id}`),

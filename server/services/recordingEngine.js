@@ -156,6 +156,10 @@ function listScheduled() {
     return scheduledDb.listUpcoming();
 }
 
+function listActive() {
+    return scheduledDb.findActive();
+}
+
 function listRecordings() {
     return recordingsDb.listAll();
 }
@@ -503,6 +507,7 @@ module.exports = {
     stopAllActive,
     scheduleFromProgram,
     listScheduled,
+    listActive,
     listRecordings,
     cancelScheduled,
     deleteRecording,

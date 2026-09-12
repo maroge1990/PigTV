@@ -162,7 +162,48 @@ class App {
         const initialPage = hash && this.pages[hash] ? hash : 'home';
         this.navigateTo(initialPage, true); // true = replace history (don't add)
 
+        // Keep an eye on in-progress recordings so the user knows why live
+        // playback might misbehave while one is running.
+        this.startRecordingWatch();
+
         console.log('NodeCast TV initialized');
+    }
+
+    startRecordingWatch() {
+        const update = () => this.updateRecordingBanner();
+        update();
+        if (this._recordingWatchTimer) clearInterval(this._recordingWatchTimer);
+        this._recordingWatchTimer = setInterval(update, 30000);
+    }
+
+    async updateRecordingBanner() {
+        const banner = document.getElementById('recording-conflict-banner');
+        const text = document.getElementById('recording-banner-text');
+        if (!banner || !text) return;
+
+        let activeRecordings = [];
+        try {
+            activeRecordings = await API.recordings.getActive();
+        } catch (err) {
+            // Never let this break the page - just hide the banner.
+            banner.style.display = 'none';
+            return;
+        }
+
+        if (!Array.isArray(activeRecordings) || activeRecordings.length === 0) {
+            banner.style.display = 'none';
+            return;
+        }
+
+        const first = activeRecordings[0];
+        const until = new Date(first.program_end + ((first.post_buffer_min || 0) * 60000));
+        const untilStr = until.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const extra = activeRecordings.length > 1 ? ` (+${activeRecordings.length - 1} more)` : '';
+
+        text.textContent =
+            `Recording "${first.title}" on ${first.channel_name || 'unknown channel'} until ${untilStr}${extra}. ` +
+            `Live playback may fail while this runs if your provider allows only one stream.`;
+        banner.style.display = 'flex';
     }
 
     async checkAuth() {
