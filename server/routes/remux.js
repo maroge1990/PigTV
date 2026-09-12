@@ -3,6 +3,78 @@ const router = express.Router();
 const { spawn } = require('child_process');
 const db = require('../db');
 
+// Cache of url -> audio codec name, so we only pay for the probe once per
+// stream rather than on every playback start.
+const audioCodecCache = new Map();
+const AUDIO_CODEC_CACHE_TTL = 5 * 60 * 1000;
+
+/**
+ * Detect the codec of the first audio stream.
+ *
+ * Needed because MPEG-TS carries AAC in ADTS framing, which MP4 cannot hold:
+ * without the aac_adtstoasc bitstream filter the muxed MP4 has no usable
+ * audio. That filter must NOT be applied to AC3/EAC3/MP3, so we have to know
+ * what we are dealing with before building the ffmpeg command.
+ *
+ * Returns null if ffprobe is unavailable, times out, or fails - callers then
+ * fall back to the old behaviour of not applying any audio bitstream filter.
+ */
+function detectAudioCodec(url, ffprobePath, userAgent, timeoutMs = 8000) {
+    return new Promise((resolve) => {
+        if (!ffprobePath) return resolve(null);
+
+        const cached = audioCodecCache.get(url);
+        if (cached && (Date.now() - cached.at) < AUDIO_CODEC_CACHE_TTL) {
+            return resolve(cached.codec);
+        }
+
+        const args = [
+            '-v', 'error',
+            '-user_agent', userAgent,
+            '-select_streams', 'a:0',
+            '-show_entries', 'stream=codec_name',
+            '-print_format', 'json',
+            '-probesize', '2000000',
+            '-analyzeduration', '2000000',
+            url
+        ];
+
+        let proc;
+        try {
+            proc = spawn(ffprobePath, args);
+        } catch (err) {
+            return resolve(null);
+        }
+
+        let stdout = '';
+        let settled = false;
+        const finish = (codec) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            if (codec) audioCodecCache.set(url, { codec, at: Date.now() });
+            resolve(codec);
+        };
+
+        const timer = setTimeout(() => {
+            try { proc.kill('SIGKILL'); } catch (e) { /* ignore */ }
+            finish(null);
+        }, timeoutMs);
+
+        proc.stdout.on('data', (chunk) => { stdout += chunk; });
+        proc.on('error', () => finish(null));
+        proc.on('close', (code) => {
+            if (code !== 0) return finish(null);
+            try {
+                const parsed = JSON.parse(stdout);
+                finish(parsed?.streams?.[0]?.codec_name || null);
+            } catch (err) {
+                finish(null);
+            }
+        });
+    });
+}
+
 /**
  * Remux stream (container conversion only)
  * GET /api/remux?url=...
@@ -20,10 +92,16 @@ router.get('/', async (req, res) => {
     }
 
     const ffmpegPath = req.app.locals.ffmpegPath || 'ffmpeg';
+    const ffprobePath = req.app.locals.ffprobePath;
 
     // Get User-Agent from settings
     const settings = await db.settings.get();
     const userAgent = db.getUserAgent(settings);
+
+    // Work out whether the audio needs the ADTS -> ASC bitstream filter
+    const audioCodec = await detectAudioCodec(url, ffprobePath, userAgent);
+    const needsAdtsToAsc = audioCodec === 'aac';
+    console.log(`[Remux] Audio codec: ${audioCodec || 'unknown'}${needsAdtsToAsc ? ' (applying aac_adtstoasc)' : ''}`);
 
     console.log(`[Remux] Starting remux for: ${url}`);
     console.log(`[Remux] Using User-Agent: ${settings.userAgentPreset}`);
@@ -61,9 +139,10 @@ router.get('/', async (req, res) => {
         '-c', 'copy',
         // Ensure extradata is correctly extracted/converted (fixes Annex B -> AVCC issues in Firefox)
         '-bsf:v', 'dump_extra',
-        // NOTE: We intentionally do NOT use -bsf:a aac_adtstoasc here
-        // That filter only works for AAC audio and breaks AC3/EAC3/MP3.
-        // If AAC audio from MPEG-TS fails in MP4, use /api/transcode instead.
+        // aac_adtstoasc is applied conditionally below: it is required for
+        // AAC-in-MPEG-TS to survive the move into MP4, but it breaks
+        // AC3/EAC3/MP3, so it is only added when the probe says the audio
+        // really is AAC.
         // Handle timestamp discontinuities at output
         '-fps_mode', 'passthrough',
         '-max_muxing_queue_size', '1024',
@@ -72,6 +151,11 @@ router.get('/', async (req, res) => {
         '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
         '-' // Output to stdout
     ];
+
+    if (needsAdtsToAsc) {
+        // Insert just before the output argument
+        args.splice(args.length - 1, 0, '-bsf:a', 'aac_adtstoasc');
+    }
 
     console.log(`[Remux] Full command: ${ffmpegPath} ${args.join(' ')}`);
 
