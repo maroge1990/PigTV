@@ -178,7 +178,11 @@ async function startRecording(schedule) {
     const channelDir = path.join(root, sanitizeForFs(schedule.channel_name || 'Unknown Channel'));
     if (!fs.existsSync(channelDir)) fs.mkdirSync(channelDir, { recursive: true });
 
-    const dateStr = new Date(schedule.program_start).toISOString().slice(0, 16).replace('T', ' ').replace(':', '-');
+    // Local time, not UTC - a 7:30pm program should read 19-30 in the filename.
+    const start = new Date(schedule.program_start);
+    const pad = (n) => String(n).padStart(2, '0');
+    const dateStr = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())} ` +
+        `${pad(start.getHours())}-${pad(start.getMinutes())}`;
     const baseName = `${sanitizeForFs(schedule.title)} - ${dateStr}`;
     const outputPath = uniqueFilePath(channelDir, baseName, '.mkv');
 
@@ -202,7 +206,14 @@ async function startRecording(schedule) {
         '-reconnect_streamed', '1',
         '-reconnect_delay_max', '5',
         '-i', streamUrl,
-        '-map', '0',
+        // Map video and audio only. An IPTV MPEG-TS multiplex often carries
+        // teletext, SCTE-35 and other private data streams that the matroska
+        // muxer refuses, which would fail the whole recording. -ignore_unknown
+        // covers anything ffmpeg cannot classify at all.
+        '-map', '0:v?',
+        '-map', '0:a?',
+        '-ignore_unknown',
+        '-sn', '-dn',
         '-c', 'copy',
         '-avoid_negative_ts', 'make_zero',
         '-f', 'matroska',
