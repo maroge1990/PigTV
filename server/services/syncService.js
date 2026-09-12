@@ -520,13 +520,12 @@ class SyncService {
 
             // Map M3U channel format to our schema
             const playlistItems = batch.channels.map(ch => ({
-                // Use a hash of the stream URL as the stable unique ID.
-                // tvg-id is NOT unique — multiple regional feeds share it
-                // for EPG matching — so using it as a primary key silently
-                // drops every duplicate after the first.
-                stream_id: ch.url
-                    ? 'm3u_' + Math.abs(Array.from(ch.url).reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0) & 0x7fffffff).toString(36)
-                    : ch.id,
+                // Use the entry's position in the M3U file as the unique ID.
+                // tvg-id collides for regional feeds sharing an EPG ID.
+                // URL hash collides for channels cross-listed in multiple
+                // categories or placeholder/header entries with no real URL.
+                // Position is the only value guaranteed unique per M3U line.
+                stream_id: 'pos_' + (totalChannels + ch.position),
                 name: ch.name,
                 category_id: ch.groupTitle || 'Uncategorized',
                 stream_icon: ch.tvgLogo,
