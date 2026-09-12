@@ -39,7 +39,8 @@ class RecordingsPage {
             document.getElementById('dvr-setting-path').value = settings.recordingsPath || '/app/recordings';
             document.getElementById('dvr-setting-pre').value = settings.defaultPreBufferMin ?? 1;
             document.getElementById('dvr-setting-post').value = settings.defaultPostBufferMin ?? 5;
-            document.getElementById('dvr-setting-max').value = settings.maxConcurrentRecordings ?? 2;
+            document.getElementById('dvr-setting-max').value = settings.maxConcurrentRecordings ?? 1;
+            document.getElementById('dvr-setting-minfree').value = settings.minFreeSpaceGB ?? 10;
         } catch (err) {
             console.error('Failed to load DVR settings:', err);
         }
@@ -51,7 +52,8 @@ class RecordingsPage {
                 recordingsPath: document.getElementById('dvr-setting-path').value.trim() || '/app/recordings',
                 defaultPreBufferMin: parseInt(document.getElementById('dvr-setting-pre').value, 10) || 0,
                 defaultPostBufferMin: parseInt(document.getElementById('dvr-setting-post').value, 10) || 0,
-                maxConcurrentRecordings: parseInt(document.getElementById('dvr-setting-max').value, 10) || 1
+                maxConcurrentRecordings: parseInt(document.getElementById('dvr-setting-max').value, 10) || 1,
+                minFreeSpaceGB: Math.max(0, parseInt(document.getElementById('dvr-setting-minfree').value, 10) || 0)
             });
             document.getElementById('dvr-settings-panel').style.display = 'none';
         } catch (err) {

@@ -47,6 +47,34 @@ async function getRecordingsRoot() {
     return root;
 }
 
+/**
+ * Free space on the filesystem holding `dir`, in GB. Returns null when the
+ * platform or Node build cannot report it, in which case callers skip the
+ * check rather than refusing to record.
+ */
+function getFreeSpaceGB(dir) {
+    try {
+        if (typeof fs.statfsSync !== 'function') return null;
+        const st = fs.statfsSync(dir);
+        return (st.bavail * st.bsize) / (1024 ** 3);
+    } catch (err) {
+        console.warn('[Recordings] Could not determine free space:', err.message);
+        return null;
+    }
+}
+
+/**
+ * True when there is enough room to start or continue recording.
+ * `factor` lets the mid-recording check use a lower bar than the pre-flight
+ * one, so an in-progress recording is not killed the moment it dips under the
+ * threshold that would have blocked a new one.
+ */
+function hasFreeSpace(dir, minGB, factor = 1) {
+    const freeGB = getFreeSpaceGB(dir);
+    if (freeGB === null) return { ok: true, freeGB: null };
+    return { ok: freeGB >= (minGB * factor), freeGB };
+}
+
 function uniqueFilePath(dir, baseName, ext) {
     let candidate = path.join(dir, `${baseName}${ext}`);
     let n = 2;
@@ -175,6 +203,22 @@ async function startRecording(schedule) {
     }
 
     const root = await getRecordingsRoot();
+
+    // Pre-flight storage check. Recordings are stream copies of live TV with
+    // no size bound, so starting one on a nearly full volume is a good way to
+    // take the whole share down with it.
+    const settings = await getSettings();
+    const minFreeGB = Number.isFinite(settings.minFreeSpaceGB) ? settings.minFreeSpaceGB : 10;
+    if (minFreeGB > 0) {
+        const space = hasFreeSpace(root, minFreeGB);
+        if (!space.ok) {
+            const msg = `Only ${space.freeGB.toFixed(1)} GB free at ${root}, below the ${minFreeGB} GB minimum`;
+            console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${msg}`);
+            scheduledDb.setStatus(schedule.id, 'failed', { error: msg });
+            return;
+        }
+    }
+
     const channelDir = path.join(root, sanitizeForFs(schedule.channel_name || 'Unknown Channel'));
     if (!fs.existsSync(channelDir)) fs.mkdirSync(channelDir, { recursive: true });
 
@@ -353,6 +397,33 @@ function reconcileOnStartup() {
     }
 }
 
+/**
+ * Stop in-progress recordings if the volume is running out of room. Uses half
+ * the configured minimum as the floor, so a recording that started legitimately
+ * is only killed when space is genuinely critical. The partial file is kept.
+ */
+async function enforceFreeSpaceDuringRecording() {
+    if (active.size === 0) return;
+
+    const settings = await getSettings();
+    const minFreeGB = Number.isFinite(settings.minFreeSpaceGB) ? settings.minFreeSpaceGB : 10;
+    if (minFreeGB <= 0) return;
+
+    const root = await getRecordingsRoot();
+    const space = hasFreeSpace(root, minFreeGB, 0.5);
+    if (space.ok) return;
+
+    console.error(`[Recordings] Free space critical (${space.freeGB.toFixed(1)} GB at ${root}); stopping ${active.size} in-progress recording(s). Partial files are kept.`);
+    for (const scheduledId of [...active.keys()]) {
+        try {
+            await stopRecording(scheduledId, 'completed');
+            scheduledDb.setStatus(scheduledId, 'failed', { error: `Stopped early: only ${space.freeGB.toFixed(1)} GB free` });
+        } catch (err) {
+            console.error('[Recordings] Error stopping recording for low disk space:', err.message);
+        }
+    }
+}
+
 async function tick() {
     // Guard against overlap: if a previous tick is still resolving stream
     // URLs / spawning ffmpeg when the next interval fires, skip this one
@@ -380,6 +451,8 @@ async function tick() {
         for (const schedule of missed) {
             scheduledDb.setStatus(schedule.id, 'missed', { error: 'Recording window passed without starting.' });
         }
+
+        await enforceFreeSpaceDuringRecording();
     } catch (err) {
         console.error('[Recordings] Scheduler tick failed:', err);
     } finally {

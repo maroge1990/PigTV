@@ -90,7 +90,8 @@ function getDefaultSettings() {
     recordingsPath: '/app/recordings', // Where recorded files are written (mount your storage here)
     defaultPreBufferMin: 1,        // Minutes to start recording before the scheduled program start
     defaultPostBufferMin: 5,       // Minutes to keep recording after the scheduled program end
-    maxConcurrentRecordings: 1     // Safety cap on simultaneous recordings
+    maxConcurrentRecordings: 1,    // Safety cap on simultaneous recordings
+    minFreeSpaceGB: 10             // Refuse to start (and stop) recordings below this much free space
   };
 }
 
