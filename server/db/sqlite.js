@@ -75,6 +75,15 @@ function initSchema() {
         CREATE INDEX IF NOT EXISTS idx_items_category ON playlist_items(source_id, category_id);
     `);
 
+    // Migration: add sort_order column to existing databases.
+    // CREATE TABLE IF NOT EXISTS won't alter a table that already exists,
+    // so this handles upgrades from pre-2.3 databases.
+    try {
+        db.exec('ALTER TABLE playlist_items ADD COLUMN sort_order INTEGER');
+    } catch (e) {
+        // Column already exists — expected on fresh installs or repeat starts.
+    }
+
     // EPG Programs
     // Optimized for range queries
     db.exec(`
