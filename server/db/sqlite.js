@@ -119,6 +119,55 @@ function initSchema() {
         );
     `);
 
+    // Devices
+    //
+    // A TV cannot reasonably have a password typed into it with a remote, so
+    // clients pair instead: the device shows a short code, an already
+    // signed-in user approves it, and the device receives a long-lived token.
+    // The token is an ordinary JWT carrying a deviceId, so the existing auth
+    // path validates it unchanged; the row here exists so devices can be
+    // listed and revoked.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS devices (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            name TEXT,
+            platform TEXT,
+            created_at INTEGER NOT NULL,
+            last_seen_at INTEGER,
+            revoked_at INTEGER
+        );
+        CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id);
+
+        CREATE TABLE IF NOT EXISTS pairing_codes (
+            code TEXT PRIMARY KEY,
+            created_at INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL,
+            name TEXT,
+            platform TEXT,
+            device_id TEXT,      -- set once approved
+            token TEXT,          -- collected once by the device, then cleared
+            approved_at INTEGER
+        );
+    `);
+
+    // Watch history
+    //
+    // One row per user per channel, updated in place: this drives "jump back
+    // in", which wants the last dozen channels rather than a full log.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS watch_history (
+            user_id TEXT NOT NULL,
+            source_id INTEGER NOT NULL,
+            channel_item_id TEXT NOT NULL,
+            channel_name TEXT,
+            watched_at INTEGER NOT NULL,
+            play_count INTEGER DEFAULT 1,
+            PRIMARY KEY (user_id, source_id, channel_item_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_watch_recent ON watch_history(user_id, watched_at DESC);
+    `);
+
     // User Favorites (per-user)
     db.exec(`
         CREATE TABLE IF NOT EXISTS favorites (

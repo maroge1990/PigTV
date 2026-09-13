@@ -188,6 +188,8 @@ app.use('/api/transcode', require('./routes/transcode'));
 app.use('/api/remux', require('./routes/remux'));
 app.use('/api/probe', require('./routes/probe'));
 app.use('/api/playback', require('./routes/playback'));
+app.use('/api/devices', require('./routes/devices'));
+app.use('/api/library', require('./routes/library'));
 app.use('/api/subtitle', require('./routes/subtitle'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/history', require('./routes/history'));

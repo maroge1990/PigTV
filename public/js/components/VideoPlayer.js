@@ -868,6 +868,89 @@ class VideoPlayer {
     }
 
     /**
+     * Ask the server how to play something.
+     *
+     * The strategy used to be decided here: probe, apply heuristics, request a
+     * session type. That logic now lives on the server so every client shares
+     * one implementation. This sends what the browser can decode and plays
+     * whatever comes back.
+     *
+     * Returns null if the endpoint is unavailable, so an older server falls
+     * back to the original path rather than failing outright.
+     */
+    async resolvePlayback(channel, streamUrl) {
+        const caps = this.getCodecCapabilities();
+        const body = {
+            capabilities: {
+                ...caps,
+                hls: !!(window.Hls && window.Hls.isSupported()) || this.video.canPlayType('application/vnd.apple.mpegurl') !== '',
+                fmp4: true
+            },
+            upscale: this.settings.upscaleEnabled === true
+        };
+
+        // Prefer identifying the channel, so the server can record history and
+        // resolve the URL itself. Fall back to the URL for anything else.
+        if (channel && channel.sourceId !== undefined && channel.id !== undefined) {
+            body.sourceId = channel.sourceId;
+            body.channelId = channel.id;
+        } else {
+            body.url = streamUrl;
+        }
+
+        try {
+            const res = await fetch('/api/playback/resolve', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(localStorage.getItem('authToken') ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` } : {})
+                },
+                body: JSON.stringify(body)
+            });
+            if (!res.ok) return null;
+            const decision = await res.json();
+            if (!decision || !decision.url) return null;
+            console.log(`[Player] Server chose ${decision.strategy}: ${decision.reason}`);
+            return decision;
+        } catch (err) {
+            console.warn('[Player] Playback resolve unavailable, using local strategy:', err.message);
+            return null;
+        }
+    }
+
+    /**
+     * Play what the server told us to play.
+     */
+    async playDecision(decision, channel) {
+        this.currentSessionId = decision.sessionId || null;
+        this.currentStreamInfo = decision.info || null;
+        this.updateQualityBadge();
+
+        const label = {
+            direct: ['direct', 'Direct'],
+            remux: ['remuxing', 'Remux'],
+            transcode: ['transcoding', decision.videoMode === 'copy' ? 'Transcoding (Audio)' : 'Transcoding (Video)']
+        }[decision.strategy] || ['direct', 'Direct'];
+        this.updateTranscodeStatus(label[0], label[1]);
+
+        if (decision.container === 'hls') {
+            this.currentUrl = decision.url;
+            this.playHls(decision.url);
+        } else {
+            this.currentUrl = decision.url;
+            this.video.src = decision.url;
+            this.video.play().catch(e => {
+                if (e.name !== 'AbortError') console.log('[Player] Autoplay prevented:', e);
+            });
+        }
+
+        this.updateNowPlaying(channel);
+        this.showNowPlayingOverlay();
+        this.fetchEpgData(channel);
+        window.dispatchEvent(new CustomEvent('channelChanged', { detail: channel }));
+    }
+
+    /**
      * Start a HLS transcode session
      */
     async startTranscodeSession(url, options = {}) {
@@ -1014,6 +1097,16 @@ class VideoPlayer {
 
             // Determine if HLS or direct stream
             this.currentUrl = streamUrl;
+
+            // Server-side strategy. Falls through to the original local logic
+            // when the endpoint is not available.
+            if (this.settings.autoTranscode) {
+                const decision = await this.resolvePlayback(channel, streamUrl);
+                if (decision) {
+                    await this.playDecision(decision, channel);
+                    return;
+                }
+            }
 
             // CHECK: Auto Transcode (Smart) - probe first, then decide
             if (this.settings.autoTranscode) {

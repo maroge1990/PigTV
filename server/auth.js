@@ -99,10 +99,21 @@ function configureJwtStrategy(getUserById) {
                 return done(null, false);
             }
 
+            // Device tokens are long-lived by design, so revocation has to be
+            // checked on use rather than left to expiry.
+            if (payload.deviceId) {
+                const deviceAuth = require('./services/deviceAuth');
+                if (!deviceAuth.isDeviceValid(payload.deviceId)) {
+                    return done(null, false);
+                }
+                deviceAuth.touchDevice(payload.deviceId);
+            }
+
             return done(null, {
                 id: user.id,
                 username: user.username,
-                role: user.role
+                role: user.role,
+                deviceId: payload.deviceId || null
             });
         } catch (err) {
             return done(err, false);

@@ -442,6 +442,7 @@
             <button class="tab" data-tab="content">Manage Content</button>
             <button class="tab" data-tab="recording">Recording</button>
             <button class="tab" data-tab="ui">UI</button>
+            <button class="tab" data-tab="devices">Devices</button>
             <button class="tab" data-tab="debug">Debug</button>
             <button class="tab" data-tab="users" id="users-tab" style="display:none;">Users</button>
           </div>
@@ -946,6 +947,26 @@
             </div>
           </div>
 
+          <div id="tab-devices" class="tab-content">
+            <div class="settings-section">
+              <h3>Pair a device</h3>
+              <p class="setting-hint">A TV app shows a short code when it first starts. Enter it here to sign
+                that device in, so nobody has to type a password with a remote.</p>
+              <div class="form-group">
+                <label for="pair-code">Code from the device</label>
+                <input type="text" id="pair-code" placeholder="e.g. 7KMQ2X" maxlength="8" style="text-transform: uppercase; letter-spacing: 0.12em;">
+              </div>
+              <button id="pair-approve" class="btn btn-primary">Approve device</button>
+              <span id="pair-status" style="margin-left: 8px; font-size: 0.85rem;"></span>
+            </div>
+
+            <div class="settings-section">
+              <h3>Signed-in devices</h3>
+              <p class="setting-hint">Removing a device signs it out immediately.</p>
+              <div id="devices-list"><span class="setting-hint">Loading...</span></div>
+            </div>
+          </div>
+
           <div id="tab-debug" class="tab-content">
             <div class="settings-section">
               <h3>Stream Management</h3>
@@ -1293,8 +1314,8 @@
 
   <!-- JavaScript -->
   <script src="/js/icons.js"></script>
-  <script src="/js/api.js?v=7"></script>
-  <script src="/js/components/VideoPlayer.js?v=5"></script>
+  <script src="/js/api.js?v=8"></script>
+  <script src="/js/components/VideoPlayer.js?v=6"></script>
   <script src="/js/components/ChannelList.js?v=6"></script>
   <script src="/js/components/SourceManager.js?v=4"></script>
   <script src="/js/components/EpgGuide.js?v=7"></script>
@@ -1304,7 +1325,7 @@
   <script src="/js/pages/RecordingsPage.js?v=7"></script>
   <script src="/js/pages/MoviesPage.js?v=4"></script>
   <script src="/js/pages/SeriesPage.js?v=1"></script>
-  <script src="/js/pages/Settings.js?v=6"></script>
+  <script src="/js/pages/Settings.js?v=7"></script>
   <script src="/js/pages/WatchPage.js?v=1"></script>
   <script src="/js/app.js?v=8"></script>
   <script>

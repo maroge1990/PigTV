@@ -28,6 +28,7 @@ class SettingsPage {
 
         // Recording / UI / Debug tabs
         this.initHwDecodeSettings();
+        this.initDevices();
         this.initRecordingSettings();
         this.initUiSettings();
         this.initDebugTools();
@@ -60,6 +61,75 @@ class SettingsPage {
             if (cpu) cpu.checked = s.vaapiCpuScale !== false;
         } catch (err) {
             console.error('Failed to load hardware decode settings:', err);
+        }
+    }
+
+    // ---- Devices tab ---------------------------------------------------
+
+    initDevices() {
+        const btn = document.getElementById('pair-approve');
+        if (!btn) return;
+        btn.addEventListener('click', () => this.approveDevice());
+
+        const input = document.getElementById('pair-code');
+        input?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') this.approveDevice();
+        });
+    }
+
+    async approveDevice() {
+        const input = document.getElementById('pair-code');
+        const status = document.getElementById('pair-status');
+        const code = (input?.value || '').trim().toUpperCase();
+        if (!code) return;
+
+        try {
+            const result = await API.request('POST', '/devices/pair/approve', { code });
+            if (status) status.textContent = `Paired ${result.device.name}`;
+            if (input) input.value = '';
+            await this.loadDevices();
+            setTimeout(() => { if (status) status.textContent = ''; }, 4000);
+        } catch (err) {
+            if (status) status.textContent = err.message || 'That code was not accepted';
+        }
+    }
+
+    async loadDevices() {
+        const list = document.getElementById('devices-list');
+        if (!list) return;
+        try {
+            const devices = await API.request('GET', '/devices');
+            const active = devices.filter(d => !d.revoked_at);
+            if (active.length === 0) {
+                list.innerHTML = '<span class="setting-hint">No devices paired yet</span>';
+                return;
+            }
+            list.innerHTML = active.map(d => {
+                const seen = d.last_seen_at ? new Date(d.last_seen_at).toLocaleString() : 'never';
+                return `
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <span class="setting-label">${d.name || 'Unnamed device'}</span>
+                        <span class="setting-hint">${d.platform || 'unknown'} · last seen ${seen}</span>
+                    </div>
+                    <button class="btn btn-sm btn-danger" data-revoke="${d.id}">Remove</button>
+                </div>`;
+            }).join('');
+
+            list.querySelectorAll('[data-revoke]').forEach(b => {
+                b.addEventListener('click', async () => {
+                    if (!confirm('Sign this device out?')) return;
+                    b.disabled = true;
+                    try {
+                        await API.request('DELETE', `/devices/${b.dataset.revoke}`);
+                        await this.loadDevices();
+                    } catch (err) {
+                        b.disabled = false;
+                    }
+                });
+            });
+        } catch (err) {
+            list.innerHTML = '<span class="setting-hint">Could not load devices</span>';
         }
     }
 
@@ -710,6 +780,7 @@ class SettingsPage {
 
     switchTab(tabName) {
         if (tabName === 'transcode') this.loadHwDecodeSettings();
+        if (tabName === 'devices') this.loadDevices();
         if (tabName === 'recording') this.loadRecordingSettings();
         if (tabName === 'ui') this.loadUiSettings();
         if (tabName === 'debug') this.loadActiveSessions();

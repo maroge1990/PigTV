@@ -16,6 +16,20 @@ const db = require('../db');
 const { getDb } = require('../db/sqlite');
 const playbackStrategy = require('../services/playbackStrategy');
 const xtreamApi = require('../services/xtreamApi');
+const passport = require('passport');
+
+/**
+ * Attach req.user when a token is present, without rejecting requests that
+ * have none. Playback resolution itself is not gated — the stream endpoints it
+ * returns are already reachable — but knowing the user lets history be
+ * recorded.
+ */
+function optionalAuth(req, res, next) {
+    passport.authenticate('jwt', { session: false }, (err, user) => {
+        if (user) req.user = user;
+        next();
+    })(req, res, next);
+}
 
 /**
  * Resolve a channel id to its upstream URL.
@@ -63,7 +77,7 @@ async function streamUrlForChannel(sourceId, channelId) {
  *
  * Returns: { strategy, url, container, reason, info, sessionId? }
  */
-router.post('/resolve', async (req, res) => {
+router.post('/resolve', optionalAuth, async (req, res) => {
     try {
         const { sourceId, channelId, url: directUrl, capabilities, upscale } = req.body || {};
 
@@ -85,6 +99,30 @@ router.post('/resolve', async (req, res) => {
             ffprobePath: req.app.locals.ffprobePath,
             upscale: upscale === true
         });
+
+        // Record what was watched, when the caller identified a channel and we
+        // know who is asking. Best effort: history is a convenience and must
+        // never be the reason playback fails.
+        if (sourceId !== undefined && channelId !== undefined && req.user) {
+            try {
+                const stripped = String(channelId).replace(/^(?:m3u|xtream)_\d+_/, '');
+                const name = getDb().prepare(`
+                    SELECT name FROM playlist_items
+                    WHERE source_id = ? AND type = 'live' AND item_id = ? LIMIT 1
+                `).get(parseInt(sourceId), stripped)?.name || null;
+
+                getDb().prepare(`
+                    INSERT INTO watch_history (user_id, source_id, channel_item_id, channel_name, watched_at, play_count)
+                    VALUES (?, ?, ?, ?, ?, 1)
+                    ON CONFLICT(user_id, source_id, channel_item_id) DO UPDATE SET
+                        watched_at = excluded.watched_at,
+                        channel_name = COALESCE(excluded.channel_name, channel_name),
+                        play_count = play_count + 1
+                `).run(String(req.user.id), parseInt(sourceId), stripped, name, Date.now());
+            } catch (e) {
+                console.warn('[Playback] Could not record history:', e.message);
+            }
+        }
 
         console.log(`[Playback] ${decision.strategy} — ${decision.reason}`);
         res.json(decision);
