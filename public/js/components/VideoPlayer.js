@@ -254,6 +254,11 @@ class VideoPlayer {
         this.video.addEventListener('play', updatePlayUI);
         this.video.addEventListener('pause', updatePlayUI);
 
+        // Keep the LIVE indicator honest without polling: timeupdate fires
+        // about four times a second during playback and not at all otherwise.
+        this.video.addEventListener('timeupdate', () => this.updateLiveButton());
+        this.video.addEventListener('play', () => this.updateLiveButton());
+
         // Loading spinner
         this.video.addEventListener('waiting', () => {
             this.loadingSpinner?.classList.add('show');
@@ -327,6 +332,18 @@ class VideoPlayer {
         });
 
         // Picture-in-Picture
+        const btnStop = document.getElementById('btn-stop');
+        btnStop?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.stop();
+        });
+
+        const btnGoLive = document.getElementById('btn-go-live');
+        btnGoLive?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.goToLive();
+        });
+
         const btnPip = document.getElementById('btn-pip');
         btnPip?.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -870,6 +887,95 @@ class VideoPlayer {
             // Fallback to direct transcode if session fails
             return `/api/transcode?url=${encodeURIComponent(url)}`;
         }
+    }
+
+    /**
+     * Stop playback entirely: tear down the player and kill the server-side
+     * session so the ffmpeg process and the provider connection are released.
+     * Pause only stops the browser consuming the stream; the session keeps
+     * running, which matters on a provider that allows one connection.
+     */
+    async stop() {
+        console.log('[Player] Stop requested');
+
+        this.video.pause();
+
+        if (this.hls) {
+            try { this.hls.destroy(); } catch (e) { /* already gone */ }
+            this.hls = null;
+        }
+
+        // Detach the source so the browser drops any in-flight request to the
+        // remux endpoint, which has no session to cancel.
+        try {
+            this.video.removeAttribute('src');
+            this.video.load();
+        } catch (e) { /* ignore */ }
+
+        await this.stopTranscodeSession();
+
+        this.currentUrl = null;
+        this.updateTranscodeStatus('idle', 'Stopped');
+        this.updateLiveButton();
+        window.dispatchEvent(new CustomEvent('playbackStopped'));
+    }
+
+    /**
+     * Jump back to the live edge. On an HLS stream that means seeking to the
+     * end of the seekable range; on a piped remux there is no buffer to seek
+     * within, so the stream is restarted instead.
+     */
+    goToLive() {
+        if (this.hls && this.hls.liveSyncPosition != null) {
+            this.video.currentTime = this.hls.liveSyncPosition;
+            this.video.play().catch(() => { });
+            this.updateLiveButton();
+            return;
+        }
+
+        const seekable = this.video.seekable;
+        if (seekable && seekable.length > 0) {
+            const end = seekable.end(seekable.length - 1);
+            if (isFinite(end) && end > 0) {
+                this.video.currentTime = end;
+                this.video.play().catch(() => { });
+                this.updateLiveButton();
+                return;
+            }
+        }
+
+        // Nothing seekable (piped remux): restart from the current source.
+        if (this.currentUrl) {
+            console.log('[Player] Not seekable, restarting stream for live edge');
+            const url = this.currentUrl;
+            this.video.src = url;
+            this.video.play().catch(() => { });
+        }
+    }
+
+    /**
+     * How far behind the live edge we are, in seconds. Null when unknown.
+     */
+    getLiveLatency() {
+        if (this.hls && typeof this.hls.latency === 'number') return this.hls.latency;
+
+        const seekable = this.video.seekable;
+        if (seekable && seekable.length > 0) {
+            const end = seekable.end(seekable.length - 1);
+            if (isFinite(end)) return Math.max(0, end - this.video.currentTime);
+        }
+        return null;
+    }
+
+    updateLiveButton() {
+        const btn = document.getElementById('btn-go-live');
+        if (!btn) return;
+        const latency = this.getLiveLatency();
+        // Within ~10s of the edge counts as live; HLS segments are 4s, so a
+        // tighter threshold would flicker on every segment boundary.
+        const atLive = latency === null ? true : latency < 10;
+        btn.classList.toggle('at-live', atLive);
+        btn.title = atLive ? 'At live edge' : `Go to live (${Math.round(latency)}s behind)`;
     }
 
     /**

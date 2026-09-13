@@ -376,8 +376,11 @@ class EpgGuide {
             return { epgChannel, sourceChannel };
         });
 
-        // Collect unique groups from ALL playable channels
-        const groups = [...new Set(allChannels.map(m => m.sourceChannel.groupTitle || 'Uncategorized'))].sort();
+        // Collect unique groups from ALL playable channels. Set preserves
+        // insertion order, and allChannels is in provider order, so this is
+        // already the intended sequence — sorting it alphabetically would
+        // scatter the placeholder categories away from what they introduce.
+        const groups = [...new Set(allChannels.map(m => m.sourceChannel.groupTitle || 'Uncategorized'))];
 
         // Add Favorites at the top if there are any
         const hasFavorites = this.favorites.size > 0;

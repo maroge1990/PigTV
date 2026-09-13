@@ -17,17 +17,6 @@ const { Readable } = require('stream');
 const DEFAULT_MAX_AGE_HOURS = 24;
 
 // Helper to get formatted category list from DB
-// Flag emoji are regional-indicator pairs (U+1F1E6..U+1F1FF). Windows has no
-// glyphs for them, so Chrome falls back to rendering the two letters, which
-// looks like stray small text next to every country category. Strip them from
-// the display name only — category_id keeps the original string so all the
-// hide/show and grouping lookups keyed on it still match.
-const FLAG_EMOJI = /[\u{1F1E6}-\u{1F1FF}]{2}/gu;
-function stripFlagEmoji(name) {
-    if (!name) return name;
-    return name.replace(FLAG_EMOJI, '').replace(/\s{2,}/g, ' ').trim();
-}
-
 function getCategoriesFromDb(sourceId, type, includeHidden = false) {
     const db = getDb();
     let query = `
@@ -41,11 +30,7 @@ function getCategoriesFromDb(sourceId, type, includeHidden = false) {
     // Provider order first (NULLs last so a pre-migration row doesn't jump to
     // the top), name only as a tiebreaker.
     query += ` ORDER BY CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END, sort_order ASC, name ASC`;
-    const cats = db.prepare(query).all(sourceId, type);
-    return cats.map(c => ({
-        ...c,
-        category_name: stripFlagEmoji(c.category_name)
-    }));
+    return db.prepare(query).all(sourceId, type);
 }
 
 // Helper to get formatted streams from DB

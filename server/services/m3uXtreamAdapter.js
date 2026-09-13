@@ -36,15 +36,9 @@ class M3uXtreamAdapter {
 
         const rows = db.prepare(query).all(this.sourceId);
 
-        // Strip flag emoji (regional indicator pairs U+1F1E6..U+1F1FF) from
-        // display names. They render as two-letter codes on Windows because
-        // Windows doesn't support flag emoji. Keep the raw category_id
-        // unchanged so DB lookups still work.
-        const stripFlags = (s) => s ? s.replace(/[\u{1F1E6}-\u{1F1FF}]{2}/gu, '').trim() : 'Uncategorized';
-
         return rows.map(row => ({
             category_id: row.category_id || 'Uncategorized',
-            category_name: stripFlags(row.category_id),
+            category_name: row.category_id || 'Uncategorized',
             parent_id: null,
             // Bonus: include count for lazy-loading UI
             channel_count: row.channel_count

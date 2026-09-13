@@ -5033,3 +5033,31 @@ kbd {
 .epg-channel-info .favorite-btn {
   cursor: default;
 }
+
+
+/* Go-to-live button. Dimmed when already at the live edge. */
+#btn-go-live {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: auto;
+  padding: 0 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+#btn-go-live .live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-error);
+}
+
+#btn-go-live.at-live {
+  opacity: 0.55;
+}
+
+#btn-go-live.at-live .live-dot {
+  background: var(--color-text-muted);
+}

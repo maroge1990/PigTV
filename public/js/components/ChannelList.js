@@ -331,12 +331,13 @@ class ChannelList {
             groupedChannels['Favorites'] = favoritedChannels;
         }
 
-        // 4. Sort Groups and filter to only those with visible channels
-        const allGroups = Object.keys(groupedChannels).sort((a, b) => {
-            if (a === 'Favorites') return -1;
-            if (b === 'Favorites') return 1;
-            return a.localeCompare(b);
-        });
+        // 4. Order groups and filter to only those with visible channels.
+        // groupedChannels is built by walking this.channels, which arrives in
+        // the provider's order, and object key order follows insertion for
+        // string keys — so the natural key order is already the order the
+        // provider intended. Only Favorites is repositioned.
+        const allGroups = Object.keys(groupedChannels).filter(g => g !== 'Favorites');
+        if (groupedChannels['Favorites']) allGroups.unshift('Favorites');
 
         // Pre-filter to only include groups with visible channels (so hidden groups don't consume batch slots)
         this.sortedGroups = allGroups.filter(groupName => {

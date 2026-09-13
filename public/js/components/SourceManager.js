@@ -664,9 +664,10 @@ class SourceManager {
                 });
             });
 
-            // Convert to array, sorted by name
+            // Keep the server's order. Categories arrive in the provider's
+            // own sequence (placeholder/header categories sit directly above
+            // the ones they introduce), and sorting by name destroys that.
             this.treeData.groups = Object.entries(groupMap)
-                .sort((a, b) => a[1].name.localeCompare(b[1].name))
                 .map(([key, group]) => ({
                     id: key, // Use categoryId as the group ID
                     name: group.name,
@@ -871,7 +872,7 @@ class SourceManager {
                 id: 'all_categories',
                 name: 'Categories',
                 type: 'group',
-                items: categories.sort((a, b) => a.category_name.localeCompare(b.category_name)).map(cat => ({
+                items: categories.map(cat => ({
                     id: String(cat.category_id),
                     name: cat.category_name,
                     type: 'vod_category',
@@ -919,7 +920,7 @@ class SourceManager {
                 id: 'all_series_categories',
                 name: 'Categories',
                 type: 'group',
-                items: categories.sort((a, b) => a.category_name.localeCompare(b.category_name)).map(cat => ({
+                items: categories.map(cat => ({
                     id: String(cat.category_id),
                     name: cat.category_name,
                     type: 'series_category',
