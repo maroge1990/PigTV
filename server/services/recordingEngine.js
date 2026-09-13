@@ -334,12 +334,14 @@ async function compressRecording(rec, settings) {
     console.log(`[Recordings] #${rec.id} compressed: ${(originalSize / 1e9).toFixed(2)} GB -> ${(newSize / 1e9).toFixed(2)} GB (${saved}% smaller)`);
 }
 
-async function processCompressionQueue() {
+async function processCompressionQueue({ manual = false } = {}) {
     if (compressing) return;
     if (active.size > 0) return; // never compete with an active recording
 
     const settings = await getSettings();
-    if (settings.postRecordCompress !== true) return;
+    // The automatic sweep respects the setting; an explicit request from the
+    // Recordings page does not, because the user has just asked for it.
+    if (!manual && settings.postRecordCompress !== true) return;
 
     const pending = recordingsDb.findPendingCompression();
     if (pending.length === 0) return;

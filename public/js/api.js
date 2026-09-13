@@ -173,6 +173,7 @@ const API = {
         schedule: (data) => API.request('POST', '/recordings/schedule', data),
         getScheduled: () => API.request('GET', '/recordings/scheduled'),
         getActive: () => API.request('GET', '/recordings/active'),
+        compress: (id) => API.request('POST', `/recordings/${id}/compress`),
         cancelScheduled: (id) => API.request('DELETE', `/recordings/scheduled/${id}`),
         getAll: () => API.request('GET', '/recordings'),
         delete: (id) => API.request('DELETE', `/recordings/${id}`),

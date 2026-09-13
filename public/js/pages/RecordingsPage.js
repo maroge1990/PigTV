@@ -46,6 +46,7 @@ class RecordingsPage {
     async loadRecordings() {
         try {
             const items = await API.recordings.getAll();
+            this.recordings = items;
             this.renderRecordings(items);
         } catch (err) {
             console.error('Failed to load recordings:', err);
@@ -104,6 +105,10 @@ class RecordingsPage {
                 <div class="recording-actions">
                     ${item.compress_status === 'running' ? '<span class="small muted" style="margin-right:8px;">Compressing…</span>' : ''}
                     ${item.compress_status === 'pending' ? '<span class="small muted" style="margin-right:8px;">Queued to compress</span>' : ''}
+                    ${item.compress_status === 'done' ? '<span class="small muted" style="margin-right:8px;">Compressed</span>' : ''}
+                    ${item.compress_status === 'failed' ? `<span class="small muted" style="margin-right:8px;" title="${(item.compress_error || '').replace(/"/g, '&quot;')}">Compression failed</span>` : ''}
+                    ${item.status === 'completed' && !['running', 'pending', 'done'].includes(item.compress_status)
+                        ? `<button class="btn btn-sm btn-secondary" data-action="compress" data-id="${item.id}">Compress</button>` : ''}
                     ${item.status === 'completed' ? `<button class="btn btn-sm btn-primary" data-action="play" data-id="${item.id}">Play</button>` : ''}
                     ${item.status === 'completed' ? `<a class="btn btn-sm btn-secondary" href="${API.recordings.downloadUrl(item.id)}">Download</a>` : ''}
                     <button class="btn btn-sm btn-danger" data-action="delete" data-id="${item.id}">Delete</button>
@@ -117,6 +122,36 @@ class RecordingsPage {
         this.recordingsList.querySelectorAll('[data-action="delete"]').forEach(btn => {
             btn.addEventListener('click', () => this.deleteRecording(btn.dataset.id));
         });
+        this.recordingsList.querySelectorAll('[data-action="compress"]').forEach(btn => {
+            btn.addEventListener('click', () => this.compress(btn.dataset.id, btn));
+        });
+    }
+
+    async compress(id, btn) {
+        try {
+            if (btn) { btn.disabled = true; btn.textContent = 'Queued'; }
+            await API.recordings.compress(id);
+            // Compression runs server-side and can take several minutes, so
+            // poll rather than leaving the row looking stuck.
+            this.startCompressionWatch();
+        } catch (err) {
+            alert('Could not start compression: ' + err.message);
+            if (btn) { btn.disabled = false; btn.textContent = 'Compress'; }
+        }
+    }
+
+    startCompressionWatch() {
+        if (this._compressTimer) clearInterval(this._compressTimer);
+        this._compressTimer = setInterval(async () => {
+            await this.refresh();
+            const stillGoing = (this.recordings || []).some(
+                r => r.compress_status === 'running' || r.compress_status === 'pending'
+            );
+            if (!stillGoing) {
+                clearInterval(this._compressTimer);
+                this._compressTimer = null;
+            }
+        }, 10000);
     }
 
     async cancelScheduled(id) {
