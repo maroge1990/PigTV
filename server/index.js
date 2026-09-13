@@ -217,15 +217,13 @@ app.listen(PORT, async () => {
         console.error('Plugin initialization failed:', err);
     });
 
-    // Start the sync timer; it checks staleness before doing work.
-    // syncAll on every startup re-downloads the entire EPG (370k+
-    // programmes from EPGenius), which takes minutes and produces
-    // megabytes of log output. Skip it when the cache is fresh.
+    // Bring up the parts that must not wait.
+    //
+    // These used to sit behind the sync in one sequential block, so a stale
+    // EPG source — several hundred thousand programmes to parse — delayed
+    // hardware detection and the DVR scheduler by many minutes. A recording
+    // due to start in that window was simply missed.
     setTimeout(async () => {
-        await syncService.syncIfStale().catch(console.error);
-        await syncService.startSyncTimer().catch(console.error);
-
-        // Detect hardware acceleration capabilities
         try {
             const hwDetect = require('./services/hwDetect');
             await hwDetect.detect();
@@ -233,12 +231,18 @@ app.listen(PORT, async () => {
             console.warn('Hardware detection failed:', err.message);
         }
 
-        // Start the DVR recording engine (scheduler + ffmpeg process manager)
         try {
             const recordingEngine = require('./services/recordingEngine');
             recordingEngine.init({ ffmpegPath: app.locals.ffmpegPath, ffprobePath: app.locals.ffprobePath });
         } catch (err) {
             console.warn('Recording engine failed to start:', err.message);
         }
+    }, 2000);
+
+    // Sync runs independently and may take a long time on a stale EPG source.
+    setTimeout(() => {
+        syncService.syncIfStale()
+            .catch(console.error)
+            .finally(() => syncService.startSyncTimer().catch(console.error));
     }, 5000);
 });

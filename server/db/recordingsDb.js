@@ -158,6 +158,13 @@ const scheduled = {
         `).all();
     },
 
+    findOrphanedRecording() {
+        const db = getDb();
+        return db.prepare(`SELECT * FROM scheduled_recordings WHERE status = 'recording'`).all();
+    }
+};
+
+const recordings = {
     setCompressStatus(id, status, extra = {}) {
         const db = getDb();
         initSchema();
@@ -189,13 +196,6 @@ const scheduled = {
         `).all();
     },
 
-    findOrphanedRecording() {
-        const db = getDb();
-        return db.prepare(`SELECT * FROM scheduled_recordings WHERE status = 'recording'`).all();
-    }
-};
-
-const recordings = {
     create(data) {
         const db = getDb();
         initSchema();

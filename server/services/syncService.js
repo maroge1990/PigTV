@@ -130,28 +130,23 @@ class SyncService {
                     continue;
                 }
 
-                // For EPG sources, check the cache age
-                if (source.type === 'epg') {
-                    const cache = require('./cache');
-                    const maxAgeMs = (source.syncInterval || 24) * 60 * 60 * 1000;
-                    const cached = cache.get('epg', source.id, 'data', maxAgeMs);
-                    if (!cached) {
-                        console.log(`[Sync] EPG source "${source.name}" cache is stale, syncing...`);
-                        await this.syncSource(source.id);
-                        synced++;
-                    } else {
-                        console.log(`[Sync] EPG source "${source.name}" cache is fresh, skipping`);
-                    }
-                    continue;
-                }
+                // sync_status is written on every successful sync and is the
+                // only record that actually exists. An earlier version of this
+                // checked a file cache that syncEpgFromUrl never writes, so it
+                // always missed and re-parsed the entire EPG — several hundred
+                // thousand programmes — on every container start.
+                const lastRow = db.prepare(`
+                    SELECT MAX(last_sync) AS last_sync FROM sync_status
+                    WHERE source_id = ? AND status = 'success'
+                `).get(source.id);
 
-                // For M3U/Xtream, check last sync time from source record
                 const syncInterval = (source.syncInterval || 24) * 60 * 60 * 1000;
-                const lastSync = source.lastSyncTime ? new Date(source.lastSyncTime).getTime() : 0;
+                const lastSync = lastRow?.last_sync || 0;
                 const age = Date.now() - lastSync;
 
                 if (age > syncInterval) {
-                    console.log(`[Sync] Source "${source.name}" is stale (${Math.round(age / 3600000)}h old), syncing...`);
+                    const desc = lastSync ? `${Math.round(age / 3600000)}h old` : 'never synced';
+                    console.log(`[Sync] Source "${source.name}" is stale (${desc}), syncing...`);
                     await this.syncSource(source.id);
                     synced++;
                 } else {

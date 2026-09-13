@@ -1,6 +1,6 @@
 {
     "name": "pigtv",
-    "version": "3.1.1",
+    "version": "3.1.2",
     "description": "Modern IPTV Player",
     "license": "GPL-3.0-only",
     "main": "server/index.js",
