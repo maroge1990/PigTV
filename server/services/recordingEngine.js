@@ -190,7 +190,24 @@ function compressionTargetPath(originalPath) {
     return path.join(dir, `${base}.compressed.mp4`);
 }
 
-function buildCompressArgs(input, output, settings) {
+/**
+ * Map a target bitrate onto a constant quantiser.
+ *
+ * Intel VAAPI on this class of iGPU supports CQP only — asking for a bitrate
+ * fails outright with "Driver does not support any RC mode compatible with
+ * selected options". CQP does not target a size, so this is a rough
+ * correspondence for 1080p: lower QP means better quality and a bigger file.
+ */
+function bitrateToQp(bitrateKbps) {
+    if (bitrateKbps >= 8000) return 20;
+    if (bitrateKbps >= 6000) return 22;
+    if (bitrateKbps >= 4000) return 24;
+    if (bitrateKbps >= 3000) return 26;
+    if (bitrateKbps >= 2000) return 28;
+    return 30;
+}
+
+function buildCompressArgs(input, output, settings, { forceCqp = false } = {}) {
     const codec = settings.postRecordCodec === 'hevc' ? 'hevc' : 'h264';
     const bitrate = Math.max(500, parseInt(settings.postRecordBitrateKbps, 10) || 3000);
     const useVaapi = settings.hwEncoder === 'vaapi';
@@ -211,11 +228,17 @@ function buildCompressArgs(input, output, settings) {
     if (useVaapi) {
         args.push(
             '-vf', 'format=nv12,hwupload',
-            '-c:v', codec === 'hevc' ? 'hevc_vaapi' : 'h264_vaapi',
-            '-b:v', `${bitrate}k`,
-            '-maxrate', `${Math.round(bitrate * 1.5)}k`,
-            '-bufsize', `${bitrate * 2}k`
+            '-c:v', codec === 'hevc' ? 'hevc_vaapi' : 'h264_vaapi'
         );
+        if (forceCqp) {
+            args.push('-rc_mode', 'CQP', '-qp', String(bitrateToQp(bitrate)));
+        } else {
+            args.push(
+                '-b:v', `${bitrate}k`,
+                '-maxrate', `${Math.round(bitrate * 1.5)}k`,
+                '-bufsize', `${bitrate * 2}k`
+            );
+        }
     } else {
         args.push(
             '-c:v', codec === 'hevc' ? 'libx265' : 'libx264',
@@ -266,13 +289,13 @@ async function compressRecording(rec, settings) {
     recordingsDb.setCompressStatus(rec.id, 'running', { originalSize });
     console.log(`[Recordings] Compressing #${rec.id} (${(originalSize / 1e9).toFixed(2)} GB)`);
 
-    const args = buildCompressArgs(input, output, settings);
-    const code = await new Promise((resolve) => {
+    const runEncode = (opts) => new Promise((resolve) => {
+        const args = buildCompressArgs(input, output, settings, opts);
         let proc;
         try {
             proc = spawn(ffmpegPath, args);
         } catch (err) {
-            return resolve(-1);
+            return resolve({ code: -1, tail: [err.message] });
         }
         const tail = [];
         proc.stderr.on('data', d => {
@@ -280,16 +303,28 @@ async function compressRecording(rec, settings) {
                 if (line.trim()) { tail.push(line.trim()); if (tail.length > 20) tail.shift(); }
             }
         });
-        proc.on('error', () => resolve(-1));
-        proc.on('close', (c) => {
-            if (c !== 0) console.error(`[Recordings] Compression of #${rec.id} failed:\n  ${tail.join('\n  ')}`);
-            resolve(c);
-        });
+        proc.on('error', (err) => resolve({ code: -1, tail: [err.message] }));
+        proc.on('close', (c) => resolve({ code: c, tail }));
     });
 
-    if (code !== 0 || !fs.existsSync(output)) {
+    let result = await runEncode({});
+
+    // Some VAAPI drivers implement constant-quantiser rate control only and
+    // reject a bitrate target outright. Retry once in CQP rather than leaving
+    // the recording uncompressed.
+    if (result.code !== 0 && result.tail.some(l => l.includes('RC mode'))) {
+        console.log(`[Recordings] Encoder wants constant quality; retrying #${rec.id} in CQP`);
         try { fs.unlinkSync(output); } catch (e) { /* nothing to clean */ }
-        recordingsDb.setCompressStatus(rec.id, 'failed', { error: `ffmpeg exited with code ${code}` });
+        result = await runEncode({ forceCqp: true });
+    }
+
+    const code = result.code;
+    if (code !== 0 || !fs.existsSync(output)) {
+        console.error(`[Recordings] Compression of #${rec.id} failed:\n  ${result.tail.join('\n  ')}`);
+        try { fs.unlinkSync(output); } catch (e) { /* nothing to clean */ }
+        recordingsDb.setCompressStatus(rec.id, 'failed', {
+            error: result.tail.slice(-3).join(' | ') || `ffmpeg exited with code ${code}`
+        });
         return;
     }
 

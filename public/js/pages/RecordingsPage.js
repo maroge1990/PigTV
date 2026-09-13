@@ -46,8 +46,12 @@ class RecordingsPage {
     async loadRecordings() {
         try {
             const items = await API.recordings.getAll();
+            const wasActive = (this.recordings || []).some(
+                r => r.compress_status === 'running' || r.compress_status === 'pending'
+            );
             this.recordings = items;
             this.renderRecordings(items);
+            if (!wasActive && !this._compressTimer) this.resumeCompressionWatchIfNeeded();
         } catch (err) {
             console.error('Failed to load recordings:', err);
             this.recordingsList.innerHTML = `<div class="empty-state"><p>Failed to load recordings</p></div>`;
@@ -129,10 +133,12 @@ class RecordingsPage {
 
     async compress(id, btn) {
         try {
-            if (btn) { btn.disabled = true; btn.textContent = 'Queued'; }
+            if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
             await API.recordings.compress(id);
-            // Compression runs server-side and can take several minutes, so
-            // poll rather than leaving the row looking stuck.
+            // The server starts work immediately, so refresh straight away to
+            // pick up 'running' rather than leaving the row reading 'queued'
+            // for the length of a poll interval.
+            await this.refresh();
             this.startCompressionWatch();
         } catch (err) {
             alert('Could not start compression: ' + err.message);
@@ -143,6 +149,8 @@ class RecordingsPage {
     startCompressionWatch() {
         if (this._compressTimer) clearInterval(this._compressTimer);
         this._compressTimer = setInterval(async () => {
+            // Only refresh while this page is actually on screen.
+            if (this.recordingsList && this.recordingsList.offsetParent === null) return;
             await this.refresh();
             const stillGoing = (this.recordings || []).some(
                 r => r.compress_status === 'running' || r.compress_status === 'pending'
@@ -151,7 +159,18 @@ class RecordingsPage {
                 clearInterval(this._compressTimer);
                 this._compressTimer = null;
             }
-        }, 10000);
+        }, 4000);
+    }
+
+    /**
+     * Resume watching after a page load if the server is mid-compression, so
+     * the status is live whether or not this browser started the job.
+     */
+    resumeCompressionWatchIfNeeded() {
+        const active = (this.recordings || []).some(
+            r => r.compress_status === 'running' || r.compress_status === 'pending'
+        );
+        if (active) this.startCompressionWatch();
     }
 
     async cancelScheduled(id) {
