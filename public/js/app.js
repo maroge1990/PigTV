@@ -30,6 +30,8 @@ class App {
     async init() {
         // Check authentication first
         await this.checkAuth();
+        if (!this.currentUser) return;
+        if (this.currentUser.role === 'admin') this.sourceManager.pollSyncStatus();
 
         // Mobile menu toggle
         const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
@@ -312,6 +314,10 @@ class App {
     }
 
     navigateTo(pageName, replaceHistory = false) {
+        if (pageName === 'settings' && this.currentUser?.role !== 'admin') {
+            pageName = 'home';
+            replaceHistory = true;
+        }
         // Don't navigate if already on this page
         if (this.currentPage === pageName && !replaceHistory) {
             return;

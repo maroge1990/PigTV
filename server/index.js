@@ -20,7 +20,7 @@ app.use(express.json({ limit: '50mb' }));
 // Initialize Passport
 const session = require('express-session');
 app.use(session({
-    secret: process.env.JWT_SECRET || 'keyboard cat',
+    secret: require('./authSecret'),
     resave: false,
     saveUninitialized: true
 }));

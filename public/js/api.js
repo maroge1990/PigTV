@@ -40,7 +40,7 @@ const API = {
             if (response.status === 401) {
                 localStorage.removeItem('authToken');
                 window.location.href = '/login.html';
-                return;
+                throw new Error('Authentication required');
             }
             throw new Error(result.error || `Server responded with ${response.status}`);
         }

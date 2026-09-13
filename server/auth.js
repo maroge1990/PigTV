@@ -11,7 +11,7 @@ const { Strategy: LocalStrategy } = require('passport-local');
  */
 
 // JWT Secret - In production, use environment variable
-const JWT_SECRET = process.env.JWT_SECRET || 'pigtv-secret-key-change-in-production';
+const JWT_SECRET = require('./authSecret');
 const JWT_EXPIRY = '24h';
 
 /**

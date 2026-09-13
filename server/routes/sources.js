@@ -5,17 +5,22 @@ const { getDb } = require('../db/sqlite');
 const xtreamApi = require('../services/xtreamApi');
 const syncService = require('../services/syncService');
 const m3uParser = require('../services/m3uParser');
+const { requireAuth, requireAdmin } = require('../auth');
+
+router.use(requireAuth);
+router.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
+
+// Browsing clients need identity and availability, never subscription URLs or
+// credentials. Use an allowlist so future source fields are private by default.
+function sourceSummary(source) {
+    return { id: source.id, type: source.type, name: source.name, enabled: source.enabled };
+}
 
 // Get all sources
 router.get('/', async (req, res) => {
     try {
         const allSources = await sources.getAll();
-        // Don't expose passwords in list view
-        const sanitized = allSources.map(s => ({
-            ...s,
-            password: s.password ? '••••••••' : null
-        }));
-        res.json(sanitized);
+        res.json(allSources.map(sourceSummary));
     } catch (err) {
         console.error('Error getting sources:', err);
         res.status(500).json({ error: 'Failed to get sources' });
@@ -23,7 +28,7 @@ router.get('/', async (req, res) => {
 });
 
 // Get sync status for all sources
-router.get('/status', async (req, res) => {
+router.get('/status', requireAdmin, async (req, res) => {
     try {
         const { getDb } = require('../db/sqlite');
         const db = getDb();
@@ -39,7 +44,7 @@ router.get('/status', async (req, res) => {
 router.get('/type/:type', async (req, res) => {
     try {
         const typeSources = await sources.getByType(req.params.type);
-        res.json(typeSources);
+        res.json(typeSources.map(sourceSummary));
     } catch (err) {
         console.error('Error getting sources by type:', err);
         res.status(500).json({ error: 'Failed to get sources' });
@@ -47,13 +52,16 @@ router.get('/type/:type', async (req, res) => {
 });
 
 // Get single source
-router.get('/:id', async (req, res) => {
+router.get('/:id', requireAdmin, async (req, res) => {
     try {
         const source = await sources.getById(req.params.id);
         if (!source) {
             return res.status(404).json({ error: 'Source not found' });
         }
-        res.json(source);
+        // Only the admin edit form needs the URL/username. Passwords remain
+        // write-only: an omitted password on update preserves the saved value.
+        res.json({ ...sourceSummary(source), url: source.url, username: source.username,
+            hasPassword: Boolean(source.password) });
     } catch (err) {
         console.error('Error getting source:', err);
         res.status(500).json({ error: 'Failed to get source' });
@@ -61,6 +69,8 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create source
+// Every remaining endpoint administers sources or initiates upstream work.
+router.use(requireAdmin);
 router.post('/', async (req, res) => {
     try {
         const { type, name, url, username, password } = req.body;
@@ -76,7 +86,7 @@ router.post('/', async (req, res) => {
         const source = await sources.create({ type, name, url, username, password });
         // Trigger Sync
         syncService.syncSource(source.id).catch(console.error);
-        res.status(201).json(source);
+        res.status(201).json(sourceSummary(source));
     } catch (err) {
         console.error('Error creating source:', err);
         res.status(500).json({ error: 'Failed to create source' });
@@ -100,7 +110,7 @@ router.put('/:id', async (req, res) => {
         });
         // Trigger Sync (if critical fields changed? safely just trigger it)
         syncService.syncSource(parseInt(req.params.id)).catch(console.error);
-        res.json(updated);
+        res.json(sourceSummary(updated));
     } catch (err) {
         console.error('Error updating source:', err);
         res.status(500).json({ error: 'Failed to update source' });
@@ -153,7 +163,7 @@ router.post('/:id/toggle', async (req, res) => {
             syncService.syncSource(parseInt(req.params.id)).catch(console.error);
         }
 
-        res.json(updated);
+        res.json(sourceSummary(updated));
     } catch (err) {
         console.error('Error toggling source:', err);
         res.status(500).json({ error: 'Failed to toggle source' });
