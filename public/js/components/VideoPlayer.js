@@ -944,13 +944,10 @@ class VideoPlayer {
             }
         }
 
-        // Nothing seekable (piped remux): restart from the current source.
-        if (this.currentUrl) {
-            console.log('[Player] Not seekable, restarting stream for live edge');
-            const url = this.currentUrl;
-            this.video.src = url;
-            this.video.play().catch(() => { });
-        }
+        // A piped remux has no buffer, so playback is always at the live edge
+        // already and there is nothing to seek to. Restarting the stream here
+        // would tear down a working connection to rebuild an identical one.
+        console.log('[Player] Stream is not seekable — already at the live edge');
     }
 
     /**
@@ -1078,7 +1075,9 @@ class VideoPlayer {
                             segmentType,
                             videoCodec: info.video,
                             audioCodec: info.audio,
-                            audioChannels: info.audioChannels
+                            audioChannels: info.audioChannels,
+                            audioProfile: info.audioProfile,
+                            isHeAac: info.isHeAac
                         });
                         this.currentUrl = playlistUrl; // Update currentUrl for HLS reload
 

@@ -392,12 +392,24 @@ class ChannelList {
             });
         });
 
-        // Empty State
+        // Empty State. Distinguish "you have no source" from "everything is
+        // hidden" — they look identical to the user and point at opposite fixes.
         if (this.sortedGroups.length === 0) {
+            let message, hint;
+            if (searchTerm) {
+                message = 'No channels match your search';
+                hint = 'Try a different search term';
+            } else if (this.channels.length > 0) {
+                message = 'Every category is hidden';
+                hint = 'Choose what to show under Settings → Manage Content';
+            } else {
+                message = 'No channels loaded';
+                hint = 'Add a source in Settings to get started';
+            }
             this.container.innerHTML = `
         <div class="empty-state">
-          <p>${searchTerm ? 'No channels match your search' : 'No channels loaded'}</p>
-          <p class="hint">${searchTerm ? 'Try a different search term' : 'Add a source in Settings to get started'}</p>
+          <p>${message}</p>
+          <p class="hint">${hint}</p>
         </div>
       `;
             return;

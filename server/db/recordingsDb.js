@@ -53,6 +53,17 @@ function initSchema() {
         CREATE INDEX IF NOT EXISTS idx_recordings_status ON recordings(status);
     `);
 
+    // Migrations for databases created before compression existed.
+    for (const col of [
+        'compress_status TEXT',      // null|pending|running|done|failed|skipped
+        'original_size_bytes INTEGER',
+        'compress_error TEXT'
+    ]) {
+        try {
+            db.exec(`ALTER TABLE recordings ADD COLUMN ${col}`);
+        } catch (e) { /* already present */ }
+    }
+
     initialized = true;
     console.log('[Recordings] Schema initialized');
 }
@@ -144,6 +155,37 @@ const scheduled = {
             SELECT * FROM scheduled_recordings
             WHERE status = 'recording'
             ORDER BY program_start ASC
+        `).all();
+    },
+
+    setCompressStatus(id, status, extra = {}) {
+        const db = getDb();
+        initSchema();
+        db.prepare(`
+            UPDATE recordings
+            SET compress_status = ?,
+                compress_error = COALESCE(?, compress_error),
+                original_size_bytes = COALESCE(?, original_size_bytes),
+                file_size_bytes = COALESCE(?, file_size_bytes),
+                file_path = COALESCE(?, file_path)
+            WHERE id = ?
+        `).run(
+            status,
+            extra.error ?? null,
+            extra.originalSize ?? null,
+            extra.fileSize ?? null,
+            extra.filePath ?? null,
+            id
+        );
+    },
+
+    findPendingCompression() {
+        const db = getDb();
+        initSchema();
+        return db.prepare(`
+            SELECT * FROM recordings
+            WHERE status = 'completed' AND compress_status = 'pending'
+            ORDER BY ended_at ASC
         `).all();
     },
 

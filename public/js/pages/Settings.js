@@ -80,6 +80,10 @@ class SettingsPage {
             document.getElementById('dvr-setting-post').value = s.defaultPostBufferMin ?? 5;
             document.getElementById('dvr-setting-max').value = s.maxConcurrentRecordings ?? 1;
             document.getElementById('dvr-setting-minfree').value = s.minFreeSpaceGB ?? 10;
+            document.getElementById('dvr-setting-compress').checked = s.postRecordCompress === true;
+            document.getElementById('dvr-setting-codec').value = s.postRecordCodec || 'h264';
+            document.getElementById('dvr-setting-bitrate').value = s.postRecordBitrateKbps ?? 3000;
+            document.getElementById('dvr-setting-keep-original').checked = s.postRecordKeepOriginal === true;
         } catch (err) {
             console.error('Failed to load recording settings:', err);
         }
@@ -93,7 +97,11 @@ class SettingsPage {
                 defaultPreBufferMin: parseInt(document.getElementById('dvr-setting-pre').value, 10) || 0,
                 defaultPostBufferMin: parseInt(document.getElementById('dvr-setting-post').value, 10) || 0,
                 maxConcurrentRecordings: parseInt(document.getElementById('dvr-setting-max').value, 10) || 1,
-                minFreeSpaceGB: Math.max(0, parseInt(document.getElementById('dvr-setting-minfree').value, 10) || 0)
+                minFreeSpaceGB: Math.max(0, parseInt(document.getElementById('dvr-setting-minfree').value, 10) || 0),
+                postRecordCompress: document.getElementById('dvr-setting-compress').checked,
+                postRecordCodec: document.getElementById('dvr-setting-codec').value,
+                postRecordBitrateKbps: Math.max(500, parseInt(document.getElementById('dvr-setting-bitrate').value, 10) || 3000),
+                postRecordKeepOriginal: document.getElementById('dvr-setting-keep-original').checked
             });
             if (status) {
                 status.textContent = 'Saved';
@@ -109,9 +117,20 @@ class SettingsPage {
     initUiSettings() {
         const saveBtn = document.getElementById('content-visibility-save');
         if (saveBtn) saveBtn.addEventListener('click', () => this.saveUiSettings());
+
+        // Theme applies immediately and is stored per device rather than on the
+        // server: which appearance suits a phone at night is not the same
+        // answer as a desktop in daylight.
+        const themeSelect = document.getElementById('setting-theme');
+        if (themeSelect) {
+            themeSelect.addEventListener('change', () => window.Theme?.set(themeSelect.value));
+        }
     }
 
     async loadUiSettings() {
+        const themeSelect = document.getElementById('setting-theme');
+        if (themeSelect && window.Theme) themeSelect.value = window.Theme.choice;
+
         const movies = document.getElementById('setting-show-movies');
         if (!movies) return;
         try {

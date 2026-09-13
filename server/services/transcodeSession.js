@@ -268,7 +268,11 @@ class TranscodeSession extends EventEmitter {
         const audioCodec = this.options.audioCodec?.toLowerCase() || 'unknown';
         const audioChannels = this.options.audioChannels || 0;
         const audioMixPreset = this.options.audioMixPreset || 'auto';
-        const isStereoAac = audioCodec.includes('aac') && audioChannels === 2;
+        // HE-AAC cannot be passed through to a browser (see probe.js), so it is
+        // excluded from every copy path here even though it is stereo AAC.
+        const audioProfile = (this.options.audioProfile || '').toLowerCase();
+        const isHeAac = this.options.isHeAac === true || audioProfile.includes('he-aac');
+        const isStereoAac = audioCodec.includes('aac') && audioChannels === 2 && !isHeAac;
 
         // Define pan filter presets for 5.1 -> Stereo downmix
         const AUDIO_MIX_FILTERS = {
@@ -280,10 +284,15 @@ class TranscodeSession extends EventEmitter {
             cinematic: 'pan=stereo|FL=FC+0.80*FL+0.60*BL+0.5*LFE|FR=FC+0.80*FR+0.60*BR+0.5*LFE'
         };
 
-        if (audioMixPreset === 'passthrough') {
+        if (audioMixPreset === 'passthrough' && !isHeAac) {
             // Passthrough: Always copy audio, no processing
             console.log(`[TranscodeSession ${this.id}] Audio: Passthrough (copy)`);
             args.push('-c:a', 'copy');
+        } else if (isHeAac) {
+            // Re-encode to AAC-LC. Only the audio is touched, so this stays
+            // cheap even when the video is being stream-copied.
+            console.log(`[TranscodeSession ${this.id}] Audio: HE-AAC source -> AAC-LC (browser cannot decode HE-AAC)`);
+            args.push('-c:a', 'aac', '-profile:a', 'aac_low', '-ar', '48000', '-b:a', '128k');
         } else if (audioMixPreset === 'auto' && isStereoAac) {
             // Auto + Stereo AAC source: Smart copy
             console.log(`[TranscodeSession ${this.id}] Audio: Auto (Smart Copy) - Source is Stereo AAC`);

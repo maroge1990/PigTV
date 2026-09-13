@@ -95,7 +95,12 @@ function getDefaultSettings() {
     defaultPreBufferMin: 1,        // Minutes to start recording before the scheduled program start
     defaultPostBufferMin: 5,       // Minutes to keep recording after the scheduled program end
     maxConcurrentRecordings: 1,    // Safety cap on simultaneous recordings
-    minFreeSpaceGB: 10             // Refuse to start (and stop) recordings below this much free space
+    minFreeSpaceGB: 10,            // Refuse to start (and stop) recordings below this much free space
+    // Post-record compression
+    postRecordCompress: false,     // Re-encode finished recordings to save space
+    postRecordCodec: 'h264',       // 'h264' (compatible) or 'hevc' (smaller)
+    postRecordBitrateKbps: 3000,   // Target video bitrate
+    postRecordKeepOriginal: false  // Keep the untouched original alongside the result
   };
 }
 

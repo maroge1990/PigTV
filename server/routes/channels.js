@@ -69,6 +69,24 @@ router.get('/hidden', async (req, res) => {
 });
 
 // Hide item
+/**
+ * Keep a category and its items in step.
+ *
+ * The UI treats a category as one switch, and the stream query filters on both
+ * the item's own flag and its category's. If only one side is written they can
+ * disagree — a visible channel inside a hidden category simply disappears, with
+ * nothing in the interface to explain why. Cascading on write means the two can
+ * never drift, including after a sync inserts new rows.
+ */
+function cascadeCategory(db, sourceId, type, categoryId, hidden) {
+    const stmt = db.prepare(`
+        UPDATE playlist_items SET is_hidden = ?
+        WHERE source_id = ? AND type = ? AND category_id = ?
+    `);
+    const result = stmt.run(hidden ? 1 : 0, sourceId, type, String(categoryId));
+    return result.changes;
+}
+
 router.post('/hide', async (req, res) => {
     try {
         const { sourceId, itemType, itemId } = req.body;
@@ -87,7 +105,12 @@ router.post('/hide', async (req, res) => {
 
         stmt.run(sourceId, mapping.type, itemId);
 
-        res.json({ success: true });
+        let cascaded = 0;
+        if (mapping.table === 'categories') {
+            cascaded = cascadeCategory(db, sourceId, mapping.type, itemId, true);
+        }
+
+        res.json({ success: true, cascaded });
     } catch (err) {
         console.error('Error hiding item:', err);
         res.status(500).json({ error: 'Failed to hide item' });
@@ -113,7 +136,12 @@ router.post('/show', async (req, res) => {
 
         stmt.run(sourceId, mapping.type, itemId);
 
-        res.json({ success: true });
+        let cascaded = 0;
+        if (mapping.table === 'categories') {
+            cascaded = cascadeCategory(db, sourceId, mapping.type, itemId, false);
+        }
+
+        res.json({ success: true, cascaded });
     } catch (err) {
         console.error('Error showing item:', err);
         res.status(500).json({ error: 'Failed to show item' });

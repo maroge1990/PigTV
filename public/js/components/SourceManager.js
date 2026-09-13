@@ -732,12 +732,26 @@ class SourceManager {
     /**
      * Get HTML for a group (and its items if expanded)
      */
+    groupItemType() {
+        if (this.treeData.type === 'movie') return 'vod_category';
+        if (this.treeData.type === 'series') return 'series_category';
+        return 'group';
+    }
+
     getGroupHtml(group) {
         const isExpanded = this.expandedGroups.has(group.id);
 
-        // Group checkbox is checked if ANY child is visible (derived state)
-        const hasVisibleChild = group.items.some(item => !this.hiddenSet.has(`${item.type}:${item.id}`));
-        const checked = hasVisibleChild;
+        // The category's own record is authoritative. Deriving this from the
+        // children instead let the two drift apart: a category could be hidden
+        // in the database while its checkbox showed ticked because some
+        // channels beneath it were visible, and because the displayed state
+        // already matched what the user wanted, no change was ever saved. The
+        // server filters on the category record, so those channels vanished
+        // from Live TV with nothing in the UI to explain it.
+        const groupKey = `${this.groupItemType()}:${group.categoryId}`;
+        const checked = group.categoryId
+            ? !this.hiddenSet.has(groupKey)
+            : group.items.some(item => !this.hiddenSet.has(`${item.type}:${item.id}`));
 
         let itemsHtml = '';
         if (isExpanded) {
@@ -979,13 +993,7 @@ class SourceManager {
 
         const isChecked = groupCb.checked;
 
-        // Determine the correct item type for the group based on content type
-        let groupItemType = 'group'; // default for live channels
-        if (this.treeData.type === 'movies') {
-            groupItemType = 'vod_category';
-        } else if (this.treeData.type === 'series') {
-            groupItemType = 'series_category';
-        }
+        const groupItemType = this.groupItemType();
 
         // Update state for the GROUP itself (if it has a categoryId)
         if (group.categoryId) {
@@ -1121,9 +1129,7 @@ class SourceManager {
 
             // First pass: Identify all changed groups
             this.treeData.groups.forEach(group => {
-                let groupItemType = 'group';
-                if (this.treeData.type === 'movies') groupItemType = 'vod_category';
-                else if (this.treeData.type === 'series') groupItemType = 'series_category';
+                const groupItemType = this.groupItemType();
 
                 if (group.categoryId) {
                     const groupKey = `${groupItemType}:${group.categoryId}`;

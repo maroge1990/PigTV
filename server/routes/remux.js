@@ -221,39 +221,58 @@ router.get('/', async (req, res) => {
     // Pipe stdout to response
     ffmpeg.stdout.pipe(res);
 
-    // Log stderr (useful for debugging)
+    // Keep the tail of stderr. At -loglevel warning a fatal startup error can
+    // scroll past without matching the filter below, which leaves the log
+    // saying only that the client disconnected — true, but not the reason.
+    const stderrTail = [];
     ffmpeg.stderr.on('data', (data) => {
         const msg = data.toString();
-        // Only log warnings/errors, not progress
+        for (const line of msg.split('\n')) {
+            if (line.trim()) {
+                stderrTail.push(line.trim());
+                if (stderrTail.length > 20) stderrTail.shift();
+            }
+        }
         if (msg.includes('Warning') || msg.includes('Error') || msg.includes('error')) {
-            console.log(`[Remux FFmpeg] ${msg}`);
+            console.log(`[Remux FFmpeg] ${msg.trim()}`);
         }
     });
 
     const remuxId = `remux_${++remuxCounter}`;
+    const startedAt = Date.now();
+    let ffmpegExited = false;
     activeRemuxes.set(remuxId, {
         id: remuxId,
         url,
         proc: ffmpeg,
         res,
-        startedAt: Date.now()
+        startedAt
     });
     console.log(`[Remux] Started ${remuxId} (${activeRemuxes.size} active)`);
 
-    // Cleanup on client disconnect
+    // Cleanup on client disconnect.
+    // req 'close' also fires when the response ends, including because ffmpeg
+    // died, so check which happened first before blaming the browser.
     req.on('close', () => {
-        if (activeRemuxes.has(remuxId)) {
-            console.log(`[Remux] Client disconnected, killing ${remuxId}`);
-            activeRemuxes.delete(remuxId);
-            try { ffmpeg.kill('SIGKILL'); } catch (e) { /* already gone */ }
-        }
+        if (!activeRemuxes.has(remuxId)) return;
+        activeRemuxes.delete(remuxId);
+        if (ffmpegExited) return; // exit handler already reported the cause
+        const alive = Math.round((Date.now() - startedAt) / 1000);
+        console.log(`[Remux] Client disconnected after ${alive}s, killing ${remuxId}`);
+        try { ffmpeg.kill('SIGKILL'); } catch (e) { /* already gone */ }
     });
 
     // Handle process exit
     ffmpeg.on('exit', (code) => {
+        ffmpegExited = true;
         activeRemuxes.delete(remuxId);
         if (code !== null && code !== 0 && code !== 255) {
-            console.error(`[Remux] ${remuxId} exited with code ${code}`);
+            const alive = Math.round((Date.now() - startedAt) / 1000);
+            console.error(`[Remux] ${remuxId} exited with code ${code} after ${alive}s`);
+            if (stderrTail.length) {
+                console.error(`[Remux] Last ffmpeg output for ${remuxId}:`);
+                stderrTail.forEach(line => console.error(`[Remux]   ${line}`));
+            }
         }
     });
 

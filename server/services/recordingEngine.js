@@ -20,6 +20,7 @@ const TICK_INTERVAL_MS = 15 * 1000;
 const STDERR_TAIL_LINES = 40;
 
 let ffmpegPath = 'ffmpeg';
+let ffprobePath = 'ffprobe';
 let tickTimer = null;
 let tickRunning = false;
 // scheduledId -> { proc, recordingId, hardStopTimer, stderrTail: [] }
@@ -166,6 +167,192 @@ async function scheduleFromProgram({
 
 function listScheduled() {
     return scheduledDb.listUpcoming();
+}
+
+// ---------------------------------------------------------------------------
+// Post-record compression
+//
+// A recording is a stream copy, so its size is whatever the provider sent —
+// around 4 GB/hour at typical broadcast bitrates, which is more than you want
+// to keep or to push over a remote connection. Re-encoding afterwards rather
+// than during means a bad encode costs you nothing: the original is only
+// removed once the result has been verified.
+//
+// One at a time, and never while a recording is running: the GPU and the disk
+// are both better spent on capture.
+// ---------------------------------------------------------------------------
+
+let compressing = false;
+
+function compressionTargetPath(originalPath) {
+    const dir = path.dirname(originalPath);
+    const base = path.basename(originalPath, path.extname(originalPath));
+    return path.join(dir, `${base}.compressed.mp4`);
+}
+
+function buildCompressArgs(input, output, settings) {
+    const codec = settings.postRecordCodec === 'hevc' ? 'hevc' : 'h264';
+    const bitrate = Math.max(500, parseInt(settings.postRecordBitrateKbps, 10) || 3000);
+    const useVaapi = settings.hwEncoder === 'vaapi';
+
+    const args = ['-y', '-nostdin'];
+
+    if (useVaapi) {
+        args.push(
+            '-hwaccel', 'vaapi',
+            '-hwaccel_device', '/dev/dri/renderD128',
+            '-init_hw_device', 'vaapi=va:/dev/dri/renderD128',
+            '-filter_hw_device', 'va'
+        );
+    }
+
+    args.push('-i', input, '-map', '0:v:0?', '-map', '0:a?', '-sn', '-dn');
+
+    if (useVaapi) {
+        args.push(
+            '-vf', 'format=nv12,hwupload',
+            '-c:v', codec === 'hevc' ? 'hevc_vaapi' : 'h264_vaapi',
+            '-b:v', `${bitrate}k`,
+            '-maxrate', `${Math.round(bitrate * 1.5)}k`,
+            '-bufsize', `${bitrate * 2}k`
+        );
+    } else {
+        args.push(
+            '-c:v', codec === 'hevc' ? 'libx265' : 'libx264',
+            '-preset', 'veryfast',
+            '-b:v', `${bitrate}k`
+        );
+    }
+
+    // Audio is already small; re-encode only to guarantee a browser-safe track.
+    args.push('-c:a', 'aac', '-profile:a', 'aac_low', '-b:a', '128k', '-ac', '2');
+    args.push('-movflags', '+faststart', output);
+    return args;
+}
+
+function probeDuration(filePath) {
+    return new Promise((resolve) => {
+        let out = '';
+        let proc;
+        try {
+            proc = spawn(ffprobePath, [
+                '-v', 'error', '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1', filePath
+            ]);
+        } catch (e) {
+            return resolve(null);
+        }
+        proc.stdout.on('data', d => { out += d; });
+        proc.on('error', () => resolve(null));
+        proc.on('close', () => {
+            const v = parseFloat(out.trim());
+            resolve(Number.isFinite(v) ? v : null);
+        });
+    });
+}
+
+async function compressRecording(rec, settings) {
+    const input = rec.file_path;
+    const output = compressionTargetPath(input);
+
+    if (!fs.existsSync(input)) {
+        recordingsDb.setCompressStatus(rec.id, 'failed', { error: 'Original file is missing' });
+        return;
+    }
+
+    const originalSize = fs.statSync(input).size;
+    const sourceDuration = await probeDuration(input);
+
+    recordingsDb.setCompressStatus(rec.id, 'running', { originalSize });
+    console.log(`[Recordings] Compressing #${rec.id} (${(originalSize / 1e9).toFixed(2)} GB)`);
+
+    const args = buildCompressArgs(input, output, settings);
+    const code = await new Promise((resolve) => {
+        let proc;
+        try {
+            proc = spawn(ffmpegPath, args);
+        } catch (err) {
+            return resolve(-1);
+        }
+        const tail = [];
+        proc.stderr.on('data', d => {
+            for (const line of d.toString().split('\n')) {
+                if (line.trim()) { tail.push(line.trim()); if (tail.length > 20) tail.shift(); }
+            }
+        });
+        proc.on('error', () => resolve(-1));
+        proc.on('close', (c) => {
+            if (c !== 0) console.error(`[Recordings] Compression of #${rec.id} failed:\n  ${tail.join('\n  ')}`);
+            resolve(c);
+        });
+    });
+
+    if (code !== 0 || !fs.existsSync(output)) {
+        try { fs.unlinkSync(output); } catch (e) { /* nothing to clean */ }
+        recordingsDb.setCompressStatus(rec.id, 'failed', { error: `ffmpeg exited with code ${code}` });
+        return;
+    }
+
+    // Verify before trusting it. A truncated encode is worse than a large file,
+    // so the original is only replaced when the result covers the same span.
+    const newDuration = await probeDuration(output);
+    const newSize = fs.statSync(output).size;
+    const durationOk = !sourceDuration || !newDuration || (newDuration >= sourceDuration * 0.95);
+
+    if (!durationOk || newSize < 1024) {
+        try { fs.unlinkSync(output); } catch (e) { /* ignore */ }
+        recordingsDb.setCompressStatus(rec.id, 'failed', {
+            error: `Result failed verification (${Math.round(newDuration || 0)}s vs ${Math.round(sourceDuration || 0)}s)`
+        });
+        return;
+    }
+
+    if (newSize >= originalSize) {
+        // Re-encoding made it bigger, which happens on already-efficient
+        // sources. Keep the original and say so.
+        try { fs.unlinkSync(output); } catch (e) { /* ignore */ }
+        recordingsDb.setCompressStatus(rec.id, 'skipped', { error: 'Compressed file was no smaller' });
+        console.log(`[Recordings] #${rec.id} left as-is; compression saved nothing`);
+        return;
+    }
+
+    if (settings.postRecordKeepOriginal === true) {
+        recordingsDb.setCompressStatus(rec.id, 'done', { fileSize: originalSize });
+        console.log(`[Recordings] #${rec.id} compressed alongside the original`);
+        return;
+    }
+
+    try {
+        fs.unlinkSync(input);
+    } catch (err) {
+        recordingsDb.setCompressStatus(rec.id, 'failed', { error: `Could not remove original: ${err.message}` });
+        return;
+    }
+
+    recordingsDb.setCompressStatus(rec.id, 'done', { fileSize: newSize, filePath: output });
+    const saved = ((1 - newSize / originalSize) * 100).toFixed(0);
+    console.log(`[Recordings] #${rec.id} compressed: ${(originalSize / 1e9).toFixed(2)} GB -> ${(newSize / 1e9).toFixed(2)} GB (${saved}% smaller)`);
+}
+
+async function processCompressionQueue() {
+    if (compressing) return;
+    if (active.size > 0) return; // never compete with an active recording
+
+    const settings = await getSettings();
+    if (settings.postRecordCompress !== true) return;
+
+    const pending = recordingsDb.findPendingCompression();
+    if (pending.length === 0) return;
+
+    compressing = true;
+    try {
+        await compressRecording(pending[0], settings);
+    } catch (err) {
+        console.error('[Recordings] Compression error:', err.message);
+        recordingsDb.setCompressStatus(pending[0].id, 'failed', { error: err.message });
+    } finally {
+        compressing = false;
+    }
 }
 
 function listActive() {
@@ -340,6 +527,14 @@ function finalizeRecording(scheduledId, recordingId, outputPath, exitCode, stder
     scheduledDb.setStatus(scheduledId, success ? 'completed' : 'failed', scheduleExtra);
 
     console.log(`[Recordings] Recording #${recordingId} finished (${success ? 'completed' : 'failed'}), ${fileSize} bytes`);
+
+    if (success) {
+        // Marked pending regardless of the setting; the queue checks whether
+        // compression is enabled, so turning it on later picks these up.
+        try {
+            recordingsDb.setCompressStatus(recordingId, 'pending');
+        } catch (e) { /* column may be missing on a very old database */ }
+    }
 }
 
 async function stopRecording(scheduledId, reasonStatus = 'completed') {
@@ -469,6 +664,11 @@ async function tick() {
         }
 
         await enforceFreeSpaceDuringRecording();
+
+        // Fire and forget: compression can outlive many ticks, and the guard
+        // inside stops it from starting twice.
+        processCompressionQueue().catch(err =>
+            console.error('[Recordings] Compression queue error:', err.message));
     } catch (err) {
         console.error('[Recordings] Scheduler tick failed:', err);
     } finally {
@@ -476,8 +676,9 @@ async function tick() {
     }
 }
 
-function init({ ffmpegPath: fp } = {}) {
+function init({ ffmpegPath: fp, ffprobePath: pp } = {}) {
     if (fp) ffmpegPath = fp;
+    if (pp) ffprobePath = pp;
 
     const { initSchema } = require('../db/recordingsDb');
     initSchema();
@@ -520,6 +721,7 @@ module.exports = {
     scheduleFromProgram,
     listScheduled,
     listActive,
+    processCompressionQueue,
     listRecordings,
     cancelScheduled,
     deleteRecording,

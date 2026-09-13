@@ -29,7 +29,8 @@ transcodeSession.startCleanupInterval();
  * Body: { url: string, seekOffset?: number }
  */
 router.post('/session', async (req, res) => {
-    const { url, seekOffset, videoMode, videoCodec, audioCodec, audioChannels, segmentType } = req.body;
+    const { url, seekOffset, videoMode, videoCodec, audioCodec, audioChannels, segmentType,
+            audioProfile, isHeAac } = req.body;
 
     if (!url) {
         return res.status(400).json({ error: 'URL is required' });
@@ -58,7 +59,9 @@ router.post('/session', async (req, res) => {
             videoMode: videoMode, // 'copy' or 'encode'
             videoCodec: videoCodec, // 'h264', 'hevc', etc.
             audioCodec: audioCodec, // 'aac', 'ac3', etc.
-            audioChannels: audioChannels // number of channels (2=stereo)
+            audioChannels: audioChannels, // number of channels (2=stereo)
+            audioProfile: audioProfile,   // e.g. 'HE-AAC' — codec_name alone cannot distinguish it
+            isHeAac: isHeAac === true
         });
 
         await session.start();

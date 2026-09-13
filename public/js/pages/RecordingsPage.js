@@ -102,6 +102,8 @@ class RecordingsPage {
                     ${item.status === 'failed' && item.error ? `<div class="recording-error">${this.escape(item.error)}</div>` : ''}
                 </div>
                 <div class="recording-actions">
+                    ${item.compress_status === 'running' ? '<span class="small muted" style="margin-right:8px;">Compressing…</span>' : ''}
+                    ${item.compress_status === 'pending' ? '<span class="small muted" style="margin-right:8px;">Queued to compress</span>' : ''}
                     ${item.status === 'completed' ? `<button class="btn btn-sm btn-primary" data-action="play" data-id="${item.id}">Play</button>` : ''}
                     ${item.status === 'completed' ? `<a class="btn btn-sm btn-secondary" href="${API.recordings.downloadUrl(item.id)}">Download</a>` : ''}
                     <button class="btn btn-sm btn-danger" data-action="delete" data-id="${item.id}">Delete</button>

@@ -169,6 +169,10 @@ class App {
         // Apply Movies/Series visibility from settings
         this.applyContentVisibility();
 
+        // Theme is applied before this in the page head to avoid a flash;
+        // this only wires up the response to a system theme change.
+        Theme.watchSystem();
+
         console.log('PigTV initialized');
     }
 

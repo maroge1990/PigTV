@@ -104,6 +104,16 @@ function analyzeProbeResult(probeResult, url, clientCaps = {}) {
 
     const videoCodec = videoStream?.codec_name?.toLowerCase() || 'unknown';
     const audioCodec = audioStream?.codec_name?.toLowerCase() || 'unknown';
+    const audioProfile = (audioStream?.profile || '').toLowerCase();
+
+    // HE-AAC (AAC with SBR, and HE-AACv2 with PS) reports codec_name 'aac' just
+    // like AAC-LC, so the profile is the only way to tell them apart. Chrome
+    // answers true to isTypeSupported for the HE-AAC MIME string and then fails
+    // to decode the packets: aac_adtstoasc writes an AudioSpecificConfig taken
+    // from the ADTS header, which describes LC at the nominal rate, while the
+    // payload is SBR at half that. The decoder rejects the first packet with
+    // PIPELINE_ERROR_DECODE. Treat it as audio that needs re-encoding.
+    const isHeAac = audioCodec.includes('aac') && audioProfile.includes('he-aac');
     const container = format.format_name?.toLowerCase() || 'unknown';
 
     // Check codec compatibility. A codec is acceptable if every browser can
@@ -115,10 +125,10 @@ function analyzeProbeResult(probeResult, url, clientCaps = {}) {
         || (videoIsHevc && clientCaps.hevc === true)
         || (videoIsAv1 && clientCaps.av1 === true);
 
-    const audioOk = BROWSER_AUDIO_CODECS.some(c => audioCodec.includes(c))
+    const audioOk = !isHeAac && (BROWSER_AUDIO_CODECS.some(c => audioCodec.includes(c))
         || (matchesAny(audioCodec, OPTIONAL_AUDIO_CODECS.ac3) && clientCaps.ac3 === true)
         || (matchesAny(audioCodec, OPTIONAL_AUDIO_CODECS.eac3) && clientCaps.eac3 === true)
-        || (matchesAny(audioCodec, OPTIONAL_AUDIO_CODECS.flac) && clientCaps.flac === true);
+        || (matchesAny(audioCodec, OPTIONAL_AUDIO_CODECS.flac) && clientCaps.flac === true));
 
     // Browser-safe containers
     // Note: We exclude 'webm' because ffprobe reports MKV as "matroska,webm", 
@@ -168,6 +178,8 @@ function analyzeProbeResult(probeResult, url, clientCaps = {}) {
         // (near-zero CPU) instead of re-encoded.
         videoOk: videoOk,
         audioOk: audioOk,
+        audioProfile: audioStream?.profile || null,
+        isHeAac: isHeAac,
         videoIsHevc: videoIsHevc,
         fps: videoStream?.avg_frame_rate || null,
         subtitles: subtitles

@@ -236,7 +236,7 @@ app.listen(PORT, async () => {
         // Start the DVR recording engine (scheduler + ffmpeg process manager)
         try {
             const recordingEngine = require('./services/recordingEngine');
-            recordingEngine.init({ ffmpegPath: app.locals.ffmpegPath });
+            recordingEngine.init({ ffmpegPath: app.locals.ffmpegPath, ffprobePath: app.locals.ffprobePath });
         } catch (err) {
             console.warn('Recording engine failed to start:', err.message);
         }
