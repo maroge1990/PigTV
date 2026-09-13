@@ -242,6 +242,64 @@ function configureOidcStrategy(findUserByOidcId, findUserByEmail, createUser) {
 const requireAuth = passport.authenticate('jwt', { session: false });
 
 /**
+ * Authenticate a stream request.
+ *
+ * A media player cannot send an Authorization header: a <video src> and
+ * AVPlayer both just issue a plain GET. So stream endpoints accept the token
+ * as a query parameter instead, which is the usual answer and the reason those
+ * URLs should be treated as bearer tokens in their own right.
+ *
+ * Enforcement is opt-in via the requireStreamAuth setting. Off, this only
+ * populates req.user when a token happens to be present; on, an unauthenticated
+ * stream request is refused. Defaulting to off keeps a LAN-only setup working
+ * exactly as it does, while giving a remote or shared setup a way to lock down.
+ */
+function streamAuth({ enforce = false } = {}) {
+    return (req, res, next) => {
+        const token = req.query.token
+            || (req.headers.authorization || '').replace(/^Bearer\s+/i, '')
+            || null;
+
+        if (!token) {
+            if (enforce) return res.status(401).json({ error: 'Authentication required' });
+            return next();
+        }
+
+        try {
+            const payload = jwt.verify(token, JWT_SECRET);
+            if (payload.deviceId) {
+                const deviceAuth = require('./services/deviceAuth');
+                if (!deviceAuth.isDeviceValid(payload.deviceId)) {
+                    if (enforce) return res.status(401).json({ error: 'Device has been removed' });
+                    return next();
+                }
+                deviceAuth.touchDevice(payload.deviceId);
+            }
+            req.user = { id: payload.id, username: payload.username, role: payload.role, deviceId: payload.deviceId || null };
+            return next();
+        } catch (err) {
+            if (enforce) return res.status(401).json({ error: 'Invalid or expired token' });
+            return next();
+        }
+    };
+}
+
+/**
+ * Build the stream middleware from settings, read per request so the setting
+ * takes effect without a restart.
+ */
+function streamAuthFromSettings(db) {
+    return async (req, res, next) => {
+        let enforce = false;
+        try {
+            const settings = await db.settings.get();
+            enforce = settings.requireStreamAuth === true;
+        } catch (e) { /* a settings failure must not lock out playback */ }
+        return streamAuth({ enforce })(req, res, next);
+    };
+}
+
+/**
  * Middleware: Require admin role
  */
 function requireAdmin(req, res, next) {
@@ -274,6 +332,8 @@ module.exports = {
     configureSessionSerialization,
     configureOidcStrategy,
     requireAuth,
+    streamAuth,
+    streamAuthFromSettings,
     requireAdmin,
     requireRole
 };

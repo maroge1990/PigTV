@@ -181,15 +181,20 @@ process.on('SIGTERM', async () => {
 // API Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/sources', require('./routes/sources'));
-app.use('/api/proxy', require('./routes/proxy'));
+// Stream endpoints accept a token in the query string, because media players
+// cannot send headers. Enforcement is off unless requireStreamAuth is set.
+const streamAuth = require('./auth').streamAuthFromSettings(require('./db'));
+
+app.use('/api/proxy', streamAuth, require('./routes/proxy'));
 app.use('/api/channels', require('./routes/channels'));
 app.use('/api/favorites', require('./routes/favorites'));
-app.use('/api/transcode', require('./routes/transcode'));
-app.use('/api/remux', require('./routes/remux'));
+app.use('/api/transcode', streamAuth, require('./routes/transcode'));
+app.use('/api/remux', streamAuth, require('./routes/remux'));
 app.use('/api/probe', require('./routes/probe'));
 app.use('/api/playback', require('./routes/playback'));
 app.use('/api/devices', require('./routes/devices'));
 app.use('/api/library', require('./routes/library'));
+app.use('/api/info', require('./routes/info'));
 app.use('/api/subtitle', require('./routes/subtitle'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/history', require('./routes/history'));

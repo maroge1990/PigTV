@@ -158,6 +158,94 @@ router.get('/channels', (req, res) => {
 });
 
 /**
+ * GET /api/library/guide?start=&end=&category=&limit=&offset=
+ *
+ * The grid: channels in provider order, each with its programmes across a
+ * window. /channels gives now and next, which draws a tile but not a guide.
+ *
+ * Paginated by channel, not by programme — a client renders rows, and a row
+ * that arrives without its programmes is worse than one that has not arrived.
+ * The window is capped at 24 hours because the response grows with it and a
+ * TV does not have a desktop's memory.
+ */
+router.get('/guide', (req, res) => {
+    try {
+        const db = getDb();
+        const limit = clamp(req.query.limit, 1, 100, 25);
+        const offset = clamp(req.query.offset, 0, 1e7, 0);
+        const { category } = req.query;
+
+        const now = Date.now();
+        const start = parseInt(req.query.start, 10) || now;
+        const requestedEnd = parseInt(req.query.end, 10) || (start + 3 * 60 * 60 * 1000);
+        const end = Math.min(requestedEnd, start + 24 * 60 * 60 * 1000);
+
+        const where = [`p.type = 'live'`, `p.is_hidden = 0`, `NOT EXISTS (
+            SELECT 1 FROM categories c
+            WHERE c.source_id = p.source_id AND c.type = p.type
+              AND c.category_id = p.category_id AND c.is_hidden = 1
+        )`];
+        const params = [];
+        if (category) { where.push('p.category_id = ?'); params.push(category); }
+        const clause = where.join(' AND ');
+
+        const total = db.prepare(`SELECT COUNT(*) n FROM playlist_items p WHERE ${clause}`).get(...params).n;
+        const rows = db.prepare(`
+            SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data
+            FROM playlist_items p
+            WHERE ${clause}
+            ORDER BY CASE WHEN p.sort_order IS NULL THEN 1 ELSE 0 END, p.sort_order ASC, p.name ASC
+            LIMIT ? OFFSET ?
+        `).all(...params, limit, offset);
+
+        const channels = rows.map(row => {
+            let data = {};
+            try { data = JSON.parse(row.data || '{}'); } catch (e) { /* ignore */ }
+            return {
+                id: row.item_id,
+                sourceId: row.source_id,
+                name: row.name,
+                logo: row.stream_icon || null,
+                category: row.category_id,
+                tvgId: data.tvgId || data.epg_channel_id || null,
+                programmes: []
+            };
+        });
+
+        // One query for every channel on the page rather than one per channel.
+        const tvgIds = [...new Set(channels.map(c => c.tvgId).filter(Boolean))];
+        if (tvgIds.length) {
+            const ph = tvgIds.map(() => '?').join(',');
+            const progs = db.prepare(`
+                SELECT channel_id, title, description, start_time, end_time
+                FROM epg_programs
+                WHERE channel_id IN (${ph}) AND end_time > ? AND start_time < ?
+                ORDER BY start_time ASC
+            `).all(...tvgIds, start, end);
+
+            const byChannel = new Map();
+            for (const pr of progs) {
+                if (!byChannel.has(pr.channel_id)) byChannel.set(pr.channel_id, []);
+                byChannel.get(pr.channel_id).push({
+                    title: pr.title,
+                    description: pr.description || null,
+                    startTime: pr.start_time,
+                    endTime: pr.end_time,
+                    isNow: pr.start_time <= now && pr.end_time > now
+                });
+            }
+            for (const ch of channels) {
+                if (ch.tvgId && byChannel.has(ch.tvgId)) ch.programmes = byChannel.get(ch.tvgId);
+            }
+        }
+
+        res.json({ total, limit, offset, start, end, now, channels });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
  * GET /api/library/recent?limit=
  * What this user watched last, most recent first. Drives "jump back in".
  */
