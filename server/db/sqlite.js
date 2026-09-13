@@ -151,12 +151,17 @@ function initSchema() {
         );
     `);
 
-    // Watch history
+    // Recently watched channels.
     //
-    // One row per user per channel, updated in place: this drives "jump back
-    // in", which wants the last dozen channels rather than a full log.
+    // Distinct from watch_history, which tracks resume positions for movies
+    // and episodes. Live TV has no position to resume — what matters is which
+    // channels were on recently — so this is its own table rather than more
+    // nullable columns on that one.
+    //
+    // One row per user per channel, updated in place: the screen that uses
+    // this wants the last dozen channels, not a log of every tune-in.
     db.exec(`
-        CREATE TABLE IF NOT EXISTS watch_history (
+        CREATE TABLE IF NOT EXISTS channel_history (
             user_id TEXT NOT NULL,
             source_id INTEGER NOT NULL,
             channel_item_id TEXT NOT NULL,
@@ -165,7 +170,7 @@ function initSchema() {
             play_count INTEGER DEFAULT 1,
             PRIMARY KEY (user_id, source_id, channel_item_id)
         );
-        CREATE INDEX IF NOT EXISTS idx_watch_recent ON watch_history(user_id, watched_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_channel_history_recent ON channel_history(user_id, watched_at DESC);
     `);
 
     // User Favorites (per-user)

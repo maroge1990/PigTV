@@ -169,7 +169,7 @@ router.get('/recent', (req, res) => {
         const rows = db.prepare(`
             SELECT h.source_id, h.channel_item_id, h.channel_name, h.watched_at,
                    p.stream_icon, p.category_id, p.sort_order, p.name, p.item_id, p.data
-            FROM watch_history h
+            FROM channel_history h
             LEFT JOIN playlist_items p
               ON p.source_id = h.source_id AND p.item_id = h.channel_item_id AND p.type = 'live'
             WHERE h.user_id = ?

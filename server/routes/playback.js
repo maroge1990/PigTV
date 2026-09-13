@@ -112,7 +112,7 @@ router.post('/resolve', optionalAuth, async (req, res) => {
                 `).get(parseInt(sourceId), stripped)?.name || null;
 
                 getDb().prepare(`
-                    INSERT INTO watch_history (user_id, source_id, channel_item_id, channel_name, watched_at, play_count)
+                    INSERT INTO channel_history (user_id, source_id, channel_item_id, channel_name, watched_at, play_count)
                     VALUES (?, ?, ?, ?, ?, 1)
                     ON CONFLICT(user_id, source_id, channel_item_id) DO UPDATE SET
                         watched_at = excluded.watched_at,
