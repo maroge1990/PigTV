@@ -3,6 +3,41 @@ const router = express.Router();
 const { spawn } = require('child_process');
 const db = require('../db');
 
+// Active remux processes, so they can be listed and killed like transcode
+// sessions can. Without this registry a remuxed stream is invisible to any
+// management tooling: it only ends when its client disconnects, and a client
+// that went away without closing the socket leaves ffmpeg running against the
+// provider indefinitely.
+const activeRemuxes = new Map(); // id -> { id, url, proc, startedAt, res }
+let remuxCounter = 0;
+
+function listActiveRemuxes() {
+    return Array.from(activeRemuxes.values()).map(r => ({
+        id: r.id,
+        url: r.url,
+        type: 'remux',
+        startTime: r.startedAt,
+        idleMs: Date.now() - r.startedAt
+    }));
+}
+
+function killRemux(id) {
+    const entry = activeRemuxes.get(id);
+    if (!entry) return false;
+    try { entry.proc.kill('SIGKILL'); } catch (e) { /* already gone */ }
+    try { entry.res.end(); } catch (e) { /* already closed */ }
+    activeRemuxes.delete(id);
+    return true;
+}
+
+function killAllRemuxes() {
+    let killed = 0;
+    for (const id of [...activeRemuxes.keys()]) {
+        if (killRemux(id)) killed++;
+    }
+    return killed;
+}
+
 // Cache of url -> { video, audio } codec names, so we only pay for the probe
 // once per stream rather than on every playback start.
 const codecCache = new Map();
@@ -195,16 +230,30 @@ router.get('/', async (req, res) => {
         }
     });
 
+    const remuxId = `remux_${++remuxCounter}`;
+    activeRemuxes.set(remuxId, {
+        id: remuxId,
+        url,
+        proc: ffmpeg,
+        res,
+        startedAt: Date.now()
+    });
+    console.log(`[Remux] Started ${remuxId} (${activeRemuxes.size} active)`);
+
     // Cleanup on client disconnect
     req.on('close', () => {
-        console.log('[Remux] Client disconnected, killing FFmpeg process');
-        ffmpeg.kill('SIGKILL');
+        if (activeRemuxes.has(remuxId)) {
+            console.log(`[Remux] Client disconnected, killing ${remuxId}`);
+            activeRemuxes.delete(remuxId);
+            try { ffmpeg.kill('SIGKILL'); } catch (e) { /* already gone */ }
+        }
     });
 
     // Handle process exit
     ffmpeg.on('exit', (code) => {
+        activeRemuxes.delete(remuxId);
         if (code !== null && code !== 0 && code !== 255) {
-            console.error(`[Remux] FFmpeg exited with code ${code}`);
+            console.error(`[Remux] ${remuxId} exited with code ${code}`);
         }
     });
 
@@ -218,3 +267,6 @@ router.get('/', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.listActiveRemuxes = listActiveRemuxes;
+module.exports.killRemux = killRemux;
+module.exports.killAllRemuxes = killAllRemuxes;

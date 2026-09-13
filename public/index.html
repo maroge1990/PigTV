@@ -901,8 +901,8 @@
           <div id="tab-debug" class="tab-content">
             <div class="settings-section">
               <h3>Stream Management</h3>
-              <p class="setting-hint">Active transcode sessions hold an ffmpeg process and a connection to
-                your provider. If a stream is left running after a browser close, kill it here.</p>
+              <p class="setting-hint">Every active stream, whether transcoded or remuxed, holds an ffmpeg
+                process and a connection to your provider. If one is left running after a browser close, kill it here.</p>
               <div id="active-sessions-list" style="margin: var(--space-md) 0;">
                 <span class="setting-hint">Loading...</span>
               </div>
@@ -1256,7 +1256,7 @@
   <script src="/js/pages/RecordingsPage.js?v=4"></script>
   <script src="/js/pages/MoviesPage.js?v=4"></script>
   <script src="/js/pages/SeriesPage.js?v=1"></script>
-  <script src="/js/pages/Settings.js?v=4"></script>
+  <script src="/js/pages/Settings.js?v=5"></script>
   <script src="/js/pages/WatchPage.js?v=1"></script>
   <script src="/js/app.js?v=7"></script>
   <script>

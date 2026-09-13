@@ -138,6 +138,16 @@ router.get('/:sessionId/:segment', async (req, res) => {
  * DELETE /api/transcode/:sessionId
  */
 router.delete('/:sessionId', async (req, res) => {
+    // Remux streams use their own registry and their own id prefix.
+    if (String(req.params.sessionId).startsWith('remux_')) {
+        try {
+            const ok = require('./remux').killRemux(req.params.sessionId);
+            return res.json({ success: ok });
+        } catch (err) {
+            return res.status(500).json({ error: err.message });
+        }
+    }
+
     const { sessionId } = req.params;
 
     try {
@@ -153,7 +163,17 @@ router.delete('/:sessionId', async (req, res) => {
  * GET /api/transcode/sessions
  */
 router.get('/sessions', (req, res) => {
-    res.json(transcodeSession.getAllSessions());
+    // Everything currently holding an ffmpeg process and a provider
+    // connection, not just HLS transcode sessions. A remuxed stream is just
+    // as real a consumer of the single connection the provider allows.
+    const sessions = transcodeSession.getAllSessions().map(s => ({ ...s, type: s.type || 'transcode' }));
+    let remuxes = [];
+    try {
+        remuxes = require('./remux').listActiveRemuxes();
+    } catch (err) {
+        console.error('[Transcode] Could not list remux processes:', err.message);
+    }
+    res.json([...sessions, ...remuxes]);
 });
 
 /**
@@ -172,8 +192,18 @@ router.delete('/sessions/all', async (req, res) => {
                 console.error(`[Transcode] Failed to kill session ${session.id}:`, err.message);
             }
         }
-        console.log(`[Transcode] Killed ${killed} session(s)`);
-        res.json({ success: true, killed });
+
+        // Remuxed streams hold an ffmpeg process and a provider connection
+        // too, so "kill all" has to mean all of them.
+        let remuxKilled = 0;
+        try {
+            remuxKilled = require('./remux').killAllRemuxes();
+        } catch (err) {
+            console.error('[Transcode] Failed to kill remux processes:', err.message);
+        }
+
+        console.log(`[Transcode] Killed ${killed} transcode session(s) and ${remuxKilled} remux stream(s)`);
+        res.json({ success: true, killed: killed + remuxKilled, transcode: killed, remux: remuxKilled });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

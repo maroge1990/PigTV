@@ -174,15 +174,18 @@ class SettingsPage {
                 list.innerHTML = '<span class="setting-hint">No active sessions</span>';
                 return;
             }
-            list.innerHTML = sessions.map(sess => `
+            list.innerHTML = sessions.map(sess => {
+                const kind = sess.type === 'remux' ? 'Remux' : 'Transcode';
+                const age = sess.startTime ? Math.round((Date.now() - sess.startTime) / 1000) : null;
+                return `
                 <div class="setting-item">
                     <div class="setting-info">
-                        <span class="setting-label">${sess.id}</span>
+                        <span class="setting-label">${kind} — ${sess.id}${age !== null ? ` (${age}s)` : ''}</span>
                         <span class="setting-hint">${sess.url || ''}</span>
                     </div>
                     <button class="btn btn-sm btn-danger" data-kill-session="${sess.id}">Kill</button>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
             list.querySelectorAll('[data-kill-session]').forEach(btn => {
                 btn.addEventListener('click', async () => {
                     btn.disabled = true;
