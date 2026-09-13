@@ -611,7 +611,7 @@ class WatchPage {
     }
 
     setVolumeFromStorage() {
-        const savedVolume = localStorage.getItem('nodecast-volume') || '80';
+        const savedVolume = localStorage.getItem('pigtv-volume') || '80';
         this.video.volume = parseInt(savedVolume) / 100;
         if (this.volumeSlider) this.volumeSlider.value = savedVolume;
     }
@@ -677,7 +677,7 @@ class WatchPage {
         if (this.video) {
             this.video.volume = value / 100;
             this.video.muted = false;
-            localStorage.setItem('nodecast-volume', value);
+            localStorage.setItem('pigtv-volume', value);
             this.updateVolumeUI();
         }
     }

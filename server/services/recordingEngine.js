@@ -100,11 +100,21 @@ async function resolveStreamUrl(sourceId, channelItemId) {
 
     // M3U (and anything else synced into playlist_items) - stream URL lives in
     // the stored item data (see syncService.saveStreams / m3uParser).
+    //
+    // The client identifies a channel by its composite id (m3u_<source>_<item>),
+    // which is what the EPG row carries, but playlist_items stores the bare
+    // item_id. Accept either, and the fully-qualified `id` column too, so a
+    // schedule stored by any of those forms still resolves.
     const db = getDb();
+    const raw = String(channelItemId);
+    const stripped = raw.replace(/^(?:m3u|xtream)_\d+_/, '');
+
     const item = db.prepare(`
         SELECT stream_url, data FROM playlist_items
-        WHERE source_id = ? AND item_id = ? AND type = 'live'
-    `).get(sourceId, String(channelItemId));
+        WHERE source_id = ? AND type = 'live'
+          AND (item_id = ? OR item_id = ? OR id = ?)
+        LIMIT 1
+    `).get(sourceId, raw, stripped, `${sourceId}:${stripped}`);
 
     if (!item) throw new Error(`Channel ${channelItemId} not found for source ${sourceId}`);
 
@@ -125,6 +135,8 @@ async function scheduleFromProgram({
     preBufferMin, postBufferMin, createdBy
 }) {
     if (!sourceId || !channelItemId) throw new Error('sourceId and channelItemId are required');
+    // Store the bare item_id, not the client's composite m3u_<source>_<item>
+    channelItemId = String(channelItemId).replace(/^(?:m3u|xtream)_\d+_/, '');
     if (!programStart || !programEnd || programEnd <= programStart) {
         throw new Error('Valid programStart/programEnd are required');
     }

@@ -71,7 +71,7 @@ class VideoPlayer {
             console.warn('[Player] Failed to load settings from server, using defaults:', err.message);
             // Fall back to localStorage for backwards compatibility
             try {
-                const saved = localStorage.getItem('nodecast_tv_player_settings');
+                const saved = localStorage.getItem('pigtv_player_settings');
                 if (saved) {
                     this.settings = { ...this.getDefaultSettings(), ...JSON.parse(saved) };
                     console.log('[Player] Settings loaded from localStorage (fallback)');
@@ -93,7 +93,7 @@ class VideoPlayer {
             console.error('[Player] Error saving settings to server:', err);
             // Also save to localStorage as backup
             try {
-                localStorage.setItem('nodecast_tv_player_settings', JSON.stringify(this.settings));
+                localStorage.setItem('pigtv_player_settings', JSON.stringify(this.settings));
             } catch (localErr) {
                 console.error('[Player] Error saving to localStorage:', localErr);
             }

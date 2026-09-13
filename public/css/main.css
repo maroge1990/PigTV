@@ -1,5 +1,5 @@
 /* =====================================================
-  * NodeCast TV - Dark Theme Design System
+  * PigTV - Design System
    ===================================================== */
 
 /* CSS Variables */
@@ -9,25 +9,25 @@
 
 
   /* Colors */
-  --color-bg-primary: #0a0a0f;
-  --color-bg-secondary: #12121a;
-  --color-bg-tertiary: #1a1a25;
+  --color-bg-primary: #15111A;
+  --color-bg-secondary: #1E1925;
+  --color-bg-tertiary: #251E2E;
   --color-bg-hover: #22222f;
   --color-bg-active: #2a2a3a;
 
-  --color-accent: #6366f1;
-  --color-accent-hover: #818cf8;
-  --color-accent-dim: rgba(99, 102, 241, 0.2);
+  --color-accent: #FF5C8A;
+  --color-accent-hover: #FF7FA3;
+  --color-accent-dim: rgba(255, 92, 138, 0.2);
 
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
 
-  --color-text-primary: #f1f1f5;
-  --color-text-secondary: #a1a1aa;
-  --color-text-muted: #71717a;
+  --color-text-primary: #F5F1F4;
+  --color-text-secondary: #A79FAE;
+  --color-text-muted: #7E7589;
 
-  --color-border: #27272a;
+  --color-border: #2E2634;
   --color-border-light: #3f3f46;
 
   /* Glass effect */
@@ -52,7 +52,7 @@
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.3);
+  --shadow-glow: 0 0 20px rgba(255, 92, 138, 0.3);
 
   /* Transitions */
   --transition-fast: 150ms ease;
@@ -4415,9 +4415,9 @@ kbd {
 }
 
 .user-badge-sso {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: linear-gradient(135deg, #FF7FA3 0%, #E8446F 100%);
   color: #fff;
-  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 2px 4px rgba(255, 92, 138, 0.3);
 }
 
 .user-badge-local {
@@ -4458,14 +4458,14 @@ kbd {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 200px;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 2px 8px rgba(255, 92, 138, 0.4);
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
   animation: now-playing-pulse 2s ease-in-out infinite;
 }
 
 .now-playing-indicator:hover {
   transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.5);
+  box-shadow: 0 4px 12px rgba(255, 92, 138, 0.5);
 }
 
 .now-playing-indicator.hidden {
@@ -5061,3 +5061,10 @@ kbd {
 #btn-go-live.at-live .live-dot {
   background: var(--color-text-muted);
 }
+
+
+/* ---- PigTV brand mark ---- */
+.navbar-brand .logo { display: inline-flex; align-items: center; }
+.brand-mark { height: 30px; width: auto; display: block; }
+.login-mark { height: 44px; width: auto; vertical-align: -10px; margin-right: 10px; }
+.brand-text { letter-spacing: -0.02em; font-weight: 650; }

@@ -1,4 +1,4 @@
-# NodeCast TV Docker Image
+# PigTV Docker Image
 #
 # Hardware acceleration:
 #   - VAAPI (Intel/AMD): Mount /dev/dri and add video/render groups

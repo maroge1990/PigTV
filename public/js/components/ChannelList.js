@@ -46,7 +46,7 @@ class ChannelList {
      */
     loadCollapsedState() {
         try {
-            const saved = localStorage.getItem('nodecast_tv_collapsed_groups');
+            const saved = localStorage.getItem('pigtv_collapsed_groups');
             if (saved) {
                 this.collapsedGroups = new Set(JSON.parse(saved));
                 this._hasCollapsedState = true;
@@ -64,7 +64,7 @@ class ChannelList {
      */
     saveCollapsedState() {
         try {
-            localStorage.setItem('nodecast_tv_collapsed_groups', JSON.stringify([...this.collapsedGroups]));
+            localStorage.setItem('pigtv_collapsed_groups', JSON.stringify([...this.collapsedGroups]));
         } catch (err) {
             console.error('Error saving collapsed state:', err);
         }

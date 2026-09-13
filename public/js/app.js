@@ -1,5 +1,5 @@
 /**
- * NodeCast TV Application Entry Point
+ * PigTV Application Entry Point
  */
 
 class App {
@@ -169,7 +169,7 @@ class App {
         // Apply Movies/Series visibility from settings
         this.applyContentVisibility();
 
-        console.log('NodeCast TV initialized');
+        console.log('PigTV initialized');
     }
 
     startRecordingWatch() {
