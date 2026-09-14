@@ -65,6 +65,13 @@ class TranscodeSession extends EventEmitter {
         this.error = null;
         this.startTime = Date.now();
         this.lastAccess = Date.now();
+
+        // Diagnostics for a timed-out waitForPlaylist(): which stage was
+        // slow is otherwise invisible behind one generic "failed to produce
+        // a playlist in time" error.
+        this.timings = { created: Date.now() };
+        this.stderrTail = [];
+
         this.options = {
             ffmpegPath: options.ffmpegPath || 'ffmpeg',
             userAgent: options.userAgent || 'Mozilla/5.0',
@@ -118,6 +125,7 @@ class TranscodeSession extends EventEmitter {
             });
 
             this.status = 'running';
+            this.timings.spawned = Date.now();
 
             // Handle stdout (should be empty for file output)
             this.process.stdout.on('data', (data) => {
@@ -127,6 +135,7 @@ class TranscodeSession extends EventEmitter {
             // Handle stderr (FFmpeg progress/errors)
             let stderrBuffer = '';
             this.process.stderr.on('data', (data) => {
+                if (!this.timings.firstOutput) this.timings.firstOutput = Date.now();
                 stderrBuffer += data.toString();
                 // Log periodically to avoid spam
                 const lines = stderrBuffer.split('\n');
@@ -134,6 +143,8 @@ class TranscodeSession extends EventEmitter {
                     lines.slice(0, -1).forEach(line => {
                         if (line.trim()) {
                             console.log(`[FFmpeg ${this.id}] ${line}`);
+                            this.stderrTail.push(line.trim());
+                            if (this.stderrTail.length > 20) this.stderrTail.shift();
                         }
                     });
                     stderrBuffer = lines[lines.length - 1];
@@ -284,7 +295,17 @@ class TranscodeSession extends EventEmitter {
             cinematic: 'pan=stereo|FL=FC+0.80*FL+0.60*BL+0.5*LFE|FR=FC+0.80*FR+0.60*BR+0.5*LFE'
         };
 
-        if (audioMixPreset === 'passthrough' && !isHeAac) {
+        if (this.options.audioMode === 'copy' && !isHeAac) {
+            // Caller (playbackStrategy) has already established via client
+            // capabilities that this audio codec plays as-is and wants it
+            // copied through untouched — the same guarantee a plain remux
+            // gives, just inside an HLS session instead of a piped
+            // response. This intentionally bypasses audioMixPreset, which
+            // exists to pick a *downmix*, a question that doesn't apply
+            // when nothing needs mixing in the first place.
+            console.log(`[TranscodeSession ${this.id}] Audio: Copy (client capabilities confirm ${audioCodec} support)`);
+            args.push('-c:a', 'copy');
+        } else if (audioMixPreset === 'passthrough' && !isHeAac) {
             // Passthrough: Always copy audio, no processing
             console.log(`[TranscodeSession ${this.id}] Audio: Passthrough (copy)`);
             args.push('-c:a', 'copy');
@@ -625,20 +646,53 @@ class TranscodeSession extends EventEmitter {
     }
 
     /**
-     * Stop the transcoding process
+     * Stop the transcoding process, and don't resolve until it has actually
+     * exited.
+     *
+     * The previous version fired SIGTERM/SIGKILL and returned immediately,
+     * so cleanup() could delete this.dir while ffmpeg was still finishing a
+     * write into it — the source of the "file not found" errors that
+     * followed a stop in the supplied logs. Returning a promise here means
+     * a caller that awaits stop() (cleanup() now does) is guaranteed the
+     * process is gone before it does anything that assumes that.
      */
     stop() {
-        if (this.process) {
-            console.log(`[TranscodeSession ${this.id}] Stopping FFmpeg process`);
-            this.process.kill('SIGTERM');
-            // Force kill after 2 seconds if still running
-            setTimeout(() => {
-                if (this.process) {
-                    this.process.kill('SIGKILL');
-                }
-            }, 2000);
-        }
+        if (this._stopPromise) return this._stopPromise;
+
         this.status = 'stopped';
+
+        if (!this.process) {
+            this._stopPromise = Promise.resolve();
+            return this._stopPromise;
+        }
+
+        const proc = this.process;
+        console.log(`[TranscodeSession ${this.id}] Stopping FFmpeg process`);
+
+        this._stopPromise = new Promise((resolve) => {
+            let settled = false;
+            const done = () => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(killTimer);
+                clearTimeout(safetyTimer);
+                resolve();
+            };
+
+            proc.once('exit', done);
+            proc.kill('SIGTERM');
+
+            // Force kill after 2 seconds if still running.
+            const killTimer = setTimeout(() => {
+                try { proc.kill('SIGKILL'); } catch (e) { /* already gone */ }
+            }, 2000);
+
+            // If 'exit' somehow never fires, don't hang the caller forever —
+            // stop() should always settle.
+            const safetyTimer = setTimeout(done, 5000);
+        });
+
+        return this._stopPromise;
     }
 
     /**
@@ -655,8 +709,15 @@ class TranscodeSession extends EventEmitter {
         try {
             await fs.access(this.playlistPath);
             const content = await fs.readFile(this.playlistPath, 'utf8');
-            // Check if playlist has at least one segment
-            return content.includes('.ts');
+            // A playlist can be syntactically valid and still have nothing
+            // to play: for fMP4 output the #EXT-X-MAP init-segment tag
+            // (init.mp4) appears before any media segment does. Checking
+            // for '.ts' only ever matched the MPEG-TS case, so a valid
+            // fMP4 playlist (segments named seg%04d.m4s, see
+            // buildFFmpegArgs) was reported "not ready" until
+            // waitForPlaylist simply ran out of time — nothing about the
+            // playlist itself was ever going to change that verdict.
+            return content.includes('.ts') || content.includes('.m4s');
         } catch {
             return false;
         }
@@ -669,11 +730,34 @@ class TranscodeSession extends EventEmitter {
         const startTime = Date.now();
         while (Date.now() - startTime < timeoutMs) {
             if (await this.isPlaylistReady()) {
+                this.timings.playlistReady = Date.now();
                 return true;
             }
             await new Promise(resolve => setTimeout(resolve, 200));
         }
+        this.logTimeoutDiagnostics(timeoutMs);
         return false;
+    }
+
+    /**
+     * Log where a timed-out session actually spent its time, plus a
+     * bounded ffmpeg stderr tail. "Failed to produce a playlist in time" is
+     * one message for several different failures — never spawned, spawned
+     * but produced no output (provider/network stalled), or produced
+     * output but never a ready playlist (the isPlaylistReady bug above was
+     * found this way) — and previously none of them were distinguishable
+     * without reproducing with verbose logging on.
+     */
+    logTimeoutDiagnostics(timeoutMs) {
+        const t = this.timings;
+        const since = (a, b) => (a && b) ? `${b - a}ms` : 'never';
+        console.error(`[TranscodeSession ${this.id}] Playlist not ready after ${timeoutMs}ms`);
+        console.error(`[TranscodeSession ${this.id}]   created -> spawned: ${since(t.created, t.spawned)}`);
+        console.error(`[TranscodeSession ${this.id}]   spawned -> first ffmpeg output: ${since(t.spawned, t.firstOutput)}`);
+        if (this.stderrTail.length) {
+            console.error(`[TranscodeSession ${this.id}] Last ffmpeg output:`);
+            this.stderrTail.forEach(line => console.error(`[TranscodeSession ${this.id}] ${line}`));
+        }
     }
 
     /**
@@ -745,7 +829,18 @@ class TranscodeSession extends EventEmitter {
      * Delete session directory and all segments
      */
     async cleanup() {
-        this.stop();
+        // Idempotent: removeSession() and a stale-session sweep can race
+        // each other onto the same session, and a second cleanup() must be
+        // a no-op rather than a second concurrent rm() of a directory the
+        // first call is already deleting.
+        if (this._cleanedUp) return;
+        this._cleanedUp = true;
+
+        // stop() now resolves only once ffmpeg has actually exited (see
+        // above), so by the time rm() runs below nothing is still writing
+        // into this.dir.
+        await this.stop();
+
         try {
             await fs.rm(this.dir, { recursive: true, force: true });
             console.log(`[TranscodeSession ${this.id}] Cleaned up session directory`);

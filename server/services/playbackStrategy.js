@@ -31,7 +31,22 @@ const DEFAULT_CAPABILITIES = {
     eac3: false,
     flac: false,
     hls: true,      // native HLS, as Safari and AVPlayer have
-    fmp4: true      // fragmented MP4 segments
+    fmp4: true,     // fragmented MP4 segments
+
+    // Whether this client needs an actual HLS playlist and segment files,
+    // as opposed to a single piped response it reads as a byte stream.
+    //
+    // Deliberately separate from hls/fmp4 above, which describe codec and
+    // container support, not delivery shape. A browser using hls.js or a
+    // plain <video> tag is happy with the /api/remux response: one ffmpeg
+    // process, stdout piped straight into the HTTP response, non-seekable,
+    // no Range support. AVPlayer is not — it expects ordinary HTTP requests
+    // against a playlist and its segments, and reports a piped stream as a
+    // misconfigured server (AVFoundationErrorDomain -11850
+    // serverIncorrectlyConfigured) rather than simply refusing to seek.
+    // Native clients must opt in explicitly; nothing changes for a client
+    // that doesn't set this.
+    segmentedDelivery: false
 };
 
 /**
@@ -82,8 +97,19 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
 
     // 2. Remux. A container change with the video and audio copied through.
     //    Cheap enough to be effectively free, so it beats any encode.
+    //
+    //    Two delivery shapes share this "codecs are fine" case. Piped MP4
+    //    (/api/remux) is the cheaper of the two — one ffmpeg process,
+    //    stdout straight into the response — but it's a non-seekable
+    //    single response with no Range support, which AVPlayer refuses
+    //    (see segmentedDelivery above). Clients that set segmentedDelivery
+    //    fall through to case 3 instead, which already has an HLS-session
+    //    code path for exactly this "copy both streams" case — it just
+    //    needed a way to reach it without also being asked to re-encode.
     const audioNeedsWork = info.audioOk === false;
-    if (!upscale && info.videoOk && !audioNeedsWork) {
+    const codecsOk = !upscale && info.videoOk && !audioNeedsWork;
+
+    if (codecsOk && !caps.segmentedDelivery) {
         return {
             strategy: 'remux',
             url: `/api/remux?url=${encoded}`,
@@ -96,6 +122,12 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     // 3. Transcode. Encode as little as possible: if the client can decode the
     //    video, copy it and fix only the audio. HEVC copy needs fMP4 segments,
     //    because hls.js cannot demux HEVC out of MPEG-TS.
+    //
+    //    When codecsOk is true here, it's only because segmentedDelivery
+    //    sent us past case 2 — both streams are already fine, so audioMode
+    //    'copy' below bypasses the usual mix-preset/downmix heuristics
+    //    entirely rather than re-encoding audio a plain remux would have
+    //    left untouched.
     const canCopyVideo = info.videoOk === true && !upscale;
     const videoMode = canCopyVideo ? 'copy' : 'encode';
     const segmentType = (canCopyVideo && info.videoIsHevc && caps.fmp4) ? 'fmp4' : 'mpegts';
@@ -114,6 +146,7 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
         vaapiHwDecode: settings.vaapiHwDecode !== false,
         segmentType,
         videoMode,
+        audioMode: codecsOk ? 'copy' : undefined,
         videoCodec: info.video,
         audioCodec: info.audio,
         audioChannels: info.audioChannels,
@@ -139,9 +172,11 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
         videoMode,
         segmentType,
         info,
-        reason: canCopyVideo
-            ? 'Video copied; audio re-encoded for this client'
-            : (upscale ? 'Upscaling requested' : 'Video cannot be decoded by this client')
+        reason: codecsOk
+            ? 'Codecs are fine; delivered as HLS segments for this client instead of a piped stream'
+            : (canCopyVideo
+                ? 'Video copied; audio re-encoded for this client'
+                : (upscale ? 'Upscaling requested' : 'Video cannot be decoded by this client'))
     };
 }
 
