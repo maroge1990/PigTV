@@ -47,7 +47,8 @@ class RecordingsPage {
         try {
             const items = await API.recordings.getAll();
             const wasActive = (this.recordings || []).some(
-                r => r.compress_status === 'running' || r.compress_status === 'pending'
+                r => ['running', 'pending'].includes(r.compress_status)
+                  || ['running', 'pending'].includes(r.ad_detect_status)
             );
             this.recordings = items;
             this.renderRecordings(items);
@@ -107,6 +108,14 @@ class RecordingsPage {
                     ${item.status === 'failed' && item.error ? `<div class="recording-error">${this.escape(item.error)}</div>` : ''}
                 </div>
                 <div class="recording-actions">
+                    ${item.is_partial ? `<span class="small muted" style="margin-right:8px;" title="${
+                        item.missed_start_ms > 30000
+                            ? `Missing the first ${Math.round(item.missed_start_ms / 60000)} minutes`
+                            : 'Stopped before the programme ended'
+                    }">Partial</span>` : ''}
+                    ${item.ad_detect_status === 'running' ? '<span class="small muted" style="margin-right:8px;">Finding breaks…</span>' : ''}
+                    ${item.ad_detect_status === 'done' ? '<span class="small muted" style="margin-right:8px;">Breaks marked</span>' : ''}
+                    ${item.ad_detect_status === 'failed' ? `<span class="small muted" style="margin-right:8px;" title="${(item.ad_detect_error || '').replace(/"/g, '&quot;')}">Break detection failed</span>` : ''}
                     ${item.compress_status === 'running' ? '<span class="small muted" style="margin-right:8px;">Compressing…</span>' : ''}
                     ${item.compress_status === 'pending' ? '<span class="small muted" style="margin-right:8px;">Queued to compress</span>' : ''}
                     ${item.compress_status === 'done' ? '<span class="small muted" style="margin-right:8px;">Compressed</span>' : ''}
@@ -153,7 +162,8 @@ class RecordingsPage {
             if (this.recordingsList && this.recordingsList.offsetParent === null) return;
             await this.refresh();
             const stillGoing = (this.recordings || []).some(
-                r => r.compress_status === 'running' || r.compress_status === 'pending'
+                r => ['running', 'pending'].includes(r.compress_status)
+                  || ['running', 'pending'].includes(r.ad_detect_status)
             );
             if (!stillGoing) {
                 clearInterval(this._compressTimer);
@@ -168,7 +178,8 @@ class RecordingsPage {
      */
     resumeCompressionWatchIfNeeded() {
         const active = (this.recordings || []).some(
-            r => r.compress_status === 'running' || r.compress_status === 'pending'
+            r => ['running', 'pending'].includes(r.compress_status)
+              || ['running', 'pending'].includes(r.ad_detect_status)
         );
         if (active) this.startCompressionWatch();
     }
@@ -193,7 +204,7 @@ class RecordingsPage {
         }
     }
 
-    play(id) {
+    async play(id) {
         this.closePlayer();
 
         const overlay = document.createElement('div');
@@ -202,6 +213,8 @@ class RecordingsPage {
             <div class="recording-player-box">
                 <button class="recording-player-close">&times;</button>
                 <video controls autoplay src="${API.recordings.streamUrl(id)}"></video>
+                <div class="ad-markers" aria-hidden="true"></div>
+                <button class="skip-ad-btn" hidden>Skip ad</button>
             </div>
         `;
         overlay.querySelector('.recording-player-close').addEventListener('click', () => this.closePlayer());
@@ -211,6 +224,75 @@ class RecordingsPage {
 
         document.body.appendChild(overlay);
         this._playerOverlay = overlay;
+
+        this.attachAdSkipping(overlay, id);
+    }
+
+    /**
+     * Show detected commercial breaks and let them be skipped.
+     *
+     * The button only exists while playback is inside a break, so it is absent
+     * the rest of the time rather than being another permanent control. The
+     * markers on the scrub bar matter during tuning: they are how you judge
+     * whether detection got it right, which is hard to tell from a button that
+     * may simply never appear.
+     */
+    async attachAdSkipping(overlay, id) {
+        const video = overlay.querySelector('video');
+        const button = overlay.querySelector('.skip-ad-btn');
+        const strip = overlay.querySelector('.ad-markers');
+        if (!video || !button) return;
+
+        let markers = [];
+        let autoSkip = false;
+
+        try {
+            const [data, settings] = await Promise.all([
+                API.recordings.getMarkers(id),
+                API.settings.get().catch(() => ({}))
+            ]);
+            markers = (data.markers || []).map(m => ({ start: m.startMs / 1000, end: m.endMs / 1000 }));
+            autoSkip = settings.adAutoSkip === true;
+        } catch (err) {
+            return; // no markers is simply a player without the feature
+        }
+
+        if (markers.length === 0) return;
+
+        const paint = () => {
+            const total = video.duration;
+            if (!Number.isFinite(total) || total <= 0) return;
+            strip.innerHTML = markers.map(m => {
+                const left = (m.start / total) * 100;
+                const width = Math.max(0.3, ((m.end - m.start) / total) * 100);
+                return `<span style="left:${left}%;width:${width}%"></span>`;
+            }).join('');
+        };
+        video.addEventListener('loadedmetadata', paint);
+        if (video.readyState >= 1) paint();
+
+        const currentBreak = (t) => markers.find(m => t >= m.start && t < m.end - 0.4);
+
+        video.addEventListener('timeupdate', () => {
+            const active = currentBreak(video.currentTime);
+            if (!active) {
+                button.hidden = true;
+                return;
+            }
+            if (autoSkip) {
+                video.currentTime = active.end;
+                return;
+            }
+            const left = Math.max(1, Math.round(active.end - video.currentTime));
+            button.textContent = `Skip ad · ${left}s`;
+            button.hidden = false;
+        });
+
+        button.addEventListener('click', () => {
+            const active = currentBreak(video.currentTime);
+            if (active) video.currentTime = active.end;
+            button.hidden = true;
+        });
     }
 
     closePlayer() {

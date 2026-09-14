@@ -151,6 +151,62 @@ router.get('/', (req, res) => {
     }
 });
 
+// Commercial breaks found in a recording, for a player to skip.
+router.get('/:id/markers', (req, res) => {
+    try {
+        const rec = recordingsDb.getById(parseInt(req.params.id));
+        if (!rec) return res.status(404).json({ error: 'Recording not found' });
+        res.json({
+            status: rec.ad_detect_status || null,
+            error: rec.ad_detect_error || null,
+            markers: recordingsDb.getMarkers(rec.id).map(m => ({
+                id: m.id,
+                startMs: m.start_ms,
+                endMs: m.end_ms,
+                type: m.type,
+                source: m.source
+            }))
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Detect (or re-detect) commercial breaks now.
+router.post('/:id/detect-ads', async (req, res) => {
+    try {
+        const rec = recordingsDb.getById(parseInt(req.params.id));
+        if (!rec) return res.status(404).json({ error: 'Recording not found' });
+        if (rec.status !== 'completed') {
+            return res.status(400).json({ error: 'Only completed recordings can be analysed' });
+        }
+        if (rec.ad_detect_status === 'running') {
+            return res.status(409).json({ error: 'Already analysing' });
+        }
+
+        recordingsDb.setAdDetectStatus(rec.id, 'pending', null);
+        recordingEngine.processAdDetectionQueue({ manual: true }).catch(err =>
+            console.error('[Recordings] Break detection error:', err.message));
+
+        res.json({ success: true, queued: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Discard the detected breaks for a recording, when detection got it wrong.
+router.delete('/:id/markers', (req, res) => {
+    try {
+        const rec = recordingsDb.getById(parseInt(req.params.id));
+        if (!rec) return res.status(404).json({ error: 'Recording not found' });
+        recordingsDb.deleteMarkers(rec.id);
+        recordingsDb.setAdDetectStatus(rec.id, null, null);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Queue a completed recording for compression, or run it now.
 // Automatic compression only marks recordings finished after the feature was
 // enabled, so anything already on disk needs an explicit nudge.
@@ -167,7 +223,7 @@ router.post('/:id/compress', async (req, res) => {
 
         recordingsDb.setCompressStatus(rec.id, 'pending', { error: null });
         // Kick the queue rather than waiting up to 15s for the next tick.
-        recordingEngine.processCompressionQueue({ manual: true }).catch(err =>
+        recordingEngine.processCompressionQueue().catch(err =>
             console.error('[Recordings] Compression error:', err.message));
 
         res.json({ success: true, queued: true });

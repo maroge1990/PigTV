@@ -150,10 +150,11 @@ class SettingsPage {
             document.getElementById('dvr-setting-post').value = s.defaultPostBufferMin ?? 5;
             document.getElementById('dvr-setting-max').value = s.maxConcurrentRecordings ?? 1;
             document.getElementById('dvr-setting-minfree').value = s.minFreeSpaceGB ?? 10;
-            document.getElementById('dvr-setting-compress').checked = s.postRecordCompress === true;
             document.getElementById('dvr-setting-codec').value = s.postRecordCodec || 'h264';
             document.getElementById('dvr-setting-bitrate').value = s.postRecordBitrateKbps ?? 3000;
             document.getElementById('dvr-setting-keep-original').checked = s.postRecordKeepOriginal === true;
+            document.getElementById('dvr-setting-addetect').checked = s.adDetectionEnabled === true;
+            document.getElementById('dvr-setting-adautoskip').checked = s.adAutoSkip === true;
         } catch (err) {
             console.error('Failed to load recording settings:', err);
         }
@@ -168,10 +169,11 @@ class SettingsPage {
                 defaultPostBufferMin: parseInt(document.getElementById('dvr-setting-post').value, 10) || 0,
                 maxConcurrentRecordings: parseInt(document.getElementById('dvr-setting-max').value, 10) || 1,
                 minFreeSpaceGB: Math.max(0, parseInt(document.getElementById('dvr-setting-minfree').value, 10) || 0),
-                postRecordCompress: document.getElementById('dvr-setting-compress').checked,
                 postRecordCodec: document.getElementById('dvr-setting-codec').value,
                 postRecordBitrateKbps: Math.max(500, parseInt(document.getElementById('dvr-setting-bitrate').value, 10) || 3000),
-                postRecordKeepOriginal: document.getElementById('dvr-setting-keep-original').checked
+                postRecordKeepOriginal: document.getElementById('dvr-setting-keep-original').checked,
+                adDetectionEnabled: document.getElementById('dvr-setting-addetect').checked,
+                adAutoSkip: document.getElementById('dvr-setting-adautoskip').checked
             });
             if (status) {
                 status.textContent = 'Saved';

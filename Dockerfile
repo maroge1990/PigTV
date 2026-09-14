@@ -35,6 +35,44 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Verify FFmpeg installed
 RUN ffmpeg -version && ffmpeg -encoders 2>/dev/null | grep -E "vaapi|nvenc|qsv|libx264" | head -10
 
+# Comskip, for detecting commercial breaks in recordings.
+#
+# Not packaged for Ubuntu, so it is built here. Built in a throwaway layer and
+# the build tools removed afterwards, since only the binary and the shared
+# libraries FFmpeg already needs are wanted at runtime.
+#
+# The build is allowed to fail: ad detection is optional, and a transient
+# problem fetching or compiling it should not stop PigTV being built. The
+# server checks for the binary at startup and reports the feature as
+# unavailable when it is missing.
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        build-essential autoconf automake libtool pkg-config git \
+        libargtable2-dev libavformat-dev libavcodec-dev libavutil-dev \
+        libswscale-dev libsdl2-dev; \
+    ( \
+        git clone --depth 1 https://github.com/erikkaashoek/Comskip /tmp/comskip \
+        && cd /tmp/comskip \
+        && ./autogen.sh \
+        && ./configure --bindir=/usr/local/bin \
+        && make -j"$(nproc)" \
+        && make install \
+    ) || echo "WARNING: Comskip build failed; ad detection will be unavailable"; \
+    rm -rf /tmp/comskip; \
+    apt-get purge -y --auto-remove \
+        build-essential autoconf automake libtool pkg-config git \
+        libargtable2-dev libavformat-dev libavcodec-dev libavutil-dev \
+        libswscale-dev libsdl2-dev; \
+    apt-get install -y --no-install-recommends libargtable2-0; \
+    rm -rf /var/lib/apt/lists/*; \
+    command -v comskip && comskip --help 2>&1 | head -3 || echo "Comskip not available"
+
+# Default Comskip tuning. Deliberately conservative: over-detection removes
+# programme content, which is worse than leaving an advert in. Override by
+# mounting your own file at this path once you know how your channels behave.
+COPY docker/comskip.ini /app/config/comskip.ini
+
 WORKDIR /app
 
 # Copy package files
@@ -47,7 +85,7 @@ RUN npm ci --only=production
 COPY . .
 
 # Create data, cache, and DVR recordings directories
-RUN mkdir -p /app/data /app/transcode-cache /app/recordings && chmod 777 /app/transcode-cache /app/recordings
+RUN mkdir -p /app/data /app/transcode-cache /app/recordings /app/config && chmod 777 /app/transcode-cache /app/recordings
 
 # Expose port
 EXPOSE 3000

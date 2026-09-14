@@ -53,13 +53,33 @@ function initSchema() {
         CREATE INDEX IF NOT EXISTS idx_recordings_status ON recordings(status);
     `);
 
+    // Commercial breaks found in a recording.
+    //
+    // Separate rows rather than a JSON blob on the recording: a client asks
+    // "what should I skip", and breaks are edited and re-detected
+    // independently of the recording itself.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS recording_markers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            recording_id INTEGER NOT NULL,
+            start_ms INTEGER NOT NULL,
+            end_ms INTEGER NOT NULL,
+            type TEXT NOT NULL DEFAULT 'ad',
+            source TEXT NOT NULL DEFAULT 'comskip',
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_markers_recording ON recording_markers(recording_id, start_ms);
+    `);
+
     // Migrations for databases created before compression existed.
     for (const col of [
         'compress_status TEXT',      // null|pending|running|done|failed|skipped
         'original_size_bytes INTEGER',
         'compress_error TEXT',
         'is_partial INTEGER DEFAULT 0',
-        'missed_start_ms INTEGER'    // how much of the programme was already gone
+        'missed_start_ms INTEGER',   // how much of the programme was already gone
+        'ad_detect_status TEXT',     // null|pending|running|done|failed|unavailable
+        'ad_detect_error TEXT'
     ]) {
         try {
             db.exec(`ALTER TABLE recordings ADD COLUMN ${col}`);
@@ -171,6 +191,57 @@ const scheduled = {
 };
 
 const recordings = {
+    setAdDetectStatus(id, status, error = null) {
+        const db = getDb();
+        initSchema();
+        db.prepare('UPDATE recordings SET ad_detect_status = ?, ad_detect_error = ? WHERE id = ?')
+            .run(status, error, id);
+    },
+
+    findPendingAdDetection() {
+        const db = getDb();
+        initSchema();
+        return db.prepare(`
+            SELECT * FROM recordings
+            WHERE status = 'completed' AND ad_detect_status = 'pending'
+            ORDER BY ended_at ASC
+        `).all();
+    },
+
+    replaceMarkers(recordingId, markers, source = 'comskip') {
+        const db = getDb();
+        initSchema();
+        const now = Date.now();
+        const wipe = db.prepare('DELETE FROM recording_markers WHERE recording_id = ? AND source = ?');
+        const add = db.prepare(`
+            INSERT INTO recording_markers (recording_id, start_ms, end_ms, type, source, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `);
+        // One transaction: a half-replaced marker set would have the player
+        // skipping into the middle of the programme.
+        db.transaction(() => {
+            wipe.run(recordingId, source);
+            for (const m of markers) {
+                add.run(recordingId, m.startMs, m.endMs, m.type || 'ad', source, now);
+            }
+        })();
+    },
+
+    getMarkers(recordingId) {
+        const db = getDb();
+        initSchema();
+        return db.prepare(`
+            SELECT id, start_ms, end_ms, type, source
+            FROM recording_markers WHERE recording_id = ? ORDER BY start_ms ASC
+        `).all(recordingId);
+    },
+
+    deleteMarkers(recordingId) {
+        const db = getDb();
+        initSchema();
+        db.prepare('DELETE FROM recording_markers WHERE recording_id = ?').run(recordingId);
+    },
+
     markPartial(id, missedStartMs) {
         const db = getDb();
         initSchema();

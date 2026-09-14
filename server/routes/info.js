@@ -18,8 +18,15 @@ const router = express.Router();
 // different rates.
 const API_VERSION = 1;
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
     const pkg = require('../../package.json');
+
+    // Comskip's build is allowed to fail, so whether it is actually present
+    // has to be reported rather than assumed.
+    let comskipAvailable = false;
+    try {
+        comskipAvailable = await require('../services/adDetect').isAvailable();
+    } catch (e) { /* reported as unavailable */ }
 
     res.json({
         name: 'PigTV',
@@ -36,10 +43,14 @@ router.get('/', (req, res) => {
             recordings: true,        // DVR
             recordingCompression: true,
             channelHistory: true,
+            adDetection: true,       // endpoints exist; comskipAvailable says whether it can run
+            streamCoordination: true,
             streamTokenAuth: true    // stream endpoints accept ?token=
         },
 
         // What the server can produce, so a client knows what to ask for.
+        comskipAvailable,
+
         playback: {
             strategies: ['direct', 'remux', 'transcode'],
             segmentTypes: ['mpegts', 'fmp4'],

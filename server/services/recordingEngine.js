@@ -370,14 +370,70 @@ async function compressRecording(rec, settings) {
     console.log(`[Recordings] #${rec.id} compressed: ${(originalSize / 1e9).toFixed(2)} GB -> ${(newSize / 1e9).toFixed(2)} GB (${saved}% smaller)`);
 }
 
-async function processCompressionQueue({ manual = false } = {}) {
-    if (compressing) return;
+// ---------------------------------------------------------------------------
+// Commercial break detection
+//
+// Runs before compression, on the original file: detection reads the source
+// frames, and re-encoded output is a worse thing to analyse. Markers are
+// time-based, so they remain valid after the file is compressed provided the
+// duration is unchanged, which it is.
+// ---------------------------------------------------------------------------
+
+let detecting = false;
+
+async function detectAdsFor(rec, settings) {
+    const adDetect = require('./adDetect');
+
+    if (!(await adDetect.isAvailable())) {
+        recordingsDb.setAdDetectStatus(rec.id, 'unavailable', 'Comskip is not installed in this image');
+        return;
+    }
+
+    recordingsDb.setAdDetectStatus(rec.id, 'running');
+    console.log(`[Recordings] Detecting commercial breaks in #${rec.id}`);
+
+    const result = await adDetect.detect(rec.file_path, {
+        iniPath: settings.comskipIniPath || undefined
+    });
+
+    if (!result.ok) {
+        recordingsDb.setAdDetectStatus(rec.id, 'failed', result.error);
+        console.error(`[Recordings] Break detection failed for #${rec.id}: ${result.error}`);
+        return;
+    }
+
+    recordingsDb.replaceMarkers(rec.id, result.breaks);
+    recordingsDb.setAdDetectStatus(rec.id, 'done');
+    console.log(`[Recordings] #${rec.id}: ${result.breaks.length} break(s) marked`);
+}
+
+async function processAdDetectionQueue({ manual = false } = {}) {
+    if (detecting) return;
     if (active.size > 0) return; // never compete with an active recording
 
     const settings = await getSettings();
-    // The automatic sweep respects the setting; an explicit request from the
-    // Recordings page does not, because the user has just asked for it.
-    if (!manual && settings.postRecordCompress !== true) return;
+    if (!manual && settings.adDetectionEnabled !== true) return;
+
+    const pending = recordingsDb.findPendingAdDetection();
+    if (pending.length === 0) return;
+
+    detecting = true;
+    try {
+        await detectAdsFor(pending[0], settings);
+    } catch (err) {
+        console.error('[Recordings] Break detection error:', err.message);
+        recordingsDb.setAdDetectStatus(pending[0].id, 'failed', err.message);
+    } finally {
+        detecting = false;
+    }
+}
+
+async function processCompressionQueue() {
+    if (compressing) return;
+    if (active.size > 0) return; // never compete with an active recording
+    if (detecting) return;       // detection reads the original; let it finish first
+
+    const settings = await getSettings();
 
     const pending = recordingsDb.findPendingCompression();
     if (pending.length === 0) return;
@@ -605,8 +661,12 @@ function finalizeRecording(scheduledId, recordingId, outputPath, exitCode, stder
         // Marked pending regardless of the setting; the queue checks whether
         // compression is enabled, so turning it on later picks these up.
         try {
-            recordingsDb.setCompressStatus(recordingId, 'pending');
-        } catch (e) { /* column may be missing on a very old database */ }
+            // Detection is queued automatically because markers have to exist
+            // before you sit down to watch. Compression is not: it is only
+            // worth doing for a recording you have decided to keep, which is a
+            // judgement made after watching, so it waits to be asked for.
+            recordingsDb.setAdDetectStatus(recordingId, 'pending');
+        } catch (e) { /* columns may be missing on a very old database */ }
     }
 }
 
@@ -771,8 +831,12 @@ async function tick() {
 
         await enforceFreeSpaceDuringRecording();
 
-        // Fire and forget: compression can outlive many ticks, and the guard
-        // inside stops it from starting twice.
+        // Fire and forget: both can outlive many ticks, and the guards inside
+        // stop either starting twice. Detection runs on every finished
+        // recording; compression only picks up what has been asked for, and
+        // waits for detection because it reads the same file.
+        processAdDetectionQueue().catch(err =>
+            console.error('[Recordings] Break detection queue error:', err.message));
         processCompressionQueue().catch(err =>
             console.error('[Recordings] Compression queue error:', err.message));
     } catch (err) {
@@ -829,6 +893,7 @@ module.exports = {
     listActive,
     stopForViewer,
     processCompressionQueue,
+    processAdDetectionQueue,
     listRecordings,
     cancelScheduled,
     deleteRecording,

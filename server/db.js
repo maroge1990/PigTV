@@ -102,8 +102,14 @@ function getDefaultSettings() {
     maxProviderStreams: 1,         // How many simultaneous connections the provider allows
     viewerIdleTimeoutSec: 60,      // Silence after which a stream is treated as abandoned
     recordingPromptLeadMin: 5,     // How far ahead a viewer is warned about a due recording
-    // Post-record compression
-    postRecordCompress: false,     // Re-encode finished recordings to save space
+    // Commercial break detection
+    adDetectionEnabled: false,     // Analyse finished recordings for advert breaks
+    adAutoSkip: false,             // Skip detected breaks automatically during playback
+    comskipIniPath: '',            // Override the bundled Comskip tuning
+    // Compression, applied on request from the Recordings page rather than
+    // automatically: the space is already spent by the time a recording
+    // finishes, and most recordings are watched and deleted. Compressing is
+    // worth the GPU time only for something being kept.
     postRecordCodec: 'h264',       // 'h264' (compatible) or 'hevc' (smaller)
     postRecordBitrateKbps: 3000,   // Target video bitrate
     postRecordKeepOriginal: false  // Keep the untouched original alongside the result
