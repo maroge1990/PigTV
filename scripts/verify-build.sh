@@ -450,6 +450,50 @@ sys.exit(0 if ok else 1)
 PYCHK
 [ $? -eq 0 ] || FAIL=1
 
+echo "=== 0034: native HLS delivery for segmented clients ==="
+check server/services/playbackStrategy.js "segmentedDelivery" "capability flag exists"
+check server/services/playbackStrategy.js "caps.segmentedDelivery" "flag actually read, not just declared"
+check server/services/transcodeSession.js "audioMode === 'copy'" "explicit audio-copy override"
+python3 - <<'PYCHK'
+import re, sys
+src = open('server/services/transcodeSession.js').read()
+# The original bug: isPlaylistReady only recognized MPEG-TS segments, so a
+# valid fMP4 playlist (.m4s) could never satisfy it and always timed out.
+i = src.index('async isPlaylistReady()')
+j = src.index('async waitForPlaylist', i)
+body = src[i:j]
+ok = "'.m4s'" in body or '".m4s"' in body
+print(('  \u2713 fMP4 segments recognized as ready' if ok
+       else "  \u2717 MISSING: isPlaylistReady() doesn't check for .m4s"))
+sys.exit(0 if ok else 1)
+PYCHK
+[ $? -eq 0 ] || FAIL=1
+python3 - <<'PYCHK'
+import re, sys
+src = open('server/services/transcodeSession.js').read()
+# The original bug: cleanup() called stop() (fire-and-forget, killed the
+# process without waiting) then immediately rm()'d the directory ffmpeg
+# might still be writing into. stop() must now return a promise, and
+# cleanup() must await it before removing anything.
+stop_i = src.index('    stop() {')
+stop_body = src[stop_i:stop_i + src[stop_i:].index('\n    }\n') + 7]
+returns_promise = 'return this._stopPromise' in stop_body and 'new Promise' in stop_body
+
+cleanup_i = src.index('async cleanup()')
+cleanup_body = src[cleanup_i:cleanup_i + 700]
+awaits_stop = 'await this.stop()' in cleanup_body
+
+ok = returns_promise and awaits_stop
+if ok:
+    print('  \u2713 cleanup() awaits ffmpeg exit before deleting the directory')
+else:
+    if not returns_promise: print('  \u2717 MISSING: stop() does not return an awaitable promise')
+    if not awaits_stop: print('  \u2717 MISSING: cleanup() does not await stop()')
+sys.exit(0 if ok else 1)
+PYCHK
+[ $? -eq 0 ] || FAIL=1
+check server/services/transcodeSession.js "logTimeoutDiagnostics" "timeout diagnostics logged"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
