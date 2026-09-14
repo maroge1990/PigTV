@@ -24,6 +24,45 @@ const transcodeSession = require('../services/transcodeSession');
 transcodeSession.startCleanupInterval();
 
 /**
+ * A relative URI in an HLS playlist does not inherit the query string of
+ * the playlist's own URL — that's ordinary URI resolution, not a bug in
+ * anything here — so a client that authenticated to fetch stream.m3u8 with
+ * ?token=... arrives at every following segment and init-segment request
+ * with no token at all. With requireStreamAuth on, streamAuth then rejects
+ * every one of them: the playlist loads, nothing in it plays, and the
+ * failure looks like a broken player rather than a missing token.
+ *
+ * The fix is to carry the token forward explicitly onto every URI the
+ * playlist references before it leaves the server:
+ *   - plain segment lines (seg0001.ts / seg0001.m4s)
+ *   - the fMP4 init segment, named inside a #EXT-X-MAP:URI="..." tag
+ *     rather than on its own line, so a naive "skip lines starting with #"
+ *     pass would miss it
+ *   - an #EXT-X-KEY:URI="..." line, if encryption is ever added — same
+ *     shape as EXT-X-MAP, handled the same way, unused today
+ *
+ * Every other line (#EXTINF, #EXT-X-VERSION, blank lines, ...) is left
+ * untouched.
+ */
+function withStreamToken(playlist, token) {
+    if (!token) return playlist;
+    const q = `token=${encodeURIComponent(token)}`;
+    const appendToUri = (uri) => `${uri}${uri.includes('?') ? '&' : '?'}${q}`;
+
+    return playlist
+        .split('\n')
+        .map(line => {
+            const tagUri = line.match(/^(#EXT-X-(?:MAP|KEY):.*URI=")([^"]+)(".*)$/);
+            if (tagUri) {
+                return `${tagUri[1]}${appendToUri(tagUri[2])}${tagUri[3]}`;
+            }
+            if (!line.trim() || line.trim().startsWith('#')) return line;
+            return appendToUri(line.trim());
+        })
+        .join('\n');
+}
+
+/**
  * Create a new transcode session
  * POST /api/transcode/session
  * Body: { url: string, seekOffset?: number }
@@ -105,7 +144,7 @@ router.get('/:sessionId/stream.m3u8', async (req, res) => {
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
     res.setHeader('Cache-Control', 'no-cache');
-    res.send(playlist);
+    res.send(withStreamToken(playlist, req.query.token));
 });
 
 /**
