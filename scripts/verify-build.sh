@@ -404,6 +404,52 @@ sys.exit(0 if ok else 1)
 PYCHK
 [ $? -eq 0 ] || FAIL=1
 
+echo "=== 0038: web client sends stream auth tokens ==="
+check public/js/api.js "withStreamToken" "shared token helper exists"
+check public/js/api.js "streamFetch" "authenticated fetch helper for transcode management calls"
+check public/js/components/VideoPlayer.js "API.withStreamToken(decision.url)" "resolved playback URL carries token"
+check public/js/pages/WatchPage.js "API.withStreamToken" "watch page uses the shared helper"
+python3 - <<'PYCHK'
+import re, sys
+# Every URL builder that feeds a <video src> or hls.loadSource() must
+# route through API.withStreamToken - checking the helper exists
+# elsewhere doesn't prove any particular caller still uses it. This
+# checks the three builders directly, by function body, so a future
+# edit that quietly reverts one back to a raw template string gets
+# caught here rather than only when requireStreamAuth is next enabled.
+src = open('public/js/components/VideoPlayer.js').read()
+fns = ['getProxiedUrl', 'getTranscodeUrl', 'getRemuxUrl']
+missing = []
+for name in fns:
+    m = re.search(re.escape(name) + r'\(url\)\s*\{([\s\S]*?)\n    \}', src)
+    if not m or 'API.withStreamToken' not in m.group(1):
+        missing.append(name)
+if missing:
+    print(f'  \u2717 MISSING: {", ".join(missing)} do not route through API.withStreamToken')
+    sys.exit(1)
+print('  \u2713 getProxiedUrl/getTranscodeUrl/getRemuxUrl all route through the token helper')
+PYCHK
+[ $? -eq 0 ] || FAIL=1
+python3 - <<'PYCHK'
+import sys
+# The session-creation POST is a plain fetch that CAN carry a header, so
+# it must - unlike the ones that end up as <video src>/loadSource, where
+# a query-string token is the only option, this one has no excuse to be
+# missing an Authorization header once requireStreamAuth is on.
+ok = True
+for path in ('public/js/components/VideoPlayer.js', 'public/js/pages/WatchPage.js'):
+    src = open(path).read()
+    i = src.index("fetch('/api/transcode/session'")
+    body = src[i:i+400]
+    if 'Authorization' not in body:
+        print(f'  \u2717 MISSING: {path} session POST has no Authorization header')
+        ok = False
+if ok:
+    print('  \u2713 transcode session creation sends the auth token in both players')
+sys.exit(0 if ok else 1)
+PYCHK
+[ $? -eq 0 ] || FAIL=1
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
