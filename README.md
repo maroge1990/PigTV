@@ -84,6 +84,22 @@ Two toggles are available if your hardware misbehaves:
 
 **The guide is empty.** Check that your XMLTV source has synced and that its channel IDs match the `tvg-id` values in your playlist.
 
+## Contributing to PigTV
+
+`docs/HANDOVER.md` is the place to start: the reasoning behind the
+architecture, the mistakes already made and what they cost, and the current
+backlog. It is written for someone arriving without context.
+
+`scripts/verify-build.sh` asserts that features exist in the files that serve
+them, which is a different question from whether the code compiles:
+
+```bash
+./scripts/verify-build.sh .
+```
+
+Run it before publishing a change, and again against a clean checkout of the
+result. Every check in it was added because something got through without it.
+
 ## Building from source
 
 ```bash
