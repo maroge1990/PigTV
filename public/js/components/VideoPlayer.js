@@ -1015,11 +1015,11 @@ class VideoPlayer {
         this.updateTranscodeStatus(label[0], label[1]);
 
         if (decision.container === 'hls') {
-            this.currentUrl = decision.url;
-            this.playHls(decision.url);
+            this.currentUrl = API.withStreamToken(decision.url);
+            this.playHls(this.currentUrl);
         } else {
-            this.currentUrl = decision.url;
-            this.video.src = decision.url;
+            this.currentUrl = API.withStreamToken(decision.url);
+            this.video.src = this.currentUrl;
             this.video.play().catch(e => {
                 if (e.name !== 'AbortError') console.log('[Player] Autoplay prevented:', e);
             });
@@ -1040,17 +1040,20 @@ class VideoPlayer {
             console.log('[Player] Starting HLS transcode session...', options);
             const res = await fetch('/api/transcode/session', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(localStorage.getItem('authToken') ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` } : {})
+                },
                 body: JSON.stringify({ url, ...options })
             });
             if (!res.ok) throw new Error('Failed to start session');
             const session = await res.json();
             this.currentSessionId = session.sessionId;
-            return session.playlistUrl;
+            return API.withStreamToken(session.playlistUrl);
         } catch (err) {
             console.error('[Player] Session start failed:', err);
             // Fallback to direct transcode if session fails
-            return `/api/transcode?url=${encodeURIComponent(url)}`;
+            return API.withStreamToken(`/api/transcode?url=${encodeURIComponent(url)}`);
         }
     }
 
@@ -1149,7 +1152,11 @@ class VideoPlayer {
             console.log('[Player] Stopping transcode session:', this.currentSessionId);
             try {
                 // Fire and forget cleanup
-                fetch(`/api/transcode/${this.currentSessionId}`, { method: 'DELETE' });
+                fetch(`/api/transcode/${this.currentSessionId}`, {
+                    method: 'DELETE',
+                    headers: localStorage.getItem('authToken')
+                        ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` } : {}
+                });
             } catch (err) {
                 console.error('Failed to stop session:', err);
             }
@@ -1268,7 +1275,7 @@ class VideoPlayer {
                         // Raw .ts container - use remux
                         console.log('[Player] Auto: Using remux (.ts container)');
                         this.updateTranscodeStatus('remuxing', 'Remux (Auto)');
-                        const remuxUrl = `/api/remux?url=${encodeURIComponent(streamUrl)}`;
+                        const remuxUrl = this.getRemuxUrl(streamUrl);
                         this.currentUrl = remuxUrl;
                         this.video.src = remuxUrl;
                         this.video.play().catch(e => {
@@ -1687,14 +1694,14 @@ class VideoPlayer {
      * Get proxied URL for a stream
      */
     getProxiedUrl(url) {
-        return `/api/proxy/stream?url=${encodeURIComponent(url)}`;
+        return API.withStreamToken(`/api/proxy/stream?url=${encodeURIComponent(url)}`);
     }
 
     /**
      * Get transcoded URL for a stream (audio transcoding for browser compatibility)
      */
     getTranscodeUrl(url) {
-        return `/api/transcode?url=${encodeURIComponent(url)}`;
+        return API.withStreamToken(`/api/transcode?url=${encodeURIComponent(url)}`);
     }
 
     /**
@@ -1702,7 +1709,7 @@ class VideoPlayer {
      * Used for raw .ts streams that browsers can't play directly
      */
     getRemuxUrl(url) {
-        return `/api/remux?url=${encodeURIComponent(url)}`;
+        return API.withStreamToken(`/api/remux?url=${encodeURIComponent(url)}`);
     }
 
     /**

@@ -48,6 +48,41 @@ const API = {
         return result;
     },
 
+    /**
+     * Append this browser's auth token to a same-origin stream URL.
+     *
+     * A <video src> and hls.js's XHR-based segment loader can't send an
+     * Authorization header, so the server's stream endpoints
+     * (/api/remux, /api/transcode, /api/proxy/stream) accept the token as
+     * a query parameter instead - the same mechanism native clients use,
+     * and the reason those URLs are already documented as bearer tokens
+     * in their own right. Harmless to include even when requireStreamAuth
+     * is off (streamAuth only rejects a *missing* token when enforcement
+     * is on), and required once it's on, since none of these URLs can
+     * carry a header. The server carries this token forward onto every
+     * child playlist/segment URI on its own once it sees it on the
+     * top-level request - the caller only needs to get it onto that one.
+     */
+    withStreamToken(url) {
+        if (!url) return url;
+        const token = localStorage.getItem('authToken');
+        if (!token) return url;
+        const sep = url.includes('?') ? '&' : '?';
+        return `${url}${sep}token=${encodeURIComponent(token)}`;
+    },
+
+    /**
+     * Plain fetch with the Authorization header attached when a token is
+     * available, for the handful of /api/transcode management calls that
+     * return their own response shape rather than API.request's envelope
+     * (and so call fetch directly instead of going through it).
+     */
+    streamFetch(url, options = {}) {
+        const token = localStorage.getItem('authToken');
+        const headers = { ...(options.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+        return fetch(url, { ...options, headers });
+    },
+
     // Sources
     sources: {
         getAll: () => API.request('GET', '/sources'),
@@ -162,11 +197,13 @@ const API = {
 
     // DVR / Recordings
     transcode: {
-        // These routes are unauthenticated, same as the stream endpoints they
-        // manage, so they use plain fetch rather than API.request.
-        getSessions: () => fetch('/api/transcode/sessions').then(r => r.json()),
-        killSession: (id) => fetch(`/api/transcode/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(r => r.json()),
-        killAllSessions: () => fetch('/api/transcode/sessions/all', { method: 'DELETE' }).then(r => r.json())
+        // Mounted behind the same streamAuth middleware as every other
+        // /api/transcode route (segments, playlists). Enforcement is off
+        // by default, so these worked unauthenticated until now — but
+        // that was the setting being off, not these routes being exempt.
+        getSessions: () => API.streamFetch('/api/transcode/sessions').then(r => r.json()),
+        killSession: (id) => API.streamFetch(`/api/transcode/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(r => r.json()),
+        killAllSessions: () => API.streamFetch('/api/transcode/sessions/all', { method: 'DELETE' }).then(r => r.json())
     },
 
     recordings: {

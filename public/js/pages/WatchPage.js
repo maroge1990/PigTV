@@ -331,7 +331,10 @@ class WatchPage {
             console.log('[WatchPage] Starting HLS transcode session...', options);
             const res = await fetch('/api/transcode/session', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(localStorage.getItem('authToken') ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` } : {})
+                },
                 body: JSON.stringify({
                     url,
                     seekOffset: this.resumeTime, // Pass resume point to backend
@@ -341,11 +344,11 @@ class WatchPage {
             if (!res.ok) throw new Error('Failed to start session');
             const session = await res.json();
             this.currentSessionId = session.sessionId;
-            return session.playlistUrl;
+            return API.withStreamToken(session.playlistUrl);
         } catch (err) {
             console.error('[WatchPage] Session start failed:', err);
             // Fallback to direct transcode if session fails
-            return `/api/transcode?url=${encodeURIComponent(url)}`;
+            return API.withStreamToken(`/api/transcode?url=${encodeURIComponent(url)}`);
         }
     }
 
@@ -357,7 +360,11 @@ class WatchPage {
             console.log('[WatchPage] Stopping transcode session:', this.currentSessionId);
             try {
                 // Fire and forget cleanup
-                fetch(`/api/transcode/${this.currentSessionId}`, { method: 'DELETE' });
+                fetch(`/api/transcode/${this.currentSessionId}`, {
+                    method: 'DELETE',
+                    headers: localStorage.getItem('authToken')
+                        ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` } : {}
+                });
             } catch (err) {
                 console.error('Failed to stop session:', err);
             }
@@ -470,7 +477,7 @@ class WatchPage {
                     // TODO: Move remux to session logic if seeking is needed for TS files
                     console.log('[WatchPage] Auto: Using remux (.ts container)');
                     this.updateTranscodeStatus('remuxing', 'Remux (Auto)');
-                    const finalUrl = `/api/remux?url=${encodeURIComponent(url)}`;
+                    const finalUrl = API.withStreamToken(`/api/remux?url=${encodeURIComponent(url)}`);
                     this.video.src = finalUrl;
                     this.video.play().catch(e => {
                         if (e.name !== 'AbortError') console.error('[WatchPage] Autoplay error:', e);
@@ -528,7 +535,7 @@ class WatchPage {
         if (settings.forceRemux && isRawTs) {
             console.log('[WatchPage] Force Remux enabled');
             this.updateTranscodeStatus('remuxing', 'Remux (Force)');
-            const finalUrl = `/api/remux?url=${encodeURIComponent(url)}`;
+            const finalUrl = API.withStreamToken(`/api/remux?url=${encodeURIComponent(url)}`);
             this.video.src = finalUrl;
             this.video.play().catch(e => {
                 if (e.name !== 'AbortError') console.error('[WatchPage] Autoplay error:', e);
@@ -540,7 +547,7 @@ class WatchPage {
         // Determine if proxy is needed
         const proxyRequiredDomains = ['pluto.tv'];
         const needsProxy = settings.forceProxy || proxyRequiredDomains.some(domain => url.includes(domain));
-        const finalUrl = needsProxy ? `/api/proxy/stream?url=${encodeURIComponent(url)}` : url;
+        const finalUrl = needsProxy ? API.withStreamToken(`/api/proxy/stream?url=${encodeURIComponent(url)}`) : url;
 
         console.log('[WatchPage] Playing:', { url, needsProxy, looksLikeHls });
 
@@ -602,7 +609,7 @@ class WatchPage {
                 // Note: Transcoded streams are local, so no CORS issues usually
                 if (!url.startsWith('/api/') && (data.type === Hls.ErrorTypes.NETWORK_ERROR)) {
                     console.log('[WatchPage] Retrying via proxy...');
-                    this.playHls(`/api/proxy/stream?url=${encodeURIComponent(this.currentUrl)}`);
+                    this.playHls(API.withStreamToken(`/api/proxy/stream?url=${encodeURIComponent(this.currentUrl)}`));
                 } else {
                     this.hls.destroy();
                 }
