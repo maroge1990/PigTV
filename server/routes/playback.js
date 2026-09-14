@@ -79,7 +79,7 @@ async function streamUrlForChannel(sourceId, channelId) {
  */
 router.post('/resolve', optionalAuth, async (req, res) => {
     try {
-        const { sourceId, channelId, url: directUrl, capabilities, upscale } = req.body || {};
+        const { sourceId, channelId, url: directUrl, capabilities, upscale, force } = req.body || {};
 
         let url = directUrl;
         if (!url) {
@@ -91,6 +91,40 @@ router.post('/resolve', optionalAuth, async (req, res) => {
 
         const settings = await db.settings.get();
         settings.ffmpegPath = req.app.locals.ffmpegPath || 'ffmpeg';
+
+        // The provider may allow only one connection. If a recording is using
+        // it, say so and let the caller decide, rather than starting a stream
+        // that will fail for reasons the user cannot see.
+        const recordingEngine = require('../services/recordingEngine');
+        const coordinator = require('../services/streamCoordinator');
+        const activeRecordings = recordingEngine.listActive();
+
+        const verdict = coordinator.requestForViewer({
+            force: force === true,
+            activeRecordings,
+            settings
+        });
+
+        if (!verdict.allowed) {
+            return res.status(409).json({
+                error: 'Provider stream is in use',
+                conflict: verdict.conflict,
+                // The caller repeats the request with force to proceed.
+                resolution: 'Repeat this request with "force": true to stop the recording and watch.'
+            });
+        }
+
+        if (verdict.sacrificed && verdict.sacrificed.length) {
+            // Finalise rather than discard: what was captured is kept, and the
+            // recording is marked partial so the list explains itself.
+            for (const scheduleId of verdict.sacrificed) {
+                try {
+                    await recordingEngine.stopForViewer(scheduleId);
+                } catch (err) {
+                    console.error('[Playback] Could not stop recording for viewer:', err.message);
+                }
+            }
+        }
 
         const decision = await playbackStrategy.resolve({
             url,
@@ -129,6 +163,42 @@ router.post('/resolve', optionalAuth, async (req, res) => {
     } catch (err) {
         console.error('[Playback] Resolve failed:', err.message);
         res.status(err.status || 500).json({ error: err.message, info: err.info });
+    }
+});
+
+/**
+ * GET /api/playback/conflict
+ *
+ * What a playing client should surface, if anything. Polled during playback;
+ * returns null when there is nothing to say. Keeping this separate from
+ * resolve means a client can be told about an approaching recording without
+ * having to ask to play something first.
+ */
+router.get('/conflict', optionalAuth, async (req, res) => {
+    try {
+        const settings = await db.settings.get();
+        const coordinator = require('../services/streamCoordinator');
+        res.json(coordinator.pendingPrompt(settings) || null);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * POST /api/playback/conflict/decline  { scheduleId }
+ *
+ * The viewer keeps watching. The recording is not cancelled — it waits, and
+ * starts as soon as playback stops. Declining is remembered so the same
+ * recording never asks twice.
+ */
+router.post('/conflict/decline', optionalAuth, (req, res) => {
+    try {
+        const { scheduleId } = req.body || {};
+        if (scheduleId === undefined) return res.status(400).json({ error: 'scheduleId is required' });
+        const coordinator = require('../services/streamCoordinator');
+        res.json({ success: coordinator.declinePrompt(scheduleId) });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 

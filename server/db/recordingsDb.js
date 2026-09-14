@@ -57,7 +57,9 @@ function initSchema() {
     for (const col of [
         'compress_status TEXT',      // null|pending|running|done|failed|skipped
         'original_size_bytes INTEGER',
-        'compress_error TEXT'
+        'compress_error TEXT',
+        'is_partial INTEGER DEFAULT 0',
+        'missed_start_ms INTEGER'    // how much of the programme was already gone
     ]) {
         try {
             db.exec(`ALTER TABLE recordings ADD COLUMN ${col}`);
@@ -104,22 +106,26 @@ const scheduled = {
         return db.prepare(`SELECT * FROM scheduled_recordings ORDER BY program_start DESC LIMIT 500`).all();
     },
 
-    // Find schedules due to start (accounting for pre-buffer) that haven't started yet
+    // Find schedules due to start (accounting for pre-buffer) that haven't started yet.
+    // 'waiting' is included deliberately: a recording held back because a viewer
+    // is using the provider's only stream must be retried on every tick, which
+    // is what makes it start the moment playback stops.
     findDueToStart(nowMs) {
         const db = getDb();
         return db.prepare(`
             SELECT * FROM scheduled_recordings
-            WHERE status = 'scheduled'
+            WHERE status IN ('scheduled', 'waiting')
               AND (program_start - (pre_buffer_min * 60000)) <= ?
         `).all(nowMs);
     },
 
-    // Find schedules whose window fully passed without ever starting (e.g. server was off)
+    // Find schedules whose window fully passed without ever starting (e.g. server
+    // was off, or a viewer never released the stream)
     findMissed(nowMs) {
         const db = getDb();
         return db.prepare(`
             SELECT * FROM scheduled_recordings
-            WHERE status = 'scheduled'
+            WHERE status IN ('scheduled', 'waiting')
               AND (program_end + (post_buffer_min * 60000)) < ?
         `).all(nowMs);
     },
@@ -165,6 +171,13 @@ const scheduled = {
 };
 
 const recordings = {
+    markPartial(id, missedStartMs) {
+        const db = getDb();
+        initSchema();
+        db.prepare('UPDATE recordings SET is_partial = 1, missed_start_ms = ? WHERE id = ?')
+            .run(Math.max(0, Math.round(missedStartMs)), id);
+    },
+
     setCompressStatus(id, status, extra = {}) {
         const db = getDb();
         initSchema();

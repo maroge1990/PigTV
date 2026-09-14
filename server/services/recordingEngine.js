@@ -15,6 +15,7 @@ const { sources: sourcesDb } = require('../db');
 const { scheduled: scheduledDb, recordings: recordingsDb } = require('../db/recordingsDb');
 const { getDb } = require('../db/sqlite');
 const xtreamApi = require('./xtreamApi');
+const coordinator = require('./streamCoordinator');
 
 const TICK_INTERVAL_MS = 15 * 1000;
 const STDERR_TAIL_LINES = 40;
@@ -396,6 +397,30 @@ function listActive() {
     return scheduledDb.findActive();
 }
 
+/**
+ * Stop a recording because a viewer asked for the stream.
+ *
+ * Finalises rather than discards: whatever was captured is kept and flagged
+ * partial, so the Recordings list can explain itself. The schedule is marked
+ * completed, not cancelled — it did record, just not all of it.
+ */
+async function stopForViewer(scheduleId) {
+    const id = Number(scheduleId);
+    if (!active.has(id)) return false;
+
+    console.log(`[Recordings] Stopping recording for schedule #${id}: a viewer asked for the stream`);
+    const entry = active.get(id);
+    if (entry && entry.recordingId) {
+        recordingsDb.markPartial(entry.recordingId, 0);
+    }
+    await stopRecording(id, 'completed');
+    scheduledDb.setStatus(id, 'completed', {
+        error: 'Stopped early: the provider stream was needed for live viewing.'
+    });
+    coordinator.clearPrompt(id);
+    return true;
+}
+
 function listRecordings() {
     return recordingsDb.listAll();
 }
@@ -481,6 +506,17 @@ async function startRecording(schedule) {
         started_at: Date.now()
     });
 
+    // A recording held back by a viewer starts late. Record how much of the
+    // programme was already gone, so the list can say "missing the first 12
+    // minutes" rather than a bare "partial".
+    const intendedStart = schedule.program_start - (schedule.pre_buffer_min || 0) * 60000;
+    const lateBy = Date.now() - intendedStart;
+    if (lateBy > 30000) {
+        recordingsDb.markPartial(recording.id, lateBy);
+        console.log(`[Recordings] #${recording.id} starts ${Math.round(lateBy / 60000)} min into the programme`);
+    }
+
+    coordinator.clearPrompt(schedule.id);
     scheduledDb.setStatus(schedule.id, 'recording', { recording_id: recording.id });
 
     const args = [
@@ -692,12 +728,45 @@ async function tick() {
                 console.warn(`[Recordings] Max concurrent recordings reached, delaying schedule #${schedule.id}`);
                 continue;
             }
+
+            // The provider may allow only one connection, and a viewer may be
+            // using it. The coordinator decides; this loop just respects the
+            // answer and tries again next tick, which is what makes a declined
+            // recording start the moment playback stops.
+            const verdict = await coordinator.requestForRecording(schedule, settings);
+            if (!verdict.allowed) {
+                if (schedule.status !== 'waiting') {
+                    scheduledDb.setStatus(schedule.id, 'waiting', { error: verdict.reason });
+                }
+                continue;
+            }
+
             await startRecording(schedule);
+        }
+
+        // Give a viewer notice before a recording is actually due, rather than
+        // at the moment it needs the stream.
+        const settingsForLead = await getSettings();
+        const leadMs = (settingsForLead.recordingPromptLeadMin ?? coordinator.DEFAULT_PROMPT_LEAD_MIN) * 60000;
+        for (const schedule of scheduledDb.listUpcoming()) {
+            if (schedule.status !== 'scheduled' && schedule.status !== 'waiting') continue;
+            const startsAt = schedule.program_start - (schedule.pre_buffer_min || 0) * 60000;
+            if (startsAt - now <= leadMs && startsAt > now) {
+                coordinator.announceUpcoming(schedule, settingsForLead);
+            }
         }
 
         const missed = scheduledDb.findMissed(now);
         for (const schedule of missed) {
-            scheduledDb.setStatus(schedule.id, 'missed', { error: 'Recording window passed without starting.' });
+            // Say why it was missed. "The viewer kept watching" is actionable;
+            // "the window passed" is not.
+            const wasWaiting = schedule.status === 'waiting';
+            scheduledDb.setStatus(schedule.id, 'missed', {
+                error: wasWaiting
+                    ? 'Playback continued for the whole programme, so the provider stream was never free.'
+                    : 'Recording window passed without starting.'
+            });
+            coordinator.clearPrompt(schedule.id);
         }
 
         await enforceFreeSpaceDuringRecording();
@@ -758,6 +827,7 @@ module.exports = {
     scheduleFromProgram,
     listScheduled,
     listActive,
+    stopForViewer,
     processCompressionQueue,
     listRecordings,
     cancelScheduled,

@@ -892,9 +892,10 @@ class VideoPlayer {
      * Returns null if the endpoint is unavailable, so an older server falls
      * back to the original path rather than failing outright.
      */
-    async resolvePlayback(channel, streamUrl) {
+    async resolvePlayback(channel, streamUrl, { force = false } = {}) {
         const caps = this.getCodecCapabilities();
         const body = {
+            force,
             capabilities: {
                 ...caps,
                 hls: !!(window.Hls && window.Hls.isSupported()) || this.video.canPlayType('application/vnd.apple.mpegurl') !== '',
@@ -921,6 +922,18 @@ class VideoPlayer {
                 },
                 body: JSON.stringify(body)
             });
+            if (res.status === 409) {
+                // A recording is using the provider's only stream. Ask before
+                // taking it: the user is the only one who knows which they
+                // would rather have.
+                const conflict = (await res.json()).conflict;
+                const proceed = confirm(`${conflict.message}\n\nStop the recording and watch now?`);
+                if (!proceed) {
+                    this.updateTranscodeStatus('idle', 'Recording in progress');
+                    return null;
+                }
+                return this.resolvePlayback(channel, streamUrl, { force: true });
+            }
             if (!res.ok) return null;
             const decision = await res.json();
             if (!decision || !decision.url) return null;
@@ -929,6 +942,60 @@ class VideoPlayer {
         } catch (err) {
             console.warn('[Player] Playback resolve unavailable, using local strategy:', err.message);
             return null;
+        }
+    }
+
+    /**
+     * Watch for a recording that needs the provider stream.
+     *
+     * Polled only while something is playing, because that is the only time
+     * the question can arise. Asks once per recording: if the answer is no,
+     * the recording waits and starts the moment playback stops.
+     */
+    startConflictWatch() {
+        if (this._conflictTimer) clearInterval(this._conflictTimer);
+        this._conflictTimer = setInterval(() => this.checkConflict(), 20000);
+        this.checkConflict();
+    }
+
+    stopConflictWatch() {
+        if (this._conflictTimer) clearInterval(this._conflictTimer);
+        this._conflictTimer = null;
+    }
+
+    async checkConflict() {
+        if (this.video.paused || !this.currentUrl) return;
+        try {
+            const res = await fetch('/api/playback/conflict', {
+                headers: localStorage.getItem('authToken')
+                    ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` } : {}
+            });
+            if (!res.ok) return;
+            const prompt = await res.json();
+            if (!prompt || this._promptedFor === prompt.scheduleId) return;
+
+            this._promptedFor = prompt.scheduleId;
+            const mins = Math.max(1, Math.round(prompt.startsInSec / 60));
+            const stopNow = confirm(
+                `${prompt.message}\n\nIt is due in about ${mins} minute${mins === 1 ? '' : 's'}.\n\n` +
+                `Stop watching so it can record?`
+            );
+
+            if (stopNow) {
+                await this.stop();
+            } else {
+                await fetch('/api/playback/conflict/decline', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(localStorage.getItem('authToken')
+                            ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` } : {})
+                    },
+                    body: JSON.stringify({ scheduleId: prompt.scheduleId })
+                });
+            }
+        } catch (err) {
+            // A coordination failure must never interrupt playback.
         }
     }
 
@@ -961,6 +1028,7 @@ class VideoPlayer {
         this.updateNowPlaying(channel);
         this.showNowPlayingOverlay();
         this.fetchEpgData(channel);
+        this.startConflictWatch();
         window.dispatchEvent(new CustomEvent('channelChanged', { detail: channel }));
     }
 
@@ -1010,6 +1078,7 @@ class VideoPlayer {
         } catch (e) { /* ignore */ }
 
         await this.stopTranscodeSession();
+        this.stopConflictWatch();
 
         this.currentUrl = null;
         this.updateTranscodeStatus('idle', 'Stopped');

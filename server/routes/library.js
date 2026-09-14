@@ -151,7 +151,40 @@ router.get('/channels', (req, res) => {
             LIMIT ? OFFSET ?
         `).all(...params, limit, offset);
 
-        res.json({ total, limit, offset, channels: decorate(rows) });
+        const channels = decorate(rows);
+
+        // Mark favourites here rather than making the client ask separately.
+        const favs = new Set(db.prepare(`
+            SELECT source_id, item_id FROM favorites WHERE user_id = ? AND item_type = 'channel'
+        `).all(String(req.user.id)).map(f => `${f.source_id}:${f.item_id}`));
+        for (const ch of channels) ch.favourite = favs.has(`${ch.sourceId}:${ch.id}`);
+
+        res.json({ total, limit, offset, channels });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * GET /api/library/favourites
+ *
+ * The same decorated shape as /channels. /api/favorites returns bare ids,
+ * which would force a client to fetch favourites, then fetch every channel,
+ * then stitch them together — exactly what these endpoints exist to avoid.
+ */
+router.get('/favourites', (req, res) => {
+    try {
+        const db = getDb();
+        const rows = db.prepare(`
+            SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data
+            FROM favorites f
+            JOIN playlist_items p
+              ON p.source_id = f.source_id AND p.item_id = f.item_id AND p.type = 'live'
+            WHERE f.user_id = ? AND f.item_type = 'channel'
+            ORDER BY CASE WHEN p.sort_order IS NULL THEN 1 ELSE 0 END, p.sort_order ASC, p.name ASC
+        `).all(String(req.user.id));
+
+        res.json(decorate(rows));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

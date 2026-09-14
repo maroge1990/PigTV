@@ -98,6 +98,10 @@ function getDefaultSettings() {
     defaultPostBufferMin: 5,       // Minutes to keep recording after the scheduled program end
     maxConcurrentRecordings: 1,    // Safety cap on simultaneous recordings
     minFreeSpaceGB: 10,            // Refuse to start (and stop) recordings below this much free space
+    // Provider stream coordination
+    maxProviderStreams: 1,         // How many simultaneous connections the provider allows
+    viewerIdleTimeoutSec: 60,      // Silence after which a stream is treated as abandoned
+    recordingPromptLeadMin: 5,     // How far ahead a viewer is warned about a due recording
     // Post-record compression
     postRecordCompress: false,     // Re-encode finished recordings to save space
     postRecordCodec: 'h264',       // 'h264' (compatible) or 'hevc' (smaller)
