@@ -494,6 +494,45 @@ PYCHK
 [ $? -eq 0 ] || FAIL=1
 check server/services/transcodeSession.js "logTimeoutDiagnostics" "timeout diagnostics logged"
 
+echo "=== 0036: media-auth token propagation to HLS children ==="
+check server/routes/transcode.js "withStreamToken" "playlist rewrite exists"
+check server/routes/transcode.js "res.send(withStreamToken(playlist" "playlist route actually rewrites before sending"
+python3 - <<'PYCHK'
+import re, sys
+# Run the real function against a real fMP4 playlist shape, rather than
+# grepping for a pattern - this is exactly the "instructions removed" bug
+# that MISSING: checks elsewhere in this file exist to catch: the function
+# could exist and be called, and still not cover the one case (the init
+# segment named inside #EXT-X-MAP rather than on its own line) that matters.
+src = open('server/routes/transcode.js').read()
+m = re.search(r'function withStreamToken[\s\S]*?\n}\n', src)
+if not m:
+    print('  \u2717 MISSING: withStreamToken function not found')
+    sys.exit(1)
+
+# Execute as JS via node instead of trying to run JS in Python.
+import subprocess
+script = m.group(0) + '''
+const playlist = "#EXTM3U\\n#EXT-X-MAP:URI=\\"init.mp4\\"\\n#EXTINF:4,\\nseg0000.m4s\\n";
+const out = withStreamToken(playlist, "tok123");
+const initOk = out.includes('URI="init.mp4?token=tok123"');
+const segOk = out.includes('seg0000.m4s?token=tok123');
+if (initOk && segOk) {
+  console.log("OK");
+} else {
+  console.log("FAIL init=" + initOk + " seg=" + segOk);
+}
+'''
+result = subprocess.run(['node', '-e', script], capture_output=True, text=True)
+ok = result.stdout.strip() == 'OK'
+if ok:
+    print('  \u2713 token reaches both the init segment (EXT-X-MAP) and media segments')
+else:
+    print(f'  \u2717 MISSING: token does not reach every child URI ({result.stdout.strip()}{result.stderr.strip()})')
+sys.exit(0 if ok else 1)
+PYCHK
+[ $? -eq 0 ] || FAIL=1
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
