@@ -34,6 +34,14 @@ class VideoPlayer {
 
         // Load settings from server, then init
         this.loadSettingsFromServer().then(() => {
+            // Volume is a preference for this browser, not a server setting.
+            try {
+                const saved = localStorage.getItem('pigtv_last_volume');
+                const volume = Number(saved);
+                if (this.settings.rememberVolume && saved !== null && Number.isFinite(volume) && volume >= 0 && volume <= 100) {
+                    this.settings.lastVolume = volume;
+                }
+            } catch (err) { /* storage may be unavailable */ }
             this.init();
         });
     }
@@ -82,8 +90,14 @@ class VideoPlayer {
         }
     }
 
+    saveVolume() {
+        try {
+            localStorage.setItem('pigtv_last_volume', String(this.settings.lastVolume));
+        } catch (err) { /* volume still works when browser storage is disabled */ }
+    }
+
     /**
-     * Save settings to server API
+     * Save settings to server API (admin Settings page only).
      */
     async saveSettings() {
         try {
@@ -623,7 +637,7 @@ class VideoPlayer {
         this.video.addEventListener('volumechange', () => {
             if (this.settings.rememberVolume) {
                 this.settings.lastVolume = Math.round(this.video.volume * 100);
-                this.saveSettings();
+                this.saveVolume();
             }
         });
 

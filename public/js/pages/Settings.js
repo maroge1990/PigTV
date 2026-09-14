@@ -523,9 +523,7 @@ class SettingsPage {
         if (!container) return;
 
         try {
-            const response = await fetch('/api/settings/hw-info');
-            if (!response.ok) throw new Error('Failed to fetch hardware info');
-            const hwInfo = await response.json();
+            const hwInfo = await API.request('GET', '/settings/hw-info');
 
             const detected = [];
 
@@ -872,9 +870,7 @@ class SettingsPage {
 
         try {
             // Fetch last sync time from server
-            const response = await fetch('/api/settings/sync-status');
-            if (!response.ok) throw new Error('Failed to fetch sync status');
-            const data = await response.json();
+            const data = await API.request('GET', '/settings/sync-status');
 
             if (data.lastSyncTime) {
                 const lastRefreshTime = new Date(data.lastSyncTime);

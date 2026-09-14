@@ -29,8 +29,7 @@ class SourceManager {
         // Initialize content browser
         this.initContentBrowser();
 
-        // Start polling sync status
-        this.pollSyncStatus();
+        // Admin-only polling starts after App has verified the signed-in user.
     }
 
     /**
@@ -135,8 +134,8 @@ class SourceManager {
       <div class="source-item ${source.enabled ? '' : 'disabled'}" data-id="${source.id}">
         <span class="source-icon">${icons[type]}</span>
         <div class="source-info">
-          <div class="source-name">${source.name}</div>
-          <div class="source-url">${source.url}</div>
+          <div class="source-name">${this.escapeSourceText(source.name)}</div>
+          <div class="source-url">${type.toUpperCase()} source</div>
         </div>
         <div class="source-actions">
           <button class="btn btn-sm btn-secondary" data-action="refresh" title="Refresh Data">${Icons.refresh}</button>
@@ -226,7 +225,7 @@ class SourceManager {
         const nameField = `
       <div class="form-group">
         <label for="source-name">Name</label>
-        <input type="text" id="source-name" class="form-input" placeholder="My Source" value="${source.name || ''}">
+        <input type="text" id="source-name" class="form-input" placeholder="My Source" value="${this.escapeSourceText(source.name)}">
       </div>
     `;
 
@@ -235,7 +234,7 @@ class SourceManager {
         <label for="source-url">${type === 'xtream' ? 'Server URL' : 'URL'}</label>
         <input type="text" id="source-url" class="form-input" 
                placeholder="${type === 'xtream' ? 'http://server.com:port' : 'https://example.com/playlist.m3u'}" 
-               value="${source.url || ''}">
+               value="${this.escapeSourceText(source.url)}">
       </div>
     `;
 
@@ -245,17 +244,24 @@ class SourceManager {
         ${urlField}
         <div class="form-group">
           <label for="source-username">Username</label>
-          <input type="text" id="source-username" class="form-input" value="${source.username || ''}">
+          <input type="text" id="source-username" class="form-input" value="${this.escapeSourceText(source.username)}">
         </div>
         <div class="form-group">
           <label for="source-password">Password</label>
           <input type="password" id="source-password" class="form-input" 
-                 value="${source.password && !source.password.includes('•') ? source.password : ''}">
+                 value="" autocomplete="new-password"
+                 placeholder="${source.hasPassword ? 'Leave blank to keep saved password' : ''}">
         </div>
       `;
         }
 
         return nameField + urlField;
+    }
+
+    escapeSourceText(value) {
+        return String(value ?? '').replace(/[&<>"']/g, ch => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[ch]);
     }
 
     /**

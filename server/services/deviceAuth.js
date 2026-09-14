@@ -17,7 +17,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { getDb } = require('../db/sqlite');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'pigtv-secret-key-change-in-production';
+const JWT_SECRET = require('../authSecret');
 const DEVICE_TOKEN_EXPIRY = '365d';
 const CODE_TTL_MS = 10 * 60 * 1000;
 
