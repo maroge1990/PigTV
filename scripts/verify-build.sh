@@ -615,6 +615,72 @@ else:
 PYCHK
 [ $? -eq 0 ] || FAIL=1
 
+echo "=== 0043: fmp4 segments for codecsOk, matching /api/remux's container ==="
+python3 - <<'PYCHK'
+import subprocess, sys
+# Every case the boolean expression covers, not just "does it mention
+# codecsOk somewhere" - this is what actually distinguishes the reported
+# bug (H.264 + codecsOk wrongly landing on mpegts) from the two paths
+# that must NOT change (HEVC unaffected, non-codecsOk H.264 unaffected).
+script = '''
+const src = require('fs').readFileSync('server/services/playbackStrategy.js', 'utf8');
+const m = src.match(/const segmentType = \\(([\\s\\S]*?)\\)\\s*\\?\\s*'fmp4'\\s*:\\s*'mpegts';/);
+if (!m) { console.log('BAD: expression not found'); process.exit(1); }
+const expr = new Function('canCopyVideo', 'capsFmp4', 'videoIsHevc', 'codecsOk',
+    `const caps = { fmp4: capsFmp4 }; const info = { videoIsHevc };
+     return (${m[1].replace(/caps\\.fmp4/g, 'caps.fmp4').replace(/info\\.videoIsHevc/g, 'info.videoIsHevc')}) ? 'fmp4' : 'mpegts';`);
+const cases = [
+    [true, true, true, false, 'fmp4'],
+    [true, true, false, false, 'mpegts'],
+    [true, true, false, true, 'fmp4'],
+    [true, false, false, true, 'mpegts'],
+    [false, true, true, true, 'mpegts'],
+];
+let ok = true;
+for (const [a,b,c,d,expect] of cases) {
+    const got = expr(a,b,c,d);
+    if (got !== expect) { ok = false; console.log(`FAIL canCopyVideo=${a} fmp4=${b} hevc=${c} codecsOk=${d}: got ${got} expected ${expect}`); }
+}
+console.log(ok ? 'OK' : 'BAD');
+'''
+result = subprocess.run(['node', '-e', script], capture_output=True, text=True)
+if result.stdout.strip().splitlines()[-1:] == ['OK']:
+    print('  \u2713 H.264+codecsOk gets fmp4; HEVC and non-codecsOk H.264 paths unaffected')
+else:
+    print(f'  \u2717 MISSING: {result.stdout.strip()}\\n{result.stderr.strip()}')
+    sys.exit(1)
+PYCHK
+[ $? -eq 0 ] || FAIL=1
+check server/services/transcodeSession.js "dump_extra" "bitstream filter present"
+python3 - <<'PYCHK'
+import subprocess, sys
+# dump_extra must apply inside the isFmp4 branch specifically - it already
+# existed in the non-fmp4 fallback branch before this patch, so grepping
+# for the string alone proves nothing about whether it reaches the new
+# H.264-via-fmp4 case this patch adds.
+script = '''
+const { TranscodeSession } = require('./server/services/transcodeSession.js');
+function make(opts) {
+    const s = Object.create(TranscodeSession.prototype);
+    s.id = 't'; s.url = 'http://e/s.ts'; s.dir = '/tmp/t';
+    s.playlistPath = '/tmp/t/stream.m3u8';
+    s.options = { userAgent: 'ua', ...opts };
+    return s;
+}
+const args = make({ videoMode:'copy', segmentType:'fmp4', videoCodec:'h264', audioMode:'copy', audioCodec:'aac', audioChannels:2 }).buildFFmpegArgs();
+const idx = args.indexOf('-bsf:v');
+const ok = idx > -1 && args[idx+1] === 'dump_extra' && !args.includes('hvc1');
+console.log(ok ? 'OK' : 'BAD ' + args.join(' '));
+'''
+result = subprocess.run(['node', '-e', script], capture_output=True, text=True)
+if result.stdout.strip().splitlines()[-1:] == ['OK']:
+    print('  \u2713 H.264 copied into fmp4 gets dump_extra, no stray hvc1 tag')
+else:
+    print(f'  \u2717 MISSING: {result.stdout.strip()}\\n{result.stderr.strip()}')
+    sys.exit(1)
+PYCHK
+[ $? -eq 0 ] || FAIL=1
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

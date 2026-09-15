@@ -120,17 +120,23 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     }
 
     // 3. Transcode. Encode as little as possible: if the client can decode the
-    //    video, copy it and fix only the audio. HEVC copy needs fMP4 segments,
-    //    because hls.js cannot demux HEVC out of MPEG-TS.
+    //    video, copy it and fix only the audio.
     //
-    //    When codecsOk is true here, it's only because segmentedDelivery
-    //    sent us past case 2 — both streams are already fine, so audioMode
-    //    'copy' below bypasses the usual mix-preset/downmix heuristics
-    //    entirely rather than re-encoding audio a plain remux would have
-    //    left untouched.
+    //    fmp4 segments over mpegts whenever caps.fmp4 and either the video
+    //    is HEVC (hls.js cannot demux HEVC out of MPEG-TS) or this is the
+    //    codecsOk case: both streams already fine, only here because
+    //    segmentedDelivery asked for segments instead of a pipe. Before
+    //    segmentedDelivery existed this same content went out through
+    //    /api/remux, whose own output is fmp4-family regardless of codec
+    //    (see the container: 'fmp4' above) - MPEG-TS's much stricter
+    //    real-time PTS/DTS ordering requirements are exactly what produced
+    //    a continuous "Invalid DTS ... replacing by guess" flood from a
+    //    native session on H.264 content that played fine over remux: the
+    //    same stream, correct either way, muxed into a container the
+    //    source's timestamps don't actually satisfy.
     const canCopyVideo = info.videoOk === true && !upscale;
     const videoMode = canCopyVideo ? 'copy' : 'encode';
-    const segmentType = (canCopyVideo && info.videoIsHevc && caps.fmp4) ? 'fmp4' : 'mpegts';
+    const segmentType = (canCopyVideo && caps.fmp4 && (info.videoIsHevc || codecsOk)) ? 'fmp4' : 'mpegts';
 
     const session = await transcodeSession.createSession(url, {
         ffmpegPath: settings.ffmpegPath,
