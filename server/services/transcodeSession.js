@@ -295,6 +295,25 @@ class TranscodeSession extends EventEmitter {
             cinematic: 'pan=stereo|FL=FC+0.80*FL+0.60*BL+0.5*LFE|FR=FC+0.80*FR+0.60*BR+0.5*LFE'
         };
 
+        // Raw ADTS AAC — the framing MPEG-TS/live sources use — carries no
+        // Audio Specific Config; MP4-family containers (fMP4/HLS-CMAF, and
+        // plain MP4) require one instead, in the sample description rather
+        // than per frame. Copying AAC into one without converting it first
+        // makes the muxer reject every audio packet outright ("Malformed
+        // AAC bitstream... Operation not permitted") rather than producing
+        // a stream with no audio — it fails the whole session. MPEG-TS
+        // output needs no such conversion, since it keeps ADTS framing
+        // natively, so this is conditioned on isFmp4.
+        //
+        // All three copy branches below funnel through this so none of
+        // them can independently drift out of sync with the others again.
+        const pushAudioCopy = () => {
+            args.push('-c:a', 'copy');
+            if (isFmp4 && audioCodec.includes('aac')) {
+                args.push('-bsf:a', 'aac_adtstoasc');
+            }
+        };
+
         if (this.options.audioMode === 'copy' && !isHeAac) {
             // Caller (playbackStrategy) has already established via client
             // capabilities that this audio codec plays as-is and wants it
@@ -304,11 +323,11 @@ class TranscodeSession extends EventEmitter {
             // exists to pick a *downmix*, a question that doesn't apply
             // when nothing needs mixing in the first place.
             console.log(`[TranscodeSession ${this.id}] Audio: Copy (client capabilities confirm ${audioCodec} support)`);
-            args.push('-c:a', 'copy');
+            pushAudioCopy();
         } else if (audioMixPreset === 'passthrough' && !isHeAac) {
             // Passthrough: Always copy audio, no processing
             console.log(`[TranscodeSession ${this.id}] Audio: Passthrough (copy)`);
-            args.push('-c:a', 'copy');
+            pushAudioCopy();
         } else if (isHeAac) {
             // Re-encode to AAC-LC. Only the audio is touched, so this stays
             // cheap even when the video is being stream-copied.
@@ -317,7 +336,7 @@ class TranscodeSession extends EventEmitter {
         } else if (audioMixPreset === 'auto' && isStereoAac) {
             // Auto + Stereo AAC source: Smart copy
             console.log(`[TranscodeSession ${this.id}] Audio: Auto (Smart Copy) - Source is Stereo AAC`);
-            args.push('-c:a', 'copy');
+            pushAudioCopy();
         } else {
             // Transcode to AAC with selected mix preset (default to ITU for 'auto')
             const mixPreset = (audioMixPreset === 'auto') ? 'itu' : audioMixPreset;

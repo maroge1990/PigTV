@@ -533,6 +533,53 @@ sys.exit(0 if ok else 1)
 PYCHK
 [ $? -eq 0 ] || FAIL=1
 
+echo "=== 0041: AAC copy into fMP4 needs aac_adtstoasc ==="
+check server/services/transcodeSession.js "aac_adtstoasc" "bitstream filter present"
+python3 - <<'PYCHK'
+import re, sys
+# Run buildFFmpegArgs() directly for the three cases that matter, rather
+# than grepping for the filter name - grep can't tell you whether it's
+# reachable from all three copy branches, or gated correctly to fmp4-only
+# and aac-only. This is what actually broke on a real tvOS session: HEVC
+# video copy + fmp4 segments + AAC audio copy, muxer rejected every audio
+# packet ("Malformed AAC bitstream... Operation not permitted").
+import subprocess
+script = '''
+const { TranscodeSession } = require('./server/services/transcodeSession.js');
+function make(opts) {
+    const s = Object.create(TranscodeSession.prototype);
+    s.id = 'test'; s.url = 'http://example/s.ts'; s.dir = '/tmp/t';
+    s.playlistPath = '/tmp/t/stream.m3u8';
+    s.options = { userAgent: 'ua', ...opts };
+    return s;
+}
+const cases = [
+    ['fmp4 + audioMode copy + aac', { videoMode:'copy', segmentType:'fmp4', videoCodec:'hevc', audioMode:'copy', audioCodec:'aac', audioChannels:2 }, true],
+    ['mpegts + audioMode copy + aac', { videoMode:'copy', segmentType:'mpegts', videoCodec:'h264', audioMode:'copy', audioCodec:'aac', audioChannels:2 }, false],
+    ['fmp4 + auto smart-copy + aac', { videoMode:'copy', segmentType:'fmp4', videoCodec:'hevc', audioMixPreset:'auto', audioCodec:'aac', audioChannels:2 }, true],
+    ['fmp4 + audioMode copy + ac3', { videoMode:'copy', segmentType:'fmp4', videoCodec:'hevc', audioMode:'copy', audioCodec:'ac3', audioChannels:6 }, false],
+];
+let ok = true;
+for (const [name, opts, expect] of cases) {
+    const args = make(opts).buildFFmpegArgs();
+    const has = args.includes('aac_adtstoasc');
+    if (has !== expect) {
+        console.log(`FAIL ${name}: expected ${expect}, got ${has}`);
+        ok = false;
+    }
+}
+console.log(ok ? 'OK' : 'BAD');
+'''
+result = subprocess.run(['node', '-e', script], capture_output=True, text=True, cwd='.')
+out = result.stdout.strip()
+if 'OK' in out.splitlines()[-1:]:
+    print('  \u2713 filter applies only for fmp4+aac, across every copy branch')
+else:
+    print(f'  \u2717 MISSING: {out}\\n{result.stderr.strip()}')
+    sys.exit(1)
+PYCHK
+[ $? -eq 0 ] || FAIL=1
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
