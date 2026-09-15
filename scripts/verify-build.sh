@@ -580,6 +580,41 @@ else:
 PYCHK
 [ $? -eq 0 ] || FAIL=1
 
+echo "=== 0042: live-source timestamp handling ==="
+check server/services/transcodeSession.js "avoid_negative_ts" "flag present"
+check server/services/transcodeSession.js "max_interleave_delta" "flag present"
+python3 - <<'PYCHK'
+import subprocess, sys
+# Both are output-side muxer options - they only take effect placed before
+# -f hls, not before -i. A future edit that moves them (or drops one while
+# keeping the other) is what this actually catches; grepping for the flag
+# name alone can't tell you where it ended up.
+script = '''
+const { TranscodeSession } = require('./server/services/transcodeSession.js');
+function make(opts) {
+    const s = Object.create(TranscodeSession.prototype);
+    s.id = 'test'; s.url = 'http://example/s.ts'; s.dir = '/tmp/t';
+    s.playlistPath = '/tmp/t/stream.m3u8';
+    s.options = { userAgent: 'ua', ...opts };
+    return s;
+}
+const args = make({ videoMode:'copy', segmentType:'mpegts', videoCodec:'h264', audioMode:'copy', audioCodec:'aac', audioChannels:2 }).buildFFmpegArgs();
+const idx = f => args.indexOf(f);
+const ok = idx('-avoid_negative_ts') > -1 && args[idx('-avoid_negative_ts')+1] === 'make_zero'
+        && idx('-max_interleave_delta') > -1 && args[idx('-max_interleave_delta')+1] === '0'
+        && idx('-avoid_negative_ts') < idx('-f')
+        && idx('-max_interleave_delta') < idx('-f');
+console.log(ok ? 'OK' : 'BAD');
+'''
+result = subprocess.run(['node', '-e', script], capture_output=True, text=True)
+if result.stdout.strip().splitlines()[-1:] == ['OK']:
+    print('  \u2713 both flags present with correct values, placed before -f hls')
+else:
+    print(f'  \u2717 MISSING: {result.stdout.strip()}\\n{result.stderr.strip()}')
+    sys.exit(1)
+PYCHK
+[ $? -eq 0 ] || FAIL=1
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

@@ -352,7 +352,34 @@ class TranscodeSession extends EventEmitter {
         }
 
         // HLS output options
+        //
+        // avoid_negative_ts / max_interleave_delta: both address the source
+        // clock, not anything about the segment format. Stream-copy mode
+        // means ffmpeg cannot regenerate timestamps from decoded frames the
+        // way a re-encode would - it can only accept or reject whatever the
+        // source declares, which is why a provider with a bad clock shows
+        // up here rather than as a video artifact.
+        //
+        // - max_interleave_delta defaults to 10s, an assumption that
+        //   ffmpeg knows roughly when the input ends so it can safely
+        //   buffer packets that long before writing them out in corrected
+        //   order. A live, genuinely unbounded source breaks that
+        //   assumption - this is a known ffmpeg live-streaming caveat, not
+        //   specific to this project - and the heuristic can misfire on
+        //   nearly every packet rather than occasionally, which is what a
+        //   continuous "Invalid DTS ... replacing by guess" flood (as
+        //   opposed to a single isolated jump) points to. 0 disables it.
+        // - avoid_negative_ts make_zero normalizes a discontinuous or
+        //   negative timestamp at the muxer instead of letting a raw jump
+        //   from the source reach the output untouched - the isolated
+        //   "timestamp discontinuity" case, distinct from the continuous
+        //   one above.
+        //
+        // Neither can fix a source whose timestamps are simply wrong frame
+        // by frame; they reduce how often that becomes a visible stutter.
         args.push(
+            '-avoid_negative_ts', 'make_zero',
+            '-max_interleave_delta', '0',
             '-f', 'hls',
             '-hls_time', String(SEGMENT_DURATION),
             '-hls_list_size', '0', // Keep all segments in playlist
