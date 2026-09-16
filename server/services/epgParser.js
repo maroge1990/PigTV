@@ -270,8 +270,17 @@ async function* parseStreaming(input, batchSize = 1000) {
     let programmeBatch = [];
     let channelsYielded = false;
 
-    // We need to convert SAX events to an async iterator
-    // This requires collecting events and yielding when batch is full
+    // How many completed-but-not-yet-yielded batches can pile up before the
+    // source is paused. The old code had no such limit and no queue either
+    // - a single pendingBatch slot, overwritten by whichever batch finished
+    // most recently. Two batches completing before the consumer loop got a
+    // chance to read it meant the first one vanished with no error, no log
+    // line - just a channel that silently "has no EPG today". A real queue
+    // fixes the loss on its own; this limit is what keeps that queue from
+    // growing unboundedly if the consumer (a synchronous DB insert per
+    // batch, in syncService.js) is ever slower than parsing, which bursty
+    // gzip input can otherwise outrun by a wide margin.
+    const BATCH_QUEUE_LIMIT = 3;
 
     const saxStream = sax.createStream(true, { trim: true, normalize: true });
 
@@ -279,10 +288,34 @@ async function* parseStreaming(input, batchSize = 1000) {
     let currentObject = null;
     let textBuffer = '';
     let resolveNext = null;
-    let pendingBatch = null;
+    const batchQueue = [];
     let ended = false;
-    let error = null;
 
+    function enqueueBatch(batch) {
+        if (resolveNext) {
+            resolveNext(batch);
+            resolveNext = null;
+            return;
+        }
+        batchQueue.push(batch);
+        if (batchQueue.length >= BATCH_QUEUE_LIMIT && !ended && typeof input.pause === 'function') {
+            input.pause();
+        }
+    }
+
+    // sax reports both recoverable problems (a malformed entity, an
+    // unexpected tag) and anything else wrong with the feed the same way:
+    // an 'error' event, after which the stream stalls unless resumed.
+    // There is no way to tell a shrug-and-continue problem from a fatal one
+    // from this event alone, and losing an entire sync over one bad entity
+    // in a 500k-programme feed is worse than the occasional garbled record
+    // - so every one is logged and resumed from, never allowed to fail the
+    // sync. (This used to be two separate handlers: this one, and a second
+    // one further down that independently captured the same event into an
+    // outer variable and re-threw it once the generator finished - undoing
+    // the resume() below and turning a warning into a failed sync, after
+    // programmes had already been deleted and partially re-inserted. One
+    // handler, one behaviour.)
     saxStream.on('error', function (e) {
         this._parser.error = null;
         this._parser.resume();
@@ -337,7 +370,6 @@ async function* parseStreaming(input, batchSize = 1000) {
             if (currentObject) {
                 programmeBatch.push(currentObject);
 
-                // Check if we should yield a batch
                 if (programmeBatch.length >= batchSize) {
                     const batch = {
                         channels: !channelsYielded ? channels : null,
@@ -346,13 +378,7 @@ async function* parseStreaming(input, batchSize = 1000) {
                     };
                     channelsYielded = true;
                     programmeBatch = [];
-
-                    if (resolveNext) {
-                        resolveNext(batch);
-                        resolveNext = null;
-                    } else {
-                        pendingBatch = batch;
-                    }
+                    enqueueBatch(batch);
                 }
             }
             currentObject = null;
@@ -386,37 +412,41 @@ async function* parseStreaming(input, batchSize = 1000) {
         }
     });
 
-    saxStream.on('end', function () {
+    // Not saxStream.on('end', ...): after a recoverable error+resume (above),
+    // sax's internal parser.closed flag never flips true even though the
+    // document parses correctly to the end - verified directly (closetag
+    // fires for every element including the root, the tag stack correctly
+    // empties to 0), so saxStream's own end/finish/close events silently
+    // never fire, and a sync that hit one recoverable warning would hang
+    // forever instead of completing. This is a sax quirk in its own
+    // error-recovery path, not something worth working around inside sax
+    // itself - the input stream's end event is the actually trustworthy
+    // "no more data is coming" signal, unaffected by the parser's opinion
+    // of its own state, and by the time it fires every write() into
+    // saxStream has already been made (pipe() only calls dest.end() after
+    // every upstream 'data' event, and therefore every write(), completes).
+    function finishParsing() {
+        if (ended) return;
         ended = true;
-        // Yield final batch
         const batch = {
             channels: !channelsYielded ? channels : null,
             programmes: programmeBatch,
             isLast: true
         };
-        if (resolveNext) {
-            resolveNext(batch);
-            resolveNext = null;
-        } else {
-            pendingBatch = batch;
-        }
-    });
-
-    saxStream.on('error', function (e) {
-        error = e;
-        if (resolveNext) {
-            resolveNext(null);
-        }
-    });
+        enqueueBatch(batch);
+    }
+    input.on('end', finishParsing);
 
     // Start piping
     input.pipe(saxStream);
 
     // Yield batches as they become available
-    while (!ended || pendingBatch) {
-        if (pendingBatch) {
-            const batch = pendingBatch;
-            pendingBatch = null;
+    while (!ended || batchQueue.length > 0) {
+        if (batchQueue.length > 0) {
+            const batch = batchQueue.shift();
+            if (batchQueue.length < BATCH_QUEUE_LIMIT && typeof input.resume === 'function' && typeof input.isPaused === 'function' && input.isPaused()) {
+                input.resume();
+            }
             yield batch;
             if (batch.isLast) break;
         } else if (!ended) {
@@ -429,10 +459,6 @@ async function* parseStreaming(input, batchSize = 1000) {
                 if (batch.isLast) break;
             }
         }
-    }
-
-    if (error) {
-        throw error;
     }
 }
 

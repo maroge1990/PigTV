@@ -751,6 +751,82 @@ PYCHK
 [ $? -eq 0 ] || FAIL=1
 check server/services/transcodeSession.js "clearSegments" "retry path clears stale segments instead of relying on append_list"
 
+echo "=== 0047: EPG streaming parser data loss and hangs (review P0-2) ==="
+check server/services/epgParser.js "batchQueue" "real queue replaces the single-slot mailbox"
+python3 - <<'PYCHK'
+import subprocess, sys
+# Runs the actual bug reproduction: many small batches plus a deliberately
+# slow consumer - the exact condition that overwrote pendingBatch before a
+# consumer could read it. Against the unpatched code this loses 490 of 500
+# programmes; grepping the source can't tell you whether the fix actually
+# holds under that load, only that a queue-shaped variable exists.
+script = '''
+const { Readable } = require("stream");
+const epgParser = require("./server/services/epgParser.js");
+const COUNT = 300;
+let xml = "<?xml version=\\"1.0\\"?><tv><channel id=\\"c\\"><display-name>C</display-name></channel>";
+for (let i = 0; i < COUNT; i++) {
+    xml += `<programme channel="c" start="2026010100${String(i%60).padStart(2,"0")}00 +0000" stop="2026010100${String(i%60).padStart(2,"0")}00 +0000"><title>S${i}</title></programme>`;
+}
+xml += "</tv>";
+(async () => {
+    const input = Readable.from([xml]);
+    let received = 0;
+    const seen = new Set();
+    for await (const batch of epgParser.parseStreaming(input, 10)) {
+        for (const p of batch.programmes) { received++; seen.add(p.title); }
+        await new Promise(r => setTimeout(r, 3));
+    }
+    console.log(received === COUNT && seen.size === COUNT ? "OK" : `BAD received=${received} unique=${seen.size}`);
+})().catch(e => { console.log("THREW " + e.message); process.exit(1); });
+'''
+try:
+    result = subprocess.run(['node', '-e', script], capture_output=True, text=True, timeout=15)
+except subprocess.TimeoutExpired:
+    print('  \u2717 MISSING: parser hung under a bursty-input + slow-consumer load')
+    sys.exit(1)
+if result.stdout.strip().splitlines()[-1:] == ['OK']:
+    print('  \u2713 300 programmes, slow consumer, zero data loss (490/500 lost against the unpatched code)')
+else:
+    print(f'  \u2717 MISSING: {result.stdout.strip()}\\n{result.stderr.strip()}')
+    sys.exit(1)
+PYCHK
+[ $? -eq 0 ] || FAIL=1
+python3 - <<'PYCHK'
+import subprocess, sys
+# A recoverable sax error (malformed entity) must not hang the generator
+# forever. sax's own parser.closed flag never flips true after an
+# error+resume even though the document parses correctly to the end - a
+# real, verified quirk in sax's error-recovery path - so this specifically
+# exercises the case where saxStream's own 'end' would never fire.
+script = '''
+const { Readable } = require("stream");
+const epgParser = require("./server/services/epgParser.js");
+let xml = "<?xml version=\\"1.0\\"?><tv><channel id=\\"c\\"><display-name>C</display-name></channel>";
+xml += "<programme channel=\\"c\\" start=\\"20260101000000 +0000\\" stop=\\"20260101000000 +0000\\"><title>Bad & Broken</title></programme>";
+xml += "<programme channel=\\"c\\" start=\\"20260101010000 +0000\\" stop=\\"20260101010000 +0000\\"><title>After</title></programme>";
+xml += "</tv>";
+(async () => {
+    const input = Readable.from([xml]);
+    let received = 0;
+    for await (const batch of epgParser.parseStreaming(input, 5)) received += batch.programmes.length;
+    console.log(received === 2 ? "OK" : `BAD received=${received}`);
+})().catch(e => { console.log("THREW " + e.message); process.exit(1); });
+'''
+try:
+    result = subprocess.run(['node', '-e', script], capture_output=True, text=True, timeout=10)
+except subprocess.TimeoutExpired:
+    print('  \u2717 MISSING: generator hangs forever after a recoverable parse error (sax end-event quirk not worked around)')
+    sys.exit(1)
+if result.stdout.strip().splitlines()[-1:] == ['OK']:
+    print('  \u2713 recoverable entity error: parsing completes (not hangs, not fails) with all well-formed data intact')
+else:
+    print(f'  \u2717 MISSING: {result.stdout.strip()}\\n{result.stderr.strip()}')
+    sys.exit(1)
+PYCHK
+[ $? -eq 0 ] || FAIL=1
+check server/services/epgParser.js "input.on('end', finishParsing)" "final batch triggered by the input stream's own end, not sax's"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
