@@ -257,15 +257,20 @@ class TranscodeSession extends EventEmitter {
             if (isFmp4) {
                 // fMP4 wants length-prefixed samples, which is what the source
                 // already has coming out of MPEG-TS via the mp4 muxer, so no
-                // Annex B conversion here. dump_extra matches what /api/remux
-                // already does unconditionally for its own fmp4-family
-                // output (see server/routes/remux.js) — keeps codec config
-                // (SPS/PPS/VPS) present at every keyframe rather than only
-                // in the init segment, for a player that starts mid-session
-                // or re-requests a segment out of playlist order. The tag
-                // matters separately: hls.js and Safari both expect hvc1
-                // for HEVC in fMP4.
-                args.push('-bsf:v', 'dump_extra');
+                // Annex B conversion here. The tag matters though: hls.js and
+                // Safari both expect hvc1 for HEVC in fMP4.
+                //
+                // No dump_extra here (see 0043, where it was added, and this
+                // patch, which removes it): a real tvOS session logged
+                // "SEI type 1 size 80 truncated at 1", "missing picture in
+                // access unit", and "[mp4] pts has no value" immediately
+                // after 0043 shipped - bitstream-parser-level corruption,
+                // not the muxer-side timestamp confusion 0041/0042 dealt
+                // with, and playback ended almost immediately rather than
+                // stuttering. dump_extra was the one new element common to
+                // both the H.264 case 0043 added and the HEVC case that
+                // already worked without it before - removing it restores
+                // exactly what HEVC+fmp4 sent before 0043, on both codecs.
                 const vc = (this.options.videoCodec || '').toLowerCase();
                 if (vc.includes('hevc') || vc.includes('h265')) {
                     args.push('-tag:v', 'hvc1');

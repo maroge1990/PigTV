@@ -651,13 +651,20 @@ else:
     sys.exit(1)
 PYCHK
 [ $? -eq 0 ] || FAIL=1
-check server/services/transcodeSession.js "dump_extra" "bitstream filter present"
+
+echo "=== 0044: remove dump_extra from fmp4 copy (caused real playback failure) ==="
 python3 - <<'PYCHK'
 import subprocess, sys
-# dump_extra must apply inside the isFmp4 branch specifically - it already
-# existed in the non-fmp4 fallback branch before this patch, so grepping
-# for the string alone proves nothing about whether it reaches the new
-# H.264-via-fmp4 case this patch adds.
+# 0043 added dump_extra here on the (unverified) theory that it should
+# match /api/remux's own fmp4 output. A real tvOS session then logged
+# bitstream-parser-level corruption - "SEI type 1 size 80 truncated at 1",
+# "missing picture in access unit", "[mp4] pts has no value" - immediately
+# after 0043 shipped, with playback ending almost immediately rather than
+# just stuttering. This checks the fix directly against the built
+# command for both codecs, not just that the string is gone from the
+# file (0043's own checks already prove the file still says
+# "dump_extra" - it's just in the unrelated mpegts fallback branch, and
+# a grep-only check can't tell the two apart).
 script = '''
 const { TranscodeSession } = require('./server/services/transcodeSession.js');
 function make(opts) {
@@ -667,14 +674,17 @@ function make(opts) {
     s.options = { userAgent: 'ua', ...opts };
     return s;
 }
-const args = make({ videoMode:'copy', segmentType:'fmp4', videoCodec:'h264', audioMode:'copy', audioCodec:'aac', audioChannels:2 }).buildFFmpegArgs();
-const idx = args.indexOf('-bsf:v');
-const ok = idx > -1 && args[idx+1] === 'dump_extra' && !args.includes('hvc1');
-console.log(ok ? 'OK' : 'BAD ' + args.join(' '));
+const hevc = make({ videoMode:'copy', segmentType:'fmp4', videoCodec:'hevc', audioMode:'copy', audioCodec:'aac', audioChannels:2 }).buildFFmpegArgs();
+const h264 = make({ videoMode:'copy', segmentType:'fmp4', videoCodec:'h264', audioMode:'copy', audioCodec:'aac', audioChannels:2 }).buildFFmpegArgs();
+const unknown = make({ videoMode:'copy', segmentType:'mpegts', videoCodec:'mpeg2video', audioMode:'copy', audioCodec:'aac', audioChannels:2 }).buildFFmpegArgs();
+const ok = !hevc.includes('dump_extra') && hevc.includes('hvc1')
+        && !h264.includes('dump_extra') && !h264.includes('hvc1')
+        && unknown.includes('dump_extra'); // untouched fallback branch, must be unaffected
+console.log(ok ? 'OK' : 'BAD ' + JSON.stringify({hevc, h264, unknown}));
 '''
 result = subprocess.run(['node', '-e', script], capture_output=True, text=True)
 if result.stdout.strip().splitlines()[-1:] == ['OK']:
-    print('  \u2713 H.264 copied into fmp4 gets dump_extra, no stray hvc1 tag')
+    print('  \u2713 fmp4 copy path (either codec) sends no bitstream filter; unrelated fallback branch unaffected')
 else:
     print(f'  \u2717 MISSING: {result.stdout.strip()}\\n{result.stderr.strip()}')
     sys.exit(1)
