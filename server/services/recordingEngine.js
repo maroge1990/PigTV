@@ -449,6 +449,127 @@ async function processCompressionQueue() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Native playback (Apple client) support
+//
+// A recording is captured as a stream copy of the live MPEG-TS source into a
+// .mkv container (see startRecording above) — AVPlayer has no Matroska
+// demuxer at all, so /:id/stream (raw MKV, browser-only) is unusable for a
+// native client regardless of the codecs inside it. This produces an
+// MP4-family file the way the live pipeline does for the same problem: copy
+// both streams, no re-encode, container change only.
+//
+// On demand rather than a background queue like compression/ad-detection:
+// most recordings are only ever watched once or never, so eagerly remuxing
+// every completed recording would mean processing files nobody asks for.
+// ---------------------------------------------------------------------------
+
+function probeCodecs(filePath) {
+    return new Promise((resolve) => {
+        let out = '';
+        let proc;
+        try {
+            proc = spawn(ffprobePath, [
+                '-v', 'error', '-show_entries', 'stream=codec_type,codec_name',
+                '-of', 'csv=p=0', filePath
+            ]);
+        } catch (e) {
+            return resolve({ video: null, audio: null });
+        }
+        proc.stdout.on('data', d => { out += d; });
+        proc.on('error', () => resolve({ video: null, audio: null }));
+        proc.on('close', () => {
+            const result = { video: null, audio: null };
+            for (const line of out.trim().split('\n')) {
+                const [type, name] = line.split(',');
+                if (type === 'video' && !result.video) result.video = name;
+                if (type === 'audio' && !result.audio) result.audio = name;
+            }
+            resolve(result);
+        });
+    });
+}
+
+function nativePlaybackTargetPath(originalPath) {
+    const dir = path.dirname(originalPath);
+    const base = path.basename(originalPath, path.extname(originalPath));
+    return path.join(dir, `${base}.native.mp4`);
+}
+
+/**
+ * A file already in native-compatible shape, if one exists, without doing
+ * any work. Two cases already produce one: compression itself outputs an
+ * MP4 (H.264/HEVC + AAC, +faststart) and, when "keep original" is off,
+ * rec.file_path is updated to point straight at it. When "keep original" is
+ * on, the compressed file exists on disk but rec.file_path still points at
+ * the .mkv it was compressed from — checked for here so that setting
+ * doesn't cause a redundant second remux of the same content.
+ */
+function readyNativePlaybackPath(rec) {
+    const original = rec.file_path;
+    if (path.extname(original).toLowerCase() === '.mp4') return original;
+
+    const compressed = compressionTargetPath(original);
+    if (fs.existsSync(compressed)) return compressed;
+
+    return null;
+}
+
+/**
+ * Resolve (remuxing on first call, reusing the result after) a
+ * native-compatible MP4 for this recording. Returns the file path to serve.
+ */
+async function ensureNativePlayback(rec) {
+    const ready = readyNativePlaybackPath(rec);
+    if (ready) return ready;
+
+    const input = rec.file_path;
+    if (!fs.existsSync(input)) {
+        throw new Error('Recording file is missing');
+    }
+
+    const output = nativePlaybackTargetPath(input);
+    if (fs.existsSync(output)) return output;
+
+    const codecs = await probeCodecs(input);
+    const args = ['-y', '-nostdin', '-i', input, '-map', '0:v:0?', '-map', '0:a:0?', '-c', 'copy'];
+    if ((codecs.audio || '').toLowerCase().includes('aac')) {
+        // Same lesson as the live pipeline: raw ADTS AAC — the framing a
+        // stream-copied MPEG-TS source keeps — has no Audio Specific
+        // Config, which MP4-family containers require instead. Without
+        // this the muxer rejects every audio packet outright.
+        args.push('-bsf:a', 'aac_adtstoasc');
+    }
+    args.push('-movflags', '+faststart', output);
+
+    console.log(`[Recordings] Remuxing #${rec.id} for native playback -> ${output}`);
+    const result = await new Promise((resolve) => {
+        let proc;
+        try {
+            proc = spawn(ffmpegPath, args);
+        } catch (err) {
+            return resolve({ code: -1, tail: [err.message] });
+        }
+        const tail = [];
+        proc.stderr.on('data', d => {
+            for (const line of d.toString().split('\n')) {
+                if (line.trim()) { tail.push(line.trim()); if (tail.length > 20) tail.shift(); }
+            }
+        });
+        proc.on('error', (err) => resolve({ code: -1, tail: [err.message] }));
+        proc.on('close', (c) => resolve({ code: c, tail }));
+    });
+
+    if (result.code !== 0 || !fs.existsSync(output)) {
+        try { fs.unlinkSync(output); } catch (e) { /* nothing to clean */ }
+        console.error(`[Recordings] Native remux of #${rec.id} failed:\n  ${result.tail.join('\n  ')}`);
+        throw new Error(result.tail.slice(-3).join(' | ') || `ffmpeg exited with code ${result.code}`);
+    }
+
+    console.log(`[Recordings] #${rec.id} ready for native playback`);
+    return output;
+}
+
 function listActive() {
     return scheduledDb.findActive();
 }
@@ -897,5 +1018,6 @@ module.exports = {
     listRecordings,
     cancelScheduled,
     deleteRecording,
-    resolveStreamUrl
+    resolveStreamUrl,
+    ensureNativePlayback
 };

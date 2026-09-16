@@ -217,8 +217,8 @@ const API = {
         cancelScheduled: (id) => API.request('DELETE', `/recordings/scheduled/${id}`),
         getAll: () => API.request('GET', '/recordings'),
         delete: (id) => API.request('DELETE', `/recordings/${id}`),
-        streamUrl: (id) => `/api/recordings/${id}/stream`,
-        downloadUrl: (id) => `/api/recordings/${id}/download`
+        streamUrl: (id) => API.withStreamToken(`/api/recordings/${id}/stream`),
+        downloadUrl: (id) => API.withStreamToken(`/api/recordings/${id}/download`)
     },
 
     // Users (admin only)

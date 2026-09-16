@@ -6,12 +6,51 @@ const { requireAuth } = require('../auth');
 const recordingEngine = require('../services/recordingEngine');
 const { recordings: recordingsDb } = require('../db/recordingsDb');
 
-// NOTE: /:id/stream and /:id/download are deliberately registered BEFORE the
-// requireAuth middleware. requireAuth is passport-jwt with a Bearer-header
-// extractor, and a <video src> / <a href> request from the browser cannot send
-// that header, so these two would always 401. The existing live-stream routes
-// (/api/proxy, /api/transcode, /api/remux) are unauthenticated for the same
-// reason; this keeps recordings consistent with them.
+// NOTE: /:id/stream, /:id/media.mp4 and /:id/download are deliberately
+// registered BEFORE the requireAuth middleware. requireAuth is passport-jwt
+// with a Bearer-header extractor, and a <video src> / <a href> / AVURLAsset
+// request cannot send that header, so these would always 401. The existing
+// live-stream routes (/api/proxy, /api/transcode, /api/remux) are the same
+// way; /api/recordings is wrapped in the same streamAuth middleware they use
+// (see server/index.js), which accepts the token as ?token= instead — opt-in
+// enforcement via the requireStreamAuth setting, same as those.
+
+// Serve a local file with HTTP Range support, for seeking. Shared by
+// /:id/stream (the original .mkv) and /:id/media.mp4 (the native-playback
+// remux) — the byte-range mechanics are identical, only the content type
+// and which file differ.
+function serveWithRangeSupport(req, res, filePath, contentType) {
+    const stat = fs.statSync(filePath);
+    const fileSize = stat.size;
+    const range = req.headers.range;
+
+    if (range) {
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+
+        if (isNaN(start) || isNaN(end) || start > end || end >= fileSize) {
+            res.set('Content-Range', `bytes */${fileSize}`);
+            return res.status(416).end();
+        }
+
+        res.status(206);
+        res.set({
+            'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': end - start + 1,
+            'Content-Type': contentType
+        });
+        fs.createReadStream(filePath, { start, end }).pipe(res);
+    } else {
+        res.set({
+            'Content-Length': fileSize,
+            'Content-Type': contentType,
+            'Accept-Ranges': 'bytes'
+        });
+        fs.createReadStream(filePath).pipe(res);
+    }
+}
 
 // Stream a recording for playback, with HTTP Range support for seeking
 router.get('/:id/stream', (req, res) => {
@@ -20,40 +59,31 @@ router.get('/:id/stream', (req, res) => {
         if (!rec || !rec.file_path || !fs.existsSync(rec.file_path)) {
             return res.status(404).json({ error: 'Recording file not found' });
         }
-
-        const stat = fs.statSync(rec.file_path);
-        const fileSize = stat.size;
-        const range = req.headers.range;
-        const contentType = 'video/x-matroska';
-
-        if (range) {
-            const parts = range.replace(/bytes=/, '').split('-');
-            const start = parseInt(parts[0], 10);
-            const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-
-            if (isNaN(start) || isNaN(end) || start > end || end >= fileSize) {
-                res.set('Content-Range', `bytes */${fileSize}`);
-                return res.status(416).end();
-            }
-
-            res.status(206);
-            res.set({
-                'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-                'Accept-Ranges': 'bytes',
-                'Content-Length': end - start + 1,
-                'Content-Type': contentType
-            });
-            fs.createReadStream(rec.file_path, { start, end }).pipe(res);
-        } else {
-            res.set({
-                'Content-Length': fileSize,
-                'Content-Type': contentType,
-                'Accept-Ranges': 'bytes'
-            });
-            fs.createReadStream(rec.file_path).pipe(res);
-        }
+        serveWithRangeSupport(req, res, rec.file_path, 'video/x-matroska');
     } catch (err) {
         console.error('[Recordings] Stream error:', err);
+        if (!res.headersSent) res.status(500).json({ error: err.message });
+    }
+});
+
+// Native-client playback: an H.264/HEVC + AAC/AC-3 MP4 remux of the
+// recording (see recordingEngine.ensureNativePlayback), for a player with
+// no Matroska demuxer — real Range support, since a finished recording is
+// a complete, seekable file, unlike a live stream. Resolved via
+// /:id/playback below; served here directly too so a client that already
+// has the URL cached doesn't need a resolve round-trip on every play.
+router.get('/:id/media.mp4', async (req, res) => {
+    try {
+        const rec = recordingsDb.getById(parseInt(req.params.id));
+        if (!rec) return res.status(404).json({ error: 'Recording not found' });
+        if (rec.status !== 'completed') {
+            return res.status(409).json({ error: 'Recording is not finished yet' });
+        }
+
+        const filePath = await recordingEngine.ensureNativePlayback(rec);
+        serveWithRangeSupport(req, res, filePath, 'video/mp4');
+    } catch (err) {
+        console.error('[Recordings] Native media error:', err.message);
         if (!res.headersSent) res.status(500).json({ error: err.message });
     }
 });
@@ -147,6 +177,39 @@ router.get('/', (req, res) => {
     try {
         res.json(recordingEngine.listRecordings());
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Resolve how a client should play this recording. Native clients have no
+// Matroska demuxer, so the plain answer for those is always the same shape
+// live playback already uses: a URL, a container, and (here) a duration —
+// which /:id/media.mp4 above then actually serves, remuxing on first
+// request via recordingEngine.ensureNativePlayback. Kept as its own
+// endpoint (rather than just handing out the media URL directly) so a
+// client always has something to resolve against, the same as
+// /api/playback/resolve for live channels, and so the remux — the only
+// part of this with a real, if usually small, cost — is triggered
+// explicitly rather than on a bare page load that never plays anything.
+router.get('/:id/playback', async (req, res) => {
+    try {
+        const rec = recordingsDb.getById(parseInt(req.params.id));
+        if (!rec) return res.status(404).json({ error: 'Recording not found' });
+        if (rec.status !== 'completed') {
+            return res.status(409).json({ error: 'Recording is not finished yet' });
+        }
+
+        // Resolving here as well as serving lazily in /media.mp4 means the
+        // first real playback request doesn't also pay for the remux.
+        await recordingEngine.ensureNativePlayback(rec);
+
+        res.json({
+            url: `/api/recordings/${rec.id}/media.mp4`,
+            container: 'mp4',
+            durationSec: rec.duration_sec || null
+        });
+    } catch (err) {
+        console.error('[Recordings] Playback resolve error:', err.message);
         res.status(500).json({ error: err.message });
     }
 });

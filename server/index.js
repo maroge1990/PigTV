@@ -198,7 +198,7 @@ app.use('/api/info', require('./routes/info'));
 app.use('/api/subtitle', require('./routes/subtitle'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/history', require('./routes/history'));
-app.use('/api/recordings', require('./routes/recordings'));
+app.use('/api/recordings', streamAuth, require('./routes/recordings'));
 
 // Version endpoint
 app.get('/api/version', (req, res) => {

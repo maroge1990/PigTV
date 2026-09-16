@@ -691,6 +691,34 @@ else:
 PYCHK
 [ $? -eq 0 ] || FAIL=1
 
+echo "=== 0045: native recording playback contract ==="
+check server/index.js "app.use('/api/recordings', streamAuth" "recordings router wrapped in streamAuth"
+check server/routes/recordings.js "router.get('/:id/playback'" "playback resolve endpoint exists"
+check server/routes/recordings.js "router.get('/:id/media.mp4'" "native media endpoint exists"
+check server/services/recordingEngine.js "ensureNativePlayback" "remux function exists"
+check server/services/recordingEngine.js "aac_adtstoasc" "ADTS-to-ASC fix applied here too"
+check public/js/api.js "streamUrl: (id) => API.withStreamToken" "web client sends token on recording stream URL"
+check public/js/api.js "downloadUrl: (id) => API.withStreamToken" "web client sends token on recording download URL"
+python3 - <<'PYCHK'
+import subprocess, sys
+# /:id/playback must sit below router.use(requireAuth) (JWT-gated, like
+# /api/playback/resolve for live TV) and /:id/media.mp4 must sit above it
+# (reachable by <video src>/AVURLAsset, which cannot send a header) -
+# grepping for each route's existence separately can't tell you which side
+# of the auth boundary either one landed on.
+src = open('server/routes/recordings.js').read()
+auth_pos = src.find('router.use(requireAuth)')
+playback_pos = src.find("router.get('/:id/playback'")
+media_pos = src.find("router.get('/:id/media.mp4'")
+ok = auth_pos > -1 and playback_pos > auth_pos and 0 < media_pos < auth_pos
+if ok:
+    print('  \u2713 playback (JWT-gated) and media.mp4 (token-gated) sit on the correct sides of requireAuth')
+else:
+    print(f'  \u2717 MISSING: auth_pos={auth_pos} playback_pos={playback_pos} media_pos={media_pos}')
+    sys.exit(1)
+PYCHK
+[ $? -eq 0 ] || FAIL=1
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
