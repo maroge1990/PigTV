@@ -9,6 +9,15 @@ services:
       - ./data:/app/data
       # DVR recordings - point this at wherever you want recorded shows stored
       - ./recordings:/app/recordings
+    tmpfs:
+      # Live HLS session segments. RAM-backed rather than a bind mount:
+      # a container restart can't resume a session anyway (see
+      # sweepOrphanedCache in transcodeSession.js), so nothing here needs to
+      # survive one, and this keeps it off the writable layer entirely
+      # rather than just moving where on disk it lands. Sized well above
+      # the ~360 MB/session the bounded segment list (90 x 4s) now caps
+      # things at, for headroom across more than one session at once.
+      - /app/transcode-cache:size=2g
     restart: unless-stopped
     environment:
       - NODE_ENV=production

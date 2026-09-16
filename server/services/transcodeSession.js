@@ -28,6 +28,16 @@ const CACHE_DIR = path.join(process.cwd(), 'transcode-cache');
 // Session settings
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes idle timeout
 const SEGMENT_DURATION = 4; // seconds per HLS segment
+
+// How many segments a live session keeps on disk before rotating the
+// oldest ones out. Unbounded (the old 0) means the whole session gets
+// written to the Docker image's writable layer for as long as someone
+// watches - a few hours of an 8 Mbps HEVC channel in copy mode is easily
+// 10+ GB, reclaimed only when the session ends or the idle sweep fires.
+// 90 segments = 6 minutes of rewind at SEGMENT_DURATION=4, well past what
+// live TV needs, while keeping worst case per session in the hundreds of
+// MB rather than unbounded.
+const HLS_LIST_SIZE = 90;
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // Check every 5 minutes
 
 /**
@@ -174,9 +184,20 @@ class TranscodeSession extends EventEmitter {
                         console.warn(`[TranscodeSession ${this.id}] Retrying with software decode`);
                         this.process = null;
                         this.status = 'pending';
-                        this.start().catch(err => {
-                            console.error(`[TranscodeSession ${this.id}] Software decode retry failed:`, err.message);
-                        });
+                        // Without append_list (see the HLS output args), a
+                        // stale playlist or leftover segments from the
+                        // failed hardware-decode attempt would confuse the
+                        // fresh ffmpeg process rather than being silently
+                        // extended by it. Clearing the directory first is
+                        // the correct fix, not a reason to bring
+                        // append_list back.
+                        this.clearSegments()
+                            .catch(err => console.warn(`[TranscodeSession ${this.id}] Could not clear stale segments before retry:`, err.message))
+                            .finally(() => {
+                                this.start().catch(err => {
+                                    console.error(`[TranscodeSession ${this.id}] Software decode retry failed:`, err.message);
+                                });
+                            });
                         return;
                     }
                 }
@@ -394,8 +415,22 @@ class TranscodeSession extends EventEmitter {
             '-max_interleave_delta', '0',
             '-f', 'hls',
             '-hls_time', String(SEGMENT_DURATION),
-            '-hls_list_size', '0', // Keep all segments in playlist
-            '-hls_flags', 'independent_segments+append_list'
+            '-hls_list_size', String(HLS_LIST_SIZE),
+            // delete_segments: the previous unbounded list_size meant a
+            // session was never reclaimed until it ended or the 30-minute
+            // idle sweep fired. Rotating segments out as the list fills
+            // keeps disk use bounded for the whole time someone's watching,
+            // not just after.
+            //
+            // No append_list: it existed for the software-decode retry
+            // (below), which restarts ffmpeg into the same directory after
+            // a hardware-decode failure. append_list made the new process
+            // try to extend the old attempt's playlist rather than start
+            // clean - blending segments from a failed hw-decode attempt
+            // with the new software ones in the same playlist. The retry
+            // path now clears the directory itself instead, which is the
+            // correct fix for that case rather than a reason to keep this.
+            '-hls_flags', 'independent_segments+delete_segments'
         );
 
         if (isFmp4) {
@@ -761,6 +796,27 @@ class TranscodeSession extends EventEmitter {
     }
 
     /**
+     * Remove every segment and playlist file from this session's directory,
+     * without removing the directory itself. Used before the software-decode
+     * retry restarts ffmpeg into the same directory - the previous attempt's
+     * output has to be gone, not just no longer referenced, since a fresh
+     * ffmpeg process with a bounded -hls_list_size will happily reuse
+     * matching segment filenames if they're still there.
+     */
+    async clearSegments() {
+        let entries;
+        try {
+            entries = await fs.readdir(this.dir);
+        } catch (err) {
+            if (err.code === 'ENOENT') return; // nothing to clear
+            throw err;
+        }
+        await Promise.all(entries.map(name =>
+            fs.unlink(path.join(this.dir, name)).catch(() => { /* best effort */ })
+        ));
+    }
+
+    /**
      * Check if playlist exists and is ready
      */
     async isPlaylistReady() {
@@ -973,29 +1029,33 @@ async function cleanupStaleSessions() {
 }
 
 /**
- * Recover sessions from disk after server restart
+ * Delete every directory left in the cache from a previous process.
+ *
+ * There is no such thing as "recovering" one of these: the ffmpeg process
+ * that was writing into it is gone the moment this process restarts, and a
+ * client reconnecting gets a new session with a new id regardless. Without
+ * this, a crash or restart mid-session left its directory behind forever -
+ * nothing else ever revisits it, since cleanupStaleSessions only walks the
+ * in-memory sessions Map, which starts empty on every process start.
  */
-async function recoverSessions() {
+async function sweepOrphanedCache() {
+    let dirs;
     try {
-        await fs.access(CACHE_DIR);
-        const dirs = await fs.readdir(CACHE_DIR, { withFileTypes: true });
-
-        for (const dirent of dirs) {
-            if (dirent.isDirectory()) {
-                const sessionDir = path.join(CACHE_DIR, dirent.name);
-                const session = await TranscodeSession.restore(sessionDir);
-                if (session) {
-                    sessions.set(session.id, session);
-                    console.log(`[TranscodeSession] Recovered session ${session.id}`);
-                }
-            }
-        }
+        dirs = await fs.readdir(CACHE_DIR, { withFileTypes: true });
     } catch (err) {
-        // Cache dir doesn't exist yet, that's fine
-        if (err.code !== 'ENOENT') {
-            console.error('[TranscodeSession] Error recovering sessions:', err.message);
-        }
+        if (err.code === 'ENOENT') return; // nothing to sweep
+        console.error('[TranscodeSession] Error sweeping cache directory:', err.message);
+        return;
     }
+
+    const orphaned = dirs.filter(d => d.isDirectory());
+    if (orphaned.length === 0) return;
+
+    console.log(`[TranscodeSession] Sweeping ${orphaned.length} orphaned session director${orphaned.length === 1 ? 'y' : 'ies'} from a previous run`);
+    await Promise.all(orphaned.map(dirent =>
+        fs.rm(path.join(CACHE_DIR, dirent.name), { recursive: true, force: true })
+            .catch(err => console.warn(`[TranscodeSession] Could not remove ${dirent.name}:`, err.message))
+    ));
 }
 
 /**
@@ -1030,7 +1090,7 @@ module.exports = {
     getOrCreateSession,
     removeSession,
     cleanupStaleSessions,
-    recoverSessions,
+    sweepOrphanedCache,
     startCleanupInterval,
     getAllSessions,
     CACHE_DIR,

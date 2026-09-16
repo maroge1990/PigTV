@@ -719,6 +719,38 @@ else:
 PYCHK
 [ $? -eq 0 ] || FAIL=1
 
+echo "=== 0046: bound HLS session disk usage (review P0-1) ==="
+check server/services/transcodeSession.js "delete_segments" "segment rotation enabled"
+check server/services/transcodeSession.js "sweepOrphanedCache" "startup sweep exists"
+check server/index.js "sweepOrphanedCache" "startup sweep is actually called"
+check docker-compose.yml "transcode-cache" "cache directory taken off the writable layer"
+python3 - <<'PYCHK'
+import subprocess, sys
+script = '''
+const { TranscodeSession } = require('./server/services/transcodeSession.js');
+function make(opts) {
+    const s = Object.create(TranscodeSession.prototype);
+    s.id = 't'; s.url = 'http://e/s.ts'; s.dir = '/tmp/t';
+    s.playlistPath = '/tmp/t/stream.m3u8';
+    s.options = { userAgent: 'ua', ...opts };
+    return s;
+}
+const args = make({ videoMode:'copy', segmentType:'mpegts', videoCodec:'h264', audioMode:'copy', audioCodec:'aac', audioChannels:2 }).buildFFmpegArgs();
+const listSize = parseInt(args[args.indexOf('-hls_list_size') + 1], 10);
+const flags = args[args.indexOf('-hls_flags') + 1];
+const ok = listSize > 0 && flags.includes('delete_segments') && !flags.includes('append_list');
+console.log(ok ? 'OK' : `BAD list_size=${listSize} flags=${flags}`);
+'''
+result = subprocess.run(['node', '-e', script], capture_output=True, text=True)
+if result.stdout.strip().splitlines()[-1:] == ['OK']:
+    print('  \u2713 list_size bounded (not 0), delete_segments on, append_list gone')
+else:
+    print(f'  \u2717 MISSING: {result.stdout.strip()}\\n{result.stderr.strip()}')
+    sys.exit(1)
+PYCHK
+[ $? -eq 0 ] || FAIL=1
+check server/services/transcodeSession.js "clearSegments" "retry path clears stale segments instead of relying on append_list"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

@@ -220,6 +220,16 @@ app.use((err, req, res, next) => {
 app.listen(PORT, async () => {
     console.log(`PigTV server running on http://localhost:${PORT}`);
 
+    // Nothing in transcode-cache can belong to this process yet - sweep
+    // whatever a previous run (crash or restart mid-session) left behind
+    // before anything else runs.
+    try {
+        const transcodeSession = require('./services/transcodeSession');
+        await transcodeSession.sweepOrphanedCache();
+    } catch (err) {
+        console.warn('Transcode cache sweep failed:', err.message);
+    }
+
     // Load plugins
     await loadPlugins().catch(err => {
         console.error('Plugin initialization failed:', err);
