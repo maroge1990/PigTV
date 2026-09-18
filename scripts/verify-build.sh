@@ -877,6 +877,23 @@ check_absent server/routes/proxy.js "require('ffmpeg-static')" "proxy.js no long
 # index.js keeps its own guarded fallback require - that one is inside try/catch.
 check server/index.js "require('ffmpeg-static')" "index.js keeps its guarded ffmpeg-static fallback"
 
+echo "=== 0052: Provider credential redaction (P1-4) ==="
+check server/redact.js "function redact" "redact helper exists"
+check server/routes/transcode.js "url: redact(x.url)" "/sessions response redacts upstream URLs"
+check server/routes/playback.js "error: redact(err.message)" "resolve error body is redacted"
+check server/services/streamProbe.js "redact(stderr)" "ffprobe stderr redacted before leaving probeStream"
+check server/services/transcodeSession.js "redact(args.join" "session ffmpeg command line redacted in logs"
+if node -e '
+  const { redact } = require("./server/redact");
+  const q = redact("http://p/get.php?username=u&password=pw&token=tk");
+  const pth = redact("http://p:8080/live/u/pw/123.ts");
+  process.exit((q.includes("pw")||q.includes("tk")||q.includes("username=u")||pth.includes("/u/pw/")) ? 1 : 0);
+' 2>/dev/null; then
+  echo "  ✓ redact strips both path-based and query-based provider credentials"
+else
+  echo "  ✗ MISSING: redact does not strip provider credentials"; FAIL=1
+fi
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

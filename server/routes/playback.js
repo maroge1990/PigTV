@@ -14,6 +14,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { getDb } = require('../db/sqlite');
+const { redact } = require('../redact');
 const playbackStrategy = require('../services/playbackStrategy');
 const xtreamApi = require('../services/xtreamApi');
 const passport = require('passport');
@@ -169,8 +170,8 @@ router.post('/resolve', requireToken, async (req, res) => {
         console.log(`[Playback] ${decision.strategy} — ${decision.reason}`);
         res.json(decision);
     } catch (err) {
-        console.error('[Playback] Resolve failed:', err.message);
-        res.status(err.status || 500).json({ error: err.message, info: err.info });
+        console.error('[Playback] Resolve failed:', redact(err.message));
+        res.status(err.status || 500).json({ error: redact(err.message), info: err.info });
     }
 });
 

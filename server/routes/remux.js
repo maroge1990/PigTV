@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { spawn } = require('child_process');
 const db = require('../db');
+const { redact } = require('../redact');
 
 // Active remux processes, so they can be listed and killed like transcode
 // sessions can. Without this registry a remuxed stream is invisible to any
@@ -147,7 +148,7 @@ router.get('/', async (req, res) => {
     console.log(`[Remux] Codecs: video=${videoCodec || 'unknown'}, audio=${audioCodec || 'unknown'}` +
         `${needsAdtsToAsc ? ' (aac_adtstoasc)' : ''}${needsHvc1Tag ? ' (tag hvc1)' : ''}`);
 
-    console.log(`[Remux] Starting remux for: ${url}`);
+    console.log(`[Remux] Starting remux for: ${redact(url)}`);
     console.log(`[Remux] Using User-Agent: ${settings.userAgentPreset}`);
 
     // FFmpeg arguments for pure remux (no encoding)
@@ -204,7 +205,7 @@ router.get('/', async (req, res) => {
         args.splice(args.length - 1, 0, '-tag:v', 'hvc1');
     }
 
-    console.log(`[Remux] Full command: ${ffmpegPath} ${args.join(' ')}`);
+    console.log(`[Remux] Full command: ${ffmpegPath} ${redact(args.join(' '))}`);
 
     let ffmpeg;
     try {
@@ -234,7 +235,7 @@ router.get('/', async (req, res) => {
             }
         }
         if (msg.includes('Warning') || msg.includes('Error') || msg.includes('error')) {
-            console.log(`[Remux FFmpeg] ${msg.trim()}`);
+            console.log(`[Remux FFmpeg] ${redact(msg.trim())}`);
         }
     });
 

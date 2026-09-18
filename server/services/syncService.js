@@ -1,6 +1,7 @@
 const { getDb } = require('../db/sqlite');
 const { sources, settings } = require('../db'); // For source config and settings
 const xtreamApi = require('./xtreamApi');
+const { redact } = require('../redact');
 const m3uParser = require('./m3uParser');
 const epgParser = require('./epgParser');
 
@@ -454,7 +455,7 @@ class SyncService {
      * Processes EPG files in batches to avoid OOM on large EPG data
      */
     async syncEpgFromUrl(sourceId, url) {
-        console.log(`[Sync] Fetching EPG from: ${url.substring(0, 60)}...`);
+        console.log(`[Sync] Fetching EPG from: ${redact(url).slice(0, 80)}...`);
 
         // Temporary memory logging for verification
         const logMemory = () => {

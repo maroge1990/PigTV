@@ -15,6 +15,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs').promises;
+const { redact } = require('../redact');
 const crypto = require('crypto');
 const EventEmitter = require('events');
 const hwDetect = require('./hwDetect');
@@ -120,7 +121,7 @@ class TranscodeSession extends EventEmitter {
         }
 
         this.status = 'starting';
-        console.log(`[TranscodeSession ${this.id}] Starting session for: ${this.url}`);
+        console.log(`[TranscodeSession ${this.id}] Starting session for: ${redact(this.url)}`);
 
         // Create session directory
         try {
@@ -134,7 +135,7 @@ class TranscodeSession extends EventEmitter {
         // Build FFmpeg arguments for HLS output
         const args = this.buildFFmpegArgs();
 
-        console.log(`[TranscodeSession ${this.id}] Command: ${this.options.ffmpegPath} ${args.join(' ')}`);
+        console.log(`[TranscodeSession ${this.id}] Command: ${this.options.ffmpegPath} ${redact(args.join(' '))}`);
 
         try {
             this.process = spawn(this.options.ffmpegPath, args, {
@@ -160,7 +161,7 @@ class TranscodeSession extends EventEmitter {
                 if (lines.length > 1) {
                     lines.slice(0, -1).forEach(line => {
                         if (line.trim()) {
-                            console.log(`[FFmpeg ${this.id}] ${line}`);
+                            console.log(`[FFmpeg ${this.id}] ${redact(line)}`);
                             this.stderrTail.push(line.trim());
                             if (this.stderrTail.length > 20) this.stderrTail.shift();
                         }

@@ -8,6 +8,7 @@
  */
 
 const { spawn } = require('child_process');
+const { redact } = require('../redact');
 
 // Probe cache (URL → result)
 const probeCache = new Map();
@@ -66,7 +67,7 @@ function probeStream(url, ffprobePath, userAgent = null, timeout = 15000) {
         proc.on('close', (code) => {
             clearTimeout(timer);
             if (code !== 0) {
-                reject(new Error(`ffprobe exited with code ${code}: ${stderr}`));
+                reject(new Error(`ffprobe exited with code ${code}: ${redact(stderr)}`));
                 return;
             }
             try {

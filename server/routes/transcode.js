@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { spawn } = require('child_process');
 const path = require('path');
+const { redact } = require('../redact');
 const fs = require('fs').promises;
 const db = require('../db');
 const transcodeSession = require('../services/transcodeSession');
@@ -215,7 +216,7 @@ router.get('/sessions', (req, res) => {
     } catch (err) {
         console.error('[Transcode] Could not list remux processes:', err.message);
     }
-    res.json([...sessions, ...remuxes]);
+    res.json([...sessions, ...remuxes].map(x => (x && x.url ? { ...x, url: redact(x.url) } : x)));
 });
 
 /**
@@ -270,7 +271,7 @@ router.get('/', async (req, res) => {
     const settings = await db.settings.get();
     const userAgent = db.getUserAgent(settings);
 
-    console.log(`[Transcode] Starting transcoding for: ${url}`);
+    console.log(`[Transcode] Starting transcoding for: ${redact(url)}`);
     console.log(`[Transcode] Using User-Agent: ${settings.userAgentPreset}`);
     console.log(`[Transcode] Using binary: ${ffmpegPath}`);
 
@@ -319,7 +320,7 @@ router.get('/', async (req, res) => {
         '-' // Output to stdout
     ];
 
-    console.log(`[Transcode] Full command: ${ffmpegPath} ${args.join(' ')}`);
+    console.log(`[Transcode] Full command: ${ffmpegPath} ${redact(args.join(' '))}`);
 
     let ffmpeg;
     try {
@@ -343,7 +344,7 @@ router.get('/', async (req, res) => {
     ffmpeg.stderr.on('data', (data) => {
         const msg = data.toString();
         stderrBuffer += msg;
-        console.log(`[FFmpeg] ${msg}`);
+        console.log(`[FFmpeg] ${redact(msg)}`);
     });
 
     // Cleanup on client disconnect
