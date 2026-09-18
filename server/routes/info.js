@@ -20,6 +20,7 @@ const API_VERSION = 1;
 
 router.get('/', async (req, res) => {
     const pkg = require('../../package.json');
+    const build = require('../version');
 
     // Comskip's build is allowed to fail, so whether it is actually present
     // has to be reported rather than assumed.
@@ -31,6 +32,12 @@ router.get('/', async (req, res) => {
     res.json({
         name: 'PigTV',
         version: pkg.version,
+        // Which build this actually is, for testing: a client can show the
+        // server's build alongside its own. See server/version.js.
+        build: build.build,
+        commit: build.commit,
+        builtAt: build.builtAt,
+        display: build.display,
         apiVersion: API_VERSION,
 
         // Feature flags rather than version comparisons: a client should ask

@@ -87,6 +87,18 @@ COPY . .
 # Create data, cache, and DVR recordings directories
 RUN mkdir -p /app/data /app/transcode-cache /app/recordings /app/config && chmod 777 /app/transcode-cache /app/recordings
 
+# Build identity (optional). A CI or manual build can stamp the image with its
+# git SHA and build time, which version.js then reports via /api/version:
+#   docker build --build-arg PIGTV_COMMIT=$(git rev-parse --short HEAD) \
+#                --build-arg PIGTV_BUILT_AT=$(date -u +%FT%TZ) ...
+# Left unset, version.js reports commit 'dev' / builtAt null and a plain build
+# still works - the committed `build` number in version.js is the primary
+# identifier either way.
+ARG PIGTV_COMMIT=dev
+ARG PIGTV_BUILT_AT=
+ENV PIGTV_COMMIT=${PIGTV_COMMIT} \
+    PIGTV_BUILT_AT=${PIGTV_BUILT_AT}
+
 # Expose port
 EXPOSE 3000
 

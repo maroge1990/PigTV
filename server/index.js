@@ -200,10 +200,13 @@ app.use('/api/settings', require('./routes/settings'));
 app.use('/api/history', require('./routes/history'));
 app.use('/api/recordings', streamAuth, require('./routes/recordings'));
 
-// Version endpoint
+// Version endpoint. Returns the full build identity (version, build number,
+// commit, builtAt, display) from the single source of truth in version.js, so
+// the webapp badge and any client can tell exactly which build they are
+// talking to. Unauthenticated on purpose - a client checks this before it has
+// a token, and nothing here is sensitive.
 app.get('/api/version', (req, res) => {
-    const pkg = require('../package.json');
-    res.json({ version: pkg.version });
+    res.json(require('./version'));
 });
 
 // SPA fallback - serve index.html for all non-API routes

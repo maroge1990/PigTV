@@ -359,12 +359,17 @@ class App {
 document.addEventListener('DOMContentLoaded', () => {
     window.app = new App();
 
-    // Fetch and display version badge
+    // Fetch and display version badge. Prefer the server's ready-made
+    // `display` string (e.g. "v3.7.0 · build 0048") so the top-left badge
+    // says exactly which build is running; fall back to the bare version for
+    // an older server that predates /api/version's build fields.
     fetch('/api/version')
         .then(res => res.json())
         .then(data => {
             const badge = document.getElementById('version-badge');
-            if (badge && data.version) badge.textContent = `v${data.version}`;
+            if (!badge) return;
+            if (data.display) badge.textContent = data.display;
+            else if (data.version) badge.textContent = `v${data.version}`;
         })
         .catch(() => { });
 });

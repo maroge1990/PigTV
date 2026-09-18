@@ -827,6 +827,18 @@ PYCHK
 [ $? -eq 0 ] || FAIL=1
 check server/services/epgParser.js "input.on('end', finishParsing)" "final batch triggered by the input stream's own end, not sax's"
 
+echo "=== 0048: Build identity surfaced ==="
+# The whole point is that a running server (and any client) can say which
+# build it is. Each check asserts the number reaches the surface it is read
+# from, not just that version.js exists.
+check server/version.js "const BUILD =" "version.js carries a committed build number"
+check server/version.js "module.exports = { version, build, commit, builtAt, display }" "version.js exports the full identity"
+check server/index.js "require('./version')" "/api/version serves version.js (not a bare package.json read)"
+check server/routes/info.js "require('../version')" "/api/info includes build identity"
+check public/js/app.js "data.display" "webapp badge renders the server's display string"
+check public/index.html "version-badge" "badge markup present in the header"
+check Dockerfile "PIGTV_COMMIT" "Dockerfile can stamp commit/builtAt at build time"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
