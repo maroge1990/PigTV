@@ -44,6 +44,18 @@ check() {
     fi
 }
 
+# Assert a pattern is NOT present - for removals, where the bug is the line
+# still being there.
+check_absent() {
+    local file="$1" pattern="$2" label="$3"
+    if grep -q "$pattern" "$file" 2>/dev/null; then
+        echo "  ✗ STILL PRESENT: $label ($pattern found in $file)"
+        FAIL=1
+    else
+        echo "  ✓ $label"
+    fi
+}
+
 echo "=== Checking version ==="
 check package.json '"version"' "version field exists"
 
@@ -859,6 +871,11 @@ check server/routes/playback.js "router.delete('/:sessionId', requireToken" "ses
 check public/js/components/VideoPlayer.js "API.streamFetch(\`/api/probe" "web player probe sends the bearer header"
 check public/js/components/VideoPlayer.js "API.withStreamToken(\`/api/subtitle" "web player subtitle track carries ?token="
 check public/js/pages/WatchPage.js "API.streamFetch(\`/api/probe" "watch page probe sends the bearer header"
+
+echo "=== 0051: Drop the dead ffmpeg-static require ==="
+check_absent server/routes/proxy.js "require('ffmpeg-static')" "proxy.js no longer requires ffmpeg-static at load (would crash startup if the optional dep failed)"
+# index.js keeps its own guarded fallback require - that one is inside try/catch.
+check server/index.js "require('ffmpeg-static')" "index.js keeps its guarded ffmpeg-static fallback"
 
 if [ $FAIL -eq 0 ]; then
     echo ""

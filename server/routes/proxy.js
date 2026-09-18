@@ -5,12 +5,6 @@ const { getDb } = require('../db/sqlite'); // Import SQLite
 const xtreamApi = require('../services/xtreamApi');
 const epgParser = require('../services/epgParser');
 const cache = require('../services/cache');
-const path = require('path');
-const fs = require('fs');
-const http = require('http');
-const https = require('https');
-const { spawn } = require('child_process');
-const ffmpegPath = require('ffmpeg-static');
 const { Readable } = require('stream');
 
 // Default cache max age in hours
