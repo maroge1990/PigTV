@@ -38,6 +38,14 @@ const SEGMENT_DURATION = 4; // seconds per HLS segment
 // live TV needs, while keeping worst case per session in the hundreds of
 // MB rather than unbounded.
 const HLS_LIST_SIZE = 90;
+// Extra segments kept on disk beyond the playlist window before delete_segments
+// removes them. AVPlayer keeps a buffer behind the live edge and, after a
+// client-side pause, can re-request a segment that has just rotated out of the
+// 90-entry window; without a margin that request 404s and the stream stalls.
+// 12 extra (~48s at SEGMENT_DURATION=4) covers that without materially adding
+// to disk use - ~102 vs 90 segments per session, still comfortably inside the
+// 2 GB tmpfs.
+const HLS_DELETE_THRESHOLD = 12;
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // Check every 5 minutes
 
 /**
@@ -416,6 +424,10 @@ class TranscodeSession extends EventEmitter {
             '-f', 'hls',
             '-hls_time', String(SEGMENT_DURATION),
             '-hls_list_size', String(HLS_LIST_SIZE),
+            // Keep a few segments beyond the playlist window before deleting,
+            // so a client that pauses and re-requests a just-rotated segment
+            // still finds it rather than getting a 404 and stalling.
+            '-hls_delete_threshold', String(HLS_DELETE_THRESHOLD),
             // delete_segments: the previous unbounded list_size meant a
             // session was never reclaimed until it ended or the 30-minute
             // idle sweep fired. Rotating segments out as the list fills
@@ -430,7 +442,14 @@ class TranscodeSession extends EventEmitter {
             // with the new software ones in the same playlist. The retry
             // path now clears the directory itself instead, which is the
             // correct fix for that case rather than a reason to keep this.
-            '-hls_flags', 'independent_segments+delete_segments'
+            //
+            // temp_file: ffmpeg writes each playlist update to a temp file and
+            // renames it into place, so a client polling the playlist never
+            // reads it half-written while segments are being rotated out. On a
+            // live stream with delete_segments this is the difference between
+            // an atomic swap and a torn read, and a torn playlist is the most
+            // likely cause of AVPlayer stalling a few minutes into a session.
+            '-hls_flags', 'independent_segments+delete_segments+temp_file'
         );
 
         if (isFmp4) {

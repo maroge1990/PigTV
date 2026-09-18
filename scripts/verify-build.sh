@@ -839,6 +839,13 @@ check public/js/app.js "data.display" "webapp badge renders the server's display
 check public/index.html "version-badge" "badge markup present in the header"
 check Dockerfile "PIGTV_COMMIT" "Dockerfile can stamp commit/builtAt at build time"
 
+echo "=== 0049: Live HLS stability ==="
+# temp_file must be in the actual flag string, not just mentioned in a comment,
+# or the playlist is still rewritten in place under a live client.
+check server/services/transcodeSession.js "independent_segments+delete_segments+temp_file" "playlist written atomically (temp_file in hls_flags)"
+check server/services/transcodeSession.js "'-hls_delete_threshold'" "delete threshold passed to ffmpeg"
+check server/services/transcodeSession.js "const HLS_DELETE_THRESHOLD" "delete threshold has a named constant"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
