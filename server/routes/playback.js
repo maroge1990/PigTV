@@ -17,6 +17,14 @@ const { getDb } = require('../db/sqlite');
 const playbackStrategy = require('../services/playbackStrategy');
 const xtreamApi = require('../services/xtreamApi');
 const passport = require('passport');
+const { streamAuth } = require('../auth');
+
+// P0-3: resolve spends the provider's single upstream slot and starts ffmpeg;
+// the delete can kill anyone's session. Both must carry a token. streamAuth
+// with enforce accepts a bearer header (webapp and native both send one) or a
+// ?token=, and rejects a request that has neither. conflict/conflict-decline
+// below stay optional - they only read or dismiss a prompt.
+const requireToken = streamAuth({ enforce: true });
 
 /**
  * Attach req.user when a token is present, without rejecting requests that
@@ -77,7 +85,7 @@ async function streamUrlForChannel(sourceId, channelId) {
  *
  * Returns: { strategy, url, container, reason, info, sessionId? }
  */
-router.post('/resolve', optionalAuth, async (req, res) => {
+router.post('/resolve', requireToken, async (req, res) => {
     try {
         const { sourceId, channelId, url: directUrl, capabilities, upscale, force } = req.body || {};
 
@@ -209,7 +217,7 @@ router.post('/conflict/decline', optionalAuth, (req, res) => {
  * playing: every session holds an ffmpeg process and a connection to the
  * provider, which matters when the provider allows only one.
  */
-router.delete('/:sessionId', async (req, res) => {
+router.delete('/:sessionId', requireToken, async (req, res) => {
     const { sessionId } = req.params;
     try {
         if (String(sessionId).startsWith('remux_')) {

@@ -185,17 +185,27 @@ app.use('/api/sources', require('./routes/sources'));
 // cannot send headers. Enforcement is off unless requireStreamAuth is set.
 const streamAuth = require('./auth').streamAuthFromSettings(require('./db'));
 
+// P0-3: a handful of routes change state or spend real resources (hide every
+// channel, spawn ffmpeg/ffprobe against an arbitrary URL, kill a live session)
+// yet were reachable with no token at all. Gate them independently of the
+// requireStreamAuth setting, which only governs the media endpoints above.
+//   requireAuth  - header JWT; callers here always send an Authorization header
+//   requireToken - bearer header OR ?token=; for routes a media element or a
+//                  native client reaches, where a header may not be possible
+const { requireAuth } = require('./auth');
+const requireToken = require('./auth').streamAuth({ enforce: true });
+
 app.use('/api/proxy', streamAuth, require('./routes/proxy'));
-app.use('/api/channels', require('./routes/channels'));
+app.use('/api/channels', requireAuth, require('./routes/channels'));
 app.use('/api/favorites', require('./routes/favorites'));
 app.use('/api/transcode', streamAuth, require('./routes/transcode'));
 app.use('/api/remux', streamAuth, require('./routes/remux'));
-app.use('/api/probe', require('./routes/probe'));
+app.use('/api/probe', requireAuth, require('./routes/probe'));
 app.use('/api/playback', require('./routes/playback'));
 app.use('/api/devices', require('./routes/devices'));
 app.use('/api/library', require('./routes/library'));
 app.use('/api/info', require('./routes/info'));
-app.use('/api/subtitle', require('./routes/subtitle'));
+app.use('/api/subtitle', requireToken, require('./routes/subtitle'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/history', require('./routes/history'));
 app.use('/api/recordings', streamAuth, require('./routes/recordings'));

@@ -846,6 +846,20 @@ check server/services/transcodeSession.js "independent_segments+delete_segments+
 check server/services/transcodeSession.js "'-hls_delete_threshold'" "delete threshold passed to ffmpeg"
 check server/services/transcodeSession.js "const HLS_DELETE_THRESHOLD" "delete threshold has a named constant"
 
+echo "=== 0050: Auth gate on state-changing routes (P0-3) ==="
+# The gate has to be on the mount, and the webapp callers have to actually
+# send a token, or turning the gate on breaks the web player.
+check server/index.js "app.use('/api/channels', requireAuth" "channels requires auth"
+check server/index.js "app.use('/api/probe', requireAuth" "probe requires auth"
+check server/index.js "app.use('/api/subtitle', requireToken" "subtitle requires a token (header or query)"
+check server/index.js "streamAuth({ enforce: true })" "always-on token middleware built in index"
+check server/routes/playback.js "router.post('/resolve', requireToken" "resolve requires a token"
+check server/routes/playback.js "router.delete('/:sessionId', requireToken" "session delete requires a token"
+# Webapp side: probe over streamFetch (bearer), subtitle track over ?token=.
+check public/js/components/VideoPlayer.js "API.streamFetch(\`/api/probe" "web player probe sends the bearer header"
+check public/js/components/VideoPlayer.js "API.withStreamToken(\`/api/subtitle" "web player subtitle track carries ?token="
+check public/js/pages/WatchPage.js "API.streamFetch(\`/api/probe" "watch page probe sends the bearer header"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

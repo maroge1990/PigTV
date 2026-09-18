@@ -1202,7 +1202,7 @@ class VideoPlayer {
             if (this.settings.autoTranscode) {
                 console.log('[Player] Auto Transcode enabled. Probing stream...');
                 try {
-                    const probeRes = await fetch(`/api/probe?url=${encodeURIComponent(streamUrl)}${this.capabilityQueryString()}`);
+                    const probeRes = await API.streamFetch(`/api/probe?url=${encodeURIComponent(streamUrl)}${this.capabilityQueryString()}`);
                     const info = await probeRes.json();
                     console.log(`[Player] Probe result: video=${info.video}, audio=${info.audio}, ${info.width}x${info.height}, compatible=${info.compatible}`);
 
@@ -1222,7 +1222,7 @@ class VideoPlayer {
                             track.kind = 'subtitles';
                             track.label = sub.title;
                             track.srclang = sub.language;
-                            track.src = `/api/subtitle?url=${encodeURIComponent(streamUrl)}&index=${sub.index}`;
+                            track.src = API.withStreamToken(`/api/subtitle?url=${encodeURIComponent(streamUrl)}&index=${sub.index}`);
                             this.video.appendChild(track);
                         });
 
@@ -1347,7 +1347,7 @@ class VideoPlayer {
                 // Probe to get video codec for HEVC tag handling
                 let videoCodec = 'unknown';
                 try {
-                    const probeRes = await fetch(`/api/probe?url=${encodeURIComponent(streamUrl)}${this.capabilityQueryString()}`);
+                    const probeRes = await API.streamFetch(`/api/probe?url=${encodeURIComponent(streamUrl)}${this.capabilityQueryString()}`);
                     const info = await probeRes.json();
                     videoCodec = info.video;
                 } catch (e) { console.warn('Probe failed for force audio, assuming h264'); }
