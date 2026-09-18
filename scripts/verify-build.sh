@@ -894,6 +894,12 @@ else
   echo "  ✗ MISSING: redact does not strip provider credentials"; FAIL=1
 fi
 
+echo "=== 0053: db.json cache + session leak (P1-7) ==="
+check server/db.js "let cachedDb = null" "in-memory db cache declared"
+check server/db.js "if (cachedDb) return structuredClone(cachedDb)" "loadDb serves from cache once seeded"
+check server/db.js "cachedDb = structuredClone(data)" "saveDb keeps the cache authoritative (write-through)"
+check server/index.js "saveUninitialized: false" "session not created for cookieless requests (MemoryStore leak)"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

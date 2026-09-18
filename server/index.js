@@ -19,10 +19,14 @@ app.use(express.json({ limit: '50mb' }));
 
 // Initialize Passport
 const session = require('express-session');
+// express-session exists only for the OIDC login flow (unconfigured here).
+// saveUninitialized:false means a session is created only once something is
+// stored in it, so an ordinary cookieless request (every AVPlayer segment
+// fetch, curl, health check) no longer leaks an entry into the MemoryStore.
 app.use(session({
     secret: require('./authSecret'),
     resave: false,
-    saveUninitialized: true
+    saveUninitialized: false
 }));
 app.use(passport.initialize());
 app.use(passport.session());

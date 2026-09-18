@@ -10,14 +10,24 @@ if (!existsSync(dataDir)) {
 
 const dbPath = path.join(dataDir, 'db.json');
 
+// In-memory write-through cache of db.json. loadDb() reads the file once, then
+// serves clones from here; saveDb() keeps it authoritative. db.json is on the
+// hot path - streamAuthFromSettings calls settings.get() on every media
+// request (every HLS segment) - so re-reading and re-parsing the file each
+// time is pure overhead. (Trade-off: a manual edit of db.json on disk is not
+// picked up until restart.)
+let cachedDb = null;
+
 // Initialize database structure
 async function loadDb() {
+  // Serve from cache once seeded.
+  if (cachedDb) return structuredClone(cachedDb);
   try {
     // Check if file exists (using fs.access is better for async, but we can catch ENOENT)
     try {
       const fileContent = await fs.readFile(dbPath, 'utf-8');
       const data = JSON.parse(fileContent);
-      return {
+      cachedDb = {
         sources: data.sources || [],
         hiddenItems: data.hiddenItems || [],
         favorites: data.favorites || [],
@@ -25,10 +35,14 @@ async function loadDb() {
         users: data.users || [],
         nextId: data.nextId || 1
       };
+      // Hand callers their own copy so a mutate-then-save cycle can't corrupt
+      // the cache mid-flight.
+      return structuredClone(cachedDb);
     } catch (error) {
       if (error.code === 'ENOENT') {
-        // File doesn't exist, return default
-        return {
+        // File doesn't exist (fresh install); seed the cache with the default
+        // so the first saveDb writes it out.
+        cachedDb = {
           sources: [],
           hiddenItems: [],
           favorites: [],
@@ -36,12 +50,14 @@ async function loadDb() {
           users: [],
           nextId: 1
         };
+        return structuredClone(cachedDb);
       }
       throw error;
     }
   } catch (err) {
     console.error('Error loading database:', err);
-    // Return safe default on error to prevent crashing, but log it
+    // A transient read/parse failure must not poison the cache: leave it
+    // unseeded so the next call retries the disk, and return a safe default.
     return {
       sources: [],
       hiddenItems: [],
@@ -135,6 +151,9 @@ let writeQueue = Promise.resolve();
 const tmpPath = dbPath + '.tmp';
 
 async function saveDb(data) {
+  // Update the cache first so subsequent reads see the new state immediately,
+  // independent of when the queued disk write lands.
+  cachedDb = structuredClone(data);
   // Queue this write operation - each write waits for the previous one
   writeQueue = writeQueue.then(async () => {
     try {
