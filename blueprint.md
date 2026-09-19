@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0065** (0054–0064 pushed to main; 0065 written) |
-| Next patch number | **0066** |
+| Shipped through | **build 0066** (0054–0064 pushed to main; 0065–0066 written) |
+| Next patch number | **0067** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -105,6 +105,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0063 | Body-size cap + rate limits on login and pairing (P2-7, partial) — see below |
 | 0064 | Remux: reliable codec identification (fixes "Malformed AAC bitstream") — see below |
 | 0065 | Web player reports media errors (client → `docker logs`) — see below |
+| 0066 | Remux: AC-3 / E-AC-3 audio (`delay_moov`) — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -363,7 +364,27 @@ fault (which would favour bringing §C forward). Tests: `test/player-media-error
 (7, the real player script in a `vm`) and `test/client-events.test.js` (5, real route,
 real token).
 
-**Post-deploy checks still owed by Mark:** badge reads **0065**; `docker logs`
+**0066 detail — AC-3 / E-AC-3 through the remux path.** Found while testing 0064:
+real ffmpeg cannot write AC-3 or E-AC-3 into the empty-moov fragmented MP4 the remux
+produces (`Cannot write moov atom before AC3 packets`, only the ~950-byte header is
+delivered). It matters because `resolve` sends a stream to remux whenever the client
+reports it can decode the audio — Safari reports AC-3 — so an AC-3 channel on a
+Safari web player would have gone there and failed. The MP4 header for these codecs
+has to be built from the first frames, so `delay_moov` (hold the header until the first
+fragment) is added to the movflags **only when the audio is `ac3`/`eac3`**; every
+other stream keeps exactly the flags it has today (asserted byte-for-byte in a test),
+since `delay_moov` delays a stream's start by up to a keyframe interval. To make that
+testable the remux ffmpeg arguments moved out of the route into pure
+`remuxFixes(codecs)` + `buildRemuxArgs(url, userAgent, fixes)` (same arguments, same
+order). Verified against **real ffmpeg through the real route with an endless,
+live-style upstream**: old route AC-3 and E-AC-3 → header only (950 B); fixed route →
+playable `h264+ac3` / `h264+eac3`; AAC unchanged. The log's `Codecs:` line now adds
+`(delay_moov)` when it applies. **Not verified:** actual AC-3 playback in Safari (only
+that ffmpeg now produces a valid stream); Chrome cannot decode AC-3 natively so it is
+routed to transcode by `resolve` and never reaches this. Tests: `test/remux-args.test.js`
+(6 cases, no binaries).
+
+**Post-deploy checks still owed by Mark:** badge reads **0066**; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
 `SELECT COUNT(*) FROM epg_live` matches the XMLTV `<programme` count (final
 verification of 0047; use `epg_live` since 0056 — `epg_programs` can briefly hold two
@@ -536,12 +557,8 @@ This is the endpoint of the guiding direction at the top of §5. It is a
   works either way.
 - **Dead-code batch timing** — early deliberate batch (recommended) vs late.
 - **`requireStreamAuth` flip timing** — tied to Tailscale exposure.
-- **AC-3 through the remux path (unverified in a browser).** Real ffmpeg refuses AC-3 in
-  the empty-moov fMP4 remux (`Cannot write moov atom before AC3 packets`). `resolve`
-  only sends a stream to remux when the client can decode its audio, so a client that
-  reports `ac3: true` (Safari) on an AC-3 channel would be sent there and fail. Found
-  while testing 0064; not reproduced through a real client. Fix would be routing AC-3 to
-  the HLS session path or adding `delay_moov`.
+- ~~AC-3 through the remux path~~ — fixed in 0066 (`delay_moov`); still unverified in a real
+  Safari.
 - **Stall timeout tuning** — 20 s default (`PIGTV_STALL_TIMEOUT_MS`) is a
   conservative guess for long-GOP sources; tighten only after watching the real
   feed's `[TranscodeSession]`/`[Remux]` stall logs for false positives.

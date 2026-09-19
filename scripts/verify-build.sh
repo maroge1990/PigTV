@@ -1075,6 +1075,15 @@ check server/routes/playback.js "clientEventLimiter" "the endpoint is rate limit
 check test/client-events.test.js "forge a log line" "the endpoint has tests"
 check test/player-media-error.test.js "never throws into playback" "the player side has tests"
 
+echo "=== 0066: AC-3 / E-AC-3 through the remux ==="
+check server/routes/remux.js "function remuxFixes" "codec-driven fix-ups are decided in one place"
+check server/routes/remux.js "function buildRemuxArgs" "the remux arguments are a testable function"
+check server/routes/remux.js "needsDelayMoov: audioCodec === 'ac3' || audioCodec === 'eac3'" "delay_moov only for AC-3/E-AC-3 (everything else keeps today's flags)"
+check server/routes/remux.js "frag_keyframe+empty_moov+default_base_moof+delay_moov" "the delayed-header movflags exist"
+check server/routes/remux.js "const args = buildRemuxArgs(url, userAgent, fixes);" "the route uses the function, not a second inline copy"
+check_absent server/routes/remux.js "{needsAdtsToAsc" "no stale references to the old inline flag variables (only fixes.* remain)"
+check test/remux-args.test.js "exactly the arguments it always had" "the existing flags are pinned by a test"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

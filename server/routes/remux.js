@@ -131,6 +131,92 @@ function detectCodecs(url, ffprobePath, userAgent, timeoutMs = 8000) {
 }
 
 /**
+ * Which fix-ups the MP4 muxer needs for a stream with these codecs.
+ */
+function remuxFixes(codecs) {
+    const audioCodec = codecs?.audio || null;
+    const videoCodec = (codecs?.video || '').toLowerCase();
+    return {
+        audioCodec,
+        videoCodec,
+        // aac_adtstoasc is required for AAC-in-MPEG-TS to survive the move into
+        // MP4, but it refuses to initialise on any other audio, so it is only
+        // added when the probe says the audio really is AAC.
+        needsAdtsToAsc: audioCodec === 'aac',
+        // HEVC in fMP4 must be tagged hvc1 or browsers refuse the track. Without
+        // this, an HEVC channel that could be remuxed at near-zero cost falls
+        // back to a full re-encode.
+        needsHvc1Tag: videoCodec.includes('hevc') || videoCodec.includes('h265'),
+        // AC-3 and E-AC-3 cannot be written into an MP4 whose header is emitted
+        // up front (empty_moov): ffmpeg needs to see the first frames to fill in
+        // the codec's own header box, and stops with "Cannot write moov atom
+        // before AC3 packets". delay_moov holds the header back until the first
+        // fragment. Only for these codecs: it delays the start of every stream
+        // by up to a keyframe interval, so the ones that work today are left as
+        // they are.
+        needsDelayMoov: audioCodec === 'ac3' || audioCodec === 'eac3'
+    };
+}
+
+/**
+ * The ffmpeg arguments for a stream-copy remux to fragmented MP4 on stdout.
+ * Pure, so the flag decisions can be tested without ffmpeg.
+ */
+function buildRemuxArgs(url, userAgent, fixes = {}) {
+    // Very lightweight - just changes container from TS to fragmented MP4
+    const args = [
+        '-hide_banner',
+        '-loglevel', 'warning',
+        '-user_agent', userAgent,
+        '-user_agent', userAgent,
+        // Standard probe size to handle complex containers (MKV) correctly
+        '-probesize', '5000000',
+        '-analyzeduration', '5000000',
+        // Error resilience: discard corrupt packets, generate timestamps, ignore DTS, no buffering
+        '-fflags', '+genpts+discardcorrupt+igndts+nobuffer',
+        // Ignore errors in stream and continue
+        '-err_detect', 'ignore_err',
+        // Limit max demux delay to prevent buffering issues with bad timestamps
+        '-max_delay', '5000000',
+        // Reconnect settings for network drops
+        '-reconnect', '1',
+        '-reconnect_streamed', '1',
+        '-reconnect_delay_max', '5',
+        // Prevent Range/HEAD requests that some providers reject with 405
+        '-seekable', '0',
+        '-i', url,
+        // STRICT MAPPING: Only map video and audio, ignore subtitles/data/attachments
+        // This prevents remux failure when source container has incompatible subtitle tracks (e.g. MKV -> MP4)
+        '-map', '0:v',
+        '-map', '0:a',
+        // Drop subtitles (-sn) and data (-dn) explicitly
+        '-sn', '-dn',
+        // Copy streams without re-encoding
+        '-c', 'copy',
+        // Ensure extradata is correctly extracted/converted (fixes Annex B -> AVCC issues in Firefox)
+        '-bsf:v', 'dump_extra',
+        // Handle timestamp discontinuities at output
+        '-fps_mode', 'passthrough',
+        '-max_muxing_queue_size', '1024',
+        // Fragmented MP4 for streaming (browser-compatible)
+        '-f', 'mp4',
+        '-movflags', fixes.needsDelayMoov
+            ? 'frag_keyframe+empty_moov+default_base_moof+delay_moov'
+            : 'frag_keyframe+empty_moov+default_base_moof',
+        '-' // Output to stdout
+    ];
+
+    if (fixes.needsAdtsToAsc) {
+        // Insert just before the output argument
+        args.splice(args.length - 1, 0, '-bsf:a', 'aac_adtstoasc');
+    }
+    if (fixes.needsHvc1Tag) {
+        args.splice(args.length - 1, 0, '-tag:v', 'hvc1');
+    }
+    return args;
+}
+
+/**
  * Work out the stream's codecs, which the remux cannot start without: MPEG-TS
  * carries AAC in ADTS framing, and MP4 rejects every audio packet of it unless
  * ffmpeg is told to apply aac_adtstoasc - while that same filter refuses to
@@ -199,72 +285,15 @@ router.get('/', async (req, res) => {
         return res.status(503).json({ error: 'Could not identify the stream. The provider may be refusing a second connection; try again.' });
     }
     if (found.source) console.log(`[Remux] Codecs from ${found.source}`);
-    const audioCodec = codecs?.audio || null;
-    const videoCodec = (codecs?.video || '').toLowerCase();
-    const needsAdtsToAsc = audioCodec === 'aac';
-    // HEVC in fMP4 must be tagged hvc1 or browsers refuse the track. Without
-    // this, an HEVC channel that could be remuxed at near-zero cost falls
-    // back to a full re-encode.
-    const needsHvc1Tag = videoCodec.includes('hevc') || videoCodec.includes('h265');
-    console.log(`[Remux] Codecs: video=${videoCodec || 'unknown'}, audio=${audioCodec || 'unknown'}` +
-        `${needsAdtsToAsc ? ' (aac_adtstoasc)' : ''}${needsHvc1Tag ? ' (tag hvc1)' : ''}`);
+    const fixes = remuxFixes(codecs);
+    console.log(`[Remux] Codecs: video=${fixes.videoCodec || 'unknown'}, audio=${fixes.audioCodec || 'unknown'}` +
+        `${fixes.needsAdtsToAsc ? ' (aac_adtstoasc)' : ''}${fixes.needsHvc1Tag ? ' (tag hvc1)' : ''}` +
+        `${fixes.needsDelayMoov ? ' (delay_moov)' : ''}`);
 
     console.log(`[Remux] Starting remux for: ${redact(url)}`);
     console.log(`[Remux] Using User-Agent: ${settings.userAgentPreset}`);
 
-    // FFmpeg arguments for pure remux (no encoding)
-    // Very lightweight - just changes container from TS to fragmented MP4
-    const args = [
-        '-hide_banner',
-        '-loglevel', 'warning',
-        '-user_agent', userAgent,
-        '-user_agent', userAgent,
-        // Standard probe size to handle complex containers (MKV) correctly
-        '-probesize', '5000000',
-        '-analyzeduration', '5000000',
-        // Error resilience: discard corrupt packets, generate timestamps, ignore DTS, no buffering
-        '-fflags', '+genpts+discardcorrupt+igndts+nobuffer',
-        // Ignore errors in stream and continue
-        '-err_detect', 'ignore_err',
-        // Limit max demux delay to prevent buffering issues with bad timestamps
-        '-max_delay', '5000000',
-        // Reconnect settings for network drops
-        '-reconnect', '1',
-        '-reconnect_streamed', '1',
-        '-reconnect_delay_max', '5',
-        // Prevent Range/HEAD requests that some providers reject with 405
-        '-seekable', '0',
-        '-i', url,
-        // STRICT MAPPING: Only map video and audio, ignore subtitles/data/attachments
-        // This prevents remux failure when source container has incompatible subtitle tracks (e.g. MKV -> MP4)
-        '-map', '0:v',
-        '-map', '0:a',
-        // Drop subtitles (-sn) and data (-dn) explicitly
-        '-sn', '-dn',
-        // Copy streams without re-encoding
-        '-c', 'copy',
-        // Ensure extradata is correctly extracted/converted (fixes Annex B -> AVCC issues in Firefox)
-        '-bsf:v', 'dump_extra',
-        // aac_adtstoasc is applied conditionally below: it is required for
-        // AAC-in-MPEG-TS to survive the move into MP4, but it breaks
-        // AC3/EAC3/MP3, so it is only added when the probe says the audio
-        // really is AAC.
-        // Handle timestamp discontinuities at output
-        '-fps_mode', 'passthrough',
-        '-max_muxing_queue_size', '1024',
-        // Fragmented MP4 for streaming (browser-compatible)
-        '-f', 'mp4',
-        '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
-        '-' // Output to stdout
-    ];
-
-    if (needsAdtsToAsc) {
-        // Insert just before the output argument
-        args.splice(args.length - 1, 0, '-bsf:a', 'aac_adtstoasc');
-    }
-    if (needsHvc1Tag) {
-        args.splice(args.length - 1, 0, '-tag:v', 'hvc1');
-    }
+    const args = buildRemuxArgs(url, userAgent, fixes);
 
     console.log(`[Remux] Full command: ${ffmpegPath} ${redact(args.join(' '))}`);
 
@@ -402,6 +431,8 @@ router.get('/', async (req, res) => {
 
 module.exports = router;
 module.exports.identifyCodecs = identifyCodecs;
+module.exports.remuxFixes = remuxFixes;
+module.exports.buildRemuxArgs = buildRemuxArgs;
 module.exports.listActiveRemuxes = listActiveRemuxes;
 module.exports.killRemux = killRemux;
 module.exports.killAllRemuxes = killAllRemuxes;

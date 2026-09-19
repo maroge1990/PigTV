@@ -1,0 +1,89 @@
+const { test, after } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+// Copy the server so its relative data paths never touch real data (same
+// approach as access.test.js; a junction so it works on Windows without admin).
+const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-remuxargs-'));
+fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
+fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'node_modules'), 'junction');
+process.chdir(sandbox);
+const { remuxFixes, buildRemuxArgs } = require(path.join(sandbox, 'server/routes/remux'));
+
+after(() => {
+    process.chdir(os.tmpdir());
+    try { fs.rmdirSync(path.join(sandbox, 'node_modules')); } catch { /* junction already gone */ }
+    try { fs.rmSync(sandbox, { recursive: true, force: true }); } catch { /* leave it to the OS temp cleaner */ }
+});
+
+const URL_ = 'http://provider.invalid/live/u/p/1.ts';
+const UA = 'Mozilla/5.0 test';
+const MOVFLAGS = 'frag_keyframe+empty_moov+default_base_moof';
+const argsFor = (video, audio) => buildRemuxArgs(URL_, UA, remuxFixes({ video, audio }));
+const movflags = (args) => args[args.indexOf('-movflags') + 1];
+
+test('a working H.264 + AAC stream gets exactly the arguments it always had, plus the AAC filter', () => {
+    // Written out in full, from the route as it was before this argument list was
+    // made a function: the flags that already work must not move.
+    assert.deepEqual(argsFor('h264', 'aac'), [
+        '-hide_banner', '-loglevel', 'warning',
+        '-user_agent', UA, '-user_agent', UA,
+        '-probesize', '5000000', '-analyzeduration', '5000000',
+        '-fflags', '+genpts+discardcorrupt+igndts+nobuffer',
+        '-err_detect', 'ignore_err',
+        '-max_delay', '5000000',
+        '-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5',
+        '-seekable', '0',
+        '-i', URL_,
+        '-map', '0:v', '-map', '0:a', '-sn', '-dn',
+        '-c', 'copy',
+        '-bsf:v', 'dump_extra',
+        '-fps_mode', 'passthrough', '-max_muxing_queue_size', '1024',
+        '-f', 'mp4', '-movflags', MOVFLAGS,
+        '-bsf:a', 'aac_adtstoasc',
+        '-'
+    ]);
+});
+
+test('AC-3 and E-AC-3 hold the MP4 header back, or ffmpeg cannot write them at all', () => {
+    for (const audio of ['ac3', 'eac3']) {
+        assert.equal(movflags(argsFor('h264', audio)), `${MOVFLAGS}+delay_moov`, audio);
+        assert.ok(!argsFor('h264', audio).includes('aac_adtstoasc'), 'and never the AAC filter, which refuses non-AAC audio');
+    }
+});
+
+test('every other stream keeps the movflags it has today, so nothing that works starts later', () => {
+    for (const audio of ['aac', 'mp3', 'mp2', null]) {
+        assert.equal(movflags(argsFor('h264', audio)), MOVFLAGS, String(audio));
+    }
+    assert.equal(movflags(buildRemuxArgs(URL_, UA)), MOVFLAGS, 'no codecs known at all');
+});
+
+test('HEVC is tagged hvc1, alone and together with AC-3', () => {
+    const hevc = argsFor('hevc', 'aac');
+    assert.deepEqual(hevc.slice(-3), ['-tag:v', 'hvc1', '-']);
+    const both = argsFor('hevc', 'ac3');
+    assert.ok(both.join(' ').includes('-tag:v hvc1'));
+    assert.equal(movflags(both), `${MOVFLAGS}+delay_moov`);
+    assert.equal(argsFor('h265', 'aac').includes('hvc1'), true, 'h265 spelling too');
+    assert.equal(argsFor('h264', 'aac').includes('hvc1'), false);
+});
+
+test('the fix-ups are decided from the codecs and nothing else', () => {
+    assert.deepEqual(remuxFixes({ video: 'h264', audio: 'aac' }),
+        { audioCodec: 'aac', videoCodec: 'h264', needsAdtsToAsc: true, needsHvc1Tag: false, needsDelayMoov: false });
+    assert.deepEqual(remuxFixes({ video: 'HEVC', audio: 'eac3' }),
+        { audioCodec: 'eac3', videoCodec: 'hevc', needsAdtsToAsc: false, needsHvc1Tag: true, needsDelayMoov: true });
+    const unknown = remuxFixes(null);
+    assert.equal(unknown.needsAdtsToAsc || unknown.needsHvc1Tag || unknown.needsDelayMoov, false);
+});
+
+test('the output is always the pipe, as fragmented MP4', () => {
+    for (const audio of ['aac', 'ac3', null]) {
+        const args = argsFor('h264', audio);
+        assert.equal(args[args.length - 1], '-');
+        assert.equal(args[args.indexOf('-f') + 1], 'mp4');
+    }
+});
