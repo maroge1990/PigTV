@@ -1141,6 +1141,21 @@ check server/routes/playback.js "body.event !== 'start-timeout'" "the server acc
 check test/player-start-watch.test.js "innocent explanations" "the start watch has tests"
 check test/remux-diagnostics.test.js "never produced a byte" "the server diagnostics have tests"
 
+echo "=== 0071: probe-phase decoder chatter is summarised, not logged ==="
+check server/routes/remux.js "const PROBE_DECODER_MESSAGE" "decoder messages from the probe phase are recognised"
+check server/routes/remux.js "logger.flush = " "and summarised in one line"
+check server/routes/remux.js "logStderr.flush(); // the probe is over" "the summary is written when the probe ends (first output)"
+if [ "$(grep -c 'logStderr.end()' server/routes/remux.js)" -ge "2" ]; then
+  echo "  ✓ it is also summarised when the remux ends (client leaves or ffmpeg exits)"
+else
+  echo "  ✗ MISSING: logStderr.end() must run on client disconnect and on ffmpeg exit"; FAIL=1
+fi
+check test/remux-diagnostics.test.js "joining a stream mid-keyframe" "the noise handling has tests using the real log lines"
+check server/routes/remux.js "function makeLineBuffer" "ffmpeg's stderr is line-buffered (it arrives in arbitrary pieces)"
+check server/routes/remux.js "const tailLines = makeLineBuffer" "the stall/exit tail uses it too, not a naive split"
+check_absent server/routes/remux.js "msg.split('\n')" "no naive per-chunk split of stderr left in the route"
+check test/remux-diagnostics.test.js "however the stream is cut" "and it is tested at every cut point and byte by byte"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

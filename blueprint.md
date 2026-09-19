@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0070** (0054–0069 pushed to main; 0070 written) |
-| Next patch number | **0071** |
+| Shipped through | **build 0071** (0054–0070 pushed to main; 0071 written) |
+| Next patch number | **0072** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -110,6 +110,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0068 | Audio re-encode self-heal for the remux path (fixes the unreproduced web fault) — see below |
 | 0069 | Fix: 0065 reported every channel change as a playback error — see below |
 | 0070 | Diagnostics for silent "nothing plays" failures + remux start-up measurements — see below |
+| 0071 | Quiet the probe-phase decoder chatter 0070 exposed — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -493,7 +494,37 @@ too, not assume it is faster.** Tests: `test/remux-diagnostics.test.js` (6),
 `test/player-start-watch.test.js` (4, real player script with controlled timers), plus a
 `start-timeout` case in `test/client-events.test.js`.
 
-**Post-deploy checks still owed by Mark:** badge reads **0070**; `docker logs`
+**0071 detail — noise from 0070's fuller ffmpeg logging.** Live-verification item A1 showed
+a healthy channel (playback normal) logging `[h264 @ …] non-existing SPS 0 referenced in
+buffering period`, `non-existing PPS 0 referenced`, `decode_slice_header error`, `no frame!`
+and `Last message repeated N times`, until the cap ("further ffmpeg messages suppressed").
+Cause: a remux copies and never decodes, but **ffmpeg decodes the first frames while probing
+the input**, and joining a live stream mid-keyframe-interval makes the H.264 decoder complain
+until the next keyframe; it stops by itself once the probe ends. Harmless — but before 0070 the
+"error"-only filter mostly hid it, and after 0070 it consumed the whole 25-message budget,
+leaving no room for something that matters (a reconnect, a timestamp problem) later. Now
+messages from a decoder (`h264/hevc/mpeg2video/mpeg4/aac/aac_latm/ac3/eac3/mp2/mp3`) and
+ffmpeg's own "repeated N times" note that follows one are **counted, not logged**, and
+summarised in one line when the probe ends (first output) and again at the end:
+`remux_15: 40 decoder messages while probing the stream - normally just joining mid-keyframe
+(h264: non-existing PPS 0 referenced x8; …)`. Everything else ffmpeg says is still logged
+individually, and the budget is no longer spent on the noise. **A very large count in that line
+would itself be a signal** (a stream that never gets a keyframe).
+**Also fixed here — a bug in 0070's logging that a real-ffmpeg run exposed:** a process's
+stderr arrives in arbitrary *pieces*, not lines, so a read could end halfway through
+`Last message repeated 1 times`; 0070 treated each piece as a line and logged fragments
+(`Last mess` / `age repeated 1 times`), both in the per-message log and in the "Last ffmpeg output"
+tail printed when a remux stalls or dies. Now a real line buffer (`makeLineBuffer`) holds the
+unfinished last line until the rest arrives (`end()` releases it when the process is over).
+**What a failed join looks like** (seen with a 10 s-keyframe stream joined at a random point):
+`Could not find codec parameters for stream 0 (Video: h264 …): unspecified size` → `dimensions
+not set` → `Could not write header` → ffmpeg exits with code 4294967274 (-22) at ~6 s, because the
+5 MB / 5 s probe window ended before the first keyframe. That is the long-keyframe failure the
+0070 measurements predicted; it now announces itself in the log. Tests: 7 new cases in
+`test/remux-diagnostics.test.js` — the exact lines from the live log, and the *same output whether
+the stream is cut anywhere or delivered a byte at a time*; 6 fail against the 0070 logger.
+
+**Post-deploy checks still owed by Mark:** badge reads **0071**; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
 `SELECT COUNT(*) FROM epg_live` matches the XMLTV `<programme` count (final
 verification of 0047; use `epg_live` since 0056 — `epg_programs` can briefly hold two

@@ -146,6 +146,40 @@ function describeRemuxEnd({ id, startedAt, now, bytes = 0, firstOutputAt = null 
     return `[Remux] Client disconnected after ${alive}s (${sent}), killing ${id}`;
 }
 
+// A message from one of ffmpeg's *decoders*: "[h264 @ 0x55...] non-existing PPS 0 ...".
+// A remux copies streams and never decodes, but ffmpeg does decode the first frames
+// while it probes the input, and joining a live stream in the middle of a keyframe
+// interval makes the video decoder complain - a burst of "non-existing SPS/PPS",
+// "decode_slice_header error", "no frame!" - until the next keyframe arrives.
+// That is normal, stops on its own once the probe ends, and used to fill the whole
+// message budget, leaving no room for a reconnect or a timestamp problem later.
+const PROBE_DECODER_MESSAGE = /^\[(h264|hevc|mpeg2video|mpeg4|aac|aac_latm|ac3|eac3|mp2|mp3)\b[^\]]*\]\s*/;
+const REPEAT_NOTE = /^Last message repeated (\d+) times?$/;
+
+/**
+ * A process's stderr arrives in arbitrary pieces, not in lines: one read can end
+ * halfway through "Last message repeated 1 times". Treating each piece as a line
+ * put fragments in the log ("Last mess" / "age repeated 1 times"). This holds the
+ * unfinished last line back until the rest of it arrives; end() releases whatever
+ * is left.
+ */
+function makeLineBuffer(onLine) {
+    let pending = '';
+    const feed = (chunk) => {
+        pending += String(chunk);
+        const parts = pending.split(/\r\n|\n|\r/);
+        pending = parts.pop();
+        for (const part of parts) onLine(part);
+    };
+    feed.end = () => {
+        if (!pending) return;
+        const rest = pending;
+        pending = '';
+        onLine(rest);
+    };
+    return feed;
+}
+
 /**
  * Logs ffmpeg's own messages for a remux. It used to log only the ones that
  * happened to contain "error" or "Warning", which hid the rest - reconnect
@@ -153,19 +187,58 @@ function describeRemuxEnd({ id, startedAt, now, bytes = 0, firstOutputAt = null 
  * loglevel everything ffmpeg says is worth reading, so log it all, but only the
  * first few per remux: a damaged stream can otherwise repeat one message for as
  * long as it plays.
+ *
+ * Decoder chatter from the probe phase is counted rather than logged, and flush()
+ * turns it into one line (called when the probe finishes, i.e. at first output).
+ * end() is for when the process is over: it also releases a last unfinished line.
  */
 function makeStderrLogger(id, log = console.log, cap = 25, redactor = redact) {
     let logged = 0;
-    return (chunk) => {
-        const name = typeof id === 'function' ? id() : id; // a getter: the id may not exist yet when this is created
-        for (const line of String(chunk).split('\n')) {
-            const text = line.trim();
-            if (!text) continue;
-            if (logged < cap) log(`[Remux FFmpeg] ${name}: ${redactor(text)}`);
-            else if (logged === cap) log(`[Remux FFmpeg] ${name}: (further ffmpeg messages suppressed)`);
-            logged++;
+    const kinds = new Map(); // "h264: non-existing PPS 0 referenced" -> count
+    let probeTotal = 0;
+    let lastWasProbe = false;
+    const nameOf = () => (typeof id === 'function' ? id() : id); // a getter: the id may not exist yet when this is created
+
+    const handleLine = (line) => {
+        const text = line.trim();
+        if (!text) return;
+
+        const decoder = PROBE_DECODER_MESSAGE.exec(text);
+        if (decoder) {
+            const kind = `${decoder[1]}: ${text.slice(decoder[0].length).replace(/\s+/g, ' ')}`;
+            kinds.set(kind, (kinds.get(kind) || 0) + 1);
+            probeTotal++;
+            lastWasProbe = true;
+            return;
         }
+        const repeat = REPEAT_NOTE.exec(text);
+        if (repeat && lastWasProbe) { // ffmpeg's own "repeated N times" for one of those messages
+            probeTotal += Number(repeat[1]);
+            return;
+        }
+        lastWasProbe = false;
+
+        const name = nameOf();
+        if (logged < cap) log(`[Remux FFmpeg] ${name}: ${redactor(text)}`);
+        else if (logged === cap) log(`[Remux FFmpeg] ${name}: (further ffmpeg messages suppressed)`);
+        logged++;
     };
+    const logger = makeLineBuffer(handleLine);
+
+    logger.flush = () => {
+        if (!probeTotal) return;
+        const top = [...kinds.entries()].sort((a, b) => b[1] - a[1]);
+        const shown = top.slice(0, 3).map(([kind, n]) => `${kind} x${n}`).join('; ');
+        const more = top.length > 3 ? `; +${top.length - 3} other kinds` : '';
+        log(`[Remux FFmpeg] ${nameOf()}: ${probeTotal} decoder messages while probing the stream - ` +
+            `normally just joining mid-keyframe (${redactor(shown)}${more})`);
+        kinds.clear();
+        probeTotal = 0;
+        lastWasProbe = false;
+    };
+    const releaseRest = logger.end;
+    logger.end = () => { releaseRest(); logger.flush(); };
+    return logger;
 }
 
 /**
@@ -386,15 +459,15 @@ router.get('/', async (req, res) => {
     // scroll past without matching the filter below, which leaves the log
     // saying only that the client disconnected — true, but not the reason.
     const stderrTail = [];
-    ffmpeg.stderr.on('data', (data) => {
-        const msg = data.toString();
-        for (const line of msg.split('\n')) {
-            if (line.trim()) {
-                stderrTail.push(line.trim());
-                if (stderrTail.length > 20) stderrTail.shift();
-            }
+    const tailLines = makeLineBuffer((line) => {
+        if (line.trim()) {
+            stderrTail.push(line.trim());
+            if (stderrTail.length > 20) stderrTail.shift();
         }
-        logStderr(msg);
+    });
+    ffmpeg.stderr.on('data', (data) => {
+        tailLines(data);
+        logStderr(data);
     });
 
     const remuxId = `remux_${++remuxCounter}`;
@@ -424,6 +497,7 @@ router.get('/', async (req, res) => {
         if (entry.firstOutputAt === null) {
             entry.firstOutputAt = entry.lastOutputAt;
             console.log(`[Remux] ${remuxId} first output after ${((entry.firstOutputAt - startedAt) / 1000).toFixed(1)}s`);
+            logStderr.flush(); // the probe is over; summarise its decoder chatter
         }
     });
 
@@ -460,6 +534,7 @@ router.get('/', async (req, res) => {
         if (!activeRemuxes.has(remuxId)) return;
         activeRemuxes.delete(remuxId);
         if (ffmpegExited) return; // exit handler already reported the cause
+        logStderr.end();
         console.log(describeRemuxEnd({ id: remuxId, startedAt, now: Date.now(), bytes: entry.bytes, firstOutputAt: entry.firstOutputAt }));
         try { ffmpeg.kill('SIGKILL'); } catch (e) { /* already gone */ }
     });
@@ -467,6 +542,8 @@ router.get('/', async (req, res) => {
     // Handle process exit
     ffmpeg.on('exit', (code) => {
         ffmpegExited = true;
+        logStderr.end();
+        tailLines.end();
         watchdog.stop();
         activeRemuxes.delete(remuxId);
         if (code !== null && code !== 0 && code !== 255) {
@@ -493,6 +570,7 @@ module.exports.identifyCodecs = identifyCodecs;
 module.exports.remuxFixes = remuxFixes;
 module.exports.describeRemuxEnd = describeRemuxEnd;
 module.exports.makeStderrLogger = makeStderrLogger;
+module.exports.makeLineBuffer = makeLineBuffer;
 module.exports.buildRemuxArgs = buildRemuxArgs;
 module.exports.listActiveRemuxes = listActiveRemuxes;
 module.exports.killRemux = killRemux;
