@@ -22,3 +22,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000 # Internal container port
+      # Recording file names use the server's local time, and a container with no
+      # TZ is on UTC. Set TZ in your shell or a .env file next to this file
+      # (e.g. TZ=Australia/Sydney); it falls back to UTC, which is what you had
+      # before.
+      - TZ=${TZ:-UTC}

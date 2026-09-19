@@ -11,11 +11,12 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
-const { sources: sourcesDb } = require('../db');
+const { sources: sourcesDb, getUserAgent } = require('../db');
 const { scheduled: scheduledDb, recordings: recordingsDb } = require('../db/recordingsDb');
 const { getDb } = require('../db/sqlite');
 const xtreamApi = require('./xtreamApi');
 const coordinator = require('./streamCoordinator');
+const { formatLocalStamp } = require('./recordingNames');
 
 const TICK_INTERVAL_MS = 15 * 1000;
 const STDERR_TAIL_LINES = 40;
@@ -665,10 +666,8 @@ async function startRecording(schedule) {
     if (!fs.existsSync(channelDir)) fs.mkdirSync(channelDir, { recursive: true });
 
     // Local time, not UTC - a 7:30pm program should read 19-30 in the filename.
-    const start = new Date(schedule.program_start);
-    const pad = (n) => String(n).padStart(2, '0');
-    const dateStr = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())} ` +
-        `${pad(start.getHours())}-${pad(start.getMinutes())}`;
+    // "Local" is the process's TZ, which docker-compose.yml passes through.
+    const dateStr = formatLocalStamp(schedule.program_start);
     const baseName = `${sanitizeForFs(schedule.title)} - ${dateStr}`;
     const outputPath = uniqueFilePath(channelDir, baseName, '.mkv');
 
@@ -698,7 +697,10 @@ async function startRecording(schedule) {
 
     const args = [
         '-y',
-        '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+        // The same identity playback presents (the userAgentPreset setting). A
+        // provider that fingerprints the UA otherwise sees a different client
+        // for recordings than for viewing, and this used to ignore the setting.
+        '-user_agent', getUserAgent(settings),
         '-reconnect', '1',
         '-reconnect_streamed', '1',
         '-reconnect_delay_max', '5',

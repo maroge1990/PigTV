@@ -1012,6 +1012,14 @@ fi
 check server/db/sqlite.js "idx_items_source_item" "channel lookups by item id are indexed"
 check test/guide-bounds.test.js "long programme that began well before" "the bound has tests"
 
+echo "=== 0061: Recording time zone + User-Agent (P2-6) ==="
+check docker-compose.yml "TZ=\${TZ:-UTC}" "compose passes TZ through (UTC fallback = unchanged behaviour)"
+check server/services/recordingNames.js "function formatLocalStamp" "file-name timestamp is testable on its own"
+check server/services/recordingEngine.js "formatLocalStamp(schedule.program_start)" "recordings use it"
+check server/services/recordingEngine.js "getUserAgent(settings)" "recording ffmpeg honours the userAgentPreset setting"
+check_absent server/services/recordingEngine.js "Chrome/123.0.0.0" "no hard-coded Chrome UA left in the recording engine"
+check test/recording-names.test.js "Australia/Sydney" "time-zone handling has tests"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

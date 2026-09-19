@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0060** (0054–0060 written, awaiting Mark's apply + deploy) |
-| Next patch number | **0061** |
+| Shipped through | **build 0061** (0054–0061 written, awaiting Mark's apply + deploy) |
+| Next patch number | **0062** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -100,6 +100,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0058 | `?token=` carried through the HLS *proxy* rewriter (P2-5) — see below |
 | 0059 | Favourites id normalisation + migration (P1-3, server half) — see below |
 | 0060 | Guide query bounds + item-id index (P2-3, partial) — see below |
+| 0061 | Recording time zone + honoured User-Agent (P2-6) — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -239,7 +240,24 @@ keyset pagination (changes the client's paging contract). Tests:
 `test/guide-bounds.test.js` (5 cases through the real route; 4 fail on the old
 code).
 
-**Post-deploy checks still owed by Mark:** badge reads **0060**; `docker logs`
+**0061 detail.** Recording files are named with the server's *local* time
+(`Title - 2026-09-19 19-30.mkv`), but the image sets no `TZ`, so a default
+container is on UTC and a 7:30pm Sydney programme was filed as `09-30`.
+`docker-compose.yml` now passes `TZ=${TZ:-UTC}` (falls back to UTC, i.e. no change
+unless you set it). **Action for Mark:** set `TZ` (e.g. `Australia/Sydney`) — in
+a `.env` next to the compose file, or as a variable in the Unraid container
+template if you deploy from that rather than compose. Node reads the zone from
+its own ICU data, so no tzdata package is needed (confirmed under `TZ=Australia/Sydney`,
+including the October DST changeover). The recording ffmpeg also ignored the
+`userAgentPreset` setting and hard-coded a Chrome string; it now uses
+`db.getUserAgent(settings)` like playback, so a provider that fingerprints the UA
+sees one client. Timestamp formatting moved to a dependency-free
+`services/recordingNames.js` so it can be tested under different `TZ` values.
+Tests: `test/recording-names.test.js` (4 cases, each zone in its own child
+process). The UA change is covered by a `verify-build.sh` check, not a unit test
+(`startRecording` needs the whole engine).
+
+**Post-deploy checks still owed by Mark:** badge reads **0061**; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
 `SELECT COUNT(*) FROM epg_live` matches the XMLTV `<programme` count (final
 verification of 0047; use `epg_live` since 0056 — `epg_programs` can briefly hold two
@@ -258,7 +276,8 @@ then stalls with 404s in `docker logs`), and
 check: favourite a channel in the web app and confirm it shows in the Apple app's
 favourites (and the reverse), and that existing favourites in the web app are all
 still starred; 0060 live check: the guide and channel list still show current
-programmes (nothing that should be on now has disappeared).
+programmes (nothing that should be on now has disappeared); 0061 live check: set
+`TZ`, then schedule a recording and confirm the file name shows your local time.
 
 ---
 
@@ -313,7 +332,7 @@ that hardening.
    (`channelUrl`, `ffmpegProcess`, `probe`, `ids`); P2-3 guide indexes + bounds
    (✅ 0060, partial: sort index and keyset paging not done, see §4);
    P2-4 segment traversal ✅ 0057 (MIME deliberately unchanged, §4); P2-5 `?token=` in the HLS *proxy* rewriter ✅ 0058;
-   P2-6 `TZ` + honoured UA for recordings; P2-7 rate-limit login/pair-poll +
+   P2-6 `TZ` + honoured UA for recordings ✅ 0061; P2-7 rate-limit login/pair-poll +
    1 MB body cap + `USER node`.
 9. **`requireStreamAuth` default flip.** Mark's call, before Tailscale exposure.
 
