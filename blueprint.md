@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0062** (0054–0062 written, awaiting Mark's apply + deploy) |
-| Next patch number | **0063** |
+| Shipped through | **build 0063** (0054–0063 written, awaiting Mark's apply + deploy) |
+| Next patch number | **0064** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -102,6 +102,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0060 | Guide query bounds + item-id index (P2-3, partial) — see below |
 | 0061 | Recording time zone + honoured User-Agent (P2-6) — see below |
 | 0062 | Recording native-playback server fixes (P1-2, server half) — see below |
+| 0063 | Body-size cap + rate limits on login and pairing (P2-7, partial) — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -285,7 +286,28 @@ by older versions are `hev1` and are *not* regenerated (they're readable); delet
 `test/native-playback.test.js` (12 cases, ffmpeg/ffprobe stubbed; no binaries
 needed), plus a real-ffmpeg check of the flags run once on the dev machine.
 
-**Post-deploy checks still owed by Mark:** badge reads **0062**; `docker logs`
+**0063 detail.** A conservative slice of P2-7, for before Tailscale exposure.
+(1) `express.json` limit **50 MB → 2 MB**. The largest real body is the web app's
+bulk hide/show, sent in batches of 5 000 items (~300 KB), so there is ~6× headroom;
+if a legitimate request ever 413s, this is the knob (`server/index.js`).
+(2) **Failed-login limit:** 10 failures per 15 min per *(client socket address,
+username)* → `429` + `Retry-After`. Only failures count and a success forgets them,
+so nobody is locked out for typos; the right password is refused *while* locked
+(otherwise the limit is just a slower guess); one user's mistakes never block
+another. Keyed on the **socket address, not `X-Forwarded-For`** — `trust proxy` is
+`true`, so XFF is client-controlled and useless as a key. Behind a reverse proxy
+that means every client shares the proxy's address, which is why the username is
+in the key. (3) **Pairing:** `/api/devices/pair/start` 60 and `/pair/poll` 1 500
+requests per 10 min per client — far above a real device (one start, then a poll
+every couple of seconds), enough to stop an anonymous client hammering the
+database. All in-memory (`services/rateLimit.js`, no dependency); a restart clears
+the counters. **Deliberately not done:** `USER node` in the Dockerfile — on Unraid
+it could lose write access to the bind-mounted `data/` and `recordings/` folders
+and I can't verify that from here; do it separately with the volume ownership
+sorted, or leave it. Tests: `test/rate-limit.test.js` (7 cases: the limiter on a
+controlled clock, then the real login and pairing routes).
+
+**Post-deploy checks still owed by Mark:** badge reads **0063**; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
 `SELECT COUNT(*) FROM epg_live` matches the XMLTV `<programme` count (final
 verification of 0047; use `epg_live` since 0056 — `epg_programs` can briefly hold two
@@ -308,7 +330,10 @@ programmes (nothing that should be on now has disappeared); 0061 live check: set
 `TZ`, then schedule a recording and confirm the file name shows your local time;
 0062 live check: play a **HEVC** recording on the Apple client (delete any old
 `*.native.mp4` for it first), confirm it opens, then delete a recording and confirm
-its `.native.mp4`/`.compressed.mp4` disappear from the recordings folder.
+its `.native.mp4`/`.compressed.mp4` disappear from the recordings folder; 0063 live
+check: sign in normally (nothing changes), and confirm bulk hide/show in Settings
+still saves a large selection (a 413 in `docker logs` would mean the 2 MB cap is
+too tight).
 
 ---
 
@@ -364,7 +389,8 @@ that hardening.
    (✅ 0060, partial: sort index and keyset paging not done, see §4);
    P2-4 segment traversal ✅ 0057 (MIME deliberately unchanged, §4); P2-5 `?token=` in the HLS *proxy* rewriter ✅ 0058;
    P2-6 `TZ` + honoured UA for recordings ✅ 0061; P2-7 rate-limit login/pair-poll +
-   1 MB body cap + `USER node`.
+   1 MB body cap + `USER node` (✅ 0063: 2 MB cap, login + pairing limits; `USER node`
+   deliberately not done, see §4).
 9. **`requireStreamAuth` default flip.** Mark's call, before Tailscale exposure.
 
 ### B. Blocked on the Swift client (server code can be written ahead; verify/land with the client)

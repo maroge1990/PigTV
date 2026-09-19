@@ -2,6 +2,16 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const auth = require('../auth');
+const { createLimiter } = require('../services/rateLimit');
+
+// Failed logins per client and username. bcrypt already slows each guess, but
+// nothing stopped a patient one from making thousands. Counting only failures
+// (and forgetting them on success) means the household is never locked out for
+// typing the right password. Keyed on the socket address plus the username, so
+// one person's mistakes never block someone else, and never on X-Forwarded-For,
+// which a client can set to anything.
+const loginFailures = createLimiter({ windowMs: 15 * 60 * 1000, max: 10 });
+const loginKey = (req) => `${req.socket?.remoteAddress || 'unknown'}|${String(req.body?.username || '').toLowerCase()}`;
 
 // Configure Passport strategies
 auth.configureLocalStrategy(
@@ -110,6 +120,13 @@ router.post('/setup', async (req, res) => {
  * POST /api/auth/login
  */
 router.post('/login', (req, res, next) => {
+    const key = loginKey(req);
+    const { blocked, retryAfterSec } = loginFailures.check(key);
+    if (blocked) {
+        res.set('Retry-After', String(retryAfterSec));
+        return res.status(429).json({ error: 'Too many failed sign-in attempts. Try again later.', retryAfterSec });
+    }
+
     auth.passport.authenticate('local', { session: false }, (err, user, info) => {
         if (err) {
             console.error('Login error:', err);
@@ -117,8 +134,10 @@ router.post('/login', (req, res, next) => {
         }
 
         if (!user) {
+            loginFailures.record(key);
             return res.status(401).json({ error: info?.message || 'Invalid credentials' });
         }
+        loginFailures.clear(key);
 
         // Generate JWT token
         const token = auth.generateToken(user);
@@ -290,5 +309,8 @@ router.delete('/users/:id', auth.requireAuth, auth.requireAdmin, async (req, res
         res.status(500).json({ error: err.message || 'Server error' });
     }
 });
+
+// Exposed so tests can inspect and lower the limit.
+router.loginFailures = loginFailures;
 
 module.exports = router;

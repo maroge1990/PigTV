@@ -15,7 +15,10 @@ const PORT = process.env.PORT || 3000;
 app.set('trust proxy', true);
 
 // Middleware
-app.use(express.json({ limit: '50mb' }));
+// The largest legitimate body is a bulk hide/show list of channel ids (a few
+// hundred KB for a very large playlist); 50 MB was never needed and let any
+// client make the server buffer and parse that much JSON.
+app.use(express.json({ limit: '2mb' }));
 
 // Initialize Passport
 const session = require('express-session');

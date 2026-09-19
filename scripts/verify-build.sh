@@ -1035,6 +1035,19 @@ check server/services/recordingEngine.js "async function nativeFileIsComplete" "
 check server/services/recordingEngine.js "compressionTargetPath(rec.file_path)\]" "deleting a recording removes its derived files"
 check test/native-playback.test.js "share one remux" "native playback has tests"
 
+echo "=== 0063: Body cap + rate limits (P2-7, partial) ==="
+check server/index.js "express.json({ limit: '2mb' })" "request bodies are capped at 2 MB"
+check_absent server/index.js "50mb" "the 50 MB body limit is gone"
+check server/services/rateLimit.js "function createLimiter" "limiter exists"
+check server/routes/auth.js "loginFailures.record(key)" "failed logins are counted"
+check server/routes/auth.js "loginFailures.clear(key)" "a successful login forgets them"
+# The key must not come from X-Forwarded-For (client-controlled under 'trust proxy: true').
+check server/routes/auth.js "req.socket?.remoteAddress" "login limit is keyed on the socket address"
+check_absent server/routes/auth.js "req.ip" "login limit never uses req.ip (spoofable via X-Forwarded-For)"
+check server/routes/devices.js "limitRequests(pairStartLimiter" "pair/start is limited"
+check server/routes/devices.js "limitRequests(pairingLimiter" "pair/poll is limited"
+check test/rate-limit.test.js "ten wrong passwords lock" "the limits have tests"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

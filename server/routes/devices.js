@@ -11,12 +11,21 @@ const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../auth');
 const deviceAuth = require('../services/deviceAuth');
+const { createLimiter, limitRequests } = require('../services/rateLimit');
+
+// The two endpoints a device calls before it has a token. Each pairing code is
+// one of 29^6 and lives ten minutes, so guessing is hopeless, but every call is
+// a database query (start also writes a row), and nothing stopped an anonymous
+// client hammering them. The ceilings are far above what a real device does -
+// one start, then a poll every couple of seconds for ten minutes.
+const pairingLimiter = createLimiter({ windowMs: 10 * 60 * 1000, max: 1500 });
+const pairStartLimiter = createLimiter({ windowMs: 10 * 60 * 1000, max: 60 });
 
 /**
  * POST /api/devices/pair/start
  * Called by a device that has no token yet. Unauthenticated by necessity.
  */
-router.post('/pair/start', (req, res) => {
+router.post('/pair/start', limitRequests(pairStartLimiter, 'Too many pairing requests'), (req, res) => {
     try {
         const { name, platform } = req.body || {};
         res.json(deviceAuth.startPairing({ name, platform }));
@@ -29,7 +38,7 @@ router.post('/pair/start', (req, res) => {
  * GET /api/devices/pair/poll?code=ABC123
  * Polled by the device until a user approves. Returns the token exactly once.
  */
-router.get('/pair/poll', (req, res) => {
+router.get('/pair/poll', limitRequests(pairingLimiter, 'Too many pairing requests'), (req, res) => {
     try {
         const { code } = req.query;
         if (!code) return res.status(400).json({ error: 'code is required' });
@@ -83,5 +92,8 @@ router.delete('/:id', (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+// Exposed so tests can lower the ceilings.
+router.limiters = { pairStart: pairStartLimiter, pairPoll: pairingLimiter };
 
 module.exports = router;
