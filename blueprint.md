@@ -5,7 +5,7 @@
 
 This is the authoritative handover for PigTV **server / webapp** work. It
 supersedes the two 16 September docs and all earlier chat notes. The deep
-review — `claude/server-review-2026-09-16.md` — stays the file:line reference
+review — `C:\Users\markr\OneDrive\Documents\GitHub\PigTV server\server-review.md` — stays the file:line reference
 for the *why* behind each item. The Apple client has its own log (`HANDOVER.md`
 in the Xcode project) and a separate agent; anything in §6 (frozen contract)
 must not change without a coordinated client patch.
