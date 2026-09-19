@@ -923,13 +923,15 @@ class VideoPlayer {
                 body: JSON.stringify(body)
             });
             if (res.status === 409) {
-                // A recording is using the provider's only stream. Ask before
-                // taking it: the user is the only one who knows which they
-                // would rather have.
+                // Something else is using the provider's only stream: a
+                // recording, or another device that is really watching. Ask
+                // before taking it: the user is the only one who knows which
+                // they would rather have.
                 const conflict = (await res.json()).conflict;
-                const proceed = confirm(`${conflict.message}\n\nStop the recording and watch now?`);
+                const otherViewer = conflict.type === 'viewer-in-progress';
+                const proceed = confirm(`${conflict.message}\n\n${otherViewer ? 'Stop the other stream and watch here?' : 'Stop the recording and watch now?'}`);
                 if (!proceed) {
-                    this.updateTranscodeStatus('idle', 'Recording in progress');
+                    this.updateTranscodeStatus('idle', otherViewer ? 'Another device is watching' : 'Recording in progress');
                     return null;
                 }
                 return this.resolvePlayback(channel, streamUrl, { force: true });
@@ -1044,7 +1046,7 @@ class VideoPlayer {
                     'Content-Type': 'application/json',
                     ...(localStorage.getItem('authToken') ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` } : {})
                 },
-                body: JSON.stringify({ url, ...options })
+                body: JSON.stringify({ url, live: true, ...options })
             });
             if (!res.ok) throw new Error('Failed to start session');
             const session = await res.json();

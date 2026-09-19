@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0054** (written, awaiting Mark's apply + deploy) |
-| Next patch number | **0055** |
+| Shipped through | **build 0055** (0054–0055 written, awaiting Mark's apply + deploy) |
+| Next patch number | **0056** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -94,6 +94,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0052 | Credential redaction in logs / `/sessions` / errors (both Xtream URL formats). Opaque-handle part deferred → §5 |
 | 0053 | `db.json` in-memory write-through cache + `saveUninitialized:false` (MemoryStore leak) |
 | 0054 | ffmpeg output-inactivity watchdog (A1) — see below |
+| 0055 | Viewer-vs-viewer arbitration + live idle timeout (A3) — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -124,12 +125,45 @@ stream resumed, no stray ffmpeg. **Dev-machine notes (Windows):**
 mode / admin; pre-existing — with a junction it passes 9/9); `verify-build.sh`
 needs a real `python3` on PATH (the Store stub won't do) and `PYTHONUTF8=1`.
 
-**Post-deploy checks still owed by Mark:** badge reads **0054**; `docker logs`
+**0055 detail.** `streamCoordinator.requestForViewer()` used to consider a
+conflict only when a *recording* was active, so a second device (or the same
+device after a crash / channel change without a `DELETE`) opened a second
+upstream connection and failed as an unexplained ffmpeg timeout. Now every
+stream records its **owner** (`device:<id>` for a paired device, `user:<id>` for
+a web login; anonymous = nobody) and, when `maxProviderStreams` would be
+exceeded, the slot is freed in this order: (1) streams idle ≥
+`viewerIdleTimeoutSec` (60 s) — silently; (2) the caller's *own* earlier stream
+— silently; (3) another owner's live stream — **409**
+`{conflict:{type:"viewer-in-progress", streamId, lastActiveSec, message}}`,
+overridden by `force:true` (same shape and `force` flag as the existing
+`recording-in-progress` conflict). `admitViewer()` does the releasing before the
+new stream starts. `/api/remux` and `POST /api/transcode/session` use the same
+logic in **soft** mode (reclaim (1)+(2), never 409 — their web callers can't
+answer a prompt). Live-session idle sweep: **5 min** (`PIGTV_LIVE_IDLE_TIMEOUT_SEC`),
+swept every 60 s (was 30 min / 5 min) for sessions flagged `live` (resolve with a
+channel; the web player's session fallback); seekable sessions keep 30 min.
+**Deliberately not the ~2 min in the original A3 note:** the 60 s idle rule
+already reclaims a dead stream the moment anyone needs the slot, so the timeout
+is only housekeeping, and 2 min would kill a TV that is merely paused through a
+phone call (beyond ~6 min the 90-segment window has rolled past the pause point
+anyway). **Behaviour changes to know about:** (a) with `maxProviderStreams` left
+at its default of 1 on a provider that actually allows more, a second device
+now gets the prompt instead of silently opening a second connection — raise the
+setting if that's you; (b) the web player's confirm text now varies by
+`conflict.type`. **Client-coupled:** the Apple client must handle a 409 whose
+`conflict.type` is `viewer-in-progress` (show `conflict.message`, retry with
+`force:true` on confirm) — see §B. Tests: `test/stream-coordinator.test.js`
+(13 cases, no ffmpeg needed).
+
+**Post-deploy checks still owed by Mark:** badge reads **0055**; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
 `SELECT COUNT(*) FROM epg_programs` matches the XMLTV `<programme` count (final
 verification of 0047); 0054 live check (see the 0054 hand-off: cut the upstream
 mid-stream and confirm the `treating ffmpeg as stalled` log line and that the
-provider slot frees), plus confirm a *paused* web player is not killed.
+provider slot frees), plus confirm a *paused* web player is not killed; 0055 live
+check: with two devices, start playback on one, then the other — expect the
+"Another device is watching" prompt (web `confirm()`; Apple client per §B), and
+that a device changing channel never sees a prompt about its own old stream.
 
 ---
 
@@ -165,11 +199,9 @@ that hardening.
    lands soon, skip it: the migration *is* the webapp's recovery mechanism. Note
    0054 now ends a stalled remux's response, which is the event this retry would
    react to.
-3. **P1-1 — viewer-vs-viewer arbitration + shorter live idle timeout.** *[HIGH]*
-   Release a stale viewer before starting a new session; 409 a live one so the
-   client can force through; drop `SESSION_TIMEOUT_MS` for live from 30 min to
-   ~2 min. Fixes the "changed channel / app crashed while a session still holds
-   the slot → unexplained timeout" case.
+3. ✅ **P1-1 / A3 — viewer-vs-viewer arbitration + shorter live idle timeout**
+   (0055; written, pending live verification — see §4). Live timeout is 5 min,
+   not ~2 (rationale in the 0055 detail).
 4. **P1-5 — atomic EPG swap.** *[MED]* Staging table / generation column so the
    guide isn't empty for minutes each sync; stop storing full programme JSON.
 5. **P1-3 (server half) — favourites id normalisation + migration**, plus a
@@ -191,6 +223,12 @@ that hardening.
 
 ### B. Blocked on the Swift client (server code can be written ahead; verify/land with the client)
 
+- **0055 — handle the new `viewer-in-progress` 409.** `POST /api/playback/resolve`
+  can now return the existing 409 shape with `conflict.type ==
+  "viewer-in-progress"` (another device is watching). The client should show
+  `conflict.message` and, if the user agrees, repeat `resolve` with `force:true`.
+  Until it does, the client sees this as a generic resolve failure — better than
+  the old unexplained ffmpeg timeout, but not the intended UX.
 - **Version display in the Swift app** — fetch `/api/version`, show server build
   next to the app's own build.
 - **0050 native gate — confirm** the client sends its bearer on `resolve` and

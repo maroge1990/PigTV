@@ -28,7 +28,18 @@ const sessions = new Map();
 const CACHE_DIR = path.join(process.cwd(), 'transcode-cache');
 
 // Session settings
-const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes idle timeout
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes idle timeout (seekable/VOD sessions)
+// A live session nobody is fetching from is an ffmpeg process pulling the
+// provider's stream for no one, so it goes much sooner. Deliberately not the
+// blueprint's original ~2 minutes: the coordinator already reclaims a stream
+// idle for 60 s the moment anyone needs the slot, so this is housekeeping for
+// the case where nobody does - and a TV left paused through a phone call is not
+// abandoned. Beyond ~6 minutes the 90-segment playlist window has rolled past
+// the pause point anyway, so a longer wait buys nothing.
+const LIVE_SESSION_TIMEOUT_MS = (() => {
+    const sec = Number.parseInt(process.env.PIGTV_LIVE_IDLE_TIMEOUT_SEC, 10);
+    return (Number.isFinite(sec) && sec > 0 ? sec : 5 * 60) * 1000;
+})();
 const SEGMENT_DURATION = 4; // seconds per HLS segment
 
 // How many segments a live session keeps on disk before rotating the
@@ -54,7 +65,7 @@ const HLS_DELETE_THRESHOLD = 12;
 // keep a floor of five segment durations even if the shared timeout is tuned
 // down via PIGTV_STALL_TIMEOUT_MS.
 const HLS_STALL_MS = Math.max(STALL_TIMEOUT_MS, SEGMENT_DURATION * 5 * 1000);
-const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // Check every 5 minutes
+const CLEANUP_INTERVAL_MS = 60 * 1000; // Sweep every minute (a walk over an in-memory Map)
 
 /**
  * Generate a unique session ID
@@ -1123,7 +1134,8 @@ async function removeSession(sessionId) {
 async function cleanupStaleSessions() {
     const now = Date.now();
     for (const [id, session] of sessions) {
-        if (now - session.lastAccess > SESSION_TIMEOUT_MS) {
+        const limit = session.options.live === true ? LIVE_SESSION_TIMEOUT_MS : SESSION_TIMEOUT_MS;
+        if (now - session.lastAccess > limit) {
             console.log(`[TranscodeSession] Cleaning up stale session ${id}`);
             await removeSession(id);
         }
@@ -1181,7 +1193,8 @@ function getAllSessions() {
         status: s.status,
         startTime: s.startTime,
         lastAccess: s.lastAccess,
-        idleMs: Date.now() - s.lastAccess
+        idleMs: Date.now() - s.lastAccess,
+        owner: s.options.owner || null
     }));
 }
 

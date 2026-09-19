@@ -58,9 +58,11 @@ const DEFAULT_CAPABILITIES = {
  * @param {object} opts.settings      app settings
  * @param {string} opts.ffprobePath
  * @param {boolean} opts.upscale      force an encode for upscaling
+ * @param {string}  opts.owner        who is asking (see streamCoordinator.ownerKey)
+ * @param {boolean} opts.live         live TV, as opposed to something seekable
  * @returns {Promise<object>} a decision, including a playable URL
  */
-async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale = false }) {
+async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale = false, owner = null, live = false }) {
     const caps = { ...DEFAULT_CAPABILITIES, ...capabilities };
     const userAgent = db.getUserAgent(settings);
 
@@ -141,6 +143,8 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     const session = await transcodeSession.createSession(url, {
         ffmpegPath: settings.ffmpegPath,
         userAgent,
+        owner,
+        live,
         hwEncoder: settings.hwEncoder || 'software',
         maxResolution: settings.maxResolution || '1080p',
         quality: settings.quality || 'medium',

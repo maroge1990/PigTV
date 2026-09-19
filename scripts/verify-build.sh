@@ -901,7 +901,6 @@ check server/db.js "cachedDb = structuredClone(data)" "saveDb keeps the cache au
 check server/index.js "saveUninitialized: false" "session not created for cookieless requests (MemoryStore leak)"
 
 echo "=== 0054: ffmpeg output-inactivity watchdog ==="
-check server/version.js "const BUILD = '0054'" "build number bumped to this patch"
 check server/services/stallWatchdog.js "function createStallWatchdog" "shared watchdog exists"
 check server/services/stallWatchdog.js "PIGTV_STALL_TIMEOUT_MS" "stall limit is tunable without a patch"
 # Both delivery paths read the same live input with the same reconnect flags,
@@ -921,6 +920,35 @@ check_absent server/routes/remux.js "idleMs: Date.now() - r.startedAt" "remux id
 check_absent server/services/streamCoordinator.js "idleMs: 0," "coordinator no longer hard-codes remux idleMs to 0"
 check test/stall-watchdog.test.js "createStallWatchdog" "watchdog has unit tests"
 check test/remux-watchdog.test.js "goes silent" "remux stall has an end-to-end test"
+
+echo "=== 0055: Viewer-vs-viewer arbitration + live idle timeout (A3) ==="
+check server/services/streamCoordinator.js "function admitViewer" "admitViewer exists"
+check server/services/streamCoordinator.js "function ownerKey" "stream owners are identified"
+check server/services/streamCoordinator.js "type: 'viewer-in-progress'" "another viewer is reported as a conflict"
+check server/services/streamCoordinator.js "    admitViewer," "admitViewer is exported (an edit that missed the export block once shipped a crash)"
+# The old gate returned 'allowed' whenever no recording was active, which is
+# exactly the hole: with no recording, viewer-vs-viewer was never considered.
+check_absent server/services/streamCoordinator.js "if (activeRecordings.length === 0) return { allowed: true }" "viewer arbitration no longer skipped when no recording is active"
+# A rewrite that appended instead of replacing left two definitions and two
+# export blocks, and node still loaded it. Assert there is exactly one of each.
+if [ "$(grep -c '^function requestForViewer' server/services/streamCoordinator.js)" = "1" ] && [ "$(grep -c '^module.exports' server/services/streamCoordinator.js)" = "1" ]; then
+  echo "  ✓ coordinator has one requestForViewer and one export block"
+else
+  echo "  ✗ MISSING: coordinator has duplicated definitions or export blocks"; FAIL=1
+fi
+check server/routes/playback.js "coordinator.admitViewer(" "resolve arbitrates and releases before starting"
+check server/routes/playback.js "coordinator.ownerKey(req.user)" "resolve knows who is asking"
+check server/routes/playback.js "viewer-in-progress" "resolve tells the client how to proceed on a viewer conflict"
+check server/services/playbackStrategy.js "        owner," "sessions created by resolve record their owner"
+check server/routes/remux.js "soft: true" "direct remux reclaims free streams but never refuses"
+check server/routes/transcode.js "soft: true" "session route reclaims free streams but never refuses"
+check server/services/transcodeSession.js "LIVE_SESSION_TIMEOUT_MS" "live sessions have their own idle timeout"
+check server/services/transcodeSession.js "session.options.live === true" "sweep honours the live flag"
+check server/services/transcodeSession.js "const CLEANUP_INTERVAL_MS = 60 \* 1000" "sweep runs every minute so the live timeout is honoured"
+check public/js/components/VideoPlayer.js "viewer-in-progress" "web player words the prompt for another viewer"
+check public/js/components/VideoPlayer.js "live: true, ...options" "web player marks its fallback sessions as live"
+check test/stream-coordinator.test.js "viewer-in-progress" "arbitration has unit tests"
+check test/playback-arbitration.test.js "viewer-in-progress" "resolve's 409 is tested through the real route with real device tokens"
 
 if [ $FAIL -eq 0 ]; then
     echo ""

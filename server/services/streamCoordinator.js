@@ -20,6 +20,10 @@
  *     playback stops, marked partial with the missing span recorded.
  *   - Starting live TV while recording requires explicit confirmation, and
  *     confirming keeps what has been captured so far.
+ *   - Starting live TV while *another device* is watching does too. A device
+ *     replaces its own earlier stream without asking (it can only watch one
+ *     thing), and an abandoned stream is reclaimed silently, so the question
+ *     is only ever put when a person really is on the other end.
  */
 
 const transcodeSession = require('./transcodeSession');
@@ -41,7 +45,8 @@ function activeStreams() {
         type: 'transcode',
         url: s.url,
         idleMs: s.idleMs,
-        startTime: s.startTime
+        startTime: s.startTime,
+        owner: s.owner || null
     }));
 
     let remuxes = [];
@@ -54,7 +59,8 @@ function activeStreams() {
             // client has stopped reading goes stale like an HLS session
             // nobody is fetching from.
             idleMs: r.idleMs,
-            startTime: r.startTime
+            startTime: r.startTime,
+            owner: r.owner || null
         }));
     } catch (err) {
         console.warn('[Coordinator] Could not list remux streams:', err.message);
@@ -189,39 +195,120 @@ function announceUpcoming(schedule, settings = {}) {
 }
 
 /**
+ * Who a stream belongs to, as a stable opaque key. A paired device is its own
+ * owner (an Apple TV and an iPad on the same account are different viewers); a
+ * plain login is owned by the user. Null when the caller is not identified, in
+ * which case nothing is ever treated as "yours".
+ */
+function ownerKey(user) {
+    if (!user) return null;
+    if (user.deviceId) return `device:${user.deviceId}`;
+    if (user.id !== undefined && user.id !== null) return `user:${user.id}`;
+    return null;
+}
+
+/**
  * Can a viewer start playing now?
  *
- * Returns { allowed, conflict } where a conflict describes the recording that
- * would be sacrificed, so a client can ask for confirmation in the user's own
- * words rather than inventing them.
+ * Returns { allowed, release?, sacrificed?, conflict? }:
+ *   release     viewer streams that must be stopped first (the caller does it,
+ *               or use admitViewer, which does)
+ *   sacrificed  recordings that must be stopped first
+ *   conflict    when not allowed, what is in the way, so a client can ask for
+ *               confirmation in the user's own words rather than inventing them
+ *
+ * Nothing is freed unless the provider's connection limit would otherwise be
+ * exceeded. Streams are freed in order of how clearly they are not in use:
+ * abandoned ones, then this owner's own earlier stream, and only then
+ * something somebody else may be watching.
+ *
+ * soft: for entry points whose clients cannot answer a 409 (the web app's
+ * direct remux and session calls). They reclaim what is clearly free and then
+ * proceed exactly as they always have.
  */
-function requestForViewer({ force = false, activeRecordings = [], settings = {} } = {}) {
+function requestForViewer({ force = false, activeRecordings = [], settings = {}, owner = null, soft = false } = {}) {
     const limit = Number.isFinite(settings.maxProviderStreams) ? settings.maxProviderStreams : 1;
-
-    if (activeRecordings.length === 0) return { allowed: true };
+    const idleMs = (Number.isFinite(settings.viewerIdleTimeoutSec)
+        ? settings.viewerIdleTimeoutSec : DEFAULT_IDLE_TIMEOUT_SEC) * 1000;
 
     // The caller is asking to open one more connection, so count it. A
     // recording holds a connection of its own: its ffmpeg talks to the
     // provider directly and never appears in the viewer registries.
-    const wouldUse = activeStreams().length + activeRecordings.length + 1;
-    if (wouldUse <= limit) return { allowed: true };
+    const streams = activeStreams().sort((a, b) => b.idleMs - a.idleMs); // most idle first
+    let need = streams.length + activeRecordings.length + 1 - limit;
+    if (need <= 0) return { allowed: true, release: [] };
 
-    const rec = activeRecordings[0];
+    const release = [];
+    const take = (candidates) => {
+        for (const s of candidates) {
+            if (need <= 0) break;
+            if (release.includes(s)) continue;
+            release.push(s);
+            need--;
+        }
+    };
+    take(streams.filter(s => s.idleMs >= idleMs));
+    take(streams.filter(s => owner && s.owner === owner));
+    if (need <= 0) return { allowed: true, release };
+
+    if (soft) return { allowed: true, release };
+
+    const others = streams.filter(s => !release.includes(s));
+
     if (!force) {
+        if (activeRecordings.length > 0) {
+            const rec = activeRecordings[0];
+            return {
+                allowed: false,
+                release,
+                conflict: {
+                    type: 'recording-in-progress',
+                    scheduleId: rec.id,
+                    title: rec.title,
+                    channelName: rec.channel_name,
+                    endsAt: rec.program_end + (rec.post_buffer_min || 0) * 60000,
+                    message: `"${rec.title}" is recording on ${rec.channel_name}. Your provider allows one stream at a time, so watching now will stop that recording. What has been recorded so far is kept.`
+                }
+            };
+        }
+        const other = others[0];
         return {
             allowed: false,
+            release,
             conflict: {
-                type: 'recording-in-progress',
-                scheduleId: rec.id,
-                title: rec.title,
-                channelName: rec.channel_name,
-                endsAt: rec.program_end + (rec.post_buffer_min || 0) * 60000,
-                message: `"${rec.title}" is recording on ${rec.channel_name}. Your provider allows one stream at a time, so watching now will stop that recording. What has been recorded so far is kept.`
+                type: 'viewer-in-progress',
+                streamId: other.id,
+                lastActiveSec: Math.round(other.idleMs / 1000),
+                message: `Another device is watching. Your provider allows ${limit === 1 ? 'one stream' : limit + ' streams'} at a time, so watching here will stop it.`
             }
         };
     }
 
-    return { allowed: true, sacrificed: activeRecordings.map(r => r.id) };
+    // Forced: take recordings first (what was captured is kept), then viewers.
+    const sacrificed = [];
+    for (const r of activeRecordings) {
+        if (need <= 0) break;
+        sacrificed.push(r.id);
+        need--;
+    }
+    take(others);
+    return { allowed: true, release, sacrificed };
+}
+
+/**
+ * requestForViewer, plus actually stopping whatever it says must go. Streams
+ * are released before the caller starts its own, so the provider never sees
+ * two connections from us at once.
+ */
+async function admitViewer(opts = {}) {
+    const verdict = requestForViewer(opts);
+    if (verdict.allowed) {
+        for (const s of verdict.release || []) {
+            console.log(`[Coordinator] Releasing ${s.id} (${Math.round(s.idleMs / 1000)}s idle) to admit a new viewer`);
+            await releaseStream(s);
+        }
+    }
+    return verdict;
 }
 
 module.exports = {
@@ -231,6 +318,8 @@ module.exports = {
     releaseStream,
     requestForRecording,
     requestForViewer,
+    admitViewer,
+    ownerKey,
     pendingPrompt,
     declinePrompt,
     clearPrompt,

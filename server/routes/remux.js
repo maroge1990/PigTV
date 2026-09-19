@@ -4,6 +4,7 @@ const { spawn } = require('child_process');
 const db = require('../db');
 const { redact } = require('../redact');
 const { createStallWatchdog } = require('../services/stallWatchdog');
+const coordinator = require('../services/streamCoordinator');
 
 // Active remux processes, so they can be listed and killed like transcode
 // sessions can. Without this registry a remuxed stream is invisible to any
@@ -11,7 +12,7 @@ const { createStallWatchdog } = require('../services/stallWatchdog');
 // that went away without closing the socket leaves ffmpeg running against the
 // provider indefinitely.
 // lastOutputAt is null until ffmpeg has produced its first bytes.
-const activeRemuxes = new Map(); // id -> { id, url, proc, startedAt, res, lastOutputAt }
+const activeRemuxes = new Map(); // id -> { id, url, proc, startedAt, res, owner, lastOutputAt }
 let remuxCounter = 0;
 
 function listActiveRemuxes() {
@@ -20,6 +21,7 @@ function listActiveRemuxes() {
         url: r.url,
         type: 'remux',
         startTime: r.startedAt,
+        owner: r.owner,
         // Time since media last flowed to the client, the same question
         // idleMs answers for an HLS session ("has anyone fetched anything
         // lately?"). It used to be time since the remux *started*, which
@@ -213,6 +215,23 @@ router.get('/', async (req, res) => {
 
     console.log(`[Remux] Full command: ${ffmpegPath} ${redact(args.join(' '))}`);
 
+    // Free the provider's connection if it is clearly free to take: an
+    // abandoned stream, or this same device's own earlier one. Soft, because
+    // the clients that call this route directly cannot answer a "somebody else
+    // is watching" prompt - that question is asked at /api/playback/resolve.
+    // Arbitration must never be the reason playback fails to start.
+    const owner = coordinator.ownerKey(req.user);
+    try {
+        await coordinator.admitViewer({
+            soft: true,
+            owner,
+            settings,
+            activeRecordings: require('../services/recordingEngine').listActive()
+        });
+    } catch (err) {
+        console.warn('[Remux] Stream arbitration skipped:', err.message);
+    }
+
     let ffmpeg;
     try {
         ffmpeg = spawn(ffmpegPath, args);
@@ -254,6 +273,7 @@ router.get('/', async (req, res) => {
         proc: ffmpeg,
         res,
         startedAt,
+        owner,
         lastOutputAt: null
     };
     activeRemuxes.set(remuxId, entry);

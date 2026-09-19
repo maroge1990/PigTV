@@ -108,18 +108,27 @@ router.post('/resolve', requireToken, async (req, res) => {
         const coordinator = require('../services/streamCoordinator');
         const activeRecordings = recordingEngine.listActive();
 
-        const verdict = coordinator.requestForViewer({
+        // Who is asking decides what counts as "somebody else": this device's
+        // own earlier stream is simply replaced, an abandoned one is reclaimed,
+        // and only a stream someone else may be watching is put to the caller
+        // as a question. admitViewer stops whatever has to go before we start.
+        const owner = coordinator.ownerKey(req.user);
+        const verdict = await coordinator.admitViewer({
             force: force === true,
             activeRecordings,
-            settings
+            settings,
+            owner
         });
 
         if (!verdict.allowed) {
+            const isViewer = verdict.conflict && verdict.conflict.type === 'viewer-in-progress';
             return res.status(409).json({
                 error: 'Provider stream is in use',
                 conflict: verdict.conflict,
                 // The caller repeats the request with force to proceed.
-                resolution: 'Repeat this request with "force": true to stop the recording and watch.'
+                resolution: isViewer
+                    ? 'Repeat this request with "force": true to stop the other stream and watch.'
+                    : 'Repeat this request with "force": true to stop the recording and watch.'
             });
         }
 
@@ -140,7 +149,11 @@ router.post('/resolve', requireToken, async (req, res) => {
             capabilities: capabilities || {},
             settings,
             ffprobePath: req.app.locals.ffprobePath,
-            upscale: upscale === true
+            upscale: upscale === true,
+            owner,
+            // A channel is live TV; a bare url could be anything, so leave it
+            // on the longer seekable-session timeout.
+            live: sourceId !== undefined && channelId !== undefined
         });
 
         // Record what was watched, when the caller identified a channel and we

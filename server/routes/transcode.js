@@ -6,6 +6,7 @@ const { redact } = require('../redact');
 const fs = require('fs').promises;
 const db = require('../db');
 const transcodeSession = require('../services/transcodeSession');
+const coordinator = require('../services/streamCoordinator');
 
 /**
  * Transcode Routes
@@ -70,7 +71,7 @@ function withStreamToken(playlist, token) {
  */
 router.post('/session', async (req, res) => {
     const { url, seekOffset, videoMode, videoCodec, audioCodec, audioChannels, segmentType,
-            audioProfile, isHeAac } = req.body;
+            audioProfile, isHeAac, live } = req.body;
 
     if (!url) {
         return res.status(400).json({ error: 'URL is required' });
@@ -80,10 +81,28 @@ router.post('/session', async (req, res) => {
     const settings = await db.settings.get();
     const userAgent = db.getUserAgent(settings);
 
+    // Reclaim what is clearly free (an abandoned stream, this device's own
+    // earlier one) before opening another provider connection. Soft: this
+    // route's clients cannot answer a prompt, so it never refuses - see
+    // /api/playback/resolve for the version that asks.
+    const owner = coordinator.ownerKey(req.user);
+    try {
+        await coordinator.admitViewer({
+            soft: true,
+            owner,
+            settings,
+            activeRecordings: require('../services/recordingEngine').listActive()
+        });
+    } catch (err) {
+        console.warn('[Transcode] Stream arbitration skipped:', err.message);
+    }
+
     try {
         const session = await transcodeSession.createSession(url, {
             ffmpegPath,
             userAgent,
+            owner,
+            live: live === true, // live sessions are swept sooner than seekable ones
             seekOffset: seekOffset || 0,
             hwEncoder: settings.hwEncoder || 'software',
             maxResolution: settings.maxResolution || '1080p',
