@@ -71,6 +71,49 @@ function nowNextFor(tvgIds) {
     return out;
 }
 
+// A playlist often has no logo for a channel that the EPG feed does have one for.
+// The Apple client used to make up for that itself: download the whole EPG channel
+// list, then match on tvg-id and name. Doing it here means it downloads nothing.
+// The index is built once and reused for a few minutes rather than queried per
+// page, because matching by name has to look at every EPG channel.
+const EPG_ICON_TTL_MS = 5 * 60 * 1000;
+let epgIconIndex = null;
+const normaliseName = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+function getEpgIconIndex() {
+    if (epgIconIndex && Date.now() - epgIconIndex.builtAt < EPG_ICON_TTL_MS) return epgIconIndex;
+    const byId = new Map();
+    const byName = new Map();
+    const rows = getDb().prepare(`
+        SELECT item_id, name, stream_icon FROM playlist_items
+        WHERE type = 'epg_channel' AND stream_icon IS NOT NULL AND stream_icon <> ''
+        ORDER BY source_id, rowid
+    `).all();
+    for (const r of rows) { // first source to supply an icon wins
+        if (!byId.has(r.item_id)) byId.set(r.item_id, r.stream_icon);
+        const name = normaliseName(r.name);
+        if (name && !byName.has(name)) byName.set(name, r.stream_icon);
+    }
+    epgIconIndex = { builtAt: Date.now(), byId, byName };
+    return epgIconIndex;
+}
+
+/**
+ * Fill in a logo for channels the playlist gave none: the EPG's icon for the same
+ * tvg-id, else for a channel of the same name (case and spacing aside). A logo the
+ * playlist supplied is never replaced. Purely decoration, so it can never be the
+ * reason a listing fails.
+ */
+function fillMissingLogos(channels) {
+    if (!channels.some(c => !c.logo)) return;
+    let index;
+    try { index = getEpgIconIndex(); } catch (e) { return; }
+    for (const ch of channels) {
+        if (ch.logo) continue;
+        ch.logo = (ch.tvgId && index.byId.get(ch.tvgId)) || index.byName.get(normaliseName(ch.name)) || null;
+    }
+}
+
 function decorate(items) {
     const tvgIds = [];
     const parsed = items.map(row => {
@@ -95,6 +138,7 @@ function decorate(items) {
         ch.now = g?.now || null;
         ch.next = g?.next || null;
     }
+    fillMissingLogos(parsed);
     return parsed;
 }
 
@@ -253,6 +297,7 @@ router.get('/guide', (req, res) => {
                 programmes: []
             };
         });
+        fillMissingLogos(channels);
 
         // One query for every channel on the page rather than one per channel.
         const tvgIds = [...new Set(channels.map(c => c.tvgId).filter(Boolean))];
@@ -326,5 +371,8 @@ router.get('/recent', (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+// Exposed so tests can force the icon index to be rebuilt.
+router._resetEpgIconIndex = () => { epgIconIndex = null; };
 
 module.exports = router;

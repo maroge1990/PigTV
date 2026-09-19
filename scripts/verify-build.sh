@@ -1084,6 +1084,19 @@ check server/routes/remux.js "const args = buildRemuxArgs(url, userAgent, fixes)
 check_absent server/routes/remux.js "{needsAdtsToAsc" "no stale references to the old inline flag variables (only fixes.* remain)"
 check test/remux-args.test.js "exactly the arguments it always had" "the existing flags are pinned by a test"
 
+echo "=== 0067: EPG icon fallback in the library API ==="
+check server/routes/library.js "function fillMissingLogos" "missing channel logos are filled from the EPG"
+check server/routes/library.js "function getEpgIconIndex" "the EPG icon index exists (built once, not per page)"
+# Both places that build channel rows must apply it, or the guide and the channel
+# list disagree about what a channel looks like.
+if [ "$(grep -c 'fillMissingLogos(' server/routes/library.js)" = "3" ]; then
+  echo "  ✓ decorate() (channels, favourites) and the guide both apply it"
+else
+  echo "  ✗ MISSING: fillMissingLogos must be defined once and called from decorate() and the guide"; FAIL=1
+fi
+check server/routes/library.js "if (ch.logo) continue;" "a playlist-supplied logo is never replaced"
+check test/library-logos.test.js "never replaced" "the fallback has tests"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0066** (0054–0064 pushed to main; 0065–0066 written) |
-| Next patch number | **0067** |
+| Shipped through | **build 0067** (0054–0064 pushed to main; 0065–0067 written) |
+| Next patch number | **0068** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -106,6 +106,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0064 | Remux: reliable codec identification (fixes "Malformed AAC bitstream") — see below |
 | 0065 | Web player reports media errors (client → `docker logs`) — see below |
 | 0066 | Remux: AC-3 / E-AC-3 audio (`delay_moov`) — see below |
+| 0067 | EPG-icon `logo` fallback in `/api/library/*` (P1-3, server half) + §C plan — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -384,7 +385,24 @@ that ffmpeg now produces a valid stream); Chrome cannot decode AC-3 natively so 
 routed to transcode by `resolve` and never reaches this. Tests: `test/remux-args.test.js`
 (6 cases, no binaries).
 
-**Post-deploy checks still owed by Mark:** badge reads **0066**; `docker logs`
+**0067 detail — EPG icon fallback (P1-3, the part the server can do).** A playlist
+often has no logo for a channel that the EPG feed *does* have an icon for. The Apple
+client made up for that itself — downloading the whole EPG channel list
+(`loadArtworkIndex()` + `/api/proxy/epg/{id}`) and matching on tvg-id then name. The
+library API now does it: `/api/library/channels`, `/favourites` and `/guide` fill a
+missing `logo` from the EPG channel with the same **tvg-id**, else the same **name**
+(case and spacing ignored). A logo the playlist supplied is **never replaced**; no match
+leaves `null`; an EPG entry with no icon is ignored. The response shape is unchanged
+(`logo` was already a string-or-null field), so this is additive and **cannot break the
+current client** — it just means the client can *stop* doing its own matching (§B).
+Implementation: a small in-memory index of the EPG channel icons, built once and reused
+for 5 min (matching by name has to look at every EPG channel, so it isn't done per page);
+an EPG sync's new icons appear within 5 min. Failure to build it never fails a listing.
+Known limitation: name matching can pair two different channels that share a name (first
+source to supply an icon wins). Tests: `test/library-logos.test.js` (6 cases through the
+real routes; 3 fail against the old code).
+
+**Post-deploy checks still owed by Mark:** badge reads **0067**; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
 `SELECT COUNT(*) FROM epg_live` matches the XMLTV `<programme` count (final
 verification of 0047; use `epg_live` since 0056 — `epg_programs` can briefly hold two
@@ -490,8 +508,10 @@ that hardening.
   remux dedupe, temp-file-then-rename, sidecar cleanup, MP2→AAC) ✅ 0062; HEVC
   playback still needs a device to confirm, and the `202 {status:"preparing"}` part
   needs the client to poll instead of erroring on non-200.
-- **P1-3 (client half)** — EPG-icon `logo` fallback in `/api/library/*` lets the
-  client drop `loadArtworkIndex()` + its `/api/proxy/epg/{id}` download.
+- **P1-3 (client half)** — the server now does the EPG-icon fallback in `/api/library/*`
+  (0067), so the client can drop `loadArtworkIndex()` + its `/api/proxy/epg/{id}`
+  download. Safe to do at any time; until then the client's own matching just becomes
+  redundant.
 - **P1-4 (deferred half)** — `resolve` returns an opaque handle instead of a
   credentialed `?url=` (contract change both clients consume; log-redaction half
   shipped in 0052).
@@ -516,6 +536,49 @@ This is the endpoint of the guiding direction at the top of §5. It is a
 - **Then retire the remux pipeline:** delete the remux code, the `-bsf:v
   dump_extra` still on it (§4 warning), and the remux's watchdog wiring and idle
   accounting. Removing a whole delivery path is the payoff for converging.
+
+**Plan (written after 0064–0066; the hardening prerequisites A1 + A3 are done).**
+
+*What is already true — the migration is smaller than it looks.* The web player
+**already plays HLS sessions**: `playDecision()` sends any `container:'hls'` decision to
+`playHls()` (hls.js, or Safari-native), which is what the transcode strategy uses today.
+The *only* reason the web gets `remux` is that its `resolve` request does not set
+`capabilities.segmentedDelivery` (`VideoPlayer.resolvePlayback`). Setting it makes
+`playbackStrategy.resolve` return a copy-mode HLS session (fMP4 segments when the codecs
+are fine) instead of `/api/remux` — the same path the Apple client runs. So Phase 1 is
+essentially one line on the client plus a setting; no new server code.
+
+*Phases (each independently shippable and reversible):*
+1. **Opt-in.** A Settings toggle "HLS delivery (beta)", **off by default**, that sets
+   `segmentedDelivery:true` in the web's resolve call. Mark uses it for a week. Rollback =
+   untick it. Also the immediate test for the unreproduced remux fault: if that channel
+   plays via HLS, the remux path is the culprit.
+2. **Measure** before deciding a default: time-to-first-frame and stall/`media-error` rate
+   for both paths. 0065's `client-event` endpoint is the vehicle — add a `play-start`
+   event carrying strategy + milliseconds (small; do it in Phase 1).
+3. **Default on, with a safety net.** If an HLS session fails to start (the 15 s
+   `waitForPlaylist` timeout, a fatal hls.js error), fall back *once* to remux for that
+   play — the self-heal in the other direction — so a bad channel never becomes a dead one.
+4. **Retire remux** only after a clean run of Phase 3: delete `routes/remux.js`, the
+   coordinator's remux branches, `stallWatchdog`'s remux wiring, `-bsf:v dump_extra`, the
+   legacy `GET /api/transcode?url=` pipe, the web's direct `/api/remux` callers
+   (WatchPage, VideoPlayer fallbacks) and their tests. This is also when P2-1's dead-code
+   batch stops being risky to sequence.
+
+*Risks and what covers them:* (a) **slower channel change** — a session must spawn ffmpeg
+and write the first segments (`SEGMENT_DURATION` is 4 s; startup is seconds, not the pipe's
+near-instant) → measure in Phase 2; if unacceptable, look at shortening the first
+segment(s) rather than abandoning the path. (b) **provider slot held by
+an idle session** → 0055 already reclaims a session idle ≥60 s on demand and replaces a
+device's own; the 5-min live sweep covers the rest. (c) **browser variance in hls.js /
+Safari-native** → fMP4 segments are the same ones the Apple path uses; 0065 now surfaces
+element errors. (d) **AC-3** → served as HLS copy/transcode, not the remux (0066 fixed the
+remux case regardless). (e) **tmpfs** → 2 GB, ~360 MB/session capped; fine for one viewer.
+(f) **direct-play HLS upstreams** stay `direct` — unaffected.
+
+*Decisions for Mark:* whether to start Phase 1 now or after the long play test; whether a
+Phase-1 toggle should live in Settings or be a hidden URL flag; and what "acceptable"
+channel-change time is (the Phase-2 number to beat).
 
 ---
 
