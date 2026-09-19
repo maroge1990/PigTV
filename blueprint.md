@@ -1,7 +1,7 @@
 # PigTV server — handover (single source of truth)
 
 **Last updated:** 19 September 2026
-**Home in repo:** `claude/server-handover.md`
+**Home in repo:** `C:\Users\markr\OneDrive\Documents\GitHub\PigTV server\blueprint.md`
 
 This is the authoritative handover for PigTV **server / webapp** work. It
 supersedes the two 16 September docs and all earlier chat notes. The deep
@@ -9,6 +9,11 @@ review — `claude/server-review-2026-09-16.md` — stays the file:line referenc
 for the *why* behind each item. The Apple client has its own log (`HANDOVER.md`
 in the Xcode project) and a separate agent; anything in §6 (frozen contract)
 must not change without a coordinated client patch.
+
+## Core Requirements and Guidelines
+We are developing an IPTV Server, with supporting webapp and swift clients (iPad / AppleTV). The IPTV server and webapp are contained within this repository.
+Wherever possible, we should ensure stream stability and quality, and reduce overhead and complexity
+As progress is made, ensure the blueprint is up to date for handover
 
 ---
 
@@ -18,7 +23,7 @@ must not change without a coordinated client patch.
 |---|---|
 | Repo | `github.com/maroge1990/PigTV` |
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
-| Local apply folder | `C:\Users\markr\OneDrive\Documents\GitHub\PassyTV` (folder is "PassyTV", repo is "PigTV" — leave as-is) |
+| Local apply folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV server` |
 | Shipped through | **build 0053** |
 | Next patch number | **0054** |
 | Deep review | `claude/server-review-2026-09-16.md` |
@@ -38,7 +43,7 @@ container shows no download card), give a size sanity-note, and always include
 
 **Apply + push (PowerShell):**
 ```powershell
-cd "C:\Users\markr\OneDrive\Documents\GitHub\PassyTV"
+cd "C:\Users\markr\OneDrive\Documents\GitHub\PigTV server"
 git fetch origin
 git checkout -B main origin/main
 git am "$HOME\Downloads\patches\NNNN-<subject>.patch"   # one line per patch, in order
@@ -49,7 +54,7 @@ git push origin main
 ```bash
 docker pull ghcr.io/maroge1990/pigtv:latest
 docker compose up -d --force-recreate pigtv     # recreate, not restart
-curl -s http://<passyflix>:3000/api/version      # confirm the build number
+curl -s http://192.168.1.235:3000/api/version      # confirm the build number
 ```
 
 ---
