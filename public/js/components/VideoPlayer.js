@@ -286,6 +286,12 @@ class VideoPlayer {
         // says nothing: the stream just stops. Record why (see handleMediaError).
         this.video.addEventListener('error', () => this.handleMediaError());
 
+        // A stream that never starts raises no error at all - the element just
+        // waits - so that kind of failure used to leave no trace anywhere. Note it
+        // when nothing has played some seconds after loading began.
+        this.video.addEventListener('loadstart', () => this.armStartWatch());
+        this.video.addEventListener('playing', () => this.clearStartWatch());
+
         // Mute/Volume
         const updateVolumeUI = () => {
             const isMuted = this.video.muted || this.video.volume === 0;
@@ -1703,6 +1709,42 @@ class VideoPlayer {
         try { localStorage.setItem('pigtv_audio_encode', JSON.stringify(list)); } catch (e) { /* remembering is optional */ }
     }
 
+    /** How long a load may go without anything playing before it is worth reporting. */
+    get startTimeoutMs() { return 15000; }
+
+    armStartWatch() {
+        this.clearStartWatch();
+        const src = this.video && this.video.currentSrc;
+        if (!src) return;
+        this._startWatch = setTimeout(() => this.reportStartTimeout(src), this.startTimeoutMs);
+    }
+
+    clearStartWatch() {
+        if (this._startWatch) {
+            clearTimeout(this._startWatch);
+            this._startWatch = null;
+        }
+    }
+
+    /**
+     * Nothing has played since this source began loading. Report it - once - with
+     * what the element knows, unless there is an innocent explanation: playback
+     * was paused (autoplay refused, or the user), the source was cleared or
+     * replaced, or it has in fact moved.
+     */
+    reportStartTimeout(src) {
+        this._startWatch = null;
+        const video = this.video;
+        if (!video || video.currentSrc !== src || this.isSourceCleared(video)) return;
+        if (video.paused || video.currentTime > 0) return;
+        if (this._reportedStartTimeoutFor === src) return;
+        this._reportedStartTimeoutFor = src;
+
+        const details = { ...this.describeMediaError(video), waitedSec: Math.round(this.startTimeoutMs / 1000) };
+        console.warn(`[Player] Nothing played within ${details.waitedSec}s (${details.strategy}, ${details.path})`, details);
+        this.reportClientEvent({ event: 'start-timeout', ...details });
+    }
+
     /** Best-effort diagnostics to the server. Must never affect playback. */
     reportClientEvent(payload) {
         try {
@@ -1889,6 +1931,7 @@ class VideoPlayer {
      * Stop playback
      */
     stop() {
+        this.clearStartWatch();
         // Stop any running transcode session first
         this.stopTranscodeSession();
 

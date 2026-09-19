@@ -131,6 +131,44 @@ function detectCodecs(url, ffprobePath, userAgent, timeoutMs = 8000) {
 }
 
 /**
+ * One line saying how a remux ended and, above all, whether anything was ever
+ * sent. "Client disconnected after 13s" alone cannot tell a stream that played for
+ * thirteen seconds from one that never produced a byte - and a live channel with
+ * widely spaced keyframes, or a provider slow to answer, looks exactly like the
+ * second: the browser waits in silence, then gives up, with no error anywhere.
+ */
+function describeRemuxEnd({ id, startedAt, now, bytes = 0, firstOutputAt = null }) {
+    const alive = Math.round((now - startedAt) / 1000);
+    const sent = bytes > 0
+        ? `sent ${bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + ' MB' : Math.round(bytes / 1024) + ' KB'}, ` +
+          `first output after ${((firstOutputAt - startedAt) / 1000).toFixed(1)}s`
+        : 'ffmpeg had produced no output yet';
+    return `[Remux] Client disconnected after ${alive}s (${sent}), killing ${id}`;
+}
+
+/**
+ * Logs ffmpeg's own messages for a remux. It used to log only the ones that
+ * happened to contain "error" or "Warning", which hid the rest - reconnect
+ * attempts, timestamp complaints, a stream that starts late. At the warning
+ * loglevel everything ffmpeg says is worth reading, so log it all, but only the
+ * first few per remux: a damaged stream can otherwise repeat one message for as
+ * long as it plays.
+ */
+function makeStderrLogger(id, log = console.log, cap = 25, redactor = redact) {
+    let logged = 0;
+    return (chunk) => {
+        const name = typeof id === 'function' ? id() : id; // a getter: the id may not exist yet when this is created
+        for (const line of String(chunk).split('\n')) {
+            const text = line.trim();
+            if (!text) continue;
+            if (logged < cap) log(`[Remux FFmpeg] ${name}: ${redactor(text)}`);
+            else if (logged === cap) log(`[Remux FFmpeg] ${name}: (further ffmpeg messages suppressed)`);
+            logged++;
+        }
+    };
+}
+
+/**
  * Which fix-ups the MP4 muxer needs for a stream with these codecs.
  */
 function remuxFixes(codecs, { encodeAudio = false } = {}) {
@@ -341,6 +379,9 @@ router.get('/', async (req, res) => {
     // Pipe stdout to response
     ffmpeg.stdout.pipe(res);
 
+    // Refers to remuxId, which is assigned just below; it is only called later.
+    const logStderr = makeStderrLogger(() => remuxId);
+
     // Keep the tail of stderr. At -loglevel warning a fatal startup error can
     // scroll past without matching the filter below, which leaves the log
     // saying only that the client disconnected — true, but not the reason.
@@ -353,9 +394,7 @@ router.get('/', async (req, res) => {
                 if (stderrTail.length > 20) stderrTail.shift();
             }
         }
-        if (msg.includes('Warning') || msg.includes('Error') || msg.includes('error')) {
-            console.log(`[Remux FFmpeg] ${redact(msg.trim())}`);
-        }
+        logStderr(msg);
     });
 
     const remuxId = `remux_${++remuxCounter}`;
@@ -368,7 +407,9 @@ router.get('/', async (req, res) => {
         res,
         startedAt,
         owner,
-        lastOutputAt: null
+        lastOutputAt: null,
+        firstOutputAt: null,
+        bytes: 0
     };
     activeRemuxes.set(remuxId, entry);
     console.log(`[Remux] Started ${remuxId} (${activeRemuxes.size} active)`);
@@ -377,7 +418,14 @@ router.get('/', async (req, res) => {
     // listener rides alongside pipe(): when the client stops reading, pipe()
     // pauses stdout and these events stop too, which is exactly what idleMs
     // should reflect.
-    ffmpeg.stdout.on('data', () => { entry.lastOutputAt = Date.now(); });
+    ffmpeg.stdout.on('data', (chunk) => {
+        entry.lastOutputAt = Date.now();
+        entry.bytes += chunk.length;
+        if (entry.firstOutputAt === null) {
+            entry.firstOutputAt = entry.lastOutputAt;
+            console.log(`[Remux] ${remuxId} first output after ${((entry.firstOutputAt - startedAt) / 1000).toFixed(1)}s`);
+        }
+    });
 
     // A dropped upstream leaves ffmpeg alive but silent, retrying forever
     // under its -reconnect flags, still holding the provider's only
@@ -412,8 +460,7 @@ router.get('/', async (req, res) => {
         if (!activeRemuxes.has(remuxId)) return;
         activeRemuxes.delete(remuxId);
         if (ffmpegExited) return; // exit handler already reported the cause
-        const alive = Math.round((Date.now() - startedAt) / 1000);
-        console.log(`[Remux] Client disconnected after ${alive}s, killing ${remuxId}`);
+        console.log(describeRemuxEnd({ id: remuxId, startedAt, now: Date.now(), bytes: entry.bytes, firstOutputAt: entry.firstOutputAt }));
         try { ffmpeg.kill('SIGKILL'); } catch (e) { /* already gone */ }
     });
 
@@ -444,6 +491,8 @@ router.get('/', async (req, res) => {
 module.exports = router;
 module.exports.identifyCodecs = identifyCodecs;
 module.exports.remuxFixes = remuxFixes;
+module.exports.describeRemuxEnd = describeRemuxEnd;
+module.exports.makeStderrLogger = makeStderrLogger;
 module.exports.buildRemuxArgs = buildRemuxArgs;
 module.exports.listActiveRemuxes = listActiveRemuxes;
 module.exports.killRemux = killRemux;

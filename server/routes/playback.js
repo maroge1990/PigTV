@@ -245,18 +245,24 @@ router.post('/client-event', requireToken, (req, res) => {
     clientEventLimiter.record(key);
 
     const body = req.body || {};
-    if (body.event !== 'media-error') return res.status(400).json({ error: 'Unknown event' });
+    if (body.event !== 'media-error' && body.event !== 'start-timeout') return res.status(400).json({ error: 'Unknown event' });
 
     const coordinator = require('../services/streamCoordinator');
     const text = (v, max) => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, max);
     const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : '?');
 
-    console.warn(
-        `[Player] media-error ${text(body.codeName, 30)}(${num(body.code)}) via ${text(body.strategy, 20)} ` +
-        `path=${text(body.path, 80)} msg="${redact(text(body.message, 200))}" ` +
-        `networkState=${num(body.networkState)} readyState=${num(body.readyState)} ` +
-        `t=${num(body.currentTime)}s buffered=${num(body.bufferedEnd)}s from=${coordinator.ownerKey(req.user) || 'unknown'}`
-    );
+    const state = `networkState=${num(body.networkState)} readyState=${num(body.readyState)} ` +
+        `t=${num(body.currentTime)}s buffered=${num(body.bufferedEnd)}s from=${coordinator.ownerKey(req.user) || 'unknown'}`;
+
+    if (body.event === 'start-timeout') {
+        // Nothing played for `waited` seconds and there was no error to report.
+        console.warn(`[Player] start-timeout via ${text(body.strategy, 20)} path=${text(body.path, 80)} waited=${num(body.waitedSec)}s ${state}`);
+    } else {
+        console.warn(
+            `[Player] media-error ${text(body.codeName, 30)}(${num(body.code)}) via ${text(body.strategy, 20)} ` +
+            `path=${text(body.path, 80)} msg="${redact(text(body.message, 200))}" ${state}`
+        );
+    }
     res.status(204).end();
 });
 

@@ -64,6 +64,15 @@ test('a media error lands in the server log as one readable line', async () => {
     assert.match(logged[0], /t=10s buffered=9.9s from=user:1$/);
 });
 
+test('a load that never started is logged too, in the same one-line form', async () => {
+    logged.length = 0;
+    const response = await post({ event: 'start-timeout', strategy: 'remux', path: '/api/remux', waitedSec: 15,
+        networkState: 2, readyState: 0, currentTime: 0, bufferedEnd: 0 });
+    assert.equal(response.status, 204);
+    assert.equal(logged.length, 1);
+    assert.equal(logged[0], '[Player] start-timeout via remux path=/api/remux waited=15s networkState=2 readyState=0 t=0s buffered=0s from=user:1');
+});
+
 test('it needs a token: an anonymous caller cannot write to the log', async () => {
     logged.length = 0;
     assert.equal((await post(event(), false)).status, 401);

@@ -1126,6 +1126,21 @@ check_absent public/js/components/VideoPlayer.js "if (!video || !video.currentSr
 check public/js/pages/WatchPage.js "empty src attribute" "WatchPage does not log the routine cleared-source event"
 check test/player-media-error.test.js "with the old URL still in currentSrc" "the real Chrome sequence is tested"
 
+echo "=== 0070: diagnostics for silent 'nothing plays' failures ==="
+check server/routes/remux.js "function describeRemuxEnd" "the disconnect line says whether anything was ever sent"
+check server/routes/remux.js "ffmpeg had produced no output yet" "including the case that matters: no output at all"
+check server/routes/remux.js "first output after" "time to first output is logged"
+check server/routes/remux.js "function makeStderrLogger" "ffmpeg's messages are logged in full (capped)"
+check_absent server/routes/remux.js "msg.includes('Warning') || msg.includes('Error') || msg.includes('error')" "no 'error'-only filter left hiding ffmpeg's messages"
+check server/routes/remux.js "Client disconnected after" "the disconnect line keeps its old prefix (existing greps still work)"
+check public/js/components/VideoPlayer.js "addEventListener('loadstart', () => this.armStartWatch())" "the player watches for a load that never starts"
+check public/js/components/VideoPlayer.js "addEventListener('playing', () => this.clearStartWatch())" "and stops watching once it plays"
+check public/js/components/VideoPlayer.js "event: 'start-timeout'" "and reports it"
+check public/js/components/VideoPlayer.js "if (video.paused || video.currentTime > 0) return;" "but not when paused or already moving"
+check server/routes/playback.js "body.event !== 'start-timeout'" "the server accepts the new event (and still only the known ones)"
+check test/player-start-watch.test.js "innocent explanations" "the start watch has tests"
+check test/remux-diagnostics.test.js "never produced a byte" "the server diagnostics have tests"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

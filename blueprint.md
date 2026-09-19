@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0069** (0054–0067 pushed to main; 0068–0069 written) |
-| Next patch number | **0070** |
+| Shipped through | **build 0070** (0054–0069 pushed to main; 0070 written) |
+| Next patch number | **0071** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -109,6 +109,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0067 | EPG-icon `logo` fallback in `/api/library/*` (P1-3, server half) + §C plan — see below |
 | 0068 | Audio re-encode self-heal for the remux path (fixes the unreproduced web fault) — see below |
 | 0069 | Fix: 0065 reported every channel change as a playback error — see below |
+| 0070 | Diagnostics for silent "nothing plays" failures + remux start-up measurements — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -460,7 +461,39 @@ Tests: 3 new cases in `test/player-media-error.test.js` modelling what Chrome re
 2 fail against the 0065 handler. **Lesson recorded:** browser-behaviour assumptions in a
 `vm` test are only as good as the fixture — the fixture now encodes the real Chrome sequence.
 
-**Post-deploy checks still owed by Mark:** badge reads **0069**; `docker logs`
+**0070 detail — "some channels now fail, no error in the log or console".** Mark's log
+(after 0068/0069) showed `Started remux_3` … `Client disconnected after 13s` … `Started
+remux_4`, ffmpeg silent, no `media-error`, on a channel that used to play ~25 s before its
+audio failed. Two things were missing: the **server** logged whether the client left but
+not whether a single byte had ever been sent, and the **player** only reported the
+element's `error` event — a load that *never starts* raises none. Now: the remux logs
+`first output after X s` and ends with `Client disconnected after 13s (sent 1 KB, first
+output after 5.2s)` or `(ffmpeg had produced no output yet)`; **all** ffmpeg messages are
+logged (first 25 per remux, tagged with the remux id — previously only lines containing
+"error"/"Warning", which hid reconnect attempts); and the player reports a new
+**`start-timeout`** event when nothing has played 15 s after a load began (skipped if
+paused, already moving, the source was replaced or cleared; once per source):
+`[Player] start-timeout via remux path=/api/remux waited=15s networkState=2 readyState=0 …`.
+Read it as: `sent ≈1 KB` = only the MP4 header arrived, no media (waiting on a
+keyframe); `no output yet` = ffmpeg silent (provider slow/refusing, or still probing);
+`sent N MB` = data flowed and the failure is in the browser.
+**Measured while diagnosing (synthetic 4 Mbps stream, real-time paced, tuned in at a
+random point — not Mark's provider):** the remux's `-probesize 5000000 -analyzeduration
+5000000` makes it wait ~the full analyze window in real time before writing the MP4
+header (~5.8 s), and `frag_keyframe` then needs a keyframe boundary before any media:
+time to first playable media ≈ **9 s at 2 s keyframe spacing, 13–17 s at 5 s, 23 s or
+*none in 50 s* at 10 s** (2 of 3 runs). Shrinking the probe (2 MB/2 s) cuts a 2 s-GOP channel
+to ~6 s but makes long-GOP channels **fail more** (5 s GOP: often no output at all), so it is
+*not* a universal fix and was not shipped. Hypotheses for Mark's channel, not yet told
+apart: (a) long keyframe spacing → nothing for 15–45 s, the browser/user gives up;
+(b) the provider is slow or refusing a second connection (rapid re-clicks make it worse —
+0055 deliberately replaces the device's own earlier stream). **The HLS session path uses the
+same 5 MB / 5 s probe (`transcodeSession.js`), so §C Phase 2 must measure start-up there
+too, not assume it is faster.** Tests: `test/remux-diagnostics.test.js` (6),
+`test/player-start-watch.test.js` (4, real player script with controlled timers), plus a
+`start-timeout` case in `test/client-events.test.js`.
+
+**Post-deploy checks still owed by Mark:** badge reads **0070**; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
 `SELECT COUNT(*) FROM epg_live` matches the XMLTV `<programme` count (final
 verification of 0047; use `epg_live` since 0056 — `epg_programs` can briefly hold two
