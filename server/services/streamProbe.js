@@ -180,9 +180,29 @@ function analyzeProbeResult(probeResult, url, clientCaps = {}) {
 }
 
 
+/**
+ * The video and audio codec names /api/playback/resolve already found for this
+ * URL, if that probe is still fresh - under any capability set, since the codecs
+ * do not depend on who asked. Lets a caller that needs the codecs (the remux
+ * route) reuse the answer instead of opening yet another connection to a
+ * provider that may allow only one.
+ */
+function findCachedCodecs(url) {
+    const prefix = `${url}|`;
+    const now = Date.now();
+    for (const [key, entry] of probeCache) {
+        if (!key.startsWith(prefix)) continue;
+        if (now - entry.timestamp >= CACHE_TTL) continue;
+        const { video, audio } = entry.result || {};
+        if (video || audio) return { video: video || null, audio: audio || null };
+    }
+    return null;
+}
+
 module.exports = {
     probeStream,
     analyzeProbeResult,
     probeCache,
+    findCachedCodecs,
     CACHE_TTL
 };

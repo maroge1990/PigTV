@@ -5,6 +5,7 @@ const db = require('../db');
 const { redact } = require('../redact');
 const { createStallWatchdog } = require('../services/stallWatchdog');
 const coordinator = require('../services/streamCoordinator');
+const streamProbe = require('../services/streamProbe');
 
 // Active remux processes, so they can be listed and killed like transcode
 // sessions can. Without this registry a remuxed stream is invisible to any
@@ -90,7 +91,14 @@ function detectCodecs(url, ffprobePath, userAgent, timeoutMs = 8000) {
         }
 
         let stdout = '';
+        let stderr = '';
         let settled = false;
+        // A null result used to be silent, which made "the probe failed" look
+        // identical to "the stream has no audio". Say which it was.
+        const fail = (why) => {
+            console.warn(`[Remux] Codec probe failed for ${redact(url)}: ${redact(why)}`);
+            finish(null);
+        };
         const finish = (codecs) => {
             if (settled) return;
             settled = true;
@@ -101,13 +109,14 @@ function detectCodecs(url, ffprobePath, userAgent, timeoutMs = 8000) {
 
         const timer = setTimeout(() => {
             try { proc.kill('SIGKILL'); } catch (e) { /* ignore */ }
-            finish(null);
+            fail(`no answer within ${timeoutMs} ms`);
         }, timeoutMs);
 
         proc.stdout.on('data', (chunk) => { stdout += chunk; });
-        proc.on('error', () => finish(null));
+        proc.stderr.on('data', (chunk) => { stderr = (stderr + chunk).slice(-300); });
+        proc.on('error', (err) => fail(err.message));
         proc.on('close', (code) => {
-            if (code !== 0) return finish(null);
+            if (code !== 0) return fail(`ffprobe exited with code ${code}${stderr.trim() ? `: ${stderr.trim()}` : ''}`);
             try {
                 const streams = JSON.parse(stdout)?.streams || [];
                 finish({
@@ -115,10 +124,44 @@ function detectCodecs(url, ffprobePath, userAgent, timeoutMs = 8000) {
                     audio: streams.find(s => s.codec_type === 'audio')?.codec_name || null
                 });
             } catch (err) {
-                finish(null);
+                fail(`unreadable ffprobe output (${err.message})`);
             }
         });
     });
+}
+
+/**
+ * Work out the stream's codecs, which the remux cannot start without: MPEG-TS
+ * carries AAC in ADTS framing, and MP4 rejects every audio packet of it unless
+ * ffmpeg is told to apply aac_adtstoasc - while that same filter refuses to
+ * initialise on non-AAC audio. There is no safe guess, so a remux started
+ * without knowing produces nothing but a muxer error.
+ *
+ * Sources, cheapest first: what /api/playback/resolve just learned (free - no new
+ * connection to a provider that may allow only one), then ffprobe, then ffprobe
+ * once more after a pause, because a provider that has just closed one
+ * connection often refuses the next for a moment.
+ *
+ * Returns { codecs, source } or { codecs: null, why }. Dependencies are
+ * injectable for tests.
+ */
+async function identifyCodecs(url, ffprobePath, userAgent, {
+    detect = detectCodecs,
+    cached = streamProbe.findCachedCodecs,
+    wait = (ms) => new Promise(resolve => setTimeout(resolve, ms)),
+    retryDelayMs = 1500
+} = {}) {
+    if (!ffprobePath) return { codecs: null, why: 'ffprobe is not available' };
+
+    const known = cached(url);
+    if (known) return { codecs: known, source: 'playback probe' };
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+        const codecs = await detect(url, ffprobePath, userAgent);
+        if (codecs) return { codecs, source: attempt === 1 ? 'ffprobe' : 'ffprobe (retry)' };
+        if (attempt === 1) await wait(retryDelayMs);
+    }
+    return { codecs: null, why: 'ffprobe could not read the stream' };
 }
 
 /**
@@ -145,7 +188,17 @@ router.get('/', async (req, res) => {
     const userAgent = db.getUserAgent(settings);
 
     // Work out what fix-ups the MP4 muxer needs for this stream
-    const codecs = await detectCodecs(url, ffprobePath, userAgent);
+    const found = await identifyCodecs(url, ffprobePath, userAgent);
+    const codecs = found.codecs;
+    if (!codecs && ffprobePath) {
+        // Starting anyway would just hand the client a stream that dies on its
+        // first audio packet ("Malformed AAC bitstream"). Say so instead; the
+        // provider has usually let go of the previous connection by the retry.
+        console.error(`[Remux] Not starting remux for ${redact(url)}: ${found.why}`);
+        res.set('Retry-After', '2');
+        return res.status(503).json({ error: 'Could not identify the stream. The provider may be refusing a second connection; try again.' });
+    }
+    if (found.source) console.log(`[Remux] Codecs from ${found.source}`);
     const audioCodec = codecs?.audio || null;
     const videoCodec = (codecs?.video || '').toLowerCase();
     const needsAdtsToAsc = audioCodec === 'aac';
@@ -348,6 +401,7 @@ router.get('/', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.identifyCodecs = identifyCodecs;
 module.exports.listActiveRemuxes = listActiveRemuxes;
 module.exports.killRemux = killRemux;
 module.exports.killAllRemuxes = killAllRemuxes;

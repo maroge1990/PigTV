@@ -1048,6 +1048,18 @@ check server/routes/devices.js "limitRequests(pairStartLimiter" "pair/start is l
 check server/routes/devices.js "limitRequests(pairingLimiter" "pair/poll is limited"
 check test/rate-limit.test.js "ten wrong passwords lock" "the limits have tests"
 
+echo "=== 0064: Remux codec identification ==="
+check server/routes/remux.js "async function identifyCodecs" "codecs are identified in one place"
+check server/services/streamProbe.js "function findCachedCodecs" "resolve's probe can be reused (no extra provider connection)"
+check server/routes/remux.js "streamProbe.findCachedCodecs" "the remux route reuses it"
+check server/routes/remux.js "Codec probe failed for" "probe failures are logged with a reason (they used to be silent)"
+# The bug: with unknown codecs the remux started anyway and died on its first
+# audio packet. It must refuse instead.
+check server/routes/remux.js "status(503)" "an unidentifiable stream is refused, not started"
+check server/routes/remux.js "identifyCodecs(url, ffprobePath, userAgent)" "the route uses identifyCodecs, not a bare detectCodecs"
+check_absent server/routes/remux.js "await detectCodecs(url, ffprobePath, userAgent)" "no bare single-shot probe left in the route"
+check test/remux-codecs.test.js "retried after a pause" "the retry has tests"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

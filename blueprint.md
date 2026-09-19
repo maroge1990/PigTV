@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0063** (0054–0063 written, awaiting Mark's apply + deploy) |
-| Next patch number | **0064** |
+| Shipped through | **build 0064** (0054 pushed to main; 0055–0064 written, awaiting Mark's apply + deploy) |
+| Next patch number | **0065** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -103,6 +103,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0061 | Recording time zone + honoured User-Agent (P2-6) — see below |
 | 0062 | Recording native-playback server fixes (P1-2, server half) — see below |
 | 0063 | Body-size cap + rate limits on login and pairing (P2-7, partial) — see below |
+| 0064 | Remux: reliable codec identification (fixes "Malformed AAC bitstream") — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -307,7 +308,32 @@ and I can't verify that from here; do it separately with the volume ownership
 sorted, or leave it. Tests: `test/rate-limit.test.js` (7 cases: the limiter on a
 controlled clock, then the real login and pairing routes).
 
-**Post-deploy checks still owed by Mark:** badge reads **0063**; `docker logs`
+**0064 detail — live-playback failure reported by Mark.** Symptom in `docker logs`:
+`[Remux] Full command: … -f mp4 …` with **no** `-bsf:a aac_adtstoasc`, then
+`Malformed AAC bitstream detected`, `Error submitting a packet to the muxer`, and the
+client disconnecting after ~3 s. Cause: the remux route learns the audio codec from
+a separate `ffprobe` (`detectCodecs`), which needs *another* connection to a provider
+that likely allows one; when it failed (silently — it returned `null` with no log) the
+route carried on with no way to know the audio was AAC. MPEG-TS carries AAC as ADTS
+and MP4 rejects every packet of it without `aac_adtstoasc`; **verified against real
+ffmpeg that there is no safe guess** — ADTS AAC fails without the filter (with or
+without `dump_extra`), and forcing the filter onto AC-3/MP2 fails at start-up
+(`Error opening output file`). So: (1) the route now reuses what
+`/api/playback/resolve` already learned (`streamProbe.findCachedCodecs`) — **no extra
+provider connection at all** in the normal web flow; (2) otherwise it probes, and
+retries once after 1.5 s (a provider that has just closed a connection often refuses
+the next for a moment); (3) every probe failure now logs *why* (exit code + stderr, or
+timeout) — grep `docker logs` for `Codec probe failed`; (4) if it still can't identify
+the stream it answers **503 + `Retry-After: 2`** with a clear message instead of
+starting a stream that dies on its first audio packet. If `ffprobe` itself is
+unavailable the old behaviour is kept. Reproduced against real ffmpeg with a local
+"provider" that refuses the probe's connection: old code 0/3 (only the 1 271-byte MP4
+header delivered), fixed code 3/3. Tests: `test/remux-codecs.test.js` (6 cases,
+injected dependencies, no binaries). **Root cause of the provider-side flakiness is
+not proven** — the screenshot Mark sent started at "Starting remux", so the
+`Codecs:`/probe-failure line above it wasn't visible; the new log line will say.
+
+**Post-deploy checks still owed by Mark:** badge reads **0064**; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
 `SELECT COUNT(*) FROM epg_live` matches the XMLTV `<programme` count (final
 verification of 0047; use `epg_live` since 0056 — `epg_programs` can briefly hold two
@@ -333,7 +359,9 @@ programmes (nothing that should be on now has disappeared); 0061 live check: set
 its `.native.mp4`/`.compressed.mp4` disappear from the recordings folder; 0063 live
 check: sign in normally (nothing changes), and confirm bulk hide/show in Settings
 still saves a large selection (a 413 in `docker logs` would mean the 2 MB cap is
-too tight).
+too tight); 0064 live check: play several live channels back to back (web player); if
+any fails, `docker logs pigtv | grep -E "Codec probe failed|Not starting remux"` says why.
+A 503 that clears on retry means the provider is being slow to release connections.
 
 ---
 
@@ -476,6 +504,12 @@ This is the endpoint of the guiding direction at the top of §5. It is a
   works either way.
 - **Dead-code batch timing** — early deliberate batch (recommended) vs late.
 - **`requireStreamAuth` flip timing** — tied to Tailscale exposure.
+- **AC-3 through the remux path (unverified in a browser).** Real ffmpeg refuses AC-3 in
+  the empty-moov fMP4 remux (`Cannot write moov atom before AC3 packets`). `resolve`
+  only sends a stream to remux when the client can decode its audio, so a client that
+  reports `ac3: true` (Safari) on an AC-3 channel would be sent there and fail. Found
+  while testing 0064; not reproduced through a real client. Fix would be routing AC-3 to
+  the HLS session path or adding `delay_moov`.
 - **Stall timeout tuning** — 20 s default (`PIGTV_STALL_TIMEOUT_MS`) is a
   conservative guess for long-GOP sources; tighten only after watching the real
   feed's `[TranscodeSession]`/`[Remux]` stall logs for false positives.
