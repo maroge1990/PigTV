@@ -1166,6 +1166,17 @@ else
 fi
 check test/source-manager-hide-all.test.js "straight away, not only after a reload" "the visible checkbox state is tested"
 
+echo "=== 0073: HLS sessions tolerate audio/video start-time skew ==="
+check server/services/transcodeSession.js "'-dts_delta_threshold', String(DTS_DELTA_THRESHOLD_SEC)," "the session raises ffmpeg's timestamp-jump threshold"
+check server/services/transcodeSession.js "PIGTV_DTS_DELTA_THRESHOLD_SEC" "and it is tunable"
+# It is an input option: it must sit before -i or it would apply to the output.
+if awk '/-dts_delta_threshold/{d=NR} /args.push\(.-i., this.url\)/{i=NR} END{exit !(d && i && d<i)}' server/services/transcodeSession.js; then
+  echo "  ✓ it comes before -i (an input option)"
+else
+  echo "  ✗ MISSING: -dts_delta_threshold must come before -i in the session arguments"; FAIL=1
+fi
+check test/hls-timestamp-skew.test.js "the old arguments do reproduce it" "the test also proves the fault reproduces without the flag"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

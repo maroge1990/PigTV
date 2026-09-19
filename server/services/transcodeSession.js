@@ -42,6 +42,19 @@ const LIVE_SESSION_TIMEOUT_MS = (() => {
 })();
 const SEGMENT_DURATION = 4; // seconds per HLS segment
 
+// ffmpeg keeps ONE timestamp offset per input and, whenever a packet's DTS jumps
+// by more than -dts_delta_threshold (default 10 s), assumes a discontinuity and
+// shifts the offset. Some IPTV feeds start their audio and video on clocks that
+// are more than 10 s apart, so the two streams take turns "jumping": every packet
+// re-triggers the correction ("timestamp discontinuity ... new offset"), thousands
+// of log lines, and roughly half the audio ends up dropped. A real jump (a channel
+// splice, a provider restart) is minutes or hours, so the threshold is raised well
+// clear of any A/V start-up skew but still catches those. Seconds, tunable.
+const DTS_DELTA_THRESHOLD_SEC = (() => {
+    const sec = Number.parseFloat(process.env.PIGTV_DTS_DELTA_THRESHOLD_SEC);
+    return Number.isFinite(sec) && sec > 0 ? sec : 60;
+})();
+
 // How many segments a live session keeps on disk before rotating the
 // oldest ones out. Unbounded (the old 0) means the whole session gets
 // written to the Docker image's writable layer for as long as someone
@@ -285,6 +298,7 @@ class TranscodeSession extends EventEmitter {
             '-analyzeduration', '5000000',
             '-fflags', '+genpts+discardcorrupt',
             '-err_detect', 'ignore_err',
+            '-dts_delta_threshold', String(DTS_DELTA_THRESHOLD_SEC),
             '-reconnect', '1',
             '-reconnect_streamed', '1',
             '-reconnect_delay_max', '3'
@@ -1218,5 +1232,6 @@ module.exports = {
     startCleanupInterval,
     getAllSessions,
     CACHE_DIR,
-    SEGMENT_DURATION
+    SEGMENT_DURATION,
+    DTS_DELTA_THRESHOLD_SEC
 };

@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0072** (0054–0070 pushed to main; 0071–0072 written) |
-| Next patch number | **0073** |
+| Shipped through | **build 0073** (0054–0070 pushed to main; 0071–0073 written) |
+| Next patch number | **0074** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -112,6 +112,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0070 | Diagnostics for silent "nothing plays" failures + remux start-up measurements — see below |
 | 0071 | Quiet the probe-phase decoder chatter 0070 exposed — see below |
 | 0072 | Fix: Hide All / Show All left the group checkboxes unchanged — see below |
+| 0073 | Fix: A/V start-time skew made HLS sessions log a discontinuity per packet and drop audio — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -539,7 +540,51 @@ change. `originalHiddenSet` follows so **Save Changes** has nothing left to repe
 change. Tests: `test/source-manager-hide-all.test.js` (5, the real script in a `vm`, rendering the
 actual group checkbox HTML; 3 fail against the old code).
 
-**Post-deploy checks still owed by Mark:** badge reads **0072**; `docker logs`
+**0073 detail — timestamp-discontinuity flood in HLS sessions (found in live-verification, an
+E-AC-3 6-channel channel).** The session log showed an endless alternation of `timestamp
+discontinuity (stream id=…): -23760000, new offset= …` between the video and the audio stream. Cause:
+ffmpeg keeps **one** timestamp offset per input and treats any DTS jump over `-dts_delta_threshold`
+(default **10 s**) as a discontinuity, shifting that offset. This feed's audio and video clocks start
+23.76 s apart, so the two streams take turns "jumping" and every packet re-triggers the correction.
+Reproduced with real ffmpeg on a transport stream whose video timestamps and PCRs are moved by
++23.76 s: the session's old arguments logged **790** discontinuity messages and kept only **767 of
+1409 audio packets** (audio audibly dropping in and out); with the threshold raised: **0** messages,
+all audio packets. Fix: `-dts_delta_threshold 60` as an *input* option on every HLS session
+(`transcodeSession.js`, `DTS_DELTA_THRESHOLD_SEC`, tunable with `PIGTV_DTS_DELTA_THRESHOLD_SEC`,
+non-positive/garbage falls back to 60). 60 s clears any realistic A/V start-up skew but real
+discontinuities (a splice or provider restart — minutes or hours; also any *backward* jump) are still
+corrected; measured: +30 s forward jump is not corrected, +200 s and −8 s still are. Not chosen:
+`-fflags +igndts` (also fixes it, but throws away DTS entirely — a bigger behavioural change than the
+fault needs). **Not applied to the remux route** (it uses `igndts` already and never showed the flood)
+**or to recordings** (measured on the same input: 243 log lines but every packet intact, so it is
+noise, not data loss — left alone rather than change what gets written to disk; a candidate if the
+recording log noise ever matters). Tests: `test/hls-timestamp-skew.test.js` (4: the argument and its
+position before `-i`, the env override, and the real-ffmpeg reproduction — which also asserts that the
+*old* arguments still reproduce the fault, so the test cannot pass by accident; skipped if ffmpeg is
+absent). **Still seen after this, and harmless:** the E-AC-3 probe line `Could not find codec
+parameters for stream 1 (Audio: eac3 … 0 channels …)` — ffmpeg's 5 MB / 5 s probe window ended before
+it had read enough E-AC-3 to know the layout; the session goes on to decode and re-encode audio
+correctly. Not touched. If audio on such a channel is ever silent from the start, that line is the
+first suspect (a longer `-analyzeduration` for E-AC-3 would be the fix).
+
+**Live verification of 0054–0072 against the real server (Mark, PassyFlix, VPN'd device).**
+Checklist A (web app): **A1** playback of several channels ✅ (the h264 decoder log noise it showed
+became 0071); **A2** ✅; **A3** bulk hide worked but the group checkboxes did not update until a
+refresh ❌ → 0072; **A4** ✅. Checklist B (server): **B2, B6, B8** ✅; **B4** (find the ffmpeg
+PID: second column of `docker top pigtv | grep ffmpeg`; a session's process is the one whose
+command line ends in `stream.m3u8`, a remux's ends in `-`, its output is stdout) answered; **B1, B3, B5, B7 not yet run**
+— they need the Swift client / an Apple device. Optional live checks **C1–C3 not run**. The
+intermittent "nothing plays on some channels" (silent failures, remux disconnecting ~10 s in) stopped
+reproducing and other people reported the same channel group failing at the same time, so it is
+put down as a **provider fault** for now; 0070's diagnostics will name the cause if it returns
+(`docker logs pigtv | grep -E "Could not write header|never produced a byte|media-error"`).
+**Decision (Mark): `requireStreamAuth` stays OFF.** The server is reached only over an approved-device
+VPN (Tailscale) — it is not exposed to the internet — so the default flip (§5 A.9) is not required
+now. Revisit if that ever changes.
+
+**Post-deploy checks still owed by Mark:** badge reads **0073**; 0073 live check: play the
+E-AC-3 channel that flooded the log — `docker logs pigtv | grep -c "timestamp discontinuity"`
+should stay at (or near) 0 and its audio should be continuous; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
 `SELECT COUNT(*) FROM epg_live` matches the XMLTV `<programme` count (final
 verification of 0047; use `epg_live` since 0056 — `epg_programs` can briefly hold two
@@ -633,7 +678,8 @@ that hardening.
    P2-6 `TZ` + honoured UA for recordings ✅ 0061; P2-7 rate-limit login/pair-poll +
    1 MB body cap + `USER node` (✅ 0063: 2 MB cap, login + pairing limits; `USER node`
    deliberately not done, see §4).
-9. **`requireStreamAuth` default flip.** Mark's call, before Tailscale exposure.
+9. **`requireStreamAuth` default flip.** Mark's call — **decided: stays off** while access is
+   VPN-only (see the live-verification note in §4); revisit if the server is ever exposed.
 
 ### B. Blocked on the Swift client (server code can be written ahead; verify/land with the client)
 
@@ -762,7 +808,7 @@ channel-change time is (the Phase-2 number to beat).
   Decides whether `commit`/`builtAt` auto-inject; the committed `build` number
   works either way.
 - **Dead-code batch timing** — early deliberate batch (recommended) vs late.
-- **`requireStreamAuth` flip timing** — tied to Tailscale exposure.
+- ~~`requireStreamAuth` flip timing~~ — decided: off while access is VPN-only; revisit if exposed.
 - ~~AC-3 through the remux path~~ — fixed in 0066 (`delay_moov`); still unverified in a real
   Safari.
 - **Stall timeout tuning** — 20 s default (`PIGTV_STALL_TIMEOUT_MS`) is a
