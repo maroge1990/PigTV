@@ -1060,8 +1060,20 @@ class SourceManager {
                 await API.channels.hideAll(sourceId, contentType);
             }
 
-            // Update local state to match
+            // Update local state to match. A group's checkbox is drawn from the
+            // category's own key, not from its items (see getGroupHtml), so that
+            // has to change too - otherwise the server hides everything but the
+            // group boxes stay ticked until the page is reloaded.
+            const groupItemType = this.groupItemType();
             this.treeData.groups.forEach(group => {
+                if (group.categoryId) {
+                    const groupKey = `${groupItemType}:${group.categoryId}`;
+                    if (visible) {
+                        this.hiddenSet.delete(groupKey);
+                    } else {
+                        this.hiddenSet.add(groupKey);
+                    }
+                }
                 group.items.forEach(item => {
                     const key = `${item.type}:${item.id}`;
                     if (visible) {

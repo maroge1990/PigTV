@@ -1156,6 +1156,16 @@ check server/routes/remux.js "const tailLines = makeLineBuffer" "the stall/exit 
 check_absent server/routes/remux.js "msg.split('\n')" "no naive per-chunk split of stderr left in the route"
 check test/remux-diagnostics.test.js "however the stream is cut" "and it is tested at every cut point and byte by byte"
 
+echo "=== 0072: Hide All / Show All update the group checkboxes ==="
+check public/js/components/SourceManager.js "const groupKey = \`\${groupItemType}:\${group.categoryId}\`;" "setAllVisibility updates the group key that the checkbox is drawn from"
+# The same key must be what getGroupHtml reads, or the two drift apart again.
+if [ "$(grep -c 'groupItemType}:${group.categoryId}' public/js/components/SourceManager.js)" -ge "3" ]; then
+  echo "  ✓ the group key is built the same way where it is drawn, saved and bulk-changed"
+else
+  echo "  ✗ MISSING: getGroupHtml, saveContentChanges and setAllVisibility must all use the same group key"; FAIL=1
+fi
+check test/source-manager-hide-all.test.js "straight away, not only after a reload" "the visible checkbox state is tested"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

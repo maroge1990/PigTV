@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0071** (0054–0070 pushed to main; 0071 written) |
-| Next patch number | **0072** |
+| Shipped through | **build 0072** (0054–0070 pushed to main; 0071–0072 written) |
+| Next patch number | **0073** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -111,6 +111,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0069 | Fix: 0065 reported every channel change as a playback error — see below |
 | 0070 | Diagnostics for silent "nothing plays" failures + remux start-up measurements — see below |
 | 0071 | Quiet the probe-phase decoder chatter 0070 exposed — see below |
+| 0072 | Fix: Hide All / Show All left the group checkboxes unchanged — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -524,7 +525,21 @@ not set` → `Could not write header` → ffmpeg exits with code 4294967274 (-22
 `test/remux-diagnostics.test.js` — the exact lines from the live log, and the *same output whether
 the stream is cut anywhere or delivered a byte at a time*; 6 fail against the 0070 logger.
 
-**Post-deploy checks still owed by Mark:** badge reads **0071**; `docker logs`
+**0072 detail — Hide All / Show All checkboxes (found in live-verification item A3).** In
+Settings → Sources, pressing **Hide All** hid everything on the server but the group
+checkboxes stayed ticked until the page was reloaded (then correctly unticked). **Not a
+regression from this session** — `SourceManager.js` was not touched by any of 0054–0071. Cause:
+a group's checkbox is drawn from the *category's own key* (`hiddenSet.has('group:<categoryId>')`,
+deliberately "authoritative", see the comment in `getGroupHtml`), but `setAllVisibility` only
+updated the per-*item* keys after the server call, never the group keys. The server side was
+right all along (`POST /api/channels/hide/all` hides both categories and items in single
+statements). Fix: `setAllVisibility` now sets/clears the group key too (`group` / `vod_category` /
+`series_category` by content type); **Show All had the mirror-image bug**, fixed by the same
+change. `originalHiddenSet` follows so **Save Changes** has nothing left to repeat. No server
+change. Tests: `test/source-manager-hide-all.test.js` (5, the real script in a `vm`, rendering the
+actual group checkbox HTML; 3 fail against the old code).
+
+**Post-deploy checks still owed by Mark:** badge reads **0072**; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
 `SELECT COUNT(*) FROM epg_live` matches the XMLTV `<programme` count (final
 verification of 0047; use `epg_live` since 0056 — `epg_programs` can briefly hold two
