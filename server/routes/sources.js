@@ -131,11 +131,13 @@ router.delete('/:id', async (req, res) => {
         const deleteCategories = db.prepare('DELETE FROM categories WHERE source_id = ?');
         const deleteItems = db.prepare('DELETE FROM playlist_items WHERE source_id = ?');
         const deleteEpg = db.prepare('DELETE FROM epg_programs WHERE source_id = ?');
+        const deleteEpgState = db.prepare('DELETE FROM epg_state WHERE source_id = ?');
         const deleteSyncStatus = db.prepare('DELETE FROM sync_status WHERE source_id = ?');
 
         const catResult = deleteCategories.run(sourceId);
         const itemResult = deleteItems.run(sourceId);
         const epgResult = deleteEpg.run(sourceId);
+        deleteEpgState.run(sourceId);
         deleteSyncStatus.run(sourceId);
 
         console.log(`[Source] Cascade delete for source ${sourceId}: ${catResult.changes} categories, ${itemResult.changes} items, ${epgResult.changes} EPG programs`);

@@ -451,6 +451,26 @@ class SyncService {
 
 
     /**
+     * Delete a source's programmes whose generation is (op '=') or is not
+     * (op '<>') the given one, in slices that yield between them.
+     */
+    async purgeEpgRows(sourceId, op, gen) {
+        const db = getDb();
+        const stmt = db.prepare(`
+            DELETE FROM epg_programs WHERE id IN (
+                SELECT id FROM epg_programs WHERE source_id = ? AND gen ${op === '=' ? '=' : '<>'} ? LIMIT 20000
+            )
+        `);
+        let total = 0;
+        for (;;) {
+            const { changes } = stmt.run(sourceId, gen);
+            if (!changes) return total;
+            total += changes;
+            await new Promise(resolve => setImmediate(resolve));
+        }
+    }
+
+    /**
      * Sync EPG from URL (Streaming - Memory Efficient)
      * Processes EPG files in batches to avoid OOM on large EPG data
      */
@@ -470,11 +490,16 @@ class SyncService {
         let totalProgrammes = 0;
         let batchCount = 0;
 
-        // Clear old programmes first
-        db.prepare('DELETE FROM epg_programs WHERE source_id = ?').run(sourceId);
+        // The guide stays live while the new feed loads. Programmes are written
+        // as the *next* generation, which readers (the epg_live view) cannot
+        // see, and only once the whole feed is in does epg_state flip to it.
+        // Anything not live at this point is debris from an interrupted sync.
+        const activeGen = db.prepare('SELECT active_gen FROM epg_state WHERE source_id = ?').get(sourceId)?.active_gen ?? 0;
+        const newGen = activeGen + 1;
+        await this.purgeEpgRows(sourceId, '<>', activeGen);
 
         const programmeStmt = db.prepare(`
-            INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, description, data)
+            INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, description, gen)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         `);
 
@@ -487,38 +512,65 @@ class SyncService {
                     p.stop ? p.stop.getTime() : 0,
                     p.title,
                     p.description || p.desc,
-                    JSON.stringify(p)
+                    newGen
                 );
             }
         });
 
         // Stream and process in batches (default 1000 programmes per batch)
-        for await (const batch of epgParser.fetchAndParseStreaming(url)) {
-            batchCount++;
+        try {
+            for await (const batch of epgParser.fetchAndParseStreaming(url)) {
+                batchCount++;
 
-            // Collect channels from first batch
-            if (batch.channels) {
-                allChannels = batch.channels;
+                // Collect channels from first batch
+                if (batch.channels) {
+                    allChannels = batch.channels;
+                }
+
+                // Save this batch of programmes immediately
+                if (batch.programmes.length > 0) {
+                    insertProgrammes(batch.programmes);
+                    totalProgrammes += batch.programmes.length;
+                }
+
+                // Log progress every 10 batches
+                if (batchCount % 10 === 0) {
+                    console.log(`[Sync] Processed ${totalProgrammes} programmes so far...`);
+                    logMemory();
+                }
+
+                // Yield to event loop
+                await new Promise(resolve => setImmediate(resolve));
             }
 
-            // Save this batch of programmes immediately
-            if (batch.programmes.length > 0) {
-                insertProgrammes(batch.programmes);
-                totalProgrammes += batch.programmes.length;
+            console.log(`[Sync] EPG Parsed: ${allChannels.length} channels, ${totalProgrammes} programmes`);
+            logMemory();
+
+            // A feed with no programmes at all is a broken feed, not a guide
+            // that has genuinely become empty. Keep what we have.
+            if (totalProgrammes === 0) {
+                console.warn('[Sync] EPG feed contained no programmes; keeping the existing guide');
+                await this.purgeEpgRows(sourceId, '=', newGen);
+                return;
             }
 
-            // Log progress every 10 batches
-            if (batchCount % 10 === 0) {
-                console.log(`[Sync] Processed ${totalProgrammes} programmes so far...`);
-                logMemory();
-            }
-
-            // Yield to event loop
-            await new Promise(resolve => setImmediate(resolve));
+            // The swap: one small statement, so readers see the old guide or
+            // the new one and never a mixture or an empty table.
+            db.prepare(`
+                INSERT INTO epg_state (source_id, active_gen) VALUES (?, ?)
+                ON CONFLICT(source_id) DO UPDATE SET active_gen = excluded.active_gen
+            `).run(sourceId, newGen);
+        } catch (err) {
+            // The live guide was never touched; just discard the half-loaded one.
+            await this.purgeEpgRows(sourceId, '=', newGen).catch(e =>
+                console.warn('[Sync] Could not discard partial EPG load:', e.message));
+            throw err;
         }
 
-        console.log(`[Sync] EPG Parsed: ${allChannels.length} channels, ${totalProgrammes} programmes`);
-        logMemory();
+        // The previous generation is now unreachable. Delete it in slices so a
+        // large guide does not hold the event loop (and every stream) hostage.
+        const purged = await this.purgeEpgRows(sourceId, '<>', newGen);
+        if (purged > 0) console.log(`[Sync] Removed ${purged} superseded programmes`);
 
         // Save EPG Channels
         if (allChannels.length > 0) {

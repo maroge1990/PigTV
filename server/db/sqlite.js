@@ -107,6 +107,33 @@ function initSchema() {
         CREATE INDEX IF NOT EXISTS idx_epg_cleanup ON epg_programs(end_time); -- For deleting old programs
     `);
 
+    // Atomic EPG swaps. A sync used to DELETE the source's programmes and then
+    // stream the new feed in, so the guide was empty (and, if the feed failed
+    // half-way, stayed partly empty) for the whole of every sync. Instead each
+    // sync writes a new generation of rows that nothing reads, then flips
+    // epg_state.active_gen in one tiny statement. Readers go through the
+    // epg_live view, which only shows each source's active generation. A source
+    // with no epg_state row is on generation 0, which is what every row written
+    // before generations existed (or inserted directly) has - so those are live
+    // without any migration step.
+    try {
+        db.exec('ALTER TABLE epg_programs ADD COLUMN gen INTEGER NOT NULL DEFAULT 0');
+    } catch (e) {
+        // Column already exists.
+    }
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS epg_state (
+            source_id INTEGER PRIMARY KEY,
+            active_gen INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_epg_source_gen ON epg_programs(source_id, gen);
+        CREATE VIEW IF NOT EXISTS epg_live AS
+            SELECT p.id, p.channel_id, p.source_id, p.start_time, p.end_time, p.title, p.description, p.data
+            FROM epg_programs p
+            LEFT JOIN epg_state s ON s.source_id = p.source_id
+            WHERE p.gen = COALESCE(s.active_gen, 0);
+    `);
+
     // Sync Status
     db.exec(`
         CREATE TABLE IF NOT EXISTS sync_status (

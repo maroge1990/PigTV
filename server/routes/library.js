@@ -36,7 +36,7 @@ function nowNextFor(tvgIds) {
 
     const rows = db.prepare(`
         SELECT channel_id, title, start_time, end_time
-        FROM epg_programs
+        FROM epg_live
         WHERE channel_id IN (${placeholders})
           AND end_time > ? AND start_time < ?
         ORDER BY channel_id ASC, start_time ASC
@@ -251,7 +251,7 @@ router.get('/guide', (req, res) => {
             const ph = tvgIds.map(() => '?').join(',');
             const progs = db.prepare(`
                 SELECT channel_id, title, description, start_time, end_time
-                FROM epg_programs
+                FROM epg_live
                 WHERE channel_id IN (${ph}) AND end_time > ? AND start_time < ?
                 ORDER BY start_time ASC
             `).all(...tvgIds, start, end);

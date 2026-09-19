@@ -950,6 +950,22 @@ check public/js/components/VideoPlayer.js "live: true, ...options" "web player m
 check test/stream-coordinator.test.js "viewer-in-progress" "arbitration has unit tests"
 check test/playback-arbitration.test.js "viewer-in-progress" "resolve's 409 is tested through the real route with real device tokens"
 
+echo "=== 0056: Atomic EPG swap (P1-5) ==="
+check server/db/sqlite.js "CREATE VIEW IF NOT EXISTS epg_live" "readers have a live-generation view"
+check server/db/sqlite.js "ADD COLUMN gen INTEGER" "programmes carry a generation (migrated for existing databases)"
+check server/db/sqlite.js "COALESCE(s.active_gen, 0)" "a source with no state row is live at generation 0 (legacy rows, direct inserts)"
+check server/services/syncService.js "ON CONFLICT(source_id) DO UPDATE SET active_gen" "the swap is a single upsert"
+check server/services/syncService.js "async purgeEpgRows" "old generations are purged in slices"
+# The bug being fixed: the live guide was deleted before the new feed loaded.
+check_absent server/services/syncService.js "DELETE FROM epg_programs WHERE source_id = ?').run(sourceId)" "sync no longer empties the live guide up front"
+check_absent server/services/syncService.js "JSON.stringify(p)" "full programme JSON is no longer stored"
+# Every reader must go through the view, or it shows two generations at once.
+for f in server/routes/library.js server/routes/proxy.js; do
+  check_absent "$f" "FROM epg_programs" "$f reads epg_live, not the raw table"
+done
+check server/routes/sources.js "DELETE FROM epg_state" "deleting a source clears its generation state"
+check test/epg-swap.test.js "never empty while a new feed loads" "the swap has tests (incl. a mid-sync read and a legacy upgrade)"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

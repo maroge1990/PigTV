@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0055** (0054–0055 written, awaiting Mark's apply + deploy) |
-| Next patch number | **0056** |
+| Shipped through | **build 0056** (0054–0056 written, awaiting Mark's apply + deploy) |
+| Next patch number | **0057** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -95,6 +95,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0053 | `db.json` in-memory write-through cache + `saveUninitialized:false` (MemoryStore leak) |
 | 0054 | ffmpeg output-inactivity watchdog (A1) — see below |
 | 0055 | Viewer-vs-viewer arbitration + live idle timeout (A3) — see below |
+| 0056 | Atomic EPG swap via generations (P1-5) — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -155,15 +156,40 @@ setting if that's you; (b) the web player's confirm text now varies by
 `force:true` on confirm) — see §B. Tests: `test/stream-coordinator.test.js`
 (13 cases, no ffmpeg needed).
 
-**Post-deploy checks still owed by Mark:** badge reads **0055**; `docker logs`
+**0056 detail.** The guide is no longer emptied by a sync. `epg_programs` gains a
+`gen` column and a small `epg_state(source_id, active_gen)` table; a sync loads
+the feed as generation *active+1* (invisible), then flips `active_gen` in one
+statement (an instant, atomic swap — deliberately *not* a big `INSERT…SELECT`,
+which would block the event loop, and every stream, for seconds), then deletes
+the superseded generation in 20 000-row slices that yield between them. Every
+reader (`/api/library/*`, `/api/proxy/epg`) now reads the **`epg_live`** view,
+which shows only each source's active generation — **use `epg_live`, not
+`epg_programs`, for any new guide query.** A feed that fails half-way, or yields
+zero programmes, leaves the live guide untouched and discards its partial load;
+debris from a crashed sync is swept at the next one. Existing rows become
+generation 0, and a source with no `epg_state` row is treated as generation 0, so
+they are live with no migration step (and a row inserted directly into
+`epg_programs` — as `access.test.js` does — is visible). The per-programme JSON blob is
+no longer stored (nothing read it), so new generations are smaller; the DB file
+itself won't shrink without a `VACUUM`. **Cost:** disk headroom of roughly one
+extra copy of the guide while a sync runs. View overhead measured at ~0 on 500k
+rows. Not done from the original P1-5 note: dropping `AUTOINCREMENT` (needs a
+table rebuild for no real gain). Tests: `test/epg-swap.test.js` (7 cases incl.
+a legacy-schema upgrade and a mid-sync read).
+
+**Post-deploy checks still owed by Mark:** badge reads **0056**; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
-`SELECT COUNT(*) FROM epg_programs` matches the XMLTV `<programme` count (final
-verification of 0047); 0054 live check (see the 0054 hand-off: cut the upstream
+`SELECT COUNT(*) FROM epg_live` matches the XMLTV `<programme` count (final
+verification of 0047; use `epg_live` since 0056 — `epg_programs` can briefly hold two
+generations); 0054 live check (see the 0054 hand-off: cut the upstream
 mid-stream and confirm the `treating ffmpeg as stalled` log line and that the
 provider slot frees), plus confirm a *paused* web player is not killed; 0055 live
 check: with two devices, start playback on one, then the other — expect the
 "Another device is watching" prompt (web `confirm()`; Apple client per §B), and
-that a device changing channel never sees a prompt about its own old stream.
+that a device changing channel never sees a prompt about its own old stream;
+0056 live check: trigger an EPG sync and confirm the guide stays populated
+throughout (it used to blank for minutes), and `docker logs` shows
+`Removed N superseded programmes` afterwards.
 
 ---
 
@@ -202,8 +228,8 @@ that hardening.
 3. ✅ **P1-1 / A3 — viewer-vs-viewer arbitration + shorter live idle timeout**
    (0055; written, pending live verification — see §4). Live timeout is 5 min,
    not ~2 (rationale in the 0055 detail).
-4. **P1-5 — atomic EPG swap.** *[MED]* Staging table / generation column so the
-   guide isn't empty for minutes each sync; stop storing full programme JSON.
+4. ✅ **P1-5 — atomic EPG swap** (0056; written, pending live verification —
+   see §4).
 5. **P1-3 (server half) — favourites id normalisation + migration**, plus a
    derived `stable_id` so a provider reorder can't re-point favourites, history,
    or scheduled recordings. *[MED]*

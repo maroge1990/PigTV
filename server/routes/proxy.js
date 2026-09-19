@@ -361,16 +361,16 @@ router.get('/epg/:sourceId', async (req, res) => {
             fillVisible(visibleTvgIds);
 
             programs = db.prepare(`
-                SELECT channel_id as channelId, start_time, end_time, title, description, data
-                FROM epg_programs
+                SELECT channel_id as channelId, start_time, end_time, title, description
+                FROM epg_live
                 WHERE source_id = ? AND end_time > ? AND start_time < ?
                   AND channel_id IN (SELECT id FROM _visible_epg_ids)
             `).all(...params);
         } else {
             // Fallback: no visible channels found or too many — return everything
             programs = db.prepare(`
-                SELECT channel_id as channelId, start_time, end_time, title, description, data
-                FROM epg_programs
+                SELECT channel_id as channelId, start_time, end_time, title, description
+                FROM epg_live
                 WHERE source_id = ? AND end_time > ? AND start_time < ?
             `).all(...params);
         }
