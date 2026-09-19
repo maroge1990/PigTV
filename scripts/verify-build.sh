@@ -1066,7 +1066,7 @@ check public/js/components/VideoPlayer.js "handleMediaError()" "handler exists"
 # The URL's query string carries the provider login and the session token.
 check public/js/components/VideoPlayer.js "new URL(video.currentSrc, 'http://localhost').pathname" "only the URL path is logged/sent, never the query"
 check public/js/components/VideoPlayer.js "this.currentStrategy = decision.strategy" "the server's chosen strategy is recorded for the report"
-check public/js/components/VideoPlayer.js "if (!video || !video.currentSrc || !video.error) return;" "clearing the source (channel change) is not reported as a failure"
+check public/js/components/VideoPlayer.js "if (this.isSourceCleared(video)) return;" "clearing the source (channel change) is not reported as a failure"
 check public/css/main.css ".transcode-status.error" "the error badge has a style"
 check server/routes/playback.js "router.post('/client-event', requireToken" "the report endpoint needs a token"
 check server/routes/playback.js "body.event !== 'media-error'" "only the known event is accepted"
@@ -1116,6 +1116,15 @@ check public/js/components/VideoPlayer.js "if (!options.isRetry) this._audioRetr
 check public/js/components/VideoPlayer.js "this.rememberAudioEncode(this.currentChannel, false)" "a flag that did not help is forgotten"
 check test/player-audio-retry.test.js "can never loop" "the retry logic has tests"
 check test/audio-encode.test.js "smart copy" "the server side has tests"
+
+echo "=== 0069: cleared-source errors are not playback failures ==="
+check public/js/components/VideoPlayer.js "isSourceCleared(video)" "the handler asks whether the source was just cleared"
+check public/js/components/VideoPlayer.js "video.getAttribute('src')" "by the src attribute, which is reliable (currentSrc is not: Chrome keeps the old URL)"
+check public/js/components/VideoPlayer.js "empty src attribute" "with the browser's own message as a second check"
+# The bug: gating on currentSrc alone. It must not be the only guard again.
+check_absent public/js/components/VideoPlayer.js "if (!video || !video.currentSrc || !video.error) return;" "no currentSrc-only guard left (Chrome keeps the old URL there)"
+check public/js/pages/WatchPage.js "empty src attribute" "WatchPage does not log the routine cleared-source event"
+check test/player-media-error.test.js "with the old URL still in currentSrc" "the real Chrome sequence is tested"
 
 if [ $FAIL -eq 0 ]; then
     echo ""

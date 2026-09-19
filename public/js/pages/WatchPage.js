@@ -861,7 +861,9 @@ class WatchPage {
     onError(e) {
         // Only log actual fatal errors, not benign stream recovery events
         const error = this.video?.error;
-        if (error && error.code) {
+        // The shared <video> also raises "Empty src attribute" whenever any player
+        // clears it (a channel change): routine, not worth an error in the console.
+        if (error && error.code && !/empty src attribute/i.test(error.message || '')) {
             console.error('[WatchPage] Video error:', error.code, error.message);
         }
     }

@@ -1601,9 +1601,8 @@ class VideoPlayer {
      */
     handleMediaError() {
         const video = this.video;
-        // Clearing the source (stop(), changing channel) fires an error event
-        // too. That is not a failure.
-        if (!video || !video.currentSrc || !video.error) return;
+        if (!video || !video.error) return;
+        if (this.isSourceCleared(video)) return;
 
         const details = this.describeMediaError(video);
         console.error(`[Player] Media error: ${details.codeName} "${details.message}" (${details.strategy}, ${details.path})`, details);
@@ -1623,6 +1622,24 @@ class VideoPlayer {
             // asking for it.
             this.rememberAudioEncode(this.currentChannel, false);
         }
+    }
+
+    /**
+     * Was this error just the element reacting to its source being cleared?
+     * stop() sets src to '' (changing channel, replaying a failed stream), and the
+     * browser answers with "MEDIA_ELEMENT_ERROR: Empty src attribute" (code 4).
+     * That is routine, not a failure - and it must not be reported or shown.
+     *
+     * currentSrc is NOT a reliable signal for it: Chrome still holds the *previous*
+     * URL there while raising this error, which is how the first version of this
+     * handler mistook every channel change for a playback failure. The src
+     * attribute is: it is '' (or gone) once cleared. The message is a second,
+     * independent check.
+     */
+    isSourceCleared(video) {
+        const attribute = typeof video.getAttribute === 'function' ? video.getAttribute('src') : video.currentSrc;
+        if (!attribute) return true;
+        return /empty src attribute/i.test((video.error && video.error.message) || '');
     }
 
     /** A decode failure the browser attributes to the audio track. */

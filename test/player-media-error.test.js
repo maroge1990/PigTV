@@ -17,6 +17,8 @@ function failedVideo(overrides = {}) {
         error: { code: 3, message: 'PIPELINE_ERROR_DECODE: video decode error' },
         // What the remux URL really looks like: the provider's address AND login sit in ?url=, the session token in ?token=.
         currentSrc: 'http://pigtv.local:3000/api/remux?url=http%3A%2F%2Fprovider.example%2Flive%2Fmyuser%2Fmypassword%2F12345.ts&token=eyJsecrettoken',
+        // A playing element has its src attribute set; getAttribute follows currentSrc unless a test says otherwise.
+        getAttribute(name) { return name === 'src' ? this.currentSrc : null; },
         networkState: 2, readyState: 1, currentTime: 9.96,
         buffered: { length: 1, end: () => 9.87 },
         ...overrides
@@ -90,6 +92,42 @@ test('clearing the source is not a failure: changing channel must not raise an e
         assert.equal(reports.length, 0);
         assert.equal(statuses.length, 0);
     }
+});
+
+// What Chrome really does: stop() sets src = '' and the element raises code 4
+// "Empty src attribute" while currentSrc STILL holds the previous stream's URL.
+// The first version of the handler only checked currentSrc, so it reported every
+// channel change as a playback failure (and showed a red badge).
+const CLEARED_BY_CHROME = () => ({
+    error: { code: 4, message: 'MEDIA_ELEMENT_ERROR: Empty src attribute' },
+    getAttribute: (name) => (name === 'src' ? '' : null),
+    networkState: 3, readyState: 0, currentTime: 0, buffered: { length: 0, end() { throw new Error('none'); } }
+});
+
+test("Chrome's own 'Empty src attribute' error, with the old URL still in currentSrc, is ignored", () => {
+    const { proto, self, reports, statuses } = harness(failedVideo(CLEARED_BY_CHROME()));
+    assert.ok(self.video.currentSrc.includes('/api/remux'), 'the fixture reproduces the trap: currentSrc is still the old URL');
+    proto.handleMediaError.call(self);
+    assert.equal(reports.length, 0, 'nothing is reported to the server log');
+    assert.equal(statuses.length, 0, 'and no red badge appears');
+});
+
+test('the message alone is enough, even if the attribute is somehow still set', () => {
+    const { proto, self, reports } = harness(failedVideo({ error: { code: 4, message: 'MEDIA_ELEMENT_ERROR: Empty src attribute' } }));
+    proto.handleMediaError.call(self);
+    assert.equal(reports.length, 0);
+});
+
+test('a genuine failure right after a channel change is still reported (the guard is not a blanket mute)', () => {
+    const { proto, self, reports } = harness(failedVideo());
+    proto.handleMediaError.call(self);
+    assert.equal(reports.length, 1);
+    assert.equal(reports[0].codeName, 'MEDIA_ERR_DECODE');
+    // ...and an unsupported-format error is a real failure too, unlike the cleared-source one.
+    const other = harness(failedVideo({ error: { code: 4, message: 'MEDIA_ELEMENT_ERROR: Format error' } }));
+    other.proto.handleMediaError.call(other.self);
+    assert.equal(other.reports.length, 1);
+    assert.equal(other.reports[0].codeName, 'MEDIA_ERR_SRC_NOT_SUPPORTED');
 });
 
 test('while hls.js is driving, the badge is left to it, but the error is still recorded', () => {

@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0068** (0054–0067 pushed to main; 0068 written) |
-| Next patch number | **0069** |
+| Shipped through | **build 0069** (0054–0067 pushed to main; 0068–0069 written) |
+| Next patch number | **0070** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -108,6 +108,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0066 | Remux: AC-3 / E-AC-3 audio (`delay_moov`) — see below |
 | 0067 | EPG-icon `logo` fallback in `/api/library/*` (P1-3, server half) + §C plan — see below |
 | 0068 | Audio re-encode self-heal for the remux path (fixes the unreproduced web fault) — see below |
+| 0069 | Fix: 0065 reported every channel change as a playback error — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -439,7 +440,27 @@ the browser's memory:** clear that localStorage key. Tests: `test/player-audio-r
 (5), and 4 more cases in `test/remux-args.test.js`; verified through the real route with
 real ffmpeg and a damaged endless upstream (copy → decoder errors; `?audio=encode` → 0).
 
-**Post-deploy checks still owed by Mark:** badge reads **0068**; `docker logs`
+**0069 detail — a bug in 0065, found from Mark's console.** After 0065, the browser
+console showed `[Player] Media error: MEDIA_ERR_SRC_NOT_SUPPORTED "MEDIA_ELEMENT_ERROR:
+Empty src attribute" (local, /api/remux)` (plus WatchPage's own `[WatchPage] Video error:
+4 … Empty src attribute`). Cause: `stop()` sets `video.src = ''` on every channel change
+(and on 0068's replay), and the browser answers with that code-4 "Empty src attribute"
+error. 0065 meant to ignore it but tested `video.currentSrc === ''` — **Chrome still holds
+the *previous* URL in `currentSrc` while raising it**, so the check never fired. My test
+had assumed `''`, so it passed against a browser that doesn't behave that way. Effects: a
+red "Playback error" badge flashing on channel changes, and — whenever the old URL differed
+from the last one reported — a bogus `media-error MEDIA_ERR_SRC_NOT_SUPPORTED via local`
+line in `docker logs` (in Mark's case it was deduplicated against the earlier real report,
+which is why it stayed console-only). No effect on playback or on 0068's retry (code 4 is
+not an audio decode error). Fix: `isSourceCleared()` — the **`src` attribute** ('' or absent
+once cleared) is the reliable signal, with the "Empty src attribute" message as an
+independent second check; a genuine failure right after a channel change is still reported
+(tests cover both directions). WatchPage's own listener now skips the same routine event.
+Tests: 3 new cases in `test/player-media-error.test.js` modelling what Chrome really does;
+2 fail against the 0065 handler. **Lesson recorded:** browser-behaviour assumptions in a
+`vm` test are only as good as the fixture — the fixture now encodes the real Chrome sequence.
+
+**Post-deploy checks still owed by Mark:** badge reads **0069**; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
 `SELECT COUNT(*) FROM epg_live` matches the XMLTV `<programme` count (final
 verification of 0047; use `epg_live` since 0056 — `epg_programs` can briefly hold two
@@ -474,7 +495,8 @@ check: when that channel's fault next recurs, `docker logs pigtv | grep media-er
 (`docker logs`: the `media-error … audio packet` line, then `Codecs: … (audio re-encode)`
 on the replay). Select it again later: it should start re-encoded straight away with
 no error. If it still fails after the replay, that line appears again and the browser
-forgets the flag — send me it.
+forgets the flag — send me it; 0069 live check: changing channel shows **no** red badge and no
+`Media error … Empty src attribute` in the console or `docker logs`.
 
 ---
 
