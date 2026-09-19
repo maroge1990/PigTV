@@ -3,13 +3,15 @@ const router = express.Router();
 const { spawn } = require('child_process');
 const db = require('../db');
 const { redact } = require('../redact');
+const { createStallWatchdog } = require('../services/stallWatchdog');
 
 // Active remux processes, so they can be listed and killed like transcode
 // sessions can. Without this registry a remuxed stream is invisible to any
 // management tooling: it only ends when its client disconnects, and a client
 // that went away without closing the socket leaves ffmpeg running against the
 // provider indefinitely.
-const activeRemuxes = new Map(); // id -> { id, url, proc, startedAt, res }
+// lastOutputAt is null until ffmpeg has produced its first bytes.
+const activeRemuxes = new Map(); // id -> { id, url, proc, startedAt, res, lastOutputAt }
 let remuxCounter = 0;
 
 function listActiveRemuxes() {
@@ -18,7 +20,11 @@ function listActiveRemuxes() {
         url: r.url,
         type: 'remux',
         startTime: r.startedAt,
-        idleMs: Date.now() - r.startedAt
+        // Time since media last flowed to the client, the same question
+        // idleMs answers for an HLS session ("has anyone fetched anything
+        // lately?"). It used to be time since the remux *started*, which
+        // grows for a perfectly healthy stream and meant nothing.
+        idleMs: Date.now() - (r.lastOutputAt ?? r.startedAt)
     }));
 }
 
@@ -242,14 +248,48 @@ router.get('/', async (req, res) => {
     const remuxId = `remux_${++remuxCounter}`;
     const startedAt = Date.now();
     let ffmpegExited = false;
-    activeRemuxes.set(remuxId, {
+    const entry = {
         id: remuxId,
         url,
         proc: ffmpeg,
         res,
-        startedAt
-    });
+        startedAt,
+        lastOutputAt: null
+    };
+    activeRemuxes.set(remuxId, entry);
     console.log(`[Remux] Started ${remuxId} (${activeRemuxes.size} active)`);
+
+    // Bytes leaving ffmpeg are the only proof it is doing its job. This
+    // listener rides alongside pipe(): when the client stops reading, pipe()
+    // pauses stdout and these events stop too, which is exactly what idleMs
+    // should reflect.
+    ffmpeg.stdout.on('data', () => { entry.lastOutputAt = Date.now(); });
+
+    // A dropped upstream leaves ffmpeg alive but silent, retrying forever
+    // under its -reconnect flags, still holding the provider's only
+    // connection. Kill it once it has produced nothing for too long.
+    let lastBackpressureAt = null;
+    const watchdog = createStallWatchdog({
+        label: `Remux ${remuxId}`,
+        getLastActivity: () => {
+            // Silence because the *client* is not reading (paused tab,
+            // stalled network) is not ffmpeg's fault: it is blocked writing
+            // to a full pipe. Only silence with the pipe open is a stall.
+            // Remembering when that was last seen means that after the client
+            // resumes, ffmpeg gets a full stall window to deliver, rather than
+            // being judged against output from before the pause.
+            if (ffmpeg.stdout.isPaused() || res.writableNeedDrain) lastBackpressureAt = Date.now();
+            return Math.max(entry.lastOutputAt ?? 0, lastBackpressureAt ?? 0) || null;
+        },
+        onStall: () => {
+            console.error(`[Remux] Releasing stalled ${remuxId} for ${redact(url)}`);
+            if (stderrTail.length) {
+                console.error(`[Remux] Last ffmpeg output for ${remuxId}:`);
+                stderrTail.forEach(line => console.error(`[Remux]   ${redact(line)}`));
+            }
+            killRemux(remuxId);
+        }
+    });
 
     // Cleanup on client disconnect.
     // req 'close' also fires when the response ends, including because ffmpeg
@@ -266,6 +306,7 @@ router.get('/', async (req, res) => {
     // Handle process exit
     ffmpeg.on('exit', (code) => {
         ffmpegExited = true;
+        watchdog.stop();
         activeRemuxes.delete(remuxId);
         if (code !== null && code !== 0 && code !== 255) {
             const alive = Math.round((Date.now() - startedAt) / 1000);

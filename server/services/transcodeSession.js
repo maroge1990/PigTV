@@ -19,6 +19,7 @@ const { redact } = require('../redact');
 const crypto = require('crypto');
 const EventEmitter = require('events');
 const hwDetect = require('./hwDetect');
+const { createStallWatchdog, STALL_TIMEOUT_MS, STARTUP_GRACE_MS } = require('./stallWatchdog');
 
 // Session storage
 const sessions = new Map();
@@ -47,6 +48,12 @@ const HLS_LIST_SIZE = 90;
 // to disk use - ~102 vs 90 segments per session, still comfortably inside the
 // 2 GB tmpfs.
 const HLS_DELETE_THRESHOLD = 12;
+// How long a running session's directory may go without any file being
+// written before ffmpeg is treated as stalled (see stallWatchdog.js). Segments
+// are only closed - and, for fMP4, only flushed - at keyframe boundaries, so
+// keep a floor of five segment durations even if the shared timeout is tuned
+// down via PIGTV_STALL_TIMEOUT_MS.
+const HLS_STALL_MS = Math.max(STALL_TIMEOUT_MS, SEGMENT_DURATION * 5 * 1000);
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // Check every 5 minutes
 
 /**
@@ -145,6 +152,7 @@ class TranscodeSession extends EventEmitter {
 
             this.status = 'running';
             this.timings.spawned = Date.now();
+            this.startWatchdog();
 
             // Handle stdout (should be empty for file output)
             this.process.stdout.on('data', (data) => {
@@ -172,6 +180,7 @@ class TranscodeSession extends EventEmitter {
 
             // Handle process exit
             this.process.on('exit', (code) => {
+                this.stopWatchdog();
                 if (code === 0 || code === null) {
                     console.log(`[TranscodeSession ${this.id}] FFmpeg completed successfully`);
                     this.status = 'stopped';
@@ -217,6 +226,7 @@ class TranscodeSession extends EventEmitter {
             // Handle spawn errors
             this.process.on('error', (err) => {
                 console.error(`[TranscodeSession ${this.id}] FFmpeg error:`, err);
+                this.stopWatchdog();
                 this.status = 'error';
                 this.error = err.message;
                 this.emit('error', err);
@@ -773,6 +783,7 @@ class TranscodeSession extends EventEmitter {
         if (this._stopPromise) return this._stopPromise;
 
         this.status = 'stopped';
+        this.stopWatchdog();
 
         if (!this.process) {
             this._stopPromise = Promise.resolve();
@@ -813,6 +824,77 @@ class TranscodeSession extends EventEmitter {
      */
     touch() {
         this.lastAccess = Date.now();
+    }
+
+    /**
+     * Epoch ms of the newest file ffmpeg has written into the session
+     * directory (segments, their .tmp while being written, playlist, init
+     * segment), or null if it has written nothing yet.
+     *
+     * File writes are the honest signal for "ffmpeg is producing media".
+     * Its stderr is no use: a dead upstream makes it louder, not quieter,
+     * because every reconnect attempt logs. session.json is ours, not
+     * ffmpeg's, so it is ignored.
+     */
+    async latestOutputAt() {
+        let names;
+        try {
+            names = await fs.readdir(this.dir);
+        } catch {
+            return null;
+        }
+        let latest = null;
+        for (const name of names) {
+            if (name === 'session.json') continue;
+            try {
+                const { mtimeMs } = await fs.stat(path.join(this.dir, name));
+                if (latest === null || mtimeMs > latest) latest = mtimeMs;
+            } catch { /* rotated out by delete_segments between readdir and stat */ }
+        }
+        return latest;
+    }
+
+    startWatchdog() {
+        this.stopWatchdog();
+        this._watchdog = createStallWatchdog({
+            label: `TranscodeSession ${this.id}`,
+            getLastActivity: () => this.latestOutputAt(),
+            onStall: () => this.handleStall(),
+            stallMs: this.options.stallMs ?? HLS_STALL_MS,
+            startupMs: this.options.startupMs ?? STARTUP_GRACE_MS,
+            checkIntervalMs: this.options.watchdogIntervalMs
+        });
+    }
+
+    stopWatchdog() {
+        if (this._watchdog) {
+            this._watchdog.stop();
+            this._watchdog = null;
+        }
+    }
+
+    /**
+     * ffmpeg is alive but has stopped producing media. Remove the whole
+     * session, not just the process: a session left in the registry still
+     * counts as a provider connection to the coordinator, which is the very
+     * thing being freed. The client's next playlist request 404s and it
+     * re-resolves.
+     */
+    async handleStall() {
+        console.error(`[TranscodeSession ${this.id}] Releasing stalled session for ${redact(this.url)}`);
+        if (this.stderrTail.length) {
+            console.error(`[TranscodeSession ${this.id}] Last ffmpeg output:`);
+            this.stderrTail.forEach(line => console.error(`[TranscodeSession ${this.id}]   ${redact(line)}`));
+        }
+        // Drop it from the registry before waiting on ffmpeg to die, so the
+        // coordinator stops counting it straight away rather than after
+        // stop()'s SIGTERM/SIGKILL grace period. cleanup() is idempotent.
+        sessions.delete(this.id);
+        try {
+            await this.cleanup();
+        } catch (err) {
+            console.error(`[TranscodeSession ${this.id}] Could not clean up stalled session:`, err.message);
+        }
     }
 
     /**

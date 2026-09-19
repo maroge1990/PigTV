@@ -900,6 +900,28 @@ check server/db.js "if (cachedDb) return structuredClone(cachedDb)" "loadDb serv
 check server/db.js "cachedDb = structuredClone(data)" "saveDb keeps the cache authoritative (write-through)"
 check server/index.js "saveUninitialized: false" "session not created for cookieless requests (MemoryStore leak)"
 
+echo "=== 0054: ffmpeg output-inactivity watchdog ==="
+check server/version.js "const BUILD = '0054'" "build number bumped to this patch"
+check server/services/stallWatchdog.js "function createStallWatchdog" "shared watchdog exists"
+check server/services/stallWatchdog.js "PIGTV_STALL_TIMEOUT_MS" "stall limit is tunable without a patch"
+# Both delivery paths read the same live input with the same reconnect flags,
+# so both need the watchdog, and it has to be started on the real process.
+check server/routes/remux.js "createStallWatchdog(" "remux path runs the watchdog"
+check server/services/transcodeSession.js "createStallWatchdog(" "HLS session path runs the watchdog"
+check server/services/transcodeSession.js "this.startWatchdog()" "HLS watchdog started once ffmpeg is spawned"
+check server/services/transcodeSession.js "this.stopWatchdog()" "HLS watchdog stopped when ffmpeg exits / session stops"
+check server/routes/remux.js "watchdog.stop()" "remux watchdog stopped when ffmpeg exits"
+# Silence with the client not reading (paused tab, full pipe) is the client's
+# doing, not ffmpeg's. Without this guard a paused viewer gets killed.
+check server/routes/remux.js "writableNeedDrain" "remux does not treat client backpressure as a stall"
+# Remux idle accounting: idleMs must mean 'time since media last flowed', and
+# the coordinator must use it instead of pretending every remux is busy.
+check server/routes/remux.js "r.lastOutputAt ?? r.startedAt" "remux idleMs measured from last output"
+check_absent server/routes/remux.js "idleMs: Date.now() - r.startedAt" "remux idleMs no longer grows for a healthy stream"
+check_absent server/services/streamCoordinator.js "idleMs: 0," "coordinator no longer hard-codes remux idleMs to 0"
+check test/stall-watchdog.test.js "createStallWatchdog" "watchdog has unit tests"
+check test/remux-watchdog.test.js "goes silent" "remux stall has an end-to-end test"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

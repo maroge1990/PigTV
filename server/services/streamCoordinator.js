@@ -50,9 +50,10 @@ function activeStreams() {
             id: r.id,
             type: 'remux',
             url: r.url,
-            // A remux is a live pipe: it only exists while a client is
-            // connected, so its presence is itself proof of a viewer.
-            idleMs: 0,
+            // Time since media last flowed to the client, so a remux the
+            // client has stopped reading goes stale like an HLS session
+            // nobody is fetching from.
+            idleMs: r.idleMs,
             startTime: r.startTime
         }));
     } catch (err) {
