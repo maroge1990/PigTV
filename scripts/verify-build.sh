@@ -1078,7 +1078,7 @@ check test/player-media-error.test.js "never throws into playback" "the player s
 echo "=== 0066: AC-3 / E-AC-3 through the remux ==="
 check server/routes/remux.js "function remuxFixes" "codec-driven fix-ups are decided in one place"
 check server/routes/remux.js "function buildRemuxArgs" "the remux arguments are a testable function"
-check server/routes/remux.js "needsDelayMoov: audioCodec === 'ac3' || audioCodec === 'eac3'" "delay_moov only for AC-3/E-AC-3 (everything else keeps today's flags)"
+check server/routes/remux.js "needsDelayMoov: (audioCodec === 'ac3' || audioCodec === 'eac3')" "delay_moov only for AC-3/E-AC-3 (everything else keeps today's flags)"
 check server/routes/remux.js "frag_keyframe+empty_moov+default_base_moof+delay_moov" "the delayed-header movflags exist"
 check server/routes/remux.js "const args = buildRemuxArgs(url, userAgent, fixes);" "the route uses the function, not a second inline copy"
 check_absent server/routes/remux.js "{needsAdtsToAsc" "no stale references to the old inline flag variables (only fixes.* remain)"
@@ -1096,6 +1096,26 @@ else
 fi
 check server/routes/library.js "if (ch.logo) continue;" "a playlist-supplied logo is never replaced"
 check test/library-logos.test.js "never replaced" "the fallback has tests"
+
+echo "=== 0068: Audio re-encode self-heal (remux path) ==="
+check server/routes/remux.js "req.query.audio === 'encode'" "the remux honours ?audio=encode"
+check server/routes/remux.js "'-c:a', 'aac', '-b:a', '160k', '-ac', '2', '-ar', '48000', '-af', 'aresample=async=1'" "the audio re-encode arguments exist"
+# The output of the re-encode is raw AAC: the ADTS->ASC filter would refuse it, and
+# delay_moov is only for AC-3/E-AC-3, which the re-encode replaces.
+check server/routes/remux.js "needsAdtsToAsc: audioCodec === 'aac' && !encodeAudio" "no aac_adtstoasc on re-encoded audio"
+check server/routes/remux.js "&& !encodeAudio" "no delay_moov on re-encoded audio"
+check server/services/playbackStrategy.js "&audio=encode" "resolve can ask for it on the remux URL"
+check server/services/playbackStrategy.js "audioEncode ? 'encode'" "resolve can ask for it on an HLS session"
+check server/routes/playback.js "audioEncode: audioEncode === true" "the resolve route passes only a real boolean through"
+# 'encode' must beat the smart-copy shortcuts or a stereo AAC source is copied again.
+check server/services/transcodeSession.js "const forceEncode = this.options.audioMode === 'encode'" "an explicit encode request exists in the session builder"
+check server/services/transcodeSession.js "isStereoAac && !forceEncode" "smart copy no longer overrides an explicit encode"
+check public/js/components/VideoPlayer.js "shouldRetryWithAudioEncode(details)" "the player retries a failed remux"
+check public/js/components/VideoPlayer.js "if (this._audioEncodeActive) return false;" "it never retries a play that was already re-encoding (no loop)"
+check public/js/components/VideoPlayer.js "if (!options.isRetry) this._audioRetryKey = null;" "each fresh selection gets one retry, the retry itself does not"
+check public/js/components/VideoPlayer.js "this.rememberAudioEncode(this.currentChannel, false)" "a flag that did not help is forgotten"
+check test/player-audio-retry.test.js "can never loop" "the retry logic has tests"
+check test/audio-encode.test.js "smart copy" "the server side has tests"
 
 if [ $FAIL -eq 0 ]; then
     echo ""

@@ -58,13 +58,14 @@ function harness(video) {
     const reports = [];
     const statuses = [];
     const proto = loadPlayer();
-    const self = {
+    // Inherit the real methods: handleMediaError calls several of its siblings.
+    const self = Object.assign(Object.create(proto), {
         video, hls: null, currentStrategy: 'remux',
+        currentChannel: { sourceId: 1, id: 'c1' }, currentStreamUrl: 'http://provider.invalid/1.ts',
         loadingSpinner: { classList: { remove() {} } },
         updateTranscodeStatus: (mode, text) => statuses.push({ mode, text }),
-        describeMediaError: proto.describeMediaError,
         reportClientEvent: (payload) => reports.push(payload)
-    };
+    });
     return { proto, self, reports, statuses };
 }
 

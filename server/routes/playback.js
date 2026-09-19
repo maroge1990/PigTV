@@ -89,7 +89,7 @@ async function streamUrlForChannel(sourceId, channelId) {
  */
 router.post('/resolve', requireToken, async (req, res) => {
     try {
-        const { sourceId, channelId, url: directUrl, capabilities, upscale, force } = req.body || {};
+        const { sourceId, channelId, url: directUrl, capabilities, upscale, force, audioEncode } = req.body || {};
 
         let url = directUrl;
         if (!url) {
@@ -151,6 +151,7 @@ router.post('/resolve', requireToken, async (req, res) => {
             settings,
             ffprobePath: req.app.locals.ffprobePath,
             upscale: upscale === true,
+            audioEncode: audioEncode === true,
             owner,
             // A channel is live TV; a bare url could be anything, so leave it
             // on the longer seekable-session timeout.

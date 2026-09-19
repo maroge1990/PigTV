@@ -133,16 +133,24 @@ function detectCodecs(url, ffprobePath, userAgent, timeoutMs = 8000) {
 /**
  * Which fix-ups the MP4 muxer needs for a stream with these codecs.
  */
-function remuxFixes(codecs) {
+function remuxFixes(codecs, { encodeAudio = false } = {}) {
     const audioCodec = codecs?.audio || null;
     const videoCodec = (codecs?.video || '').toLowerCase();
     return {
         audioCodec,
         videoCodec,
+        // Re-encode the audio to clean AAC-LC stereo instead of copying it. A copy
+        // hands the browser exactly the frames the provider sent, and a damaged one
+        // (packet loss on the feed) makes Chrome's decoder abort the whole element
+        // ("Failed to send audio packet for decoding"); the ffmpeg decoder in a
+        // re-encode conceals it. Video is still copied, so this costs a sliver of
+        // CPU. Asked for by the player after such a failure (?audio=encode).
+        encodeAudio,
         // aac_adtstoasc is required for AAC-in-MPEG-TS to survive the move into
         // MP4, but it refuses to initialise on any other audio, so it is only
-        // added when the probe says the audio really is AAC.
-        needsAdtsToAsc: audioCodec === 'aac',
+        // added when the probe says the audio really is AAC - and not at all
+        // when the audio is being re-encoded, whose output is already raw AAC.
+        needsAdtsToAsc: audioCodec === 'aac' && !encodeAudio,
         // HEVC in fMP4 must be tagged hvc1 or browsers refuse the track. Without
         // this, an HEVC channel that could be remuxed at near-zero cost falls
         // back to a full re-encode.
@@ -154,7 +162,7 @@ function remuxFixes(codecs) {
         // fragment. Only for these codecs: it delays the start of every stream
         // by up to a keyframe interval, so the ones that work today are left as
         // they are.
-        needsDelayMoov: audioCodec === 'ac3' || audioCodec === 'eac3'
+        needsDelayMoov: (audioCodec === 'ac3' || audioCodec === 'eac3') && !encodeAudio
     };
 }
 
@@ -209,6 +217,10 @@ function buildRemuxArgs(url, userAgent, fixes = {}) {
     if (fixes.needsAdtsToAsc) {
         // Insert just before the output argument
         args.splice(args.length - 1, 0, '-bsf:a', 'aac_adtstoasc');
+    }
+    if (fixes.encodeAudio) {
+        // Same settings the HLS session uses to normalise audio.
+        args.splice(args.length - 1, 0, '-c:a', 'aac', '-b:a', '160k', '-ac', '2', '-ar', '48000', '-af', 'aresample=async=1');
     }
     if (fixes.needsHvc1Tag) {
         args.splice(args.length - 1, 0, '-tag:v', 'hvc1');
@@ -285,10 +297,10 @@ router.get('/', async (req, res) => {
         return res.status(503).json({ error: 'Could not identify the stream. The provider may be refusing a second connection; try again.' });
     }
     if (found.source) console.log(`[Remux] Codecs from ${found.source}`);
-    const fixes = remuxFixes(codecs);
+    const fixes = remuxFixes(codecs, { encodeAudio: req.query.audio === 'encode' });
     console.log(`[Remux] Codecs: video=${fixes.videoCodec || 'unknown'}, audio=${fixes.audioCodec || 'unknown'}` +
         `${fixes.needsAdtsToAsc ? ' (aac_adtstoasc)' : ''}${fixes.needsHvc1Tag ? ' (tag hvc1)' : ''}` +
-        `${fixes.needsDelayMoov ? ' (delay_moov)' : ''}`);
+        `${fixes.needsDelayMoov ? ' (delay_moov)' : ''}${fixes.encodeAudio ? ' (audio re-encode)' : ''}`);
 
     console.log(`[Remux] Starting remux for: ${redact(url)}`);
     console.log(`[Remux] Using User-Agent: ${settings.userAgentPreset}`);

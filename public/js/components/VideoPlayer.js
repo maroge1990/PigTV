@@ -896,10 +896,13 @@ class VideoPlayer {
      * Returns null if the endpoint is unavailable, so an older server falls
      * back to the original path rather than failing outright.
      */
-    async resolvePlayback(channel, streamUrl, { force = false } = {}) {
+    async resolvePlayback(channel, streamUrl, { force = false, audioEncode = false } = {}) {
         const caps = this.getCodecCapabilities();
         const body = {
             force,
+            // Ask for the audio to be re-encoded rather than copied: for a channel
+            // whose audio frames this browser's decoder has already failed on.
+            audioEncode: audioEncode || this.needsAudioEncode(channel),
             capabilities: {
                 ...caps,
                 hls: !!(window.Hls && window.Hls.isSupported()) || this.video.canPlayType('application/vnd.apple.mpegurl') !== '',
@@ -938,7 +941,7 @@ class VideoPlayer {
                     this.updateTranscodeStatus('idle', otherViewer ? 'Another device is watching' : 'Recording in progress');
                     return null;
                 }
-                return this.resolvePlayback(channel, streamUrl, { force: true });
+                return this.resolvePlayback(channel, streamUrl, { force: true, audioEncode });
             }
             if (!res.ok) return null;
             const decision = await res.json();
@@ -1174,8 +1177,13 @@ class VideoPlayer {
     /**
      * Play a channel
      */
-    async play(channel, streamUrl) {
+    async play(channel, streamUrl, options = {}) {
         this.currentChannel = channel;
+        this.currentStreamUrl = streamUrl;
+        // A fresh selection gets its own single audio-re-encode retry; the retry
+        // itself does not (that is what stops it looping).
+        if (!options.isRetry) this._audioRetryKey = null;
+        this._audioEncodeActive = options.audioEncode === true || this.needsAudioEncode(channel);
 
         try {
             // Stop any WatchPage playback (movies/series) before starting Live TV
@@ -1198,7 +1206,7 @@ class VideoPlayer {
             // Server-side strategy. Falls through to the original local logic
             // when the endpoint is not available.
             if (this.settings.autoTranscode) {
-                const decision = await this.resolvePlayback(channel, streamUrl);
+                const decision = await this.resolvePlayback(channel, streamUrl, { audioEncode: options.audioEncode === true });
                 if (decision) {
                     await this.playDecision(decision, channel);
                     return;
@@ -1607,6 +1615,75 @@ class VideoPlayer {
             this._reportedMediaErrorFor = video.currentSrc;
             this.reportClientEvent({ event: 'media-error', ...details });
         }
+
+        if (this.shouldRetryWithAudioEncode(details)) {
+            this.retryWithAudioEncode();
+        } else if (this._audioEncodeActive && this.isAudioDecodeError(details)) {
+            // Re-encoding the audio did not help this channel, so do not keep
+            // asking for it.
+            this.rememberAudioEncode(this.currentChannel, false);
+        }
+    }
+
+    /** A decode failure the browser attributes to the audio track. */
+    isAudioDecodeError(details) {
+        return details.code === 3 && /audio/i.test(details.message || '');
+    }
+
+    /**
+     * Should a failed remux be replayed with the audio re-encoded? Chrome aborts
+     * the whole element when its decoder rejects one audio frame, and a copied
+     * stream hands it exactly what the provider sent, damaged frames included
+     * (ffmpeg conceals them when it re-encodes). Only for an audio decode error on
+     * a remux stream that was not already re-encoding, and only once per selection:
+     * a video error, an hls.js stream (which manages its own recovery) or a second
+     * failure gains nothing from it.
+     */
+    shouldRetryWithAudioEncode(details) {
+        if (!this.isAudioDecodeError(details)) return false;
+        if (this.hls || this.currentStrategy !== 'remux') return false;
+        if (this._audioEncodeActive) return false;
+        const key = this.channelKey(this.currentChannel);
+        return !!key && !!this.currentStreamUrl && this._audioRetryKey !== key;
+    }
+
+    async retryWithAudioEncode() {
+        const channel = this.currentChannel;
+        const key = this.channelKey(channel);
+        if (!key) return;
+        this._audioRetryKey = key;
+        this.rememberAudioEncode(channel, true);
+        console.warn('[Player] Audio decode failed on a remux stream; replaying with the audio re-encoded');
+        await this.play(channel, this.currentStreamUrl, { audioEncode: true, isRetry: true });
+        this.updateTranscodeStatus('remuxing', 'Remux (audio re-encoded)');
+    }
+
+    channelKey(channel) {
+        return channel && channel.sourceId !== undefined && channel.id !== undefined
+            ? `${channel.sourceId}:${channel.id}` : null;
+    }
+
+    /** Channels whose audio this browser could not decode as sent, remembered locally. */
+    loadAudioEncodeChannels() {
+        try {
+            const list = JSON.parse(localStorage.getItem('pigtv_audio_encode') || '[]');
+            return Array.isArray(list) ? list : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    needsAudioEncode(channel) {
+        const key = this.channelKey(channel);
+        return !!key && this.loadAudioEncodeChannels().includes(key);
+    }
+
+    rememberAudioEncode(channel, on) {
+        const key = this.channelKey(channel);
+        if (!key) return;
+        let list = this.loadAudioEncodeChannels().filter(k => k !== key);
+        if (on) list = [...list, key].slice(-200);
+        try { localStorage.setItem('pigtv_audio_encode', JSON.stringify(list)); } catch (e) { /* remembering is optional */ }
     }
 
     /** Best-effort diagnostics to the server. Must never affect playback. */

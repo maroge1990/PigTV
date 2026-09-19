@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0067** (0054–0064 pushed to main; 0065–0067 written) |
-| Next patch number | **0068** |
+| Shipped through | **build 0068** (0054–0067 pushed to main; 0068 written) |
+| Next patch number | **0069** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -107,6 +107,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0065 | Web player reports media errors (client → `docker logs`) — see below |
 | 0066 | Remux: AC-3 / E-AC-3 audio (`delay_moov`) — see below |
 | 0067 | EPG-icon `logo` fallback in `/api/library/*` (P1-3, server half) + §C plan — see below |
+| 0068 | Audio re-encode self-heal for the remux path (fixes the unreproduced web fault) — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -402,7 +403,43 @@ Known limitation: name matching can pair two different channels that share a nam
 source to supply an icon wins). Tests: `test/library-logos.test.js` (6 cases through the
 real routes; 3 fail against the old code).
 
-**Post-deploy checks still owed by Mark:** badge reads **0067**; `docker logs`
+**0068 detail — the unreproduced web-playback fault, diagnosed.** 0065's error log
+caught it on the next occurrence:
+`[Player] media-error MEDIA_ERR_DECODE(3) via remux … msg="PipelineStatus::PIPELINE_ERROR_DECODE: Failed to send audio packet for decoding: {timestamp:25066646 duration:21333 size:355 …}" t=25.1s`.
+So: the server side is healthy; **Chrome's audio decoder rejected one AAC frame ~25 s in**
+(a normal-sized frame: 355 B / 21 ms = one AAC-LC frame), and Chrome aborts the *whole*
+`<video>` on a single rejected audio frame, dropping the connection. The remux **copies**
+the provider's audio, so it hands the browser exactly what was sent, damaged frames
+included; an ffmpeg-based player conceals them. Reproduced the class with real ffmpeg by
+damaging audio bytes of a TS: the copy output contains AAC frames that fail decoding
+(`channel element 2.7 is not allocated`, 20–56 errors) and even records a **wrong audio
+config in the MP4 header** (a stereo 48 kHz source came out declared mono 44.1 kHz,
+because a damaged ADTS header seeded the AudioSpecificConfig), while a re-encode gives
+0 errors and a correct header. **Not proven:** that this provider's channel actually
+carries damaged audio (I can't see the stream), or Chrome's exact rule — but a
+random-time audio-decode failure on one channel, every time, fits it, and the fix is
+harmless if wrong. (A mid-stream *config change* — channels/sample rate — was tested and
+does **not** break ffmpeg's decoder, so that hypothesis is unconfirmed.)
+**The fix — self-healing, not global.** `GET /api/remux?…&audio=encode` re-encodes only the
+audio to AAC-LC stereo 48 kHz / 160 kb/s with `aresample=async=1` (video still copied, so
+~no CPU; no `aac_adtstoasc`, no `delay_moov` since the output is plain AAC). `resolve`
+accepts `audioEncode:true` (adds `&audio=encode` to the remux URL; for HLS sessions sets a
+new `audioMode:'encode'` that **beats the "smart copy" shortcut** — a stereo AAC source is
+normally copied straight through in a session too). The web player: on a `MEDIA_ERR_DECODE`
+whose message mentions *audio*, on a **remux** stream that wasn't already re-encoding, it
+replays the channel **once** with `audioEncode`, and **remembers the channel** in
+`localStorage['pigtv_audio_encode']` (max 200) so it starts re-encoded next time. It can't
+loop (one retry per selection; a play already re-encoding never retries), ignores video
+errors and hls.js streams, and **forgets the flag if re-encoding didn't help**. Nothing
+changes for a channel that has never failed. Cost: an audio re-encode for that channel
+only. **Apple client:** the same `audioEncode` field works on `resolve` (both remux and
+HLS-session strategies) if AVPlayer ever shows the same class of failure — §B. **To reset
+the browser's memory:** clear that localStorage key. Tests: `test/player-audio-retry.test.js`
+(7, the real player script in a `vm`, incl. every no-retry case), `test/audio-encode.test.js`
+(5), and 4 more cases in `test/remux-args.test.js`; verified through the real route with
+real ffmpeg and a damaged endless upstream (copy → decoder errors; `?audio=encode` → 0).
+
+**Post-deploy checks still owed by Mark:** badge reads **0068**; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
 `SELECT COUNT(*) FROM epg_live` matches the XMLTV `<programme` count (final
 verification of 0047; use `epg_live` since 0056 — `epg_programs` can briefly hold two
@@ -432,7 +469,12 @@ too tight); 0064 live check: play several live channels back to back (web player
 any fails, `docker logs pigtv | grep -E "Codec probe failed|Not starting remux"` says why.
 A 503 that clears on retry means the provider is being slow to release connections; 0065 live
 check: when that channel's fault next recurs, `docker logs pigtv | grep media-error`
-(and the DevTools console) should name the reason; a normal channel change must show *no* error badge.
+(and the DevTools console) should name the reason; a normal channel change must show *no* error badge; 0068 live check: play the problem channel. Expect a brief
+"Playback error" badge, then "Remux (audio re-encoded)" and playback that continues
+(`docker logs`: the `media-error … audio packet` line, then `Codecs: … (audio re-encode)`
+on the replay). Select it again later: it should start re-encoded straight away with
+no error. If it still fails after the replay, that line appears again and the browser
+forgets the flag — send me it.
 
 ---
 

@@ -73,11 +73,37 @@ test('HEVC is tagged hvc1, alone and together with AC-3', () => {
 
 test('the fix-ups are decided from the codecs and nothing else', () => {
     assert.deepEqual(remuxFixes({ video: 'h264', audio: 'aac' }),
-        { audioCodec: 'aac', videoCodec: 'h264', needsAdtsToAsc: true, needsHvc1Tag: false, needsDelayMoov: false });
+        { audioCodec: 'aac', videoCodec: 'h264', encodeAudio: false, needsAdtsToAsc: true, needsHvc1Tag: false, needsDelayMoov: false });
     assert.deepEqual(remuxFixes({ video: 'HEVC', audio: 'eac3' }),
-        { audioCodec: 'eac3', videoCodec: 'hevc', needsAdtsToAsc: false, needsHvc1Tag: true, needsDelayMoov: true });
+        { audioCodec: 'eac3', videoCodec: 'hevc', encodeAudio: false, needsAdtsToAsc: false, needsHvc1Tag: true, needsDelayMoov: true });
     const unknown = remuxFixes(null);
     assert.equal(unknown.needsAdtsToAsc || unknown.needsHvc1Tag || unknown.needsDelayMoov, false);
+});
+
+const encodedFor = (video, audio) => buildRemuxArgs(URL_, UA, remuxFixes({ video, audio }, { encodeAudio: true }));
+
+test('audio re-encode: the audio becomes clean AAC-LC stereo while the video is still copied', () => {
+    const args = encodedFor('h264', 'aac');
+    const at = args.indexOf('-c:a');
+    assert.deepEqual(args.slice(at, at + 10), ['-c:a', 'aac', '-b:a', '160k', '-ac', '2', '-ar', '48000', '-af', 'aresample=async=1']);
+    assert.equal(args[args.indexOf('-c') + 1], 'copy', 'video is not re-encoded');
+    assert.equal(args[args.length - 1], '-');
+});
+
+test('audio re-encode: never the AAC filter (the encoder already emits raw AAC), and never delay_moov', () => {
+    for (const audio of ['aac', 'ac3', 'eac3', 'mp2']) {
+        const args = encodedFor('h264', audio);
+        assert.ok(!args.includes('aac_adtstoasc'), `${audio}: -bsf:a aac_adtstoasc would refuse to initialise`);
+        assert.equal(movflags(args), MOVFLAGS, `${audio}: AAC output needs no delayed header`);
+    }
+});
+
+test('audio re-encode leaves the video fix-ups alone: HEVC is still tagged hvc1', () => {
+    assert.ok(encodedFor('hevc', 'aac').join(' ').includes('-tag:v hvc1'));
+});
+
+test('without the request nothing changes: no re-encode flags appear on a normal stream', () => {
+    for (const audio of ['aac', 'ac3', 'mp3', null]) assert.ok(!argsFor('h264', audio).includes('-c:a'), String(audio));
 });
 
 test('the output is always the pipe, as fragmented MP4', () => {

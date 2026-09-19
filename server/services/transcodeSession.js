@@ -377,6 +377,12 @@ class TranscodeSession extends EventEmitter {
             }
         };
 
+        // audioMode 'encode' is an explicit request to re-encode, e.g. after the
+        // browser's decoder choked on the provider's audio frames. It must beat the
+        // "smart copy" shortcuts below, which would otherwise copy a stereo AAC
+        // source straight through - the very audio that failed.
+        const forceEncode = this.options.audioMode === 'encode';
+
         if (this.options.audioMode === 'copy' && !isHeAac) {
             // Caller (playbackStrategy) has already established via client
             // capabilities that this audio codec plays as-is and wants it
@@ -387,7 +393,7 @@ class TranscodeSession extends EventEmitter {
             // when nothing needs mixing in the first place.
             console.log(`[TranscodeSession ${this.id}] Audio: Copy (client capabilities confirm ${audioCodec} support)`);
             pushAudioCopy();
-        } else if (audioMixPreset === 'passthrough' && !isHeAac) {
+        } else if (audioMixPreset === 'passthrough' && !isHeAac && !forceEncode) {
             // Passthrough: Always copy audio, no processing
             console.log(`[TranscodeSession ${this.id}] Audio: Passthrough (copy)`);
             pushAudioCopy();
@@ -396,7 +402,7 @@ class TranscodeSession extends EventEmitter {
             // cheap even when the video is being stream-copied.
             console.log(`[TranscodeSession ${this.id}] Audio: HE-AAC source -> AAC-LC (browser cannot decode HE-AAC)`);
             args.push('-c:a', 'aac', '-profile:a', 'aac_low', '-ar', '48000', '-b:a', '128k');
-        } else if (audioMixPreset === 'auto' && isStereoAac) {
+        } else if (audioMixPreset === 'auto' && isStereoAac && !forceEncode) {
             // Auto + Stereo AAC source: Smart copy
             console.log(`[TranscodeSession ${this.id}] Audio: Auto (Smart Copy) - Source is Stereo AAC`);
             pushAudioCopy();

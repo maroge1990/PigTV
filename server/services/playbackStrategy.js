@@ -60,9 +60,12 @@ const DEFAULT_CAPABILITIES = {
  * @param {boolean} opts.upscale      force an encode for upscaling
  * @param {string}  opts.owner        who is asking (see streamCoordinator.ownerKey)
  * @param {boolean} opts.live         live TV, as opposed to something seekable
+ * @param {boolean} opts.audioEncode  re-encode the audio rather than copying it (remux and
+ *                                    HLS-session strategies), for a stream whose audio
+ *                                    frames the client's decoder could not cope with
  * @returns {Promise<object>} a decision, including a playable URL
  */
-async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale = false, owner = null, live = false }) {
+async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale = false, owner = null, live = false, audioEncode = false }) {
     const caps = { ...DEFAULT_CAPABILITIES, ...capabilities };
     const userAgent = db.getUserAgent(settings);
 
@@ -114,7 +117,7 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     if (codecsOk && !caps.segmentedDelivery) {
         return {
             strategy: 'remux',
-            url: `/api/remux?url=${encoded}`,
+            url: `/api/remux?url=${encoded}${audioEncode ? '&audio=encode' : ''}`,
             container: 'fmp4',
             info,
             reason: 'Codecs are fine; only the container needs changing'
@@ -156,7 +159,7 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
         vaapiHwDecode: settings.vaapiHwDecode !== false,
         segmentType,
         videoMode,
-        audioMode: codecsOk ? 'copy' : undefined,
+        audioMode: audioEncode ? 'encode' : (codecsOk ? 'copy' : undefined),
         videoCodec: info.video,
         audioCodec: info.audio,
         audioChannels: info.audioChannels,
