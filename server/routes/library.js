@@ -16,6 +16,15 @@ const router = express.Router();
 const { requireAuth } = require('../auth');
 const { getDb } = require('../db/sqlite');
 
+// The longest programme the guide will still show when it began before the
+// window. Every EPG query bounds start_time from below by this, because the
+// index is (channel_id, start_time, end_time): with only "end_time > from" to go
+// on, SQLite walks every programme a channel has ever had before the window
+// (the whole feed - days of it) just to discard them. A programme that began
+// more than a day earlier and is still running is not something a guide row
+// can usefully show.
+const MAX_PROGRAMME_MS = 24 * 60 * 60 * 1000;
+
 router.use(requireAuth);
 
 const clamp = (v, min, max, fallback) => {
@@ -38,9 +47,9 @@ function nowNextFor(tvgIds) {
         SELECT channel_id, title, start_time, end_time
         FROM epg_live
         WHERE channel_id IN (${placeholders})
-          AND end_time > ? AND start_time < ?
+          AND start_time > ? AND end_time > ? AND start_time < ?
         ORDER BY channel_id ASC, start_time ASC
-    `).all(...tvgIds, now, now + 6 * 60 * 60 * 1000);
+    `).all(...tvgIds, now - MAX_PROGRAMME_MS, now, now + 6 * 60 * 60 * 1000);
 
     const out = {};
     for (const r of rows) {
@@ -252,9 +261,9 @@ router.get('/guide', (req, res) => {
             const progs = db.prepare(`
                 SELECT channel_id, title, description, start_time, end_time
                 FROM epg_live
-                WHERE channel_id IN (${ph}) AND end_time > ? AND start_time < ?
+                WHERE channel_id IN (${ph}) AND start_time > ? AND end_time > ? AND start_time < ?
                 ORDER BY start_time ASC
-            `).all(...tvgIds, start, end);
+            `).all(...tvgIds, start - MAX_PROGRAMME_MS, start, end);
 
             const byChannel = new Map();
             for (const pr of progs) {

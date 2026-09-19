@@ -75,6 +75,9 @@ function initSchema() {
         );
         CREATE INDEX IF NOT EXISTS idx_items_source_type ON playlist_items(source_id, type);
         CREATE INDEX IF NOT EXISTS idx_items_category ON playlist_items(source_id, category_id);
+        -- Lookups by item id: resolving a channel to its URL, the favourites join,
+        -- recording resolution. Without it each one scans the source's rows.
+        CREATE INDEX IF NOT EXISTS idx_items_source_item ON playlist_items(source_id, item_id);
     `);
 
     // Migration: add sort_order column to existing databases.

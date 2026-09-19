@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0059** (0054–0059 written, awaiting Mark's apply + deploy) |
-| Next patch number | **0060** |
+| Shipped through | **build 0060** (0054–0060 written, awaiting Mark's apply + deploy) |
+| Next patch number | **0061** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -99,6 +99,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0057 | HLS segment route hardening (P2-4, traversal half) — see below |
 | 0058 | `?token=` carried through the HLS *proxy* rewriter (P2-5) — see below |
 | 0059 | Favourites id normalisation + migration (P1-3, server half) — see below |
+| 0060 | Guide query bounds + item-id index (P2-3, partial) — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -223,7 +224,22 @@ tables and deserves its own patch. Tests: `test/favourites-ids.test.js` (6
 cases incl. a legacy-database migration and the two cross-client scenarios
 through the real routes; 4 fail against the old code).
 
-**Post-deploy checks still owed by Mark:** badge reads **0059**; `docker logs`
+**0060 detail.** The EPG index is `(channel_id, start_time, end_time)`, but the
+guide and now/next queries only bounded `end_time > from` and `start_time < to`, so
+SQLite walked every programme a channel has ever had before the window (the whole
+feed) to discard them. Both queries now also require `start_time > from − 24 h`
+(`MAX_PROGRAMME_MS` in `routes/library.js`), turning it into a true range scan.
+**Deliberate limit:** a programme that began more than 24 h before the window is
+no longer shown even if still running (a 24 h+ "marathon" block); pinned by a
+test. Also added `idx_items_source_item(source_id, item_id)` for the per-request
+lookups (resolve, recordings, favourites join). **Not done from P2-3:** an index
+for the paged channel ordering (the `ORDER BY CASE WHEN sort_order IS NULL …`
+expression can't use a plain index — it would need a generated column) and
+keyset pagination (changes the client's paging contract). Tests:
+`test/guide-bounds.test.js` (5 cases through the real route; 4 fail on the old
+code).
+
+**Post-deploy checks still owed by Mark:** badge reads **0060**; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
 `SELECT COUNT(*) FROM epg_live` matches the XMLTV `<programme` count (final
 verification of 0047; use `epg_live` since 0056 — `epg_programs` can briefly hold two
@@ -241,7 +257,8 @@ then stalls with 404s in `docker logs`), and
 `curl -i "http://<host>:3000/api/transcode/<id>/..%2Fx.ts"` returns 404; 0059 live
 check: favourite a channel in the web app and confirm it shows in the Apple app's
 favourites (and the reverse), and that existing favourites in the web app are all
-still starred.
+still starred; 0060 live check: the guide and channel list still show current
+programmes (nothing that should be on now has disappeared).
 
 ---
 
@@ -293,7 +310,8 @@ that hardening.
    input, `withStreamToken` on fMP4, recordings Range behaviour,
    viewer-already-holds-slot, favourites id mismatch.
 8. **Pre-Tailscale hardening + refactors.** *[LOWER]* P2-2 shared helpers
-   (`channelUrl`, `ffmpegProcess`, `probe`, `ids`); P2-3 guide indexes + bounds;
+   (`channelUrl`, `ffmpegProcess`, `probe`, `ids`); P2-3 guide indexes + bounds
+   (✅ 0060, partial: sort index and keyset paging not done, see §4);
    P2-4 segment traversal ✅ 0057 (MIME deliberately unchanged, §4); P2-5 `?token=` in the HLS *proxy* rewriter ✅ 0058;
    P2-6 `TZ` + honoured UA for recordings; P2-7 rate-limit login/pair-poll +
    1 MB body cap + `USER node`.

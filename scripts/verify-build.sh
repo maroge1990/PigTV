@@ -1001,6 +1001,17 @@ fi
 check server/routes/favorites.js "compositeChannelId(" "the web-facing list keeps the composite form the web matches on"
 check test/favourites-ids.test.js "native client adds shows up in the web app" "cross-client favourites have tests"
 
+echo "=== 0060: Guide query bounds + item index (P2-3) ==="
+check server/routes/library.js "const MAX_PROGRAMME_MS" "the programme-length bound has a name and a reason"
+# Both EPG queries in this file need the lower bound, or one of them still walks the feed.
+if [ "$(grep -c 'start_time > ? AND end_time > ? AND start_time < ?' server/routes/library.js)" = "2" ]; then
+  echo "  ✓ both EPG queries (guide, now/next) bound start_time from below"
+else
+  echo "  ✗ MISSING: every EPG query in library.js must bound start_time from below"; FAIL=1
+fi
+check server/db/sqlite.js "idx_items_source_item" "channel lookups by item id are indexed"
+check test/guide-bounds.test.js "long programme that began well before" "the bound has tests"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
