@@ -1020,6 +1020,21 @@ check server/services/recordingEngine.js "getUserAgent(settings)" "recording ffm
 check_absent server/services/recordingEngine.js "Chrome/123.0.0.0" "no hard-coded Chrome UA left in the recording engine"
 check test/recording-names.test.js "Australia/Sydney" "time-zone handling has tests"
 
+echo "=== 0062: Recording native playback (P1-2 server half) ==="
+check server/services/recordingEngine.js "function buildNativeRemuxArgs" "remux flags are built in one testable place"
+check server/services/recordingEngine.js "'-tag:v', 'hvc1'" "HEVC is tagged hvc1"
+# Both the remux and the HEVC compression output need the tag.
+if [ "$(grep -c "'-tag:v', 'hvc1'" server/services/recordingEngine.js)" = "2" ]; then
+  echo "  ✓ hvc1 is applied to both the native remux and HEVC compression"
+else
+  echo "  ✗ MISSING: hvc1 must be applied in both buildNativeRemuxArgs and buildCompressArgs"; FAIL=1
+fi
+check server/services/recordingEngine.js "const nativeRemuxes = new Map()" "concurrent remuxes of one recording are shared"
+check server/services/recordingEngine.js "fs.renameSync(partial, output)" "output is renamed into place, never written in place"
+check server/services/recordingEngine.js "async function nativeFileIsComplete" "pre-existing truncated files are detected"
+check server/services/recordingEngine.js "compressionTargetPath(rec.file_path)\]" "deleting a recording removes its derived files"
+check test/native-playback.test.js "share one remux" "native playback has tests"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0061** (0054–0061 written, awaiting Mark's apply + deploy) |
-| Next patch number | **0062** |
+| Shipped through | **build 0062** (0054–0062 written, awaiting Mark's apply + deploy) |
+| Next patch number | **0063** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -101,6 +101,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0059 | Favourites id normalisation + migration (P1-3, server half) — see below |
 | 0060 | Guide query bounds + item-id index (P2-3, partial) — see below |
 | 0061 | Recording time zone + honoured User-Agent (P2-6) — see below |
+| 0062 | Recording native-playback server fixes (P1-2, server half) — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -257,7 +258,34 @@ Tests: `test/recording-names.test.js` (4 cases, each zone in its own child
 process). The UA change is covered by a `verify-build.sh` check, not a unit test
 (`startRecording` needs the whole engine).
 
-**Post-deploy checks still owed by Mark:** badge reads **0061**; `docker logs`
+**0062 detail.** Server side of P1-2, all in `recordingEngine.js`. (1) **`hvc1`:**
+the native remux and the HEVC compression output now carry `-tag:v hvc1`;
+ffmpeg's default for a stream-copied HEVC is `hev1`, which AVFoundation refuses in
+MP4 — so every HEVC recording produced a file AVPlayer would not open while H.264
+worked. Confirmed against real ffmpeg: tagged `hvc1` with the flag, `hev1`
+without. (2) **MP2 audio** (common in DVB-sourced TS; not playable from MP4 by
+AVPlayer) is re-encoded to AAC; AAC keeps `aac_adtstoasc`, AC-3 stays a copy.
+(3) **In-flight dedupe:** concurrent requests for one recording (`/playback` then
+`/media.mp4`, or two devices) share a single remux instead of both running
+`ffmpeg -y` on the same file. (4) **Atomic output:** the remux writes
+`<name>.native.mp4.partial` and renames it into place, so the final name only ever
+refers to a finished file; debris from a killed remux is cleared first. Existing
+`.native.mp4` files from older versions are probed once per run (a truncated one —
+the moov index is only moved to the front at the very end — has no readable
+duration) and regenerated if unreadable; verified files aren't re-probed on every
+Range request. (5) **Sidecar cleanup:** deleting a recording now also removes its
+`.native.mp4`, `.partial` and `.compressed.mp4`, which were orphaned before.
+**Still open (client-coupled):** `GET /api/recordings/:id/playback` still awaits the
+remux inside the request (a big file over SMB can outlast URLSession's 60 s); the
+`202 {status:"preparing"}` fix needs the Swift client to poll instead of erroring
+on non-200. **Needs a device to confirm:** an HEVC recording actually playing in
+AVPlayer (only verified here that the tag is right). Existing HEVC sidecars made
+by older versions are `hev1` and are *not* regenerated (they're readable); delete
+`*.native.mp4` for HEVC recordings once to force a re-remux. Tests:
+`test/native-playback.test.js` (12 cases, ffmpeg/ffprobe stubbed; no binaries
+needed), plus a real-ffmpeg check of the flags run once on the dev machine.
+
+**Post-deploy checks still owed by Mark:** badge reads **0062**; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
 `SELECT COUNT(*) FROM epg_live` matches the XMLTV `<programme` count (final
 verification of 0047; use `epg_live` since 0056 — `epg_programs` can briefly hold two
@@ -277,7 +305,10 @@ check: favourite a channel in the web app and confirm it shows in the Apple app'
 favourites (and the reverse), and that existing favourites in the web app are all
 still starred; 0060 live check: the guide and channel list still show current
 programmes (nothing that should be on now has disappeared); 0061 live check: set
-`TZ`, then schedule a recording and confirm the file name shows your local time.
+`TZ`, then schedule a recording and confirm the file name shows your local time;
+0062 live check: play a **HEVC** recording on the Apple client (delete any old
+`*.native.mp4` for it first), confirm it opens, then delete a recording and confirm
+its `.native.mp4`/`.compressed.mp4` disappear from the recordings folder.
 
 ---
 
@@ -349,8 +380,8 @@ that hardening.
 - **0050 native gate — confirm** the client sends its bearer on `resolve` and
   `DELETE /api/playback/:id` (`?token=` is a fallback). Already shipped.
 - **P1-2 — recording native playback.** Server fixes (`-tag:v hvc1`, in-flight
-  remux dedupe, temp-file-then-rename, sidecar cleanup) are buildable now, but
-  HEVC playback needs a device to confirm; the `202 {status:"preparing"}` part
+  remux dedupe, temp-file-then-rename, sidecar cleanup, MP2→AAC) ✅ 0062; HEVC
+  playback still needs a device to confirm, and the `202 {status:"preparing"}` part
   needs the client to poll instead of erroring on non-200.
 - **P1-3 (client half)** — EPG-icon `logo` fallback in `/api/library/*` lets the
   client drop `loadArtworkIndex()` + its `/api/proxy/epg/{id}` download.

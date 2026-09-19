@@ -249,6 +249,11 @@ function buildCompressArgs(input, output, settings, { forceCqp = false } = {}) {
         );
     }
 
+    // AVFoundation refuses HEVC in MP4 unless it is tagged hvc1 (ffmpeg's
+    // default is hev1). Both live pipelines already do this; without it a
+    // HEVC-compressed recording will not play on an Apple device.
+    if (codec === 'hevc') args.push('-tag:v', 'hvc1');
+
     // Audio is already small; re-encode only to guarantee a browser-safe track.
     args.push('-c:a', 'aac', '-profile:a', 'aac_low', '-b:a', '128k', '-ac', '2');
     args.push('-movflags', '+faststart', output);
@@ -520,31 +525,38 @@ function readyNativePlaybackPath(rec) {
  * Resolve (remuxing on first call, reusing the result after) a
  * native-compatible MP4 for this recording. Returns the file path to serve.
  */
-async function ensureNativePlayback(rec) {
-    const ready = readyNativePlaybackPath(rec);
-    if (ready) return ready;
-
-    const input = rec.file_path;
-    if (!fs.existsSync(input)) {
-        throw new Error('Recording file is missing');
-    }
-
-    const output = nativePlaybackTargetPath(input);
-    if (fs.existsSync(output)) return output;
-
-    const codecs = await probeCodecs(input);
+/**
+ * The ffmpeg arguments for a stream-copy remux of a recording into an
+ * AVPlayer-playable MP4. Pure, so the flag decisions can be tested.
+ */
+function buildNativeRemuxArgs(input, output, codecs = {}) {
+    const video = (codecs.video || '').toLowerCase();
+    const audio = (codecs.audio || '').toLowerCase();
     const args = ['-y', '-nostdin', '-i', input, '-map', '0:v:0?', '-map', '0:a:0?', '-c', 'copy'];
-    if ((codecs.audio || '').toLowerCase().includes('aac')) {
-        // Same lesson as the live pipeline: raw ADTS AAC — the framing a
-        // stream-copied MPEG-TS source keeps — has no Audio Specific
+
+    // AVFoundation refuses HEVC in MP4 unless it is tagged hvc1; ffmpeg's
+    // default for a stream copy is hev1. Both live pipelines already tag it.
+    if (video === 'hevc' || video === 'h265') args.push('-tag:v', 'hvc1');
+
+    if (audio.includes('aac')) {
+        // Same lesson as the live pipeline: raw ADTS AAC - the framing a
+        // stream-copied MPEG-TS source keeps - has no Audio Specific
         // Config, which MP4-family containers require instead. Without
         // this the muxer rejects every audio packet outright.
         args.push('-bsf:a', 'aac_adtstoasc');
+    } else if (audio.startsWith('mp2')) {
+        // MPEG-1 Layer II is common in DVB-sourced TS and cannot be played from
+        // an MP4 by AVPlayer. Audio is small, so re-encode just that track.
+        args.push('-c:a', 'aac', '-b:a', '192k');
     }
-    args.push('-movflags', '+faststart', output);
 
-    console.log(`[Recordings] Remuxing #${rec.id} for native playback -> ${output}`);
-    const result = await new Promise((resolve) => {
+    // -f is explicit because the output is written under a temporary name.
+    args.push('-movflags', '+faststart', '-f', 'mp4', output);
+    return args;
+}
+
+function runFfmpegCollectingTail(args) {
+    return new Promise((resolve) => {
         let proc;
         try {
             proc = spawn(ffmpegPath, args);
@@ -560,13 +572,84 @@ async function ensureNativePlayback(rec) {
         proc.on('error', (err) => resolve({ code: -1, tail: [err.message] }));
         proc.on('close', (c) => resolve({ code: c, tail }));
     });
+}
 
-    if (result.code !== 0 || !fs.existsSync(output)) {
-        try { fs.unlinkSync(output); } catch (e) { /* nothing to clean */ }
+// The external processes behind native playback, behind one object so tests can
+// stand in for ffmpeg/ffprobe.
+const nativeTools = { ffmpeg: runFfmpegCollectingTail, codecs: probeCodecs, duration: probeDuration };
+
+// recordingId -> Promise<path> of a remux in progress. Two requests for the
+// same recording (the client's /playback and then /media.mp4, or two devices)
+// share one ffmpeg instead of both writing the same file.
+const nativeRemuxes = new Map();
+// Sidecars already confirmed complete this run, so a Range request for a
+// segment of the file does not spawn ffprobe every time.
+const verifiedNativeFiles = new Set();
+
+/**
+ * Is an existing .native.mp4 a whole file? Output is now only ever produced by
+ * an atomic rename, so anything this version wrote is complete. This exists for
+ * files left by earlier versions, which wrote in place: a remux killed part-way
+ * (container restart, SMB hiccup) left a file with no index that looked
+ * finished forever. With +faststart the index is only moved to the front at the
+ * very end, so an unfinished file has no readable duration.
+ */
+async function nativeFileIsComplete(file) {
+    if (verifiedNativeFiles.has(file)) return true;
+    const duration = await nativeTools.duration(file);
+    if (duration && duration > 0) {
+        verifiedNativeFiles.add(file);
+        return true;
+    }
+    return false;
+}
+
+async function ensureNativePlayback(rec) {
+    const ready = readyNativePlaybackPath(rec);
+    if (ready) return ready;
+
+    const input = rec.file_path;
+    if (!fs.existsSync(input)) {
+        throw new Error('Recording file is missing');
+    }
+
+    const output = nativePlaybackTargetPath(input);
+    if (fs.existsSync(output)) {
+        if (await nativeFileIsComplete(output)) return output;
+        console.warn(`[Recordings] Discarding incomplete native file for #${rec.id}: ${output}`);
+        try { fs.unlinkSync(output); } catch (e) { /* remade below */ }
+    }
+
+    let job = nativeRemuxes.get(rec.id);
+    if (!job) {
+        job = remuxForNativePlayback(rec, input, output).finally(() => nativeRemuxes.delete(rec.id));
+        nativeRemuxes.set(rec.id, job);
+    }
+    return job;
+}
+
+async function remuxForNativePlayback(rec, input, output) {
+    // Written under a temporary name and renamed into place, so the final name
+    // only ever refers to a finished file. Anything already at the temporary
+    // name is debris from a remux that was killed; no other remux of this
+    // recording can be running (see nativeRemuxes).
+    const partial = `${output}.partial`;
+    try { fs.unlinkSync(partial); } catch (e) { /* none */ }
+
+    const codecs = await nativeTools.codecs(input);
+    const args = buildNativeRemuxArgs(input, partial, codecs);
+
+    console.log(`[Recordings] Remuxing #${rec.id} for native playback -> ${output}`);
+    const result = await nativeTools.ffmpeg(args);
+
+    if (result.code !== 0 || !fs.existsSync(partial)) {
+        try { fs.unlinkSync(partial); } catch (e) { /* nothing to clean */ }
         console.error(`[Recordings] Native remux of #${rec.id} failed:\n  ${result.tail.join('\n  ')}`);
         throw new Error(result.tail.slice(-3).join(' | ') || `ffmpeg exited with code ${result.code}`);
     }
 
+    fs.renameSync(partial, output);
+    verifiedNativeFiles.add(output);
     console.log(`[Recordings] #${rec.id} ready for native playback`);
     return output;
 }
@@ -627,9 +710,18 @@ async function deleteRecording(id) {
         }
     }
 
-    if (rec.file_path && fs.existsSync(rec.file_path)) {
-        try { fs.unlinkSync(rec.file_path); } catch (e) {
-            console.warn('[Recordings] Failed to delete file:', e.message);
+    if (rec.file_path) {
+        // The recording and everything derived from it. The native-playback
+        // remux and, when "keep original" is on, the compressed copy sit beside
+        // the .mkv under names built from it; deleting only the .mkv used to
+        // orphan them on disk, unlisted and uncounted.
+        const native = nativePlaybackTargetPath(rec.file_path);
+        for (const file of [rec.file_path, native, `${native}.partial`, compressionTargetPath(rec.file_path)]) {
+            if (!fs.existsSync(file)) continue;
+            try { fs.unlinkSync(file); } catch (e) {
+                console.warn('[Recordings] Failed to delete file:', e.message);
+            }
+            verifiedNativeFiles.delete(file);
         }
     }
     recordingsDb.delete(id);
@@ -1021,5 +1113,9 @@ module.exports = {
     cancelScheduled,
     deleteRecording,
     resolveStreamUrl,
-    ensureNativePlayback
+    ensureNativePlayback,
+    buildNativeRemuxArgs,
+    buildCompressArgs,
+    // Test seam: stand-ins for the ffmpeg/ffprobe calls behind native playback.
+    _nativeTools: nativeTools
 };
