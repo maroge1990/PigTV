@@ -1060,6 +1060,21 @@ check server/routes/remux.js "identifyCodecs(url, ffprobePath, userAgent)" "the 
 check_absent server/routes/remux.js "await detectCodecs(url, ffprobePath, userAgent)" "no bare single-shot probe left in the route"
 check test/remux-codecs.test.js "retried after a pause" "the retry has tests"
 
+echo "=== 0065: Web player media-error reporting ==="
+check public/js/components/VideoPlayer.js "addEventListener('error', () => this.handleMediaError())" "the <video> error event is handled (it used to fail silently)"
+check public/js/components/VideoPlayer.js "handleMediaError()" "handler exists"
+# The URL's query string carries the provider login and the session token.
+check public/js/components/VideoPlayer.js "new URL(video.currentSrc, 'http://localhost').pathname" "only the URL path is logged/sent, never the query"
+check public/js/components/VideoPlayer.js "this.currentStrategy = decision.strategy" "the server's chosen strategy is recorded for the report"
+check public/js/components/VideoPlayer.js "if (!video || !video.currentSrc || !video.error) return;" "clearing the source (channel change) is not reported as a failure"
+check public/css/main.css ".transcode-status.error" "the error badge has a style"
+check server/routes/playback.js "router.post('/client-event', requireToken" "the report endpoint needs a token"
+check server/routes/playback.js "body.event !== 'media-error'" "only the known event is accepted"
+check server/routes/playback.js "redact(text(body.message, 200))" "the message is redacted before it reaches the log"
+check server/routes/playback.js "clientEventLimiter" "the endpoint is rate limited"
+check test/client-events.test.js "forge a log line" "the endpoint has tests"
+check test/player-media-error.test.js "never throws into playback" "the player side has tests"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

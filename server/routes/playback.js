@@ -19,6 +19,7 @@ const playbackStrategy = require('../services/playbackStrategy');
 const xtreamApi = require('../services/xtreamApi');
 const passport = require('passport');
 const { streamAuth } = require('../auth');
+const { createLimiter } = require('../services/rateLimit');
 
 // P0-3: resolve spends the provider's single upstream slot and starts ffmpeg;
 // the delete can kill anyone's session. Both must carry a token. streamAuth
@@ -225,6 +226,40 @@ router.post('/conflict/decline', optionalAuth, (req, res) => {
 });
 
 /**
+ * POST /api/playback/client-event
+ *
+ * A client reporting something it saw that the server cannot: today, the web
+ * player's <video> element failing to play a stream. Written to the server log
+ * so the reason sits next to the ffmpeg lines from the same moment in `docker
+ * logs`, rather than only in a browser console.
+ *
+ * Diagnostics only: whitelisted fields, bounded, no URLs, rate limited, and it
+ * never affects playback.
+ */
+const clientEventLimiter = createLimiter({ windowMs: 60 * 1000, max: 30 });
+
+router.post('/client-event', requireToken, (req, res) => {
+    const key = req.socket?.remoteAddress || 'unknown';
+    if (clientEventLimiter.check(key).blocked) return res.status(204).end(); // drop quietly
+    clientEventLimiter.record(key);
+
+    const body = req.body || {};
+    if (body.event !== 'media-error') return res.status(400).json({ error: 'Unknown event' });
+
+    const coordinator = require('../services/streamCoordinator');
+    const text = (v, max) => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, max);
+    const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : '?');
+
+    console.warn(
+        `[Player] media-error ${text(body.codeName, 30)}(${num(body.code)}) via ${text(body.strategy, 20)} ` +
+        `path=${text(body.path, 80)} msg="${redact(text(body.message, 200))}" ` +
+        `networkState=${num(body.networkState)} readyState=${num(body.readyState)} ` +
+        `t=${num(body.currentTime)}s buffered=${num(body.bufferedEnd)}s from=${coordinator.ownerKey(req.user) || 'unknown'}`
+    );
+    res.status(204).end();
+});
+
+/**
  * DELETE /api/playback/:sessionId
  *
  * Release whatever resolve() started. Clients should call this when they stop
@@ -245,5 +280,8 @@ router.delete('/:sessionId', requireToken, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+// Exposed so tests can lower the ceiling.
+router.clientEventLimiter = clientEventLimiter;
 
 module.exports = router;

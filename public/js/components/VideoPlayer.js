@@ -282,6 +282,10 @@ class VideoPlayer {
             this.loadingSpinner?.classList.remove('show');
         });
 
+        // A <video> that cannot decode what it is given drops its connection and
+        // says nothing: the stream just stops. Record why (see handleMediaError).
+        this.video.addEventListener('error', () => this.handleMediaError());
+
         // Mute/Volume
         const updateVolumeUI = () => {
             const isMuted = this.video.muted || this.video.volume === 0;
@@ -1005,6 +1009,7 @@ class VideoPlayer {
      * Play what the server told us to play.
      */
     async playDecision(decision, channel) {
+        this.currentStrategy = decision.strategy || null;
         this.currentSessionId = decision.sessionId || null;
         this.currentStreamInfo = decision.info || null;
         this.updateQualityBadge();
@@ -1555,6 +1560,66 @@ class VideoPlayer {
         });
     }
 
+    /**
+     * What the <video> element knows about a playback failure, in a form safe to
+     * log and to send to the server. The URL is reduced to its path: the query
+     * string carries the provider's address and login (url=...) and this
+     * session's token, neither of which belongs in a log someone may paste.
+     */
+    describeMediaError(video = this.video) {
+        const err = video.error;
+        const names = { 1: 'MEDIA_ERR_ABORTED', 2: 'MEDIA_ERR_NETWORK', 3: 'MEDIA_ERR_DECODE', 4: 'MEDIA_ERR_SRC_NOT_SUPPORTED' };
+        let path = null;
+        try { path = new URL(video.currentSrc, 'http://localhost').pathname; } catch (e) { /* not a URL */ }
+        const round = (n) => (Number.isFinite(n) ? Math.round(n * 10) / 10 : null);
+        const buffered = video.buffered;
+        return {
+            code: err ? err.code : null,
+            codeName: err ? (names[err.code] || 'UNKNOWN') : null,
+            message: err && err.message ? String(err.message).slice(0, 200) : '',
+            networkState: video.networkState,
+            readyState: video.readyState,
+            currentTime: round(video.currentTime),
+            bufferedEnd: buffered && buffered.length ? round(buffered.end(buffered.length - 1)) : 0,
+            strategy: this.hls ? 'hls' : (this.currentStrategy || 'local'),
+            path
+        };
+    }
+
+    /**
+     * The element reported a playback error. Log it, tell the user something
+     * went wrong rather than leaving a silent spinner, and report it to the
+     * server so the reason is in `docker logs` and not only in this browser.
+     */
+    handleMediaError() {
+        const video = this.video;
+        // Clearing the source (stop(), changing channel) fires an error event
+        // too. That is not a failure.
+        if (!video || !video.currentSrc || !video.error) return;
+
+        const details = this.describeMediaError(video);
+        console.error(`[Player] Media error: ${details.codeName} "${details.message}" (${details.strategy}, ${details.path})`, details);
+        this.loadingSpinner?.classList.remove('show');
+        // hls.js recovers from many of these by itself, so leave the badge to it.
+        if (!this.hls) this.updateTranscodeStatus('error', `Playback error (${details.codeName || 'unknown'})`);
+
+        if (this._reportedMediaErrorFor !== video.currentSrc) {
+            this._reportedMediaErrorFor = video.currentSrc;
+            this.reportClientEvent({ event: 'media-error', ...details });
+        }
+    }
+
+    /** Best-effort diagnostics to the server. Must never affect playback. */
+    reportClientEvent(payload) {
+        try {
+            API.streamFetch('/api/playback/client-event', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).catch(() => { /* diagnostics only */ });
+        } catch (e) { /* diagnostics only */ }
+    }
+
     async updateTranscodeStatus(mode, text) {
         const el = document.getElementById('player-transcode-status');
         if (!el) return;
@@ -1749,6 +1814,7 @@ class VideoPlayer {
 
         // Hide quality badge
         this.currentStreamInfo = null;
+        this.currentStrategy = null;
         const badge = document.getElementById('player-quality-badge');
         if (badge) badge.classList.add('hidden');
     }

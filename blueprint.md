@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0064** (0054 pushed to main; 0055–0064 written, awaiting Mark's apply + deploy) |
-| Next patch number | **0065** |
+| Shipped through | **build 0065** (0054–0064 pushed to main; 0065 written) |
+| Next patch number | **0066** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -104,6 +104,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0062 | Recording native-playback server fixes (P1-2, server half) — see below |
 | 0063 | Body-size cap + rate limits on login and pairing (P2-7, partial) — see below |
 | 0064 | Remux: reliable codec identification (fixes "Malformed AAC bitstream") — see below |
+| 0065 | Web player reports media errors (client → `docker logs`) — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -333,7 +334,36 @@ injected dependencies, no binaries). **Root cause of the provider-side flakiness
 not proven** — the screenshot Mark sent started at "Starting remux", so the
 `Codecs:`/probe-failure line above it wasn't visible; the new log line will say.
 
-**Post-deploy checks still owed by Mark:** badge reads **0064**; `docker logs`
+**0065 detail — diagnostics for an unreproduced web-playback fault.** One live
+channel on Mark's provider makes the web player's remux
+stream drop after ~10 s with `[Remux] Client disconnected after 10s` and *no*
+ffmpeg error: the server side is healthy and the **browser** hangs up. The player
+had no `error` listener on its `<video>`, so a decode failure was completely
+silent. Now: `VideoPlayer.handleMediaError()` logs the element's error (code name,
+browser message, network/ready state, current time, buffered end, and the strategy
+the server chose: `remux`/`transcode`/`direct`/`hls`/`local`), shows a red
+`Playback error (MEDIA_ERR_…)` badge instead of a silent spinner, and POSTs the
+same details to the new **`POST /api/playback/client-event`**, which writes one line
+to the server log:
+`[Player] media-error MEDIA_ERR_DECODE(3) via remux path=/api/remux msg="…" networkState=… readyState=… t=10s buffered=9.9s from=user:1`.
+So next time it happens: **`docker logs pigtv | grep media-error`**, next to the ffmpeg
+lines from the same moment. Privacy/safety: the URL is reduced to its *path* (the
+query string holds the provider login and the session token) and the server also
+redacts the message; the endpoint needs a token, accepts only the `media-error` event,
+whitelists and bounds every field, strips control characters (no forged log lines),
+is rate limited (30/min per client, over that it drops quietly) and never affects
+playback. Clearing the source (channel change, `stop()`) also fires an `error` event
+and is deliberately ignored. Reported once per source. While hls.js is driving, the
+badge is left to it (it recovers from many of these), but the error is still
+logged. **Not a fix** — it only makes the fault diagnosable. Suspicions to test when
+it recurs: Chrome rejecting this channel's fragmented MP4 (odd timestamps / long GOP);
+the same channel via HLS (Settings → Stream Processing: Auto Transcode off, Force
+Audio Transcode on) and on the Apple client would show whether the remux path is at
+fault (which would favour bringing §C forward). Tests: `test/player-media-error.test.js`
+(7, the real player script in a `vm`) and `test/client-events.test.js` (5, real route,
+real token).
+
+**Post-deploy checks still owed by Mark:** badge reads **0065**; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
 `SELECT COUNT(*) FROM epg_live` matches the XMLTV `<programme` count (final
 verification of 0047; use `epg_live` since 0056 — `epg_programs` can briefly hold two
@@ -361,7 +391,9 @@ check: sign in normally (nothing changes), and confirm bulk hide/show in Setting
 still saves a large selection (a 413 in `docker logs` would mean the 2 MB cap is
 too tight); 0064 live check: play several live channels back to back (web player); if
 any fails, `docker logs pigtv | grep -E "Codec probe failed|Not starting remux"` says why.
-A 503 that clears on retry means the provider is being slow to release connections.
+A 503 that clears on retry means the provider is being slow to release connections; 0065 live
+check: when that channel's fault next recurs, `docker logs pigtv | grep media-error`
+(and the DevTools console) should name the reason; a normal channel change must show *no* error badge.
 
 ---
 
