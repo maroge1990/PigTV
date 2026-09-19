@@ -966,6 +966,14 @@ done
 check server/routes/sources.js "DELETE FROM epg_state" "deleting a source clears its generation state"
 check test/epg-swap.test.js "never empty while a new feed loads" "the swap has tests (incl. a mid-sync read and a legacy upgrade)"
 
+echo "=== 0057: HLS segment route hardening (P2-4) ==="
+# Whitelist the exact names ffmpeg writes; a suffix check let an encoded-slash
+# path through, since Express decodes params after routing.
+check server/routes/transcode.js "seg.d{4,}" "segment route accepts only the names ffmpeg writes (seg<digits>.ts|m4s, init.mp4)"
+check_absent server/routes/transcode.js "(ts|m4s|mp4)\$/" "old suffix-only check is gone"
+check server/services/transcodeSession.js "path.dirname(segmentPath) !== path.resolve(this.dir)" "getSegment refuses to leave the session directory"
+check test/transcode-segments.test.js "encoded slash cannot walk out" "traversal has tests"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

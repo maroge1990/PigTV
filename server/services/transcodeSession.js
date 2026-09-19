@@ -1004,7 +1004,10 @@ class TranscodeSession extends EventEmitter {
      */
     async getSegment(segmentName) {
         this.touch();
-        const segmentPath = path.join(this.dir, segmentName);
+        const segmentPath = path.resolve(this.dir, segmentName);
+        // Defence in depth behind the route's filename whitelist: whatever the
+        // caller passes, never resolve to a file outside this session's directory.
+        if (path.dirname(segmentPath) !== path.resolve(this.dir)) return null;
         try {
             await fs.access(segmentPath);
             return segmentPath;

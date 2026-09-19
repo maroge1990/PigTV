@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0056** (0054–0056 written, awaiting Mark's apply + deploy) |
-| Next patch number | **0057** |
+| Shipped through | **build 0057** (0054–0057 written, awaiting Mark's apply + deploy) |
+| Next patch number | **0058** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -96,6 +96,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0054 | ffmpeg output-inactivity watchdog (A1) — see below |
 | 0055 | Viewer-vs-viewer arbitration + live idle timeout (A3) — see below |
 | 0056 | Atomic EPG swap via generations (P1-5) — see below |
+| 0057 | HLS segment route hardening (P2-4, traversal half) — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -177,7 +178,20 @@ rows. Not done from the original P1-5 note: dropping `AUTOINCREMENT` (needs a
 table rebuild for no real gain). Tests: `test/epg-swap.test.js` (7 cases incl.
 a legacy-schema upgrade and a mid-sync read).
 
-**Post-deploy checks still owed by Mark:** badge reads **0056**; `docker logs`
+**0057 detail.** `GET /api/transcode/:id/:segment` only checked a `.ts|.m4s|.mp4`
+suffix, and Express URL-decodes params *after* routing, so
+`..%2F..%2Fx.mp4` reached `path.join` as a real path (verified in the review).
+The route now accepts only the names ffmpeg is told to write —
+`seg<4+ digits>.ts|.m4s` and `init.mp4` — and `getSegment()` additionally refuses
+anything that doesn't resolve directly inside the session directory. **MIME
+deliberately left alone:** fMP4 segments are still served as `video/MP2T`. It is
+imprecise but works with both clients today, and changing a Content-Type on the
+live path can't be verified on a real Apple device from here while playback is
+being chased for instability; revisit as its own patch with a device on hand.
+Tests: `test/transcode-segments.test.js` (4 cases through the real router with
+real files; confirmed to fail 3/4 against the old code).
+
+**Post-deploy checks still owed by Mark:** badge reads **0057**; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
 `SELECT COUNT(*) FROM epg_live` matches the XMLTV `<programme` count (final
 verification of 0047; use `epg_live` since 0056 — `epg_programs` can briefly hold two
@@ -189,7 +203,10 @@ check: with two devices, start playback on one, then the other — expect the
 that a device changing channel never sees a prompt about its own old stream;
 0056 live check: trigger an EPG sync and confirm the guide stays populated
 throughout (it used to blank for minutes), and `docker logs` shows
-`Removed N superseded programmes` afterwards.
+`Removed N superseded programmes` afterwards; 0057 live check: normal playback
+still loads segments (a regression here would show as a stream that starts and
+then stalls with 404s in `docker logs`), and
+`curl -i "http://<host>:3000/api/transcode/<id>/..%2Fx.ts"` returns 404.
 
 ---
 
@@ -242,7 +259,7 @@ that hardening.
    viewer-already-holds-slot, favourites id mismatch.
 8. **Pre-Tailscale hardening + refactors.** *[LOWER]* P2-2 shared helpers
    (`channelUrl`, `ffmpegProcess`, `probe`, `ids`); P2-3 guide indexes + bounds;
-   P2-4 segment traversal + MIME; P2-5 `?token=` in the HLS *proxy* rewriter;
+   P2-4 segment traversal ✅ 0057 (MIME deliberately unchanged, §4); P2-5 `?token=` in the HLS *proxy* rewriter;
    P2-6 `TZ` + honoured UA for recordings; P2-7 rate-limit login/pair-poll +
    1 MB body cap + `USER node`.
 9. **`requireStreamAuth` default flip.** Mark's call, before Tailscale exposure.

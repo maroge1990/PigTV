@@ -174,9 +174,13 @@ router.get('/:sessionId/stream.m3u8', async (req, res) => {
 router.get('/:sessionId/:segment', async (req, res) => {
     const { sessionId, segment } = req.params;
 
-    // Only handle .ts files
-    // .ts for mpegts sessions, .m4s plus init.mp4 for fMP4 sessions
-    if (!/\.(ts|m4s|mp4)$/.test(segment)) {
+    // Exactly the names ffmpeg is told to write (see the -hls_segment_filename
+    // and -hls_fmp4_init_filename args): seg%04d.ts for mpegts sessions,
+    // seg%04d.m4s plus init.mp4 for fMP4 ones. Express URL-decodes params after
+    // routing, so an encoded slash (..%2F..%2Fx.mp4) arrives here as a real
+    // path; a suffix check alone let it reach path.join. Refuse anything that
+    // is not one of those names.
+    if (!/^(seg\d{4,}\.(ts|m4s)|init\.mp4)$/.test(segment)) {
         return res.status(404).json({ error: 'Invalid segment' });
     }
 
