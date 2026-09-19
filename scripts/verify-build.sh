@@ -987,6 +987,20 @@ else
 fi
 check test/proxy-hls-token.test.js "carries it" "the rewriter has tests"
 
+echo "=== 0059: Favourites id normalisation (P1-3 server half) ==="
+check server/services/channelIds.js "function bareChannelId" "one place defines the bare/composite id forms"
+check server/db/sqlite.js "function normalizeFavoriteIds" "existing prefixed favourites are migrated"
+check server/db/sqlite.js "    normalizeFavoriteIds();" "the migration actually runs at schema init"
+# The bug: web and native wrote different spellings, so favourites never crossed.
+# Each of add/remove/isFavorite must normalise, or one of them silently misses.
+if [ "$(grep -c "if (itemType === 'channel') itemId = bareChannelId(itemId);" server/db/sqlite.js)" = "3" ]; then
+  echo "  ✓ add, remove and isFavorite all normalise channel ids"
+else
+  echo "  ✗ MISSING: favorites add/remove/isFavorite must each normalise channel ids"; FAIL=1
+fi
+check server/routes/favorites.js "compositeChannelId(" "the web-facing list keeps the composite form the web matches on"
+check test/favourites-ids.test.js "native client adds shows up in the web app" "cross-client favourites have tests"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

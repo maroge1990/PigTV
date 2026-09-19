@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0058** (0054–0058 written, awaiting Mark's apply + deploy) |
-| Next patch number | **0059** |
+| Shipped through | **build 0059** (0054–0059 written, awaiting Mark's apply + deploy) |
+| Next patch number | **0060** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -98,6 +98,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0056 | Atomic EPG swap via generations (P1-5) — see below |
 | 0057 | HLS segment route hardening (P2-4, traversal half) — see below |
 | 0058 | `?token=` carried through the HLS *proxy* rewriter (P2-5) — see below |
+| 0059 | Favourites id normalisation + migration (P1-3, server half) — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -203,7 +204,26 @@ without it that flip would have broken direct HLS playback. Tests:
 `test/proxy-hls-token.test.js` (4 cases, real proxy route against a local HLS
 upstream; 2 fail against the old code).
 
-**Post-deploy checks still owed by Mark:** badge reads **0058**; `docker logs`
+**0059 detail.** The web app favourites a channel by its composite id
+(`m3u_<src>_<item>`); the native client writes the bare id, and
+`/api/library/*` joins on the bare id — so a favourite made in one client never
+appeared in the other. The **bare id is now canonical**: `favorites.add/remove/
+isFavorite` normalise channel ids on the way in (new `services/channelIds.js`),
+and `initSchema` rewrites any existing prefixed channel rows to bare at startup,
+merging with a bare twin rather than duplicating (idempotent; only touches rows
+still carrying a prefix; movie/series rows are left alone). **No web-client
+change:** `GET /api/favorites` re-presents channel ids in the composite form the
+web already matches on (`?format=bare` returns the stored form), so both clients
+now see each other's favourites. **One-way door:** the startup migration rewrites
+`favorites.item_id` in `content.db` — back that file up before the first start of
+this build if you care about the old spelling. **Not done — still open under
+P1-3:** the derived `stable_id`, so a provider reorder (`pos_N` shifts) can no
+longer re-point favourites, history and scheduled recordings; that re-keys three
+tables and deserves its own patch. Tests: `test/favourites-ids.test.js` (6
+cases incl. a legacy-database migration and the two cross-client scenarios
+through the real routes; 4 fail against the old code).
+
+**Post-deploy checks still owed by Mark:** badge reads **0059**; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
 `SELECT COUNT(*) FROM epg_live` matches the XMLTV `<programme` count (final
 verification of 0047; use `epg_live` since 0056 — `epg_programs` can briefly hold two
@@ -218,7 +238,10 @@ throughout (it used to blank for minutes), and `docker logs` shows
 `Removed N superseded programmes` afterwards; 0057 live check: normal playback
 still loads segments (a regression here would show as a stream that starts and
 then stalls with 404s in `docker logs`), and
-`curl -i "http://<host>:3000/api/transcode/<id>/..%2Fx.ts"` returns 404.
+`curl -i "http://<host>:3000/api/transcode/<id>/..%2Fx.ts"` returns 404; 0059 live
+check: favourite a channel in the web app and confirm it shows in the Apple app's
+favourites (and the reverse), and that existing favourites in the web app are all
+still starred.
 
 ---
 
@@ -259,9 +282,9 @@ that hardening.
    not ~2 (rationale in the 0055 detail).
 4. ✅ **P1-5 — atomic EPG swap** (0056; written, pending live verification —
    see §4).
-5. **P1-3 (server half) — favourites id normalisation + migration**, plus a
-   derived `stable_id` so a provider reorder can't re-point favourites, history,
-   or scheduled recordings. *[MED]*
+5. **P1-3 (server half) — favourites id normalisation + migration** ✅ 0059. Still
+   open: a derived `stable_id` so a provider reorder can't re-point favourites,
+   history, or scheduled recordings. *[MED]*
 6. **P2-1 — dead-code removal**, as one deliberate verify-build-guarded batch
    (`users.js`, `m3uXtreamAdapter.js`, JSON `hiddenItems`/`favorites`, OIDC +
    express-session remnants, VOD/series, non-VAAPI encoders, unread settings).

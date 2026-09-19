@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { favorites } = require('../db/sqlite');
 const { requireAuth } = require('../auth');
+const db = require('../db');
+const { compositeChannelId } = require('../services/channelIds');
 
 // All favorites routes require authentication
 router.use(requireAuth);
@@ -9,9 +11,18 @@ router.use(requireAuth);
 // Get all favorites for current user
 router.get('/', async (req, res) => {
     try {
-        const { sourceId, itemType } = req.query;
+        const { sourceId, itemType, format } = req.query;
         const items = favorites.getAll(req.user.id, sourceId || null, itemType || null);
-        res.json(items);
+
+        // Channel favourites are stored under the bare id (what the native
+        // client and /api/library use). The web app identifies a channel by
+        // its composite id, so present them that way unless the caller asks
+        // for the stored form with ?format=bare.
+        if (format === 'bare') return res.json(items);
+        const types = new Map((await db.sources.getAll()).map(s => [Number(s.id), s.type]));
+        res.json(items.map(f => f.item_type === 'channel'
+            ? { ...f, item_id: compositeChannelId(types.get(Number(f.source_id)), f.source_id, f.item_id) }
+            : f));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

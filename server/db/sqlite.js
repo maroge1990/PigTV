@@ -1,4 +1,5 @@
 const Database = require('better-sqlite3');
+const { bareChannelId, COMPOSITE } = require('../services/channelIds');
 const path = require('path');
 const fs = require('fs');
 
@@ -241,7 +242,36 @@ function initSchema() {
         // Column already exists, ignore
     }
 
+    normalizeFavoriteIds();
+
     console.log('[SQLite] Schema initialized');
+}
+
+/**
+ * Rewrite channel favourites stored under the web app's composite id
+ * (m3u_<src>_<item>) to the canonical bare id, merging with a bare row that
+ * already exists. Idempotent and cheap - it only looks at rows that still carry
+ * a prefix - so it runs on every start rather than being tracked as a one-off.
+ */
+function normalizeFavoriteIds() {
+    const rows = db.prepare(`
+        SELECT id, user_id, source_id, item_id FROM favorites
+        WHERE item_type = 'channel' AND (substr(item_id, 1, 4) = 'm3u_' OR substr(item_id, 1, 7) = 'xtream_')
+    `).all().filter(r => COMPOSITE.test(r.item_id));
+    if (!rows.length) return;
+
+    const insertBare = db.prepare(`
+        INSERT OR IGNORE INTO favorites (user_id, source_id, item_id, item_type, created_at)
+        SELECT user_id, source_id, ?, item_type, created_at FROM favorites WHERE id = ?
+    `);
+    const remove = db.prepare('DELETE FROM favorites WHERE id = ?');
+    db.transaction(() => {
+        for (const r of rows) {
+            insertBare.run(bareChannelId(r.item_id), r.id);
+            remove.run(r.id);
+        }
+    })();
+    console.log(`[SQLite] Normalised ${rows.length} channel favourite id(s) to the bare form`);
 }
 
 // ============================================================
@@ -268,6 +298,7 @@ const favorites = {
 
     add(userId, sourceId, itemId, itemType = 'channel') {
         const db = getDb();
+        if (itemType === 'channel') itemId = bareChannelId(itemId);
         const stmt = db.prepare(`
             INSERT OR IGNORE INTO favorites (user_id, source_id, item_id, item_type)
             VALUES (?, ?, ?, ?)
@@ -278,6 +309,7 @@ const favorites = {
 
     remove(userId, sourceId, itemId, itemType = 'channel') {
         const db = getDb();
+        if (itemType === 'channel') itemId = bareChannelId(itemId);
         const stmt = db.prepare(`
             DELETE FROM favorites 
             WHERE user_id = ? AND source_id = ? AND item_id = ? AND item_type = ?
@@ -288,6 +320,7 @@ const favorites = {
 
     isFavorite(userId, sourceId, itemId, itemType = 'channel') {
         const db = getDb();
+        if (itemType === 'channel') itemId = bareChannelId(itemId);
         const row = db.prepare(`
             SELECT 1 FROM favorites 
             WHERE user_id = ? AND source_id = ? AND item_id = ? AND item_type = ?
