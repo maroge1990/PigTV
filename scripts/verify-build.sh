@@ -974,6 +974,19 @@ check_absent server/routes/transcode.js "(ts|m4s|mp4)\$/" "old suffix-only check
 check server/services/transcodeSession.js "path.dirname(segmentPath) !== path.resolve(this.dir)" "getSegment refuses to leave the session directory"
 check test/transcode-segments.test.js "encoded slash cannot walk out" "traversal has tests"
 
+echo "=== 0058: ?token= through the HLS proxy rewriter (P2-5) ==="
+check server/routes/proxy.js "const proxiedUrl = " "rewriter builds URIs in one place"
+check server/routes/proxy.js "URI=\"\${proxiedUrl(absoluteUrl)}\"" "key/init/map URI attributes carry the token"
+check server/routes/proxy.js "return proxiedUrl(absoluteUrl);" "segment lines carry the token"
+# Both rewrite sites must go through proxiedUrl; a third hand-built URL would
+# silently drop the token again.
+if [ "$(grep -c 'stream?url=\${encodeURIComponent' server/routes/proxy.js)" = "1" ]; then
+  echo "  ✓ only proxiedUrl builds /stream?url= URIs in the rewriter"
+else
+  echo "  ✗ MISSING: a rewriter URL is built outside proxiedUrl (would drop the token)"; FAIL=1
+fi
+check test/proxy-hls-token.test.js "carries it" "the rewriter has tests"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

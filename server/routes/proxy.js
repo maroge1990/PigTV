@@ -747,6 +747,17 @@ router.get('/stream', async (req, res) => {
                 const finalUrlObj = new URL(finalUrl);
                 const baseUrl = finalUrlObj.origin + finalUrlObj.pathname.substring(0, finalUrlObj.pathname.lastIndexOf('/') + 1);
 
+                // A relative URI does not inherit the query string of the
+                // manifest's own URL, so every segment and key the player fetches
+                // next arrives without the ?token= this request carried. With
+                // requireStreamAuth on, that meant the manifest loaded and then
+                // every segment was refused with a 401. Carry the token onto each
+                // rewritten URI, as withStreamToken() does for HLS sessions.
+                const streamToken = typeof req.query.token === 'string' ? req.query.token : '';
+                const proxiedUrl = (absoluteUrl) =>
+                    `${req.protocol}://${req.get('host')}${req.baseUrl}/stream?url=${encodeURIComponent(absoluteUrl)}` +
+                    (streamToken ? `&token=${encodeURIComponent(streamToken)}` : '');
+
                 manifest = manifest.split('\n').map(line => {
                     const trimmed = line.trim();
                     if (trimmed === '' || trimmed.startsWith('#')) {
@@ -756,7 +767,7 @@ router.get('/stream', async (req, res) => {
                             return line.replace(/URI=["']([^"']+)["']/g, (match, p1) => {
                                 try {
                                     const absoluteUrl = new URL(p1, baseUrl).href;
-                                    return `URI="${req.protocol}://${req.get('host')}${req.baseUrl}/stream?url=${encodeURIComponent(absoluteUrl)}"`;
+                                    return `URI="${proxiedUrl(absoluteUrl)}"`;
                                 } catch (e) {
                                     return match;
                                 }
@@ -773,7 +784,7 @@ router.get('/stream', async (req, res) => {
                         } else {
                             absoluteUrl = new URL(trimmed, baseUrl).href;
                         }
-                        return `${req.protocol}://${req.get('host')}${req.baseUrl}/stream?url=${encodeURIComponent(absoluteUrl)}`;
+                        return proxiedUrl(absoluteUrl);
                     } catch (e) { return line; }
                 }).join('\n');
 

@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0057** (0054–0057 written, awaiting Mark's apply + deploy) |
-| Next patch number | **0058** |
+| Shipped through | **build 0058** (0054–0058 written, awaiting Mark's apply + deploy) |
+| Next patch number | **0059** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -97,6 +97,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0055 | Viewer-vs-viewer arbitration + live idle timeout (A3) — see below |
 | 0056 | Atomic EPG swap via generations (P1-5) — see below |
 | 0057 | HLS segment route hardening (P2-4, traversal half) — see below |
+| 0058 | `?token=` carried through the HLS *proxy* rewriter (P2-5) — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -191,7 +192,18 @@ being chased for instability; revisit as its own patch with a device on hand.
 Tests: `test/transcode-segments.test.js` (4 cases through the real router with
 real files; confirmed to fail 3/4 against the old code).
 
-**Post-deploy checks still owed by Mark:** badge reads **0057**; `docker logs`
+**0058 detail.** `/api/proxy/stream` rewrites an upstream HLS manifest so the
+player fetches segments and keys back through the proxy, but the rewritten URIs
+dropped the request's `?token=`. With `requireStreamAuth` on, direct-strategy HLS
+loaded its manifest and then 401'd on the first segment. Every rewritten URI
+(segment lines and `URI="…"` attributes: key, init map) now carries the token,
+URL-encoded; no token in, none appended, so today's behaviour with enforcement
+off is unchanged. This is groundwork for the `requireStreamAuth` flip (§A.9) —
+without it that flip would have broken direct HLS playback. Tests:
+`test/proxy-hls-token.test.js` (4 cases, real proxy route against a local HLS
+upstream; 2 fail against the old code).
+
+**Post-deploy checks still owed by Mark:** badge reads **0058**; `docker logs`
 shows redacted URLs (no provider password); on the real feed,
 `SELECT COUNT(*) FROM epg_live` matches the XMLTV `<programme` count (final
 verification of 0047; use `epg_live` since 0056 — `epg_programs` can briefly hold two
@@ -259,7 +271,7 @@ that hardening.
    viewer-already-holds-slot, favourites id mismatch.
 8. **Pre-Tailscale hardening + refactors.** *[LOWER]* P2-2 shared helpers
    (`channelUrl`, `ffmpegProcess`, `probe`, `ids`); P2-3 guide indexes + bounds;
-   P2-4 segment traversal ✅ 0057 (MIME deliberately unchanged, §4); P2-5 `?token=` in the HLS *proxy* rewriter;
+   P2-4 segment traversal ✅ 0057 (MIME deliberately unchanged, §4); P2-5 `?token=` in the HLS *proxy* rewriter ✅ 0058;
    P2-6 `TZ` + honoured UA for recordings; P2-7 rate-limit login/pair-poll +
    1 MB body cap + `USER node`.
 9. **`requireStreamAuth` default flip.** Mark's call, before Tailscale exposure.
