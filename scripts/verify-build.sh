@@ -1221,6 +1221,16 @@ check_absent server/db.js "hiddenItems" "no JSON-file hidden items (they live in
 check_absent server/db.js "db.favorites" "no JSON-file favourites (they live in SQLite, routes/favorites.js)"
 check test/db-legacy-keys.test.js "the next write drops the two unread arrays and nothing else" "an older db.json is tested to load and to lose only those two arrays"
 
+echo "=== 0079: unknown /api paths return a JSON 404 ==="
+check server/index.js "No such API endpoint" "an unknown /api path is an error, not the web app"
+# It must come after every router and before the SPA fallback, or it swallows real routes / never runs.
+if awk '/app.use\(.\/api\/recordings/{r=NR} /No such API endpoint/{e=NR} /SPA fallback - serve index.html/{s=NR} END{exit !(r && e && s && r<e && e<s)}' server/index.js; then
+  echo "  ✓ it sits after the last router and before the SPA fallback"
+else
+  echo "  ✗ MISSING: the API 404 must come after all /api routers and before the SPA fallback"; FAIL=1
+fi
+check test/api-404.test.js "every route the Apple client calls still reaches its real handler" "a test boots the real server and asserts none of the Apple client's routes is swallowed"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

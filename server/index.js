@@ -217,6 +217,17 @@ app.get('/api/version', (req, res) => {
     res.json(require('./version'));
 });
 
+// An unknown /api path is an error, not the web app. Without this, a mistyped or
+// missing endpoint fell through to the SPA fallback below and answered 200 with
+// index.html, which a client can only report as a baffling JSON decode failure.
+// The query string is left out of the reply: it can carry a token.
+app.use('/api', (req, res) => {
+    res.status(404).json({
+        error: 'No such API endpoint',
+        endpoint: `${req.method} ${req.originalUrl.split('?')[0]}`.slice(0, 200)
+    });
+});
+
 // SPA fallback - serve index.html for all non-API routes
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));

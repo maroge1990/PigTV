@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0078** (0054–0073 are on `main` and **deployed** — Mark, 20 Sept 2026; 0074–0078 written) |
-| Next patch number | **0079** |
+| Shipped through | **build 0079** (0054–0078 are on `main`; 0079 written) |
+| Next patch number | **0080** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -118,6 +118,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0076 | Dead-code batch (a): `users.js`, `m3uXtreamAdapter.js`, `hello.js` removed — see below |
 | 0077 | Dead-code batch (b): OIDC/SSO and express-session removed, two dependencies dropped — see below |
 | 0078 | Dead-code batch (c, part 1): JSON-file `hiddenItems` / `favorites` removed from `db.js` — see below |
+| 0079 | Unknown `/api/*` paths return a JSON 404 instead of the web app + an Apple-client route guard test — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -688,6 +689,20 @@ non-streaming `epgParser`/`m3uParser` functions. The review called them unused "
 provider — and VOD/series are being *kept* for a future provider (decision above). They should go only after Mark
 decides whether that Xtream path is also being kept.
 
+**0079 detail — unknown `/api/*` paths are a JSON 404, not the web app (roadmap A.10, review §2.14).** Anything
+under `/api` that no router handled fell through to the SPA fallback and answered **200 with `index.html`** — so a
+mistyped or missing endpoint looked like success and failed later as an unexplained JSON decode error (this is how
+`/api/hello` and the SSO routes kept "working" after their code was deleted). Now `app.use('/api', …)` after the last
+router answers `404 {"error":"No such API endpoint","endpoint":"GET /api/x"}` for every method; the query string is
+left out (it can carry a token) and the path is capped at 200 characters. Everything that is not `/api` still gets the
+web app. A router that requires a token still answers 401 first, so an anonymous caller can't map which paths exist.
+**Contract guard:** `test/api-404.test.js` boots the *real* `server/index.js` as a child process and asserts that every
+route the Apple client calls (list taken from `PigTV-Swift-Client`: `APIClient.swift` and its callers, plus the media
+prefixes and §6's recording endpoints) still reaches its own handler and is never answered by the new catch-all. **When
+the Swift client gains an endpoint, add it to `APPLE_CLIENT_ROUTES` in that test.** No client change needed: all 22
+paths the client uses exist server-side, checked by reading the client source (read-only). Tests: 7 (4 of them fail
+against the 0078 `index.js`; the client-route guard passes both ways by design — it protects the future).
+
 **Decisions recorded 20 Sept 2026 (Mark).** (a) Start §C Phase 1 now, as a **Settings toggle**, off by default.
 (b) **Stability and quality outrank channel-change speed** — a slower channel change is acceptable if that is
 the price; §C Phase 2 measures what it costs and we look for what we can claw back without giving up stability.
@@ -814,8 +829,8 @@ that hardening.
     `/api/proxy/stream` buffers the whole upstream body in memory, incl. progressive MP4 and `bytes=0-` ranges
     (§2.4 — matters more now VOD is kept); no ffmpeg `-protocol_whitelist`, so `file:`/`concat:` inputs are
     accepted on the URL-taking routes (§3.5 — bounded today by the VPN-only decision); `saveDb()` swallows write
-    errors so a failed `db.json` write reads as success (§2.14); unknown `/api/*` paths return `index.html` 200
-    instead of a 404 JSON (§2.14); exit code 255 leaves a dead HLS session marked `running` (§2.14); `USER node`
+    errors so a failed `db.json` write reads as success (§2.14); ~~unknown `/api/*` paths return `index.html` 200
+    instead of a 404 JSON~~ ✅ 0079; exit code 255 leaves a dead HLS session marked `running` (§2.14); `USER node`
     in the Dockerfile (needs volume ownership sorted first, see 0063).
 
 ### B. Blocked on the Swift client (server code can be written ahead; verify/land with the client)
