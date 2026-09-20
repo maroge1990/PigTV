@@ -1216,6 +1216,11 @@ check_absent package.json "express-session" "express-session is not a dependency
 check_absent package.json "passport-openidconnect" "nor is passport-openidconnect"
 check_absent package-lock.json "node_modules/express-session" "and the lockfile agrees"
 
+echo "=== 0078: JSON-file hiddenItems / favorites removed from db.js (review P2-1) ==="
+check_absent server/db.js "hiddenItems" "no JSON-file hidden items (they live in SQLite, routes/channels.js)"
+check_absent server/db.js "db.favorites" "no JSON-file favourites (they live in SQLite, routes/favorites.js)"
+check test/db-legacy-keys.test.js "the next write drops the two unread arrays and nothing else" "an older db.json is tested to load and to lose only those two arrays"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

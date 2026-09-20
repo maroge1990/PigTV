@@ -29,8 +29,6 @@ async function loadDb() {
       const data = JSON.parse(fileContent);
       cachedDb = {
         sources: data.sources || [],
-        hiddenItems: data.hiddenItems || [],
-        favorites: data.favorites || [],
         settings: data.settings || getDefaultSettings(),
         users: data.users || [],
         nextId: data.nextId || 1
@@ -44,8 +42,6 @@ async function loadDb() {
         // so the first saveDb writes it out.
         cachedDb = {
           sources: [],
-          hiddenItems: [],
-          favorites: [],
           settings: getDefaultSettings(),
           users: [],
           nextId: 1
@@ -60,8 +56,6 @@ async function loadDb() {
     // unseeded so the next call retries the disk, and return a safe default.
     return {
       sources: [],
-      hiddenItems: [],
-      favorites: [],
       settings: getDefaultSettings(),
       users: [],
       nextId: 1
@@ -223,9 +217,6 @@ const sources = {
   async delete(id) {
     const db = await loadDb();
     db.sources = db.sources.filter(s => s.id !== parseInt(id));
-    // Also delete related hidden items and favorites
-    db.hiddenItems = db.hiddenItems.filter(h => h.source_id !== parseInt(id));
-    db.favorites = db.favorites.filter(f => f.source_id !== parseInt(id));
     await saveDb(db);
   },
 
@@ -238,143 +229,6 @@ const sources = {
       await saveDb(db);
     }
     return source;
-  }
-};
-
-// Hidden items operations
-const hiddenItems = {
-  async getAll(sourceId = null) {
-    const db = await loadDb();
-    if (sourceId) {
-      return db.hiddenItems.filter(h => h.source_id === parseInt(sourceId));
-    }
-    return db.hiddenItems;
-  },
-
-  async hide(sourceId, itemType, itemId) {
-    const db = await loadDb();
-    // Check if already hidden
-    const exists = db.hiddenItems.find(
-      h => h.source_id === parseInt(sourceId) && h.item_type === itemType && h.item_id === itemId
-    );
-    if (!exists) {
-      db.hiddenItems.push({
-        id: db.nextId++,
-        source_id: parseInt(sourceId),
-        item_type: itemType,
-        item_id: itemId
-      });
-      await saveDb(db);
-    }
-  },
-
-  async show(sourceId, itemType, itemId) {
-    const db = await loadDb();
-    db.hiddenItems = db.hiddenItems.filter(
-      h => !(h.source_id === parseInt(sourceId) && h.item_type === itemType && h.item_id === itemId)
-    );
-    await saveDb(db);
-  },
-
-  async isHidden(sourceId, itemType, itemId) {
-    const db = await loadDb();
-    return db.hiddenItems.some(
-      h => h.source_id === parseInt(sourceId) && h.item_type === itemType && h.item_id === itemId
-    );
-  },
-
-  async bulkHide(items) {
-    const db = await loadDb();
-    let modified = false;
-
-    items.forEach(item => {
-      const { sourceId, itemType, itemId } = item;
-      const exists = db.hiddenItems.find(
-        h => h.source_id === parseInt(sourceId) && h.item_type === itemType && h.item_id === itemId
-      );
-
-      if (!exists) {
-        db.hiddenItems.push({
-          id: db.nextId++,
-          source_id: parseInt(sourceId),
-          item_type: itemType,
-          item_id: itemId
-        });
-        modified = true;
-      }
-    });
-
-    if (modified) {
-      await saveDb(db);
-    }
-    return true;
-  },
-
-  async bulkShow(items) {
-    const db = await loadDb();
-    const initialLength = db.hiddenItems.length;
-
-    // Create a set of "signatures" for O(1) lookup of items to remove
-    const toRemove = new Set(items.map(i => `${i.sourceId}:${i.itemType}:${i.itemId}`));
-
-    db.hiddenItems = db.hiddenItems.filter(h =>
-      !toRemove.has(`${h.source_id}:${h.item_type}:${h.item_id}`)
-    );
-
-    if (db.hiddenItems.length !== initialLength) {
-      await saveDb(db);
-    }
-    return true;
-  }
-};
-
-// Favorites operations
-const favorites = {
-  async getAll(sourceId = null, itemType = null) {
-    const db = await loadDb();
-    let results = db.favorites;
-    if (sourceId) {
-      results = results.filter(f => f.source_id === parseInt(sourceId));
-    }
-    if (itemType) {
-      results = results.filter(f => f.item_type === itemType);
-    }
-    return results;
-  },
-
-  async add(sourceId, itemId, itemType = 'channel') {
-    const db = await loadDb();
-    // Check if already favorited
-    const exists = db.favorites.find(
-      f => f.source_id === parseInt(sourceId) && f.item_id === String(itemId) && f.item_type === itemType
-    );
-    if (!exists) {
-      db.favorites.push({
-        id: db.nextId++,
-        source_id: parseInt(sourceId),
-        item_id: String(itemId),
-        item_type: itemType, // 'channel', 'movie', 'series'
-        created_at: new Date().toISOString()
-      });
-      await saveDb(db);
-    }
-    return true;
-  },
-
-  async remove(sourceId, itemId, itemType = 'channel') {
-    const db = await loadDb();
-    db.favorites = db.favorites.filter(
-      f => !(f.source_id === parseInt(sourceId) && f.item_id === String(itemId) && f.item_type === itemType)
-    );
-    await saveDb(db);
-    return true;
-  },
-
-  async isFavorite(sourceId, itemId, itemType = 'channel') {
-    const db = await loadDb();
-    return db.favorites.some(
-      f => f.source_id === parseInt(sourceId) && f.item_id === String(itemId) && f.item_type === itemType
-    );
   }
 };
 
@@ -501,4 +355,4 @@ const users = {
   }
 };
 
-module.exports = { loadDb, saveDb, sources, hiddenItems, favorites, settings, users, getDefaultSettings, getUserAgent, USER_AGENT_PRESETS };
+module.exports = { loadDb, saveDb, sources, settings, users, getDefaultSettings, getUserAgent, USER_AGENT_PRESETS };

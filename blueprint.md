@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0077** (0054–0073 are on `main` and **deployed** — Mark, 20 Sept 2026; 0074–0077 written) |
-| Next patch number | **0078** |
+| Shipped through | **build 0078** (0054–0073 are on `main` and **deployed** — Mark, 20 Sept 2026; 0074–0078 written) |
+| Next patch number | **0079** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -117,6 +117,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0075 | §C Phase 1: "HLS Delivery (beta)" toggle for the web player + `play-start` / `play-end` measurement — see below |
 | 0076 | Dead-code batch (a): `users.js`, `m3uXtreamAdapter.js`, `hello.js` removed — see below |
 | 0077 | Dead-code batch (b): OIDC/SSO and express-session removed, two dependencies dropped — see below |
+| 0078 | Dead-code batch (c, part 1): JSON-file `hiddenItems` / `favorites` removed from `db.js` — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -669,6 +670,23 @@ purpose:** users created before this patch keep an `oidcId: null` field in `db.j
 output (new users don't have one) — harmless, and stripping it would just be churn; `/api/auth/oidc/*` now falls
 through to the SPA catch-all like any unknown path (roadmap A.10). If SSO is ever wanted, it is in git history
 (this commit's parent) — but a paired-device flow would be the better fit for this server than OIDC.
+
+**0078 detail — dead-code batch (c, part 1): the JSON-file `hiddenItems` and `favorites` removed from `db.js`
+(review P2-1).** Hidden channels/categories live in SQLite (`routes/channels.js`) and favourites in SQLite
+(`routes/favorites.js`); the two `db.json` collections (~140 lines: `hiddenItems.*`, `favorites.*`, their keys in
+`loadDb`, and the clean-up in `sources.delete`) had no caller. Checked by grepping every `require('…/db')` for
+destructured use, not only for `db.hiddenItems`. **One data effect to know about:** an existing `db.json` still contains
+those two arrays; they are not loaded any more, so **the next write to `db.json` drops them** (and only them —
+sources, users, settings and the id counter are kept, asserted in a test using a legacy-shaped file). They were unread
+leftovers from the nodecast era; a weekly appdata backup covers the paranoid case. Tests: `test/db-legacy-keys.test.js`
+(3; 2 fail against the 0077 code). **Deliberately left for later (still in this review item):** the dead
+`persist()` / `restore()` / `recoverSessions()` / `getOrCreateSession()` in `transcodeSession.js` — `persist()` is
+called from `start()`, i.e. inside the HLS path being trialled with 0075, so it waits until that trial is over (or §C
+Phase 4). **Not started, and why:** `cache.js` + the upstream Xtream/EPG proxy routes in `routes/proxy.js` + the
+non-streaming `epgParser`/`m3uParser` functions. The review called them unused "with an M3U-only setup", but the
+`/api/proxy/xtream/:id/:action` routes are exactly what the web app's Movies/Series pages would use against an Xtream
+provider — and VOD/series are being *kept* for a future provider (decision above). They should go only after Mark
+decides whether that Xtream path is also being kept.
 
 **Decisions recorded 20 Sept 2026 (Mark).** (a) Start §C Phase 1 now, as a **Settings toggle**, off by default.
 (b) **Stability and quality outrank channel-change speed** — a slower channel change is acceptable if that is
