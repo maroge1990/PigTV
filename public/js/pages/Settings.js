@@ -621,10 +621,7 @@ class SettingsPage {
             }
 
             userList.innerHTML = users.map(user => {
-                const isSSO = !!user.oidcId;
-                const typeBadge = isSSO
-                    ? '<span class="user-badge user-badge-sso">SSO</span>'
-                    : '<span class="user-badge user-badge-local">Local</span>';
+                const typeBadge = '<span class="user-badge user-badge-local">Local</span>';
 
                 const roleBadge = user.role === 'admin'
                     ? '<span class="user-badge user-badge-admin">Admin</span>'
@@ -673,9 +670,6 @@ class SettingsPage {
             return;
         }
 
-        const isSSO = !!user.oidcId;
-        console.log('Is SSO user:', isSSO);
-
         // Populate form with null checks
         try {
             const editId = document.getElementById('edit-user-id');
@@ -692,27 +686,13 @@ class SettingsPage {
             if (editRole) editRole.value = user.role;
             if (editPassword) editPassword.value = '';
 
-            // Handle SSO specific UI
+            // A previous edit may have left the password field in another state; reset it.
             const passwordHint = document.getElementById('edit-password-hint');
-            const oidcGroup = document.getElementById('oidc-info-group');
-            const oidcIdDisplay = document.getElementById('edit-oidc-id');
-
-            if (isSSO) {
-                if (editPassword) {
-                    editPassword.disabled = true;
-                    editPassword.placeholder = "Managed by SSO Provider";
-                }
-                if (passwordHint) passwordHint.textContent = "Password cannot be changed for SSO users.";
-                if (oidcGroup) oidcGroup.classList.remove('hidden');
-                if (oidcIdDisplay) oidcIdDisplay.textContent = user.oidcId;
-            } else {
-                if (editPassword) {
-                    editPassword.disabled = false;
-                    editPassword.placeholder = "Leave blank to keep current";
-                }
-                if (passwordHint) passwordHint.textContent = "Optional. Leave blank to keep unchanged.";
-                if (oidcGroup) oidcGroup.classList.add('hidden');
+            if (editPassword) {
+                editPassword.disabled = false;
+                editPassword.placeholder = "Leave blank to keep current";
             }
+            if (passwordHint) passwordHint.textContent = "Optional. Leave blank to keep unchanged.";
 
             // Show modal
             console.log('Adding active class to modal...');

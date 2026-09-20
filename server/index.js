@@ -20,19 +20,10 @@ app.set('trust proxy', true);
 // client make the server buffer and parse that much JSON.
 app.use(express.json({ limit: '2mb' }));
 
-// Initialize Passport
-const session = require('express-session');
-// express-session exists only for the OIDC login flow (unconfigured here).
-// saveUninitialized:false means a session is created only once something is
-// stored in it, so an ordinary cookieless request (every AVPlayer segment
-// fetch, curl, health check) no longer leaks an entry into the MemoryStore.
-app.use(session({
-    secret: require('./authSecret'),
-    resave: false,
-    saveUninitialized: false
-}));
+// Initialize Passport. Authentication is stateless (JWT bearer tokens), so there is
+// deliberately no server-side session store: nothing to grow with cookieless
+// requests, and nothing to lose on a restart.
 app.use(passport.initialize());
-app.use(passport.session());
 
 app.use(express.static(path.join(__dirname, '..', 'public')));
 

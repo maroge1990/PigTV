@@ -23,39 +23,6 @@ auth.configureJwtStrategy(
     async (id) => await db.users.getById(id)
 );
 
-// Configure Passport session serialization (required for OIDC)
-auth.configureSessionSerialization(
-    async (id) => await db.users.getById(id)
-);
-
-// Configure OIDC Strategy
-auth.configureOidcStrategy(
-    async (oidcId) => await db.users.getByOidcId(oidcId),
-    async (email) => await db.users.getByEmail(email),
-    async (userData) => await db.users.create(userData)
-);
-
-/**
- * Start OIDC Login
- * GET /api/auth/oidc/login
- */
-router.get('/oidc/login', auth.passport.authenticate('openidconnect'));
-
-/**
- * OIDC Callback
- * GET /api/auth/oidc/callback
- */
-router.get('/oidc/callback',
-    auth.passport.authenticate('openidconnect', { session: false, failureRedirect: '/login.html?error=SSO+Failed' }),
-    (req, res) => {
-        // Successful authentication
-        const token = auth.generateToken(req.user);
-
-        // Redirect to hompage with token
-        res.redirect(`/?token=${token}`);
-    }
-);
-
 /**
  * Check if initial setup is required
  * GET /api/auth/setup-required

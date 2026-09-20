@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0076** (0054–0073 are on `main` and **deployed** — Mark, 20 Sept 2026; 0074–0076 written) |
-| Next patch number | **0077** |
+| Shipped through | **build 0077** (0054–0073 are on `main` and **deployed** — Mark, 20 Sept 2026; 0074–0077 written) |
+| Next patch number | **0078** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -116,6 +116,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0074 | Housekeeping: `access.test.js` runs on Windows without admin; blueprint status refreshed — see below |
 | 0075 | §C Phase 1: "HLS Delivery (beta)" toggle for the web player + `play-start` / `play-end` measurement — see below |
 | 0076 | Dead-code batch (a): `users.js`, `m3uXtreamAdapter.js`, `hello.js` removed — see below |
+| 0077 | Dead-code batch (b): OIDC/SSO and express-session removed, two dependencies dropped — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -646,6 +647,28 @@ it is a documented extension point, not dead code, just currently empty; say the
 the server started clean with the plugins folder empty. `/api/hello` now falls through to the SPA catch-all like any
 unknown path (roadmap A.10 covers making unknown `/api/*` return a 404 JSON). No behaviour change; no test needed
 beyond the verify-build assertion (there is nothing left to test).
+
+**0077 detail — dead-code batch (b): OIDC / SSO and express-session removed (review P2-1, and the rest of P1-7).**
+Nothing in the repo configures OIDC (no `OIDC_*` in `docker-compose.yml` or the README; the review found it unconfigured — **if the Unraid template ever set `OIDC_*` variables, SSO stops working with this patch**), and the auth model is bearer
+tokens (web login + paired devices), so this was a login path that is unreachable unless configured. Removed: `express-session` and
+`passport.session()` from `index.js` (authentication is stateless, so there is no session store to grow or lose —
+0053's `saveUninitialized:false` mitigation is superseded; a request now sets **no cookie at all**, checked); the
+OIDC strategy, session (de)serialisation and their exports from `auth.js`; the `/api/auth/oidc/login` and
+`/oidc/callback` routes (the callback put a JWT in a redirect URL — review §3.2); `getByOidcId` / `getByEmail` and the
+`oidcId` field on new users in `db.js`; the "Sign in with SSO" button and script on `login.html`; the page-load script
+in `index.html` that saved a `?token=` from the URL into `localStorage` (only the SSO callback ever used it); the SSO
+badge branch and OIDC field in the Settings user editor; `.user-badge-sso`. **Dependencies: `express-session` and
+`passport-openidconnect` are gone from `package.json` and the lockfile, which drops six packages** (`express-session`,
+`oauth`, `on-headers`, `passport-openidconnect`, `random-bytes`, `uid-safe`) — the lockfile was edited with `npm
+uninstall --package-lock-only`, so `npm ci` in the Docker build needs nothing new. `authSecret.js` is unchanged (it
+still signs JWTs and device tokens). **Verified:** the full test suite and a real server boot both run with those six
+packages *blocked at module resolution* (nothing tried to load one); login and `/api/auth/me` work; no `Set-Cookie`
+on `/` or the API. **Not exercised in a real browser:** the login page after the edit (checked the markup is
+balanced) and the Settings → Users edit dialog (syntax-checked only) — worth a click on first deploy. **Leftovers, on
+purpose:** users created before this patch keep an `oidcId: null` field in `db.json` and in `/api/auth/users`
+output (new users don't have one) — harmless, and stripping it would just be churn; `/api/auth/oidc/*` now falls
+through to the SPA catch-all like any unknown path (roadmap A.10). If SSO is ever wanted, it is in git history
+(this commit's parent) — but a paired-device flow would be the better fit for this server than OIDC.
 
 **Decisions recorded 20 Sept 2026 (Mark).** (a) Start §C Phase 1 now, as a **Settings toggle**, off by default.
 (b) **Stability and quality outrank channel-change speed** — a slower channel change is acceptable if that is

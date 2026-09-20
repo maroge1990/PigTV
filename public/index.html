@@ -1331,12 +1331,6 @@
             <p class="hint" id="edit-password-hint" style="margin-top: 4px;">Optional. Leave blank to keep unchanged.
             </p>
           </div>
-
-          <div class="modal-form-group hidden" id="oidc-info-group">
-            <label>OIDC Provider ID</label>
-            <code id="edit-oidc-id"
-              style="font-size: 0.8rem; color: var(--color-text-muted); padding: 4px; background: rgba(0,0,0,0.3); border-radius: 4px; display: block;"></code>
-          </div>
         </form>
       </div>
       <div class="modal-footer">
@@ -1362,20 +1356,6 @@
   <script src="/js/pages/Settings.js?v=9"></script>
   <script src="/js/pages/WatchPage.js?v=2"></script>
   <script src="/js/app.js?v=8"></script>
-  <script>
-    // Check for SSO token in URL
-    (function () {
-      const urlParams = new URLSearchParams(window.location.search);
-      const token = urlParams.get('token');
-      if (token) {
-        console.log('SSO Login successful, saving token...');
-        localStorage.setItem('authToken', token);
-        // Clean URL without reloading
-        const newUrl = window.location.pathname;
-        window.history.replaceState({}, document.title, newUrl);
-      }
-    })();
-  </script>
 </body>
 
 </html>

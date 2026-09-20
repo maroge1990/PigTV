@@ -417,16 +417,6 @@ const users = {
     return db.users?.find(u => u.username === username);
   },
 
-  async getByOidcId(oidcId) {
-    const db = await loadDb();
-    return db.users?.find(u => u.oidcId === oidcId);
-  },
-
-  async getByEmail(email) {
-    const db = await loadDb();
-    return db.users?.find(u => u.email === email);
-  },
-
   async create(userData) {
     const db = await loadDb();
     if (!db.users) {
@@ -441,10 +431,8 @@ const users = {
     const newUser = {
       id: db.nextId++,
       username: userData.username,
-      // For OIDC users, passwordHash is optional
       passwordHash: userData.passwordHash || null,
       role: userData.role || 'viewer',
-      oidcId: userData.oidcId || null,
       email: userData.email || null,
       createdAt: new Date().toISOString()
     };

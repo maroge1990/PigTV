@@ -4468,12 +4468,6 @@ kbd {
   white-space: nowrap;
 }
 
-.user-badge-sso {
-  background: linear-gradient(135deg, #FF7FA3 0%, #E8446F 100%);
-  color: #fff;
-  box-shadow: 0 2px 4px rgba(255, 92, 138, 0.3);
-}
-
 .user-badge-local {
   background: rgba(255, 255, 255, 0.08);
   color: var(--color-text-secondary);

@@ -896,7 +896,7 @@ echo "=== 0053: db.json cache + session leak (P1-7) ==="
 check server/db.js "let cachedDb = null" "in-memory db cache declared"
 check server/db.js "if (cachedDb) return structuredClone(cachedDb)" "loadDb serves from cache once seeded"
 check server/db.js "cachedDb = structuredClone(data)" "saveDb keeps the cache authoritative (write-through)"
-check server/index.js "saveUninitialized: false" "session not created for cookieless requests (MemoryStore leak)"
+check_absent server/index.js "express-session" "no session store at all (0077 removed it; the MemoryStore leak cannot come back)"
 
 echo "=== 0054: ffmpeg output-inactivity watchdog ==="
 check server/services/stallWatchdog.js "function createStallWatchdog" "shared watchdog exists"
@@ -1203,6 +1203,18 @@ if grep -rn "routes/users\|m3uXtreamAdapter\|plugins/hello" server test public -
 else
   echo "  ✓ nothing refers to them"
 fi
+
+echo "=== 0077: OIDC / SSO and express-session removed (review P2-1, P1-7) ==="
+check_absent server/index.js "passport.session()" "no passport session middleware"
+check_absent server/auth.js "openidconnect" "auth.js no longer loads the OIDC strategy"
+check_absent server/auth.js "configureSessionSerialization" "or the session (de)serialisation"
+check_absent server/routes/auth.js "oidc" "no OIDC routes"
+check_absent server/db.js "getByOidcId" "no OIDC lookup in the user store"
+check_absent public/login.html "btn-sso-login" "no SSO button on the login page"
+check_absent public/index.html "SSO token" "the page no longer stores a ?token= from the URL"
+check_absent package.json "express-session" "express-session is not a dependency"
+check_absent package.json "passport-openidconnect" "nor is passport-openidconnect"
+check_absent package-lock.json "node_modules/express-session" "and the lockfile agrees"
 
 if [ $FAIL -eq 0 ]; then
     echo ""
