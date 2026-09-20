@@ -11,6 +11,9 @@
  * `[Playback] resolve timing`, `[Player] media-error` / `start-timeout`, and a few ffmpeg-side
  * failure messages. It changes nothing and needs no dependencies.
  *
+ * Plays from a paired device (the Apple client) are reported on their own lines, marked
+ * "[Apple/device]", and never count towards the web player's HLS trial criteria.
+ *
  * Limits, on purpose: the log never names a channel, so "how many different channels" can't be
  * counted from it - keep that tally yourself. A play-start is paired with the nearest earlier
  * `resolve timing` line of the same kind to tell a cold play (the stream had to be probed) from
@@ -34,6 +37,12 @@ const PLAY_END = new RegExp(String.raw`\[Player\] play-end via ${HOW} watched=(\
 const RESOLVE_TIMING = /\[Playback\] resolve timing: (direct|remux|HLS session), probe (cached|[\d.]+s)(?:, first segment (?:after ([\d.]+)s|(NOT produced in time)))?/;
 const MEDIA_ERROR = /\[Player\] media-error (\S+?)\((\S+?)\) via (\S+) path=(\S*) msg="([^"]*)"/;
 const START_TIMEOUT = /\[Player\] start-timeout via (\S+)/;
+// Every client event ends with who sent it: `user:<id>` for a web login, `device:<id>` for a
+// paired device (the Apple client). Devices are reported separately, so their plays never
+// count towards the web player's HLS trial.
+const FROM = /\bfrom=(\S+)\s*$/;
+const DEVICE_SUFFIX = ' [Apple/device]';
+const fromDevice = (line) => { const m = FROM.exec(line); return !!m && m[1].startsWith('device:'); };
 
 // ffmpeg / server-side failure signatures worth counting (see the blueprint's grep lines)
 const SERVER_SIGNS = [
@@ -58,7 +67,9 @@ function pathLabel(strategy, hlsDelivery) {
 }
 
 /** The element-side `strategy` in a media-error line ('hls' means hls.js was driving). */
-function errorPathLabel(via) {
+function errorPathLabel(via, device = false) {
+    // The Apple client always asks for segmented delivery, so its transcode/hls is an HLS session.
+    if (device) return pathLabel(via === 'hls' ? 'transcode' : via, true) + DEVICE_SUFFIX;
     if (via === 'hls') return 'HLS session (opt-in)';
     if (via === 'transcode') return 'transcode (server-chosen)';
     return via;
@@ -92,18 +103,18 @@ function parse(text) {
             const paired = pending[strategy] || null;
             if (paired) pending[strategy] = null;
             plays.push({
-                label: pathLabel(strategy, hls === 'on'),
+                label: pathLabel(strategy, hls === 'on') + (fromDevice(line) ? DEVICE_SUFFIX : ''),
                 resolveSec: seconds(resolve),
                 firstPictureSec: seconds(first),
                 warm: paired ? paired.warm : null
             });
         } else if ((m = PLAY_END.exec(line))) {
             const [, strategy, , , hls, watched, stalls] = m;
-            ends.push({ label: pathLabel(strategy, hls === 'on'), watchedSec: seconds(watched), stalls: parseInt(stalls, 10) });
+            ends.push({ label: pathLabel(strategy, hls === 'on') + (fromDevice(line) ? DEVICE_SUFFIX : ''), watchedSec: seconds(watched), stalls: parseInt(stalls, 10) });
         } else if ((m = MEDIA_ERROR.exec(line))) {
-            errors.push({ kind: 'media-error', code: m[1], via: m[3], label: errorPathLabel(m[3]), path: m[4], message: m[5] });
+            errors.push({ kind: 'media-error', code: m[1], via: m[3], label: errorPathLabel(m[3], fromDevice(line)), path: m[4], message: m[5] });
         } else if ((m = START_TIMEOUT.exec(line))) {
-            errors.push({ kind: 'start-timeout', code: '', via: m[1], label: errorPathLabel(m[1]), path: '', message: '' });
+            errors.push({ kind: 'start-timeout', code: '', via: m[1], label: errorPathLabel(m[1], fromDevice(line)), path: '', message: '' });
         } else {
             for (const [name, re] of SERVER_SIGNS) if (re.test(line)) server[name]++;
         }

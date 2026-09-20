@@ -1264,6 +1264,10 @@ check server/routes/info.js "recordingPlaybackPolling: true" "/api/info says pol
 check server/routes/info.js "scheduledWaiting: true" "and the other client-relevant behaviours"
 check test/recording-playback-polling.test.js "two clients asking at once share one remux" "with route-level tests"
 
+echo "=== 0084: the playback report keeps Apple-device plays apart from the web trial ==="
+check scripts/playback-report.js "DEVICE_SUFFIX" "device plays get their own rows"
+check test/playback-report.test.js "never count towards the web HLS trial" "and are tested not to count towards the web criteria"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

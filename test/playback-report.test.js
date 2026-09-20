@@ -133,3 +133,40 @@ test('it runs as a command, from a file and from stdin', () => {
     const missing = spawnSync(process.execPath, [script, path.join(__dirname, 'no-such-file.log')], { encoding: 'utf8' });
     assert.notEqual(missing.status, 0, 'a wrong file name is an error, not an empty report');
 });
+
+// ---- 0084: plays from a paired device (the Apple client) are kept apart from the web player's ----
+
+const APPLE = `
+[Player] play-start via transcode(hls, video copy) hls-delivery=on resolve=5.0s first-picture=5.4s from=device:7
+[Player] play-start via transcode(hls, video copy) hls-delivery=on resolve=4.0s first-picture=4.2s from=device:7
+[Player] play-end via transcode(hls, video copy) hls-delivery=on watched=3700s stalls=1 from=device:7
+[Player] media-error AVFoundationErrorDomain(-11850) via transcode path=/api/transcode/abc/stream.m3u8 msg="Media codes: 404" networkState=? readyState=? t=312s buffered=330s from=device:7`.trim();
+
+test('device plays get their own rows and never count towards the web HLS trial', () => {
+    const rows = summarise(parse(`${REAL}\n${APPLE}`));
+    assert.deepEqual(rows.map(r => r.label), ['remux', 'HLS session (opt-in)', 'HLS session (opt-in) [Apple/device]']);
+    const web = rows.find(r => r.label === 'HLS session (opt-in)');
+    const apple = rows.find(r => r.label === 'HLS session (opt-in) [Apple/device]');
+    assert.equal(web.plays, 2, 'the two web HLS plays are untouched by the device lines');
+    assert.equal(apple.plays, 2);
+    assert.equal(apple.longSessions, 1, 'a device session of an hour or more is counted on the device row');
+    assert.equal(web.longSessions, 0);
+    assert.equal(web.errors.length, 0, 'and so is the device failure');
+    assert.equal(apple.errors.length, 1);
+});
+
+test('the trial criteria are about the web toggle only: device plays do not satisfy them', () => {
+    const printed = report(parse(APPLE));
+    assert.match(printed, /HLS session \(opt-in\) \[Apple\/device\]/, 'the device row is shown');
+    assert.match(printed, /no HLS-session plays in this log/, 'but there is no web HLS trial data in a device-only log');
+});
+
+test('a device failure is reported by name on the device row', () => {
+    const printed = report(parse(`${REAL}\n${APPLE}`));
+    assert.match(printed, /HLS session \(opt-in\) \[Apple\/device\]: AVFoundationErrorDomain x1/);
+});
+
+test('a line with no sender is treated as the web player, as before 0084', () => {
+    const rows = summarise(parse('[Player] play-start via remux(fmp4) hls-delivery=off resolve=0.0s first-picture=6.0s'));
+    assert.deepEqual(rows.map(r => r.label), ['remux']);
+});

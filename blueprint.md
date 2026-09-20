@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0083** (0054–0080 are on `main`; 0081–0083 written) |
-| Next patch number | **0084** |
+| Shipped through | **build 0084** (0054–0080 are on `main`; 0081–0084 written) |
+| Next patch number | **0085** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -122,7 +122,8 @@ on the *remux* path — see §5 architectural notes.)
 | 0080 | A failed `db.json` write is reported to the caller instead of swallowed — see below |
 | 0081 | `scripts/playback-report.js`: turns saved logs into the HLS-vs-remux trial report — see below |
 | 0082 | Recordings waiting for a viewer are listed, cancellable and not duplicated — see below |
-| 0083 | Recording playback can be polled (`?async=1` → 202 preparing) + `/api/info` capability flags — see below |
+| 0083 | Recording playback can be polled (`?async=1` → 202 preparing) + `/api/info` capability flags + the Swift hand-off doc — see below |
+| 0084 | The playback report keeps Apple-device plays apart from the web HLS trial — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -775,6 +776,17 @@ missing file, the old 409/404/401, the flags; 5 fail against the 0082 code). **F
 `routes/info.js`'s handler is an `async` function with no `try/catch`, so an exception in it would leave the request hanging
 rather than answering 500 (Express 4 ignores the rejected promise) — cosmetic today (nothing in it throws), worth a
 one-line fix if that route ever grows.
+
+**0084 detail — the playback report separates Apple-device plays from the web trial.** The Apple client is now
+asked (`docs/SWIFT-CLIENT-HANDOFF.md`, C7) to send the same `play-start` / `play-end` / `media-error` events the web player
+does, and it will send `hlsDelivery: true` because it always uses HLS sessions. Left alone, `scripts/playback-report.js`
+would have counted those plays as the web's opt-in HLS trial and quietly inflated its sample. Every client event ends
+`from=user:<id>` (web login) or `from=device:<id>` (paired device); the report now labels device lines
+**"[Apple/device]"**, gives them their own rows (first-picture times, stalls per hour, failures), and keeps them out of
+the trial-criteria block, which is about the web toggle only. A line with no sender is treated as the web player, as
+before. Tests: 4 new cases in `test/playback-report.test.js` (15 in all). **Slip caught on the way:** my first version of
+the sender regex lost its `\b` to a stray backspace character (an escaping mistake in a helper script) and silently
+matched nothing — the new tests caught it, and a scan of every tracked file found no other stray control characters.
 
 **Decisions recorded 20 Sept 2026 (Mark).** (a) Start §C Phase 1 now, as a **Settings toggle**, off by default.
 (b) **Stability and quality outrank channel-change speed** — a slower channel change is acceptable if that is
