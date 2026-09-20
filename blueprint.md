@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0085** (0054–0080 are on `main`; 0081–0085 written) |
-| Next patch number | **0086** |
+| Shipped through | **build 0086** (0054–0080 are on `main`; 0081–0086 written) |
+| Next patch number | **0087** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -125,6 +125,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0083 | Recording playback can be polled (`?async=1` → 202 preparing) + `/api/info` capability flags + the Swift hand-off doc — see below |
 | 0084 | The playback report keeps Apple-device plays apart from the web HLS trial — see below |
 | 0085 | Stream-copy HLS sessions ignore the source's DTS (`igndts`) — uneven frame timing found in the HLS trial — see below |
+| 0086 | A source that ends (a file served from the start) is read at real time in HLS sessions — the black-screen `fragLoadError 404` found in the HLS trial — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -813,6 +814,36 @@ next evidence). **ffmpeg upgrade considered and not done:** the same message app
 hardware-driver stack under the Apple path. Tests: `test/hls-copy-dts.test.js` (3; the behaviour test fails on the old
 arguments with the 0–60 ms steps). **Apple client:** every Apple live play with compatible codecs takes this path, so the
 change reaches it — no client change, but it wants a device retest (see `docs/SWIFT-CLIENT-HANDOFF.md` §5).
+
+**0086 detail — a source that ends is paced to real time (found in the HLS trial: black screen, `fragLoadError http 404`).**
+Two plays of the same provider URL (`.../live/.../1803789.ts`) died a couple of seconds after the picture appeared. The
+session log was identical both times: the same 15 `[mp4] Packet duration: -1 / dts: N is out of range` lines with the *same* `dts`
+values in the same order, ending on the same last value, then `FFmpeg completed successfully`, then the browser's
+`[Player] media-error HLS_networkError ... fragLoadError http 404 t=2s buffered=24s`. A live channel cannot repeat a timestamp
+sequence, so this URL is **a file served from the start** — it ends, and ffmpeg reads it as fast as the network allows (24 s already
+buffered 2 s into the play; the `dts` values reach roughly 32 minutes). An HLS session keeps 90 listed segments plus 12 spare, so
+ffmpeg was half an hour ahead of the player within seconds and the segment the player asked for next had been deleted: **404, which
+hls.js does not retry** — playback ends at once and the player destroys itself, leaving a black frame under the banner. The web
+client's `play-end` kept counting from `play-start` until the next channel (`watched=99s stalls=0` for a black screen) — misleading,
+fixed below. **Reproduced with real ffmpeg:** a 20-minute source through the session's own arguments was read in **0.7 s**, the
+playlist listed `seg0210`–`seg0299`, and `seg0006` did not exist. **Why the remux path never showed it:** its output is a pipe, so the
+client's read rate throttles ffmpeg (back-pressure); an HLS session writes to disk and has none. Any source that delivers faster than
+real time — a file, a catch-up channel, a provider's start-up burst — runs ahead of the window; this is a property of §C, and worth
+remembering for Phase 3 (and for VOD/series, which would meet it head-on). **Fix, three parts.** (1) `streamProbe.analyzeProbeResult`
+gains `finite` and `durationSec` from the `-show_format` output the server already runs: measured with real ffprobe over HTTP, a file
+served with a `Content-Length` reports a `size` (and a `duration` when it also supports ranges), while an open-ended chunked live
+response reports neither. (2) `playbackStrategy` passes `paceInput: info.finite === true` to the HLS session, which adds **`-re`** to the
+input: measured, the same 20-minute source then produces 3 segments in 14 s and `seg0000` is still there. (3) The resolve timing line
+says so: `... first segment after 7.8s, source ends (32 min) - paced to real time`, so the next trial log confirms the diagnosis on the
+real channel. **`-re` is gated, not blanket, on purpose:** measured on a source that was already arriving in real time, `-re` cost
+about 8 s of start-up (2 segments against 4 in 16 s), so a live feed must never get it; a live source wrongly seen as finite
+(a provider that sends a fake `Content-Length`) would pay those seconds but still play. **Also:** `routes/transcode.js` now logs one
+`[HLS] 404 for <file> in session <id>: <why>` per session and file (session gone / file not on disk) — a 404 used to leave nothing
+in the log — and `VideoPlayer.handleHlsFatal` clears the play timer so `play-end` no longer counts time after a fatal error.
+`info` in the resolve response gains `finite` and `durationSec` (additive). **Answers 0085's open question:** the channel that "never
+started" was this, not the timestamp warnings. **Not done:** the web player still gives up on the first fatal 404 (Phase 3's one-time
+fallback to remux will cover it); nothing changes for live channels. Tests: `test/hls-finite-source.test.js` (7; six fail on the old
+code, the seventh reproduces the fault by design).
 
 **Decisions recorded 20 Sept 2026 (Mark).** (a) Start §C Phase 1 now, as a **Settings toggle**, off by default.
 (b) **Stability and quality outrank channel-change speed** — a slower channel change is acceptable if that is

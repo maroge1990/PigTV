@@ -1614,6 +1614,8 @@ class VideoPlayer {
         const details = String((data && data.details) || 'unknown').slice(0, 60);
         const http = data && data.response && Number.isFinite(data.response.code) ? ` http ${data.response.code}` : '';
         this.loadingSpinner?.classList.remove('show');
+        // Nothing is playing any more, so the time from here to the next channel is not "watched".
+        this._playingAt = null;
         this.updateTranscodeStatus('error', `Playback error (HLS ${details})`);
         this.reportClientEvent({
             ...this.describeMediaError(),

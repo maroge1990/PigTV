@@ -25,6 +25,17 @@ const coordinator = require('../services/streamCoordinator');
 // Start session cleanup interval
 transcodeSession.startCleanupInterval();
 
+// A 404 on a playlist or segment ends playback in hls.js at once (it does not retry a 4xx), yet
+// used to leave nothing in the log. One line per session and file, not one per request.
+const reportedMissing = new Set();
+function noteMissing(sessionId, file, why) {
+    const key = `${sessionId}/${file}`;
+    if (reportedMissing.has(key)) return;
+    if (reportedMissing.size > 500) reportedMissing.clear();
+    reportedMissing.add(key);
+    console.warn(`[HLS] 404 for ${file} in session ${sessionId}: ${why}`);
+}
+
 /**
  * A relative URI in an HLS playlist does not inherit the query string of
  * the playlist's own URL — that's ordinary URI resolution, not a bug in
@@ -154,11 +165,13 @@ router.get('/:sessionId/stream.m3u8', async (req, res) => {
     const session = transcodeSession.getSession(sessionId);
 
     if (!session) {
+        noteMissing(sessionId, 'stream.m3u8', 'the session no longer exists');
         return res.status(404).json({ error: 'Session not found' });
     }
 
     const playlist = await session.getPlaylist();
     if (!playlist) {
+        noteMissing(sessionId, 'stream.m3u8', `the playlist is not on disk (session ${session.status})`);
         return res.status(404).json({ error: 'Playlist not ready' });
     }
 
@@ -186,11 +199,13 @@ router.get('/:sessionId/:segment', async (req, res) => {
 
     const session = transcodeSession.getSession(sessionId);
     if (!session) {
+        noteMissing(sessionId, segment, 'the session no longer exists');
         return res.status(404).json({ error: 'Session not found' });
     }
 
     const segmentPath = await session.getSegment(segment);
     if (!segmentPath) {
+        noteMissing(sessionId, segment, `the file is not on disk (session ${session.status}) - already rotated out of the window, or cleared`);
         return res.status(404).json({ error: 'Segment not found' });
     }
 

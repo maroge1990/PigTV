@@ -312,6 +312,11 @@ class TranscodeSession extends EventEmitter {
             '-reconnect_delay_max', '3'
         );
 
+        // -re: read the input no faster than it plays. Only for a source that ends (see
+        // paceInput in playbackStrategy). Never for a live feed, which arrives in real time
+        // anyway: measured, -re on one costs seconds at start-up.
+        if (this.options.paceInput === true) args.push('-re');
+
         args.push('-i', this.url);
 
         // Add seek offset if specified (as output option to avoid Range requests)

@@ -167,6 +167,10 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
         vaapiHwDecode: settings.vaapiHwDecode !== false,
         segmentType,
         videoMode,
+        // A source that ends is read at full speed unless told otherwise, and an HLS session
+        // only keeps a few minutes of segments: ffmpeg would be half an hour ahead of the
+        // player within seconds, and the player's next segment would be gone (a 404).
+        paceInput: info.finite === true,
         audioMode: audioEncode ? 'encode' : (codecsOk ? 'copy' : undefined),
         videoCodec: info.video,
         audioCodec: info.audio,
@@ -179,7 +183,8 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     await session.start();
 
     const ready = await session.waitForPlaylist(15000);
-    console.log(`[Playback] resolve timing: HLS session, probe ${probeNote}, first segment ${ready ? `after ${seconds(Date.now() - sessionStartedAt)}` : 'NOT produced in time'}`);
+    const pacing = info.finite === true ? `, source ends${info.durationSec ? ` (${Math.round(info.durationSec / 60)} min)` : ''} - paced to real time` : '';
+    console.log(`[Playback] resolve timing: HLS session, probe ${probeNote}, first segment ${ready ? `after ${seconds(Date.now() - sessionStartedAt)}` : 'NOT produced in time'}${pacing}`);
     if (!ready) {
         await transcodeSession.removeSession(session.id);
         const err = new Error('Transcode failed to produce a playlist in time');

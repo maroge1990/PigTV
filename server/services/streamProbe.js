@@ -142,8 +142,17 @@ function analyzeProbeResult(probeResult, url, clientCaps = {}) {
             codec: s.codec_name
         }));
 
+    // A live channel arrives as an open-ended response, so ffprobe learns neither a size nor
+    // a duration from it. A file served from the start (some providers do this for 24/7 or
+    // on-demand "channels") reports at least one of them. Such a source ends, and it can be
+    // read far faster than it plays - see paceInput in transcodeSession.
+    const sizeBytes = Number(format.size);
+    const seconds = Number(format.duration);
+    const durationSec = Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : null;
+    const finite = durationSec !== null || (Number.isFinite(sizeBytes) && sizeBytes > 0);
+
     // Determine what processing is needed
-    // 4. MKV files often cause OOM/decoding issues in browser fMP4 remux, 
+    // 4. MKV files often cause OOM/decoding issues in browser fMP4 remux,
     // so we force them to "needsTranscode" which uses HLS (more robust).
     // The frontend will still use "copy" mode if codecs are compatible.
     const isMkv = container.includes('matroska') || container.includes('webm') || url.endsWith('.mkv');
@@ -174,6 +183,8 @@ function analyzeProbeResult(probeResult, url, clientCaps = {}) {
         audioProfile: audioStream?.profile || null,
         isHeAac: isHeAac,
         videoIsHevc: videoIsHevc,
+        finite: finite,
+        durationSec: durationSec,
         fps: videoStream?.avg_frame_rate || null,
         subtitles: subtitles
     };

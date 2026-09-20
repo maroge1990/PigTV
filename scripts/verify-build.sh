@@ -1274,6 +1274,14 @@ check server/services/transcodeSession.js "videoMode === 'copy' ? " "and only co
 check test/hls-copy-dts.test.js "no video packets are lost either way" "with a real-ffmpeg test that the old arguments reproduce the uneven timing"
 check docs/SWIFT-CLIENT-HANDOFF.md "0085" "and the Apple hand-off doc records it"
 
+echo "=== 0086: a source that ends is read at real time, so the HLS window cannot slide past the player ==="
+check server/services/streamProbe.js "const finite = " "the probe says whether a source ends (a size or a duration)"
+check server/services/playbackStrategy.js "paceInput: info.finite === true" "the strategy paces only those sessions"
+check server/services/transcodeSession.js "this.options.paceInput === true" "the session reads such an input with -re"
+check server/routes/transcode.js "function noteMissing" "and a playlist or segment 404 now leaves a line in the log"
+check test/hls-finite-source.test.js "unpaced, ffmpeg outruns the playlist window" "with a real-ffmpeg test that reproduces the 404 without pacing"
+check docs/SWIFT-CLIENT-HANDOFF.md "0086" "and the Apple hand-off doc records it"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
