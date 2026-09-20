@@ -1268,6 +1268,12 @@ echo "=== 0084: the playback report keeps Apple-device plays apart from the web 
 check scripts/playback-report.js "DEVICE_SUFFIX" "device plays get their own rows"
 check test/playback-report.test.js "never count towards the web HLS trial" "and are tested not to count towards the web criteria"
 
+echo "=== 0085: stream-copy HLS sessions derive DTS from PTS order, so a feed with repeated DTS no longer gives uneven frames ==="
+check server/services/transcodeSession.js "+genpts+discardcorrupt+igndts" "copy-video sessions ignore the source DTS, as the remux route does"
+check server/services/transcodeSession.js "videoMode === 'copy' ? " "and only copy-video ones: a re-encode makes its own timestamps"
+check test/hls-copy-dts.test.js "no video packets are lost either way" "with a real-ffmpeg test that the old arguments reproduce the uneven timing"
+check docs/SWIFT-CLIENT-HANDOFF.md "0085" "and the Apple hand-off doc records it"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

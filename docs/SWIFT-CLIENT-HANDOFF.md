@@ -1,6 +1,6 @@
 # PigTV server → Apple client hand-off
 
-**Written 20 September 2026 (server session, build 0083).** Audience: whoever works on the Swift client next, and Mark.
+**Written 20 September 2026 (server session, build 0083); kept current in §5 — last entry: build 0085.** Audience: whoever works on the Swift client next, and Mark.
 The server-side source of truth is `blueprint.md` (this repo); the client's own log is `HANDOVER.md` in the client project.
 Everything below was checked against the client source in `PigTV-Swift-Client` (read-only) and the server code.
 
@@ -222,3 +222,13 @@ riding on the existing 5 s conflict poll (so a short pause can't lose the stream
 `recordings/{id}/playback`** so an older Apple TV can say "this recording is HEVC" before AVPlayer fails on it.
 Server patches are delivered as numbered `git format-patch` files (see `blueprint.md` §2); anything that changes an
 existing response shape is treated as client-coupled and flagged there.
+
+## 5. Server changes since this document was written
+
+**Standing rule: every server patch that changes what the Apple client sees or receives adds an entry here, in the same
+patch** (newest last). "Client action" says what, if anything, the Swift side must do.
+
+| Build | What changed | Client action |
+|---|---|---|
+| 0084 | The server's playback report now tells Apple-device plays (`from=device:<id>`) apart from the web player's, so C7 events from the client never count towards the web's HLS trial. | None. Sending C7 events is still worthwhile. |
+| 0085 | **Live streams the server passes through without re-encoding (H.264/HEVC copied into HLS segments) now have their video timestamps rebuilt from frame order** (`-fflags +igndts`). Some provider feeds carry repeated or backward DTS; before this, the segments had uneven frame timing (steps of 0 to 3 frames instead of one) — judder, and possibly stop/start. Reproduced and cured on a synthetic stream; **not yet confirmed on a real channel or on a device.** Every Apple live play with compatible codecs takes this path. Segment lengths, the playlist and every URL are unchanged. | **None to code. Please retest on the Apple TV:** the channels that looked juddery or stalled before (motion should be smooth), and one that was fine (must still be, with lip-sync intact). If a channel gets worse — audio drifting from picture, a frozen picture — note the channel and send the `docker logs` lines; the change is the single `+igndts` in `server/services/transcodeSession.js`, so it can be backed out on its own. |

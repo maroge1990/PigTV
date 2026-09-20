@@ -140,6 +140,9 @@ test('audio and video that start far apart no longer trigger a discontinuity for
         try {
             const input = makeSkewedStream(work);
             const { args } = await sessionArgs({ audioMode: 'encode' });
+            // igndts (added for stream-copy in 0085) hides this fault on its own - the timestamps
+            // it derives no longer jump - so it is taken out to keep testing the threshold itself.
+            args[args.indexOf('-fflags') + 1] = '+genpts+discardcorrupt';
 
             const fixedDir = path.join(work, 'fixed'); fs.mkdirSync(fixedDir);
             const fixed = runSession(args, input, fixedDir);

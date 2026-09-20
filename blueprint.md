@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0084** (0054–0080 are on `main`; 0081–0084 written) |
-| Next patch number | **0085** |
+| Shipped through | **build 0085** (0054–0080 are on `main`; 0081–0085 written) |
+| Next patch number | **0086** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -124,6 +124,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0082 | Recordings waiting for a viewer are listed, cancellable and not duplicated — see below |
 | 0083 | Recording playback can be polled (`?async=1` → 202 preparing) + `/api/info` capability flags + the Swift hand-off doc — see below |
 | 0084 | The playback report keeps Apple-device plays apart from the web HLS trial — see below |
+| 0085 | Stream-copy HLS sessions ignore the source's DTS (`igndts`) — uneven frame timing found in the HLS trial — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -787,6 +788,31 @@ the trial-criteria block, which is about the web toggle only. A line with no sen
 before. Tests: 4 new cases in `test/playback-report.test.js` (15 in all). **Slip caught on the way:** my first version of
 the sender regex lost its `\b` to a stray backspace character (an escaping mistake in a helper script) and silently
 matched nothing — the new tests caught it, and a scan of every tracked file found no other stray control characters.
+
+**0085 detail — stream-copy HLS sessions ignore the source's DTS (found in the first days of the HLS trial).** Three
+channels put ffmpeg warnings in `docker logs`, and one played stop/start. Reproduced with real ffmpeg: a 50 fps H.264 stream
+with B-frames whose DTS repeats on every fifth packet — the shape of the live `Non-monotonic DTS in output stream 0:0;
+previous: N, current: N` log — run through the session's own arguments (copy video, fMP4 segments). **No packets are lost,
+but the frame timing in the segments is uneven: DTS steps of 0 ms to 60 ms instead of a steady 20 ms** (a frame with no
+duration, then one three frames long) — judder, and a plausible contributor to stalls in a player's buffer. Copy mode
+cannot repair this, because it hands the source's DTS to the muxer as it finds it. **Fix:** `-fflags +igndts` on the input
+of every session with `videoMode: 'copy'` — ffmpeg derives DTS from the PTS order, which is what `/api/remux` has always done
+for the same feeds (and why the strategy comment in `playbackStrategy.js` records that this content "played fine over
+remux"). Measured on the same input: the steps become a steady 20 ms, the packet count and segment lengths are unchanged,
+DTS stays at or below PTS, and a clean B-frame stream comes out identical. Not applied to re-encodes (the encoder makes its
+own timestamps). **This is the option 0073 declined** ("a bigger behavioural change than the fault needs") — for *that* fault
+(audio/video clocks 23 s apart) the threshold was the narrower answer; for repeated DTS there is no narrower one, and it
+also happens to fix the 0073 fault, so `test/hls-timestamp-skew.test.js` now removes `igndts` from its arguments to keep
+testing the threshold on its own. **The other two log samples:** `[h264] non-existing PPS 0 referenced / decode_slice_header
+error / no frame!` repeated, ending `Increasing reorder buffer to 2` — ffmpeg joining the feed part-way through a GOP
+during its start-up probe, before the first SPS/PPS; harmless and self-ending (the channel that logged it played fine), it
+does mean a start-up of up to one GOP. `[mp4] Packet duration: -1 / dts: N is out of range` — the same repeated-DTS fault
+seen from the fMP4 muxer (reproduced; ffmpeg 9 keeps every packet, **the container's 6.1 was not tested** — so whether it
+also explains the channel that *never started* is unconfirmed; the `docker logs` lines around that session id are the
+next evidence). **ffmpeg upgrade considered and not done:** the same message appears on ffmpeg 9.0, and a swap touches the
+hardware-driver stack under the Apple path. Tests: `test/hls-copy-dts.test.js` (3; the behaviour test fails on the old
+arguments with the 0–60 ms steps). **Apple client:** every Apple live play with compatible codecs takes this path, so the
+change reaches it — no client change, but it wants a device retest (see `docs/SWIFT-CLIENT-HANDOFF.md` §5).
 
 **Decisions recorded 20 Sept 2026 (Mark).** (a) Start §C Phase 1 now, as a **Settings toggle**, off by default.
 (b) **Stability and quality outrank channel-change speed** — a slower channel change is acceptable if that is

@@ -292,11 +292,19 @@ class TranscodeSession extends EventEmitter {
             this.addHwAccelInputArgs(args, encoder);
         }
 
+        // Stream-copy passes the source's own DTS straight to the muxer, so a feed whose
+        // DTS repeats or steps back comes out as uneven sample durations (0 to 3 frames
+        // long instead of one) plus "Non-monotonic DTS" / "Packet duration ... is out of
+        // range" log lines. igndts has ffmpeg derive DTS from the PTS order instead -
+        // what the remux route has always done for the same feeds. A re-encode makes its
+        // own timestamps, so it is left alone.
+        const inputFlags = videoMode === 'copy' ? '+genpts+discardcorrupt+igndts' : '+genpts+discardcorrupt';
+
         // Input options (common)
         args.push(
             '-probesize', '5000000',
             '-analyzeduration', '5000000',
-            '-fflags', '+genpts+discardcorrupt',
+            '-fflags', inputFlags,
             '-err_detect', 'ignore_err',
             '-dts_delta_threshold', String(DTS_DELTA_THRESHOLD_SEC),
             '-reconnect', '1',
