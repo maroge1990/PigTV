@@ -895,7 +895,7 @@ fi
 echo "=== 0053: db.json cache + session leak (P1-7) ==="
 check server/db.js "let cachedDb = null" "in-memory db cache declared"
 check server/db.js "if (cachedDb) return structuredClone(cachedDb)" "loadDb serves from cache once seeded"
-check server/db.js "cachedDb = structuredClone(data)" "saveDb keeps the cache authoritative (write-through)"
+check server/db.js "cachedDb = snapshot;" "saveDb keeps the cache authoritative (write-through)"
 check_absent server/index.js "express-session" "no session store at all (0077 removed it; the MemoryStore leak cannot come back)"
 
 echo "=== 0054: ffmpeg output-inactivity watchdog ==="
@@ -1230,6 +1230,13 @@ else
   echo "  ✗ MISSING: the API 404 must come after all /api routers and before the SPA fallback"; FAIL=1
 fi
 check test/api-404.test.js "every route the Apple client calls still reaches its real handler" "a test boots the real server and asserts none of the Apple client's routes is swallowed"
+
+echo "=== 0080: a failed db.json write is reported, not swallowed (review §2.14) ==="
+check server/db.js "writeQueue = thisWrite.catch" "the write queue survives a failed write"
+check server/db.js "return thisWrite;" "and the caller of the failed save is the one who hears about it"
+check server/db.js "if (cachedDb === snapshot) cachedDb = previous;" "the in-memory copy is rolled back too (unless a newer save superseded it)"
+check_absent server/db.js "Database write failed" "the old catch-and-continue that reported success is gone"
+check test/db-write-failure.test.js "a later save that succeeds is not undone" "including the case where a newer save overtakes the failure"
 
 if [ $FAIL -eq 0 ]; then
     echo ""

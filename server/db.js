@@ -147,9 +147,11 @@ const tmpPath = dbPath + '.tmp';
 async function saveDb(data) {
   // Update the cache first so subsequent reads see the new state immediately,
   // independent of when the queued disk write lands.
-  cachedDb = structuredClone(data);
+  const previous = cachedDb;
+  const snapshot = structuredClone(data);
+  cachedDb = snapshot;
   // Queue this write operation - each write waits for the previous one
-  writeQueue = writeQueue.then(async () => {
+  const thisWrite = writeQueue.then(async () => {
     try {
       const jsonString = JSON.stringify(data, null, 2);
       // Atomic write: write to temp file, then rename
@@ -160,13 +162,23 @@ async function saveDb(data) {
       console.error('Error writing database:', err);
       // Clean up temp file if it exists
       try { await fs.unlink(tmpPath); } catch { /* ignore */ }
-      throw err;
+      // The change never reached the disk, so it must not stay live in memory
+      // either: the caller is about to be told it failed, and a setting that
+      // "failed" but works until the next restart is worse than one that failed.
+      // Only when nothing newer has been saved since - a later save carries the
+      // whole database, this change included, and may still succeed.
+      if (cachedDb === snapshot) cachedDb = previous;
+      // What the caller (and, through a route's catch, an API client) sees is a plain
+      // sentence; the raw error - which names a file path - stays in the server log
+      // above and on .cause.
+      throw new Error('The server could not save its data (is the disk full or read-only?)', { cause: err });
     }
-  }).catch(err => {
-    console.error('Database write failed:', err);
   });
+  // The queue itself must outlive a failed write, or every later save would be
+  // refused too; the failure is delivered to the caller of *this* save instead.
+  writeQueue = thisWrite.catch(() => {});
 
-  return writeQueue;
+  return thisWrite;
 }
 
 // Source CRUD operations

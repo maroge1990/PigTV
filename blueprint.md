@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0079** (0054–0078 are on `main`; 0079 written) |
-| Next patch number | **0080** |
+| Shipped through | **build 0080** (0054–0078 are on `main`; 0079–0080 written) |
+| Next patch number | **0081** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -119,6 +119,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0077 | Dead-code batch (b): OIDC/SSO and express-session removed, two dependencies dropped — see below |
 | 0078 | Dead-code batch (c, part 1): JSON-file `hiddenItems` / `favorites` removed from `db.js` — see below |
 | 0079 | Unknown `/api/*` paths return a JSON 404 instead of the web app + an Apple-client route guard test — see below |
+| 0080 | A failed `db.json` write is reported to the caller instead of swallowed — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -703,6 +704,20 @@ the Swift client gains an endpoint, add it to `APPLE_CLIENT_ROUTES` in that test
 paths the client uses exist server-side, checked by reading the client source (read-only). Tests: 7 (4 of them fail
 against the 0078 `index.js`; the client-route guard passes both ways by design — it protects the future).
 
+**0080 detail — a failed `db.json` write is reported, not swallowed (roadmap A.10, review §2.14).** `saveDb()`
+caught its own write errors, logged them and returned a *resolved* promise, so a full disk or read-only mount made every
+source / settings / user change answer "success" and then vanish at the next restart. Now the caller of the failing save
+gets the rejection: the routes already `await` every mutation inside a `try/catch` (audited — all eleven call sites are
+in `routes/sources.js`, `settings.js`, `auth.js`, none fire-and-forget, so nothing can raise an unhandled rejection),
+and a client receives a 500. Three details that matter: (1) **the write queue survives** — a failed write must not make
+every later save fail too, so the queue chains off `thisWrite.catch(() => {})` while the caller gets the real rejection;
+(2) **the in-memory copy is rolled back** when the write fails, unless a newer save has overtaken it (a later save
+carries the whole database and may succeed) — otherwise a change that "failed" would stay live until the next restart
+and then silently revert; (3) **the error a client can see is a plain sentence** ("The server could not save its data (is
+the disk full or read-only?)"): `settings.js` and parts of `auth.js` return `err.message` directly, and the raw Node error
+names a file path, which now stays in `docker logs` and on `.cause`. Tests: `test/db-write-failure.test.js` (5,
+including a simulated ENOSPC on the first of two in-flight writes; all 5 fail against the 0079 code).
+
 **Decisions recorded 20 Sept 2026 (Mark).** (a) Start §C Phase 1 now, as a **Settings toggle**, off by default.
 (b) **Stability and quality outrank channel-change speed** — a slower channel change is acceptable if that is
 the price; §C Phase 2 measures what it costs and we look for what we can claw back without giving up stability.
@@ -831,7 +846,10 @@ that hardening.
     accepted on the URL-taking routes (§3.5 — bounded today by the VPN-only decision); `saveDb()` swallows write
     errors so a failed `db.json` write reads as success (§2.14); ~~unknown `/api/*` paths return `index.html` 200
     instead of a 404 JSON~~ ✅ 0079; exit code 255 leaves a dead HLS session marked `running` (§2.14); `USER node`
-    in the Dockerfile (needs volume ownership sorted first, see 0063).
+    in the Dockerfile (needs volume ownership sorted first, see 0063). Done: ✅ 0079 unknown `/api/*` → 404 JSON, ✅ 0080
+    `saveDb` errors. **Still open in this item:** `/api/proxy/stream` memory buffering; the ffmpeg protocol allow-list
+    (touches the remux / HLS argument builders, so it waits until the 0075 trial is over); the exit-255 session status
+    (`transcodeSession.js`, same reason).
 
 ### B. Blocked on the Swift client (server code can be written ahead; verify/land with the client)
 
