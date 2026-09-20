@@ -1,6 +1,6 @@
 # PigTV server — handover (single source of truth)
 
-**Last updated:** 19 September 2026
+**Last updated:** 20 September 2026
 **Home in repo:** `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server\blueprint.md`
 
 This is the authoritative handover for PigTV **server / webapp** work. It
@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0073** (0054–0070 pushed to main; 0071–0073 written) |
-| Next patch number | **0074** |
+| Shipped through | **build 0074** (0054–0073 are on `main` and **deployed** — Mark, 20 Sept 2026; 0074 written) |
+| Next patch number | **0075** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -113,6 +113,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0071 | Quiet the probe-phase decoder chatter 0070 exposed — see below |
 | 0072 | Fix: Hide All / Show All left the group checkboxes unchanged — see below |
 | 0073 | Fix: A/V start-time skew made HLS sessions log a discontinuity per packet and drop audio — see below |
+| 0074 | Housekeeping: `access.test.js` runs on Windows without admin; blueprint status refreshed — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -567,6 +568,25 @@ it had read enough E-AC-3 to know the layout; the session goes on to decode and 
 correctly. Not touched. If audio on such a channel is ever silent from the start, that line is the
 first suspect (a longer `-analyzeduration` for E-AC-3 would be the fix).
 
+**0074 detail — housekeeping (hand-over session, 20 Sept 2026).** No server behaviour change.
+(1) `test/access.test.js` linked the sandbox's `node_modules` with a directory *symlink*, which
+Windows refuses (`EPERM`) without developer mode / admin, so the suite could never be fully green on the
+dev machine. It now uses a *junction* on `win32` (no privilege needed; POSIX is unchanged). Local baseline
+before: 158 pass / 1 fail (this file) / 1 skipped (`remux-watchdog`, POSIX-only); after: the file passes 9/9.
+(2) **`verify-build.sh` on Windows:** it needs a real `python3` on PATH. If only `python` is installed, put a
+one-line shim ahead of the Store stub — a `python3` script containing `exec python "$@"` — and run it with
+`PYTHONUTF8=1` (this is how it was run for 0074). (3) Status lines refreshed (0071–0073 deployed) and the
+decisions below recorded.
+
+**Decisions recorded 20 Sept 2026 (Mark).** (a) Start §C Phase 1 now, as a **Settings toggle**, off by default.
+(b) **Stability and quality outrank channel-change speed** — a slower channel change is acceptable if that is
+the price; §C Phase 2 measures what it costs and we look for what we can claw back without giving up stability.
+(c) **VOD / series are kept** (Mark: a future provider may offer them). They are **unverified and unsupported
+today** — there is no VOD source to test against — so treat them as latent code: don't refactor them casually,
+keep them out of the dead-code batches (§5 A.6), and note that `/api/proxy/stream` still buffers a whole
+progressive-MP4 body in memory (review §2.4), which a VOD file would hit. Revisit deleting them if they ever
+block a refactor. If they are ever removed, tag the last commit that had them first.
+
 **Live verification of 0054–0072 against the real server (Mark, PassyFlix, VPN'd device).**
 Checklist A (web app): **A1** playback of several channels ✅ (the h264 decoder log noise it showed
 became 0071); **A2** ✅; **A3** bulk hide worked but the group checkboxes did not update until a
@@ -666,7 +686,7 @@ that hardening.
    history, or scheduled recordings. *[MED]*
 6. **P2-1 — dead-code removal**, as one deliberate verify-build-guarded batch
    (`users.js`, `m3uXtreamAdapter.js`, JSON `hiddenItems`/`favorites`, OIDC +
-   express-session remnants, VOD/series, non-VAAPI encoders, unread settings).
+   express-session remnants, non-VAAPI encoders, unread settings). **VOD/series are kept** (Mark, 20 Sept).
    *[MED — worth doing early; "edited a dead path" caused two prior incidents.]*
 7. **P2-8 — tests for Apple-relevant paths.** *[MED]* parseStreaming under bursty
    input, `withStreamToken` on fMP4, recordings Range behaviour,
@@ -680,6 +700,13 @@ that hardening.
    deliberately not done, see §4).
 9. **`requireStreamAuth` default flip.** Mark's call — **decided: stays off** while access is
    VPN-only (see the live-verification note in §4); revisit if the server is ever exposed.
+10. **Review items never picked up** *(found missing from this roadmap on 20 Sept; small, one patch each)*:
+    `/api/proxy/stream` buffers the whole upstream body in memory, incl. progressive MP4 and `bytes=0-` ranges
+    (§2.4 — matters more now VOD is kept); no ffmpeg `-protocol_whitelist`, so `file:`/`concat:` inputs are
+    accepted on the URL-taking routes (§3.5 — bounded today by the VPN-only decision); `saveDb()` swallows write
+    errors so a failed `db.json` write reads as success (§2.14); unknown `/api/*` paths return `index.html` 200
+    instead of a 404 JSON (§2.14); exit code 255 leaves a dead HLS session marked `running` (§2.14); `USER node`
+    in the Dockerfile (needs volume ownership sorted first, see 0063).
 
 ### B. Blocked on the Swift client (server code can be written ahead; verify/land with the client)
 
@@ -765,9 +792,9 @@ element errors. (d) **AC-3** → served as HLS copy/transcode, not the remux (00
 remux case regardless). (e) **tmpfs** → 2 GB, ~360 MB/session capped; fine for one viewer.
 (f) **direct-play HLS upstreams** stay `direct` — unaffected.
 
-*Decisions for Mark:* whether to start Phase 1 now or after the long play test; whether a
-Phase-1 toggle should live in Settings or be a hidden URL flag; and what "acceptable"
-channel-change time is (the Phase-2 number to beat).
+*Decisions for Mark:* **answered 20 Sept 2026** — start Phase 1 now, as a Settings toggle; and "acceptable"
+channel-change time is whatever stability and quality allow (stability first; Phase 2 reports the cost and we
+see how much can be won back without giving any up).
 
 ---
 
@@ -807,7 +834,8 @@ channel-change time is (the Phase-2 number to beat).
 - **GHCR build mechanism** — GitHub Actions on push, or local `docker build`?
   Decides whether `commit`/`builtAt` auto-inject; the committed `build` number
   works either way.
-- **Dead-code batch timing** — early deliberate batch (recommended) vs late.
+- **Dead-code batch timing** — decided: early, in reviewable patches that do not touch the remux path (that
+  part waits for §C Phase 4). VOD/series are *excluded* (kept — see §4, decisions of 20 Sept).
 - ~~`requireStreamAuth` flip timing~~ — decided: off while access is VPN-only; revisit if exposed.
 - ~~AC-3 through the remux path~~ — fixed in 0066 (`delay_moov`); still unverified in a real
   Safari.

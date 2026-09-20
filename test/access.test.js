@@ -10,7 +10,10 @@ const jwt = require('jsonwebtoken');
 // Copy the server so its existing relative data paths never touch real data.
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-access-'));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
-fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'node_modules'), 'dir');
+// A junction needs no privileges on Windows (a directory symlink needs developer mode / admin);
+// on POSIX the type argument is ignored, so this is a plain symlink there.
+fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'node_modules'),
+    process.platform === 'win32' ? 'junction' : 'dir');
 process.env.JWT_SECRET = 'test-only-signing-key-not-used-outside-fixtures-12345';
 const db = require(path.join(sandbox, 'server/db'));
 const auth = require(path.join(sandbox, 'server/auth'));

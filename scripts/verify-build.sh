@@ -1177,6 +1177,9 @@ else
 fi
 check test/hls-timestamp-skew.test.js "the old arguments do reproduce it" "the test also proves the fault reproduces without the flag"
 
+echo "=== 0074: housekeeping ==="
+check test/access.test.js "process.platform === 'win32' ? 'junction' : 'dir'" "the access test links node_modules with a junction on Windows (no admin needed)"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
