@@ -290,7 +290,13 @@ class VideoPlayer {
         // waits - so that kind of failure used to leave no trace anywhere. Note it
         // when nothing has played some seconds after loading began.
         this.video.addEventListener('loadstart', () => this.armStartWatch());
-        this.video.addEventListener('playing', () => this.clearStartWatch());
+        this.video.addEventListener('playing', () => { this.clearStartWatch(); this.notePlaying(); });
+
+        // Measurement for comparing delivery paths (see reportPlayEnd): a stall is
+        // the element running out of data after it had started, not a seek.
+        this.video.addEventListener('waiting', () => {
+            if (this._playingAt != null && !this.video.seeking) this._stalls = (this._stalls || 0) + 1;
+        });
 
         // Mute/Volume
         const updateVolumeUI = () => {
@@ -912,7 +918,10 @@ class VideoPlayer {
             capabilities: {
                 ...caps,
                 hls: !!(window.Hls && window.Hls.isSupported()) || this.video.canPlayType('application/vnd.apple.mpegurl') !== '',
-                fmp4: true
+                fmp4: true,
+                // The same request the Apple client makes: HLS segments instead of the
+                // piped /api/remux stream. Off unless this browser has opted in.
+                ...(this.hlsDeliveryEnabled ? { segmentedDelivery: true } : {})
             },
             upscale: this.settings.upscaleEnabled === true
         };
@@ -1023,10 +1032,22 @@ class VideoPlayer {
         this.currentStreamInfo = decision.info || null;
         this.updateQualityBadge();
 
+        // What the measurement events (play-start / play-end) will say about this play.
+        this._playMeta = {
+            strategy: decision.strategy || 'unknown',
+            container: decision.container || null,
+            videoMode: decision.videoMode || null,
+            hlsDelivery: this.hlsDeliveryEnabled
+        };
+        this._resolveMs = this.elapsedSincePlayStart();
+
+        const hlsBeta = this.hlsDeliveryEnabled && decision.strategy === 'transcode';
         const label = {
             direct: ['direct', 'Direct'],
             remux: ['remuxing', 'Remux'],
-            transcode: ['transcoding', decision.videoMode === 'copy' ? 'Transcoding (Audio)' : 'Transcoding (Video)']
+            transcode: ['transcoding', hlsBeta
+                ? `HLS (video ${decision.videoMode === 'copy' ? 'copied' : 'encoded'})`
+                : (decision.videoMode === 'copy' ? 'Transcoding (Audio)' : 'Transcoding (Video)')]
         }[decision.strategy] || ['direct', 'Direct'];
         this.updateTranscodeStatus(label[0], label[1]);
 
@@ -1195,9 +1216,10 @@ class VideoPlayer {
             // Stop any WatchPage playback (movies/series) before starting Live TV
             window.app?.pages?.watch?.stop?.();
 
-            // Stop current playback
+            // Stop current playback (this also closes out the previous play's measurement)
             this.stop();
             this.updateTranscodeStatus('hidden');
+            this.beginPlayMeasurement();
 
             // Hide "select a channel" overlay
             this.overlay.classList.add('hidden');
@@ -1555,6 +1577,10 @@ class VideoPlayer {
             this.hls.destroy();
         }
 
+        // hls.js plays from a blob: URL, so remember the playlist's own path for the logs.
+        this._playlistPath = null;
+        try { this._playlistPath = new URL(url, 'http://localhost').pathname; } catch (e) { /* not a URL */ }
+
         this.hls = new Hls(this.getHlsConfig());
         this.hls.loadSource(url);
         this.hls.attachMedia(this.video);
@@ -1569,8 +1595,32 @@ class VideoPlayer {
             if (data.fatal) {
                 // Simple error handling for forced HLS/transcode modes
                 console.error('Fatal HLS error in transcode mode:', data);
+                this.handleHlsFatal(data);
                 this.hls.destroy();
             }
+        });
+    }
+
+    /**
+     * hls.js gave up on this stream. That used to leave a frozen picture and no
+     * trace anywhere; say so on screen and in the server log, as handleMediaError
+     * does for the element's own errors. Only the error's type, reason and HTTP
+     * status are sent - never its URL, which carries the session token.
+     */
+    handleHlsFatal(data) {
+        if (this._reportedHlsFatalFor === this.hls) return;
+        this._reportedHlsFatalFor = this.hls;
+
+        const details = String((data && data.details) || 'unknown').slice(0, 60);
+        const http = data && data.response && Number.isFinite(data.response.code) ? ` http ${data.response.code}` : '';
+        this.loadingSpinner?.classList.remove('show');
+        this.updateTranscodeStatus('error', `Playback error (HLS ${details})`);
+        this.reportClientEvent({
+            ...this.describeMediaError(),
+            event: 'media-error',
+            code: null,
+            codeName: `HLS_${String((data && data.type) || 'error').slice(0, 20)}`,
+            message: `${details}${http}`
         });
     }
 
@@ -1585,6 +1635,8 @@ class VideoPlayer {
         const names = { 1: 'MEDIA_ERR_ABORTED', 2: 'MEDIA_ERR_NETWORK', 3: 'MEDIA_ERR_DECODE', 4: 'MEDIA_ERR_SRC_NOT_SUPPORTED' };
         let path = null;
         try { path = new URL(video.currentSrc, 'http://localhost').pathname; } catch (e) { /* not a URL */ }
+        // Under hls.js currentSrc is an opaque blob: URL; the playlist's path is what is useful.
+        if (this.hls && this._playlistPath) path = this._playlistPath;
         const round = (n) => (Number.isFinite(n) ? Math.round(n * 10) / 10 : null);
         const buffered = video.buffered;
         return {
@@ -1743,6 +1795,61 @@ class VideoPlayer {
         const details = { ...this.describeMediaError(video), waitedSec: Math.round(this.startTimeoutMs / 1000) };
         console.warn(`[Player] Nothing played within ${details.waitedSec}s (${details.strategy}, ${details.path})`, details);
         this.reportClientEvent({ event: 'start-timeout', ...details });
+    }
+
+    /**
+     * "HLS delivery (beta)": ask for the same HLS-segment delivery the Apple client
+     * gets, instead of the piped remux. Per browser (localStorage), off by default,
+     * so one browser can trial it while everything else stays on the remux path.
+     */
+    get hlsDeliveryEnabled() {
+        try { return localStorage.getItem('pigtv_hls_delivery') === '1'; } catch (e) { return false; }
+    }
+
+    setHlsDelivery(on) {
+        try {
+            if (on) localStorage.setItem('pigtv_hls_delivery', '1');
+            else localStorage.removeItem('pigtv_hls_delivery');
+        } catch (e) { /* the choice just will not be remembered */ }
+    }
+
+    /**
+     * Measurement, so the two delivery paths can be compared on evidence rather than
+     * feel: how long a channel change takes to reach a picture (play-start), and how
+     * a play went once it had (play-end). Both go to the server log; neither affects
+     * playback. Clock is performance.now(), so it does not jump with the wall clock.
+     */
+    elapsedSincePlayStart() {
+        return this._playT0 == null ? null : performance.now() - this._playT0;
+    }
+
+    beginPlayMeasurement() {
+        this._playT0 = performance.now();
+        this._playMeta = { strategy: 'local', container: null, videoMode: null, hlsDelivery: this.hlsDeliveryEnabled };
+        this._resolveMs = null;
+        this._playingAt = null;
+        this._stalls = 0;
+    }
+
+    /** The element started playing. The first time per play, report how long it took. */
+    notePlaying() {
+        if (this._playT0 == null || this._playingAt != null) return;
+        this._playingAt = performance.now();
+        this.reportClientEvent({
+            event: 'play-start',
+            ...this._playMeta,
+            resolveMs: this._resolveMs,
+            totalMs: this._playingAt - this._playT0
+        });
+    }
+
+    /** A play that got going is being closed out: say how it went, unless it was only a glimpse. */
+    reportPlayEnd() {
+        if (this._playingAt == null) return;
+        const watchedSec = Math.round((performance.now() - this._playingAt) / 1000);
+        this._playingAt = null;
+        if (watchedSec < 10) return;
+        this.reportClientEvent({ event: 'play-end', ...this._playMeta, watchedSec, stalls: this._stalls || 0 });
     }
 
     /** Best-effort diagnostics to the server. Must never affect playback. */
@@ -1932,6 +2039,8 @@ class VideoPlayer {
      */
     stop() {
         this.clearStartWatch();
+        this.reportPlayEnd();
+        this._playT0 = null; // nothing is being timed until the next play() begins
         // Stop any running transcode session first
         this.stopTranscodeSession();
 

@@ -746,6 +746,19 @@
                 </div>
               </div>
               <div class="setting-item">
+                <label class="setting-toggle">
+                  <input type="checkbox" id="setting-hls-delivery-tc">
+                  <span class="toggle-slider"></span>
+                </label>
+                <div class="setting-info">
+                  <span class="setting-label">HLS Delivery (beta)</span>
+                  <span class="setting-hint">Play live channels as HLS segments, the same way the Apple app does,
+                    instead of the piped remux. Slower to start a channel, but steadier and one path for every
+                    device. This browser only; applies from the next channel you play. Timings and any errors
+                    are logged: <code>docker logs pigtv | grep -E "play-start|play-end|media-error"</code>.</span>
+                </div>
+              </div>
+              <div class="setting-item">
                 <div class="setting-info" style="flex: 1;">
                   <span class="setting-label">Stream Output Format</span>
                   <span class="setting-hint">Container format for Xtream streams. Try TS if you experience buffering

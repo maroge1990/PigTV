@@ -372,6 +372,7 @@ class SettingsPage {
         const forceTranscodeToggle = document.getElementById('setting-force-transcode-tc');
         const forceVideoTranscodeToggle = document.getElementById('setting-force-video-transcode-tc');
         const forceRemuxToggle = document.getElementById('setting-force-remux-tc');
+        const hlsDeliveryToggle = document.getElementById('setting-hls-delivery-tc');
         const streamFormatSelect = document.getElementById('setting-stream-format-tc');
 
         // User-Agent (Transcoding tab versions)
@@ -396,6 +397,8 @@ class SettingsPage {
         if (forceTranscodeToggle) forceTranscodeToggle.checked = s.forceTranscode === true;
         if (forceVideoTranscodeToggle) forceVideoTranscodeToggle.checked = s.forceVideoTranscode === true;
         if (forceRemuxToggle) forceRemuxToggle.checked = s.forceRemux || false;
+        // Per browser, not a server setting: it lives in this browser's localStorage.
+        if (hlsDeliveryToggle) hlsDeliveryToggle.checked = this.app.player?.hlsDeliveryEnabled === true;
         if (streamFormatSelect) streamFormatSelect.value = s.streamFormat || 'm3u8';
         if (userAgentSelect) userAgentSelect.value = s.userAgentPreset || 'chrome';
         if (userAgentCustomInput) userAgentCustomInput.value = s.userAgentCustom || '';
@@ -491,6 +494,10 @@ class SettingsPage {
         forceRemuxToggle?.addEventListener('change', () => {
             this.app.player.settings.forceRemux = forceRemuxToggle.checked;
             this.app.player.saveSettings();
+        });
+
+        hlsDeliveryToggle?.addEventListener('change', () => {
+            this.app.player.setHlsDelivery(hlsDeliveryToggle.checked);
         });
 
         streamFormatSelect?.addEventListener('change', () => {

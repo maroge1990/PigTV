@@ -112,3 +112,76 @@ test('a flood is dropped quietly rather than filling the log', async () => {
     assert.deepEqual(statuses, [204, 204, 204, 204, 204, 204], 'the client is never told, and never retries');
     assert.equal(logged.length, 3, 'but only three reached the log');
 });
+
+// ---- 0075: play-start / play-end measurement -------------------------------------------------
+
+// Measurement is informational, so it goes through console.log (faults use console.warn).
+async function withLog(fn) {
+    const lines = [];
+    const realLog = console.log;
+    console.log = (...args) => { lines.push(args.join(' ')); };
+    try { await fn(); } finally { console.log = realLog; }
+    return lines;
+}
+
+test('play-start is one readable line: how it was delivered, and how long until a picture', async () => {
+    const lines = await withLog(async () => {
+        const response = await post({ event: 'play-start', strategy: 'transcode', container: 'hls', videoMode: 'copy',
+            hlsDelivery: true, resolveMs: 812.4, totalMs: 4930.9 });
+        assert.equal(response.status, 204);
+    });
+    assert.equal(lines.length, 1);
+    assert.equal(lines[0], '[Player] play-start via transcode(hls, video copy) hls-delivery=on resolve=0.8s first-picture=4.9s from=user:1');
+});
+
+test('the remux path reads the same way, so the two can be compared side by side', async () => {
+    const lines = await withLog(async () => {
+        await post({ event: 'play-start', strategy: 'remux', container: 'fmp4', videoMode: null, hlsDelivery: false,
+            resolveMs: 300, totalMs: 6100 });
+    });
+    assert.equal(lines[0], '[Player] play-start via remux(fmp4) hls-delivery=off resolve=0.3s first-picture=6.1s from=user:1');
+});
+
+test('play-end says how long it was watched and how often it stalled', async () => {
+    const lines = await withLog(async () => {
+        await post({ event: 'play-end', strategy: 'transcode', container: 'hls', videoMode: 'copy', hlsDelivery: true,
+            watchedSec: 312, stalls: 2 });
+    });
+    assert.equal(lines[0], '[Player] play-end via transcode(hls, video copy) hls-delivery=on watched=312s stalls=2 from=user:1');
+});
+
+test('measurement lines cannot be forged, oversized, or carry junk numbers', async () => {
+    const lines = await withLog(async () => {
+        await post({ event: 'play-start', strategy: 'remux\n[Auth] Login OK for admin', container: 'x'.repeat(500),
+            videoMode: 'copy\r\n', hlsDelivery: 'yes', resolveMs: 'soon', totalMs: -5 });
+    });
+    assert.equal(lines.length, 1);
+    assert.ok(!lines[0].includes('\n') && !lines[0].includes('\r'));
+    assert.ok(lines[0].length < 250, `bounded (${lines[0].length} chars)`);
+    assert.match(lines[0], /hls-delivery=off resolve=\? first-picture=\? /, 'anything that is not a real number or a real true is shown as unknown / off');
+});
+
+test('measurement needs a token like every other event', async () => {
+    const lines = await withLog(async () => {
+        assert.equal((await post({ event: 'play-start', strategy: 'remux', totalMs: 1 }, false)).status, 401);
+    });
+    assert.equal(lines.length, 0);
+});
+
+test('channel surfing cannot use up the allowance that fault reports depend on', async () => {
+    router.clientEventLimiter.max = 30;
+    router.measurementLimiter.max = 5;
+    for (const key of ['127.0.0.1', '::ffff:127.0.0.1']) {
+        router.clientEventLimiter.clear(key);
+        router.measurementLimiter.clear(key);
+    }
+    const lines = await withLog(async () => {
+        for (let i = 0; i < 12; i++) await post({ event: 'play-start', strategy: 'remux', totalMs: 1000 });
+    });
+    assert.equal(lines.length, 5, 'measurement is capped at its own limit');
+
+    logged.length = 0;
+    assert.equal((await post(event())).status, 204);
+    assert.equal(logged.length, 1, 'a media error still gets through afterwards');
+    router.measurementLimiter.max = 120;
+});

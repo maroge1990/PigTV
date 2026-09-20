@@ -238,18 +238,38 @@ router.post('/conflict/decline', optionalAuth, (req, res) => {
  * never affects playback.
  */
 const clientEventLimiter = createLimiter({ windowMs: 60 * 1000, max: 30 });
+// Measurement events (play-start / play-end) have their own budget: two per channel
+// change is a lot of traffic when someone is flicking through channels, and it must
+// never use up the allowance that media-error and start-timeout reports depend on.
+const measurementLimiter = createLimiter({ windowMs: 60 * 1000, max: 120 });
 
 router.post('/client-event', requireToken, (req, res) => {
     const key = req.socket?.remoteAddress || 'unknown';
-    if (clientEventLimiter.check(key).blocked) return res.status(204).end(); // drop quietly
-    clientEventLimiter.record(key);
-
     const body = req.body || {};
-    if (body.event !== 'media-error' && body.event !== 'start-timeout') return res.status(400).json({ error: 'Unknown event' });
+    const isMeasurement = body.event === 'play-start' || body.event === 'play-end';
+    const limiter = isMeasurement ? measurementLimiter : clientEventLimiter;
+    if (limiter.check(key).blocked) return res.status(204).end(); // drop quietly
+    limiter.record(key);
+    if (!isMeasurement && body.event !== 'media-error' && body.event !== 'start-timeout') return res.status(400).json({ error: 'Unknown event' });
 
     const coordinator = require('../services/streamCoordinator');
     const text = (v, max) => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, max);
     const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : '?');
+
+    if (isMeasurement) {
+        // Informational, not a fault: plain log, one greppable line.
+        //   docker logs pigtv | grep -E "play-start|play-end"
+        const secs = (ms) => (typeof ms === 'number' && Number.isFinite(ms) && ms >= 0 ? `${(ms / 1000).toFixed(1)}s` : '?');
+        const how = `${text(body.strategy, 20)}(${text(body.container, 12) || '-'}` +
+            `${body.videoMode ? `, video ${text(body.videoMode, 10)}` : ''}) hls-delivery=${body.hlsDelivery === true ? 'on' : 'off'}`;
+        const from = `from=${coordinator.ownerKey(req.user) || 'unknown'}`;
+        if (body.event === 'play-start') {
+            console.log(`[Player] play-start via ${how} resolve=${secs(body.resolveMs)} first-picture=${secs(body.totalMs)} ${from}`);
+        } else {
+            console.log(`[Player] play-end via ${how} watched=${num(body.watchedSec)}s stalls=${num(body.stalls)} ${from}`);
+        }
+        return res.status(204).end();
+    }
 
     const state = `networkState=${num(body.networkState)} readyState=${num(body.readyState)} ` +
         `t=${num(body.currentTime)}s buffered=${num(body.bufferedEnd)}s from=${coordinator.ownerKey(req.user) || 'unknown'}`;
@@ -290,5 +310,6 @@ router.delete('/:sessionId', requireToken, async (req, res) => {
 
 // Exposed so tests can lower the ceiling.
 router.clientEventLimiter = clientEventLimiter;
+router.measurementLimiter = measurementLimiter;
 
 module.exports = router;

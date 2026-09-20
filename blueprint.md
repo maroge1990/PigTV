@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0074** (0054–0073 are on `main` and **deployed** — Mark, 20 Sept 2026; 0074 written) |
-| Next patch number | **0075** |
+| Shipped through | **build 0075** (0054–0073 are on `main` and **deployed** — Mark, 20 Sept 2026; 0074–0075 written) |
+| Next patch number | **0076** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -114,6 +114,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0072 | Fix: Hide All / Show All left the group checkboxes unchanged — see below |
 | 0073 | Fix: A/V start-time skew made HLS sessions log a discontinuity per packet and drop audio — see below |
 | 0074 | Housekeeping: `access.test.js` runs on Windows without admin; blueprint status refreshed — see below |
+| 0075 | §C Phase 1: "HLS Delivery (beta)" toggle for the web player + `play-start` / `play-end` measurement — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -578,6 +579,62 @@ one-line shim ahead of the Store stub — a `python3` script containing `exec py
 `PYTHONUTF8=1` (this is how it was run for 0074). (3) Status lines refreshed (0071–0073 deployed) and the
 decisions below recorded.
 
+**0075 detail — §C Phase 1: "HLS Delivery (beta)" for the web player, plus measurement.**
+(1) **The toggle.** Settings → Transcoding → Stream Processing → **HLS Delivery (beta)**. When on, the web
+player's `resolve` request adds `capabilities.segmentedDelivery:true` — the request the Apple client already
+makes — so a stream with fine codecs comes back as an HLS *session* (fMP4 segments, `videoMode:'copy'`) played by
+hls.js, instead of `/api/remux`. No new server delivery code: `playDecision()` already played any `container:'hls'`
+decision. **Per browser, not a server setting** (`localStorage['pigtv_hls_delivery']`, exactly `"1"`; off by
+default): the Settings API is admin-only and global, and a per-browser flag lets one browser trial HLS while every
+other browser and the Apple client stay as they are. Rollback = untick it. The status badge reads `HLS (video
+copied)` / `HLS (video encoded)` when on (it used to say "Transcoding (Audio)" for the copy case, which is
+misleading for a stream that is not being transcoded). With the toggle off the resolve request is byte-for-byte what
+it was (asserted in a test).
+(2) **Measurement (the Phase-2 instrument).** The player reports two new events to `POST
+/api/playback/client-event`, logged as plain lines:
+`[Player] play-start via transcode(hls, video copy) hls-delivery=on resolve=5.0s first-picture=5.0s from=user:1` —
+`resolve` is the time the server took to answer (probe + session start + first segment), `first-picture` is the
+whole time from the channel click to the element's `playing` event; and
+`[Player] play-end via … watched=312s stalls=2 from=user:1` — sent when a play is closed out (channel change or
+stop) if it ran ≥10 s; `stalls` counts the element's `waiting` events after it had started, ignoring seeks.
+Compare the two paths with `docker logs pigtv | grep -E "play-start|play-end"`; the `via` part says which path
+(`remux(fmp4)` vs `transcode(hls, …)`) and `hls-delivery=` says whether the browser had opted in. They have their
+own rate limit (120/min) so channel-surfing cannot use up the 30/min that `media-error` / `start-timeout` rely on.
+Lost if the tab is closed mid-play (nothing to send it with) — fine for a sample.
+(3) **Where the seconds go.** `resolve()` now logs one line per call:
+`[Playback] resolve timing: HLS session, probe 4.8s, first segment after 5.0s` (or `probe cached`; `remux, probe …`;
+`direct, probe …`; `first segment NOT produced in time` before the 15 s failure). `docker logs pigtv | grep "resolve
+timing"`. Log only — no change to the response.
+(4) **hls.js fatal errors are no longer swallowed.** `playHls()` used to `console.error` and destroy the instance,
+leaving a frozen picture with no badge and nothing in `docker logs` — the exact silence 0065 removed for the element's
+own errors, on the path we are about to trial. It now shows `Playback error (HLS <details>)` and reports a
+`media-error` line with `codeName=HLS_<type>` (e.g. `HLS_networkError`, `msg="manifestLoadError http 404"`) and the
+*playlist's* path (under hls.js `currentSrc` is an opaque `blob:` URL). Type, reason and HTTP status only — never the
+URL (it carries the session token). **No recovery is attempted** (no `recoverMediaError`, no fall-back to remux):
+that is §C Phase 3, deliberately not slipped in here.
+**Measured in this session (synthetic stream, real Chrome in the dev browser pane, sandbox copy of the server —
+*not* the real provider):** a local real-time-paced H.264/AAC upstream, 2 s keyframes. **HLS session:** probe 4.8 s
++ first segment 5.0 s → first picture **9.8 s** fresh, **5.0 s** with the probe cached, 0 stalls in 13 s, 1280×720.
+**Remux:** probe 4.8 s + ffmpeg first output 4.8 s → first picture **12.6 s** fresh, **7.8 s** cached, 1 stall in an
+earlier 14 s watch (HLS: 0). So on a well-behaved 2 s-GOP stream HLS is *not* slower than remux; the two big costs on both paths are
+(a) the ffprobe pass in `resolve()` (≈ the 5 s analyze window on a live stream — cached for 5 min per URL) and
+(b) ffmpeg's own 5 MB / 5 s input probe. **Real providers with long keyframe spacing are the open question** (0070
+measured remux at 23 s or nothing in 50 s at 10 s GOP) — the live `play-start` lines are how we find out. The Phase-2
+levers, if channel change needs winning back without giving up stability: skip the `resolve` probe when the source
+is already known (cache warm-up for favourites), or shorten the *first* segment(s); both change what a live stream
+is judged on, so measure first. **Not verified:** anything on Safari / native HLS, or on real E-AC-3 / HEVC content.
+**Also found (not touched):** `VideoPlayer` defines `stop()` **twice** (an `async stop()` near line 1082 and a
+`stop()` near line 1933); the later one wins, so the earlier — which also calls `stopConflictWatch()` and dispatches
+`playbackStopped` — is dead. The 0075 hooks are in the live one and a test pins that. Cleanup candidate for P2-1.
+Tests: `test/player-hls-delivery.test.js` (12, the real player script in a `vm` with a controlled clock: opt-in,
+request shape, labels, first-picture / play-end / stall accounting, fatal hls.js error handling incl. no token),
+`test/resolve-timing.test.js` (4), 6 new cases in `test/client-events.test.js`; 16 of the 24 tests in those two files
+fail against the 0074 sources. **0075 live check (Mark):** deploy, confirm the badge reads **0075**; on ONE browser
+tick Settings → Transcoding → **HLS Delivery (beta)** and play a few channels; badge should read `HLS (video
+copied)`; then `docker logs pigtv | grep -E "play-start|play-end|resolve timing|media-error"` and compare
+`first-picture` against a browser with the toggle off (`remux(fmp4)`). Watch specifically for: `media-error … HLS_…`
+lines, `first segment NOT produced in time`, `stalls=` above 0, and any channel that only fails with the toggle on.
+
 **Decisions recorded 20 Sept 2026 (Mark).** (a) Start §C Phase 1 now, as a **Settings toggle**, off by default.
 (b) **Stability and quality outrank channel-change speed** — a slower channel change is acceptable if that is
 the price; §C Phase 2 measures what it costs and we look for what we can claw back without giving up stability.
@@ -765,13 +822,14 @@ are fine) instead of `/api/remux` — the same path the Apple client runs. So Ph
 essentially one line on the client plus a setting; no new server code.
 
 *Phases (each independently shippable and reversible):*
-1. **Opt-in.** A Settings toggle "HLS delivery (beta)", **off by default**, that sets
+1. **Opt-in.** ✅ **0075** (written; pending live use). A Settings toggle "HLS delivery (beta)", **off by default**, that sets
    `segmentedDelivery:true` in the web's resolve call. Mark uses it for a week. Rollback =
    untick it. Also the immediate test for the unreproduced remux fault: if that channel
    plays via HLS, the remux path is the culprit.
 2. **Measure** before deciding a default: time-to-first-frame and stall/`media-error` rate
-   for both paths. 0065's `client-event` endpoint is the vehicle — add a `play-start`
-   event carrying strategy + milliseconds (small; do it in Phase 1).
+   for both paths. 0065's `client-event` endpoint is the vehicle — the `play-start` / `play-end` events
+   and the `resolve timing` log line shipped with Phase 1 (0075). **Now: Mark uses the toggle for about a
+   week, then we read the logs and decide.**
 3. **Default on, with a safety net.** If an HLS session fails to start (the 15 s
    `waitForPlaylist` timeout, a fatal hls.js error), fall back *once* to remux for that
    play — the self-heal in the other direction — so a bad channel never becomes a dead one.

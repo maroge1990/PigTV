@@ -66,6 +66,9 @@ const DEFAULT_CAPABILITIES = {
  * @returns {Promise<object>} a decision, including a playable URL
  */
 async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale = false, owner = null, live = false, audioEncode = false }) {
+    // Where the seconds of a channel change go, for `docker logs | grep "resolve timing"`.
+    const seconds = (ms) => `${(ms / 1000).toFixed(1)}s`;
+
     const caps = { ...DEFAULT_CAPABILITIES, ...capabilities };
     const userAgent = db.getUserAgent(settings);
 
@@ -76,13 +79,16 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     const cacheKey = `${url}|${userAgent || ''}|${capKey}`;
 
     let info;
+    let probeNote = 'cached';
     const cached = probeCache.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
         info = cached.result;
     } else {
+        const probeStartedAt = Date.now();
         const raw = await probeStream(url, ffprobePath, userAgent);
         info = analyzeProbeResult(raw, url, caps);
         probeCache.set(cacheKey, { result: info, timestamp: Date.now() });
+        probeNote = seconds(Date.now() - probeStartedAt);
     }
 
     const encoded = encodeURIComponent(url);
@@ -91,6 +97,7 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     //    latency. Only available when the container is already something the
     //    client handles and both codecs are decodable.
     if (info.compatible && !upscale) {
+        console.log(`[Playback] resolve timing: direct, probe ${probeNote}`);
         return {
             strategy: 'direct',
             url: `/api/proxy/stream?url=${encoded}`,
@@ -115,6 +122,7 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     const codecsOk = !upscale && info.videoOk && !audioNeedsWork;
 
     if (codecsOk && !caps.segmentedDelivery) {
+        console.log(`[Playback] resolve timing: remux, probe ${probeNote}`);
         return {
             strategy: 'remux',
             url: `/api/remux?url=${encoded}${audioEncode ? '&audio=encode' : ''}`,
@@ -167,9 +175,11 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
         isHeAac: info.isHeAac
     });
 
+    const sessionStartedAt = Date.now();
     await session.start();
 
     const ready = await session.waitForPlaylist(15000);
+    console.log(`[Playback] resolve timing: HLS session, probe ${probeNote}, first segment ${ready ? `after ${seconds(Date.now() - sessionStartedAt)}` : 'NOT produced in time'}`);
     if (!ready) {
         await transcodeSession.removeSession(session.id);
         const err = new Error('Transcode failed to produce a playlist in time');

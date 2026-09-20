@@ -1134,7 +1134,7 @@ check server/routes/remux.js "function makeStderrLogger" "ffmpeg's messages are 
 check_absent server/routes/remux.js "msg.includes('Warning') || msg.includes('Error') || msg.includes('error')" "no 'error'-only filter left hiding ffmpeg's messages"
 check server/routes/remux.js "Client disconnected after" "the disconnect line keeps its old prefix (existing greps still work)"
 check public/js/components/VideoPlayer.js "addEventListener('loadstart', () => this.armStartWatch())" "the player watches for a load that never starts"
-check public/js/components/VideoPlayer.js "addEventListener('playing', () => this.clearStartWatch())" "and stops watching once it plays"
+check public/js/components/VideoPlayer.js "addEventListener('playing', () => { this.clearStartWatch();" "and stops watching once it plays"
 check public/js/components/VideoPlayer.js "event: 'start-timeout'" "and reports it"
 check public/js/components/VideoPlayer.js "if (video.paused || video.currentTime > 0) return;" "but not when paused or already moving"
 check server/routes/playback.js "body.event !== 'start-timeout'" "the server accepts the new event (and still only the known ones)"
@@ -1179,6 +1179,21 @@ check test/hls-timestamp-skew.test.js "the old arguments do reproduce it" "the t
 
 echo "=== 0074: housekeeping ==="
 check test/access.test.js "process.platform === 'win32' ? 'junction' : 'dir'" "the access test links node_modules with a junction on Windows (no admin needed)"
+
+echo "=== 0075: HLS delivery (beta) for the web player, and play-start / play-end measurement ==="
+check public/js/components/VideoPlayer.js "...(this.hlsDeliveryEnabled ? { segmentedDelivery: true } : {})" "resolve asks for segmented delivery only when this browser opted in"
+check public/js/components/VideoPlayer.js "localStorage.getItem('pigtv_hls_delivery') === '1'" "the opt-in is per browser and off by default"
+check public/js/components/VideoPlayer.js "this.notePlaying(); });" "the first picture is measured on the element's 'playing' event"
+check public/js/components/VideoPlayer.js "this.reportPlayEnd();" "and the play is closed out when it stops"
+check public/js/components/VideoPlayer.js "handleHlsFatal(data)" "a fatal hls.js error is no longer swallowed"
+check public/index.html 'id="setting-hls-delivery-tc"' "there is a Settings toggle"
+check public/js/pages/Settings.js "setHlsDelivery(hlsDeliveryToggle.checked)" "and it is wired to the player"
+check server/routes/playback.js "const measurementLimiter" "measurement has its own rate limit, so it cannot starve fault reports"
+check server/routes/playback.js "play-start via" "the server logs play-start"
+check server/routes/playback.js "play-end via" "and play-end"
+check server/services/playbackStrategy.js "resolve timing: HLS session" "resolve logs where a channel change's seconds go"
+check test/player-hls-delivery.test.js "the first picture is reported once per play" "the player changes have tests"
+check test/resolve-timing.test.js "resolve timing" "the timing lines have tests"
 
 if [ $FAIL -eq 0 ]; then
     echo ""
