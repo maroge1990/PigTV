@@ -52,7 +52,16 @@ router.get('/', async (req, res) => {
             channelHistory: true,
             adDetection: true,       // endpoints exist; comskipAvailable says whether it can run
             streamCoordination: true,
-            streamTokenAuth: true    // stream endpoints accept ?token=
+            streamTokenAuth: true,   // stream endpoints accept ?token=
+
+            // Behaviours a client may want to switch on, added after the flags above. A client
+            // asks for the flag rather than guessing from a version number; an older server
+            // simply does not list it.
+            recordingPlaybackPolling: true,  // GET /api/recordings/:id/playback?async=1 may answer 202 {status:'preparing'}
+            scheduledWaiting: true,          // /api/recordings/scheduled includes status 'waiting' and it can be cancelled
+            viewerConflict: true,            // POST /api/playback/resolve may answer 409 conflict.type 'viewer-in-progress'
+            epgLogoFallback: true,           // /api/library/* fill a missing logo from the EPG (no client-side icon index needed)
+            clientEvents: true               // POST /api/playback/client-event accepts player diagnostics
         },
 
         // What the server can produce, so a client knows what to ask for.

@@ -576,7 +576,7 @@ function runFfmpegCollectingTail(args) {
 
 // The external processes behind native playback, behind one object so tests can
 // stand in for ffmpeg/ffprobe.
-const nativeTools = { ffmpeg: runFfmpegCollectingTail, codecs: probeCodecs, duration: probeDuration };
+const nativeTools = { ffmpeg: runFfmpegCollectingTail, codecs: probeCodecs, duration: probeDuration, startGraceMs: null };
 
 // recordingId -> Promise<path> of a remux in progress. Two requests for the
 // same recording (the client's /playback and then /media.mp4, or two devices)
@@ -626,6 +626,73 @@ async function ensureNativePlayback(rec) {
         nativeRemuxes.set(rec.id, job);
     }
     return job;
+}
+
+// ---------------------------------------------------------------------------
+// Native playback, polling flavour
+//
+// ensureNativePlayback() above makes the caller wait for the remux. That is fine for a
+// browser but not for the Apple client: its URLSession gives up after 35 s, and a big
+// recording over SMB takes longer, so it timed out while the server carried on and then
+// asked again. This lets a client start the remux, go away, and ask how it is getting on.
+// ---------------------------------------------------------------------------
+
+const nativeStarts = new Map();     // recording id -> the background attempt (never rejects)
+const nativeFailures = new Map();   // recording id -> { reason }, held until someone is told
+const NATIVE_START_GRACE_MS = 1500;
+
+/**
+ * Where preparing this recording for the Apple client stands:
+ *   { state: 'ready' }                        the file can be served now
+ *   { state: 'preparing' }                    a remux is running
+ *   { state: 'failed', reason }               the last attempt failed - reported once, then forgotten,
+ *                                             so asking again after being told starts a fresh attempt
+ *   { state: 'idle' }                         nothing has been started
+ */
+function pollNativePlayback(rec) {
+    if (readyNativePlaybackPath(rec) || verifiedNativeFiles.has(nativePlaybackTargetPath(rec.file_path))) {
+        return { state: 'ready' };
+    }
+    if (nativeStarts.has(rec.id) || nativeRemuxes.has(rec.id)) return { state: 'preparing' };
+    const failure = nativeFailures.get(rec.id);
+    if (failure) {
+        nativeFailures.delete(rec.id);
+        return { state: 'failed', reason: failure.reason };
+    }
+    return { state: 'idle' };
+}
+
+/**
+ * Begin preparing the recording in the background and return at once (or after a moment,
+ * see startNativePlaybackAndWait). Concurrent callers share one attempt.
+ */
+function startNativePlayback(rec) {
+    let attempt = nativeStarts.get(rec.id);
+    if (!attempt) {
+        attempt = ensureNativePlayback(rec).then(
+            () => { nativeFailures.delete(rec.id); },
+            (err) => {
+                // Detail belongs in the log, not in what a client is shown.
+                console.error(`[Recordings] Could not prepare #${rec.id} for native playback: ${err.message}`);
+                nativeFailures.set(rec.id, { reason: err.message === 'Recording file is missing' ? 'file-missing' : 'remux-failed' });
+            }
+        ).finally(() => nativeStarts.delete(rec.id));
+        nativeStarts.set(rec.id, attempt);
+    }
+    return attempt;
+}
+
+/**
+ * Start (if nothing is running) and give it a short moment. A file that only needs its
+ * checking - the usual case once a recording has been prepared before - is done inside the
+ * grace period, so the caller can answer "ready" instead of sending a client round again.
+ */
+async function startNativePlaybackAndWait(rec, graceMs = nativeTools.startGraceMs ?? NATIVE_START_GRACE_MS) {
+    const attempt = startNativePlayback(rec);
+    let timer;
+    await Promise.race([attempt, new Promise(resolve => { timer = setTimeout(resolve, graceMs); })]);
+    clearTimeout(timer);
+    return pollNativePlayback(rec);
 }
 
 async function remuxForNativePlayback(rec, input, output) {
@@ -1117,6 +1184,9 @@ module.exports = {
     deleteRecording,
     resolveStreamUrl,
     ensureNativePlayback,
+    pollNativePlayback,
+    startNativePlayback,
+    startNativePlaybackAndWait,
     buildNativeRemuxArgs,
     buildCompressArgs,
     // Test seam: stand-ins for the ffmpeg/ffprobe calls behind native playback.

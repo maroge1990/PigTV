@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0082** (0054–0080 are on `main`; 0081–0082 written) |
-| Next patch number | **0083** |
+| Shipped through | **build 0083** (0054–0080 are on `main`; 0081–0083 written) |
+| Next patch number | **0084** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -122,6 +122,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0080 | A failed `db.json` write is reported to the caller instead of swallowed — see below |
 | 0081 | `scripts/playback-report.js`: turns saved logs into the HLS-vs-remux trial report — see below |
 | 0082 | Recordings waiting for a viewer are listed, cancellable and not duplicated — see below |
+| 0083 | Recording playback can be polled (`?async=1` → 202 preparing) + `/api/info` capability flags — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -753,6 +754,28 @@ meant to be there — and including it cannot raise a spurious prompt (a waiting
 change:** `GET /recordings/scheduled` can now contain rows with `status:"waiting"` (the Apple client already decodes and
 displays that status). Tests: `test/recordings-waiting.test.js` (6; 5 fail against the 0081 code).
 
+**0083 detail — recording playback can be polled, and `/api/info` says what a client can rely on (review P1-2's
+open half; the Apple client's pending server dependency).** `GET /api/recordings/:id/playback` awaited the whole native
+remux inside the request. The Apple client's requests time out after 35 s (`APIClient.swift`), a big recording over SMB
+takes longer, so it timed out while the server carried on and then asked again. **New, opt-in:** `?async=1`. Ready → the
+same `200 {url, container, durationSec}` as ever. Still remuxing → **`202 {"status":"preparing","retryAfterSec":3}`** with a
+`Retry-After: 3` header; the client asks again. Failed → **`500 {"status":"failed","reason":"remux-failed"|"file-missing",
+"error":"The server could not prepare this recording for playback"}`** — a plain sentence (the ffmpeg output and paths go to
+`docker logs`), reported **once**: asking again starts a fresh attempt instead of being told the old failure for a minute.
+Without `?async=1` behaviour is byte-for-byte what it was, so nothing that exists today changes. Engine: `pollNativePlayback`
+(ready / preparing / failed / idle), `startNativePlayback` (one shared background attempt per recording — concurrent clients
+share it, as 0062's dedupe already did for the blocking flavour) and `startNativePlaybackAndWait`, which gives a fresh
+attempt a **1.5 s grace period**, so a recording that only needs its existing `.native.mp4` checking answers `200` at once
+rather than costing a round trip. **`/api/info` `features` gains five flags a client can ask for** (older servers simply lack
+them): `recordingPlaybackPolling`, `scheduledWaiting` (0082), `viewerConflict` (0055), `epgLogoFallback` (0067),
+`clientEvents` (0065). `apiVersion` is unchanged — everything is additive. Tests: `test/recording-playback-polling.test.js`
+(9, the real recordings + info routers over a real database with ffmpeg/ffprobe stood in for: legacy blocking unchanged, fast
+path, a real 202 sequence, no extra ffmpeg on re-ask, two clients share one remux, failure reported once without paths,
+missing file, the old 409/404/401, the flags; 5 fail against the 0082 code). **Found on the way, not changed:**
+`routes/info.js`'s handler is an `async` function with no `try/catch`, so an exception in it would leave the request hanging
+rather than answering 500 (Express 4 ignores the rejected promise) — cosmetic today (nothing in it throws), worth a
+one-line fix if that route ever grows.
+
 **Decisions recorded 20 Sept 2026 (Mark).** (a) Start §C Phase 1 now, as a **Settings toggle**, off by default.
 (b) **Stability and quality outrank channel-change speed** — a slower channel change is acceptable if that is
 the price; §C Phase 2 measures what it costs and we look for what we can claw back without giving up stability.
@@ -899,9 +922,9 @@ that hardening.
 - **0050 native gate — confirm** the client sends its bearer on `resolve` and
   `DELETE /api/playback/:id` (`?token=` is a fallback). Already shipped.
 - **P1-2 — recording native playback.** Server fixes (`-tag:v hvc1`, in-flight
-  remux dedupe, temp-file-then-rename, sidecar cleanup, MP2→AAC) ✅ 0062; HEVC
-  playback still needs a device to confirm, and the `202 {status:"preparing"}` part
-  needs the client to poll instead of erroring on non-200.
+  remux dedupe, temp-file-then-rename, sidecar cleanup, MP2→AAC) ✅ 0062; the polling flavour
+  (`?async=1` → `202 {status:"preparing"}`) ✅ 0083 — the client must opt in and poll (see
+  `docs/SWIFT-CLIENT-HANDOFF.md`); HEVC playback still needs a device to confirm.
 - **P1-3 (client half)** — the server now does the EPG-icon fallback in `/api/library/*`
   (0067), so the client can drop `loadArtworkIndex()` + its `/api/proxy/epg/{id}`
   download. Safe to do at any time; until then the client's own matching just becomes

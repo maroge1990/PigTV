@@ -1254,6 +1254,16 @@ check server/services/recordingEngine.js "coordinator.clearPrompt(id);" "and can
 check public/js/pages/RecordingsPage.js "waiting: 'Waiting for viewer'" "the web page labels it instead of showing the raw status"
 check test/recordings-waiting.test.js "a waiting recording can be cancelled" "with tests"
 
+echo "=== 0083: recording playback can be polled (202 preparing), and /api/info advertises what a client can rely on ==="
+check server/routes/recordings.js "req.query.async === '1'" "the polling flavour is opt-in, so existing clients are unchanged"
+check server/routes/recordings.js "status: 'preparing', retryAfterSec: 3" "a remux still running answers 202 preparing"
+check server/routes/recordings.js "The server could not prepare this recording for playback" "a failure gives a plain message, not paths or ffmpeg output"
+check server/services/recordingEngine.js "function pollNativePlayback" "the engine can say where preparation stands"
+check server/services/recordingEngine.js "nativeFailures.delete(rec.id);" "and a failure is reported once, then forgotten"
+check server/routes/info.js "recordingPlaybackPolling: true" "/api/info says polling exists"
+check server/routes/info.js "scheduledWaiting: true" "and the other client-relevant behaviours"
+check test/recording-playback-polling.test.js "two clients asking at once share one remux" "with route-level tests"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

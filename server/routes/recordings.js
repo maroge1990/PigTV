@@ -199,9 +199,28 @@ router.get('/:id/playback', async (req, res) => {
             return res.status(409).json({ error: 'Recording is not finished yet' });
         }
 
-        // Resolving here as well as serving lazily in /media.mp4 means the
-        // first real playback request doesn't also pay for the remux.
-        await recordingEngine.ensureNativePlayback(rec);
+        if (req.query.async === '1') {
+            // Polling flavour, for a client that cannot wait out a long remux (the Apple
+            // client's requests time out after 35 s). Ready -> 200 as below; still working
+            // -> 202 and ask again; failed -> 500 once, and asking again starts afresh.
+            let status = recordingEngine.pollNativePlayback(rec);
+            if (status.state === 'idle') status = await recordingEngine.startNativePlaybackAndWait(rec);
+            if (status.state === 'failed') {
+                return res.status(500).json({
+                    status: 'failed',
+                    reason: status.reason,
+                    error: 'The server could not prepare this recording for playback'
+                });
+            }
+            if (status.state !== 'ready') {
+                res.set('Retry-After', '3');
+                return res.status(202).json({ status: 'preparing', retryAfterSec: 3 });
+            }
+        } else {
+            // Resolving here as well as serving lazily in /media.mp4 means the
+            // first real playback request doesn't also pay for the remux.
+            await recordingEngine.ensureNativePlayback(rec);
+        }
 
         res.json({
             url: `/api/recordings/${rec.id}/media.mp4`,
