@@ -692,8 +692,11 @@ async function cancelScheduled(id) {
 
     if (schedule.status === 'recording' && active.has(id)) {
         await stopRecording(id, 'cancelled');
-    } else if (schedule.status === 'scheduled') {
+    } else if (schedule.status === 'scheduled' || schedule.status === 'waiting') {
+        // A waiting recording is one held back for a viewer: cancelling it must also
+        // withdraw the prompt that asks that viewer to stop watching.
         scheduledDb.cancel(id);
+        coordinator.clearPrompt(id);
     }
     return scheduledDb.getById(id);
 }

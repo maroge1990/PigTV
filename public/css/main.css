@@ -4967,6 +4967,11 @@ kbd {
   color: var(--color-accent-hover);
 }
 
+.recording-status.status-waiting {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--color-warning);
+}
+
 .recording-status.status-completed {
   background: rgba(16, 185, 129, 0.2);
   color: var(--color-success);

@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0081** (0054–0080 are on `main`; 0081 written) |
-| Next patch number | **0082** |
+| Shipped through | **build 0082** (0054–0080 are on `main`; 0081–0082 written) |
+| Next patch number | **0083** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -121,6 +121,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0079 | Unknown `/api/*` paths return a JSON 404 instead of the web app + an Apple-client route guard test — see below |
 | 0080 | A failed `db.json` write is reported to the caller instead of swallowed — see below |
 | 0081 | `scripts/playback-report.js`: turns saved logs into the HLS-vs-remux trial report — see below |
+| 0082 | Recordings waiting for a viewer are listed, cancellable and not duplicated — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -737,6 +738,20 @@ very short watches don't count towards stall rates. **The script parses the log 
 `verify-build.sh` now also pins the three server log lines it depends on — change their format and the check fails
 until the script is updated. Checked against a real sandbox log (it reproduced the hand-measured 9.8 s / 5.0 s HLS and
 12.6 s / 7.8 s remux). Tests: `test/playback-report.test.js` (11, fixtures made of real log lines).
+
+**0082 detail — a recording waiting for a viewer is visible, cancellable and not duplicated (found reading the Apple
+client's own notes; server bug, fixes what the client shows).** A recording that is due but held back because someone is
+watching on the provider's only stream has status `waiting`. Three places forgot that state: `listUpcoming()` (behind
+`GET /api/recordings/scheduled`) returned only `scheduled` and `recording`, so the recording **disappeared from the list at
+exactly the moment it was being held back**; `cancelScheduled()` handled only `scheduled` and `recording`, so cancelling a
+waiting one returned it unchanged (the client, correctly, reports that as a failed cancel); and `findByProgram()`, the
+duplicate check, ignored it, so the same programme could be scheduled twice. All three now include `waiting`, and
+cancelling a waiting recording also withdraws the prompt that asks the viewer to stop watching (the Apple client polls for
+that prompt). The engine's own announce loop already tested `status === 'waiting'` on that list — the state was clearly
+meant to be there — and including it cannot raise a spurious prompt (a waiting schedule's start is already past). Web app:
+`statusLabel` showed the raw word `waiting`; it now reads "Waiting for viewer" with an amber badge. **Client-visible
+change:** `GET /recordings/scheduled` can now contain rows with `status:"waiting"` (the Apple client already decodes and
+displays that status). Tests: `test/recordings-waiting.test.js` (6; 5 fail against the 0081 code).
 
 **Decisions recorded 20 Sept 2026 (Mark).** (a) Start §C Phase 1 now, as a **Settings toggle**, off by default.
 (b) **Stability and quality outrank channel-change speed** — a slower channel change is acceptable if that is

@@ -112,11 +112,15 @@ const scheduled = {
         return row(db.prepare('SELECT * FROM scheduled_recordings WHERE id = ?').get(id));
     },
 
+    // Everything a person would call "coming up or in progress". 'waiting' belongs here: it is
+    // a recording that is due but held back because someone is watching on the provider's only
+    // stream. Leaving it out made it vanish from the list at exactly the moment it mattered, and
+    // left nothing to cancel.
     listUpcoming() {
         const db = getDb();
         return db.prepare(`
             SELECT * FROM scheduled_recordings
-            WHERE status IN ('scheduled', 'recording')
+            WHERE status IN ('scheduled', 'recording', 'waiting')
             ORDER BY program_start ASC
         `).all();
     },
@@ -155,7 +159,7 @@ const scheduled = {
         return row(db.prepare(`
             SELECT * FROM scheduled_recordings
             WHERE source_id = ? AND channel_item_id = ? AND program_start = ?
-              AND status IN ('scheduled', 'recording')
+              AND status IN ('scheduled', 'recording', 'waiting')
         `).get(sourceId, channelItemId, programStart));
     },
 

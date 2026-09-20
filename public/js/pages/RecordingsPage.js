@@ -332,6 +332,7 @@ class RecordingsPage {
     statusLabel(status) {
         const labels = {
             scheduled: 'Scheduled',
+            waiting: 'Waiting for viewer',
             recording: 'Recording',
             completed: 'Completed',
             failed: 'Failed',

@@ -1247,6 +1247,13 @@ check server/routes/playback.js "play-end via" "and play-end"
 check server/services/playbackStrategy.js "resolve timing: " "and resolve timing"
 check test/playback-report.test.js "the real lines are understood" "the report has tests built from real log lines"
 
+echo "=== 0082: a recording waiting for a viewer is listed, cancellable and not duplicated ==="
+check server/db/recordingsDb.js "status IN ('scheduled', 'recording', 'waiting')" "the upcoming list and the duplicate check include waiting"
+check server/services/recordingEngine.js "schedule.status === 'scheduled' || schedule.status === 'waiting'" "a waiting recording can be cancelled"
+check server/services/recordingEngine.js "coordinator.clearPrompt(id);" "and cancelling withdraws its viewer prompt"
+check public/js/pages/RecordingsPage.js "waiting: 'Waiting for viewer'" "the web page labels it instead of showing the raw status"
+check test/recordings-waiting.test.js "a waiting recording can be cancelled" "with tests"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
