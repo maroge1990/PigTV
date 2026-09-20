@@ -29,7 +29,7 @@ const pkg = require('../package.json');
 // patch filenames (0048, 0049, ...). Env override exists only so an image
 // build can stamp it without editing source; the committed value is the
 // normal path.
-const BUILD = '0080';
+const BUILD = '0081';
 
 const version = pkg.version;
 const build = process.env.PIGTV_BUILD || BUILD;

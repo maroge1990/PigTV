@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0080** (0054–0078 are on `main`; 0079–0080 written) |
-| Next patch number | **0081** |
+| Shipped through | **build 0081** (0054–0080 are on `main`; 0081 written) |
+| Next patch number | **0082** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -120,6 +120,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0078 | Dead-code batch (c, part 1): JSON-file `hiddenItems` / `favorites` removed from `db.js` — see below |
 | 0079 | Unknown `/api/*` paths return a JSON 404 instead of the web app + an Apple-client route guard test — see below |
 | 0080 | A failed `db.json` write is reported to the caller instead of swallowed — see below |
+| 0081 | `scripts/playback-report.js`: turns saved logs into the HLS-vs-remux trial report — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -717,6 +718,25 @@ and then silently revert; (3) **the error a client can see is a plain sentence**
 the disk full or read-only?)"): `settings.js` and parts of `auth.js` return `err.message` directly, and the raw Node error
 names a file path, which now stays in `docker logs` and on `.cause`. Tests: `test/db-write-failure.test.js` (5,
 including a simulated ENOSPC on the first of two in-flight writes; all 5 fail against the 0079 code).
+
+**0081 detail — `scripts/playback-report.js`, for reading the HLS trial (tooling only; no server behaviour change).**
+Turns saved `docker logs` output into one comparison of the delivery paths: per path (remux, HLS session (opt-in),
+plus any server-chosen transcode / direct) the plays, **time to first picture** (median / p90 / max, split **cold**
+— the stream had to be probed — and **warm**, probe cached), **watch time, stalls and stalls per hour** (only quoted
+once a path has 10 minutes behind it) and sessions of an hour or more; the failures the player reported by path;
+the server-side failure signatures (`Could not write header`, ffmpeg produced no output, stalled ffmpeg killed,
+`Codec probe failed`, remux refused to start, HLS first segment not produced in time); and a checklist against the
+trial criteria (≥50 plays per path, ≥3 HLS sessions of an hour or more, no failures that happen only on HLS, stalls per
+hour no worse than remux — edit the constants at the top of the script if the plan changes). Use:
+`docker logs pigtv --since 24h > pigtv-today.log` then `node scripts/playback-report.js pigtv-today.log` (several files
+are merged; stdin works; `docker logs -t` timestamps are ignored). It needs only Node, so it runs on the dev machine —
+copy the saved log across; nothing has to be deployed. **Limits:** the log never names a channel, so "10+ different
+channels" is the tester's own tally; cold/warm pairing uses the nearest earlier `resolve timing` line of the same kind,
+reliable with one viewer and a guess with several; a play watched for under 10 s sends no `play-end` (by design), so
+very short watches don't count towards stall rates. **The script parses the log by its exact wording**, so
+`verify-build.sh` now also pins the three server log lines it depends on — change their format and the check fails
+until the script is updated. Checked against a real sandbox log (it reproduced the hand-measured 9.8 s / 5.0 s HLS and
+12.6 s / 7.8 s remux). Tests: `test/playback-report.test.js` (11, fixtures made of real log lines).
 
 **Decisions recorded 20 Sept 2026 (Mark).** (a) Start §C Phase 1 now, as a **Settings toggle**, off by default.
 (b) **Stability and quality outrank channel-change speed** — a slower channel change is acceptable if that is

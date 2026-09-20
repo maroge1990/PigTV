@@ -1238,6 +1238,15 @@ check server/db.js "if (cachedDb === snapshot) cachedDb = previous;" "the in-mem
 check_absent server/db.js "Database write failed" "the old catch-and-continue that reported success is gone"
 check test/db-write-failure.test.js "a later save that succeeds is not undone" "including the case where a newer save overtakes the failure"
 
+echo "=== 0081: playback report script for the HLS trial ==="
+check scripts/playback-report.js "play-start via" "the report reads the play-start line the server writes"
+check scripts/playback-report.js "resolve timing" "and the resolve timing line, to tell cold plays from warm ones"
+# The script parses log lines by their exact wording, so the server must still write them that way.
+check server/routes/playback.js "play-start via" "the server still writes play-start"
+check server/routes/playback.js "play-end via" "and play-end"
+check server/services/playbackStrategy.js "resolve timing: " "and resolve timing"
+check test/playback-report.test.js "the real lines are understood" "the report has tests built from real log lines"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
