@@ -154,7 +154,7 @@ from the body; the header carries the same number.)
 ### C7 — Report player failures to the server log (LOW, worthwhile; flag `clientEvents`)
 
 The Apple TV's playback errors currently exist only on the TV screen. `POST /api/playback/client-event` (bearer or
-`?token=`, device tokens are accepted) writes one line to `docker logs pigtv`, next to the ffmpeg lines from the same
+`?token=`, device tokens are accepted) writes one line to the server's `docker logs` (container name: `docker ps`), next to the ffmpeg lines from the same
 moment, so "it stopped on the Apple TV" becomes diagnosable. Fire-and-forget; must never affect playback; over the rate
 limit it answers 204 and drops. **Never send a URL with a query string** — only the path.
 
