@@ -22,7 +22,8 @@ Ask the server, don't guess. `GET /api/info` (no token) returns `build`, `displa
 | `scheduledWaiting` | `recordings/scheduled` lists `waiting` rows and they can be cancelled | 0082 | 0083 |
 | `recordingPlaybackPolling` | `recordings/:id/playback?async=1` may answer 202 | 0083 | 0083 |
 
-At the time of writing `main` is at 0080 with 0081–0083 written but not yet deployed. **Develop against whatever is
+Everything in this document is on `main` (server build 0086 as of 20 September 2026). **Check which build is actually
+running before you start:** `GET /api/info` (no token) → `build`. **Develop against whatever is
 deployed; the flags let each feature switch on by itself as the server catches up.** C1 and C2 below need no flag — the
 server behaviour they handle already exists.
 
@@ -213,7 +214,17 @@ sentence instead of pretending to succeed.
 - Against the real server, two-device tests need the web app open on another machine: start playback on the TV, then
   on the web ("Another device is watching" appears there), then the reverse to see C1; pause the TV for 6 minutes and
   resume to see C2; schedule a recording, keep watching past its start, and check it appears as `waiting` (C5).
-- Server logs to watch while testing: `docker logs pigtv | grep -E "viewer|conflict|Player\]|resolve timing|media-error"`.
+- Server logs to watch while testing (find the container name with `docker ps`):
+  `docker logs <container-name> 2>&1 | grep -E "viewer|conflict|\[Player\]|\[HLS\]|resolve timing|from=device"`.
+  `[HLS] 404 for seg0012.m4s in session …: <why>` means the server had no such file (the session was removed, or the segment
+  had rotated out) - that is what a player reports as a failed segment load. Lines ending `from=device:<id>` are this client's.
+- Feeds on Mark's provider that exercise server edge cases (stream ids as they appear in the server log): **1803789** serves
+  a finite ~30-minute file from the start - before build 0086 a player got a segment 404 a few seconds in; its resolve log now
+  ends `source ends (N min) - paced to real time`; it is a good test that the client survives it. **1239048** logs dozens of
+  harmless `[mp4] Packet duration … out of range` warnings and plays normally - server-log noise, not a client fault.
+- Only a device can settle these, and they are the ones worth recording the result of: whether AVPlayer stops fetching while
+  paused (C2 rests on it); whether an HEVC recording plays (`recordings/{id}/playback` promises MP4/`hvc1` but has never been
+  checked on an Apple TV); a channel switch on the same device (should never ask for confirmation).
 
 ## 4. If the client needs something from the server
 
