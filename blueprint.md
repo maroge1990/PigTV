@@ -25,8 +25,8 @@ As progress is made, ensure the blueprint is up to date for handover
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv` |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` |
 | Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0075** (0054–0073 are on `main` and **deployed** — Mark, 20 Sept 2026; 0074–0075 written) |
-| Next patch number | **0076** |
+| Shipped through | **build 0076** (0054–0073 are on `main` and **deployed** — Mark, 20 Sept 2026; 0074–0076 written) |
+| Next patch number | **0077** |
 | Deep review | `server-review.md` (repo root) |
 
 Don't hard-code the `origin/main` SHA anywhere — it advances as patches land.
@@ -115,6 +115,7 @@ on the *remux* path — see §5 architectural notes.)
 | 0073 | Fix: A/V start-time skew made HLS sessions log a discontinuity per packet and drop audio — see below |
 | 0074 | Housekeeping: `access.test.js` runs on Windows without admin; blueprint status refreshed — see below |
 | 0075 | §C Phase 1: "HLS Delivery (beta)" toggle for the web player + `play-start` / `play-end` measurement — see below |
+| 0076 | Dead-code batch (a): `users.js`, `m3uXtreamAdapter.js`, `hello.js` removed — see below |
 
 **0054 detail.** New `server/services/stallWatchdog.js`: kills an ffmpeg that has
 produced no media for `PIGTV_STALL_TIMEOUT_MS` (default **20 s**; 30 s grace
@@ -634,6 +635,17 @@ tick Settings → Transcoding → **HLS Delivery (beta)** and play a few channel
 copied)`; then `docker logs pigtv | grep -E "play-start|play-end|resolve timing|media-error"` and compare
 `first-picture` against a browser with the toggle off (`remux(fmp4)`). Watch specifically for: `media-error … HLS_…`
 lines, `first segment NOT produced in time`, `stalls=` above 0, and any channel that only fails with the toggle on.
+
+**0076 detail — dead-code batch (a): three inert files (review P2-1).** Deleted `server/routes/users.js`
+(186 lines, never mounted — `routes/auth.js` has the live user routes), `server/services/m3uXtreamAdapter.js`
+(134 lines, no importer; `docs/HANDOVER.md` records that editing it "had no effect") and `server/plugins/hello.js`
+(a demo plugin whose unauthenticated `GET /api/hello` listed every internal service name). Confirmed by grep that
+nothing required them; `verify-build.sh` lost its three checks that pinned the adapter and gained a block asserting
+the files stay deleted and nothing refers to them. **The plugin *loader* and `PLUGINS.md` are deliberately kept** —
+it is a documented extension point, not dead code, just currently empty; say the word to remove it. A booted copy of
+the server started clean with the plugins folder empty. `/api/hello` now falls through to the SPA catch-all like any
+unknown path (roadmap A.10 covers making unknown `/api/*` return a 404 JSON). No behaviour change; no test needed
+beyond the verify-build assertion (there is nothing left to test).
 
 **Decisions recorded 20 Sept 2026 (Mark).** (a) Start §C Phase 1 now, as a **Settings toggle**, off by default.
 (b) **Stability and quality outrank channel-change speed** — a slower channel change is acceptable if that is

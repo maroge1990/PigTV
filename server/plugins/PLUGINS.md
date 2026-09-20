@@ -114,7 +114,6 @@ The `services` object contains all modules from `server/services/`:
 | `epgParser` | EPG/XMLTV parsing |
 | `hwDetect` | Hardware acceleration detection |
 | `m3uParser` | M3U playlist parsing |
-| `m3uXtreamAdapter` | Xtream API adapter |
 | `syncService` | Channel/EPG synchronization |
 | `transcodeSession` | Transcoding session management |
 | `xtreamApi` | Xtream API client |

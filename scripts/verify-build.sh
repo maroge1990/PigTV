@@ -92,9 +92,7 @@ check server/index.js "syncIfStale" "startup calls syncIfStale"
 check server/routes/transcode.js "sessions/all" "kill-all endpoint"
 check public/index.html "kill-all-streams" "kill button markup"
 check public/js/pages/Settings.js "killAllSessions" "kill button handler"
-check server/services/m3uXtreamAdapter.js "MIN(sort_order)" "category ordering"
 check server/services/syncService.js "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" "14-param INSERT"
-check server/services/m3uXtreamAdapter.js "ORDER BY sort_order" "adapter ordering"
 
 echo "=== 0009: Movies/Series toggle ==="
 check server/db.js "showMovies" "movies setting"
@@ -162,7 +160,7 @@ if grep -q "a.localeCompare(b)" public/js/components/ChannelList.js; then
 else
     echo "  ✓ ChannelList group sort removed"
 fi
-if grep -q "stripFlagEmoji\|stripFlags" server/routes/proxy.js server/services/m3uXtreamAdapter.js; then
+if grep -q "stripFlagEmoji\|stripFlags" server/routes/proxy.js; then
     echo "  ✗ MISSING: flag stripping not reverted"; FAIL=1
 else
     echo "  ✓ flag stripping reverted"
@@ -1194,6 +1192,17 @@ check server/routes/playback.js "play-end via" "and play-end"
 check server/services/playbackStrategy.js "resolve timing: HLS session" "resolve logs where a channel change's seconds go"
 check test/player-hls-delivery.test.js "the first picture is reported once per play" "the player changes have tests"
 check test/resolve-timing.test.js "resolve timing" "the timing lines have tests"
+
+echo "=== 0076: inert files removed (review P2-1, batch a) ==="
+for f in server/routes/users.js server/services/m3uXtreamAdapter.js server/plugins/hello.js; do
+  if [ -e "$f" ]; then echo "  ✗ MISSING: $f should have been deleted"; FAIL=1; else echo "  ✓ $f is gone"; fi
+done
+# Nothing may still load them (a require of a deleted file is a startup crash).
+if grep -rn "routes/users\|m3uXtreamAdapter\|plugins/hello" server test public --include=*.js | grep -v node_modules | grep -q .; then
+  echo "  ✗ MISSING: something still refers to a deleted file"; FAIL=1
+else
+  echo "  ✓ nothing refers to them"
+fi
 
 if [ $FAIL -eq 0 ]; then
     echo ""
