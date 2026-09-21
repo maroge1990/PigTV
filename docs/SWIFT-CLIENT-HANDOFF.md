@@ -215,7 +215,7 @@ sentence instead of pretending to succeed.
   on the web ("Another device is watching" appears there), then the reverse to see C1; pause the TV for 6 minutes and
   resume to see C2; schedule a recording, keep watching past its start, and check it appears as `waiting` (C5).
 - Server logs to watch while testing (find the container name with `docker ps`):
-  `docker logs <container-name> 2>&1 | grep -E "viewer|conflict|\[Player\]|\[HLS\]|resolve timing|from=device"`.
+  `docker logs PigTV 2>&1 | grep -E "viewer|conflict|\[Player\]|\[HLS\]|resolve timing|from=device"`.
   `[HLS] 404 for seg0012.m4s in session …: <why>` means the server had no such file (the session was removed, or the segment
   had rotated out) - that is what a player reports as a failed segment load. Lines ending `from=device:<id>` are this client's.
 - Feeds on Mark's provider that exercise server edge cases (stream ids as they appear in the server log): **1803789** serves

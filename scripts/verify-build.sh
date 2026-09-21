@@ -1313,6 +1313,10 @@ check blueprint.md "regression corpus" "samples are kept and retested, which 008
 check blueprint.md 'cd "C:.Users.markr.GitHub.PigTV"' "the apply block cds to the current repo folder"
 check blueprint.md "moved out of OneDrive" "and the orientation table agrees with it"
 
+echo "=== 0092 (docs): commands name the container instead of a placeholder ==="
+check blueprint.md "docker exec PigTV node scripts/stream-doctor" "so a command can be pasted as written"
+check docs/SWIFT-CLIENT-HANDOFF.md "docker logs PigTV" "including the ones the Apple client session runs"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

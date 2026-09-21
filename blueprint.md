@@ -28,8 +28,8 @@ As progress is made, keep this file current for handover — and keep it small (
 | Local repo folder | `C:\Users\markr\GitHub\PigTV` (moved out of OneDrive, 21 Sept 2026) |
 | Patch folder | `C:\Users\markr\GitHub\patches\PigTV` |
 | Shipped through | **build 0090** once applied (0086 was the last confirmed running); confirm with `/api/version` |
-| Next patch number | **0092** |
-| Container name | Find with `docker ps` — the commands below use `<container>` |
+| Next patch number | **0093** |
+| Container name | **`PigTV`** on PassyFlix — every command in these docs names it literally, so it can be pasted as written. `docker ps` if it is ever renamed |
 
 Don't hard-code the `origin/main` SHA anywhere. The deployed build is whatever `/api/version` reports (§3).
 
@@ -216,7 +216,7 @@ now ends `source timing even - DTS kept` / `uneven - DTS rebuilt` / `unknown - D
 **`scripts/stream-doctor.js` — reach for this first on any playback fault** (0090). Five subcommands: `list <search>`,
 `capture <pos_N> [sec]` (60 s of the real feed + a verdict), `classify <sample>`, `bench <sample>` (runs the server's *own*
 argument builders once per candidate flag set and scores ffmpeg's warnings and frame-timing evenness), `probecost <pos_N>`.
-Run it as `docker exec <container> node scripts/stream-doctor.js …`. `capture` and `probecost` open a provider connection, so
+Run it as `docker exec PigTV node scripts/stream-doctor.js …`. `capture` and `probecost` open a provider connection, so
 **nothing may be playing**; the rest only read files. It reuses `streamProbe.classifyTimestamps` and `redact` rather than
 copying them, so its verdict is by construction the one the server will act on. **The lesson worth keeping: a 60-second
 capture turns a playback bug into a local, repeatable experiment and removes the redeploy cycle entirely — and a redeploy ends
@@ -227,9 +227,9 @@ Fox Sports 505 uneven; `pos_463` TSN, `pos_328` Sky Sports UHD (HEVC), `pos_468`
 **Diagnostics and the trial** (`routes/playback.js`, `VideoPlayer.js`, `scripts/playback-report.js`)
 - `POST /api/playback/client-event` (token required; whitelisted, bounded fields; **path only, never a query string**): events
   `media-error`, `start-timeout` (30/min limit) and `play-start`, `play-end` (120/min, separate budget). Log lines end
-  `from=user:<id>` (web) or `from=device:<id>` (Apple). Grep: `docker logs <container> 2>&1 | grep -E "\[Player\]|\[Playback\]|\[HLS\]"`.
+  `from=user:<id>` (web) or `from=device:<id>` (Apple). Grep: `docker logs PigTV 2>&1 | grep -E "\[Player\]|\[Playback\]|\[HLS\]"`.
   `[Playback] resolve timing: <direct|remux|HLS session>, probe <X s|cached>[, first segment after Y s][, source ends (N min) - paced to real time]`.
-- `scripts/playback-report.js`: `docker logs <container> --since 24h > x.log` then `node scripts/playback-report.js x.log`. It parses
+- `scripts/playback-report.js`: `docker logs PigTV --since 24h > x.log` then `node scripts/playback-report.js x.log`. It parses
   the exact log wording (pinned by `verify-build.sh`) and reports per path first-picture time (cold/warm), stalls/hour, failures,
   device plays separately, and the trial criteria (≥50 plays per path, ≥3 HLS sessions of ≥1 h, no HLS-only failures, stalls/hour no
   worse than remux — constants at the top of the script). The log never names a channel; stall rates need ≥10 min watched.
@@ -324,7 +324,7 @@ recommendation: skip — the client needs its recovery path either way, and the 
    and fixed two real faults (0085 uneven timestamps in copy sessions; 0086 finite sources outrunning the window). **Still to confirm
    after deploying them:** the channel that stopped and started (its `play-end` `stalls=`); the finite channel (provider stream id
    `1803789`) plays and its resolve line ends `source ends (N min) - paced to real time` — if not, check what ffprobe reports:
-   `docker exec <container> ffprobe -v error -show_entries format=size,duration -of default=nw=1 "<channel URL>"`.
+   `docker exec PigTV ffprobe -v error -show_entries format=size,duration -of default=nw=1 "<channel URL>"`.
 3. **Default on, with a safety net:** if an HLS session fails to start (15 s `waitForPlaylist`, fatal hls.js error — **including a
    segment 404, which hls.js won't retry**) fall back *once* to remux for that play.
 4. **Retire remux** after a clean run of step 3: delete `routes/remux.js`, the coordinator's remux branches, the watchdog's remux
@@ -378,11 +378,11 @@ The loop that works, in order. Mark can do steps 1–4 alone; steps 2 and 4 are 
 
 1. **Note the channel name and roughly when.** The log never names a channel, so this is the only link back to it.
 2. **Ask what the server decided**, before touching anything:
-   `docker logs <container> --since 30m 2>&1 | grep -E "resolve timing|\[HLS\]|Non-monotonic|Packet duration"`.
+   `docker logs PigTV --since 30m 2>&1 | grep -E "resolve timing|\[HLS\]|Non-monotonic|Packet duration"`.
    Each play's `resolve timing` line ends `source timing even - DTS kept` / `uneven - DTS rebuilt` / `unknown - DTS kept`
    (0088). A flood of timestamp warnings against a play classified the other way is a misclassification — that is the
    whole diagnosis, and the sample below proves it.
-3. **Find its id:** `docker exec <container> node scripts/stream-doctor.js list "<name>"` → `pos_N`.
+3. **Find its id:** `docker exec PigTV node scripts/stream-doctor.js list "<name>"` → `pos_N`.
 4. **Capture and bench it, with nothing playing** (both take the provider's only connection):
    `… stream-doctor.js capture pos_N` then `… stream-doctor.js bench /app/samples/pos_N.ts`.
    `capture` prints the verdict; `bench` shows what the shipping arguments produce against the forced alternatives.
@@ -427,10 +427,10 @@ and the URL itself is in the row's `data` blob, not `stream_url`.
 matches the XMLTV `<programme` count · 0059 a favourite made in the web shows in the Apple app and back · 0061 set `TZ`, schedule a
 recording, the file name shows local time · 0062 an **HEVC** recording plays on the Apple client (delete old `*.native.mp4` first);
 deleting a recording removes its sidecars · 0063 a large bulk hide/show still saves (a 413 means the 2 MB cap is too tight) ·
-0073 `docker logs <container> | grep -c "timestamp discontinuity"` stays ~0 on the E-AC-3 channel · Apple-device checks B1/B3/B5/B7
+0073 `docker logs PigTV | grep -c "timestamp discontinuity"` stays ~0 on the E-AC-3 channel · Apple-device checks B1/B3/B5/B7
 from the original list need the Swift client.
 
 **Already verified live (20 Sept):** web playback of several channels (A1 → 0071), bulk hide (A3 → 0072), 0071–0073 deployed and
 working, 0085 running. The intermittent "nothing plays on some channels" stopped reproducing while others saw the same channel group
 fail — put down to the provider; 0070's diagnostics will name it if it returns
-(`docker logs <container> | grep -E "Could not write header|never produced a byte|media-error"`).
+(`docker logs PigTV | grep -E "Could not write header|never produced a byte|media-error"`).
