@@ -81,7 +81,8 @@ test('findCachedCodecs matches on the URL under any capability set, and ignores 
     probe.probeCache.clear();
     const now = Date.now();
     probe.probeCache.set(`${URL_}|chrome|hls,fmp4`, { result: AAC, timestamp: now });
-    assert.deepEqual(probe.findCachedCodecs(URL_), AAC);
+    // dtsUneven rides along with the codecs: same probe, no extra connection.
+    assert.deepEqual(probe.findCachedCodecs(URL_), { ...AAC, dtsUneven: false });
 
     // A different URL that merely starts the same must not match.
     assert.equal(probe.findCachedCodecs(`${URL_}2`), null);

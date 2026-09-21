@@ -88,13 +88,14 @@ async function resolveWith(format, url) {
 test('resolve paces the session for a source that ends, and says so in the log', async () => {
     const r = await resolveWith({ size: '106893040', duration: '1929.6' }, 'http://provider.invalid/live/u/p/finite.ts');
     assert.equal(r.paceInput, true);
-    assert.match(r.line, /first segment after 0\.\ds, source ends \(32 min\) - paced to real time$/);
+    assert.match(r.line, /first segment after 0\.\ds, source ends \(32 min\) - paced to real time, source timing /);
 });
 
 test('resolve leaves a live source alone', async () => {
     const r = await resolveWith({}, 'http://provider.invalid/live/u/p/live.ts');
     assert.equal(r.paceInput, false);
-    assert.match(r.line, /first segment after 0\.\ds$/);
+    assert.match(r.line, /first segment after 0\.\ds, source timing /);
+    assert.ok(!r.line.includes('paced to real time'), 'and a live source is not paced');
 });
 
 // ---- the behaviour, with real ffmpeg / ffprobe ----

@@ -171,6 +171,8 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
         // only keeps a few minutes of segments: ffmpeg would be half an hour ahead of the
         // player within seconds, and the player's next segment would be gone (a 404).
         paceInput: info.finite === true,
+        // Whether this feed's own DTS is worth keeping - see buildFFmpegArgs.
+        dtsUneven: info.dtsUneven === true,
         audioMode: audioEncode ? 'encode' : (codecsOk ? 'copy' : undefined),
         videoCodec: info.video,
         audioCodec: info.audio,
@@ -184,7 +186,12 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
 
     const ready = await session.waitForPlaylist(15000);
     const pacing = info.finite === true ? `, source ends${info.durationSec ? ` (${Math.round(info.durationSec / 60)} min)` : ''} - paced to real time` : '';
-    console.log(`[Playback] resolve timing: HLS session, probe ${probeNote}, first segment ${ready ? `after ${seconds(Date.now() - sessionStartedAt)}` : 'NOT produced in time'}${pacing}`);
+    // Say which way the feed was classified: otherwise the igndts decision is
+    // invisible in the log and a wrong call cannot be told from an unrelated fault.
+    const timing = videoMode === 'copy'
+        ? `, source timing ${info.dtsUneven === true ? 'uneven - DTS rebuilt' : (info.dtsUneven === false ? 'even - DTS kept' : 'unknown - DTS kept')}`
+        : '';
+    console.log(`[Playback] resolve timing: HLS session, probe ${probeNote}, first segment ${ready ? `after ${seconds(Date.now() - sessionStartedAt)}` : 'NOT produced in time'}${pacing}${timing}`);
     if (!ready) {
         await transcodeSession.removeSession(session.id);
         const err = new Error('Transcode failed to produce a playlist in time');

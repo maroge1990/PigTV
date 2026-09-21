@@ -36,6 +36,69 @@ function matchesAny(codec, list) {
     return list.some(c => codec.includes(c));
 }
 
+// How many of the probe's packets we look at to decide whether a feed's frame
+// timing is even. 300 across all streams is roughly 150 video packets - three
+// seconds at 50 fps, and far more than the signal needs (the two populations
+// measured 33.8% uneven against 0.0%, with nothing in between).
+const DTS_PROBE_PACKETS = 300;
+
+// A step shorter than a quarter of the average frame period is degenerate, and
+// more than one in twenty of them means the feed is uneven. Both are deliberately
+// slack: they only have to separate 33.8% from 0.0%.
+const DEGENERATE_FRACTION = 4;
+const UNEVEN_THRESHOLD = 0.05;
+
+/**
+ * Does this feed's video arrive with even frame timing?
+ *
+ * The question decides whether ffmpeg should be told to ignore the source's DTS
+ * (-fflags +igndts), and there is no answer that suits every feed:
+ *
+ *  - An EVEN feed has correct DTS. igndts throws it away, ffmpeg re-derives it
+ *    from the PTS reorder buffer, and gets it wrong often enough to produce
+ *    "Non-monotonic DTS" plus zero-length frames followed by double-length ones.
+ *  - An UNEVEN feed arrives with a third of its steps near zero, because an
+ *    upstream muxer already bumped repeated DTS by +1 rather than fixing them.
+ *    Here igndts is the cure, and without it the same judder appears.
+ *
+ * 0085 applied igndts to every copy session, which fixed the second kind of feed
+ * and broke the first. Measured on four of Mark's channels, both directions
+ * reproduced, and the classification below predicted the outcome on all four.
+ *
+ * Note what is NOT counted: DTS that repeats or steps backwards. Those are the
+ * obvious faults, and on real feeds they are already gone by the time we see the
+ * stream - the provider's own muxer bumped them. The surviving evidence is the
+ * near-zero step it left behind.
+ *
+ * @param {Array} packets  ffprobe -show_packets output
+ * @returns {boolean|null} true = uneven (wants igndts), false = even, null = could not tell
+ */
+function classifyTimestamps(packets) {
+    if (!Array.isArray(packets) || packets.length === 0) return null;
+
+    const dts = [];
+    for (const p of packets) {
+        // stream_index 0 is video for every feed seen here; guard anyway, since a
+        // misread would classify audio packet timing and answer confidently wrong.
+        if (Number(p.stream_index) !== 0) continue;
+        const d = Number(p.dts !== undefined ? p.dts : p.dts_time);
+        if (Number.isFinite(d)) dts.push(d);
+    }
+    // Too short a run says nothing: a handful of packets at a channel join can look
+    // like anything. Answering null leaves the caller on its safe default.
+    if (dts.length < 20) return null;
+
+    const steps = dts.slice(1).map((d, i) => d - dts[i]);
+    // The MEAN frame period, not the most common one: when a third of the steps are
+    // degenerate the mode lands on the degenerate value itself and everything then
+    // compares clean against it. The mean stays anchored because the total span does.
+    const mean = steps.reduce((t, s) => t + s, 0) / steps.length;
+    if (!(mean > 0)) return null;
+
+    const degenerate = steps.filter(s => s >= 0 && s < mean / DEGENERATE_FRACTION).length;
+    return degenerate > steps.length * UNEVEN_THRESHOLD;
+}
+
 /**
  * Probe stream with ffprobe
  */
@@ -47,6 +110,16 @@ function probeStream(url, ffprobePath, userAgent = null, timeout = 15000) {
             '-print_format', 'json',
             '-show_streams',
             '-show_format',
+            // Packet timestamps, for classifyTimestamps above. Folded into THIS call
+            // rather than a second ffprobe on purpose: the provider allows one
+            // connection, so a separate probe would collide with this one. The packets
+            // come out of bytes -probesize is already reading.
+            //
+            // -read_intervals bounds it. Without the bound, -show_packets on a live
+            // feed never returns: the probe would hit its 15 s timeout and no channel
+            // would play at all.
+            '-show_packets',
+            '-read_intervals', `%+#${DTS_PROBE_PACKETS}`,
             '-probesize', '5000000',
             '-analyzeduration', '5000000',
             url
@@ -185,6 +258,10 @@ function analyzeProbeResult(probeResult, url, clientCaps = {}) {
         videoIsHevc: videoIsHevc,
         finite: finite,
         durationSec: durationSec,
+        // null when the packets could not be read or were too few to judge; the
+        // callers treat that as "even", which is the majority case and the one
+        // where guessing wrong is merely no better than before rather than worse.
+        dtsUneven: classifyTimestamps(probeResult.packets),
         fps: videoStream?.avg_frame_rate || null,
         subtitles: subtitles
     };
@@ -204,8 +281,10 @@ function findCachedCodecs(url) {
     for (const [key, entry] of probeCache) {
         if (!key.startsWith(prefix)) continue;
         if (now - entry.timestamp >= CACHE_TTL) continue;
-        const { video, audio } = entry.result || {};
-        if (video || audio) return { video: video || null, audio: audio || null };
+        const { video, audio, dtsUneven } = entry.result || {};
+        // dtsUneven rides along: the remux route needs it for the same reason the
+        // HLS path does, and it comes from the same probe at no extra cost.
+        if (video || audio) return { video: video || null, audio: audio || null, dtsUneven: dtsUneven === true };
     }
     return null;
 }
@@ -213,7 +292,9 @@ function findCachedCodecs(url) {
 module.exports = {
     probeStream,
     analyzeProbeResult,
+    classifyTimestamps,
     probeCache,
     findCachedCodecs,
-    CACHE_TTL
+    CACHE_TTL,
+    DTS_PROBE_PACKETS
 };

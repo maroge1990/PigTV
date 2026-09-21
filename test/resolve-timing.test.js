@@ -76,7 +76,7 @@ test('an HLS session resolve says how long the first segment took', async () => 
     try {
         const lines = await timingLines(() => strategy.resolve({ url, capabilities: { segmentedDelivery: true }, settings: SETTINGS }));
         assert.equal(lines.length, 1);
-        assert.match(lines[0], /^\[Playback\] resolve timing: HLS session, probe cached, first segment after 0\.\ds$/);
+        assert.match(lines[0], /^\[Playback\] resolve timing: HLS session, probe cached, first segment after 0\.\ds, source timing (even|uneven|unknown)/);
     } finally { stub.restore(); }
 });
 
@@ -90,7 +90,8 @@ test('a session that never produced a segment says so - the case that ends in an
             try { await strategy.resolve({ url, capabilities: { segmentedDelivery: true }, settings: SETTINGS }); } catch (err) { failure = err; }
         });
         assert.match(failure && failure.message, /failed to produce a playlist/, 'it still fails as before');
-        assert.deepEqual(lines, ['[Playback] resolve timing: HLS session, probe cached, first segment NOT produced in time']);
+        assert.equal(lines.length, 1);
+        assert.match(lines[0], /^\[Playback\] resolve timing: HLS session, probe cached, first segment NOT produced in time, source timing /);
         assert.deepEqual(stub.removed, ['stub'], 'the abandoned session is still cleaned up');
     } finally { stub.restore(); }
 });

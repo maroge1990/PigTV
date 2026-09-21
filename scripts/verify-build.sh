@@ -1268,9 +1268,9 @@ echo "=== 0084: the playback report keeps Apple-device plays apart from the web 
 check scripts/playback-report.js "DEVICE_SUFFIX" "device plays get their own rows"
 check test/playback-report.test.js "never count towards the web HLS trial" "and are tested not to count towards the web criteria"
 
-echo "=== 0085: stream-copy HLS sessions derive DTS from PTS order, so a feed with repeated DTS no longer gives uneven frames ==="
-check server/services/transcodeSession.js "+genpts+discardcorrupt+igndts" "copy-video sessions ignore the source DTS, as the remux route does"
-check server/services/transcodeSession.js "videoMode === 'copy' ? " "and only copy-video ones: a re-encode makes its own timestamps"
+echo "=== 0085: stream-copy HLS sessions can rebuild DTS from PTS order (SUPERSEDED by 0088: only feeds that need it) ==="
+check server/services/transcodeSession.js "+genpts+discardcorrupt+igndts" "the rebuild is still what an uneven feed gets"
+check server/services/transcodeSession.js "videoMode === 'copy' &&" "and still only copy-video ones: a re-encode makes its own timestamps"
 check test/hls-copy-dts.test.js "no video packets are lost either way" "with a real-ffmpeg test that the old arguments reproduce the uneven timing"
 check docs/SWIFT-CLIENT-HANDOFF.md "0085" "and the Apple hand-off doc records it"
 
@@ -1287,6 +1287,17 @@ check public/js/components/VideoPlayer.js "VideoPlayer.CANCELLED = Symbol" "a de
 check public/js/components/VideoPlayer.js "decision === VideoPlayer.CANCELLED" "and play() stops there rather than falling through to the local strategy"
 check public/js/components/VideoPlayer.js "abandonPlay()" "the screen goes back to how it was, with no play-start reported"
 check test/player-conflict-cancel.test.js "the local fallback - which would take the stream anyway - never runs" "with a test that fails on the old code"
+
+echo "=== 0088: igndts is decided per feed, because it helps one kind of source and harms the other ==="
+check server/services/streamProbe.js "function classifyTimestamps" "the probe says whether a feed timing is even"
+check server/services/streamProbe.js "read_intervals" "read from the SAME probe call, bounded so a live feed cannot hang it"
+check server/services/playbackStrategy.js "dtsUneven: info.dtsUneven === true" "the strategy passes the verdict to the session"
+check server/services/transcodeSession.js "const useIgnDts = videoMode" "and only an uneven feed has its DTS rebuilt"
+check server/routes/remux.js "needsIgnDts:" "the remux path is decided the same way, not unconditionally as before"
+check server/services/transcodeSession.js "PIGTV_DTS_AUTO" "PIGTV_DTS_AUTO=0 restores 0085 behaviour without a rebuild"
+check test/dts-classify.test.js "separated by a wide margin, not a fine threshold" "with tests for the classification"
+check test/hls-copy-dts.test.js "an even source must be left alone" "and a real-ffmpeg test of BOTH directions"
+check docs/SWIFT-CLIENT-HANDOFF.md "0088" "and the Apple hand-off doc records it"
 
 if [ $FAIL -eq 0 ]; then
     echo ""

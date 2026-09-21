@@ -16,6 +16,10 @@ const streamProbe = require('../services/streamProbe');
 const activeRemuxes = new Map(); // id -> { id, url, proc, startedAt, res, owner, lastOutputAt }
 let remuxCounter = 0;
 
+// Same switch transcodeSession reads: PIGTV_DTS_AUTO=0 restores the old
+// unconditional igndts on both paths with a container restart.
+const DTS_AUTO = !/^(0|false|no)$/i.test(process.env.PIGTV_DTS_AUTO || '');
+
 function listActiveRemuxes() {
     return Array.from(activeRemuxes.values()).map(r => ({
         id: r.id,
@@ -273,7 +277,14 @@ function remuxFixes(codecs, { encodeAudio = false } = {}) {
         // fragment. Only for these codecs: it delays the start of every stream
         // by up to a keyframe interval, so the ones that work today are left as
         // they are.
-        needsDelayMoov: (audioCodec === 'ac3' || audioCodec === 'eac3') && !encodeAudio
+        needsDelayMoov: (audioCodec === 'ac3' || audioCodec === 'eac3') && !encodeAudio,
+        // Discard the source's DTS and rebuild it from PTS order. Right only for a feed
+        // whose frame timing is already uneven; on a feed with a good clock it replaces
+        // correct timestamps with worse ones (zero-length frames, then double-length),
+        // which is what produced the "Packet duration ... out of range" and
+        // "Non-monotonic DTS" lines in the remux log. The remux path applied it
+        // unconditionally from the beginning. See streamProbe.classifyTimestamps.
+        needsIgnDts: DTS_AUTO ? codecs?.dtsUneven === true : true
     };
 }
 
@@ -291,8 +302,9 @@ function buildRemuxArgs(url, userAgent, fixes = {}) {
         // Standard probe size to handle complex containers (MKV) correctly
         '-probesize', '5000000',
         '-analyzeduration', '5000000',
-        // Error resilience: discard corrupt packets, generate timestamps, ignore DTS, no buffering
-        '-fflags', '+genpts+discardcorrupt+igndts+nobuffer',
+        // Error resilience: discard corrupt packets, generate timestamps, no buffering.
+        // igndts only for a feed whose timing is already uneven (see remuxFixes).
+        '-fflags', fixes.needsIgnDts ? '+genpts+discardcorrupt+igndts+nobuffer' : '+genpts+discardcorrupt+nobuffer',
         // Ignore errors in stream and continue
         '-err_detect', 'ignore_err',
         // Limit max demux delay to prevent buffering issues with bad timestamps

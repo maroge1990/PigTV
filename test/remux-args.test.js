@@ -21,8 +21,9 @@ after(() => {
 const URL_ = 'http://provider.invalid/live/u/p/1.ts';
 const UA = 'Mozilla/5.0 test';
 const MOVFLAGS = 'frag_keyframe+empty_moov+default_base_moof';
-const argsFor = (video, audio) => buildRemuxArgs(URL_, UA, remuxFixes({ video, audio }));
+const argsFor = (video, audio, extra = {}) => buildRemuxArgs(URL_, UA, remuxFixes({ video, audio, ...extra }));
 const movflags = (args) => args[args.indexOf('-movflags') + 1];
+const fflags = (args) => args[args.indexOf('-fflags') + 1];
 
 test('a working H.264 + AAC stream gets exactly the arguments it always had, plus the AAC filter', () => {
     // Written out in full, from the route as it was before this argument list was
@@ -31,7 +32,9 @@ test('a working H.264 + AAC stream gets exactly the arguments it always had, plu
         '-hide_banner', '-loglevel', 'warning',
         '-user_agent', UA, '-user_agent', UA,
         '-probesize', '5000000', '-analyzeduration', '5000000',
-        '-fflags', '+genpts+discardcorrupt+igndts+nobuffer',
+        // No igndts: this stream's timing was not reported uneven, so its own DTS is
+        // kept. The route used to discard it for every stream - see 0088.
+        '-fflags', '+genpts+discardcorrupt+nobuffer',
         '-err_detect', 'ignore_err',
         '-max_delay', '5000000',
         '-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5',
@@ -45,6 +48,16 @@ test('a working H.264 + AAC stream gets exactly the arguments it always had, plu
         '-bsf:a', 'aac_adtstoasc',
         '-'
     ]);
+});
+
+test('only a stream the probe called uneven has its DTS rebuilt', () => {
+    // The remux route discarded every stream's DTS from the beginning. On a feed
+    // with a good clock that replaces correct timestamps with worse ones, which is
+    // where its "Packet duration ... out of range" lines came from.
+    assert.equal(fflags(argsFor('h264', 'aac', { dtsUneven: true })), '+genpts+discardcorrupt+igndts+nobuffer');
+    assert.equal(fflags(argsFor('h264', 'aac', { dtsUneven: false })), '+genpts+discardcorrupt+nobuffer');
+    assert.equal(fflags(argsFor('h264', 'aac')), '+genpts+discardcorrupt+nobuffer',
+        'and an unclassified stream keeps its own, rather than having it thrown away on a guess');
 });
 
 test('AC-3 and E-AC-3 hold the MP4 header back, or ffmpeg cannot write them at all', () => {
@@ -71,11 +84,11 @@ test('HEVC is tagged hvc1, alone and together with AC-3', () => {
     assert.equal(argsFor('h264', 'aac').includes('hvc1'), false);
 });
 
-test('the fix-ups are decided from the codecs and nothing else', () => {
+test('the fix-ups are decided from the probe and nothing else', () => {
     assert.deepEqual(remuxFixes({ video: 'h264', audio: 'aac' }),
-        { audioCodec: 'aac', videoCodec: 'h264', encodeAudio: false, needsAdtsToAsc: true, needsHvc1Tag: false, needsDelayMoov: false });
-    assert.deepEqual(remuxFixes({ video: 'HEVC', audio: 'eac3' }),
-        { audioCodec: 'eac3', videoCodec: 'hevc', encodeAudio: false, needsAdtsToAsc: false, needsHvc1Tag: true, needsDelayMoov: true });
+        { audioCodec: 'aac', videoCodec: 'h264', encodeAudio: false, needsAdtsToAsc: true, needsHvc1Tag: false, needsDelayMoov: false, needsIgnDts: false });
+    assert.deepEqual(remuxFixes({ video: 'HEVC', audio: 'eac3', dtsUneven: true }),
+        { audioCodec: 'eac3', videoCodec: 'hevc', encodeAudio: false, needsAdtsToAsc: false, needsHvc1Tag: true, needsDelayMoov: true, needsIgnDts: true });
     const unknown = remuxFixes(null);
     assert.equal(unknown.needsAdtsToAsc || unknown.needsHvc1Tag || unknown.needsDelayMoov, false);
 });

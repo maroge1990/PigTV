@@ -55,6 +55,13 @@ const DTS_DELTA_THRESHOLD_SEC = (() => {
     return Number.isFinite(sec) && sec > 0 ? sec : 60;
 })();
 
+// Whether igndts is decided per feed from the probe (the default, see
+// buildFFmpegArgs) or applied to every copy session the way 0085 did it.
+// PIGTV_DTS_AUTO=0 restores the old behaviour with a container restart rather
+// than a rebuild - the rollback for this change, since a redeploy ends every
+// session and is expensive to do twice.
+const DTS_AUTO = !/^(0|false|no)$/i.test(process.env.PIGTV_DTS_AUTO || '');
+
 // How many segments a live session keeps on disk before rotating the
 // oldest ones out. Unbounded (the old 0) means the whole session gets
 // written to the Docker image's writable layer for as long as someone
@@ -292,13 +299,24 @@ class TranscodeSession extends EventEmitter {
             this.addHwAccelInputArgs(args, encoder);
         }
 
-        // Stream-copy passes the source's own DTS straight to the muxer, so a feed whose
-        // DTS repeats or steps back comes out as uneven sample durations (0 to 3 frames
-        // long instead of one) plus "Non-monotonic DTS" / "Packet duration ... is out of
-        // range" log lines. igndts has ffmpeg derive DTS from the PTS order instead -
-        // what the remux route has always done for the same feeds. A re-encode makes its
-        // own timestamps, so it is left alone.
-        const inputFlags = videoMode === 'copy' ? '+genpts+discardcorrupt+igndts' : '+genpts+discardcorrupt';
+        // igndts has ffmpeg discard the source's DTS and derive it from PTS order
+        // instead. Whether that helps depends entirely on the feed, and 0085's mistake
+        // was applying it to all of them:
+        //
+        //  - UNEVEN feed (a third of its steps near zero, because an upstream muxer
+        //    bumped repeated DTS by +1 instead of fixing them): igndts is the cure.
+        //    Without it, ~1000 "Non-monotonic DTS" per minute and visible judder.
+        //  - EVEN feed (correct DTS): igndts throws away a good clock and ffmpeg
+        //    re-derives it imperfectly - zero-length frames followed by double-length
+        //    ones, which is the judder 0085 set out to remove.
+        //
+        // Both were reproduced on real captures. dtsUneven comes from the resolve-time
+        // probe (streamProbe.classifyTimestamps) and is null when it could not be read,
+        // which lands on the even branch - the majority case.
+        //
+        // A re-encode makes its own timestamps, so it is left alone either way.
+        const useIgnDts = videoMode === 'copy' && (DTS_AUTO ? this.options.dtsUneven === true : true);
+        const inputFlags = useIgnDts ? '+genpts+discardcorrupt+igndts' : '+genpts+discardcorrupt';
 
         // Input options (common)
         args.push(

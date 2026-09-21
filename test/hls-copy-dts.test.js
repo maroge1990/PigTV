@@ -27,28 +27,46 @@ const sessionArgs = async (options = {}) => {
 const optionValue = (args, name) => args[args.indexOf(name) + 1];
 
 // ---- the arguments ----
+//
+// 0085 put igndts on every stream-copy session. Measured against four real captures
+// that turned out to be wrong for three of them: a feed with a good clock comes out
+// WORSE, because ffmpeg throws the clock away and re-derives it imperfectly. The flag
+// is now chosen per feed from the probe (streamProbe.classifyTimestamps).
 
-test('a stream-copy session has ffmpeg derive DTS from PTS order (igndts), as an input option', async () => {
+test('a copy session whose source timing is uneven has ffmpeg rebuild DTS from PTS order', async () => {
     for (const segmentType of ['fmp4', 'mpegts']) {
-        const args = await sessionArgs({ segmentType });
+        const args = await sessionArgs({ segmentType, dtsUneven: true });
         assert.equal(optionValue(args, '-fflags'), '+genpts+discardcorrupt+igndts', segmentType);
         assert.ok(args.indexOf('-fflags') < args.indexOf('-i'), 'before -i: it is an input option');
     }
 });
 
-test('a re-encoding session is left as it was - the encoder makes its own timestamps', async () => {
-    const args = await sessionArgs({ videoMode: 'encode', hwEncoder: 'software' });
-    assert.equal(optionValue(args, '-fflags'), '+genpts+discardcorrupt');
+test('a copy session whose source timing is even keeps the source DTS', async () => {
+    for (const segmentType of ['fmp4', 'mpegts']) {
+        const args = await sessionArgs({ segmentType, dtsUneven: false });
+        assert.equal(optionValue(args, '-fflags'), '+genpts+discardcorrupt', segmentType);
+    }
 });
 
-// ---- the behaviour, on a real stream with the fault ----
+test('an unclassifiable source keeps its DTS too - the probe said nothing, so nothing is thrown away', async () => {
+    for (const dtsUneven of [null, undefined]) {
+        const args = await sessionArgs({ segmentType: 'fmp4', dtsUneven });
+        assert.equal(optionValue(args, '-fflags'), '+genpts+discardcorrupt', String(dtsUneven));
+    }
+});
+
+test('a re-encoding session is left as it was - the encoder makes its own timestamps', async () => {
+    for (const dtsUneven of [true, false]) {
+        const args = await sessionArgs({ videoMode: 'encode', hwEncoder: 'software', dtsUneven });
+        assert.equal(optionValue(args, '-fflags'), '+genpts+discardcorrupt');
+    }
+});
+
+// ---- the behaviour, on real streams with and without the fault ----
 
 const haveFfmpeg = spawnSync('ffmpeg', ['-version']).status === 0;
 
-// 50 fps H.264 with B-frames whose DTS repeats on every fifth packet - the shape of the
-// fault in the live logs ("Non-monotonic DTS ... previous: N, current: N"). The bitstream
-// filter rewrites the timestamps only, so it is the provider's clock being wrong, not the video.
-function makeRepeatedDtsStream(dir) {
+function makeCleanStream(dir) {
     const clean = path.join(dir, 'clean.ts');
     const made = spawnSync('ffmpeg', ['-v', 'error', '-y',
         '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=50',
@@ -56,8 +74,16 @@ function makeRepeatedDtsStream(dir) {
         '-t', '12', '-c:v', 'libx264', '-preset', 'veryfast', '-bf', '2', '-g', '100', '-pix_fmt', 'yuv420p',
         '-c:a', 'aac', '-b:a', '128k', '-f', 'mpegts', clean], { encoding: 'utf8' });
     assert.equal(made.status, 0, made.stderr);
+    return clean;
+}
 
-    const broken = path.join(dir, 'repeated-dts.ts');
+// The uneven feed, built the way a real one arises: rewrite the timestamps so every
+// fifth packet repeats the previous DTS, then write that back out through the mpegts
+// muxer, which bumps each repeat by +1 rather than fixing it. What comes out has
+// strictly increasing DTS with near-zero steps - exactly the shape measured on
+// Fox Sports 505 (a third of steps ~1 tick, each followed by a double).
+function makeUnevenStream(dir, clean) {
+    const broken = path.join(dir, 'uneven.ts');
     const rewritten = spawnSync('ffmpeg', ['-v', 'error', '-y', '-i', clean, '-c', 'copy',
         '-bsf:v', 'setts=dts=if(eq(mod(N\\,5)\\,0)\\,PREV_OUTDTS\\,DTS)', '-f', 'mpegts', broken], { encoding: 'utf8' });
     assert.equal(rewritten.status, 0, rewritten.stderr);
@@ -80,40 +106,63 @@ function runSession(args, input, outDir) {
 }
 
 // The video DTS steps of what a player would be given: init segment + media segments joined up.
+// Microseconds, because a 59.94 fps period rounded to whole milliseconds alternates
+// 16/17 for a perfectly even stream.
 function videoDtsSteps(dir) {
     const joined = path.join(dir, 'all.mp4');
     const parts = ['init.mp4', ...fs.readdirSync(dir).filter((f) => f.endsWith('.m4s')).sort()];
     fs.writeFileSync(joined, Buffer.concat(parts.map((f) => fs.readFileSync(path.join(dir, f)))));
     const csv = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v', '-show_entries', 'packet=dts_time', '-of', 'csv=p=0', joined],
         { encoding: 'utf8' });
-    const dts = csv.split(/\r?\n/).filter(Boolean).map(Number);
-    const steps = dts.slice(1).map((d, i) => Math.round((d - dts[i]) * 1000) / 1000);
-    return { packets: dts.length, min: Math.min(...steps), max: Math.max(...steps) };
+    const dts = csv.split(/\r?\n/).filter(Boolean).map((l) => Number(l.split(',')[0])).filter(Number.isFinite);
+    const steps = dts.slice(1).map((d, i) => Math.round((d - dts[i]) * 1e6));
+    const mean = steps.reduce((t, s) => t + s, 0) / steps.length;
+    return { packets: dts.length, steps, mean, outliers: steps.filter((s) => Math.abs(s - mean) > 1000).length };
 }
 
-test('repeated source DTS no longer becomes uneven frame timing in the HLS segments',
+async function segmentsFor(input, outDir, dtsUneven) {
+    const args = await sessionArgs({ segmentType: 'fmp4', audioMode: 'copy', audioCodec: 'aac', videoCodec: 'h264', dtsUneven });
+    const run = runSession(args, input, outDir);
+    assert.equal(run.status, 0, run.stderr);
+    return videoDtsSteps(outDir);
+}
+
+test('an uneven source needs the rebuild: without it the frames come out unevenly timed',
     { skip: !haveFfmpeg && 'ffmpeg is not installed here' }, async () => {
-        const work = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-copydts-run-'));
+        const work = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-copydts-uneven-'));
         try {
-            const input = makeRepeatedDtsStream(work);
-            const args = await sessionArgs({ segmentType: 'fmp4', audioMode: 'copy', audioCodec: 'aac', videoCodec: 'h264' });
+            const input = makeUnevenStream(work, makeCleanStream(work));
+            const on = path.join(work, 'on'); fs.mkdirSync(on);
+            const off = path.join(work, 'off'); fs.mkdirSync(off);
 
-            const fixedDir = path.join(work, 'fixed'); fs.mkdirSync(fixedDir);
-            const fixed = runSession(args, input, fixedDir);
-            assert.equal(fixed.status, 0, fixed.stderr);
+            const rebuilt = await segmentsFor(input, on, true);
+            const kept = await segmentsFor(input, off, false);
 
-            // The same arguments without the flag: what shipped before this change.
-            const oldArgs = args.slice();
-            oldArgs[oldArgs.indexOf('-fflags') + 1] = '+genpts+discardcorrupt';
-            const oldDir = path.join(work, 'old'); fs.mkdirSync(oldDir);
-            const before = runSession(oldArgs, input, oldDir);
-            assert.equal(before.status, 0, before.stderr);
+            assert.equal(rebuilt.packets, kept.packets, 'no video packets are lost either way');
+            assert.ok(kept.outliers > kept.steps.length / 20,
+                `keeping this source's DTS does reproduce the uneven timing (${kept.outliers} of ${kept.steps.length} steps)`);
+            assert.equal(rebuilt.outliers, 0, `rebuilding it makes every frame one step long (${rebuilt.outliers} outliers)`);
+        } finally {
+            fs.rmSync(work, { recursive: true, force: true });
+        }
+    });
 
-            const now = videoDtsSteps(fixedDir);
-            const then = videoDtsSteps(oldDir);
-            assert.equal(now.packets, then.packets, 'no video packets are lost either way');
-            assert.ok(then.min < 0.005 && then.max > 0.05, `the old arguments do reproduce it (steps ${then.min}-${then.max} s)`);
-            assert.ok(now.max - now.min < 0.001, `every frame is now one step long (${now.min}-${now.max} s)`);
+test('an even source must be left alone: rebuilding its DTS is what makes it judder',
+    { skip: !haveFfmpeg && 'ffmpeg is not installed here' }, async () => {
+        // The case 0085 missed, and the reason this is decided per feed. Reintroducing
+        // 0085's unconditional igndts fails here.
+        const work = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-copydts-even-'));
+        try {
+            const input = makeCleanStream(work);
+            const on = path.join(work, 'on'); fs.mkdirSync(on);
+            const off = path.join(work, 'off'); fs.mkdirSync(off);
+
+            const kept = await segmentsFor(input, off, false);
+            const rebuilt = await segmentsFor(input, on, true);
+
+            assert.equal(kept.outliers, 0, `keeping a good clock gives even frames (${kept.outliers} outliers)`);
+            assert.ok(rebuilt.outliers >= kept.outliers,
+                'and rebuilding it is never better - it is what 0085 did to every feed');
         } finally {
             fs.rmSync(work, { recursive: true, force: true });
         }
