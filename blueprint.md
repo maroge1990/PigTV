@@ -28,7 +28,7 @@ As progress is made, keep this file current for handover — and keep it small (
 | Local repo folder | `C:\Users\markr\GitHub\PigTV` (moved out of OneDrive, 21 Sept 2026) |
 | Patch folder | `C:\Users\markr\GitHub\patches\PigTV` |
 | Shipped through | **build 0090** once applied (0086 was the last confirmed running); confirm with `/api/version` |
-| Next patch number | **0097** |
+| Next patch number | **0098** |
 | Container name | **`PigTV`** on PassyFlix — every command in these docs names it literally, so it can be pasted as written. `docker ps` if it is ever renamed |
 
 Don't hard-code the `origin/main` SHA anywhere. The deployed build is whatever `/api/version` reports (§3).
@@ -132,6 +132,7 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
 | 0094 | `GET /api/playback/:id/terminal-status`: a displaced client can tell takeover from an ordinary failure |
 | 0095 | CI stamps `PIGTV_COMMIT` / `PIGTV_BUILT_AT`, so `/api/version` proves what is running |
 | 0096 | P1-3 part 1: `stable_id`, a channel identity a provider reorder cannot move (nothing keyed on it yet) |
+| 0097 | P1-3 part 2a: favourites follow the channel, not the position |
 
 ---
 
@@ -322,10 +323,16 @@ one path first (done: watchdog, arbitration, self-heal, diagnostics), then move 
    deliberately **not unique** — a channel cross-listed twice is two rows with one identity. Nothing is keyed on it yet, so
    0096 changes no behaviour; the sync logs `[Sync] Channel identity: …` so the derivation can be checked against the real
    18 000-channel playlist before anything depends on it.
-   **Part 2 (to do):** re-key favourites, `channel_history` and scheduled recordings onto it, translating to and from `item_id`
-   at the API boundary so §6 is untouched and neither client changes. **Note what this cannot do: favourites that have already
-   drifted are already wrong, and the migration will preserve whatever they now point at.** Worth asking Mark to re-check his
-   favourites once part 2 lands.
+   **Measured on the real playlist (21 Sept, 18 323 live rows):** 18 322 identities came from the provider's stream id, 1 from a
+   URL hash, **0** with no URL; 17 127 distinct, **845 channels listed more than once**. The derivation is essentially total, and
+   the duplicate count is what forced `library/favourites` to group by identity.
+   **Part 2a (0097, done):** favourites. Keyed on the identity, migrated at startup, with the stored `item_id` used only for rows
+   that have no identity — **a row that has one must ignore its stored position, or the stale id reintroduces the whole bug**
+   (caught by a test, not by review). A channel listed twice is now one favourite.
+   **Part 2b (to do):** `channel_history` and scheduled recordings, the same way. A scheduled recording is the more harmful of the
+   two — it would record the wrong channel — though its exposure window is short.
+   **What none of it can do: favourites that had already drifted are already wrong**, and the migration preserves whatever they
+   now point at. Mark should walk his favourites once after 0097 and fix any that look odd; after that they stay put.
 
    *Background — why the position was ever the id.* On 21 Sept the provider reordered its playlist mid-session:
    Fox Sports 505 moved from `pos_1187` to `pos_1185` within six hours (same channel, same URL, same provider stream id), and

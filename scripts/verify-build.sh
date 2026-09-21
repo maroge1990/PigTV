@@ -1346,6 +1346,13 @@ check server/services/syncService.js "stable_id = excluded.stable_id" "and rewri
 check server/services/syncService.js "Channel identity:" "the sync reports how the whole playlist derived"
 check test/stable-id-migration.test.js "survives the reorder that started all this" "with a test of the real reorder"
 
+echo "=== 0097: favourites follow the channel, not the playlist position (P1-3, part 2a) ==="
+check server/db/sqlite.js "function identityOf" "a caller id is resolved to the channel it names"
+check server/db/sqlite.js "function backfillFavoriteIdentities" "existing favourites are migrated at startup"
+check server/db/sqlite.js "stable_id IS NULL AND item_id" "and a stale position is ignored once a row has an identity"
+check server/routes/library.js "GROUP BY COALESCE" "a channel listed twice appears once in the favourites list"
+check test/favourites-stable.test.js "this is the bug being fixed" "with a test of the real reorder"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

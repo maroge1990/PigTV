@@ -128,7 +128,11 @@ function decorate(items) {
             logo: row.stream_icon || null,
             category: row.category_id,
             tvgId,
-            order: row.sort_order
+            order: row.sort_order,
+            // What the channel IS, so a favourite still matches after the provider
+            // reorders the playlist. Additive to the response: a client that does not
+            // know the field ignores it, and nothing existing changes shape.
+            stableId: row.stable_id || null
         };
     });
 
@@ -197,7 +201,7 @@ router.get('/channels', (req, res) => {
         const total = db.prepare(`SELECT COUNT(*) n FROM playlist_items p WHERE ${clause}`).get(...params).n;
 
         const rows = db.prepare(`
-            SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data
+            SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id
             FROM playlist_items p
             WHERE ${clause}
             ORDER BY CASE WHEN p.sort_order IS NULL THEN 1 ELSE 0 END, p.sort_order ASC, p.name ASC
@@ -206,11 +210,25 @@ router.get('/channels', (req, res) => {
 
         const channels = decorate(rows);
 
-        // Mark favourites here rather than making the client ask separately.
-        const favs = new Set(db.prepare(`
-            SELECT source_id, item_id FROM favorites WHERE user_id = ? AND item_type = 'channel'
-        `).all(String(req.user.id)).map(f => `${f.source_id}:${f.item_id}`));
-        for (const ch of channels) ch.favourite = favs.has(`${ch.sourceId}:${ch.id}`);
+        // Mark favourites here rather than making the client ask separately. Matched
+        // on the channel's identity so a favourite still lands after the provider
+        // reorders the playlist - and so a channel cross-listed in two categories
+        // shows as favourited in both, which is one channel and one star.
+        const favRows = db.prepare(`
+            SELECT source_id, item_id, stable_id FROM favorites WHERE user_id = ? AND item_type = 'channel'
+        `).all(String(req.user.id));
+        const favs = new Set();
+        for (const f of favRows) {
+            // Identity when the row has one. Its stored item_id is where the channel
+            // sat when it was favourited, which after a reorder names something else -
+            // adding that to the set would star the wrong channel.
+            if (f.stable_id) favs.add(`${f.source_id}:${f.stable_id}`);
+            else favs.add(`${f.source_id}:${f.item_id}`);
+        }
+        for (const ch of channels) {
+            ch.favourite = favs.has(`${ch.sourceId}:${ch.id}`)
+                || (ch.stableId ? favs.has(`${ch.sourceId}:${ch.stableId}`) : false);
+        }
 
         res.json({ total, limit, offset, channels });
     } catch (err) {
@@ -228,12 +246,22 @@ router.get('/channels', (req, res) => {
 router.get('/favourites', (req, res) => {
     try {
         const db = getDb();
+        // Joined on the channel's identity, falling back to the stored item_id for
+        // rows that predate identities. GROUP BY that identity because 845 of this
+        // provider's 18 000 channels are listed in more than one category: without
+        // it, favouriting one of them would show the same channel several times in
+        // the favourites list. The row kept is the earliest in provider order, which
+        // is where the channel appears in the guide.
         const rows = db.prepare(`
             SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data
             FROM favorites f
             JOIN playlist_items p
-              ON p.source_id = f.source_id AND p.item_id = f.item_id AND p.type = 'live'
+              ON p.source_id = f.source_id AND p.type = 'live'
+             AND ((f.stable_id IS NOT NULL AND p.stable_id = f.stable_id)
+                  OR (f.stable_id IS NULL AND p.item_id = f.item_id))
             WHERE f.user_id = ? AND f.item_type = 'channel'
+            GROUP BY COALESCE(p.stable_id, p.item_id), p.source_id
+            HAVING p.sort_order = MIN(p.sort_order) OR MIN(p.sort_order) IS NULL
             ORDER BY CASE WHEN p.sort_order IS NULL THEN 1 ELSE 0 END, p.sort_order ASC, p.name ASC
         `).all(String(req.user.id));
 
@@ -277,7 +305,7 @@ router.get('/guide', (req, res) => {
 
         const total = db.prepare(`SELECT COUNT(*) n FROM playlist_items p WHERE ${clause}`).get(...params).n;
         const rows = db.prepare(`
-            SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data
+            SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id
             FROM playlist_items p
             WHERE ${clause}
             ORDER BY CASE WHEN p.sort_order IS NULL THEN 1 ELSE 0 END, p.sort_order ASC, p.name ASC
