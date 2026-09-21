@@ -95,6 +95,19 @@ test('bench scores the server\'s own arguments and shows what each flag changes'
         } finally { fs.rmSync(dir, { recursive: true, force: true }); }
     });
 
+test('captured samples land on the mounted volume, not the writable layer', () => {
+    // They were written to /app/samples at first - the container's writable layer,
+    // which `docker compose up --force-recreate` discards. The first corpus was lost
+    // to the very next deploy, before anything had been retested against it. Samples
+    // are evidence and have to outlive the build they were taken on.
+    // docker-compose.yml binds ./data:/app/data, so the data directory is what persists.
+    const { SAMPLE_DIR, DATA_DIR } = require('../scripts/stream-doctor.js');
+    assert.ok(SAMPLE_DIR.startsWith(DATA_DIR + path.sep),
+        `samples must be written under the data mount, got ${SAMPLE_DIR}`);
+    const compose = fs.readFileSync(path.join(__dirname, '../docker-compose.yml'), 'utf8');
+    assert.match(compose, /\.\/data:\/app\/data/, 'and that directory is still the bind mount');
+});
+
 test('a provider URL never reaches the output, even in an error', () => {
     // capture/probecost print the URL they are about to use; redact() is the server's
     // own, so a credentialed path cannot be echoed into a terminal or a pasted log.

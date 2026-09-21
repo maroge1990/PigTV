@@ -28,7 +28,7 @@ As progress is made, keep this file current for handover — and keep it small (
 | Local repo folder | `C:\Users\markr\GitHub\PigTV` (moved out of OneDrive, 21 Sept 2026) |
 | Patch folder | `C:\Users\markr\GitHub\patches\PigTV` |
 | Shipped through | **build 0090** once applied (0086 was the last confirmed running); confirm with `/api/version` |
-| Next patch number | **0093** |
+| Next patch number | **0094** |
 | Container name | **`PigTV`** on PassyFlix — every command in these docs names it literally, so it can be pasted as written. `docker ps` if it is ever renamed |
 
 Don't hard-code the `origin/main` SHA anywhere. The deployed build is whatever `/api/version` reports (§3).
@@ -128,6 +128,7 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
 | 0087 | Fix: cancelling the webapp takeover prompt no longer falls through to the local path and takes the stream anyway |
 | 0088 | `igndts` decided per feed from the probe (supersedes 0085, which applied it to every copy) |
 | 0090 | `scripts/stream-doctor.js`: the timestamp diagnostics as a supported tool (0089 was docs) |
+| 0093 | Captured samples go on the data volume, so a redeploy stops destroying the regression corpus |
 
 ---
 
@@ -384,12 +385,14 @@ The loop that works, in order. Mark can do steps 1–4 alone; steps 2 and 4 are 
    whole diagnosis, and the sample below proves it.
 3. **Find its id:** `docker exec PigTV node scripts/stream-doctor.js list "<name>"` → `pos_N`.
 4. **Capture and bench it, with nothing playing** (both take the provider's only connection):
-   `… stream-doctor.js capture pos_N` then `… stream-doctor.js bench /app/samples/pos_N.ts`.
+   `… stream-doctor.js capture pos_N` then `… stream-doctor.js bench /app/data/samples/pos_N.ts`.
    `capture` prints the verdict; `bench` shows what the shipping arguments produce against the forced alternatives.
 5. **Keep the sample.** They are the regression corpus: any future flag change gets tried against every one of them
    before it ships, which is exactly what 0085 had no way to do. Known so far (21 Sept): `pos_1187` Fox Sports 505
    **uneven**; `pos_463` TSN, `pos_328` Sky Sports UHD (HEVC), `pos_468` Sportsnet 4K (a ~190 kbps slate) all **even**.
-   They live in `/app/samples` on the container's writable layer — move them to a mounted volume if the set grows.
+   They live in **`/app/data/samples`**, which is the bind mount (`./data:/app/data`) and so survives a deploy. 0090 wrote
+   them to `/app/samples` — the writable layer — and `docker compose up --force-recreate` destroyed the first corpus before
+   anything had been retested against it (fixed in 0093). **A sample is evidence: it has to outlive the build it was taken on.**
 
 Channel ids are `pos_N` (`item_id` in `playlist_items`); the provider's numeric stream id appears only inside the URL,
 and the URL itself is in the row's `data` blob, not `stream_url`.

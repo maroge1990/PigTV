@@ -1317,6 +1317,11 @@ echo "=== 0092 (docs): commands name the container instead of a placeholder ==="
 check blueprint.md "docker exec PigTV node scripts/stream-doctor" "so a command can be pasted as written"
 check docs/SWIFT-CLIENT-HANDOFF.md "docker logs PigTV" "including the ones the Apple client session runs"
 
+echo "=== 0093: captured samples survive a deploy ==="
+check scripts/stream-doctor.js "path.join(DATA, .samples.)" "they are written under the data bind mount, not the writable layer"
+check test/stream-doctor.test.js "not the writable layer" "with a test that pins it to the mount docker-compose declares"
+check blueprint.md "has to outlive the build it was taken on" "and the blueprint says why it matters"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

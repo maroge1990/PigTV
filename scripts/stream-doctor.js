@@ -41,7 +41,14 @@ const { redact } = require(path.join(ROOT, 'server/redact'));
 const { classifyTimestamps } = require(path.join(ROOT, 'server/services/streamProbe'));
 
 const DATA = path.join(ROOT, 'data');
-const OUT = path.join(ROOT, 'samples');
+// Samples go under the data directory because that is the bind mount
+// (./data:/app/data in docker-compose.yml). They were written to /app/samples
+// at first, which is the container's writable layer - and `docker compose up
+// --force-recreate`, the documented way to deploy, throws that layer away. The
+// first captured corpus was destroyed by the very next deploy, before anything
+// had been retested against it. Samples are evidence: they have to outlive the
+// build they were taken on, or they cannot be used to check the next one.
+const OUT = path.join(DATA, 'samples');
 
 // ---------------------------------------------------------------- channels --
 
@@ -359,7 +366,6 @@ function cmdProbeCost(search) {
 
 // --------------------------------------------------------------------- main --
 
-const [, , cmd, arg1, arg2] = process.argv;
 const USAGE = `stream-doctor - what a feed sends, and what the server's ffmpeg does with it
 
   list <search>          find a channel (name, pos_N, or URL fragment)
@@ -371,7 +377,8 @@ const USAGE = `stream-doctor - what a feed sends, and what the server's ffmpeg d
 capture and probecost connect to the provider, which allows one stream: nothing
 may be playing. The others only read files.`;
 
-(async () => {
+async function main(argv) {
+    const [, , cmd, arg1, arg2] = argv;
     switch (cmd) {
         case 'list': if (!arg1) die(USAGE); return cmdList(arg1);
         case 'capture': if (!arg1) die(USAGE); return cmdCapture(arg1, arg2);
@@ -380,4 +387,11 @@ may be playing. The others only read files.`;
         case 'probecost': if (!arg1) die(USAGE); return cmdProbeCost(arg1);
         default: console.log(USAGE); process.exit(cmd ? 2 : 0);
     }
-})().then(() => process.exit(0), (err) => die(redact(err && err.stack || String(err))));
+}
+
+// Requirable so a test can check where samples land without running anything.
+module.exports = { SAMPLE_DIR: OUT, DATA_DIR: DATA, main };
+
+if (require.main === module) {
+    main(process.argv).then(() => process.exit(0), (err) => die(redact(err && err.stack || String(err))));
+}
