@@ -26,9 +26,9 @@ As progress is made, keep this file current for handover — and keep it small (
 | Repo | `github.com/maroge1990/PigTV` |
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv`, `http://192.168.1.235:3000`, reached over an approved-device VPN (Tailscale) only |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` (inside OneDrive — see §2 note) |
-| Patch folder | `C:\Users\markr\Downloads\patches` |
-| Shipped through | **build 0086** on `main`. 0085 confirmed running (its ffmpeg flag is in the live log); confirm 0086 with `/api/version` |
-| Next patch number | **0087** |
+| Patch folder | `C:\Users\markr\GitHub\patches\PigTV` |
+| Shipped through | **build 0088** once applied (0086 was the last confirmed running); confirm with `/api/version` |
+| Next patch number | **0089** |
 | Container name | Find with `docker ps` — the commands below use `<container>` |
 
 Don't hard-code the `origin/main` SHA anywhere. The deployed build is whatever `/api/version` reports (§3).
@@ -39,7 +39,7 @@ Don't hard-code the `origin/main` SHA anywhere. The deployed build is whatever `
 
 Each change ships as a numbered `git format-patch` file continuing the running sequence: commit on a local
 `patch-NNNN-*` branch **based on the previous patch's branch if that one isn't on `origin/main` yet** (never on `main`, never
-pushed), run `git format-patch -1 --start-number N -o "C:\Users\markr\Downloads\patches"`, give a size sanity-note and **both**
+pushed), run `git format-patch -1 --start-number N -o "C:\Users\markr\GitHub\patches\PigTV"`, give a size sanity-note and **both**
 command blocks. Check the patches apply in order on a throwaway `git worktree` of `origin/main`. Mark pushes; Claude never pushes
 (Claude may apply patches to the working folder's `main` if asked — Mark then only pushes).
 
@@ -48,7 +48,7 @@ command blocks. Check the patches apply in order on a throwaway `git worktree` o
 cd "C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server"
 git fetch origin
 git checkout -B main origin/main
-git am "$HOME\Downloads\patches\NNNN-<subject>.patch"   # one line per patch, in order
+git am "C:\Users\markr\GitHub\patches\PigTV\NNNN-<subject>.patch"   # one line per patch, in order
 git push origin main
 ```
 **If `git am` says `previous rebase directory .git/rebase-apply still exists`:** a stale state folder from an earlier interrupted
@@ -125,6 +125,8 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
 | 0084 | Playback report keeps Apple-device plays apart from the web trial |
 | 0085 | Copy-video HLS sessions ignore the source's DTS (`igndts`) |
 | 0086 | Sources that end are read at real time (`-re`); `[HLS] 404` log line; `play-end` stops counting after a fatal error |
+| 0087 | Fix: cancelling the webapp takeover prompt no longer falls through to the local path and takes the stream anyway |
+| 0088 | `igndts` decided per feed from the probe (supersedes 0085, which applied it to every copy) |
 
 ---
 
@@ -153,9 +155,25 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
   flooded "Invalid DTS" on feeds that were fine over remux. HEVC fMP4 needs `-tag:v hvc1`. AAC copied into fMP4 needs
   `-bsf:a aac_adtstoasc` (ADTS→ASC; it refuses non-AAC, so only for AAC).
 - Input timestamp flags: **`-dts_delta_threshold 60`** (default 10 s let feeds whose audio and video clocks start >10 s apart
-  "jump" on every packet: thousands of log lines and half the audio dropped; env `PIGTV_DTS_DELTA_THRESHOLD_SEC`). **`-fflags +igndts`
-  for copy-video sessions only** (feeds with repeated/backward DTS otherwise give uneven frame durations, 0–3 frames, i.e. judder;
-  re-encodes make their own timestamps; the remux route always did this). **`-re` only when the probe says the source ends.**
+  "jump" on every packet: thousands of log lines and half the audio dropped; env `PIGTV_DTS_DELTA_THRESHOLD_SEC`). **`-fflags +igndts` only for a copy-video
+  session whose feed the probe called uneven** (0088; `PIGTV_DTS_AUTO=0` restores 0085's unconditional version). Two populations
+  of feed exist and one flag cannot serve both — see "Two kinds of feed" below. **`-re` only when the probe says the source ends.**
+- **Two kinds of feed, and why one flag cannot serve both** (0088). Measured on four captured channels:
+  a feed is **uneven** when a third of its video DTS steps are ~1 tick followed by a double — an upstream muxer bumped repeated
+  DTS by +1 instead of fixing them (Fox Sports 505: with `igndts`, even frames and no warnings; without, ~1015 "Non-monotonic
+  DTS" a minute). A feed is **even** when its DTS is simply correct (TSN, Sky Sports UHD, Sportsnet 4K) — and there `igndts`
+  *causes* the fault: ffmpeg discards a good clock, re-derives it from the PTS reorder buffer, and emits zero-length frames
+  followed by double-length ones. **0085 applied it to every copy session, so it fixed one population and broke the other** —
+  the reason spot fixes kept trading one report for another. Reverting 0085 only swaps which channels break.
+  `streamProbe.classifyTimestamps()` decides it: mean video frame period over the probe's packets, count steps below a quarter
+  of it, >5% ⇒ uneven. Measured 33.8% vs 0.0%, so the threshold is nowhere near either. It does **not** count repeated or
+  backward DTS — on a real feed those are already gone, and the near-zero step is what survives. `null` (no packets, <20, an
+  older cache entry) ⇒ keep the source's DTS.
+- **The classification rides on the resolve probe's own ffprobe call** (`-show_packets -read_intervals %+#300`). It must stay in
+  that one call: the provider allows a single connection, so a second ffprobe collides with it. `-read_intervals` is what bounds
+  it — without it `-show_packets` on a live feed never returns and the probe hits its 15 s timeout, i.e. nothing plays at all.
+  Measured on the box (ffprobe 6.1.1, live HTTP): terminates at exactly 300 packets (~145 KB), ~157–179 of them video, and costs
+  nothing (−360 ms and +165 ms on two channels — noise; the packets come from bytes `-probesize` already reads).
 - **HLS sessions have no back-pressure** (a remux's pipe throttles ffmpeg to the client's read rate; a session writes to disk).
   A source that delivers faster than real time — a file served from the start (found on a provider URL), a catch-up channel, a
   start-up burst — runs ahead of the ~102-segment window and the player's next segment is gone: **404, which hls.js does not
@@ -172,6 +190,9 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
   and it touches the hardware-driver stack under the Apple path.
 
 **Remux route** (`routes/remux.js` — to be retired in §C Phase 4)
+- Since 0088 it takes `needsIgnDts` from the same cached probe as the codecs (`findCachedCodecs` returns `dtsUneven` alongside
+  them). It had applied `igndts` to every stream since long before 0085; that is where its `Packet duration … out of range`
+  lines came from.
 - Needs the codecs: reuses `/api/playback/resolve`'s cached probe (`findCachedCodecs`, no extra provider connection), else ffprobe
   with one retry after 1.5 s, else **503 + `Retry-After: 2`**. There is **no safe guess**: ADTS AAC into MP4 fails without
   `aac_adtstoasc`, and forcing the filter onto non-AAC fails at start-up. AC-3/E-AC-3 into empty-moov MP4 need `delay_moov` (added
@@ -186,9 +207,21 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
 `[h264] non-existing PPS/SPS referenced`, `decode_slice_header error`, `no frame!`, `Increasing reorder buffer` (joining mid-GOP
 during the probe; self-ending; remux counts them instead of logging); `Could not find codec parameters … eac3 … 0 channels`
 (probe window ended early; if audio is ever silent from the start, suspect it — longer `-analyzeduration` for E-AC-3);
-`[mp4] Packet duration: -N / dts: M is out of range` and `[hls] Non-monotonic DTS … changing to +1` (source timestamp glitches;
-persists with `igndts` on some feeds; the channel plays). Real problems: `Could not write header`, `Codec probe failed`,
+`[mp4] Packet duration: -N / dts: M is out of range` and `[hls] Non-monotonic DTS … changing to +1` — **not noise since 0088**:
+a flood of these on a copy path means the feed was classified wrong. Check the channel's `[Playback] resolve timing` line, which
+now ends `source timing even - DTS kept` / `uneven - DTS rebuilt` / `unknown - DTS kept`. A handful per hour is still normal. Real problems: `Could not write header`, `Codec probe failed`,
 `FFmpeg exited with code`, `Releasing stalled session`, `[HLS] 404 for …`.
+
+**Timestamp diagnosis without the provider** (21 Sept). Four throwaway scripts live on PassyFlix at `/root` and are copied
+into the container with `docker cp` — **not in the repo**, and worth rebuilding rather than guessing if this comes up again:
+`capture-sample.js` (grabs 60 s of a channel by its `pos_N` id straight off the provider, plus an ffprobe packet dump and a
+verdict line), `classify.js` (classifies those dumps even/uneven — the prototype `streamProbe.classifyTimestamps` came from),
+`bench.js` (runs the server's *own* argument builders over a sample once per candidate flag set and scores warnings and frame-
+timing evenness), `probecost.js` (times the shipping probe against a candidate one on a live URL). **The lesson worth keeping:
+a 60-second capture turns every one of these bugs into a local, repeatable experiment and removes the redeploy cycle entirely —
+and a redeploy ends every session.** Channel ids are `pos_N` (`item_id` in `playlist_items`); the provider's numeric stream id
+appears only inside the URL, and the URL itself is in the row's `data` JSON blob, not `stream_url`. Known samples: `pos_1187`
+Fox Sports 505 uneven; `pos_463` TSN, `pos_328` Sky Sports UHD (HEVC), `pos_468` Sportsnet 4K (a ~190 kbps slate) all even.
 
 **Diagnostics and the trial** (`routes/playback.js`, `VideoPlayer.js`, `scripts/playback-report.js`)
 - `POST /api/playback/client-event` (token required; whitelisted, bounded fields; **path only, never a query string**): events
@@ -325,7 +358,7 @@ upstreams stay `direct`.
 - Nothing in §6 changes without a coordinated client patch. **Every patch that changes what the Apple client sends or receives
   adds a row to `docs/SWIFT-CLIENT-HANDOFF.md` §5 in the same patch** (including changes to `transcodeSession.js` /
   `playbackStrategy.js`, which reach the Apple client even when no response shape changes).
-- Deliver both command blocks together with a size note; patch files go to `C:\Users\markr\Downloads\patches` (§2). Claude commits
+- Deliver both command blocks together with a size note; patch files go to `C:\Users\markr\GitHub\patches\PigTV` (§2). Claude commits
   only on a local `patch-NNNN-*` branch and never pushes.
 - Say plainly when tests / `verify-build.sh` could not be run, and give Mark live-test steps for anything that needs the real feed.
 - Reference docs: `blueprint.md`, `server-review.md`, `docs/SWIFT-CLIENT-HANDOFF.md` (the archive is history, not reference).
@@ -346,6 +379,11 @@ upstreams stay `direct`.
 - Mark applies and pushes patches.
 
 **Open.**
+- **Bug 2 is unexplained**: `[mpegts] Invalid timestamps … pts=X, dts=X+1800` (DTS *ahead* of PTS) on the mpegts segment path.
+  None of the four captures reproduced it and playback was reported stable, so 0088 deliberately does not claim it. Needs the
+  channel that produced it — the resolve-timing log line now names how each was classified, which should find it.
+- **The classifier has seen one uneven feed out of four.** The margin is huge (33.8% vs 0.0%) but it should be checked across
+  more channels; post-deploy the `source timing …` log line does this for free over an evening.
 - Keep or drop the Xtream/upstream proxy path and `cache.js` (gates §A.2).
 - GHCR build mechanism (GitHub Actions on push, or local `docker build`?) — decides whether `commit`/`builtAt` auto-inject.
 - Stall timeout tuning: 20 s is a conservative guess for long-GOP sources; tighten only after watching real stall logs for false positives.
