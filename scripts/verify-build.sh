@@ -1332,6 +1332,11 @@ check test/playback-arbitration.test.js "two password logins share one owner key
 check test/api-404.test.js "terminal-status" "and the Apple-client route guard covers it"
 check docs/SWIFT-CLIENT-HANDOFF.md "0094" "and the Apple hand-off doc records it"
 
+echo "=== 0095: the image says which source it was built from ==="
+check .github/workflows/docker-publish.yml "PIGTV_COMMIT=" "CI passes the commit into the build"
+check .github/workflows/docker-publish.yml "id: stamp" "computed in a step, so release and workflow_dispatch work too"
+check blueprint.md "built by GitHub Actions on push" "and the mechanism is written down rather than assumed"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

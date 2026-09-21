@@ -44,6 +44,15 @@ jobs:
             type=ref,event=branch
             type=raw,value=latest,enable={{is_default_branch}}
 
+      # Computed here rather than taken from the event payload: the workflow also runs
+      # on release and workflow_dispatch, where the push-only fields are absent, and
+      # the short SHA is what version.js renders into the badge.
+      - name: Work out what is being built
+        id: stamp
+        run: |
+          echo "commit=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "built_at=$(date -u +%FT%TZ)" >> "$GITHUB_OUTPUT"
+
       - name: Build and push Container image
         uses: docker/build-push-action@v5
         with:
@@ -52,5 +61,12 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Stamp the image with the source it was built from. Without these the
+          # Dockerfile's defaults apply and /api/version reports commit "dev", so the
+          # only evidence of what is running is the build number - which is typed into
+          # version.js by hand and therefore can be wrong. These cannot be.
+          build-args: |
+            PIGTV_COMMIT=${{ steps.stamp.outputs.commit }}
+            PIGTV_BUILT_AT=${{ steps.stamp.outputs.built_at }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

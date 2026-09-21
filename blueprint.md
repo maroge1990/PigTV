@@ -28,7 +28,7 @@ As progress is made, keep this file current for handover — and keep it small (
 | Local repo folder | `C:\Users\markr\GitHub\PigTV` (moved out of OneDrive, 21 Sept 2026) |
 | Patch folder | `C:\Users\markr\GitHub\patches\PigTV` |
 | Shipped through | **build 0090** once applied (0086 was the last confirmed running); confirm with `/api/version` |
-| Next patch number | **0095** |
+| Next patch number | **0096** |
 | Container name | **`PigTV`** on PassyFlix — every command in these docs names it literally, so it can be pasted as written. `docker ps` if it is ever renamed |
 
 Don't hard-code the `origin/main` SHA anywhere. The deployed build is whatever `/api/version` reports (§3).
@@ -130,6 +130,7 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
 | 0090 | `scripts/stream-doctor.js`: the timestamp diagnostics as a supported tool (0089 was docs) |
 | 0093 | Captured samples go on the data volume, so a redeploy stops destroying the regression corpus |
 | 0094 | `GET /api/playback/:id/terminal-status`: a displaced client can tell takeover from an ordinary failure |
+| 0095 | CI stamps `PIGTV_COMMIT` / `PIGTV_BUILT_AT`, so `/api/version` proves what is running |
 
 ---
 
@@ -313,8 +314,15 @@ one path first (done: watchdog, arbitration, self-heal, diagnostics), then move 
 2. **Dead code still held:** `cache.js` + the upstream Xtream/EPG proxy routes + non-streaming `epgParser`/`m3uParser` functions
    (pending Mark's decision on keeping the Xtream/VOD path), non-VAAPI encoders, unread settings, the legacy piped
    `GET /api/transcode?url=`. The plugin loader / `PLUGINS.md` is kept on purpose (empty extension point).
-3. **P1-3 remainder:** derived `stable_id` so a provider reorder can't re-point favourites, history and scheduled recordings
-   (re-keys three tables; its own patch). **P1-4:** `resolve` returns an opaque handle instead of a credentialed `?url=` (contract
+3. **P1-3 — now the top of this list, and confirmed happening.** On 21 Sept the provider reordered its playlist mid-session:
+   Fox Sports 505 moved from `pos_1187` to `pos_1185` within six hours (same channel, same URL, same provider stream id), and
+   **a favourite was observed pointing at a different channel that evening**. `pos_N` comes from the channel's position in the
+   M3U, so every id after an insertion shifts. Favourites, `channel_history` and scheduled recordings all key on it — a
+   recording scheduled for one channel would record another. Needs a `stable_id` derived from something intrinsic; the provider's
+   numeric stream id inside the URL survived both the reorder and is not the credentials (which rotate, and are why 0015 moved
+   *off* a URL hash in the first place). Re-keys three tables; its own patch.
+   Related, same day: the same channel is listed at **two** positions with an identical URL, so a favourite on one does not match
+   the other and the recording duplicate-check may not see them as the same programme. **P1-4:** `resolve` returns an opaque handle instead of a credentialed `?url=` (contract
    change for both clients).
 4. **Tests for Apple-relevant paths (P2-8):** EPG parser under bursty input, `withStreamToken` on fMP4, recordings Range,
    viewer-already-holds-slot.
@@ -420,27 +428,33 @@ and the URL itself is in the row's `data` blob, not `stream_url`.
 - Dead-code batches go early, in reviewable patches, and don't touch the remux path (that waits for Phase 4).
 - Mark applies and pushes patches.
 
+**Decided (Mark, 21 Sept 2026).**
+- **Keep the Xtream/upstream proxy path and `cache.js`.** Likely wanted in the near future, so they stay out of the dead-code
+  batches (§A.2 is now only the other items listed there).
+- **Images are built by GitHub Actions on push to `main`** (`.github/workflows/docker-publish.yml`) — that was never in doubt,
+  only undocumented. 0095 passes the commit and build time through, so `/api/version` carries them instead of `dev`.
+
 **Open.**
 - **Bug 2 is unexplained**: `[mpegts] Invalid timestamps … pts=X, dts=X+1800` (DTS *ahead* of PTS) on the mpegts segment path.
   None of the four captures reproduced it and playback was reported stable, so 0088 deliberately does not claim it. Needs the
   channel that produced it — the resolve-timing log line now names how each was classified, which should find it.
 - **The classifier has seen one uneven feed out of four.** The margin is huge (33.8% vs 0.0%) but it should be checked across
   more channels; post-deploy the `source timing …` log line does this for free over an evening.
-- Keep or drop the Xtream/upstream proxy path and `cache.js` (gates §A.2).
-- GHCR build mechanism (GitHub Actions on push, or local `docker build`?) — decides whether `commit`/`builtAt` auto-inject.
 - Stall timeout tuning: 20 s is a conservative guess for long-GOP sources; tighten only after watching real stall logs for false positives.
-- Unraid template: confirm Extra Parameters give `/app/transcode-cache` a tmpfs (`--tmpfs /app/transcode-cache:size=2g`) and that `TZ` is set.
 - Session keep-alive / codec names on recording playback (§5 B) — build only if asked.
 
 **Live checks never recorded as done** (status unknown as of 20 Sept — tick off or drop when seen):
 0054 cut the upstream mid-stream → `treating ffmpeg as stalled`, slot frees, a *paused* web player isn't killed ·
 0055 two devices: the second gets "Another device is watching", a device changing channel never sees a prompt about itself ·
-0056 during an EPG sync the guide stays populated; `Removed N superseded programmes` afterwards; `SELECT COUNT(*) FROM epg_live`
-matches the XMLTV `<programme` count · 0059 a favourite made in the web shows in the Apple app and back · 0061 set `TZ`, schedule a
-recording, the file name shows local time · 0062 an **HEVC** recording plays on the Apple client (delete old `*.native.mp4` first);
-deleting a recording removes its sidecars · 0063 a large bulk hide/show still saves (a 413 means the 2 MB cap is too tight) ·
+0059 a favourite made in the web shows in the Apple app and back · 0062 an **HEVC** recording plays on the Apple client
+(delete old `*.native.mp4` first); deleting a recording removes its sidecars ·
 0073 `docker logs PigTV | grep -c "timestamp discontinuity"` stays ~0 on the E-AC-3 channel · Apple-device checks B1/B3/B5/B7
 from the original list need the Swift client.
+
+**Verified live (21 Sept):** 0056 EPG sync keeps the guide populated · 0061 recording file names in local time (`TZ` is set) ·
+0063 a large bulk hide/show saves · `/app/transcode-cache` really is a 2 GB tmpfs (`docker exec PigTV df -h /app/transcode-cache`
+→ `tmpfs 2.0G`), so segment churn never touches the array · 0087/0088 deployed, and across the first 12 plays every feed
+classified `even - DTS kept` with **zero** `Non-monotonic DTS` (against ~33 000 timestamp warnings in the 24 h before).
 
 **Already verified live (20 Sept):** web playback of several channels (A1 → 0071), bulk hide (A3 → 0072), 0071–0073 deployed and
 working, 0085 running. The intermittent "nothing plays on some channels" stopped reproducing while others saw the same channel group
