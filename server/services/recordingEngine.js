@@ -92,7 +92,25 @@ function uniqueFilePath(dir, baseName, ext) {
  * Resolve a playable stream URL for a channel, mirroring the logic used by
  * the proxy/transcode routes for M3U (SQLite-backed) and Xtream sources.
  */
-async function resolveStreamUrl(sourceId, channelItemId) {
+/**
+ * The identity of the channel a caller named, accepting the composite id the web
+ * app sends and the bare one the native client does - the same forms
+ * resolveStreamUrl accepts. Null when the channel is not in the playlist.
+ */
+function channelIdentity(sourceId, channelItemId) {
+    try {
+        const raw = String(channelItemId);
+        const stripped = raw.replace(/^(?:m3u|xtream)_\d+_/, '');
+        return getDb().prepare(`
+            SELECT stable_id FROM playlist_items
+            WHERE source_id = ? AND type = 'live' AND (item_id = ? OR item_id = ?) LIMIT 1
+        `).get(sourceId, raw, stripped)?.stable_id || null;
+    } catch (e) {
+        return null;   // never the reason a recording cannot be scheduled
+    }
+}
+
+async function resolveStreamUrl(sourceId, channelItemId, stableId = null) {
     const source = await sourcesDb.getById(sourceId);
     if (!source) throw new Error(`Source ${sourceId} not found`);
 
@@ -112,7 +130,16 @@ async function resolveStreamUrl(sourceId, channelItemId) {
     const raw = String(channelItemId);
     const stripped = raw.replace(/^(?:m3u|xtream)_\d+_/, '');
 
-    const item = db.prepare(`
+    // The identity first when the schedule carries one: it is what the schedule is
+    // FOR, and unlike the position it still means the same channel after a reorder.
+    // Ordered by position so a channel listed in several categories resolves to the
+    // same row every time.
+    const item = (stableId && db.prepare(`
+        SELECT stream_url, data FROM playlist_items
+        WHERE source_id = ? AND type = 'live' AND stable_id = ?
+        ORDER BY CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END, sort_order ASC
+        LIMIT 1
+    `).get(sourceId, stableId)) || db.prepare(`
         SELECT stream_url, data FROM playlist_items
         WHERE source_id = ? AND type = 'live'
           AND (item_id = ? OR item_id = ? OR id = ?)
@@ -156,6 +183,9 @@ async function scheduleFromProgram({
         description: description || null,
         source_id: sourceId,
         channel_item_id: String(channelItemId),
+        // What the schedule is FOR. Resolved now, while the playlist still says
+        // where this channel is; by the time it records, the position may not.
+        channel_stable_id: channelIdentity(sourceId, channelItemId),
         channel_name: channelName || null,
         channel_logo: channelLogo || null,
         program_start: programStart,
@@ -800,7 +830,7 @@ async function deleteRecording(id) {
 async function startRecording(schedule) {
     let streamUrl;
     try {
-        streamUrl = await resolveStreamUrl(schedule.source_id, schedule.channel_item_id);
+        streamUrl = await resolveStreamUrl(schedule.source_id, schedule.channel_item_id, schedule.channel_stable_id || null);
     } catch (err) {
         console.error(`[Recordings] Could not resolve stream for schedule ${schedule.id}:`, err.message);
         scheduledDb.setStatus(schedule.id, 'failed', { error: err.message });

@@ -233,6 +233,14 @@ function initSchema() {
         CREATE INDEX IF NOT EXISTS idx_favorites_user_type ON favorites(user_id, item_type);
     `);
 
+    // Which channel this watch was OF, for the same reason as favourites below:
+    // channel_item_id is a playlist position and the position moves.
+    try {
+        db.exec('ALTER TABLE channel_history ADD COLUMN stable_id TEXT');
+    } catch (e) {
+        // Column already exists.
+    }
+
     // Which channel this favourite is FOR, as opposed to which line of the playlist
     // it sat on when it was made. item_id stays, both as the fallback for a row whose
     // channel cannot be resolved and as a record of what was originally favourited.
@@ -271,6 +279,7 @@ function initSchema() {
     normalizeFavoriteIds();
     backfillStableIds();
     backfillFavoriteIdentities();
+    backfillHistoryIdentities();
 
     console.log('[SQLite] Schema initialized');
 }
@@ -306,6 +315,24 @@ function backfillStableIds() {
     // Rows with no URL stay NULL and are re-examined on every start; there are
     // few of them and they are cheap. Only say something when something changed.
     if (filled) console.log(`[SQLite] Derived a stable id for ${filled} of ${rows.length} channel row(s)`);
+}
+
+/**
+ * The same for watch history. A stale row here is less harmful than a stale
+ * favourite - it shows the wrong name in "recently watched" and plays the wrong
+ * channel if tapped - but it is the same fault and the same fix.
+ */
+function backfillHistoryIdentities() {
+    const rows = db.prepare(`
+        SELECT h.rowid AS rid, p.stable_id
+        FROM channel_history h
+        JOIN playlist_items p ON p.source_id = h.source_id AND p.item_id = h.channel_item_id
+        WHERE h.stable_id IS NULL AND p.stable_id IS NOT NULL
+    `).all();
+    if (!rows.length) return;
+    const update = db.prepare('UPDATE channel_history SET stable_id = ? WHERE rowid = ?');
+    db.transaction(() => { for (const r of rows) update.run(r.stable_id, r.rid); })();
+    console.log(`[SQLite] Pointed ${rows.length} watch-history row(s) at a channel identity`);
 }
 
 /**
@@ -467,5 +494,6 @@ module.exports = {
     // Exported so the migrations can be exercised directly; initSchema calls them.
     backfillStableIds,
     backfillFavoriteIdentities,
+    backfillHistoryIdentities,
     favorites
 };

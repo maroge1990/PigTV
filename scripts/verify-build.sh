@@ -1353,6 +1353,13 @@ check server/db/sqlite.js "stable_id IS NULL AND item_id" "and a stale position 
 check server/routes/library.js "GROUP BY COALESCE" "a channel listed twice appears once in the favourites list"
 check test/favourites-stable.test.js "this is the bug being fixed" "with a test of the real reorder"
 
+echo "=== 0098: recordings and history follow the channel too (P1-3, part 2b) ==="
+check server/db/recordingsDb.js "channel_stable_id" "a schedule records which channel it is for"
+check server/db/recordingsDb.js "status IN ..scheduled., .waiting.." "backfilled for pending schedules only"
+check server/services/recordingEngine.js "function channelIdentity" "resolved when the schedule is made, while the playlist still says where it is"
+check server/db/sqlite.js "function backfillHistoryIdentities" "watch history gets the same treatment"
+check test/recording-stable-channel.test.js "full of the wrong programme" "with a test of a reorder between scheduling and recording"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

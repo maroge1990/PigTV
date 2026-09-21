@@ -1,6 +1,6 @@
 # PigTV server — handover (single source of truth)
 
-**Last updated:** 20 September 2026 (build 0086)
+**Last updated:** 21 September 2026 (build 0098)
 
 Authoritative handover for PigTV **server / webapp** work. Keep it **short**: it is read at the start of every session.
 
@@ -27,8 +27,8 @@ As progress is made, keep this file current for handover — and keep it small (
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv`, `http://192.168.1.235:3000`, reached over an approved-device VPN (Tailscale) only |
 | Local repo folder | `C:\Users\markr\GitHub\PigTV` (moved out of OneDrive, 21 Sept 2026) |
 | Patch folder | `C:\Users\markr\GitHub\patches\PigTV` |
-| Shipped through | **build 0090** once applied (0086 was the last confirmed running); confirm with `/api/version` |
-| Next patch number | **0098** |
+| Shipped through | **build 0098** once applied; 0096 confirmed on `origin/main`, 0090 confirmed running. Confirm with `/api/version` |
+| Next patch number | **0099** |
 | Container name | **`PigTV`** on PassyFlix — every command in these docs names it literally, so it can be pasted as written. `docker ps` if it is ever renamed |
 
 Don't hard-code the `origin/main` SHA anywhere. The deployed build is whatever `/api/version` reports (§3).
@@ -133,6 +133,7 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
 | 0095 | CI stamps `PIGTV_COMMIT` / `PIGTV_BUILT_AT`, so `/api/version` proves what is running |
 | 0096 | P1-3 part 1: `stable_id`, a channel identity a provider reorder cannot move (nothing keyed on it yet) |
 | 0097 | P1-3 part 2a: favourites follow the channel, not the position |
+| 0098 | P1-3 part 2b: scheduled recordings and watch history do too |
 
 ---
 
@@ -260,6 +261,19 @@ Fox Sports 505 uneven; `pos_463` TSN, `pos_328` Sky Sports UHD (HEVC), `pos_468`
   range-scans — a programme that began >24 h before the window is not shown.
 - `/api/library/*` fill a missing `logo` from the EPG channel with the same tvg-id, else the same name (case/spacing ignored); a
   playlist logo is never replaced; index cached 5 min; name matching can pair same-named channels.
+- **Channel identity vs playlist position** (0096–0098). `item_id` is `pos_N`, the M3U line number, and the provider moves it:
+  on 21 Sept a reorder shifted Fox Sports 505 from `pos_1187` to `pos_1185` and a favourite was seen playing a different channel.
+  `playlist_items.stable_id` (`services/stableIds.js`) is what a channel *is* — the provider's stream id out of the URL
+  (`s441360`), a hash of the credential-stripped URL otherwise, NULL for a row with no URL. On the real playlist: 18 322 of
+  18 323 from the stream id, 0 missing, **845 channels listed more than once**.
+  Favourites (`favorites.stable_id`), scheduled recordings (`scheduled_recordings.channel_stable_id`) and `channel_history`
+  all key on it, backfilled at startup, with `item_id` kept only as the fallback for rows that have **no** identity.
+  **The trap, and it was caught by a test rather than by reading:** a row that HAS an identity still carries the position it was
+  made at, and that position may now be a different channel — so matching must never fall back to it. Any new query joining these
+  tables needs `(x.stable_id IS NOT NULL AND p.stable_id = x.stable_id) OR (x.stable_id IS NULL AND p.item_id = x.item_id)`,
+  and a `GROUP BY` on the identity, or the 845 duplicates show up several times in a list.
+  Only *pending* schedules are backfilled: rewriting a completed one would misstate what was recorded. Drift that already
+  happened is not recoverable — the migration keeps whatever a row now points at.
 - **Favourites: bare channel id is canonical** (`services/channelIds.js`); `initSchema` rewrote prefixed rows at startup (one-way,
   in `content.db`); `GET /api/favorites` re-presents the composite form the web matches on (`?format=bare` gives stored form).
   Open: derived `stable_id` (a provider reorder shifts `pos_N`).
@@ -329,8 +343,10 @@ one path first (done: watchdog, arbitration, self-heal, diagnostics), then move 
    **Part 2a (0097, done):** favourites. Keyed on the identity, migrated at startup, with the stored `item_id` used only for rows
    that have no identity — **a row that has one must ignore its stored position, or the stale id reintroduces the whole bug**
    (caught by a test, not by review). A channel listed twice is now one favourite.
-   **Part 2b (to do):** `channel_history` and scheduled recordings, the same way. A scheduled recording is the more harmful of the
-   two — it would record the wrong channel — though its exposure window is short.
+   **Part 2b (0098, done):** scheduled recordings and `channel_history`. A schedule resolves its identity when it is *made* and
+   prefers it at record time, so a reorder in between can no longer record the wrong programme. Only **pending** schedules are
+   backfilled — rewriting a completed one would misstate what was actually recorded. History is joined the same way, grouped so a
+   cross-listed channel appears once in "recently watched".
    **What none of it can do: favourites that had already drifted are already wrong**, and the migration preserves whatever they
    now point at. Mark should walk his favourites once after 0097 and fix any that look odd; after that they stay put.
 

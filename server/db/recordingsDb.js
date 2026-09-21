@@ -86,9 +86,37 @@ function initSchema() {
         } catch (e) { /* already present */ }
     }
 
+    // Which channel this schedule is FOR. channel_item_id is a playlist position,
+    // and the provider moves them - a schedule made before a reorder would resolve
+    // to whatever now sits at that line and record the wrong programme. Backfilled
+    // and preferred at resolve time; see services/stableIds.js.
+    try {
+        db.exec('ALTER TABLE scheduled_recordings ADD COLUMN channel_stable_id TEXT');
+    } catch (e) { /* already present */ }
+
+    // Pending schedules only: a completed or cancelled one never resolves again,
+    // and rewriting history would be dishonest about what was recorded.
+    try {
+        const filled = db.prepare(`
+            UPDATE scheduled_recordings SET channel_stable_id = (
+                SELECT p.stable_id FROM playlist_items p
+                WHERE p.source_id = scheduled_recordings.source_id
+                  AND p.item_id = scheduled_recordings.channel_item_id
+                  AND p.type = 'live' LIMIT 1
+            )
+            WHERE channel_stable_id IS NULL AND status IN ('scheduled', 'waiting')
+        `).run().changes;
+        if (filled) console.log(`[Recordings] Pointed ${filled} pending schedule(s) at a channel identity`);
+    } catch (e) {
+        // playlist_items may not exist yet on a first run; the next start fills them.
+    }
+
     initialized = true;
     console.log('[Recordings] Schema initialized');
 }
+
+// Lets a test re-run the schema step, which is what a restart does.
+function __resetInitForTests() { initialized = false; }
 
 function row(x) { return x || null; }
 
@@ -99,11 +127,15 @@ const scheduled = {
         const stmt = db.prepare(`
             INSERT INTO scheduled_recordings
                 (title, description, source_id, channel_item_id, channel_name, channel_logo,
-                 program_start, program_end, pre_buffer_min, post_buffer_min, status, created_by, created_at)
+                 program_start, program_end, pre_buffer_min, post_buffer_min, status, created_by, created_at,
+                 channel_stable_id)
             VALUES (@title, @description, @source_id, @channel_item_id, @channel_name, @channel_logo,
-                    @program_start, @program_end, @pre_buffer_min, @post_buffer_min, 'scheduled', @created_by, @created_at)
+                    @program_start, @program_end, @pre_buffer_min, @post_buffer_min, 'scheduled', @created_by, @created_at,
+                    @channel_stable_id)
         `);
-        const info = stmt.run(data);
+        // Resolved by the caller, which knows how to read the composite id the web
+        // app sends; defaulted here so better-sqlite3 never sees a missing parameter.
+        const info = stmt.run({ channel_stable_id: null, ...data });
         return this.getById(info.lastInsertRowid);
     },
 
@@ -330,4 +362,6 @@ const recordings = {
     }
 };
 
-module.exports = { initSchema, scheduled, recordings };
+module.exports = {
+    __resetInitForTests,
+    initSchema, initSchema, scheduled, recordings };

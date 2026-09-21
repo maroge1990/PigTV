@@ -371,11 +371,22 @@ router.get('/recent', (req, res) => {
 
         const rows = db.prepare(`
             SELECT h.source_id, h.channel_item_id, h.channel_name, h.watched_at,
-                   p.stream_icon, p.category_id, p.sort_order, p.name, p.item_id, p.data
+                   p.stream_icon, p.category_id, p.sort_order, p.name, p.item_id, p.data, p.stable_id
             FROM channel_history h
+            -- Joined on the identity when the row has one, so a watched channel is
+            -- still found after the provider reorders; on the recorded position only
+            -- for rows that predate identities. A row WITH an identity must not fall
+            -- back to its position - that position may now be a different channel.
             LEFT JOIN playlist_items p
-              ON p.source_id = h.source_id AND p.item_id = h.channel_item_id AND p.type = 'live'
+              ON p.source_id = h.source_id AND p.type = 'live'
+             AND ((h.stable_id IS NOT NULL AND p.stable_id = h.stable_id)
+                  OR (h.stable_id IS NULL AND p.item_id = h.channel_item_id))
             WHERE h.user_id = ?
+            -- One row per watched channel even when it is listed in several
+            -- categories (845 of this provider's are), keeping the earliest
+            -- position - where the channel appears in the guide.
+            GROUP BY h.source_id, h.channel_item_id
+            HAVING p.sort_order = MIN(p.sort_order) OR MIN(p.sort_order) IS NULL
             ORDER BY h.watched_at DESC
             LIMIT ?
         `).all(String(req.user.id), limit);
@@ -384,9 +395,14 @@ router.get('/recent', (req, res) => {
         // so fall back to the name recorded at the time.
         const usable = rows.filter(r => r.item_id);
         const decorated = decorate(usable);
-        const byId = new Map(decorated.map(c => [c.id, c]));
+        // Keyed on what the history row joined to, not on the id it recorded: once
+        // the playlist has moved, the channel's current item_id is not the one that
+        // was written, which is the entire point of the identity.
+        const byHistoryId = new Map();
+        let d = 0;
+        for (const r of rows) if (r.item_id) byHistoryId.set(`${r.source_id}:${r.channel_item_id}`, decorated[d++]);
 
-        res.json(rows.map(r => byId.get(r.channel_item_id) || {
+        res.json(rows.map(r => byHistoryId.get(`${r.source_id}:${r.channel_item_id}`) || {
             id: r.channel_item_id,
             sourceId: r.source_id,
             name: r.channel_name,

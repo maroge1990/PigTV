@@ -164,19 +164,25 @@ router.post('/resolve', requireToken, async (req, res) => {
         if (sourceId !== undefined && channelId !== undefined && req.user) {
             try {
                 const stripped = String(channelId).replace(/^(?:m3u|xtream)_\d+_/, '');
-                const name = getDb().prepare(`
-                    SELECT name FROM playlist_items
+                // Name and identity from the same lookup: the identity is what makes
+                // the row survive the provider reordering its playlist.
+                const row = getDb().prepare(`
+                    SELECT name, stable_id FROM playlist_items
                     WHERE source_id = ? AND type = 'live' AND item_id = ? LIMIT 1
-                `).get(parseInt(sourceId), stripped)?.name || null;
+                `).get(parseInt(sourceId), stripped);
+                const name = row?.name || null;
 
                 getDb().prepare(`
-                    INSERT INTO channel_history (user_id, source_id, channel_item_id, channel_name, watched_at, play_count)
-                    VALUES (?, ?, ?, ?, ?, 1)
+                    INSERT INTO channel_history (user_id, source_id, channel_item_id, channel_name, watched_at, play_count, stable_id)
+                    VALUES (?, ?, ?, ?, ?, 1, ?)
                     ON CONFLICT(user_id, source_id, channel_item_id) DO UPDATE SET
                         watched_at = excluded.watched_at,
                         channel_name = COALESCE(excluded.channel_name, channel_name),
-                        play_count = play_count + 1
-                `).run(String(req.user.id), parseInt(sourceId), stripped, name, Date.now());
+                        play_count = play_count + 1,
+                        -- Refreshed on every play: a row written before the channel
+                        -- moved must not keep pointing at where it used to be.
+                        stable_id = COALESCE(excluded.stable_id, stable_id)
+                `).run(String(req.user.id), parseInt(sourceId), stripped, name, Date.now(), row?.stable_id || null);
             } catch (e) {
                 console.warn('[Playback] Could not record history:', e.message);
             }
