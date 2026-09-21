@@ -1306,6 +1306,13 @@ check scripts/stream-doctor.js "uses the provider slot" "and it says which subco
 check test/stream-doctor.test.js "not a second opinion" "with a test that the tool and the server agree"
 check blueprint.md "reach for this first on any playback fault" "and the blueprint points at it"
 
+echo "=== 0091 (docs): troubleshooting starts from a capture of the real channel ==="
+check blueprint.md "When a channel misbehaves" "the loop is written down, in order"
+check blueprint.md "No ffmpeg-flag or" "and shipping a timestamp fix on a hypothesis is called out as the 0085 mistake"
+check blueprint.md "regression corpus" "samples are kept and retested, which 0085 had no way to do"
+check blueprint.md 'cd "C:.Users.markr.GitHub.PigTV"' "the apply block cds to the current repo folder"
+check blueprint.md "moved out of OneDrive" "and the orientation table agrees with it"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

@@ -25,10 +25,10 @@ As progress is made, keep this file current for handover — and keep it small (
 |---|---|
 | Repo | `github.com/maroge1990/PigTV` |
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv`, `http://192.168.1.235:3000`, reached over an approved-device VPN (Tailscale) only |
-| Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` (inside OneDrive — see §2 note) |
+| Local repo folder | `C:\Users\markr\GitHub\PigTV` (moved out of OneDrive, 21 Sept 2026) |
 | Patch folder | `C:\Users\markr\GitHub\patches\PigTV` |
 | Shipped through | **build 0090** once applied (0086 was the last confirmed running); confirm with `/api/version` |
-| Next patch number | **0091** |
+| Next patch number | **0092** |
 | Container name | Find with `docker ps` — the commands below use `<container>` |
 
 Don't hard-code the `origin/main` SHA anywhere. The deployed build is whatever `/api/version` reports (§3).
@@ -45,16 +45,16 @@ command blocks. Check the patches apply in order on a throwaway `git worktree` o
 
 **Apply + push (PowerShell):**
 ```powershell
-cd "C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server"
+cd "C:\Users\markr\GitHub\PigTV"
 git fetch origin
 git checkout -B main origin/main
 git am "C:\Users\markr\GitHub\patches\PigTV\NNNN-<subject>.patch"   # one line per patch, in order
 git push origin main
 ```
 **If `git am` says `previous rebase directory .git/rebase-apply still exists`:** a stale state folder from an earlier interrupted
-`am` (happened twice). Run `git am --quit` (keeps HEAD and files; **not** `--abort`, which can rewind commits), then repeat.
-Suspected cause: the repo is inside OneDrive and GitHub Desktop is open on it — close GitHub Desktop while applying, or move the
-repo out of OneDrive.
+`am` (happened twice, while the repo still lived in OneDrive). Run `git am --quit` (keeps HEAD and files; **not** `--abort`,
+which can rewind commits), then repeat. The suspected cause — OneDrive syncing the repo with GitHub Desktop open on it — no
+longer applies since the move, so a recurrence means something else and is worth chasing rather than shrugging off.
 
 **Pull + recreate + verify (Unraid / Docker):**
 ```bash
@@ -354,6 +354,10 @@ upstreams stay `direct`.
 
 ## 7. Standing disciplines
 
+- **Diagnose a playback fault from a capture of the real channel before changing anything.** `scripts/stream-doctor.js`
+  (§7a) turns it into a local, repeatable experiment; a redeploy costs a session and an evening. **No ffmpeg-flag or
+  timestamp patch ships on a hypothesis** — 0085 did, and silently broke a whole class of channel that nobody had a sample
+  of. If a fault cannot be captured, say so and treat any fix as provisional.
 - Every functional patch pairs with a `verify-build.sh` check and a test that fails on the old code.
 - Each functional patch bumps `version.js` `build` to its own number, in its own diff. Docs-only commits don't.
 - Nothing in §6 changes without a coordinated client patch. **Every patch that changes what the Apple client sends or receives
@@ -367,6 +371,31 @@ upstreams stay `direct`.
   one line in §4, and move nothing back in from the archive.
 
 ---
+
+## 7a. When a channel misbehaves
+
+The loop that works, in order. Mark can do steps 1–4 alone; steps 2 and 4 are the ones worth pasting into a session.
+
+1. **Note the channel name and roughly when.** The log never names a channel, so this is the only link back to it.
+2. **Ask what the server decided**, before touching anything:
+   `docker logs <container> --since 30m 2>&1 | grep -E "resolve timing|\[HLS\]|Non-monotonic|Packet duration"`.
+   Each play's `resolve timing` line ends `source timing even - DTS kept` / `uneven - DTS rebuilt` / `unknown - DTS kept`
+   (0088). A flood of timestamp warnings against a play classified the other way is a misclassification — that is the
+   whole diagnosis, and the sample below proves it.
+3. **Find its id:** `docker exec <container> node scripts/stream-doctor.js list "<name>"` → `pos_N`.
+4. **Capture and bench it, with nothing playing** (both take the provider's only connection):
+   `… stream-doctor.js capture pos_N` then `… stream-doctor.js bench /app/samples/pos_N.ts`.
+   `capture` prints the verdict; `bench` shows what the shipping arguments produce against the forced alternatives.
+5. **Keep the sample.** They are the regression corpus: any future flag change gets tried against every one of them
+   before it ships, which is exactly what 0085 had no way to do. Known so far (21 Sept): `pos_1187` Fox Sports 505
+   **uneven**; `pos_463` TSN, `pos_328` Sky Sports UHD (HEVC), `pos_468` Sportsnet 4K (a ~190 kbps slate) all **even**.
+   They live in `/app/samples` on the container's writable layer — move them to a mounted volume if the set grows.
+
+Channel ids are `pos_N` (`item_id` in `playlist_items`); the provider's numeric stream id appears only inside the URL,
+and the URL itself is in the row's `data` blob, not `stream_url`.
+
+---
+
 
 ## 8. Decisions, open questions and checks still owed
 
