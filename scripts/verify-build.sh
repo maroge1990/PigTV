@@ -1299,6 +1299,13 @@ check test/dts-classify.test.js "separated by a wide margin, not a fine threshol
 check test/hls-copy-dts.test.js "an even source must be left alone" "and a real-ffmpeg test of BOTH directions"
 check docs/SWIFT-CLIENT-HANDOFF.md "0088" "and the Apple hand-off doc records it"
 
+echo "=== 0090: the timestamp diagnostics become a supported tool ==="
+check scripts/stream-doctor.js "capture <pos_N>" "one tool with the five subcommands, replacing four throwaway scripts"
+check scripts/stream-doctor.js "classifyTimestamps" "its verdict is the server function, not a second copy of the rule"
+check scripts/stream-doctor.js "uses the provider slot" "and it says which subcommands take the provider connection"
+check test/stream-doctor.test.js "not a second opinion" "with a test that the tool and the server agree"
+check blueprint.md "reach for this first on any playback fault" "and the blueprint points at it"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

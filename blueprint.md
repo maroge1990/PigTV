@@ -27,8 +27,8 @@ As progress is made, keep this file current for handover — and keep it small (
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv`, `http://192.168.1.235:3000`, reached over an approved-device VPN (Tailscale) only |
 | Local repo folder | `C:\Users\markr\OneDrive\Documents\GitHub\PigTV Server` (inside OneDrive — see §2 note) |
 | Patch folder | `C:\Users\markr\GitHub\patches\PigTV` |
-| Shipped through | **build 0088** once applied (0086 was the last confirmed running); confirm with `/api/version` |
-| Next patch number | **0089** |
+| Shipped through | **build 0090** once applied (0086 was the last confirmed running); confirm with `/api/version` |
+| Next patch number | **0091** |
 | Container name | Find with `docker ps` — the commands below use `<container>` |
 
 Don't hard-code the `origin/main` SHA anywhere. The deployed build is whatever `/api/version` reports (§3).
@@ -127,6 +127,7 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
 | 0086 | Sources that end are read at real time (`-re`); `[HLS] 404` log line; `play-end` stops counting after a fatal error |
 | 0087 | Fix: cancelling the webapp takeover prompt no longer falls through to the local path and takes the stream anyway |
 | 0088 | `igndts` decided per feed from the probe (supersedes 0085, which applied it to every copy) |
+| 0090 | `scripts/stream-doctor.js`: the timestamp diagnostics as a supported tool (0089 was docs) |
 
 ---
 
@@ -212,14 +213,14 @@ a flood of these on a copy path means the feed was classified wrong. Check the c
 now ends `source timing even - DTS kept` / `uneven - DTS rebuilt` / `unknown - DTS kept`. A handful per hour is still normal. Real problems: `Could not write header`, `Codec probe failed`,
 `FFmpeg exited with code`, `Releasing stalled session`, `[HLS] 404 for …`.
 
-**Timestamp diagnosis without the provider** (21 Sept). Four throwaway scripts live on PassyFlix at `/root` and are copied
-into the container with `docker cp` — **not in the repo**, and worth rebuilding rather than guessing if this comes up again:
-`capture-sample.js` (grabs 60 s of a channel by its `pos_N` id straight off the provider, plus an ffprobe packet dump and a
-verdict line), `classify.js` (classifies those dumps even/uneven — the prototype `streamProbe.classifyTimestamps` came from),
-`bench.js` (runs the server's *own* argument builders over a sample once per candidate flag set and scores warnings and frame-
-timing evenness), `probecost.js` (times the shipping probe against a candidate one on a live URL). **The lesson worth keeping:
-a 60-second capture turns every one of these bugs into a local, repeatable experiment and removes the redeploy cycle entirely —
-and a redeploy ends every session.** Channel ids are `pos_N` (`item_id` in `playlist_items`); the provider's numeric stream id
+**`scripts/stream-doctor.js` — reach for this first on any playback fault** (0090). Five subcommands: `list <search>`,
+`capture <pos_N> [sec]` (60 s of the real feed + a verdict), `classify <sample>`, `bench <sample>` (runs the server's *own*
+argument builders once per candidate flag set and scores ffmpeg's warnings and frame-timing evenness), `probecost <pos_N>`.
+Run it as `docker exec <container> node scripts/stream-doctor.js …`. `capture` and `probecost` open a provider connection, so
+**nothing may be playing**; the rest only read files. It reuses `streamProbe.classifyTimestamps` and `redact` rather than
+copying them, so its verdict is by construction the one the server will act on. **The lesson worth keeping: a 60-second
+capture turns a playback bug into a local, repeatable experiment and removes the redeploy cycle entirely — and a redeploy ends
+every session. It found the 0085 regression, and the two-populations result, in an afternoon after weeks of spot fixes.** Channel ids are `pos_N` (`item_id` in `playlist_items`); the provider's numeric stream id
 appears only inside the URL, and the URL itself is in the row's `data` JSON blob, not `stream_url`. Known samples: `pos_1187`
 Fox Sports 505 uneven; `pos_463` TSN, `pos_328` Sky Sports UHD (HEVC), `pos_468` Sportsnet 4K (a ~190 kbps slate) all even.
 
