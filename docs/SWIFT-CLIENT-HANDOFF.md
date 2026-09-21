@@ -1,7 +1,7 @@
 # PigTV server → Apple client hand-off
 
 **Written 20 September 2026 (server session, build 0083); kept current in §5 — last entry: build 0086.** Audience: whoever works on the Swift client next, and Mark.
-The server-side source of truth is `blueprint.md` (this repo); the client's own log is `HANDOVER.md` in the client project.
+The server-side source of truth is `blueprint.md` (this repo); the client's current state and roadmap are in `blueprint.md` in the client project (replacing its old handovers).
 Everything below was checked against the client source in `PigTV-Swift-Client` (read-only) and the server code.
 
 **The short version.** The server has moved on since the client was last aligned with it. Nothing the client does today

@@ -10,7 +10,7 @@ Authoritative handover for PigTV **server / webapp** work. Keep it **short**: it
 | `docs/SWIFT-CLIENT-HANDOFF.md` | What the Apple client must change, its test tips, and a log of server changes it should know about (§5 there) |
 | `server-review.md` | Point-in-time code review (16 Sept 2026): the file:line *why* behind roadmap items named "P1-x / P2-x". Many items are since fixed — this file tracks status |
 | `docs/blueprint-archive.md` | Frozen pre-condensing copy of this file with the full per-patch write-ups (0048–0086). **Historical; don't read routinely** |
-| `HANDOVER.md` (Xcode project) | The Apple client's own log; a separate agent works there |
+| `../PigTV-Swift/blueprint.md` | The Apple client's current state, roadmap and verification; replaces its old handovers |
 
 ## Core Requirements and Guidelines
 We are developing an IPTV server with a supporting webapp and Swift clients (iPad / Apple TV); the server and webapp are this repository.
