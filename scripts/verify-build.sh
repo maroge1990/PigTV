@@ -1322,6 +1322,16 @@ check scripts/stream-doctor.js "path.join(DATA, .samples.)" "they are written un
 check test/stream-doctor.test.js "not the writable layer" "with a test that pins it to the mount docker-compose declares"
 check blueprint.md "has to outlive the build it was taken on" "and the blueprint says why it matters"
 
+echo "=== 0094: a displaced client can tell takeover from an ordinary failure ==="
+check server/services/streamCoordinator.js "function terminalStatus" "the coordinator remembers, briefly, that a session was replaced"
+check server/services/streamCoordinator.js "noteReplaced(stream)" "written by admitViewer only, so DELETE and the sweeps leave nothing"
+check server/services/streamCoordinator.js "forced-takeover" "releases carry why they happened, into the log"
+check server/routes/playback.js "terminal-status" "the route exists, behind bearer auth"
+check server/routes/info.js "playbackTerminalStatus" "and /api/info advertises it so an older server keeps the old client path"
+check test/playback-arbitration.test.js "two password logins share one owner key" "with the case owner equality cannot solve"
+check test/api-404.test.js "terminal-status" "and the Apple-client route guard covers it"
+check docs/SWIFT-CLIENT-HANDOFF.md "0094" "and the Apple hand-off doc records it"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

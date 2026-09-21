@@ -61,7 +61,8 @@ router.get('/', async (req, res) => {
             scheduledWaiting: true,          // /api/recordings/scheduled includes status 'waiting' and it can be cancelled
             viewerConflict: true,            // POST /api/playback/resolve may answer 409 conflict.type 'viewer-in-progress'
             epgLogoFallback: true,           // /api/library/* fill a missing logo from the EPG (no client-side icon index needed)
-            clientEvents: true               // POST /api/playback/client-event accepts player diagnostics
+            clientEvents: true,              // POST /api/playback/client-event accepts player diagnostics
+            playbackTerminalStatus: true     // GET /api/playback/:sessionId/terminal-status says whether a dead session was taken over
         },
 
         // What the server can produce, so a client knows what to ask for.

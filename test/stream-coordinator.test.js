@@ -72,14 +72,14 @@ test('an abandoned stream is reclaimed silently, whoever owned it', async () => 
     const stale = await session('device:b', 90);
     const verdict = coordinator.requestForViewer({ settings: ONE_STREAM, owner: 'device:a' });
     assert.equal(verdict.allowed, true);
-    assert.deepEqual(verdict.release.map(s => s.id), [stale.id]);
+    assert.deepEqual(verdict.release.map(r => r.stream.id), [stale.id]);
 });
 
 test('a device replaces its own earlier stream without being asked', async () => {
     const mine = await session('device:a', 2);
     const verdict = coordinator.requestForViewer({ settings: ONE_STREAM, owner: 'device:a' });
     assert.equal(verdict.allowed, true);
-    assert.deepEqual(verdict.release.map(s => s.id), [mine.id]);
+    assert.deepEqual(verdict.release.map(r => r.stream.id), [mine.id]);
 });
 
 test('another device that is really watching is put to the caller as a question', async () => {
@@ -96,7 +96,7 @@ test('force takes the slot from the other viewer', async () => {
     const theirs = await session('device:b', 5);
     const verdict = coordinator.requestForViewer({ settings: ONE_STREAM, owner: 'device:a', force: true });
     assert.equal(verdict.allowed, true);
-    assert.deepEqual(verdict.release.map(s => s.id), [theirs.id]);
+    assert.deepEqual(verdict.release.map(r => r.stream.id), [theirs.id]);
 });
 
 test('a caller who is not identified never owns anything', async () => {
@@ -109,7 +109,7 @@ test('soft mode reclaims what is free but never refuses', async () => {
     const stale = await session('device:b', 90);
     let verdict = coordinator.requestForViewer({ settings: ONE_STREAM, owner: 'device:a', soft: true });
     assert.equal(verdict.allowed, true);
-    assert.deepEqual(verdict.release.map(s => s.id), [stale.id]);
+    assert.deepEqual(verdict.release.map(r => r.stream.id), [stale.id]);
 
     await transcodeSession.removeSession(stale.id);
     await session('device:c', 5);

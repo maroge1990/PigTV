@@ -209,6 +209,32 @@ router.get('/conflict', optionalAuth, async (req, res) => {
 });
 
 /**
+ * GET /api/playback/:sessionId/terminal-status
+ *
+ * "Did my stream stop because someone else took it, or did it just break?"
+ *
+ * A displaced client only sees a 404 on its playlist or segments, which looks
+ * exactly like an expired session or a stalled feed. If it recovers from that
+ * by re-resolving, it takes the provider's only connection back off whoever
+ * just got it, and the two trade the stream back and forth - and owner equality
+ * cannot stop that, because two browsers signed in as the same person are both
+ * `user:<id>`.
+ *
+ * So: `taken-over` means stop and say so; `none` means recover as before.
+ *
+ * Bearer auth, not the optional auth `/conflict` uses: the answer is about the
+ * caller's own session and is worthless without knowing who is asking. Every
+ * case that is not "your session, replaced by another viewer, recently" is
+ * `none`, including somebody else's session and one that never existed, so a
+ * caller cannot use this to discover that anyone is watching anything.
+ */
+router.get('/:sessionId/terminal-status', requireToken, (req, res) => {
+    const coordinator = require('../services/streamCoordinator');
+    const owner = coordinator.ownerKey(req.user);
+    res.json({ status: coordinator.terminalStatus(req.params.sessionId, owner) });
+});
+
+/**
  * POST /api/playback/conflict/decline  { scheduleId }
  *
  * The viewer keeps watching. The recording is not cancelled — it waits, and

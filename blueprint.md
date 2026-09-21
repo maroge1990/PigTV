@@ -28,7 +28,7 @@ As progress is made, keep this file current for handover — and keep it small (
 | Local repo folder | `C:\Users\markr\GitHub\PigTV` (moved out of OneDrive, 21 Sept 2026) |
 | Patch folder | `C:\Users\markr\GitHub\patches\PigTV` |
 | Shipped through | **build 0090** once applied (0086 was the last confirmed running); confirm with `/api/version` |
-| Next patch number | **0094** |
+| Next patch number | **0095** |
 | Container name | **`PigTV`** on PassyFlix — every command in these docs names it literally, so it can be pasted as written. `docker ps` if it is ever renamed |
 
 Don't hard-code the `origin/main` SHA anywhere. The deployed build is whatever `/api/version` reports (§3).
@@ -129,6 +129,7 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
 | 0088 | `igndts` decided per feed from the probe (supersedes 0085, which applied it to every copy) |
 | 0090 | `scripts/stream-doctor.js`: the timestamp diagnostics as a supported tool (0089 was docs) |
 | 0093 | Captured samples go on the data volume, so a redeploy stops destroying the regression corpus |
+| 0094 | `GET /api/playback/:id/terminal-status`: a displaced client can tell takeover from an ordinary failure |
 
 ---
 
@@ -149,6 +150,14 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
   stderr (it gets louder during reconnects). A remux paused because the *client* isn't reading isn't stalled. A remux's `idleMs` is
   time since media last flowed. Recordings (hard-stop timer) and the legacy piped `GET /api/transcode?url=` are not covered.
 - Consequence: a paused web/remux viewer >60 s is "stale"; a due recording takes the slot silently instead of prompting.
+- **Telling takeover from failure** (0094). A displaced client only sees a 404, the same as an expired session or a stalled feed;
+  recovering from that takes the connection back off whoever just got it, and the two clients ping-pong. Owner equality cannot
+  break the tie — two password logins are both `user:<id>`. So every release `admitViewer` performs leaves a short-lived record
+  (`terminalRecords`, ~15 min, `PIGTV_TERMINAL_STATUS_TTL_SEC`, in memory) that only that session's owner can read, via
+  **`GET /api/playback/:sessionId/terminal-status`** → `taken-over` | `none`. Non-consuming; anything else is `none`, so it cannot
+  be used to discover that somebody is watching. **Only `admitViewer` writes records** — an explicit `DELETE`, the idle sweep, the
+  stall watchdog and a recording reclaiming a stale stream all go elsewhere and leave nothing, which is what keeps ordinary
+  recovery working. Releases now carry a `cause` (`idle` / `replacement` / `forced-takeover`) and the log line says which.
 
 **HLS sessions** (`transcodeSession.js`, `playbackStrategy.js`)
 - Shape: 4 s segments, playlist of 90 + 12 spare (`hls_delete_threshold`) ≈ 102 kept; flags `independent_segments+delete_segments+temp_file`

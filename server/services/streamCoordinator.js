@@ -39,6 +39,82 @@ const DEFAULT_PROMPT_LEAD_MIN = 5;
 // Prompts already issued, by schedule id. Cleared when the schedule resolves.
 const prompts = new Map(); // scheduleId -> { issuedAt, declinedAt, schedule }
 
+// Why a displaced client needs to be told, rather than left to guess.
+//
+// When a viewer is displaced its session is deleted, so its player sees a
+// playlist or segment 404 - indistinguishable from an expired session or a
+// stalled feed. A client that recovers from that by re-resolving will take the
+// provider's only connection straight back off whoever just got it, and the
+// two clients trade the stream back and forth. Owner equality cannot prevent
+// it: two browsers signed in as the same person are both `user:<id>`.
+//
+// So a release performed to admit somebody else leaves a short-lived note that
+// the session's own owner can read once, and stop instead of recovering.
+//
+// What is deliberately NOT recorded: who took the stream, their device, the
+// channel, or the new session id. The record is the minimum that answers "was
+// mine replaced, or did it just break" - anything more would leak one client's
+// activity to another.
+const terminalRecords = new Map(); // sessionId -> { owner, status, expiresAt }
+
+// Long enough for a player with a full buffer to reach its first failed
+// request and ask, short enough that the map stays small. Seconds, tunable.
+// Read per call rather than frozen at load so the expiry can be exercised
+// without a sleep the length of the real TTL.
+function terminalTtlMs() {
+    const sec = Number.parseFloat(process.env.PIGTV_TERMINAL_STATUS_TTL_SEC);
+    return (Number.isFinite(sec) && sec > 0 ? sec : 15 * 60) * 1000;
+}
+// A ceiling as well as a TTL: nothing here is load-bearing, and an unbounded
+// map fed by session churn is a slow leak.
+const TERMINAL_MAX_RECORDS = 200;
+
+function pruneTerminalRecords(now = Date.now()) {
+    for (const [id, rec] of terminalRecords) {
+        if (rec.expiresAt <= now) terminalRecords.delete(id);
+    }
+    // Still oversized after pruning? Drop the oldest, which are the least
+    // likely to still be wanted.
+    while (terminalRecords.size > TERMINAL_MAX_RECORDS) {
+        terminalRecords.delete(terminalRecords.keys().next().value);
+    }
+}
+
+/**
+ * Note that this stream is about to be removed so that someone else can play.
+ * Called immediately before the release, while the stream's owner is still known.
+ */
+function noteReplaced(stream) {
+    // No owner means nobody could ever prove the session was theirs, so the
+    // record could only ever answer "none" - don't keep it.
+    if (!stream || !stream.id || !stream.owner) return;
+    pruneTerminalRecords();
+    terminalRecords.set(String(stream.id), {
+        owner: stream.owner,
+        status: 'taken-over',
+        expiresAt: Date.now() + terminalTtlMs()
+    });
+}
+
+/**
+ * Was this session replaced by another viewer, as far as its own owner is
+ * concerned? Answers 'taken-over' or 'none' and nothing else.
+ *
+ * Non-consuming: the same question during the TTL gets the same answer, so a
+ * client that asks twice (a retry, a second failure) is not told a different
+ * story the second time.
+ *
+ * Every other case is 'none', including a session that never existed, one that
+ * ended for any other reason, and one that belongs to somebody else - so the
+ * answer never reveals that a session exists at all.
+ */
+function terminalStatus(sessionId, owner) {
+    pruneTerminalRecords();
+    const rec = terminalRecords.get(String(sessionId));
+    if (!rec || !owner || rec.owner !== owner) return 'none';
+    return rec.status;
+}
+
 function activeStreams() {
     const sessions = transcodeSession.getAllSessions().map(s => ({
         id: s.id,
@@ -238,22 +314,28 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
     let need = streams.length + activeRecordings.length + 1 - limit;
     if (need <= 0) return { allowed: true, release: [] };
 
+    // Entries are { stream, cause }. The cause does not change what happens to
+    // the stream - everything released here is released because somebody else
+    // needs the connection - but it says so in the log, which is the difference
+    // between "why did my stream stop" being answerable and not.
     const release = [];
-    const take = (candidates) => {
+    const held = new Set();
+    const take = (candidates, cause) => {
         for (const s of candidates) {
             if (need <= 0) break;
-            if (release.includes(s)) continue;
-            release.push(s);
+            if (held.has(s)) continue;
+            held.add(s);
+            release.push({ stream: s, cause });
             need--;
         }
     };
-    take(streams.filter(s => s.idleMs >= idleMs));
-    take(streams.filter(s => owner && s.owner === owner));
+    take(streams.filter(s => s.idleMs >= idleMs), 'idle');
+    take(streams.filter(s => owner && s.owner === owner), 'replacement');
     if (need <= 0) return { allowed: true, release };
 
     if (soft) return { allowed: true, release };
 
-    const others = streams.filter(s => !release.includes(s));
+    const others = streams.filter(s => !held.has(s));
 
     if (!force) {
         if (activeRecordings.length > 0) {
@@ -291,7 +373,7 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
         sacrificed.push(r.id);
         need--;
     }
-    take(others);
+    take(others, 'forced-takeover');
     return { allowed: true, release, sacrificed };
 }
 
@@ -303,9 +385,20 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
 async function admitViewer(opts = {}) {
     const verdict = requestForViewer(opts);
     if (verdict.allowed) {
-        for (const s of verdict.release || []) {
-            console.log(`[Coordinator] Releasing ${s.id} (${Math.round(s.idleMs / 1000)}s idle) to admit a new viewer`);
-            await releaseStream(s);
+        for (const { stream, cause } of verdict.release || []) {
+            console.log(`[Coordinator] Releasing ${stream.id} (${cause}, ${Math.round(stream.idleMs / 1000)}s idle) to admit a new viewer`);
+            // Before the release, while the owner is still known. Everything
+            // admitViewer releases is released to admit somebody else - including
+            // a stream picked for being idle, because a client paused longer than
+            // the idle timeout is exactly the one that would otherwise resume,
+            // fail, recover, and take the connection straight back.
+            //
+            // The releases that must NOT leave a note do not come through here:
+            // an explicit DELETE goes to transcodeSession.removeSession, the idle
+            // sweep and the stall watchdog end sessions on their own, and a
+            // recording reclaims streams via requestForRecording.
+            noteReplaced(stream);
+            await releaseStream(stream);
         }
     }
     return verdict;
@@ -320,6 +413,7 @@ module.exports = {
     requestForViewer,
     admitViewer,
     ownerKey,
+    terminalStatus,
     pendingPrompt,
     declinePrompt,
     clearPrompt,

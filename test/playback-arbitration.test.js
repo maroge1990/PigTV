@@ -145,3 +145,122 @@ test('a recording in progress is still reported as before', async () => {
     assert.equal(body.conflict.type, 'recording-in-progress');
     assert.match(body.resolution, /stop the recording/);
 });
+
+// ---------------------------------------------------------------------------
+// GET /api/playback/:sessionId/terminal-status
+//
+// A displaced client only sees a 404 on its playlist or segments, which is the
+// same thing it sees when a session expires or a feed stalls. Recovering from
+// that by re-resolving takes the provider's only connection straight back off
+// whoever just got it, and the two clients trade the stream back and forth.
+// Owner equality cannot break the tie: two password logins are both `user:1`.
+// ---------------------------------------------------------------------------
+
+// A password login: no deviceId, so ownerKey() resolves to `user:1` - the same
+// owner two different browsers get.
+const webToken = () => jwt.sign({ id: 1, username: 'owner', role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+async function terminalStatus(token, sessionId) {
+    const response = await fetch(`${base}/api/playback/${encodeURIComponent(sessionId)}/terminal-status`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    return { status: response.status, body: await response.json() };
+}
+
+async function releaseSession(token, sessionId) {
+    const response = await fetch(`${base}/api/playback/${encodeURIComponent(sessionId)}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    return response.status;
+}
+
+test('a device displaced by force:true is told its session was taken over', async () => {
+    const tv = await holding('device:apple-tv', 5);
+    assert.equal((await resolve(ipadToken(), { force: true })).status, 200);
+    assert.ok(!stillRegistered(tv), 'the old session really is gone');
+
+    const mine = await terminalStatus(tvToken(), tv.id);
+    assert.equal(mine.status, 200);
+    assert.deepEqual(mine.body, { status: 'taken-over' });
+
+    // The device that took the stream learns nothing about the one it displaced.
+    const theirs = await terminalStatus(ipadToken(), tv.id);
+    assert.deepEqual(theirs.body, { status: 'none' });
+});
+
+test('two password logins share one owner key, and the displaced one is still told', async () => {
+    // The case owner equality cannot solve: both clients are `user:1`, so the
+    // coordinator replaces the first as "its own earlier stream" - but there are
+    // two people, and the first one's player is about to 404.
+    const first = await holding('user:1', 5);
+    assert.equal((await resolve(webToken())).status, 200, 'no prompt: same owner');
+    assert.ok(!stillRegistered(first));
+    assert.deepEqual((await terminalStatus(webToken(), first.id)).body, { status: 'taken-over' });
+});
+
+test('a client that released its own session first is not told it was taken over', async () => {
+    // The ordinary same-device channel change: the client sends DELETE, then
+    // resolves. Nothing was displaced, so there is nothing to report and the
+    // client keeps its normal recovery behaviour.
+    const old = await holding('device:apple-tv', 2);
+    assert.equal(await releaseSession(tvToken(), old.id), 200);
+    assert.equal((await resolve(tvToken())).status, 200);
+    assert.deepEqual((await terminalStatus(tvToken(), old.id)).body, { status: 'none' });
+});
+
+test('a session that simply ended leaves no marker, so ordinary recovery is unaffected', async () => {
+    // A stall watchdog kill, the idle sweep, or any other removal that does not
+    // go through admitViewer. These must stay 'none' or a client would stop
+    // instead of recovering from a fault it could have recovered from.
+    const s = await holding('device:apple-tv', 2);
+    await transcodeSession.removeSession(s.id);
+    assert.deepEqual((await terminalStatus(tvToken(), s.id)).body, { status: 'none' });
+});
+
+test('a stream released for being idle is still reported: a paused client is the ping-pong case', async () => {
+    // Deliberately wider than the written spec, agreed with the Swift side. A
+    // client paused longer than viewerIdleTimeoutSec looks idle, so it is picked
+    // for release first - and it is exactly the client that would otherwise
+    // resume, fail, recover, and take the connection straight back. Everything
+    // admitViewer releases is released to admit somebody else.
+    const paused = await holding('device:apple-tv', 300);
+    assert.equal((await resolve(ipadToken())).status, 200, 'an idle stream is reclaimed without a prompt');
+    assert.ok(!stillRegistered(paused));
+    assert.deepEqual((await terminalStatus(tvToken(), paused.id)).body, { status: 'taken-over' });
+});
+
+test('the answer is the same however many times it is asked, until it expires', async () => {
+    const tv = await holding('device:apple-tv', 5);
+    await resolve(ipadToken(), { force: true });
+    for (let i = 0; i < 3; i++) {
+        assert.deepEqual((await terminalStatus(tvToken(), tv.id)).body, { status: 'taken-over' }, `read ${i + 1}`);
+    }
+
+    process.env.PIGTV_TERMINAL_STATUS_TTL_SEC = '0.05';
+    try {
+        const other = await holding('device:apple-tv', 5);
+        await resolve(ipadToken(), { force: true });
+        assert.deepEqual((await terminalStatus(tvToken(), other.id)).body, { status: 'taken-over' }, 'before expiry');
+        await new Promise(r => setTimeout(r, 200));
+        assert.deepEqual((await terminalStatus(tvToken(), other.id)).body, { status: 'none' }, 'after expiry');
+    } finally {
+        delete process.env.PIGTV_TERMINAL_STATUS_TTL_SEC;
+    }
+});
+
+test('it says nothing to anyone who cannot prove the session was theirs', async () => {
+    const tv = await holding('device:apple-tv', 5);
+    await resolve(ipadToken(), { force: true });
+
+    assert.equal((await terminalStatus(null, tv.id)).status, 401, 'no token is refused, not answered');
+    assert.deepEqual((await terminalStatus(ipadToken(), tv.id)).body, { status: 'none' }, 'a different owner');
+    assert.deepEqual((await terminalStatus(tvToken(), 'never-existed')).body, { status: 'none' }, 'an unknown id');
+
+    // The shape itself is the privacy guarantee: one key, one of two values.
+    // Nothing about who took the stream, their device, the channel or the new
+    // session can leak through a body that can only say this much.
+    const { body } = await terminalStatus(tvToken(), tv.id);
+    assert.deepEqual(Object.keys(body), ['status']);
+    assert.ok(['taken-over', 'none'].includes(body.status));
+});

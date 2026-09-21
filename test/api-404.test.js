@@ -116,6 +116,7 @@ const APPLE_CLIENT_ROUTES = [
     ['POST', '/api/favorites'], ['DELETE', '/api/favorites'], ['GET', '/api/favorites/check'],
     ['POST', '/api/playback/resolve'], ['GET', '/api/playback/conflict'], ['POST', '/api/playback/conflict/decline'],
     ['POST', '/api/playback/client-event'],
+    ['GET', '/api/playback/some-session-id/terminal-status'],
     ['GET', '/api/recordings'], ['GET', '/api/recordings/scheduled'], ['POST', '/api/recordings/schedule'],
     ['GET', '/api/recordings/1/playback'], ['GET', '/api/recordings/1/media.mp4'], ['GET', '/api/recordings/1/markers'],
     ['GET', '/api/proxy/stream'], ['GET', '/api/remux'],
