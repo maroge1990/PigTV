@@ -1337,6 +1337,15 @@ check .github/workflows/docker-publish.yml "PIGTV_COMMIT=" "CI passes the commit
 check .github/workflows/docker-publish.yml "id: stamp" "computed in a step, so release and workflow_dispatch work too"
 check blueprint.md "built by GitHub Actions on push" "and the mechanism is written down rather than assumed"
 
+echo "=== 0096: a channel identity that a provider reorder cannot move (P1-3, part 1) ==="
+check server/services/stableIds.js "function stableChannelId" "identity derived from the provider stream id in the URL"
+check server/services/stableIds.js "is not the credentials, which rotate" "and not from the credentials, which rotate"
+check server/db/sqlite.js "ADD COLUMN stable_id" "stored alongside the row, additive to the schema"
+check server/db/sqlite.js "function backfillStableIds" "backfilled for rows that predate it, idempotently"
+check server/services/syncService.js "stable_id = excluded.stable_id" "and rewritten by every sync, so a moved row cannot keep a stale one"
+check server/services/syncService.js "Channel identity:" "the sync reports how the whole playlist derived"
+check test/stable-id-migration.test.js "survives the reorder that started all this" "with a test of the real reorder"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

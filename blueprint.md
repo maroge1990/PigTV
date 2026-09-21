@@ -28,7 +28,7 @@ As progress is made, keep this file current for handover — and keep it small (
 | Local repo folder | `C:\Users\markr\GitHub\PigTV` (moved out of OneDrive, 21 Sept 2026) |
 | Patch folder | `C:\Users\markr\GitHub\patches\PigTV` |
 | Shipped through | **build 0090** once applied (0086 was the last confirmed running); confirm with `/api/version` |
-| Next patch number | **0096** |
+| Next patch number | **0097** |
 | Container name | **`PigTV`** on PassyFlix — every command in these docs names it literally, so it can be pasted as written. `docker ps` if it is ever renamed |
 
 Don't hard-code the `origin/main` SHA anywhere. The deployed build is whatever `/api/version` reports (§3).
@@ -131,6 +131,7 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
 | 0093 | Captured samples go on the data volume, so a redeploy stops destroying the regression corpus |
 | 0094 | `GET /api/playback/:id/terminal-status`: a displaced client can tell takeover from an ordinary failure |
 | 0095 | CI stamps `PIGTV_COMMIT` / `PIGTV_BUILT_AT`, so `/api/version` proves what is running |
+| 0096 | P1-3 part 1: `stable_id`, a channel identity a provider reorder cannot move (nothing keyed on it yet) |
 
 ---
 
@@ -314,7 +315,19 @@ one path first (done: watchdog, arbitration, self-heal, diagnostics), then move 
 2. **Dead code still held:** `cache.js` + the upstream Xtream/EPG proxy routes + non-streaming `epgParser`/`m3uParser` functions
    (pending Mark's decision on keeping the Xtream/VOD path), non-VAAPI encoders, unread settings, the legacy piped
    `GET /api/transcode?url=`. The plugin loader / `PLUGINS.md` is kept on purpose (empty extension point).
-3. **P1-3 — now the top of this list, and confirmed happening.** On 21 Sept the provider reordered its playlist mid-session:
+3. **P1-3 — part 1 shipped in 0096; part 2 is the remaining work.**
+   **Part 1 (0096, done):** `playlist_items.stable_id` — what a channel *is*, from the provider's stream id inside its URL
+   (`/live/<user>/<pass>/441360.ts` → `s441360`), falling back to a hash of the credential-stripped URL, and NULL for a
+   placeholder row with no URL. Derived by `services/stableIds.js`, backfilled at startup, rewritten by every sync, and
+   deliberately **not unique** — a channel cross-listed twice is two rows with one identity. Nothing is keyed on it yet, so
+   0096 changes no behaviour; the sync logs `[Sync] Channel identity: …` so the derivation can be checked against the real
+   18 000-channel playlist before anything depends on it.
+   **Part 2 (to do):** re-key favourites, `channel_history` and scheduled recordings onto it, translating to and from `item_id`
+   at the API boundary so §6 is untouched and neither client changes. **Note what this cannot do: favourites that have already
+   drifted are already wrong, and the migration will preserve whatever they now point at.** Worth asking Mark to re-check his
+   favourites once part 2 lands.
+
+   *Background — why the position was ever the id.* On 21 Sept the provider reordered its playlist mid-session:
    Fox Sports 505 moved from `pos_1187` to `pos_1185` within six hours (same channel, same URL, same provider stream id), and
    **a favourite was observed pointing at a different channel that evening**. `pos_N` comes from the channel's position in the
    M3U, so every id after an insertion shifts. Favourites, `channel_history` and scheduled recordings all key on it — a
@@ -322,8 +335,10 @@ one path first (done: watchdog, arbitration, self-heal, diagnostics), then move 
    numeric stream id inside the URL survived both the reorder and is not the credentials (which rotate, and are why 0015 moved
    *off* a URL hash in the first place). Re-keys three tables; its own patch.
    Related, same day: the same channel is listed at **two** positions with an identical URL, so a favourite on one does not match
-   the other and the recording duplicate-check may not see them as the same programme. **P1-4:** `resolve` returns an opaque handle instead of a credentialed `?url=` (contract
-   change for both clients).
+   the other and the recording duplicate-check may not see them as the same programme. `stable_id` gives both rows one identity,
+   which is what part 2 needs to fix that too.
+
+   **P1-4:** `resolve` returns an opaque handle instead of a credentialed `?url=` (contract change for both clients).
 4. **Tests for Apple-relevant paths (P2-8):** EPG parser under bursty input, `withStreamToken` on fMP4, recordings Range,
    viewer-already-holds-slot.
 5. **Lower:** shared helpers (`channelUrl`, `ffmpegProcess`, `probe`, `ids`); paged-channel-ordering index and keyset paging;

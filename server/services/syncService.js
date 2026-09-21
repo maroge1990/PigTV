@@ -1,4 +1,5 @@
 const { getDb } = require('../db/sqlite');
+const { stableChannelId, summarise } = require('./stableIds');
 const { sources, settings } = require('../db'); // For source config and settings
 const xtreamApi = require('./xtreamApi');
 const { redact } = require('../redact');
@@ -335,16 +336,19 @@ class SyncService {
             INSERT INTO playlist_items (
                 id, source_id, item_id, type, name, category_id, 
                 stream_icon, stream_url, container_extension, 
-                rating, year, added_at, sort_order, data
+                rating, year, added_at, sort_order, data, stable_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 category_id = excluded.category_id,
                 stream_icon = excluded.stream_icon,
                 container_extension = excluded.container_extension,
                 sort_order = excluded.sort_order,
-                data = excluded.data
+                data = excluded.data,
+                -- Rewritten every sync: the position moves, the identity does not,
+                -- so a row that changes position must not keep a stale identity.
+                stable_id = excluded.stable_id
         `);
 
         const insertBatch = db.transaction((batch) => {
@@ -394,7 +398,13 @@ class SyncService {
                     year,
                     added,
                     item.sort_order || null,
-                    JSON.stringify(item)
+                    JSON.stringify(item),
+                    // What this channel is, as opposed to where it sits. From the
+                    // URL for an M3U row (it carries the provider's stream id), and
+                    // from the item id itself for an Xtream row, whose id already IS
+                    // that stream id and so never moved in the first place.
+                    stableChannelId(item.stream_url || null)
+                        || (/^\d+$/.test(String(itemId)) ? `s${itemId}` : null)
                 );
             }
         });
@@ -626,6 +636,8 @@ class SyncService {
         logMemory();
 
         const allGroups = new Set();
+        // Just the URLs, for the identity tally below - not the rows.
+        const identityUrls = [];
         const allSyncedIds = new Set(); // Collect IDs across all batches
         let totalChannels = 0;
         let batchCount = 0;
@@ -650,6 +662,8 @@ class SyncService {
                 sort_order: totalChannels + ch.position,
             }));
 
+            for (const p of playlistItems) identityUrls.push(p.stream_url || null);
+
             // Save this batch immediately (skip purge - we'll do it at the end)
             if (playlistItems.length > 0) {
                 const batchIds = await this.saveStreams(source.id, 'live', playlistItems, { skipPurge: true });
@@ -668,6 +682,14 @@ class SyncService {
         }
 
         console.log(`[Sync] M3U Parsed: ${totalChannels} channels, ${allGroups.size} groups`);
+        // Evidence that the identity derivation suits this provider, before anything
+        // is keyed on it: a large "no URL" or "listed more than once" count would mean
+        // the playlist is not shaped the way stableIds.js assumes. Counted from the
+        // batches as they go by - re-reading every row and its data blob to tally them
+        // would be a memory spike in the one place this code is careful about memory.
+        const c = summarise(identityUrls);
+        console.log(`[Sync] Channel identity: ${c.providerId} from the provider's stream id, ${c.urlHash} from the URL, `
+            + `${c.none} with no URL; ${c.distinct} distinct, ${c.shared} listed more than once`);
         logMemory();
 
         // Purge stale items after all batches are complete

@@ -94,6 +94,20 @@ function initSchema() {
         // Column already exists.
     }
 
+    // What a channel IS, as opposed to where it currently sits in the playlist.
+    // item_id is pos_N - the line number - which shifts whenever the provider
+    // inserts channels, taking every favourite, history row and scheduled
+    // recording after the insertion with it. See services/stableIds.js.
+    // Nullable and NOT unique on purpose: a placeholder row has no URL and so no
+    // identity, and a channel cross-listed in two categories is two rows with one
+    // identity, which is the right answer for a favourite.
+    try {
+        db.exec('ALTER TABLE playlist_items ADD COLUMN stable_id TEXT');
+    } catch (e) {
+        // Column already exists.
+    }
+    db.exec('CREATE INDEX IF NOT EXISTS idx_playlist_items_stable ON playlist_items(source_id, type, stable_id)');
+
     // EPG Programs
     // Optimized for range queries
     db.exec(`
@@ -246,8 +260,42 @@ function initSchema() {
     }
 
     normalizeFavoriteIds();
+    backfillStableIds();
 
     console.log('[SQLite] Schema initialized');
+}
+
+/**
+ * Fill stable_id for rows that predate the column, so the identity is available
+ * without waiting for the next provider sync.
+ *
+ * Only touches rows where it is still NULL, so it costs one indexed scan on an
+ * already-migrated database and runs on every start rather than being tracked
+ * as a one-off. It derives from stream_url and the data blob exactly as the
+ * sync does - an M3U sync leaves stream_url empty and keeps the URL in the blob.
+ */
+function backfillStableIds() {
+    const { stableChannelId } = require('../services/stableIds');
+    const rows = db.prepare('SELECT id, stream_url, data FROM playlist_items WHERE stable_id IS NULL').all();
+    if (!rows.length) return;
+
+    const update = db.prepare('UPDATE playlist_items SET stable_id = ? WHERE id = ?');
+    let filled = 0;
+    db.transaction(() => {
+        for (const r of rows) {
+            let url = r.stream_url;
+            if (!url) {
+                try { const d = JSON.parse(r.data || '{}'); url = d.url || d.stream_url || null; } catch { url = null; }
+            }
+            const stable = stableChannelId(url);
+            if (stable === null) continue;   // a placeholder row with no URL keeps NULL
+            update.run(stable, r.id);
+            filled++;
+        }
+    })();
+    // Rows with no URL stay NULL and are re-examined on every start; there are
+    // few of them and they are cheap. Only say something when something changed.
+    if (filled) console.log(`[SQLite] Derived a stable id for ${filled} of ${rows.length} channel row(s)`);
 }
 
 /**
@@ -346,5 +394,7 @@ const favorites = {
 module.exports = {
     getDb,
     initSchema,
+    // Exported so the migration can be exercised directly; initSchema calls it.
+    backfillStableIds,
     favorites
 };
