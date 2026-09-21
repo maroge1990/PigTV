@@ -1282,6 +1282,12 @@ check server/routes/transcode.js "function noteMissing" "and a playlist or segme
 check test/hls-finite-source.test.js "unpaced, ffmpeg outruns the playlist window" "with a real-ffmpeg test that reproduces the 404 without pacing"
 check docs/SWIFT-CLIENT-HANDOFF.md "0086" "and the Apple hand-off doc records it"
 
+echo "=== 0087: cancelling the takeover prompt stops the play instead of taking the stream anyway ==="
+check public/js/components/VideoPlayer.js "VideoPlayer.CANCELLED = Symbol" "a declined takeover has its own answer, distinct from null"
+check public/js/components/VideoPlayer.js "decision === VideoPlayer.CANCELLED" "and play() stops there rather than falling through to the local strategy"
+check public/js/components/VideoPlayer.js "abandonPlay()" "the screen goes back to how it was, with no play-start reported"
+check test/player-conflict-cancel.test.js "the local fallback - which would take the stream anyway - never runs" "with a test that fails on the old code"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

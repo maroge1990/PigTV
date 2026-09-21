@@ -954,7 +954,13 @@ class VideoPlayer {
                 const proceed = confirm(`${conflict.message}\n\n${otherViewer ? 'Stop the other stream and watch here?' : 'Stop the recording and watch now?'}`);
                 if (!proceed) {
                     this.updateTranscodeStatus('idle', otherViewer ? 'Another device is watching' : 'Recording in progress');
-                    return null;
+                    // Not null: null means "this server has no resolve endpoint, use the
+                    // local strategy", and the local path starts a transcode session that
+                    // reclaims the provider slot without asking anyone (the session route
+                    // admits in soft mode). Answering "no" to the prompt and then taking
+                    // the other viewer's stream anyway is the one outcome the prompt exists
+                    // to prevent.
+                    return VideoPlayer.CANCELLED;
                 }
                 return this.resolvePlayback(channel, streamUrl, { force: true, audioEncode });
             }
@@ -1235,6 +1241,10 @@ class VideoPlayer {
             // when the endpoint is not available.
             if (this.settings.autoTranscode) {
                 const decision = await this.resolvePlayback(channel, streamUrl, { audioEncode: options.audioEncode === true });
+                if (decision === VideoPlayer.CANCELLED) {
+                    this.abandonPlay();
+                    return;
+                }
                 if (decision) {
                     await this.playDecision(decision, channel);
                     return;
@@ -1825,6 +1835,20 @@ class VideoPlayer {
         return this._playT0 == null ? null : performance.now() - this._playT0;
     }
 
+    /**
+     * The person chose not to start this play after all. Put the screen back the way
+     * it was before they picked the channel and drop the half-started measurement, so
+     * a cancelled selection never reports a play-start or counts towards the trial.
+     */
+    abandonPlay() {
+        this._playT0 = null;
+        this._playMeta = null;
+        this.currentUrl = null;
+        this.loadingSpinner?.classList.remove('show');
+        this.controlsOverlay?.classList.add('hidden');
+        this.overlay?.classList.remove('hidden');
+    }
+
     beginPlayMeasurement() {
         this._playT0 = performance.now();
         this._playMeta = { strategy: 'local', container: null, videoMode: null, hlsDelivery: this.hlsDeliveryEnabled };
@@ -2221,6 +2245,12 @@ class VideoPlayer {
         }
     }
 }
+
+// What resolvePlayback returns when the person declined to take the provider's only
+// stream. Distinct from null, which means "no resolve endpoint here - fall back to the
+// local strategy": the two used to share null, so cancelling fell through to the local
+// path and took the stream regardless.
+VideoPlayer.CANCELLED = Symbol('playback-cancelled');
 
 // Export
 window.VideoPlayer = VideoPlayer;
