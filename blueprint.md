@@ -1,6 +1,6 @@
 # PigTV server — handover (single source of truth)
 
-**Last updated:** 21 September 2026 (build 0098)
+**Last updated:** 22 September 2026 (build 0099)
 
 Authoritative handover for PigTV **server / webapp** work. Keep it **short**: it is read at the start of every session.
 
@@ -27,8 +27,8 @@ As progress is made, keep this file current for handover — and keep it small (
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv`, `http://192.168.1.235:3000`, reached over an approved-device VPN (Tailscale) only |
 | Local repo folder | `C:\Users\markr\GitHub\PigTV` (moved out of OneDrive, 21 Sept 2026) |
 | Patch folder | `C:\Users\markr\GitHub\patches\PigTV` |
-| Shipped through | **build 0098** once applied; 0096 confirmed on `origin/main`, 0090 confirmed running. Confirm with `/api/version` |
-| Next patch number | **0099** |
+| Shipped through | **build 0099** once applied; 0096 confirmed on `origin/main`, 0090 confirmed running. Confirm with `/api/version` |
+| Next patch number | **0100** |
 | Container name | **`PigTV`** on PassyFlix — every command in these docs names it literally, so it can be pasted as written. `docker ps` if it is ever renamed |
 
 Don't hard-code the `origin/main` SHA anywhere. The deployed build is whatever `/api/version` reports (§3).
@@ -134,6 +134,7 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
 | 0096 | P1-3 part 1: `stable_id`, a channel identity a provider reorder cannot move (nothing keyed on it yet) |
 | 0097 | P1-3 part 2a: favourites follow the channel, not the position |
 | 0098 | P1-3 part 2b: scheduled recordings and watch history do too |
+| 0099 | SR-2 (client R15): strip the decorative small-caps "ᴸɪᴠᴇ" badge from EPG titles/sub-titles/names and M3U channel names at ingest (shared `textCleanup.js`, ranges match the client) |
 
 ---
 
@@ -261,6 +262,11 @@ Fox Sports 505 uneven; `pos_463` TSN, `pos_328` Sky Sports UHD (HEVC), `pos_468`
   range-scans — a programme that began >24 h before the window is not shown.
 - `/api/library/*` fill a missing `logo` from the EPG channel with the same tvg-id, else the same name (case/spacing ignored); a
   playlist logo is never replaced; index cached 5 min; name matching can pair same-named channels.
+- **Small-caps "ᴸɪᴠᴇ" badge stripped at ingest** (0099, SR-2): `services/textCleanup.js` `stripBadgeSuffix` is applied to EPG
+  `title`/`sub-title`/`display-name` (both `epgParser` parse paths) and the M3U channel `name` (`m3uParser.parseExtinf`, so it also
+  cleans derived `pos_N`-fallback tvg-ids). The code-point ranges match the client's `String.strippingBadgeSuffix()` exactly, so
+  the client's interim stripper is now redundant. Only a *trailing* run of modifier/small-cap glyphs is removed — mid-title text is
+  untouched.
 - **Channel identity vs playlist position** (0096–0098). `item_id` is `pos_N`, the M3U line number, and the provider moves it:
   on 21 Sept a reorder shifted Fox Sports 505 from `pos_1187` to `pos_1185` and a favourite was seen playing a different channel.
   `playlist_items.stable_id` (`services/stableIds.js`) is what a channel *is* — the provider's stream id out of the URL

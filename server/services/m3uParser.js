@@ -5,6 +5,7 @@
 
 const readline = require('readline');
 const { Readable } = require('stream');
+const { stripBadgeSuffix } = require('./textCleanup');
 
 /**
  * Generate a simple stable ID from name and group
@@ -69,6 +70,10 @@ function parseExtinf(line) {
         // Fallback: use tvg-name or the whole rest
         info.name = info.tvgName || rest.trim();
     }
+
+    // Some providers append a decorative small-caps "ᴸɪᴠᴇ" badge to the name
+    // (e.g. "NFL 16 ᴸɪᴠᴇ"); strip it at ingest so every client benefits.
+    info.name = stripBadgeSuffix(info.name);
 
     // Generate ID if not present
     if (!info.tvgId) {

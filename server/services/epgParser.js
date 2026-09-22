@@ -6,6 +6,7 @@
 const sax = require('sax');
 const zlib = require('zlib');
 const { Readable } = require('stream');
+const { stripBadgeSuffix } = require('./textCleanup');
 
 /**
  * Parse XMLTV date format (YYYYMMDDHHmmss +ZZZZ)
@@ -110,16 +111,16 @@ function parse(input) {
                 // Handle properties within objects
                 switch (tagName) {
                     case 'display-name': // channel name
-                        if (!currentObject.name) currentObject.name = textBuffer;
+                        if (!currentObject.name) currentObject.name = stripBadgeSuffix(textBuffer);
                         break;
                     case 'url': // channel url
                         currentObject.url = textBuffer;
                         break;
                     case 'title':
-                        currentObject.title = textBuffer;
+                        currentObject.title = stripBadgeSuffix(textBuffer);
                         break;
                     case 'sub-title':
-                        currentObject.subtitle = textBuffer;
+                        currentObject.subtitle = stripBadgeSuffix(textBuffer);
                         break;
                     case 'desc':
                         currentObject.description = textBuffer;
@@ -385,16 +386,16 @@ async function* parseStreaming(input, batchSize = 1000) {
         } else if (currentObject) {
             switch (tagName) {
                 case 'display-name':
-                    if (!currentObject.name) currentObject.name = textBuffer;
+                    if (!currentObject.name) currentObject.name = stripBadgeSuffix(textBuffer);
                     break;
                 case 'url':
                     currentObject.url = textBuffer;
                     break;
                 case 'title':
-                    currentObject.title = textBuffer;
+                    currentObject.title = stripBadgeSuffix(textBuffer);
                     break;
                 case 'sub-title':
-                    currentObject.subtitle = textBuffer;
+                    currentObject.subtitle = stripBadgeSuffix(textBuffer);
                     break;
                 case 'desc':
                     currentObject.description = textBuffer;

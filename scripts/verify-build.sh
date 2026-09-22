@@ -1360,6 +1360,43 @@ check server/services/recordingEngine.js "function channelIdentity" "resolved wh
 check server/db/sqlite.js "function backfillHistoryIdentities" "watch history gets the same treatment"
 check test/recording-stable-channel.test.js "full of the wrong programme" "with a test of a reorder between scheduling and recording"
 
+echo "=== 0099: strip the small-caps LIVE badge at ingest (SR-2) ==="
+check server/services/textCleanup.js "function stripBadgeSuffix" "shared stripper exists"
+check server/services/epgParser.js "stripBadgeSuffix" "EPG parser strips titles/names"
+check server/services/m3uParser.js "stripBadgeSuffix" "M3U parser strips channel names"
+check test/badge-strip.test.js "NFL Football - Giants at Rams" "with a test on the real reported title"
+python3 - <<'PYCHK'
+import subprocess, sys
+# Run the stripper against the two reported strings and a middle-of-title
+# lookalike. Grep can prove the function is referenced, not that it strips
+# only a TRAILING run — a naive "remove all badge glyphs" would also break
+# a (hypothetical) legitimate mid-title use, and an over-eager anchor would
+# leave the badge in place. This pins the actual behaviour.
+badge = 'ᴸɪᴠᴇ'  # "ᴸɪᴠᴇ"
+script = '''
+const { stripBadgeSuffix } = require('./server/services/textCleanup.js');
+const B = '%s';
+const cases = [
+    [`NFL 16 ${B}`, 'NFL 16'],
+    [`NFL Football - Giants at Rams ${B}`, 'NFL Football - Giants at Rams'],
+    ['NFL Football - Giants at Rams', 'NFL Football - Giants at Rams'],
+    [`The ${B} Show`, `The ${B} Show`],
+];
+let ok = true;
+for (const [inp, want] of cases) {
+    if (stripBadgeSuffix(inp) !== want) { ok = false; console.log('FAIL: ' + JSON.stringify(inp)); }
+}
+console.log(ok ? 'OK' : 'BAD');
+''' % badge
+result = subprocess.run(['node', '-e', script], capture_output=True, text=True)
+if result.stdout.strip().splitlines()[-1:] == ['OK']:
+    print('  ✓ only a trailing badge run is stripped; ordinary and mid-title text untouched')
+else:
+    print(f'  ✗ MISSING: {result.stdout.strip()}\n{result.stderr.strip()}')
+    sys.exit(1)
+PYCHK
+[ $? -eq 0 ] || FAIL=1
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
