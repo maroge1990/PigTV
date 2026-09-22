@@ -126,12 +126,19 @@ test('a silent HLS ffmpeg is killed and its session removed from the registry', 
     assert.equal(alive(pid), false, 'the ffmpeg process must actually be gone');
 });
 
+// Wider limits than the silent case. That one can only pass by being killed, so tight limits
+// are safe there; this one fails on any scheduling pause longer than the limit. With 300 ms,
+// CI's two vCPUs running every test file at once starved the 40 ms writer long enough to be
+// reaped (Node 20, 23 Sept 2026; reproduced locally under CPU load, 5 runs of 5). 1.5 s is still
+// far below the observation window, so a writer that really stopped would be caught.
+const PRODUCING_OPTS = { ...SESSION_OPTS, stallMs: 1500, startupMs: 1500 };
+
 test('an HLS ffmpeg that keeps writing files is left alone', async () => {
     fakeScript = PRODUCING;
-    const session = await transcodeSession.createSession('http://provider.invalid/live/user/pw/2.ts', SESSION_OPTS);
+    const session = await transcodeSession.createSession('http://provider.invalid/live/user/pw/2.ts', PRODUCING_OPTS);
     await session.start();
     try {
-        await sleep(1200); // four stall limits
+        await sleep(4500); // three stall limits
         assert.ok(transcodeSession.getAllSessions().some(s => s.id === session.id));
         assert.equal(session.status, 'running');
     } finally {

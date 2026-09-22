@@ -28,7 +28,7 @@ As progress is made, keep this file current for handover — and keep it small (
 | Local repo folder | `C:\Users\markr\GitHub\PigTV` (moved out of OneDrive, 21 Sept 2026) |
 | Patch folder | `C:\Users\markr\GitHub\patches\PigTV` |
 | Shipped through | **build 0100** once applied; 0099 confirmed on `origin/main` and running (23 Sept). Confirm with `/api/version` |
-| Next patch number | **0101** |
+| Next patch number | **0102** |
 | Container name | **`PigTV`** on PassyFlix — every command in these docs names it literally, so it can be pasted as written. `docker ps` if it is ever renamed |
 
 Don't hard-code the `origin/main` SHA anywhere. The deployed build is whatever `/api/version` reports (§3).
@@ -136,6 +136,7 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
 | 0098 | P1-3 part 2b: scheduled recordings and watch history do too |
 | 0099 | SR-2 (client R15): strip the decorative small-caps "ᴸɪᴠᴇ" badge from EPG titles/sub-titles/names and M3U channel names at ingest (shared `textCleanup.js`, ranges match the client) |
 | 0100 | SR-1 (client R13): an HDR copy session is handed out via `master.m3u8` carrying `VIDEO-RANGE=PQ\|HLG` |
+| 0101 | Test-only (no build bump): the watchdog's "keeps writing is left alone" test used 300 ms limits and failed CI's Node 20 job under load; now 1.5 s. **CI runs every test file at once on 2 vCPUs — keep timing margins ≥1 s** |
 
 ---
 
