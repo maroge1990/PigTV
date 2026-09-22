@@ -7,6 +7,7 @@
  * the server answers with something playable.
  */
 
+const { isStreamUrl, NOT_A_STREAM_URL } = require('./streamUrl');
 const { spawn } = require('child_process');
 const { redact } = require('../redact');
 
@@ -103,6 +104,8 @@ function classifyTimestamps(packets) {
  * Probe stream with ffprobe
  */
 function probeStream(url, ffprobePath, userAgent = null, timeout = 15000) {
+    // Backstop behind the routes' own check (see streamUrl.js).
+    if (!isStreamUrl(url)) return Promise.reject(new Error(NOT_A_STREAM_URL));
     return new Promise((resolve, reject) => {
         const args = [
             '-v', 'error',

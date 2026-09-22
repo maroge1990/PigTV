@@ -3,6 +3,7 @@ const router = express.Router();
 const { redact } = require('../redact');
 const db = require('../db');
 const transcodeSession = require('../services/transcodeSession');
+const { isStreamUrl, NOT_A_STREAM_URL } = require('../services/streamUrl');
 const coordinator = require('../services/streamCoordinator');
 
 /**
@@ -81,6 +82,9 @@ router.post('/session', async (req, res) => {
 
     if (!url) {
         return res.status(400).json({ error: 'URL is required' });
+    }
+    if (!isStreamUrl(url)) {
+        return res.status(400).json({ error: NOT_A_STREAM_URL });
     }
 
     const ffmpegPath = req.app.locals.ffmpegPath || 'ffmpeg';

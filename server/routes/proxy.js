@@ -6,6 +6,7 @@ const xtreamApi = require('../services/xtreamApi');
 const epgParser = require('../services/epgParser');
 const cache = require('../services/cache');
 const { Readable } = require('stream');
+const { pipeline } = require('stream/promises');
 
 // Default cache max age in hours
 const DEFAULT_MAX_AGE_HOURS = 24;
@@ -668,7 +669,13 @@ router.get('/stream', async (req, res) => {
                 headers['Range'] = rangeHeader;
             }
 
-            const response = await fetch(url, { headers });
+            // Abort the upstream read if the client leaves before the response is
+            // done: otherwise a stalled or endless source keeps its connection open
+            // (a provider may allow only one) waiting for bytes nobody will read.
+            const upstreamAbort = new AbortController();
+            res.once('close', () => { if (!res.writableFinished) upstreamAbort.abort(); });
+
+            const response = await fetch(url, { headers, signal: upstreamAbort.signal });
 
             // Retry on 5xx errors (transient upstream issues)
             if (response.status >= 500 && attempt < maxRetries) {
@@ -791,23 +798,35 @@ router.get('/stream', async (req, res) => {
                 return res.send(manifest);
             }
 
-            // Binary content (Video Segment or Key): Collect and send
+            // Binary content (a segment, a key, or a whole progressive file): stream it
+            // through. It used to be collected into one Buffer first - harmless for a
+            // 2 MB segment, but a progressive MP4 (VOD) was held in memory in full
+            // before its first byte left, and a source that never ends never left at
+            // all. pipeline() applies the client's back-pressure and stops reading the
+            // upstream as soon as the client goes away.
             console.log(`[Proxy] Serving binary content (${contentType})`);
             res.set('Content-Type', contentType || 'application/octet-stream');
 
-            // For small files (like encryption keys), collect all data and send at once
-            // This ensures proper Content-Length and response completion
-            const chunks = [firstChunk];
-            let result = await iterator.next();
-            while (!result.done) {
-                chunks.push(Buffer.from(result.value));
-                result = await iterator.next();
+            async function* body() {
+                try {
+                    yield firstChunk;
+                    for (let r = await iterator.next(); !r.done; r = await iterator.next()) {
+                        yield Buffer.from(r.value);
+                    }
+                } finally {
+                    // Client gone (or done): release the upstream connection too.
+                    await iterator.return?.().catch(() => {});
+                }
             }
-            const fullContent = Buffer.concat(chunks);
-
-            // Set Content-Length for proper client handling
-            res.set('Content-Length', fullContent.length);
-            res.send(fullContent);
+            try {
+                await pipeline(Readable.from(body()), res);
+            } catch (err) {
+                // The headers are sent, so there is nothing to retry and no error to
+                // send: a client that left mid-stream is the usual reason.
+                if (err.code !== 'ERR_STREAM_PREMATURE_CLOSE' && err.name !== 'AbortError') {
+                    console.warn(`[Proxy] Stream ended early: ${err.message}`);
+                }
+            }
             return; // Success - exit the retry loop
 
         } catch (err) {

@@ -27,8 +27,8 @@ As progress is made, keep this file current for handover — and keep it small (
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv`, `http://192.168.1.235:3000`, reached over an approved-device VPN (Tailscale) only |
 | Local repo folder | `C:\Users\markr\GitHub\PigTV` (moved out of OneDrive, 21 Sept 2026) |
 | Patch folder | `C:\Users\markr\GitHub\patches\PigTV` |
-| Shipped through | **build 0103** once applied; 0100/0101 on `origin/main`. Confirm with `/api/version` |
-| Next patch number | **0104** |
+| Shipped through | **build 0104** once applied; 0100/0101 on `origin/main`. Confirm with `/api/version` |
+| Next patch number | **0105** |
 | Container name | **`PigTV`** on PassyFlix — every command in these docs names it literally, so it can be pasted as written. `docker ps` if it is ever renamed |
 
 Don't hard-code the `origin/main` SHA anywhere. The deployed build is whatever `/api/version` reports (§3).
@@ -140,6 +140,7 @@ H.264 nor HEVC (e.g. MPEG-2). Not seen in any log; remove it only against a capt
 | 0101 | Test-only (no build bump): the watchdog's "keeps writing is left alone" test used 300 ms limits and failed CI's Node 20 job under load; now 1.5 s. **CI runs every test file at once on 2 vCPUs — keep timing margins ≥1 s** |
 | 0102 | §C Phase 3: the web player is on the one path — always resolve + HLS, one re-resolve per selection as its recovery; local strategy, beta toggle, force-* settings gone; VOD page's remux → HLS copy sessions |
 | 0103 | §C Phase 4: **remux retired** — `routes/remux.js`, the legacy piped `GET /api/transcode?url=`, their coordinator/resolve branches, `findCachedCodecs`, four unread settings and their tests deleted (589-line route, 454 lines of tests). HLS sessions are the only delivery path |
+| 0104 | Session hardening: honest exit status (unrequested 255/signal = error), software-decode retry only for a GPU-decoding encode with no playlist yet, network-only URLs at every entry (`streamUrl.js`), `/api/proxy/stream` streams, dead `persist`/`restore`/`getOrCreateSession` gone |
 
 ---
 
@@ -208,9 +209,16 @@ H.264 nor HEVC (e.g. MPEG-2). Not seen in any log; remove it only against a capt
   retry** (fatal at once, black frame under a `fragLoadError` banner). Fix = pace the input, gated by the probe: `format.size` or
   `duration` present ⇒ finite (a file with a `Content-Length` reports a size; an open-ended chunked live response reports
   neither). **Never blanket `-re`:** on a live-rate source it cost ~8 s at start-up. Remember this for Phase 3 and for VOD/series.
-- **Software-decode retry hazard (open):** if ffmpeg exits non-zero within 10 s of start and `vaapiHwDecode !== false`, the session
-  clears its whole segment folder and restarts — also for copy sessions, where nothing is decoded — which would 404 a client
-  already fetching. Not seen in trial logs. Fix candidates: restrict to encode + VAAPI; fresh directory or `#EXT-X-DISCONTINUITY`.
+- **How a session ends** (0104). `stop()` marks it `stopped` *before* signalling ffmpeg, so the exit handler can tell "we ended it"
+  (→ `stopped`, whatever code: 255 after SIGTERM, null after SIGKILL) from "it ended" (anything but 0 → `error`, logged
+  `FFmpeg exited with code N` / `FFmpeg was killed (SIGNAL)`). An unrequested 255 used to leave the session `running` with no ffmpeg.
+  The **software-decode retry** (clear the folder, restart with CPU decode) now happens only for an *encode* that really decoded on
+  the GPU (`_usedVaapiDecode`) and died within 10 s **before any playlist** — it used to fire for copy sessions too (i.e. every live
+  session), 404ing a client already fetching, for a restart that could not help.
+- **Only network URLs are opened** (0104, `services/streamUrl.js`: http(s), rtmp(s), rtsp(s), udp, rtp, srt). Checked with a 400 at
+  resolve, `POST /api/transcode/session`, `/api/probe`, `/api/subtitle` (whose `index` must be a number: it is a `-map` spec), and
+  again where ffprobe/ffmpeg are spawned. Chosen over `-protocol_whitelist` because stream-doctor and the tests run the server's own
+  ffmpeg arguments against local sample files.
 - Start-up cost = the resolve-time probe + ffmpeg's own 5 MB / 5 s input probe + one 4 s segment. ffprobe result cached 5 min per
   URL. Trial logs: typically 7.5–9.6 s to first picture, 14 s occasionally (probe 3.6–6.6 s of it). Long keyframe spacing (≥10 s)
   can make a join fail ("Could not find codec parameters … unspecified size", exit -22); a smaller probe makes it worse — not shipped.
@@ -302,8 +310,9 @@ Main Event UHD (HDR10, even); `pos_1187` Fox Sports 505 uneven; `pos_463` TSN, `
   (`seg\d{4,}.(ts|m4s)` and `init.mp4`); fMP4 segments are still served as `video/MP2T` on purpose (revisit with a device on hand).
   The HLS *proxy* rewriter carries `?token=`. Unknown `/api/*` → `404 {"error":"No such API endpoint"}`; **add any new Apple-client
   endpoint to `APPLE_CLIENT_ROUTES` in `test/api-404.test.js`.**
-- `/api/proxy/stream` buffers a whole upstream body in memory (a progressive-MP4 VOD file would hit it). VOD/series are latent code
-  (§8).
+- `/api/proxy/stream` **streams** binary content (0104; it used to buffer the whole body, so a progressive VOD file sat in memory and
+  an endless source never reached the client) and aborts the upstream fetch when the client leaves. Playlists are still read whole —
+  they have to be rewritten. VOD/series are latent code (§8).
 
 **Recordings** (`recordingEngine.js`, `routes/recordings.js`)
 - Statuses `scheduled → waiting → recording → …`; `waiting` = due but held back by a viewer; it is included in the upcoming list,
@@ -338,13 +347,9 @@ the source of most recurring defects (favourites ids, logos, resolve shape, flag
 **Done (0102–0103): one path.** The web plays through resolve + HLS and the remux route is gone.
 
 ### A. Server backlog (client-independent)
-1. **Session hardening** (each touches the HLS argument builders or a session — a redeploy restarts sessions):
-   software-decode retry hazard (§4b); `/api/proxy/stream` streaming instead of buffering; ffmpeg `-protocol_whitelist` (`file:` /
-   `concat:` accepted on URL routes; bounded by the VPN); exit code 255 leaves a dead HLS session marked `running`; dead code in
-   `transcodeSession.js` (`persist`, `restore`, `recoverSessions`, `getOrCreateSession`).
+1. ✅ **Session hardening** (0104): exit status, software-decode retry, network-only URLs, streaming proxy, dead session code.
 2. **Dead code still held:** `cache.js` + the upstream Xtream/EPG proxy routes + non-streaming `epgParser`/`m3uParser` functions
-   (pending Mark's decision on keeping the Xtream/VOD path), non-VAAPI encoders, unread settings, the legacy piped
-   `GET /api/transcode?url=`. The plugin loader / `PLUGINS.md` is kept on purpose (empty extension point).
+   (kept by Mark's 21 Sept decision), non-VAAPI encoders, any unread settings left (0103 dropped four). The plugin loader / `PLUGINS.md` is kept on purpose (empty extension point).
 3. **P1-3 — part 1 shipped in 0096; part 2 is the remaining work.**
    **Part 1 (0096, done):** `playlist_items.stable_id` — what a channel *is*, from the provider's stream id inside its URL
    (`/live/<user>/<pass>/441360.ts` → `s441360`), falling back to a hash of the credential-stripped URL, and NULL for a

@@ -1,3 +1,4 @@
+const { isStreamUrl, NOT_A_STREAM_URL } = require('../services/streamUrl');
 const express = require('express');
 const router = express.Router();
 const { probeStream, analyzeProbeResult, probeCache, CACHE_TTL } = require('../services/streamProbe');
@@ -21,6 +22,9 @@ router.get('/', async (req, res) => {
     };
     if (!url) {
         return res.status(400).json({ error: 'URL parameter is required' });
+    }
+    if (!isStreamUrl(url)) {
+        return res.status(400).json({ error: NOT_A_STREAM_URL });
     }
 
     const ffprobePath = req.app.locals.ffprobePath;

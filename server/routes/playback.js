@@ -10,6 +10,7 @@
  * and a fix reaches every client at once.
  */
 
+const { isStreamUrl, NOT_A_STREAM_URL } = require('../services/streamUrl');
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
@@ -97,6 +98,9 @@ router.post('/resolve', requireToken, async (req, res) => {
                 return res.status(400).json({ error: 'Provide either url, or sourceId and channelId' });
             }
             url = await streamUrlForChannel(parseInt(sourceId), channelId);
+        }
+        if (url && !isStreamUrl(url)) {
+            return res.status(400).json({ error: NOT_A_STREAM_URL });
         }
 
         const settings = await db.settings.get();

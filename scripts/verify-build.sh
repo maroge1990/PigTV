@@ -1388,6 +1388,23 @@ print('  \u2713 no remux route, remux URL, remux strategy or legacy pipe anywher
 PYCHK
 [ $? -eq 0 ] || FAIL=1
 
+echo "=== 0104: session hardening ==="
+check server/services/transcodeSession.js "const requested = this.status === 'stopped';" "an exit nobody asked for is an error, whatever the code (255 used to leave 'running')"
+check server/services/transcodeSession.js "this._usedVaapiDecode === true && !this.timings.playlistReady" "the software-decode retry is only for a GPU-decoding encode that never produced a playlist"
+check server/services/streamUrl.js "function isStreamUrl" "only network URLs are opened"
+check server/services/transcodeSession.js "if (!isStreamUrl(this.url))" "a session will not hand ffmpeg a local file"
+check server/services/streamProbe.js "if (!isStreamUrl(url)) return Promise.reject" "nor will the probe"
+check server/routes/playback.js "NOT_A_STREAM_URL" "resolve refuses one with a 400"
+check server/routes/transcode.js "NOT_A_STREAM_URL" "the session route too"
+check server/routes/probe.js "NOT_A_STREAM_URL" "and /api/probe"
+check server/routes/subtitle.js "index must be a stream number" "and /api/subtitle, whose index is a -map specifier"
+check server/routes/proxy.js "await pipeline(Readable.from(body()), res);" "/api/proxy/stream streams binary content instead of buffering it"
+check server/routes/proxy.js "upstreamAbort.abort()" "and lets go of the upstream when the client leaves"
+check_absent server/services/transcodeSession.js "async persist()" "no session.json with the provider URL in it"
+check_absent server/services/transcodeSession.js "async function getOrCreateSession" "no unused getOrCreateSession"
+check test/session-hardening.test.js "it used to stay" "with tests"
+check test/proxy-stream-binary.test.js "releases the upstream connection" "and for the proxy"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

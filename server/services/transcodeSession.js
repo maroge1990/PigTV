@@ -8,10 +8,10 @@
  * - Session-based transcoding with unique IDs
  * - HLS segment output for seeking support
  * - Segment caching for fast access
- * - Session persistence for recovery after restart
  * - Automatic cleanup of stale sessions
  */
 
+const { isStreamUrl, NOT_A_STREAM_URL } = require('./streamUrl');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs').promises;
@@ -158,6 +158,14 @@ class TranscodeSession extends EventEmitter {
             return;
         }
 
+        // Backstop behind the routes' own check (see streamUrl.js): never hand
+        // ffmpeg a local file, concat: list or pipe as its input.
+        if (!isStreamUrl(this.url)) {
+            this.status = 'error';
+            this.error = NOT_A_STREAM_URL;
+            throw new Error(NOT_A_STREAM_URL);
+        }
+
         this.status = 'starting';
         console.log(`[TranscodeSession ${this.id}] Starting session for: ${redact(this.url)}`);
 
@@ -209,16 +217,24 @@ class TranscodeSession extends EventEmitter {
                 }
             });
 
-            // Handle process exit
-            this.process.on('exit', (code) => {
+            // Handle process exit. Every way ffmpeg can end must leave an honest
+            // status: a session still marked 'running' with no ffmpeg behind it
+            // (what an unrequested exit 255 used to leave) looks like a stream in
+            // use to anything that reads the status.
+            this.process.on('exit', (code, signal) => {
                 this.stopWatchdog();
-                if (code === 0 || code === null) {
+                // stop() marks the session 'stopped' before it signals ffmpeg, so
+                // this tells "we ended it" apart from "it ended".
+                const requested = this.status === 'stopped';
+                if (code === 0 || (requested && (code === null || code === 255))) {
+                    // 255 is ffmpeg's own exit after SIGTERM; null is SIGKILL.
                     console.log(`[TranscodeSession ${this.id}] FFmpeg completed successfully`);
                     this.status = 'stopped';
-                } else if (code !== 255) { // 255 is often from SIGKILL
-                    console.error(`[TranscodeSession ${this.id}] FFmpeg exited with code ${code}`);
+                } else {
+                    const how = code === null ? `was killed (${signal || 'signal'})` : `exited with code ${code}`;
+                    console.error(`[TranscodeSession ${this.id}] FFmpeg ${how}`);
                     this.status = 'error';
-                    this.error = `FFmpeg exited with code ${code}`;
+                    this.error = `FFmpeg ${how}`;
 
                     // Hardware decode is the most likely thing to fail on an
                     // unusual driver, and it fails immediately rather than
@@ -226,8 +242,16 @@ class TranscodeSession extends EventEmitter {
                     // of starting, retry once with decode on the CPU before
                     // giving up, so a driver quirk degrades performance
                     // instead of breaking playback entirely.
+                    //
+                    // Only when that could be the reason: an encode that really
+                    // did decode on the GPU, and that never produced a playlist.
+                    // It used to apply to every session - including stream copies,
+                    // which decode nothing, i.e. every live session - and it clears
+                    // the session folder, so a client already fetching segments
+                    // got 404s from a restart that could not help.
                     const diedEarly = (Date.now() - this.startTime) < 10000;
-                    if (diedEarly && this.options.vaapiHwDecode !== false && !this._triedSwDecode) {
+                    const couldBeHwDecode = this._usedVaapiDecode === true && !this.timings.playlistReady;
+                    if (diedEarly && couldBeHwDecode && !this._triedSwDecode) {
                         this._triedSwDecode = true;
                         this.options.vaapiHwDecode = false;
                         console.warn(`[TranscodeSession ${this.id}] Retrying with software decode`);
@@ -262,9 +286,6 @@ class TranscodeSession extends EventEmitter {
                 this.error = err.message;
                 this.emit('error', err);
             });
-
-            // Save session metadata
-            await this.persist();
 
         } catch (err) {
             this.status = 'error';
@@ -556,6 +577,8 @@ class TranscodeSession extends EventEmitter {
                 );
                 break;
             case 'vaapi':
+                // What the software-decode retry on exit keys on (see start()).
+                this._usedVaapiDecode = this.options.vaapiHwDecode !== false;
                 if (this.options.vaapiCpuScale !== false && this.options.vaapiHwDecode !== false) {
                     // Decode on the GPU but let ffmpeg hand the frames back in
                     // system memory (no -hwaccel_output_format), so the filter
@@ -895,8 +918,7 @@ class TranscodeSession extends EventEmitter {
      *
      * File writes are the honest signal for "ffmpeg is producing media".
      * Its stderr is no use: a dead upstream makes it louder, not quieter,
-     * because every reconnect attempt logs. session.json is ours, not
-     * ffmpeg's, so it is ignored.
+     * because every reconnect attempt logs. Only ffmpeg writes here.
      */
     async latestOutputAt() {
         let names;
@@ -907,7 +929,6 @@ class TranscodeSession extends EventEmitter {
         }
         let latest = null;
         for (const name of names) {
-            if (name === 'session.json') continue;
             try {
                 const { mtimeMs } = await fs.stat(path.join(this.dir, name));
                 if (latest === null || mtimeMs > latest) latest = mtimeMs;
@@ -1078,45 +1099,6 @@ class TranscodeSession extends EventEmitter {
     }
 
     /**
-     * Save session metadata to disk for recovery
-     */
-    async persist() {
-        const metadata = {
-            id: this.id,
-            url: this.url,
-            status: this.status,
-            startTime: this.startTime,
-            lastAccess: this.lastAccess,
-            options: this.options,
-            seekOffset: this.options.seekOffset
-        };
-        const metaPath = path.join(this.dir, 'session.json');
-        await fs.writeFile(metaPath, JSON.stringify(metadata, null, 2));
-    }
-
-    /**
-     * Restore a session from disk metadata
-     */
-    static async restore(sessionDir) {
-        const metaPath = path.join(sessionDir, 'session.json');
-        try {
-            const data = await fs.readFile(metaPath, 'utf8');
-            const metadata = JSON.parse(data);
-            const session = new TranscodeSession(metadata.url, metadata.options);
-            session.id = metadata.id;
-            session.dir = sessionDir;
-            session.playlistPath = path.join(sessionDir, 'stream.m3u8');
-            session.startTime = metadata.startTime;
-            session.lastAccess = metadata.lastAccess;
-            session.status = 'stopped'; // Not running after restart
-            return session;
-        } catch (err) {
-            console.error(`Failed to restore session from ${sessionDir}:`, err.message);
-            return null;
-        }
-    }
-
-    /**
      * Delete session directory and all segments
      */
     async cleanup() {
@@ -1164,21 +1146,6 @@ function getSession(sessionId) {
         session.touch();
     }
     return session;
-}
-
-/**
- * Get or create a session for a URL (reuses existing if still valid)
- */
-async function getOrCreateSession(url, options = {}) {
-    // Check for existing session with same URL
-    for (const session of sessions.values()) {
-        if (session.url === url && session.status === 'running') {
-            session.touch();
-            return session;
-        }
-    }
-    // Create new session
-    return createSession(url, options);
 }
 
 /**
@@ -1296,7 +1263,6 @@ module.exports = {
     buildMasterPlaylist,
     createSession,
     getSession,
-    getOrCreateSession,
     removeSession,
     cleanupStaleSessions,
     sweepOrphanedCache,

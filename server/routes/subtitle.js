@@ -1,3 +1,4 @@
+const { isStreamUrl, NOT_A_STREAM_URL } = require('../services/streamUrl');
 const express = require('express');
 const router = express.Router();
 const { spawn } = require('child_process');
@@ -13,6 +14,13 @@ router.get('/', (req, res) => {
 
     if (!url || index === undefined) {
         return res.status(400).json({ error: 'URL and index parameters are required' });
+    }
+    if (!isStreamUrl(url)) {
+        return res.status(400).json({ error: NOT_A_STREAM_URL });
+    }
+    // The index becomes an ffmpeg -map specifier: a stream number, nothing else.
+    if (!/^\d{1,3}$/.test(String(index))) {
+        return res.status(400).json({ error: 'index must be a stream number' });
     }
 
     const ffmpegPath = req.app.locals.ffmpegPath || 'ffmpeg';
