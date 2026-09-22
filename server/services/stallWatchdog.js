@@ -9,8 +9,8 @@
  *
  * "Alive" is therefore the wrong test. This asks the only question that matters:
  * has the process produced any media recently? What "produced media" means
- * differs by delivery path (bytes on stdout for a remux, files landing in the
- * session directory for HLS), so the caller supplies that as getLastActivity()
+ * is up to the caller (for an HLS session: files landing in its directory), so
+ * it supplies that as getLastActivity()
  * and this module owns the timing and the decision.
  *
  * Two limits are used. Before the first output a process is probing the source

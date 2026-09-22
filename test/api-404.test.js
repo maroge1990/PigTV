@@ -72,6 +72,14 @@ test('it also covers a missing path under a real router, and paths the old code 
     assert.equal((await call('GET', '/api/auth/oidc/login')).status, 404, 'the removed SSO route');
 });
 
+test('the piped remux and the legacy piped transcode are gone - one delivery path (0103)', async () => {
+    for (const route of ['/api/remux?url=http%3A%2F%2Fx%2F1.ts', '/api/transcode?url=http%3A%2F%2Fx%2F1.ts']) {
+        const r = await call('GET', route);
+        assert.equal(r.status, 404, route);
+        assert.equal(r.body?.error, 'No such API endpoint', route);
+    }
+});
+
 test('a router that needs a token still asks for one first, so an anonymous caller learns nothing about which paths exist', async () => {
     const real = await call('GET', '/api/library/channels');
     const missing = await call('GET', '/api/library/no-such-thing');
@@ -119,7 +127,7 @@ const APPLE_CLIENT_ROUTES = [
     ['GET', '/api/playback/some-session-id/terminal-status'],
     ['GET', '/api/recordings'], ['GET', '/api/recordings/scheduled'], ['POST', '/api/recordings/schedule'],
     ['GET', '/api/recordings/1/playback'], ['GET', '/api/recordings/1/media.mp4'], ['GET', '/api/recordings/1/markers'],
-    ['GET', '/api/proxy/stream'], ['GET', '/api/remux'],
+    ['GET', '/api/proxy/stream'],
     ['GET', '/api/transcode/abc/stream.m3u8'], ['GET', '/api/transcode/abc/master.m3u8'],
     ['DELETE', '/api/playback/abc']
 ];

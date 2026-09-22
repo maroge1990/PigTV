@@ -12,8 +12,12 @@
  * The order of preference is always the same, cheapest first:
  *
  *   direct    the client can play the source URL as-is; we do nothing
- *   remux     container change only, stream copy, one ffmpeg pipe
- *   transcode re-encode something, the only expensive option
+ *   transcode an HLS session: stream copy where the client can decode the
+ *             codecs, re-encode only what it cannot
+ *
+ * There used to be a third, "remux" - a container change piped through one
+ * ffmpeg process to /api/remux - for browsers. It was retired in 0103: every
+ * client now gets HLS segments, one delivery path.
  *
  * "Cheapest" is decided by what the client reports it can decode, not by what
  * we assume. Assuming a codec is unsupported costs a full re-encode of a
@@ -33,19 +37,9 @@ const DEFAULT_CAPABILITIES = {
     hls: true,      // native HLS, as Safari and AVPlayer have
     fmp4: true,     // fragmented MP4 segments
 
-    // Whether this client needs an actual HLS playlist and segment files,
-    // as opposed to a single piped response it reads as a byte stream.
-    //
-    // Deliberately separate from hls/fmp4 above, which describe codec and
-    // container support, not delivery shape. A browser using hls.js or a
-    // plain <video> tag is happy with the /api/remux response: one ffmpeg
-    // process, stdout piped straight into the HTTP response, non-seekable,
-    // no Range support. AVPlayer is not — it expects ordinary HTTP requests
-    // against a playlist and its segments, and reports a piped stream as a
-    // misconfigured server (AVFoundationErrorDomain -11850
-    // serverIncorrectlyConfigured) rather than simply refusing to seek.
-    // Native clients must opt in explicitly; nothing changes for a client
-    // that doesn't set this.
+    // Once chose HLS segments over the piped /api/remux stream. Every client
+    // now gets segments (0103), so it no longer changes the decision; still
+    // accepted, and both clients send it.
     segmentedDelivery: false
 };
 
@@ -60,8 +54,8 @@ const DEFAULT_CAPABILITIES = {
  * @param {boolean} opts.upscale      force an encode for upscaling
  * @param {string}  opts.owner        who is asking (see streamCoordinator.ownerKey)
  * @param {boolean} opts.live         live TV, as opposed to something seekable
- * @param {boolean} opts.audioEncode  re-encode the audio rather than copying it (remux and
- *                                    HLS-session strategies), for a stream whose audio
+ * @param {boolean} opts.audioEncode  re-encode the audio rather than copying it in the HLS
+ *                                    session, for a stream whose audio
  *                                    frames the client's decoder could not cope with
  * @returns {Promise<object>} a decision, including a playable URL
  */
@@ -107,41 +101,17 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
         };
     }
 
-    // 2. Remux. A container change with the video and audio copied through.
-    //    Cheap enough to be effectively free, so it beats any encode.
-    //
-    //    Two delivery shapes share this "codecs are fine" case. Piped MP4
-    //    (/api/remux) is the cheaper of the two — one ffmpeg process,
-    //    stdout straight into the response — but it's a non-seekable
-    //    single response with no Range support, which AVPlayer refuses
-    //    (see segmentedDelivery above). Clients that set segmentedDelivery
-    //    fall through to case 3 instead, which already has an HLS-session
-    //    code path for exactly this "copy both streams" case — it just
-    //    needed a way to reach it without also being asked to re-encode.
+    // 2. Everything else is an HLS session. Copy what the client can decode
+    //    (both streams when the codecs are fine, and only the container needs
+    //    changing - what /api/remux used to do); re-encode only what it cannot.
     const audioNeedsWork = info.audioOk === false;
     const codecsOk = !upscale && info.videoOk && !audioNeedsWork;
 
-    if (codecsOk && !caps.segmentedDelivery) {
-        console.log(`[Playback] resolve timing: remux, probe ${probeNote}`);
-        return {
-            strategy: 'remux',
-            url: `/api/remux?url=${encoded}${audioEncode ? '&audio=encode' : ''}`,
-            container: 'fmp4',
-            info,
-            reason: 'Codecs are fine; only the container needs changing'
-        };
-    }
-
-    // 3. Transcode. Encode as little as possible: if the client can decode the
-    //    video, copy it and fix only the audio.
-    //
     //    fmp4 segments over mpegts whenever caps.fmp4 and either the video
     //    is HEVC (hls.js cannot demux HEVC out of MPEG-TS) or this is the
-    //    codecsOk case: both streams already fine, only here because
-    //    segmentedDelivery asked for segments instead of a pipe. Before
-    //    segmentedDelivery existed this same content went out through
-    //    /api/remux, whose own output is fmp4-family regardless of codec
-    //    (see the container: 'fmp4' above) - MPEG-TS's much stricter
+    //    codecsOk case: both streams already fine. That content used to go
+    //    out through /api/remux, whose own output was fmp4-family regardless
+    //    of codec - MPEG-TS's much stricter
     //    real-time PTS/DTS ordering requirements are exactly what produced
     //    a continuous "Invalid DTS ... replacing by guess" flood from a
     //    native session on H.264 content that played fine over remux: the
@@ -217,7 +187,7 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
         segmentType,
         info,
         reason: codecsOk
-            ? 'Codecs are fine; delivered as HLS segments for this client instead of a piped stream'
+            ? 'Codecs are fine; only the container changes, into HLS segments'
             : (canCopyVideo
                 ? 'Video copied; audio re-encoded for this client'
                 : (upscale ? 'Upscaling requested' : 'Video cannot be decoded by this client'))

@@ -116,7 +116,8 @@ function terminalStatus(sessionId, owner) {
 }
 
 function activeStreams() {
-    const sessions = transcodeSession.getAllSessions().map(s => ({
+    // HLS sessions are the only streams since 0103 (the piped remux is gone).
+    return transcodeSession.getAllSessions().map(s => ({
         id: s.id,
         type: 'transcode',
         url: s.url,
@@ -124,25 +125,6 @@ function activeStreams() {
         startTime: s.startTime,
         owner: s.owner || null
     }));
-
-    let remuxes = [];
-    try {
-        remuxes = require('../routes/remux').listActiveRemuxes().map(r => ({
-            id: r.id,
-            type: 'remux',
-            url: r.url,
-            // Time since media last flowed to the client, so a remux the
-            // client has stopped reading goes stale like an HLS session
-            // nobody is fetching from.
-            idleMs: r.idleMs,
-            startTime: r.startTime,
-            owner: r.owner || null
-        }));
-    } catch (err) {
-        console.warn('[Coordinator] Could not list remux streams:', err.message);
-    }
-
-    return [...sessions, ...remuxes];
 }
 
 /**
@@ -160,11 +142,7 @@ function staleStreams(idleTimeoutSec = DEFAULT_IDLE_TIMEOUT_SEC) {
 
 async function releaseStream(stream) {
     try {
-        if (stream.type === 'remux') {
-            require('../routes/remux').killRemux(stream.id);
-        } else {
-            await transcodeSession.removeSession(stream.id);
-        }
+        await transcodeSession.removeSession(stream.id);
         return true;
     } catch (err) {
         console.error(`[Coordinator] Could not release ${stream.id}:`, err.message);
@@ -298,8 +276,8 @@ function ownerKey(user) {
  * abandoned ones, then this owner's own earlier stream, and only then
  * something somebody else may be watching.
  *
- * soft: for entry points whose clients cannot answer a 409 (the web app's
- * direct remux and session calls). They reclaim what is clearly free and then
+ * soft: for entry points whose clients cannot answer a 409 (the movie/series
+ * page's POST /api/transcode/session). They reclaim what is clearly free and then
  * proceed exactly as they always have.
  */
 function requestForViewer({ force = false, activeRecordings = [], settings = {}, owner = null, soft = false } = {}) {

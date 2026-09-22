@@ -69,7 +69,7 @@ router.get('/', async (req, res) => {
         comskipAvailable,
 
         playback: {
-            strategies: ['direct', 'remux', 'transcode'],
+            strategies: ['direct', 'transcode'],
             segmentTypes: ['mpegts', 'fmp4'],
             hlsSegmentDuration: 4
         }

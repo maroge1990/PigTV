@@ -328,10 +328,6 @@ router.post('/client-event', requireToken, (req, res) => {
 router.delete('/:sessionId', requireToken, async (req, res) => {
     const { sessionId } = req.params;
     try {
-        if (String(sessionId).startsWith('remux_')) {
-            const ok = require('./remux').killRemux(sessionId);
-            return res.json({ success: ok });
-        }
         const transcodeSession = require('../services/transcodeSession');
         await transcodeSession.removeSession(sessionId);
         res.json({ success: true });

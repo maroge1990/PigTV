@@ -275,7 +275,6 @@ async function cmdBench(file) {
     if (!fs.existsSync(file)) die(`No such file: ${file}`);
     const sample = path.resolve(file);
     const transcodeSession = require(path.join(ROOT, 'server/services/transcodeSession'));
-    const { buildRemuxArgs } = require(path.join(ROOT, 'server/routes/remux'));
 
     // Codecs read off the sample, never assumed: handing an HEVC sample the h264
     // bitstream filter fails the session outright and reads like a server bug.
@@ -313,19 +312,6 @@ async function cmdBench(file) {
             report(label, classifyStderr(run.stderr), joined && evenness(joined));
         }
         console.log('');
-    }
-
-    console.log('=== /api/remux (piped fMP4) ===');
-    for (const [label, mutate] of VARIANTS.slice(0, 3)) {
-        const outDir = fs.mkdtempSync(path.join(work, 'remux-'));
-        const base = buildRemuxArgs('http://sample.invalid/x.ts', 'doctor', {
-            needsAdtsToAsc: codecs.audioCodec === 'aac',
-            needsHvc1Tag: /hevc|h265/.test(codecs.videoCodec),
-            needsIgnDts: dtsUneven
-        });
-        const run = spawnSync('ffmpeg', mutate(forFile(base, sample, outDir, 'mp4')), { encoding: 'utf8', cwd: outDir, maxBuffer: 256 * 1024 * 1024 });
-        const out = path.join(outDir, 'out.mp4');
-        report(label, classifyStderr(run.stderr), fs.existsSync(out) && fs.statSync(out).size ? evenness(out) : null);
     }
 
     try { fs.rmSync(work, { recursive: true, force: true }); } catch { /* temp cleaner gets it */ }

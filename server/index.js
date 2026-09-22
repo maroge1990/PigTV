@@ -52,7 +52,7 @@ function findFFmpeg() {
         console.log('FFmpeg binary configured at:', ffmpegPath);
         return ffmpegPath;
     } catch (err) {
-        console.warn('FFmpeg not available - transcoding/remuxing will be disabled.');
+        console.warn('FFmpeg not available - playback and recording will be disabled.');
         console.warn('Install FFmpeg via your package manager or npm install ffmpeg-static');
         return null;
     }
@@ -197,7 +197,6 @@ app.use('/api/proxy', streamAuth, require('./routes/proxy'));
 app.use('/api/channels', requireAuth, require('./routes/channels'));
 app.use('/api/favorites', require('./routes/favorites'));
 app.use('/api/transcode', streamAuth, require('./routes/transcode'));
-app.use('/api/remux', streamAuth, require('./routes/remux'));
 app.use('/api/probe', requireAuth, require('./routes/probe'));
 app.use('/api/playback', require('./routes/playback'));
 app.use('/api/devices', require('./routes/devices'));

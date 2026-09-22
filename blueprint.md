@@ -27,8 +27,8 @@ As progress is made, keep this file current for handover — and keep it small (
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv`, `http://192.168.1.235:3000`, reached over an approved-device VPN (Tailscale) only |
 | Local repo folder | `C:\Users\markr\GitHub\PigTV` (moved out of OneDrive, 21 Sept 2026) |
 | Patch folder | `C:\Users\markr\GitHub\patches\PigTV` |
-| Shipped through | **build 0102** once applied; 0100/0101 on `origin/main`. Confirm with `/api/version` |
-| Next patch number | **0103** |
+| Shipped through | **build 0103** once applied; 0100/0101 on `origin/main`. Confirm with `/api/version` |
+| Next patch number | **0104** |
 | Container name | **`PigTV`** on PassyFlix — every command in these docs names it literally, so it can be pasted as written. `docker ps` if it is ever renamed |
 
 Don't hard-code the `origin/main` SHA anywhere. The deployed build is whatever `/api/version` reports (§3).
@@ -81,8 +81,9 @@ Full write-ups: `docs/blueprint-archive.md`. Facts worth keeping are in §4b.
 
 **0033–0047 (prior agent):** `segmentedDelivery` HLS for the native client, stream-token propagation to segments, AAC-in-fMP4 fix,
 native recording-playback contract (0045), HLS on-disk bounding (0046), EPG streaming-parser backpressure (0047).
-⚠️ `-bsf:v dump_extra` was tried (0043) and **reverted (0044)** for corrupting live copy sessions — never add it on a copy path
-(it is still on the *remux* path until §C Phase 4).
+⚠️ `-bsf:v dump_extra` was tried (0043) and **reverted (0044)** for corrupting live copy sessions — never add it on a copy path.
+It left with remux (0103) except in one place: `transcodeSession.js`'s MPEG-TS copy branch for a video codec that is neither
+H.264 nor HEVC (e.g. MPEG-2). Not seen in any log; remove it only against a captured sample of such a feed (§7).
 
 | Patch | What |
 |---|---|
@@ -138,6 +139,7 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
 | 0100 | SR-1 (client R13): an HDR copy session is handed out via `master.m3u8` carrying `VIDEO-RANGE=PQ\|HLG` |
 | 0101 | Test-only (no build bump): the watchdog's "keeps writing is left alone" test used 300 ms limits and failed CI's Node 20 job under load; now 1.5 s. **CI runs every test file at once on 2 vCPUs — keep timing margins ≥1 s** |
 | 0102 | §C Phase 3: the web player is on the one path — always resolve + HLS, one re-resolve per selection as its recovery; local strategy, beta toggle, force-* settings gone; VOD page's remux → HLS copy sessions |
+| 0103 | §C Phase 4: **remux retired** — `routes/remux.js`, the legacy piped `GET /api/transcode?url=`, their coordinator/resolve branches, `findCachedCodecs`, four unread settings and their tests deleted (589-line route, 454 lines of tests). HLS sessions are the only delivery path |
 
 ---
 
@@ -148,16 +150,15 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
   slot is freed in this order: streams idle ≥ `viewerIdleTimeoutSec` (60 s) silently → the caller's *own* earlier stream silently →
   another owner's live stream, which needs confirmation: **409** `{conflict:{type:"viewer-in-progress", streamId, lastActiveSec,
   message}}`, overridden by `force:true` (same shape as `recording-in-progress`). Owner keys: `device:<id>` (paired device) /
-  `user:<id>` (web login). `admitViewer()` releases before the new stream starts. `/api/remux` and `POST /api/transcode/session`
-  use **soft** mode (reclaim only, never 409 — their web callers can't answer a prompt).
+  `user:<id>` (web login). `admitViewer()` releases before the new stream starts. `POST /api/transcode/session` (the movie/series
+  page) uses **soft** mode (reclaim only, never 409 — its caller can't answer a prompt). HLS sessions are the only streams (0103).
 - Live sessions are swept after **5 min** idle (`PIGTV_LIVE_IDLE_TIMEOUT_SEC`, checked every 60 s); seekable sessions 30 min. Not
   ~2 min on purpose: the 60 s rule already reclaims on demand, and a TV paused through a phone call shouldn't die (the 90-segment
   window has rolled past a ~6-minute pause anyway).
 - **Stall watchdog** (`stallWatchdog.js`): kills an ffmpeg with no output for `PIGTV_STALL_TIMEOUT_MS` (20 s; 30 s grace before first
-  output; HLS floor of 5 segments). *Output* = stdout bytes for a remux, any file written in the session dir for HLS — **not**
-  stderr (it gets louder during reconnects). A remux paused because the *client* isn't reading isn't stalled. A remux's `idleMs` is
-  time since media last flowed. Recordings (hard-stop timer) and the legacy piped `GET /api/transcode?url=` are not covered.
-- Consequence: a paused web/remux viewer >60 s is "stale"; a due recording takes the slot silently instead of prompting.
+  output; HLS floor of 5 segments). *Output* = any file written in the session dir — **not** stderr (it gets louder during
+  reconnects). Recordings (hard-stop timer) are not covered.
+- Consequence: a viewer paused >60 s is "stale"; a due recording takes the slot silently instead of prompting.
 - **Telling takeover from failure** (0094). A displaced client only sees a 404, the same as an expired session or a stalled feed;
   recovering from that takes the connection back off whoever just got it, and the two clients ping-pong. Owner equality cannot
   break the tie — two password logins are both `user:<id>`. So every release `admitViewer` performs leaves a short-lived record
@@ -201,7 +202,7 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
   (built in memory; one variant → `stream.m3u8`). **No `CODECS`** on purpose — a wrong string makes AVPlayer refuse the variant.
   An encode is never called HDR (its output isn't). SDR is byte-for-byte unchanged. `mdcv`/`clli` boxes are absent (tvOS reads
   the SEI). Known sample: `pos_31` HDR10, timing even.
-- **HLS sessions have no back-pressure** (a remux's pipe throttles ffmpeg to the client's read rate; a session writes to disk).
+- **HLS sessions have no back-pressure** (a session writes to disk; nothing throttles ffmpeg to the player's read rate).
   A source that delivers faster than real time — a file served from the start (found on a provider URL), a catch-up channel, a
   start-up burst — runs ahead of the ~102-segment window and the player's next segment is gone: **404, which hls.js does not
   retry** (fatal at once, black frame under a `fragLoadError` banner). Fix = pace the input, gated by the probe: `format.size` or
@@ -216,23 +217,15 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
 - The image's ffmpeg is Ubuntu 24.04's apt package (6.x). An upgrade was considered and rejected: the same warnings appear on 9.0,
   and it touches the hardware-driver stack under the Apple path.
 
-**Remux route** (`routes/remux.js` — to be retired in §C Phase 4)
-- Since 0088 it takes `needsIgnDts` from the same cached probe as the codecs (`findCachedCodecs` returns `dtsUneven` alongside
-  them). It had applied `igndts` to every stream since long before 0085; that is where its `Packet duration … out of range`
-  lines came from.
-- Needs the codecs: reuses `/api/playback/resolve`'s cached probe (`findCachedCodecs`, no extra provider connection), else ffprobe
-  with one retry after 1.5 s, else **503 + `Retry-After: 2`**. There is **no safe guess**: ADTS AAC into MP4 fails without
-  `aac_adtstoasc`, and forcing the filter onto non-AAC fails at start-up. AC-3/E-AC-3 into empty-moov MP4 need `delay_moov` (added
-  only for those; it delays start by up to a keyframe).
-- `?audio=encode` / resolve `audioEncode:true` re-encodes only the audio (AAC-LC stereo 48 kHz, 160 kb/s, video still copied) and
-  beats the "smart copy" shortcut. Reason: **Chrome aborts the whole `<video>` on one rejected audio frame**, and a copy hands the
-  browser the provider's damaged frames. The web player retries once per selection on an audio `MEDIA_ERR_DECODE` and remembers
-  the channel in `localStorage['pigtv_audio_encode']` (max 200; clear it to reset).
-- ffmpeg stderr arrives in arbitrary pieces — always go through the line buffer (`makeLineBuffer`), never treat a read as a line.
+**Audio that the browser rejects.** `audioEncode:true` on resolve makes the HLS session re-encode only the audio (AAC-LC,
+video still copied) and beats the "smart copy" shortcut. Reason: **Chrome aborts the whole `<video>` on one rejected audio
+frame**, and a copy hands it the provider's damaged frames. The web player replays once per selection on an audio
+`MEDIA_ERR_DECODE` and remembers the channel in `localStorage['pigtv_audio_encode']` (max 200; clear it to reset). (Until 0103
+this lived on the remux route, `?audio=encode`, with its own codec probe, `delay_moov` for AC-3 and line buffer — all in git.)
 
 **Reading ffmpeg's log** — harmless, recurring:
 `[h264] non-existing PPS/SPS referenced`, `decode_slice_header error`, `no frame!`, `Increasing reorder buffer` (joining mid-GOP
-during the probe; self-ending; remux counts them instead of logging); `Could not find codec parameters … eac3 … 0 channels`
+during the probe; self-ending); `Could not find codec parameters … eac3 … 0 channels`
 (probe window ended early; if audio is ever silent from the start, suspect it — longer `-analyzeduration` for E-AC-3);
 `[mp4] Packet duration: -N / dts: M is out of range` and `[hls] Non-monotonic DTS … changing to +1` — **not noise since 0088**:
 a flood of these on a copy path means the feed was classified wrong. Check the channel's `[Playback] resolve timing` line, which
@@ -254,7 +247,7 @@ Main Event UHD (HDR10, even); `pos_1187` Fox Sports 505 uneven; `pos_463` TSN, `
 - `POST /api/playback/client-event` (token required; whitelisted, bounded fields; **path only, never a query string**): events
   `media-error`, `start-timeout` (30/min limit) and `play-start`, `play-end` (120/min, separate budget). Log lines end
   `from=user:<id>` (web) or `from=device:<id>` (Apple). Grep: `docker logs PigTV 2>&1 | grep -E "\[Player\]|\[Playback\]|\[HLS\]"`.
-  `[Playback] resolve timing: <direct|remux|HLS session>, probe <X s|cached>[, first segment after Y s][, source ends (N min) - paced to real time]`.
+  `[Playback] resolve timing: <direct|HLS session>, probe <X s|cached>[, first segment after Y s][, source ends (N min) - paced to real time]`.
 - `scripts/playback-report.js`: `docker logs PigTV --since 24h > x.log` then `node scripts/playback-report.js x.log`. It parses
   the exact log wording (pinned by `verify-build.sh`) and reports per path first-picture time (cold/warm), stalls/hour, failures,
   device plays separately, and the trial criteria (≥50 plays per path, ≥3 HLS sessions of ≥1 h, no HLS-only failures, stalls/hour no
@@ -329,7 +322,7 @@ Main Event UHD (HDR10, even); `pos_1187` Fox Sports 505 uneven; `pos_463` TSN, `
   `routes/info.js`'s handler is async with no `try/catch` (cosmetic today).
 
 **Dev environment (Windows)**
-- Tests: `node --test test/*.test.js` (245: 244 pass, 1 skipped — POSIX-only remux watchdog). `verify-build.sh` takes the repo path
+- Tests: `node --test test/*.test.js` (~290, none skipped since 0103 removed the POSIX-only remux watchdog test). `verify-build.sh` takes the repo path
   (`bash scripts/verify-build.sh .`) and needs a real `python3` on PATH (a one-line `exec python "$@"` shim) with `PYTHONUTF8=1`.
 - Tests that copy `server/` into a temp sandbox link `node_modules` with a *junction* on Windows. Working tree is CRLF (autocrlf).
   Where `ffmpeg` is a launcher shim (chocolatey), killing the process orphans the real one — end test runs with `-t`, don't kill.
@@ -341,11 +334,11 @@ Main Event UHD (HDR10, even); `pos_1187` Fox Sports 505 uneven; `pos_463` TSN, `
 
 **Guiding direction (committed): one server path, one contract** — HLS segments from `playbackStrategy.resolve()`, with a thin
 native player per platform (hls.js / Safari on the web, AVPlayer on Apple). The two-path split (remux for web, HLS for native) was
-the source of most recurring defects (favourites ids, logos, resolve shape, flags duplicated across files, `dump_extra`). Harden the
-one path first (done: watchdog, arbitration, self-heal, diagnostics), then move the webapp onto it (§C).
+the source of most recurring defects (favourites ids, logos, resolve shape, flags duplicated across files, `dump_extra`).
+**Done (0102–0103): one path.** The web plays through resolve + HLS and the remux route is gone.
 
 ### A. Server backlog (client-independent)
-1. **After the HLS trial ends** (each touches the HLS/remux argument builders or a session — a redeploy restarts sessions):
+1. **Session hardening** (each touches the HLS argument builders or a session — a redeploy restarts sessions):
    software-decode retry hazard (§4b); `/api/proxy/stream` streaming instead of buffering; ffmpeg `-protocol_whitelist` (`file:` /
    `concat:` accepted on URL routes; bounded by the VPN); exit code 255 leaves a dead HLS session marked `running`; dead code in
    `transcodeSession.js` (`persist`, `restore`, `recoverSessions`, `getOrCreateSession`).
@@ -388,7 +381,6 @@ one path first (done: watchdog, arbitration, self-heal, diagnostics), then move 
    viewer-already-holds-slot.
 5. **Lower:** shared helpers (`channelUrl`, `ffmpegProcess`, `probe`, `ids`); paged-channel-ordering index and keyset paging;
    `USER node` (needs volume ownership sorted first); fMP4 segment MIME; the duplicate `stop()`; try/catch in `info.js`.
-6. Client-side remux retry — on hold; skip if §C lands (the migration is the web's recovery).
 
 ### B. Apple client
 See `docs/SWIFT-CLIENT-HANDOFF.md` (prioritised changes C1–C9, contract, test tips, and a change log). Nothing on the server blocks
@@ -404,12 +396,12 @@ recommendation: skip — the client needs its recovery path either way, and the 
    `1803789`) plays and its resolve line ends `source ends (N min) - paced to real time` — if not, check what ffprobe reports:
    `docker exec PigTV ffprobe -v error -show_entries format=size,duration -of default=nw=1 "<channel URL>"`.
 3. ✅ **Default on** (0102). The safety net is a fresh HLS session rather than remux (which step 4 deletes): see "Web player" in §4b.
-4. **Retire remux** after a clean run of step 3: delete `routes/remux.js`, the coordinator's remux branches, the watchdog's remux
-   wiring, `-bsf:v dump_extra`, the legacy `GET /api/transcode?url=` pipe, the web's direct `/api/remux` callers and their tests.
+4. ✅ **Remux retired** (0103), straight after step 3 by the same decision: `routes/remux.js`, the coordinator's remux branches,
+   the legacy `GET /api/transcode?url=` pipe and their tests are gone. `/api/remux` now answers the JSON 404.
 
 Risks: slower channel change (measured above; if it must be won back, shorten the first segment or skip the resolve probe for known
 sources — measure first); a session holding the provider slot (60 s reclaim + 5 min sweep); browser variance (fMP4 is what the Apple
-path uses); AC-3 (HLS copy/transcode, not remux); tmpfs 2 GB (~360 MB/session cap) — fine for one viewer; direct-play HLS
+path uses); AC-3 (HLS copy/transcode); tmpfs 2 GB (~360 MB/session cap) — fine for one viewer; direct-play HLS
 upstreams stay `direct`.
 
 ---
@@ -422,7 +414,7 @@ upstreams stay `direct`.
   `media.mp4` takes `?token=`, supports byte ranges, `+faststart`. (`?async=1` is opt-in and additive.)
 - **Favourites:** client writes `POST/DELETE /api/favorites` (bare id), lists via `/api/library/favourites`.
 - **Playback:** `POST /api/playback/resolve` with `capabilities.segmentedDelivery:true`; `playbackURL` allow-list
-  (`/api/proxy/stream`, `/api/remux`, `/api/transcode/…`, `/api/recordings/…`); token as `?token=`; bearer on `DELETE /api/playback/{id}`.
+  (`/api/proxy/stream`, `/api/transcode/…`, `/api/recordings/…`; `/api/remux` is gone since 0103 and was never handed to it); token as `?token=`; bearer on `DELETE /api/playback/{id}`.
 - **Additive, safe:** `/api/version` and `/api/info` fields (`build`, `commit`, `display`, `features`); `waiting` rows in
   `recordings/scheduled`; `finite` / `durationSec` in the resolve `info`.
 - Client-coupled server changes are flagged in the handover and logged in `docs/SWIFT-CLIENT-HANDOFF.md` §5.
@@ -484,8 +476,12 @@ and the URL itself is in the row's `data` blob, not `stream_url`.
 - **VOD / series are kept** (a future provider may offer them) but are **unverified and unsupported** (no VOD source to test
   against): latent code, excluded from dead-code batches, don't refactor casually. If ever removed, tag the last commit that had them.
 - **`requireStreamAuth` stays off** while access is VPN-only; revisit if the server is ever exposed.
-- Dead-code batches go early, in reviewable patches, and don't touch the remux path (that waits for Phase 4).
+- Dead-code batches go early, in reviewable patches.
 - Mark applies and pushes patches.
+
+**Decided (Mark, 23 Sept 2026).**
+- **One delivery path now** — §C Phases 3 and 4 shipped together (0102–0103) without waiting for the trial report: "move away from
+  multiple approaches asap". The web's recovery is a fresh HLS session, not a remux fallback.
 
 **Decided (Mark, 21 Sept 2026).**
 - **Keep the Xtream/upstream proxy path and `cache.js`.** Likely wanted in the near future, so they stay out of the dead-code

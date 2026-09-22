@@ -53,7 +53,7 @@ const API = {
      *
      * A <video src> and hls.js's XHR-based segment loader can't send an
      * Authorization header, so the server's stream endpoints
-     * (/api/remux, /api/transcode, /api/proxy/stream) accept the token as
+     * (/api/transcode, /api/proxy/stream) accept the token as
      * a query parameter instead - the same mechanism native clients use,
      * and the reason those URLs are already documented as bearer tokens
      * in their own right. Harmless to include even when requireStreamAuth

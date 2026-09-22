@@ -66,8 +66,6 @@ check server/routes/transcode.js "vaapiCpuScale" "setting passthrough"
 check server/db.js "vaapiCpuScale" "default setting"
 
 echo "=== 0003: Remux AAC ==="
-check server/routes/remux.js "aac_adtstoasc" "conditional BSF"
-check server/routes/remux.js "detectCodecs\|codecCache" "probe function"
 
 echo "=== 0004: DVR fixes ==="
 check server/routes/recordings.js "router.use(requireAuth)" "auth middleware"
@@ -146,7 +144,6 @@ check server/services/transcodeSession.js "vaapiHwDecode" "hw decode option"
 check server/services/transcodeSession.js "_triedSwDecode" "sw decode fallback"
 check server/services/transcodeSession.js "force_key_frames" "segment-aligned keyframes"
 check server/routes/transcode.js "m4s" "segment route serves fmp4"
-check server/routes/remux.js "needsHvc1Tag" "remux tags hevc"
 check server/db.js "vaapiHwDecode" "hw decode default"
 check public/index.html "setting-vaapi-hw-decode" "hw decode toggle"
 
@@ -174,12 +171,6 @@ check public/js/components/VideoPlayer.js "updateLiveButton" "live indicator"
 check public/css/main.css "btn-go-live" "live button styles"
 
 echo "=== 0020: kill all covers remux ==="
-check server/routes/remux.js "activeRemuxes" "remux registry"
-check server/routes/remux.js "killAllRemuxes" "remux kill-all export"
-check server/routes/transcode.js "killAllRemuxes" "kill-all calls remux"
-check server/routes/transcode.js "listActiveRemuxes" "session list includes remux"
-check server/routes/transcode.js "remux_" "single kill routes remux ids"
-check public/js/pages/Settings.js "Remux" "debug list labels type"
 
 echo "=== 0021: PigTV rebrand + recording fix ==="
 check server/services/recordingEngine.js "m3u|xtream" "channel id normalisation"
@@ -205,8 +196,6 @@ check public/js/pages/WatchPage.js "isHeAac" "client forwards HE-AAC flag (live:
 check public/js/components/SourceManager.js "groupItemType()" "group type helper"
 check public/js/components/ChannelList.js "Every category is hidden" "empty state wording"
 check server/routes/channels.js "cascadeCategory" "single hide/show cascades"
-check server/routes/remux.js "stderrTail" "remux keeps stderr"
-check server/routes/remux.js "ffmpegExited" "disconnect vs exit"
 check public/js/theme.js "prefers-color-scheme" "theme follows system"
 check public/css/main.css "data-theme=.light" "light tokens"
 check public/index.html "js/theme.js" "theme loaded early"
@@ -274,7 +263,6 @@ check server/services/streamProbe.js "analyzeProbeResult" "probe logic extracted
 check server/services/streamProbe.js "module.exports" "probe service exports"
 check server/routes/probe.js "services/streamProbe" "probe route uses the service"
 check server/services/playbackStrategy.js "strategy: 'direct'" "direct play path"
-check server/services/playbackStrategy.js "strategy: 'remux'" "remux path"
 check server/services/playbackStrategy.js "strategy: 'transcode'" "transcode path"
 check server/routes/playback.js "resolve" "resolve endpoint"
 check server/index.js "api/playback" "playback route mounted"
@@ -446,7 +434,6 @@ PYCHK
 
 echo "=== 0034: native HLS delivery for segmented clients ==="
 check server/services/playbackStrategy.js "segmentedDelivery" "capability flag exists"
-check server/services/playbackStrategy.js "caps.segmentedDelivery" "flag actually read, not just declared"
 check server/services/transcodeSession.js "audioMode === 'copy'" "explicit audio-copy override"
 python3 - <<'PYCHK'
 import re, sys
@@ -888,21 +875,15 @@ check server/services/stallWatchdog.js "function createStallWatchdog" "shared wa
 check server/services/stallWatchdog.js "PIGTV_STALL_TIMEOUT_MS" "stall limit is tunable without a patch"
 # Both delivery paths read the same live input with the same reconnect flags,
 # so both need the watchdog, and it has to be started on the real process.
-check server/routes/remux.js "createStallWatchdog(" "remux path runs the watchdog"
 check server/services/transcodeSession.js "createStallWatchdog(" "HLS session path runs the watchdog"
 check server/services/transcodeSession.js "this.startWatchdog()" "HLS watchdog started once ffmpeg is spawned"
 check server/services/transcodeSession.js "this.stopWatchdog()" "HLS watchdog stopped when ffmpeg exits / session stops"
-check server/routes/remux.js "watchdog.stop()" "remux watchdog stopped when ffmpeg exits"
 # Silence with the client not reading (paused tab, full pipe) is the client's
 # doing, not ffmpeg's. Without this guard a paused viewer gets killed.
-check server/routes/remux.js "writableNeedDrain" "remux does not treat client backpressure as a stall"
 # Remux idle accounting: idleMs must mean 'time since media last flowed', and
 # the coordinator must use it instead of pretending every remux is busy.
-check server/routes/remux.js "r.lastOutputAt ?? r.startedAt" "remux idleMs measured from last output"
-check_absent server/routes/remux.js "idleMs: Date.now() - r.startedAt" "remux idleMs no longer grows for a healthy stream"
 check_absent server/services/streamCoordinator.js "idleMs: 0," "coordinator no longer hard-codes remux idleMs to 0"
 check test/stall-watchdog.test.js "createStallWatchdog" "watchdog has unit tests"
-check test/remux-watchdog.test.js "goes silent" "remux stall has an end-to-end test"
 
 echo "=== 0055: Viewer-vs-viewer arbitration + live idle timeout (A3) ==="
 check server/services/streamCoordinator.js "function admitViewer" "admitViewer exists"
@@ -923,7 +904,6 @@ check server/routes/playback.js "coordinator.admitViewer(" "resolve arbitrates a
 check server/routes/playback.js "coordinator.ownerKey(req.user)" "resolve knows who is asking"
 check server/routes/playback.js "viewer-in-progress" "resolve tells the client how to proceed on a viewer conflict"
 check server/services/playbackStrategy.js "        owner," "sessions created by resolve record their owner"
-check server/routes/remux.js "soft: true" "direct remux reclaims free streams but never refuses"
 check server/routes/transcode.js "soft: true" "session route reclaims free streams but never refuses"
 check server/services/transcodeSession.js "LIVE_SESSION_TIMEOUT_MS" "live sessions have their own idle timeout"
 check server/services/transcodeSession.js "session.options.live === true" "sweep honours the live flag"
@@ -1032,16 +1012,8 @@ check server/routes/devices.js "limitRequests(pairingLimiter" "pair/poll is limi
 check test/rate-limit.test.js "ten wrong passwords lock" "the limits have tests"
 
 echo "=== 0064: Remux codec identification ==="
-check server/routes/remux.js "async function identifyCodecs" "codecs are identified in one place"
-check server/services/streamProbe.js "function findCachedCodecs" "resolve's probe can be reused (no extra provider connection)"
-check server/routes/remux.js "streamProbe.findCachedCodecs" "the remux route reuses it"
-check server/routes/remux.js "Codec probe failed for" "probe failures are logged with a reason (they used to be silent)"
 # The bug: with unknown codecs the remux started anyway and died on its first
 # audio packet. It must refuse instead.
-check server/routes/remux.js "status(503)" "an unidentifiable stream is refused, not started"
-check server/routes/remux.js "identifyCodecs(url, ffprobePath, userAgent)" "the route uses identifyCodecs, not a bare detectCodecs"
-check_absent server/routes/remux.js "await detectCodecs(url, ffprobePath, userAgent)" "no bare single-shot probe left in the route"
-check test/remux-codecs.test.js "retried after a pause" "the retry has tests"
 
 echo "=== 0065: Web player media-error reporting ==="
 check public/js/components/VideoPlayer.js "addEventListener('error', () => this.handleMediaError())" "the <video> error event is handled (it used to fail silently)"
@@ -1059,13 +1031,6 @@ check test/client-events.test.js "forge a log line" "the endpoint has tests"
 check test/player-media-error.test.js "never throws into playback" "the player side has tests"
 
 echo "=== 0066: AC-3 / E-AC-3 through the remux ==="
-check server/routes/remux.js "function remuxFixes" "codec-driven fix-ups are decided in one place"
-check server/routes/remux.js "function buildRemuxArgs" "the remux arguments are a testable function"
-check server/routes/remux.js "needsDelayMoov: (audioCodec === 'ac3' || audioCodec === 'eac3')" "delay_moov only for AC-3/E-AC-3 (everything else keeps today's flags)"
-check server/routes/remux.js "frag_keyframe+empty_moov+default_base_moof+delay_moov" "the delayed-header movflags exist"
-check server/routes/remux.js "const args = buildRemuxArgs(url, userAgent, fixes);" "the route uses the function, not a second inline copy"
-check_absent server/routes/remux.js "{needsAdtsToAsc" "no stale references to the old inline flag variables (only fixes.* remain)"
-check test/remux-args.test.js "exactly the arguments it always had" "the existing flags are pinned by a test"
 
 echo "=== 0067: EPG icon fallback in the library API ==="
 check server/routes/library.js "function fillMissingLogos" "missing channel logos are filled from the EPG"
@@ -1081,13 +1046,8 @@ check server/routes/library.js "if (ch.logo) continue;" "a playlist-supplied log
 check test/library-logos.test.js "never replaced" "the fallback has tests"
 
 echo "=== 0068: Audio re-encode self-heal (remux path) ==="
-check server/routes/remux.js "req.query.audio === 'encode'" "the remux honours ?audio=encode"
-check server/routes/remux.js "'-c:a', 'aac', '-b:a', '160k', '-ac', '2', '-ar', '48000', '-af', 'aresample=async=1'" "the audio re-encode arguments exist"
 # The output of the re-encode is raw AAC: the ADTS->ASC filter would refuse it, and
 # delay_moov is only for AC-3/E-AC-3, which the re-encode replaces.
-check server/routes/remux.js "needsAdtsToAsc: audioCodec === 'aac' && !encodeAudio" "no aac_adtstoasc on re-encoded audio"
-check server/routes/remux.js "&& !encodeAudio" "no delay_moov on re-encoded audio"
-check server/services/playbackStrategy.js "&audio=encode" "resolve can ask for it on the remux URL"
 check server/services/playbackStrategy.js "audioEncode ? 'encode'" "resolve can ask for it on an HLS session"
 check server/routes/playback.js "audioEncode: audioEncode === true" "the resolve route passes only a real boolean through"
 # 'encode' must beat the smart-copy shortcuts or a stereo AAC source is copied again.
@@ -1110,34 +1070,14 @@ check public/js/pages/WatchPage.js "empty src attribute" "WatchPage does not log
 check test/player-media-error.test.js "with the old URL still in currentSrc" "the real Chrome sequence is tested"
 
 echo "=== 0070: diagnostics for silent 'nothing plays' failures ==="
-check server/routes/remux.js "function describeRemuxEnd" "the disconnect line says whether anything was ever sent"
-check server/routes/remux.js "ffmpeg had produced no output yet" "including the case that matters: no output at all"
-check server/routes/remux.js "first output after" "time to first output is logged"
-check server/routes/remux.js "function makeStderrLogger" "ffmpeg's messages are logged in full (capped)"
-check_absent server/routes/remux.js "msg.includes('Warning') || msg.includes('Error') || msg.includes('error')" "no 'error'-only filter left hiding ffmpeg's messages"
-check server/routes/remux.js "Client disconnected after" "the disconnect line keeps its old prefix (existing greps still work)"
 check public/js/components/VideoPlayer.js "addEventListener('loadstart', () => this.armStartWatch())" "the player watches for a load that never starts"
 check public/js/components/VideoPlayer.js "addEventListener('playing', () => { this.clearStartWatch();" "and stops watching once it plays"
 check public/js/components/VideoPlayer.js "event: 'start-timeout'" "and reports it"
 check public/js/components/VideoPlayer.js "if (video.paused || video.currentTime > 0) return;" "but not when paused or already moving"
 check server/routes/playback.js "body.event !== 'start-timeout'" "the server accepts the new event (and still only the known ones)"
 check test/player-start-watch.test.js "innocent explanations" "the start watch has tests"
-check test/remux-diagnostics.test.js "never produced a byte" "the server diagnostics have tests"
 
 echo "=== 0071: probe-phase decoder chatter is summarised, not logged ==="
-check server/routes/remux.js "const PROBE_DECODER_MESSAGE" "decoder messages from the probe phase are recognised"
-check server/routes/remux.js "logger.flush = " "and summarised in one line"
-check server/routes/remux.js "logStderr.flush(); // the probe is over" "the summary is written when the probe ends (first output)"
-if [ "$(grep -c 'logStderr.end()' server/routes/remux.js)" -ge "2" ]; then
-  echo "  ✓ it is also summarised when the remux ends (client leaves or ffmpeg exits)"
-else
-  echo "  ✗ MISSING: logStderr.end() must run on client disconnect and on ffmpeg exit"; FAIL=1
-fi
-check test/remux-diagnostics.test.js "joining a stream mid-keyframe" "the noise handling has tests using the real log lines"
-check server/routes/remux.js "function makeLineBuffer" "ffmpeg's stderr is line-buffered (it arrives in arbitrary pieces)"
-check server/routes/remux.js "const tailLines = makeLineBuffer" "the stall/exit tail uses it too, not a naive split"
-check_absent server/routes/remux.js "msg.split('\n')" "no naive per-chunk split of stderr left in the route"
-check test/remux-diagnostics.test.js "however the stream is cut" "and it is tested at every cut point and byte by byte"
 
 echo "=== 0072: Hide All / Show All update the group checkboxes ==="
 check public/js/components/SourceManager.js "const groupKey = \`\${groupItemType}:\${group.categoryId}\`;" "setAllVisibility updates the group key that the checkbox is drawn from"
@@ -1275,7 +1215,6 @@ check server/services/streamProbe.js "function classifyTimestamps" "the probe sa
 check server/services/streamProbe.js "read_intervals" "read from the SAME probe call, bounded so a live feed cannot hang it"
 check server/services/playbackStrategy.js "dtsUneven: info.dtsUneven === true" "the strategy passes the verdict to the session"
 check server/services/transcodeSession.js "const useIgnDts = videoMode" "and only an uneven feed has its DTS rebuilt"
-check server/routes/remux.js "needsIgnDts:" "the remux path is decided the same way, not unconditionally as before"
 check server/services/transcodeSession.js "PIGTV_DTS_AUTO" "PIGTV_DTS_AUTO=0 restores 0085 behaviour without a rebuild"
 check test/dts-classify.test.js "separated by a wide margin, not a fine threshold" "with tests for the classification"
 check test/hls-copy-dts.test.js "an even source must be left alone" "and a real-ffmpeg test of BOTH directions"
@@ -1409,6 +1348,43 @@ if bad:
     print('  \u2717 MISSING: a second delivery path is back: ' + ', '.join(bad))
     sys.exit(1)
 print('  \u2713 no remux, legacy pipe, local probe or beta toggle left in the web player')
+PYCHK
+[ $? -eq 0 ] || FAIL=1
+
+echo "=== 0103: remux retired - one delivery path (Phase 4) ==="
+# The checks that pinned the remux route, its registry, watchdog wiring, codec probe,
+# argument builder and diagnostics were retired with it; their history is in git.
+check server/services/playbackStrategy.js "It was retired in 0103" "resolve documents why there is no remux strategy"
+check server/services/playbackStrategy.js "2. Everything else is an HLS session" "codecs-fine streams are HLS sessions with both streams copied"
+check test/audio-encode.test.js "never a remux any more" "with a test that a request without segmentedDelivery still gets HLS"
+check test/api-404.test.js "one delivery path (0103)" "and that /api/remux and the legacy pipe answer 404"
+python3 - <<'PYCHK'
+import os, re, sys
+# Presence can be grepped; absence has to be checked. Any of these back means a
+# second delivery path is back.
+bad = []
+if os.path.exists('server/routes/remux.js'):
+    bad.append('server/routes/remux.js exists')
+for root, _, files in os.walk('server'):
+    for f in files:
+        if not f.endswith('.js'):
+            continue
+        path = os.path.join(root, f)
+        src = open(path, encoding='utf-8').read()
+        code = '\n'.join(l for l in src.split('\n') if not l.strip().startswith(('//', '*', '/*')))
+        if re.search(r"require\([^)]*routes/remux|require\('\./remux'\)", code):
+            bad.append(f'{path} requires the remux route')
+        if "'/api/remux" in code or '`/api/remux' in code:
+            bad.append(f'{path} builds an /api/remux URL')
+        if "strategy: 'remux'" in code:
+            bad.append(f'{path} returns a remux strategy')
+tsrc = open('server/routes/transcode.js', encoding='utf-8').read()
+if re.search(r"router\.get\('/',", tsrc):
+    bad.append('the legacy piped GET /api/transcode?url= is back')
+if bad:
+    print('  \u2717 MISSING: ' + '; '.join(bad))
+    sys.exit(1)
+print('  \u2713 no remux route, remux URL, remux strategy or legacy pipe anywhere in the server')
 PYCHK
 [ $? -eq 0 ] || FAIL=1
 

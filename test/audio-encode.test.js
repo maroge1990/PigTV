@@ -14,7 +14,8 @@ process.chdir(sandbox);
 const load = p => require(path.join(sandbox, 'server', p));
 const strategy = load('services/playbackStrategy');
 const { probeCache, analyzeProbeResult } = load('services/streamProbe');
-const { TranscodeSession } = load('services/transcodeSession');
+const transcodeSession = load('services/transcodeSession');
+const { TranscodeSession } = transcodeSession;
 const db = load('db');
 
 after(() => {
@@ -23,7 +24,7 @@ after(() => {
     try { fs.rmSync(sandbox, { recursive: true, force: true }); } catch { /* leave it to the OS temp cleaner */ }
 });
 
-// --- resolve(): the remux URL carries the request ---
+// --- resolve(): the request reaches the HLS session (the remux URL it used to ride on is gone, 0103) ---
 
 const SETTINGS = { userAgentPreset: 'chrome', ffmpegPath: 'ffmpeg' };
 const CAPS = { ...strategy.DEFAULT_CAPABILITIES };
@@ -37,20 +38,37 @@ function seedProbe(url) {
     probeCache.set(key, { result: analyzeProbeResult(raw, url, CAPS), timestamp: Date.now() });
 }
 
-test('a normal resolve to remux is unchanged', async () => {
-    const url = 'http://provider.invalid/live/u/p/1.ts';
+async function resolveSession(url, extra = {}) {
     seedProbe(url);
-    const decision = await strategy.resolve({ url, capabilities: {}, settings: SETTINGS });
-    assert.equal(decision.strategy, 'remux');
-    assert.equal(decision.url, `/api/remux?url=${encodeURIComponent(url)}`);
+    const real = transcodeSession.createSession;
+    const seen = {};
+    transcodeSession.createSession = async (u, options) => { seen.options = options; return { id: 'stub', start: async () => {}, waitForPlaylist: async () => true }; };
+    const realLog = console.log;
+    console.log = () => {};
+    try {
+        const decision = await strategy.resolve({ url, capabilities: {}, settings: SETTINGS, ...extra });
+        return { decision, options: seen.options };
+    } finally {
+        console.log = realLog;
+        transcodeSession.createSession = real;
+    }
+}
+
+test('a stream whose codecs are fine is an HLS session with both streams copied - never a remux any more', async () => {
+    // No segmentedDelivery in the request: it used to be the one thing that got a remux URL back.
+    const { decision, options } = await resolveSession('http://provider.invalid/live/u/p/1.ts');
+    assert.equal(decision.strategy, 'transcode');
+    assert.equal(decision.url, '/api/transcode/stub/stream.m3u8');
+    assert.equal(options.videoMode, 'copy');
+    assert.equal(options.audioMode, 'copy');
+    assert.equal(options.segmentType, 'fmp4', 'fMP4, the container /api/remux used to produce');
 });
 
-test('audioEncode adds ?audio=encode to the remux URL, and nothing else', async () => {
-    const url = 'http://provider.invalid/live/u/p/2.ts';
-    seedProbe(url);
-    const decision = await strategy.resolve({ url, capabilities: {}, settings: SETTINGS, audioEncode: true });
-    assert.equal(decision.strategy, 'remux');
-    assert.equal(decision.url, `/api/remux?url=${encodeURIComponent(url)}&audio=encode`);
+test('audioEncode asks the session to re-encode the audio, and nothing else', async () => {
+    const { decision, options } = await resolveSession('http://provider.invalid/live/u/p/2.ts', { audioEncode: true });
+    assert.equal(decision.strategy, 'transcode');
+    assert.equal(options.audioMode, 'encode');
+    assert.equal(options.videoMode, 'copy', 'the video is still copied');
 });
 
 // --- HLS session: 'encode' must beat the "smart copy" shortcuts ---

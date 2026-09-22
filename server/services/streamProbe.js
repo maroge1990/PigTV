@@ -253,7 +253,8 @@ function analyzeProbeResult(probeResult, url, clientCaps = {}) {
     // 1. Incompatible audio/video OR MKV -> Transcode (or HLS Copy)
     const needsTranscode = !audioOk || !videoOk || isMkv;
 
-    // 2. Compatible audio/video but incompatible container (non-MKV) -> Remux (fMP4 pipe)
+    // 2. Compatible audio/video but incompatible container (non-MKV) -> a container
+    //    change only (the movie/series page copies it into HLS segments)
     const needsRemux = !needsTranscode && (!containerOk || isRawTs);
 
     const compatible = !needsTranscode && !needsRemux;
@@ -290,34 +291,12 @@ function analyzeProbeResult(probeResult, url, clientCaps = {}) {
 }
 
 
-/**
- * The video and audio codec names /api/playback/resolve already found for this
- * URL, if that probe is still fresh - under any capability set, since the codecs
- * do not depend on who asked. Lets a caller that needs the codecs (the remux
- * route) reuse the answer instead of opening yet another connection to a
- * provider that may allow only one.
- */
-function findCachedCodecs(url) {
-    const prefix = `${url}|`;
-    const now = Date.now();
-    for (const [key, entry] of probeCache) {
-        if (!key.startsWith(prefix)) continue;
-        if (now - entry.timestamp >= CACHE_TTL) continue;
-        const { video, audio, dtsUneven } = entry.result || {};
-        // dtsUneven rides along: the remux route needs it for the same reason the
-        // HLS path does, and it comes from the same probe at no extra cost.
-        if (video || audio) return { video: video || null, audio: audio || null, dtsUneven: dtsUneven === true };
-    }
-    return null;
-}
-
 module.exports = {
     probeStream,
     analyzeProbeResult,
     classifyTimestamps,
     classifyVideoRange,
     probeCache,
-    findCachedCodecs,
     CACHE_TTL,
     DTS_PROBE_PACKETS
 };

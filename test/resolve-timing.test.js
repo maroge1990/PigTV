@@ -43,13 +43,6 @@ async function timingLines(fn) {
     return lines.filter(l => l.includes('resolve timing'));
 }
 
-test('a remux resolve says it was remux, and that the probe came from the cache', async () => {
-    const url = 'http://provider.invalid/live/u/p/1.ts';
-    seedProbe(url, {});
-    const lines = await timingLines(() => strategy.resolve({ url, capabilities: {}, settings: SETTINGS }));
-    assert.deepEqual(lines, ['[Playback] resolve timing: remux, probe cached']);
-});
-
 test('a direct-play resolve is timed too', async () => {
     const url = 'http://provider.invalid/live/u/p/2.m3u8';
     seedProbe(url, {}, { container: 'hls' });

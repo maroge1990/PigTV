@@ -9,21 +9,6 @@ const path = require('node:path');
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-coord-'));
 process.chdir(scratch);
 
-// Stand in for the remux registry so the test needs no database or ffmpeg.
-const remuxStub = { streams: [], killed: [] };
-const remuxPath = require.resolve('../server/routes/remux');
-require.cache[remuxPath] = {
-    id: remuxPath, filename: remuxPath, loaded: true,
-    exports: {
-        listActiveRemuxes: () => remuxStub.streams,
-        killRemux: (id) => {
-            remuxStub.killed.push(id);
-            remuxStub.streams = remuxStub.streams.filter(r => r.id !== id);
-            return true;
-        }
-    }
-};
-
 const transcodeSession = require('../server/services/transcodeSession');
 const coordinator = require('../server/services/streamCoordinator');
 
@@ -42,8 +27,6 @@ const recording = { id: 7, title: 'The News', channel_name: 'ABC', program_end: 
 
 afterEach(async () => {
     for (const s of transcodeSession.getAllSessions()) await transcodeSession.removeSession(s.id);
-    remuxStub.streams = [];
-    remuxStub.killed = [];
 });
 
 after(() => {
@@ -129,15 +112,24 @@ test('a recording in progress is still reported, and force still sacrifices it',
     assert.deepEqual(forced.sacrificed, [7]);
 });
 
-test('admitViewer stops the streams it says must go, HLS and remux alike', async () => {
-    const hls = await session('device:b', 90);
-    remuxStub.streams = [{ id: 'remux_1', url: 'http://provider.invalid/x.ts', idleMs: 90000, startTime: Date.now() - 100000, owner: 'device:c' }];
+test('admitViewer stops the streams it says must go', async () => {
+    const first = await session('device:b', 90);
+    const second = await session('device:c', 120);
 
     const verdict = await coordinator.admitViewer({ settings: { ...ONE_STREAM, maxProviderStreams: 1 }, owner: 'device:a' });
     assert.equal(verdict.allowed, true);
     // Limit 1 with two abandoned streams open: both have to go to make room.
-    assert.ok(!transcodeSession.getAllSessions().some(s => s.id === hls.id), 'the abandoned HLS session is gone');
-    assert.deepEqual(remuxStub.killed, ['remux_1'], 'the abandoned remux was killed through the remux registry');
+    const left = transcodeSession.getAllSessions().map(s => s.id);
+    assert.ok(!left.includes(first.id) && !left.includes(second.id), 'both abandoned sessions are gone');
+});
+
+test('HLS sessions are the only streams the coordinator counts (the remux registry is gone, 0103)', async () => {
+    const s = await session('user:1', 90);
+    const streams = coordinator.activeStreams();
+    assert.deepEqual(streams.map(x => x.type), ['transcode']);
+    assert.equal(streams[0].id, s.id);
+    assert.ok(streams[0].idleMs >= 90000);
+    assert.equal(streams[0].owner, 'user:1');
 });
 
 test('admitViewer leaves everything running when the caller is refused', async () => {
@@ -145,14 +137,6 @@ test('admitViewer leaves everything running when the caller is refused', async (
     const verdict = await coordinator.admitViewer({ settings: ONE_STREAM, owner: 'device:a' });
     assert.equal(verdict.allowed, false);
     assert.ok(transcodeSession.getAllSessions().some(s => s.id === theirs.id));
-});
-
-test('a remux is now judged by when media last flowed, not assumed busy', () => {
-    remuxStub.streams = [{ id: 'remux_9', url: 'http://provider.invalid/y.ts', idleMs: 90000, startTime: 0, owner: 'user:1' }];
-    const [remux] = coordinator.activeStreams();
-    assert.equal(remux.type, 'remux');
-    assert.equal(remux.idleMs, 90000, 'the coordinator used to hard-code 0 here');
-    assert.equal(remux.owner, 'user:1');
 });
 
 test('live sessions are swept on the live timeout, seekable ones on the longer one', async () => {
