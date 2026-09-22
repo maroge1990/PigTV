@@ -120,7 +120,8 @@ const APPLE_CLIENT_ROUTES = [
     ['GET', '/api/recordings'], ['GET', '/api/recordings/scheduled'], ['POST', '/api/recordings/schedule'],
     ['GET', '/api/recordings/1/playback'], ['GET', '/api/recordings/1/media.mp4'], ['GET', '/api/recordings/1/markers'],
     ['GET', '/api/proxy/stream'], ['GET', '/api/remux'],
-    ['GET', '/api/transcode/abc/stream.m3u8'], ['DELETE', '/api/playback/abc']
+    ['GET', '/api/transcode/abc/stream.m3u8'], ['GET', '/api/transcode/abc/master.m3u8'],
+    ['DELETE', '/api/playback/abc']
 ];
 
 test('every route the Apple client calls still reaches its real handler', async () => {

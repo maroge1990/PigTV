@@ -159,6 +159,26 @@ function probeStream(url, ffprobePath, userAgent = null, timeout = 15000) {
 }
 
 /**
+ * The HLS VIDEO-RANGE an HDR feed needs, read off the video stream's transfer
+ * characteristics: 'PQ' for HDR10 (smpte2084), 'HLG' for arib-std-b67, null for
+ * SDR or anything unreported. Comes from the resolve probe's own -show_streams,
+ * so it costs no extra provider connection.
+ *
+ * Why it matters: a copied HDR stream keeps its colour tagging all the way into
+ * the fMP4 init segment (checked on a Sky Sports Main Event UHD capture: colr/nclx
+ * with PQ + BT.2020, Main 10), yet tvOS never switched the panel to HDR. A media
+ * playlist on its own carries no VIDEO-RANGE, and Apple's players treat a stream
+ * without one as SDR - so an HDR session is fronted by a master playlist that says
+ * so (TranscodeSession.getMasterPlaylist).
+ */
+function classifyVideoRange(videoStream) {
+    const trc = (videoStream?.color_transfer || '').toLowerCase();
+    if (trc === 'smpte2084') return 'PQ';
+    if (trc === 'arib-std-b67') return 'HLG';
+    return null;
+}
+
+/**
  * Analyze probe result and determine compatibility
  */
 function analyzeProbeResult(probeResult, url, clientCaps = {}) {
@@ -262,6 +282,8 @@ function analyzeProbeResult(probeResult, url, clientCaps = {}) {
         // callers treat that as "even", which is the majority case and the one
         // where guessing wrong is merely no better than before rather than worse.
         dtsUneven: classifyTimestamps(probeResult.packets),
+        // 'PQ' / 'HLG' for an HDR feed, null otherwise - see classifyVideoRange.
+        videoRange: classifyVideoRange(videoStream),
         fps: videoStream?.avg_frame_rate || null,
         subtitles: subtitles
     };
@@ -293,6 +315,7 @@ module.exports = {
     probeStream,
     analyzeProbeResult,
     classifyTimestamps,
+    classifyVideoRange,
     probeCache,
     findCachedCodecs,
     CACHE_TTL,

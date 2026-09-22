@@ -181,6 +181,27 @@ router.get('/:sessionId/stream.m3u8', async (req, res) => {
 });
 
 /**
+ * Master playlist for an HDR session (0100): one variant, stream.m3u8, plus the
+ * VIDEO-RANGE a media playlist cannot carry. Must stay above the segment route,
+ * whose name allow-list would answer 404. The variant line gets ?token= like any
+ * other relative URI.
+ * GET /api/transcode/:sessionId/master.m3u8
+ */
+router.get('/:sessionId/master.m3u8', (req, res) => {
+    const { sessionId } = req.params;
+    const session = transcodeSession.getSession(sessionId);
+    const master = session && session.getMasterPlaylist();
+    if (!master) {
+        noteMissing(sessionId, 'master.m3u8', session ? 'the session is not HDR' : 'the session no longer exists');
+        return res.status(404).json({ error: 'Session not found' });
+    }
+
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.send(withStreamToken(master, req.query.token));
+});
+
+/**
  * Get a segment file for a session
  * GET /api/transcode/:sessionId/:segment.ts
  */

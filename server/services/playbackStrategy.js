@@ -150,6 +150,10 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     const canCopyVideo = info.videoOk === true && !upscale;
     const videoMode = canCopyVideo ? 'copy' : 'encode';
     const segmentType = (canCopyVideo && caps.fmp4 && (info.videoIsHevc || codecsOk)) ? 'fmp4' : 'mpegts';
+    // An HDR feed copied into fMP4 keeps its colour tagging, but only a master
+    // playlist can tell the player so (VIDEO-RANGE) - see classifyVideoRange. Not
+    // for an encode, whose output is not the source's HDR, nor for MPEG-TS.
+    const videoRange = (videoMode === 'copy' && segmentType === 'fmp4' && info.videoRange) || null;
 
     const session = await transcodeSession.createSession(url, {
         ffmpegPath: settings.ffmpegPath,
@@ -173,6 +177,10 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
         paceInput: info.finite === true,
         // Whether this feed's own DTS is worth keeping - see buildFFmpegArgs.
         dtsUneven: info.dtsUneven === true,
+        videoRange,
+        width: info.width,
+        height: info.height,
+        fps: info.fps,
         audioMode: audioEncode ? 'encode' : (codecsOk ? 'copy' : undefined),
         videoCodec: info.video,
         audioCodec: info.audio,
@@ -191,7 +199,8 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     const timing = videoMode === 'copy'
         ? `, source timing ${info.dtsUneven === true ? 'uneven - DTS rebuilt' : (info.dtsUneven === false ? 'even - DTS kept' : 'unknown - DTS kept')}`
         : '';
-    console.log(`[Playback] resolve timing: HLS session, probe ${probeNote}, first segment ${ready ? `after ${seconds(Date.now() - sessionStartedAt)}` : 'NOT produced in time'}${pacing}${timing}`);
+    const range = videoRange ? `, HDR ${videoRange} - master playlist` : '';
+    console.log(`[Playback] resolve timing: HLS session, probe ${probeNote}, first segment ${ready ? `after ${seconds(Date.now() - sessionStartedAt)}` : 'NOT produced in time'}${pacing}${timing}${range}`);
     if (!ready) {
         await transcodeSession.removeSession(session.id);
         const err = new Error('Transcode failed to produce a playlist in time');
@@ -201,7 +210,7 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
 
     return {
         strategy: 'transcode',
-        url: `/api/transcode/${session.id}/stream.m3u8`,
+        url: `/api/transcode/${session.id}/${videoRange ? 'master' : 'stream'}.m3u8`,
         sessionId: session.id,
         container: 'hls',
         videoMode,

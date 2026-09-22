@@ -1051,6 +1051,16 @@ class TranscodeSession extends EventEmitter {
     }
 
     /**
+     * The master playlist fronting an HDR session, or null for any other.
+     * Built in memory: it never changes during a session, so nothing is written.
+     */
+    getMasterPlaylist() {
+        if (!this.options.videoRange) return null;
+        this.touch();
+        return buildMasterPlaylist(this.options);
+    }
+
+    /**
      * Get a specific segment
      */
     async getSegment(segmentName) {
@@ -1252,8 +1262,38 @@ function getAllSessions() {
     }));
 }
 
+/**
+ * A one-variant master playlist whose only job is to carry VIDEO-RANGE, which a
+ * media playlist cannot: without it Apple's players treat the stream as SDR and
+ * never switch the display to HDR, however the segments themselves are tagged.
+ *
+ * CODECS is left out on purpose. A wrong CODECS string makes AVPlayer refuse the
+ * variant outright, and the exact one (HEVC tier, constraint flags, and whichever
+ * audio codec the session ends up sending) is not known from the probe. Without it
+ * the player reads the codecs from the init segment, as it does for stream.m3u8
+ * today. BANDWIDTH is required by the spec and only an estimate here: with one
+ * variant there is nothing for the player to choose between.
+ */
+function buildMasterPlaylist({ videoRange, width, height, fps }) {
+    const attrs = [`BANDWIDTH=${height >= 2000 ? 25000000 : 8000000}`];
+    if (width > 0 && height > 0) attrs.push(`RESOLUTION=${width}x${height}`);
+    const [num, den] = String(fps || '').split('/').map(Number);
+    const rate = den ? num / den : num;
+    if (Number.isFinite(rate) && rate > 0) attrs.push(`FRAME-RATE=${rate.toFixed(3)}`);
+    attrs.push(`VIDEO-RANGE=${videoRange}`);
+    return [
+        '#EXTM3U',
+        '#EXT-X-VERSION:7',
+        '#EXT-X-INDEPENDENT-SEGMENTS',
+        `#EXT-X-STREAM-INF:${attrs.join(',')}`,
+        'stream.m3u8',
+        ''
+    ].join('\n');
+}
+
 module.exports = {
     TranscodeSession,
+    buildMasterPlaylist,
     createSession,
     getSession,
     getOrCreateSession,

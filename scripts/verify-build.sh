@@ -1397,6 +1397,14 @@ else:
 PYCHK
 [ $? -eq 0 ] || FAIL=1
 
+echo "=== 0100: HDR sessions carry VIDEO-RANGE in a master playlist (SR-1) ==="
+check server/services/streamProbe.js "function classifyVideoRange" "the probe classifies PQ / HLG from color_transfer"
+check server/services/playbackStrategy.js "videoMode === 'copy' && segmentType === 'fmp4' && info.videoRange" "only a copied fMP4 session is called HDR"
+check server/services/transcodeSession.js "VIDEO-RANGE=" "the master playlist states the range"
+check server/routes/transcode.js "master.m3u8" "and is served, with the stream token on its variant"
+check test/api-404.test.js "/api/transcode/abc/master.m3u8" "the Apple-client route guard knows it"
+check test/hdr-master-playlist.test.js "smpte2084" "with a test built on the real capture's fields"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

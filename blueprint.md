@@ -1,6 +1,6 @@
 # PigTV server — handover (single source of truth)
 
-**Last updated:** 22 September 2026 (build 0099)
+**Last updated:** 23 September 2026 (build 0100)
 
 Authoritative handover for PigTV **server / webapp** work. Keep it **short**: it is read at the start of every session.
 
@@ -27,8 +27,8 @@ As progress is made, keep this file current for handover — and keep it small (
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv`, `http://192.168.1.235:3000`, reached over an approved-device VPN (Tailscale) only |
 | Local repo folder | `C:\Users\markr\GitHub\PigTV` (moved out of OneDrive, 21 Sept 2026) |
 | Patch folder | `C:\Users\markr\GitHub\patches\PigTV` |
-| Shipped through | **build 0099** once applied; 0096 confirmed on `origin/main`, 0090 confirmed running. Confirm with `/api/version` |
-| Next patch number | **0100** |
+| Shipped through | **build 0100** once applied; 0099 confirmed on `origin/main` and running (23 Sept). Confirm with `/api/version` |
+| Next patch number | **0101** |
 | Container name | **`PigTV`** on PassyFlix — every command in these docs names it literally, so it can be pasted as written. `docker ps` if it is ever renamed |
 
 Don't hard-code the `origin/main` SHA anywhere. The deployed build is whatever `/api/version` reports (§3).
@@ -135,6 +135,7 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
 | 0097 | P1-3 part 2a: favourites follow the channel, not the position |
 | 0098 | P1-3 part 2b: scheduled recordings and watch history do too |
 | 0099 | SR-2 (client R15): strip the decorative small-caps "ᴸɪᴠᴇ" badge from EPG titles/sub-titles/names and M3U channel names at ingest (shared `textCleanup.js`, ranges match the client) |
+| 0100 | SR-1 (client R13): an HDR copy session is handed out via `master.m3u8` carrying `VIDEO-RANGE=PQ\|HLG` |
 
 ---
 
@@ -190,6 +191,14 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
   it — without it `-show_packets` on a live feed never returns and the probe hits its 15 s timeout, i.e. nothing plays at all.
   Measured on the box (ffprobe 6.1.1, live HTTP): terminates at exactly 300 packets (~145 KB), ~157–179 of them video, and costs
   nothing (−360 ms and +165 ms on two channels — noise; the packets come from bytes `-probesize` already reads).
+- **HDR needs a master playlist, not colour flags** (0100). Measured 23 Sept on `pos_31` Sky Sports Main Event UHD: source
+  **HDR10 (PQ) + BT.2020, HEVC Main 10** (not HLG, as the client's SR-1 guessed), and the copied fMP4 `init.mp4` already keeps
+  `colr`/`nclx` with the same values. Yet tvOS stayed SDR in both players: a media playlist has no `VIDEO-RANGE`, and Apple
+  treats that as SDR. `streamProbe.classifyVideoRange()` reads `color_transfer` off the resolve probe (no extra connection);
+  a **copy + fMP4** session with PQ/HLG gets `options.videoRange` and resolve returns `/api/transcode/{id}/master.m3u8`
+  (built in memory; one variant → `stream.m3u8`). **No `CODECS`** on purpose — a wrong string makes AVPlayer refuse the variant.
+  An encode is never called HDR (its output isn't). SDR is byte-for-byte unchanged. `mdcv`/`clli` boxes are absent (tvOS reads
+  the SEI). Known sample: `pos_31` HDR10, timing even.
 - **HLS sessions have no back-pressure** (a remux's pipe throttles ffmpeg to the client's read rate; a session writes to disk).
   A source that delivers faster than real time — a file served from the start (found on a provider URL), a catch-up channel, a
   start-up burst — runs ahead of the ~102-segment window and the player's next segment is gone: **404, which hls.js does not
@@ -236,8 +245,8 @@ Run it as `docker exec PigTV node scripts/stream-doctor.js …`. `capture` and `
 copying them, so its verdict is by construction the one the server will act on. **The lesson worth keeping: a 60-second
 capture turns a playback bug into a local, repeatable experiment and removes the redeploy cycle entirely — and a redeploy ends
 every session. It found the 0085 regression, and the two-populations result, in an afternoon after weeks of spot fixes.** Channel ids are `pos_N` (`item_id` in `playlist_items`); the provider's numeric stream id
-appears only inside the URL, and the URL itself is in the row's `data` JSON blob, not `stream_url`. Known samples: `pos_1187`
-Fox Sports 505 uneven; `pos_463` TSN, `pos_328` Sky Sports UHD (HEVC), `pos_468` Sportsnet 4K (a ~190 kbps slate) all even.
+appears only inside the URL, and the URL itself is in the row's `data` JSON blob, not `stream_url`. Known samples: `pos_31` Sky Sports
+Main Event UHD (HDR10, even); `pos_1187` Fox Sports 505 uneven; `pos_463` TSN, `pos_328` Sky Sports UHD (HEVC), `pos_468` Sportsnet 4K (a ~190 kbps slate) all even.
 
 **Diagnostics and the trial** (`routes/playback.js`, `VideoPlayer.js`, `scripts/playback-report.js`)
 - `POST /api/playback/client-event` (token required; whitelisted, bounded fields; **path only, never a query string**): events
@@ -266,7 +275,8 @@ Fox Sports 505 uneven; `pos_463` TSN, `pos_328` Sky Sports UHD (HEVC), `pos_468`
   `title`/`sub-title`/`display-name` (both `epgParser` parse paths) and the M3U channel `name` (`m3uParser.parseExtinf`, so it also
   cleans derived `pos_N`-fallback tvg-ids). The code-point ranges match the client's `String.strippingBadgeSuffix()` exactly, so
   the client's interim stripper is now redundant. Only a *trailing* run of modifier/small-cap glyphs is removed — mid-title text is
-  untouched.
+  untouched. **It only cleans what is ingested after the deploy:** a redeploy skips any source synced <24 h ago (`syncIfStale`),
+  so 0099 looked like it had failed until a manual Sync now (confirmed clean 23 Sept). Any ingest-time change needs a sync to show.
 - **Channel identity vs playlist position** (0096–0098). `item_id` is `pos_N`, the M3U line number, and the provider moves it:
   on 21 Sept a reorder shifted Fox Sports 505 from `pos_1187` to `pos_1185` and a favourite was seen playing a different channel.
   `playlist_items.stable_id` (`services/stableIds.js`) is what a channel *is* — the provider's stream id out of the URL
