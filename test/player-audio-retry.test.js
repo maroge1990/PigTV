@@ -16,7 +16,7 @@ function makePlayer({ message = AUDIO_ERROR, code = 3, ...state } = {}) {
     const context = vm.createContext({
         window: {}, URL, console: { ...console, error() {}, warn() {} },
         localStorage: { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) },
-        fetch: async (url, opts) => { fetched.push({ url, body: JSON.parse(opts.body) }); return { status: 200, ok: true, json: async () => ({ strategy: 'remux', url: '/api/remux?x=1' }) }; }
+        fetch: async (url, opts) => { fetched.push({ url, body: JSON.parse(opts.body) }); return { status: 200, ok: true, json: async () => ({ strategy: 'transcode', container: 'hls', url: '/api/transcode/abc/stream.m3u8' }) }; }
     });
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/components/VideoPlayer.js'), 'utf8'), context);
     const plays = [];
@@ -24,11 +24,11 @@ function makePlayer({ message = AUDIO_ERROR, code = 3, ...state } = {}) {
     const player = Object.create(context.window.VideoPlayer.prototype);
     Object.assign(player, {
         video: {
-            error: { code, message }, currentSrc: 'http://pigtv.local/api/remux?url=x&token=t', networkState: 2, readyState: 2,
+            error: { code, message }, currentSrc: 'blob:http://pigtv.local/6f1a', networkState: 2, readyState: 2,
             currentTime: 25.1, buffered: { length: 1, end: () => 25.2 }, canPlayType: () => ''
         },
         loadingSpinner: { classList: { remove() {} } },
-        hls: null, currentStrategy: 'remux', currentChannel: CHANNEL, currentStreamUrl: 'http://provider.invalid/live/u/p/1.ts',
+        hls: null, currentStrategy: 'transcode', currentChannel: CHANNEL, currentStreamUrl: 'http://provider.invalid/live/u/p/1.ts',
         _audioEncodeActive: false, _audioRetryKey: null, settings: {},
         getCodecCapabilities: () => ({}),
         updateTranscodeStatus() {},
@@ -39,7 +39,7 @@ function makePlayer({ message = AUDIO_ERROR, code = 3, ...state } = {}) {
     return { player, store, plays, reports, fetched };
 }
 
-test('an audio decode failure on a remux stream replays it once, with the audio re-encoded', async () => {
+test('an audio decode failure replays the stream once, with the audio re-encoded', async () => {
     const { player, plays, store, reports } = makePlayer();
     player.handleMediaError();
     await new Promise(r => setImmediate(r));
@@ -58,11 +58,20 @@ test('only an audio decode error qualifies: a video error, or a network error, i
     }
 });
 
-test('only the remux path: hls.js manages its own recovery, and a direct stream has nothing to re-encode', () => {
-    for (const overrides of [{ hls: {} }, { currentStrategy: 'transcode' }, { currentStrategy: 'direct' }, { currentStrategy: null }]) {
+test('any stream the server built qualifies - HLS included, since remux is gone (0102)', () => {
+    for (const overrides of [{ hls: {}, currentStrategy: 'transcode' }, { currentStrategy: 'transcode' }]) {
         const { player, plays } = makePlayer(overrides);
         player.handleMediaError();
-        assert.equal(plays.length, 0, JSON.stringify(Object.keys(overrides)));
+        assert.equal(plays.length, 1, JSON.stringify(Object.keys(overrides)));
+        assert.equal(plays[0][2].audioEncode, true);
+    }
+});
+
+test('a proxied direct stream has nothing to re-encode, and neither does a play the server did not choose', () => {
+    for (const overrides of [{ currentStrategy: 'direct' }, { currentStrategy: null }]) {
+        const { player, plays } = makePlayer(overrides);
+        player.handleMediaError();
+        assert.equal(plays.length, 0, JSON.stringify(overrides));
     }
 });
 

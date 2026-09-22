@@ -35,7 +35,7 @@ function makePlayer({ answer = false, unavailable = false } = {}) {
             if (unavailable) return { status: 404, ok: false, json: async () => ({ error: 'No such API endpoint' }) };
             // The server answers 409 until the caller says force:true.
             if (!body.force) return { status: 409, ok: false, json: async () => CONFLICT };
-            return { status: 200, ok: true, json: async () => ({ strategy: 'remux', url: '/api/remux?x=1' }) };
+            return { status: 200, ok: true, json: async () => ({ strategy: 'transcode', container: 'hls', url: '/api/transcode/abc/stream.m3u8', sessionId: 'abc' }) };
         }
     });
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/components/VideoPlayer.js'), 'utf8'), context);
@@ -52,15 +52,15 @@ function makePlayer({ answer = false, unavailable = false } = {}) {
 
     const played = [];
     const localStrategy = [];
+    const shown = [];
     const player = Object.create(context.window.VideoPlayer.prototype);
     Object.assign(player, {
         video: { canPlayType: () => '' },
         overlay: { classList: overlay }, controlsOverlay: { classList: controlsOverlay },
         loadingSpinner: { classList: loadingSpinner },
-        settings: { autoTranscode: true },
-        // hlsDeliveryEnabled is a prototype getter reading localStorage - left alone
-        // so it answers false here, the same as a browser that has not opted in.
+        settings: {},
         getCodecCapabilities: () => ({}),
+        showError: (m) => { shown.push(m); },
         needsAudioEncode: () => false,
         updateTranscodeStatus() {},
         beginPlayMeasurement() { this._playT0 = 1; this._playMeta = {}; },
@@ -71,7 +71,7 @@ function makePlayer({ answer = false, unavailable = false } = {}) {
         startTranscodeSession: async (...a) => { localStrategy.push(['session', ...a]); return '/x.m3u8'; },
         capabilityQueryString: () => { localStrategy.push(['probe']); return ''; },
     });
-    return { player, played, localStrategy, resolveCalls, overlay, controlsOverlay, loadingSpinner, context };
+    return { player, played, localStrategy, resolveCalls, overlay, controlsOverlay, loadingSpinner, context, shown };
 }
 
 test('cancelling the takeover prompt stops the play - it does not fall through to the local strategy', async () => {
@@ -106,11 +106,24 @@ test('confirming still takes over, exactly as before', async () => {
     assert.equal(resolveCalls[1].force, true, 'the second ask carries force:true');
 });
 
-test('null keeps its other meaning: an older server still falls through to the local strategy', async () => {
+test('a failed resolve is null, not the cancel sentinel', async () => {
     const { player, context } = makePlayer({ unavailable: true });
 
     const decision = await player.resolvePlayback(CHANNEL, 'http://provider.invalid/live/u/p/1.ts');
 
-    assert.equal(decision, null, 'a 404 is still null, not the cancel sentinel');
+    assert.equal(decision, null);
     assert.notEqual(decision, context.window.VideoPlayer.CANCELLED);
+});
+
+test('a play the server could not start is asked for once more, then shown as failed - never a local strategy', async () => {
+    const { player, played, localStrategy, resolveCalls, shown, loadingSpinner } = makePlayer({ unavailable: true });
+
+    await player.play(CHANNEL, 'http://provider.invalid/live/u/p/1.ts');
+    for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));   // the retry is not awaited by the first play
+
+    assert.equal(resolveCalls.length, 2, 'one retry, no loop');
+    assert.equal(played.length, 0);
+    assert.deepEqual(localStrategy, []);
+    assert.equal(shown.length, 1, 'and the failure is shown');
+    assert.equal(loadingSpinner.contains('show'), false, 'without a spinner left over it');
 });

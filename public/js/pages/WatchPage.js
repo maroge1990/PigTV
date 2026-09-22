@@ -346,9 +346,12 @@ class WatchPage {
             this.currentSessionId = session.sessionId;
             return API.withStreamToken(session.playlistUrl);
         } catch (err) {
+            // There used to be a fallback here to the legacy piped transcode stream;
+            // it went with the remux path (0102). Say so rather than guess.
             console.error('[WatchPage] Session start failed:', err);
-            // Fallback to direct transcode if session fails
-            return API.withStreamToken(`/api/transcode?url=${encodeURIComponent(url)}`);
+            this.hideLoading();
+            this.updateTranscodeStatus('error', 'Could not start playback');
+            return null;
         }
     }
 
@@ -426,7 +429,7 @@ class WatchPage {
         // Show loading spinner
         this.showLoading();
 
-        // Get settings for proxy/transcode
+        // Get settings for proxy/upscaling
         let settings = {};
         try {
             settings = await API.settings.get();
@@ -436,112 +439,53 @@ class WatchPage {
 
         // Detect stream type
         const looksLikeHls = url.includes('.m3u8') || url.includes('m3u8');
-        const isRawTs = url.includes('.ts') && !url.includes('.m3u8');
-        const isDirectVideo = url.includes('.mp4') || url.includes('.mkv') || url.includes('.avi');
 
-        // Priority 0: Auto Transcode (Smart) - probe first, then decide
-        if (settings.autoTranscode) {
-            console.log('[WatchPage] Auto Transcode enabled. Probing stream...');
-            try {
-                const ua = settings.userAgentPreset === 'custom' ? settings.userAgentCustom : settings.userAgentPreset;
-                const probeRes = await API.streamFetch(`/api/probe?url=${encodeURIComponent(url)}&ua=${encodeURIComponent(ua || '')}`);
-                const info = await probeRes.json();
-                console.log(`[WatchPage] Probe result: video=${info.video}, audio=${info.audio}, ${info.width}x${info.height}, compatible=${info.compatible}`);
+        // The server's probe decides. Anything the browser cannot play as it is goes
+        // through an HLS session - the one delivery path, and the only one that can
+        // resume (seekOffset). The piped remux and the force-* settings are gone (0102);
+        // a raw .ts file that used to be remuxed is now copied into HLS segments.
+        try {
+            const ua = settings.userAgentPreset === 'custom' ? settings.userAgentCustom : settings.userAgentPreset;
+            const probeRes = await API.streamFetch(`/api/probe?url=${encodeURIComponent(url)}&ua=${encodeURIComponent(ua || '')}`);
+            const info = await probeRes.json();
+            console.log(`[WatchPage] Probe result: video=${info.video}, audio=${info.audio}, ${info.width}x${info.height}, compatible=${info.compatible}`);
 
-                // Store early probe info for quality display
-                this.currentStreamInfo = info;
-                this.updateQualityBadge();
+            // Store early probe info for quality display
+            this.currentStreamInfo = info;
+            this.updateQualityBadge();
 
-                if (info.needsTranscode || settings.upscaleEnabled) {
-                    console.log(`[WatchPage] Auto: Using HLS transcode session (${settings.upscaleEnabled ? 'Upscaling' : 'Incompatible audio/video'})`);
+            if (info.needsTranscode || info.needsRemux || settings.upscaleEnabled) {
+                // Copy the video whenever the browser can decode it; upscaling is the one
+                // case that forces a real encode. HEVC needs fMP4 segments (hls.js cannot
+                // demux it from MPEG-TS), and so does a plain container change - the same
+                // choice the server makes for live channels.
+                const videoMode = (info.videoOk === true && !settings.upscaleEnabled) ? 'copy' : 'encode';
+                const segmentType = videoMode === 'copy' && (info.videoIsHevc || info.needsRemux) ? 'fmp4' : 'mpegts';
+                const statusText = videoMode === 'copy'
+                    ? (info.needsTranscode ? 'HLS (audio converted)' : 'HLS (video copied)')
+                    : (settings.upscaleEnabled ? 'Upscaling' : 'HLS (video encoded)');
+                console.log(`[WatchPage] Using an HLS session: video=${videoMode}, segments=${segmentType}`);
+                this.updateTranscodeStatus(settings.upscaleEnabled ? 'upscaling' : 'transcoding', statusText);
 
-                    // Heuristic: If video is h264/compat, copy video. Usage: Audio fix. 
-                    // BUT: If upscaling is enabled, we MUST encode.
-                    const videoMode = (info.video && info.video.includes('h264') && !settings.upscaleEnabled) ? 'copy' : 'encode';
-                    const statusText = videoMode === 'copy' ? 'Transcoding (Audio)' : (settings.upscaleEnabled ? 'Upscaling' : 'Transcoding (Video)');
-                    const statusMode = settings.upscaleEnabled ? 'upscaling' : 'transcoding';
-
-                    this.updateTranscodeStatus(statusMode, statusText);
-                    const playlistUrl = await this.startTranscodeSession(url, {
-                        videoMode,
-                        seekOffset: this.resumeTime, // Ensure seekOffset is passed
-                        videoCodec: info.video,
-                        audioCodec: info.audio,
-                        audioChannels: info.audioChannels
-                    });
-                    this.playHls(playlistUrl);
-                    this.setVolumeFromStorage();
-                    return;
-                } else if (info.needsRemux) {
-                    // Remux (container swap) currently doesn't use session logic, uses direct stream
-                    // TODO: Move remux to session logic if seeking is needed for TS files
-                    console.log('[WatchPage] Auto: Using remux (.ts container)');
-                    this.updateTranscodeStatus('remuxing', 'Remux (Auto)');
-                    const finalUrl = API.withStreamToken(`/api/remux?url=${encodeURIComponent(url)}`);
-                    this.video.src = finalUrl;
-                    this.video.play().catch(e => {
-                        if (e.name !== 'AbortError') console.error('[WatchPage] Autoplay error:', e);
-                    });
-                    this.setVolumeFromStorage();
-                    return;
-                }
-                // Compatible - fall through to normal playback
-                console.log('[WatchPage] Auto: Using normal playback (compatible)');
-            } catch (err) {
-                console.warn('[WatchPage] Probe failed, using normal playback:', err.message);
-                // Continue with normal playback on probe failure
+                const playlistUrl = await this.startTranscodeSession(url, {
+                    videoMode,
+                    segmentType,
+                    seekOffset: this.resumeTime,
+                    videoCodec: info.video,
+                    audioCodec: info.audio,
+                    audioChannels: info.audioChannels,
+                    audioProfile: info.audioProfile,
+                    isHeAac: info.isHeAac
+                });
+                if (!playlistUrl) return;
+                this.playHls(playlistUrl);
+                this.setVolumeFromStorage();
+                return;
             }
-        }
-
-        // Priority 1: Force Video Transcode (Full) or Upscaling
-        if (settings.forceVideoTranscode || settings.upscaleEnabled) {
-            const statusText = settings.upscaleEnabled ? 'Upscaling' : 'Transcoding (Video)';
-            const statusMode = settings.upscaleEnabled ? 'upscaling' : 'transcoding';
-            console.log(`[WatchPage] ${statusText} enabled. Starting session (encode)...`);
-            this.updateTranscodeStatus(statusMode, statusText);
-            const playlistUrl = await this.startTranscodeSession(url, {
-                videoMode: 'encode',
-                seekOffset: this.resumeTime
-            });
-            this.playHls(playlistUrl);
-            this.setVolumeFromStorage();
-            return;
-        }
-
-        if (settings.forceTranscode) {
-            console.log('[WatchPage] Force Audio Transcode enabled. Starting session (copy)...');
-            this.updateTranscodeStatus('transcoding', 'Transcoding (Audio)');
-
-            // Probe to get video codec for HEVC tag handling
-            let videoCodec = 'unknown';
-            try {
-                const ua = settings.userAgentPreset === 'custom' ? settings.userAgentCustom : settings.userAgentPreset;
-                const probeRes = await API.streamFetch(`/api/probe?url=${encodeURIComponent(url)}&ua=${encodeURIComponent(ua || '')}`);
-                const info = await probeRes.json();
-                videoCodec = info.video;
-            } catch (e) { console.warn('Probe failed for force audio, assuming h264'); }
-
-            const playlistUrl = await this.startTranscodeSession(url, {
-                videoMode: 'copy',
-                videoCodec,
-                seekOffset: this.resumeTime
-            });
-            this.playHls(playlistUrl);
-            this.setVolumeFromStorage();
-            return;
-        }
-
-        // Priority 2: Force Remux for raw TS streams
-        if (settings.forceRemux && isRawTs) {
-            console.log('[WatchPage] Force Remux enabled');
-            this.updateTranscodeStatus('remuxing', 'Remux (Force)');
-            const finalUrl = API.withStreamToken(`/api/remux?url=${encodeURIComponent(url)}`);
-            this.video.src = finalUrl;
-            this.video.play().catch(e => {
-                if (e.name !== 'AbortError') console.error('[WatchPage] Autoplay error:', e);
-            });
-            this.setVolumeFromStorage();
-            return;
+            // Compatible - fall through to normal playback
+            console.log('[WatchPage] Using normal playback (compatible)');
+        } catch (err) {
+            console.warn('[WatchPage] Probe failed, using normal playback:', err.message);
         }
 
         // Determine if proxy is needed

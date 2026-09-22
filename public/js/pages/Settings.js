@@ -368,11 +368,6 @@ class SettingsPage {
 
         // Stream processing (use -tc suffix IDs from Transcoding tab)
         const forceProxyToggle = document.getElementById('setting-force-proxy-tc');
-        const autoTranscodeToggle = document.getElementById('setting-auto-transcode-tc');
-        const forceTranscodeToggle = document.getElementById('setting-force-transcode-tc');
-        const forceVideoTranscodeToggle = document.getElementById('setting-force-video-transcode-tc');
-        const forceRemuxToggle = document.getElementById('setting-force-remux-tc');
-        const hlsDeliveryToggle = document.getElementById('setting-hls-delivery-tc');
         const streamFormatSelect = document.getElementById('setting-stream-format-tc');
 
         // User-Agent (Transcoding tab versions)
@@ -393,12 +388,6 @@ class SettingsPage {
         if (maxResolutionSelect) maxResolutionSelect.value = s.maxResolution || '1080p';
         if (qualitySelect) qualitySelect.value = s.quality || 'medium';
         if (forceProxyToggle) forceProxyToggle.checked = s.forceProxy === true;
-        if (autoTranscodeToggle) autoTranscodeToggle.checked = s.autoTranscode !== false;
-        if (forceTranscodeToggle) forceTranscodeToggle.checked = s.forceTranscode === true;
-        if (forceVideoTranscodeToggle) forceVideoTranscodeToggle.checked = s.forceVideoTranscode === true;
-        if (forceRemuxToggle) forceRemuxToggle.checked = s.forceRemux || false;
-        // Per browser, not a server setting: it lives in this browser's localStorage.
-        if (hlsDeliveryToggle) hlsDeliveryToggle.checked = this.app.player?.hlsDeliveryEnabled === true;
         if (streamFormatSelect) streamFormatSelect.value = s.streamFormat || 'm3u8';
         if (userAgentSelect) userAgentSelect.value = s.userAgentPreset || 'chrome';
         if (userAgentCustomInput) userAgentCustomInput.value = s.userAgentCustom || '';
@@ -474,30 +463,6 @@ class SettingsPage {
         forceProxyToggle?.addEventListener('change', () => {
             this.app.player.settings.forceProxy = forceProxyToggle.checked;
             this.app.player.saveSettings();
-        });
-
-        autoTranscodeToggle?.addEventListener('change', () => {
-            this.app.player.settings.autoTranscode = autoTranscodeToggle.checked;
-            this.app.player.saveSettings();
-        });
-
-        forceTranscodeToggle?.addEventListener('change', () => {
-            this.app.player.settings.forceTranscode = forceTranscodeToggle.checked;
-            this.app.player.saveSettings();
-        });
-
-        forceVideoTranscodeToggle?.addEventListener('change', () => {
-            this.app.player.settings.forceVideoTranscode = forceVideoTranscodeToggle.checked;
-            this.app.player.saveSettings();
-        });
-
-        forceRemuxToggle?.addEventListener('change', () => {
-            this.app.player.settings.forceRemux = forceRemuxToggle.checked;
-            this.app.player.saveSettings();
-        });
-
-        hlsDeliveryToggle?.addEventListener('change', () => {
-            this.app.player.setHlsDelivery(hlsDeliveryToggle.checked);
         });
 
         streamFormatSelect?.addEventListener('change', () => {
@@ -814,9 +779,6 @@ class SettingsPage {
             const rememberVolumeToggle = document.getElementById('setting-remember-volume');
             const autoPlayNextToggle = document.getElementById('setting-autoplay-next');
             const forceProxyToggle = document.getElementById('setting-force-proxy');
-            const forceTranscodeToggle = document.getElementById('setting-force-transcode');
-            const forceRemuxToggle = document.getElementById('setting-force-remux');
-            const autoTranscodeToggle = document.getElementById('setting-auto-transcode');
             const epgRefreshSelect = document.getElementById('epg-refresh-interval');
             const streamFormatSelect = document.getElementById('setting-stream-format');
 
@@ -827,9 +789,6 @@ class SettingsPage {
             if (rememberVolumeToggle) rememberVolumeToggle.checked = s.rememberVolume;
             if (autoPlayNextToggle) autoPlayNextToggle.checked = s.autoPlayNextEpisode;
             if (forceProxyToggle) forceProxyToggle.checked = s.forceProxy || false;
-            if (forceTranscodeToggle) forceTranscodeToggle.checked = s.forceTranscode || false;
-            if (forceRemuxToggle) forceRemuxToggle.checked = s.forceRemux || false;
-            if (autoTranscodeToggle) autoTranscodeToggle.checked = s.autoTranscode || false;
             if (epgRefreshSelect) epgRefreshSelect.value = s.epgRefreshInterval || '24';
             if (streamFormatSelect) streamFormatSelect.value = s.streamFormat || 'm3u8';
 

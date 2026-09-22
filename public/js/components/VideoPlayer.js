@@ -25,7 +25,6 @@ class VideoPlayer {
         this.currentChannel = null;
         this.overlayTimer = null;
         this.overlayDuration = 5000; // 5 seconds
-        this.isUsingProxy = false;
         this.currentUrl = null;
         this.settingsLoaded = false;
 
@@ -57,10 +56,8 @@ class VideoPlayer {
             rememberVolume: true,
             lastVolume: 80,
             autoPlayNextEpisode: false,
+            // Only the movie/series page reads this now: live TV always goes through the server.
             forceProxy: false,
-            forceTranscode: false,
-            forceRemux: false,
-            autoTranscode: true,
             streamFormat: 'm3u8',
             epgRefreshInterval: '24'
         };
@@ -671,154 +668,6 @@ class VideoPlayer {
             }
         });
 
-        // Initialize HLS.js if supported
-        if (Hls.isSupported()) {
-            this.hls = new Hls(this.getHlsConfig());
-            this.lastDiscontinuity = -1; // Track discontinuity changes
-
-            this.hls.on(Hls.Events.ERROR, (event, data) => {
-                console.error('HLS error:', data.type, data.details);
-                if (data.fatal) {
-                    switch (data.type) {
-                        case Hls.ErrorTypes.NETWORK_ERROR:
-                            // Track network retry attempts
-                            this.networkRetryCount = (this.networkRetryCount || 0) + 1;
-                            const now = Date.now();
-                            const timeSinceLastNetworkError = now - (this.lastNetworkErrorTime || 0);
-                            this.lastNetworkErrorTime = now;
-
-                            // Reset retry count if it's been more than 30 seconds since last error
-                            if (timeSinceLastNetworkError > 30000) {
-                                this.networkRetryCount = 1;
-                            }
-
-                            console.log(`Network error (attempt ${this.networkRetryCount}/3):`, data.details);
-
-                            if (this.networkRetryCount <= 3 && !this.isUsingProxy) {
-                                // Retry with increasing delay (1s, 2s, 3s)
-                                const retryDelay = this.networkRetryCount * 1000;
-                                console.log(`[HLS] Retrying in ${retryDelay}ms...`);
-                                setTimeout(() => {
-                                    if (this.hls) {
-                                        this.hls.startLoad();
-                                    }
-                                }, retryDelay);
-                            } else if (!this.isUsingProxy) {
-                                // After 3 retries, try proxy
-                                console.log('[HLS] Max retries reached, switching to proxy...');
-                                this.networkRetryCount = 0;
-                                this.isUsingProxy = true;
-                                const proxiedUrl = this.getProxiedUrl(this.currentUrl);
-                                this.hls.loadSource(proxiedUrl);
-                                this.hls.startLoad();
-                            } else {
-                                // Already using proxy, just retry
-                                console.log('[HLS] Network error on proxy, retrying...');
-                                this.hls.startLoad();
-                            }
-                            break;
-                        case Hls.ErrorTypes.MEDIA_ERROR:
-                            console.log('Media error, attempting recovery...');
-                            this.hls.recoverMediaError();
-                            break;
-                        default:
-                            this.stop();
-                            break;
-                    }
-                } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-                    // Non-fatal media error - try to recover with cooldown to prevent loops
-                    const now = Date.now();
-                    const timeSinceLastRecovery = now - (this.lastRecoveryAttempt || 0);
-
-                    // Track consecutive media errors for escalated recovery
-                    if (timeSinceLastRecovery < 5000) {
-                        this.mediaErrorCount = (this.mediaErrorCount || 0) + 1;
-                    } else {
-                        this.mediaErrorCount = 1;
-                    }
-
-                    // Only attempt recovery if more than 2 seconds since last attempt
-                    if (timeSinceLastRecovery > 2000) {
-                        console.log(`Non-fatal media error (${this.mediaErrorCount}x):`, data.details, '- attempting recovery');
-                        this.lastRecoveryAttempt = now;
-
-                        // If repeated errors, try swapAudioCodec which can fix audio glitches
-                        if (this.mediaErrorCount >= 3) {
-                            console.log('[HLS] Multiple errors detected, trying swapAudioCodec...');
-                            this.hls.swapAudioCodec();
-                            this.mediaErrorCount = 0;
-                        }
-
-                        this.hls.recoverMediaError();
-
-                        // If fragParsingError, also seek forward slightly to skip corrupted segment
-                        if (data.details === 'fragParsingError' && !this.video.paused && this.video.currentTime > 0) {
-                            console.log('[HLS] Seeking past corrupted segment...');
-                            setTimeout(() => {
-                                if (this.video && !this.video.paused) {
-                                    this.video.currentTime += 1;
-                                }
-                            }, 200);
-                        }
-                    } else {
-                        // Too many errors in quick succession - log but don't spam recovery
-                        console.log('Non-fatal media error (cooldown):', data.details);
-                    }
-                } else if (data.details === 'bufferAppendError') {
-                    // Buffer errors during ad transitions - try recovery
-                    console.log('Buffer append error, recovering...');
-                    this.hls.recoverMediaError();
-                }
-            });
-
-            // Detect audio track switches (can cause audio glitches on some streams)
-            this.hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (event, data) => {
-                console.log('Audio track switched:', data);
-            });
-
-            // Detect buffer stalls which may indicate codec issues
-            this.hls.on(Hls.Events.BUFFER_STALLED_ERROR, () => {
-                console.log('Buffer stalled, attempting recovery...');
-                this.hls.recoverMediaError();
-            });
-
-            // Detect discontinuity changes (ad transitions) and help decoder reset
-            this.hls.on(Hls.Events.FRAG_CHANGED, (event, data) => {
-                const frag = data.frag;
-                // Debug: log every fragment change
-                console.log(`[HLS] FRAG_CHANGED: sn=${frag?.sn}, cc=${frag?.cc}, level=${frag?.level}`);
-
-                if (frag && frag.sn !== 'initSegment') {
-                    // Check if we crossed a discontinuity boundary using CC (Continuity Counter)
-                    if (frag.cc !== undefined && frag.cc !== this.lastDiscontinuity) {
-                        console.log(`[HLS] Discontinuity detected: CC ${this.lastDiscontinuity} -> ${frag.cc}`);
-                        this.lastDiscontinuity = frag.cc;
-
-                        // Small nudge to help decoder sync (only if playing)
-                        if (!this.video.paused && this.video.currentTime > 0) {
-                            const nudgeAmount = 0.01;
-                            this.video.currentTime += nudgeAmount;
-                        }
-                    }
-                }
-            });
-
-            // Listen for subtitle track updates
-            this.hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, (event, data) => {
-                console.log('Subtitle tracks updated:', data.subtitleTracks);
-                // Wait a moment for native text tracks to populate
-                setTimeout(() => this.updateCaptionsTracks(), 100);
-            });
-
-            this.hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, (event, data) => {
-                console.log('Subtitle track switched:', data);
-            });
-
-            this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                this.video.play().catch(e => console.log('Autoplay prevented:', e));
-            });
-        }
-
         // Keyboard controls
         document.addEventListener('keydown', (e) => this.handleKeyboard(e));
 
@@ -889,14 +738,6 @@ class VideoPlayer {
         return this._codecCaps;
     }
 
-    capabilityQueryString() {
-        const caps = this.getCodecCapabilities();
-        return Object.keys(caps)
-            .filter(k => caps[k])
-            .map(k => `&${k}=1`)
-            .join('');
-    }
-
     /**
      * Ask the server how to play something.
      *
@@ -905,8 +746,9 @@ class VideoPlayer {
      * one implementation. This sends what the browser can decode and plays
      * whatever comes back.
      *
-     * Returns null if the endpoint is unavailable, so an older server falls
-     * back to the original path rather than failing outright.
+     * Always asks for HLS segments (segmentedDelivery), exactly as the Apple
+     * client does: there is one delivery path for every device. Returns null when
+     * the server could not start the channel; play() then asks once more.
      */
     async resolvePlayback(channel, streamUrl, { force = false, audioEncode = false } = {}) {
         const caps = this.getCodecCapabilities();
@@ -919,9 +761,7 @@ class VideoPlayer {
                 ...caps,
                 hls: !!(window.Hls && window.Hls.isSupported()) || this.video.canPlayType('application/vnd.apple.mpegurl') !== '',
                 fmp4: true,
-                // The same request the Apple client makes: HLS segments instead of the
-                // piped /api/remux stream. Off unless this browser has opted in.
-                ...(this.hlsDeliveryEnabled ? { segmentedDelivery: true } : {})
+                segmentedDelivery: true
             },
             upscale: this.settings.upscaleEnabled === true
         };
@@ -954,12 +794,10 @@ class VideoPlayer {
                 const proceed = confirm(`${conflict.message}\n\n${otherViewer ? 'Stop the other stream and watch here?' : 'Stop the recording and watch now?'}`);
                 if (!proceed) {
                     this.updateTranscodeStatus('idle', otherViewer ? 'Another device is watching' : 'Recording in progress');
-                    // Not null: null means "this server has no resolve endpoint, use the
-                    // local strategy", and the local path starts a transcode session that
-                    // reclaims the provider slot without asking anyone (the session route
-                    // admits in soft mode). Answering "no" to the prompt and then taking
-                    // the other viewer's stream anyway is the one outcome the prompt exists
-                    // to prevent.
+                    // Not null: null means "the server could not start it", which play()
+                    // answers by asking again - and answering "no" to the prompt and then
+                    // taking the other viewer's stream anyway is the one outcome the prompt
+                    // exists to prevent.
                     return VideoPlayer.CANCELLED;
                 }
                 return this.resolvePlayback(channel, streamUrl, { force: true, audioEncode });
@@ -970,7 +808,7 @@ class VideoPlayer {
             console.log(`[Player] Server chose ${decision.strategy}: ${decision.reason}`);
             return decision;
         } catch (err) {
-            console.warn('[Player] Playback resolve unavailable, using local strategy:', err.message);
+            console.warn('[Player] Playback resolve failed:', err.message);
             return null;
         }
     }
@@ -1043,17 +881,13 @@ class VideoPlayer {
             strategy: decision.strategy || 'unknown',
             container: decision.container || null,
             videoMode: decision.videoMode || null,
-            hlsDelivery: this.hlsDeliveryEnabled
+            hlsDelivery: true
         };
         this._resolveMs = this.elapsedSincePlayStart();
 
-        const hlsBeta = this.hlsDeliveryEnabled && decision.strategy === 'transcode';
         const label = {
             direct: ['direct', 'Direct'],
-            remux: ['remuxing', 'Remux'],
-            transcode: ['transcoding', hlsBeta
-                ? `HLS (video ${decision.videoMode === 'copy' ? 'copied' : 'encoded'})`
-                : (decision.videoMode === 'copy' ? 'Transcoding (Audio)' : 'Transcoding (Video)')]
+            transcode: ['transcoding', `HLS (video ${decision.videoMode === 'copy' ? 'copied' : 'encoded'})`]
         }[decision.strategy] || ['direct', 'Direct'];
         this.updateTranscodeStatus(label[0], label[1]);
 
@@ -1076,66 +910,8 @@ class VideoPlayer {
     }
 
     /**
-     * Start a HLS transcode session
-     */
-    async startTranscodeSession(url, options = {}) {
-        try {
-            console.log('[Player] Starting HLS transcode session...', options);
-            const res = await fetch('/api/transcode/session', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(localStorage.getItem('authToken') ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` } : {})
-                },
-                body: JSON.stringify({ url, live: true, ...options })
-            });
-            if (!res.ok) throw new Error('Failed to start session');
-            const session = await res.json();
-            this.currentSessionId = session.sessionId;
-            return API.withStreamToken(session.playlistUrl);
-        } catch (err) {
-            console.error('[Player] Session start failed:', err);
-            // Fallback to direct transcode if session fails
-            return API.withStreamToken(`/api/transcode?url=${encodeURIComponent(url)}`);
-        }
-    }
-
-    /**
-     * Stop playback entirely: tear down the player and kill the server-side
-     * session so the ffmpeg process and the provider connection are released.
-     * Pause only stops the browser consuming the stream; the session keeps
-     * running, which matters on a provider that allows one connection.
-     */
-    async stop() {
-        console.log('[Player] Stop requested');
-
-        this.video.pause();
-
-        if (this.hls) {
-            try { this.hls.destroy(); } catch (e) { /* already gone */ }
-            this.hls = null;
-        }
-
-        // Detach the source so the browser drops any in-flight request to the
-        // remux endpoint, which has no session to cancel.
-        try {
-            this.video.removeAttribute('src');
-            this.video.load();
-        } catch (e) { /* ignore */ }
-
-        await this.stopTranscodeSession();
-        this.stopConflictWatch();
-
-        this.currentUrl = null;
-        this.updateTranscodeStatus('idle', 'Stopped');
-        this.updateLiveButton();
-        window.dispatchEvent(new CustomEvent('playbackStopped'));
-    }
-
-    /**
      * Jump back to the live edge. On an HLS stream that means seeking to the
-     * end of the seekable range; on a piped remux there is no buffer to seek
-     * within, so the stream is restarted instead.
+     * end of the seekable range.
      */
     goToLive() {
         if (this.hls && this.hls.liveSyncPosition != null) {
@@ -1156,9 +932,7 @@ class VideoPlayer {
             }
         }
 
-        // A piped remux has no buffer, so playback is always at the live edge
-        // already and there is nothing to seek to. Restarting the stream here
-        // would tear down a working connection to rebuild an identical one.
+        // Nothing seekable yet: playback is already at the live edge.
         console.log('[Player] Stream is not seekable — already at the live edge');
     }
 
@@ -1215,7 +989,10 @@ class VideoPlayer {
         this.currentStreamUrl = streamUrl;
         // A fresh selection gets its own single audio-re-encode retry; the retry
         // itself does not (that is what stops it looping).
-        if (!options.isRetry) this._audioRetryKey = null;
+        if (!options.isRetry) {
+            this._audioRetryKey = null;
+            this._recoveredKey = null;
+        }
         this._audioEncodeActive = options.audioEncode === true || this.needsAudioEncode(channel);
 
         try {
@@ -1234,349 +1011,45 @@ class VideoPlayer {
             this.controlsOverlay?.classList.remove('hidden');
             this.loadingSpinner?.classList.add('show');
 
-            // Determine if HLS or direct stream
             this.currentUrl = streamUrl;
 
-            // Server-side strategy. Falls through to the original local logic
-            // when the endpoint is not available.
-            if (this.settings.autoTranscode) {
-                const decision = await this.resolvePlayback(channel, streamUrl, { audioEncode: options.audioEncode === true });
-                if (decision === VideoPlayer.CANCELLED) {
-                    this.abandonPlay();
-                    return;
-                }
-                if (decision) {
-                    await this.playDecision(decision, channel);
-                    return;
-                }
-            }
-
-            // CHECK: Auto Transcode (Smart) - probe first, then decide
-            if (this.settings.autoTranscode) {
-                console.log('[Player] Auto Transcode enabled. Probing stream...');
-                try {
-                    const probeRes = await API.streamFetch(`/api/probe?url=${encodeURIComponent(streamUrl)}${this.capabilityQueryString()}`);
-                    const info = await probeRes.json();
-                    console.log(`[Player] Probe result: video=${info.video}, audio=${info.audio}, ${info.width}x${info.height}, compatible=${info.compatible}`);
-
-                    // Store probe result for quality badge display
-                    this.currentStreamInfo = info;
-                    this.updateQualityBadge();
-
-                    // Handle subtitles from probe result
-                    // Clear existing remote tracks (from previous streams)
-                    const oldTracks = this.video.querySelectorAll('track');
-                    oldTracks.forEach(t => t.remove());
-
-                    if (info.subtitles && info.subtitles.length > 0) {
-                        console.log(`[Player] Found ${info.subtitles.length} subtitle tracks`);
-                        info.subtitles.forEach(sub => {
-                            const track = document.createElement('track');
-                            track.kind = 'subtitles';
-                            track.label = sub.title;
-                            track.srclang = sub.language;
-                            track.src = API.withStreamToken(`/api/subtitle?url=${encodeURIComponent(streamUrl)}&index=${sub.index}`);
-                            this.video.appendChild(track);
-                        });
-
-                        // Force update of captions menu if it's open
-                        if (this.captionsMenuOpen) {
-                            this.updateCaptionsTracks();
-                        }
-                    }
-
-                    if (info.needsTranscode || this.settings.upscaleEnabled) {
-                        // Incompatible audio (AC3/EAC3/DTS) or Upscaling enabled - use transcode session
-                        console.log(`[Player] Auto: Using HLS transcode session (${this.settings.upscaleEnabled ? 'Upscaling' : 'Incompatible audio/video'})`);
-
-                        // Only re-encode video when we actually have to. If the
-                        // client can decode the video codec, stream-copy it and
-                        // fix up only the audio: near-zero CPU instead of a full
-                        // encode. HEVC copy needs fMP4 segments, since hls.js
-                        // cannot demux HEVC out of MPEG-TS.
-                        // Upscaling is the one case that forces a real encode.
-                        const canCopyVideo = info.videoOk === true && !this.settings.upscaleEnabled;
-                        const videoMode = canCopyVideo ? 'copy' : 'encode';
-                        const segmentType = (canCopyVideo && info.videoIsHevc) ? 'fmp4' : 'mpegts';
-
-                        const statusText = canCopyVideo
-                            ? 'Transcoding (Audio)'
-                            : (this.settings.upscaleEnabled ? 'Upscaling' : 'Transcoding (Video)');
-                        const statusMode = this.settings.upscaleEnabled ? 'upscaling' : 'transcoding';
-
-                        console.log(`[Player] Strategy: video=${videoMode}, segments=${segmentType}`);
-                        this.updateTranscodeStatus(statusMode, statusText);
-                        const playlistUrl = await this.startTranscodeSession(streamUrl, {
-                            videoMode,
-                            segmentType,
-                            videoCodec: info.video,
-                            audioCodec: info.audio,
-                            audioChannels: info.audioChannels,
-                            audioProfile: info.audioProfile,
-                            isHeAac: info.isHeAac
-                        });
-                        this.currentUrl = playlistUrl; // Update currentUrl for HLS reload
-
-                        this.playHls(playlistUrl);
-
-                        this.updateNowPlaying(channel);
-                        this.showNowPlayingOverlay();
-                        this.fetchEpgData(channel);
-                        window.dispatchEvent(new CustomEvent('channelChanged', { detail: channel }));
-                        return;
-                    } else if (info.needsRemux) {
-                        // Raw .ts container - use remux
-                        console.log('[Player] Auto: Using remux (.ts container)');
-                        this.updateTranscodeStatus('remuxing', 'Remux (Auto)');
-                        const remuxUrl = this.getRemuxUrl(streamUrl);
-                        this.currentUrl = remuxUrl;
-                        this.video.src = remuxUrl;
-                        this.video.play().catch(e => {
-                            if (e.name !== 'AbortError') console.log('[Player] Autoplay prevented:', e);
-                        });
-                        this.updateNowPlaying(channel);
-                        this.showNowPlayingOverlay();
-                        this.fetchEpgData(channel);
-                        window.dispatchEvent(new CustomEvent('channelChanged', { detail: channel }));
-                        return;
-                    }
-                    // Compatible - fall through to normal HLS.js path
-                    console.log('[Player] Auto: Using HLS.js (compatible)');
-                } catch (err) {
-                    console.warn('[Player] Probe failed, using normal playback:', err.message);
-                    // Continue with normal playback on probe failure
-                }
-            }
-
-            // CHECK: Force Video Transcode (Full) or Upscaling
-            if (this.settings.forceVideoTranscode || this.settings.upscaleEnabled) {
-                const statusText = this.settings.upscaleEnabled ? 'Upscaling' : 'Transcoding (Video)';
-                const statusMode = this.settings.upscaleEnabled ? 'upscaling' : 'transcoding';
-                console.log(`[Player] ${statusText} enabled. Starting session (encode)...`);
-                this.updateTranscodeStatus(statusMode, statusText);
-                const playlistUrl = await this.startTranscodeSession(streamUrl, { videoMode: 'encode' });
-                this.currentUrl = playlistUrl;
-
-                // Load HLS
-                this.updateNowPlaying(channel, 'Transcoding (Video)');
-                // ... (rest is same logic flow, simplified by just falling through to playHls call if I refactored)
-                // But for minimize drift, I'll copy the block logic for HLS playback init
-                // Actually, I can just fall through if I set looksLikeHls = true?
-                // No, play logic is sequential.
-                if (Hls.isSupported()) {
-                    // Start HLS
-                    // ... this repeats code. I should probably just set currentUrl and let HLS block handle?
-                    // But HLS block is lower down.
-                    // I will just execute the HLS init here as before.
-
-                    // Actually, easiest way is to re-assign streamUrl and goto start? No.
-                    // Copy existing forceTranscode block logic
-                    if (this.hls) {
-                        this.hls.destroy();
-                    }
-                    this.hls = new Hls();
-                    this.hls.loadSource(playlistUrl);
-                    this.hls.attachMedia(this.video);
-                    this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                        this.video.play().catch(console.error);
-                    });
-                    // Handle errors
-                    this.hls.on(Hls.Events.ERROR, (event, data) => {
-                        if (data.fatal) {
-                            console.log('[Player] HLS fatal error');
-                            this.hls.destroy();
-                        }
-                    });
-
-                    return; // Exit
-                }
-            }
-
-            // CHECK: Force Audio Transcode (Copy Video) - legacy forceTranscode setting
-            if (this.settings.forceTranscode) {
-                console.log('[Player] Force Audio Transcode enabled. Starting session (copy)...');
-                this.updateTranscodeStatus('transcoding', 'Transcoding (Audio)');
-
-                // Probe to get video codec for HEVC tag handling
-                let videoCodec = 'unknown';
-                try {
-                    const probeRes = await API.streamFetch(`/api/probe?url=${encodeURIComponent(streamUrl)}${this.capabilityQueryString()}`);
-                    const info = await probeRes.json();
-                    videoCodec = info.video;
-                } catch (e) { console.warn('Probe failed for force audio, assuming h264'); }
-
-                const playlistUrl = await this.startTranscodeSession(streamUrl, { videoMode: 'copy', videoCodec });
-                this.currentUrl = playlistUrl;
-
-                console.log('[Player] Playing transcoded HLS stream:', playlistUrl);
-                this.playHls(playlistUrl);
-
-                // Update UI and dispatch events
-                this.updateNowPlaying(channel);
-                this.showNowPlayingOverlay();
-                this.fetchEpgData(channel);
-                window.dispatchEvent(new CustomEvent('channelChanged', { detail: channel }));
-                return; // Exit early
-            }
-
-            // Proactively use proxy for:
-            // 1. User enabled "Force Proxy" in settings
-            // 2. Known CORS-restricted domains (like Pluto TV)
-            // Note: Xtream sources are NOT auto-proxied because many providers IP-lock streams
-            const proxyRequiredDomains = ['pluto.tv'];
-            const needsProxy = this.settings.forceProxy || proxyRequiredDomains.some(domain => streamUrl.includes(domain));
-
-            this.isUsingProxy = needsProxy;
-            const finalUrl = needsProxy ? this.getProxiedUrl(streamUrl) : streamUrl;
-
-            // Detect if this is likely an HLS stream (has .m3u8 in URL)
-            const looksLikeHls = finalUrl.includes('.m3u8') || finalUrl.includes('m3u8');
-
-            // Check if this looks like a raw stream (no HLS manifest, no common video extensions)
-            // This includes .ts files AND extension-less URLs that might be TS streams
-            const isRawTs = finalUrl.includes('.ts') && !finalUrl.includes('.m3u8');
-            const isExtensionless = !finalUrl.includes('.m3u8') &&
-                !finalUrl.includes('.mp4') &&
-                !finalUrl.includes('.mkv') &&
-                !finalUrl.includes('.avi') &&
-                !finalUrl.includes('.ts');
-
-            // Force Remux: Route through FFmpeg for container conversion
-            // Applies to: 1) .ts streams when detected, or 2) ALL non-HLS streams when enabled
-            if (this.settings.forceRemux && (isRawTs || isExtensionless)) {
-                console.log('[Player] Force Remux enabled. Routing through FFmpeg remux...');
-                console.log('[Player] Stream type:', isRawTs ? 'Raw TS' : 'Extension-less (assumed TS)');
-                this.updateTranscodeStatus('remuxing', 'Remux (Force)');
-                const remuxUrl = this.getRemuxUrl(streamUrl);
-                this.video.src = remuxUrl;
-                this.video.play().catch(e => {
-                    if (e.name !== 'AbortError') console.log('[Player] Autoplay prevented:', e);
-                });
-
-                // Update UI and dispatch events
-                this.updateNowPlaying(channel);
-                this.showNowPlayingOverlay();
-                this.fetchEpgData(channel);
-                window.dispatchEvent(new CustomEvent('channelChanged', { detail: channel }));
+            // One path for every device: the server probes the channel and hands back
+            // an HLS session (or, for a source that is already browser-ready, a proxied
+            // direct stream). The browser-side strategies that used to live here - its
+            // own probe, the piped remux, the force-* settings - are gone (0102).
+            const decision = await this.resolvePlayback(channel, streamUrl, { audioEncode: options.audioEncode === true });
+            if (decision === VideoPlayer.CANCELLED) {
+                this.abandonPlay();
                 return;
             }
-
-            // If raw TS detected without Force Remux enabled, show error
-            if (isRawTs && !this.settings.forceRemux) {
-                console.warn('[Player] Raw MPEG-TS stream detected. Browsers cannot play .ts files directly.');
-                this.showError(
-                    'This stream uses raw MPEG-TS format (.ts) which browsers cannot play directly.<br><br>' +
-                    '<strong>To fix this:</strong><br>' +
-                    '1. Enable <strong>"Force Remux"</strong> in Settings → Streaming<br>' +
-                    '2. Or configure your source to output HLS (.m3u8) format'
-                );
+            if (!decision) {
+                if (this.recoverPlayback('The server could not start this channel')) return;
+                this.loadingSpinner?.classList.remove('show');
+                this.showError('This channel could not be started. Try again, or pick another channel.');
                 return;
             }
-
-            // Priority 1: Use HLS.js for HLS streams on browsers that support it
-            if (looksLikeHls && Hls.isSupported()) {
-                this.updateTranscodeStatus('direct', 'Direct HLS');
-
-                // Use playHls helper logic here (or extract it)
-                // For now, let's just use existing logic but wrapped/modularized if possible?
-                // The HLS init logic is quite complex with error handling
-                // I'll inline the Hls init here as per original but mindful of proxy vs local
-
-                this.hls = new Hls(this.getHlsConfig());
-                this.hls.loadSource(finalUrl);
-                this.hls.attachMedia(this.video);
-
-                this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                    this.video.play().catch(e => {
-                        if (e.name !== 'AbortError') console.log('Autoplay prevented:', e);
-                    });
-                });
-
-                // Re-attach error handler for the new Hls instance
-                this.hls.on(Hls.Events.ERROR, (event, data) => {
-                    if (data.fatal) {
-                        const isCorsLikely = data.type === Hls.ErrorTypes.NETWORK_ERROR ||
-                            (data.type === Hls.ErrorTypes.MEDIA_ERROR && data.details === 'fragParsingError');
-
-                        // Don't proxy if it's already a local API URL
-                        const isLocalApi = this.currentUrl.startsWith('/api/');
-
-                        if (isCorsLikely && !this.isUsingProxy && !isLocalApi) {
-                            console.log('CORS/Network error detected, retrying via proxy...', data.details);
-                            this.isUsingProxy = true;
-                            this.hls.loadSource(this.getProxiedUrl(this.currentUrl));
-                            this.hls.startLoad();
-                        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-                            // Fatal media error - try recovery with cooldown
-                            const now = Date.now();
-                            if (now - (this.lastRecoveryAttempt || 0) > 2000) {
-                                console.log('Fatal media error, attempting recovery...');
-                                this.lastRecoveryAttempt = now;
-                                this.hls.recoverMediaError();
-                            }
-                        } else {
-                            console.error('Fatal HLS error:', data);
-                        }
-                    } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-                        // Non-fatal media error - already handled in init(), skip duplicate handling
-                    }
-                });
-
-                // Detect discontinuity changes (ad transitions) for logging only
-                this.lastDiscontinuity = -1;
-                this.hls.on(Hls.Events.FRAG_CHANGED, (event, data) => {
-                    const frag = data.frag;
-                    if (frag && frag.sn !== 'initSegment') {
-                        // Log discontinuity changes for debugging
-                        if (frag.cc !== undefined && frag.cc !== this.lastDiscontinuity) {
-                            console.log(`[HLS] Discontinuity detected: CC ${this.lastDiscontinuity} -> ${frag.cc}`);
-                            this.lastDiscontinuity = frag.cc;
-                            // Note: maxAudioFramesDrift: 4 handles audio sync naturally
-                            // No manual seeking needed - it can cause more issues than it solves
-                        }
-                    }
-                });
-            } else if (this.video.canPlayType('application/vnd.apple.mpegurl') === 'probably' ||
-                this.video.canPlayType('application/vnd.apple.mpegurl') === 'maybe') {
-                // Priority 2: Native HLS support (Safari on iOS/macOS where HLS.js may not work)
-                this.updateTranscodeStatus('direct', 'Direct Native');
-                this.video.src = finalUrl;
-                this.video.play().catch(e => {
-                    if (e.name === 'AbortError') return; // Ignore interruption by new load
-                    console.log('Autoplay prevented, trying proxy if CORS error:', e);
-                    if (!this.isUsingProxy) {
-                        this.isUsingProxy = true;
-                        this.video.src = this.getProxiedUrl(streamUrl);
-                        this.video.play().catch(err => {
-                            if (err.name !== 'AbortError') console.error('Proxy play failed:', err);
-                        });
-                    }
-                });
-            } else {
-                // Priority 3: Try direct playback for non-HLS streams
-                this.updateTranscodeStatus('direct', 'Direct Play');
-                this.video.src = finalUrl;
-                this.video.play().catch(e => {
-                    if (e.name !== 'AbortError') console.log('Autoplay prevented:', e);
-                });
-            }
-
-            // Update now playing info
-            this.updateNowPlaying(channel);
-
-            // Show the now playing overlay
-            this.showNowPlayingOverlay();
-
-            // Fetch EPG data for this channel
-            this.fetchEpgData(channel);
-
-            // Dispatch event
-            window.dispatchEvent(new CustomEvent('channelChanged', { detail: channel }));
-
+            await this.playDecision(decision, channel);
         } catch (err) {
             console.error('Error playing channel:', err);
             this.showError('Failed to play channel');
         }
+    }
+
+    /**
+     * The web player's recovery, now that there is one path: ask the server again,
+     * once per selection. A fresh resolve gets a fresh HLS session - what the Apple
+     * client does after a failure - so a session that failed to start, or died with a
+     * fatal hls.js error (including a segment 404, which hls.js never retries), gets
+     * one clean second attempt. A second failure is shown and left alone, so it can
+     * never loop. Returns whether a retry was started.
+     */
+    recoverPlayback(reason, { audioEncode = false } = {}) {
+        const key = this.channelKey(this.currentChannel);
+        if (!key || !this.currentStreamUrl || this._recoveredKey === key) return false;
+        this._recoveredKey = key;
+        console.warn(`[Player] ${reason}; asking the server again`);
+        this.play(this.currentChannel, this.currentStreamUrl, { isRetry: true, audioEncode: audioEncode || this._audioEncodeActive });
+        return true;
     }
 
     /**
@@ -1591,23 +1064,38 @@ class VideoPlayer {
         this._playlistPath = null;
         try { this._playlistPath = new URL(url, 'http://localhost').pathname; } catch (e) { /* not a URL */ }
 
-        this.hls = new Hls(this.getHlsConfig());
-        this.hls.loadSource(url);
-        this.hls.attachMedia(this.video);
+        const hls = new Hls(this.getHlsConfig());
+        this.hls = hls;
+        hls.loadSource(url);
+        hls.attachMedia(this.video);
 
-        this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
             this.video.play().catch(e => {
                 if (e.name !== 'AbortError') console.log('Autoplay prevented:', e);
             });
         });
 
-        this.hls.on(Hls.Events.ERROR, (event, data) => {
-            if (data.fatal) {
-                // Simple error handling for forced HLS/transcode modes
-                console.error('Fatal HLS error in transcode mode:', data);
-                this.handleHlsFatal(data);
-                this.hls.destroy();
+        hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, () => {
+            // The element's text tracks fill in a moment later.
+            setTimeout(() => this.updateCaptionsTracks(), 100);
+        });
+
+        let mediaRecovered = false;
+        hls.on(Hls.Events.ERROR, (event, data) => {
+            if (!data.fatal) return;
+            // hls.js's own remedy for a fatal media error (the decoder rejected a
+            // buffer) is to rebuild the media pipeline in place. Once; if that does not
+            // hold, the session is given up and the server is asked again.
+            if (!mediaRecovered && Hls.ErrorTypes && data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                mediaRecovered = true;
+                console.warn('[Player] Fatal media error, recovering in place:', data.details);
+                hls.recoverMediaError();
+                return;
             }
+            console.error('Fatal HLS error:', data);
+            this.handleHlsFatal(data);
+            hls.destroy();
+            this.recoverPlayback(`HLS failed (${String(data.details || 'unknown')})`);
         });
     }
 
@@ -1718,17 +1206,16 @@ class VideoPlayer {
     }
 
     /**
-     * Should a failed remux be replayed with the audio re-encoded? Chrome aborts
+     * Should a failed stream be replayed with the audio re-encoded? Chrome aborts
      * the whole element when its decoder rejects one audio frame, and a copied
      * stream hands it exactly what the provider sent, damaged frames included
-     * (ffmpeg conceals them when it re-encodes). Only for an audio decode error on
-     * a remux stream that was not already re-encoding, and only once per selection:
-     * a video error, an hls.js stream (which manages its own recovery) or a second
-     * failure gains nothing from it.
+     * (ffmpeg conceals them when it re-encodes). Only for an audio decode error on a
+     * stream the server built (not a proxied direct one, which has nothing to
+     * re-encode) that was not already re-encoding, and only once per selection.
      */
     shouldRetryWithAudioEncode(details) {
         if (!this.isAudioDecodeError(details)) return false;
-        if (this.hls || this.currentStrategy !== 'remux') return false;
+        if (!this.currentStrategy || this.currentStrategy === 'direct') return false;
         if (this._audioEncodeActive) return false;
         const key = this.channelKey(this.currentChannel);
         return !!key && !!this.currentStreamUrl && this._audioRetryKey !== key;
@@ -1740,9 +1227,8 @@ class VideoPlayer {
         if (!key) return;
         this._audioRetryKey = key;
         this.rememberAudioEncode(channel, true);
-        console.warn('[Player] Audio decode failed on a remux stream; replaying with the audio re-encoded');
+        console.warn('[Player] Audio decode failed; replaying with the audio re-encoded');
         await this.play(channel, this.currentStreamUrl, { audioEncode: true, isRetry: true });
-        this.updateTranscodeStatus('remuxing', 'Remux (audio re-encoded)');
     }
 
     channelKey(channel) {
@@ -1810,22 +1296,6 @@ class VideoPlayer {
     }
 
     /**
-     * "HLS delivery (beta)": ask for the same HLS-segment delivery the Apple client
-     * gets, instead of the piped remux. Per browser (localStorage), off by default,
-     * so one browser can trial it while everything else stays on the remux path.
-     */
-    get hlsDeliveryEnabled() {
-        try { return localStorage.getItem('pigtv_hls_delivery') === '1'; } catch (e) { return false; }
-    }
-
-    setHlsDelivery(on) {
-        try {
-            if (on) localStorage.setItem('pigtv_hls_delivery', '1');
-            else localStorage.removeItem('pigtv_hls_delivery');
-        } catch (e) { /* the choice just will not be remembered */ }
-    }
-
-    /**
      * Measurement, so the two delivery paths can be compared on evidence rather than
      * feel: how long a channel change takes to reach a picture (play-start), and how
      * a play went once it had (play-end). Both go to the server log; neither affects
@@ -1851,7 +1321,7 @@ class VideoPlayer {
 
     beginPlayMeasurement() {
         this._playT0 = performance.now();
-        this._playMeta = { strategy: 'local', container: null, videoMode: null, hlsDelivery: this.hlsDeliveryEnabled };
+        this._playMeta = { strategy: 'local', container: null, videoMode: null, hlsDelivery: true };
         this._resolveMs = null;
         this._playingAt = null;
         this._stalls = 0;
@@ -2027,28 +1497,6 @@ class VideoPlayer {
     }
 
     /**
-     * Get proxied URL for a stream
-     */
-    getProxiedUrl(url) {
-        return API.withStreamToken(`/api/proxy/stream?url=${encodeURIComponent(url)}`);
-    }
-
-    /**
-     * Get transcoded URL for a stream (audio transcoding for browser compatibility)
-     */
-    getTranscodeUrl(url) {
-        return API.withStreamToken(`/api/transcode?url=${encodeURIComponent(url)}`);
-    }
-
-    /**
-     * Get remuxed URL for a stream (container conversion only, no re-encoding)
-     * Used for raw .ts streams that browsers can't play directly
-     */
-    getRemuxUrl(url) {
-        return API.withStreamToken(`/api/remux?url=${encodeURIComponent(url)}`);
-    }
-
-    /**
      * Decode base64 EPG data
      */
     decodeBase64(str) {
@@ -2069,6 +1517,7 @@ class VideoPlayer {
         this._playT0 = null; // nothing is being timed until the next play() begins
         // Stop any running transcode session first
         this.stopTranscodeSession();
+        this.stopConflictWatch();
 
         if (this.hls) {
             this.hls.destroy();

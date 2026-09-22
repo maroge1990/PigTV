@@ -27,8 +27,8 @@ As progress is made, keep this file current for handover — and keep it small (
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv`, `http://192.168.1.235:3000`, reached over an approved-device VPN (Tailscale) only |
 | Local repo folder | `C:\Users\markr\GitHub\PigTV` (moved out of OneDrive, 21 Sept 2026) |
 | Patch folder | `C:\Users\markr\GitHub\patches\PigTV` |
-| Shipped through | **build 0100** once applied; 0099 confirmed on `origin/main` and running (23 Sept). Confirm with `/api/version` |
-| Next patch number | **0102** |
+| Shipped through | **build 0102** once applied; 0100/0101 on `origin/main`. Confirm with `/api/version` |
+| Next patch number | **0103** |
 | Container name | **`PigTV`** on PassyFlix — every command in these docs names it literally, so it can be pasted as written. `docker ps` if it is ever renamed |
 
 Don't hard-code the `origin/main` SHA anywhere. The deployed build is whatever `/api/version` reports (§3).
@@ -137,6 +137,7 @@ native recording-playback contract (0045), HLS on-disk bounding (0046), EPG stre
 | 0099 | SR-2 (client R15): strip the decorative small-caps "ᴸɪᴠᴇ" badge from EPG titles/sub-titles/names and M3U channel names at ingest (shared `textCleanup.js`, ranges match the client) |
 | 0100 | SR-1 (client R13): an HDR copy session is handed out via `master.m3u8` carrying `VIDEO-RANGE=PQ\|HLG` |
 | 0101 | Test-only (no build bump): the watchdog's "keeps writing is left alone" test used 300 ms limits and failed CI's Node 20 job under load; now 1.5 s. **CI runs every test file at once on 2 vCPUs — keep timing margins ≥1 s** |
+| 0102 | §C Phase 3: the web player is on the one path — always resolve + HLS, one re-resolve per selection as its recovery; local strategy, beta toggle, force-* settings gone; VOD page's remux → HLS copy sessions |
 
 ---
 
@@ -258,12 +259,16 @@ Main Event UHD (HDR10, even); `pos_1187` Fox Sports 505 uneven; `pos_463` TSN, `
   the exact log wording (pinned by `verify-build.sh`) and reports per path first-picture time (cold/warm), stalls/hour, failures,
   device plays separately, and the trial criteria (≥50 plays per path, ≥3 HLS sessions of ≥1 h, no HLS-only failures, stalls/hour no
   worse than remux — constants at the top of the script). The log never names a channel; stall rates need ≥10 min watched.
-- Web player facts: `stop()` is defined **twice** in `VideoPlayer.js` (the later wins; cleanup candidate). Chrome keeps the *previous*
-  URL in `currentSrc` while raising "Empty src attribute" on `video.src = ''` — detect a cleared source from the `src` attribute
-  (`isSourceCleared`), and make `vm` test fixtures model real Chrome. A fatal hls.js error shows `Playback error (HLS <details>)` and
-  reports `HLS_<type>`; **no recovery yet** (Phase 3).
-- Toggle: Settings → Transcoding → Stream Processing → **HLS Delivery (beta)** — per browser (`localStorage['pigtv_hls_delivery']="1"`), off
-  by default; it sets `capabilities.segmentedDelivery:true` in the web's resolve call, the request the Apple client already makes.
+- **Web player (0102): one path.** `play()` always calls resolve with `segmentedDelivery:true` (the Apple client's request) and plays
+  what comes back; there is no browser-side strategy any more (no own probe, remux, legacy pipe or force-* settings; the beta toggle is
+  gone). **Recovery = ask the server again, once per selection** (`recoverPlayback`): a resolve that fails, or a fatal hls.js error —
+  including a segment 404, which hls.js never retries — gets one fresh session; a fatal *media* error is first tried in place
+  (`hls.recoverMediaError()`, once). A second failure is shown, never looped. The audio re-encode self-heal now applies to HLS plays too.
+  Subtitles: the live player adds no `/api/subtitle` tracks — that route opens a second provider connection (the removed local path
+  was the only caller). Chrome keeps the *previous* URL in `currentSrc` while raising "Empty src attribute" on `video.src = ''` —
+  detect a cleared source from the `src` attribute (`isSourceCleared`), and make `vm` test fixtures model real Chrome.
+- **Movie/series page** (`WatchPage.js`, latent VOD): probes, then anything not browser-ready goes through `POST /api/transcode/session`
+  (the only path that can resume, via `seekOffset`); what used to be remuxed is an HLS **copy** session in fMP4.
 
 **Data, guide and library**
 - Guide: query **`epg_live`** (each source's active generation), never `epg_programs`; a sync loads generation *active+1*, flips
@@ -392,14 +397,13 @@ recommendation: skip — the client needs its recovery path either way, and the 
 `recordings/{id}/playback`** (only if an Apple TV fails an HEVC recording).
 
 ### C. Converge the webapp onto the one path (committed; the last step)
-1. ✅ **Opt-in** (0075): the per-browser toggle above. Rollback = untick.
-2. **Measure — in progress.** Mark uses the toggle for about a week, then saves logs and runs the report. The trial has already found
+1. ✅ **Opt-in** (0075).
+2. **Measure** — cut short by decision (Mark, 23 Sept: "move away from multiple approaches asap"); the report was not run. Mark uses the toggle for about a week, then saves logs and runs the report. The trial has already found
    and fixed two real faults (0085 uneven timestamps in copy sessions; 0086 finite sources outrunning the window). **Still to confirm
    after deploying them:** the channel that stopped and started (its `play-end` `stalls=`); the finite channel (provider stream id
    `1803789`) plays and its resolve line ends `source ends (N min) - paced to real time` — if not, check what ffprobe reports:
    `docker exec PigTV ffprobe -v error -show_entries format=size,duration -of default=nw=1 "<channel URL>"`.
-3. **Default on, with a safety net:** if an HLS session fails to start (15 s `waitForPlaylist`, fatal hls.js error — **including a
-   segment 404, which hls.js won't retry**) fall back *once* to remux for that play.
+3. ✅ **Default on** (0102). The safety net is a fresh HLS session rather than remux (which step 4 deletes): see "Web player" in §4b.
 4. **Retire remux** after a clean run of step 3: delete `routes/remux.js`, the coordinator's remux branches, the watchdog's remux
    wiring, `-bsf:v dump_extra`, the legacy `GET /api/transcode?url=` pipe, the web's direct `/api/remux` callers and their tests.
 

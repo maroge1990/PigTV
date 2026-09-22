@@ -137,8 +137,9 @@ check server/services/streamProbe.js "clientCaps" "probe takes client caps"
 check server/services/streamProbe.js "videoIsHevc" "probe reports hevc"
 check server/routes/probe.js "capKey" "caps in cache key"
 check public/js/components/VideoPlayer.js "getCodecCapabilities" "client caps detection"
-check public/js/components/VideoPlayer.js "capabilityQueryString" "caps sent to probe"
-check public/js/components/VideoPlayer.js "segmentType" "client picks segment type"
+# (0102: the live player no longer probes or picks a segment type itself - the server does.
+#  The movie/series page still does, for its own sessions.)
+check public/js/pages/WatchPage.js "segmentType" "the movie/series page picks its segment type"
 check server/services/transcodeSession.js "hls_fmp4_init_filename" "fmp4 output"
 check server/services/transcodeSession.js "tag:v" "hvc1 tagging"
 check server/services/transcodeSession.js "vaapiHwDecode" "hw decode option"
@@ -167,7 +168,7 @@ else
 fi
 check public/index.html "btn-stop" "stop button markup"
 check public/index.html "btn-go-live" "go-live button markup"
-check public/js/components/VideoPlayer.js "async stop()" "stop implementation"
+check public/js/components/VideoPlayer.js "    stop() {" "stop implementation (0102 removed the unused async duplicate)"
 check public/js/components/VideoPlayer.js "goToLive" "go-live implementation"
 check public/js/components/VideoPlayer.js "updateLiveButton" "live indicator"
 check public/css/main.css "btn-go-live" "live button styles"
@@ -200,7 +201,7 @@ check server/services/streamProbe.js "isHeAac" "probe detects HE-AAC"
 check server/services/streamProbe.js "audioProfile" "probe reads profile"
 check server/services/transcodeSession.js "isHeAac" "session forces AAC-LC"
 check server/services/transcodeSession.js "aac_low" "AAC-LC profile set"
-check public/js/components/VideoPlayer.js "isHeAac" "client forwards HE-AAC flag"
+check public/js/pages/WatchPage.js "isHeAac" "client forwards HE-AAC flag (live: the server reads it from its own probe)"
 check public/js/components/SourceManager.js "groupItemType()" "group type helper"
 check public/js/components/ChannelList.js "Every category is hidden" "empty state wording"
 check server/routes/channels.js "cascadeCategory" "single hide/show cascades"
@@ -419,27 +420,9 @@ check public/js/api.js "withStreamToken" "shared token helper exists"
 check public/js/api.js "streamFetch" "authenticated fetch helper for transcode management calls"
 check public/js/components/VideoPlayer.js "API.withStreamToken(decision.url)" "resolved playback URL carries token"
 check public/js/pages/WatchPage.js "API.withStreamToken" "watch page uses the shared helper"
-python3 - <<'PYCHK'
-import re, sys
-# Every URL builder that feeds a <video src> or hls.loadSource() must
-# route through API.withStreamToken - checking the helper exists
-# elsewhere doesn't prove any particular caller still uses it. This
-# checks the three builders directly, by function body, so a future
-# edit that quietly reverts one back to a raw template string gets
-# caught here rather than only when requireStreamAuth is next enabled.
-src = open('public/js/components/VideoPlayer.js').read()
-fns = ['getProxiedUrl', 'getTranscodeUrl', 'getRemuxUrl']
-missing = []
-for name in fns:
-    m = re.search(re.escape(name) + r'\(url\)\s*\{([\s\S]*?)\n    \}', src)
-    if not m or 'API.withStreamToken' not in m.group(1):
-        missing.append(name)
-if missing:
-    print(f'  \u2717 MISSING: {", ".join(missing)} do not route through API.withStreamToken')
-    sys.exit(1)
-print('  \u2713 getProxiedUrl/getTranscodeUrl/getRemuxUrl all route through the token helper')
-PYCHK
-[ $? -eq 0 ] || FAIL=1
+# The live player's own URL builders (proxy / legacy pipe / remux) went with those
+# paths in 0102: everything it loads is the server's decision.url, checked above.
+check public/js/pages/WatchPage.js 'API.withStreamToken(`/api/proxy/stream' "the movie/series page's proxied URL carries the token"
 python3 - <<'PYCHK'
 import sys
 # The session-creation POST is a plain fetch that CAN carry a header, so
@@ -447,7 +430,8 @@ import sys
 # a query-string token is the only option, this one has no excuse to be
 # missing an Authorization header once requireStreamAuth is on.
 ok = True
-for path in ('public/js/components/VideoPlayer.js', 'public/js/pages/WatchPage.js'):
+# (0102: the live player no longer creates sessions itself - resolve does, server-side.)
+for path in ('public/js/pages/WatchPage.js',):
     src = open(path).read()
     i = src.index("fetch('/api/transcode/session'")
     body = src[i:i+400]
@@ -866,8 +850,9 @@ check server/index.js "streamAuth({ enforce: true })" "always-on token middlewar
 check server/routes/playback.js "router.post('/resolve', requireToken" "resolve requires a token"
 check server/routes/playback.js "router.delete('/:sessionId', requireToken" "session delete requires a token"
 # Webapp side: probe over streamFetch (bearer), subtitle track over ?token=.
-check public/js/components/VideoPlayer.js "API.streamFetch(\`/api/probe" "web player probe sends the bearer header"
-check public/js/components/VideoPlayer.js "API.withStreamToken(\`/api/subtitle" "web player subtitle track carries ?token="
+check public/js/pages/WatchPage.js "API.streamFetch(\`/api/probe" "movie/series page probe sends the bearer header (0102: the live player no longer probes)"
+# (0102: the live player's /api/subtitle tracks lived only on the removed local path; resolve never added them, and
+#  /api/subtitle opens a second provider connection, which a one-stream provider cannot give while HLS plays.)
 check public/js/pages/WatchPage.js "API.streamFetch(\`/api/probe" "watch page probe sends the bearer header"
 
 echo "=== 0051: Drop the dead ffmpeg-static require ==="
@@ -944,7 +929,7 @@ check server/services/transcodeSession.js "LIVE_SESSION_TIMEOUT_MS" "live sessio
 check server/services/transcodeSession.js "session.options.live === true" "sweep honours the live flag"
 check server/services/transcodeSession.js "const CLEANUP_INTERVAL_MS = 60 \* 1000" "sweep runs every minute so the live timeout is honoured"
 check public/js/components/VideoPlayer.js "viewer-in-progress" "web player words the prompt for another viewer"
-check public/js/components/VideoPlayer.js "live: true, ...options" "web player marks its fallback sessions as live"
+# (0102: the live player has no fallback sessions any more; resolve creates live sessions server-side.)
 check test/stream-coordinator.test.js "viewer-in-progress" "arbitration has unit tests"
 check test/playback-arbitration.test.js "viewer-in-progress" "resolve's 409 is tested through the real route with real device tokens"
 
@@ -1110,7 +1095,7 @@ check server/services/transcodeSession.js "const forceEncode = this.options.audi
 check server/services/transcodeSession.js "isStereoAac && !forceEncode" "smart copy no longer overrides an explicit encode"
 check public/js/components/VideoPlayer.js "shouldRetryWithAudioEncode(details)" "the player retries a failed remux"
 check public/js/components/VideoPlayer.js "if (this._audioEncodeActive) return false;" "it never retries a play that was already re-encoding (no loop)"
-check public/js/components/VideoPlayer.js "if (!options.isRetry) this._audioRetryKey = null;" "each fresh selection gets one retry, the retry itself does not"
+check public/js/components/VideoPlayer.js "            this._audioRetryKey = null;" "each fresh selection gets one retry, the retry itself does not"
 check public/js/components/VideoPlayer.js "this.rememberAudioEncode(this.currentChannel, false)" "a flag that did not help is forgotten"
 check test/player-audio-retry.test.js "can never loop" "the retry logic has tests"
 check test/audio-encode.test.js "smart copy" "the server side has tests"
@@ -1179,13 +1164,10 @@ echo "=== 0074: housekeeping ==="
 check test/access.test.js "process.platform === 'win32' ? 'junction' : 'dir'" "the access test links node_modules with a junction on Windows (no admin needed)"
 
 echo "=== 0075: HLS delivery (beta) for the web player, and play-start / play-end measurement ==="
-check public/js/components/VideoPlayer.js "...(this.hlsDeliveryEnabled ? { segmentedDelivery: true } : {})" "resolve asks for segmented delivery only when this browser opted in"
-check public/js/components/VideoPlayer.js "localStorage.getItem('pigtv_hls_delivery') === '1'" "the opt-in is per browser and off by default"
+# (0102: the opt-in became the only path - see the 0102 section.)
 check public/js/components/VideoPlayer.js "this.notePlaying(); });" "the first picture is measured on the element's 'playing' event"
 check public/js/components/VideoPlayer.js "this.reportPlayEnd();" "and the play is closed out when it stops"
 check public/js/components/VideoPlayer.js "handleHlsFatal(data)" "a fatal hls.js error is no longer swallowed"
-check public/index.html 'id="setting-hls-delivery-tc"' "there is a Settings toggle"
-check public/js/pages/Settings.js "setHlsDelivery(hlsDeliveryToggle.checked)" "and it is wired to the player"
 check server/routes/playback.js "const measurementLimiter" "measurement has its own rate limit, so it cannot starve fault reports"
 check server/routes/playback.js "play-start via" "the server logs play-start"
 check server/routes/playback.js "play-end via" "and play-end"
@@ -1404,6 +1386,31 @@ check server/services/transcodeSession.js "VIDEO-RANGE=" "the master playlist st
 check server/routes/transcode.js "master.m3u8" "and is served, with the stream token on its variant"
 check test/api-404.test.js "/api/transcode/abc/master.m3u8" "the Apple-client route guard knows it"
 check test/hdr-master-playlist.test.js "smpte2084" "with a test built on the real capture's fields"
+
+echo "=== 0102: the web player is on the one path (Phase 3) ==="
+check public/js/components/VideoPlayer.js "                segmentedDelivery: true" "every browser asks for HLS segments, as the Apple client does"
+check public/js/components/VideoPlayer.js "recoverPlayback(reason" "recovery is a fresh resolve, once per selection"
+check public/js/components/VideoPlayer.js "hls.recoverMediaError();" "a fatal media error is first recovered in place"
+check public/js/components/VideoPlayer.js "this.stopConflictWatch();" "stop() also ends the recording-conflict poll"
+check test/player-hls-delivery.test.js "no second retry: it can never loop" "with tests of the recovery"
+check test/player-conflict-cancel.test.js "never a local strategy" "and of a play the server could not start"
+python3 - <<'PYCHK'
+import sys
+# Grep can prove something is present, not that something is gone. The whole point of
+# 0102 is what is gone: any of these back in a player means a second delivery path.
+live = open('public/js/components/VideoPlayer.js', encoding='utf-8').read()
+vod = open('public/js/pages/WatchPage.js', encoding='utf-8').read()
+html = open('public/index.html', encoding='utf-8').read()
+bad = [f'live player: {g}' for g in ['/api/remux', '/api/transcode?url=', '/api/probe', 'startTranscodeSession',
+                                     'forceRemux', 'autoTranscode', 'pigtv_hls_delivery'] if g in live]
+bad += [f'watch page: {g}' for g in ['/api/remux', '/api/transcode?url=', 'forceRemux', 'forceTranscode'] if g in vod]
+bad += [f'settings: {g}' for g in ['setting-force-remux-tc', 'setting-hls-delivery-tc', 'setting-auto-transcode-tc'] if g in html]
+if bad:
+    print('  \u2717 MISSING: a second delivery path is back: ' + ', '.join(bad))
+    sys.exit(1)
+print('  \u2713 no remux, legacy pipe, local probe or beta toggle left in the web player')
+PYCHK
+[ $? -eq 0 ] || FAIL=1
 
 if [ $FAIL -eq 0 ]; then
     echo ""

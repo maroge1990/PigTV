@@ -701,61 +701,12 @@
             <div class="settings-section">
               <h3>Stream Processing</h3>
               <div class="setting-item">
-                <label class="setting-toggle">
-                  <input type="checkbox" id="setting-auto-transcode-tc">
-                  <span class="toggle-slider"></span>
-                </label>
-                <div class="setting-info">
-                  <span class="setting-label">Auto Transcode (Smart)</span>
-                  <span class="setting-hint">Automatically detect stream codecs and only transcode/remux when needed.
-                    Adds ~1-3s probe delay on first play.</span>
-                </div>
-              </div>
-              <div class="setting-item">
-                <label class="setting-toggle">
-                  <input type="checkbox" id="setting-force-transcode-tc">
-                  <span class="toggle-slider"></span>
-                </label>
-                <div class="setting-info">
-                  <span class="setting-label">Force Audio Transcode</span>
-                  <span class="setting-hint">Transcode audio to AAC for browser compatibility. Enable if you get video
-                    but no audio (fixes Dolby/AC3/EAC3).</span>
-                </div>
-              </div>
-              <div class="setting-item">
-                <label class="setting-toggle">
-                  <input type="checkbox" id="setting-force-video-transcode-tc">
-                  <span class="toggle-slider"></span>
-                </label>
-                <div class="setting-info">
-                  <span class="setting-label">Force Video Transcode</span>
-                  <span class="setting-hint">Force full video transcoding (burn-in subtitles, incompatible video).
-                    Uses
-                    HW encoder.</span>
-                </div>
-              </div>
-              <div class="setting-item">
-                <label class="setting-toggle">
-                  <input type="checkbox" id="setting-force-remux-tc">
-                  <span class="toggle-slider"></span>
-                </label>
-                <div class="setting-info">
-                  <span class="setting-label">Force Remux</span>
-                  <span class="setting-hint">Remux streams to MP4 container. Enable for raw .ts streams from IPTV
-                    middleware like m3u-editor or dispatcharr.</span>
-                </div>
-              </div>
-              <div class="setting-item">
-                <label class="setting-toggle">
-                  <input type="checkbox" id="setting-hls-delivery-tc">
-                  <span class="toggle-slider"></span>
-                </label>
-                <div class="setting-info">
-                  <span class="setting-label">HLS Delivery (beta)</span>
-                  <span class="setting-hint">Play live channels as HLS segments, the same way the Apple app does,
-                    instead of the piped remux. Slower to start a channel, but steadier and one path for every
-                    device. This browser only; applies from the next channel you play. Timings and any errors
-                    are logged: <code>docker logs pigtv | grep -E "play-start|play-end|media-error"</code>.</span>
+                <div class="setting-info" style="flex: 1;">
+                  <span class="setting-label">How live channels play</span>
+                  <span class="setting-hint">The server checks each channel and delivers it as HLS segments - the
+                    same way on every device. The video is passed through untouched whenever this browser can
+                    play it, and only the audio (or, when needed, the video) is converted otherwise. There is
+                    nothing to set here.</span>
                 </div>
               </div>
               <div class="setting-item">
