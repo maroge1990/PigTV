@@ -180,8 +180,9 @@ router.get('/:sessionId/stream.m3u8', async (req, res) => {
 });
 
 /**
- * Master playlist for an HDR session (0100): one variant, stream.m3u8, plus the
- * VIDEO-RANGE a media playlist cannot carry. Must stay above the segment route,
+ * Master playlist for a session (0100 HDR, 0115 every session with a usable frame
+ * rate): one variant, stream.m3u8, plus the VIDEO-RANGE and FRAME-RATE a media
+ * playlist cannot carry. Must stay above the segment route,
  * whose name allow-list would answer 404. The variant line gets ?token= like any
  * other relative URI.
  * GET /api/transcode/:sessionId/master.m3u8
@@ -191,7 +192,7 @@ router.get('/:sessionId/master.m3u8', (req, res) => {
     const session = transcodeSession.getSession(sessionId);
     const master = session && session.getMasterPlaylist();
     if (!master) {
-        noteMissing(sessionId, 'master.m3u8', session ? 'the session is not HDR' : 'the session no longer exists');
+        noteMissing(sessionId, 'master.m3u8', session ? 'the session has no master playlist (no usable frame rate, or an HDR copy into MPEG-TS)' : 'the session no longer exists');
         return res.status(404).json({ error: 'Session not found' });
     }
 

@@ -1321,7 +1321,7 @@ PYCHK
 
 echo "=== 0100: HDR sessions carry VIDEO-RANGE in a master playlist (SR-1) ==="
 check server/services/streamProbe.js "function classifyVideoRange" "the probe classifies PQ / HLG from color_transfer"
-check server/services/playbackStrategy.js "videoMode === 'copy' && segmentType === 'fmp4' && info.videoRange" "only a copied fMP4 session is called HDR"
+check server/services/playbackStrategy.js "if (hdrCopy && segmentType === 'fmp4') videoRange = info.videoRange" "only a copied fMP4 session is called HDR (0115: expression reworded)"
 check server/services/transcodeSession.js "VIDEO-RANGE=" "the master playlist states the range"
 check server/routes/transcode.js "master.m3u8" "and is served, with the stream token on its variant"
 check test/api-404.test.js "/api/transcode/abc/master.m3u8" "the Apple-client route guard knows it"
@@ -1525,6 +1525,19 @@ check server/services/transcodeSession.js "'-probesize', '5000000'" "ffmpeg's ow
 check server/services/transcodeSession.js "'-analyzeduration', '5000000'" "likewise its analyzeduration"
 check scripts/playback-report.js "profile \\\\(age" "the playback report counts a profiled play as warm"
 check test/channel-profiles.test.js "the old code probed again once the 5-min cache expired" "with a test that fails on the old code"
+
+echo "=== 0115: frame-rate-aware master playlist for every session ==="
+check server/services/streamProbe.js "function frameRateOf" "the probe picks a usable frame rate"
+check server/services/streamProbe.js "videoStream?.avg_frame_rate, videoStream?.r_frame_rate" "avg_frame_rate first, then r_frame_rate"
+check server/services/streamProbe.js "const MAX_FPS = 240" "and ignores absurd values (the TS clock, 0/0)"
+check server/services/playbackStrategy.js "else if (!hdrCopy && frameRate !== null) videoRange = 'SDR'" "every non-HDR session with a usable rate gets an SDR master playlist"
+check server/services/playbackStrategy.js "if (hdrCopy && segmentType === 'fmp4') videoRange = info.videoRange" "HDR copy sessions keep PQ/HLG"
+check server/services/playbackStrategy.js "width: videoMode === 'copy' ? info.width : 0" "RESOLUTION only when the output is the source's size"
+check server/services/transcodeSession.js "const rate = parseFrameRate(fps)" "FRAME-RATE uses the same bounds as the probe"
+check_absent server/services/transcodeSession.js "CODECS=" "the master playlist still carries no CODECS"
+check server/routes/transcode.js "the session has no master playlist" "the route's 404 no longer assumes HDR"
+check_absent public/js/components/VideoPlayer.js "stream.m3u8" "the web player does not assume the media playlist name"
+check test/frame-rate-master.test.js "the old code handed out stream.m3u8" "with a test that fails on the old code"
 
 if [ $FAIL -eq 0 ]; then
     echo ""

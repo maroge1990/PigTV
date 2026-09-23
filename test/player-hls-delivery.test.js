@@ -87,6 +87,19 @@ test('an HLS session decision is labelled as HLS', async () => {
     }
 });
 
+test('0115: a master.m3u8 decision is played as it is - nothing assumes stream.m3u8 in the URL', async () => {
+    const decision = { strategy: 'transcode', container: 'hls', videoMode: 'copy', url: '/api/transcode/abc/master.m3u8', sessionId: 'abc' };
+    const { player } = makePlayer();
+    const played = [];
+    player.playHls = (u) => played.push(u);
+    player.updateQualityBadge = player.updateNowPlaying = player.showNowPlayingOverlay = player.fetchEpgData = player.startConflictWatch = () => {};
+    player.beginPlayMeasurement();
+    await player.playDecision(decision, channel);
+    assert.deepEqual(played, ['/api/transcode/abc/master.m3u8']);
+    const src = fs.readFileSync(path.join(__dirname, '../public/js/components/VideoPlayer.js'), 'utf8');
+    assert.ok(!src.includes('stream.m3u8'), 'no code path builds or matches the media playlist name');
+});
+
 test('the browser-side strategies are gone: no remux, no legacy pipe, no probe of its own', () => {
     const src = fs.readFileSync(path.join(__dirname, '../public/js/components/VideoPlayer.js'), 'utf8');
     for (const gone of ['/api/remux', '/api/transcode?url=', '/api/probe', 'forceRemux', 'autoTranscode',

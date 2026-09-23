@@ -181,6 +181,32 @@ function classifyVideoRange(videoStream) {
     return null;
 }
 
+// A frame rate outside this range is not a frame rate: ffprobe reports 90000/1 (the TS
+// clock) or similar for a stream it could not measure.
+const MIN_FPS = 1;
+const MAX_FPS = 240;
+
+/** "25/1", "30000/1001" or "50" as a number of frames per second, or null if unusable. */
+function parseFrameRate(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const [num, den] = String(value).split('/').map(Number);
+    const rate = den === undefined ? num : (den ? num / den : NaN);
+    return Number.isFinite(rate) && rate >= MIN_FPS && rate <= MAX_FPS ? rate : null;
+}
+
+/**
+ * The video's frame rate as ffprobe wrote it: avg_frame_rate, else r_frame_rate, else
+ * null. Only a usable value counts (0/0 is what ffprobe says when it does not know).
+ * It becomes FRAME-RATE in the session's master playlist (0115), which is what lets
+ * Apple TV's Match Frame Rate put a 25/50 fps channel on a 50 Hz display mode.
+ */
+function frameRateOf(videoStream) {
+    for (const value of [videoStream?.avg_frame_rate, videoStream?.r_frame_rate]) {
+        if (parseFrameRate(value) !== null) return String(value);
+    }
+    return null;
+}
+
 /**
  * Analyze probe result and determine compatibility
  */
@@ -288,7 +314,7 @@ function analyzeProbeResult(probeResult, url, clientCaps = {}) {
         dtsUneven: classifyTimestamps(probeResult.packets),
         // 'PQ' / 'HLG' for an HDR feed, null otherwise - see classifyVideoRange.
         videoRange: classifyVideoRange(videoStream),
-        fps: videoStream?.avg_frame_rate || null,
+        fps: frameRateOf(videoStream),
         subtitles: subtitles
     };
 }
@@ -299,6 +325,8 @@ module.exports = {
     analyzeProbeResult,
     classifyTimestamps,
     classifyVideoRange,
+    frameRateOf,
+    parseFrameRate,
     probeCache,
     CACHE_TTL,
     DTS_PROBE_PACKETS

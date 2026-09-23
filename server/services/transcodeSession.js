@@ -20,6 +20,7 @@ const crypto = require('crypto');
 const EventEmitter = require('events');
 const hwDetect = require('./hwDetect');
 const { createStallWatchdog, STALL_TIMEOUT_MS, STARTUP_GRACE_MS } = require('./stallWatchdog');
+const { parseFrameRate } = require('./streamProbe');
 
 // Session storage
 const sessions = new Map();
@@ -1177,8 +1178,10 @@ class TranscodeSession extends EventEmitter {
     }
 
     /**
-     * The master playlist fronting an HDR session, or null for any other.
-     * Built in memory: it never changes during a session, so nothing is written.
+     * The master playlist fronting this session, or null when it has none (resolve
+     * sets videoRange for an HDR copy, and 'SDR' for any other session with a usable
+     * frame rate - 0100, 0115). Built in memory: it never changes during a session,
+     * so nothing is written.
      */
     getMasterPlaylist() {
         if (!this.options.videoRange) return null;
@@ -1376,9 +1379,11 @@ function classifyInputFailure(lines) {
 }
 
 /**
- * A one-variant master playlist whose only job is to carry VIDEO-RANGE, which a
- * media playlist cannot: without it Apple's players treat the stream as SDR and
- * never switch the display to HDR, however the segments themselves are tagged.
+ * A one-variant master playlist whose only job is to carry VIDEO-RANGE and
+ * FRAME-RATE, which a media playlist cannot. Without VIDEO-RANGE Apple's players
+ * treat the stream as SDR and never switch the display to HDR, however the segments
+ * themselves are tagged (0100); without FRAME-RATE, Match Frame Rate has nothing to
+ * match, and a 25/50 fps channel plays on a 60 Hz display mode (0115).
  *
  * CODECS is left out on purpose. A wrong CODECS string makes AVPlayer refuse the
  * variant outright, and the exact one (HEVC tier, constraint flags, and whichever
@@ -1390,9 +1395,8 @@ function classifyInputFailure(lines) {
 function buildMasterPlaylist({ videoRange, width, height, fps }) {
     const attrs = [`BANDWIDTH=${height >= 2000 ? 25000000 : 8000000}`];
     if (width > 0 && height > 0) attrs.push(`RESOLUTION=${width}x${height}`);
-    const [num, den] = String(fps || '').split('/').map(Number);
-    const rate = den ? num / den : num;
-    if (Number.isFinite(rate) && rate > 0) attrs.push(`FRAME-RATE=${rate.toFixed(3)}`);
+    const rate = parseFrameRate(fps);
+    if (rate !== null) attrs.push(`FRAME-RATE=${rate.toFixed(3)}`);
     attrs.push(`VIDEO-RANGE=${videoRange}`);
     return [
         '#EXTM3U',

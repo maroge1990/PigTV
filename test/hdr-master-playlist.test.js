@@ -86,19 +86,20 @@ test('an HDR feed copied into fMP4 is handed out through its master playlist', a
     assert.match(r.line, /, HDR PQ - master playlist$/);
 });
 
-test('an SDR feed is unchanged: the media playlist, no range, nothing in the log', async () => {
+test('an SDR feed is never declared HDR (since 0115 its master playlist says SDR, for its frame rate)', async () => {
     const r = await resolveWith(SDR, 'http://provider.invalid/live/u/p/sdr.ts');
-    assert.equal(r.decision.url, '/api/transcode/stub/stream.m3u8');
-    assert.equal(r.options.videoRange, null);
+    assert.equal(r.decision.url, '/api/transcode/stub/master.m3u8');
+    assert.equal(r.options.videoRange, 'SDR');
     assert.ok(!r.line.includes('HDR'));
 });
 
-test('an HDR feed the client cannot take as copied HEVC gets no master playlist', async () => {
+test('an HDR feed the client cannot take as copied HEVC is never declared HDR', async () => {
     // Without hevc the video is re-encoded: the output is not the source's HDR, so claiming PQ would be wrong.
+    // Since 0115 the encode still gets a master playlist, as SDR, for its frame rate.
     const r = await resolveWith(HDR10, 'http://provider.invalid/live/u/p/950402-web.ts', { segmentedDelivery: true, hevc: false, fmp4: true });
     assert.equal(r.options.videoMode, 'encode');
-    assert.equal(r.options.videoRange, null);
-    assert.equal(r.decision.url, '/api/transcode/stub/stream.m3u8');
+    assert.equal(r.options.videoRange, 'SDR');
+    assert.ok(!r.line.includes('PQ'));
 });
 
 test('only an HDR session has a master playlist, and it carries the stream token to its variant', async () => {

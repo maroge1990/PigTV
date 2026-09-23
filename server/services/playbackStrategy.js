@@ -24,7 +24,7 @@
  * stream that would have played untouched.
  */
 
-const { probeStream, analyzeProbeResult, probeCache, CACHE_TTL } = require('./streamProbe');
+const { probeStream, analyzeProbeResult, probeCache, CACHE_TTL, parseFrameRate } = require('./streamProbe');
 const transcodeSession = require('./transcodeSession');
 const channelProfiles = require('./channelProfiles');
 const db = require('../db');
@@ -137,10 +137,19 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     const canCopyVideo = info.videoOk === true && !upscale;
     const videoMode = canCopyVideo ? 'copy' : 'encode';
     const segmentType = (canCopyVideo && caps.fmp4 && (info.videoIsHevc || codecsOk)) ? 'fmp4' : 'mpegts';
-    // An HDR feed copied into fMP4 keeps its colour tagging, but only a master
-    // playlist can tell the player so (VIDEO-RANGE) - see classifyVideoRange. Not
-    // for an encode, whose output is not the source's HDR, nor for MPEG-TS.
-    const videoRange = (videoMode === 'copy' && segmentType === 'fmp4' && info.videoRange) || null;
+    // The master playlist (VIDEO-RANGE, FRAME-RATE) a session is handed out through.
+    //  - An HDR feed copied into fMP4 keeps its colour tagging, but only a master
+    //    playlist can tell the player so - see classifyVideoRange (0100).
+    //  - Every other session with a usable frame rate gets one too, as SDR (0115):
+    //    Match Frame Rate on the Apple TV reads FRAME-RATE from it. An encode is SDR
+    //    whatever the source was.
+    //  - An HDR feed copied into MPEG-TS gets none, as before: declaring it SDR would
+    //    be a lie, and 0100 only verified the HDR tagging through fMP4.
+    const hdrCopy = videoMode === 'copy' && !!info.videoRange;
+    const frameRate = parseFrameRate(info.fps);
+    let videoRange = null;
+    if (hdrCopy && segmentType === 'fmp4') videoRange = info.videoRange;
+    else if (!hdrCopy && frameRate !== null) videoRange = 'SDR';
 
     const session = await transcodeSession.createSession(url, {
         ffmpegPath: settings.ffmpegPath,
@@ -165,8 +174,10 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
         // Whether this feed's own DTS is worth keeping - see buildFFmpegArgs.
         dtsUneven: info.dtsUneven === true,
         videoRange,
-        width: info.width,
-        height: info.height,
+        // RESOLUTION in the master playlist: the source's, which is only the output's
+        // when the video is copied (an encode may scale it).
+        width: videoMode === 'copy' ? info.width : 0,
+        height: videoMode === 'copy' ? info.height : 0,
         fps: info.fps,
         audioMode: audioEncode ? 'encode' : (codecsOk ? 'copy' : undefined),
         videoCodec: info.video,
@@ -186,7 +197,9 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     const timing = videoMode === 'copy'
         ? `, source timing ${info.dtsUneven === true ? 'uneven - DTS rebuilt' : (info.dtsUneven === false ? 'even - DTS kept' : 'unknown - DTS kept')}`
         : '';
-    const range = videoRange ? `, HDR ${videoRange} - master playlist` : '';
+    const range = videoRange === 'SDR'
+        ? `, master playlist (SDR, ${frameRate.toFixed(3)} fps)`
+        : (videoRange ? `, HDR ${videoRange} - master playlist` : '');
     // Why it failed, when ffmpeg said (0113): a short, fixed sentence for the client,
     // never the URL or ffmpeg's own words - see transcodeSession.classifyInputFailure.
     const failure = !ready && typeof session.failureReason === 'function' ? session.failureReason() : null;
