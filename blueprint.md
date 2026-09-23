@@ -294,6 +294,8 @@ the reason. Each phase ends with Mark's gate; don't start the next phase's devic
 
 ### Phase 1: faster (measure first: `play-start … first-picture=` lines and `scripts/playback-report.js`)
 
+**Baseline before 0113–0116** (Mark's log, 23 Sept, builds ≤0112): 16 plays; first picture median **8.1 s**, p90 8.7, max 10.1; cold 8.2 s (n=14), warm 4.8 s (n=2); 0 stalls in 18 min watched (longest 13 min); 2 failed starts (7 Flix Sydney, 441372). Compare with the same report after a week on 0116.
+
 | ID | Item | Status |
 |---|---|---|
 | S1.1 | **Channel profiles**: persist each channel's probe result by `stable_id` (codecs, audio profile, fps, `dtsUneven`, `videoRange`); on a repeat play skip ffprobe and start ffmpeg with a smaller probe; probe again after a codec change, a failed start, or N days. Expect 2–4 s off repeat channel changes, and one fewer provider connection. | Committed (0114), awaiting deploy — keyed like the probe cache (URL + UA + caps, hashed), not `stable_id`; the "smaller ffmpeg probe" half deliberately not done (long GOPs) |
