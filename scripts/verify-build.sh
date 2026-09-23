@@ -1431,6 +1431,18 @@ else
 fi
 check test/proxy-no-duplicate-routes.test.js "registered exactly once" "with a test on router.stack"
 
+echo "=== 0108: gzip JSON responses, never media ==="
+check package.json '"compression"' "compression package is a dependency"
+check server/index.js "require('compression')" "wired into the server"
+check server/index.js "filter: shouldCompress" "using the project's own allow-list filter, not the library default"
+check server/services/compressionFilter.js "req.headers.range" "the filter refuses any ranged request"
+check server/services/compressionFilter.js "/api/transcode" "and anything under /api/transcode"
+check server/services/compressionFilter.js "/api/proxy/stream" "and /api/proxy/stream"
+check server/services/compressionFilter.js "media\\\\.mp4|stream|download" "and recording media routes"
+check_absent server/services/compressionFilter.js "'video/" "and never allow-lists a video type"
+check test/compression-filter.test.js "content-encoding'), 'gzip'" "with a test that JSON is gzip-encoded"
+check test/compression-filter.test.js "never compressed" "and that media/ranged responses are not"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

@@ -2,6 +2,8 @@ const express = require('express');
 require('dotenv').config();
 const path = require('path');
 const passport = require('passport');
+const compression = require('compression');
+const { shouldCompress } = require('./services/compressionFilter');
 const syncService = require('./services/syncService');
 
 // Initialize database
@@ -15,6 +17,13 @@ const PORT = process.env.PORT || 3000;
 app.set('trust proxy', true);
 
 // Middleware
+// Gzip JSON and the small set of text asset types (0108). `filter` is an
+// allow-list (server/services/compressionFilter.js): HLS playlists/segments,
+// recording media and anything requested with a Range header are never
+// compressed, so those responses stay byte-identical. Placed before the
+// routes and static files so both get it.
+app.use(compression({ filter: shouldCompress }));
+
 // The largest legitimate body is a bulk hide/show list of channel ids (a few
 // hundred KB for a very large playlist); 50 MB was never needed and let any
 // client make the server buffer and parse that much JSON.
