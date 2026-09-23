@@ -253,7 +253,7 @@ router.get('/favourites', (req, res) => {
         // the favourites list. The row kept is the earliest in provider order, which
         // is where the channel appears in the guide.
         const rows = db.prepare(`
-            SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data
+            SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id
             FROM favorites f
             JOIN playlist_items p
               ON p.source_id = f.source_id AND p.type = 'live'
@@ -322,6 +322,10 @@ router.get('/guide', (req, res) => {
                 logo: row.stream_icon || null,
                 category: row.category_id,
                 tvgId: data.tvgId || data.epg_channel_id || null,
+                // Additive: the same identity /channels and /favourites carry, so a
+                // client can match a guide row to a favourite or a playback handle
+                // without falling back to item_id (0096-0098's trap).
+                stableId: row.stable_id || null,
                 programmes: []
             };
         });

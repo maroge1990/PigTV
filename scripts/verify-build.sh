@@ -1406,6 +1406,11 @@ check_absent server/services/transcodeSession.js "async function getOrCreateSess
 check test/session-hardening.test.js "it used to stay" "with tests"
 check test/proxy-stream-binary.test.js "releases the upstream connection" "and for the proxy"
 
+echo "=== 0106: stableId on guide and favourites rows ==="
+check server/routes/library.js "SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id" "favourites selects p.stable_id, not just /channels"
+check server/routes/library.js "stableId: row.stable_id || null," "guide rows carry stableId too"
+check test/guide-favourites-stableid.test.js "carries stableId" "with a test"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
