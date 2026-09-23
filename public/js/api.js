@@ -131,6 +131,12 @@ const API = {
         favourites: () => API.request('GET', '/library/favourites')
     },
 
+    // Channel numbers (admin; 0117 C-A, web editor 0123)
+    lineup: {
+        get: () => API.request('GET', '/lineup'),
+        saveNumbers: (numbers) => API.request('PUT', '/lineup/numbers', { numbers })
+    },
+
     // Channels (hidden items)
     channels: {
         getHidden: (sourceId = null) => API.request('GET', `/channels/hidden${sourceId ? `?sourceId=${sourceId}` : ''}`),

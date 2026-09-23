@@ -1603,6 +1603,15 @@ check_absent public/js/api.js "proxy: {" "api.js has no proxy helpers"
 check test/api-404.test.js "the removed fork routes answer the generic 404, even with a token" "with a test that they 404"
 check test/api-404.test.js "nothing in the web app still calls a removed route" "and that nothing in public/ calls them"
 
+echo "=== 0123: channel-number editor (Settings -> Channel numbers) ==="
+check public/index.html 'data-tab="lineup"' "the Settings tab exists"
+check public/index.html 'id="lineup-list"' "with its list"
+check public/js/api.js "API.request('PUT', '/lineup/numbers', { numbers })" "api.js saves through PUT /api/lineup/numbers"
+check public/js/pages/Settings.js "API.lineup.get()" "the panel reads GET /api/lineup"
+check public/js/pages/Settings.js "if (tabName === 'lineup') this.loadLineup();" "and loads when the tab opens"
+check public/js/pages/Settings.js "this.setLineupStatus(err.message" "the server's validation error is shown"
+check test/lineup-editor.test.js "validation error as it comes" "with a test"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

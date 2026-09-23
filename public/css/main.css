@@ -2712,6 +2712,44 @@ kbd {
   overflow-x: auto;
 }
 
+/* Channel numbers (Settings, 0123) */
+.lineup-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0;
+}
+
+.lineup-toolbar .search-wrapper {
+  flex: 1;
+  min-width: 200px;
+  max-width: 360px;
+}
+
+.lineup-status {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.lineup-status.error {
+  color: var(--color-error);
+}
+
+.lineup-table-container {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.lineup-number-input {
+  width: 6em;
+  font-variant-numeric: tabular-nums;
+}
+
+.lineup-table tr.changed td {
+  background: var(--color-accent-dim);
+}
+
 .user-table {
   width: 100%;
   border-collapse: collapse;

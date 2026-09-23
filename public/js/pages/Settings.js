@@ -32,6 +32,7 @@ class SettingsPage {
         this.initRecordingSettings();
         this.initUiSettings();
         this.initDebugTools();
+        this.initLineup();
     }
 
     initHwDecodeSettings() {
@@ -199,6 +200,160 @@ class SettingsPage {
     loadUiSettings() {
         const themeSelect = document.getElementById('setting-theme');
         if (themeSelect && window.Theme) themeSelect.value = window.Theme.choice;
+    }
+
+    // ---- Channel numbers tab (0123) ------------------------------------
+    //
+    // GET /api/lineup lists every visible channel once, in number order; the admin
+    // edits numbers inline and saves only what changed with PUT /api/lineup/numbers.
+    // The server validates the whole request (whole numbers, no duplicates, no
+    // number another visible channel holds) and writes nothing unless all of it is
+    // good, so its error message is shown as it comes.
+
+    initLineup() {
+        this.lineup = [];
+        this.lineupEdits = new Map(); // key -> the typed value, only where it differs
+        this.lineupQuery = '';
+        this.lineupCategoryNames = new Map();
+
+        const search = document.getElementById('lineup-search');
+        let timer;
+        search?.addEventListener('input', () => {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                this.lineupQuery = search.value;
+                this.renderLineup();
+            }, 200);
+        });
+
+        document.getElementById('lineup-save')?.addEventListener('click', () => this.saveLineup());
+
+        document.getElementById('lineup-list')?.addEventListener('input', (e) => {
+            const input = e.target;
+            if (!input?.classList?.contains('lineup-number-input')) return;
+            this.editLineupNumber(input.dataset.key, input.value);
+            input.closest('tr')?.classList.toggle('changed', this.lineupEdits.has(input.dataset.key));
+            this.updateLineupSaveState();
+        });
+    }
+
+    lineupKey(row) {
+        return `${row.sourceId}:${row.id}`;
+    }
+
+    escapeLineup(text) {
+        return String(text ?? '').replace(/[&<>"']/g, ch => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[ch]);
+    }
+
+    setLineupStatus(text, isError = false) {
+        const status = document.getElementById('lineup-status');
+        if (!status) return;
+        status.textContent = text;
+        status.classList.toggle('error', isError);
+    }
+
+    async loadLineup() {
+        const list = document.getElementById('lineup-list');
+        try {
+            const [lineup, categories] = await Promise.all([
+                API.lineup.get(),
+                API.library.categories().catch(() => [])
+            ]);
+            this.lineup = Array.isArray(lineup) ? lineup : [];
+            this.lineupCategoryNames = new Map((categories || []).map(c => [`${c.sourceId}:${c.id}`, c.name]));
+            this.lineupEdits.clear();
+            this.renderLineup();
+            this.updateLineupSaveState();
+        } catch (err) {
+            if (list) list.innerHTML = `<tr><td colspan="3" class="hint">Could not load the channel numbers: ${this.escapeLineup(err.message)}</td></tr>`;
+        }
+    }
+
+    lineupCategory(row) {
+        return this.lineupCategoryNames.get(`${row.sourceId}:${row.category}`) || row.category || '';
+    }
+
+    /** The rows matching the search: a number (exact or leading digits), a name or a category. */
+    filteredLineup() {
+        const q = String(this.lineupQuery || '').trim().toLowerCase();
+        if (!q) return this.lineup;
+        return this.lineup.filter(row =>
+            (row.number !== null && row.number !== undefined && String(row.number).startsWith(q)) ||
+            String(row.name || '').toLowerCase().includes(q) ||
+            this.lineupCategory(row).toLowerCase().includes(q));
+    }
+
+    renderLineup() {
+        const list = document.getElementById('lineup-list');
+        if (!list) return;
+        const rows = this.filteredLineup();
+        if (rows.length === 0) {
+            list.innerHTML = `<tr><td colspan="3" class="hint">${this.lineup.length ? 'No channels match' : 'No channels yet'}</td></tr>`;
+            return;
+        }
+        list.innerHTML = rows.map(row => {
+            const key = this.lineupKey(row);
+            const edited = this.lineupEdits.has(key);
+            const value = edited ? this.lineupEdits.get(key) : (row.number ?? '');
+            return `
+                <tr class="lineup-row${edited ? ' changed' : ''}">
+                    <td><input type="text" inputmode="numeric" class="form-input lineup-number-input"
+                               data-key="${this.escapeLineup(key)}" value="${this.escapeLineup(value)}"
+                               aria-label="Number for ${this.escapeLineup(row.name)}"></td>
+                    <td>${this.escapeLineup(row.name)}</td>
+                    <td>${this.escapeLineup(this.lineupCategory(row))}</td>
+                </tr>`;
+        }).join('');
+    }
+
+    editLineupNumber(key, value) {
+        const row = this.lineup.find(r => this.lineupKey(r) === key);
+        if (!row) return;
+        const typed = String(value ?? '').trim();
+        const original = row.number === null || row.number === undefined ? '' : String(row.number);
+        if (typed === original) this.lineupEdits.delete(key);
+        else this.lineupEdits.set(key, typed);
+    }
+
+    /** What Save sends: only the changed rows. Anything not a whole number goes as typed, for the server to refuse. */
+    lineupChanges() {
+        const numbers = [];
+        for (const [key, typed] of this.lineupEdits) {
+            const row = this.lineup.find(r => this.lineupKey(r) === key);
+            if (!row) continue;
+            numbers.push({ sourceId: row.sourceId, id: row.id, number: /^\d+$/.test(typed) ? parseInt(typed, 10) : typed });
+        }
+        return numbers;
+    }
+
+    updateLineupSaveState() {
+        const save = document.getElementById('lineup-save');
+        if (save) save.disabled = this.lineupEdits.size === 0;
+    }
+
+    async saveLineup() {
+        const numbers = this.lineupChanges();
+        if (numbers.length === 0) {
+            this.setLineupStatus('No changes');
+            return;
+        }
+        const save = document.getElementById('lineup-save');
+        if (save) save.disabled = true;
+        this.setLineupStatus('Saving...');
+        try {
+            await API.lineup.saveNumbers(numbers);
+            await this.loadLineup();
+            this.setLineupStatus(`Saved ${numbers.length} number${numbers.length === 1 ? '' : 's'}`);
+            // The channel list and guide show numbers too
+            window.app?.channelList?.loadChannels?.();
+            if (window.app?.epgGuide?.loaded) window.app.epgGuide.loadEpg();
+        } catch (err) {
+            // The server's own words: "Duplicate number 5", "Channel numbers must be whole numbers from 1 to 999999", ...
+            this.setLineupStatus(err.message || 'Could not save the numbers', true);
+            this.updateLineupSaveState();
+        }
     }
 
     // ---- Debug tab -----------------------------------------------------
@@ -697,6 +852,7 @@ class SettingsPage {
         if (tabName === 'recording') this.loadRecordingSettings();
         if (tabName === 'ui') this.loadUiSettings();
         if (tabName === 'debug') this.loadActiveSessions();
+        if (tabName === 'lineup') this.loadLineup();
         this.tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
         this.tabContents.forEach(c => c.classList.toggle('active', c.id === `tab-${tabName}`));
 
