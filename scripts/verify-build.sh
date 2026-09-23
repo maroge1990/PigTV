@@ -1452,6 +1452,13 @@ check Dockerfile "git fetch --depth 1 https://github.com/erikkaashoek/Comskip a1
 check_absent Dockerfile "git clone --depth 1 https://github.com/erikkaashoek/Comskip" "no unpinned clone of Comskip master left behind"
 check .github/workflows/test.yml "node: \[22, 24\]" "CI matrix is Node 22 and 24, not the EOL Node 20"
 
+echo "=== 0110: /api/favorites follows the channel's current identity ==="
+check server/routes/favorites.js "function expandToCurrentItemIds" "GET /favorites resolves stored favourites to current playlist rows"
+check server/routes/favorites.js "WHERE source_id = ? AND stable_id = ? AND type" "the resolution joins on stable_id, current listings only"
+check server/routes/favorites.js "expandToCurrentItemIds(favorites.getAll" "the GET / handler actually calls it"
+check test/favorites-current-item-id.test.js "not the stale pos_A" "with a test that fails on the old code"
+check test/favorites-current-item-id.test.js "shows a star in both current listings" "and a cross-listed channel"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

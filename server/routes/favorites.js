@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { favorites } = require('../db/sqlite');
+const { favorites, getDb } = require('../db/sqlite');
 const { requireAuth } = require('../auth');
 const db = require('../db');
 const { compositeChannelId } = require('../services/channelIds');
@@ -8,11 +8,52 @@ const { compositeChannelId } = require('../services/channelIds');
 // All favorites routes require authentication
 router.use(requireAuth);
 
+/**
+ * Expand stored favourite rows into their CURRENT item_id(s).
+ *
+ * A channel favourite with a stable_id was stored at whatever playlist
+ * position (pos_N) it sat on when it was starred. The provider reorders its
+ * playlist, so that position can now name a different channel entirely
+ * (0110: the Apple TV showed "Fox Footy 504" while the web app - which reads
+ * /api/library/favourites and joins on stable_id - showed "Fox Footy 502").
+ *
+ * For each favourite that has an identity, look up every CURRENT
+ * playlist_items row sharing that (source_id, stable_id) and emit one
+ * favourite entry per listing - a channel cross-listed in two categories
+ * shows a star in both, same as /api/library/favourites. A favourite with no
+ * stable_id has no identity to resolve against, so it keeps its stored
+ * item_id (the documented rule: a row that HAS an identity must never fall
+ * back to its stored pos_N; a row that never had one has nothing else to go
+ * on).
+ */
+function expandToCurrentItemIds(items) {
+    const sqlite = getDb();
+    const out = [];
+    for (const f of items) {
+        if (f.item_type !== 'channel' || !f.stable_id) {
+            out.push(f);
+            continue;
+        }
+        const current = sqlite.prepare(
+            'SELECT item_id FROM playlist_items WHERE source_id = ? AND stable_id = ? AND type = \'live\''
+        ).all(f.source_id, f.stable_id);
+        if (!current.length) {
+            // The channel has vanished from the playlist entirely (dropped by
+            // the provider). Nothing current to point at - keep the stored
+            // value rather than silently dropping the favourite.
+            out.push(f);
+            continue;
+        }
+        for (const row of current) out.push({ ...f, item_id: row.item_id });
+    }
+    return out;
+}
+
 // Get all favorites for current user
 router.get('/', async (req, res) => {
     try {
         const { sourceId, itemType, format } = req.query;
-        const items = favorites.getAll(req.user.id, sourceId || null, itemType || null);
+        const items = expandToCurrentItemIds(favorites.getAll(req.user.id, sourceId || null, itemType || null));
 
         // Channel favourites are stored under the bare id (what the native
         // client and /api/library use). The web app identifies a channel by
