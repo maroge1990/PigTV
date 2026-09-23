@@ -1,3 +1,6 @@
+> **Archived 23 September 2026. Superseded by [`blueprint.md`](../../blueprint.md)**, the current single source of truth
+> for the server, the web app and the joint roadmap. Kept for history and file:line reasoning only; don't follow it as instructions.
+
 # PigTV access hardening — handover
 
 Prepared 14 September 2026 for the original AI development client.

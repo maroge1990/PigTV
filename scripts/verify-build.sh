@@ -1231,8 +1231,8 @@ echo "=== 0091 (docs): troubleshooting starts from a capture of the real channel
 check blueprint.md "When a channel misbehaves" "the loop is written down, in order"
 check blueprint.md "No ffmpeg-flag or" "and shipping a timestamp fix on a hypothesis is called out as the 0085 mistake"
 check blueprint.md "regression corpus" "samples are kept and retested, which 0085 had no way to do"
-check blueprint.md 'cd "C:.Users.markr.GitHub.PigTV"' "the apply block cds to the current repo folder"
-check blueprint.md "moved out of OneDrive" "and the orientation table agrees with it"
+check blueprint.md "/Users/markrogers/Documents/GitHub/PigTV" "the orientation table names the current repo folder"
+check blueprint.md "Claude commits and pushes straight to" "and how changes ship is written down"
 
 echo "=== 0092 (docs): commands name the container instead of a placeholder ==="
 check blueprint.md "docker exec PigTV node scripts/stream-doctor" "so a command can be pasted as written"
@@ -1256,7 +1256,8 @@ check docs/SWIFT-CLIENT-HANDOFF.md "0094" "and the Apple hand-off doc records it
 echo "=== 0095: the image says which source it was built from ==="
 check .github/workflows/docker-publish.yml "PIGTV_COMMIT=" "CI passes the commit into the build"
 check .github/workflows/docker-publish.yml "id: stamp" "computed in a step, so release and workflow_dispatch work too"
-check blueprint.md "built by GitHub Actions on push" "and the mechanism is written down rather than assumed"
+check blueprint.md "builds \`ghcr.io/maroge1990/pigtv\` \*\*only if the tests pass" "and the mechanism is written down rather than assumed"
+check .github/workflows/docker-publish.yml "needs: test" "and the image build waits for the regression tests"
 
 echo "=== 0096: a channel identity that a provider reorder cannot move (P1-3, part 1) ==="
 check server/services/stableIds.js "function stableChannelId" "identity derived from the provider stream id in the URL"
@@ -1410,6 +1411,6 @@ if [ $FAIL -eq 0 ]; then
     echo "=== ALL CHECKS PASSED ==="
 else
     echo ""
-    echo "=== FAILED — do NOT export patches ==="
+    echo "=== FAILED — do NOT push ==="
     exit 1
 fi

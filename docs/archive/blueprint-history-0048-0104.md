@@ -1,3 +1,6 @@
+> **Archived 23 September 2026. Superseded by [`blueprint.md`](../../blueprint.md)**, the current single source of truth
+> for the server, the web app and the joint roadmap. Kept for history and file:line reasoning only; don't follow it as instructions.
+
 # PigTV blueprint — archive (frozen snapshots)
 
 > **Historical. Not maintained. Do not read this in normal work.** Two frozen copies of `blueprint.md`, kept because they

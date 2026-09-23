@@ -86,7 +86,7 @@ Two toggles are available if your hardware misbehaves:
 
 ## Contributing to PigTV
 
-`docs/HANDOVER.md` is the place to start: the reasoning behind the
+`blueprint.md` is the place to start: the reasoning behind the
 architecture, the mistakes already made and what they cost, and the current
 backlog. It is written for someone arriving without context.
 

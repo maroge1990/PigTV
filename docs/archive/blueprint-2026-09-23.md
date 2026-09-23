@@ -1,25 +1,23 @@
-# PigTV: blueprint (single source of truth)
+> **Archived 23 September 2026. Superseded by [`blueprint.md`](../../blueprint.md)**, the current single source of truth
+> for the server, the web app and the joint roadmap. Kept for history and file:line reasoning only; don't follow it as instructions.
 
-**Last updated:** 23 September 2026 · server build **0104** · Apple client build **16**
+# PigTV server — handover (single source of truth)
 
-Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
-architecture notes live in `../PigTV-Swift/blueprint.md`, which points back here for the roadmap. This file replaced the
-earlier blueprint on 23 September 2026, after an independent review of both products. Everything older is frozen in
-`docs/archive/` (see its README) and is history, not instructions.
+**Last updated:** 23 September 2026 (build 0104; shipping moved to the MacBook: Claude pushes to `main`, see §2)
 
-Keep it **short**: current state, durable facts and the roadmap. When an item ships, mark it in §6, add one line to §8, and
-put any long story in the commit message.
+Read at the start of every session. Keep it **short**: current state and durable facts only. When something is finished,
+leave one line in §4 and move the story to `docs/blueprint-archive.md`.
 
 | Document | Use it for |
 |---|---|
-| `blueprint.md` (this) | How things work, the rules, the roadmap and its status |
-| `docs/SWIFT-CLIENT-HANDOFF.md` | The Apple-client contract, and the log of server changes the client must know about (its §5) |
-| `../PigTV-Swift/blueprint.md` | The Apple client: architecture, device-verification state, client rules |
-| `docs/archive/` | Frozen: the old blueprint, per-build write-ups (0048–0104) and the 16 Sept code review (P1-x/P2-x reasoning) |
+| `blueprint.md` (this) | How things work now, what to know before touching an area, what is left, the rules |
+| `docs/SWIFT-CLIENT-HANDOFF.md` | The Apple-client contract, test tips, and the log of server changes the client should know about (its §5) |
+| `server-review.md` | The 16 Sept code review: the file:line *why* behind items named P1-x / P2-x |
+| `docs/blueprint-archive.md` | Frozen snapshots at build 0086 and 0104: how each fault was found and measured. **Not routine reading** |
+| `../PigTV-Swift/blueprint.md` | The Apple client's own state and roadmap |
 
-**Core requirements.** An IPTV server with a web app (this repo) and Swift clients (Apple TV first, then iPad and iPhone).
-**Picture quality and stream stability come first**, then less overhead and complexity. **Stability and quality outrank
-channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image should be the priority").
+**Core requirements.** An IPTV server with a webapp (this repo) and Swift clients (iPad / Apple TV). Put **stream stability and
+quality** first, then **less overhead and complexity**. **Stability and quality outrank channel-change speed** (Mark, 20 Sept).
 
 ---
 
@@ -27,49 +25,43 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 
 | | |
 |---|---|
-| Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Development is on Mark's MacBook only (from 23 Sept). |
-| CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 20 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
-| Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Mark deploys. |
-| Shipped through | **0104**; whether it is *running* is whatever `/api/version` says |
-| Next build number | **0106** |
-| Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
+| Repo | `github.com/maroge1990/PigTV`; on push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 20 and 24) and builds the image **only if it passes** |
+| Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv`, `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only |
+| Local repo | `/Users/markrogers/Documents/GitHub/PigTV` on Mark's MacBook (all development moved here, 23 Sept; the Windows copy and `patches/` folder are retired) |
+| Shipped through | **0104** on `origin/main` (23 Sept); whether it is *running* is whatever `/api/version` says |
+| Next build number | **0106** (0105 was the docs refresh that retired the Windows patch workflow) |
 
 ---
 
-## 2. How changes ship
+## 2. How changes ship (from 23 Sept)
 
-**Claude commits and pushes straight to `origin/main`** (Mark, 23 Sept). No patch files and no feature branches. One logical
-change per commit.
+**Claude commits and pushes straight to `origin/main`** (Mark, 23 Sept). No patch files, no feature branches, no hand-applied
+`git am`. One logical change per commit.
 
-1. Start clean: `git status`, then `git pull --rebase origin main`.
-2. Make the change with its test (§7 rules: capture before touching playback; a test that fails on the old code).
-3. Run locally with **Node 24** (Homebrew `node@24`; the default `node` is 26, which `better-sqlite3` 12 can't build against):
-   ```bash
-   export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
-   npm ci && npm test && bash scripts/verify-build.sh .
-   ```
-   Both must pass. If either can't be run, say so and don't push.
-4. A functional commit bumps `build` in `server/version.js` in the same commit, and its subject starts with the number
-   (`0106: Guide rows carry stableId`). Docs-only and test-only commits don't bump it and have no number.
-5. `git push origin main`. Never force-push. If CI goes red, fix it or `git revert` it straight away.
-6. Tell Mark what shipped, the build number, and **live test steps** for anything that needs the real feed or a device.
+1. Start clean: `git status` shows nothing unexpected, then `git pull --rebase origin main`.
+2. Make the change with its test (§8 rules still apply: capture before touching playback, a test that fails on the old code).
+3. Before committing: `npm test` and `bash scripts/verify-build.sh .` both pass locally. **If either can't be run, say so and
+   don't push.**
+4. A functional commit bumps `build` in `server/version.js` in the same commit, and its subject starts with the number:
+   `0106: Guide rows carry stableId`. Docs-only and test-only commits don't bump it and have no number.
+5. `git push origin main`. Never force-push `main`.
+6. CI (`docker-publish.yml`) runs the regression tests first (Node 20 and 24) and **publishes the image only if they pass**. If
+   CI goes red, fix it or `git revert` it straight away. Don't leave `main` red.
+7. Tell Mark what shipped, the build number, and what to check live.
 
-**Deploy (Mark):**
+**Deploying is still Mark's step** (the server is on the Unraid box and reached over Tailscale):
 ```bash
 docker pull ghcr.io/maroge1990/pigtv:latest
 docker compose up -d --force-recreate pigtv     # recreate, not restart (or Force Update on the Unraid Docker tab)
 curl -s http://192.168.1.235:3000/api/version
 ```
-A redeploy ends every session. **Rollback:** each push also publishes `ghcr.io/maroge1990/pigtv:sha-<short>`; point the
-container at the last good tag, then `git revert` the bad commit.
+A redeploy ends every session. **Rollback:** every push also publishes `ghcr.io/maroge1990/pigtv:sha-<short>`; point the container
+at the last good tag, then `git revert` the bad commit.
 
-**Build identity.** `server/version.js` `build` = the last functional commit's number (continuing the old patch sequence).
-`/api/version` and `/api/info` return it with `commit`/`builtAt` (CI stamps them), and the web badge shows `display`.
-
-**How work is organised (from 23 Sept).** The lead Claude session plans, delegates implementation to sub-agents (one per
-repo at a time, so commits don't interleave), then **reviews every diff** against this file's rules before it's pushed. Any
-item that needs real channels or a device ends with numbered test steps for Mark, and is only marked *Verified* after he
-reports back.
+**Build identity.** `server/version.js` holds `build` = the last functional commit's number, bumped in that commit (docs-only and
+test-only commits don't bump it). `/api/version` and `/api/info` return it with `commit`/`builtAt`, which CI stamps, and the webapp
+badge shows `display`. Build numbers continue the old patch sequence (0104, then 0106…) so existing logs and the Swift client's
+records stay comparable.
 
 ---
 
@@ -142,9 +134,26 @@ it cannot. There is no remux, no legacy pipe and no browser-side strategy any mo
 
 ---
 
+## 4. Shipped log (one line each; the stories are in the archive)
+
+| Patches | What |
+|---|---|
+| 0033–0047 | Prior agent: `segmentedDelivery` HLS for Apple, token on segments, AAC-in-fMP4, recording-playback contract, HLS disk bounds, EPG parser back-pressure |
+| 0048–0074 | Build identity · live HLS `temp_file` · auth gate, redaction, rate limits, 2 MB body cap · `db.json` cache · stall watchdog · viewer arbitration + 5-min idle · atomic EPG generations · segment allow-list · favourites bare-id · guide query bounds · recording fixes (local-time names, `hvc1`, atomic native remux) · client-event diagnostics · `-dts_delta_threshold 60` |
+| 0075–0086 | HLS-delivery trial + measurement · dead code (users, OIDC/sessions, JSON favourites) · JSON 404 for unknown `/api/*` · playback report · recordings in `waiting` · `?async=1` recording playback · `-re` for finite sources |
+| 0087–0095 | Cancelling the takeover prompt really cancels · **`igndts` per feed** (0088) · `stream-doctor.js` · samples kept on the data volume · terminal-status for displaced clients · CI stamps commit/build time |
+| 0096–0098 | **Channel identity** (`stable_id`) for favourites, recordings, history |
+| 0099 | Small-caps "ᴸɪᴠᴇ" badge stripped at ingest (shows after the next sync) |
+| 0100 | **HDR**: master playlist with `VIDEO-RANGE` for HDR copy sessions |
+| 0101 | Test-only: watchdog test margins for CI |
+| 0102 | **Web on the one path**: always resolve + HLS; recovery is a fresh session; local strategy, beta toggle and force-* settings removed |
+| 0103 | **Remux retired**: `/api/remux`, the legacy piped transcode, their branches, settings and tests |
+| 0104 | Session hardening: honest exit status, narrower software-decode retry, network-only URLs, streaming proxy, dead session code |
+| 0105 | Docs: blueprint refresh; then the Windows patch workflow retired for push-to-main from the MacBook (no build bump) |
+
 ---
 
-## 4. What to know before touching each area
+## 5. What to know before touching each area
 
 **Diagnosing playback: `scripts/stream-doctor.js` — reach for this first on any playback fault.** Run it as `docker exec PigTV node scripts/stream-doctor.js …`:
 - `list <search>` → `pos_N`
@@ -216,17 +225,63 @@ the identity. Only *pending* schedules were backfilled. The provider's stream id
   `*.native.mp4` for those once. **HEVC recording playback on an Apple TV is still unconfirmed.**
 
 **Dev environment (macOS, from 23 Sept).**
-- Node 24 from Homebrew (`/opt/homebrew/opt/node@24/bin`; see §2). `npm test`: 301 tests, 292 pass and 9 skip locally (the
-  skips need a local ffmpeg).
-- `bash scripts/verify-build.sh .` uses the system `python3`.
+- `npm ci` then `npm test` (~300 tests, all run on macOS, including the POSIX signal test). **Node is not installed on the
+  MacBook yet**; until it is, the server tests can only run in CI, so don't push without saying so.
+- `bash scripts/verify-build.sh .` uses the system `python3` (present).
 - The tree is LF. There is no local Docker; the image is only built by CI.
 - **CI runs every test file at once on 2 vCPUs: keep timing margins ≥1 s, or poll** (0101).
 
 ---
 
+## 6. What's left
+
+**Server**
+1. **P1-4 — resolve hands out an opaque handle instead of a credentialed `?url=`** (the provider login currently rides in
+   `direct`/proxy URLs, logs and "Copy Stream URL"). It changes the contract, so it needs a coordinated Swift patch. This is the
+   largest remaining item.
+2. **P2-8 tests** for Apple-relevant paths: the EPG parser under bursty input, the token on fMP4 segments, recordings Range,
+   viewer-already-holds-slot.
+3. **Lower:**
+   - shared helpers (`channelUrl`, `ffmpegProcess`, `probe`, `ids`)
+   - a paged channel-ordering index / keyset paging
+   - `USER node` (volume ownership first)
+   - fMP4 segment MIME
+   - try/catch in `routes/info.js`
+   - optional badge clean-up of *stored* rows at startup, plus stripping on the Xtream ingest path
+4. **Kept on purpose (not dead code):**
+   - `cache.js` + the Xtream/EPG proxy routes (Mark, 21 Sept)
+   - VOD/series: latent, unverified, don't refactor casually
+   - the plugin loader
+   - non-VAAPI encoders
+
+**Watch the logs, no code yet**
+- **"Bug 2"**: `[mpegts] Invalid timestamps … dts=X+1800` (DTS ahead of PTS). Needs the channel that produces it.
+- The timestamp classifier has seen one uneven feed out of five; keep an eye on `source timing` lines.
+- The 20 s stall timeout: tighten only after seeing real stall logs.
+- Channel change is slower on the one path: if it has to be won back, shorten the first segment or skip the probe for known
+  sources, and **measure first**.
+
+**Live checks owed** (tick off or drop):
+- 0102–0104 on the web: HLS badge, channel changes, recovery lines
+- the HDR panel switch on the TV (0100 plus the Swift `preferredDisplayCriteria` change)
+- walk the favourites once since 0097
+- 0054: cut the upstream mid-stream → stalled, slot frees
+- 0059: a favourite round-trips web ↔ Apple
+- 0062: an **HEVC recording** plays on the Apple TV
+- 0073: `timestamp discontinuity` stays ~0 on the E-AC-3 channel
+
+**Verified live:**
+- EPG generations keep the guide populated
+- local-time recording names
+- bulk hide/show
+- the 2 GB tmpfs
+- 0087/0088: zero `Non-monotonic DTS` across the first plays
+- 0099: badge gone after a sync
+- **0055: "another device is watching"** (23 Sept)
+
 ---
 
-## 5. Frozen Apple-client contract (change only together with a client change)
+## 7. Frozen Apple-client contract (change only with a client patch)
 
 - `/api/library/guide` rows: `id`, `sourceId`, `name`, `logo`, `category`, `tvgId`, `programmes[]` (`startTime`/`endTime` in **ms**).
 - `/api/recordings/{id}/markers`: `startMs`/`endMs`. `/api/recordings/{id}/playback` (bearer):
@@ -240,89 +295,7 @@ the identity. Only *pending* schedules were backfilled. The provider's stream id
 
 ---
 
----
-
-## 6. Roadmap (from the 23 Sept independent review)
-
-IDs: **S** server · **W** web · **A** Apple · **X** both. Size: S ≈ hours, M ≈ days, L ≈ a week or more of agent time.
-Status: **Planned → In progress → Shipped (build N) → Verified** (only after Mark's device or live check), or **Blocked** with
-the reason. Each phase ends with Mark's gate; don't start the next phase's device-dependent work until it passes.
-
-### Phase 0: clean-up and correctness (gate: redeploy, CI green, guide unchanged)
-
-| ID | Item | Status |
-|---|---|---|
-| X0.1 | Push-to-main workflow; CI publishes only after the tests pass; Node 24 locally | **Done** (0e68c03; Node 24 via Homebrew) |
-| S0.1 | `stableId` on `/library/guide` and `/library/favourites` rows (only `/library/channels` had it, though the hand-off said all three did), with a test | Planned |
-| S0.2 | Remove the dead second `GET /api/proxy/epg/:sourceId` handler (`routes/proxy.js`, shadowed by the first) | Planned |
-| S0.3 | Gzip JSON responses (`compression`), never for media, HLS or range responses; log a guide page's size before and after | Planned |
-| S0.4 | Image on Node 24 LTS (Node 20 is end of life); pin the Comskip commit; `npm ci --omit=dev` | Planned |
-| A0.1 | Delete unused Swift views and model code; remove `remux` from the media allow-list and strategy lists | Planned |
-| A0.2 | Fix the SwiftUI "Environment accessed outside a View" runtime warning in the guide | Planned |
-| A0.3 | Swift CI (GitHub Actions macOS): build tvOS and iOS, run the tvOS tests on each push | Planned |
-
-### Phase 1: faster (measure first: `play-start … first-picture=` lines and `scripts/playback-report.js`)
-
-| ID | Item | Status |
-|---|---|---|
-| S1.1 | **Channel profiles**: persist each channel's probe result by `stable_id` (codecs, audio profile, fps, `dtsUneven`, `videoRange`); on a repeat play skip ffprobe and start ffmpeg with a smaller probe; probe again after a codec change, a failed start, or N days. Expect 2–4 s off repeat channel changes, and one fewer provider connection. | Planned |
-| S1.2 | **Frame-rate-aware master playlist for every copy session** (`FRAME-RATE`, `VIDEO-RANGE=SDR`, no `CODECS`) so Match Frame Rate can put 50 fps channels on 50 Hz. Quality first: the 1–2 s HDMI mode switch is accepted (Mark, 23 Sept). Device check. | Planned |
-| S1.3 | Guide API for scale: `tvg_id` column; cursor paging; up to 500 per page; several categories per request; **ETag/304** from the EPG generation, playlist sync time and time window | Planned |
-| A1.1 | Guide refreshes cheaply: a few large requests; ETag revalidation; no whole-guide rebuild per page; cache per window | Planned |
-| A1.2 | Channel change feels quicker: the channel card (logo, now/next) shows instantly; one `AVPlayer` across changes; tuned forward buffer; **last channel** | Planned |
-| S1.4 | Logo cache `/api/logo/{key}` (fetch once, resize to about 320 px, long cache headers); limit `/api/proxy/image` to known logo URLs | Planned |
-
-### Phase 2: one lineup, one contract, a steady guide
-
-| ID | Item | Status |
-|---|---|---|
-| X2.1 | **"My TV" lineup** on the server: the selected categories in order, plus any extra channels, with **channel numbers** (was R11). Used by the guide, channel up/down, Top Shelf and the web. | Planned |
-| A2.1 | **tvOS guide grid on UIKit** (`UICollectionView` with a time-based layout, hosted in SwiftUI), behind a switch; compare on the TV; then delete the SwiftUI grid, edge targets and focus retries | Planned |
-| W2.1 | Web onto `/api/library`; move the Sources category/channel picker off the Xtream-emulation routes; **then remove** the Xtream-emulation and whole-EPG proxy routes, `cache.js`, Movies, Series, Pluto and the plugin loader (Mark, 23 Sept: remove whatever nothing calls) | Planned |
-| W2.2 | Web status page: live sessions, recordings, recent channel starts with first-picture times, sync health | Planned |
-| S2.1 | **P1-4**: an opaque playback handle instead of the credentialed `?url=` (a coordinated client change) | Planned |
-
-### Phase 3: the tuner model (staged, behind a switch, with one env var to go back)
-
-One provider connection → one ffmpeg (the same copy arguments as today) → fMP4 HLS on disk, feeding live viewers, recordings
-and timeshift together. Run old and new side by side against the `stream-doctor` corpus.
-
-| ID | Item | Status |
-|---|---|---|
-| T1 | A tuner layer under the sessions; viewers of the same channel share it; the coordinator arbitrates tuners | Planned |
-| T2 | Recordings take segments from a tuner (watching and recording one channel costs one connection); recordings stored as MP4 (joined without re-encoding) or as HLS VOD, with no preparation wait | Planned |
-| T3 | Timeshift on the recordings disk: **3 hours per tuner by default, configurable** (about 1.2 TB free, Mark 23 Sept), trimmed if free space falls below a floor; **start over**; `EXT-X-PROGRAM-DATE-TIME` | Planned |
-| T4 | Watch a recording while it's still recording | Planned |
-
-### Phase 4: capabilities and polish
-
-| ID | Item | Status |
-|---|---|---|
-| A4.1 | Top Shelf: the lineup's "on now" on the Apple TV home screen, with a deep link to play | Planned |
-| A4.2 | Stream info overlay (codec, resolution, fps, bitrate, dropped frames, copy or encode, HDR); the same numbers in `play-end` | Planned |
-| A4.3 | **One player on the TV**: recordings move into the custom player and the AVKit recording path is deleted (Mark, 23 Sept); best after T2 | Planned |
-| A4.4 | iPhone/iPad touch guide and player controls; revisit PiP and AirPlay after the tuner work | Planned |
-| A4.5 | Siri / App Intents ("Play … on PigTV"); Swift 6 language mode | Planned |
-| S4.1 | Channel health: per-channel first-picture time, stalls per hour and failures from client events; flag unreliable channels | Planned |
-| S4.2 | EPG matching tool (web): map channels with no programme information to EPG ids | Planned |
-| S4.3 | `db.json` into SQLite (and stop copying settings on every segment request); split `routes/proxy.js`; Express 5; `jsonwebtoken` directly instead of passport | Planned |
-
-**Carried over from the old blueprint:** P2-8 tests (EPG parser under bursty input, the token on fMP4 segments, recordings
-Range, viewer-already-holds-slot) · `USER node` (volume ownership first) · fMP4 segment MIME (revisit with a device) ·
-try/catch in `routes/info.js` · optional clean-up of badges in stored rows, and stripping them on the Xtream ingest path.
-**Kept on purpose:** the non-VAAPI encoders. **Not planned:** AV1, adding more users, reviving VOD, access from outside the VPN.
-
-**Watch the logs, no code yet:** "Bug 2" (`[mpegts] Invalid timestamps … dts=X+1800`: needs the channel that produces it);
-`source timing` lines (the classifier has seen one uneven feed in five); the 20 s stall timeout (tighten only after real stall logs).
-
-**Live checks still owed:** 0102–0104 on the web (HLS badge, channel changes, recovery lines) · the HDR panel switch on the TV
-(0100 plus Swift R13) · walk the favourites once since 0097 · 0054: cut the upstream mid-stream (stalled, slot frees) · 0059:
-a favourite round-trips web ↔ Apple · 0062: an HEVC recording plays on the Apple TV · 0073: `timestamp discontinuity` stays
-about 0 on the E-AC-3 channel.
-
----
-
-## 7. Rules
+## 8. Rules
 
 - **Capture before changing anything on the playback path** (`stream-doctor`). **No ffmpeg-flag or timestamp patch ships on a
   hypothesis**: 0085 did, and silently broke every even feed. If a fault can't be captured, say so and treat the fix as provisional.
@@ -331,7 +304,6 @@ about 0 on the E-AC-3 channel.
   `docs/SWIFT-CLIENT-HANDOFF.md` §5 in the same commit. Nothing in §7 changes without a matching client change.
 - Say plainly what couldn't be run, and give Mark live-test steps for anything that needs the real feed or a device.
 - At the end of a session, update this file: one line in §4, facts in §3/§5, and stories to the archive.
-- `scripts/verify-build.sh` asserts that features live where they should; add the check that would have caught each bug.
 
 **Decisions on record.**
 - *20 Sept:* stability over channel-change speed; VOD/series kept but unsupported; `requireStreamAuth` off while VPN-only; Mark
@@ -341,14 +313,3 @@ about 0 on the E-AC-3 channel.
   HLS session rather than a remux fallback.
 - *23 Sept (later):* development moved to the MacBook. **Claude pushes to `main`** (supersedes "Mark applies and pushes"); the
   numbered patch files are retired; CI publishes the image only after the tests pass.
-- *23 Sept (review):* new roadmap (§6) adopted. The web app becomes admin plus light viewing; the tuner model is approved after
-  the quick wins; unused Xtream-emulation routes and fork code are to be removed; picture quality first (frame-rate matching
-  in); a generous timeshift; one player on the TV. The old blueprint and hand-overs are archived.
-
----
-
-## 8. Shipped log (one line each; 0033–0105 are in `docs/archive/blueprint-2026-09-23.md` §4)
-
-| Build | What |
-|---|---|
-| — | 23 Sept: push-to-main workflow; CI gates the image on the tests; docs archived and this blueprint written (no build bump) |
