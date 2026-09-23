@@ -1549,6 +1549,23 @@ check server/services/transcodeSession.js "'-profile:a', 'aac_low'" "the AAC-LC 
 check_absent public/js/components/VideoPlayer.js "heaac" "the web player never sends heaac (Chrome cannot decode HE-AAC)"
 check test/heaac-passthrough.test.js "the old code re-encoded to AAC-LC for every client" "with a test that fails on the old code"
 
+echo "=== 0117: channel numbers (C-A) ==="
+check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS channel_numbers" "the numbering table exists"
+check server/db/sqlite.js "number INTEGER NOT NULL UNIQUE" "a number is unique across the server"
+check server/services/channelNumbers.js "COALESCE(p.stable_id, p.item_id)" "numbers are keyed on the channel's identity, not its position"
+check server/services/channelNumbers.js "RESERVE_MS = 30 \\* 24" "a vanished channel's number is reserved for 30 days"
+check server/services/syncService.js "refreshChannelNumbers()" "a completed sync numbers new channels"
+check server/routes/channels.js "refreshChannelNumbers()" "and so does a hide/show"
+check server/routes/library.js "channelNumbers.ensureChannelNumbers()" "the first library request numbers an empty table"
+check server/routes/library.js "GUIDE_NUMBER_KEY}, \${GUIDE_SORT_KEY}, p.name, p.id) > (?, ?, ?, ?)" "the guide keyset includes the number (cursor stays exact)"
+check server/routes/library.js "number: row.channel_number ?? null" "library rows carry number"
+check server/routes/lineup.js "router.use(requireAuth, requireAdmin)" "the lineup API is admin only"
+check server/routes/lineup.js "bumpLibraryRev()" "a renumber changes the guide version"
+check server/index.js "app.use('/api/lineup', require('./routes/lineup'))" "the lineup route is mounted"
+check server/routes/info.js "channelNumbers: true" "features flag"
+check test/channel-numbers.test.js "cursor pages give the same rows in the same order as the offset listing" "with a cursor-exactness test"
+check test/channel-numbers.test.js "the reorder really moved the position ids" "and a provider-reorder stability test"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

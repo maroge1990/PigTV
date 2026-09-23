@@ -1,5 +1,6 @@
 const { getDb } = require('../db/sqlite');
 const { bumpLibraryRev } = require('./libraryRev');
+const { refreshChannelNumbers } = require('./channelNumbers');
 const { stableChannelId, summarise } = require('./stableIds');
 const { sources, settings } = require('../db'); // For source config and settings
 const xtreamApi = require('./xtreamApi');
@@ -211,6 +212,9 @@ class SyncService {
             // which currentGuideVersion() reads on its own - this bump covers the
             // playlist/category side, which has nothing else recording a change.
             bumpLibraryRev();
+            // 0117: number any channel that is new, refresh the reservations of
+            // the ones still here, release numbers reserved for 30 days.
+            if (source.type !== 'epg') refreshChannelNumbers();
             console.log(`[Sync] Completed sync for source ${source.name}`);
 
         } catch (err) {

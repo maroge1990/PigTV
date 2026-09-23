@@ -17,6 +17,8 @@ const { requireAuth } = require('../auth');
 const { getDb } = require('../db/sqlite');
 const { currentGuideVersion } = require('../services/libraryRev');
 const { applyLogoCache } = require('../services/logoCache');
+const channelNumbers = require('../services/channelNumbers');
+const { NUMBER_JOIN, NUMBER_SENTINEL } = channelNumbers;
 
 // The longest programme the guide will still show when it began before the
 // window. Every EPG query bounds start_time from below by this, because the
@@ -28,6 +30,10 @@ const { applyLogoCache } = require('../services/logoCache');
 const MAX_PROGRAMME_MS = 24 * 60 * 60 * 1000;
 
 router.use(requireAuth);
+
+// 0117: an upgraded server whose sources are fresh does not sync on startup, so
+// the first library request numbers the channels if nothing has been numbered.
+router.use((req, res, next) => { channelNumbers.ensureChannelNumbers(); next(); });
 
 const clamp = (v, min, max, fallback) => {
     const n = parseInt(v, 10);
@@ -134,7 +140,9 @@ function decorate(items) {
             // What the channel IS, so a favourite still matches after the provider
             // reorders the playlist. Additive to the response: a client that does not
             // know the field ignores it, and nothing existing changes shape.
-            stableId: row.stable_id || null
+            stableId: row.stable_id || null,
+            // 0117 (C-A): the channel's number, or null if it has none.
+            number: row.channel_number ?? null
         };
     });
 
@@ -205,11 +213,16 @@ router.get('/channels', (req, res) => {
         const clause = where.join(' AND ');
         const total = db.prepare(`SELECT COUNT(*) n FROM playlist_items p WHERE ${clause}`).get(...params).n;
 
+        // 0117: by channel number first (nulls last) when numbering is on.
+        const numberOrder = channelNumbers.numbersEnabled()
+            ? `COALESCE(n.number, ${NUMBER_SENTINEL}) ASC, ` : '';
         const rows = db.prepare(`
-            SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id
+            SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id,
+                   n.number AS channel_number
             FROM playlist_items p
+            ${NUMBER_JOIN}
             WHERE ${clause}
-            ORDER BY CASE WHEN p.sort_order IS NULL THEN 1 ELSE 0 END, p.sort_order ASC, p.name ASC
+            ORDER BY ${numberOrder}CASE WHEN p.sort_order IS NULL THEN 1 ELSE 0 END, p.sort_order ASC, p.name ASC
             LIMIT ? OFFSET ?
         `).all(...params, limit, offset);
 
@@ -258,12 +271,14 @@ router.get('/favourites', (req, res) => {
         // the favourites list. The row kept is the earliest in provider order, which
         // is where the channel appears in the guide.
         const rows = db.prepare(`
-            SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id
+            SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id,
+                   n.number AS channel_number
             FROM favorites f
             JOIN playlist_items p
               ON p.source_id = f.source_id AND p.type = 'live'
              AND ((f.stable_id IS NOT NULL AND p.stable_id = f.stable_id)
                   OR (f.stable_id IS NULL AND p.item_id = f.item_id))
+            ${NUMBER_JOIN}
             WHERE f.user_id = ? AND f.item_type = 'channel'
             GROUP BY COALESCE(p.stable_id, p.item_id), p.source_id
             HAVING p.sort_order = MIN(p.sort_order) OR MIN(p.sort_order) IS NULL
@@ -286,14 +301,27 @@ const SORT_SENTINEL = 999999999;
 const GUIDE_SORT_KEY = `COALESCE(p.sort_order, ${SORT_SENTINEL})`;
 const GUIDE_ORDER_BY = `ORDER BY ${GUIDE_SORT_KEY} ASC, p.name ASC, p.id ASC`;
 
-/** Opaque cursor: base64 of the last row's sort key, for keyset paging. */
-function encodeGuideCursor(row) {
-    return Buffer.from(JSON.stringify({ sk: row.sk, name: row.name, id: row.id })).toString('base64');
+// 0117 (C-A): with channel numbers on, the guide is ordered by number first
+// (a channel without one after every numbered channel), then the old order.
+// The keyset gains the number as its leading column so a cursor stays exact.
+const GUIDE_NUMBER_KEY = `COALESCE(n.number, ${NUMBER_SENTINEL})`;
+const GUIDE_NUMBERED_ORDER_BY = `ORDER BY ${GUIDE_NUMBER_KEY} ASC, ${GUIDE_SORT_KEY} ASC, p.name ASC, p.id ASC`;
+
+/**
+ * Opaque cursor: base64 of the last row's sort key, for keyset paging. `nk`
+ * (the number key) is present only when the guide is ordered by number; a
+ * cursor made in one ordering is refused (400) in the other rather than
+ * silently skipping or repeating rows.
+ */
+function encodeGuideCursor(row, numbered) {
+    const key = numbered ? { nk: row.nk } : {};
+    return Buffer.from(JSON.stringify({ ...key, sk: row.sk, name: row.name, id: row.id })).toString('base64');
 }
-function decodeGuideCursor(cursor) {
+function decodeGuideCursor(cursor, numbered) {
     try {
         const obj = JSON.parse(Buffer.from(String(cursor), 'base64').toString('utf8'));
         if (typeof obj.sk !== 'number' || typeof obj.name !== 'string' || typeof obj.id !== 'string') return null;
+        if (numbered ? typeof obj.nk !== 'number' : obj.nk !== undefined) return null;
         return obj;
     } catch {
         return null;
@@ -340,38 +368,49 @@ router.get('/guide', (req, res) => {
 
         const total = db.prepare(`SELECT COUNT(*) n FROM playlist_items p WHERE ${clause}`).get(...params).n;
 
+        const numbered = channelNumbers.numbersEnabled();
         let cursorKey = null;
         const pageWhere = [...where];
         const pageParams = [...params];
         if (cursor) {
-            cursorKey = decodeGuideCursor(cursor);
+            cursorKey = decodeGuideCursor(cursor, numbered);
             if (!cursorKey) return res.status(400).json({ error: 'Invalid cursor' });
-            pageWhere.push(`(${GUIDE_SORT_KEY}, p.name, p.id) > (?, ?, ?)`);
-            pageParams.push(cursorKey.sk, cursorKey.name, cursorKey.id);
+            if (numbered) {
+                pageWhere.push(`(${GUIDE_NUMBER_KEY}, ${GUIDE_SORT_KEY}, p.name, p.id) > (?, ?, ?, ?)`);
+                pageParams.push(cursorKey.nk, cursorKey.sk, cursorKey.name, cursorKey.id);
+            } else {
+                pageWhere.push(`(${GUIDE_SORT_KEY}, p.name, p.id) > (?, ?, ?)`);
+                pageParams.push(cursorKey.sk, cursorKey.name, cursorKey.id);
+            }
         }
         const pageClause = pageWhere.join(' AND ');
+        const orderBy = numbered ? GUIDE_NUMBERED_ORDER_BY : GUIDE_ORDER_BY;
 
         // Fetch one extra row (keyset mode) to know whether a next page exists,
         // without a separate COUNT. OFFSET mode keeps its exact old query shape.
         const rows = cursor
             ? db.prepare(`
-                SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id, p.tvg_id, p.id, ${GUIDE_SORT_KEY} AS sk
+                SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id, p.tvg_id, p.id, ${GUIDE_SORT_KEY} AS sk,
+                       n.number AS channel_number, ${GUIDE_NUMBER_KEY} AS nk
                 FROM playlist_items p
+                ${NUMBER_JOIN}
                 WHERE ${pageClause}
-                ${GUIDE_ORDER_BY}
+                ${orderBy}
                 LIMIT ?
             `).all(...pageParams, limit + 1)
             : db.prepare(`
-                SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id, p.tvg_id, p.id, ${GUIDE_SORT_KEY} AS sk
+                SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id, p.tvg_id, p.id, ${GUIDE_SORT_KEY} AS sk,
+                       n.number AS channel_number, ${GUIDE_NUMBER_KEY} AS nk
                 FROM playlist_items p
+                ${NUMBER_JOIN}
                 WHERE ${pageClause}
-                ${GUIDE_ORDER_BY}
+                ${orderBy}
                 LIMIT ? OFFSET ?
             `).all(...pageParams, limit + 1, offset);
 
         const hasMore = rows.length > limit;
         const pageRows = hasMore ? rows.slice(0, limit) : rows;
-        const nextCursor = hasMore ? encodeGuideCursor(pageRows[pageRows.length - 1]) : null;
+        const nextCursor = hasMore ? encodeGuideCursor(pageRows[pageRows.length - 1], numbered) : null;
 
         const channels = pageRows.map(row => {
             // The indexed column first (0111 — filled at ingest and backfilled at
@@ -395,6 +434,8 @@ router.get('/guide', (req, res) => {
                 // client can match a guide row to a favourite or a playback handle
                 // without falling back to item_id (0096-0098's trap).
                 stableId: row.stable_id || null,
+                // 0117 (C-A): the channel's number, or null if it has none.
+                number: row.channel_number ?? null,
                 programmes: []
             };
         });
@@ -460,7 +501,8 @@ router.get('/recent', (req, res) => {
 
         const rows = db.prepare(`
             SELECT h.source_id, h.channel_item_id, h.channel_name, h.watched_at,
-                   p.stream_icon, p.category_id, p.sort_order, p.name, p.item_id, p.data, p.stable_id
+                   p.stream_icon, p.category_id, p.sort_order, p.name, p.item_id, p.data, p.stable_id,
+                   n.number AS channel_number
             FROM channel_history h
             -- Joined on the identity when the row has one, so a watched channel is
             -- still found after the provider reorders; on the recorded position only
@@ -470,6 +512,7 @@ router.get('/recent', (req, res) => {
               ON p.source_id = h.source_id AND p.type = 'live'
              AND ((h.stable_id IS NOT NULL AND p.stable_id = h.stable_id)
                   OR (h.stable_id IS NULL AND p.item_id = h.channel_item_id))
+            ${NUMBER_JOIN}
             WHERE h.user_id = ?
             -- One row per watched channel even when it is listed in several
             -- categories (845 of this provider's are), keeping the earliest
@@ -496,6 +539,7 @@ router.get('/recent', (req, res) => {
             sourceId: r.source_id,
             name: r.channel_name,
             logo: null,
+            number: null,
             unavailable: true,
             now: null,
             next: null

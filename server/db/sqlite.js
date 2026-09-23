@@ -158,6 +158,24 @@ function initSchema() {
         );
     `);
 
+    // Channel numbers (0117, roadmap X2.1, contract C-A): one persisted number
+    // per channel IDENTITY (source + stable_id, else item_id - the same key the
+    // favourites use), so a number survives the provider reordering its playlist
+    // and a channel cross-listed in two categories has one number.
+    // `last_seen` is the last time the channel was visible; a channel that
+    // disappears keeps its number for 30 days (services/channelNumbers.js).
+    // `number` is UNIQUE across the server, whatever the source.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS channel_numbers (
+            source_id INTEGER NOT NULL,
+            channel_key TEXT NOT NULL,
+            item_id TEXT,
+            number INTEGER NOT NULL UNIQUE,
+            last_seen INTEGER NOT NULL,
+            PRIMARY KEY (source_id, channel_key)
+        );
+    `);
+
     // EPG Programs
     // Optimized for range queries
     db.exec(`

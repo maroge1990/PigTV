@@ -65,7 +65,10 @@ router.get('/', async (req, res) => {
             playbackTerminalStatus: true,    // GET /api/playback/:sessionId/terminal-status says whether a dead session was taken over
             guideCursor: true,               // /api/library/guide accepts &cursor= (keyset paging) and limit up to 500
             guideVersion: true,              // GET /api/library/guide/version — cheap "did anything change?" check
-            logoCache: true                  // library `logo` fields are /api/logo/<key>, fetched and cached server-side
+            logoCache: true,                 // library `logo` fields are /api/logo/<key>, fetched and cached server-side
+            // 0117 (C-A): library rows carry `number`; guide/channels are ordered by it.
+            // Absent when PIGTV_CHANNEL_NUMBERS=0 (the rollback).
+            ...(require('../services/channelNumbers').numbersEnabled() ? { channelNumbers: true } : {})
         },
 
         // What the server can produce, so a client knows what to ask for.

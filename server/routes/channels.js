@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getDb } = require('../db/sqlite');
 const { bumpLibraryRev } = require('../services/libraryRev');
+const { refreshChannelNumbers } = require('../services/channelNumbers');
 
 // Helper to map API item types to DB types and tables
 function mapItemType(apiType) {
@@ -112,6 +113,7 @@ router.post('/hide', async (req, res) => {
         }
 
         bumpLibraryRev();
+        refreshChannelNumbers(); // 0117: a shown channel gets a number, a hidden one is reserved
         res.json({ success: true, cascaded });
     } catch (err) {
         console.error('Error hiding item:', err);
@@ -144,6 +146,7 @@ router.post('/show', async (req, res) => {
         }
 
         bumpLibraryRev();
+        refreshChannelNumbers(); // 0117: a shown channel gets a number, a hidden one is reserved
         res.json({ success: true, cascaded });
     } catch (err) {
         console.error('Error showing item:', err);
@@ -207,6 +210,7 @@ router.post('/hide/bulk', async (req, res) => {
 
         runBulk(items);
         bumpLibraryRev();
+        refreshChannelNumbers(); // 0117: a shown channel gets a number, a hidden one is reserved
         res.json({ success: true, count: items.length });
     } catch (err) {
         if (err.code === 'SQLITE_BUSY') {
@@ -251,6 +255,7 @@ router.post('/show/bulk', async (req, res) => {
 
         runBulk(items);
         bumpLibraryRev();
+        refreshChannelNumbers(); // 0117: a shown channel gets a number, a hidden one is reserved
         res.json({ success: true, count: items.length });
     } catch (err) {
         if (err.code === 'SQLITE_BUSY') {
@@ -285,6 +290,7 @@ router.post('/show/all', async (req, res) => {
 
         console.log(`[Channels] Show all for source ${sourceId} (${contentType}): ${catCount} categories, ${itemCount} items`);
         bumpLibraryRev();
+        refreshChannelNumbers(); // 0117: a shown channel gets a number, a hidden one is reserved
         res.json({ success: true, categoriesUpdated: catCount, itemsUpdated: itemCount });
     } catch (err) {
         console.error('Error show all:', err);
@@ -316,6 +322,7 @@ router.post('/hide/all', async (req, res) => {
 
         console.log(`[Channels] Hide all for source ${sourceId} (${contentType}): ${catCount} categories, ${itemCount} items`);
         bumpLibraryRev();
+        refreshChannelNumbers(); // 0117: a shown channel gets a number, a hidden one is reserved
         res.json({ success: true, categoriesUpdated: catCount, itemsUpdated: itemCount });
     } catch (err) {
         console.error('Error hide all:', err);

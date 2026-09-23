@@ -134,12 +134,15 @@ router.delete('/:id', async (req, res) => {
         const deleteEpg = db.prepare('DELETE FROM epg_programs WHERE source_id = ?');
         const deleteEpgState = db.prepare('DELETE FROM epg_state WHERE source_id = ?');
         const deleteSyncStatus = db.prepare('DELETE FROM sync_status WHERE source_id = ?');
+        // 0117: a deleted source's channels will not come back; free their numbers.
+        const deleteNumbers = db.prepare('DELETE FROM channel_numbers WHERE source_id = ?');
 
         const catResult = deleteCategories.run(sourceId);
         const itemResult = deleteItems.run(sourceId);
         const epgResult = deleteEpg.run(sourceId);
         deleteEpgState.run(sourceId);
         deleteSyncStatus.run(sourceId);
+        deleteNumbers.run(sourceId);
 
         console.log(`[Source] Cascade delete for source ${sourceId}: ${catResult.changes} categories, ${itemResult.changes} items, ${epgResult.changes} EPG programs`);
 
