@@ -1411,6 +1411,26 @@ check server/routes/library.js "SELECT p.item_id, p.source_id, p.name, p.stream_
 check server/routes/library.js "stableId: row.stable_id || null," "guide rows carry stableId too"
 check test/guide-favourites-stableid.test.js "carries stableId" "with a test"
 
+echo "=== 0107: dead duplicate proxy routes removed ==="
+# Express runs only the FIRST matching layer; a second registration of the same
+# path+method is unreachable dead code that can be edited by mistake. Count, not
+# just grep -q, since presence alone can't tell one registration from two.
+epg_count=$(grep -c "router\.get('/epg/:sourceId'" server/routes/proxy.js || true)
+if [ "$epg_count" = "1" ]; then
+    echo "  ✓ GET /epg/:sourceId registered once, not twice"
+else
+    echo "  ✗ MISMATCH: GET /epg/:sourceId registered $epg_count times (want 1)"
+    FAIL=1
+fi
+cache_count=$(grep -c "router\.delete('/cache/:sourceId'" server/routes/proxy.js || true)
+if [ "$cache_count" = "1" ]; then
+    echo "  ✓ DELETE /cache/:sourceId registered once, not twice"
+else
+    echo "  ✗ MISMATCH: DELETE /cache/:sourceId registered $cache_count times (want 1)"
+    FAIL=1
+fi
+check test/proxy-no-duplicate-routes.test.js "registered exactly once" "with a test on router.stack"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
