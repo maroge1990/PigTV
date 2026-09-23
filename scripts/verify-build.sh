@@ -1443,6 +1443,15 @@ check_absent server/services/compressionFilter.js "'video/" "and never allow-lis
 check test/compression-filter.test.js "content-encoding'), 'gzip'" "with a test that JSON is gzip-encoded"
 check test/compression-filter.test.js "never compressed" "and that media/ranged responses are not"
 
+echo "=== 0109: supported runtime and a reproducible image ==="
+check Dockerfile "setup_24.x" "nodesource points at Node 24, not the EOL Node 20"
+check_absent Dockerfile "setup_20.x" "no leftover reference to Node 20"
+check Dockerfile "npm ci --omit=dev" "production install uses the non-deprecated --omit=dev flag"
+check_absent Dockerfile "npm ci --only=production" "the deprecated --only=production flag is gone"
+check Dockerfile "git fetch --depth 1 https://github.com/erikkaashoek/Comskip a140b6ac8bc8f596729e9052819affc779c3b377" "Comskip is pinned to a specific commit, not a moving master"
+check_absent Dockerfile "git clone --depth 1 https://github.com/erikkaashoek/Comskip" "no unpinned clone of Comskip master left behind"
+check .github/workflows/test.yml "node: \[22, 24\]" "CI matrix is Node 22 and 24, not the EOL Node 20"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

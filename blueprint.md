@@ -28,7 +28,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | | |
 |---|---|
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Development is on Mark's MacBook only (from 23 Sept). |
-| CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 20 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
+| CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Mark deploys. |
 | Shipped through | **0104**; whether it is *running* is whatever `/api/version` says |
 | Next build number | **0106** |
@@ -253,10 +253,10 @@ the reason. Each phase ends with Mark's gate; don't start the next phase's devic
 | ID | Item | Status |
 |---|---|---|
 | X0.1 | Push-to-main workflow; CI publishes only after the tests pass; Node 24 locally | **Done** (0e68c03; Node 24 via Homebrew) |
-| S0.1 | `stableId` on `/library/guide` and `/library/favourites` rows (only `/library/channels` had it, though the hand-off said all three did), with a test | Planned |
-| S0.2 | Remove the dead second `GET /api/proxy/epg/:sourceId` handler (`routes/proxy.js`, shadowed by the first) | Planned |
-| S0.3 | Gzip JSON responses (`compression`), never for media, HLS or range responses; log a guide page's size before and after | Planned |
-| S0.4 | Image on Node 24 LTS (Node 20 is end of life); pin the Comskip commit; `npm ci --omit=dev` | Planned |
+| S0.1 | `stableId` on `/library/guide` and `/library/favourites` rows (only `/library/channels` had it, though the hand-off said all three did), with a test | Committed (0106), awaiting deploy |
+| S0.2 | Remove the dead second `GET /api/proxy/epg/:sourceId` handler (`routes/proxy.js`, shadowed by the first) | Committed (0107), awaiting deploy |
+| S0.3 | Gzip JSON responses (`compression`), never for media, HLS or range responses; log a guide page's size before and after | Committed (0108), awaiting deploy |
+| S0.4 | Image on Node 24 LTS (Node 20 is end of life); pin the Comskip commit; `npm ci --omit=dev` | Committed (0109), awaiting deploy |
 | A0.1 | Delete unused Swift views and model code; remove `remux` from the media allow-list and strategy lists | Planned |
 | A0.2 | Fix the SwiftUI "Environment accessed outside a View" runtime warning in the guide | Planned |
 | A0.3 | Swift CI (GitHub Actions macOS): build tvOS and iOS, run the tvOS tests on each push | Planned |
@@ -352,3 +352,7 @@ about 0 on the E-AC-3 channel.
 | Build | What |
 |---|---|
 | — | 23 Sept: push-to-main workflow; CI gates the image on the tests; docs archived and this blueprint written (no build bump) |
+| 0106 | `stableId` fixed on `/library/guide` and `/library/favourites` rows (0097 said it was already there; it wasn't) |
+| 0107 | Removed the dead, unreachable second `GET /epg/:sourceId` and `DELETE /cache/:sourceId` handlers in `routes/proxy.js` |
+| 0108 | JSON (and the server's own HTML/CSS/JS) responses are gzip-encoded; HLS, recording media and ranged requests never are |
+| 0109 | Image moved to Node 24 (Node 20 is EOL); `npm ci --omit=dev`; Comskip pinned to a commit; CI matrix is Node 22/24 |

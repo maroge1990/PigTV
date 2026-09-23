@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     gnupg \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && if [ "$TARGETARCH" = "amd64" ]; then \
         DRIVERS="mesa-va-drivers intel-media-va-driver vainfo"; \
     else \
@@ -52,8 +52,14 @@ RUN set -eux; \
         libargtable2-dev libavformat-dev libavcodec-dev libavutil-dev \
         libswscale-dev libsdl2-dev; \
     ( \
-        git clone --depth 1 https://github.com/erikkaashoek/Comskip /tmp/comskip \
-        && cd /tmp/comskip \
+        # Pinned to a specific commit (checked with `git ls-remote` on 23 Sept
+        # 2026) rather than cloning master, so the image is reproducible: an
+        # upstream force-push or a broken commit on master should never change
+        # what a rebuild produces.
+        mkdir -p /tmp/comskip && cd /tmp/comskip \
+        && git init -q \
+        && git fetch --depth 1 https://github.com/erikkaashoek/Comskip a140b6ac8bc8f596729e9052819affc779c3b377 \
+        && git checkout -q FETCH_HEAD \
         && ./autogen.sh \
         && ./configure --bindir=/usr/local/bin \
         && make -j"$(nproc)" \
@@ -79,7 +85,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies (better-sqlite3 will build from source using g++ installed above)
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Copy application files
 COPY . .
