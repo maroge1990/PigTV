@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 23 September 2026 · server build **0116** (0113–0116 committed locally, not yet pushed) · Apple client build **16**
+**Last updated:** 24 September 2026 · server build **0120** (0113–0120 committed locally, not yet pushed) · Apple client build **16**
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
 architecture notes live in `../PigTV-Swift/blueprint.md`, which points back here for the roadmap. This file replaced the
@@ -31,7 +31,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Mark deploys. |
 | Shipped through | **0104**; whether it is *running* is whatever `/api/version` says |
-| Next build number | **0117** |
+| Next build number | **0121** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -78,7 +78,7 @@ reports back.
 **Every client, every live channel: `POST /api/playback/resolve` → an HLS session** (§C Phases 3–4, 0102–0103). The server probes
 the channel once (ffprobe, cached 5 min in memory per URL + caps; since 0114 also kept in SQLite as a **channel profile** for 7 days, so a
 repeat play skips ffprobe - see below), then returns either `direct` (a source that is already browser-ready,
-through `/api/proxy/stream`) or `transcode`: an HLS session that **copies** whatever the client can decode and re-encodes only what
+through `/api/proxy/stream?h=<opaque handle>` since 0119, never the provider URL) or `transcode`: an HLS session that **copies** whatever the client can decode and re-encodes only what
 it cannot. There is no remux, no legacy pipe and no browser-side strategy any more; `/api/remux` answers the JSON 404.
 
 **Provider slot** (`streamCoordinator.js`)
@@ -164,7 +164,12 @@ it cannot. There is no remux, no legacy pipe and no browser-side strategy any mo
 - **Movie/series page** (`WatchPage.js`, latent VOD): it probes, then sends anything not browser-ready through
   `POST /api/transcode/session`, the only path that can resume (`seekOffset`).
 - `/api/proxy/stream` **streams** binary content and drops the upstream when the client leaves (0104). Playlists are read whole
-  (they're rewritten, and `?token=` is carried onto every URI).
+  (they're rewritten, and `?token=` is carried onto every URI). It takes `?h=` (a handle from `playbackHandles.js`: 32 hex,
+  in memory, 12 h, LRU-bounded at 10,000; a restart forgets them, unknown → 404; a manifest fetched by handle hands out
+  handles for its URIs) or, for the web's legacy callers until W2.1, `?url=`. Rollback: `PIGTV_PLAYBACK_HANDLES=0`.
+- **Resolve errors** (0118, contract C-B): every provider/channel failure starts "The provider refused this channel",
+  "The provider did not respond" or "This channel is not available" (texts in `playbackErrors.js`); a failed ffprobe is
+  classified like ffmpeg's stderr and never returned raw; the route strips any `scheme://` from whatever else it returns.
 
 ---
 
@@ -219,6 +224,13 @@ an identity must never fall back to its stored `pos_N`. Joins use
 the identity. Only *pending* schedules were backfilled. The provider's stream id and URL live in the row's `data` JSON, not
 `stream_url`.
 
+**Channel numbers** (0117, `channelNumbers.js`, contract C-A). Table `channel_numbers`, keyed on the favourites' identity
+(`source_id` + `COALESCE(stable_id, item_id)`), `number` unique server-wide. Assigned after a playlist sync, after every
+hide/show, and lazily by the first `/api/library` request when the table is empty; a channel no longer visible keeps its
+number 30 days. `/library/guide` and `/channels` order by number (nulls last), and the guide's cursor carries it (a cursor
+from the other ordering is a 400). Admin: `GET /api/lineup`, `PUT /api/lineup/numbers` (a reserved number yields to the
+admin; a visible holder is a 400). Rollback: `PIGTV_CHANNEL_NUMBERS=0` (old order, no flag; numbers still kept).
+
 **Guide and library.**
 - Query **`epg_live`**, never `epg_programs`. A sync loads generation active+1, flips it in one statement, then deletes the old
   one in slices; a failed feed leaves the guide untouched.
@@ -246,7 +258,7 @@ the identity. Only *pending* schedules were backfilled. The provider's stream id
   `*.native.mp4` for those once. **HEVC recording playback on an Apple TV is still unconfirmed.**
 
 **Dev environment (macOS, from 23 Sept).**
-- Node 24 from Homebrew (`/opt/homebrew/opt/node@24/bin`; see §2). `npm test`: 364 tests, all pass locally with
+- Node 24 from Homebrew (`/opt/homebrew/opt/node@24/bin`; see §2). `npm test`: 396 tests, all pass locally with
   Homebrew ffmpeg 9.0 installed (tests that need ffmpeg skip without one).
 - `bash scripts/verify-build.sh .` uses the system `python3`.
 - The tree is LF. There is no local Docker; the image is only built by CI.
@@ -310,17 +322,17 @@ and client for Phases 2–4 is fixed in `docs/ROADMAP-CONTRACTS.md`; build to it
 | A1.1 | Guide refreshes cheaply: a few large requests; ETag revalidation; no whole-guide rebuild per page; cache per window | Planned |
 | A1.2 | Channel change feels quicker: the channel card (logo, now/next) shows instantly; one `AVPlayer` across changes; tuned forward buffer; **last channel** | Planned |
 | S1.4 | Logo cache `/api/logo/{key}` (fetch once, resize to about 320 px, long cache headers); limit `/api/proxy/image` to known logo URLs | Committed (0112), awaiting deploy — the cache itself shipped; `/api/proxy/image` was deliberately left open (the web app also uses it for movie/series posters, not just logos) |
-| A1.3 | Client follow-ups to 0113/0116: show the server's safe resolve-failure message (e.g. "The provider refused this channel…") instead of a generic HTTP 500, via an allow-list of known messages; send `heaac: true` **only after** Mark's device check of HE-AAC passthrough (7 Mate / 7 Flix: sound, treble, lip-sync) | Planned |
+| A1.3 | Client follow-ups to 0113/0116: show the server's safe resolve-failure message (e.g. "The provider refused this channel…") instead of a generic HTTP 500, via an allow-list of known messages; send `heaac: true` **only after** Mark's device check of HE-AAC passthrough (7 Mate / 7 Flix: sound, treble, lip-sync) | Server side committed (0118: every failure uses the C-B prefixes, never a URL), awaiting deploy; client side per `../PigTV-Swift/blueprint.md` |
 
 ### Phase 2: one lineup, one contract, a steady guide
 
 | ID | Item | Status |
 |---|---|---|
-| X2.1 | **"My TV" lineup** on the server: the selected categories in order, plus any extra channels, with **channel numbers** (was R11). Used by the guide, channel up/down, Top Shelf and the web. | Planned |
+| X2.1 | **"My TV" lineup** on the server: the selected categories in order, plus any extra channels, with **channel numbers** (was R11). Used by the guide, channel up/down, Top Shelf and the web. | Server committed (0117: numbers, number order, `GET/PUT /api/lineup`, flag `channelNumbers`), awaiting deploy; the web renumbering screen and the Apple display are still to do |
 | A2.1 | **tvOS guide grid on UIKit** (`UICollectionView` with a time-based layout, hosted in SwiftUI), behind a switch; compare on the TV; then delete the SwiftUI grid, edge targets and focus retries | Planned |
-| W2.1 | Web onto `/api/library`; move the Sources category/channel picker off the Xtream-emulation routes; **then remove** the Xtream-emulation and whole-EPG proxy routes, `cache.js`, Movies, Series, Pluto and the plugin loader (Mark, 23 Sept: remove whatever nothing calls) | Planned |
+| W2.1 | Web onto `/api/library`; move the Sources category/channel picker off the Xtream-emulation routes; **then remove** the Xtream-emulation and whole-EPG proxy routes, `cache.js`, Movies, Series, Pluto and the plugin loader (Mark, 23 Sept: remove whatever nothing calls) | In progress: the picker's endpoint `GET /api/sources/:id/catalogue` is committed (0120); the web still uses the old routes |
 | W2.2 | Web status page: live sessions, recordings, recent channel starts with first-picture times, sync health | Planned |
-| S2.1 | **P1-4**: an opaque playback handle instead of the credentialed `?url=` (a coordinated client change) | Planned |
+| S2.1 | **P1-4**: an opaque playback handle instead of the credentialed `?url=` (a coordinated client change) | Committed (0119: `direct` → `/api/proxy/stream?h=`, flag `playbackHandles`; proxy/probe logs and stored recording errors redacted), awaiting deploy; needs no client change (same path) |
 
 ### Phase 3: the tuner model (staged, behind a switch, with one env var to go back)
 
@@ -405,3 +417,7 @@ about 0 on the E-AC-3 channel.
 | 0114 | Channel profiles (S1.1): the probe's analysis kept in SQLite for 7 days, so a repeat play skips ffprobe; dropped on a failed start; `PIGTV_PROBE_PROFILES=0` turns it off |
 | 0115 | Every session with a usable frame rate is handed out as `master.m3u8` with `FRAME-RATE` and `VIDEO-RANGE=SDR` (HDR copies unchanged), so Match Frame Rate can pick 50 Hz (S1.2) |
 | 0116 | HE-AAC copied instead of re-encoded for a client that sends capability `heaac: true` (none does yet; the web never will) |
+| 0117 | Channel numbers (C-A, X2.1): persisted per identity, assigned on sync/hide/show (lazily if empty), reserved 30 days; `number` on library rows; guide/channels in number order with an exact cursor; admin `GET /api/lineup`, `PUT /api/lineup/numbers`; flag `channelNumbers` |
+| 0118 | Resolve failures all start with a C-B prefix and never carry a URL (404/5xx/refused/timeout reworded; a failed probe no longer returns ffprobe's stderr, which named the stream URL; "channel not found" → "This channel is not available") |
+| 0119 | Opaque playback handles (C-D, S2.1): `direct` resolves answer `/api/proxy/stream?h=<32 hex>`; the proxy takes `h` (and still `url`); flag `playbackHandles`; proxy/probe log lines and a failed recording's stored error now redacted |
+| 0120 | `GET /api/sources/:id/catalogue?type=live` (admin): a source's categories and channels, hidden included, from SQLite, for the Sources picker (W2.1); movie/series → 400 |
