@@ -62,7 +62,9 @@ router.get('/', async (req, res) => {
             viewerConflict: true,            // POST /api/playback/resolve may answer 409 conflict.type 'viewer-in-progress'
             epgLogoFallback: true,           // /api/library/* fill a missing logo from the EPG (no client-side icon index needed)
             clientEvents: true,              // POST /api/playback/client-event accepts player diagnostics
-            playbackTerminalStatus: true     // GET /api/playback/:sessionId/terminal-status says whether a dead session was taken over
+            playbackTerminalStatus: true,    // GET /api/playback/:sessionId/terminal-status says whether a dead session was taken over
+            guideCursor: true,               // /api/library/guide accepts &cursor= (keyset paging) and limit up to 500
+            guideVersion: true               // GET /api/library/guide/version — cheap "did anything change?" check
         },
 
         // What the server can produce, so a client knows what to ask for.

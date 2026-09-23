@@ -1,4 +1,5 @@
 const { getDb } = require('../db/sqlite');
+const { bumpLibraryRev } = require('./libraryRev');
 const { stableChannelId, summarise } = require('./stableIds');
 const { sources, settings } = require('../db'); // For source config and settings
 const xtreamApi = require('./xtreamApi');
@@ -204,6 +205,12 @@ class SyncService {
             }
 
             this.updateSyncStatus(sourceId, 'all', 'success');
+            // A completed sync (playlist or EPG) can change every guide row, so
+            // the guide's "did anything change?" version must move. The EPG
+            // generation flip inside syncEpg() also changes epg_state directly,
+            // which currentGuideVersion() reads on its own - this bump covers the
+            // playlist/category side, which has nothing else recording a change.
+            bumpLibraryRev();
             console.log(`[Sync] Completed sync for source ${source.name}`);
 
         } catch (err) {
@@ -334,11 +341,11 @@ class SyncService {
 
         const stmt = db.prepare(`
             INSERT INTO playlist_items (
-                id, source_id, item_id, type, name, category_id, 
-                stream_icon, stream_url, container_extension, 
-                rating, year, added_at, sort_order, data, stable_id
+                id, source_id, item_id, type, name, category_id,
+                stream_icon, stream_url, container_extension,
+                rating, year, added_at, sort_order, data, stable_id, tvg_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 category_id = excluded.category_id,
@@ -348,7 +355,8 @@ class SyncService {
                 data = excluded.data,
                 -- Rewritten every sync: the position moves, the identity does not,
                 -- so a row that changes position must not keep a stale identity.
-                stable_id = excluded.stable_id
+                stable_id = excluded.stable_id,
+                tvg_id = excluded.tvg_id
         `);
 
         const insertBatch = db.transaction((batch) => {
@@ -404,7 +412,13 @@ class SyncService {
                     // from the item id itself for an Xtream row, whose id already IS
                     // that stream id and so never moved in the first place.
                     stableChannelId(item.stream_url || null)
-                        || (/^\d+$/.test(String(itemId)) ? `s${itemId}` : null)
+                        || (/^\d+$/.test(String(itemId)) ? `s${itemId}` : null),
+                    // The EPG channel id, wherever this item's shape carries it: M3U
+                    // rows set tvgId (see below); Xtream's raw JSON uses
+                    // epg_channel_id. Read straight from the source item rather than
+                    // round-tripping through JSON so this is filled at ingest, not
+                    // only by the startup backfill.
+                    item.tvgId || item.epg_channel_id || null
                 );
             }
         });

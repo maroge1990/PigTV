@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getDb } = require('../db/sqlite');
+const { bumpLibraryRev } = require('../services/libraryRev');
 
 // Helper to map API item types to DB types and tables
 function mapItemType(apiType) {
@@ -110,6 +111,7 @@ router.post('/hide', async (req, res) => {
             cascaded = cascadeCategory(db, sourceId, mapping.type, itemId, true);
         }
 
+        bumpLibraryRev();
         res.json({ success: true, cascaded });
     } catch (err) {
         console.error('Error hiding item:', err);
@@ -141,6 +143,7 @@ router.post('/show', async (req, res) => {
             cascaded = cascadeCategory(db, sourceId, mapping.type, itemId, false);
         }
 
+        bumpLibraryRev();
         res.json({ success: true, cascaded });
     } catch (err) {
         console.error('Error showing item:', err);
@@ -203,6 +206,7 @@ router.post('/hide/bulk', async (req, res) => {
         });
 
         runBulk(items);
+        bumpLibraryRev();
         res.json({ success: true, count: items.length });
     } catch (err) {
         if (err.code === 'SQLITE_BUSY') {
@@ -246,6 +250,7 @@ router.post('/show/bulk', async (req, res) => {
         });
 
         runBulk(items);
+        bumpLibraryRev();
         res.json({ success: true, count: items.length });
     } catch (err) {
         if (err.code === 'SQLITE_BUSY') {
@@ -279,6 +284,7 @@ router.post('/show/all', async (req, res) => {
         }
 
         console.log(`[Channels] Show all for source ${sourceId} (${contentType}): ${catCount} categories, ${itemCount} items`);
+        bumpLibraryRev();
         res.json({ success: true, categoriesUpdated: catCount, itemsUpdated: itemCount });
     } catch (err) {
         console.error('Error show all:', err);
@@ -309,6 +315,7 @@ router.post('/hide/all', async (req, res) => {
         }
 
         console.log(`[Channels] Hide all for source ${sourceId} (${contentType}): ${catCount} categories, ${itemCount} items`);
+        bumpLibraryRev();
         res.json({ success: true, categoriesUpdated: catCount, itemsUpdated: itemCount });
     } catch (err) {
         console.error('Error hide all:', err);

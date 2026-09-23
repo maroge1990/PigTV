@@ -120,7 +120,7 @@ const APPLE_CLIENT_ROUTES = [
     ['POST', '/api/devices/pair/start'], ['GET', '/api/devices/pair/poll'],
     ['GET', '/api/sources'],
     ['GET', '/api/library/categories'], ['GET', '/api/library/channels'],
-    ['GET', '/api/library/favourites'], ['GET', '/api/library/guide'],
+    ['GET', '/api/library/favourites'], ['GET', '/api/library/guide'], ['GET', '/api/library/guide/version'],
     ['POST', '/api/favorites'], ['DELETE', '/api/favorites'], ['GET', '/api/favorites/check'],
     ['POST', '/api/playback/resolve'], ['GET', '/api/playback/conflict'], ['POST', '/api/playback/conflict/decline'],
     ['POST', '/api/playback/client-event'],

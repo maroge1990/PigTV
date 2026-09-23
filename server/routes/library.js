@@ -15,6 +15,7 @@ const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../auth');
 const { getDb } = require('../db/sqlite');
+const { currentGuideVersion } = require('../services/libraryRev');
 
 // The longest programme the guide will still show when it began before the
 // window. Every EPG query bounds start_time from below by this, because the
@@ -271,8 +272,32 @@ router.get('/favourites', (req, res) => {
     }
 });
 
+// The guide's total order: NULL sort_order (Xtream — unordered) sorts after
+// every M3U position, then name, then id as a tiebreaker so the order is
+// total even across ties — required for keyset (cursor) paging to line up
+// exactly with OFFSET paging. Rather than a NULL-laden tuple compare (SQLite's
+// row-value NULL semantics are awkward to keyset against), NULL sort_order is
+// coalesced to a sentinel larger than any real playlist position.
+const SORT_SENTINEL = 999999999;
+const GUIDE_SORT_KEY = `COALESCE(p.sort_order, ${SORT_SENTINEL})`;
+const GUIDE_ORDER_BY = `ORDER BY ${GUIDE_SORT_KEY} ASC, p.name ASC, p.id ASC`;
+
+/** Opaque cursor: base64 of the last row's sort key, for keyset paging. */
+function encodeGuideCursor(row) {
+    return Buffer.from(JSON.stringify({ sk: row.sk, name: row.name, id: row.id })).toString('base64');
+}
+function decodeGuideCursor(cursor) {
+    try {
+        const obj = JSON.parse(Buffer.from(String(cursor), 'base64').toString('utf8'));
+        if (typeof obj.sk !== 'number' || typeof obj.name !== 'string' || typeof obj.id !== 'string') return null;
+        return obj;
+    } catch {
+        return null;
+    }
+}
+
 /**
- * GET /api/library/guide?start=&end=&category=&limit=&offset=
+ * GET /api/library/guide?start=&end=&category=&limit=&offset=|cursor=
  *
  * The grid: channels in provider order, each with its programmes across a
  * window. /channels gives now and next, which draws a tile but not a guide.
@@ -281,13 +306,19 @@ router.get('/favourites', (req, res) => {
  * that arrives without its programmes is worse than one that has not arrived.
  * The window is capped at 24 hours because the response grows with it and a
  * TV does not have a desktop's memory.
+ *
+ * 0111 (roadmap S1.3, guide API for scale): `limit` now goes up to 500 (was
+ * 100), and an opaque `cursor` does keyset paging instead of OFFSET, which
+ * degrades on a large table. `offset` still works exactly as before for
+ * older clients; passing both prefers `cursor`. `nextCursor` is always
+ * included so a client can switch onto keyset paging from either mode.
  */
 router.get('/guide', (req, res) => {
     try {
         const db = getDb();
-        const limit = clamp(req.query.limit, 1, 100, 25);
+        const limit = clamp(req.query.limit, 1, 500, 25);
         const offset = clamp(req.query.offset, 0, 1e7, 0);
-        const { category } = req.query;
+        const { category, cursor } = req.query;
 
         const now = Date.now();
         const start = parseInt(req.query.start, 10) || now;
@@ -304,24 +335,58 @@ router.get('/guide', (req, res) => {
         const clause = where.join(' AND ');
 
         const total = db.prepare(`SELECT COUNT(*) n FROM playlist_items p WHERE ${clause}`).get(...params).n;
-        const rows = db.prepare(`
-            SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id
-            FROM playlist_items p
-            WHERE ${clause}
-            ORDER BY CASE WHEN p.sort_order IS NULL THEN 1 ELSE 0 END, p.sort_order ASC, p.name ASC
-            LIMIT ? OFFSET ?
-        `).all(...params, limit, offset);
 
-        const channels = rows.map(row => {
-            let data = {};
-            try { data = JSON.parse(row.data || '{}'); } catch (e) { /* ignore */ }
+        let cursorKey = null;
+        const pageWhere = [...where];
+        const pageParams = [...params];
+        if (cursor) {
+            cursorKey = decodeGuideCursor(cursor);
+            if (!cursorKey) return res.status(400).json({ error: 'Invalid cursor' });
+            pageWhere.push(`(${GUIDE_SORT_KEY}, p.name, p.id) > (?, ?, ?)`);
+            pageParams.push(cursorKey.sk, cursorKey.name, cursorKey.id);
+        }
+        const pageClause = pageWhere.join(' AND ');
+
+        // Fetch one extra row (keyset mode) to know whether a next page exists,
+        // without a separate COUNT. OFFSET mode keeps its exact old query shape.
+        const rows = cursor
+            ? db.prepare(`
+                SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id, p.tvg_id, p.id, ${GUIDE_SORT_KEY} AS sk
+                FROM playlist_items p
+                WHERE ${pageClause}
+                ${GUIDE_ORDER_BY}
+                LIMIT ?
+            `).all(...pageParams, limit + 1)
+            : db.prepare(`
+                SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id, p.tvg_id, p.id, ${GUIDE_SORT_KEY} AS sk
+                FROM playlist_items p
+                WHERE ${pageClause}
+                ${GUIDE_ORDER_BY}
+                LIMIT ? OFFSET ?
+            `).all(...pageParams, limit + 1, offset);
+
+        const hasMore = rows.length > limit;
+        const pageRows = hasMore ? rows.slice(0, limit) : rows;
+        const nextCursor = hasMore ? encodeGuideCursor(pageRows[pageRows.length - 1]) : null;
+
+        const channels = pageRows.map(row => {
+            // The indexed column first (0111 — filled at ingest and backfilled at
+            // startup); JSON.parse `data` only for the rows that predate it, so a
+            // guide page no longer parses JSON for every row just to find this.
+            let tvgId = row.tvg_id || null;
+            if (!tvgId) {
+                try {
+                    const data = JSON.parse(row.data || '{}');
+                    tvgId = data.tvgId || data.epg_channel_id || null;
+                } catch (e) { /* ignore */ }
+            }
             return {
                 id: row.item_id,
                 sourceId: row.source_id,
                 name: row.name,
                 logo: row.stream_icon || null,
                 category: row.category_id,
-                tvgId: data.tvgId || data.epg_channel_id || null,
+                tvgId,
                 // Additive: the same identity /channels and /favourites carry, so a
                 // client can match a guide row to a favourite or a playback handle
                 // without falling back to item_id (0096-0098's trap).
@@ -358,7 +423,22 @@ router.get('/guide', (req, res) => {
             }
         }
 
-        res.json({ total, limit, offset, start, end, now, channels });
+        res.json({ total, limit, offset, start, end, now, channels, nextCursor });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * GET /api/library/guide/version
+ *
+ * 0111 (roadmap S1.3): a cheap "has anything changed?" check, so a client
+ * with the whole guide cached does not have to re-fetch or diff it on every
+ * screen visit. See services/libraryRev.js for what changes it and why.
+ */
+router.get('/guide/version', (req, res) => {
+    try {
+        res.json({ version: currentGuideVersion() });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

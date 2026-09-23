@@ -6,6 +6,7 @@ const xtreamApi = require('../services/xtreamApi');
 const syncService = require('../services/syncService');
 const m3uParser = require('../services/m3uParser');
 const { requireAuth, requireAdmin } = require('../auth');
+const { bumpLibraryRev } = require('../services/libraryRev');
 
 router.use(requireAuth);
 router.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
@@ -145,6 +146,9 @@ router.delete('/:id', async (req, res) => {
         // Delete source config and related hidden items (favorites handled by db.js)
         await sources.delete(sourceId);
 
+        // Its channels are gone from the guide too, and nothing else here
+        // triggers a sync (which would otherwise bump this on its own).
+        bumpLibraryRev();
         res.json({ success: true });
     } catch (err) {
         console.error('Error deleting source:', err);
@@ -160,9 +164,12 @@ router.post('/:id/toggle', async (req, res) => {
             return res.status(404).json({ error: 'Source not found' });
         }
 
-        // If enabled, trigger sync
+        // If enabled, trigger sync (which bumps the guide version on its own);
+        // disabling drops its channels from the guide right away, so bump here.
         if (updated.enabled) {
             syncService.syncSource(parseInt(req.params.id)).catch(console.error);
+        } else {
+            bumpLibraryRev();
         }
 
         res.json(sourceSummary(updated));

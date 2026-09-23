@@ -108,6 +108,25 @@ function initSchema() {
     }
     db.exec('CREATE INDEX IF NOT EXISTS idx_playlist_items_stable ON playlist_items(source_id, type, stable_id)');
 
+    // The tvg-id (EPG channel id), in its own column rather than buried in the
+    // `data` JSON blob. The guide (0111) reads it for every row on every page,
+    // and JSON.parse-ing `data` per row does not scale to the several thousand
+    // channels a page can now ask for. Filled at ingest (syncService.js, both
+    // the M3U and Xtream paths) and backfilled once at startup below for rows
+    // that predate the column.
+    try {
+        db.exec('ALTER TABLE playlist_items ADD COLUMN tvg_id TEXT');
+    } catch (e) {
+        // Column already exists.
+    }
+    db.exec('CREATE INDEX IF NOT EXISTS idx_playlist_items_tvg ON playlist_items(tvg_id)');
+
+    // A small persisted key/value store. Its first use is `library_rev`
+    // (services/libraryRev.js), a counter bumped whenever something that
+    // affects the guide changes, so a client can ask "did anything change?"
+    // without depending on the current time.
+    db.exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
+
     // EPG Programs
     // Optimized for range queries
     db.exec(`
@@ -278,10 +297,39 @@ function initSchema() {
 
     normalizeFavoriteIds();
     backfillStableIds();
+    backfillTvgIds();
     backfillFavoriteIdentities();
     backfillHistoryIdentities();
 
     console.log('[SQLite] Schema initialized');
+}
+
+/**
+ * Fill tvg_id for rows that predate the column, from the same `data` JSON the
+ * guide used to JSON.parse on every request (0111). Only touches rows where
+ * the column is still NULL, so it is a cheap indexed scan on an
+ * already-migrated database and runs on every start rather than being
+ * tracked as a one-off.
+ */
+function backfillTvgIds() {
+    const rows = db.prepare("SELECT id, data FROM playlist_items WHERE tvg_id IS NULL AND data IS NOT NULL").all();
+    if (!rows.length) return;
+
+    const update = db.prepare('UPDATE playlist_items SET tvg_id = ? WHERE id = ?');
+    let filled = 0;
+    db.transaction(() => {
+        for (const r of rows) {
+            let tvgId = null;
+            try {
+                const d = JSON.parse(r.data);
+                tvgId = d.tvgId || d.epg_channel_id || null;
+            } catch { tvgId = null; }
+            if (!tvgId) continue;
+            update.run(tvgId, r.id);
+            filled++;
+        }
+    })();
+    if (filled) console.log(`[SQLite] Backfilled tvg_id for ${filled} of ${rows.length} playlist item(s)`);
 }
 
 /**
@@ -493,6 +541,7 @@ module.exports = {
     initSchema,
     // Exported so the migrations can be exercised directly; initSchema calls them.
     backfillStableIds,
+    backfillTvgIds,
     backfillFavoriteIdentities,
     backfillHistoryIdentities,
     favorites
