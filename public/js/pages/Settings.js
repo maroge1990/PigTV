@@ -187,9 +187,6 @@ class SettingsPage {
     // ---- UI tab --------------------------------------------------------
 
     initUiSettings() {
-        const saveBtn = document.getElementById('content-visibility-save');
-        if (saveBtn) saveBtn.addEventListener('click', () => this.saveUiSettings());
-
         // Theme applies immediately and is stored per device rather than on the
         // server: which appearance suits a phone at night is not the same
         // answer as a desktop in daylight.
@@ -199,36 +196,9 @@ class SettingsPage {
         }
     }
 
-    async loadUiSettings() {
+    loadUiSettings() {
         const themeSelect = document.getElementById('setting-theme');
         if (themeSelect && window.Theme) themeSelect.value = window.Theme.choice;
-
-        const movies = document.getElementById('setting-show-movies');
-        if (!movies) return;
-        try {
-            const s = await API.settings.get();
-            movies.checked = s.showMovies !== false;
-            document.getElementById('setting-show-series').checked = s.showSeries !== false;
-        } catch (err) {
-            console.error('Failed to load UI settings:', err);
-        }
-    }
-
-    async saveUiSettings() {
-        const status = document.getElementById('content-visibility-status');
-        try {
-            await API.settings.update({
-                showMovies: document.getElementById('setting-show-movies').checked,
-                showSeries: document.getElementById('setting-show-series').checked
-            });
-            if (this.app?.applyContentVisibility) await this.app.applyContentVisibility();
-            if (status) {
-                status.textContent = 'Saved';
-                setTimeout(() => { status.textContent = ''; }, 2500);
-            }
-        } catch (err) {
-            if (status) status.textContent = 'Failed: ' + err.message;
-        }
     }
 
     // ---- Debug tab -----------------------------------------------------
@@ -298,7 +268,6 @@ class SettingsPage {
         const defaultVolumeSlider = document.getElementById('setting-default-volume');
         const volumeValueDisplay = document.getElementById('volume-value');
         const rememberVolumeToggle = document.getElementById('setting-remember-volume');
-        const autoPlayNextToggle = document.getElementById('setting-autoplay-next');
 
         // Load current settings
         if (this.app.player?.settings) {
@@ -307,7 +276,6 @@ class SettingsPage {
             defaultVolumeSlider.value = this.app.player.settings.defaultVolume;
             volumeValueDisplay.textContent = this.app.player.settings.defaultVolume + '%';
             rememberVolumeToggle.checked = this.app.player.settings.rememberVolume;
-            autoPlayNextToggle.checked = this.app.player.settings.autoPlayNextEpisode;
         }
 
         // Arrow keys toggle
@@ -333,12 +301,6 @@ class SettingsPage {
         // Remember volume toggle
         rememberVolumeToggle.addEventListener('change', () => {
             this.app.player.settings.rememberVolume = rememberVolumeToggle.checked;
-            this.app.player.saveSettings();
-        });
-
-        // Auto-play next episode toggle
-        autoPlayNextToggle.addEventListener('change', () => {
-            this.app.player.settings.autoPlayNextEpisode = autoPlayNextToggle.checked;
             this.app.player.saveSettings();
         });
 
@@ -776,7 +738,6 @@ class SettingsPage {
             const defaultVolumeSlider = document.getElementById('setting-default-volume');
             const volumeValueDisplay = document.getElementById('volume-value');
             const rememberVolumeToggle = document.getElementById('setting-remember-volume');
-            const autoPlayNextToggle = document.getElementById('setting-autoplay-next');
             const forceProxyToggle = document.getElementById('setting-force-proxy');
             const epgRefreshSelect = document.getElementById('epg-refresh-interval');
             const streamFormatSelect = document.getElementById('setting-stream-format');
@@ -786,7 +747,6 @@ class SettingsPage {
             if (defaultVolumeSlider) defaultVolumeSlider.value = s.defaultVolume;
             if (volumeValueDisplay) volumeValueDisplay.textContent = s.defaultVolume + '%';
             if (rememberVolumeToggle) rememberVolumeToggle.checked = s.rememberVolume;
-            if (autoPlayNextToggle) autoPlayNextToggle.checked = s.autoPlayNextEpisode;
             if (forceProxyToggle) forceProxyToggle.checked = s.forceProxy || false;
             if (epgRefreshSelect) epgRefreshSelect.value = s.epgRefreshInterval || '24';
             if (streamFormatSelect) streamFormatSelect.value = s.streamFormat || 'm3u8';

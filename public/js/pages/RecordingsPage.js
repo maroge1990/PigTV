@@ -304,12 +304,11 @@ class RecordingsPage {
         }
     }
 
+    // A recording scheduled since 0121 (or by the Apple client) stores the library's
+    // /api/logo/ path; an older one may hold the provider's own logo URL, used as is
+    // (the server's image passthrough went in 0122).
     proxiedLogo(url) {
-        if (!url) return '/img/placeholder.png';
-        if (window.location.protocol === 'https:' && url.startsWith('http://')) {
-            return `/api/proxy/image?url=${encodeURIComponent(url)}`;
-        }
-        return url;
+        return url || '/img/placeholder.png';
     }
 
     formatRange(startMs, endMs) {

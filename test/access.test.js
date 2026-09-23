@@ -157,8 +157,8 @@ test('admin create/toggle/delete and settings writes remain usable', async () =>
     const id = created.data.id;
     assert.equal((await request('POST', `/api/sources/${id}/toggle`, adminToken)).data.enabled, false);
     assert.equal((await request('DELETE', `/api/sources/${id}`, adminToken)).status, 200);
-    assert.equal((await request('PUT', '/api/settings', adminToken, { showMovies: false, vaapiCpuScale: true })).status, 200);
-    assert.equal((await request('GET', '/api/settings', viewerToken)).data.showMovies, false);
+    assert.equal((await request('PUT', '/api/settings', adminToken, { upscaleEnabled: true, vaapiCpuScale: true })).status, 200);
+    assert.equal((await request('GET', '/api/settings', viewerToken)).data.upscaleEnabled, true);
     assert.equal((await request('GET', '/api/settings/hw-info', adminToken)).status, 200);
     assert.equal((await request('POST', '/api/settings/hw-info/refresh', adminToken)).status, 200);
     assert.equal((await request('POST', '/api/sources/sync-all', adminToken)).status, 200);

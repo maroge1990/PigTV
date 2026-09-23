@@ -162,63 +162,6 @@ const API = {
             API.request('GET', `/favorites/check?sourceId=${sourceId}&itemId=${itemId}&itemType=${itemType}`)
     },
 
-    // Proxy
-    proxy: {
-        // Xtream
-        xtream: {
-            auth: (sourceId) => API.request('GET', `/proxy/xtream/${sourceId}/auth`),
-            liveCategories: (sourceId, options = {}) => {
-                const params = options.includeHidden ? '?includeHidden=true' : '';
-                return API.request('GET', `/proxy/xtream/${sourceId}/live_categories${params}`);
-            },
-            liveStreams: (sourceId, categoryId = null, options = {}) => {
-                const params = [];
-                if (categoryId) params.push(`category_id=${categoryId}`);
-                if (options.includeHidden) params.push('includeHidden=true');
-                const query = params.length ? `?${params.join('&')}` : '';
-                return API.request('GET', `/proxy/xtream/${sourceId}/live_streams${query}`);
-            },
-            vodCategories: (sourceId, options = {}) => {
-                const params = options.includeHidden ? '?includeHidden=true' : '';
-                return API.request('GET', `/proxy/xtream/${sourceId}/vod_categories${params}`);
-            },
-            vodStreams: (sourceId, categoryId = null, options = {}) => {
-                const params = [];
-                if (categoryId) params.push(`category_id=${categoryId}`);
-                if (options.includeHidden) params.push('includeHidden=true');
-                const query = params.length ? `?${params.join('&')}` : '';
-                return API.request('GET', `/proxy/xtream/${sourceId}/vod_streams${query}`);
-            },
-            seriesCategories: (sourceId, options = {}) => {
-                const params = options.includeHidden ? '?includeHidden=true' : '';
-                return API.request('GET', `/proxy/xtream/${sourceId}/series_categories${params}`);
-            },
-            series: (sourceId, categoryId = null, options = {}) => {
-                const params = [];
-                if (categoryId) params.push(`category_id=${categoryId}`);
-                if (options.includeHidden) params.push('includeHidden=true');
-                const query = params.length ? `?${params.join('&')}` : '';
-                return API.request('GET', `/proxy/xtream/${sourceId}/series${query}`);
-            },
-            seriesInfo: (sourceId, seriesId) =>
-                API.request('GET', `/proxy/xtream/${sourceId}/series_info?series_id=${seriesId}`),
-            shortEpg: (sourceId, streamId) => API.request('GET', `/proxy/xtream/${sourceId}/short_epg?stream_id=${streamId}`),
-            getStreamUrl: (sourceId, streamId, type = 'live', container = 'm3u8') =>
-                API.request('GET', `/proxy/xtream/${sourceId}/stream/${streamId}/${type}?container=${container}`)
-        },
-
-        // EPG
-        epg: {
-            get: (sourceId) => API.request('GET', `/proxy/epg/${sourceId}`),
-            getForChannels: (sourceId, channelIds) => API.request('POST', `/proxy/epg/${sourceId}/channels`, { channelIds })
-        },
-
-        // Cache management
-        cache: {
-            clear: (sourceId) => API.request('DELETE', `/proxy/cache/${sourceId}`)
-        }
-    },
-
     // Settings
     settings: {
         get: () => API.request('GET', '/settings'),

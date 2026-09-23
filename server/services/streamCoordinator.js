@@ -275,12 +275,8 @@ function ownerKey(user) {
  * exceeded. Streams are freed in order of how clearly they are not in use:
  * abandoned ones, then this owner's own earlier stream, and only then
  * something somebody else may be watching.
- *
- * soft: for entry points whose clients cannot answer a 409 (the movie/series
- * page's POST /api/transcode/session). They reclaim what is clearly free and then
- * proceed exactly as they always have.
  */
-function requestForViewer({ force = false, activeRecordings = [], settings = {}, owner = null, soft = false } = {}) {
+function requestForViewer({ force = false, activeRecordings = [], settings = {}, owner = null } = {}) {
     const limit = Number.isFinite(settings.maxProviderStreams) ? settings.maxProviderStreams : 1;
     const idleMs = (Number.isFinite(settings.viewerIdleTimeoutSec)
         ? settings.viewerIdleTimeoutSec : DEFAULT_IDLE_TIMEOUT_SEC) * 1000;
@@ -310,8 +306,6 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
     take(streams.filter(s => s.idleMs >= idleMs), 'idle');
     take(streams.filter(s => owner && s.owner === owner), 'replacement');
     if (need <= 0) return { allowed: true, release };
-
-    if (soft) return { allowed: true, release };
 
     const others = streams.filter(s => !held.has(s));
 

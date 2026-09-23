@@ -1,17 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const { redact } = require('../redact');
-const db = require('../db');
 const transcodeSession = require('../services/transcodeSession');
-const { isStreamUrl, NOT_A_STREAM_URL } = require('../services/streamUrl');
-const coordinator = require('../services/streamCoordinator');
 
 /**
  * Transcode Routes
  * 
  * HLS sessions (the one delivery path; the legacy piped GET /api/transcode?url=
- * went with the remux route in 0103):
- *   POST /api/transcode/session        - Create new session
+ * went with the remux route in 0103). Sessions are started by
+ * POST /api/playback/resolve; POST /api/transcode/session, which only the
+ * movie/series page used, went with it in 0122.
  *   GET  /api/transcode/:id/stream.m3u8 - Get HLS playlist
  *   GET  /api/transcode/:id/:segment.ts - Get segment file
  *   DELETE /api/transcode/:id          - Stop and cleanup session
@@ -70,90 +68,6 @@ function withStreamToken(playlist, token) {
         })
         .join('\n');
 }
-
-/**
- * Create a new transcode session
- * POST /api/transcode/session
- * Body: { url: string, seekOffset?: number }
- */
-router.post('/session', async (req, res) => {
-    const { url, seekOffset, videoMode, videoCodec, audioCodec, audioChannels, segmentType,
-            audioProfile, isHeAac, live } = req.body;
-
-    if (!url) {
-        return res.status(400).json({ error: 'URL is required' });
-    }
-    if (!isStreamUrl(url)) {
-        return res.status(400).json({ error: NOT_A_STREAM_URL });
-    }
-
-    const ffmpegPath = req.app.locals.ffmpegPath || 'ffmpeg';
-    const settings = await db.settings.get();
-    const userAgent = db.getUserAgent(settings);
-
-    // Reclaim what is clearly free (an abandoned stream, this device's own
-    // earlier one) before opening another provider connection. Soft: this
-    // route's clients cannot answer a prompt, so it never refuses - see
-    // /api/playback/resolve for the version that asks.
-    const owner = coordinator.ownerKey(req.user);
-    try {
-        await coordinator.admitViewer({
-            soft: true,
-            owner,
-            settings,
-            activeRecordings: require('../services/recordingEngine').listActive()
-        });
-    } catch (err) {
-        console.warn('[Transcode] Stream arbitration skipped:', err.message);
-    }
-
-    try {
-        const session = await transcodeSession.createSession(url, {
-            ffmpegPath,
-            userAgent,
-            owner,
-            live: live === true, // live sessions are swept sooner than seekable ones
-            seekOffset: seekOffset || 0,
-            hwEncoder: settings.hwEncoder || 'software',
-            maxResolution: settings.maxResolution || '1080p',
-            quality: settings.quality || 'medium',
-            audioMixPreset: settings.audioMixPreset || 'auto', // Audio downmix preset
-            // Upscaling options
-            upscaleEnabled: settings.upscaleEnabled || false,
-            upscaleMethod: settings.upscaleMethod || 'hardware',
-            upscaleTarget: settings.upscaleTarget || '1080p',
-            vaapiCpuScale: settings.vaapiCpuScale !== false, // CPU scale + hwupload for iGPUs with a broken VAAPI VPP pipeline
-            vaapiHwDecode: settings.vaapiHwDecode !== false, // GPU decode, frames returned to system memory
-            segmentType: segmentType, // 'mpegts' or 'fmp4' (fmp4 allows HEVC stream copy)
-            videoMode: videoMode, // 'copy' or 'encode'
-            videoCodec: videoCodec, // 'h264', 'hevc', etc.
-            audioCodec: audioCodec, // 'aac', 'ac3', etc.
-            audioChannels: audioChannels, // number of channels (2=stereo)
-            audioProfile: audioProfile,   // e.g. 'HE-AAC' — codec_name alone cannot distinguish it
-            isHeAac: isHeAac === true
-        });
-
-        await session.start();
-
-        // Wait for playlist to be ready (first segments generated)
-        const ready = await session.waitForPlaylist(15000);
-
-        if (!ready) {
-            await transcodeSession.removeSession(session.id);
-            return res.status(500).json({ error: 'Transcoding failed to start', reason: 'Playlist not generated in time' });
-        }
-
-        res.json({
-            sessionId: session.id,
-            playlistUrl: `/api/transcode/${session.id}/stream.m3u8`,
-            status: session.status
-        });
-
-    } catch (err) {
-        console.error('[Transcode] Session creation failed:', err);
-        res.status(500).json({ error: 'Failed to create session', details: err.message });
-    }
-});
 
 /**
  * Get HLS playlist for a session

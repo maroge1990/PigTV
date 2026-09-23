@@ -35,11 +35,6 @@
         <span></span>
       </button>
       <div class="navbar-menu" id="navbar-menu">
-        <!-- Now Playing indicator for movies/series -->
-        <a href="#" class="now-playing-indicator hidden" id="now-playing-indicator" data-page="watch">
-          <span class="now-playing-icon">▶</span>
-          <span class="now-playing-text" id="now-playing-text">Now Playing</span>
-        </a>
         <a href="#" class="nav-link active" data-page="home">
           <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
               class="icon">
@@ -68,22 +63,6 @@
               <circle cx="12" cy="12" r="8" />
             </svg></span>
           <span>Recordings</span>
-        </a>
-        <a href="#" class="nav-link" data-page="movies">
-          <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
-              class="icon">
-              <path
-                d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h20c1.1 0 2-.9 2-2V4h-4z" />
-            </svg></span>
-          <span>Movies</span>
-        </a>
-        <a href="#" class="nav-link" data-page="series">
-          <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
-              class="icon">
-              <path
-                d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z" />
-            </svg></span>
-          <span>Series</span>
         </a>
         <a href="#" class="nav-link" data-page="settings">
           <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
@@ -354,81 +333,6 @@
         </div>
       </div>
 
-      <!-- Movies Page -->
-      <div id="page-movies" class="page">
-        <div class="movies-header">
-          <h2>Movies</h2>
-          <div class="movies-controls">
-            <select id="movies-source-select" class="source-select">
-              <option value="">All Sources</option>
-            </select>
-            <select id="movies-category-select" class="source-select">
-              <option value="">All Categories</option>
-            </select>
-            <div class="search-wrapper">
-              <input type="text" id="movies-search" placeholder="Search movies..." class="search-input">
-              <button type="button" class="search-clear" title="Clear search">&times;</button>
-            </div>
-            <button id="movies-favorites-btn" class="btn btn-icon btn-ghost" title="Show Favorites Only">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon">
-                <path
-                  d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-              </svg> Favorites
-            </button>
-          </div>
-        </div>
-        <div id="movies-grid" class="movies-grid">
-          <div class="empty-state">
-            <p>Loading movies...</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Series Page -->
-      <div id="page-series" class="page">
-        <div class="series-header">
-          <h2>Series</h2>
-          <div class="series-controls">
-            <select id="series-source-select" class="source-select">
-              <option value="">All Sources</option>
-            </select>
-            <select id="series-category-select" class="source-select">
-              <option value="">All Categories</option>
-            </select>
-            <div class="search-wrapper">
-              <input type="text" id="series-search" placeholder="Search series..." class="search-input">
-              <button type="button" class="search-clear" title="Clear search">&times;</button>
-            </div>
-            <button id="series-favorites-btn" class="btn btn-icon btn-ghost" title="Show Favorites Only">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon">
-                <path
-                  d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-              </svg> Favorites
-            </button>
-          </div>
-        </div>
-
-        <div class="series-content">
-          <div id="series-grid" class="series-grid">
-            <div class="empty-state">
-              <p>Loading series...</p>
-            </div>
-          </div>
-          <!-- Series details panel (seasons/episodes) -->
-          <div id="series-details" class="series-details hidden">
-            <button class="series-back-btn">← Back to Series</button>
-            <div class="series-details-header">
-              <img id="series-poster" src="" alt="" class="series-poster">
-              <div class="series-info">
-                <h3 id="series-title"></h3>
-                <p id="series-plot"></p>
-              </div>
-            </div>
-            <div id="series-seasons" class="series-seasons"></div>
-          </div>
-        </div>
-      </div>
-
       <!-- Settings Page -->
       <div id="page-settings" class="page">
         <div class="settings-container">
@@ -540,20 +444,6 @@
                 <div class="setting-info">
                   <span class="setting-label">Remember Last Volume</span>
                   <span class="setting-hint">When enabled, volume persists between sessions</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="settings-section">
-              <h3>Playback</h3>
-              <div class="setting-item">
-                <label class="setting-toggle">
-                  <input type="checkbox" id="setting-autoplay-next">
-                  <span class="toggle-slider"></span>
-                </label>
-                <div class="setting-info">
-                  <span class="setting-label">Auto-play Next Episode</span>
-                  <span class="setting-hint">Automatically play the next episode when one ends</span>
                 </div>
               </div>
             </div>
@@ -900,31 +790,6 @@
               </div>
             </div>
 
-            <div class="settings-section">
-              <h3>Content Visibility</h3>
-              <div class="setting-item">
-                <label class="setting-toggle">
-                  <input type="checkbox" id="setting-show-movies" checked>
-                  <span class="toggle-slider"></span>
-                </label>
-                <div class="setting-info">
-                  <span class="setting-label">Show Movies tab</span>
-                  <span class="setting-hint">Hides the nav tab and the Home page section.</span>
-                </div>
-              </div>
-              <div class="setting-item">
-                <label class="setting-toggle">
-                  <input type="checkbox" id="setting-show-series" checked>
-                  <span class="toggle-slider"></span>
-                </label>
-                <div class="setting-info">
-                  <span class="setting-label">Show Series tab</span>
-                  <span class="setting-hint">Hides the nav tab and the Home page section.</span>
-                </div>
-              </div>
-              <button id="content-visibility-save" class="btn btn-primary">Save UI Settings</button>
-              <span id="content-visibility-status" style="margin-left: 8px; font-size: 0.85rem;"></span>
-            </div>
           </div>
 
           <div id="tab-devices" class="tab-content">
@@ -1011,208 +876,6 @@
         </div>
       </div>
 
-      <!-- Watch Page (VOD Player) - Not in navigation -->
-      <div id="page-watch" class="page watch-page">
-        <!-- Video Section (100vh) -->
-        <section class="watch-video-section">
-          <video id="watch-video" playsinline></video>
-
-          <!-- Player Controls Overlay -->
-          <div class="watch-overlay" id="watch-overlay">
-            <!-- Top Bar: Back + Title -->
-            <div class="watch-top-bar vod-header">
-              <button class="watch-back-btn" id="watch-back-btn" title="Back">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon">
-                  <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
-                </svg>
-              </button>
-              <div class="watch-title-info">
-                <h3 class="watch-title" id="watch-title"></h3>
-                <p class="watch-subtitle" id="watch-subtitle"></p>
-              </div>
-              <div class="player-badges">
-                <div class="transcode-status hidden" id="watch-transcode-status">Direct</div>
-                <div class="quality-badge hidden" id="watch-quality-badge"></div>
-              </div>
-            </div>
-
-            <!-- Center: Large Play Button -->
-            <button class="watch-center-play" id="watch-center-play">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            </button>
-
-            <!-- Loading Spinner -->
-            <div class="watch-loading" id="watch-loading">
-              <div class="loading-spinner"></div>
-            </div>
-
-            <!-- Bottom Bar: Controls -->
-            <div class="watch-bottom-bar">
-              <div class="watch-progress-container">
-                <span id="watch-time-current" class="watch-time">0:00</span>
-                <input type="range" class="watch-progress" id="watch-progress" min="0" max="100" value="0" step="0.1">
-              </div>
-              <div class="watch-controls">
-                <button class="watch-btn" id="watch-skip-back" title="Back 10 seconds">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon">
-                    <path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z" />
-                  </svg>
-                  <span class="skip-label">10</span>
-                </button>
-                <button class="watch-btn watch-btn-lg" id="watch-play-pause" title="Play/Pause">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
-                    class="icon icon-play">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
-                    class="icon icon-pause hidden">
-                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                  </svg>
-                </button>
-                <button class="watch-btn" id="watch-skip-fwd" title="Forward 10 seconds">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon">
-                    <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z" />
-                  </svg>
-                  <span class="skip-label">10</span>
-                </button>
-                <div class="watch-spacer"></div>
-                <button class="watch-btn" id="watch-mute" title="Mute">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon icon-vol">
-                    <path
-                      d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
-                  </svg>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
-                    class="icon icon-muted hidden">
-                    <path
-                      d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
-                  </svg>
-                </button>
-                <input type="range" class="watch-volume" id="watch-volume" min="0" max="100" value="80">
-                <!-- Captions Button -->
-                <div class="watch-captions-wrapper">
-                  <button class="watch-btn" id="watch-captions-btn" title="Captions">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon">
-                      <path
-                        d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1zm7 0h-1.5v-.5h-2v3h2V13H18v1c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1z" />
-                    </svg>
-                  </button>
-                  <div class="watch-captions-menu hidden" id="watch-captions-menu">
-                    <div class="captions-menu-title">Subtitles</div>
-                    <div class="captions-menu-list" id="watch-captions-list">
-                      <button class="captions-option active" data-index="-1">Off</button>
-                    </div>
-                  </div>
-                </div>
-                <button class="watch-btn" id="watch-pip" title="Picture-in-Picture">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon">
-                    <path
-                      d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14z" />
-                  </svg>
-                </button>
-                <button class="watch-btn" id="watch-fullscreen" title="Fullscreen">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon">
-                    <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
-                  </svg>
-                </button>
-                <!-- Overflow Menu -->
-                <div class="player-overflow-wrapper">
-                  <button class="watch-btn" id="watch-overflow" title="More options">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon">
-                      <path
-                        d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-                    </svg>
-                  </button>
-                  <div class="player-overflow-menu hidden" id="watch-overflow-menu">
-                    <button class="overflow-menu-item" id="watch-copy-url">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon">
-                        <path
-                          d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
-                      </svg>
-                      Copy Stream URL
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Scroll Indicator -->
-            <div class="watch-scroll-hint" id="watch-scroll-hint">
-              <span>Scroll for details</span>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon">
-                <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z" />
-              </svg>
-            </div>
-          </div>
-
-          <!-- Next Episode Panel -->
-          <div class="watch-next-episode hidden" id="watch-next-episode">
-            <div class="next-info">
-              <p class="next-label">Up Next</p>
-              <h4 id="next-episode-title"></h4>
-            </div>
-            <span class="next-countdown" id="next-countdown">10</span>
-            <button class="btn btn-primary btn-sm" id="next-play-now">Play Now</button>
-            <button class="btn btn-ghost btn-sm" id="next-cancel">Cancel</button>
-          </div>
-        </section>
-
-        <!-- Content Details Section (scrollable) -->
-        <section class="watch-details-section" id="watch-details">
-          <!-- Content Info -->
-          <div class="watch-content-info">
-            <img class="watch-poster" id="watch-poster" src="" alt="">
-            <div class="watch-meta">
-              <h2 id="watch-content-title"></h2>
-              <div class="watch-meta-row">
-                <span class="watch-year" id="watch-year"></span>
-                <span class="watch-rating" id="watch-rating"></span>
-                <span class="watch-duration" id="watch-duration"></span>
-              </div>
-              <p class="watch-description" id="watch-description"></p>
-              <div class="watch-actions">
-                <button class="btn btn-primary" id="watch-play-btn">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                  <span id="watch-play-btn-text">Play</span>
-                </button>
-                <button class="btn btn-ghost" id="watch-favorite-btn">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
-                    class="icon icon-fav-outline">
-                    <path
-                      d="M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3zm-4.4 15.55l-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z" />
-                  </svg>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
-                    class="icon icon-fav-filled hidden">
-                    <path
-                      d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                  </svg>
-                  <span>Favorite</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Movies: Recommended Section -->
-          <div class="watch-recommended hidden" id="watch-recommended">
-            <h3>More Like This</h3>
-            <div class="watch-recommended-grid" id="watch-recommended-grid">
-              <!-- Movie cards inserted dynamically -->
-            </div>
-          </div>
-
-          <!-- Series: Seasons & Episodes -->
-          <div class="watch-episodes hidden" id="watch-episodes">
-            <h3>Episodes</h3>
-            <div class="watch-seasons" id="watch-seasons">
-              <!-- Season accordions inserted dynamically -->
-            </div>
-          </div>
-        </section>
-      </div>
-
     </main>
   </div>
 
@@ -1297,10 +960,7 @@
   <script src="/js/pages/LivePage.js?v=3"></script>
   <script src="/js/pages/Guide.js?v=3"></script>
   <script src="/js/pages/RecordingsPage.js?v=8"></script>
-  <script src="/js/pages/MoviesPage.js?v=4"></script>
-  <script src="/js/pages/SeriesPage.js?v=1"></script>
   <script src="/js/pages/Settings.js?v=9"></script>
-  <script src="/js/pages/WatchPage.js?v=2"></script>
   <script src="/js/app.js?v=8"></script>
 </body>
 

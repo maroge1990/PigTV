@@ -62,7 +62,7 @@ check package.json '"version"' "version field exists"
 echo "=== 0002: VAAPI fix ==="
 check server/services/transcodeSession.js "init_hw_device" "CPU decode path"
 check server/services/transcodeSession.js "vaapiCpuScale" "setting check"
-check server/routes/transcode.js "vaapiCpuScale" "setting passthrough"
+check server/services/playbackStrategy.js "vaapiCpuScale" "setting passthrough (0122: resolve is the only session entry)"
 check server/db.js "vaapiCpuScale" "default setting"
 
 echo "=== 0003: Remux AAC ==="
@@ -92,26 +92,23 @@ check public/index.html "kill-all-streams" "kill button markup"
 check public/js/pages/Settings.js "killAllSessions" "kill button handler"
 check server/services/syncService.js "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" "14-param INSERT"
 
-echo "=== 0009: Movies/Series toggle ==="
-check server/db.js "showMovies" "movies setting"
-check public/index.html "Content Visibility" "UI section"
-check public/index.html "setting-show-movies" "checkbox markup"
-check public/js/pages/Settings.js "loadUiSettings" "UI load handler"
-check public/js/pages/Settings.js "saveUiSettings" "UI save handler"
-check public/js/app.js "applyContentVisibility" "app apply function"
+echo "=== 0009: Movies/Series toggle (removed with Movies/Series in 0122) ==="
+check public/js/pages/Settings.js "loadUiSettings" "UI load handler (theme)"
+check_absent server/db.js "showMovies" "no movies setting left"
+check_absent public/js/app.js "applyContentVisibility" "no movies/series visibility code left"
 
 echo "=== 0010: Guide → Live TV ==="
 check public/js/components/EpgGuide.js "navigateTo" "navigation call"
 check public/js/components/EpgGuide.js "channelId.*sourceId" "ID-based lookup"
 
-echo "=== 0011: EPG visible filter ==="
-check server/routes/proxy.js "visible_epg_ids\|_visible_epg" "visible channel filter"
+echo "=== 0011: EPG visible filter (0122: the whole-EPG route is gone; /api/library/guide lists visible channels) ==="
+check_absent server/routes/proxy.js "router.get('/epg/:sourceId'" "no whole-EPG dump"
 
 echo "=== 0017: category order + flags on real endpoint ==="
 check server/db/sqlite.js "ALTER TABLE categories ADD COLUMN sort_order" "categories migration"
 check server/services/syncService.js "sort_order: idx + 1" "M3U category order captured"
 check server/services/syncService.js "sort_order = excluded.sort_order" "categories upsert keeps order"
-check server/routes/proxy.js "sort_order ASC, name ASC" "real endpoint ordering"
+check server/routes/library.js "c.sort_order ASC, c.name ASC" "real endpoint ordering (0122: /api/library/categories)"
 
 echo "=== 0017: settings reorganisation ==="
 check public/index.html "data-tab=\"recording\"" "Recording tab"
@@ -127,17 +124,16 @@ check public/js/components/EpgGuide.js "resize-handle" "whole-cell click guard"
 check public/css/main.css "epg-channel-info {" "whole-cell cursor"
 check server/services/transcodeSession.js "fps_mode" "fps passthrough"
 check server/services/transcodeSession.js "min(ih," "scale clamp"
-check server/routes/proxy.js "NOT EXISTS" "hidden-category exclusion"
+check server/routes/library.js "c.category_id = p.category_id AND c.is_hidden = 1" "hidden-category exclusion (0122: in /api/library)"
 check public/js/components/ChannelList.js "categoryNames.get(\`\${row.sourceId}:\${row.category}\`) || row.category" "group name fallback (0121: from /api/library/categories, else the category id)"
 
 echo "=== 0018: transcode strategy ==="
 check server/services/streamProbe.js "clientCaps" "probe takes client caps"
 check server/services/streamProbe.js "videoIsHevc" "probe reports hevc"
-check server/routes/probe.js "capKey" "caps in cache key"
+check server/services/streamProbe.js "clientCaps" "caps reach the probe (0122: /api/probe removed)"
 check public/js/components/VideoPlayer.js "getCodecCapabilities" "client caps detection"
 # (0102: the live player no longer probes or picks a segment type itself - the server does.
-#  The movie/series page still does, for its own sessions.)
-check public/js/pages/WatchPage.js "segmentType" "the movie/series page picks its segment type"
+#  0122: the movie/series page that still did went with VOD.)
 check server/services/transcodeSession.js "hls_fmp4_init_filename" "fmp4 output"
 check server/services/transcodeSession.js "tag:v" "hvc1 tagging"
 check server/services/transcodeSession.js "vaapiHwDecode" "hw decode option"
@@ -192,7 +188,6 @@ check server/services/streamProbe.js "isHeAac" "probe detects HE-AAC"
 check server/services/streamProbe.js "audioProfile" "probe reads profile"
 check server/services/transcodeSession.js "isHeAac" "session forces AAC-LC"
 check server/services/transcodeSession.js "aac_low" "AAC-LC profile set"
-check public/js/pages/WatchPage.js "isHeAac" "client forwards HE-AAC flag (live: the server reads it from its own probe)"
 check public/js/components/SourceManager.js "groupItemType()" "group type helper"
 check public/js/components/ChannelList.js "Choose what to show under Settings" "empty state wording (0121: points at Manage Content when a source exists)"
 check server/routes/channels.js "cascadeCategory" "single hide/show cascades"
@@ -261,7 +256,7 @@ check public/js/pages/RecordingsPage.js "recordingsList.offsetParent" "pauses wh
 echo "=== 0026: playback API ==="
 check server/services/streamProbe.js "analyzeProbeResult" "probe logic extracted"
 check server/services/streamProbe.js "module.exports" "probe service exports"
-check server/routes/probe.js "services/streamProbe" "probe route uses the service"
+check server/services/playbackStrategy.js "probeStream" "resolve uses the probe service"
 check server/services/playbackStrategy.js "strategy: 'direct'" "direct play path"
 check server/services/playbackStrategy.js "strategy: 'transcode'" "transcode path"
 check server/routes/playback.js "resolve" "resolve endpoint"
@@ -407,30 +402,9 @@ echo "=== 0038: web client sends stream auth tokens ==="
 check public/js/api.js "withStreamToken" "shared token helper exists"
 check public/js/api.js "streamFetch" "authenticated fetch helper for transcode management calls"
 check public/js/components/VideoPlayer.js "API.withStreamToken(decision.url)" "resolved playback URL carries token"
-check public/js/pages/WatchPage.js "API.withStreamToken" "watch page uses the shared helper"
 # The live player's own URL builders (proxy / legacy pipe / remux) went with those
 # paths in 0102: everything it loads is the server's decision.url, checked above.
-check public/js/pages/WatchPage.js 'API.withStreamToken(`/api/proxy/stream' "the movie/series page's proxied URL carries the token"
-python3 - <<'PYCHK'
-import sys
-# The session-creation POST is a plain fetch that CAN carry a header, so
-# it must - unlike the ones that end up as <video src>/loadSource, where
-# a query-string token is the only option, this one has no excuse to be
-# missing an Authorization header once requireStreamAuth is on.
-ok = True
-# (0102: the live player no longer creates sessions itself - resolve does, server-side.)
-for path in ('public/js/pages/WatchPage.js',):
-    src = open(path).read()
-    i = src.index("fetch('/api/transcode/session'")
-    body = src[i:i+400]
-    if 'Authorization' not in body:
-        print(f'  \u2717 MISSING: {path} session POST has no Authorization header')
-        ok = False
-if ok:
-    print('  \u2713 transcode session creation sends the auth token in both players')
-sys.exit(0 if ok else 1)
-PYCHK
-[ $? -eq 0 ] || FAIL=1
+# (0122: the movie/series page, with its own session POST, is gone.)
 
 echo "=== 0034: native HLS delivery for segmented clients ==="
 check server/services/playbackStrategy.js "segmentedDelivery" "capability flag exists"
@@ -831,16 +805,14 @@ echo "=== 0050: Auth gate on state-changing routes (P0-3) ==="
 # The gate has to be on the mount, and the webapp callers have to actually
 # send a token, or turning the gate on breaks the web player.
 check server/index.js "app.use('/api/channels', requireAuth" "channels requires auth"
-check server/index.js "app.use('/api/probe', requireAuth" "probe requires auth"
-check server/index.js "app.use('/api/subtitle', requireToken" "subtitle requires a token (header or query)"
-check server/index.js "streamAuth({ enforce: true })" "always-on token middleware built in index"
+# (0122: /api/probe and /api/subtitle were removed; resolve and the session delete keep
+#  their own always-on token middleware, checked next.)
+check server/routes/playback.js "streamAuth({ enforce: true })" "always-on token middleware"
 check server/routes/playback.js "router.post('/resolve', requireToken" "resolve requires a token"
 check server/routes/playback.js "router.delete('/:sessionId', requireToken" "session delete requires a token"
-# Webapp side: probe over streamFetch (bearer), subtitle track over ?token=.
-check public/js/pages/WatchPage.js "API.streamFetch(\`/api/probe" "movie/series page probe sends the bearer header (0102: the live player no longer probes)"
-# (0102: the live player's /api/subtitle tracks lived only on the removed local path; resolve never added them, and
-#  /api/subtitle opens a second provider connection, which a one-stream provider cannot give while HLS plays.)
-check public/js/pages/WatchPage.js "API.streamFetch(\`/api/probe" "watch page probe sends the bearer header"
+# (0122: /api/probe and /api/subtitle, and the movie/series page that called them, are gone.)
+check_absent server/index.js "app.use('/api/probe'" "no /api/probe"
+check_absent server/index.js "app.use('/api/subtitle'" "no /api/subtitle"
 
 echo "=== 0051: Drop the dead ffmpeg-static require ==="
 check_absent server/routes/proxy.js "require('ffmpeg-static')" "proxy.js no longer requires ffmpeg-static at load (would crash startup if the optional dep failed)"
@@ -904,7 +876,7 @@ check server/routes/playback.js "coordinator.admitViewer(" "resolve arbitrates a
 check server/routes/playback.js "coordinator.ownerKey(req.user)" "resolve knows who is asking"
 check server/routes/playback.js "viewer-in-progress" "resolve tells the client how to proceed on a viewer conflict"
 check server/services/playbackStrategy.js "        owner," "sessions created by resolve record their owner"
-check server/routes/transcode.js "soft: true" "session route reclaims free streams but never refuses"
+check_absent server/services/streamCoordinator.js "soft" "no soft mode (0122: it existed only for the removed POST /api/transcode/session)"
 check server/services/transcodeSession.js "LIVE_SESSION_TIMEOUT_MS" "live sessions have their own idle timeout"
 check server/services/transcodeSession.js "session.options.live === true" "sweep honours the live flag"
 check server/services/transcodeSession.js "const CLEANUP_INTERVAL_MS = 60 \* 1000" "sweep runs every minute so the live timeout is honoured"
@@ -1067,7 +1039,6 @@ check public/js/components/VideoPlayer.js "video.getAttribute('src')" "by the sr
 check public/js/components/VideoPlayer.js "empty src attribute" "with the browser's own message as a second check"
 # The bug: gating on currentSrc alone. It must not be the only guard again.
 check_absent public/js/components/VideoPlayer.js "if (!video || !video.currentSrc || !video.error) return;" "no currentSrc-only guard left (Chrome keeps the old URL there)"
-check public/js/pages/WatchPage.js "empty src attribute" "WatchPage does not log the routine cleared-source event"
 check test/player-media-error.test.js "with the old URL still in currentSrc" "the real Chrome sequence is tested"
 
 echo "=== 0070: diagnostics for silent 'nothing plays' failures ==="
@@ -1340,11 +1311,9 @@ import sys
 # Grep can prove something is present, not that something is gone. The whole point of
 # 0102 is what is gone: any of these back in a player means a second delivery path.
 live = open('public/js/components/VideoPlayer.js', encoding='utf-8').read()
-vod = open('public/js/pages/WatchPage.js', encoding='utf-8').read()
 html = open('public/index.html', encoding='utf-8').read()
 bad = [f'live player: {g}' for g in ['/api/remux', '/api/transcode?url=', '/api/probe', 'startTranscodeSession',
                                      'forceRemux', 'autoTranscode', 'pigtv_hls_delivery'] if g in live]
-bad += [f'watch page: {g}' for g in ['/api/remux', '/api/transcode?url=', 'forceRemux', 'forceTranscode'] if g in vod]
 bad += [f'settings: {g}' for g in ['setting-force-remux-tc', 'setting-hls-delivery-tc', 'setting-auto-transcode-tc'] if g in html]
 if bad:
     print('  \u2717 MISSING: a second delivery path is back: ' + ', '.join(bad))
@@ -1397,9 +1366,7 @@ check server/services/streamUrl.js "function isStreamUrl" "only network URLs are
 check server/services/transcodeSession.js "if (!isStreamUrl(this.url))" "a session will not hand ffmpeg a local file"
 check server/services/streamProbe.js "if (!isStreamUrl(url)) return Promise.reject" "nor will the probe"
 check server/routes/playback.js "NOT_A_STREAM_URL" "resolve refuses one with a 400"
-check server/routes/transcode.js "NOT_A_STREAM_URL" "the session route too"
-check server/routes/probe.js "NOT_A_STREAM_URL" "and /api/probe"
-check server/routes/subtitle.js "index must be a stream number" "and /api/subtitle, whose index is a -map specifier"
+# (0122: the session route, /api/probe and /api/subtitle - the other entries that took a URL - are gone.)
 check server/routes/proxy.js "await pipeline(Readable.from(body()), res);" "/api/proxy/stream streams binary content instead of buffering it"
 check server/routes/proxy.js "upstreamAbort.abort()" "and lets go of the upstream when the client leaves"
 check_absent server/services/transcodeSession.js "async persist()" "no session.json with the provider URL in it"
@@ -1416,21 +1383,14 @@ echo "=== 0107: dead duplicate proxy routes removed ==="
 # Express runs only the FIRST matching layer; a second registration of the same
 # path+method is unreachable dead code that can be edited by mistake. Count, not
 # just grep -q, since presence alone can't tell one registration from two.
-epg_count=$(grep -c "router\.get('/epg/:sourceId'" server/routes/proxy.js || true)
-if [ "$epg_count" = "1" ]; then
-    echo "  ✓ GET /epg/:sourceId registered once, not twice"
+# (0122 removed both routes entirely; test/proxy-no-duplicate-routes.test.js now pins
+#  the router to its one route, GET /stream.)
+if [ "$(grep -c "^router\.\(get\|post\|put\|delete\)(" server/routes/proxy.js)" = "1" ]; then
+    echo "  ✓ proxy.js registers one route"
 else
-    echo "  ✗ MISMATCH: GET /epg/:sourceId registered $epg_count times (want 1)"
-    FAIL=1
+    echo "  ✗ MISMATCH: proxy.js should register only GET /stream"; FAIL=1
 fi
-cache_count=$(grep -c "router\.delete('/cache/:sourceId'" server/routes/proxy.js || true)
-if [ "$cache_count" = "1" ]; then
-    echo "  ✓ DELETE /cache/:sourceId registered once, not twice"
-else
-    echo "  ✗ MISMATCH: DELETE /cache/:sourceId registered $cache_count times (want 1)"
-    FAIL=1
-fi
-check test/proxy-no-duplicate-routes.test.js "registered exactly once" "with a test on router.stack"
+check test/proxy-no-duplicate-routes.test.js "registers GET /stream, exactly once, and nothing else" "with a test on router.stack"
 
 echo "=== 0108: gzip JSON responses, never media ==="
 check package.json '"compression"' "compression package is a dependency"
@@ -1589,7 +1549,6 @@ check server/routes/proxy.js "Unknown or expired playback handle" "an unknown ha
 check server/routes/proxy.js "h=\${playbackHandles.createHandle(absoluteUrl)}" "a manifest reached by handle hands out handles"
 check server/routes/proxy.js "Upstream error for \${redact(url)" "the proxy's upstream-error log is redacted"
 check server/routes/proxy.js "HLS manifest from: \${redact(finalUrl)" "and its manifest log"
-check server/routes/probe.js "Probing: \${redact(url)" "the probe route's logs are redacted"
 check server/services/recordingEngine.js "redact((stderrTail || \[\]).slice(-10)" "a failed recording's stored stderr is redacted"
 check server/routes/info.js "playbackHandles: true" "features flag"
 check test/playback-handles.test.js "the resolve JSON must not contain" "with a no-provider-URL resolve test"
@@ -1617,6 +1576,32 @@ done
 check_absent public/index.html "content-type-movies" "the picker's movie/series tabs are gone"
 check_absent public/js/components/VideoPlayer.js "!this.currentStreamUrl" "recovery replays a channel by identity, without a stream URL"
 check test/web-library.test.js "no live-TV script still calls the Xtream-emulation or whole-EPG proxy routes" "with a test"
+
+echo "=== 0122: the fork's leftovers removed (W2.1) ==="
+for f in public/js/pages/MoviesPage.js public/js/pages/SeriesPage.js public/js/pages/WatchPage.js \
+         server/services/cache.js server/plugins server/routes/history.js server/routes/probe.js server/routes/subtitle.js; do
+  if [ -e "$f" ]; then echo "  ✗ MISSING: $f should have been deleted"; FAIL=1; else echo "  ✓ $f is gone"; fi
+done
+if grep -rn "services/cache'\|routes/history'\|routes/probe'\|routes/subtitle'\|MoviesPage\|SeriesPage\|WatchPage" server public scripts --include=*.js --include=*.html | grep -q .; then
+  echo "  ✗ MISSING: something still loads a deleted file"; FAIL=1
+else
+  echo "  ✓ nothing loads them"
+fi
+check_absent server/index.js "loadPlugins" "no plugin loader"
+check_absent server/index.js "Object.freeze(services)" "no services map for plugins"
+check_absent server/routes/proxy.js "router.get('/xtream" "no Xtream-emulation routes"
+check_absent server/routes/proxy.js "router.get('/image'" "no open image passthrough"
+check_absent server/routes/proxy.js "router.get('/m3u/" "no /m3u"
+check_absent server/routes/proxy.js "pluto" "no Pluto header special case"
+check_absent server/routes/transcode.js "router.post('/session'" "no POST /api/transcode/session"
+check_absent server/routes/channels.js "router.get('/recent'" "no /api/channels/recent (movie/series only)"
+check_absent public/index.html 'data-page="movies"' "no Movies nav entry"
+check_absent public/index.html 'data-page="series"' "no Series nav entry"
+check_absent public/index.html 'id="page-watch"' "no VOD watch page markup"
+check_absent public/css/main.css ".movie-card" "no movie/series CSS"
+check_absent public/js/api.js "proxy: {" "api.js has no proxy helpers"
+check test/api-404.test.js "the removed fork routes answer the generic 404, even with a token" "with a test that they 404"
+check test/api-404.test.js "nothing in the web app still calls a removed route" "and that nothing in public/ calls them"
 
 if [ $FAIL -eq 0 ]; then
     echo ""

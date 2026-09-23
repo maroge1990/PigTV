@@ -92,9 +92,6 @@ function getDefaultSettings() {
     upscaleTarget: '1080p',       // 1080p | 4k | 720p
     // Security
     requireStreamAuth: false,      // Require a token on stream endpoints (off: LAN-friendly)
-    // UI visibility
-    showMovies: true,              // Show Movies tab and Home section
-    showSeries: true,              // Show Series tab and Home section
     // Hardware transcoding workarounds
     vaapiCpuScale: true,           // CPU scale + hwupload, instead of the full-GPU VAAPI pipeline
     vaapiHwDecode: true,           // Decode on the GPU (frames returned to system memory for the CPU scale)

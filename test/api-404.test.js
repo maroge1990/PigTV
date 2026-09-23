@@ -141,3 +141,60 @@ test('every route the Apple client calls still reaches its real handler', async 
     }
     assert.deepEqual(swallowed, []);
 });
+
+// 0122: the fork's leftovers, removed once nothing called them. Each must now reach the
+// generic reply - with a token, so a router that authenticates first cannot answer 401
+// instead. The token is the first-run admin's, made on this sandbox's empty database.
+const REMOVED_ROUTES = [
+    // Xtream-provider emulation, the whole-EPG dump, M3U-as-JSON and the file cache
+    ['GET', '/api/proxy/xtream/1'], ['GET', '/api/proxy/xtream/1/live_categories'], ['GET', '/api/proxy/xtream/1/live_streams'],
+    ['GET', '/api/proxy/xtream/1/vod_categories'], ['GET', '/api/proxy/xtream/1/vod_streams'], ['GET', '/api/proxy/xtream/1/series_categories'],
+    ['GET', '/api/proxy/xtream/1/series'], ['GET', '/api/proxy/xtream/1/series_info'], ['GET', '/api/proxy/xtream/1/vod_info'],
+    ['GET', '/api/proxy/xtream/1/short_epg'], ['GET', '/api/proxy/xtream/1/stream/2/live'], ['GET', '/api/proxy/xtream/1/stream/2'],
+    ['GET', '/api/proxy/epg/1'], ['POST', '/api/proxy/epg/1/channels'], ['DELETE', '/api/proxy/epg/1/cache'],
+    ['GET', '/api/proxy/m3u/1'], ['DELETE', '/api/proxy/cache/1'], ['GET', '/api/proxy/image?url=http%3A%2F%2Fx%2Fa.png'],
+    // what only the movie/series pages used
+    ['POST', '/api/transcode/session'], ['GET', '/api/probe?url=http%3A%2F%2Fx%2F1.ts'], ['GET', '/api/subtitle?url=http%3A%2F%2Fx%2F1.ts&index=0'],
+    ['GET', '/api/history'], ['POST', '/api/history'], ['DELETE', '/api/history/1'], ['GET', '/api/channels/recent?type=movie']
+];
+
+test('the removed fork routes answer the generic 404, even with a token (0122)', async () => {
+    const setup = await fetch(`${base}/api/auth/setup`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'admin', password: 'fixture-password' }) });
+    const { token } = await setup.json();
+    assert.ok(token, 'the sandbox admin');
+    const still = [];
+    for (const [method, route] of REMOVED_ROUTES) {
+        const r = await fetch(`${base}${route}`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: method === 'GET' ? undefined : '{}' });
+        const body = await r.json().catch(() => null);
+        if (r.status !== 404 || body?.error !== 'No such API endpoint') still.push(`${method} ${route} -> ${r.status}`);
+    }
+    assert.deepEqual(still, []);
+    const stream = await fetch(`${base}/api/proxy/stream?h=${'0'.repeat(32)}`, { headers: { Authorization: `Bearer ${token}` } });
+    assert.equal(stream.status, 404, 'an unknown handle');
+    assert.equal((await stream.json()).error, 'Unknown or expired playback handle', 'but /api/proxy/stream itself is still there');
+});
+
+test('nothing in the web app still calls a removed route (0122)', () => {
+    const files = [path.join(__dirname, '../public/index.html')];
+    const walk = (dir) => {
+        for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+            const p = path.join(dir, e.name);
+            if (e.isDirectory()) walk(p); else if (p.endsWith('.js')) files.push(p);
+        }
+    };
+    walk(path.join(__dirname, '../public/js'));
+    const needles = ['/proxy/xtream', '/proxy/epg', '/proxy/m3u', '/proxy/cache', '/proxy/image', 'API.proxy',
+        "/transcode/session'", '/transcode/session`', '/api/probe', '/api/subtitle', "'/history", '/channels/recent',
+        'MoviesPage', 'SeriesPage', 'WatchPage', 'data-page="movies"', 'data-page="series"', 'data-page="watch"'];
+    const found = [];
+    for (const f of files) {
+        const src = fs.readFileSync(f, 'utf8');
+        for (const n of needles) if (src.includes(n)) found.push(`${path.relative(path.join(__dirname, '..'), f)}: ${n}`);
+    }
+    assert.deepEqual(found, []);
+    for (const gone of ['pages/MoviesPage.js', 'pages/SeriesPage.js', 'pages/WatchPage.js']) {
+        assert.equal(fs.existsSync(path.join(__dirname, '../public/js', gone)), false, gone);
+    }
+});

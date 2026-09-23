@@ -88,17 +88,14 @@ test('a caller who is not identified never owns anything', async () => {
     assert.equal(verdict.allowed, false, 'two anonymous streams must not be assumed to be the same viewer');
 });
 
-test('soft mode reclaims what is free but never refuses', async () => {
-    const stale = await session('device:b', 90);
-    let verdict = coordinator.requestForViewer({ settings: ONE_STREAM, owner: 'device:a', soft: true });
-    assert.equal(verdict.allowed, true);
-    assert.deepEqual(verdict.release.map(r => r.stream.id), [stale.id]);
-
-    await transcodeSession.removeSession(stale.id);
+test('there is no soft mode any more (0122): another viewer is always put as a question', async () => {
+    // soft existed only for POST /api/transcode/session (the movie/series page), which
+    // reclaimed silently and never answered 409. Both are gone; a caller passing it
+    // gets the ordinary answer.
     await session('device:c', 5);
-    verdict = coordinator.requestForViewer({ settings: ONE_STREAM, owner: 'device:a', soft: true });
-    assert.equal(verdict.allowed, true, 'the legacy entry points proceed as they always have');
-    assert.deepEqual(verdict.release, []);
+    const verdict = coordinator.requestForViewer({ settings: ONE_STREAM, owner: 'device:a', soft: true });
+    assert.equal(verdict.allowed, false);
+    assert.equal(verdict.conflict.type, 'viewer-in-progress');
 });
 
 test('a recording in progress is still reported, and force still sacrifices it', () => {

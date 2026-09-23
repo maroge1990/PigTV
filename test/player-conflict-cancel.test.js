@@ -7,9 +7,10 @@ const vm = require('node:vm');
 // Answering "no" to "another device is watching" must stop the play outright.
 // It used to return null, which play() cannot tell apart from "this server has no
 // resolve endpoint" - so it fell through to the local strategy, which starts a
-// transcode session, and POST /api/transcode/session admits in SOFT mode: it
-// reclaims the other viewer's stream silently, with no second prompt. Cancelling
-// therefore did exactly what cancelling was meant to prevent.
+// transcode session, and POST /api/transcode/session admitted in SOFT mode: it
+// reclaimed the other viewer's stream silently, with no second prompt. Cancelling
+// therefore did exactly what cancelling was meant to prevent. (That route and soft
+// mode were removed in 0122.)
 
 const CHANNEL = { sourceId: 1, id: 'm3u_1_pos_9' };
 const CONFLICT = {

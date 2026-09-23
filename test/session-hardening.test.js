@@ -133,31 +133,26 @@ test('a session will not hand ffmpeg a local file, and the probe will not open o
     await assert.rejects(probeStream('concat:/a|/b', 'ffprobe'), /network stream URLs/);
 });
 
-test('the routes that take a URL refuse a local one with a 400 before doing anything', async () => {
+test('the routes that took a URL from the caller are gone (0122): only resolve starts a session', async () => {
+    // POST /api/transcode/session, /api/probe and /api/subtitle each opened a caller-supplied
+    // URL; they served only the movie/series page. resolve (which checks isStreamUrl above)
+    // is now the one way in.
     const app = express();
     app.use(express.json());
     app.use('/api/transcode', load('routes/transcode'));
-    app.use('/api/probe', load('routes/probe'));
-    app.use('/api/subtitle', load('routes/subtitle'));
     const server = app.listen(0, '127.0.0.1');
     await once(server, 'listening');
     const base = `http://127.0.0.1:${server.address().port}`;
     try {
         const session = await fetch(`${base}/api/transcode/session`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: 'file:///app/data/db.json' }) });
-        assert.equal(session.status, 400);
-        assert.match((await session.json()).error, /network stream URLs/);
-
-        const probe = await fetch(`${base}/api/probe?url=${encodeURIComponent('/app/data/db.json')}`);
-        assert.equal(probe.status, 400);
-
-        const sub = await fetch(`${base}/api/subtitle?url=${encodeURIComponent('file:///etc/passwd')}&index=0`);
-        assert.equal(sub.status, 400);
-        const badIndex = await fetch(`${base}/api/subtitle?url=${encodeURIComponent('http://p/1.ts')}&index=${encodeURIComponent('0:a;x')}`);
-        assert.equal(badIndex.status, 400, 'the -map index is a stream number and nothing else');
+            body: JSON.stringify({ url: 'http://provider.invalid/live/u/p/1.ts' }) });
+        assert.equal(session.status, 404, 'no route answers it');
     } finally {
         server.closeAllConnections?.();
         server.close();
+    }
+    for (const gone of ['routes/probe.js', 'routes/subtitle.js']) {
+        assert.equal(fs.existsSync(path.join(sandbox, 'server', gone)), false, gone);
     }
 });
 

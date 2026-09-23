@@ -95,92 +95,16 @@ function findFFprobe() {
 app.locals.ffmpegPath = findFFmpeg();
 app.locals.ffprobePath = findFFprobe();
 
-// Dynamic services loader - collects exports from files in ./services
-const fs = require('fs');
-const services = {};
-try {
-    const servicesDir = path.join(__dirname, 'services');
-    const serviceFiles = fs.readdirSync(servicesDir).filter(f => f.endsWith('.js'));
-    for (const file of serviceFiles) {
-        const name = file.replace(/\.js$/, '');
-        try {
-            services[name] = require(path.join(servicesDir, file));
-        } catch (e) {
-            console.warn(`Failed to load service ${file}:`, e.message);
-        }
-    }
-} catch (e) {
-    console.warn('No services directory found or failed to read services:', e.message);
-}
-
-// Freeze services object to prevent plugins from mutating shared state
-Object.freeze(services);
-
-// Plugin loader: loads any .js file inside server/plugins and calls the
-// exported function with (app, services).
-// Supports both function exports and object exports with lifecycle hooks.
-const loadedPlugins = [];
-
-async function loadPlugins() {
-    try {
-        const pluginsDir = path.join(__dirname, 'plugins');
-        if (fs.existsSync(pluginsDir)) {
-            // Sort plugin files alphabetically for deterministic load order
-            const pluginFiles = fs.readdirSync(pluginsDir)
-                .filter(f => f.endsWith('.js'))
-                .sort();
-
-            for (const file of pluginFiles) {
-                const pluginPath = path.join(pluginsDir, file);
-                try {
-                    const plugin = require(pluginPath);
-
-                    // Support both function exports and object exports with lifecycle hooks
-                    if (typeof plugin === 'function') {
-                        // Direct function export (sync or async)
-                        await plugin(app, services);
-                        loadedPlugins.push({ name: file, plugin: null });
-                        console.log(`✓ Loaded plugin: ${file}`);
-                    } else if (plugin && typeof plugin.init === 'function') {
-                        // Object export with init/shutdown lifecycle
-                        await plugin.init(app, services);
-                        loadedPlugins.push({ name: file, plugin });
-                        console.log(`✓ Loaded plugin: ${file} (with lifecycle hooks)`);
-                    } else {
-                        console.warn(`⚠ Plugin ${file} does not export a function or object with init(), skipping.`);
-                    }
-                } catch (err) {
-                    console.error(`✗ Failed to load plugin ${file}:`, err);
-                }
-            }
-        }
-    } catch (err) {
-        console.warn('Plugin loader failed:', err.message);
-    }
-}
-
-// Graceful shutdown handler for plugins with shutdown hooks
+// Graceful shutdown: give any in-progress recordings a chance to close their
+// file cleanly before the process is killed. (The plugin loader that used to
+// share this handler, and the services map it was handed, went in 0122.)
 process.on('SIGTERM', async () => {
-    console.log('SIGTERM received, shutting down plugins...');
-
-    // Give any in-progress recordings a chance to close their file cleanly
-    // before the process is killed.
+    console.log('SIGTERM received, stopping active recordings...');
     try {
         const recordingEngine = require('./services/recordingEngine');
         await recordingEngine.stopAllActive();
     } catch (err) {
         console.error('Error stopping active recordings:', err.message);
-    }
-
-    for (const { name, plugin } of loadedPlugins) {
-        if (plugin && typeof plugin.shutdown === 'function') {
-            try {
-                await plugin.shutdown();
-                console.log(`✓ Shutdown plugin: ${name}`);
-            } catch (err) {
-                console.error(`✗ Error shutting down plugin ${name}:`, err);
-            }
-        }
     }
     process.exit(0);
 });
@@ -193,20 +117,17 @@ app.use('/api/sources', require('./routes/sources'));
 const streamAuth = require('./auth').streamAuthFromSettings(require('./db'));
 
 // P0-3: a handful of routes change state or spend real resources (hide every
-// channel, spawn ffmpeg/ffprobe against an arbitrary URL, kill a live session)
-// yet were reachable with no token at all. Gate them independently of the
-// requireStreamAuth setting, which only governs the media endpoints above.
-//   requireAuth  - header JWT; callers here always send an Authorization header
-//   requireToken - bearer header OR ?token=; for routes a media element or a
-//                  native client reaches, where a header may not be possible
+// channel) yet were reachable with no token at all. Gate them independently of
+// the requireStreamAuth setting, which only governs the media endpoints above.
+//   requireAuth - header JWT; callers here always send an Authorization header
+// (/api/probe and /api/subtitle, which ran ffprobe/ffmpeg against a caller's URL
+// for the movie/series page, went with it in 0122.)
 const { requireAuth } = require('./auth');
-const requireToken = require('./auth').streamAuth({ enforce: true });
 
 app.use('/api/proxy', streamAuth, require('./routes/proxy'));
 app.use('/api/channels', requireAuth, require('./routes/channels'));
 app.use('/api/favorites', require('./routes/favorites'));
 app.use('/api/transcode', streamAuth, require('./routes/transcode'));
-app.use('/api/probe', requireAuth, require('./routes/probe'));
 app.use('/api/playback', require('./routes/playback'));
 app.use('/api/devices', require('./routes/devices'));
 app.use('/api/library', require('./routes/library'));
@@ -215,9 +136,7 @@ app.use('/api/info', require('./routes/info'));
 // Unauthenticated: an <img> tag cannot send a bearer header, and the route
 // itself is not an open proxy (see routes/logo.js's header comment).
 app.use('/api/logo', require('./routes/logo'));
-app.use('/api/subtitle', requireToken, require('./routes/subtitle'));
 app.use('/api/settings', require('./routes/settings'));
-app.use('/api/history', require('./routes/history'));
 app.use('/api/recordings', streamAuth, require('./routes/recordings'));
 
 // Version endpoint. Returns the full build identity (version, build number,
@@ -263,11 +182,6 @@ app.listen(PORT, async () => {
     } catch (err) {
         console.warn('Transcode cache sweep failed:', err.message);
     }
-
-    // Load plugins
-    await loadPlugins().catch(err => {
-        console.error('Plugin initialization failed:', err);
-    });
 
     // Bring up the parts that must not wait.
     //

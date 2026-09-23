@@ -996,9 +996,6 @@ class VideoPlayer {
         this._audioEncodeActive = options.audioEncode === true || this.needsAudioEncode(channel);
 
         try {
-            // Stop any WatchPage playback (movies/series) before starting Live TV
-            window.app?.pages?.watch?.stop?.();
-
             // Stop current playback (this also closes out the previous play's measurement)
             this.stop();
             this.updateTranscodeStatus('hidden');
