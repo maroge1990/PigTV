@@ -1,9 +1,11 @@
 name: Regression tests
 
+# Pushes to main run these tests through docker-publish.yml, which calls this
+# workflow and only publishes the image when it passes. Listing push here as
+# well would run every test twice.
 on:
   pull_request:
-  push:
-    branches: [main]
+  workflow_call:
 
 permissions:
   contents: read

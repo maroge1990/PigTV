@@ -231,13 +231,13 @@ sentence instead of pretending to succeed.
 Say what the screen needs, not the endpoint. Two ideas already on the list, neither built: a **session keep-alive**
 riding on the existing 5 s conflict poll (so a short pause can't lose the stream — see C2), and **codec names on
 `recordings/{id}/playback`** so an older Apple TV can say "this recording is HEVC" before AVPlayer fails on it.
-Server patches are delivered as numbered `git format-patch` files (see `blueprint.md` §2); anything that changes an
-existing response shape is treated as client-coupled and flagged there.
+Server changes are pushed straight to `main` as numbered builds (see `blueprint.md` §2; the old `format-patch` files are
+retired); anything that changes an existing response shape is treated as client-coupled and flagged there.
 
 ## 5. Server changes since this document was written
 
-**Standing rule: every server patch that changes what the Apple client sees or receives adds an entry here, in the same
-patch** (newest last). "Client action" says what, if anything, the Swift side must do.
+**Standing rule: every server change that alters what the Apple client sees or receives adds an entry here, in the same
+commit** (newest last; the first column is the build number). "Client action" says what, if anything, the Swift side must do.
 
 | Build | What changed | Client action |
 |---|---|---|

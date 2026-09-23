@@ -1,6 +1,6 @@
 # PigTV server — handover (single source of truth)
 
-**Last updated:** 23 September 2026 (build 0104; refreshed — history moved to the archive)
+**Last updated:** 23 September 2026 (build 0104; shipping moved to the MacBook: Claude pushes to `main`, see §2)
 
 Read at the start of every session. Keep it **short**: current state and durable facts only. When something is finished,
 leave one line in §4 and move the story to `docs/blueprint-archive.md`.
@@ -22,40 +22,43 @@ quality** first, then **less overhead and complexity**. **Stability and quality 
 
 | | |
 |---|---|
-| Repo | `github.com/maroge1990/PigTV`; images built by GitHub Actions on push to `main` (`docker-publish.yml`), tests by `test.yml` (Ubuntu, Node 20 and 24) |
+| Repo | `github.com/maroge1990/PigTV`; on push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 20 and 24) and builds the image **only if it passes** |
 | Deployment | Unraid box "PassyFlix", image `ghcr.io/maroge1990/pigtv`, `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only |
-| Local repo | `C:\Users\markr\GitHub\PigTV` (moved out of OneDrive, 21 Sept) · patches go to `C:\Users\markr\GitHub\patches\PigTV` |
+| Local repo | `/Users/markrogers/Documents/GitHub/PigTV` on Mark's MacBook (all development moved here, 23 Sept; the Windows copy and `patches/` folder are retired) |
 | Shipped through | **0104** on `origin/main` (23 Sept); whether it is *running* is whatever `/api/version` says |
-| Next patch number | **0106** (0105 is this docs refresh) |
+| Next build number | **0106** (0105 was the docs refresh that retired the Windows patch workflow) |
 
 ---
 
-## 2. How patches are delivered
+## 2. How changes ship (from 23 Sept)
 
-Each change is a numbered `git format-patch` file continuing the sequence. Commit on a local `patch-NNNN-*` branch, based on the
-previous patch's branch if that one isn't on `origin/main` yet (never on `main`, never pushed). Then
-`git format-patch -1 --start-number N -o "C:\Users\markr\GitHub\patches\PigTV"`, and check the chain applies in order on a throwaway
-`git worktree` of `origin/main`, with the tests and `verify-build.sh` run there. Hand over a size note and **both** command blocks.
-**Mark pushes; Claude never does** (Claude may apply patches to the working folder's `main` if asked).
+**Claude commits and pushes straight to `origin/main`** (Mark, 23 Sept). No patch files, no feature branches, no hand-applied
+`git am`. One logical change per commit.
 
-```powershell
-cd "C:\Users\markr\GitHub\PigTV"
-git fetch origin
-git checkout -B main origin/main
-git am "C:\Users\markr\GitHub\patches\PigTV\NNNN-<subject>.patch"   # one line per patch, in order
-git push origin main
-```
+1. Start clean: `git status` shows nothing unexpected, then `git pull --rebase origin main`.
+2. Make the change with its test (§8 rules still apply: capture before touching playback, a test that fails on the old code).
+3. Before committing: `npm test` and `bash scripts/verify-build.sh .` both pass locally. **If either can't be run, say so and
+   don't push.**
+4. A functional commit bumps `build` in `server/version.js` in the same commit, and its subject starts with the number:
+   `0106: Guide rows carry stableId`. Docs-only and test-only commits don't bump it and have no number.
+5. `git push origin main`. Never force-push `main`.
+6. CI (`docker-publish.yml`) runs the regression tests first (Node 20 and 24) and **publishes the image only if they pass**. If
+   CI goes red, fix it or `git revert` it straight away. Don't leave `main` red.
+7. Tell Mark what shipped, the build number, and what to check live.
+
+**Deploying is still Mark's step** (the server is on the Unraid box and reached over Tailscale):
 ```bash
 docker pull ghcr.io/maroge1990/pigtv:latest
 docker compose up -d --force-recreate pigtv     # recreate, not restart (or Force Update on the Unraid Docker tab)
 curl -s http://192.168.1.235:3000/api/version
 ```
-A redeploy ends every session. If `git am` complains that `.git/rebase-apply` still exists, run `git am --quit` (**not** `--abort`)
-and repeat. The OneDrive cause is gone, so a recurrence is worth chasing.
+A redeploy ends every session. **Rollback:** every push also publishes `ghcr.io/maroge1990/pigtv:sha-<short>`; point the container
+at the last good tag, then `git revert` the bad commit.
 
-**Build identity.** `server/version.js` holds `build` = the last functional patch, bumped in that patch's own diff (docs-only and
-test-only patches don't bump it). `/api/version` and `/api/info` return it with `commit`/`builtAt`, which CI stamps, and the webapp
-badge shows `display`.
+**Build identity.** `server/version.js` holds `build` = the last functional commit's number, bumped in that commit (docs-only and
+test-only commits don't bump it). `/api/version` and `/api/info` return it with `commit`/`builtAt`, which CI stamps, and the webapp
+badge shows `display`. Build numbers continue the old patch sequence (0104, then 0106…) so existing logs and the Swift client's
+records stay comparable.
 
 ---
 
@@ -143,7 +146,7 @@ it cannot. There is no remux, no legacy pipe and no browser-side strategy any mo
 | 0102 | **Web on the one path**: always resolve + HLS; recovery is a fresh session; local strategy, beta toggle and force-* settings removed |
 | 0103 | **Remux retired**: `/api/remux`, the legacy piped transcode, their branches, settings and tests |
 | 0104 | Session hardening: honest exit status, narrower software-decode retry, network-only URLs, streaming proxy, dead session code |
-| 0105 | Docs: this refresh (no build bump) |
+| 0105 | Docs: blueprint refresh; then the Windows patch workflow retired for push-to-main from the MacBook (no build bump) |
 
 ---
 
@@ -218,10 +221,11 @@ the identity. Only *pending* schedules were backfilled. The provider's stream id
   sidecars deleted with the recording. `?async=1` answers 202 while preparing. Old HEVC sidecars are `hev1`: delete
   `*.native.mp4` for those once. **HEVC recording playback on an Apple TV is still unconfirmed.**
 
-**Dev environment (Windows).**
-- `npm test` (~300 tests; 1 skipped on Windows, the POSIX signal test).
-- `bash scripts/verify-build.sh .` needs a `python3` on PATH (a one-line `exec python "$@"` shim) and `PYTHONUTF8=1`.
-- Sandboxed tests link `node_modules` with a junction. The tree is CRLF.
+**Dev environment (macOS, from 23 Sept).**
+- `npm ci` then `npm test` (~300 tests, all run on macOS, including the POSIX signal test). **Node is not installed on the
+  MacBook yet**; until it is, the server tests can only run in CI, so don't push without saying so.
+- `bash scripts/verify-build.sh .` uses the system `python3` (present).
+- The tree is LF. There is no local Docker; the image is only built by CI.
 - **CI runs every test file at once on 2 vCPUs: keep timing margins ≥1 s, or poll** (0101).
 
 ---
@@ -292,9 +296,9 @@ the identity. Only *pending* schedules were backfilled. The provider's stream id
 
 - **Capture before changing anything on the playback path** (`stream-doctor`). **No ffmpeg-flag or timestamp patch ships on a
   hypothesis**: 0085 did, and silently broke every even feed. If a fault can't be captured, say so and treat the fix as provisional.
-- Every functional patch has a test that **fails on the old code** (prove it) and a `verify-build.sh` check, and bumps `build`.
+- Every functional commit has a test that **fails on the old code** (prove it) and a `verify-build.sh` check, and bumps `build`.
 - **Every change the Apple client can see**, including anything in `transcodeSession.js` / `playbackStrategy.js`, gets a row in
-  `docs/SWIFT-CLIENT-HANDOFF.md` §5 in the same patch. Nothing in §7 changes without a client patch.
+  `docs/SWIFT-CLIENT-HANDOFF.md` §5 in the same commit. Nothing in §7 changes without a matching client change.
 - Say plainly what couldn't be run, and give Mark live-test steps for anything that needs the real feed or a device.
 - At the end of a session, update this file: one line in §4, facts in §3/§5, and stories to the archive.
 
@@ -304,3 +308,5 @@ the identity. Only *pending* schedules were backfilled. The provider's stream id
 - *21 Sept:* keep the Xtream/upstream proxy and `cache.js`; CI builds the images.
 - *23 Sept:* **one delivery path now**: Phases 3 and 4 shipped together without the trial report, and the web's recovery is a fresh
   HLS session rather than a remux fallback.
+- *23 Sept (later):* development moved to the MacBook. **Claude pushes to `main`** (supersedes "Mark applies and pushes"); the
+  numbered patch files are retired; CI publishes the image only after the tests pass.

@@ -9,7 +9,15 @@ on:
   workflow_dispatch:
 
 jobs:
+  # The regression tests gate the image. Claude pushes straight to main, so a
+  # commit that fails them must never become :latest.
+  test:
+    uses: ./.github/workflows/test.yml
+    permissions:
+      contents: read
+
   build-and-push:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
