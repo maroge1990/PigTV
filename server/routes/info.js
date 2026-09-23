@@ -68,7 +68,10 @@ router.get('/', async (req, res) => {
             logoCache: true,                 // library `logo` fields are /api/logo/<key>, fetched and cached server-side
             // 0117 (C-A): library rows carry `number`; guide/channels are ordered by it.
             // Absent when PIGTV_CHANNEL_NUMBERS=0 (the rollback).
-            ...(require('../services/channelNumbers').numbersEnabled() ? { channelNumbers: true } : {})
+            ...(require('../services/channelNumbers').numbersEnabled() ? { channelNumbers: true } : {}),
+            // 0119 (C-D): a `direct` resolve's url is /api/proxy/stream?h=<opaque handle>.
+            // Absent when PIGTV_PLAYBACK_HANDLES=0 (the rollback).
+            ...(require('../services/playbackHandles').handlesEnabled() ? { playbackHandles: true } : {})
         },
 
         // What the server can produce, so a client knows what to ask for.

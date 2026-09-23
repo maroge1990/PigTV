@@ -7,6 +7,8 @@ const epgParser = require('../services/epgParser');
 const cache = require('../services/cache');
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
+const { redact } = require('../redact');
+const playbackHandles = require('../services/playbackHandles');
 
 // Default cache max age in hours
 const DEFAULT_MAX_AGE_HOURS = 24;
@@ -588,8 +590,14 @@ router.get('/stream', async (req, res) => {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            let { url } = req.query;
-            if (!url) {
+            // 0119 (C-D): `h` is an opaque handle from a direct resolve; `url` stays
+            // for the web's legacy callers until W2.1 removes them.
+            const viaHandle = req.query.h !== undefined;
+            let url = viaHandle ? playbackHandles.resolveHandle(req.query.h) : req.query.url;
+            if (viaHandle && !url) {
+                return res.status(404).json({ error: 'Unknown or expired playback handle' });
+            }
+            if (!url || typeof url !== 'string') {
                 return res.status(400).json({ error: 'URL required' });
             }
 
@@ -629,7 +637,7 @@ router.get('/stream', async (req, res) => {
             }
 
             if (!response.ok) {
-                console.error(`Upstream error for ${url.substring(0, 80)}...: ${response.status} ${response.statusText}`);
+                console.error(`Upstream error for ${redact(url).substring(0, 80)}...: ${response.status} ${response.statusText}`);
                 if (response.status === 403) {
                     const errorBody = await response.text().catch(() => 'N/A');
                     console.error(`403 Response body: ${errorBody.substring(0, 200)}`);
@@ -690,7 +698,7 @@ router.get('/stream', async (req, res) => {
 
                 const buffer = Buffer.concat(chunks);
                 const finalUrl = response.url || url;
-                console.log(`[Proxy] Processing HLS manifest from: ${finalUrl.substring(0, 80)}...`);
+                console.log(`[Proxy] Processing HLS manifest from: ${redact(finalUrl).substring(0, 80)}...`);
                 res.set('Content-Type', 'application/vnd.apple.mpegurl');
 
                 let manifest = buffer.toString('utf-8');
@@ -705,8 +713,11 @@ router.get('/stream', async (req, res) => {
                 // every segment was refused with a 401. Carry the token onto each
                 // rewritten URI, as withStreamToken() does for HLS sessions.
                 const streamToken = typeof req.query.token === 'string' ? req.query.token : '';
+                // A manifest reached through a handle hands out handles for what it
+                // references too, so the provider's addresses stay off the client.
                 const proxiedUrl = (absoluteUrl) =>
-                    `${req.protocol}://${req.get('host')}${req.baseUrl}/stream?url=${encodeURIComponent(absoluteUrl)}` +
+                    `${req.protocol}://${req.get('host')}${req.baseUrl}/stream?` +
+                    (viaHandle ? `h=${playbackHandles.createHandle(absoluteUrl)}` : `url=${encodeURIComponent(absoluteUrl)}`) +
                     (streamToken ? `&token=${encodeURIComponent(streamToken)}` : '');
 
                 manifest = manifest.split('\n').map(line => {

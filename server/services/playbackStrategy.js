@@ -28,6 +28,7 @@ const { probeStream, analyzeProbeResult, probeCache, CACHE_TTL, parseFrameRate }
 const transcodeSession = require('./transcodeSession');
 const channelProfiles = require('./channelProfiles');
 const { MESSAGES: FAILURE_TEXT } = require('./playbackErrors');
+const playbackHandles = require('./playbackHandles');
 const { redact } = require('../redact');
 const db = require('../db');
 
@@ -116,16 +117,18 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
         probeNote = seconds(Date.now() - probeStartedAt);
     }
 
-    const encoded = encodeURIComponent(url);
-
     // 1. Direct play. Nothing to do — no ffmpeg, no server CPU, no added
     //    latency. Only available when the container is already something the
     //    client handles and both codecs are decodable.
     if (info.compatible && !upscale) {
         console.log(`[Playback] resolve timing: direct, probe ${probeNote}`);
+        // 0119 (C-D): an opaque handle, not the provider's URL (PIGTV_PLAYBACK_HANDLES=0
+        // goes back to ?url=).
         return {
             strategy: 'direct',
-            url: `/api/proxy/stream?url=${encoded}`,
+            url: playbackHandles.handlesEnabled()
+                ? `/api/proxy/stream?h=${playbackHandles.createHandle(url)}`
+                : `/api/proxy/stream?url=${encodeURIComponent(url)}`,
             container: info.container,
             info,
             reason: 'Client can play the source directly'

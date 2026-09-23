@@ -1,5 +1,6 @@
 const { isStreamUrl, NOT_A_STREAM_URL } = require('../services/streamUrl');
 const express = require('express');
+const { redact } = require('../redact');
 const router = express.Router();
 const { probeStream, analyzeProbeResult, probeCache, CACHE_TTL } = require('../services/streamProbe');
 
@@ -49,11 +50,11 @@ router.get('/', async (req, res) => {
     // Check cache
     const cached = probeCache.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
-        console.log(`[Probe] Cache hit for: ${url.substring(0, 50)}...`);
+        console.log(`[Probe] Cache hit for: ${redact(url).substring(0, 50)}...`);
         return res.json(cached.result);
     }
 
-    console.log(`[Probe] Probing: ${url.substring(0, 80)}... ${ua ? `(UA: ${ua})` : ''}`);
+    console.log(`[Probe] Probing: ${redact(url).substring(0, 80)}... ${ua ? `(UA: ${ua})` : ''}`);
 
     try {
         const probeResult = await probeStream(url, ffprobePath, ua);

@@ -17,6 +17,7 @@ const { getDb } = require('../db/sqlite');
 const xtreamApi = require('./xtreamApi');
 const coordinator = require('./streamCoordinator');
 const { formatLocalStamp } = require('./recordingNames');
+const { redact } = require('../redact');
 
 const TICK_INTERVAL_MS = 15 * 1000;
 const STDERR_TAIL_LINES = 40;
@@ -964,7 +965,8 @@ function finalizeRecording(scheduledId, recordingId, outputPath, exitCode, stder
         ended_at: Date.now(),
         file_size_bytes: fileSize,
         duration_sec: durationSec,
-        error: success ? null : (stderrTail || []).slice(-10).join('\n') || `ffmpeg exited with code ${exitCode}`
+        // 0119: ffmpeg's stderr names the input URL; stored (and listed by the API) redacted.
+        error: success ? null : redact((stderrTail || []).slice(-10).join('\n')) || `ffmpeg exited with code ${exitCode}`
     });
 
     const scheduleExtra = success ? {} : { error: `Recording failed (exit code ${exitCode})` };

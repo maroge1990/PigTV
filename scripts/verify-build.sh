@@ -942,8 +942,9 @@ check server/routes/proxy.js "const proxiedUrl = " "rewriter builds URIs in one 
 check server/routes/proxy.js "URI=\"\${proxiedUrl(absoluteUrl)}\"" "key/init/map URI attributes carry the token"
 check server/routes/proxy.js "return proxiedUrl(absoluteUrl);" "segment lines carry the token"
 # Both rewrite sites must go through proxiedUrl; a third hand-built URL would
-# silently drop the token again.
-if [ "$(grep -c 'stream?url=\${encodeURIComponent' server/routes/proxy.js)" = "1" ]; then
+# silently drop the token again. (0119 split the line: proxiedUrl builds either
+# ?h= or ?url=, so count the "/stream?" prefix, which only it writes.)
+if [ "$(grep -c '/stream?' server/routes/proxy.js)" = "1" ]; then
   echo "  ✓ only proxiedUrl builds /stream?url= URIs in the rewriter"
 else
   echo "  ✗ MISSING: a rewriter URL is built outside proxiedUrl (would drop the token)"; FAIL=1
@@ -1576,6 +1577,22 @@ check server/services/playbackStrategy.js "throw Object.assign(new Error(probeFa
 check server/routes/playback.js "FAILURE_TEXT.notInPlaylist()" "a channel not in the playlist says 'This channel is not available'"
 check server/routes/playback.js "error: clientSafe(redact(err.message))" "the resolve route strips any URL from what it returns"
 check test/resolve-errors.test.js "no URL anywhere in the response" "with a route-level no-URL test"
+
+echo "=== 0119: opaque playback handles (C-D) and redacted logs ==="
+check server/services/playbackHandles.js "crypto.randomBytes(16).toString('hex')" "a handle is 32 random hex characters"
+check server/services/playbackHandles.js "TTL_MS = 12 \\* 60 \\* 60 \\* 1000" "with a 12 h lifetime"
+check server/services/playbackHandles.js "MAX_HANDLES = " "and a bounded registry"
+check server/services/playbackStrategy.js "/api/proxy/stream?h=\${playbackHandles.createHandle(url)}" "a direct resolve hands out a handle"
+check_absent server/services/playbackStrategy.js "const encoded = encodeURIComponent(url)" "not the provider URL (except under the rollback switch)"
+check server/routes/proxy.js "playbackHandles.resolveHandle(req.query.h)" "the proxy accepts ?h="
+check server/routes/proxy.js "Unknown or expired playback handle" "an unknown handle is a 404"
+check server/routes/proxy.js "h=\${playbackHandles.createHandle(absoluteUrl)}" "a manifest reached by handle hands out handles"
+check server/routes/proxy.js "Upstream error for \${redact(url)" "the proxy's upstream-error log is redacted"
+check server/routes/proxy.js "HLS manifest from: \${redact(finalUrl)" "and its manifest log"
+check server/routes/probe.js "Probing: \${redact(url)" "the probe route's logs are redacted"
+check server/services/recordingEngine.js "redact((stderrTail || \[\]).slice(-10)" "a failed recording's stored stderr is redacted"
+check server/routes/info.js "playbackHandles: true" "features flag"
+check test/playback-handles.test.js "the resolve JSON must not contain" "with a no-provider-URL resolve test"
 
 if [ $FAIL -eq 0 ]; then
     echo ""
