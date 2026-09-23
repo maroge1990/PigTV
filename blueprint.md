@@ -279,6 +279,10 @@ IDs: **S** server · **W** web · **A** Apple · **X** both. Size: S ≈ hours, 
 Status: **Planned → In progress → Shipped (build N) → Verified** (only after Mark's device or live check), or **Blocked** with
 the reason. Each phase ends with Mark's gate; don't start the next phase's device-dependent work until it passes.
 
+**24 Sept (Mark): build everything that's left, then test it all in one block.** The per-phase device gates are waived.
+Risky behaviour ships off by default behind a switch (server env vars; Apple Settings → Labs). The interface between server
+and client for Phases 2–4 is fixed in `docs/ROADMAP-CONTRACTS.md`; build to it exactly.
+
 ### Phase 0: clean-up and correctness (gate: redeploy, CI green, guide unchanged)
 
 | ID | Item | Status |
