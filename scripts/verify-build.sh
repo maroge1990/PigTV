@@ -850,7 +850,7 @@ check server/index.js "require('ffmpeg-static')" "index.js keeps its guarded ffm
 echo "=== 0052: Provider credential redaction (P1-4) ==="
 check server/redact.js "function redact" "redact helper exists"
 check server/routes/transcode.js "url: redact(x.url)" "/sessions response redacts upstream URLs"
-check server/routes/playback.js "error: redact(err.message)" "resolve error body is redacted"
+check server/routes/playback.js "error: clientSafe(redact(err.message))" "resolve error body is redacted"
 check server/services/streamProbe.js "redact(stderr)" "ffprobe stderr redacted before leaving probeStream"
 check server/services/transcodeSession.js "redact(args.join" "session ffmpeg command line redacted in logs"
 if node -e '
@@ -1503,7 +1503,7 @@ check server/services/transcodeSession.js "Provider refused the first connection
 check server/services/transcodeSession.js "REFUSED_RETRY_WINDOW_MS = 3000" "only within ffmpeg's first ~3 s"
 check server/services/transcodeSession.js "status === '404'" "a 404 is never retried"
 check server/services/transcodeSession.js "!requested && refused && refused.retryable" "and never for a session we stopped ourselves"
-check server/services/playbackStrategy.js "new Error(failure || 'Transcode failed to produce a playlist in time')" "resolve's error carries the reason, else the old text"
+check server/services/playbackStrategy.js "new Error(failure || (ended ? FAILURE_TEXT.couldNotOpen() : FAILURE_TEXT.timeout()))" "resolve's error carries the reason, else a fixed C-B sentence (was the old text until 0118)"
 check server/services/playbackStrategy.js "NOT produced - ffmpeg ended after" "the resolve timing line says ffmpeg ended, rather than timed out"
 check scripts/playback-report.js "NOT produced - ffmpeg ended" "the playback report counts those"
 check_absent scripts/playback-report.js "opt-in" "the report no longer speaks of the opt-in HLS trial"
@@ -1565,6 +1565,17 @@ check server/index.js "app.use('/api/lineup', require('./routes/lineup'))" "the 
 check server/routes/info.js "channelNumbers: true" "features flag"
 check test/channel-numbers.test.js "cursor pages give the same rows in the same order as the offset listing" "with a cursor-exactness test"
 check test/channel-numbers.test.js "the reorder really moved the position ids" "and a provider-reorder stability test"
+
+echo "=== 0118: resolve errors use the client's allowed wording (C-B) ==="
+check server/services/playbackErrors.js "'The provider refused this channel'" "the allow-list is recorded next to the texts"
+check server/services/transcodeSession.js "message: FAILURE_TEXT.notFound()" "ffmpeg's 404 uses the shared text"
+check_absent server/services/transcodeSession.js "could not find this channel" "the old 404 wording is gone"
+check_absent server/services/transcodeSession.js "had a problem serving this channel" "the old 5xx wording is gone"
+check_absent server/services/playbackStrategy.js "Transcode failed to produce a playlist in time" "the old timeout wording is gone"
+check server/services/playbackStrategy.js "throw Object.assign(new Error(probeFailureMessage(err))" "a failed probe never hands its stderr (with the URL) to the client"
+check server/routes/playback.js "FAILURE_TEXT.notInPlaylist()" "a channel not in the playlist says 'This channel is not available'"
+check server/routes/playback.js "error: clientSafe(redact(err.message))" "the resolve route strips any URL from what it returns"
+check test/resolve-errors.test.js "no URL anywhere in the response" "with a route-level no-URL test"
 
 if [ $FAIL -eq 0 ]; then
     echo ""

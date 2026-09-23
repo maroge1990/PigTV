@@ -102,9 +102,9 @@ test('the failure reason names the HTTP status and never the URL or ffmpeg\'s ow
     const cases = [
         [[`[in#0 @ 0x1] Error opening input: Server returned ${OTHER_4XX}`], /refused this channel \(HTTP 4xx\).*still releasing the previous stream/],
         [[`Error opening input files: Server returned ${FORBIDDEN}`], /refused this channel \(HTTP 403\)/],
-        [[`Error opening input files: Server returned ${NOT_FOUND}`], /could not find this channel \(HTTP 404\)/],
-        [[`Error opening input files: Server returned ${SERVER_5XX}`], /provider had a problem serving this channel \(HTTP 5xx\)/],
-        [[`[tcp @ 0x1] Connection to tcp://provider.invalid:80 failed: Connection refused`], /refused the connection/]
+        [[`Error opening input files: Server returned ${NOT_FOUND}`], /not available from the provider \(HTTP 404\)/],
+        [[`Error opening input files: Server returned ${SERVER_5XX}`], /provider refused this channel \(HTTP 5xx\): its server had a problem/],
+        [[`[tcp @ 0x1] Connection to tcp://provider.invalid:80 failed: Connection refused`], /did not respond \(connection refused\)/]
     ];
     for (const [tail, want] of cases) {
         const reason = transcodeSession.classifyInputFailure(tail);
@@ -141,7 +141,7 @@ test('resolve answers a refused channel quickly, with that reason, in the same {
         const waited = Date.now() - t0;
         assert.ok(failure, 'resolve failed');
         assert.ok(waited < 5000, `answered after ${waited} ms, not the 15 s timeout`);
-        assert.match(failure.message, /could not find this channel \(HTTP 404\)/);
+        assert.match(failure.message, /not available from the provider \(HTTP 404\)/);
         assert.ok(!failure.message.includes('provider.invalid'), 'no URL in what the client is shown');
         assert.ok(failure.info && failure.info.video === 'h264', 'info still rides on the error, for the {error, info} body');
         const timing = lines.find(l => l.includes('resolve timing'));

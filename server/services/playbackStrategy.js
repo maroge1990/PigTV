@@ -27,6 +27,8 @@
 const { probeStream, analyzeProbeResult, probeCache, CACHE_TTL, parseFrameRate } = require('./streamProbe');
 const transcodeSession = require('./transcodeSession');
 const channelProfiles = require('./channelProfiles');
+const { MESSAGES: FAILURE_TEXT } = require('./playbackErrors');
+const { redact } = require('../redact');
 const db = require('../db');
 
 const DEFAULT_CAPABILITIES = {
@@ -99,7 +101,15 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
         probeNote = `profile (age ${profile.ageDays}d)`;
     } else {
         const probeStartedAt = Date.now();
-        const raw = await probeStream(url, ffprobePath, userAgent);
+        let raw;
+        try {
+            raw = await probeStream(url, ffprobePath, userAgent);
+        } catch (err) {
+            // 0118 (C-B): ffprobe's error carries its stderr, and with it the stream's
+            // (redacted) URL. The log keeps it; the client gets a fixed sentence.
+            console.warn(`[Playback] resolve probe failed: ${redact(err.message)}`);
+            throw Object.assign(new Error(probeFailureMessage(err)), { status: err.status });
+        }
         info = analyzeProbeResult(raw, url, caps);
         probedAt = Date.now();
         probeCache.set(cacheKey, { result: info, timestamp: probedAt, probedAt });
@@ -231,7 +241,9 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     }
     if (!ready) {
         await transcodeSession.removeSession(session.id);
-        const err = new Error(failure || 'Transcode failed to produce a playlist in time');
+        // 0118 (C-B): no clue from ffmpeg - it either ended (the stream could not be
+        // opened) or never produced a segment in time (the provider did not respond).
+        const err = new Error(failure || (ended ? FAILURE_TEXT.couldNotOpen() : FAILURE_TEXT.timeout()));
         err.info = info;
         throw err;
     }
@@ -252,4 +264,16 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     };
 }
 
-module.exports = { resolve, DEFAULT_CAPABILITIES };
+/**
+ * The client's text for a failed probe (0118, C-B): ffprobe reports the same
+ * "Server returned ..." / "Connection refused" lines ffmpeg does, so the same
+ * classification applies; a timeout or anything else gets a fixed sentence.
+ */
+function probeFailureMessage(err) {
+    const text = String(err && err.message || '');
+    if (/Probe timeout/i.test(text)) return FAILURE_TEXT.timeout();
+    const reason = transcodeSession.classifyInputFailure(text.split('\n'));
+    return reason ? reason.message : FAILURE_TEXT.couldNotRead();
+}
+
+module.exports = { resolve, DEFAULT_CAPABILITIES, probeFailureMessage };

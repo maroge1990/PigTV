@@ -82,7 +82,8 @@ test('a session that never produced a segment says so - the case that ends in an
         const lines = await timingLines(async () => {
             try { await strategy.resolve({ url, capabilities: { segmentedDelivery: true }, settings: SETTINGS }); } catch (err) { failure = err; }
         });
-        assert.match(failure && failure.message, /failed to produce a playlist/, 'it still fails as before');
+        // 0118 (C-B): still a failure, now in words the client may show.
+        assert.match(failure && failure.message, /^The provider did not respond in time/, 'it still fails, with the C-B wording');
         assert.equal(lines.length, 1);
         assert.match(lines[0], /^\[Playback\] resolve timing: HLS session, probe cached, first segment NOT produced in time, source timing /);
         assert.deepEqual(stub.removed, ['stub'], 'the abandoned session is still cleaned up');

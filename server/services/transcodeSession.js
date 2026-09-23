@@ -21,6 +21,7 @@ const EventEmitter = require('events');
 const hwDetect = require('./hwDetect');
 const { createStallWatchdog, STALL_TIMEOUT_MS, STARTUP_GRACE_MS } = require('./stallWatchdog');
 const { parseFrameRate } = require('./streamProbe');
+const { MESSAGES: FAILURE_TEXT } = require('./playbackErrors');
 
 // Session storage
 const sessions = new Map();
@@ -1362,20 +1363,18 @@ function classifyInputFailure(lines) {
         const http = /Server returned ([45](?:\d\d|XX))\b/i.exec(line);
         if (http) {
             const status = http[1].toLowerCase();
+            // 0118 (C-B): every text starts with one of the client's allowed prefixes
+            // (services/playbackErrors.js).
             if (status === '404') {
-                return { status, retryable: false,
-                    message: 'The provider could not find this channel (HTTP 404). It may be offline or have moved; a playlist sync may help.' };
+                return { status, retryable: false, message: FAILURE_TEXT.notFound() };
             }
             if (status.startsWith('5')) {
-                return { status, retryable: true,
-                    message: `The provider had a problem serving this channel (HTTP ${status}). Try again in a few seconds.` };
+                return { status, retryable: true, message: FAILURE_TEXT.serverError(status) };
             }
-            return { status, retryable: true,
-                message: `The provider refused this channel (HTTP ${status}). It may be offline, or still releasing the previous stream; try again in a few seconds.` };
+            return { status, retryable: true, message: FAILURE_TEXT.refused(status) };
         }
         if (/Connection refused/i.test(line)) {
-            return { status: 'refused', retryable: false,
-                message: "The provider's server refused the connection. It may be down; try again shortly." };
+            return { status: 'refused', retryable: false, message: FAILURE_TEXT.connectionRefused() };
         }
     }
     return null;

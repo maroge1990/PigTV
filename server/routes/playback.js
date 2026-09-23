@@ -16,6 +16,7 @@ const router = express.Router();
 const db = require('../db');
 const { getDb } = require('../db/sqlite');
 const { redact } = require('../redact');
+const { MESSAGES: FAILURE_TEXT, clientSafe } = require('../services/playbackErrors');
 const playbackStrategy = require('../services/playbackStrategy');
 const xtreamApi = require('../services/xtreamApi');
 const passport = require('passport');
@@ -50,7 +51,9 @@ function optionalAuth(req, res, next) {
  */
 async function streamUrlForChannel(sourceId, channelId) {
     const source = await db.sources.getById(sourceId);
-    if (!source) throw Object.assign(new Error(`Source ${sourceId} not found`), { status: 404 });
+    // 0118 (C-B): the client may show these, so they use its allowed wording;
+    // `detail` keeps what actually went wrong for the log.
+    if (!source) throw Object.assign(new Error(FAILURE_TEXT.notInPlaylist()), { status: 404, detail: `Source ${sourceId} not found` });
 
     if (source.type === 'xtream') {
         const api = xtreamApi.createFromSource(source);
@@ -67,7 +70,7 @@ async function streamUrlForChannel(sourceId, channelId) {
         LIMIT 1
     `).get(sourceId, raw, stripped, `${sourceId}:${stripped}`);
 
-    if (!item) throw Object.assign(new Error(`Channel ${channelId} not found`), { status: 404 });
+    if (!item) throw Object.assign(new Error(FAILURE_TEXT.notInPlaylist()), { status: 404, detail: `Channel ${channelId} not found` });
     if (item.stream_url) return item.stream_url;
 
     try {
@@ -76,7 +79,7 @@ async function streamUrlForChannel(sourceId, channelId) {
         if (data.stream_url) return data.stream_url;
     } catch (e) { /* fall through */ }
 
-    throw Object.assign(new Error('Channel has no stream URL'), { status: 422 });
+    throw Object.assign(new Error(FAILURE_TEXT.noStreamUrl()), { status: 422, detail: 'Channel has no stream URL' });
 }
 
 /**
@@ -195,8 +198,9 @@ router.post('/resolve', requireToken, async (req, res) => {
         console.log(`[Playback] ${decision.strategy} — ${decision.reason}`);
         res.json(decision);
     } catch (err) {
-        console.error('[Playback] Resolve failed:', redact(err.message));
-        res.status(err.status || 500).json({ error: redact(err.message), info: err.info });
+        console.error('[Playback] Resolve failed:', redact(err.detail ? `${err.detail} - ${err.message}` : err.message));
+        // 0118 (C-B): never a URL in what the client is sent, whatever the error.
+        res.status(err.status || 500).json({ error: clientSafe(redact(err.message)), info: err.info });
     }
 });
 
