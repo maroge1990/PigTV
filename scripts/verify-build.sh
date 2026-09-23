@@ -1512,6 +1512,20 @@ check_absent scripts/playback-report.js "HLS Delivery (beta)" "nor the retired t
 check test/start-failure.test.js "the old code polled the full 15 s" "with a test that fails on the old code"
 check test/start-failure.test.js "one retry, no more" "and a test that the retry happens once"
 
+echo "=== 0114: channel profiles - a repeat play skips ffprobe ==="
+check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS channel_profiles" "the profile table exists"
+check server/services/channelProfiles.js "PIGTV_PROBE_PROFILES" "with an env switch to turn it off (the rollback)"
+check server/services/channelProfiles.js "PIGTV_PROFILE_MAX_AGE_DAYS" "and a configurable age limit"
+check server/services/channelProfiles.js "createHash('sha256')" "the key is stored hashed (the URL carries credentials)"
+check server/services/playbackStrategy.js "channelProfiles.get(cacheKey)" "resolve looks a profile up under the probe cache's own key"
+check server/services/playbackStrategy.js 'probeNote = `profile (age ' "and says so in the resolve timing line (probe profile (age Nd))"
+check server/services/playbackStrategy.js "channelProfiles.remove(cacheKey)" "a failed start from a profile drops it"
+check server/services/playbackStrategy.js "else channelProfiles.save(cacheKey, info, probedAt)" "a profile is written only once a session has played from it"
+check server/services/transcodeSession.js "'-probesize', '5000000'" "ffmpeg's own probe is unchanged (long GOPs need it)"
+check server/services/transcodeSession.js "'-analyzeduration', '5000000'" "likewise its analyzeduration"
+check scripts/playback-report.js "profile \\\\(age" "the playback report counts a profiled play as warm"
+check test/channel-profiles.test.js "the old code probed again once the 5-min cache expired" "with a test that fails on the old code"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

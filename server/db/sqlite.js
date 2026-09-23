@@ -143,6 +143,21 @@ function initSchema() {
         CREATE INDEX IF NOT EXISTS idx_logo_cache_url ON logo_cache(url);
     `);
 
+    // Channel profiles (0114, roadmap S1.1): the resolve probe's analysis of a
+    // channel, so a repeat play can skip ffprobe (services/channelProfiles.js).
+    // `key` is a hash of URL + user agent + the client's capability key - the URL
+    // carries provider credentials, so it is never stored here. `info` is the
+    // analysis as JSON; `probed_at` decides its age, `last_ok_at` is the last
+    // time a session played from it.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS channel_profiles (
+            key TEXT PRIMARY KEY,
+            info TEXT NOT NULL,
+            probed_at INTEGER NOT NULL,
+            last_ok_at INTEGER
+        );
+    `);
+
     // EPG Programs
     // Optimized for range queries
     db.exec(`

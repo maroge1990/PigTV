@@ -181,3 +181,10 @@ test('a line with no sender is treated as the web player, as before 0084', () =>
     const rows = summarise(parse('[Player] play-start via remux(fmp4) hls-delivery=off resolve=0.0s first-picture=6.0s'));
     assert.deepEqual(rows.map(r => r.label), ['remux']);
 });
+
+test('0114: a play that used a stored channel profile counts as warm (no ffprobe ran)', () => {
+    const rows = summarise(parse(`
+[Playback] resolve timing: HLS session, probe profile (age 3d), first segment after 4.4s, source timing even - DTS kept
+[Player] play-start via transcode(hls, video copy) hls-delivery=on resolve=4.4s first-picture=4.6s from=device:7`));
+    assert.deepEqual([rows[0].warm.n, rows[0].cold.n, rows[0].warm.median], [1, 0, 4.6]);
+});

@@ -34,7 +34,7 @@ const LONG_SESSION_SEC = 3600;
 const HOW = String.raw`(\S+?)\(([^,)]*)(?:, video ([^)]*))?\) hls-delivery=(on|off)`;
 const PLAY_START = new RegExp(String.raw`\[Player\] play-start via ${HOW} resolve=(\S+) first-picture=(\S+)`);
 const PLAY_END = new RegExp(String.raw`\[Player\] play-end via ${HOW} watched=(\S+?)s stalls=(\S+)`);
-const RESOLVE_TIMING = /\[Playback\] resolve timing: (direct|remux|HLS session), probe (cached|[\d.]+s)(?:, first segment (?:after ([\d.]+)s|(NOT produced in time)|(NOT produced - ffmpeg ended[^,]*)))?/;
+const RESOLVE_TIMING = /\[Playback\] resolve timing: (direct|remux|HLS session), probe (cached|profile \(age \d+d\)|[\d.]+s)(?:, first segment (?:after ([\d.]+)s|(NOT produced in time)|(NOT produced - ffmpeg ended[^,]*)))?/;
 const MEDIA_ERROR = /\[Player\] media-error (\S+?)\((\S+?)\) via (\S+) path=(\S*) msg="([^"]*)"/;
 const START_TIMEOUT = /\[Player\] start-timeout via (\S+)/;
 // Every client event ends with who sent it: `user:<id>` for a web login, `device:<id>` for a
@@ -93,7 +93,8 @@ function parse(text) {
 
         if ((m = RESOLVE_TIMING.exec(line))) {
             const kind = kindOf[m[1]];
-            pending[kind] = { warm: m[2] === 'cached' };
+            // Warm = no ffprobe: the 5-minute cache, or (0114) the channel's stored profile.
+            pending[kind] = { warm: m[2] === 'cached' || m[2].startsWith('profile') };
             if (m[4]) segmentTimeouts++;
             if (m[5]) startFailures++;
         } else if ((m = PLAY_START.exec(line))) {
@@ -208,7 +209,7 @@ function report(parsed) {
         const warm = p.warm.n ? `${fmt(p.warm.median)} (n=${p.warm.n})` : '-';
         out.push(`${pad(p.label, 28)}${padL(p.plays, 6)}${padL(fmt(p.firstPicture.median), 8)}${padL(fmt(p.firstPicture.p90), 7)}${padL(fmt(p.firstPicture.max), 7)}   ${padL(cold, 11)}${padL(warm, 11)}`);
     }
-    out.push('  cold = the stream had to be probed first; warm = the probe was cached (within 5 minutes of a previous play)');
+    out.push('  cold = the stream had to be probed first; warm = no probe (cached within 5 minutes, or the channel\'s stored profile)');
     out.push('');
 
     out.push('How the plays went once they started (only plays watched for 10 s or more are counted)');

@@ -26,6 +26,7 @@
 
 const { probeStream, analyzeProbeResult, probeCache, CACHE_TTL } = require('./streamProbe');
 const transcodeSession = require('./transcodeSession');
+const channelProfiles = require('./channelProfiles');
 const db = require('../db');
 
 const DEFAULT_CAPABILITIES = {
@@ -72,16 +73,32 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     const capKey = Object.keys(caps).filter(k => caps[k]).sort().join(',');
     const cacheKey = `${url}|${userAgent || ''}|${capKey}`;
 
+    // Where the analysis comes from, cheapest first: the 5-minute in-memory cache, then
+    // the channel's stored profile (0114: no ffprobe at all), then a probe. `fromProfile`
+    // follows a profile through the in-memory cache, so a failed start can drop both.
     let info;
     let probeNote = 'cached';
+    let fromProfile = false;
+    let probedAt = null;
     const cached = probeCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+    const cacheFresh = !!cached && (Date.now() - cached.timestamp) < CACHE_TTL;
+    const profile = cacheFresh ? null : channelProfiles.get(cacheKey);
+    if (cacheFresh) {
         info = cached.result;
+        fromProfile = cached.fromProfile === true;
+        probedAt = cached.probedAt || cached.timestamp;
+    } else if (profile) {
+        info = profile.info;
+        fromProfile = true;
+        probedAt = profile.probedAt;
+        probeCache.set(cacheKey, { result: info, timestamp: Date.now(), fromProfile: true, probedAt });
+        probeNote = `profile (age ${profile.ageDays}d)`;
     } else {
         const probeStartedAt = Date.now();
         const raw = await probeStream(url, ffprobePath, userAgent);
         info = analyzeProbeResult(raw, url, caps);
-        probeCache.set(cacheKey, { result: info, timestamp: Date.now() });
+        probedAt = Date.now();
+        probeCache.set(cacheKey, { result: info, timestamp: probedAt, probedAt });
         probeNote = seconds(Date.now() - probeStartedAt);
     }
 
@@ -181,6 +198,18 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
             ? `NOT produced - ffmpeg ended after ${seconds(session.timings.endedEarly - sessionStartedAt)}${failureStatus ? ` (provider ${failureStatus === 'refused' ? 'refused the connection' : `HTTP ${failureStatus}`})` : ''}`
             : 'NOT produced in time');
     console.log(`[Playback] resolve timing: HLS session, probe ${probeNote}, first segment ${firstSegment}${pacing}${timing}${range}`);
+    if (ready) {
+        // It played from this analysis: keep it for the next play (a fresh probe), or
+        // note that it still works (a profile). Written only now, so an analysis that
+        // never produced a picture is never reused.
+        if (fromProfile) channelProfiles.markOk(cacheKey);
+        else channelProfiles.save(cacheKey, info, probedAt);
+    } else if (fromProfile) {
+        // The feed may have changed under its profile: probe afresh next time, not from
+        // the in-memory copy of the same analysis either.
+        channelProfiles.remove(cacheKey);
+        probeCache.delete(cacheKey);
+    }
     if (!ready) {
         await transcodeSession.removeSession(session.id);
         const err = new Error(failure || 'Transcode failed to produce a playlist in time');
