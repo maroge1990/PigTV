@@ -498,11 +498,14 @@ class TranscodeSession extends EventEmitter {
         const audioCodec = this.options.audioCodec?.toLowerCase() || 'unknown';
         const audioChannels = this.options.audioChannels || 0;
         const audioMixPreset = this.options.audioMixPreset || 'auto';
-        // HE-AAC cannot be passed through to a browser (see probe.js), so it is
-        // excluded from every copy path here even though it is stereo AAC.
+        // HE-AAC cannot be passed through to a browser (see streamProbe), so it is
+        // excluded from every copy path here even though it is stereo AAC - unless
+        // the client said it decodes HE-AAC (heaacCopy, from capability heaac: 0116),
+        // in which case it is copied like any other AAC.
         const audioProfile = (this.options.audioProfile || '').toLowerCase();
         const isHeAac = this.options.isHeAac === true || audioProfile.includes('he-aac');
-        const isStereoAac = audioCodec.includes('aac') && audioChannels === 2 && !isHeAac;
+        const heAacBlocked = isHeAac && this.options.heaacCopy !== true;
+        const isStereoAac = audioCodec.includes('aac') && audioChannels === 2 && !heAacBlocked;
 
         // Define pan filter presets for 5.1 -> Stereo downmix
         const AUDIO_MIX_FILTERS = {
@@ -539,7 +542,7 @@ class TranscodeSession extends EventEmitter {
         // source straight through - the very audio that failed.
         const forceEncode = this.options.audioMode === 'encode';
 
-        if (this.options.audioMode === 'copy' && !isHeAac) {
+        if (this.options.audioMode === 'copy' && !heAacBlocked) {
             // Caller (playbackStrategy) has already established via client
             // capabilities that this audio codec plays as-is and wants it
             // copied through untouched — the same guarantee a plain remux
@@ -549,14 +552,14 @@ class TranscodeSession extends EventEmitter {
             // when nothing needs mixing in the first place.
             console.log(`[TranscodeSession ${this.id}] Audio: Copy (client capabilities confirm ${audioCodec} support)`);
             pushAudioCopy();
-        } else if (audioMixPreset === 'passthrough' && !isHeAac && !forceEncode) {
+        } else if (audioMixPreset === 'passthrough' && !heAacBlocked && !forceEncode) {
             // Passthrough: Always copy audio, no processing
             console.log(`[TranscodeSession ${this.id}] Audio: Passthrough (copy)`);
             pushAudioCopy();
-        } else if (isHeAac) {
+        } else if (heAacBlocked || (isHeAac && forceEncode)) {
             // Re-encode to AAC-LC. Only the audio is touched, so this stays
             // cheap even when the video is being stream-copied.
-            console.log(`[TranscodeSession ${this.id}] Audio: HE-AAC source -> AAC-LC (browser cannot decode HE-AAC)`);
+            console.log(`[TranscodeSession ${this.id}] Audio: HE-AAC source -> AAC-LC (${heAacBlocked ? 'this client cannot decode HE-AAC' : 're-encode requested'})`);
             args.push('-c:a', 'aac', '-profile:a', 'aac_low', '-ar', '48000', '-b:a', '128k');
         } else if (audioMixPreset === 'auto' && isStereoAac && !forceEncode) {
             // Auto + Stereo AAC source: Smart copy

@@ -83,7 +83,7 @@ async function streamUrlForChannel(sourceId, channelId) {
  * POST /api/playback/resolve
  *
  * Body: { sourceId, channelId }  or  { url }
- *       capabilities: { hevc, av1, ac3, eac3, flac, hls, fmp4 }
+ *       capabilities: { hevc, av1, ac3, eac3, flac, heaac, hls, fmp4 }
  *       upscale: boolean
  *
  * Returns: { strategy, url, container, reason, info, sessionId? }

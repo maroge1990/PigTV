@@ -240,7 +240,8 @@ function analyzeProbeResult(probeResult, url, clientCaps = {}) {
         || (videoIsHevc && clientCaps.hevc === true)
         || (videoIsAv1 && clientCaps.av1 === true);
 
-    const audioOk = !isHeAac && (BROWSER_AUDIO_CODECS.some(c => audioCodec.includes(c))
+    // ...unless this client says it decodes HE-AAC (AVPlayer does; 0116).
+    const audioOk = (!isHeAac || clientCaps.heaac === true) && (BROWSER_AUDIO_CODECS.some(c => audioCodec.includes(c))
         || (matchesAny(audioCodec, OPTIONAL_AUDIO_CODECS.ac3) && clientCaps.ac3 === true)
         || (matchesAny(audioCodec, OPTIONAL_AUDIO_CODECS.eac3) && clientCaps.eac3 === true)
         || (matchesAny(audioCodec, OPTIONAL_AUDIO_CODECS.flac) && clientCaps.flac === true));

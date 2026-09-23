@@ -1539,6 +1539,16 @@ check server/routes/transcode.js "the session has no master playlist" "the route
 check_absent public/js/components/VideoPlayer.js "stream.m3u8" "the web player does not assume the media playlist name"
 check test/frame-rate-master.test.js "the old code handed out stream.m3u8" "with a test that fails on the old code"
 
+echo "=== 0116: HE-AAC passthrough for clients that can decode it ==="
+check server/services/playbackStrategy.js "heaac: false," "heaac is a capability, off by default"
+check server/services/playbackStrategy.js "heaacCopy: caps.heaac === true" "resolve tells the session only on an explicit true"
+check server/services/streamProbe.js "(!isHeAac || clientCaps.heaac === true)" "the probe counts HE-AAC as decodable only for such a client"
+check server/services/transcodeSession.js "const heAacBlocked = isHeAac && this.options.heaacCopy !== true" "the session copies HE-AAC only when told it may"
+check server/services/transcodeSession.js "heAacBlocked || (isHeAac && forceEncode)" "and still re-encodes it to AAC-LC otherwise, or when asked to"
+check server/services/transcodeSession.js "'-profile:a', 'aac_low'" "the AAC-LC re-encode itself is unchanged"
+check_absent public/js/components/VideoPlayer.js "heaac" "the web player never sends heaac (Chrome cannot decode HE-AAC)"
+check test/heaac-passthrough.test.js "the old code re-encoded to AAC-LC for every client" "with a test that fails on the old code"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

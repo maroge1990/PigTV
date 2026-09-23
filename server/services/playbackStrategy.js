@@ -35,6 +35,10 @@ const DEFAULT_CAPABILITIES = {
     ac3: false,
     eac3: false,
     flac: false,
+    // HE-AAC (AAC with SBR/PS). Off by default: Chrome says it can and then fails
+    // on the first packet (see streamProbe). AVPlayer decodes it natively; a client
+    // that sends heaac: true gets it copied instead of re-encoded to AAC-LC (0116).
+    heaac: false,
     hls: true,      // native HLS, as Safari and AVPlayer have
     fmp4: true,     // fragmented MP4 segments
 
@@ -184,7 +188,9 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
         audioCodec: info.audio,
         audioChannels: info.audioChannels,
         audioProfile: info.audioProfile,
-        isHeAac: info.isHeAac
+        isHeAac: info.isHeAac,
+        // This client decodes HE-AAC, so the session may copy it (0116).
+        heaacCopy: caps.heaac === true
     });
 
     const sessionStartedAt = Date.now();
