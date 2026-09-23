@@ -87,6 +87,14 @@ const HLS_DELETE_THRESHOLD = 12;
 const HLS_STALL_MS = Math.max(STALL_TIMEOUT_MS, SEGMENT_DURATION * 5 * 1000);
 const CLEANUP_INTERVAL_MS = 60 * 1000; // Sweep every minute (a walk over an in-memory Map)
 
+// The provider allows one connection, and the resolve probe has only just closed
+// its own when ffmpeg opens the stream. Mark's log (build 0109, 7 Flix Sydney):
+// ffmpeg was refused with an HTTP 4XX in its first second, straight after the
+// probe, and the channel played on the next attempt. So a refusal that early is
+// retried once, after a pause long enough for the provider to let go.
+const REFUSED_RETRY_WINDOW_MS = 3000;
+const REFUSED_RETRY_DELAY_MS = 1500;
+
 /**
  * Generate a unique session ID
  */
@@ -216,66 +224,42 @@ class TranscodeSession extends EventEmitter {
                     stderrBuffer = lines[lines.length - 1];
                 }
             });
+            // ffmpeg's last words (the reason it could not open the input) may
+            // arrive without a trailing newline; keep them for failureReason().
+            this.process.stderr.on('end', () => {
+                if (stderrBuffer.trim()) {
+                    console.log(`[FFmpeg ${this.id}] ${redact(stderrBuffer)}`);
+                    this.stderrTail.push(stderrBuffer.trim());
+                    if (this.stderrTail.length > 20) this.stderrTail.shift();
+                }
+                stderrBuffer = '';
+            });
 
             // Handle process exit. Every way ffmpeg can end must leave an honest
             // status: a session still marked 'running' with no ffmpeg behind it
             // (what an unrequested exit 255 used to leave) looks like a stream in
             // use to anything that reads the status.
-            this.process.on('exit', (code, signal) => {
-                this.stopWatchdog();
-                // stop() marks the session 'stopped' before it signals ffmpeg, so
-                // this tells "we ended it" apart from "it ended".
-                const requested = this.status === 'stopped';
-                if (code === 0 || (requested && (code === null || code === 255))) {
-                    // 255 is ffmpeg's own exit after SIGTERM; null is SIGKILL.
-                    console.log(`[TranscodeSession ${this.id}] FFmpeg completed successfully`);
-                    this.status = 'stopped';
-                } else {
-                    const how = code === null ? `was killed (${signal || 'signal'})` : `exited with code ${code}`;
-                    console.error(`[TranscodeSession ${this.id}] FFmpeg ${how}`);
-                    this.status = 'error';
-                    this.error = `FFmpeg ${how}`;
-
-                    // Hardware decode is the most likely thing to fail on an
-                    // unusual driver, and it fails immediately rather than
-                    // part-way through. If a session dies within a few seconds
-                    // of starting, retry once with decode on the CPU before
-                    // giving up, so a driver quirk degrades performance
-                    // instead of breaking playback entirely.
-                    //
-                    // Only when that could be the reason: an encode that really
-                    // did decode on the GPU, and that never produced a playlist.
-                    // It used to apply to every session - including stream copies,
-                    // which decode nothing, i.e. every live session - and it clears
-                    // the session folder, so a client already fetching segments
-                    // got 404s from a restart that could not help.
-                    const diedEarly = (Date.now() - this.startTime) < 10000;
-                    const couldBeHwDecode = this._usedVaapiDecode === true && !this.timings.playlistReady;
-                    if (diedEarly && couldBeHwDecode && !this._triedSwDecode) {
-                        this._triedSwDecode = true;
-                        this.options.vaapiHwDecode = false;
-                        console.warn(`[TranscodeSession ${this.id}] Retrying with software decode`);
-                        this.process = null;
-                        this.status = 'pending';
-                        // Without append_list (see the HLS output args), a
-                        // stale playlist or leftover segments from the
-                        // failed hardware-decode attempt would confuse the
-                        // fresh ffmpeg process rather than being silently
-                        // extended by it. Clearing the directory first is
-                        // the correct fix, not a reason to bring
-                        // append_list back.
-                        this.clearSegments()
-                            .catch(err => console.warn(`[TranscodeSession ${this.id}] Could not clear stale segments before retry:`, err.message))
-                            .finally(() => {
-                                this.start().catch(err => {
-                                    console.error(`[TranscodeSession ${this.id}] Software decode retry failed:`, err.message);
-                                });
-                            });
-                        return;
-                    }
+            const proc = this.process;
+            proc.on('exit', (code, signal) => {
+                // A failed start is judged on what ffmpeg said last (see
+                // failureReason and the refused-connection retry below), and
+                // 'exit' can fire before its stderr has been read to the end.
+                // Wait for that, briefly; a clean or requested exit does not.
+                const stderr = proc.stderr;
+                if (code !== 0 && this.status !== 'stopped' && stderr && !stderr.readableEnded) {
+                    let decided = false;
+                    const decide = () => {
+                        if (decided) return;
+                        decided = true;
+                        clearTimeout(cap);
+                        this.handleExit(code, signal);
+                    };
+                    const cap = setTimeout(decide, 250);
+                    stderr.once('end', decide);
+                    stderr.once('close', decide);
+                    return;
                 }
-                this.process = null;
-                this.emit('exit', code);
+                this.handleExit(code, signal);
             });
 
             // Handle spawn errors
@@ -292,6 +276,111 @@ class TranscodeSession extends EventEmitter {
             this.error = err.message;
             throw err;
         }
+    }
+
+    /**
+     * ffmpeg has exited: record how, and restart it once where that can help.
+     */
+    handleExit(code, signal) {
+        this.stopWatchdog();
+        // stop() marks the session 'stopped' before it signals ffmpeg, so
+        // this tells "we ended it" apart from "it ended".
+        const requested = this.status === 'stopped';
+        if (code === 0 || (requested && (code === null || code === 255))) {
+            // 255 is ffmpeg's own exit after SIGTERM; null is SIGKILL.
+            console.log(`[TranscodeSession ${this.id}] FFmpeg completed successfully`);
+            this.status = 'stopped';
+        } else {
+            const how = code === null ? `was killed (${signal || 'signal'})` : `exited with code ${code}`;
+            console.error(`[TranscodeSession ${this.id}] FFmpeg ${how}`);
+            this.status = 'error';
+            this.error = `FFmpeg ${how}`;
+
+            // Hardware decode is the most likely thing to fail on an
+            // unusual driver, and it fails immediately rather than
+            // part-way through. If a session dies within a few seconds
+            // of starting, retry once with decode on the CPU before
+            // giving up, so a driver quirk degrades performance
+            // instead of breaking playback entirely.
+            //
+            // Only when that could be the reason: an encode that really
+            // did decode on the GPU, and that never produced a playlist.
+            // It used to apply to every session - including stream copies,
+            // which decode nothing, i.e. every live session - and it clears
+            // the session folder, so a client already fetching segments
+            // got 404s from a restart that could not help.
+            const diedEarly = (Date.now() - this.startTime) < 10000;
+            const couldBeHwDecode = this._usedVaapiDecode === true && !this.timings.playlistReady;
+            if (diedEarly && couldBeHwDecode && !this._triedSwDecode) {
+                this._triedSwDecode = true;
+                this.options.vaapiHwDecode = false;
+                console.warn(`[TranscodeSession ${this.id}] Retrying with software decode`);
+                this.process = null;
+                this.status = 'pending';
+                // Without append_list (see the HLS output args), a
+                // stale playlist or leftover segments from the
+                // failed hardware-decode attempt would confuse the
+                // fresh ffmpeg process rather than being silently
+                // extended by it. Clearing the directory first is
+                // the correct fix, not a reason to bring
+                // append_list back.
+                this.clearSegments()
+                    .catch(err => console.warn(`[TranscodeSession ${this.id}] Could not clear stale segments before retry:`, err.message))
+                    .finally(() => {
+                        this.start().catch(err => {
+                            console.error(`[TranscodeSession ${this.id}] Software decode retry failed:`, err.message);
+                        });
+                    });
+                return;
+            }
+
+            // The provider refused the connection outright, within
+            // ffmpeg's first seconds: most likely it had not yet let go
+            // of the resolve probe's connection (it allows one). Clear
+            // the folder, wait, and try once more - the same shape as
+            // the software-decode retry above. Not for a 404 (the
+            // channel is not there; asking again will not change that),
+            // not after a playlist exists, and only once.
+            const refused = classifyInputFailure(this.stderrTail);
+            const refusedEarly = this.timings.spawned && (Date.now() - this.timings.spawned) < REFUSED_RETRY_WINDOW_MS;
+            if (!requested && refused && refused.retryable && refusedEarly && !this.timings.playlistReady && !this._triedRefusedRetry) {
+                this._triedRefusedRetry = true;
+                console.warn(`[TranscodeSession ${this.id}] Provider refused the first connection; retrying once in ${REFUSED_RETRY_DELAY_MS / 1000}s`);
+                this.process = null;
+                this.status = 'pending';
+                // The refusal is in the log already; what the retry says is what counts now.
+                this.stderrTail = [];
+                this.clearSegments()
+                    .catch(err => console.warn(`[TranscodeSession ${this.id}] Could not clear the folder before retry:`, err.message))
+                    .then(() => new Promise(resolve => setTimeout(resolve, REFUSED_RETRY_DELAY_MS)))
+                    .then(() => {
+                        // Stopped or removed while we waited: nothing to retry for.
+                        if (this.status !== 'pending' || this._cleanedUp) return;
+                        return this.start();
+                    })
+                    .catch(err => {
+                        console.error(`[TranscodeSession ${this.id}] Retry after refused connection failed:`, err.message);
+                    });
+                return;
+            }
+        }
+        this.process = null;
+        this.emit('exit', code);
+    }
+
+    /**
+     * Why this session's ffmpeg could not start, in words a viewer can act on,
+     * or null when ffmpeg's output says nothing more specific. Never a URL and
+     * never ffmpeg's own text: see classifyInputFailure.
+     */
+    failureReason() {
+        const reason = classifyInputFailure(this.stderrTail);
+        return reason ? reason.message : null;
+    }
+
+    /** ffmpeg is gone for good without our asking (a retry pending does not count). */
+    hasFailed() {
+        return this.status === 'error' || (this.status === 'stopped' && !this.process);
     }
 
     /**
@@ -870,7 +959,11 @@ class TranscodeSession extends EventEmitter {
         this.status = 'stopped';
         this.stopWatchdog();
 
-        if (!this.process) {
+        // Also when ffmpeg has already exited and only the exit bookkeeping is
+        // pending (see the 'exit' listener in start()): there is nothing to signal,
+        // and waiting on an 'exit' that has been and gone would hang for 5 s.
+        const proc0 = this.process;
+        if (!proc0 || proc0.exitCode !== null || proc0.signalCode !== null) {
             this._stopPromise = Promise.resolve();
             return this._stopPromise;
         }
@@ -1032,6 +1125,16 @@ class TranscodeSession extends EventEmitter {
                 this.timings.playlistReady = Date.now();
                 return true;
             }
+            // ffmpeg has already ended without a playlist, and nothing will
+            // restart it (a pending retry leaves the status 'pending'): there is
+            // nothing to wait for. Before 0113 this polled out the whole timeout
+            // - 15 s of a viewer staring at a spinner for a channel the provider
+            // had refused in the first second.
+            if (this.hasFailed()) {
+                this.timings.endedEarly = Date.now();
+                this.logTimeoutDiagnostics(null);
+                return false;
+            }
             await new Promise(resolve => setTimeout(resolve, 200));
         }
         this.logTimeoutDiagnostics(timeoutMs);
@@ -1050,12 +1153,14 @@ class TranscodeSession extends EventEmitter {
     logTimeoutDiagnostics(timeoutMs) {
         const t = this.timings;
         const since = (a, b) => (a && b) ? `${b - a}ms` : 'never';
-        console.error(`[TranscodeSession ${this.id}] Playlist not ready after ${timeoutMs}ms`);
+        console.error(timeoutMs === null
+            ? `[TranscodeSession ${this.id}] FFmpeg ended before producing a playlist (${this.error || this.status})`
+            : `[TranscodeSession ${this.id}] Playlist not ready after ${timeoutMs}ms`);
         console.error(`[TranscodeSession ${this.id}]   created -> spawned: ${since(t.created, t.spawned)}`);
         console.error(`[TranscodeSession ${this.id}]   spawned -> first ffmpeg output: ${since(t.spawned, t.firstOutput)}`);
         if (this.stderrTail.length) {
             console.error(`[TranscodeSession ${this.id}] Last ffmpeg output:`);
-            this.stderrTail.forEach(line => console.error(`[TranscodeSession ${this.id}] ${line}`));
+            this.stderrTail.forEach(line => console.error(`[TranscodeSession ${this.id}] ${redact(line)}`));
         }
     }
 
@@ -1230,6 +1335,47 @@ function getAllSessions() {
 }
 
 /**
+ * Why ffmpeg could not open the provider's stream, from the tail of its stderr,
+ * as { status, retryable, message } - or null when the tail shows none of the
+ * failures below, and the caller keeps its generic error.
+ *
+ * `message` goes to the client as the resolve error, so it is built only from
+ * fixed text and the HTTP status (digits, or ffmpeg's own "4XX"/"5XX" class):
+ * never the URL, which carries the provider credentials, nor ffmpeg's wording.
+ *
+ * ffmpeg's texts (libavutil/error.c): "Server returned 400 Bad Request",
+ * "401 Unauthorized (authorization failed)", "403 Forbidden (access denied)",
+ * "404 Not Found", "4XX Client Error, but not one of 40{0,1,3,4}", "5XX Server
+ * Error reply"; newer builds add e.g. "429 Too Many Requests". The latest match
+ * wins, so after a retry the second attempt's reason is the one reported.
+ */
+function classifyInputFailure(lines) {
+    if (!Array.isArray(lines)) return null;
+    for (let i = lines.length - 1; i >= 0; i--) {
+        const line = String(lines[i]);
+        const http = /Server returned ([45](?:\d\d|XX))\b/i.exec(line);
+        if (http) {
+            const status = http[1].toLowerCase();
+            if (status === '404') {
+                return { status, retryable: false,
+                    message: 'The provider could not find this channel (HTTP 404). It may be offline or have moved; a playlist sync may help.' };
+            }
+            if (status.startsWith('5')) {
+                return { status, retryable: true,
+                    message: `The provider had a problem serving this channel (HTTP ${status}). Try again in a few seconds.` };
+            }
+            return { status, retryable: true,
+                message: `The provider refused this channel (HTTP ${status}). It may be offline, or still releasing the previous stream; try again in a few seconds.` };
+        }
+        if (/Connection refused/i.test(line)) {
+            return { status: 'refused', retryable: false,
+                message: "The provider's server refused the connection. It may be down; try again shortly." };
+        }
+    }
+    return null;
+}
+
+/**
  * A one-variant master playlist whose only job is to carry VIDEO-RANGE, which a
  * media playlist cannot: without it Apple's players treat the stream as SDR and
  * never switch the display to HDR, however the segments themselves are tagged.
@@ -1261,6 +1407,7 @@ function buildMasterPlaylist({ videoRange, width, height, fps }) {
 module.exports = {
     TranscodeSession,
     buildMasterPlaylist,
+    classifyInputFailure,
     createSession,
     getSession,
     removeSession,

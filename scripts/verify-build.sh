@@ -1188,7 +1188,7 @@ check test/recording-playback-polling.test.js "two clients asking at once share 
 
 echo "=== 0084: the playback report keeps Apple-device plays apart from the web trial ==="
 check scripts/playback-report.js "DEVICE_SUFFIX" "device plays get their own rows"
-check test/playback-report.test.js "never count towards the web HLS trial" "and are tested not to count towards the web criteria"
+check test/playback-report.test.js "device plays get their own rows, apart from the web player" "and are tested to stay apart from the web player's rows (0113: the trial they were kept out of is retired)"
 
 echo "=== 0085: stream-copy HLS sessions can rebuild DTS from PTS order (SUPERSEDED by 0088: only feeds that need it) ==="
 check server/services/transcodeSession.js "+genpts+discardcorrupt+igndts" "the rebuild is still what an uneven feed gets"
@@ -1495,6 +1495,22 @@ check server/routes/info.js "logoCache: true" "features flag"
 check test/logo-cache.test.js "an unknown key must never reach the network" "with a test that an unregistered key never fetches"
 check test/logo-cache.test.js "served from disk, not fetched again" "and that a known key is fetched only once"
 check test/library-logos.test.js "0112: every library response now hands out" "and the library tests updated for the new logo shape"
+
+echo "=== 0113: a failed start fails fast, says why, and a refused first connection is retried once ==="
+check server/services/transcodeSession.js "if (this.hasFailed())" "waitForPlaylist stops polling once ffmpeg has ended without a playlist"
+check server/services/transcodeSession.js "function classifyInputFailure" "ffmpeg's input failure is turned into a client-safe reason"
+check server/services/transcodeSession.js "Provider refused the first connection; retrying once in" "one retry for a refusal right after the probe, with its log line"
+check server/services/transcodeSession.js "REFUSED_RETRY_WINDOW_MS = 3000" "only within ffmpeg's first ~3 s"
+check server/services/transcodeSession.js "status === '404'" "a 404 is never retried"
+check server/services/transcodeSession.js "!requested && refused && refused.retryable" "and never for a session we stopped ourselves"
+check server/services/playbackStrategy.js "new Error(failure || 'Transcode failed to produce a playlist in time')" "resolve's error carries the reason, else the old text"
+check server/services/playbackStrategy.js "NOT produced - ffmpeg ended after" "the resolve timing line says ffmpeg ended, rather than timed out"
+check scripts/playback-report.js "NOT produced - ffmpeg ended" "the playback report counts those"
+check_absent scripts/playback-report.js "opt-in" "the report no longer speaks of the opt-in HLS trial"
+check_absent scripts/playback-report.js "Against the trial criteria" "nor its criteria block"
+check_absent scripts/playback-report.js "HLS Delivery (beta)" "nor the retired toggle"
+check test/start-failure.test.js "the old code polled the full 15 s" "with a test that fails on the old code"
+check test/start-failure.test.js "one retry, no more" "and a test that the retry happens once"
 
 if [ $FAIL -eq 0 ]; then
     echo ""

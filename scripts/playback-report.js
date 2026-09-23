@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 /**
- * Playback report: turns saved `docker logs pigtv` output into a comparison of the
- * delivery paths (remux vs the opt-in HLS session), for the HLS delivery trial - closed on 23 Sept
- * 2026 when remux was retired (0102-0103). It still reads the same log lines, so it summarises HLS plays.
+ * Playback report: turns saved `docker logs pigtv` output into a summary of how channel starts and
+ * plays went - time to first picture (cold and warm), stalls per hour, and failures.
  *
  *   docker logs pigtv --since 24h > pigtv-today.log
  *   node scripts/playback-report.js pigtv-today.log [more.log ...]
@@ -12,8 +11,10 @@
  * `[Playback] resolve timing`, `[Player] media-error` / `start-timeout`, and a few ffmpeg-side
  * failure messages. It changes nothing and needs no dependencies.
  *
- * Plays from a paired device (the Apple client) are reported on their own lines, marked
- * "[Apple/device]", and never count towards the web player's HLS trial criteria.
+ * Since 0103 there is one delivery path: every play that is not `direct` is an HLS session. (The
+ * script was first written for the HLS-vs-remux trial, closed on 23 Sept 2026; an old log's remux
+ * lines are still read, and reported under `remux`.) Plays from a paired device (the Apple
+ * client) are reported on their own rows, marked "[Apple/device]".
  *
  * Limits, on purpose: the log never names a channel, so "how many different channels" can't be
  * counted from it - keep that tally yourself. A play-start is paired with the nearest earlier
@@ -24,9 +25,7 @@
 
 const fs = require('node:fs');
 
-// The pass criteria from the trial plan; change them here if the plan changes.
-const TARGET_PLAYS_PER_PATH = 50;
-const TARGET_LONG_SESSIONS = 3;
+// A session this long or longer is counted as a long one.
 const LONG_SESSION_SEC = 3600;
 
 // ---------------------------------------------------------------- parsing
@@ -35,12 +34,11 @@ const LONG_SESSION_SEC = 3600;
 const HOW = String.raw`(\S+?)\(([^,)]*)(?:, video ([^)]*))?\) hls-delivery=(on|off)`;
 const PLAY_START = new RegExp(String.raw`\[Player\] play-start via ${HOW} resolve=(\S+) first-picture=(\S+)`);
 const PLAY_END = new RegExp(String.raw`\[Player\] play-end via ${HOW} watched=(\S+?)s stalls=(\S+)`);
-const RESOLVE_TIMING = /\[Playback\] resolve timing: (direct|remux|HLS session), probe (cached|[\d.]+s)(?:, first segment (?:after ([\d.]+)s|(NOT produced in time)))?/;
+const RESOLVE_TIMING = /\[Playback\] resolve timing: (direct|remux|HLS session), probe (cached|[\d.]+s)(?:, first segment (?:after ([\d.]+)s|(NOT produced in time)|(NOT produced - ffmpeg ended[^,]*)))?/;
 const MEDIA_ERROR = /\[Player\] media-error (\S+?)\((\S+?)\) via (\S+) path=(\S*) msg="([^"]*)"/;
 const START_TIMEOUT = /\[Player\] start-timeout via (\S+)/;
 // Every client event ends with who sent it: `user:<id>` for a web login, `device:<id>` for a
-// paired device (the Apple client). Devices are reported separately, so their plays never
-// count towards the web player's HLS trial.
+// paired device (the Apple client). Devices are reported on their own rows.
 const FROM = /\bfrom=(\S+)\s*$/;
 const DEVICE_SUFFIX = ' [Apple/device]';
 const fromDevice = (line) => { const m = FROM.exec(line); return !!m && m[1].startsWith('device:'); };
@@ -59,21 +57,18 @@ const seconds = (text) => {
     return Number.isFinite(n) ? n : null;
 };
 
-/** Which comparison bucket a play belongs to. */
-function pathLabel(strategy, hlsDelivery) {
-    if (strategy === 'remux') return 'remux';
-    if (strategy === 'direct') return 'direct';
-    if (strategy === 'transcode') return hlsDelivery ? 'HLS session (opt-in)' : 'transcode (server-chosen)';
+const HLS = 'HLS session';
+
+/** Which row a play belongs to. Every `transcode` is an HLS session since 0103, whatever the
+ *  `hls-delivery=` flag an older client still sends. */
+function pathLabel(strategy) {
+    if (strategy === 'transcode' || strategy === 'hls') return HLS;
     return strategy;
 }
 
 /** The element-side `strategy` in a media-error line ('hls' means hls.js was driving). */
 function errorPathLabel(via, device = false) {
-    // The Apple client always asks for segmented delivery, so its transcode/hls is an HLS session.
-    if (device) return pathLabel(via === 'hls' ? 'transcode' : via, true) + DEVICE_SUFFIX;
-    if (via === 'hls') return 'HLS session (opt-in)';
-    if (via === 'transcode') return 'transcode (server-chosen)';
-    return via;
+    return pathLabel(via) + (device ? DEVICE_SUFFIX : '');
 }
 
 function parse(text) {
@@ -82,6 +77,7 @@ function parse(text) {
     const errors = [];       // { kind, code, via, label, path, message }
     const server = Object.fromEntries(SERVER_SIGNS.map(([name]) => [name, 0]));
     let segmentTimeouts = 0;
+    let startFailures = 0;
     let lines = 0;
 
     // Latest un-paired `resolve timing` per kind: a play-start pairs with it, then it is spent.
@@ -99,19 +95,20 @@ function parse(text) {
             const kind = kindOf[m[1]];
             pending[kind] = { warm: m[2] === 'cached' };
             if (m[4]) segmentTimeouts++;
+            if (m[5]) startFailures++;
         } else if ((m = PLAY_START.exec(line))) {
-            const [, strategy, , , hls, resolve, first] = m;
+            const [, strategy, , , , resolve, first] = m;
             const paired = pending[strategy] || null;
             if (paired) pending[strategy] = null;
             plays.push({
-                label: pathLabel(strategy, hls === 'on') + (fromDevice(line) ? DEVICE_SUFFIX : ''),
+                label: pathLabel(strategy) + (fromDevice(line) ? DEVICE_SUFFIX : ''),
                 resolveSec: seconds(resolve),
                 firstPictureSec: seconds(first),
                 warm: paired ? paired.warm : null
             });
         } else if ((m = PLAY_END.exec(line))) {
-            const [, strategy, , , hls, watched, stalls] = m;
-            ends.push({ label: pathLabel(strategy, hls === 'on') + (fromDevice(line) ? DEVICE_SUFFIX : ''), watchedSec: seconds(watched), stalls: parseInt(stalls, 10) });
+            const [, strategy, , , , watched, stalls] = m;
+            ends.push({ label: pathLabel(strategy) + (fromDevice(line) ? DEVICE_SUFFIX : ''), watchedSec: seconds(watched), stalls: parseInt(stalls, 10) });
         } else if ((m = MEDIA_ERROR.exec(line))) {
             errors.push({ kind: 'media-error', code: m[1], via: m[3], label: errorPathLabel(m[3], fromDevice(line)), path: m[4], message: m[5] });
         } else if ((m = START_TIMEOUT.exec(line))) {
@@ -120,7 +117,7 @@ function parse(text) {
             for (const [name, re] of SERVER_SIGNS) if (re.test(line)) server[name]++;
         }
     }
-    return { lines, plays, ends, errors, server, segmentTimeouts };
+    return { lines, plays, ends, errors, server, segmentTimeouts, startFailures };
 }
 
 // ---------------------------------------------------------------- statistics
@@ -160,8 +157,8 @@ function summarise(parsed) {
             label: b.label,
             plays: b.plays.length,
             firstPicture: { median: median(first), p90: percentile(first, 90), max: max(first) },
-            cold: { n: cold.length, median: median(cold) },
-            warm: { n: warm.length, median: median(warm) },
+            cold: { n: cold.length, median: median(cold), p90: percentile(cold, 90) },
+            warm: { n: warm.length, median: median(warm), p90: percentile(warm, 90) },
             sessions: b.ends.length,
             watchedSec: watched,
             stalls,
@@ -171,8 +168,8 @@ function summarise(parsed) {
             errors: b.errors
         };
     });
-    // Compared paths first, in a stable order.
-    const order = ['remux', 'HLS session (opt-in)'];
+    // The HLS session (every non-direct play) first, then the rest in a stable order.
+    const order = [HLS, `${HLS}${DEVICE_SUFFIX}`];
     paths.sort((a, b) => {
         const ia = order.indexOf(a.label), ib = order.indexOf(b.label);
         return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.label.localeCompare(b.label);
@@ -199,8 +196,8 @@ function report(parsed) {
     out.push('');
 
     if (!paths.length) {
-        out.push('No play-start / play-end lines found. Is this a docker log from build 0075 or later, and was');
-        out.push('the HLS Delivery (beta) toggle used? (`docker logs pigtv | grep play-start` should show lines.)');
+        out.push('No play-start / play-end lines found. Is this a docker log from build 0075 or later?');
+        out.push('(`docker logs pigtv | grep play-start` should show lines.)');
         return out.join('\n');
     }
 
@@ -235,40 +232,31 @@ function report(parsed) {
     out.push('Failures on the server side');
     const serverFailures = Object.entries(parsed.server).filter(([, n]) => n);
     if (parsed.segmentTimeouts) serverFailures.push(['HLS first segment not produced in time', parsed.segmentTimeouts]);
+    if (parsed.startFailures) serverFailures.push(['HLS session ended before its first segment (e.g. the provider refused it)', parsed.startFailures]);
     if (!serverFailures.length) out.push('  none');
     serverFailures.forEach(([name, n]) => out.push(`  ${name}: ${n}`));
     out.push('');
 
-    // The pass criteria from the trial plan.
-    const remux = paths.find(p => p.label === 'remux');
-    const hls = paths.find(p => p.label === 'HLS session (opt-in)');
-    out.push('Against the trial criteria');
-    const tick = (ok) => (ok ? '[ok]  ' : '[    ]');
-    for (const p of [remux, hls]) {
-        if (!p) continue;
-        out.push(`  ${tick(p.plays >= TARGET_PLAYS_PER_PATH)} ${p.label}: ${p.plays} plays (aim for ${TARGET_PLAYS_PER_PATH}+)`);
+    // The short version, one line per row: what to look at first.
+    out.push('Summary');
+    const firstPic = (x) => (x.n ? `median ${fmt(x.median)}s / p90 ${fmt(x.p90)}s (n=${x.n})` : '-');
+    for (const p of paths) {
+        const perHour = p.stallsPerHour == null ? 'n/a (under 10 min watched)' : `${p.stallsPerHour.toFixed(1)}/h`;
+        out.push(`  ${p.label}: ${p.plays} plays; first picture cold ${firstPic(p.cold)}, warm ${firstPic(p.warm)}; stalls ${perHour}; player failures ${p.errors.length}`);
     }
-    if (hls) {
-        out.push(`  ${tick(hls.longSessions >= TARGET_LONG_SESSIONS)} HLS sessions of ${LONG_SESSION_SEC / 3600}h or more: ${hls.longSessions} (aim for ${TARGET_LONG_SESSIONS}+)`);
-        const hlsErrors = hls.errors.length + parsed.segmentTimeouts;
-        out.push(`  ${tick(hlsErrors === 0)} failures that happen on HLS: ${hlsErrors}${hlsErrors ? ' - each needs an explanation, or to fail on remux too' : ''}`);
-        if (remux && hls.stallsPerHour != null && remux.stallsPerHour != null) {
-            out.push(`  ${tick(hls.stallsPerHour <= remux.stallsPerHour)} stalls per hour: HLS ${hls.stallsPerHour.toFixed(1)} vs remux ${remux.stallsPerHour.toFixed(1)} (HLS should be no worse)`);
-        } else {
-            out.push('  [    ] stalls per hour: not enough watching on both paths yet to compare');
-        }
-    } else {
-        out.push('  [    ] no HLS-session plays in this log - was the toggle on for the browser you used?');
-    }
-    out.push('  Also by hand: no leftover ffmpeg after stopping, the provider slot frees, /app/transcode-cache does not grow,');
-    out.push('  and 10+ different channels tried (the log never names a channel, so that tally is yours).');
+    const serverTotal = Object.values(parsed.server).reduce((t, n) => t + n, 0) + parsed.segmentTimeouts + parsed.startFailures;
+    out.push(`  server-side failures: ${serverTotal}`);
+    out.push('  By hand: 10+ different channels over a day (the log never names a channel, so that tally is yours).');
 
-    // Each HLS-side failure, verbatim enough to act on.
-    if (hls && hls.errors.length) {
+    // Each failure, verbatim enough to act on.
+    const failed = paths.filter(p => p.errors.length);
+    if (failed.length) {
         out.push('');
-        out.push('HLS failures in detail');
-        hls.errors.slice(0, 20).forEach(e => out.push(`  ${e.kind} ${e.code} ${e.path} ${e.message}`.trimEnd()));
-        if (hls.errors.length > 20) out.push(`  ... and ${hls.errors.length - 20} more`);
+        out.push('Failures in detail');
+        for (const p of failed) {
+            p.errors.slice(0, 20).forEach(e => out.push(`  ${p.label}: ${e.kind} ${e.code} ${e.path} ${e.message}`.trimEnd()));
+            if (p.errors.length > 20) out.push(`  ${p.label}: ... and ${p.errors.length - 20} more`);
+        }
     }
     return out.join('\n');
 }

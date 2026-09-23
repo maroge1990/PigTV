@@ -170,10 +170,20 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
         ? `, source timing ${info.dtsUneven === true ? 'uneven - DTS rebuilt' : (info.dtsUneven === false ? 'even - DTS kept' : 'unknown - DTS kept')}`
         : '';
     const range = videoRange ? `, HDR ${videoRange} - master playlist` : '';
-    console.log(`[Playback] resolve timing: HLS session, probe ${probeNote}, first segment ${ready ? `after ${seconds(Date.now() - sessionStartedAt)}` : 'NOT produced in time'}${pacing}${timing}${range}`);
+    // Why it failed, when ffmpeg said (0113): a short, fixed sentence for the client,
+    // never the URL or ffmpeg's own words - see transcodeSession.classifyInputFailure.
+    const failure = !ready && typeof session.failureReason === 'function' ? session.failureReason() : null;
+    const failureStatus = failure ? (transcodeSession.classifyInputFailure(session.stderrTail) || {}).status : null;
+    const ended = !ready && session.timings && session.timings.endedEarly;
+    const firstSegment = ready
+        ? `after ${seconds(Date.now() - sessionStartedAt)}`
+        : (ended
+            ? `NOT produced - ffmpeg ended after ${seconds(session.timings.endedEarly - sessionStartedAt)}${failureStatus ? ` (provider ${failureStatus === 'refused' ? 'refused the connection' : `HTTP ${failureStatus}`})` : ''}`
+            : 'NOT produced in time');
+    console.log(`[Playback] resolve timing: HLS session, probe ${probeNote}, first segment ${firstSegment}${pacing}${timing}${range}`);
     if (!ready) {
         await transcodeSession.removeSession(session.id);
-        const err = new Error('Transcode failed to produce a playlist in time');
+        const err = new Error(failure || 'Transcode failed to produce a playlist in time');
         err.info = info;
         throw err;
     }
