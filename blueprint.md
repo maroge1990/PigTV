@@ -267,10 +267,10 @@ the reason. Each phase ends with Mark's gate; don't start the next phase's devic
 |---|---|---|
 | S1.1 | **Channel profiles**: persist each channel's probe result by `stable_id` (codecs, audio profile, fps, `dtsUneven`, `videoRange`); on a repeat play skip ffprobe and start ffmpeg with a smaller probe; probe again after a codec change, a failed start, or N days. Expect 2–4 s off repeat channel changes, and one fewer provider connection. | Planned |
 | S1.2 | **Frame-rate-aware master playlist for every copy session** (`FRAME-RATE`, `VIDEO-RANGE=SDR`, no `CODECS`) so Match Frame Rate can put 50 fps channels on 50 Hz. Quality first: the 1–2 s HDMI mode switch is accepted (Mark, 23 Sept). Device check. | Planned |
-| S1.3 | Guide API for scale: `tvg_id` column; cursor paging; up to 500 per page; several categories per request; **ETag/304** from the EPG generation, playlist sync time and time window | Planned |
+| S1.3 | Guide API for scale: `tvg_id` column; cursor paging; up to 500 per page; several categories per request; **ETag/304** from the EPG generation, playlist sync time and time window | Committed (0111), awaiting deploy — shipped as `guideCursor`/`guideVersion` (a revision counter plus EPG generations) rather than HTTP ETag/304; several-categories-per-request not done |
 | A1.1 | Guide refreshes cheaply: a few large requests; ETag revalidation; no whole-guide rebuild per page; cache per window | Planned |
 | A1.2 | Channel change feels quicker: the channel card (logo, now/next) shows instantly; one `AVPlayer` across changes; tuned forward buffer; **last channel** | Planned |
-| S1.4 | Logo cache `/api/logo/{key}` (fetch once, resize to about 320 px, long cache headers); limit `/api/proxy/image` to known logo URLs | Planned |
+| S1.4 | Logo cache `/api/logo/{key}` (fetch once, resize to about 320 px, long cache headers); limit `/api/proxy/image` to known logo URLs | Committed (0112), awaiting deploy — the cache itself shipped; `/api/proxy/image` was deliberately left open (the web app also uses it for movie/series posters, not just logos) |
 
 ### Phase 2: one lineup, one contract, a steady guide
 
@@ -356,3 +356,6 @@ about 0 on the E-AC-3 channel.
 | 0107 | Removed the dead, unreachable second `GET /epg/:sourceId` and `DELETE /cache/:sourceId` handlers in `routes/proxy.js` |
 | 0108 | JSON (and the server's own HTML/CSS/JS) responses are gzip-encoded; HLS, recording media and ranged requests never are |
 | 0109 | Image moved to Node 24 (Node 20 is EOL); `npm ci --omit=dev`; Comskip pinned to a commit; CI matrix is Node 22/24 |
+| 0110 | `GET /api/favorites` now follows a channel to its CURRENT position(s) after a provider reorder, instead of the stale stored `pos_N` (Mark's live test: Apple TV and web disagreed on the same favourite) |
+| 0111 | Guide API for scale (S1.3): `tvg_id` column (filled at ingest, backfilled once); cursor paging and `limit` up to 500 on `/library/guide`; `GET /library/guide/version` for a cheap "did anything change?" check |
+| 0112 | Logo cache (S1.4): `GET /api/logo/{key}` fetches a channel/EPG logo once, downscales it with ffmpeg when available, and serves it from disk with a week-long cache lifetime; `library/channels`, `/favourites`, `/guide` and `/recent` hand out that path instead of the provider URL |
