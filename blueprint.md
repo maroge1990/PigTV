@@ -256,10 +256,10 @@ the reason. Each phase ends with Mark's gate; don't start the next phase's devic
 | S0.1 | `stableId` on `/library/guide` and `/library/favourites` rows (only `/library/channels` had it, though the hand-off said all three did), with a test | Committed (0106), awaiting deploy |
 | S0.2 | Remove the dead second `GET /api/proxy/epg/:sourceId` handler (`routes/proxy.js`, shadowed by the first) | Committed (0107), awaiting deploy |
 | S0.3 | Gzip JSON responses (`compression`), never for media, HLS or range responses; log a guide page's size before and after | Committed (0108), awaiting deploy |
-| S0.4 | Image on Node 24 LTS (Node 20 is end of life); pin the Comskip commit; `npm ci --omit=dev` | Committed (0109), awaiting deploy |
-| A0.1 | Delete unused Swift views and model code; remove `remux` from the media allow-list and strategy lists | Planned |
-| A0.2 | Fix the SwiftUI "Environment accessed outside a View" runtime warning in the guide | Planned |
-| A0.3 | Swift CI (GitHub Actions macOS): build tvOS and iOS, run the tvOS tests on each push | Planned |
+| S0.4 | Image on Node 24 LTS (Node 20 is end of life); pin the Comskip commit; `npm ci --omit=dev` | Shipped (0109), awaiting deploy; the CI matrix change (Node 22/24) is committed locally, **blocked** on the same token scope, and `verify-build.sh` fails its matrix check until it's pushed |
+| A0.1 | Delete unused Swift views and model code; remove `remux` from the media allow-list and strategy lists | Shipped (app build 17, `6e81521`), awaiting Mark's TV check |
+| A0.2 | Fix the SwiftUI "Environment accessed outside a View" runtime warning in the guide | Parked: not reproducible outside the accessibility-heavy guide UI test; three app-code hypotheses ruled out, no source location, likely from the system's accessibility bridge. Reopen if the guide misbehaves. |
+| A0.3 | Swift CI (GitHub Actions macOS): build tvOS and iOS, run the tvOS tests on each push | Committed locally (`78c7376`); **blocked**: the Mac's GitHub token lacks the `workflow` scope |
 
 ### Phase 1: faster (measure first: `play-start … first-picture=` lines and `scripts/playback-report.js`)
 
