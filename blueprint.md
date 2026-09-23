@@ -304,6 +304,7 @@ the reason. Each phase ends with Mark's gate; don't start the next phase's devic
 | A1.1 | Guide refreshes cheaply: a few large requests; ETag revalidation; no whole-guide rebuild per page; cache per window | Planned |
 | A1.2 | Channel change feels quicker: the channel card (logo, now/next) shows instantly; one `AVPlayer` across changes; tuned forward buffer; **last channel** | Planned |
 | S1.4 | Logo cache `/api/logo/{key}` (fetch once, resize to about 320 px, long cache headers); limit `/api/proxy/image` to known logo URLs | Committed (0112), awaiting deploy — the cache itself shipped; `/api/proxy/image` was deliberately left open (the web app also uses it for movie/series posters, not just logos) |
+| A1.3 | Client follow-ups to 0113/0116: show the server's safe resolve-failure message (e.g. "The provider refused this channel…") instead of a generic HTTP 500, via an allow-list of known messages; send `heaac: true` **only after** Mark's device check of HE-AAC passthrough (7 Mate / 7 Flix: sound, treble, lip-sync) | Planned |
 
 ### Phase 2: one lineup, one contract, a steady guide
 
