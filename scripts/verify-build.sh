@@ -1479,6 +1479,23 @@ check test/guide-scale.test.js "same order as the offset page" "with a cursor-vs
 check test/guide-scale.test.js "hiding a channel must change the guide version" "and a version-change test"
 check test/tvg-id-column.test.js "tvg_id must be set by the sync itself" "and an ingest-time tvg_id test"
 
+echo "=== 0112: logo cache ==="
+check server/routes/logo.js "router.get('/:key'" "GET /api/logo/:key exists"
+check server/routes/logo.js "isSafeKey" "keys are validated before touching the filesystem or the database"
+check server/routes/logo.js "Cache-Control', 'public, max-age=604800'" "a week-long cache lifetime"
+check server/routes/logo.js "req.headers\['if-none-match'\]" "conditional requests answer 304"
+check server/routes/logo.js "req.app.locals.ffmpegPath" "downscaling uses the shared ffmpeg path, not a hardcoded one"
+check server/routes/logo.js "Unauthenticated on purpose" "with the reasoning for being unauthenticated recorded in the file"
+check server/index.js "app.use('/api/logo', require('./routes/logo'))" "the route is actually mounted"
+check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS logo_cache" "the lookup table exists"
+check server/services/logoCache.js "function registerLogo" "the registration helper exists"
+check server/routes/library.js "applyLogoCache(parsed)" "channels/favourites/recent hand out cached logo paths"
+check server/routes/library.js "applyLogoCache(channels)" "and so does the guide"
+check server/routes/info.js "logoCache: true" "features flag"
+check test/logo-cache.test.js "an unknown key must never reach the network" "with a test that an unregistered key never fetches"
+check test/logo-cache.test.js "served from disk, not fetched again" "and that a known key is fetched only once"
+check test/library-logos.test.js "0112: every library response now hands out" "and the library tests updated for the new logo shape"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

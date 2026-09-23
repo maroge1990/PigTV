@@ -127,6 +127,22 @@ function initSchema() {
     // without depending on the current time.
     db.exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
 
+    // The logo cache's lookup table (0112, roadmap S1.4). A row here is what
+    // makes GET /api/logo/:key answer anything at all - the route is
+    // unauthenticated, so this is what keeps it from being an open image
+    // proxy. `key` is a hash of `url`; `content_type`/`fetched_at`/`bytes`
+    // stay NULL until the logo has actually been fetched once.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS logo_cache (
+            key TEXT PRIMARY KEY,
+            url TEXT NOT NULL,
+            content_type TEXT,
+            fetched_at INTEGER,
+            bytes INTEGER
+        );
+        CREATE INDEX IF NOT EXISTS idx_logo_cache_url ON logo_cache(url);
+    `);
+
     // EPG Programs
     // Optimized for range queries
     db.exec(`

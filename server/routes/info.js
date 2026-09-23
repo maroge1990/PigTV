@@ -64,7 +64,8 @@ router.get('/', async (req, res) => {
             clientEvents: true,              // POST /api/playback/client-event accepts player diagnostics
             playbackTerminalStatus: true,    // GET /api/playback/:sessionId/terminal-status says whether a dead session was taken over
             guideCursor: true,               // /api/library/guide accepts &cursor= (keyset paging) and limit up to 500
-            guideVersion: true               // GET /api/library/guide/version — cheap "did anything change?" check
+            guideVersion: true,              // GET /api/library/guide/version — cheap "did anything change?" check
+            logoCache: true                  // library `logo` fields are /api/logo/<key>, fetched and cached server-side
         },
 
         // What the server can produce, so a client knows what to ask for.

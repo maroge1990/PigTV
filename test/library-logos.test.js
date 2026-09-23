@@ -20,10 +20,16 @@ const db = load('db');
 const auth = load('auth');
 const sync = load('services/syncService');
 const libraryRouter = load('routes/library');
+const { keyForUrl } = load('services/logoCache');
 
 let server, base, token, source, epg;
 const get = async (route) => (await fetch(`${base}${route}`, { headers: { Authorization: `Bearer ${token}` } })).json();
 const byName = (channels) => Object.fromEntries(channels.map(c => [c.name, c.logo]));
+// 0112: every library response now hands out /api/logo/<key> instead of the
+// provider URL directly (services/logoCache.js). These tests care about
+// which URL fed the logo, not the wire form, so compare against the path a
+// client would actually receive.
+const cached = (url) => `/api/logo/${keyForUrl(url)}`;
 
 before(async () => {
     const user = await db.users.create({ username: 'owner', role: 'admin' });
@@ -75,14 +81,14 @@ after(() => {
 
 test('a channel with no playlist logo gets the EPG icon for its tvg-id, else for its name', async () => {
     const logos = byName((await get('/api/library/channels')).channels);
-    assert.equal(logos['Matched By Id'], 'https://epg.invalid/by-id.png', 'matched on tvg-id');
+    assert.equal(logos['Matched By Id'], cached('https://epg.invalid/by-id.png'), 'matched on tvg-id');
     // The playlist's name is "  BBC   ONE  " and the EPG's is "bbc one".
-    assert.equal(logos['BBC   ONE'], 'https://epg.invalid/bbc-one.png', 'matched on name, ignoring case and spacing');
+    assert.equal(logos['BBC   ONE'], cached('https://epg.invalid/bbc-one.png'), 'matched on name, ignoring case and spacing');
 });
 
 test('a logo the playlist supplied is never replaced', async () => {
     const logos = byName((await get('/api/library/channels')).channels);
-    assert.equal(logos['Has Own Logo'], 'https://playlist.invalid/own.png');
+    assert.equal(logos['Has Own Logo'], cached('https://playlist.invalid/own.png'));
 });
 
 test('with no match anywhere the logo stays null, and an icon-less EPG entry is not used', async () => {
@@ -92,9 +98,9 @@ test('with no match anywhere the logo stays null, and an icon-less EPG entry is 
 
 test('the guide gets the same fallback as the channel list', async () => {
     const logos = byName((await get('/api/library/guide?limit=10')).channels);
-    assert.equal(logos['Matched By Id'], 'https://epg.invalid/by-id.png');
-    assert.equal(logos['BBC   ONE'], 'https://epg.invalid/bbc-one.png');
-    assert.equal(logos['Has Own Logo'], 'https://playlist.invalid/own.png');
+    assert.equal(logos['Matched By Id'], cached('https://epg.invalid/by-id.png'));
+    assert.equal(logos['BBC   ONE'], cached('https://epg.invalid/bbc-one.png'));
+    assert.equal(logos['Has Own Logo'], cached('https://playlist.invalid/own.png'));
 });
 
 test('the response shape is unchanged: every field the client reads is still there, and logo is a string or null', async () => {
@@ -114,5 +120,5 @@ test('the icon index is reused, then rebuilt: a new EPG icon appears after a res
                             VALUES (?, ?, 'nothing', 'epg_channel', 'x', 'https://epg.invalid/late.png', '{}')`).run(`${epg.id}:nothing`, epg.id);
     assert.equal(byName((await get('/api/library/channels')).channels)['No Match Anywhere'], null, 'index still cached');
     libraryRouter._resetEpgIconIndex();
-    assert.equal(byName((await get('/api/library/channels')).channels)['No Match Anywhere'], 'https://epg.invalid/late.png');
+    assert.equal(byName((await get('/api/library/channels')).channels)['No Match Anywhere'], cached('https://epg.invalid/late.png'));
 });

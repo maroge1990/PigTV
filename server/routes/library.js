@@ -16,6 +16,7 @@ const router = express.Router();
 const { requireAuth } = require('../auth');
 const { getDb } = require('../db/sqlite');
 const { currentGuideVersion } = require('../services/libraryRev');
+const { applyLogoCache } = require('../services/logoCache');
 
 // The longest programme the guide will still show when it began before the
 // window. Every EPG query bounds start_time from below by this, because the
@@ -144,6 +145,9 @@ function decorate(items) {
         ch.next = g?.next || null;
     }
     fillMissingLogos(parsed);
+    // 0112: hand out our own cached path instead of the provider URL, for
+    // /channels, /favourites and /recent (all three go through decorate()).
+    applyLogoCache(parsed);
     return parsed;
 }
 
@@ -395,6 +399,7 @@ router.get('/guide', (req, res) => {
             };
         });
         fillMissingLogos(channels);
+        applyLogoCache(channels);
 
         // One query for every channel on the page rather than one per channel.
         const tvgIds = [...new Set(channels.map(c => c.tvgId).filter(Boolean))];
