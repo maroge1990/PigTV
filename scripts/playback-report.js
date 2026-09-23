@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Playback report: turns saved `docker logs pigtv` output into a comparison of the
- * delivery paths (remux vs the opt-in HLS session), for the HLS delivery trial (blueprint §C).
+ * delivery paths (remux vs the opt-in HLS session), for the HLS delivery trial - closed on 23 Sept
+ * 2026 when remux was retired (0102-0103). It still reads the same log lines, so it summarises HLS plays.
  *
  *   docker logs pigtv --since 24h > pigtv-today.log
  *   node scripts/playback-report.js pigtv-today.log [more.log ...]
