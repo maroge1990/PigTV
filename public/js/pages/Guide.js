@@ -12,17 +12,10 @@ class GuidePage {
     }
 
     async show() {
-        // Ensure channel data is loaded before rendering EPG
-        // This fixes a race condition where navigating directly to the Guide page
-        // before visiting Live TV would result in an empty EPG.
-        const channelList = this.app.channelList;
-        if (!channelList.channels || channelList.channels.length === 0) {
-            await channelList.loadSources();
-            await channelList.loadChannels();
-        }
-
+        // The guide reads its own channels from /api/library/guide (0121); the
+        // channel list is only needed when a channel is played from it.
         // Only load EPG data if not already loaded
-        if (!this.app.epgGuide.programmes || this.app.epgGuide.programmes.length === 0) {
+        if (!this.app.epgGuide.loaded) {
             await this.app.epgGuide.loadEpg();
         } else {
             // Just re-render with existing data (updates time position)

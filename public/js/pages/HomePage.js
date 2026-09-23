@@ -206,33 +206,13 @@ class HomePage {
         if (!list || !section) return;
 
         try {
-            // Fetch favorite channels for current user
-            const favorites = await window.API.request('GET', '/favorites?itemType=channel');
-
-            if (!favorites || favorites.length === 0) {
-                list.innerHTML = '<div class="empty-state hint">Add channels to favorites from Live TV</div>';
-                return;
-            }
-
-            // Ensure channel list is loaded to resolve channel details
-            const channelList = this.app.channelList;
-            if (!channelList.channels || channelList.channels.length === 0) {
-                await channelList.loadSources();
-                await channelList.loadChannels();
-            }
-
-            // Match favorites to channel data
-            const channels = [];
-            for (const fav of favorites) {
-                // Find channel in loaded channel list
-                const channel = channelList.channels.find(ch =>
-                    String(ch.sourceId) === String(fav.source_id) &&
-                    (String(ch.id) === String(fav.item_id) || String(ch.streamId) === String(fav.item_id))
-                );
-                if (channel) {
-                    channels.push({ ...channel, favoriteId: fav.id });
-                }
-            }
+            // 0121 (W2.1): the favourites as library rows - name, number, logo and
+            // the bare id - one per channel, in one request.
+            const favourites = await window.API.library.favourites();
+            const numberOf = (c) => (c.number === null || c.number === undefined ? Infinity : c.number);
+            const channels = (Array.isArray(favourites) ? favourites : [])
+                .slice()
+                .sort((a, b) => numberOf(a) - numberOf(b) || String(a.name).localeCompare(String(b.name)));
 
             if (channels.length === 0) {
                 list.innerHTML = '<div class="empty-state hint">Add channels to favorites from Live TV</div>';
@@ -245,9 +225,7 @@ class HomePage {
             // Attach click handlers
             list.querySelectorAll('.channel-tile').forEach(tile => {
                 tile.addEventListener('click', () => {
-                    const channelId = tile.dataset.channelId;
-                    const sourceId = tile.dataset.sourceId;
-                    this.playChannel(channelId, sourceId);
+                    this.playChannel(tile.dataset.channelId, tile.dataset.sourceId);
                 });
             });
 
@@ -260,44 +238,45 @@ class HomePage {
         }
     }
 
+    escapeHtml(text) {
+        if (text === null || text === undefined || text === '') return '';
+        return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    /** A tile for a /api/library/favourites row (its logo is our own /api/logo/ path). */
     createChannelTile(channel) {
-        const logo = channel.tvgLogo || '/img/placeholder.png';
-        const logoUrl = logo.startsWith('http') ? `/api/proxy/image?url=${encodeURIComponent(logo)}` : logo;
-        const name = channel.name || 'Unknown';
+        const logoUrl = channel.logo || '/img/placeholder.png';
+        const name = this.escapeHtml(channel.name || 'Unknown');
+        const number = channel.number !== null && channel.number !== undefined
+            ? `<span class="tile-number">${this.escapeHtml(channel.number)}</span> ` : '';
 
         return `
-            <div class="channel-tile" data-channel-id="${channel.id}" data-source-id="${channel.sourceId}">
+            <div class="channel-tile" data-channel-id="${this.escapeHtml(channel.id)}" data-source-id="${this.escapeHtml(channel.sourceId)}">
                 <div class="tile-logo">
-                    <img src="${logoUrl}" alt="${name}" loading="lazy" onerror="this.onerror=null;this.src='/img/placeholder.png'">
+                    <img src="${this.escapeHtml(logoUrl)}" alt="${name}" loading="lazy" onerror="this.onerror=null;this.src='/img/placeholder.png'">
                 </div>
-                <div class="tile-name" title="${name}">${name}</div>
+                <div class="tile-name" title="${name}">${number}${name}</div>
             </div>
         `;
     }
 
-    playChannel(channelId, sourceId) {
+    async playChannel(channelId, sourceId) {
         // Navigate to Live TV and select the channel
         this.app.navigateTo('live');
 
-        // Small delay to ensure page is ready
-        setTimeout(() => {
-            const channelList = this.app.channelList;
-            if (channelList) {
-                // Find and select the channel
-                const channel = channelList.channels.find(ch =>
-                    String(ch.id) === String(channelId) && String(ch.sourceId) === String(sourceId)
-                );
-                if (channel) {
-                    channelList.selectChannel({
-                        channelId: channel.id,
-                        sourceId: channel.sourceId,
-                        sourceType: channel.sourceType,
-                        streamId: channel.streamId || '',
-                        url: channel.url || ''
-                    });
-                }
-            }
-        }, 100);
+        const channelList = this.app.channelList;
+        if (!channelList) return;
+        // Small delay to ensure page is ready, and the list loaded if it never was
+        await new Promise(r => setTimeout(r, 100));
+        if (!channelList.channels || channelList.channels.length === 0) {
+            await channelList.loadSources();
+            await channelList.loadChannels();
+        }
+        const channel = channelList.findChannel(sourceId, channelId);
+        if (channel) {
+            channelList.selectChannel({ channelId: channel.id, sourceId: channel.sourceId });
+        }
     }
 
     renderHistory(items) {

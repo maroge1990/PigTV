@@ -73,11 +73,5 @@ test('a group with no category id still follows its channels', async () => {
     assert.equal(groupChecked(manager, 2), false, 'no category key exists for it, so it is drawn from its items');
 });
 
-test('movies and series use their own category key namespace', async () => {
-    for (const [type, prefix] of [['movie', 'vod_category'], ['series', 'series_category']]) {
-        const { manager, calls } = makeManager(type);
-        await manager.setAllVisibility(false);
-        assert.ok(manager.hiddenSet.has(`${prefix}:10`), type);
-        assert.equal(calls[0][2], type);
-    }
-});
+// 0121: the picker is live-only (the movie/series tabs went with the VOD pages), so
+// the vod_category/series_category namespaces it used to write are no longer drawn.

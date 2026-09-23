@@ -1,6 +1,13 @@
 /**
  * Channel List Component
  * Handles the sidebar channel list
+ *
+ * 0121 (W2.1): reads /api/library - the same browsing API the Apple client uses -
+ * instead of the Xtream-emulation routes. A channel is identified by its bare
+ * library id (`pos_412`, or the provider stream id) plus its source; favourites
+ * are matched on the channel's identity (stableId), so a channel listed in two
+ * categories is one star. Only visible channels are listed (hiding is done in
+ * Settings -> Manage Content, or with the context menu's Hide).
  */
 
 class ChannelList {
@@ -8,17 +15,15 @@ class ChannelList {
         this.container = document.getElementById('channel-list');
         this.searchInput = document.getElementById('channel-search');
         this.sourceSelect = document.getElementById('source-select');
-        this.showHiddenCheckbox = document.getElementById('show-hidden');
         this.toggleGroupsBtn = document.getElementById('toggle-groups');
         this.contextMenu = document.getElementById('context-menu');
 
-        this.channels = [];
-        this.groups = [];
-        this.hiddenItems = new Set(); // Set<"type:sourceId:itemId">
+        this.channels = [];            // every visible channel of the selected source(s), in number order
+        this.categories = [];          // /api/library/categories, provider order
         this.collapsedGroups = new Set(); // Track collapsed groups
         this._userExpandedGroups = new Set(); // Track groups user has explicitly expanded
-        this.favorites = []; // Array of favorite objects
-        this.visibleFavorites = new Set(); // Set<"sourceId:channelId">
+        this.favoriteKeys = new Set(); // Set<"sourceId:identity"> (see favKey)
+        this.favoriteRows = [];        // /api/library/favourites rows, one per channel
         this.currentChannel = null;
         this.sources = [];
         this.isLoading = false;
@@ -28,17 +33,20 @@ class ChannelList {
         this.init();
     }
 
-    /**
-     * Get proxied image URL to avoid mixed content errors on HTTPS
-     * Only proxies HTTP URLs when on HTTPS page
-     */
-    getProxiedImageUrl(url) {
-        if (!url || url.length === 0) return '/img/placeholder.png';
-        // Only proxy if we're on HTTPS and the image is HTTP
-        if (window.location.protocol === 'https:' && url.startsWith('http://')) {
-            return `/api/proxy/image?url=${encodeURIComponent(url)}`;
-        }
-        return url;
+    /** A logo from a library row is our own /api/logo/ path (unauthenticated), or none. */
+    logoUrl(url) {
+        return url ? url : '/img/placeholder.png';
+    }
+
+    /** What makes two listings the same channel: its identity, else its id. */
+    favKey(channel) {
+        return `${channel.sourceId}:${channel.stableId || channel.id}`;
+    }
+
+    findChannel(sourceId, channelId) {
+        return this.channels.find(c =>
+            String(c.id) === String(channelId) &&
+            (sourceId === undefined || sourceId === null || sourceId === '' || String(c.sourceId) === String(sourceId)));
     }
 
     /**
@@ -156,11 +164,6 @@ class ChannelList {
         // Source filter handler
         this.sourceSelect.addEventListener('change', () => this.loadChannels());
 
-        // Show hidden toggle
-        if (this.showHiddenCheckbox) {
-            this.showHiddenCheckbox.addEventListener('change', () => this.render());
-        }
-
         // Context menu handlers
         document.addEventListener('click', (e) => {
             // Don't close if clicking inside context menu
@@ -208,23 +211,13 @@ class ChannelList {
      * Only updates the program text, not the entire channel item
      */
     updateVisibleEpgInfo() {
-        if (!window.app || !window.app.epgGuide) return;
-
         // Clear the cache so we get fresh data
         this.clearProgramInfoCache();
 
         // Find all visible channel items and update their program info
         const channelItems = this.container.querySelectorAll('.channel-item');
         channelItems.forEach(item => {
-            const channelId = item.dataset.channelId;
-            const sourceId = item.dataset.sourceId;
-
-            // Find the channel data
-            const channel = this.channels.find(c =>
-                String(c.id) === String(channelId) &&
-                String(c.sourceId) === String(sourceId)
-            );
-
+            const channel = this.findChannel(item.dataset.sourceId, item.dataset.channelId);
             if (channel) {
                 const programInfo = this.getProgramInfo(channel);
                 const programElement = item.querySelector('.channel-program');
@@ -235,18 +228,15 @@ class ChannelList {
         });
     }
 
-    // ... (loadSources, loadChannels, loadAllChannels, loadXtreamChannels, loadM3uChannels, loadHiddenItems, isHidden, loadFavorites, isFavorite, toggleFavorite methods remain same)
-
     /**
-     * Get current program info string - cached for performance
+     * Current programme title - cached per minute. The guide's data covers the
+     * whole window it loaded; the row's own now/next (from /api/library/channels)
+     * covers the time before the guide has loaded.
      */
     getProgramInfo(channel) {
         try {
-            if (!window.app || !window.app.epgGuide) return null;
-
-            // Cache key: channel_id + current_minute (invalidate every minute)
             const currentMinute = Math.floor(Date.now() / 60000);
-            const cacheKey = `${channel.tvgId || channel.name}:${currentMinute}`;
+            const cacheKey = `${channel.sourceId}:${channel.id}:${currentMinute}`;
 
             if (this._programInfoCache && this._programInfoCache.has(cacheKey)) {
                 return this._programInfoCache.get(cacheKey);
@@ -258,8 +248,16 @@ class ChannelList {
                 this._lastCacheMinute = currentMinute;
             }
 
-            const program = window.app.epgGuide.getCurrentProgram(channel.tvgId, channel.name);
-            const result = program ? program.title : null;
+            let result = null;
+            const program = window.app?.epgGuide?.getCurrentProgramFor?.(channel);
+            if (program) {
+                result = program.title;
+            } else {
+                const now = Date.now();
+                const live = (p) => p && p.startTime <= now && p.endTime > now;
+                if (live(channel.now)) result = channel.now.title;
+                else if (live(channel.next)) result = channel.next.title;
+            }
 
             this._programInfoCache.set(cacheKey, result);
             return result;
@@ -280,8 +278,8 @@ class ChannelList {
     }
 
     escapeHtml(text) {
-        if (!text) return '';
-        return text
+        if (text === null || text === undefined || text === '') return '';
+        return String(text)
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
@@ -290,18 +288,64 @@ class ChannelList {
     }
 
     /**
+     * The markup of one channel row. `renderId`/`renderGroup` tie it to its place
+     * in renderedChannels (for up/down navigation).
+     */
+    channelItemHtml(channel, { isActive = false, isNavActive = false, renderId = '', renderGroup = '' } = {}) {
+        const isFavorite = this.favoriteKeys.has(this.favKey(channel));
+        const number = channel.number !== null && channel.number !== undefined
+            ? `<span class="channel-number">${this.escapeHtml(channel.number)}</span>` : '';
+        return `
+          <div class="channel-item ${isActive ? 'active' : ''} ${isNavActive ? 'nav-active' : ''}"
+               data-channel-id="${this.escapeHtml(channel.id)}"
+               data-source-id="${this.escapeHtml(channel.sourceId)}"
+               data-fav-key="${this.escapeHtml(this.favKey(channel))}"
+               data-render-id="${renderId}"
+               data-render-group="${this.escapeHtml(renderGroup)}">
+            ${number}
+            <img class="channel-logo" src="${this.escapeHtml(this.logoUrl(channel.tvgLogo))}"
+                 alt="" onerror="this.onerror=null;this.src='/img/placeholder.png'">
+            <div class="channel-info">
+              <div class="channel-name">${this.escapeHtml(channel.name)}</div>
+              <div class="channel-program">${this.escapeHtml(this.getProgramInfo(channel) || '')}</div>
+            </div>
+            <button class="favorite-btn ${isFavorite ? 'active' : ''}" title="${isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}">
+              ${isFavorite ? Icons.favorite : Icons.favoriteOutline}
+            </button>
+          </div>
+        `;
+    }
+
+    /** Channels of the favourites list that are in the loaded (source-filtered) list. */
+    getFavoriteChannels() {
+        const out = [];
+        const seen = new Set();
+        for (const row of this.favoriteRows) {
+            const key = `${row.sourceId}:${row.stableId || row.id}`;
+            if (seen.has(key)) continue;
+            // The listing the channel list has, or any listing of the same channel.
+            const channel = this.findChannel(row.sourceId, row.id)
+                || this.channels.find(c => this.favKey(c) === key);
+            if (channel) {
+                seen.add(key);
+                out.push(channel);
+            }
+        }
+        const numberOf = (c) => (c.number === null || c.number === undefined ? Infinity : c.number);
+        return out.sort((a, b) => numberOf(a) - numberOf(b) || String(a.name).localeCompare(String(b.name)));
+    }
+
+    /**
      * Render channel list
      */
     render() {
         const searchTerm = this.searchInput.value.toLowerCase();
-        const showHidden = this.showHiddenCheckbox ? this.showHiddenCheckbox.checked : false;
 
         // Reset batching
         this.currentBatch = 0;
-        this.batchSize = 100; // Number of groups to render per batch (increased to handle many hidden groups)
+        this.batchSize = 100; // Number of groups to render per batch
         this.container.innerHTML = ''; // Clear container
 
-        // Filter and Group channels
         const groupedChannels = {};
 
         // 1. Filter
@@ -309,14 +353,13 @@ class ChannelList {
         if (searchTerm) {
             this.filteredChannels = this.channels.filter(ch =>
                 String(ch.name ?? "").toLowerCase().includes(searchTerm) ||
-                String(ch.groupTitle ?? "").toLowerCase().includes(searchTerm)
+                String(ch.groupTitle ?? "").toLowerCase().includes(searchTerm) ||
+                (ch.number !== null && ch.number !== undefined && String(ch.number) === searchTerm.trim())
             );
         }
 
-        let filteredChannels = this.filteredChannels;
-
-        // 2. Group
-        filteredChannels.forEach(ch => {
+        // 2. Group (channels arrive in number order, so each group is in number order too)
+        this.filteredChannels.forEach(ch => {
             const groupKey = ch.groupTitle || 'Uncategorized';
             if (!groupedChannels[groupKey]) {
                 groupedChannels[groupKey] = [];
@@ -324,38 +367,27 @@ class ChannelList {
             groupedChannels[groupKey].push(ch);
         });
 
-        // 3. Add Favorites
-        const favoritedChannels = this.channels.filter(ch => this.isFavorite(ch.sourceId, ch.id));
+        // 3. Groups in the provider's category order (placeholder/header categories
+        // sit directly above the ones they introduce); anything not in the category
+        // list keeps its first-appearance order after them.
+        const categoryOrder = new Map();
+        this.categories.forEach((c, i) => { if (!categoryOrder.has(c.name)) categoryOrder.set(c.name, i); });
+        const allGroups = Object.keys(groupedChannels)
+            .map((name, i) => ({ name, i, order: categoryOrder.has(name) ? categoryOrder.get(name) : Infinity }))
+            .sort((a, b) => (a.order - b.order) || (a.i - b.i))
+            .map(g => g.name);
+
+        // 4. Favorites first
+        const favoritedChannels = this.getFavoriteChannels();
         if (favoritedChannels.length > 0) {
-            favoritedChannels.sort((a, b) => a.name.localeCompare(b.name));
             groupedChannels['Favorites'] = favoritedChannels;
+            allGroups.unshift('Favorites');
         }
 
-        // 4. Order groups and filter to only those with visible channels.
-        // groupedChannels is built by walking this.channels, which arrives in
-        // the provider's order, and object key order follows insertion for
-        // string keys — so the natural key order is already the order the
-        // provider intended. Only Favorites is repositioned.
-        const allGroups = Object.keys(groupedChannels).filter(g => g !== 'Favorites');
-        if (groupedChannels['Favorites']) allGroups.unshift('Favorites');
-
-        // Pre-filter to only include groups with visible channels (so hidden groups don't consume batch slots)
-        this.sortedGroups = allGroups.filter(groupName => {
-            if (groupName === 'Favorites') return true;
-            const channels = groupedChannels[groupName];
-            // Check if any channel in this group is visible
-            return channels.some(channel => {
-                const rawChannelId = channel.streamId || channel.id;
-                const isHidden = this.isHidden('channel', channel.sourceId, rawChannelId);
-                return !isHidden || showHidden;
-            });
-        });
-
+        this.sortedGroups = allGroups;
         this.groupedChannels = groupedChannels;
-        this.showHidden = showHidden;
 
         // Collapse all groups by default on first load (for large playlists)
-        // This prevents rendering 100K+ channel items on initial load
         if (!this._hasCollapsedState && this.sortedGroups.length > 0) {
             this.sortedGroups.forEach(groupName => {
                 if (groupName !== 'Favorites') {
@@ -368,39 +400,27 @@ class ChannelList {
 
         // Build rendered channel list for navigation (matches visual order)
         this.renderedChannels = [];
+        this._renderedByKey = new Map();
         this.sortedGroups.forEach(groupName => {
-            const channels = this.groupedChannels[groupName];
-            const isFavoritesGroup = groupName === 'Favorites';
-
-            const visibleChannels = channels.filter(channel => {
-                if (isFavoritesGroup) return true;
-                const rawChannelId = channel.streamId || channel.id;
-                const channelHidden = this.isHidden('channel', channel.sourceId, rawChannelId);
-                return !channelHidden || this.showHidden;
-            });
-
-            // Assign unique render IDs for linear navigation
-            visibleChannels.forEach(ch => {
-                // We clone the object for the rendered list to attach the unique ID
-                // ensuring no side effects on the main channel object
-                const renderedCh = {
+            this.groupedChannels[groupName].forEach(ch => {
+                const rendered = {
                     ...ch,
                     _renderId: `rid_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                     _renderGroup: groupName // Track visual group for navigation
                 };
-                this.renderedChannels.push(renderedCh);
+                this.renderedChannels.push(rendered);
+                this._renderedByKey.set(`${groupName}\u0000${ch.sourceId}:${ch.id}`, rendered);
             });
         });
 
-        // Empty State. Distinguish "you have no source" from "everything is
-        // hidden" — they look identical to the user and point at opposite fixes.
+        // Empty State.
         if (this.sortedGroups.length === 0) {
             let message, hint;
             if (searchTerm) {
                 message = 'No channels match your search';
                 hint = 'Try a different search term';
-            } else if (this.channels.length > 0) {
-                message = 'Every category is hidden';
+            } else if (this.sources.length > 0) {
+                message = 'No channels to show';
                 hint = 'Choose what to show under Settings → Manage Content';
             } else {
                 message = 'No channels loaded';
@@ -428,7 +448,6 @@ class ChannelList {
         this.container.appendChild(this.loader);
 
         // Render initial batches - load just enough to fill visible area + buffer
-        // Reduced from 10 to 2 to significantly speed up initial load time for large lists
         const maxInitialBatches = 2;
         for (let i = 0; i < maxInitialBatches; i++) {
             if (this.currentBatch * this.batchSize >= this.sortedGroups.length) break;
@@ -456,89 +475,36 @@ class ChannelList {
         this.loader.style.opacity = '1';
         let html = '';
 
-        let renderIndex = start; // Keep track of global index for mapping to renderedChannels
-
         for (const groupName of groupsToRender) {
             const channels = this.groupedChannels[groupName];
-            if (channels.length === 0) continue;
+            if (!channels || channels.length === 0) continue;
 
             const isFavoritesGroup = groupName === 'Favorites';
 
-            // Pre-filter visible channels for this group
-            const visibleChannels = channels.filter(channel => {
-                if (isFavoritesGroup) return true;
-                const rawChannelId = channel.streamId || channel.id;
-                const channelHidden = this.isHidden('channel', channel.sourceId, rawChannelId);
-                return !channelHidden || this.showHidden;
-            });
-
-            // Skip group if no visible channels (derived visibility)
-            if (visibleChannels.length === 0) continue;
-
             // Default new groups to collapsed (except Favorites)
-            // This handles groups loaded via scroll that weren't in the initial collapse
             if (!isFavoritesGroup && !this.collapsedGroups.has(groupName) && !this._userExpandedGroups?.has(groupName)) {
                 this.collapsedGroups.add(groupName);
             }
 
             html += `
         <div class="channel-group">
-          <div class="group-header ${this.collapsedGroups.has(groupName) ? 'collapsed' : ''} ${isFavoritesGroup ? 'favorites-group' : ''}" data-group="${groupName}">
+          <div class="group-header ${this.collapsedGroups.has(groupName) ? 'collapsed' : ''} ${isFavoritesGroup ? 'favorites-group' : ''}" data-group="${this.escapeHtml(groupName)}">
             <span class="group-toggle">${Icons.chevronDown}</span>
-            <span class="group-name">${groupName}</span>
-            <span class="group-count">${visibleChannels.length}</span>
+            <span class="group-name">${this.escapeHtml(groupName)}</span>
+            <span class="group-count">${channels.length}</span>
           </div>
           <div class="group-channels">
       `;
 
             // Skip rendering channel items if group is collapsed (major performance optimization)
             // Channels will be rendered when user expands the group
-            if (this.collapsedGroups.has(groupName)) {
-                html += '</div></div>';
-                continue;
-            }
-
-
-            for (const channel of visibleChannels) {
-                // Check hidden again for styling (showHidden mode)
-                const rawChannelId = channel.streamId || channel.id;
-                const channelHidden = !isFavoritesGroup && this.isHidden('channel', channel.sourceId, rawChannelId);
-
-                const isActive = this.currentChannel?.id === channel.id;
-                // Check if this specific instance is the "active" one for navigation purposes
-                const isRenderActive = this.currentRenderId && this.renderedChannels[renderIndex]?._renderId === this.currentRenderId;
-
-                const isFavorite = this.isFavorite(channel.sourceId, channel.id);
-                const renderId = this.renderedChannels[renderIndex]?._renderId || '';
-                const renderGroup = this.renderedChannels[renderIndex]?._renderGroup || groupName;
-                renderIndex++;
-
-                html += `
-          <div class="channel-item ${isActive ? 'active' : ''} ${isRenderActive ? 'nav-active' : ''} ${channelHidden ? 'hidden' : ''}" 
-               data-channel-id="${channel.id}"
-               data-source-id="${channel.sourceId}"
-               data-source-type="${channel.sourceType}"
-               data-stream-id="${channel.streamId || ''}"
-               data-url="${channel.url || ''}"
-               data-render-id="${renderId}"
-               data-render-group="${renderGroup}">
-            <img class="channel-logo" src="${this.getProxiedImageUrl(channel.tvgLogo)}" 
-                 alt="" onerror="this.onerror=null;this.src='/img/placeholder.png'">
-            <div class="channel-info">
-              <div class="channel-name">${this.escapeHtml(channel.name)}</div>
-              <div class="channel-program">${this.escapeHtml(this.getProgramInfo(channel) || '')}</div>
-            </div>
-            <button class="favorite-btn ${isFavorite ? 'active' : ''}" title="${isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}">
-              ${isFavorite ? Icons.favorite : Icons.favoriteOutline}
-            </button>
-          </div>
-        `;
+            if (!this.collapsedGroups.has(groupName)) {
+                html += this.groupChannelsHtml(groupName);
             }
             html += '</div></div>';
         }
 
         // Append to list container
-        // Use temp div to parse HTML string
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = html;
 
@@ -556,6 +522,43 @@ class ChannelList {
         }
     }
 
+    /** The rows of one group, each tied to its entry in renderedChannels. */
+    groupChannelsHtml(groupName) {
+        const channels = this.groupedChannels[groupName] || [];
+        let html = '';
+        for (const channel of channels) {
+            const rendered = this._renderedByKey?.get(`${groupName}\u0000${channel.sourceId}:${channel.id}`);
+            html += this.channelItemHtml(channel, {
+                isActive: this.isCurrent(channel),
+                isNavActive: !!(this.currentRenderId && rendered && rendered._renderId === this.currentRenderId),
+                renderId: rendered?._renderId || '',
+                renderGroup: groupName
+            });
+        }
+        return html;
+    }
+
+    isCurrent(channel) {
+        return !!this.currentChannel && this.currentChannel.id === channel.id
+            && String(this.currentChannel.sourceId) === String(channel.sourceId);
+    }
+
+    attachChannelListeners(item) {
+        item.addEventListener('click', (e) => {
+            if (e.target.closest('.favorite-btn')) return;
+            this.selectChannel(item.dataset);
+        });
+        item.addEventListener('contextmenu', (e) => this.showContextMenu(e, 'channel', item.dataset));
+
+        const favBtn = item.querySelector('.favorite-btn');
+        if (favBtn) {
+            favBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleFavorite(parseInt(item.dataset.sourceId), item.dataset.channelId);
+            });
+        }
+    }
+
     attachGroupListeners(groupEl) {
         const header = groupEl.querySelector('.group-header');
         if (header) {
@@ -570,7 +573,6 @@ class ChannelList {
                 if (isCollapsed) {
                     const channelsContainer = groupEl.querySelector('.group-channels');
                     if (channelsContainer && channelsContainer.children.length === 0) {
-                        // Channels weren't rendered - render them now
                         this.renderGroupChannels(groupName, channelsContainer);
                     }
                 }
@@ -578,21 +580,7 @@ class ChannelList {
             header.addEventListener('contextmenu', (e) => this.showContextMenu(e, 'group', header.dataset));
         }
 
-        groupEl.querySelectorAll('.channel-item').forEach(item => {
-            item.addEventListener('click', (e) => {
-                if (e.target.closest('.favorite-btn')) return;
-                this.selectChannel(item.dataset);
-            });
-            item.addEventListener('contextmenu', (e) => this.showContextMenu(e, 'channel', item.dataset));
-
-            const favBtn = item.querySelector('.favorite-btn');
-            if (favBtn) {
-                favBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.toggleFavorite(parseInt(item.dataset.sourceId), item.dataset.channelId);
-                });
-            }
-        });
+        groupEl.querySelectorAll('.channel-item').forEach(item => this.attachChannelListeners(item));
     }
 
     /**
@@ -602,70 +590,8 @@ class ChannelList {
         const channels = this.groupedChannels[groupName];
         if (!channels || channels.length === 0) return;
 
-        const isFavoritesGroup = groupName === 'Favorites';
-
-        // Filter visible channels
-        const visibleChannels = channels.filter(channel => {
-            if (isFavoritesGroup) return true;
-            const rawChannelId = channel.streamId || channel.id;
-            const channelHidden = this.isHidden('channel', channel.sourceId, rawChannelId);
-            return !channelHidden || this.showHidden;
-        });
-
-        let html = '';
-        for (const channel of visibleChannels) {
-            const rawChannelId = channel.streamId || channel.id;
-            const channelHidden = !isFavoritesGroup && this.isHidden('channel', channel.sourceId, rawChannelId);
-            const isActive = this.currentChannel?.id === channel.id;
-            const isFavorite = this.isFavorite(channel.sourceId, channel.id);
-
-            // Find the matching rendered channel to get its unique IDs
-            const renderedChannel = this.renderedChannels.find(rc =>
-                rc.id === channel.id && rc.sourceId === channel.sourceId && rc._renderGroup === groupName
-            );
-            const renderId = renderedChannel?._renderId || '';
-            const renderGroup = renderedChannel?._renderGroup || groupName;
-
-            html += `
-          <div class="channel-item ${isActive ? 'active' : ''} ${channelHidden ? 'hidden' : ''}" 
-               data-channel-id="${channel.id}"
-               data-source-id="${channel.sourceId}"
-               data-source-type="${channel.sourceType}"
-               data-stream-id="${channel.streamId || ''}"
-               data-url="${channel.url || ''}"
-               data-render-id="${renderId}"
-               data-render-group="${renderGroup}">
-            <img class="channel-logo" src="${this.getProxiedImageUrl(channel.tvgLogo)}" 
-                 alt="" onerror="this.onerror=null;this.src='/img/placeholder.png'">
-            <div class="channel-info">
-              <div class="channel-name">${this.escapeHtml(channel.name)}</div>
-              <div class="channel-program">${this.escapeHtml(this.getProgramInfo(channel) || '')}</div>
-            </div>
-            <button class="favorite-btn ${isFavorite ? 'active' : ''}" title="${isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}">
-              ${isFavorite ? Icons.favorite : Icons.favoriteOutline}
-            </button>
-          </div>
-        `;
-        }
-
-        container.innerHTML = html;
-
-        // Attach listeners to the new channel items
-        container.querySelectorAll('.channel-item').forEach(item => {
-            item.addEventListener('click', (e) => {
-                if (e.target.closest('.favorite-btn')) return;
-                this.selectChannel(item.dataset);
-            });
-            item.addEventListener('contextmenu', (e) => this.showContextMenu(e, 'channel', item.dataset));
-
-            const favBtn = item.querySelector('.favorite-btn');
-            if (favBtn) {
-                favBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.toggleFavorite(parseInt(item.dataset.sourceId), item.dataset.channelId);
-                });
-            }
-        });
+        container.innerHTML = this.groupChannelsHtml(groupName);
+        container.querySelectorAll('.channel-item').forEach(item => this.attachChannelListeners(item));
     }
 
     /**
@@ -674,7 +600,6 @@ class ChannelList {
     async loadSources() {
         try {
             this.sources = await API.sources.getAll();
-            console.log('[ChannelList] loadSources: Got', this.sources?.length || 0, 'sources');
             this.sourceSelect.innerHTML = '<option value="">All Sources</option>';
 
             const xtreamSources = this.sources.filter(s => s.type === 'xtream' && s.enabled);
@@ -709,7 +634,29 @@ class ChannelList {
     }
 
     /**
-     * Load channels from selected source
+     * A library row as the channel object the web app passes around. `id` is the
+     * bare library id, which is what resolve, favourites and recordings take.
+     */
+    fromLibraryRow(row, categoryNames, sourceTypes) {
+        return {
+            id: row.id,
+            streamId: row.id,
+            sourceId: row.sourceId,
+            sourceType: sourceTypes.get(Number(row.sourceId)) || 'm3u',
+            stableId: row.stableId || null,
+            number: row.number ?? null,
+            name: row.name,
+            tvgId: row.tvgId || null,
+            tvgLogo: row.logo || null,
+            groupId: row.category,
+            groupTitle: categoryNames.get(`${row.sourceId}:${row.category}`) || row.category || 'Uncategorized',
+            now: row.now || null,
+            next: row.next || null
+        };
+    }
+
+    /**
+     * Load channels (from all enabled sources, or the one selected)
      */
     async loadChannels() {
         if (this.isLoading) return;
@@ -717,190 +664,50 @@ class ChannelList {
         this.currentRenderId = null; // Reset render tracking
 
         const sourceValue = this.sourceSelect.value;
-        const self = this;
-
-        if (!sourceValue) {
-            // Load from all sources
-            await this.loadAllChannels();
-            this.isLoading = false;
-            return;
-        }
-
-        const [type, id] = sourceValue.split(':');
+        const onlySource = sourceValue ? sourceValue.split(':')[1] : null;
 
         try {
             this.container.innerHTML = '<div class="loading"></div>';
 
-            if (type === 'xtream') {
-                await this.loadXtreamChannels(parseInt(id));
-            } else if (type === 'm3u') {
-                await this.loadM3uChannels(parseInt(id));
-            }
-
-            // Load hidden items and favorites
-            await Promise.all([
-                this.loadHiddenItems(),
+            const [categories, rows] = await Promise.all([
+                API.library.categories(),
+                API.library.allChannels(),
                 this.loadFavorites()
             ]);
+
+            const enabled = new Set(this.sources.filter(s => s.enabled).map(s => String(s.id)));
+            const wanted = (sourceId) => (onlySource ? String(sourceId) === String(onlySource)
+                : (enabled.size === 0 || enabled.has(String(sourceId))));
+
+            this.categories = (categories || []).filter(c => wanted(c.sourceId));
+            const categoryNames = new Map((categories || []).map(c => [`${c.sourceId}:${c.id}`, c.name]));
+            const sourceTypes = new Map(this.sources.map(s => [Number(s.id), s.type]));
+            this.channels = (rows || [])
+                .filter(r => wanted(r.sourceId))
+                .map(r => this.fromLibraryRow(r, categoryNames, sourceTypes));
 
             this.render();
         } catch (err) {
             console.error('Error loading channels:', err);
-            this.container.innerHTML = `<div class="empty-state"><p>Error loading channels</p><p class="hint">${err.message}</p></div>`;
+            this.container.innerHTML = `<div class="empty-state"><p>Error loading channels</p><p class="hint">${this.escapeHtml(err.message)}</p></div>`;
         } finally {
             this.isLoading = false;
         }
     }
 
-    /**
-     * Load channels from all enabled sources
-     */
+    /** Kept for callers from before 0121: every load is now a full one. */
     async loadAllChannels() {
-        this.channels = [];
-        this.groups = [];
-
-        try {
-            this.container.innerHTML = '<div class="loading"></div>';
-
-            const xtreamSources = this.sources.filter(s => s.type === 'xtream' && s.enabled);
-            const m3uSources = this.sources.filter(s => s.type === 'm3u' && s.enabled);
-            console.log('[ChannelList] loadAllChannels: xtream=', xtreamSources.length, 'm3u=', m3uSources.length);
-
-            for (const source of xtreamSources) {
-                await this.loadXtreamChannels(source.id, true);
-            }
-
-            for (const source of m3uSources) {
-                await this.loadM3uChannels(source.id, true);
-            }
-
-            await Promise.all([
-                this.loadHiddenItems(),
-                this.loadFavorites()
-            ]);
-            this.render();
-        } catch (err) {
-            console.error('Error loading all channels:', err);
-        }
+        return this.loadChannels();
     }
 
     /**
-     * Load Xtream channels
-     */
-    async loadXtreamChannels(sourceId, append = false) {
-        if (!append) {
-            this.channels = [];
-            this.groups = [];
-        }
-
-        const categories = await API.proxy.xtream.liveCategories(sourceId);
-        const streams = await API.proxy.xtream.liveStreams(sourceId);
-
-        // Map categories to groups
-        const categoryGroups = categories.map(cat => ({
-            id: `xtream_${sourceId}_${cat.category_id}`,
-            name: cat.category_name,
-            sourceId,
-            sourceType: 'xtream'
-        }));
-
-        this.groups = this.groups.concat(categoryGroups);
-
-        // Map streams to channels
-        const channelList = streams.map(stream => ({
-            id: `xtream_${sourceId}_${stream.stream_id}`,
-            streamId: stream.stream_id,
-            name: stream.name,
-            tvgId: stream.epg_channel_id,
-            tvgLogo: stream.stream_icon,
-            groupId: `xtream_${sourceId}_${stream.category_id}`,
-            // Use string comparison to handle type mismatches (number vs string category_id)
-            groupTitle: categories.find(c => String(c.category_id) === String(stream.category_id))?.category_name || 'Uncategorized',
-            sourceId,
-            sourceType: 'xtream'
-        }));
-
-        this.channels = this.channels.concat(channelList);
-    }
-
-    /**
-     * Load M3U channels
-     * Now uses unified Xtream-style API endpoints (backend supports both source types)
-     */
-    async loadM3uChannels(sourceId, append = false) {
-        if (!append) {
-            this.channels = [];
-            this.groups = [];
-        }
-
-        // Use Xtream API endpoints - backend now supports M3U sources too.
-        // Groups are built from the visible categories, but names are resolved
-        // against the full list: a channel whose category state is out of step
-        // should still show its real group name rather than "Uncategorized".
-        const categories = await API.proxy.xtream.liveCategories(sourceId);
-        const allCategories = await API.proxy.xtream.liveCategories(sourceId, { includeHidden: true });
-        const streams = await API.proxy.xtream.liveStreams(sourceId);
-
-        // Map categories to groups (keeping m3u sourceType for downstream compatibility)
-        const m3uGroups = categories.map(cat => ({
-            id: `m3u_${sourceId}_${cat.category_id}`,
-            name: cat.category_name,
-            sourceId,
-            sourceType: 'm3u'
-        }));
-
-        this.groups = this.groups.concat(m3uGroups);
-
-        // Map streams to channels
-        const channelList = streams.map(stream => ({
-            id: `m3u_${sourceId}_${stream.stream_id}`,
-            streamId: stream.stream_id,
-            name: stream.name,
-            tvgId: stream.epg_channel_id,
-            tvgLogo: stream.stream_icon,
-            url: stream.stream_url, // M3U has direct URLs
-            groupId: `m3u_${sourceId}_${stream.category_id}`,
-            groupTitle: allCategories.find(c => String(c.category_id) === String(stream.category_id))?.category_name
-                || stream.category_id
-                || 'Uncategorized',
-            sourceId,
-            sourceType: 'm3u'
-        }));
-
-        this.channels = this.channels.concat(channelList);
-    }
-
-    /**
-     * Load hidden items
-     */
-    async loadHiddenItems() {
-        try {
-            const items = await API.channels.getHidden();
-            this.hiddenItems = new Set(items.map(i => `${i.item_type}:${i.source_id}:${i.item_id}`));
-        } catch (err) {
-            console.error('Error loading hidden items:', err);
-        }
-    }
-
-    /**
-     * Check if item is hidden
-     */
-    isHidden(type, sourceId, itemId) {
-        return this.hiddenItems.has(`${type}:${sourceId}:${itemId}`);
-    }
-
-    /**
-     * Load favorites
+     * Load favorites (one row per channel, from /api/library/favourites)
      */
     async loadFavorites() {
         try {
-            // Get all favorites (filtered for channels or legacy items without type)
-            const allFavs = await API.favorites.getAll();
-            const channelFavs = allFavs.filter(f => !f.item_type || f.item_type === 'channel');
-
-            this.visibleFavorites = new Set(
-                channelFavs.map(f => `${f.source_id}:${f.item_id || f.channel_id}`)
-            );
+            const rows = await API.library.favourites();
+            this.favoriteRows = Array.isArray(rows) ? rows : [];
+            this.favoriteKeys = new Set(this.favoriteRows.map(r => `${r.sourceId}:${r.stableId || r.id}`));
         } catch (err) {
             console.error('Error loading favorites:', err);
         }
@@ -910,77 +717,53 @@ class ChannelList {
      * Check if channel is favorite
      */
     isFavorite(sourceId, channelId) {
-        return this.visibleFavorites.has(`${sourceId}:${channelId}`);
+        const channel = this.findChannel(sourceId, channelId);
+        return this.favoriteKeys.has(channel ? this.favKey(channel) : `${sourceId}:${channelId}`);
+    }
+
+    /** Every star for this channel, in every group and listing. */
+    setFavoriteButtons(key, isFavorite) {
+        const safe = String(key).replace(/"/g, '\\"');
+        document.querySelectorAll(`.channel-item[data-fav-key="${safe}"] .favorite-btn`).forEach(btn => {
+            btn.classList.toggle('active', isFavorite);
+            btn.innerHTML = isFavorite ? Icons.favorite : Icons.favoriteOutline;
+            btn.title = isFavorite ? 'Remove from Favorites' : 'Add to Favorites';
+        });
     }
 
     /**
      * Toggle favorite status
      */
     async toggleFavorite(sourceId, channelId) {
-        const key = `${sourceId}:${channelId}`;
-        const wasFavorite = this.visibleFavorites.has(key);
+        const channel = this.findChannel(sourceId, channelId);
+        if (!channel) return;
+        const key = this.favKey(channel);
+        const wasFavorite = this.favoriteKeys.has(key);
 
-        // Find all buttons for this channel in the DOM (it may appear in multiple groups)
-        const btns = document.querySelectorAll(`.channel-item[data-channel-id="${channelId}"][data-source-id="${sourceId}"] .favorite-btn`);
+        const apply = (isFavorite) => {
+            if (isFavorite) this.favoriteKeys.add(key);
+            else this.favoriteKeys.delete(key);
+            this.setFavoriteButtons(key, isFavorite);
+            this.updateFavoritesGroup(channel, isFavorite);
+        };
 
         try {
-            // Optimistic update
-            if (wasFavorite) {
-                this.visibleFavorites.delete(key);
-                btns.forEach(btn => {
-                    btn.classList.remove('active');
-                    btn.innerHTML = Icons.favoriteOutline;
-                    btn.title = 'Add to Favorites';
-                });
-            } else {
-                this.visibleFavorites.add(key);
-                btns.forEach(btn => {
-                    btn.classList.add('active');
-                    btn.innerHTML = Icons.favorite;
-                    btn.title = 'Remove from Favorites';
-                });
-            }
+            apply(!wasFavorite); // Optimistic; do NOT call this.render() - it causes lag
 
-            // Updates Favorites Group DOM
-            const channel = this.channels.find(c => c.sourceId == sourceId && c.id == channelId);
-            if (channel) {
-                this.updateFavoritesGroup(channel, !wasFavorite);
-            }
-            // Do NOT call this.render() - it causes lag
-
-            // Perform API call
+            // The bare id: favourites are stored and matched on the channel's identity.
             if (wasFavorite) {
-                await API.favorites.remove(sourceId, channelId, 'channel');
+                await API.favorites.remove(channel.sourceId, channel.id, 'channel');
             } else {
-                await API.favorites.add(sourceId, channelId, 'channel');
+                await API.favorites.add(channel.sourceId, channel.id, 'channel');
             }
 
             // Sync to EPG Guide
             if (window.app?.epgGuide) {
-                window.app.epgGuide.syncFavorite(sourceId, channelId, !wasFavorite);
+                window.app.epgGuide.syncFavorite(channel.sourceId, channel.id, !wasFavorite);
             }
         } catch (err) {
             console.error('Error toggling favorite:', err);
-            // Revert on error
-            if (wasFavorite) {
-                this.visibleFavorites.add(key);
-                btns.forEach(btn => {
-                    btn.classList.add('active');
-                    btn.innerHTML = Icons.favorite;
-                });
-                // Revert group update
-                const channel = this.channels.find(c => c.sourceId == sourceId && c.id == channelId);
-                if (channel) this.updateFavoritesGroup(channel, true);
-            } else {
-                this.visibleFavorites.delete(key);
-                btns.forEach(btn => {
-                    btn.classList.remove('active');
-                    btn.innerHTML = Icons.favoriteOutline;
-                });
-                // Revert group update
-                const channel = this.channels.find(c => c.sourceId == sourceId && c.id == channelId);
-                if (channel) this.updateFavoritesGroup(channel, false);
-            }
+            apply(wasFavorite); // Revert on error
         }
     }
 
@@ -988,56 +771,42 @@ class ChannelList {
      * Update Favorites group in DOM and data
      */
     updateFavoritesGroup(channel, isAdded) {
+        const key = this.favKey(channel);
+
         // 1. Update Data
-        if (!this.groupedChannels['Favorites']) {
-            this.groupedChannels['Favorites'] = [];
-        }
-
-        const favArray = this.groupedChannels['Favorites'];
-        const existingIdx = favArray.findIndex(c => c.id === channel.id && c.sourceId === channel.sourceId);
-
-        if (isAdded) {
-            if (existingIdx === -1) favArray.push(channel);
-        } else {
-            if (existingIdx !== -1) favArray.splice(existingIdx, 1);
-        }
+        this.favoriteRows = this.favoriteRows.filter(r => `${r.sourceId}:${r.stableId || r.id}` !== key);
+        if (isAdded) this.favoriteRows.push({ sourceId: channel.sourceId, id: channel.id, stableId: channel.stableId });
+        if (!this.groupedChannels) return;
+        const favArray = this.getFavoriteChannels();
+        this.groupedChannels['Favorites'] = favArray;
 
         // 2. Update DOM
-        const groupHeader = this.listContainer.querySelector('.group-header[data-group="Favorites"]');
+        const groupHeader = this.listContainer?.querySelector('.group-header[data-group="Favorites"]');
 
         if (!groupHeader) {
-            // If group doesn't exist and we're adding, we ideally should create it
-            // For now, simpler to just return. User will see it on next refresh.
-            // Or we could force a re-render if it's the first favorite? 
+            // The first favourite: the group has to be created, which a full render does.
             if (isAdded && favArray.length === 1) {
-                this.render(); // This is the one case where full render is worth it
+                this.render();
             }
             return;
         }
 
         const groupChannels = groupHeader.nextElementSibling; // .group-channels
         const countSpan = groupHeader.querySelector('.group-count');
+        const safe = String(key).replace(/"/g, '\\"');
+        const existingEl = groupChannels.querySelector(`.channel-item[data-fav-key="${safe}"]`);
 
         if (isAdded) {
-            // Check if already in DOM (to avoid dupes)
-            const existingEl = groupChannels.querySelector(`.channel-item[data-channel-id="${channel.id}"][data-source-id="${channel.sourceId}"]`);
-            if (!existingEl) {
-                const newEl = this.createChannelElement(channel);
-                groupChannels.appendChild(newEl);
-            }
-        } else {
-            const existingEl = groupChannels.querySelector(`.channel-item[data-channel-id="${channel.id}"][data-source-id="${channel.sourceId}"]`);
-            if (existingEl) {
-                existingEl.remove();
-            }
+            if (!existingEl) groupChannels.appendChild(this.createChannelElement(channel));
+        } else if (existingEl) {
+            existingEl.remove();
         }
 
         // Update count
         if (countSpan) countSpan.textContent = favArray.length;
 
-        // Hide/Show group if empty?
         if (favArray.length === 0) {
-            groupHeader.classList.add('hidden'); // Or remove
+            groupHeader.classList.add('hidden');
             groupHeader.style.display = 'none';
         } else {
             groupHeader.classList.remove('hidden');
@@ -1046,46 +815,10 @@ class ChannelList {
     }
 
     createChannelElement(channel) {
-        const div = document.createElement('div');
-        const isActive = this.currentChannel?.id === channel.id;
-        // In Favorites group, it IS a favorite
-        const isFavorite = true;
-
-        div.className = `channel-item ${isActive ? 'active' : ''}`;
-        div.dataset.channelId = channel.id;
-        div.dataset.sourceId = channel.sourceId;
-        div.dataset.sourceType = channel.sourceType;
-        div.dataset.streamId = channel.streamId || '';
-        div.dataset.url = channel.url || '';
-
-        div.innerHTML = `
-            <img class="channel-logo" src="${this.getProxiedImageUrl(channel.tvgLogo)}" 
-                 alt="" onerror="this.onerror=null;this.src='/img/placeholder.png'">
-            <div class="channel-info">
-              <div class="channel-name">${this.escapeHtml(channel.name)}</div>
-              <div class="channel-program">${this.getProgramInfo(channel) || ''}</div>
-            </div>
-            <button class="favorite-btn active" title="Remove from Favorites">
-              ❤️
-            </button>
-        `;
-
-        // Attach listeners
-        div.addEventListener('click', (e) => {
-            if (e.target.closest('.favorite-btn')) return;
-            // Pass the render ID from the dataset
-            this.selectChannel({ ...div.dataset, renderId: div.dataset.renderId });
-        });
-        div.addEventListener('contextmenu', (e) => this.showContextMenu(e, 'channel', div.dataset));
-
-        const favBtn = div.querySelector('.favorite-btn');
-        if (favBtn) {
-            favBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.toggleFavorite(parseInt(div.dataset.sourceId), div.dataset.channelId);
-            });
-        }
-
+        const temp = document.createElement('div');
+        temp.innerHTML = this.channelItemHtml(channel, { isActive: this.isCurrent(channel), renderGroup: 'Favorites' });
+        const div = temp.firstElementChild;
+        this.attachChannelListeners(div);
         return div;
     }
 
@@ -1093,7 +826,7 @@ class ChannelList {
      * Select and play a channel
      */
     async selectChannel(dataset) {
-        const channel = this.channels.find(c => c.id === dataset.channelId);
+        const channel = this.findChannel(dataset.sourceId, dataset.channelId);
         if (!channel) return;
 
         this.currentChannel = channel;
@@ -1107,12 +840,12 @@ class ChannelList {
         });
 
         // Try to find specific render instance first
-        let activeItem;
-        activeItem = this.container.querySelector(`[data-render-id="${this.currentRenderId}"]`);
+        let activeItem = this.currentRenderId
+            ? this.container.querySelector(`[data-render-id="${this.currentRenderId}"]`) : null;
 
         // If not found in DOM, it might be in a future batch not yet rendered
         // Render batches until we find it or run out
-        if (!activeItem && this.renderedChannels.length > 0) {
+        if (!activeItem && this.renderedChannels.length > 0 && this.sortedGroups) {
             let safety = 0;
             while (!activeItem && this.currentBatch * this.batchSize < this.sortedGroups.length && safety < 20) {
                 this.renderNextBatch();
@@ -1125,7 +858,8 @@ class ChannelList {
 
         // Fallback checks if still not found
         if (!activeItem) {
-            activeItem = this.container.querySelector(`[data-channel-id="${channel.id}"]`);
+            const safeId = String(channel.id).replace(/"/g, '\\"');
+            activeItem = this.container.querySelector(`[data-channel-id="${safeId}"][data-source-id="${channel.sourceId}"]`);
             // If we fell back to channel ID, update currentRenderId to match what we found
             if (activeItem && activeItem.dataset.renderId) {
                 this.currentRenderId = activeItem.dataset.renderId;
@@ -1144,7 +878,6 @@ class ChannelList {
                 // 1. Expand current group if needed
                 if (this.collapsedGroups.has(groupName)) {
                     this.collapsedGroups.delete(groupName);
-                    // Update DOM directly for immediate feedback
                     groupHeader.classList.remove('collapsed');
                     this.saveCollapsedState();
                 }
@@ -1160,34 +893,21 @@ class ChannelList {
                 this.saveCollapsedState();
 
                 // 3. Scroll Group to Top
-                // Use a small timeout to allow layout updates (e.g. collapse animations) to start
                 setTimeout(() => {
                     groupHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    // Ensure active item is visible within the group
                     setTimeout(() => {
                         activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     }, 50);
                 }, 50);
             } else {
-                // Fallback for non-grouped items or flat list
                 activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
         }
 
-        // Get stream URL
-        let streamUrl;
-        if (channel.sourceType === 'xtream') {
-            // Get stream format from player settings (server-side) or fallback
-            const streamFormat = window.app?.player?.settings?.streamFormat || 'm3u8';
-            const result = await API.proxy.xtream.getStreamUrl(channel.sourceId, channel.streamId, 'live', streamFormat);
-            streamUrl = result.url;
-        } else {
-            streamUrl = channel.url;
-        }
-
-        // Play channel
+        // Play: the player asks the server to resolve this channel by its source and
+        // bare id (POST /api/playback/resolve). The web never holds a stream URL.
         if (window.app?.player) {
-            window.app.player.play(channel, streamUrl);
+            window.app.player.play(channel, null);
         }
     }
 
@@ -1197,9 +917,8 @@ class ChannelList {
     showContextMenu(e, type, data) {
         e.preventDefault();
         this.contextMenu.dataset.type = type;
-        this.contextMenu.dataset.sourceId = data.sourceId;
+        this.contextMenu.dataset.sourceId = data.sourceId || '';
         this.contextMenu.dataset.itemId = type === 'group' ? data.group : data.channelId;
-        this.contextMenu.dataset.streamId = data.streamId || '';
 
         this.contextMenu.style.left = `${e.clientX}px`;
         this.contextMenu.style.top = `${e.clientY}px`;
@@ -1218,28 +937,25 @@ class ChannelList {
      */
     async handleContextAction(e) {
         const action = e.target.dataset.action;
-        const { type, sourceId, itemId, streamId } = this.contextMenu.dataset;
+        const { type, sourceId, itemId } = this.contextMenu.dataset;
 
         switch (action) {
             case 'play':
                 if (type === 'channel') {
-                    const channel = this.channels.find(c => c.id === itemId);
-                    if (channel) {
-                        await this.selectChannel({ channelId: channel.id });
-                    }
+                    await this.selectChannel({ channelId: itemId, sourceId });
                 }
                 break;
             case 'hide':
-                // Use streamId for hiding Xtream channels (raw ID, not composite)
-                // Server expects 'channel' type, not 'live'
-                const hideId = streamId || itemId;
-                await API.channels.hide(parseInt(sourceId), 'channel', hideId);
-                this.hiddenItems.add(`channel:${sourceId}:${hideId}`);
-                this.render();
-                break;
-            case 'epg':
-                // Show EPG info modal
-                this.showEpgInfo(sourceId, itemId, streamId);
+                if (type === 'channel') {
+                    try {
+                        await API.channels.hide(parseInt(sourceId), 'channel', itemId);
+                        // The library lists only visible channels: drop it here too.
+                        this.channels = this.channels.filter(c => !(c.id === itemId && String(c.sourceId) === String(sourceId)));
+                        this.render();
+                    } catch (err) {
+                        console.error('Error hiding channel:', err);
+                    }
+                }
                 break;
         }
 
@@ -1247,234 +963,72 @@ class ChannelList {
     }
 
     /**
-     * Show EPG info for a channel
-     */
-    showEpgInfo(sourceId, channelId, streamId) {
-        const channel = this.channels.find(c => c.id === channelId);
-        if (!channel) {
-            alert('Channel not found');
-            return;
-        }
-
-        const modal = document.getElementById('modal');
-        const modalTitle = document.getElementById('modal-title');
-        const modalBody = document.getElementById('modal-body');
-
-        if (!modal || !modalTitle || !modalBody) return;
-
-        modalTitle.textContent = `📋 ${channel.name} - EPG Info`;
-
-        // Get current and upcoming programs
-        let programsHtml = '<p class="no-programs">No EPG data available for this channel.</p>';
-
-        if (window.app?.epgGuide) {
-            const tvgKey = channel.tvgId || channel.name;
-            const currentProgram = window.app.epgGuide.getCurrentProgram(channel.tvgId, channel.name);
-            const programs = window.app.epgGuide.getChannelPrograms?.(tvgKey) || [];
-
-            if (currentProgram || programs.length > 0) {
-                programsHtml = '<div class="epg-program-list">';
-
-                // Show current program
-                if (currentProgram) {
-                    const startTime = new Date(currentProgram.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    const endTime = new Date(currentProgram.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    programsHtml += `
-                        <div class="epg-program current">
-                            <div class="epg-program-time">${startTime} - ${endTime}</div>
-                            <div class="epg-program-title">▶ ${this.escapeHtml(currentProgram.title)}</div>
-                            ${currentProgram.description ? `<div class="epg-program-desc">${this.escapeHtml(currentProgram.description)}</div>` : ''}
-                        </div>
-                    `;
-                }
-
-                // Show upcoming programs (next 5)
-                const now = Date.now();
-                const upcoming = programs
-                    .filter(p => new Date(p.start).getTime() > now)
-                    .slice(0, 5);
-
-                upcoming.forEach(prog => {
-                    const startTime = new Date(prog.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    const endTime = new Date(prog.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    programsHtml += `
-                        <div class="epg-program">
-                            <div class="epg-program-time">${startTime} - ${endTime}</div>
-                            <div class="epg-program-title">${this.escapeHtml(prog.title)}</div>
-                        </div>
-                    `;
-                });
-
-                programsHtml += '</div>';
-            }
-        }
-
-        modalBody.innerHTML = `
-            <div class="epg-info-modal">
-                <div class="channel-details">
-                    <img class="channel-logo" src="${this.getProxiedImageUrl(channel.tvgLogo)}" 
-                         onerror="this.onerror=null;this.src='/img/placeholder.png'" />
-                    <div class="channel-meta">
-                        <p><strong>Group:</strong> ${this.escapeHtml(channel.groupTitle || 'Uncategorized')}</p>
-                        <p><strong>Source:</strong> ${channel.sourceType}</p>
-                        ${channel.tvgId ? `<p><strong>TVG ID:</strong> ${this.escapeHtml(channel.tvgId)}</p>` : ''}
-                    </div>
-                </div>
-                <h4>Program Schedule</h4>
-                ${programsHtml}
-            </div>
-        `;
-
-        modal.classList.add('active');
-    }
-
-    /**
      * Sync favorite status from external source (e.g. EPG) without API call
      */
     syncFavorite(sourceId, channelId, isFavorite) {
-        const key = `${sourceId}:${channelId}`;
-        const currentlyFav = this.visibleFavorites.has(key);
+        const channel = this.findChannel(sourceId, channelId);
+        const key = channel ? this.favKey(channel) : `${sourceId}:${channelId}`;
+        if (this.favoriteKeys.has(key) === isFavorite) return; // No change needed
 
-        if (currentlyFav === isFavorite) return; // No change needed
+        if (isFavorite) this.favoriteKeys.add(key);
+        else this.favoriteKeys.delete(key);
+        this.setFavoriteButtons(key, isFavorite);
+        if (channel) this.updateFavoritesGroup(channel, isFavorite);
+    }
 
-        // Update State
-        if (isFavorite) {
-            this.visibleFavorites.add(key);
-        } else {
-            this.visibleFavorites.delete(key);
+    /** Where the current channel sits in renderedChannels, or -1. */
+    currentRenderIndex() {
+        if (!this.currentChannel || !this.renderedChannels || this.renderedChannels.length === 0) return -1;
+
+        let currentIndex = -1;
+        // Try to find by render ID first (strict visual order)
+        if (this.currentRenderId) {
+            currentIndex = this.renderedChannels.findIndex(c => c._renderId === this.currentRenderId);
         }
+        // Fallback: Find matching channel, prioritizing same render group
+        if (currentIndex === -1 && this.currentRenderGroup) {
+            currentIndex = this.renderedChannels.findIndex(c =>
+                this.isCurrent(c) && c._renderGroup === this.currentRenderGroup);
+        }
+        if (currentIndex === -1) {
+            currentIndex = this.renderedChannels.findIndex(c => this.isCurrent(c));
+        }
+        return currentIndex;
+    }
 
-        // Update DOM (All instances)
-        const btns = document.querySelectorAll(`.channel-item[data-channel-id="${channelId}"][data-source-id="${sourceId}"] .favorite-btn`);
-
-        btns.forEach(btn => {
-            if (isFavorite) {
-                btn.classList.add('active');
-                btn.innerHTML = '❤️';
-                btn.title = 'Remove from Favorites';
-            } else {
-                btn.classList.remove('active');
-                btn.innerHTML = '♡';
-                btn.title = 'Add to Favorites';
-            }
+    selectRendered(index) {
+        const ch = this.renderedChannels[index];
+        this.selectChannel({
+            channelId: ch.id,
+            sourceId: ch.sourceId,
+            renderId: ch._renderId, // Pass the unique render ID
+            renderGroup: ch._renderGroup
         });
-
-        // Update Favorites Group
-        const channel = this.channels.find(c => c.sourceId == sourceId && c.id == channelId);
-        if (channel) {
-            this.updateFavoritesGroup(channel, isFavorite);
-        }
     }
 
     /**
      * Select next channel in the current list
      */
     selectNextChannel() {
-        if (!this.currentChannel || !this.renderedChannels || this.renderedChannels.length === 0) return;
-
-        let currentIndex = -1;
-
-        // Try to find by render ID first (strict visual order)
-        if (this.currentRenderId) {
-            currentIndex = this.renderedChannels.findIndex(c => c._renderId === this.currentRenderId);
-        }
-
-        // Fallback: Find matching channel ID, prioritizing same render group
-        if (currentIndex === -1) {
-            // First try to find in same group (for Favorites containing duplicates)
-            if (this.currentRenderGroup) {
-                currentIndex = this.renderedChannels.findIndex(c =>
-                    c.id === this.currentChannel.id && c.sourceId === this.currentChannel.sourceId && c._renderGroup === this.currentRenderGroup
-                );
-            }
-            // Final fallback: any matching channel
-            if (currentIndex === -1) {
-                currentIndex = this.renderedChannels.findIndex(c =>
-                    c.id === this.currentChannel.id && c.sourceId === this.currentChannel.sourceId
-                );
-            }
-        }
-
+        const currentIndex = this.currentRenderIndex();
         if (currentIndex === -1) return;
-
-        const nextIndex = (currentIndex + 1) % this.renderedChannels.length;
-        const nextChannel = this.renderedChannels[nextIndex];
-
-        this.selectChannel({
-            channelId: nextChannel.id,
-            sourceId: nextChannel.sourceId,
-            sourceType: nextChannel.sourceType,
-            streamId: nextChannel.streamId,
-            url: nextChannel.url,
-            renderId: nextChannel._renderId // Pass the unique render ID
-        });
+        this.selectRendered((currentIndex + 1) % this.renderedChannels.length);
     }
 
     /**
      * Select previous channel in the current list
      */
     selectPrevChannel() {
-        if (!this.currentChannel || !this.renderedChannels || this.renderedChannels.length === 0) return;
-
-        let currentIndex = -1;
-
-        if (this.currentRenderId) {
-            currentIndex = this.renderedChannels.findIndex(c => c._renderId === this.currentRenderId);
-        }
-
-        // Fallback: Find matching channel ID, prioritizing same render group
-        if (currentIndex === -1) {
-            // First try to find in same group (for Favorites containing duplicates)
-            if (this.currentRenderGroup) {
-                currentIndex = this.renderedChannels.findIndex(c =>
-                    c.id === this.currentChannel.id && c.sourceId === this.currentChannel.sourceId && c._renderGroup === this.currentRenderGroup
-                );
-            }
-            // Final fallback: any matching channel
-            if (currentIndex === -1) {
-                currentIndex = this.renderedChannels.findIndex(c =>
-                    c.id === this.currentChannel.id && c.sourceId === this.currentChannel.sourceId
-                );
-            }
-        }
-
+        const currentIndex = this.currentRenderIndex();
         if (currentIndex === -1) return;
-
-        const prevIndex = (currentIndex - 1 + this.renderedChannels.length) % this.renderedChannels.length;
-        const prevChannel = this.renderedChannels[prevIndex];
-
-        this.selectChannel({
-            channelId: prevChannel.id,
-            sourceId: prevChannel.sourceId,
-            sourceType: prevChannel.sourceType,
-            streamId: prevChannel.streamId,
-            url: prevChannel.url,
-            renderId: prevChannel._renderId
-        });
+        this.selectRendered((currentIndex - 1 + this.renderedChannels.length) % this.renderedChannels.length);
     }
 
     /**
-     * Show EPG info for channel
-     */
-    async showEpgInfo(channelId) {
-        const channel = this.channels.find(c => c.id === channelId);
-        if (!channel) return;
-
-        // This would show a modal with EPG info
-        console.log('Show EPG for:', channel);
-    }
-
-    /**
-     * Get list of visible (non-hidden) channels in display order
+     * Visible channels in number order (the library lists only visible ones)
      */
     getVisibleChannels() {
-        const showHidden = this.showHiddenCheckbox?.checked ?? false;
-        return this.channels.filter(ch => {
-            if (showHidden) return true;
-            const channelHidden = this.isHidden('channel', ch.sourceId, ch.id);
-            const groupHidden = this.isHidden('group', ch.sourceId, ch.groupTitle);
-            return !channelHidden && !groupHidden;
-        });
+        return this.channels;
     }
 }
 

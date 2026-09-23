@@ -34,9 +34,9 @@ class LivePage {
         const channelItems = Array.from(document.querySelectorAll('.channel-item'));
         if (channelItems.length === 0) return;
 
-        // Build a map for O(1) channel lookups
+        // Build a map for O(1) channel lookups (ids are per source)
         const channelMap = new Map();
-        this.app.channelList.channels.forEach(c => channelMap.set(c.id, c));
+        this.app.channelList.channels.forEach(c => channelMap.set(`${c.sourceId}:${c.id}`, c));
 
         // Process in small batches to avoid blocking UI
         const BATCH_SIZE = 50;
@@ -47,8 +47,7 @@ class LivePage {
 
             for (let i = index; i < end; i++) {
                 const item = channelItems[i];
-                const channelId = item.dataset.channelId;
-                const channel = channelMap.get(channelId);
+                const channel = channelMap.get(`${item.dataset.sourceId}:${item.dataset.channelId}`);
 
                 if (channel) {
                     const programDiv = item.querySelector('.channel-program');

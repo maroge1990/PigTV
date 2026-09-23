@@ -1045,7 +1045,9 @@ class VideoPlayer {
      */
     recoverPlayback(reason, { audioEncode = false } = {}) {
         const key = this.channelKey(this.currentChannel);
-        if (!key || !this.currentStreamUrl || this._recoveredKey === key) return false;
+        // The channel's identity is what is replayed (0121: the web resolves by
+        // source + bare id and never holds a stream URL).
+        if (!key || this._recoveredKey === key) return false;
         this._recoveredKey = key;
         console.warn(`[Player] ${reason}; asking the server again`);
         this.play(this.currentChannel, this.currentStreamUrl, { isRetry: true, audioEncode: audioEncode || this._audioEncodeActive });
@@ -1218,7 +1220,7 @@ class VideoPlayer {
         if (!this.currentStrategy || this.currentStrategy === 'direct') return false;
         if (this._audioEncodeActive) return false;
         const key = this.channelKey(this.currentChannel);
-        return !!key && !!this.currentStreamUrl && this._audioRetryKey !== key;
+        return !!key && this._audioRetryKey !== key;
     }
 
     async retryWithAudioEncode() {
@@ -1248,7 +1250,11 @@ class VideoPlayer {
 
     needsAudioEncode(channel) {
         const key = this.channelKey(channel);
-        return !!key && this.loadAudioEncodeChannels().includes(key);
+        if (!key) return false;
+        const list = this.loadAudioEncodeChannels();
+        // Before 0121 the web keyed channels by their composite id (m3u_<source>_<id>).
+        const legacy = `${channel.sourceId}:${channel.sourceType === 'xtream' ? 'xtream' : 'm3u'}_${channel.sourceId}_${channel.id}`;
+        return list.includes(key) || list.includes(legacy);
     }
 
     rememberAudioEncode(channel, on) {
@@ -1406,105 +1412,39 @@ class VideoPlayer {
     }
 
     /**
-     * Fetch EPG data for current channel
+     * Now/next for the current channel: the guide's loaded window (0121:
+     * /api/library/guide), else the channel row's own now/next.
      */
     async fetchEpgData(channel) {
-        if (!channel || (!channel.tvgId && !channel.epg_id)) {
-            this.updateNowPlaying(channel, null);
-            return;
-        }
+        if (!channel) return;
         try {
-            // First, try to use the centralized EpgGuide data (already loaded)
-            if (window.app && window.app.epgGuide && window.app.epgGuide.programmes) {
-                const epgGuide = window.app.epgGuide;
-
-                // Get current program from EpgGuide
-                const currentProgram = epgGuide.getCurrentProgram(channel.tvgId, channel.name);
-
-                if (currentProgram) {
-                    // Find upcoming programs from the guide's data
-                    const epgChannel = epgGuide.channelMap?.get(channel.tvgId) ||
-                        epgGuide.channelMap?.get(channel.name?.toLowerCase());
-
-                    let upcoming = [];
-                    if (epgChannel) {
-                        const now = Date.now();
-                        upcoming = epgGuide.programmes
-                            .filter(p => p.channelId === epgChannel.id && new Date(p.start).getTime() > now)
-                            .slice(0, 5)
-                            .map(p => ({
-                                title: p.title,
-                                start: new Date(p.start),
-                                stop: new Date(p.stop),
-                                description: p.desc || ''
-                            }));
-                    }
-
-                    this.updateNowPlaying(channel, {
-                        current: {
-                            title: currentProgram.title,
-                            start: new Date(currentProgram.start),
-                            stop: new Date(currentProgram.stop),
-                            description: currentProgram.desc || ''
-                        },
-                        upcoming
-                    });
-                    return; // Success, exit early
-                }
+            const now = Date.now();
+            const programmes = window.app?.epgGuide?.getProgrammesFor?.(channel) || [];
+            const current = programmes.find(p => p.startMs <= now && p.stopMs > now)
+                || (channel.now && channel.now.startTime <= now && channel.now.endTime > now
+                    ? { title: channel.now.title, start: channel.now.startTime, stop: channel.now.endTime, description: '' } : null);
+            let upcoming = programmes
+                .filter(p => p.startMs > now)
+                .slice(0, 5)
+                .map(p => ({ title: p.title, start: new Date(p.startMs), stop: new Date(p.stopMs), description: p.description || '' }));
+            if (upcoming.length === 0 && channel.next && channel.next.startTime > now) {
+                upcoming = [{ title: channel.next.title, start: new Date(channel.next.startTime), stop: new Date(channel.next.endTime), description: '' }];
             }
-
-            // Fallback: Try to get EPG from Xtream API if available
-            if (channel.sourceType === 'xtream' && channel.streamId) {
-                const epgData = await API.proxy.xtream.shortEpg(channel.sourceId, channel.streamId);
-                if (epgData && epgData.epg_listings && epgData.epg_listings.length > 0) {
-                    const listings = epgData.epg_listings;
-                    const now = Math.floor(Date.now() / 1000);
-
-                    // Find current program
-                    const current = listings.find(p => {
-                        const start = parseInt(p.start_timestamp);
-                        const end = parseInt(p.stop_timestamp);
-                        return start <= now && end > now;
-                    });
-
-                    // Get upcoming programs
-                    const upcoming = listings
-                        .filter(p => parseInt(p.start_timestamp) > now)
-                        .slice(0, 5)
-                        .map(p => ({
-                            title: this.decodeBase64(p.title),
-                            start: new Date(parseInt(p.start_timestamp) * 1000),
-                            stop: new Date(parseInt(p.stop_timestamp) * 1000),
-                            description: this.decodeBase64(p.description)
-                        }));
-
-                    if (current) {
-                        this.updateNowPlaying(channel, {
-                            current: {
-                                title: this.decodeBase64(current.title),
-                                start: new Date(parseInt(current.start_timestamp) * 1000),
-                                stop: new Date(parseInt(current.stop_timestamp) * 1000),
-                                description: this.decodeBase64(current.description)
-                            },
-                            upcoming
-                        });
-                    }
-                }
+            if (!current) {
+                this.updateNowPlaying(channel, null);
+                return;
             }
+            this.updateNowPlaying(channel, {
+                current: {
+                    title: current.title,
+                    start: new Date(current.startMs ?? current.start),
+                    stop: new Date(current.stopMs ?? current.stop),
+                    description: current.description || ''
+                },
+                upcoming
+            });
         } catch (err) {
             console.log('EPG data not available:', err.message);
-        }
-    }
-
-    /**
-     * Decode base64 EPG data
-     */
-    decodeBase64(str) {
-        if (!str) return '';
-        try {
-            return decodeURIComponent(escape(atob(str)));
-        } catch {
-            return str;
         }
     }
 
@@ -1660,11 +1600,11 @@ class VideoPlayer {
         if (channels.length === 0) return;
 
         const currentIdx = this.currentChannel
-            ? channels.findIndex(c => c.id === this.currentChannel.id)
+            ? channels.findIndex(c => c.id === this.currentChannel.id && String(c.sourceId) === String(this.currentChannel.sourceId))
             : -1;
 
         const prevIdx = currentIdx <= 0 ? channels.length - 1 : currentIdx - 1;
-        window.app.channelList.selectChannel({ channelId: channels[prevIdx].id });
+        window.app.channelList.selectChannel({ channelId: channels[prevIdx].id, sourceId: channels[prevIdx].sourceId });
     }
 
     /**
@@ -1676,11 +1616,11 @@ class VideoPlayer {
         if (channels.length === 0) return;
 
         const currentIdx = this.currentChannel
-            ? channels.findIndex(c => c.id === this.currentChannel.id)
+            ? channels.findIndex(c => c.id === this.currentChannel.id && String(c.sourceId) === String(this.currentChannel.sourceId))
             : -1;
 
         const nextIdx = currentIdx >= channels.length - 1 ? 0 : currentIdx + 1;
-        window.app.channelList.selectChannel({ channelId: channels[nextIdx].id });
+        window.app.channelList.selectChannel({ channelId: channels[nextIdx].id, sourceId: channels[nextIdx].sourceId });
     }
 
     /**

@@ -97,6 +97,38 @@ const API = {
         getStatus: () => API.request('GET', '/sources/status'), // Get all statuses
         estimate: (id) => API.request('GET', `/sources/${id}/estimate`), // Estimate M3U size
         estimateByUrl: (url, type) => API.request('POST', '/sources/estimate', { url, type }), // Estimate by URL (before creation)
+        catalogue: (id) => API.request('GET', `/sources/${id}/catalogue?type=live`), // Sources picker (0120)
+    },
+
+    // Library (0121, W2.1): the same browsing API the Apple client uses. Rows carry
+    // the bare channel id, its number, a /api/logo/ path and now/next; only visible
+    // channels are listed.
+    library: {
+        categories: () => API.request('GET', '/library/categories'),
+        channels: ({ limit = 200, offset = 0, category = null, search = null } = {}) => {
+            const params = [`limit=${limit}`, `offset=${offset}`];
+            if (category) params.push(`category=${encodeURIComponent(category)}`);
+            if (search) params.push(`search=${encodeURIComponent(search)}`);
+            return API.request('GET', `/library/channels?${params.join('&')}`);
+        },
+        // Every visible channel, page by page (the route returns at most 200 at a time).
+        allChannels: async () => {
+            const first = await API.library.channels({ limit: 200, offset: 0 });
+            const pages = [first];
+            const rest = [];
+            for (let offset = first.channels.length; offset < first.total && first.channels.length > 0; offset += 200) {
+                rest.push(API.library.channels({ limit: 200, offset }));
+            }
+            pages.push(...await Promise.all(rest));
+            return pages.flatMap(p => p.channels || []);
+        },
+        guide: ({ start, end, limit = 500, cursor = null, category = null } = {}) => {
+            const params = [`start=${start}`, `end=${end}`, `limit=${limit}`];
+            if (cursor) params.push(`cursor=${encodeURIComponent(cursor)}`);
+            if (category) params.push(`category=${encodeURIComponent(category)}`);
+            return API.request('GET', `/library/guide?${params.join('&')}`);
+        },
+        favourites: () => API.request('GET', '/library/favourites')
     },
 
     // Channels (hidden items)

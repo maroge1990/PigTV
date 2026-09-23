@@ -9,9 +9,8 @@ class SourceManager {
         this.m3uList = document.getElementById('m3u-list');
         this.epgList = document.getElementById('epg-list');
 
-        // Content browser state
-        this.contentType = 'channels'; // 'channels' or 'movies'
-        this.treeData = null; // { type, sourceId, groups: [{ id, name, categoryId, items: [] }] }
+        // Content browser state (live channels only since 0121: movies and series are gone)
+        this.treeData = null; // { type: 'channels', sourceId, groups: [{ id, name, categoryId, items: [] }] }
         this.hiddenSet = new Set(); // Set of hidden item keys (current state)
         this.originalHiddenSet = new Set(); // Set of hidden item keys (state when loaded)
         this.expandedGroups = new Set(); // Set of expanded group IDs
@@ -459,14 +458,11 @@ class SourceManager {
                 throw new Error('Sync timed out');
             }
 
-            // 3. Refresh UI / Cache
-            // Clear cache for this source first
-            await API.proxy.cache.clear(id);
-
+            // 3. Refresh UI (everything reads SQLite through /api/library now,
+            // so there is no proxy cache to clear)
             if (type === 'epg') {
-                // Force refresh EPG data
                 if (window.app?.epgGuide) {
-                    await window.app.epgGuide.loadEpg(true);
+                    await window.app.epgGuide.loadEpg();
                 }
                 alert('EPG data synced & refreshed!');
             } else if (type === 'xtream') {
@@ -500,34 +496,6 @@ class SourceManager {
     initContentBrowser() {
         this.contentSourceSelect = document.getElementById('content-source-select');
         this.contentTree = document.getElementById('content-tree');
-        this.channelsBtn = document.getElementById('content-type-channels');
-        this.moviesBtn = document.getElementById('content-type-movies');
-        this.seriesBtn = document.getElementById('content-type-series');
-
-        // Content type toggle
-        this.channelsBtn?.addEventListener('click', () => {
-            this.contentType = 'channels';
-            this.channelsBtn.classList.add('active');
-            this.moviesBtn?.classList.remove('active');
-            this.seriesBtn?.classList.remove('active');
-            this.reloadContentTree();
-        });
-
-        this.moviesBtn?.addEventListener('click', () => {
-            this.contentType = 'movies';
-            this.moviesBtn.classList.add('active');
-            this.channelsBtn?.classList.remove('active');
-            this.seriesBtn?.classList.remove('active');
-            this.reloadContentTree();
-        });
-
-        this.seriesBtn?.addEventListener('click', () => {
-            this.contentType = 'series';
-            this.seriesBtn.classList.add('active');
-            this.channelsBtn?.classList.remove('active');
-            this.moviesBtn?.classList.remove('active');
-            this.reloadContentTree();
-        });
 
         // Source selection
         this.contentSourceSelect?.addEventListener('change', () => this.reloadContentTree());
@@ -563,19 +531,10 @@ class SourceManager {
     reloadContentTree() {
         const sourceId = this.contentSourceSelect?.value;
         if (!sourceId) {
-            const typeLabel = this.contentType === 'movies' ? 'movie categories' :
-                this.contentType === 'series' ? 'series categories' : 'groups and channels';
-            this.contentTree.innerHTML = `<p class="hint">Select a source to view ${typeLabel}</p>`;
+            this.contentTree.innerHTML = '<p class="hint">Select a source to view groups and channels</p>';
             return;
         }
-
-        if (this.contentType === 'movies') {
-            this.loadMovieCategoriesTree(parseInt(sourceId));
-        } else if (this.contentType === 'series') {
-            this.loadSeriesCategoriesTree(parseInt(sourceId));
-        } else {
-            this.loadContentTree(parseInt(sourceId));
-        }
+        this.loadContentTree(parseInt(sourceId));
     }
 
     /**
@@ -601,11 +560,10 @@ class SourceManager {
     /**
      * Load content tree for a source
      * Checked = Visible, Unchecked = Hidden
-     */
-
-
-    /**
-     * Load content tree for a source
+     *
+     * 0121 (W2.1): one request, GET /api/sources/:id/catalogue?type=live (0120) -
+     * every category and channel of the source, hidden ones included, with their
+     * hidden flags - instead of the Xtream-emulation routes plus /channels/hidden.
      */
     async loadContentTree(sourceId) {
         this.contentTree.innerHTML = '<p class="hint">Loading...</p>';
@@ -613,74 +571,30 @@ class SourceManager {
         this.expandedGroups.clear();
 
         try {
-            const source = await API.sources.getById(sourceId);
-            let channels = [];
+            const { categories = [], channels = [] } = await API.sources.catalogue(sourceId);
 
-            let categoryMap = {};
-
-            if (source.type === 'xtream' || source.type === 'm3u') {
-                // Use unified Xtream API endpoints - backend supports both source types
-                // Use includeHidden to show ALL items in the content manager
-                const categories = await API.proxy.xtream.liveCategories(sourceId, { includeHidden: true });
-                const streams = await API.proxy.xtream.liveStreams(sourceId, null, { includeHidden: true });
-
-                channels = streams;
-                categories.forEach(cat => {
-                    categoryMap[cat.category_id] = cat.category_name;
-                });
-            }
-
-            // Get currently hidden items
-            const hiddenItems = await API.channels.getHidden(sourceId);
-            this.hiddenSet = new Set(hiddenItems.map(h => `${h.item_type}:${h.item_id}`));
+            // The saved state, keyed as the save and bulk routes expect it
+            this.hiddenSet = new Set([
+                ...categories.filter(c => c.hidden).map(c => `group:${c.id}`),
+                ...channels.filter(ch => ch.hidden).map(ch => `channel:${ch.id}`)
+            ]);
             this.originalHiddenSet = new Set(this.hiddenSet); // Track original state for diffing
 
-            // Group channels by category
-            const groupMap = {}; // key: categoryId, value: { name, categoryId, items }
-            channels.forEach(ch => {
-                let groupName = 'Uncategorized';
-                let categoryId = ch.category_id;
-
-                // Look up category name from map (works for both Xtream and M3U now)
-                if (categoryId && categoryMap[categoryId]) {
-                    groupName = categoryMap[categoryId];
-                } else if (categoryId) {
-                    // M3U uses category_id as the name itself
-                    groupName = categoryId;
+            // Groups in the provider's category order; a channel whose category is
+            // not listed gets a group of its own, after them. Empty categories are
+            // left out, as before.
+            const groupMap = new Map();
+            for (const cat of categories) {
+                groupMap.set(String(cat.id), { id: String(cat.id), name: cat.name || String(cat.id), categoryId: cat.id, type: 'group', items: [] });
+            }
+            for (const ch of channels) {
+                const key = ch.categoryId !== null && ch.categoryId !== undefined ? String(ch.categoryId) : 'Uncategorized';
+                if (!groupMap.has(key)) {
+                    groupMap.set(key, { id: key, name: key, categoryId: ch.categoryId ?? null, type: 'group', items: [] });
                 }
-
-                const groupKey = categoryId || groupName;
-                if (!groupMap[groupKey]) {
-                    groupMap[groupKey] = {
-                        categoryId: categoryId,
-                        name: groupName,
-                        items: []
-                    };
-                }
-
-                // Normalize channel object
-                const channelId = ch.stream_id || ch.id || ch.url;
-                const channelName = ch.name || ch.tvgName || 'Unknown';
-
-                groupMap[groupKey].items.push({
-                    id: String(channelId),
-                    name: channelName,
-                    original: ch,
-                    type: 'channel'
-                });
-            });
-
-            // Keep the server's order. Categories arrive in the provider's
-            // own sequence (placeholder/header categories sit directly above
-            // the ones they introduce), and sorting by name destroys that.
-            this.treeData.groups = Object.entries(groupMap)
-                .map(([key, group]) => ({
-                    id: key, // Use categoryId as the group ID
-                    name: group.name,
-                    categoryId: group.categoryId, // Store actual category_id for API calls
-                    type: 'group',
-                    items: group.items
-                }));
+                groupMap.get(key).items.push({ id: String(ch.id), name: ch.name || 'Unknown', number: ch.number ?? null, type: 'channel' });
+            }
+            this.treeData.groups = [...groupMap.values()].filter(g => g.items.length > 0);
 
             this.renderTree();
 
@@ -739,8 +653,6 @@ class SourceManager {
      * Get HTML for a group (and its items if expanded)
      */
     groupItemType() {
-        if (this.treeData.type === 'movie') return 'vod_category';
-        if (this.treeData.type === 'series') return 'series_category';
         return 'group';
     }
 
@@ -771,7 +683,7 @@ class SourceManager {
                                data-id="${item.id}" 
                                data-source-id="${this.treeData.sourceId}" 
                                ${!itemHidden ? 'checked' : ''}>
-                        <span class="channel-name">${this.escapeHtml(item.name)}</span>
+                        <span class="channel-name">${item.number !== null && item.number !== undefined ? `<span class="channel-number">${this.escapeHtml(item.number)}</span> ` : ''}${this.escapeHtml(item.name)}</span>
                     </label>`;
             }).join('')}
             </div>`;
@@ -850,110 +762,6 @@ class SourceManager {
                 const newEl = this.contentTree.querySelector(`.content-group[data-group-id="${CSS.escape(groupId)}"]`);
                 if (newEl) this.attachTreeListeners(newEl);
             }
-        }
-    }
-
-    /**
-     * Load movie categories tree for a source
-     */
-    async loadMovieCategoriesTree(sourceId) {
-        this.contentTree.innerHTML = '<p class="hint">Loading movie categories...</p>';
-        this.treeData = { type: 'movies', sourceId, groups: [] };
-
-        try {
-            const source = await API.sources.getById(sourceId);
-
-            if (source.type !== 'xtream') {
-                this.contentTree.innerHTML = '<p class="hint">Movie categories are only available for Xtream sources</p>';
-                return;
-            }
-
-            const categories = await API.proxy.xtream.vodCategories(sourceId, { includeHidden: true });
-
-            if (!categories || categories.length === 0) {
-                this.contentTree.innerHTML = '<p class="hint">No movie categories found</p>';
-                return;
-            }
-
-            const hiddenItems = await API.channels.getHidden(sourceId);
-            this.hiddenSet = new Set(hiddenItems.map(h => `${h.item_type}:${h.item_id}`));
-            this.originalHiddenSet = new Set(this.hiddenSet); // Track original state
-
-            // Create a single "Movies" group or flatten?
-            // The original UI rendered a flat list of categories. 
-            // Better to stick to "Group -> Items" structure, or just wrap them in a pseudo-group?
-            // Original: rendered checkboxes directly.
-            // Let's adopt the treeData structure but with a single root group or flat items?
-            // To support generic renderTree, we can put them in a "Categories" group or just render them as items.
-            // Let's update renderTree to support flat list if groups is empty? 
-            // Or just put them in one "All Categories" group that is auto-expanded.
-
-            this.treeData.groups = [{
-                id: 'all_categories',
-                name: 'Categories',
-                type: 'group',
-                items: categories.map(cat => ({
-                    id: String(cat.category_id),
-                    name: cat.category_name,
-                    type: 'vod_category',
-                    original: cat
-                }))
-            }];
-
-            // Auto expand
-            this.expandedGroups.add('all_categories');
-            this.renderTree();
-
-        } catch (err) {
-            console.error('Error loading movie categories:', err);
-            this.contentTree.innerHTML = '<p class="hint" style="color: var(--color-error);">Error loading movie categories</p>';
-        }
-    }
-
-    /**
-     * Load series categories tree for a source
-     */
-    async loadSeriesCategoriesTree(sourceId) {
-        this.contentTree.innerHTML = '<p class="hint">Loading series categories...</p>';
-        this.treeData = { type: 'series', sourceId, groups: [] };
-
-        try {
-            const source = await API.sources.getById(sourceId);
-
-            if (source.type !== 'xtream') {
-                this.contentTree.innerHTML = '<p class="hint">Series categories are only available for Xtream sources</p>';
-                return;
-            }
-
-            const categories = await API.proxy.xtream.seriesCategories(sourceId, { includeHidden: true });
-
-            if (!categories || categories.length === 0) {
-                this.contentTree.innerHTML = '<p class="hint">No series categories found</p>';
-                return;
-            }
-
-            const hiddenItems = await API.channels.getHidden(sourceId);
-            this.hiddenSet = new Set(hiddenItems.map(h => `${h.item_type}:${h.item_id}`));
-            this.originalHiddenSet = new Set(this.hiddenSet); // Track original state
-
-            this.treeData.groups = [{
-                id: 'all_series_categories',
-                name: 'Categories',
-                type: 'group',
-                items: categories.map(cat => ({
-                    id: String(cat.category_id),
-                    name: cat.category_name,
-                    type: 'series_category',
-                    original: cat
-                }))
-            }];
-
-            this.expandedGroups.add('all_series_categories');
-            this.renderTree();
-
-        } catch (err) {
-            console.error('Error loading series categories:', err);
-            this.contentTree.innerHTML = '<p class="hint" style="color: var(--color-error);">Error loading series categories</p>';
         }
     }
 
@@ -1051,7 +859,7 @@ class SourceManager {
 
         try {
             const sourceId = this.treeData.sourceId;
-            const contentType = this.treeData.type; // 'channels', 'movies', or 'series'
+            const contentType = this.treeData.type; // 'channels'
 
             // Use fast API endpoint (single SQL UPDATE statement)
             if (visible) {
@@ -1087,11 +895,10 @@ class SourceManager {
             // Update originalHiddenSet to match current state
             this.originalHiddenSet = new Set(this.hiddenSet);
 
-            // Sync Channel List
+            // Sync Channel List (it lists only visible channels, so reload it)
             try {
-                if (window.app?.channelList?.loadHiddenItems) {
-                    await window.app.channelList.loadHiddenItems();
-                    window.app.channelList.render();
+                if (window.app?.channelList?.loadChannels) {
+                    await window.app.channelList.loadChannels();
                 }
             } catch (e) {
                 console.warn('[SourceManager] Channel list sync failed:', e);
@@ -1246,23 +1053,10 @@ class SourceManager {
             // Update originalHiddenSet to reflect saved state
             this.originalHiddenSet = new Set(this.hiddenSet);
 
-            // Sync Channel List (don't block on this)
+            // Sync Channel List (it lists only visible channels, so reload it)
             try {
-                if (window.app?.channelList) {
-                    // Start with hidden items sync which is fast
-                    if (window.app.channelList.loadHiddenItems) {
-                        await window.app.channelList.loadHiddenItems();
-                    }
-
-                    // If we modified the currently active source, reload it fully to get fresh categories
-                    if (window.app.channelList.currentSourceId &&
-                        String(window.app.channelList.currentSourceId) === String(this.contentSourceSelect.value)) {
-                        console.log('[SourceManager] Reloading active source in ChannelList...');
-                        await window.app.channelList.loadSource(window.app.channelList.currentSourceId);
-                    } else {
-                        // Otherwise just render to reflect hidden item changes
-                        window.app.channelList.render();
-                    }
+                if (window.app?.channelList?.loadChannels) {
+                    await window.app.channelList.loadChannels();
                 }
             } catch (e) {
                 console.warn('[SourceManager] Channel list sync failed:', e);

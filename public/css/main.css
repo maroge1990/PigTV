@@ -696,6 +696,23 @@ h4 {
   object-fit: contain;
 }
 
+/* 0121: channel numbers (library rows carry `number`) */
+.channel-number,
+.epg-channel-number {
+  min-width: 2.2em;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.tile-number {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .channel-info {
   flex: 1;
   min-width: 0;

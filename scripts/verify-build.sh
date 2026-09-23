@@ -128,7 +128,7 @@ check public/css/main.css "epg-channel-info {" "whole-cell cursor"
 check server/services/transcodeSession.js "fps_mode" "fps passthrough"
 check server/services/transcodeSession.js "min(ih," "scale clamp"
 check server/routes/proxy.js "NOT EXISTS" "hidden-category exclusion"
-check public/js/components/ChannelList.js "allCategories" "group name fallback"
+check public/js/components/ChannelList.js "categoryNames.get(\`\${row.sourceId}:\${row.category}\`) || row.category" "group name fallback (0121: from /api/library/categories, else the category id)"
 
 echo "=== 0018: transcode strategy ==="
 check server/services/streamProbe.js "clientCaps" "probe takes client caps"
@@ -194,7 +194,7 @@ check server/services/transcodeSession.js "isHeAac" "session forces AAC-LC"
 check server/services/transcodeSession.js "aac_low" "AAC-LC profile set"
 check public/js/pages/WatchPage.js "isHeAac" "client forwards HE-AAC flag (live: the server reads it from its own probe)"
 check public/js/components/SourceManager.js "groupItemType()" "group type helper"
-check public/js/components/ChannelList.js "Every category is hidden" "empty state wording"
+check public/js/components/ChannelList.js "Choose what to show under Settings" "empty state wording (0121: points at Manage Content when a source exists)"
 check server/routes/channels.js "cascadeCategory" "single hide/show cascades"
 check public/js/theme.js "prefers-color-scheme" "theme follows system"
 check public/css/main.css "data-theme=.light" "light tokens"
@@ -1601,6 +1601,22 @@ awk '/^router.use\(requireAdmin\);/{a=NR} /router.get\(.\/:id\/catalogue./{c=NR}
   && echo "  ✓ the catalogue is declared after router.use(requireAdmin) (admin only)" \
   || { echo "  ✗ MISSING: the catalogue route must come after router.use(requireAdmin)"; FAIL=1; }
 check test/source-catalogue.test.js "hidden ones included, in provider order" "with a test"
+
+echo "=== 0121: the web reads /api/library (W2.1) ==="
+check public/js/api.js "API.request('GET', '/library/categories')" "api.js has the library helpers"
+check public/js/api.js "/sources/\${id}/catalogue?type=live" "and the Sources catalogue"
+check public/js/components/ChannelList.js "API.library.allChannels()" "the live sidebar pages /api/library/channels"
+check public/js/components/ChannelList.js "API.library.favourites()" "and reads /api/library/favourites"
+check public/js/components/ChannelList.js "window.app.player.play(channel, null)" "and plays by channel identity, never a stream URL"
+check public/js/components/EpgGuide.js "API.library.guide({ start, end, limit: 500, cursor })" "the guide pages /api/library/guide with a cursor"
+check public/js/components/SourceManager.js "API.sources.catalogue(sourceId)" "the Sources picker reads the catalogue"
+check public/js/pages/HomePage.js "window.API.library.favourites()" "the Home favourites row reads /api/library/favourites"
+for f in public/js/components/ChannelList.js public/js/components/EpgGuide.js public/js/components/SourceManager.js public/js/components/VideoPlayer.js public/js/pages/LivePage.js public/js/pages/Guide.js; do
+    check_absent "$f" "/proxy/xtream\|/proxy/epg\|API\.proxy" "$f no longer calls the Xtream-emulation or whole-EPG routes"
+done
+check_absent public/index.html "content-type-movies" "the picker's movie/series tabs are gone"
+check_absent public/js/components/VideoPlayer.js "!this.currentStreamUrl" "recovery replays a channel by identity, without a stream URL"
+check test/web-library.test.js "no live-TV script still calls the Xtream-emulation or whole-EPG proxy routes" "with a test"
 
 if [ $FAIL -eq 0 ]; then
     echo ""

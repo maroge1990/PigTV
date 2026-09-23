@@ -9,16 +9,23 @@ class EpgGuide {
         this.dateDisplay = document.getElementById('guide-date');
         this.prevBtn = document.getElementById('guide-prev');
         this.nextBtn = document.getElementById('guide-next');
-        this.nextBtn = document.getElementById('guide-next');
         this.groupSelect = document.getElementById('epg-group-select');
         this.searchInput = document.getElementById('epg-search');
 
-        this.channels = [];
-        this.programmes = [];
+        // 0121 (W2.1): the guide reads /api/library/guide - visible channels, in
+        // number order, each with its programmes across the loaded window.
+        this.rows = [];              // guide rows as channel objects (see fromGuideRow)
+        this.programmes = [];        // every loaded programme (flat), for "is anything loaded"
+        this.loaded = false;
+        this.window = null;          // { start, end } in ms that this.rows covers
+        this.categories = [];
+        this.byChannel = new Map();  // "sourceId:id" -> programmes
+        this.byTvgId = new Map();    // tvgId -> programmes
+        this.byName = new Map();     // lower-case channel name -> programmes
         this.currentDate = new Date();
         this.timeOffset = 0; // Hours offset from now
         this.pixelsPerMinute = 6.67; // Width scaling (30min = 200px)
-        this.favorites = new Set(); // Set<"sourceId:channelId">
+        this.favorites = new Set(); // Set<"sourceId:identity"> (see favKey)
         this.selectedGroup = 'Favorites'; // Default to Favorites
 
         // Virtual scrolling properties
@@ -38,17 +45,20 @@ class EpgGuide {
         this.init();
     }
 
-    /**
-     * Get proxied image URL to avoid mixed content errors on HTTPS
-     * Only proxies HTTP URLs when on HTTPS page
-     */
-    getProxiedImageUrl(url) {
-        if (!url || url.length === 0) return '/img/placeholder.png';
-        // Only proxy if we're on HTTPS and the image is HTTP
-        if (window.location.protocol === 'https:' && url.startsWith('http://')) {
-            return `/api/proxy/image?url=${encodeURIComponent(url)}`;
-        }
-        return url;
+    /** A logo from a library row is our own /api/logo/ path (unauthenticated), or none. */
+    logoUrl(url) {
+        return url ? url : '/img/placeholder.png';
+    }
+
+    /** What makes two listings the same channel: its identity, else its id. */
+    favKey(channel) {
+        return `${channel.sourceId}:${channel.stableId || channel.id}`;
+    }
+
+    escapeHtml(text) {
+        if (text === null || text === undefined || text === '') return '';
+        return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
     }
 
     init() {
@@ -115,29 +125,41 @@ class EpgGuide {
     /**
      * Navigate time
      */
-    navigate(hours) {
+    async navigate(hours) {
         this.timeOffset += hours;
+        // The guide is fetched for the window it shows: moving it fetches again.
+        const { start } = this.renderWindow();
+        if (!this.window || this.window.start !== start) {
+            try {
+                await this.fetchEpgData();
+            } catch (err) {
+                console.error('Error loading EPG:', err);
+            }
+        }
         this.render();
+    }
+
+    /** The 24 h the grid shows: from the top of the hour, moved by timeOffset. */
+    renderWindow() {
+        const start = new Date();
+        start.setHours(start.getHours() + this.timeOffset);
+        start.setMinutes(0, 0, 0);
+        return { start: start.getTime(), end: start.getTime() + 24 * 60 * 60 * 1000 };
     }
 
     /**
      * Start background EPG display refresh timer
-     * This only refreshes the UI from cached server data.
+     * This only refreshes the UI from the server's data.
      * The actual sync runs on the server independently.
      */
     startBackgroundRefresh() {
-        // Clear any existing timer
         this.stopBackgroundRefresh();
 
-        // Refresh display from cache every 5 minutes to pick up server-side sync results
         const refreshIntervalMs = 5 * 60 * 1000; // 5 minutes
 
-        console.log('[EPG] Starting display refresh timer: every 5 minutes');
-
         this._backgroundRefreshTimer = setInterval(async () => {
-            console.log('[EPG] Refreshing EPG display from cache');
             try {
-                await this.fetchEpgData(false); // Fetch cached data (no force refresh)
+                await this.fetchEpgData();
 
                 // Update channel list program info if visible
                 if (window.app?.channelList) {
@@ -157,7 +179,6 @@ class EpgGuide {
         if (this._backgroundRefreshTimer) {
             clearInterval(this._backgroundRefreshTimer);
             this._backgroundRefreshTimer = null;
-            console.log('[EPG] Background refresh timer stopped');
         }
     }
 
@@ -169,140 +190,124 @@ class EpgGuide {
     }
 
     /**
-     * Load EPG data (server-side caching)
+     * Load EPG data and draw the grid
      */
-    async loadEpg(forceRefresh = false) {
+    async loadEpg() {
         try {
             this.container.innerHTML = '<div class="loading"></div>';
-            await this.fetchEpgData(forceRefresh);
+            await this.fetchEpgData();
             this.lastRefreshTime = new Date();
             this.render();
 
-            // Start background refresh timer after initial load
-            // This ensures EPG data stays fresh while the app is open
+            // The channel list's "now" line can use the loaded window from here on
+            if (window.app?.channelList) {
+                window.app.channelList.clearProgramInfoCache();
+                window.app.channelList.updateVisibleEpgInfo?.();
+            }
+
+            // Keep the data fresh while the app is open
             this.startBackgroundRefresh();
         } catch (err) {
             console.error('Error loading EPG:', err);
             this.container.innerHTML = `
         <div class="empty-state">
           <p>Error loading EPG</p>
-          <p class="hint">${err.message}</p>
+          <p class="hint">${this.escapeHtml(err.message)}</p>
         </div>
       `;
         }
     }
 
-    /**
-     * Fetch EPG data from sources
-     */
-    async fetchEpgData(forceRefresh = false) {
-        // Get ALL sources and filter for EPG-capable types
-        const allSources = await API.sources.getAll();
-        const sources = allSources.filter(s => (s.type === 'epg' || s.type === 'xtream') && s.enabled);
+    /** A programme as the grid and its callers use it (ISO times, like the old feed). */
+    toProgramme(p) {
+        return {
+            title: p.title,
+            description: p.description || '',
+            start: new Date(p.startTime).toISOString(),
+            stop: new Date(p.endTime).toISOString(),
+            startMs: p.startTime,
+            stopMs: p.endTime
+        };
+    }
 
-        if (sources.length === 0) {
-            throw new Error('No EPG sources or Xtream accounts configured');
-        }
-
-        // Build query params for server-side caching
-        // Sync interval is controlled by server, we just hint at max cache age
-        const maxAge = 24; // hours - server controls actual refresh
-        const queryParams = forceRefresh ? '?refresh=1' : `?maxAge=${maxAge}`;
-
-        // Load EPG from ALL sources in parallel
-        const fetchPromises = sources.map(async (source) => {
-            try {
-                const response = await fetch(`/api/proxy/epg/${source.id}${queryParams}`);
-                if (!response.ok) throw new Error(`Status ${response.status}`);
-                return await response.json();
-            } catch (e) {
-                console.warn(`Failed to load EPG for source ${source.name}:`, e);
-                return null;
-            }
-        });
-
-        const results = await Promise.all(fetchPromises);
-
-        // Merge results
-        this.channels = [];
-        this.programmes = [];
-
-        let hasData = false;
-        results.forEach(data => {
-            if (data) {
-                if (data.channels && data.channels.length > 0) {
-                    this.channels = this.channels.concat(data.channels);
-                }
-                if (data.programmes && data.programmes.length > 0) {
-                    this.programmes = this.programmes.concat(data.programmes);
-                }
-                if (data.channels || data.programmes) {
-                    hasData = true;
-                }
-            }
-        });
-
-        if (!hasData) {
-            throw new Error('Failed to load EPG data from any source');
-        }
-
-        // Build secondary indexes for faster lookup
-        this.channelMap = new Map();
-        // Index by ID
-        this.channels.forEach(ch => {
-            this.channelMap.set(ch.id, ch);
-            // Also index by name (normalized) for fallback matching
-            if (ch.name) {
-                this.channelMap.set(ch.name.toLowerCase(), ch);
-            }
-        });
-
-        // Load favorites
-        const favs = await API.favorites.getAll();
-        this.favorites = new Set(favs.map(f => `${f.source_id}:${f.item_id}`));
+    /** A guide row as the channel object the web app passes around (bare library id). */
+    fromGuideRow(row, categoryNames) {
+        return {
+            id: row.id,
+            sourceId: row.sourceId,
+            stableId: row.stableId || null,
+            number: row.number ?? null,
+            name: row.name,
+            tvgId: row.tvgId || null,
+            tvgLogo: row.logo || null,
+            groupTitle: categoryNames.get(`${row.sourceId}:${row.category}`) || row.category || 'Uncategorized',
+            programmes: (row.programmes || []).map(p => this.toProgramme(p))
+        };
     }
 
     /**
-     * Get current program for a channel
-     * @param {string} tvgId - The EPG channel ID (tvg-id)
-     * @param {string} channelName - The channel name (for fallback)
-     * @returns {object|null} Program object with title, start, stop
+     * Fetch the guide for the window on screen: every visible channel, 500 rows a
+     * request, following the cursor. Also the category names and favourites.
      */
-    getCurrentProgram(tvgId, channelName) {
-        if (!this.programmes || this.programmes.length === 0) return null;
+    async fetchEpgData() {
+        const { start, end } = this.renderWindow();
+        const [categories, favourites] = await Promise.all([
+            API.library.categories(),
+            API.library.favourites()
+        ]);
 
-        // Find EPG channel using fast map lookup
-        let epgChannel = null;
-        if (tvgId && this.channelMap && this.channelMap.has(tvgId)) {
-            epgChannel = this.channelMap.get(tvgId);
-        } else if (channelName && this.channelMap) {
-            epgChannel = this.channelMap.get(channelName.toLowerCase());
-        } else {
-            // Fallback to slow search if map fails or not built yet
-            epgChannel = this.channels.find(epg =>
-                (tvgId && epg.id === tvgId) || epg.name === channelName
-            );
+        const rows = [];
+        let cursor = null;
+        for (let page = 0; page < 100; page++) { // 50,000 channels is far beyond any lineup
+            const result = await API.library.guide({ start, end, limit: 500, cursor });
+            rows.push(...(result.channels || []));
+            cursor = result.nextCursor;
+            if (!cursor) break;
         }
 
-        if (!epgChannel) return null;
+        this.categories = categories || [];
+        const categoryNames = new Map(this.categories.map(c => [`${c.sourceId}:${c.id}`, c.name]));
+        this.rows = rows.map(r => this.fromGuideRow(r, categoryNames));
+        this.window = { start, end };
 
-        const now = new Date();
-        const nowTime = now.getTime();
+        // Indexes for the channel list and the player's now/next
+        this.byChannel = new Map();
+        this.byTvgId = new Map();
+        this.byName = new Map();
+        this.programmes = [];
+        for (const ch of this.rows) {
+            this.byChannel.set(`${ch.sourceId}:${ch.id}`, ch.programmes);
+            if (ch.tvgId && ch.programmes.length && !this.byTvgId.has(ch.tvgId)) this.byTvgId.set(ch.tvgId, ch.programmes);
+            const name = String(ch.name || '').toLowerCase();
+            if (name && ch.programmes.length && !this.byName.has(name)) this.byName.set(name, ch.programmes);
+            this.programmes.push(...ch.programmes);
+        }
 
-        // Filter programs for this channel
-        const current = this.programmes.find(p => {
-            if (p.channelId !== epgChannel.id) return false;
-            const start = new Date(p.start).getTime();
-            const stop = new Date(p.stop).getTime();
-            return nowTime >= start && nowTime < stop;
-        });
+        this.favorites = new Set((favourites || []).map(f => this.favKey(f)));
+        this.loaded = true;
+    }
 
-        return current ? {
-            title: current.title,
-            start: current.start,
-            stop: current.stop,
-            description: current.description
-        } : null;
+    /** The programmes loaded for a channel: its own row, else one with the same tvg-id or name. */
+    getProgrammesFor(channel) {
+        if (!channel) return [];
+        return this.byChannel.get(`${channel.sourceId}:${channel.id}`)
+            || (channel.tvgId && this.byTvgId.get(channel.tvgId))
+            || this.byName.get(String(channel.name || '').toLowerCase())
+            || [];
+    }
+
+    /** What is on a channel now, from the loaded window, or null. */
+    getCurrentProgramFor(channel) {
+        const now = Date.now();
+        return this.getProgrammesFor(channel).find(p => p.startMs <= now && p.stopMs > now) || null;
+    }
+
+    /**
+     * Get current program for a channel by tvg-id, else by name
+     * @returns {object|null} Program object with title, start, stop, description
+     */
+    getCurrentProgram(tvgId, channelName) {
+        return this.getCurrentProgramFor({ tvgId, name: channelName });
     }
 
     /**
@@ -311,29 +316,32 @@ class EpgGuide {
     updateFilteredChannels() {
         const searchTerm = this.searchInput ? this.searchInput.value.toLowerCase().trim() : '';
 
-        // SEARCH MODE: Filter all channels by name
+        // SEARCH MODE: Filter all channels by name (or an exact channel number)
         if (searchTerm) {
-            this.filteredChannels = this.allMatchedChannels.filter(ch => {
-                const name = (ch.sourceChannel?.name || '').toLowerCase();
-                return name.includes(searchTerm);
-            });
+            this.filteredChannels = this.allMatchedChannels.filter(ch =>
+                String(ch.name || '').toLowerCase().includes(searchTerm) ||
+                (ch.number !== null && ch.number !== undefined && String(ch.number) === searchTerm));
             return;
         }
 
         // GROUP MODE (Default)
         if (this.selectedGroup === 'Favorites') {
-            this.filteredChannels = this.allMatchedChannels.filter(m =>
-                this.favorites.has(`${m.sourceChannel.sourceId}:${m.sourceChannel.id}`)
-            );
+            // One row per channel, even when it is listed in more than one category.
+            const seen = new Set();
+            this.filteredChannels = this.allMatchedChannels.filter(ch => {
+                const key = this.favKey(ch);
+                if (!this.favorites.has(key) || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
             return;
         }
 
         if (!this.selectedGroup || this.selectedGroup === 'All') {
             this.filteredChannels = [...this.allMatchedChannels];
         } else {
-            this.filteredChannels = this.allMatchedChannels.filter(m =>
-                (m.sourceChannel.groupTitle || 'Uncategorized') === this.selectedGroup
-            );
+            this.filteredChannels = this.allMatchedChannels.filter(ch =>
+                (ch.groupTitle || 'Uncategorized') === this.selectedGroup);
         }
     }
 
@@ -341,23 +349,9 @@ class EpgGuide {
      * Render the EPG grid
      */
     render() {
-        // Get channel list instance
-        const channelList = window.app?.channelList;
-        if (!channelList) return;
+        const allChannels = this.rows || [];
 
-        // Get channels and filter out hidden ones (always enforce hidden in EPG)
-        // Note: We only check individual channel visibility, not group visibility
-        // A group is implicitly visible if it has any visible children
-        const playableChannels = (channelList.channels || []).filter(ch => {
-            // Use streamId (raw ID) for hidden check since that's what SourceManager stores
-            const rawChannelId = ch.streamId || ch.id;
-            const isChannelHidden = channelList.isHidden('channel', ch.sourceId, rawChannelId);
-            return !isChannelHidden;
-        });
-
-
-
-        if (playableChannels.length === 0) {
+        if (allChannels.length === 0) {
             this.container.innerHTML = `
                 <div class="empty-state">
                     <p>No visible channels available</p>
@@ -367,20 +361,14 @@ class EpgGuide {
             return;
         }
 
-        // Match ALL playable channels with optional EPG data
-        const allChannels = playableChannels.map(sourceChannel => {
-            // Try to find matching EPG channel by tvgId or name
-            const epgChannel = this.channels.find(epg =>
-                epg.id === sourceChannel.tvgId || epg.name === sourceChannel.name
-            );
-            return { epgChannel, sourceChannel };
-        });
-
-        // Collect unique groups from ALL playable channels. Set preserves
-        // insertion order, and allChannels is in provider order, so this is
-        // already the intended sequence — sorting it alphabetically would
-        // scatter the placeholder categories away from what they introduce.
-        const groups = [...new Set(allChannels.map(m => m.sourceChannel.groupTitle || 'Uncategorized'))];
+        // Groups in the provider's category order; any the category list lacks
+        // follow in the order they first appear.
+        const categoryOrder = new Map();
+        this.categories.forEach((c, i) => { if (!categoryOrder.has(c.name)) categoryOrder.set(c.name, i); });
+        const groups = [...new Set(allChannels.map(ch => ch.groupTitle || 'Uncategorized'))]
+            .map((name, i) => ({ name, i, order: categoryOrder.has(name) ? categoryOrder.get(name) : Infinity }))
+            .sort((a, b) => (a.order - b.order) || (a.i - b.i))
+            .map(g => g.name);
 
         // Add Favorites at the top if there are any
         const hasFavorites = this.favorites.size > 0;
@@ -397,7 +385,7 @@ class EpgGuide {
             }
 
             optionsHtml += `<option value="" ${currentValue === '' ? 'selected' : ''}>All Groups</option>`;
-            optionsHtml += groups.map(g => `<option value="${g}" ${g === currentValue ? 'selected' : ''}>${g}</option>`).join('');
+            optionsHtml += groups.map(g => `<option value="${this.escapeHtml(g)}" ${g === currentValue ? 'selected' : ''}>${this.escapeHtml(g)}</option>`).join('');
 
             this.groupSelect.innerHTML = optionsHtml;
         } else if (this.groupSelect) {
@@ -411,17 +399,14 @@ class EpgGuide {
             if (this.groupSelect) this.groupSelect.value = '';
         }
 
-        // Store all channels (matched with EPG data) for filtering
+        // Store all channels for filtering
         this.allMatchedChannels = allChannels;
         this.updateFilteredChannels();
 
         // Calculate time range and store for batch rendering
-        this.startTime = new Date();
-        this.startTime.setHours(this.startTime.getHours() + this.timeOffset);
-        this.startTime.setMinutes(0, 0, 0);
-
-        this.endTime = new Date(this.startTime);
-        this.endTime.setHours(this.endTime.getHours() + 24); // Show 24 hours of programming
+        const win = this.renderWindow();
+        this.startTime = new Date(win.start);
+        this.endTime = new Date(win.end); // Show 24 hours of programming
 
         // Update date display
         this.updateDateDisplay(this.startTime);
@@ -467,9 +452,6 @@ class EpgGuide {
         if (this._scrollHandler) {
             this.scrollContainer?.removeEventListener('scroll', this._scrollHandler);
         }
-        if (this._hScrollHandler) {
-            this.scrollContainer?.removeEventListener('scroll', this._hScrollHandler);
-        }
 
         // Get reference to time slots container for horizontal scroll sync
         this.timeSlotsContainer = this.container.querySelector('.epg-time-slots');
@@ -477,8 +459,6 @@ class EpgGuide {
         // Set up scroll handler for virtual scrolling (debounced for performance)
         this._scrollHandler = this.debounce(() => this.updateVisibleRows(), 16); // ~60fps
         this.scrollContainer.addEventListener('scroll', this._scrollHandler);
-
-        // No need for horizontal scroll sync anymore - header is inside scroll container
 
         // Initial render of visible rows
         this.updateVisibleRows();
@@ -488,11 +468,9 @@ class EpgGuide {
 
         // Add now indicator and set up periodic refresh
         this.updateNowIndicator();
-        // Clear any existing interval
         if (this._nowIndicatorInterval) {
             clearInterval(this._nowIndicatorInterval);
         }
-        // Update indicator every 60 seconds
         this._nowIndicatorInterval = setInterval(() => this.updateNowIndicator(), 60000);
     }
 
@@ -561,31 +539,18 @@ class EpgGuide {
      * Create a channel row element for virtual scrolling
      */
     createChannelRow(index) {
-        const { epgChannel, sourceChannel } = this.filteredChannels[index];
-        const isFavorite = this.favorites.has(`${sourceChannel.sourceId}:${sourceChannel.id}`);
+        const channel = this.filteredChannels[index];
+        const isFavorite = this.favorites.has(this.favKey(channel));
 
-        // Get programs if EPG data exists
-        let channelProgrammes = [];
-        if (epgChannel) {
-            channelProgrammes = this.programmes
-                .filter(p => p.channelId === epgChannel.id)
-                .filter(p => {
-                    const start = new Date(p.start);
-                    const stop = new Date(p.stop);
-                    return start < this.endTime && stop > this.startTime;
-                })
-                .sort((a, b) => new Date(a.start) - new Date(b.start));
-        }
-
-        // Fallback values if EPG channel is missing
-        const logo = this.getProxiedImageUrl(sourceChannel.tvgLogo || (epgChannel && epgChannel.icon));
-        const name = sourceChannel.name || (epgChannel && epgChannel.name);
+        const channelProgrammes = (channel.programmes || [])
+            .filter(p => p.startMs < this.endTime.getTime() && p.stopMs > this.startTime.getTime());
 
         const row = document.createElement('div');
         row.className = 'epg-channel-row';
-        row.dataset.channelId = sourceChannel.id;
-        row.dataset.sourceId = sourceChannel.sourceId;
-        row.dataset.channelName = sourceChannel.name || '';
+        row.dataset.channelId = channel.id;
+        row.dataset.sourceId = channel.sourceId;
+        row.dataset.favKey = this.favKey(channel);
+        row.dataset.channelName = channel.name || '';
         row.dataset.index = index;
         // Position absolutely for virtual scrolling
         row.style.position = 'absolute';
@@ -594,18 +559,22 @@ class EpgGuide {
         row.style.right = '0';
         row.style.height = `${this.rowHeight}px`;
 
+        const number = channel.number !== null && channel.number !== undefined
+            ? `<span class="epg-channel-number">${this.escapeHtml(channel.number)}</span>` : '';
+
         row.innerHTML = `
           <div class="epg-channel-info">
             <button class="favorite-btn ${isFavorite ? 'active' : ''}" title="${isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}">
               ${isFavorite ? Icons.favorite : Icons.favoriteOutline}
             </button>
-            <img class="epg-channel-logo" src="${logo}" 
+            ${number}
+            <img class="epg-channel-logo" src="${this.escapeHtml(this.logoUrl(channel.tvgLogo))}"
                  alt="" onerror="this.onerror=null;this.src='/img/placeholder.png'">
-            <span class="epg-channel-name">${name}</span>
+            <span class="epg-channel-name">${this.escapeHtml(channel.name)}</span>
             <div class="resize-handle"></div>
           </div>
           <div class="epg-programs">
-            ${this.renderProgrammes(channelProgrammes, this.startTime, this.endTime, sourceChannel)}
+            ${this.renderProgrammes(channelProgrammes, this.startTime, this.endTime, channel)}
           </div>
         `;
 
@@ -650,84 +619,52 @@ class EpgGuide {
         }
     }
 
+    /** Every star for this channel in the grid, whichever listing it is. */
+    setFavoriteButtons(key, isFavorite) {
+        const safe = String(key).replace(/"/g, '\\"');
+        this.container.querySelectorAll(`.epg-channel-row[data-fav-key="${safe}"] .favorite-btn`).forEach(btn => {
+            btn.classList.toggle('active', isFavorite);
+            btn.innerHTML = isFavorite ? Icons.favorite : Icons.favoriteOutline;
+            btn.title = isFavorite ? 'Remove from Favorites' : 'Add to Favorites';
+        });
+    }
+
+    findRow(sourceId, channelId) {
+        return (this.rows || []).find(r => String(r.id) === String(channelId) && String(r.sourceId) === String(sourceId)) || null;
+    }
+
     /**
-     * Toggle favorite
+     * Toggle favorite (bare id; stored and matched on the channel's identity)
      */
     async toggleFavorite(sourceId, channelId) {
-        const key = `${sourceId}:${channelId}`;
+        const channel = this.findRow(sourceId, channelId) || { sourceId, id: channelId };
+        const key = this.favKey(channel);
         const wasFavorite = this.favorites.has(key);
         const isNowFavorite = !wasFavorite;
 
-        // 1. Optimistic Update (EPG)
-        if (isNowFavorite) {
-            this.favorites.add(key);
-        } else {
-            this.favorites.delete(key);
-        }
+        const apply = (isFavorite) => {
+            if (isFavorite) this.favorites.add(key);
+            else this.favorites.delete(key);
+            this.setFavoriteButtons(key, isFavorite);
+            window.app?.channelList?.syncFavorite(sourceId, channelId, isFavorite);
+        };
 
-        // Update DOM (All matching buttons in EPG)
-        const rows = this.container.querySelectorAll(`.epg-channel-row[data-channel-id="${channelId}"][data-source-id="${sourceId}"]`);
-        rows.forEach(row => {
-            const btn = row.querySelector('.favorite-btn');
-            if (btn) {
-                if (isNowFavorite) {
-                    btn.classList.add('active');
-                    btn.innerHTML = Icons.favorite;
-                    btn.title = 'Remove from Favorites';
-                } else {
-                    btn.classList.remove('active');
-                    btn.innerHTML = Icons.favoriteOutline;
-                    btn.title = 'Add to Favorites';
-                }
-            }
-        });
-
-        // 2. Sync Channel List State (Optimistic)
-        if (window.app?.channelList) {
-            window.app.channelList.syncFavorite(sourceId, channelId, isNowFavorite);
-        }
+        apply(isNowFavorite); // Optimistic
 
         try {
-            // 3. API Call
             if (wasFavorite) {
                 await API.favorites.remove(sourceId, channelId, 'channel');
             } else {
                 await API.favorites.add(sourceId, channelId, 'channel');
             }
 
-            // 4. Re-render if viewing Favorites group (so new favorites appear immediately)
+            // Re-render if viewing Favorites group (so new favorites appear immediately)
             if (this.selectedGroup === 'Favorites') {
                 this.render();
             }
         } catch (err) {
             console.error('Error toggling favorite in EPG:', err);
-
-            // Revert EPG
-            if (wasFavorite) {
-                this.favorites.add(key);
-            } else {
-                this.favorites.delete(key);
-            }
-
-            rows.forEach(row => {
-                const btn = row.querySelector('.favorite-btn');
-                if (btn) {
-                    if (wasFavorite) {
-                        btn.classList.add('active');
-                        btn.innerHTML = Icons.favorite;
-                        btn.title = 'Remove from Favorites';
-                    } else {
-                        btn.classList.remove('active');
-                        btn.innerHTML = Icons.favoriteOutline;
-                        btn.title = 'Add to Favorites';
-                    }
-                }
-            });
-
-            // Revert Channel List
-            if (window.app?.channelList) {
-                window.app.channelList.syncFavorite(sourceId, channelId, wasFavorite);
-            }
+            apply(wasFavorite); // Revert
         }
     }
 
@@ -735,35 +672,13 @@ class EpgGuide {
      * Sync favorite status from external source (e.g. ChannelList) without API call
      */
     syncFavorite(sourceId, channelId, isFavorite) {
-        // Ensure consistent string format for key
-        const key = `${String(sourceId)}:${String(channelId)}`;
-        const currentlyFav = this.favorites.has(key);
+        const channel = this.findRow(sourceId, channelId) || { sourceId, id: channelId };
+        const key = this.favKey(channel);
+        if (this.favorites.has(key) === isFavorite) return; // No change needed
 
-        if (currentlyFav === isFavorite) return; // No change needed
-
-        // Update State
-        if (isFavorite) {
-            this.favorites.add(key);
-        } else {
-            this.favorites.delete(key);
-        }
-
-        // Update DOM (All instances in EPG)
-        const rows = this.container.querySelectorAll(`.epg-channel-row[data-channel-id="${channelId}"][data-source-id="${sourceId}"]`);
-        rows.forEach(row => {
-            const btn = row.querySelector('.favorite-btn');
-            if (btn) {
-                if (isFavorite) {
-                    btn.classList.add('active');
-                    btn.innerHTML = Icons.favorite;
-                    btn.title = 'Remove from Favorites';
-                } else {
-                    btn.classList.remove('active');
-                    btn.innerHTML = Icons.favoriteOutline;
-                    btn.title = 'Add to Favorites';
-                }
-            }
-        });
+        if (isFavorite) this.favorites.add(key);
+        else this.favorites.delete(key);
+        this.setFavoriteButtons(key, isFavorite);
 
         // Note: We don't call render() here - the favorites Set is updated
         // and will be used when the user navigates to Guide or switches groups
@@ -787,11 +702,11 @@ class EpgGuide {
     /**
      * Render programmes for a channel
      */
-    renderProgrammes(programmes, startTime, endTime, sourceChannel) {
-        // Recordable channels must actually map to a playable stream (source + item id)
-        const canRecord = !!(sourceChannel && sourceChannel.sourceId && sourceChannel.id);
+    renderProgrammes(programmes, startTime, endTime, channel) {
+        // Recordable channels must actually map to a playable stream (source + bare id)
+        const canRecord = !!(channel && channel.sourceId && channel.id);
         const channelAttrs = canRecord
-            ? `data-source-id="${sourceChannel.sourceId}" data-channel-id="${sourceChannel.id}" data-channel-name="${(sourceChannel.name || '').replace(/"/g, '&quot;')}" data-channel-logo="${(sourceChannel.tvgLogo || '').replace(/"/g, '&quot;')}"`
+            ? `data-source-id="${this.escapeHtml(channel.sourceId)}" data-channel-id="${this.escapeHtml(channel.id)}" data-channel-name="${this.escapeHtml(channel.name || '')}" data-channel-logo="${this.escapeHtml(channel.tvgLogo || '')}"`
             : '';
 
         if (programmes.length === 0) {
@@ -799,13 +714,13 @@ class EpgGuide {
             return `<div class="epg-program" style="width: ${width}px;"><span class="epg-program-title">No data</span></div>`;
         }
 
-        const now = new Date();
+        const now = Date.now();
         let html = '';
         let currentPos = startTime.getTime();
 
         for (const prog of programmes) {
-            const progStart = Math.max(new Date(prog.start).getTime(), startTime.getTime());
-            const progEnd = Math.min(new Date(prog.stop).getTime(), endTime.getTime());
+            const progStart = Math.max(prog.startMs, startTime.getTime());
+            const progEnd = Math.min(prog.stopMs, endTime.getTime());
 
             // Fill gap if needed
             if (progStart > currentPos) {
@@ -814,21 +729,21 @@ class EpgGuide {
             }
 
             const width = (progEnd - progStart) / 60000 * this.pixelsPerMinute;
-            const isCurrent = new Date(prog.start) <= now && new Date(prog.stop) > now;
-            const isRecordable = canRecord && new Date(prog.stop) > now; // can't record something already over
+            const isCurrent = prog.startMs <= now && prog.stopMs > now;
+            const isRecordable = canRecord && prog.stopMs > now; // can't record something already over
 
             html += `
         <div class="epg-program ${isCurrent ? 'current' : ''}"
              style="width: ${width}px;"
-             data-title="${prog.title || ''}"
-             data-description="${prog.description || ''}"
+             data-title="${this.escapeHtml(prog.title || '')}"
+             data-description="${this.escapeHtml(prog.description || '')}"
              data-start="${prog.start}"
              data-stop="${prog.stop}"
              data-recordable="${isRecordable}"
              ${channelAttrs}>
-          <div class="epg-program-title">${prog.title || 'Unknown'}</div>
+          <div class="epg-program-title">${this.escapeHtml(prog.title || 'Unknown')}</div>
           <div class="epg-program-time">
-            ${new Date(prog.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            ${new Date(prog.startMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </div>
         </div>
       `;
@@ -924,7 +839,7 @@ class EpgGuide {
         body.innerHTML = `
       <p><strong>Time:</strong> ${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${stop.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
       <p><strong>Description:</strong></p>
-      <p>${data.description || 'No description available'}</p>
+      <p>${this.escapeHtml(data.description || 'No description available')}</p>
       ${canRecord ? `
         <div class="record-options">
           <label>Start recording (min before): <input type="number" id="record-pre-buffer" min="0" max="60" value="${defaultPre}" style="width: 60px;"></label>
@@ -1002,18 +917,15 @@ class EpgGuide {
             await cl.loadChannels();
         }
 
-        // Try ID match first (reliable), then fall back to name
-        let channel = cl.channels.find(c => c.id === channelId);
+        // The guide and the channel list share the library's ids.
+        let channel = cl.findChannel(sourceId, channelId);
         if (!channel && channelName) {
             const lower = channelName.toLowerCase();
-            channel = cl.channels.find(c =>
-                (c.name || '').toLowerCase() === lower ||
-                (c.tvgName || '').toLowerCase() === lower
-            );
+            channel = cl.channels.find(c => (c.name || '').toLowerCase() === lower);
         }
 
         if (channel) {
-            await cl.selectChannel({ channelId: channel.id });
+            await cl.selectChannel({ channelId: channel.id, sourceId: channel.sourceId });
         } else {
             console.warn('[EpgGuide] Could not find channel:', channelName, channelId);
         }
