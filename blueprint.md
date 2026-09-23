@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 23 September 2026 · server build **0104** · Apple client build **16**
+**Last updated:** 23 September 2026 · server build **0116** (0113–0116 committed locally, not yet pushed) · Apple client build **16**
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
 architecture notes live in `../PigTV-Swift/blueprint.md`, which points back here for the roadmap. This file replaced the
@@ -31,7 +31,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Mark deploys. |
 | Shipped through | **0104**; whether it is *running* is whatever `/api/version` says |
-| Next build number | **0106** |
+| Next build number | **0117** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -76,7 +76,8 @@ reports back.
 ## 3. How playback works now (one path)
 
 **Every client, every live channel: `POST /api/playback/resolve` → an HLS session** (§C Phases 3–4, 0102–0103). The server probes
-the channel once (ffprobe, cached 5 min per URL + caps), then returns either `direct` (a source that is already browser-ready,
+the channel once (ffprobe, cached 5 min in memory per URL + caps; since 0114 also kept in SQLite as a **channel profile** for 7 days, so a
+repeat play skips ffprobe - see below), then returns either `direct` (a source that is already browser-ready,
 through `/api/proxy/stream`) or `transcode`: an HLS session that **copies** whatever the client can decode and re-encodes only what
 it cannot. There is no remux, no legacy pipe and no browser-side strategy any more; `/api/remux` answers the JSON 404.
 
@@ -97,6 +98,15 @@ it cannot. There is no remux, no legacy pipe and no browser-side strategy any mo
   `independent_segments+delete_segments+temp_file` and no `append_list`. The directory is on a **2 GB tmpfs** (verified).
 - fMP4 when copying HEVC or when the codecs are fine (hls.js can't demux HEVC from TS). HEVC gets `-tag:v hvc1`; copied AAC gets
   `-bsf:a aac_adtstoasc`, and only AAC does.
+- **HE-AAC** (the provider's 7 channels, among others) is re-encoded to AAC-LC (MPEG-TS out), because Chrome can't decode it. A client
+  that sends capability **`heaac: true`** gets it copied into fMP4 instead (0116; the Apple client will, after a device check). The
+  copied init segment signals **AAC-LC 24 kHz with implicit SBR** (ASC `13 10`: ADTS carries no more); ffmpeg decodes it as HE-AAC
+  48 kHz, Chrome doesn't. Measured on `pos_1164`/`pos_1165` with ffmpeg 9.0: no warnings, A/V offset kept exactly (the re-encode shifts
+  audio ~21 ms).
+- **Channel profiles** (0114, `channelProfiles.js`, table `channel_profiles`, key = sha256 of the probe-cache key). Written only after a
+  session produced its playlist from a fresh probe; a failed start from a profile deletes it (and its in-memory copy); re-probed after
+  `PIGTV_PROFILE_MAX_AGE_DAYS` (7). **`dtsUneven` and `videoRange` ride in the profile**, so a feed whose timing or range changes is
+  re-classified within 7 days or on its first failed start. ffmpeg's own probe is **not** reduced. `PIGTV_PROBE_PROFILES=0` = off.
 - **Timestamps: two kinds of feed** (0088). *Uneven* feeds have about a third of their DTS steps as ~1-tick-then-double, left by
   an upstream muxer (Fox Sports 505), and need `-fflags +igndts`. *Even* feeds (TSN, Sky UHD, Sportsnet 4K) are **broken by**
   `igndts`. `streamProbe.classifyTimestamps()` decides per feed: steps below ¼ of the mean frame period >5% ⇒ uneven (measured
@@ -105,21 +115,37 @@ it cannot. There is no remux, no legacy pipe and no browser-side strategy any mo
   `-dts_delta_threshold 60`. `PIGTV_DTS_AUTO=0` forces `igndts` everywhere (the 0085 behaviour — don't).
 - **Pacing:** `-re` **only** when the probe says the source ends (`format.size` or `duration` present). A finite file read at full
   speed outruns the window, and hls.js never retries the resulting 404. Blanket `-re` cost ~8 s at start-up.
-- **HDR** (0100): tvOS only switches the panel to HDR on a **master playlist's `VIDEO-RANGE`**. The copied fMP4 already keeps
-  `colr`/`nclx` (measured on `pos_31`, Sky Sports Main Event UHD, HDR10/PQ). `classifyVideoRange()` reads `color_transfer`, and a
-  copy+fMP4 session that is PQ/HLG is handed out as `/api/transcode/{id}/master.m3u8`: one variant, **no `CODECS`** (a wrong one
-  makes AVPlayer refuse). SDR sessions and encodes are unchanged. The custom Apple player must also set
-  `preferredDisplayCriteria` itself (hand-off 0100).
+- **Master playlist** (0100 HDR, 0115 everything). tvOS only switches the panel to HDR on a **master playlist's `VIDEO-RANGE`**, and
+  Match Frame Rate only goes to 50 Hz on its **`FRAME-RATE`**. The copied fMP4 already keeps `colr`/`nclx` (measured on `pos_31`, Sky
+  Sports Main Event UHD, HDR10/PQ). `classifyVideoRange()` reads `color_transfer`: a copy+fMP4 PQ/HLG session gets `VIDEO-RANGE=PQ|HLG`;
+  **every other session with a usable frame rate** (`avg_frame_rate`, else `r_frame_rate`; 0/0 and values outside 1–240 ignored) gets
+  `VIDEO-RANGE=SDR` (an encode is SDR). An HDR feed copied into MPEG-TS, or one with no usable rate, still gets `stream.m3u8`. One
+  variant: `BANDWIDTH`, `RESOLUTION` (copy only), `FRAME-RATE`, `VIDEO-RANGE`, **no `CODECS`** (a wrong one makes AVPlayer refuse).
+  The custom Apple player must set `preferredDisplayCriteria` itself (hand-off 0100).
 - **How a session ends** (0104). `stop()` marks it `stopped` before signalling ffmpeg, so any exit we didn't ask for is an `error`
   (`FFmpeg exited with code N` / `was killed (SIG)`). The software-decode retry (clear the folder, restart on the CPU) is only for an
   **encode** that really decoded on the GPU and died within 10 s **before any playlist**.
+- **A failed start fails fast** (0113). `waitForPlaylist` returns as soon as ffmpeg has ended without a playlist (it used to poll out the
+  15 s). `classifyInputFailure()` turns ffmpeg's `Server returned 4xx/404/5xx` / `Connection refused` into a fixed sentence for the
+  resolve error (never the URL or ffmpeg's words). A **4xx other than 404, or a 5xx, within ffmpeg's first 3 s** (the provider allows
+  one connection and may not have released the probe's yet; seen on 7 Flix Sydney in the 0109 log) gets **one** retry: folder cleared,
+  1.5 s wait, same shape as the software-decode retry.
 - **Stall watchdog** (`stallWatchdog.js`): ffmpeg is killed after 20 s without writing a file in the session directory
   (`PIGTV_STALL_TIMEOUT_MS`), with 30 s grace before the first output. Stderr doesn't count, because it gets louder during
   reconnects. Recordings aren't covered (they have a hard-stop timer).
 - **Only network URLs are opened** (0104, `streamUrl.js`: http(s), rtmp(s), rtsp(s), udp, rtp, srt). Resolve, the session route,
   `/api/probe` and `/api/subtitle` answer 400, and the check is repeated at spawn. It isn't done with `-protocol_whitelist`
   because stream-doctor and the tests run the real arguments against local files.
-- Start-up ≈ resolve probe + ffmpeg's own 5 MB/5 s probe + one segment: typically **7.5–9.6 s** to first picture (trial logs).
+- Start-up ≈ resolve probe + ffmpeg's own 5 MB/5 s probe + one segment: **7.1–10.1 s** cold, **4.4–5.2 s** with the probe cached
+  (Mark's 0109 log: probe 3.3–4.7 s, first segment 3.6–5.0 s). A channel profile (0114) makes a repeat play the cached case.
+- **The provider cuts the connection ~38 s into a play, and resends ~19 s of old content** (both 7 channels; 23 Sept). In
+  `pos_1164`/`pos_1165` the video packet sizes from ~39.6 s repeat those from ~20.6 s exactly (a 19.0–19.2 s shift) - the capture's own
+  `-c copy` had already rebased the step, which hides it in the file's timestamps. Through the server's copy arguments (fMP4 and
+  MPEG-TS, `-dts_delta_threshold` 60 **or 10, identical**), ffmpeg flags one `timestamp discontinuity … new offset` and **rebases**: the
+  output timeline is continuous (no backwards DTS, no gap, no `EXT-X-DISCONTINUITY`), so the player neither rewinds nor freezes; the
+  viewer sees ~19 s of the programme again, ~0.16 s of broken picture to the next keyframe, a ~0.25–0.4 s audio gap, and the stream
+  sits 19 s further behind live. The threshold only matters for *forward* jumps: fftools treats any backward step over 0.1 s on MPEG-TS
+  input as a discontinuity (ffmpeg 9.0 measured; 6.x from reading its source, not run). No code change made.
   Long GOPs (≥10 s) can fail a join (`unspecified size`, exit −22), and a smaller probe makes that worse.
 - ffmpeg is Ubuntu 24.04's apt 6.x. An upgrade was rejected: the same warnings appear on 9.0, and it touches the Apple path's
   driver stack. One `dump_extra` remains, on the TS copy branch for video that is neither H.264 nor HEVC: never seen, and
@@ -178,8 +204,12 @@ silent from the start. **Real problems:** `Could not write header`, `FFmpeg exit
 
 **Client diagnostics.** `POST /api/playback/client-event` (token; whitelisted, bounded fields; path only, never a query string):
 `media-error`, `start-timeout`, `play-start`, `play-end`. Log lines end `from=user:<id>` / `from=device:<id>`.
-`scripts/playback-report.js <saved log>` summarises first-picture time, stalls/hour and failures. It was built for the (now
-closed) HLS-vs-remux trial and still reads the same lines.
+`scripts/playback-report.js <saved log>` summarises first-picture time (cold/warm, median and p90), stalls/hour and failures, per
+row: `HLS session`, `HLS session [Apple/device]`, `direct` (0113 relabelled it for the one-path world; a "probe profile" play is warm).
+**Log vocabulary added in 0113–0115:** `resolve timing … probe profile (age Nd)`; `… first segment NOT produced - ffmpeg ended after Xs
+(provider HTTP 4xx)`; `… , master playlist (SDR, 25.000 fps)`; `[TranscodeSession id] Provider refused the first connection; retrying
+once in 1.5s`; `FFmpeg ended before producing a playlist`. **Capture caveat:** `capture` copies through ffmpeg, which rebases a backward
+timestamp step, so a provider reconnect shows up as repeated content, not as a timestamp jump.
 
 **Channel identity** (0096–0098). `item_id` is `pos_N`, the M3U line, and **the provider moves it**. `stable_id`
 (`stableIds.js`) is the provider stream id from the URL (`s441360`), otherwise a hash of the credential-stripped URL. Favourites,
@@ -216,8 +246,8 @@ the identity. Only *pending* schedules were backfilled. The provider's stream id
   `*.native.mp4` for those once. **HEVC recording playback on an Apple TV is still unconfirmed.**
 
 **Dev environment (macOS, from 23 Sept).**
-- Node 24 from Homebrew (`/opt/homebrew/opt/node@24/bin`; see §2). `npm test`: 301 tests, 292 pass and 9 skip locally (the
-  skips need a local ffmpeg).
+- Node 24 from Homebrew (`/opt/homebrew/opt/node@24/bin`; see §2). `npm test`: 364 tests, all pass locally with
+  Homebrew ffmpeg 9.0 installed (tests that need ffmpeg skip without one).
 - `bash scripts/verify-build.sh .` uses the system `python3`.
 - The tree is LF. There is no local Docker; the image is only built by CI.
 - **CI runs every test file at once on 2 vCPUs: keep timing margins ≥1 s, or poll** (0101).
@@ -234,9 +264,10 @@ the identity. Only *pending* schedules were backfilled. The provider's stream id
   `+faststart`; `?async=1` is additive.
 - Favourites: `POST/DELETE /api/favorites` (bare id), listed via `/api/library/favourites`.
 - Playback: `POST /api/playback/resolve` → `strategy` `direct` | `transcode`, with `playbackURL` under `/api/proxy/stream`,
-  `/api/transcode/…` (`stream.m3u8`, or `master.m3u8` for HDR) or `/api/recordings/…`; token as `?token=`; bearer on
+  `/api/transcode/…` (`master.m3u8` when the session has a usable frame rate or is an HDR copy, else `stream.m3u8`) or `/api/recordings/…`; token as `?token=`; bearer on
   `DELETE /api/playback/{id}`; `GET /api/playback/{id}/terminal-status`.
-- Additive and safe: `/api/version` and `/api/info` fields; `waiting` rows; `finite`/`durationSec`/`videoRange` in resolve `info`.
+- Additive and safe: `/api/version` and `/api/info` fields; `waiting` rows; `finite`/`durationSec`/`videoRange` in resolve `info`; the
+  optional `heaac` capability (0116).
 
 ---
 
@@ -265,8 +296,10 @@ the reason. Each phase ends with Mark's gate; don't start the next phase's devic
 
 | ID | Item | Status |
 |---|---|---|
-| S1.1 | **Channel profiles**: persist each channel's probe result by `stable_id` (codecs, audio profile, fps, `dtsUneven`, `videoRange`); on a repeat play skip ffprobe and start ffmpeg with a smaller probe; probe again after a codec change, a failed start, or N days. Expect 2–4 s off repeat channel changes, and one fewer provider connection. | Planned |
-| S1.2 | **Frame-rate-aware master playlist for every copy session** (`FRAME-RATE`, `VIDEO-RANGE=SDR`, no `CODECS`) so Match Frame Rate can put 50 fps channels on 50 Hz. Quality first: the 1–2 s HDMI mode switch is accepted (Mark, 23 Sept). Device check. | Planned |
+| S1.1 | **Channel profiles**: persist each channel's probe result by `stable_id` (codecs, audio profile, fps, `dtsUneven`, `videoRange`); on a repeat play skip ffprobe and start ffmpeg with a smaller probe; probe again after a codec change, a failed start, or N days. Expect 2–4 s off repeat channel changes, and one fewer provider connection. | Committed (0114), awaiting deploy — keyed like the probe cache (URL + UA + caps, hashed), not `stable_id`; the "smaller ffmpeg probe" half deliberately not done (long GOPs) |
+| S1.2 | **Frame-rate-aware master playlist for every copy session** (`FRAME-RATE`, `VIDEO-RANGE=SDR`, no `CODECS`) so Match Frame Rate can put 50 fps channels on 50 Hz. Quality first: the 1–2 s HDMI mode switch is accepted (Mark, 23 Sept). Device check. | Committed (0115), awaiting deploy and the device check (Match Frame Rate ON, a 25 fps channel → the TV reports 50 Hz); covers encodes too |
+| S1.5 | Fail fast, say why, one retry when the provider refuses the connection right after the probe; `playback-report.js` relabelled (from Mark's 0109 log) | Committed (0113), awaiting deploy |
+| S1.6 | HE-AAC passthrough for clients that decode it (capability `heaac`, off by default) | Committed (0116), awaiting deploy; the Apple client sends `heaac: true` only after a device check (441367/441372: sound with full treble, lip-sync) |
 | S1.3 | Guide API for scale: `tvg_id` column; cursor paging; up to 500 per page; several categories per request; **ETag/304** from the EPG generation, playlist sync time and time window | Committed (0111), awaiting deploy — shipped as `guideCursor`/`guideVersion` (a revision counter plus EPG generations) rather than HTTP ETag/304; several-categories-per-request not done |
 | A1.1 | Guide refreshes cheaply: a few large requests; ETag revalidation; no whole-guide rebuild per page; cache per window | Planned |
 | A1.2 | Channel change feels quicker: the channel card (logo, now/next) shows instantly; one `AVPlayer` across changes; tuned forward buffer; **last channel** | Planned |
@@ -312,7 +345,9 @@ Range, viewer-already-holds-slot) · `USER node` (volume ownership first) · fMP
 try/catch in `routes/info.js` · optional clean-up of badges in stored rows, and stripping them on the Xtream ingest path.
 **Kept on purpose:** the non-VAAPI encoders. **Not planned:** AV1, adding more users, reviving VOD, access from outside the VPN.
 
-**Watch the logs, no code yet:** "Bug 2" (`[mpegts] Invalid timestamps … dts=X+1800`: needs the channel that produces it);
+**Watch the logs, no code yet:** the provider's ~38 s cut and 19 s resend (§3; decide whether anything should be done about the
+repeated content, which needs a capture that keeps the raw bytes) · 7 Flix Sydney's second 0109 failure (`Stream ends prematurely …
+Will reconnect` looping after ~14 MB, nothing produced: 0113 doesn't shorten that case, since ffmpeg keeps running) · "Bug 2" (`[mpegts] Invalid timestamps … dts=X+1800`: needs the channel that produces it);
 `source timing` lines (the classifier has seen one uneven feed in five); the 20 s stall timeout (tighten only after real stall logs).
 
 **Live checks still owed:** 0102–0104 on the web (HLS badge, channel changes, recovery lines) · the HDR panel switch on the TV
@@ -359,3 +394,7 @@ about 0 on the E-AC-3 channel.
 | 0110 | `GET /api/favorites` now follows a channel to its CURRENT position(s) after a provider reorder, instead of the stale stored `pos_N` (Mark's live test: Apple TV and web disagreed on the same favourite) |
 | 0111 | Guide API for scale (S1.3): `tvg_id` column (filled at ingest, backfilled once); cursor paging and `limit` up to 500 on `/library/guide`; `GET /library/guide/version` for a cheap "did anything change?" check |
 | 0112 | Logo cache (S1.4): `GET /api/logo/{key}` fetches a channel/EPG logo once, downscales it with ffmpeg when available, and serves it from disk with a week-long cache lifetime; `library/channels`, `/favourites`, `/guide` and `/recent` hand out that path instead of the provider URL |
+| 0113 | A failed start fails fast (no 15 s wait once ffmpeg has exited) and says why in the resolve error (HTTP 4xx/404/5xx, connection refused); one retry after 1.5 s when the provider refuses ffmpeg in its first 3 s; `playback-report.js` relabelled for one path, with a cold/warm summary |
+| 0114 | Channel profiles (S1.1): the probe's analysis kept in SQLite for 7 days, so a repeat play skips ffprobe; dropped on a failed start; `PIGTV_PROBE_PROFILES=0` turns it off |
+| 0115 | Every session with a usable frame rate is handed out as `master.m3u8` with `FRAME-RATE` and `VIDEO-RANGE=SDR` (HDR copies unchanged), so Match Frame Rate can pick 50 Hz (S1.2) |
+| 0116 | HE-AAC copied instead of re-encoded for a client that sends capability `heaac: true` (none does yet; the web never will) |
