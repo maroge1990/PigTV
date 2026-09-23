@@ -1594,6 +1594,14 @@ check server/services/recordingEngine.js "redact((stderrTail || \[\]).slice(-10)
 check server/routes/info.js "playbackHandles: true" "features flag"
 check test/playback-handles.test.js "the resolve JSON must not contain" "with a no-provider-URL resolve test"
 
+echo "=== 0120: source catalogue for the Sources picker ==="
+check server/routes/sources.js "router.get('/:id/catalogue'" "GET /api/sources/:id/catalogue exists"
+check server/routes/sources.js "is not supported" "movie/series are refused"
+awk '/^router.use\(requireAdmin\);/{a=NR} /router.get\(.\/:id\/catalogue./{c=NR} END{exit !(a && c && a < c)}' server/routes/sources.js \
+  && echo "  ✓ the catalogue is declared after router.use(requireAdmin) (admin only)" \
+  || { echo "  ✗ MISSING: the catalogue route must come after router.use(requireAdmin)"; FAIL=1; }
+check test/source-catalogue.test.js "hidden ones included, in provider order" "with a test"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

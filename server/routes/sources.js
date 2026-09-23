@@ -7,6 +7,7 @@ const syncService = require('../services/syncService');
 const m3uParser = require('../services/m3uParser');
 const { requireAuth, requireAdmin } = require('../auth');
 const { bumpLibraryRev } = require('../services/libraryRev');
+const { NUMBER_JOIN } = require('../services/channelNumbers');
 
 router.use(requireAuth);
 router.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
@@ -72,6 +73,67 @@ router.get('/:id', requireAdmin, async (req, res) => {
 // Create source
 // Every remaining endpoint administers sources or initiates upstream work.
 router.use(requireAdmin);
+
+/**
+ * GET /api/sources/:id/catalogue?type=live   (admin; 0120)
+ *
+ * Everything the Sources screen's category/channel picker needs, straight from
+ * SQLite, hidden items included (the picker is where they are unhidden):
+ *   { categories: [{id, name, hidden, channelCount}],
+ *     channels:   [{id, name, categoryId, hidden, number}] }
+ * both in the provider's order. `hidden` is the item's own flag; `channelCount`
+ * counts every channel in the category, hidden or not; `number` is the channel
+ * number (0117), null when it has none. Replaces the picker's use of the
+ * Xtream-emulation routes (roadmap W2.1); the web moves onto it separately.
+ * Movies and series are not supported: those pages are being removed.
+ */
+router.get('/:id/catalogue', async (req, res) => {
+    try {
+        const type = req.query.type === undefined ? 'live' : String(req.query.type);
+        if (type === 'movie' || type === 'series') {
+            return res.status(400).json({ error: `type=${type} is not supported` });
+        }
+        if (type !== 'live') return res.status(400).json({ error: 'type must be live' });
+
+        const sourceId = parseInt(req.params.id, 10);
+        const source = Number.isInteger(sourceId) ? await sources.getById(sourceId) : null;
+        if (!source) return res.status(404).json({ error: 'Source not found' });
+
+        const db = getDb();
+        const categories = db.prepare(`
+            SELECT c.category_id, c.name, c.is_hidden,
+                   (SELECT COUNT(*) FROM playlist_items p
+                     WHERE p.source_id = c.source_id AND p.type = c.type
+                       AND p.category_id = c.category_id) AS channel_count
+            FROM categories c
+            WHERE c.source_id = ? AND c.type = 'live'
+            ORDER BY CASE WHEN c.sort_order IS NULL THEN 1 ELSE 0 END, c.sort_order ASC, c.name ASC
+        `).all(sourceId).map(c => ({
+            id: c.category_id,
+            name: c.name,
+            hidden: c.is_hidden === 1,
+            channelCount: c.channel_count
+        }));
+        const channels = db.prepare(`
+            SELECT p.item_id, p.name, p.category_id, p.is_hidden, n.number
+            FROM playlist_items p
+            ${NUMBER_JOIN}
+            WHERE p.source_id = ? AND p.type = 'live'
+            ORDER BY CASE WHEN p.sort_order IS NULL THEN 1 ELSE 0 END, p.sort_order ASC, p.name ASC
+        `).all(sourceId).map(ch => ({
+            id: ch.item_id,
+            name: ch.name,
+            categoryId: ch.category_id,
+            hidden: ch.is_hidden === 1,
+            number: ch.number ?? null
+        }));
+        res.json({ categories, channels });
+    } catch (err) {
+        console.error('Error getting source catalogue:', err);
+        res.status(500).json({ error: 'Failed to get source catalogue' });
+    }
+});
+
 router.post('/', async (req, res) => {
     try {
         const { type, name, url, username, password } = req.body;
