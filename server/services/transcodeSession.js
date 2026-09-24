@@ -93,9 +93,12 @@ const CLEANUP_INTERVAL_MS = 60 * 1000; // Sweep every minute (a walk over an in-
 // its own when ffmpeg opens the stream. Mark's log (build 0109, 7 Flix Sydney):
 // ffmpeg was refused with an HTTP 4XX in its first second, straight after the
 // probe, and the channel played on the next attempt. So a refusal that early is
-// retried once, after a pause long enough for the provider to let go.
+// retried, after a pause long enough for the provider to let go.
+// 0143: twice, 1.5 s then 3 s. Mark's log (0140): a channel played 120 s, the
+// player failed and re-resolved, and the provider refused the new connection
+// even after the 1.5 s retry - most likely still counting the old one.
 const REFUSED_RETRY_WINDOW_MS = 3000;
-const REFUSED_RETRY_DELAY_MS = 1500;
+const REFUSED_RETRY_DELAYS_MS = [1500, 3000];
 
 /**
  * Generate a unique session ID
@@ -342,19 +345,26 @@ class TranscodeSession extends EventEmitter {
             // the folder, wait, and try once more - the same shape as
             // the software-decode retry above. Not for a 404 (the
             // channel is not there; asking again will not change that),
-            // not after a playlist exists, and only once.
+            // not after a playlist exists, and at most twice (0143).
             const refused = classifyInputFailure(this.stderrTail);
-            const refusedEarly = this.timings.spawned && (Date.now() - this.timings.spawned) < REFUSED_RETRY_WINDOW_MS;
-            if (!requested && refused && refused.retryable && refusedEarly && !this.timings.playlistReady && !this._triedRefusedRetry) {
-                this._triedRefusedRetry = true;
-                console.warn(`[TranscodeSession ${this.id}] Provider refused the first connection; retrying once in ${REFUSED_RETRY_DELAY_MS / 1000}s`);
+            const sinceSpawn = this.timings.spawned ? Date.now() - this.timings.spawned : Infinity;
+            const refusedEarly = sinceSpawn < REFUSED_RETRY_WINDOW_MS;
+            const retries = this._refusedRetries || 0;
+            if (!requested && refused && refused.retryable && refusedEarly && !this.timings.playlistReady && retries < REFUSED_RETRY_DELAYS_MS.length) {
+                const delay = REFUSED_RETRY_DELAYS_MS[retries];
+                this._refusedRetries = retries + 1;
+                // waitForPlaylist's deadline moves by the time this attempt
+                // used plus the wait, so the last attempt still gets the
+                // resolve's full 15 s (worst case +10.5 s in all).
+                this.retryAllowanceMs = (this.retryAllowanceMs || 0) + sinceSpawn + delay;
+                console.warn(`[TranscodeSession ${this.id}] Provider refused the connection; retry ${retries + 1} of ${REFUSED_RETRY_DELAYS_MS.length} in ${delay / 1000}s`);
                 this.process = null;
                 this.status = 'pending';
                 // The refusal is in the log already; what the retry says is what counts now.
                 this.stderrTail = [];
                 this.clearSegments()
                     .catch(err => console.warn(`[TranscodeSession ${this.id}] Could not clear the folder before retry:`, err.message))
-                    .then(() => new Promise(resolve => setTimeout(resolve, REFUSED_RETRY_DELAY_MS)))
+                    .then(() => new Promise(resolve => setTimeout(resolve, delay)))
                     .then(() => {
                         // Stopped or removed while we waited: nothing to retry for.
                         if (this.status !== 'pending' || this._cleanedUp) return;
@@ -1150,7 +1160,10 @@ class TranscodeSession extends EventEmitter {
      */
     async waitForPlaylist(timeoutMs = 10000) {
         const startTime = Date.now();
-        while (Date.now() - startTime < timeoutMs) {
+        // Extended only by a refused-connection retry (0143): the time the
+        // refused attempt took plus the wait before the next one.
+        const allowance0 = this.retryAllowanceMs || 0;
+        while (Date.now() - startTime < timeoutMs + (this.retryAllowanceMs || 0) - allowance0) {
             if (await this.isPlaylistReady()) {
                 this.timings.playlistReady = Date.now();
                 return true;

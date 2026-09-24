@@ -298,7 +298,7 @@ test('a tuner refused on its first connection is retried once, like a session (0
             await tuner.start(t);
             assert.equal(await t.waitForPlaylist(10000), true);
         } finally { console.warn = log; }
-        assert.ok(lines.some(l => /refused the first connection; retrying once/.test(l)));
+        assert.ok(lines.some(l => /refused the connection; retry 1 of 2/.test(l)));
         assert.equal(tuner.list().length, 1);
     } finally {
         tuner.hooks.spawnArgs = (t) => { spawns.push(t.id); return fakeHlsArgs({ ext: t.options.segmentType === 'fmp4' ? 'm4s' : 'ts', ...script }); };

@@ -1459,7 +1459,7 @@ check test/library-logos.test.js "0112: every library response now hands out" "a
 echo "=== 0113: a failed start fails fast, says why, and a refused first connection is retried once ==="
 check server/services/transcodeSession.js "if (this.hasFailed())" "waitForPlaylist stops polling once ffmpeg has ended without a playlist"
 check server/services/transcodeSession.js "function classifyInputFailure" "ffmpeg's input failure is turned into a client-safe reason"
-check server/services/transcodeSession.js "Provider refused the first connection; retrying once in" "one retry for a refusal right after the probe, with its log line"
+check server/services/transcodeSession.js "Provider refused the connection; retry" "a retry for a refusal right after the probe, with its log line (two since 0143)"
 check server/services/transcodeSession.js "REFUSED_RETRY_WINDOW_MS = 3000" "only within ffmpeg's first ~3 s"
 check server/services/transcodeSession.js "status === '404'" "a 404 is never retried"
 check server/services/transcodeSession.js "!requested && refused && refused.retryable" "and never for a session we stopped ourselves"
@@ -1470,7 +1470,7 @@ check_absent scripts/playback-report.js "opt-in" "the report no longer speaks of
 check_absent scripts/playback-report.js "Against the trial criteria" "nor its criteria block"
 check_absent scripts/playback-report.js "HLS Delivery (beta)" "nor the retired toggle"
 check test/start-failure.test.js "the old code polled the full 15 s" "with a test that fails on the old code"
-check test/start-failure.test.js "one retry, no more" "and a test that the retry happens once"
+check test/start-failure.test.js "two retries, no more" "and a test that the retries stop (twice since 0143)"
 
 echo "=== 0114: channel profiles - a repeat play skips ffprobe ==="
 check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS channel_profiles" "the profile table exists"
@@ -1796,6 +1796,11 @@ check server/services/channelHealth.js "stalls / (watchedSec / 3600) >= FLAKY_ST
 check server/services/channelHealth.js "e.stalls / (Math.max(e.watched, RANK_MIN_WATCH_SEC) / 3600)" "the list ranks by failed starts + stalls per hour"
 check public/js/pages/StatusPage.js "'Stalls', 'Watched'" "the Status page shows stalls and minutes watched"
 check test/channel-health.test.js "a channel that only stalls is listed" "with a test"
+
+echo "=== 0143: a refused reconnect gets two retries ==="
+check server/services/transcodeSession.js "REFUSED_RETRY_DELAYS_MS = \[1500, 3000\]" "two retries, 1.5 s then 3 s"
+check server/services/transcodeSession.js "this.retryAllowanceMs = (this.retryAllowanceMs || 0) + sinceSpawn + delay;" "the resolve's wait is extended by exactly the retries"
+check test/start-failure.test.js "gets a second retry after 3 s more" "with a test"
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
