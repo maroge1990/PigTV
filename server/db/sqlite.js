@@ -196,6 +196,20 @@ function initSchema() {
         CREATE INDEX IF NOT EXISTS idx_channel_health_key ON channel_health(source_id, channel_key, at);
     `);
 
+    // EPG matching (0134, roadmap S4.2): the admin's choice of EPG channel for a
+    // playlist channel, keyed by identity like channel_numbers. Read at query
+    // time over playlist_items.tvg_id (services/epgMapping.js); a sync never
+    // writes here, so it cannot wipe a mapping.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS epg_mappings (
+            source_id INTEGER NOT NULL,
+            channel_key TEXT NOT NULL,
+            tvg_id TEXT NOT NULL,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (source_id, channel_key)
+        );
+    `);
+
     // EPG Programs
     // Optimized for range queries
     db.exec(`

@@ -1714,6 +1714,20 @@ check server/routes/info.js "channelHealth: true" "flag channelHealth"
 check server/routes/status.js "leastReliable: leastReliable()," "the status document lists the least reliable channels"
 check public/js/pages/StatusPage.js "Least reliable channels" "and the web Status page shows them"
 check test/channel-health.test.js "the thresholds: flaky at 2 failed starts" "with a threshold test"
+echo "=== 0134: EPG matching (S4.2) ==="
+check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS epg_mappings" "mappings in their own table, which no sync writes"
+check_absent server/services/syncService.js "epg_mappings" "the sync never touches the mappings"
+check server/routes/library.js "tvgId = epgMapping.effectiveTvgId(row.source_id, row.stable_id, row.item_id, tvgId);" "the guide uses the mapped tvg-id"
+check server/routes/library.js "const tvgId = epgMapping.effectiveTvgId(row.source_id, row.stable_id, row.item_id," "and so do now/next and the logo fallback"
+check server/services/epgMapping.js "bumpLibraryRev();" "a mapping moves the guide version"
+check server/index.js "app.use('/api/epg', require('./routes/epg'));" "the EPG admin routes are mounted"
+check server/routes/epg.js "router.use(requireAuth, requireAdmin);" "admin only"
+check server/routes/epg.js "router.put('/mapping'" "PUT /api/epg/mapping"
+check server/routes/epg.js "router.get('/unmatched'" "GET /api/epg/unmatched"
+check public/index.html 'data-tab="epg">EPG matching' "Settings has an EPG matching tab"
+check public/js/pages/Settings.js "async loadEpgMatching()" "which loads the unmatched list"
+check test/epg-matching.test.js "the mapping survives a playlist sync" "with a sync-survival test"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

@@ -2778,6 +2778,31 @@ kbd {
   background: var(--color-accent-dim);
 }
 
+/* EPG matching (Settings, 0134) */
+.epg-candidates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs, 4px);
+}
+
+.epg-candidate {
+  font-size: 0.8rem;
+  padding: 2px 8px;
+}
+
+.epg-candidate .epg-score {
+  color: var(--color-text-muted);
+  margin-left: 4px;
+}
+
+.epg-search-panel {
+  margin: var(--space-sm) 0 var(--space-md);
+}
+
+.epg-match-row.selected td {
+  background: var(--color-accent-dim);
+}
+
 .user-table {
   width: 100%;
   border-collapse: collapse;

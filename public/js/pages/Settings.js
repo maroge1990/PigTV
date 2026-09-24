@@ -33,6 +33,7 @@ class SettingsPage {
         this.initUiSettings();
         this.initDebugTools();
         this.initLineup();
+        this.initEpgMatching();
     }
 
     initHwDecodeSettings() {
@@ -353,6 +354,175 @@ class SettingsPage {
             // The server's own words: "Duplicate number 5", "Channel numbers must be whole numbers from 1 to 999999", ...
             this.setLineupStatus(err.message || 'Could not save the numbers', true);
             this.updateLineupSaveState();
+        }
+    }
+
+    // ---- EPG matching tab (0134) ----------------------------------------
+    //
+    // GET /api/epg/unmatched lists the visible channels with no programmes in the
+    // next 24 hours, each with up to five EPG channels whose names match best. A
+    // suggestion button maps the channel (PUT /api/epg/mapping); "Search..." opens
+    // a search of the EPG's whole channel list for that channel. Mapped channels
+    // are listed below with a button to remove the mapping.
+
+    initEpgMatching() {
+        this.epgUnmatched = [];
+        this.epgMappings = [];
+        this.epgFilter = '';
+        this.epgSelected = null;  // the row "Search..." was pressed on
+        this.epgSearchResults = [];
+
+        const filter = document.getElementById('epg-match-filter');
+        let filterTimer;
+        filter?.addEventListener('input', () => {
+            clearTimeout(filterTimer);
+            filterTimer = setTimeout(() => { this.epgFilter = filter.value; this.renderEpgMatching(); }, 200);
+        });
+
+        const search = document.getElementById('epg-match-search');
+        let searchTimer;
+        search?.addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => this.searchEpgChannels(search.value), 300);
+        });
+
+        document.getElementById('tab-epg')?.addEventListener('click', (e) => {
+            const button = e.target?.closest?.('button[data-epg-action]');
+            if (!button) return;
+            const { epgAction, key, tvg } = button.dataset;
+            if (epgAction === 'map') this.mapEpgChannel(key, tvg);
+            else if (epgAction === 'search') this.selectEpgRow(key);
+            else if (epgAction === 'unmap') this.mapEpgChannel(key, null);
+        });
+    }
+
+    epgKey(row) {
+        return `${row.sourceId}:${row.id}`;
+    }
+
+    setEpgStatus(text, isError = false) {
+        const status = document.getElementById('epg-match-status');
+        if (!status) return;
+        status.textContent = text;
+        status.classList.toggle('error', isError);
+    }
+
+    async loadEpgMatching() {
+        const list = document.getElementById('epg-match-list');
+        try {
+            const [unmatched, mappings] = await Promise.all([API.epg.unmatched(), API.epg.mappings()]);
+            this.epgUnmatched = unmatched?.channels || [];
+            this.epgMappings = Array.isArray(mappings) ? mappings : [];
+            const total = unmatched?.total ?? this.epgUnmatched.length;
+            this.setEpgStatus(`${total} channel${total === 1 ? '' : 's'} without programme information`);
+            this.renderEpgMatching();
+        } catch (err) {
+            if (list) list.innerHTML = `<tr><td colspan="3" class="hint">Could not load the EPG matching list: ${this.escapeLineup(err.message)}</td></tr>`;
+        }
+    }
+
+    filteredEpgUnmatched() {
+        const q = String(this.epgFilter || '').trim().toLowerCase();
+        if (!q) return this.epgUnmatched;
+        return this.epgUnmatched.filter(r => String(r.name || '').toLowerCase().includes(q));
+    }
+
+    epgCandidateButton(key, c) {
+        const e = (v) => this.escapeLineup(v);
+        const score = typeof c.score === 'number' ? `<span class="epg-score">${Math.round(c.score * 100)}%</span>` : '';
+        return `<button type="button" class="btn btn-secondary epg-candidate" data-epg-action="map" data-key="${e(key)}"
+                    data-tvg="${e(c.tvgId)}" title="${e(c.tvgId)}">${e(c.name)}${score}</button>`;
+    }
+
+    renderEpgMatching() {
+        const e = (v) => this.escapeLineup(v);
+        const list = document.getElementById('epg-match-list');
+        if (list) {
+            const rows = this.filteredEpgUnmatched();
+            list.innerHTML = rows.length === 0
+                ? `<tr><td colspan="3" class="hint">${this.epgUnmatched.length ? 'No channels match' : 'Every channel has programme information'}</td></tr>`
+                : rows.map(row => {
+                    const key = this.epgKey(row);
+                    const candidates = (row.candidates || []).map(c => this.epgCandidateButton(key, c)).join('');
+                    return `
+                <tr class="epg-match-row${this.epgSelected === key ? ' selected' : ''}">
+                    <td>${e(row.name)}</td>
+                    <td>${e(row.tvgId || '–')}${row.mapped ? ' <span class="setting-hint">(mapped)</span>' : ''}</td>
+                    <td><div class="epg-candidates">${candidates}
+                        <button type="button" class="btn btn-secondary epg-candidate" data-epg-action="search" data-key="${e(key)}">Search...</button>
+                    </div></td>
+                </tr>`;
+                }).join('');
+        }
+
+        const mapped = document.getElementById('epg-mapping-list');
+        if (mapped) {
+            mapped.innerHTML = this.epgMappings.length === 0
+                ? '<tr><td class="hint">No channels are mapped</td></tr>'
+                : this.epgMappings.map(m => `
+                <tr>
+                    <td>${e(m.name || m.id || '–')}</td>
+                    <td>${e(m.tvgId)}</td>
+                    <td>${m.id ? `<button type="button" class="btn btn-secondary epg-candidate" data-epg-action="unmap" data-key="${e(`${m.sourceId}:${m.id}`)}">Remove</button>` : ''}</td>
+                </tr>`).join('');
+        }
+
+        const panel = document.getElementById('epg-match-search-panel');
+        const row = this.epgUnmatched.find(r => this.epgKey(r) === this.epgSelected);
+        panel?.classList.toggle('hidden', !row);
+        const label = document.getElementById('epg-match-search-for');
+        if (label) label.textContent = row ? `Search the EPG for ${row.name}` : '';
+        const results = document.getElementById('epg-match-search-results');
+        if (results) {
+            results.innerHTML = row
+                ? (this.epgSearchResults.length
+                    ? this.epgSearchResults.map(c => this.epgCandidateButton(this.epgSelected, c)).join('')
+                    : '<span class="setting-hint">Type a name or EPG id</span>')
+                : '';
+        }
+    }
+
+    selectEpgRow(key) {
+        this.epgSelected = this.epgSelected === key ? null : key;
+        this.epgSearchResults = [];
+        const search = document.getElementById('epg-match-search');
+        const row = this.epgUnmatched.find(r => this.epgKey(r) === this.epgSelected);
+        if (search) search.value = row ? row.name : '';
+        this.renderEpgMatching();
+        if (row) this.searchEpgChannels(row.name);
+    }
+
+    async searchEpgChannels(query) {
+        if (!this.epgSelected) return;
+        const q = String(query || '').trim();
+        if (!q) { this.epgSearchResults = []; this.renderEpgMatching(); return; }
+        try {
+            this.epgSearchResults = await API.epg.searchChannels(q) || [];
+        } catch (err) {
+            this.epgSearchResults = [];
+            this.setEpgStatus(err.message || 'Could not search the EPG', true);
+        }
+        this.renderEpgMatching();
+    }
+
+    /** Map the channel `key` (sourceId:id) to `tvgId`; null removes its mapping. */
+    async mapEpgChannel(key, tvgId) {
+        const [sourceText, ...rest] = String(key || '').split(':');
+        const sourceId = parseInt(sourceText, 10);
+        const channelId = rest.join(':');
+        if (!Number.isFinite(sourceId) || !channelId) return;
+        this.setEpgStatus('Saving...');
+        try {
+            await API.epg.setMapping(sourceId, channelId, tvgId);
+            this.epgSelected = null;
+            this.epgSearchResults = [];
+            await this.loadEpgMatching();
+            this.setEpgStatus(tvgId ? `Mapped to ${tvgId}` : 'Mapping removed');
+            // The guide and channel list show the new programmes
+            window.app?.channelList?.loadChannels?.();
+            if (window.app?.epgGuide?.loaded) window.app.epgGuide.loadEpg();
+        } catch (err) {
+            this.setEpgStatus(err.message || 'Could not save the mapping', true);
         }
     }
 
@@ -853,6 +1023,7 @@ class SettingsPage {
         if (tabName === 'ui') this.loadUiSettings();
         if (tabName === 'debug') this.loadActiveSessions();
         if (tabName === 'lineup') this.loadLineup();
+        if (tabName === 'epg') this.loadEpgMatching();
         this.tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
         this.tabContents.forEach(c => c.classList.toggle('active', c.id === `tab-${tabName}`));
 

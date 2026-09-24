@@ -20,6 +20,7 @@ const { applyLogoCache } = require('../services/logoCache');
 const channelNumbers = require('../services/channelNumbers');
 const { NUMBER_JOIN, NUMBER_SENTINEL } = channelNumbers;
 const channelHealth = require('../services/channelHealth');
+const epgMapping = require('../services/epgMapping');
 
 // The longest programme the guide will still show when it began before the
 // window. Every EPG query bounds start_time from below by this, because the
@@ -128,7 +129,10 @@ function decorate(items) {
     const parsed = items.map(row => {
         let data = {};
         try { data = JSON.parse(row.data || '{}'); } catch (e) { /* ignore */ }
-        const tvgId = data.tvgId || data.epg_channel_id || null;
+        // 0134: the admin's EPG mapping wins over the playlist's tvg-id, for
+        // now/next and the logo fallback alike.
+        const tvgId = epgMapping.effectiveTvgId(row.source_id, row.stable_id, row.item_id,
+            data.tvgId || data.epg_channel_id || null);
         if (tvgId) tvgIds.push(tvgId);
         return {
             id: row.item_id,
@@ -426,6 +430,8 @@ router.get('/guide', (req, res) => {
                     tvgId = data.tvgId || data.epg_channel_id || null;
                 } catch (e) { /* ignore */ }
             }
+            // 0134: the admin's EPG mapping wins over the playlist's tvg-id.
+            tvgId = epgMapping.effectiveTvgId(row.source_id, row.stable_id, row.item_id, tvgId);
             return {
                 id: row.item_id,
                 sourceId: row.source_id,

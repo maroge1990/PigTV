@@ -142,6 +142,14 @@ const API = {
         saveNumbers: (numbers) => API.request('PUT', '/lineup/numbers', { numbers })
     },
 
+    // EPG matching (admin, 0134)
+    epg: {
+        unmatched: () => API.request('GET', '/epg/unmatched'),
+        searchChannels: (search) => API.request('GET', `/epg/channels?search=${encodeURIComponent(search)}`),
+        mappings: () => API.request('GET', '/epg/mappings'),
+        setMapping: (sourceId, channelId, tvgId) => API.request('PUT', '/epg/mapping', { sourceId, channelId, tvgId })
+    },
+
     // Channels (hidden items)
     channels: {
         getHidden: (sourceId = null) => API.request('GET', `/channels/hidden${sourceId ? `?sourceId=${sourceId}` : ''}`),
