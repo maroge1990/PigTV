@@ -16,6 +16,11 @@
  * lines are still read, and reported under `remux`.) Plays from a paired device (the Apple
  * client) are reported on their own rows, marked "[Apple/device]".
  *
+ * "Client wait" (0145) is first-picture minus resolve on each play-start line: the time between
+ * the server answering the resolve and the player showing a picture - the client's own share
+ * (loading the playlist and first segments, decoder start-up, any delay of its own). A client-side
+ * delay (about 3 s on every Apple start, 24 Sept) shows up there and not in the server's timings.
+ *
  * Limits, on purpose: the log never names a channel, so "how many different channels" can't be
  * counted from it - keep that tally yourself. A play-start is paired with the nearest earlier
  * `resolve timing` line of the same kind to tell a cold play (the stream had to be probed) from
@@ -72,7 +77,7 @@ function errorPathLabel(via, device = false) {
 }
 
 function parse(text) {
-    const plays = [];        // { label, resolveSec, firstPictureSec, warm }
+    const plays = [];        // { label, resolveSec, firstPictureSec, clientWaitSec, warm }
     const ends = [];         // { label, watchedSec, stalls }
     const errors = [];       // { kind, code, via, label, path, message }
     const server = Object.fromEntries(SERVER_SIGNS.map(([name]) => [name, 0]));
@@ -101,10 +106,15 @@ function parse(text) {
             const [, strategy, , , , resolve, first] = m;
             const paired = pending[strategy] || null;
             if (paired) pending[strategy] = null;
+            const resolveSec = seconds(resolve);
+            const firstPictureSec = seconds(first);
+            const wait = resolveSec !== null && firstPictureSec !== null ? firstPictureSec - resolveSec : null;
             plays.push({
                 label: pathLabel(strategy) + (fromDevice(line) ? DEVICE_SUFFIX : ''),
-                resolveSec: seconds(resolve),
-                firstPictureSec: seconds(first),
+                resolveSec,
+                firstPictureSec,
+                // Rounded to the log's 0.1 s; a negative value is a client clock oddity, not a wait.
+                clientWaitSec: wait !== null && wait >= 0 ? Math.round(wait * 10) / 10 : null,
                 warm: paired ? paired.warm : null
             });
         } else if ((m = PLAY_END.exec(line))) {
@@ -150,6 +160,8 @@ function summarise(parsed) {
 
     const paths = [...byPath.values()].map(b => {
         const first = b.plays.map(p => p.firstPictureSec);
+        const resolve = b.plays.map(p => p.resolveSec);
+        const wait = b.plays.map(p => p.clientWaitSec).filter(v => v !== null);
         const cold = b.plays.filter(p => p.warm === false).map(p => p.firstPictureSec);
         const warm = b.plays.filter(p => p.warm === true).map(p => p.firstPictureSec);
         const watched = b.ends.reduce((sum, e) => sum + (e.watchedSec || 0), 0);
@@ -160,6 +172,8 @@ function summarise(parsed) {
             firstPicture: { median: median(first), p90: percentile(first, 90), max: max(first) },
             cold: { n: cold.length, median: median(cold), p90: percentile(cold, 90) },
             warm: { n: warm.length, median: median(warm), p90: percentile(warm, 90) },
+            resolve: { median: median(resolve), p90: percentile(resolve, 90) },
+            clientWait: { n: wait.length, median: median(wait), p90: percentile(wait, 90), max: max(wait) },
             sessions: b.ends.length,
             watchedSec: watched,
             stalls,
@@ -212,6 +226,15 @@ function report(parsed) {
     out.push('  cold = the stream had to be probed first; warm = no probe (cached within 5 minutes, or the channel\'s stored profile)');
     out.push('');
 
+    out.push('Where the time goes (seconds, median / p90): resolve = the server\'s answer; client wait = first picture minus resolve');
+    out.push(`${pad('path', 28)}${padL('resolve', 13)}${padL('client wait', 15)}${padL('max', 7)}`);
+    for (const p of paths) {
+        const pair = (x) => (x.median == null ? '-' : `${fmt(x.median)} / ${fmt(x.p90)}`);
+        out.push(`${pad(p.label, 28)}${padL(pair(p.resolve), 13)}${padL(pair(p.clientWait), 15)}${padL(fmt(p.clientWait.max), 7)}`);
+    }
+    out.push('  a steady client wait on every start is the player\'s own delay, not the server\'s');
+    out.push('');
+
     out.push('How the plays went once they started (only plays watched for 10 s or more are counted)');
     out.push(`${pad('path', 28)}${padL('watched', 8)}${padL('total', 8)}${padL('stalls', 8)}${padL('per hour', 10)}${padL('longest', 9)}${padL(`>=${LONG_SESSION_SEC / 3600}h`, 6)}`);
     for (const p of paths) {
@@ -243,7 +266,7 @@ function report(parsed) {
     const firstPic = (x) => (x.n ? `median ${fmt(x.median)}s / p90 ${fmt(x.p90)}s (n=${x.n})` : '-');
     for (const p of paths) {
         const perHour = p.stallsPerHour == null ? 'n/a (under 10 min watched)' : `${p.stallsPerHour.toFixed(1)}/h`;
-        out.push(`  ${p.label}: ${p.plays} plays; first picture cold ${firstPic(p.cold)}, warm ${firstPic(p.warm)}; stalls ${perHour}; player failures ${p.errors.length}`);
+        out.push(`  ${p.label}: ${p.plays} plays; first picture cold ${firstPic(p.cold)}, warm ${firstPic(p.warm)}; client wait ${firstPic(p.clientWait)}; stalls ${perHour}; player failures ${p.errors.length}`);
     }
     const serverTotal = Object.values(parsed.server).reduce((t, n) => t + n, 0) + parsed.segmentTimeouts + parsed.startFailures;
     out.push(`  server-side failures: ${serverTotal}`);

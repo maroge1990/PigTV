@@ -117,7 +117,7 @@ test('0113: the summary gives plays, first picture cold and warm (median and p90
     lines.push('[Player] play-end via transcode(hls, video copy) hls-delivery=on watched=3600s stalls=2 from=user:1');
     lines.push('[Player] start-timeout via hls path=/api/transcode/x/stream.m3u8 waited=15s from=user:1');
     const printed = report(parse(lines.join('\n')));
-    assert.match(printed, /\nSummary\n  HLS session: 10 plays; first picture cold median 8\.4s \/ p90 8\.8s \(n=5\), warm median 4\.5s \/ p90 4\.9s \(n=5\); stalls 2\.0\/h; player failures 1\n/);
+    assert.match(printed, /\nSummary\n  HLS session: 10 plays; first picture cold median 8\.4s \/ p90 8\.8s \(n=5\), warm median 4\.5s \/ p90 4\.9s \(n=5\); client wait median 2\.5s \/ p90 4\.6s \(n=10\); stalls 2\.0\/h; player failures 1\n/);
     assert.match(printed, /server-side failures: 0/);
     assert.match(printed, /the log never names a channel/, 'the by-hand item is stated, not silently dropped');
 });
@@ -187,4 +187,25 @@ test('0114: a play that used a stored channel profile counts as warm (no ffprobe
 [Playback] resolve timing: HLS session, probe profile (age 3d), first segment after 4.4s, source timing even - DTS kept
 [Player] play-start via transcode(hls, video copy) hls-delivery=on resolve=4.4s first-picture=4.6s from=device:7`));
     assert.deepEqual([rows[0].warm.n, rows[0].cold.n, rows[0].warm.median], [1, 0, 4.6]);
+});
+
+// 0145: Mark's 24 Sept log - every Apple start spent ~3 s between the resolve answer and the first
+// picture, which no server timing shows. The report now gives that client wait per path.
+test('0145: the client wait (first picture minus resolve) per path, median and p90', () => {
+    const text = `
+[Player] play-start via transcode(hls, video copy) hls-delivery=on resolve=4.4s first-picture=7.5s from=device:7
+[Player] play-start via transcode(hls, video copy) hls-delivery=on resolve=5.0s first-picture=8.0s from=device:7
+[Player] play-start via transcode(hls, video copy) hls-delivery=on resolve=9.1s first-picture=12.3s from=device:7
+[Player] play-start via transcode(hls, video copy) hls-delivery=on resolve=4.0s first-picture=4.3s from=user:1
+[Player] play-start via transcode(hls, video copy) hls-delivery=on resolve=?s first-picture=4.3s from=user:1`;
+    const rows = summarise(parse(text));
+    const apple = rows.find(r => r.label === 'HLS session [Apple/device]');
+    const web = rows.find(r => r.label === 'HLS session');
+    assert.deepEqual(apple.clientWait, { n: 3, median: 3.1, p90: 3.2, max: 3.2 });
+    assert.deepEqual([web.clientWait.n, web.clientWait.median], [1, 0.3], 'a play-start without a resolve time has no client wait');
+    assert.equal(apple.resolve.median, 5.0);
+    const printed = report(parse(text));
+    assert.match(printed, /Where the time goes/);
+    assert.match(printed, /HLS session \[Apple\/device\]\s+5\.0 \/ 9\.1\s+3\.1 \/ 3\.2\s+3\.2/);
+    assert.match(printed, /HLS session \[Apple\/device\]: 3 plays;.*client wait median 3\.1s \/ p90 3\.2s \(n=3\)/);
 });

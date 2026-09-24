@@ -1808,6 +1808,11 @@ check server/services/transcodeSession.js "if (this.options.paceInput === true) 
 check server/services/playbackStrategy.js "after an initial \${b}s burst" "the resolve timing line says so"
 check test/hls-finite-source.test.js "PIGTV_READRATE_BURST=0 goes back to -re" "with a test for the rollback"
 
+echo "=== 0145: the playback report shows the client wait ==="
+check scripts/playback-report.js "clientWaitSec: wait !== null && wait >= 0" "client wait = first picture minus resolve, per play"
+check scripts/playback-report.js "Where the time goes" "a per-path median / p90 table"
+check test/playback-report.test.js "0145: the client wait (first picture minus resolve) per path" "with a test"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys
