@@ -9,6 +9,8 @@
  *   recordings   { active: [...], upcoming: [the next 5 scheduled] }
  *   events       the last 50 play-start / play-end / failure events, newest first
  *                (services/playbackEvents.js)
+ *   leastReliable up to 10 channels with failed starts in the last 7 days: name,
+ *                attempts, failures, median first picture (services/channelHealth.js)
  *   sync         per source and feed: status, last sync, error text
  *   disk         free/total bytes of the transcode cache (the tmpfs) and of the
  *                recordings volume
@@ -28,6 +30,7 @@ const db = require('../db');
 const transcodeSession = require('../services/transcodeSession');
 const playbackEvents = require('../services/playbackEvents');
 const { stableChannelId } = require('../services/stableIds');
+const channelHealth = require('../services/channelHealth');
 
 router.use(requireAuth, requireAdmin);
 
@@ -175,6 +178,14 @@ function diskAt(dir) {
     }
 }
 
+function leastReliable() {
+    try {
+        return channelHealth.leastReliable({ limit: 10 });
+    } catch (e) {
+        return [];
+    }
+}
+
 router.get('/', async (req, res) => {
     try {
         const settings = await db.settings.get();
@@ -184,6 +195,8 @@ router.get('/', async (req, res) => {
             sessions: liveSessions(),
             recordings: recordings(),
             events: playbackEvents.recent(),
+            // 0133 (C-G): the channels that failed to start most in the last 7 days.
+            leastReliable: leastReliable(),
             sync: await syncStatus(),
             disk: {
                 transcodeCache: diskAt(transcodeSession.CACHE_DIR),

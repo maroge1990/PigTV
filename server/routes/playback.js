@@ -23,6 +23,7 @@ const passport = require('passport');
 const { streamAuth } = require('../auth');
 const { createLimiter } = require('../services/rateLimit');
 const playbackEvents = require('../services/playbackEvents');
+const channelHealth = require('../services/channelHealth');
 
 /** A channel's name for the status page's recent plays (0124); null when unknown. */
 function channelNameFor(sourceId, channelId) {
@@ -153,6 +154,7 @@ router.post('/resolve', requireToken, async (req, res) => {
             });
             if (outcome.verdict) return sendConflict(res, outcome.verdict);
             recordHistory(req, sourceId, channelId);
+            channelHealth.recordResolve({ sourceId, channelId, ok: true, owner });
             const decision = outcome.decision;
             console.log(`[Playback] ${decision.strategy} — ${decision.reason}`);
             playbackEvents.noteResolve(owner, { channel: eventChannel, strategy: decision.strategy, videoMode: decision.videoMode || null });
@@ -199,6 +201,9 @@ router.post('/resolve', requireToken, async (req, res) => {
         });
 
         recordHistory(req, sourceId, channelId);
+        // 0133 (C-G): a start the server answered; the client's events may
+        // still turn it into a failed start (channelHealth.clientFailed).
+        channelHealth.recordResolve({ sourceId, channelId, ok: true, owner });
 
         console.log(`[Playback] ${decision.strategy} — ${decision.reason}`);
         playbackEvents.noteResolve(owner, { channel: eventChannel, strategy: decision.strategy, videoMode: decision.videoMode || null });
@@ -208,6 +213,8 @@ router.post('/resolve', requireToken, async (req, res) => {
         // 0118 (C-B): never a URL in what the client is sent, whatever the error.
         const safe = clientSafe(redact(err.message));
         playbackEvents.record({ type: 'failure', owner: eventOwner, channel: eventChannel, reason: safe });
+        // 0133 (C-G): a failed start, when it names a channel in the playlist.
+        channelHealth.recordResolve({ sourceId: req.body?.sourceId, channelId: req.body?.channelId, ok: false, reason: safe, owner: eventOwner });
         res.status(err.status || 500).json({ error: safe, info: err.info });
     }
 });
@@ -367,6 +374,7 @@ router.post('/client-event', requireToken, (req, res) => {
             playbackEvents.record({ type: 'play-start', owner, channel: last.channel, start: last.start,
                 strategy: text(body.strategy, 20), videoMode: body.videoMode ? text(body.videoMode, 10) : last.videoMode,
                 firstPictureSec: sec(body.totalMs), resolveSec: sec(body.resolveMs) });
+            channelHealth.clientStarted(owner, sec(body.totalMs));
         } else {
             console.log(`[Player] play-end via ${how} watched=${num(body.watchedSec)}s stalls=${num(body.stalls)} ${from}`);
             playbackEvents.record({ type: 'play-end', owner, channel: last.channel, strategy: text(body.strategy, 20),
@@ -381,6 +389,8 @@ router.post('/client-event', requireToken, (req, res) => {
 
     const eventOwner = coordinator.ownerKey(req.user);
     const lastChannel = (playbackEvents.lastResolveFor(eventOwner) || {}).channel;
+    // 0133 (C-G): before any play-start, this is the owner's last start failing.
+    channelHealth.clientFailed(eventOwner);
     if (body.event === 'start-timeout') {
         // Nothing played for `waited` seconds and there was no error to report.
         console.warn(`[Player] start-timeout via ${text(body.strategy, 20)} path=${text(body.path, 80)} waited=${num(body.waitedSec)}s ${state}`);

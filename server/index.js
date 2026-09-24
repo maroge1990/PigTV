@@ -201,6 +201,13 @@ app.listen(PORT, async () => {
         console.warn('Timeshift sweep failed:', err.message);
     }
 
+    // 0133 (C-G): channel health keeps 30 days of start attempts; pruned now and daily.
+    try {
+        require('./services/channelHealth').startPruneTimer();
+    } catch (err) {
+        console.warn('Channel health prune failed:', err.message);
+    }
+
     // Bring up the parts that must not wait.
     //
     // These used to sit behind the sync in one sequential block, so a stale

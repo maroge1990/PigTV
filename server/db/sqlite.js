@@ -176,6 +176,26 @@ function initSchema() {
         );
     `);
 
+    // Channel health (0133, roadmap S4.1, contract C-G): one row per start
+    // attempt, keyed like channel_numbers (source + stable_id, else item_id).
+    // `ok` is 0 for a failed start; `reason` is its category (refused,
+    // no-response, unavailable, player, error); `first_picture_sec` comes from
+    // the client's play-start. Kept 30 days (services/channelHealth.js).
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS channel_health (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_id INTEGER NOT NULL,
+            channel_key TEXT NOT NULL,
+            name TEXT,
+            at INTEGER NOT NULL,
+            ok INTEGER NOT NULL,
+            first_picture_sec REAL,
+            reason TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_channel_health_at ON channel_health(at);
+        CREATE INDEX IF NOT EXISTS idx_channel_health_key ON channel_health(source_id, channel_key, at);
+    `);
+
     // EPG Programs
     // Optimized for range queries
     db.exec(`

@@ -1,0 +1,262 @@
+/**
+ * Channel health (0133, roadmap S4.1, docs/ROADMAP-CONTRACTS.md C-G).
+ *
+ * One row per start attempt in `channel_health`, keyed by the channel's
+ * identity (source + stable_id, else item_id - the favourites' and channel
+ * numbers' key), so a provider reorder does not scatter a channel's history.
+ *
+ * Where attempts come from:
+ *   - the resolve route (routes/playback.js): a resolve that answered is an
+ *     ok attempt; one that failed is a failed attempt with its reason category
+ *     (a 409 "someone else is watching" is not an attempt at all);
+ *   - the client's events, mapped to the attempt through the owner that made
+ *     it (the same owner -> last resolve mapping the status page uses, 0124:
+ *     client events carry no session id or channel). A `play-start` fills in
+ *     the attempt's first-picture time; a `media-error` or `start-timeout`
+ *     BEFORE any play-start turns the attempt into a failed start (`player`).
+ *     A media error after the picture started is a stall, not a failed start.
+ *
+ * `health` for a channel, over the last 7 days:
+ *   flaky  failed starts >= 2, or failures > 30% with at least 3 attempts
+ *   ok     any attempt, and not flaky
+ *   null   no attempts
+ * Rows are kept 30 days and pruned daily (startPruneTimer, from index.js).
+ * library_rev is bumped only when a channel's health *changes*, so a cached
+ * guide learns about a new warning dot without every play invalidating it.
+ */
+const { getDb } = require('../db/sqlite');
+const { bumpLibraryRev } = require('./libraryRev');
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WINDOW_MS = 7 * DAY_MS;
+const KEEP_MS = 30 * DAY_MS;
+const FLAKY_FAILURES = 2;
+const FLAKY_RATE = 0.3;
+const FLAKY_MIN_ATTEMPTS = 3;
+// A client event older than this after its resolve is not about that start.
+const PENDING_MS = 5 * 60 * 1000;
+const MAX_PENDING = 200;
+
+// Aggregates over the window, reused for a short while: a guide load asks for
+// many pages in a row. Dropped whenever an attempt is written.
+const CACHE_MS = 60 * 1000;
+let cache = null;
+
+// owner -> { rowId, at, started }
+const pending = new Map();
+
+/** The reason category stored with a failure, from the client-safe resolve error (C-B wording). */
+function reasonCategory(message) {
+    const m = String(message || '');
+    if (m.startsWith('The provider refused this channel')) return 'refused';
+    if (m.startsWith('The provider did not respond')) return 'no-response';
+    if (m.startsWith('This channel is not available')) return 'unavailable';
+    return 'error';
+}
+
+/** Health from counts; exported for the tests' threshold table. */
+function classify(attempts, failures) {
+    if (!attempts) return null;
+    if (failures >= FLAKY_FAILURES) return 'flaky';
+    if (attempts >= FLAKY_MIN_ATTEMPTS && failures / attempts > FLAKY_RATE) return 'flaky';
+    return 'ok';
+}
+
+/** The identity (and current name) of a channel a client named by source + (bare or composite) id. */
+function channelFor(sourceId, channelId) {
+    if (sourceId === undefined || sourceId === null || channelId === undefined || channelId === null) return null;
+    const stripped = String(channelId).replace(/^(?:m3u|xtream)_\d+_/, '');
+    const row = getDb().prepare(`
+        SELECT source_id, name, COALESCE(stable_id, item_id) AS channel_key FROM playlist_items
+        WHERE source_id = ? AND type = 'live' AND item_id = ? LIMIT 1
+    `).get(parseInt(sourceId, 10), stripped);
+    return row ? { sourceId: row.source_id, key: row.channel_key, name: row.name } : null;
+}
+
+function countsFor(sourceId, key, now) {
+    return getDb().prepare(`
+        SELECT COUNT(*) AS attempts, COALESCE(SUM(ok = 0), 0) AS failures FROM channel_health
+        WHERE source_id = ? AND channel_key = ? AND at >= ?
+    `).get(sourceId, key, now - WINDOW_MS);
+}
+
+/** Write an attempt, and bump library_rev if it changed the channel's health. */
+function writeAttempt(channel, { ok, reason = null, firstPictureSec = null, now = Date.now() }) {
+    const db = getDb();
+    const before = countsFor(channel.sourceId, channel.key, now);
+    const info = db.prepare(`
+        INSERT INTO channel_health (source_id, channel_key, name, at, ok, first_picture_sec, reason)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(channel.sourceId, channel.key, channel.name || null, now, ok ? 1 : 0, firstPictureSec, ok ? null : reason);
+    afterChange(channel.sourceId, channel.key, before, now);
+    return Number(info.lastInsertRowid);
+}
+
+function afterChange(sourceId, key, before, now) {
+    cache = null;
+    const after = countsFor(sourceId, key, now);
+    if (classify(before.attempts, before.failures) !== classify(after.attempts, after.failures)) {
+        try { bumpLibraryRev(); } catch { /* the dot shows on the next guide change instead */ }
+    }
+}
+
+/**
+ * The resolve route's outcome for a channel. Returns the row id, or null when
+ * the channel is not in the playlist (nothing to key it on). Never throws:
+ * health is a diagnostic and must not be the reason a play fails.
+ */
+function recordResolve({ sourceId, channelId, ok, reason, owner, now = Date.now() }) {
+    try {
+        const channel = channelFor(sourceId, channelId);
+        if (!channel) return null;
+        const rowId = writeAttempt(channel, { ok, reason: ok ? null : reasonCategory(reason), now });
+        if (owner) {
+            pending.delete(owner);
+            if (ok) pending.set(owner, { rowId, at: now, started: false });
+            while (pending.size > MAX_PENDING) pending.delete(pending.keys().next().value);
+        }
+        return rowId;
+    } catch (e) {
+        console.warn('[Health] Could not record a start:', e.message);
+        return null;
+    }
+}
+
+function pendingFor(owner, now) {
+    const p = owner ? pending.get(owner) : null;
+    if (!p || now - p.at > PENDING_MS) return null;
+    return p;
+}
+
+/** A client's play-start: the attempt got a picture after `firstPictureSec`. */
+function clientStarted(owner, firstPictureSec, now = Date.now()) {
+    try {
+        const p = pendingFor(owner, now);
+        if (!p || p.started) return false;
+        p.started = true;
+        const sec = typeof firstPictureSec === 'number' && Number.isFinite(firstPictureSec) && firstPictureSec >= 0 ? firstPictureSec : null;
+        if (sec !== null) getDb().prepare('UPDATE channel_health SET first_picture_sec = ? WHERE id = ?').run(sec, p.rowId);
+        cache = null;
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+/** A client's media-error / start-timeout: a failed start only if nothing had played yet. */
+function clientFailed(owner, now = Date.now()) {
+    try {
+        const p = pendingFor(owner, now);
+        if (!p || p.started) return false;
+        pending.delete(owner);
+        const db = getDb();
+        const row = db.prepare('SELECT source_id, channel_key, ok FROM channel_health WHERE id = ?').get(p.rowId);
+        if (!row || !row.ok) return false;
+        const before = countsFor(row.source_id, row.channel_key, now);
+        db.prepare(`UPDATE channel_health SET ok = 0, reason = 'player' WHERE id = ?`).run(p.rowId);
+        afterChange(row.source_id, row.channel_key, before, now);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+/** Map "sourceId:channelKey" -> { attempts, failures } over the window. */
+function windowCounts(now = Date.now()) {
+    if (cache && now - cache.builtAt < CACHE_MS && now >= cache.builtAt) return cache.counts;
+    const counts = new Map();
+    const rows = getDb().prepare(`
+        SELECT source_id, channel_key, COUNT(*) AS attempts, COALESCE(SUM(ok = 0), 0) AS failures
+        FROM channel_health WHERE at >= ? GROUP BY source_id, channel_key
+    `).all(now - WINDOW_MS);
+    for (const r of rows) counts.set(`${r.source_id}:${r.channel_key}`, { attempts: r.attempts, failures: r.failures });
+    cache = { builtAt: now, counts };
+    return counts;
+}
+
+/**
+ * Give each library row its `health`. A row needs `sourceId` and the identity
+ * the SQL key uses (`stableId`, else `id`).
+ */
+function applyHealth(rows, now = Date.now()) {
+    let counts;
+    try { counts = windowCounts(now); } catch (e) { counts = new Map(); }
+    for (const r of rows) {
+        const c = counts.get(`${r.sourceId}:${r.stableId || r.id}`);
+        r.health = c ? classify(c.attempts, c.failures) : null;
+    }
+    return rows;
+}
+
+/** The status page's "Least reliable channels": flaky ones first, then by failures. */
+function leastReliable({ limit = 10, now = Date.now() } = {}) {
+    const rows = getDb().prepare(`
+        SELECT source_id, channel_key, name, ok, first_picture_sec, at FROM channel_health
+        WHERE at >= ? ORDER BY at ASC
+    `).all(now - WINDOW_MS);
+    const byKey = new Map();
+    for (const r of rows) {
+        const k = `${r.source_id}:${r.channel_key}`;
+        const e = byKey.get(k) || { name: null, attempts: 0, failures: 0, pictures: [] };
+        e.name = r.name || e.name; // the latest name wins
+        e.attempts++;
+        if (!r.ok) e.failures++;
+        if (r.first_picture_sec !== null) e.pictures.push(r.first_picture_sec);
+        byKey.set(k, e);
+    }
+    const median = (xs) => {
+        if (!xs.length) return null;
+        const s = xs.slice().sort((a, b) => a - b);
+        const mid = Math.floor(s.length / 2);
+        return Math.round((s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2) * 10) / 10;
+    };
+    return [...byKey.values()]
+        .filter(e => e.failures > 0)
+        .map(e => ({
+            name: e.name || 'unknown',
+            attempts: e.attempts,
+            failures: e.failures,
+            medianFirstPictureSec: median(e.pictures),
+            health: classify(e.attempts, e.failures)
+        }))
+        .sort((a, b) => (b.health === 'flaky') - (a.health === 'flaky')
+            || b.failures / b.attempts - a.failures / a.attempts
+            || b.failures - a.failures
+            || a.name.localeCompare(b.name))
+        .slice(0, limit);
+}
+
+/** Delete attempts older than 30 days. Returns how many went. */
+function prune(now = Date.now()) {
+    const n = getDb().prepare('DELETE FROM channel_health WHERE at < ?').run(now - KEEP_MS).changes;
+    if (n) cache = null;
+    return n;
+}
+
+let pruneTimer = null;
+/** Prune now and then once a day (index.js, at startup). */
+function startPruneTimer() {
+    const run = () => {
+        try {
+            const n = prune();
+            if (n) console.log(`[Health] Pruned ${n} start record(s) older than 30 days`);
+        } catch (e) {
+            console.warn('[Health] Prune failed:', e.message);
+        }
+    };
+    run();
+    clearInterval(pruneTimer);
+    pruneTimer = setInterval(run, DAY_MS);
+    pruneTimer.unref?.();
+}
+
+function reset() {
+    pending.clear();
+    cache = null;
+}
+
+module.exports = {
+    recordResolve, clientStarted, clientFailed, applyHealth, leastReliable, prune, startPruneTimer,
+    classify, reasonCategory, reset,
+    WINDOW_MS, KEEP_MS
+};

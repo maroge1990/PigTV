@@ -1697,6 +1697,33 @@ check server/services/recordingEngine.js "tunerModel.unhold(t, holdKey(scheduleI
 check server/services/streamCoordinator.js "take(slots.filter(s => s.dead), 'ended');" "a dead tuner never counts as a slot"
 check test/tuner-recordings.test.js "0131: a recording whose tuner dies lets go of it" "with a re-tune test"
 
+echo "=== 0132: timeshift can live on a local disk ==="
+check server/services/tuner.js "PIGTV_TIMESHIFT_DIR" "the timeshift folder is configurable"
+check test/timeshift-dir.test.js "PIGTV_TIMESHIFT_DIR" "with a test"
+
+echo "=== 0133: channel health (C-G) ==="
+check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS channel_health" "one row per start attempt"
+check server/services/channelHealth.js "const KEEP_MS = 30 \* DAY_MS;" "kept 30 days"
+check server/services/channelHealth.js "const WINDOW_MS = 7 \* DAY_MS;" "health over the last 7 days"
+check server/index.js "require('./services/channelHealth').startPruneTimer();" "pruned at startup and daily"
+check server/routes/playback.js "channelHealth.recordResolve({ sourceId: req.body?.sourceId" "a failed resolve is a failed start"
+check server/routes/playback.js "channelHealth.clientFailed(eventOwner);" "a player error before play-start is a failed start"
+check server/routes/playback.js "channelHealth.clientStarted(owner, sec(body.totalMs));" "play-start gives the first-picture time"
+check server/routes/library.js "channelHealth.applyHealth(channels);" "health on guide and channels rows"
+check server/routes/info.js "channelHealth: true" "flag channelHealth"
+check server/routes/status.js "leastReliable: leastReliable()," "the status document lists the least reliable channels"
+check public/js/pages/StatusPage.js "Least reliable channels" "and the web Status page shows them"
+check test/channel-health.test.js "the thresholds: flaky at 2 failed starts" "with a threshold test"
+# Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
+python3 - <<'PY' || FAIL=1
+import re, sys
+s = open('scripts/verify-build.sh').read()
+tail = s[s.rindex('if [ $FAIL -eq 0 ]; then'):]
+if re.search(r'^(check|check_absent|echo "===) ', tail, re.M):
+    print("  ✗ a check sits after the summary"); sys.exit(1)
+print("  ✓ every check runs before the summary")
+PY
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
@@ -1705,7 +1732,3 @@ else
     echo "=== FAILED — do NOT push ==="
     exit 1
 fi
-echo "=== 0132: timeshift can live on a local disk ==="
-check server/services/tuner.js "PIGTV_TIMESHIFT_DIR" "the timeshift folder is configurable"
-check test/timeshift-dir.test.js "PIGTV_TIMESHIFT_DIR" "with a test"
-

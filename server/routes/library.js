@@ -19,6 +19,7 @@ const { currentGuideVersion } = require('../services/libraryRev');
 const { applyLogoCache } = require('../services/logoCache');
 const channelNumbers = require('../services/channelNumbers');
 const { NUMBER_JOIN, NUMBER_SENTINEL } = channelNumbers;
+const channelHealth = require('../services/channelHealth');
 
 // The longest programme the guide will still show when it began before the
 // window. Every EPG query bounds start_time from below by this, because the
@@ -227,6 +228,8 @@ router.get('/channels', (req, res) => {
         `).all(...params, limit, offset);
 
         const channels = decorate(rows);
+        // 0133 (C-G): `health` ok | flaky | null, from the last 7 days' starts.
+        channelHealth.applyHealth(channels);
 
         // Mark favourites here rather than making the client ask separately. Matched
         // on the channel's identity so a favourite still lands after the provider
@@ -441,6 +444,8 @@ router.get('/guide', (req, res) => {
         });
         fillMissingLogos(channels);
         applyLogoCache(channels);
+        // 0133 (C-G): `health` ok | flaky | null, from the last 7 days' starts.
+        channelHealth.applyHealth(channels);
 
         // One query for every channel on the page rather than one per channel.
         const tvgIds = [...new Set(channels.map(c => c.tvgId).filter(Boolean))];

@@ -124,6 +124,16 @@ class StatusPage {
             ]),
             'No plays since the server started')));
 
+        // Least reliable channels (0133, C-G): failed starts over the last 7 days
+        out.push(this.section('Least reliable channels', this.table(
+            ['Channel', 'Attempts', 'Failures', 'Median first picture', 'Health'],
+            (status.leastReliable || []).map(ch => [
+                e(ch.name), e(ch.attempts), e(ch.failures),
+                ch.medianFirstPictureSec !== null && ch.medianFirstPictureSec !== undefined ? `${Number(ch.medianFirstPictureSec).toFixed(1)}s` : '–',
+                ch.health === 'flaky' ? '<span class="status-event status-failure">Flaky</span>' : e(ch.health || '–')
+            ]),
+            'No failed starts in the last 7 days')));
+
         // Sync
         out.push(this.section('Sync', this.table(
             ['Source', 'Type', 'Feed', 'Status', 'Last sync', 'Error'],

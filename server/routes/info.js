@@ -79,7 +79,10 @@ router.get('/', async (req, res) => {
             // 0128 (C-E): a live playlist may be hours long (timeshift), with
             // PROGRAM-DATE-TIME, delta updates and gzip. Only with PIGTV_TUNER=1 and
             // PIGTV_TIMESHIFT_HOURS above 0 (default 3).
-            ...(require('../services/tuner').timeshiftEnabled() ? { timeshift: true } : {})
+            ...(require('../services/tuner').timeshiftEnabled() ? { timeshift: true } : {}),
+            // 0133 (C-G): library/guide and library/channels rows carry `health`
+            // ("ok" | "flaky" | null) from the last 7 days' starts.
+            channelHealth: true
         },
 
         // What the server can produce, so a client knows what to ask for.
