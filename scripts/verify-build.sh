@@ -1634,3 +1634,7 @@ else
     echo "=== FAILED — do NOT push ==="
     exit 1
 fi
+echo "=== 0125: HTML is revalidated after a redeploy ==="
+check server/index.js "setHeaders: noCacheHtml" "static HTML is served no-cache"
+check test/html-no-cache.test.js "no-cache" "with a test"
+

@@ -34,7 +34,13 @@ app.use(express.json({ limit: '2mb' }));
 // requests, and nothing to lose on a restart.
 app.use(passport.initialize());
 
-app.use(express.static(path.join(__dirname, '..', 'public')));
+// HTML is always revalidated so a redeploy's new page (and the new ?v= script
+// URLs inside it) reaches the browser without a hard reload. Scripts and CSS
+// carry ?v= versions and may cache as before (0125).
+const noCacheHtml = (res, filePath) => {
+    if (filePath.endsWith('.html')) res.set('Cache-Control', 'no-cache');
+};
+app.use(express.static(path.join(__dirname, '..', 'public'), { setHeaders: noCacheHtml }));
 
 // FFMPEG Configuration (optional - for transcoding support)
 // Priority: 1. System FFmpeg (better Docker DNS support), 2. ffmpeg-static npm package
@@ -162,6 +168,7 @@ app.use('/api', (req, res) => {
 
 // SPA fallback - serve index.html for all non-API routes
 app.get('*', (req, res) => {
+    res.set('Cache-Control', 'no-cache');
     res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
