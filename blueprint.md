@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 24 September 2026 · server build **0124** (0113–0124 committed locally, not yet pushed) · Apple client build **16**
+**Last updated:** 24 September 2026 · server build **0131** (0113–0131 committed locally, not yet pushed) · Apple client build **16**
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
 architecture notes live in `../PigTV-Swift/blueprint.md`, which points back here for the roadmap. This file replaced the
@@ -31,7 +31,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Mark deploys. |
 | Shipped through | **0104**; whether it is *running* is whatever `/api/version` says |
-| Next build number | **0125** |
+| Next build number | **0132** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -173,6 +173,35 @@ it cannot. There is no remux, no legacy pipe and no browser-side strategy any mo
   "The provider did not respond" or "This channel is not available" (texts in `playbackErrors.js`); a failed ffprobe is
   classified like ffmpeg's stderr and never returned raw; the route strips any `scheme://` from whatever else it returns.
 
+**Tuner model (`PIGTV_TUNER=1`, 0126–0131; contract C-E; off by default)**
+- Off, every line above is exactly how it works (`test/tuner-off.test.js`). On, `services/tuner.js` puts a **tuner** under the
+  sessions: one provider connection + one ffmpeg writing HLS into its own directory. A `TunerSession` *is* a `TranscodeSession`
+  (same start, 0113 refused retry, software-decode retry, stall watchdog, stop). Its arguments are `buildSourceArgs()` (identical
+  to a session's: `test/tuner-args.test.js` checks 133 option sets against the 0125 golden file) plus its own HLS muxer part:
+  `-hls_list_size 30`, `independent_segments+temp_file`, **no `delete_segments`** (the server keeps the window).
+- **Key** = sha256 of those exact arguments (its directory masked) + the master-playlist attributes. Same key → the viewer
+  joins the running tuner (no slot, no probe: a missing analysis is re-read from the tuner's own with
+  `streamProbe.reanalyzeForCaps`). Different arguments (e.g. web vs Apple TV on an HE-AAC channel) → another tuner, another slot.
+- **Viewers** `{id, tunerId, owner, live, lastAccess}`: the `sessionId` resolve returns; DELETE, terminal-status and the idle
+  rules (5 min live / 30 min) are per viewer; a tuner stops with its last viewer **and** recording hold (`rec:<scheduleId>`).
+  The **coordinator counts tuners** (`requestForTuner`/`admitTuner`): dead → idle (all viewers ≥60 s) → only this owner's,
+  silently; else the same 409 bodies (`streamId` = another viewer's id); `force` stops recordings (kept, partial) and viewers.
+- **The playlist is the server's** (`hlsPlaylist.js`): ffmpeg's `ffmpeg.m3u8` is only parsed (every 1 s and per request).
+  `#EXT-X-PROGRAM-DATE-TIME` on every segment = anchor (time first seen − listed durations) + accumulated EXTINF: monotonic,
+  consistent with durations; drifts by the provider's ~19 s resend (mtimes were rejected: jitter, can step back). Token handling
+  is `withStreamToken`; master playlists (0100/0115) unchanged on top.
+- **Timeshift** (default on with the tuner; `PIGTV_TIMESHIFT_HOURS`, default 3, `0` = the 90-segment window on the tmpfs): tuner
+  directories are `<recordings>/.timeshift/<id>`; trimmed by time and, every 15 s, below `PIGTV_TIMESHIFT_MIN_FREE_GB` (20) the
+  oldest go at once (never below 90 segments); removed on stop and at startup. `CAN-SKIP-UNTIL` = 6 × target duration;
+  `_HLS_skip=YES` → `EXT-X-SKIP` delta (version 9). Only these playlists (and recordings' `index.m3u8`) may be gzipped.
+- **Recordings** hold the channel's tuner (any tuner on that URL; else one planned with the Apple TV's default capabilities,
+  no `heaac`, 0130) and an `HlsRecorder` hard-links (same volume) or copies the segments overlapping [start − pre, end + post]
+  into `<root>/<channel>/<title - date>/`: `index.m3u8` EVENT while recording, VOD + ENDLIST after, `EXT-X-START:TIME-OFFSET=0`
+  (plays from its start, also while recording, 0129). Then joined (stream copy, the native-remux arguments) into
+  `<title - date>.mp4`, which becomes `file_path` (comskip, compression, download, `media.mp4`). **Both are kept** (2× disk).
+  Rows: `format='hls'`, `hls_dir` (columns only added once the tuner is used). A tuner that dies is released and re-tuned
+  next tick (new `init-N.mp4` + discontinuity, 0131). Delete removes the folder (only a `<root>/<channel>/<rec>` one).
+
 ---
 
 ---
@@ -258,6 +287,12 @@ admin; a visible holder is a 400). Rollback: `PIGTV_CHANNEL_NUMBERS=0` (old orde
 - Unknown `/api/*` → `404 {"error":"No such API endpoint"}`. **A new Apple-client endpoint goes into `APPLE_CLIENT_ROUTES` in
   `test/api-404.test.js`.**
 - `db.json` is an in-memory write-through cache; a failed save is reported and rolled back.
+
+**Tuner model (on with `PIGTV_TUNER=1`).** Log lines: `[Tuner <id>] Starting (key …)` / `Stopping (<why>)`; `resolve timing …,
+tuner <id>` (new) or `…, shared tuner <id> (N viewers)` (joined, `first segment after 0.0s`); `Releasing stalled session (tuner)`;
+`Only X GB free for timeshift … dropped the oldest N segments`; `[Recordings] #N shares|started tuner <id>`, `lost its tuner; taking
+the channel up again`, `finished (…) N segments, Ns, … (N linked, N copied)`, `Joining #N`, `#N joined`. Rollback: unset the env var
+(HLS recordings made meanwhile keep playing). Tests use a fake ffmpeg (`test/helpers/fakeHls.js`) and stub free space.
 
 **Recordings** (`recordingEngine.js`)
 - `scheduled → waiting → recording → …`, where `waiting` = due but held back by a viewer (listed, cancellable, duplicate-checked).
@@ -350,10 +385,10 @@ and timeshift together. Run old and new side by side against the `stream-doctor`
 
 | ID | Item | Status |
 |---|---|---|
-| T1 | A tuner layer under the sessions; viewers of the same channel share it; the coordinator arbitrates tuners | Planned |
-| T2 | Recordings take segments from a tuner (watching and recording one channel costs one connection); recordings stored as MP4 (joined without re-encoding) or as HLS VOD, with no preparation wait | Planned |
-| T3 | Timeshift on the recordings disk: **3 hours per tuner by default, configurable** (about 1.2 TB free, Mark 23 Sept), trimmed if free space falls below a floor; **start over**; `EXT-X-PROGRAM-DATE-TIME` | Planned |
-| T4 | Watch a recording while it's still recording | Planned |
+| T1 | A tuner layer under the sessions; viewers of the same channel share it; the coordinator arbitrates tuners | Committed (0126), behind `PIGTV_TUNER=1` (off); awaiting Mark's test block |
+| T2 | Recordings take segments from a tuner (watching and recording one channel costs one connection); recordings stored as MP4 (joined without re-encoding) or as HLS VOD, with no preparation wait | Committed (0127, fixes 0130/0131): HLS VOD **and** the joined MP4 are both kept; behind the switch |
+| T3 | Timeshift on the recordings disk: **3 hours per tuner by default, configurable** (about 1.2 TB free, Mark 23 Sept), trimmed if free space falls below a floor; **start over**; `EXT-X-PROGRAM-DATE-TIME` | Committed (0128): delta playlists + gzip; start over is client-side (C-E); behind the switch |
+| T4 | Watch a recording while it's still recording | Committed (0129): `EXT-X-START`, first-segment wait; behind the switch |
 
 ### Phase 4: capabilities and polish
 
@@ -435,3 +470,10 @@ about 0 on the E-AC-3 channel.
 | 0122 | Removed the fork leftovers: Movies/Series/Watch pages and CSS; `/api/proxy/xtream|epg|m3u|cache|image`, `cache.js`, the plugin loader, Pluto headers; `POST /api/transcode/session` + `soft`; `/api/probe`, `/api/subtitle`, `/api/history`, `/api/channels/recent` |
 | 0123 | Settings → Channel numbers: search, inline renumbering, saves changed rows via `PUT /api/lineup/numbers`, shows the server's validation error |
 | 0124 | Admin `GET /api/status` + web Status page (5 s refresh): sessions, recordings, last 50 plays, sync, disk, build; never a URL (W2.2) |
+| 0125 | HTML is revalidated after a redeploy (`no-cache`) |
+| 0126 | Tuner model T1 (`PIGTV_TUNER=1`, off by default): viewers with identical ffmpeg arguments share one tuner; coordinator counts tuners; server-rendered playlist with PROGRAM-DATE-TIME; `buildFFmpegArgs` split, proven identical |
+| 0127 | T2: recordings hold the channel's tuner and keep its segments (EVENT → VOD), joined into an MP4; `/recordings/:id/index.m3u8`, playback `container:"hls"`; flag `recordingHls` |
+| 0128 | T3: timeshift (3 h in `<recordings>/.timeshift`, free-space floor), delta playlists, gzip for tuner playlists; flag `timeshift` |
+| 0129 | T4: recordings play from their start while recording (`EXT-X-START`); Play on a just-started recording waits for its first segment |
+| 0130 | A recording's own tuner uses the Apple TV's default capabilities (no `heaac`), so a TV on an HE-AAC channel being recorded shares it |
+| 0131 | A recording releases a tuner that died and re-tunes; a dead tuner never counts as a slot |
