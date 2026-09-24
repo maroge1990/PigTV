@@ -181,7 +181,7 @@ Deploy the server (Force Update; `/api/version` should say **0146**), then insta
       - The shelves are Recently watched, Favourites on now, Starting soon ("in 12 min", which opens the programme page),
         and Recordings (in progress first).
       - Tell Claude what you'd change: this is the first cut.
-- [ ] R2.12 **Sport on now:** in the web app, Settings → Sources, mark your sport categories with the **Sport** toggle. The
+- [ ] R2.12 **Sport on now:** in the web app, **Settings → Manage Content**, pick the live source, then press the **Sport** button at the end of each sport category's row (it turns into "Sport ✓" and saves at once). The
       Home screen then shows a Sport on now row (live first).
 - [ ] R2.13 **Programme page** (Details on a programme): the new hero layout.
       - **Record** → choose Start early / Finish late → **Schedule**. A "Recording scheduled" badge appears, and the guide
