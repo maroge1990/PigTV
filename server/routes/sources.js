@@ -8,6 +8,7 @@ const m3uParser = require('../services/m3uParser');
 const { requireAuth, requireAdmin } = require('../auth');
 const { bumpLibraryRev } = require('../services/libraryRev');
 const { NUMBER_JOIN } = require('../services/channelNumbers');
+const sportCategories = require('../services/sportCategories');
 
 router.use(requireAuth);
 router.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
@@ -79,7 +80,7 @@ router.use(requireAdmin);
  *
  * Everything the Sources screen's category/channel picker needs, straight from
  * SQLite, hidden items included (the picker is where they are unhidden):
- *   { categories: [{id, name, hidden, channelCount}],
+ *   { categories: [{id, name, hidden, channelCount, sport}],
  *     channels:   [{id, name, categoryId, hidden, number}] }
  * both in the provider's order. `hidden` is the item's own flag; `channelCount`
  * counts every channel in the category, hidden or not; `number` is the channel
@@ -112,7 +113,8 @@ router.get('/:id/catalogue', async (req, res) => {
             id: c.category_id,
             name: c.name,
             hidden: c.is_hidden === 1,
-            channelCount: c.channel_count
+            channelCount: c.channel_count,
+            sport: sportCategories.isSport(sourceId, c.category_id) // 0146 (C-H)
         }));
         const channels = db.prepare(`
             SELECT p.item_id, p.name, p.category_id, p.is_hidden, n.number

@@ -105,6 +105,7 @@ const API = {
     // channels are listed.
     library: {
         categories: () => API.request('GET', '/library/categories'),
+        setCategorySport: (sourceId, categoryId, sport) => API.request('PUT', '/library/categories/sport', { sourceId, categoryId, sport }), // 0146 (C-H)
         channels: ({ limit = 200, offset = 0, category = null, search = null } = {}) => {
             const params = [`limit=${limit}`, `offset=${offset}`];
             if (category) params.push(`category=${encodeURIComponent(category)}`);

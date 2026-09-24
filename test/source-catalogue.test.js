@@ -76,8 +76,8 @@ test('the live catalogue lists every category and channel of the source, hidden 
     assert.equal(r.status, 200);
     assert.deepEqual(r.body, {
         categories: [
-            { id: 'News', name: 'News', hidden: false, channelCount: 2 },
-            { id: 'Sport', name: 'Sport', hidden: true, channelCount: 1 }
+            { id: 'News', name: 'News', hidden: false, channelCount: 2, sport: false },
+            { id: 'Sport', name: 'Sport', hidden: true, channelCount: 1, sport: false }
         ],
         channels: [
             { id: 'pos_1', name: 'BBC News', categoryId: 'News', hidden: false, number: 7 },

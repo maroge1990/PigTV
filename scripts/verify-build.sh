@@ -1813,6 +1813,15 @@ check scripts/playback-report.js "clientWaitSec: wait !== null && wait >= 0" "cl
 check scripts/playback-report.js "Where the time goes" "a per-path median / p90 table"
 check test/playback-report.test.js "0145: the client wait (first picture minus resolve) per path" "with a test"
 
+echo "=== 0146: sport categories (C-H) ==="
+check server/routes/info.js "sportCategories: true" "/api/info advertises sportCategories"
+check server/routes/library.js "sport: sportCategories.isSport(r.source_id, r.category_id)" "library/categories rows carry sport"
+check server/routes/library.js "router.put('/categories/sport', requireAdmin," "admins mark a category"
+check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS sport_categories" "stored in a table no sync writes"
+check server/services/sportCategories.js "if (changed) bumpLibraryRev();" "a change moves the guide version"
+check public/js/components/SourceManager.js "sportToggleHtml(group)" "the web Sources picker has a Sport toggle"
+check test/sport-categories.test.js "a playlist sync keeps the marks" "with a test"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

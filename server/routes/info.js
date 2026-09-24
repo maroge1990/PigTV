@@ -96,7 +96,10 @@ async function sendInfo(req, res) {
             ...safely(() => (require('../services/tuner').timeshiftEnabled() ? { timeshift: true } : {})),
             // 0133 (C-G): library/guide and library/channels rows carry `health`
             // ("ok" | "flaky" | null) from the last 7 days' starts.
-            channelHealth: true
+            channelHealth: true,
+            // 0146 (C-H): library/categories rows carry `sport`; admins mark them
+            // with PUT /api/library/categories/sport.
+            sportCategories: true
         },
 
         // What the server can produce, so a client knows what to ask for.

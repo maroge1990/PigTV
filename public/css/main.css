@@ -1857,6 +1857,17 @@ kbd {
   background: var(--color-surface-active);
 }
 
+/* 0146: a category's Sport toggle, at the right of its header */
+.content-group-header .sport-toggle {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.content-group-header .sport-toggle.active {
+  background: var(--color-accent);
+  color: white;
+}
+
 .group-expander {
   margin-right: var(--space-sm);
   font-size: 0.8em;

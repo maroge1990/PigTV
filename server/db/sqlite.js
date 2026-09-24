@@ -240,6 +240,18 @@ function initSchema() {
         );
     `);
 
+    // Sport categories (0146, contract C-H): the live categories an admin marked
+    // as sport, for the Apple Home screen's "Sport on now" row. A row present =
+    // sport. No sync writes here (services/sportCategories.js).
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS sport_categories (
+            source_id INTEGER NOT NULL,
+            category_id TEXT NOT NULL,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (source_id, category_id)
+        );
+    `);
+
     // EPG Programs
     // Optimized for range queries
     db.exec(`

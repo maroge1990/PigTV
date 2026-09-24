@@ -585,7 +585,7 @@ class SourceManager {
             // left out, as before.
             const groupMap = new Map();
             for (const cat of categories) {
-                groupMap.set(String(cat.id), { id: String(cat.id), name: cat.name || String(cat.id), categoryId: cat.id, type: 'group', items: [] });
+                groupMap.set(String(cat.id), { id: String(cat.id), name: cat.name || String(cat.id), categoryId: cat.id, sport: cat.sport === true, type: 'group', items: [] });
             }
             for (const ch of channels) {
                 const key = ch.categoryId !== null && ch.categoryId !== undefined ? String(ch.categoryId) : 'Uncategorized';
@@ -701,10 +701,41 @@ class SourceManager {
                                ${checked ? 'checked' : ''}>
                         <span class="group-name">${this.escapeHtml(group.name)} (${group.items.length})</span>
                     </label>
+                    ${group.categoryId !== null && group.categoryId !== undefined ? this.sportToggleHtml(group) : ''}
                 </div>
                 ${itemsHtml}
             </div>
         `;
+    }
+
+    /**
+     * 0146 (C-H): the category's Sport toggle. Unlike visibility it saves at
+     * once (PUT /api/library/categories/sport): it is one flag, not part of
+     * the Save diff. Sport categories feed the Apple TV's "Sport on now" row.
+     */
+    sportToggleHtml(group) {
+        return `<button type="button" class="btn btn-sm btn-ghost sport-toggle${group.sport ? ' active' : ''}"
+                        data-category-id="${this.escapeHtml(group.categoryId)}"
+                        aria-pressed="${group.sport ? 'true' : 'false'}"
+                        title="Show this category's channels in the Apple TV's Sport on now row">Sport${group.sport ? ' ✓' : ''}</button>`;
+    }
+
+    async toggleSport(button) {
+        const group = (this.treeData?.groups || []).find(g => String(g.categoryId) === button.dataset.categoryId);
+        if (!group) return;
+        const want = !group.sport;
+        button.disabled = true;
+        try {
+            const res = await API.library.setCategorySport(this.treeData.sourceId, group.categoryId, want);
+            group.sport = res && res.sport === true;
+        } catch (err) {
+            console.error('Error saving sport category:', err);
+            alert(`Could not save: ${err.message || err}`);
+        }
+        button.disabled = false;
+        button.classList.toggle('active', group.sport);
+        button.setAttribute('aria-pressed', group.sport ? 'true' : 'false');
+        button.textContent = group.sport ? 'Sport ✓' : 'Sport';
     }
 
     escapeHtml(text) {
@@ -727,6 +758,14 @@ class SourceManager {
                 const groupEl = header.closest('.content-group');
                 const groupId = groupEl.dataset.groupId;
                 this.toggleGroupExpand(groupId);
+            });
+        });
+
+        // 0146: Sport toggle (saved at once; never expands the group)
+        container.querySelectorAll('.sport-toggle').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleSport(btn);
             });
         });
 

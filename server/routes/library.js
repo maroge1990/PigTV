@@ -13,7 +13,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { requireAuth } = require('../auth');
+const { requireAuth, requireAdmin } = require('../auth');
 const { getDb } = require('../db/sqlite');
 const { currentGuideVersion } = require('../services/libraryRev');
 const { applyLogoCache } = require('../services/logoCache');
@@ -21,6 +21,7 @@ const channelNumbers = require('../services/channelNumbers');
 const { NUMBER_JOIN, NUMBER_SENTINEL } = channelNumbers;
 const channelHealth = require('../services/channelHealth');
 const epgMapping = require('../services/epgMapping');
+const sportCategories = require('../services/sportCategories');
 
 // The longest programme the guide will still show when it began before the
 // window. Every EPG query bounds start_time from below by this, because the
@@ -166,7 +167,8 @@ function decorate(items) {
 
 /**
  * GET /api/library/categories
- * Visible categories in the provider's own order, with channel counts.
+ * Visible categories in the provider's own order, with channel counts and
+ * (0146, C-H) `sport`: whether an admin marked the category as sport.
  */
 router.get('/categories', (req, res) => {
     try {
@@ -187,10 +189,33 @@ router.get('/categories', (req, res) => {
                 id: r.category_id,
                 sourceId: r.source_id,
                 name: r.name,
-                channelCount: r.channel_count
+                channelCount: r.channel_count,
+                sport: sportCategories.isSport(r.source_id, r.category_id)
             })));
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * PUT /api/library/categories/sport  {sourceId, categoryId, sport}   (admin; 0146, C-H)
+ * Marks or unmarks a live category as sport -> {success, sport}. Stored per
+ * category, apart from anything a sync writes; bumps library_rev on a change.
+ */
+router.put('/categories/sport', requireAdmin, (req, res) => {
+    const { sourceId, categoryId, sport } = req.body || {};
+    const source = parseInt(sourceId, 10);
+    if (!Number.isFinite(source) || categoryId === undefined || categoryId === null || categoryId === '') {
+        return res.status(400).json({ error: 'sourceId and categoryId are required' });
+    }
+    if (typeof sport !== 'boolean') return res.status(400).json({ error: 'sport must be true or false' });
+    try {
+        const result = sportCategories.setSport(source, categoryId, sport);
+        if (!result) return res.status(404).json({ error: 'No such live category' });
+        res.json({ success: true, sport: result.sport });
+    } catch (err) {
+        console.error('[Library] sport category failed:', err.message);
+        res.status(500).json({ error: 'Could not save the sport category' });
     }
 });
 
