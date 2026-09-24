@@ -75,7 +75,9 @@ A Labs section in Settings with persistent toggles, all off by default:
 ## C-G. Channel health (roadmap S4.1). Flag: `channelHealth`
 
 `library/guide` and `library/channels` rows gain optional `health`: `"ok" | "flaky" | null`. `flaky` means that in the
-last 7 days the channel failed to start ≥2 times, or failed more than 30% of the time. The Apple guide shows a small
+last 7 days the channel failed to start ≥2 times, or failed more than 30% of the time, or (0142) stalled ≥3 times per
+hour watched over at least 20 minutes watched. Stalls and watched time come from the client's `play-end` (`stalls`,
+`watchedSec`), matched to the owner's last resolve like the other client events. The Apple guide shows a small
 warning dot on flaky channels.
 
 ## C-H. Sport categories for the Home screen (25 Sept). Flag: `sportCategories`

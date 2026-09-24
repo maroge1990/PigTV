@@ -9,8 +9,9 @@
  *   recordings   { active: [...], upcoming: [the next 5 scheduled] }
  *   events       the last 50 play-start / play-end / failure events, newest first
  *                (services/playbackEvents.js)
- *   leastReliable up to 10 channels with failed starts in the last 7 days: name,
- *                attempts, failures, median first picture (services/channelHealth.js)
+ *   leastReliable up to 10 channels with failed starts or stalls in the last 7 days:
+ *                name, attempts, failures, stalls, minutes watched, stalls/hour,
+ *                median first picture, health, score (services/channelHealth.js)
  *   sync         per source and feed: status, last sync, error text
  *   disk         free/total bytes of the transcode cache (the tmpfs) and of the
  *                recordings volume

@@ -15,9 +15,11 @@
  *     the attempt's first-picture time; a `media-error` or `start-timeout`
  *     BEFORE any play-start turns the attempt into a failed start (`player`).
  *     A media error after the picture started is a stall, not a failed start.
+ *     A `play-end` (0142) stores the attempt's watched time and stall count.
  *
  * `health` for a channel, over the last 7 days:
- *   flaky  failed starts >= 2, or failures > 30% with at least 3 attempts
+ *   flaky  failed starts >= 2, or failures > 30% with at least 3 attempts,
+ *          or (0142) >= 3 stalls per hour watched over at least 20 minutes
  *   ok     any attempt, and not flaky
  *   null   no attempts
  * Rows are kept 30 days and pruned daily (startPruneTimer, from index.js).
@@ -33,9 +35,17 @@ const KEEP_MS = 30 * DAY_MS;
 const FLAKY_FAILURES = 2;
 const FLAKY_RATE = 0.3;
 const FLAKY_MIN_ATTEMPTS = 3;
+// 0142: stalls make a channel flaky only over enough watching to mean something.
+const FLAKY_STALLS_PER_HOUR = 3;
+const FLAKY_MIN_WATCH_SEC = 20 * 60;
+// Ranking: stalls per hour with the hours floored at 30 minutes, so one stall
+// in a 10-second play counts as 2/hour, not 360/hour.
+const RANK_MIN_WATCH_SEC = 30 * 60;
 // A client event older than this after its resolve is not about that start.
 const PENDING_MS = 5 * 60 * 1000;
 const MAX_PENDING = 200;
+// A play-end longer after its resolve than this is not matched to it.
+const ENDED_MS = 24 * 60 * 60 * 1000;
 
 // Aggregates over the window, reused for a short while: a guide load asks for
 // many pages in a row. Dropped whenever an attempt is written.
@@ -55,12 +65,14 @@ function reasonCategory(message) {
 }
 
 /** Health from counts; exported for the tests' threshold table. */
-function classify(attempts, failures) {
+function classify(attempts, failures, stalls = 0, watchedSec = 0) {
     if (!attempts) return null;
     if (failures >= FLAKY_FAILURES) return 'flaky';
     if (attempts >= FLAKY_MIN_ATTEMPTS && failures / attempts > FLAKY_RATE) return 'flaky';
+    if (watchedSec >= FLAKY_MIN_WATCH_SEC && stalls / (watchedSec / 3600) >= FLAKY_STALLS_PER_HOUR) return 'flaky';
     return 'ok';
 }
+const classifyCounts = (c) => classify(c.attempts, c.failures, c.stalls, c.watched);
 
 /** The identity (and current name) of a channel a client named by source + (bare or composite) id. */
 function channelFor(sourceId, channelId) {
@@ -75,8 +87,9 @@ function channelFor(sourceId, channelId) {
 
 function countsFor(sourceId, key, now) {
     return getDb().prepare(`
-        SELECT COUNT(*) AS attempts, COALESCE(SUM(ok = 0), 0) AS failures FROM channel_health
-        WHERE source_id = ? AND channel_key = ? AND at >= ?
+        SELECT COUNT(*) AS attempts, COALESCE(SUM(ok = 0), 0) AS failures,
+               COALESCE(SUM(stalls), 0) AS stalls, COALESCE(SUM(watched_sec), 0) AS watched
+        FROM channel_health WHERE source_id = ? AND channel_key = ? AND at >= ?
     `).get(sourceId, key, now - WINDOW_MS);
 }
 
@@ -95,7 +108,7 @@ function writeAttempt(channel, { ok, reason = null, firstPictureSec = null, now 
 function afterChange(sourceId, key, before, now) {
     cache = null;
     const after = countsFor(sourceId, key, now);
-    if (classify(before.attempts, before.failures) !== classify(after.attempts, after.failures)) {
+    if (classifyCounts(before) !== classifyCounts(after)) {
         try { bumpLibraryRev(); } catch { /* the dot shows on the next guide change instead */ }
     }
 }
@@ -161,15 +174,41 @@ function clientFailed(owner, now = Date.now()) {
     }
 }
 
-/** Map "sourceId:channelKey" -> { attempts, failures } over the window. */
+/**
+ * A client's play-end (0142): how long the owner's last started attempt was
+ * watched and how often it stalled. Matched like the other client events
+ * (owner -> last resolve), once per attempt.
+ */
+function clientEnded(owner, watchedSec, stalls, now = Date.now()) {
+    try {
+        const p = owner ? pending.get(owner) : null;
+        if (!p || now - p.at > ENDED_MS) return false;
+        pending.delete(owner);
+        const watched = typeof watchedSec === 'number' && Number.isFinite(watchedSec) && watchedSec >= 0 ? Math.min(watchedSec, 86400) : null;
+        const count = typeof stalls === 'number' && Number.isFinite(stalls) && stalls >= 0 ? Math.min(Math.round(stalls), 10000) : null;
+        if (watched === null && count === null) return false;
+        const db = getDb();
+        const row = db.prepare('SELECT source_id, channel_key FROM channel_health WHERE id = ?').get(p.rowId);
+        if (!row) return false;
+        const before = countsFor(row.source_id, row.channel_key, now);
+        db.prepare('UPDATE channel_health SET watched_sec = ?, stalls = ? WHERE id = ?').run(watched, count, p.rowId);
+        afterChange(row.source_id, row.channel_key, before, now);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+/** Map "sourceId:channelKey" -> { attempts, failures, stalls, watched } over the window. */
 function windowCounts(now = Date.now()) {
     if (cache && now - cache.builtAt < CACHE_MS && now >= cache.builtAt) return cache.counts;
     const counts = new Map();
     const rows = getDb().prepare(`
-        SELECT source_id, channel_key, COUNT(*) AS attempts, COALESCE(SUM(ok = 0), 0) AS failures
+        SELECT source_id, channel_key, COUNT(*) AS attempts, COALESCE(SUM(ok = 0), 0) AS failures,
+               COALESCE(SUM(stalls), 0) AS stalls, COALESCE(SUM(watched_sec), 0) AS watched
         FROM channel_health WHERE at >= ? GROUP BY source_id, channel_key
     `).all(now - WINDOW_MS);
-    for (const r of rows) counts.set(`${r.source_id}:${r.channel_key}`, { attempts: r.attempts, failures: r.failures });
+    for (const r of rows) counts.set(`${r.source_id}:${r.channel_key}`, { attempts: r.attempts, failures: r.failures, stalls: r.stalls, watched: r.watched });
     cache = { builtAt: now, counts };
     return counts;
 }
@@ -183,24 +222,30 @@ function applyHealth(rows, now = Date.now()) {
     try { counts = windowCounts(now); } catch (e) { counts = new Map(); }
     for (const r of rows) {
         const c = counts.get(`${r.sourceId}:${r.stableId || r.id}`);
-        r.health = c ? classify(c.attempts, c.failures) : null;
+        r.health = c ? classifyCounts(c) : null;
     }
     return rows;
 }
 
-/** The status page's "Least reliable channels": flaky ones first, then by failures. */
+/**
+ * The status page's "Least reliable channels" (0133; stalls since 0142): every
+ * channel with a failed start or a stall in the window, ranked by
+ * failed starts + stalls per hour watched (hours floored at 30 minutes).
+ */
 function leastReliable({ limit = 10, now = Date.now() } = {}) {
     const rows = getDb().prepare(`
-        SELECT source_id, channel_key, name, ok, first_picture_sec, at FROM channel_health
+        SELECT source_id, channel_key, name, ok, first_picture_sec, stalls, watched_sec, at FROM channel_health
         WHERE at >= ? ORDER BY at ASC
     `).all(now - WINDOW_MS);
     const byKey = new Map();
     for (const r of rows) {
         const k = `${r.source_id}:${r.channel_key}`;
-        const e = byKey.get(k) || { name: null, attempts: 0, failures: 0, pictures: [] };
+        const e = byKey.get(k) || { name: null, attempts: 0, failures: 0, stalls: 0, watched: 0, pictures: [] };
         e.name = r.name || e.name; // the latest name wins
         e.attempts++;
         if (!r.ok) e.failures++;
+        e.stalls += r.stalls || 0;
+        e.watched += r.watched_sec || 0;
         if (r.first_picture_sec !== null) e.pictures.push(r.first_picture_sec);
         byKey.set(k, e);
     }
@@ -210,17 +255,21 @@ function leastReliable({ limit = 10, now = Date.now() } = {}) {
         const mid = Math.floor(s.length / 2);
         return Math.round((s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2) * 10) / 10;
     };
+    const round1 = (x) => Math.round(x * 10) / 10;
     return [...byKey.values()]
-        .filter(e => e.failures > 0)
+        .filter(e => e.failures > 0 || e.stalls > 0)
         .map(e => ({
             name: e.name || 'unknown',
             attempts: e.attempts,
             failures: e.failures,
+            stalls: e.stalls,
+            watchedMin: round1(e.watched / 60),
+            stallsPerHour: e.watched > 0 ? round1(e.stalls / (e.watched / 3600)) : null,
             medianFirstPictureSec: median(e.pictures),
-            health: classify(e.attempts, e.failures)
+            health: classify(e.attempts, e.failures, e.stalls, e.watched),
+            score: round1(e.failures + e.stalls / (Math.max(e.watched, RANK_MIN_WATCH_SEC) / 3600))
         }))
-        .sort((a, b) => (b.health === 'flaky') - (a.health === 'flaky')
-            || b.failures / b.attempts - a.failures / a.attempts
+        .sort((a, b) => b.score - a.score
             || b.failures - a.failures
             || a.name.localeCompare(b.name))
         .slice(0, limit);
@@ -256,7 +305,7 @@ function reset() {
 }
 
 module.exports = {
-    recordResolve, clientStarted, clientFailed, applyHealth, leastReliable, prune, startPruneTimer,
+    recordResolve, clientStarted, clientFailed, clientEnded, applyHealth, leastReliable, prune, startPruneTimer,
     classify, reasonCategory, reset,
     WINDOW_MS, KEEP_MS
 };

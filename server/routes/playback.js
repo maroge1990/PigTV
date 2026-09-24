@@ -370,6 +370,8 @@ router.post('/client-event', requireToken, (req, res) => {
             playbackEvents.record({ type: 'play-end', owner, channel: last.channel, strategy: text(body.strategy, 20),
                 watchedSec: typeof body.watchedSec === 'number' ? body.watchedSec : null,
                 stalls: typeof body.stalls === 'number' ? body.stalls : null });
+            // 0142: the stalls count towards the channel's health.
+            channelHealth.clientEnded(owner, body.watchedSec, body.stalls);
         }
         return res.status(204).end();
     }

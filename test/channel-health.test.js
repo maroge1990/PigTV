@@ -49,10 +49,10 @@ const channels = [
     ['pos_4', 'Delta', null]
 ];
 
-function insertAttempt(key, { ago = 0, ok = true, name = null, fps = null } = {}) {
-    sqlite.getDb().prepare(`INSERT INTO channel_health (source_id, channel_key, name, at, ok, first_picture_sec, reason)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)`)
-        .run(source.id, key, name, Date.now() - ago, ok ? 1 : 0, fps, ok ? null : 'refused');
+function insertAttempt(key, { ago = 0, ok = true, name = null, fps = null, stalls = null, watched = null } = {}) {
+    sqlite.getDb().prepare(`INSERT INTO channel_health (source_id, channel_key, name, at, ok, first_picture_sec, reason, stalls, watched_sec)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(source.id, key, name, Date.now() - ago, ok ? 1 : 0, fps, ok ? null : 'refused', stalls, watched);
 }
 const attempts = () => sqlite.getDb().prepare('SELECT * FROM channel_health ORDER BY id').all();
 const clear = () => { sqlite.getDb().prepare('DELETE FROM channel_health').run(); health.reset(); };
@@ -211,8 +211,8 @@ test('the status document lists the least reliable channels with attempts, failu
     const { status, body } = await call('GET', '/api/status');
     assert.equal(status, 200);
     assert.deepEqual(body.leastReliable, [
-        { name: 'Bravo', attempts: 2, failures: 2, medianFirstPictureSec: null, health: 'flaky' },
-        { name: 'Alpha', attempts: 4, failures: 1, medianFirstPictureSec: 6, health: 'ok' }
+        { name: 'Bravo', attempts: 2, failures: 2, stalls: 0, watchedMin: 0, stallsPerHour: null, medianFirstPictureSec: null, health: 'flaky', score: 2 },
+        { name: 'Alpha', attempts: 4, failures: 1, stalls: 0, watchedMin: 0, stallsPerHour: null, medianFirstPictureSec: 6, health: 'ok', score: 1 }
     ]);
 });
 
@@ -223,10 +223,68 @@ test('the web Status page shows the least reliable channels', () => {
     context.window = context;
     vm.runInContext(js, context);
     const page = new context.StatusPage({});
-    const html = page.render({ leastReliable: [{ name: 'Seven <Flix>', attempts: 5, failures: 3, medianFirstPictureSec: 8.25, health: 'flaky' }] });
+    const html = page.render({ leastReliable: [{ name: 'Seven <Flix>', attempts: 5, failures: 3, stalls: 4, watchedMin: 62, stallsPerHour: 3.9, medianFirstPictureSec: 8.25, health: 'flaky' }] });
+    assert.ok(html.includes('4 (3.9/h)'), 'stalls and stalls per hour');
+    assert.ok(html.includes('62 min'), 'minutes watched');
     assert.ok(html.includes('Least reliable channels'));
     assert.ok(html.includes('Seven &lt;Flix&gt;'), 'escaped');
     assert.ok(html.includes('8.3s') || html.includes('8.2s'));
     assert.ok(html.includes('Flaky'));
-    assert.ok(page.render({}).includes('No failed starts in the last 7 days'));
+    assert.ok(page.render({}).includes('No failed starts or stalls in the last 7 days'));
+});
+
+// 0142: Mark saw a channel with stalls on the Status page that was not in the list: play-end's
+// stalls were never tied to a channel. Now a play-end fills its attempt's watched time and stalls.
+test('play-end stores watched time and stalls on the owner\'s last attempt, once', async () => {
+    clear();
+    const real = strategy.resolve;
+    strategy.resolve = async () => ({ strategy: 'transcode', reason: 'test', sessionId: 'abc', url: '/api/transcode/abc/stream.m3u8' });
+    try {
+        await call('POST', '/api/playback/resolve', { sourceId: source.id, channelId: 'pos_3', capabilities: {} });
+        await call('POST', '/api/playback/client-event', { event: 'play-start', strategy: 'transcode', totalMs: 5000 });
+        assert.equal((await call('POST', '/api/playback/client-event', { event: 'play-end', strategy: 'transcode', watchedSec: 1800, stalls: 4 })).status, 204);
+        // A second play-end with no new resolve is not counted again.
+        await call('POST', '/api/playback/client-event', { event: 'play-end', strategy: 'transcode', watchedSec: 60, stalls: 9 });
+    } finally { strategy.resolve = real; }
+    assert.deepEqual(attempts().map(r => [r.channel_key, r.ok, r.watched_sec, r.stalls]), [['s1003', 1, 1800, 4]]);
+
+    const { body } = await call('GET', '/api/status');
+    assert.deepEqual(body.leastReliable.map(c => [c.name, c.failures, c.stalls, c.watchedMin, c.stallsPerHour, c.health]),
+        [['Charlie', 0, 4, 30, 8, 'flaky']], 'a channel that only stalls is listed');
+});
+
+test('stalls make a channel flaky at 3 per hour, only over at least 20 minutes watched', () => {
+    const cases = [
+        // attempts, failures, stalls, watchedSec, expected
+        [1, 0, 1, 10, 'ok'],          // one stall in a 10 s play: too little watching
+        [1, 0, 2, 19 * 60, 'ok'],     // 6.3/h, but under 20 minutes
+        [1, 0, 1, 20 * 60, 'flaky'],  // 1 stall in 20 minutes is 3/h
+        [2, 0, 3, 3600, 'flaky'],     // exactly 3/h over an hour
+        [2, 0, 2, 3600, 'ok'],        // 2/h
+        [3, 0, 0, 0, 'ok']
+    ];
+    for (const [a, f, st, w, want] of cases) {
+        assert.equal(health.classify(a, f, st, w), want, `${a} attempts, ${f} failures, ${st} stalls in ${w}s`);
+    }
+});
+
+test('the list ranks by failed starts + stalls per hour, with short plays floored at 30 minutes', async () => {
+    clear();
+    insertAttempt('s1001', { name: 'Alpha', stalls: 1, watched: 10 });          // 1 stall in 10 s: 2/h, not 360/h
+    insertAttempt('s1002', { name: 'Bravo', stalls: 6, watched: 3600 });        // 6/h
+    insertAttempt('s1003', { name: 'Charlie', ok: false });                     // 1 failed start
+    insertAttempt('s1003', { name: 'Charlie', ok: false });                     // 2 failed starts
+    insertAttempt('pos_4', { name: 'Delta', ok: false, stalls: 0, watched: 0 }); // 1
+    const list = health.leastReliable();
+    assert.deepEqual(list.map(c => [c.name, c.score]), [['Bravo', 6], ['Charlie', 2], ['Alpha', 2], ['Delta', 1]], 'a tie goes to failed starts');
+    assert.equal(list.find(c => c.name === 'Alpha').stallsPerHour, 360, 'the real rate is still shown');
+});
+
+test('a play-end that makes a channel flaky moves library_rev', async () => {
+    clear();
+    const rev = () => sqlite.getDb().prepare(`SELECT value FROM meta WHERE key = 'library_rev'`).get()?.value || '0';
+    health.recordResolve({ sourceId: source.id, channelId: 'pos_2', ok: true, owner: 'device:tv' });
+    const r1 = rev();
+    assert.equal(health.clientEnded('device:tv', 3600, 5), true);
+    assert.notEqual(rev(), r1);
 });

@@ -1789,6 +1789,14 @@ check server/routes/logo.js "function ensureCacheVersion()" "stored logos from a
 check server/services/logoCache.js "update(\`v\${LOGO_CACHE_VERSION}|\${url}\`)" "the cache version is in the key (new paths for clients)"
 check test/logo-alpha.test.js "PNG is downscaled with its transparency intact" "with a test per image kind"
 
+echo "=== 0142: stalls count towards channel health ==="
+check server/routes/playback.js "channelHealth.clientEnded(owner, body.watchedSec, body.stalls);" "play-end feeds its stalls into channel health"
+check server/db/sqlite.js "ALTER TABLE channel_health ADD COLUMN" "attempts carry stalls and watched time"
+check server/services/channelHealth.js "stalls / (watchedSec / 3600) >= FLAKY_STALLS_PER_HOUR" "stalls can make a channel flaky"
+check server/services/channelHealth.js "e.stalls / (Math.max(e.watched, RANK_MIN_WATCH_SEC) / 3600)" "the list ranks by failed starts + stalls per hour"
+check public/js/pages/StatusPage.js "'Stalls', 'Watched'" "the Status page shows stalls and minutes watched"
+check test/channel-health.test.js "a channel that only stalls is listed" "with a test"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

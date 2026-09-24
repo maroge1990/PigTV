@@ -216,6 +216,15 @@ function initSchema() {
         CREATE INDEX IF NOT EXISTS idx_channel_health_at ON channel_health(at);
         CREATE INDEX IF NOT EXISTS idx_channel_health_key ON channel_health(source_id, channel_key, at);
     `);
+    // 0142: the play-end that closed the attempt - how long it was watched and
+    // how many times it stalled. NULL until (unless) the client reports it.
+    for (const col of ['stalls INTEGER', 'watched_sec REAL']) {
+        try {
+            db.exec(`ALTER TABLE channel_health ADD COLUMN ${col}`);
+        } catch (e) {
+            // Column already exists.
+        }
+    }
 
     // EPG matching (0134, roadmap S4.2): the admin's choice of EPG channel for a
     // playlist channel, keyed by identity like channel_numbers. Read at query
