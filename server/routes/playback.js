@@ -124,8 +124,8 @@ router.post('/resolve', requireToken, async (req, res) => {
             return res.status(400).json({ error: NOT_A_STREAM_URL });
         }
 
-        const settings = await db.settings.get();
-        settings.ffmpegPath = req.app.locals.ffmpegPath || 'ffmpeg';
+        // A copy: db.settings.get() hands out one shared, frozen object (0135).
+        const settings = { ...(await db.settings.get()), ffmpegPath: req.app.locals.ffmpegPath || 'ffmpeg' };
 
         // The provider may allow only one connection. If a recording is using
         // it, say so and let the caller decide, rather than starting a stream

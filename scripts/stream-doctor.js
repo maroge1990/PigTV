@@ -58,6 +58,16 @@ function openDb() {
 }
 
 function userAgent() {
+    // Settings live in content.db since 0135 (app_settings, JSON values); a server
+    // that has not started on 0135 yet still has them in db.json.
+    try {
+        const db = openDb();
+        try {
+            const get = (k) => { const r = db.prepare('SELECT value FROM app_settings WHERE key = ?').get(k); return r ? JSON.parse(r.value) : undefined; };
+            if (get('userAgentPreset') === 'custom' && get('userAgentCustom')) return get('userAgentCustom');
+            return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+        } finally { db.close(); }
+    } catch { /* no app_settings table yet: fall back to db.json */ }
     try {
         const raw = JSON.parse(fs.readFileSync(path.join(DATA, 'db.json'), 'utf8'));
         const s = raw.settings || {};

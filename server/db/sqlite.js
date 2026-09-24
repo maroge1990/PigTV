@@ -176,6 +176,27 @@ function initSchema() {
         );
     `);
 
+    // Sources, settings and users (0135, roadmap S4.3a), formerly data/db.json.
+    // Objects are kept as JSON so their shape stays exactly what db.json held;
+    // server/db.js owns them (and the one-time migration from db.json).
+    // `username` is a column only for the lookup.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS app_sources (
+            id INTEGER PRIMARY KEY,
+            data TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS app_users (
+            id INTEGER PRIMARY KEY,
+            username TEXT NOT NULL,
+            data TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_app_users_username ON app_users(username);
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+    `);
+
     // Channel health (0133, roadmap S4.1, contract C-G): one row per start
     // attempt, keyed like channel_numbers (source + stable_id, else item_id).
     // `ok` is 0 for a failed start; `reason` is its category (refused,

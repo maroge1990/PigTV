@@ -837,9 +837,8 @@ else
 fi
 
 echo "=== 0053: db.json cache + session leak (P1-7) ==="
-check server/db.js "let cachedDb = null" "in-memory db cache declared"
-check server/db.js "if (cachedDb) return structuredClone(cachedDb)" "loadDb serves from cache once seeded"
-check server/db.js "cachedDb = snapshot;" "saveDb keeps the cache authoritative (write-through)"
+# Superseded by 0135 (db.json moved into SQLite): the settings cache is checked there.
+check server/db.js "let settingsCache = null;" "settings are served from an in-memory cache"
 check_absent server/index.js "express-session" "no session store at all (0077 removed it; the MemoryStore leak cannot come back)"
 
 echo "=== 0054: ffmpeg output-inactivity watchdog ==="
@@ -1113,7 +1112,7 @@ check_absent package-lock.json "node_modules/express-session" "and the lockfile 
 echo "=== 0078: JSON-file hiddenItems / favorites removed from db.js (review P2-1) ==="
 check_absent server/db.js "hiddenItems" "no JSON-file hidden items (they live in SQLite, routes/channels.js)"
 check_absent server/db.js "db.favorites" "no JSON-file favourites (they live in SQLite, routes/favorites.js)"
-check test/db-legacy-keys.test.js "the next write drops the two unread arrays and nothing else" "an older db.json is tested to load and to lose only those two arrays"
+check test/db-legacy-keys.test.js "the migration into SQLite carries the used collections, not the two unread arrays" "an older db.json is tested to load and to lose only those two arrays"
 
 echo "=== 0079: unknown /api paths return a JSON 404 ==="
 check server/index.js "No such API endpoint" "an unknown /api path is an error, not the web app"
@@ -1126,11 +1125,11 @@ fi
 check test/api-404.test.js "every route the Apple client calls still reaches its real handler" "a test boots the real server and asserts none of the Apple client's routes is swallowed"
 
 echo "=== 0080: a failed db.json write is reported, not swallowed (review §2.14) ==="
-check server/db.js "writeQueue = thisWrite.catch" "the write queue survives a failed write"
-check server/db.js "return thisWrite;" "and the caller of the failed save is the one who hears about it"
-check server/db.js "if (cachedDb === snapshot) cachedDb = previous;" "the in-memory copy is rolled back too (unless a newer save superseded it)"
+# 0135 moved the store into SQLite: a write is one transaction, rolled back whole on failure.
+check server/db.js "return db.transaction(() => fn(db))();" "every write is one transaction"
+check server/db.js "The server could not save its data (is the disk full or read-only?)" "and a failure reaches the caller as a plain sentence"
 check_absent server/db.js "Database write failed" "the old catch-and-continue that reported success is gone"
-check test/db-write-failure.test.js "a later save that succeeds is not undone" "including the case where a newer save overtakes the failure"
+check test/db-write-failure.test.js "two updates in flight together both land" "and two writes in flight together both land (0135: transactions, no whole-store rewrite)"
 
 echo "=== 0081: playback report script for the HLS trial ==="
 check scripts/playback-report.js "play-start via" "the report reads the play-start line the server writes"
@@ -1727,6 +1726,19 @@ check server/routes/epg.js "router.get('/unmatched'" "GET /api/epg/unmatched"
 check public/index.html 'data-tab="epg">EPG matching' "Settings has an EPG matching tab"
 check public/js/pages/Settings.js "async loadEpgMatching()" "which loads the unmatched list"
 check test/epg-matching.test.js "the mapping survives a playlist sync" "with a sync-survival test"
+
+echo "=== 0135: sources, settings and users in SQLite (S4.3a) ==="
+check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS app_settings" "settings table"
+check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS app_sources" "sources table"
+check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS app_users" "users table"
+check server/db.js "fs.renameSync(legacyPath, migratedPath);" "db.json is migrated once and kept as db.json.migrated"
+check server/db.js "if (metaGet(db, 'app_data_migrated'))" "and never merged in twice"
+check_absent server/db.js "structuredClone" "no clone of the store on reads"
+check server/db.js "if (!settingsCache) settingsCache = deepFreeze(" "settings.get() hands out one frozen object"
+check server/routes/playback.js "const settings = { ...(await db.settings.get()), ffmpegPath:" "the resolve route copies before adding to it"
+check scripts/stream-doctor.js "SELECT value FROM app_settings WHERE key = ?" "stream-doctor reads the user agent from SQLite"
+check test/db-sqlite-store.test.js "the hot path: settings.get() hands out one frozen object and never clones it" "with a hot-path test"
+check test/db-sqlite-store.test.js "the first start migrates a sample db.json" "and a migration test"
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1

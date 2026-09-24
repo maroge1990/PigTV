@@ -45,12 +45,20 @@ test('an older db.json still loads: everything that is used comes through unchan
     assert.equal((await db.users.getByUsername('owner')).role, 'admin');
 });
 
-test('the next write drops the two unread arrays and nothing else', async () => {
+test('0135: the migration into SQLite carries the used collections, not the two unread arrays, and keeps db.json as the backup', async () => {
+    assert.ok(!fs.existsSync(dbFile), 'db.json is moved aside');
+    const backup = JSON.parse(fs.readFileSync(dbFile + '.migrated', 'utf8'));
+    assert.deepEqual(backup, legacy, 'the backup is the old file, untouched');
+
+    const sqlite = require(path.join(sandbox, 'server', 'db', 'sqlite')).getDb();
+    const tables = sqlite.prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`).all().map(t => t.name);
+    assert.ok(!tables.some(t => /hidden|favorites_json/i.test(t) && t !== 'favorites'), 'no table for the unread arrays');
+    assert.equal(sqlite.prepare(`SELECT COUNT(*) n FROM favorites`).get().n, 0, 'the JSON-file favourites are not copied into the real table');
+
     await db.sources.delete(2);
-    const written = JSON.parse(fs.readFileSync(dbFile, 'utf8'));
-    assert.deepEqual(Object.keys(written).sort(), ['nextId', 'settings', 'sources', 'users']);
-    assert.deepEqual(written.sources.map(s => s.name), ['Main'], 'the delete itself worked');
-    assert.equal(written.settings.quality, 'high');
-    assert.equal(written.users[0].username, 'owner');
-    assert.equal(written.nextId, 6, 'ids keep counting from where they were');
+    assert.deepEqual((await db.sources.getAll()).map(s => s.name), ['Main'], 'the delete itself worked');
+    assert.equal((await db.settings.get()).quality, 'high');
+    assert.equal((await db.users.getAll())[0].username, 'owner');
+    const created = await db.sources.create({ type: 'm3u', name: 'Third' });
+    assert.equal(created.id, 6, 'ids keep counting from where they were');
 });

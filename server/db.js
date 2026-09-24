@@ -1,67 +1,42 @@
-const fs = require('fs/promises');
+const fs = require('fs');
 const path = require('path');
-const { existsSync, mkdirSync } = require('fs');
 
-// Ensure data directory exists (sync is fine for startup)
+/**
+ * Sources, settings and users (0135, roadmap S4.3a).
+ *
+ * These used to live in data/db.json, an in-memory write-through cache of a
+ * JSON file: every read handed out a deep copy of the whole database,
+ * and every write rewrote the file. They now live in SQLite (content.db, the
+ * same database as the library), in three tables created by db/sqlite.js:
+ *
+ *   app_sources   (id, data)             one row per source, the object as JSON
+ *   app_users     (id, username, data)   one row per user, the object as JSON
+ *   app_settings  (key, value)           one row per stored setting, JSON value
+ *
+ * plus `next_id` in the meta table (sources and users share one id counter,
+ * as they did in db.json).
+ *
+ * The first time this module touches the database, a data/db.json left by an
+ * older version is copied in (one transaction) and renamed db.json.migrated,
+ * which stays as the backup. A fresh install starts with the default settings.
+ *
+ * The API is unchanged: db.sources / db.settings / db.users, all async.
+ *
+ * Settings are on the hot path (streamAuthFromSettings reads them on every
+ * media request, i.e. every HLS segment), so settings.get() returns ONE frozen
+ * object, rebuilt only after a write: no clone per request. A caller that
+ * needs to add to it copies it first ({ ...settings, extra }).
+ *
+ * A write that fails (disk full, read-only volume) is rolled back by SQLite's
+ * transaction, the in-memory settings are left as they were, and the caller
+ * gets a plain sentence; the raw error (which can name a file path) stays in
+ * the log and on .cause.
+ */
+
 const dataDir = path.join(__dirname, '..', 'data');
-if (!existsSync(dataDir)) {
-  mkdirSync(dataDir, { recursive: true });
-}
-
-const dbPath = path.join(dataDir, 'db.json');
-
-// In-memory write-through cache of db.json. loadDb() reads the file once, then
-// serves clones from here; saveDb() keeps it authoritative. db.json is on the
-// hot path - streamAuthFromSettings calls settings.get() on every media
-// request (every HLS segment) - so re-reading and re-parsing the file each
-// time is pure overhead. (Trade-off: a manual edit of db.json on disk is not
-// picked up until restart.)
-let cachedDb = null;
-
-// Initialize database structure
-async function loadDb() {
-  // Serve from cache once seeded.
-  if (cachedDb) return structuredClone(cachedDb);
-  try {
-    // Check if file exists (using fs.access is better for async, but we can catch ENOENT)
-    try {
-      const fileContent = await fs.readFile(dbPath, 'utf-8');
-      const data = JSON.parse(fileContent);
-      cachedDb = {
-        sources: data.sources || [],
-        settings: data.settings || getDefaultSettings(),
-        users: data.users || [],
-        nextId: data.nextId || 1
-      };
-      // Hand callers their own copy so a mutate-then-save cycle can't corrupt
-      // the cache mid-flight.
-      return structuredClone(cachedDb);
-    } catch (error) {
-      if (error.code === 'ENOENT') {
-        // File doesn't exist (fresh install); seed the cache with the default
-        // so the first saveDb writes it out.
-        cachedDb = {
-          sources: [],
-          settings: getDefaultSettings(),
-          users: [],
-          nextId: 1
-        };
-        return structuredClone(cachedDb);
-      }
-      throw error;
-    }
-  } catch (err) {
-    console.error('Error loading database:', err);
-    // A transient read/parse failure must not poison the cache: leave it
-    // unseeded so the next call retries the disk, and return a safe default.
-    return {
-      sources: [],
-      settings: getDefaultSettings(),
-      users: [],
-      nextId: 1
-    };
-  }
-}
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+const legacyPath = path.join(dataDir, 'db.json');
+const migratedPath = legacyPath + '.migrated';
 
 // Default settings
 function getDefaultSettings() {
@@ -83,7 +58,7 @@ function getDefaultSettings() {
     maxResolution: '1080p',       // 4k | 1080p | 720p | 480p
     quality: 'medium',            // high | medium | low
     audioMixPreset: 'auto',       // auto | itu | night | cinematic | passthrough
-    // Probe cache settings  
+    // Probe cache settings
     probeCacheTTL: 300,           // 5 minutes for URL probe cache
     seriesProbeCacheDays: 7,       // 7 days for series episode probe cache
     // Upscaling settings
@@ -133,231 +108,298 @@ function getUserAgent(settings) {
   return USER_AGENT_PRESETS[settings.userAgentPreset] || USER_AGENT_PRESETS.chrome;
 }
 
-// Write lock to prevent concurrent writes from corrupting db.json
-let writeQueue = Promise.resolve();
-const tmpPath = dbPath + '.tmp';
+// ---------------------------------------------------------------- storage --
 
-async function saveDb(data) {
-  // Update the cache first so subsequent reads see the new state immediately,
-  // independent of when the queued disk write lands.
-  const previous = cachedDb;
-  const snapshot = structuredClone(data);
-  cachedDb = snapshot;
-  // Queue this write operation - each write waits for the previous one
-  const thisWrite = writeQueue.then(async () => {
-    try {
-      const jsonString = JSON.stringify(data, null, 2);
-      // Atomic write: write to temp file, then rename
-      // Rename is atomic on most filesystems, preventing corruption on crash
-      await fs.writeFile(tmpPath, jsonString);
-      await fs.rename(tmpPath, dbPath);
-    } catch (err) {
-      console.error('Error writing database:', err);
-      // Clean up temp file if it exists
-      try { await fs.unlink(tmpPath); } catch { /* ignore */ }
-      // The change never reached the disk, so it must not stay live in memory
-      // either: the caller is about to be told it failed, and a setting that
-      // "failed" but works until the next restart is worse than one that failed.
-      // Only when nothing newer has been saved since - a later save carries the
-      // whole database, this change included, and may still succeed.
-      if (cachedDb === snapshot) cachedDb = previous;
-      // What the caller (and, through a route's catch, an API client) sees is a plain
-      // sentence; the raw error - which names a file path - stays in the server log
-      // above and on .cause.
-      throw new Error('The server could not save its data (is the disk full or read-only?)', { cause: err });
-    }
-  });
-  // The queue itself must outlive a failed write, or every later save would be
-  // refused too; the failure is delivered to the caller of *this* save instead.
-  writeQueue = thisWrite.catch(() => {});
+let ready = false;
 
-  return thisWrite;
+/** The SQLite handle, with the one-time db.json migration done. */
+function store() {
+  const db = require('./db/sqlite').getDb();
+  if (!ready) {
+    migrateLegacy(db);
+    ready = true;
+  }
+  return db;
 }
 
-// Source CRUD operations
+const metaGet = (db, key) => db.prepare('SELECT value FROM meta WHERE key = ?').get(key)?.value;
+const metaSet = (db, key, value) => db.prepare(`
+  INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value
+`).run(key, String(value));
+
+/**
+ * Copy an older data/db.json into SQLite once, then rename it db.json.migrated
+ * (kept as the backup). `app_data_migrated` in meta records that it happened,
+ * so a db.json that reappears later (a restored backup) is never merged in on
+ * top of what the server has since saved; it is reported instead.
+ */
+function migrateLegacy(db) {
+  if (metaGet(db, 'app_data_migrated')) {
+    if (fs.existsSync(legacyPath)) {
+      console.warn('[DB] data/db.json is present but its contents were moved into SQLite before; it is ignored');
+    }
+    return;
+  }
+
+  let legacy = null;
+  if (fs.existsSync(legacyPath)) {
+    // A file that cannot be read or parsed stops the server here rather than
+    // starting it with no sources and no users, which would look like data loss.
+    legacy = JSON.parse(fs.readFileSync(legacyPath, 'utf8'));
+  }
+
+  const sources = Array.isArray(legacy?.sources) ? legacy.sources : [];
+  const users = Array.isArray(legacy?.users) ? legacy.users : [];
+  const settings = legacy?.settings && typeof legacy.settings === 'object' ? legacy.settings : getDefaultSettings();
+  const maxId = Math.max(0, ...sources.map(s => Number(s.id) || 0), ...users.map(u => Number(u.id) || 0));
+  const nextId = Math.max(Number(legacy?.nextId) || 1, maxId + 1);
+
+  const insertSource = db.prepare('INSERT OR REPLACE INTO app_sources (id, data) VALUES (?, ?)');
+  const insertUser = db.prepare('INSERT OR REPLACE INTO app_users (id, username, data) VALUES (?, ?, ?)');
+  const insertSetting = db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)');
+  db.transaction(() => {
+    for (const s of sources) {
+      const id = Number(s.id);
+      if (!Number.isInteger(id)) continue;
+      insertSource.run(id, JSON.stringify({ ...s, id }));
+    }
+    for (const u of users) {
+      const id = Number(u.id);
+      if (!Number.isInteger(id)) continue;
+      insertUser.run(id, String(u.username ?? ''), JSON.stringify({ ...u, id }));
+    }
+    for (const [key, value] of Object.entries(settings)) {
+      if (value !== undefined) insertSetting.run(key, JSON.stringify(value));
+    }
+    metaSet(db, 'next_id', nextId);
+    metaSet(db, 'app_data_migrated', legacy ? `db.json ${new Date().toISOString()}` : `fresh ${new Date().toISOString()}`);
+  })();
+
+  if (legacy) {
+    // The hidden-items / favourites arrays of very old files are not copied:
+    // nothing has read them for a long time (both live in SQLite already).
+    try {
+      fs.renameSync(legacyPath, migratedPath);
+    } catch (err) {
+      console.warn('[DB] Moved db.json into SQLite but could not rename it:', err.message);
+    }
+    console.log(`[DB] Moved db.json into SQLite: ${sources.length} source(s), ${users.length} user(s), ` +
+      `${Object.keys(settings).length} setting(s); the old file is kept as db.json.migrated`);
+  }
+}
+
+/** Run `fn` in a transaction; a failure becomes the plain sentence a client may be shown. */
+function write(fn) {
+  const db = store();
+  try {
+    return db.transaction(() => fn(db))();
+  } catch (err) {
+    if (err && err.userFacing) throw err;
+    console.error('Error writing database:', err);
+    throw new Error('The server could not save its data (is the disk full or read-only?)', { cause: err });
+  }
+}
+
+/** An error meant for the caller as it is (e.g. "Username already exists"). */
+const refuse = (message) => Object.assign(new Error(message), { userFacing: true });
+
+function takeId(db) {
+  const id = parseInt(metaGet(db, 'next_id') || '1', 10) || 1;
+  metaSet(db, 'next_id', id + 1);
+  return id;
+}
+
+const parseRow = (row) => (row ? JSON.parse(row.data) : undefined);
+
+// ---------------------------------------------------------------- sources --
+
 const sources = {
   async getAll() {
-    const db = await loadDb();
-    return db.sources;
+    return store().prepare('SELECT data FROM app_sources ORDER BY id').all().map(parseRow);
   },
 
   async getById(id) {
-    const db = await loadDb();
-    return db.sources.find(s => s.id === parseInt(id));
+    return parseRow(store().prepare('SELECT data FROM app_sources WHERE id = ?').get(parseInt(id)));
   },
 
   async getByType(type) {
-    const db = await loadDb();
-    return db.sources.filter(s => s.type === type && s.enabled);
+    return (await sources.getAll()).filter(s => s.type === type && s.enabled);
   },
 
   async create(source) {
-    const db = await loadDb();
-    const newSource = {
-      id: db.nextId++,
-      ...source,
-      enabled: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    db.sources.push(newSource);
-    await saveDb(db);
-    return newSource;
+    return write((db) => {
+      const newSource = {
+        ...source,
+        id: takeId(db), // always the counter's: the row's key
+        enabled: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      db.prepare('INSERT INTO app_sources (id, data) VALUES (?, ?)').run(newSource.id, JSON.stringify(newSource));
+      return newSource;
+    });
   },
 
   async update(id, updates) {
-    const db = await loadDb();
-    const index = db.sources.findIndex(s => s.id === parseInt(id));
-    if (index === -1) return null;
-
-    db.sources[index] = {
-      ...db.sources[index],
-      ...updates,
-      updated_at: new Date().toISOString()
-    };
-    await saveDb(db);
-    return db.sources[index];
+    const key = parseInt(id);
+    return write((db) => {
+      const current = parseRow(db.prepare('SELECT data FROM app_sources WHERE id = ?').get(key));
+      if (!current) return null;
+      const updated = { ...current, ...updates, id: current.id, updated_at: new Date().toISOString() };
+      db.prepare('UPDATE app_sources SET data = ? WHERE id = ?').run(JSON.stringify(updated), key);
+      return updated;
+    });
   },
 
   async delete(id) {
-    const db = await loadDb();
-    db.sources = db.sources.filter(s => s.id !== parseInt(id));
-    await saveDb(db);
+    write((db) => { db.prepare('DELETE FROM app_sources WHERE id = ?').run(parseInt(id)); });
   },
 
   async toggleEnabled(id) {
-    const db = await loadDb();
-    const source = db.sources.find(s => s.id === parseInt(id));
-    if (source) {
+    const key = parseInt(id);
+    return write((db) => {
+      const source = parseRow(db.prepare('SELECT data FROM app_sources WHERE id = ?').get(key));
+      if (!source) return source;
       source.enabled = !source.enabled;
       source.updated_at = new Date().toISOString();
-      await saveDb(db);
-    }
-    return source;
+      db.prepare('UPDATE app_sources SET data = ? WHERE id = ?').run(JSON.stringify(source), key);
+      return source;
+    });
   }
 };
 
-// Settings operations
+// --------------------------------------------------------------- settings --
+
+// The merged, frozen settings object settings.get() hands out; null = rebuild.
+let settingsCache = null;
+
+function deepFreeze(value) {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const v of Object.values(value)) deepFreeze(v);
+  }
+  return value;
+}
+
+function storedSettings(db) {
+  const out = {};
+  for (const r of db.prepare('SELECT key, value FROM app_settings').all()) {
+    try { out[r.key] = JSON.parse(r.value); } catch { /* a corrupt value falls back to its default */ }
+  }
+  return out;
+}
+
 const settings = {
+  /** The defaults with the stored values over them: one frozen object, rebuilt only after a write. */
   async get() {
-    const db = await loadDb();
-    return { ...getDefaultSettings(), ...db.settings };
+    if (!settingsCache) settingsCache = deepFreeze({ ...getDefaultSettings(), ...storedSettings(store()) });
+    return settingsCache;
   },
 
   async update(newSettings) {
-    const db = await loadDb();
-    db.settings = { ...db.settings, ...newSettings };
-    await saveDb(db);
-    return db.settings;
+    try {
+      return write((db) => {
+        const upsert = db.prepare(`
+          INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        `);
+        for (const [key, value] of Object.entries(newSettings || {})) {
+          if (value !== undefined) upsert.run(key, JSON.stringify(value));
+        }
+        return storedSettings(db);
+      });
+    } finally {
+      settingsCache = null;
+    }
   },
 
   async reset() {
-    const db = await loadDb();
-    db.settings = getDefaultSettings();
-    await saveDb(db);
-    return db.settings;
+    try {
+      return write((db) => {
+        db.prepare('DELETE FROM app_settings').run();
+        const insert = db.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)');
+        const defaults = getDefaultSettings();
+        for (const [key, value] of Object.entries(defaults)) insert.run(key, JSON.stringify(value));
+        return defaults;
+      });
+    } finally {
+      settingsCache = null;
+    }
   }
 };
 
-// User operations
+// ------------------------------------------------------------------ users --
+
+const withoutHash = ({ passwordHash, ...rest }) => rest;
+
 const users = {
   async getAll() {
-    const db = await loadDb();
-    return db.users || [];
+    return store().prepare('SELECT data FROM app_users ORDER BY id').all().map(parseRow);
   },
 
   async getById(id) {
-    const db = await loadDb();
-    return db.users?.find(u => u.id === parseInt(id));
+    return parseRow(store().prepare('SELECT data FROM app_users WHERE id = ?').get(parseInt(id)));
   },
 
   async getByUsername(username) {
-    const db = await loadDb();
-    return db.users?.find(u => u.username === username);
+    return parseRow(store().prepare('SELECT data FROM app_users WHERE username = ? ORDER BY id LIMIT 1').get(String(username)));
   },
 
   async create(userData) {
-    const db = await loadDb();
-    if (!db.users) {
-      db.users = [];
-    }
-
-    // Check if username already exists
-    if (db.users.some(u => u.username === userData.username)) {
-      throw new Error('Username already exists');
-    }
-
-    const newUser = {
-      id: db.nextId++,
-      username: userData.username,
-      passwordHash: userData.passwordHash || null,
-      role: userData.role || 'viewer',
-      email: userData.email || null,
-      createdAt: new Date().toISOString()
-    };
-
-    db.users.push(newUser);
-    await saveDb(db);
-
-    // Return user without password hash
-    const { passwordHash, ...userWithoutPassword } = newUser;
-    return userWithoutPassword;
+    return write((db) => {
+      if (db.prepare('SELECT 1 FROM app_users WHERE username = ?').get(String(userData.username))) {
+        throw refuse('Username already exists');
+      }
+      const newUser = {
+        id: takeId(db),
+        username: userData.username,
+        passwordHash: userData.passwordHash || null,
+        role: userData.role || 'viewer',
+        email: userData.email || null,
+        createdAt: new Date().toISOString()
+      };
+      db.prepare('INSERT INTO app_users (id, username, data) VALUES (?, ?, ?)')
+        .run(newUser.id, String(newUser.username), JSON.stringify(newUser));
+      // Return user without password hash
+      return withoutHash(newUser);
+    });
   },
 
   async update(id, updates) {
-    const db = await loadDb();
-    const userIndex = db.users?.findIndex(u => u.id === parseInt(id));
-
-    if (userIndex === -1 || userIndex === undefined) {
-      throw new Error('User not found');
-    }
-
-    // Check if username is being changed and if it already exists
-    if (updates.username && updates.username !== db.users[userIndex].username) {
-      if (db.users.some(u => u.username === updates.username)) {
-        throw new Error('Username already exists');
+    const key = parseInt(id);
+    return write((db) => {
+      const current = parseRow(db.prepare('SELECT data FROM app_users WHERE id = ?').get(key));
+      if (!current) throw refuse('User not found');
+      // Check if username is being changed and if it already exists
+      if (updates.username && updates.username !== current.username &&
+          db.prepare('SELECT 1 FROM app_users WHERE username = ?').get(String(updates.username))) {
+        throw refuse('Username already exists');
       }
-    }
-
-    db.users[userIndex] = {
-      ...db.users[userIndex],
-      ...updates,
-      updatedAt: new Date().toISOString()
-    };
-
-    await saveDb(db);
-
-    // Return user without password hash
-    const { passwordHash, ...userWithoutPassword } = db.users[userIndex];
-    return userWithoutPassword;
+      const updated = { ...current, ...updates, id: current.id, updatedAt: new Date().toISOString() };
+      db.prepare('UPDATE app_users SET username = ?, data = ? WHERE id = ?')
+        .run(String(updated.username), JSON.stringify(updated), key);
+      // Return user without password hash
+      return withoutHash(updated);
+    });
   },
 
   async delete(id) {
-    const db = await loadDb();
-    const userIndex = db.users?.findIndex(u => u.id === parseInt(id));
-
-    if (userIndex === -1 || userIndex === undefined) {
-      throw new Error('User not found');
-    }
-
-    // Prevent deleting the last admin
-    const user = db.users[userIndex];
-    if (user.role === 'admin') {
-      const adminCount = db.users.filter(u => u.role === 'admin').length;
-      if (adminCount <= 1) {
-        throw new Error('Cannot delete the last admin user');
+    const key = parseInt(id);
+    return write((db) => {
+      const user = parseRow(db.prepare('SELECT data FROM app_users WHERE id = ?').get(key));
+      if (!user) throw refuse('User not found');
+      // Prevent deleting the last admin
+      if (user.role === 'admin') {
+        const admins = db.prepare('SELECT data FROM app_users').all().map(parseRow).filter(u => u.role === 'admin').length;
+        if (admins <= 1) throw refuse('Cannot delete the last admin user');
       }
-    }
-
-    db.users.splice(userIndex, 1);
-    await saveDb(db);
-    return true;
+      db.prepare('DELETE FROM app_users WHERE id = ?').run(key);
+      return true;
+    });
   },
 
   async count() {
-    const db = await loadDb();
-    return db.users?.length || 0;
+    return store().prepare('SELECT COUNT(*) AS n FROM app_users').get().n;
   }
 };
 
-module.exports = { loadDb, saveDb, sources, settings, users, getDefaultSettings, getUserAgent, USER_AGENT_PRESETS };
+module.exports = { sources, settings, users, getDefaultSettings, getUserAgent, USER_AGENT_PRESETS };
