@@ -1705,3 +1705,7 @@ else
     echo "=== FAILED — do NOT push ==="
     exit 1
 fi
+echo "=== 0132: timeshift can live on a local disk ==="
+check server/services/tuner.js "PIGTV_TIMESHIFT_DIR" "the timeshift folder is configurable"
+check test/timeshift-dir.test.js "PIGTV_TIMESHIFT_DIR" "with a test"
+

@@ -84,13 +84,23 @@ function timeshiftMinFreeGB() {
 }
 
 const TIMESHIFT_DIR = '.timeshift';
+
+// Where timeshift segments live. Default: <recordings>/.timeshift. Mark's
+// recordings volume is a network share, and serving live playback from it means
+// constant ~4 GB/h writes and reads over the network, so PIGTV_TIMESHIFT_DIR can
+// point at a local disk instead (0132). Recording segments are then copied, not
+// hard-linked, into the recording's folder, which the recorder already handles.
+function timeshiftBase(recordingsRoot) {
+    const override = (process.env.PIGTV_TIMESHIFT_DIR || '').trim();
+    return override || path.join(recordingsRoot || '/app/recordings', TIMESHIFT_DIR);
+}
 const SPACE_CHECK_MS = 15 * 1000;
 
 /** Where a new tuner's directory goes, and how long its window is. */
 function placement(settings = {}) {
     if (!timeshiftEnabled()) return {};
     return {
-        baseDir: path.join(settings.recordingsPath || '/app/recordings', TIMESHIFT_DIR),
+        baseDir: timeshiftBase(settings.recordingsPath),
         timeshiftSec: timeshiftHours() * 3600
     };
 }
@@ -113,7 +123,7 @@ function freeSpaceGB(dir) {
  * skipped anyway). Silent when there is nothing to remove.
  */
 async function sweepOrphanedTimeshift(recordingsRoot) {
-    const dir = path.join(recordingsRoot || '/app/recordings', TIMESHIFT_DIR);
+    const dir = timeshiftBase(recordingsRoot);
     let entries;
     try {
         entries = await fs.readdir(dir, { withFileTypes: true });
@@ -630,6 +640,7 @@ async function destroyAll(why = 'stopped') {
 }
 
 module.exports = {
+    timeshiftBase,
     enabled,
     timeshiftEnabled,
     timeshiftHours,
