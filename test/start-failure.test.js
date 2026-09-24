@@ -91,7 +91,8 @@ test('waitForPlaylist gives up as soon as ffmpeg has exited without a playlist, 
     const { result: ready } = await captureLogs(() => s.waitForPlaylist(15000));
     const waited = Date.now() - t0;
     assert.equal(ready, false);
-    assert.ok(waited < 5000, `answered after ${waited} ms; the old code polled the full 15 s`);
+    // A 403 now gets two retries (1.5 s + 3 s waits, 0143) before the session fails for good.
+    assert.ok(waited < 8000, `answered after ${waited} ms; the old code polled the full 15 s`);
     await transcodeSession.removeSession(s.id);
 });
 
