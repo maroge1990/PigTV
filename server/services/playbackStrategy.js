@@ -375,7 +375,7 @@ async function resolveTuned({ url, capabilities = {}, settings, ffprobePath, ups
     }
 
     const plan = sessionPlan({ info, caps, settings, userAgent, owner, live, upscale, audioEncode });
-    let { tuner: t, joined } = tuner.prepare(url, { ...plan.options, info });
+    let { tuner: t, joined } = tuner.prepare(url, { ...plan.options, info, ...tuner.placement(settings) });
     if (!joined && !admitted) {
         const refused = await admit(t.key);
         if (refused) return { verdict: refused };
@@ -439,7 +439,7 @@ async function acquireTunerForRecording({ url, settings, ffprobePath }) {
     const { info, probeNote, fromProfile, probedAt } = analysis;
     // Never `direct` for a recording: it always needs segments on disk.
     const plan = sessionPlan({ info, caps, settings, userAgent, owner: null, live: true, upscale: false, audioEncode: false });
-    const { tuner: t } = tuner.prepare(url, { ...plan.options, info });
+    const { tuner: t } = tuner.prepare(url, { ...plan.options, info, ...tuner.placement(settings) });
     const again = tuner.findByKey(t.key) || tuner.findByUrl(url);
     if (again) return { tuner: again, shared: true };
     tuner.register(t);

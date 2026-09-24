@@ -21,6 +21,8 @@ fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { rec
 fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'node_modules'), 'junction');
 process.env.JWT_SECRET = 'test-only-signing-key-not-used-outside-fixtures-12345';
 process.env.PIGTV_TUNER = '1';
+// T1's window: 90 segments on the transcode cache (timeshift, 0128, has its own tests).
+process.env.PIGTV_TIMESHIFT_HOURS = '0';
 process.chdir(sandbox);
 
 const load = p => require(path.join(sandbox, 'server', p));
@@ -108,6 +110,7 @@ after(() => {
     server.closeAllConnections?.();
     server.close();
     delete process.env.PIGTV_TUNER;
+    delete process.env.PIGTV_TIMESHIFT_HOURS;
     process.chdir(os.tmpdir());
     try { fs.rmdirSync(path.join(sandbox, 'node_modules')); } catch { /* junction already gone */ }
     try { fs.rmSync(sandbox, { recursive: true, force: true }); } catch { /* leave it to the OS temp cleaner */ }

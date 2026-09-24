@@ -191,6 +191,16 @@ app.listen(PORT, async () => {
         console.warn('Transcode cache sweep failed:', err.message);
     }
 
+    // The same for the tuners' timeshift directories on the recordings volume
+    // (PIGTV_TUNER=1, 0128). Silent when there are none - including whenever the
+    // tuner has never been on.
+    try {
+        const settings = await require('./db').settings.get();
+        await require('./services/tuner').sweepOrphanedTimeshift(settings.recordingsPath);
+    } catch (err) {
+        console.warn('Timeshift sweep failed:', err.message);
+    }
+
     // Bring up the parts that must not wait.
     //
     // These used to sit behind the sync in one sequential block, so a stale

@@ -1664,6 +1664,22 @@ check test/api-404.test.js "\['GET', '/api/recordings/1/index.m3u8'\]" "the new 
 check test/tuner-recordings.test.js "watching and recording one channel is one tuner" "with a shared-tuner test"
 check test/tuner-off.test.js "off: /api/info carries none of the tuner flags" "and the flags are absent when off"
 
+echo "=== 0128: the tuner model, T3 - timeshift ==="
+check server/services/tuner.js "PIGTV_TIMESHIFT_HOURS" "the window is PIGTV_TIMESHIFT_HOURS"
+check server/services/tuner.js "PIGTV_TIMESHIFT_MIN_FREE_GB" "with a free-space floor"
+check server/services/tuner.js "const TIMESHIFT_DIR = '.timeshift';" "on the recordings volume, not the tmpfs"
+check server/services/tuner.js "while (freed < needBytes && this.window.length > ts.HLS_LIST_SIZE)" "the floor never trims below the 0126 window"
+check server/services/tuner.js "return 6 \* Math.max(this.targetDuration, ts.SEGMENT_DURATION);" "CAN-SKIP-UNTIL is six target durations"
+check server/services/hlsPlaylist.js "#EXT-X-SKIP:SKIPPED-SEGMENTS=" "delta updates answer _HLS_skip=YES"
+check server/routes/transcode.js "return v === 'YES' || v === 'v2';" "the playlist route passes _HLS_skip on"
+check server/services/compressionFilter.js "return type === PLAYLIST_TYPE;" "gzip for tuner playlists only"
+check_absent server/services/compressionFilter.js "'video/mp2t'" "never for segments"
+check server/index.js "sweepOrphanedTimeshift(settings.recordingsPath)" "orphaned timeshift directories are removed at startup"
+check server/routes/info.js "timeshiftEnabled() ? { timeshift: true }" "flag timeshift"
+check test/tuner-timeshift.test.js "below the free-space floor" "with a free-space test"
+check test/tuner-timeshift.test.js "leaves out exactly what precedes the Skip Boundary" "a delta-playlist test"
+check test/tuner-timeshift.test.js "playlists may be gzipped, segments never" "and a gzip test"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

@@ -64,6 +64,10 @@ function channel(pos, url) {
     `).run(`2:${pos}`, pos, `Channel ${pos}`, JSON.stringify({ url }));
 }
 
+// Timeshift is on (the default): the tuners live in <recordings>/.timeshift. Plenty of
+// room, whatever the machine running this has.
+tuner.hooks.freeSpaceGB = () => 1000;
+
 let spawns = [];
 tuner.hooks.spawnArgs = (t) => { spawns.push(t.id); return fakeHlsArgs({ ext: t.options.segmentType === 'fmp4' ? 'm4s' : 'ts', everyMs: 200, duration: 0.2 }); };
 

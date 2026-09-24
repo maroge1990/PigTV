@@ -58,12 +58,83 @@ function enabled() {
 const FFMPEG_LIST_SIZE = 30;
 const INGEST_INTERVAL_MS = 1000;
 
+// ---------------------------------------------------------------------------
+// Timeshift (0128). A tuner keeps up to PIGTV_TIMESHIFT_HOURS (default 3) of
+// segments instead of 90, in <recordings volume>/.timeshift/<tunerId> - not on
+// the 2 GB tmpfs - so a viewer can pause, rewind and start over, and a recording
+// can take its pre-buffer from what the tuner already had. The oldest segments go
+// when the window is exceeded, or when the volume's free space drops below
+// PIGTV_TIMESHIFT_MIN_FREE_GB (default 20; the recordings' own floor, 10 GB, is
+// lower, so timeshift gives way first). PIGTV_TIMESHIFT_HOURS=0 keeps the 0126
+// window (90 segments on the tmpfs).
+// ---------------------------------------------------------------------------
+
+function timeshiftHours() {
+    const h = Number.parseFloat(process.env.PIGTV_TIMESHIFT_HOURS);
+    return Number.isFinite(h) && h >= 0 ? h : 3;
+}
+
+function timeshiftEnabled() {
+    return enabled() && timeshiftHours() > 0;
+}
+
+function timeshiftMinFreeGB() {
+    const gb = Number.parseFloat(process.env.PIGTV_TIMESHIFT_MIN_FREE_GB);
+    return Number.isFinite(gb) && gb >= 0 ? gb : 20;
+}
+
+const TIMESHIFT_DIR = '.timeshift';
+const SPACE_CHECK_MS = 15 * 1000;
+
+/** Where a new tuner's directory goes, and how long its window is. */
+function placement(settings = {}) {
+    if (!timeshiftEnabled()) return {};
+    return {
+        baseDir: path.join(settings.recordingsPath || '/app/recordings', TIMESHIFT_DIR),
+        timeshiftSec: timeshiftHours() * 3600
+    };
+}
+
+/** Free space in GB on the volume holding `dir`, or null when it cannot be told. */
+function freeSpaceGB(dir) {
+    if (typeof hooks.freeSpaceGB === 'function') return hooks.freeSpaceGB(dir);
+    try {
+        if (typeof require('fs').statfsSync !== 'function') return null;
+        const st = require('fs').statfsSync(dir);
+        return (st.bavail * st.bsize) / (1024 ** 3);
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Remove every tuner directory a previous run left in <recordings>/.timeshift (at
+ * startup nothing can still be writing there; a running tuner's own directory is
+ * skipped anyway). Silent when there is nothing to remove.
+ */
+async function sweepOrphanedTimeshift(recordingsRoot) {
+    const dir = path.join(recordingsRoot || '/app/recordings', TIMESHIFT_DIR);
+    let entries;
+    try {
+        entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+        return 0;
+    }
+    const orphans = entries.filter(e => e.isDirectory() && !tuners.has(e.name));
+    if (!orphans.length) return 0;
+    console.log(`[Tuner] Removing ${orphans.length} timeshift director${orphans.length === 1 ? 'y' : 'ies'} left by a previous run`);
+    await Promise.all(orphans.map(e => fs.rm(path.join(dir, e.name), { recursive: true, force: true })
+        .catch(err => console.warn(`[Tuner] Could not remove ${e.name}:`, err.message))));
+    return orphans.length;
+}
+
 const tuners = new Map();   // tunerId -> TunerSession
 const viewers = new Map();  // viewerId -> viewer
 
-// Test seam: stand-ins for ffmpeg. spawnArgs(tuner) replaces the arguments that
-// are spawned (the key is still computed from the real ones).
-const hooks = { spawnArgs: null };
+// Test seams: spawnArgs(tuner) replaces the arguments that are spawned (the key is
+// still computed from the real ones); freeSpaceGB(dir) and spaceCheckMs stand in
+// for the timeshift volume's free space and how often it is looked at.
+const hooks = { spawnArgs: null, freeSpaceGB: null, spaceCheckMs: null };
 
 class TunerSession extends TranscodeSession {
     constructor(url, options = {}) {
@@ -74,6 +145,7 @@ class TunerSession extends TranscodeSession {
         this.playlistPath = path.join(this.dir, 'ffmpeg.m3u8');
         this.key = null;
         this.info = options.info || null;   // the probe analysis it was started from
+        this.timeshiftSec = options.timeshiftSec > 0 ? options.timeshiftSec : 0;
         this.viewers = new Set();
         this.holds = new Set();
         this.resetWindow();
@@ -89,6 +161,7 @@ class TunerSession extends TranscodeSession {
         this.ended = false;
         this.retired = [];         // names out of the window, not yet deleted
         this.windowVersion = 0;
+        this.windowSec = 0;        // the window's total duration
         this._rendered = new Map();
     }
 
@@ -191,6 +264,7 @@ class TunerSession extends TranscodeSession {
                 const seg = { seq: s.seq, name: s.name, duration: s.duration, pdt: start };
                 start += s.duration * 1000;
                 this.window.push(seg);
+                this.windowSec += s.duration;
                 added.push(seg);
                 this.lastSeq = s.seq;
                 this.targetDuration = Math.max(this.targetDuration, Math.round(s.duration));
@@ -206,15 +280,54 @@ class TunerSession extends TranscodeSession {
         await this.trim();
     }
 
-    /** Keep the window; the files of segments that left it are deleted a little later. */
+    /**
+     * Keep the window - 90 segments, or with timeshift (0128) up to its hours - and
+     * the timeshift volume's free-space floor. Segments that left the window are
+     * deleted 12 segments later (a client may still be fetching one), except when
+     * the floor is the reason, when they go at once.
+     */
     async trim() {
         let changed = false;
-        while (this.window.length > ts.HLS_LIST_SIZE) {
-            this.retired.push(this.window.shift().name);
+        const retire = () => {
+            const seg = this.window.shift();
+            this.windowSec -= seg.duration;
+            this.retired.push(seg.name);
             changed = true;
+            return seg;
+        };
+        if (this.timeshiftSec > 0) {
+            while (this.window.length > 1 && this.windowSec - this.window[0].duration >= this.timeshiftSec) retire();
+        } else {
+            while (this.window.length > ts.HLS_LIST_SIZE) retire();
         }
+        if (this.timeshiftSec > 0) changed = (await this.keepFreeSpace(retire)) || changed;
         if (changed) this.windowVersion++;
         await this.deleteRetired(ts.HLS_DELETE_THRESHOLD);
+    }
+
+    /** Below the floor: drop the oldest segments (never below the 0126 window of 90). */
+    async keepFreeSpace(retire) {
+        const every = hooks.spaceCheckMs ?? SPACE_CHECK_MS;
+        const now = Date.now();
+        if (this._spaceCheckedAt && now - this._spaceCheckedAt < every) return false;
+        this._spaceCheckedAt = now;
+        const free = freeSpaceGB(this.baseDir);
+        const floor = timeshiftMinFreeGB();
+        if (free === null || free >= floor) return false;
+        const needBytes = (floor - free) * 1024 ** 3;
+        let freed = 0;
+        let dropped = 0;
+        while (freed < needBytes && this.window.length > ts.HLS_LIST_SIZE) {
+            const seg = retire();
+            try { freed += (await fs.stat(path.join(this.dir, seg.name))).size; } catch { /* already gone */ }
+            dropped++;
+        }
+        await this.deleteRetired(0);
+        if (dropped) {
+            console.warn(`[Tuner ${this.id}] Only ${free.toFixed(1)} GB free for timeshift (floor ${floor} GB): ` +
+                `dropped the oldest ${dropped} segments (${(freed / 1024 ** 2).toFixed(0)} MB); window now ${Math.round(this.windowSec / 60)} min`);
+        }
+        return dropped > 0;
     }
 
     /** Delete retired segment files beyond the `keep` most recent (a client may still ask for those). */
@@ -263,9 +376,14 @@ class TunerSession extends TranscodeSession {
         return text;
     }
 
-    /** Seconds a delta update may leave out; 0 = no delta updates (see 0128). */
+    /**
+     * Seconds a delta update may leave out: six target durations, the smallest the
+     * HLS spec allows (RFC 8216bis 4.4.3.8), only for a timeshift tuner - whose
+     * playlist is hours long - and 0 (no delta updates) otherwise.
+     */
     canSkipUntil() {
-        return 0;
+        if (!(this.timeshiftSec > 0)) return 0;
+        return 6 * Math.max(this.targetDuration, ts.SEGMENT_DURATION);
     }
 
     /**
@@ -513,6 +631,12 @@ async function destroyAll(why = 'stopped') {
 
 module.exports = {
     enabled,
+    timeshiftEnabled,
+    timeshiftHours,
+    timeshiftMinFreeGB,
+    placement,
+    sweepOrphanedTimeshift,
+    TIMESHIFT_DIR,
     TunerSession,
     prepare,
     register,

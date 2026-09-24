@@ -75,7 +75,11 @@ router.get('/', async (req, res) => {
             // 0127 (C-E): recordings are taken from tuners and may be played as HLS
             // (GET /api/recordings/:id/playback answers container "hls", also while
             // recording). Only with PIGTV_TUNER=1.
-            ...(require('../services/tuner').enabled() ? { recordingHls: true } : {})
+            ...(require('../services/tuner').enabled() ? { recordingHls: true } : {}),
+            // 0128 (C-E): a live playlist may be hours long (timeshift), with
+            // PROGRAM-DATE-TIME, delta updates and gzip. Only with PIGTV_TUNER=1 and
+            // PIGTV_TIMESHIFT_HOURS above 0 (default 3).
+            ...(require('../services/tuner').timeshiftEnabled() ? { timeshift: true } : {})
         },
 
         // What the server can produce, so a client knows what to ask for.
