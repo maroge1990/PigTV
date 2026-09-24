@@ -16,10 +16,22 @@
 const crypto = require('crypto');
 const { getDb } = require('../db/sqlite');
 
-/** sha256 of the URL, hex, truncated to 32 chars - short enough for a path
- *  segment, long enough that a collision is not a practical concern here. */
+/**
+ * The stored logos' format version. 0112's downscale turned palette PNGs with
+ * transparency into opaque ones (0141); version 2 is the fixed conversion.
+ * Bump it whenever the stored bytes change meaning: routes/logo.js then drops
+ * every stored file once at startup, and because the version is part of the
+ * key, clients get new `/api/logo/<key>` paths too. That matters because the
+ * Apple client keeps artwork on disk keyed by URL, forever, and browsers keep
+ * it for the week-long max-age: the same path would keep the bad copy.
+ */
+const LOGO_CACHE_VERSION = 2;
+
+/** sha256 of the cache version and the URL, hex, truncated to 32 chars -
+ *  short enough for a path segment, long enough that a collision is not a
+ *  practical concern here. (Version 1 hashed the URL alone.) */
 function keyForUrl(url) {
-    return crypto.createHash('sha256').update(url).digest('hex').slice(0, 32);
+    return crypto.createHash('sha256').update(`v${LOGO_CACHE_VERSION}|${url}`).digest('hex').slice(0, 32);
 }
 
 /**
@@ -57,4 +69,4 @@ function applyLogoCache(items) {
     })();
 }
 
-module.exports = { keyForUrl, registerLogo, applyLogoCache };
+module.exports = { LOGO_CACHE_VERSION, keyForUrl, registerLogo, applyLogoCache };

@@ -1781,6 +1781,14 @@ check test/channel-numbers.test.js "numbers never reorder the guide" "with a tes
 echo "=== 0140: a deploy refreshes cached guides once ==="
 check server/services/libraryRev.js "build}:\${rev}" "the guide version includes the build"
 
+echo "=== 0141: logos keep their transparency ==="
+check server/routes/logo.js "format=rgba,scale='min(\${MAX_WIDTH},iw)':-1,format=rgba" "the downscale converts through rgba (a palette PNG lost its transparency)"
+check server/routes/logo.js "'-pix_fmt', 'rgba'" "and writes an rgba PNG"
+check server/routes/logo.js "if (width !== null && width <= MAX_WIDTH) return original;" "a small logo is stored as it came"
+check server/routes/logo.js "function ensureCacheVersion()" "stored logos from an older version are dropped once"
+check server/services/logoCache.js "update(\`v\${LOGO_CACHE_VERSION}|\${url}\`)" "the cache version is in the key (new paths for clients)"
+check test/logo-alpha.test.js "PNG is downscaled with its transparency intact" "with a test per image kind"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys
