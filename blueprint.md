@@ -358,6 +358,8 @@ the reason. Each phase ends with Mark's gate; don't start the next phase's devic
 Risky behaviour ships off by default behind a switch (server env vars; Apple Settings → Labs). The interface between server
 and client for Phases 2–4 is fixed in `docs/ROADMAP-CONTRACTS.md`; build to it exactly.
 
+**All phases built by 24 Sept (server 0138, app 22).** Mark's combined device and live test list is `docs/TEST-BLOCK.md`; items move to *Verified* as he reports back.
+
 ### Phase 0: clean-up and correctness (gate: redeploy, CI green, guide unchanged)
 
 | ID | Item | Status |
