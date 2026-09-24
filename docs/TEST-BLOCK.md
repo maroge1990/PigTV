@@ -150,3 +150,48 @@ step number, what you saw, and roughly when; step 0.7 has a log command.
   step 0.2. Changes made after the migration won't be in the old file.
 - **Tuner:** remove `PIGTV_TUNER` (Part 3).
 - **Apple TV:** turn the Labs switches back off; everything in Labs is off by default.
+
+---
+
+# Round 2: fixes and new features (server 0146 · app 28, 25 Sept)
+
+Deploy the server (Force Update; `/api/version` should say **0146**), then install **app build 28** from Xcode.
+
+### Fixes from round 1
+- [ ] R2.1 **Channel start speed:** start 8–10 channels, then run the speed report (step 1.24). The new "client wait" column
+      should be about 0.1–0.5 s, not about 3 s. 50 Hz switching still happens.
+- [ ] R2.2 **Logos** on ABC (546), 7 Mate Melbourne (550) and 7two Sydney (551): no semi-transparent background, and
+      transparency is kept. The first load re-fetches every logo once.
+- [ ] R2.3 **NBC Sunday Night Football:** plays, perhaps after one brief automatic retry. The next time it starts straight away.
+- [ ] R2.4 **Sky Sports Main Event on the non-HDR TV:** plays after one brief retry instead of showing error -11868.
+- [ ] R2.5 **A file-based channel** (the 22 s one, "source ends (10 min)" in the log): the first picture is much faster.
+- [ ] R2.6 **Status → Least reliable channels** now includes channels that stalled, with stalls and minutes watched.
+- [ ] R2.7 **Tab bar**, light and dark: with focus on the bar, a solid pink pill with white text. With focus in the page, pink
+      text on a faint pink pill. Readable everywhere.
+- [ ] R2.8 **Top Shelf:** PigTV in the top row, open the app once, then go Home. If there's still only the pig, open Console on
+      the Mac, select the Apple TV, filter `subsystem:au.markrogers.PigTV.TopShelf` and send Claude what it says.
+- [ ] R2.9 **HE-AAC** is always on now (the Labs switch is gone). 7 Mate and 7 Flix still sound right.
+- [ ] R2.10 **The old guide is gone** (Labs no longer has New guide). The guide behaves as it did in 2.1–2.6.
+
+### New
+- [ ] R2.11 **Home screen:** the app opens on Home.
+      - "Continue watching" shows your last channel, with a colour wash from its logo, what's on and a progress bar.
+        Down lands on **Watch**, which plays straight away. After watching something else and relaunching, it shows that
+        channel.
+      - The shelves are Recently watched, Favourites on now, Starting soon ("in 12 min", which opens the programme page),
+        and Recordings (in progress first).
+      - Tell Claude what you'd change: this is the first cut.
+- [ ] R2.12 **Sport on now:** in the web app, Settings → Sources, mark your sport categories with the **Sport** toggle. The
+      Home screen then shows a Sport on now row (live first).
+- [ ] R2.13 **Programme page** (Details on a programme): the new hero layout.
+      - **Record** → choose Start early / Finish late → **Schedule**. A "Recording scheduled" badge appears, and the guide
+        cell shows it.
+      - **Channel schedule** and **Favourite** work.
+- [ ] R2.14 **The less-used screens:** Channel schedule, Channel details, Recording details (Play/Resume, Find breaks,
+      Delete), Search, Jump to… (day and hour chips), Settings, and the Can't reach PigTV screen. They should match the
+      main app in light and dark, with no grey backgrounds.
+- [ ] R2.15 **Swift 6** is back on: nothing should crash. Live channels, switching, Last channel, a recording, Start over
+      (if the tuner is on).
+
+### Still to test later
+1.13 (HDR on the HDR TV), 1.16 (a recording with breaks), Part 3 (tuner), 4.3/4.4 (iPhone/iPad), and Siri on iPad.
