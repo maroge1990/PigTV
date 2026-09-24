@@ -19,6 +19,23 @@ const transcodeSession = require('../services/transcodeSession');
 // Start session cleanup interval
 transcodeSession.startCleanupInterval();
 
+// The tuner model (PIGTV_TUNER=1, 0126): a session id is a tuner VIEWER's id, and
+// the playlist it gets is rendered by the server from the tuner's segment list.
+const tuner = require('../services/tuner');
+if (tuner.enabled()) tuner.startSweep();
+
+/** What serves this id: a tuner (through its viewer) when the tuner model is on, else the session. */
+function lookup(sessionId) {
+    if (tuner.enabled()) return tuner.viewerTarget(sessionId) || transcodeSession.getSession(sessionId);
+    return transcodeSession.getSession(sessionId);
+}
+
+/** _HLS_skip=YES (or v2): a delta update, when the playlist offers them (0128). */
+function wantsSkip(req) {
+    const v = String(req.query._HLS_skip || '');
+    return v === 'YES' || v === 'v2';
+}
+
 // A 404 on a playlist or segment ends playback in hls.js at once (it does not retry a 4xx), yet
 // used to leave nothing in the log. One line per session and file, not one per request.
 const reportedMissing = new Set();
@@ -75,14 +92,16 @@ function withStreamToken(playlist, token) {
  */
 router.get('/:sessionId/stream.m3u8', async (req, res) => {
     const { sessionId } = req.params;
-    const session = transcodeSession.getSession(sessionId);
+    const session = lookup(sessionId);
 
     if (!session) {
         noteMissing(sessionId, 'stream.m3u8', 'the session no longer exists');
         return res.status(404).json({ error: 'Session not found' });
     }
 
-    const playlist = await session.getPlaylist();
+    const playlist = session.kind === 'tuner'
+        ? await session.getPlaylist({ skip: wantsSkip(req) })
+        : await session.getPlaylist();
     if (!playlist) {
         noteMissing(sessionId, 'stream.m3u8', `the playlist is not on disk (session ${session.status})`);
         return res.status(404).json({ error: 'Playlist not ready' });
@@ -103,7 +122,7 @@ router.get('/:sessionId/stream.m3u8', async (req, res) => {
  */
 router.get('/:sessionId/master.m3u8', (req, res) => {
     const { sessionId } = req.params;
-    const session = transcodeSession.getSession(sessionId);
+    const session = lookup(sessionId);
     const master = session && session.getMasterPlaylist();
     if (!master) {
         noteMissing(sessionId, 'master.m3u8', session ? 'the session has no master playlist (no usable frame rate, or an HDR copy into MPEG-TS)' : 'the session no longer exists');
@@ -132,7 +151,7 @@ router.get('/:sessionId/:segment', async (req, res) => {
         return res.status(404).json({ error: 'Invalid segment' });
     }
 
-    const session = transcodeSession.getSession(sessionId);
+    const session = lookup(sessionId);
     if (!session) {
         noteMissing(sessionId, segment, 'the session no longer exists');
         return res.status(404).json({ error: 'Session not found' });
@@ -157,7 +176,9 @@ router.delete('/:sessionId', async (req, res) => {
     const { sessionId } = req.params;
 
     try {
-        await transcodeSession.removeSession(sessionId);
+        if (!(tuner.enabled() && await tuner.releaseViewer(sessionId))) {
+            await transcodeSession.removeSession(sessionId);
+        }
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: 'Failed to remove session', details: err.message });
@@ -172,6 +193,12 @@ router.get('/sessions', (req, res) => {
     // Everything holding an ffmpeg process and a provider connection. Since 0103
     // that is only HLS sessions: the piped remux is gone.
     const sessions = transcodeSession.getAllSessions().map(s => ({ ...s, type: s.type || 'transcode' }));
+    if (tuner.enabled()) {
+        for (const t of tuner.list()) {
+            sessions.push({ id: t.id, type: 'tuner', url: t.url, status: t.status, startTime: t.startTime,
+                lastAccess: t.lastAccess, idleMs: Date.now() - t.lastAccess, viewers: [...t.viewers], holds: [...t.holds] });
+        }
+    }
     res.json(sessions.map(x => (x && x.url ? { ...x, url: redact(x.url) } : x)));
 });
 
@@ -190,6 +217,11 @@ router.delete('/sessions/all', async (req, res) => {
             } catch (err) {
                 console.error(`[Transcode] Failed to kill session ${session.id}:`, err.message);
             }
+        }
+
+        if (tuner.enabled()) {
+            killed += tuner.list().length;
+            await tuner.destroyAll('stopped by an admin');
         }
 
         console.log(`[Transcode] Killed ${killed} transcode session(s)`);

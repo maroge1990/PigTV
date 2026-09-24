@@ -1479,7 +1479,7 @@ check server/services/channelProfiles.js "PIGTV_PROBE_PROFILES" "with an env swi
 check server/services/channelProfiles.js "PIGTV_PROFILE_MAX_AGE_DAYS" "and a configurable age limit"
 check server/services/channelProfiles.js "createHash('sha256')" "the key is stored hashed (the URL carries credentials)"
 check server/services/playbackStrategy.js "channelProfiles.get(cacheKey)" "resolve looks a profile up under the probe cache's own key"
-check server/services/playbackStrategy.js 'probeNote = `profile (age ' "and says so in the resolve timing line (probe profile (age Nd))"
+check server/services/playbackStrategy.js 'probeNote: `profile (age ' "and says so in the resolve timing line (probe profile (age Nd))"
 check server/services/playbackStrategy.js "channelProfiles.remove(cacheKey)" "a failed start from a profile drops it"
 check server/services/playbackStrategy.js "else channelProfiles.save(cacheKey, info, probedAt)" "a profile is written only once a session has played from it"
 check server/services/transcodeSession.js "'-probesize', '5000000'" "ffmpeg's own probe is unchanged (long GOPs need it)"
@@ -1626,6 +1626,27 @@ check public/index.html 'data-page="status"' "with an admin nav entry"
 check test/status.test.js "never a provider URL" "with a no-URL test"
 check test/status.test.js "keeps the last 50" "and a buffer-bound test"
 
+echo "=== 0125: HTML is revalidated after a redeploy ==="
+check server/index.js "setHeaders: noCacheHtml" "static HTML is served no-cache"
+check test/html-no-cache.test.js "no-cache" "with a test"
+
+echo "=== 0126: the tuner model, T1 (PIGTV_TUNER=1, off by default) ==="
+check server/services/tuner.js "PIGTV_TUNER" "the tuner model is behind PIGTV_TUNER"
+check server/services/transcodeSession.js "return \[...this.buildSourceArgs(), ...this.buildHlsOutputArgs()\];" "sessions build source + HLS output arguments"
+check server/services/tuner.js "return \[...this.buildSourceArgs(), ...this.buildTunerOutputArgs()\];" "a tuner runs the very same source arguments"
+check_absent server/services/tuner.js "'independent_segments+delete_segments" "a tuner's ffmpeg never deletes segments (the server keeps the window)"
+check server/services/hlsPlaylist.js "#EXT-X-PROGRAM-DATE-TIME:" "the server's playlist carries a date per segment"
+check server/routes/playback.js "require('../services/tuner').enabled()" "resolve takes the tuner path only when it is on"
+check server/routes/playback.js "tuner.enabled() && await tuner.releaseViewer(sessionId)" "DELETE releases only the viewer"
+check server/services/streamCoordinator.js "function requestForTuner" "the coordinator counts tuners"
+check server/services/streamCoordinator.js "if (key && tunerModule().findByKey(key)) return { allowed: true, release: \[\], join: true };" "a matching running tuner is joined without a slot"
+check server/services/playbackStrategy.js "reanalyzeForCaps(running.info, url, caps)" "a second viewer is never probed while a tuner reads the stream"
+check server/routes/transcode.js "if (tuner.enabled()) tuner.startSweep();" "the tuner idle sweep runs only when the tuner is on"
+check test/tuner-args.test.js "buildFFmpegArgs produces exactly the 0125 arguments for every option set" "argument equality proved against the 0125 golden file"
+check test/tuner.test.js "two devices on the same channel share one tuner" "with a one-spawn test"
+check test/tuner.test.js "409 at the limit of 1" "a 409 test for different arguments"
+check test/tuner-off.test.js "off by default" "and an env-off test"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
@@ -1634,7 +1655,3 @@ else
     echo "=== FAILED — do NOT push ==="
     exit 1
 fi
-echo "=== 0125: HTML is revalidated after a redeploy ==="
-check server/index.js "setHeaders: noCacheHtml" "static HTML is served no-cache"
-check test/html-no-cache.test.js "no-cache" "with a test"
-

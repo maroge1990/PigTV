@@ -68,8 +68,43 @@ function ffmpegState(session) {
     return proc ? 'exited' : 'not started';
 }
 
+/**
+ * The tuner model (PIGTV_TUNER=1, 0126): one row per viewer, with the tuner it
+ * shares (`tuner`, `tunerViewers`); a tuner held only by a recording is a row
+ * with no owner.
+ */
+function tunerRows(now) {
+    const tuner = require('../services/tuner');
+    const rows = [];
+    for (const t of tuner.list()) {
+        const options = t.options || {};
+        const base = {
+            channel: channelNameForUrl(t.url) || 'unknown',
+            video: options.videoMode === 'copy' ? 'copy' : 'encode',
+            audio: options.audioMode === 'copy' ? 'copy' : (options.audioMode === 'encode' ? 'encode' : 'auto'),
+            segmentType: options.segmentType || null,
+            uptimeSec: Math.round((now - t.startTime) / 1000),
+            status: t.status,
+            ffmpeg: ffmpegState(t),
+            error: t.error || null,
+            tuner: t.id,
+            tunerViewers: t.viewers.size,
+            recordings: t.recordingIds().length
+        };
+        const ids = [...t.viewers];
+        if (ids.length === 0) rows.push({ ...base, id: t.id, owner: null, idleSec: null });
+        for (const id of ids) {
+            const v = tuner.getViewer(id);
+            if (!v) continue;
+            rows.push({ ...base, id: v.id, owner: v.owner || null, idleSec: Math.round((now - v.lastAccess) / 1000) });
+        }
+    }
+    return rows;
+}
+
 function liveSessions() {
     const now = Date.now();
+    if (require('../services/tuner').enabled()) return tunerRows(now);
     return transcodeSession.getAllSessions().map(summary => {
         const session = transcodeSession.getSession(summary.id);
         const options = session?.options || {};

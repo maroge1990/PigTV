@@ -389,6 +389,18 @@ class TranscodeSession extends EventEmitter {
      * Build FFmpeg arguments for HLS output with optional GPU encoding
      */
     buildFFmpegArgs() {
+        return [...this.buildSourceArgs(), ...this.buildHlsOutputArgs()];
+    }
+
+    /**
+     * Everything before the HLS muxer: input, timestamps, pacing, mapping, the
+     * video copy/encode and the audio decision, and the two muxer-side
+     * timestamp options. Split out of buildFFmpegArgs in 0126 so a tuner
+     * (services/tuner.js) runs exactly these arguments and differs only in how
+     * the HLS muxer keeps its window; test/tuner-args.test.js proves
+     * buildFFmpegArgs still produces the 0125 arguments token for token.
+     */
+    buildSourceArgs() {
         const videoMode = this.options.videoMode || 'encode';
         const isFmp4 = this.options.segmentType === 'fmp4';
 
@@ -608,7 +620,20 @@ class TranscodeSession extends EventEmitter {
         // by frame; they reduce how often that becomes a visible stutter.
         args.push(
             '-avoid_negative_ts', 'make_zero',
-            '-max_interleave_delta', '0',
+            '-max_interleave_delta', '0'
+        );
+
+        return args;
+    }
+
+    /**
+     * The HLS muxer: 4 s segments, a 90-segment window with 12 spare, and
+     * ffmpeg's own playlist (stream.m3u8) served as it is written.
+     */
+    buildHlsOutputArgs() {
+        const isFmp4 = this.options.segmentType === 'fmp4';
+        const args = [];
+        args.push(
             '-f', 'hls',
             '-hls_time', String(SEGMENT_DURATION),
             '-hls_list_size', String(HLS_LIST_SIZE),
@@ -1423,5 +1448,13 @@ module.exports = {
     getAllSessions,
     CACHE_DIR,
     SEGMENT_DURATION,
-    DTS_DELTA_THRESHOLD_SEC
+    DTS_DELTA_THRESHOLD_SEC,
+    // For the tuner (0126), which keeps the same window and idle rules.
+    HLS_LIST_SIZE,
+    HLS_DELETE_THRESHOLD,
+    HLS_STALL_MS,
+    LIVE_SESSION_TIMEOUT_MS,
+    SESSION_TIMEOUT_MS,
+    CLEANUP_INTERVAL_MS,
+    ensureCacheDir
 };

@@ -133,6 +133,32 @@ router.post('/resolve', requireToken, async (req, res) => {
         const coordinator = require('../services/streamCoordinator');
         const activeRecordings = recordingEngine.listActive();
 
+        // The tuner model (PIGTV_TUNER=1, 0126): admission is decided per tuner,
+        // inside resolveTuned, because a viewer joining a running tuner needs no
+        // provider slot at all. Same 409 shapes, same history and logging.
+        if (require('../services/tuner').enabled()) {
+            const owner = coordinator.ownerKey(req.user);
+            const outcome = await playbackStrategy.resolveTuned({
+                url,
+                capabilities: capabilities || {},
+                settings,
+                ffprobePath: req.app.locals.ffprobePath,
+                upscale: upscale === true,
+                audioEncode: audioEncode === true,
+                owner,
+                live: sourceId !== undefined && channelId !== undefined,
+                force: force === true,
+                activeRecordings,
+                onSacrifice: (scheduleId) => recordingEngine.stopForViewer(scheduleId)
+            });
+            if (outcome.verdict) return sendConflict(res, outcome.verdict);
+            recordHistory(req, sourceId, channelId);
+            const decision = outcome.decision;
+            console.log(`[Playback] ${decision.strategy} — ${decision.reason}`);
+            playbackEvents.noteResolve(owner, { channel: eventChannel, strategy: decision.strategy, videoMode: decision.videoMode || null });
+            return res.json(decision);
+        }
+
         // Who is asking decides what counts as "somebody else": this device's
         // own earlier stream is simply replaced, an abandoned one is reclaimed,
         // and only a stream someone else may be watching is put to the caller
@@ -145,17 +171,7 @@ router.post('/resolve', requireToken, async (req, res) => {
             owner
         });
 
-        if (!verdict.allowed) {
-            const isViewer = verdict.conflict && verdict.conflict.type === 'viewer-in-progress';
-            return res.status(409).json({
-                error: 'Provider stream is in use',
-                conflict: verdict.conflict,
-                // The caller repeats the request with force to proceed.
-                resolution: isViewer
-                    ? 'Repeat this request with "force": true to stop the other stream and watch.'
-                    : 'Repeat this request with "force": true to stop the recording and watch.'
-            });
-        }
+        if (!verdict.allowed) return sendConflict(res, verdict);
 
         if (verdict.sacrificed && verdict.sacrificed.length) {
             // Finalise rather than discard: what was captured is kept, and the
@@ -182,35 +198,7 @@ router.post('/resolve', requireToken, async (req, res) => {
             live: sourceId !== undefined && channelId !== undefined
         });
 
-        // Record what was watched, when the caller identified a channel and we
-        // know who is asking. Best effort: history is a convenience and must
-        // never be the reason playback fails.
-        if (sourceId !== undefined && channelId !== undefined && req.user) {
-            try {
-                const stripped = String(channelId).replace(/^(?:m3u|xtream)_\d+_/, '');
-                // Name and identity from the same lookup: the identity is what makes
-                // the row survive the provider reordering its playlist.
-                const row = getDb().prepare(`
-                    SELECT name, stable_id FROM playlist_items
-                    WHERE source_id = ? AND type = 'live' AND item_id = ? LIMIT 1
-                `).get(parseInt(sourceId), stripped);
-                const name = row?.name || null;
-
-                getDb().prepare(`
-                    INSERT INTO channel_history (user_id, source_id, channel_item_id, channel_name, watched_at, play_count, stable_id)
-                    VALUES (?, ?, ?, ?, ?, 1, ?)
-                    ON CONFLICT(user_id, source_id, channel_item_id) DO UPDATE SET
-                        watched_at = excluded.watched_at,
-                        channel_name = COALESCE(excluded.channel_name, channel_name),
-                        play_count = play_count + 1,
-                        -- Refreshed on every play: a row written before the channel
-                        -- moved must not keep pointing at where it used to be.
-                        stable_id = COALESCE(excluded.stable_id, stable_id)
-                `).run(String(req.user.id), parseInt(sourceId), stripped, name, Date.now(), row?.stable_id || null);
-            } catch (e) {
-                console.warn('[Playback] Could not record history:', e.message);
-            }
-        }
+        recordHistory(req, sourceId, channelId);
 
         console.log(`[Playback] ${decision.strategy} — ${decision.reason}`);
         playbackEvents.noteResolve(owner, { channel: eventChannel, strategy: decision.strategy, videoMode: decision.videoMode || null });
@@ -223,6 +211,53 @@ router.post('/resolve', requireToken, async (req, res) => {
         res.status(err.status || 500).json({ error: safe, info: err.info });
     }
 });
+
+/** The 409 a client repeats with force (the same body for sessions and tuners). */
+function sendConflict(res, verdict) {
+    const isViewer = verdict.conflict && verdict.conflict.type === 'viewer-in-progress';
+    return res.status(409).json({
+        error: 'Provider stream is in use',
+        conflict: verdict.conflict,
+        // The caller repeats the request with force to proceed.
+        resolution: isViewer
+            ? 'Repeat this request with "force": true to stop the other stream and watch.'
+            : 'Repeat this request with "force": true to stop the recording and watch.'
+    });
+}
+
+/**
+ * Record what was watched, when the caller identified a channel and we
+ * know who is asking. Best effort: history is a convenience and must
+ * never be the reason playback fails.
+ */
+function recordHistory(req, sourceId, channelId) {
+    if (sourceId !== undefined && channelId !== undefined && req.user) {
+        try {
+            const stripped = String(channelId).replace(/^(?:m3u|xtream)_\d+_/, '');
+            // Name and identity from the same lookup: the identity is what makes
+            // the row survive the provider reordering its playlist.
+            const row = getDb().prepare(`
+                SELECT name, stable_id FROM playlist_items
+                WHERE source_id = ? AND type = 'live' AND item_id = ? LIMIT 1
+            `).get(parseInt(sourceId), stripped);
+            const name = row?.name || null;
+
+            getDb().prepare(`
+                INSERT INTO channel_history (user_id, source_id, channel_item_id, channel_name, watched_at, play_count, stable_id)
+                VALUES (?, ?, ?, ?, ?, 1, ?)
+                ON CONFLICT(user_id, source_id, channel_item_id) DO UPDATE SET
+                    watched_at = excluded.watched_at,
+                    channel_name = COALESCE(excluded.channel_name, channel_name),
+                    play_count = play_count + 1,
+                    -- Refreshed on every play: a row written before the channel
+                    -- moved must not keep pointing at where it used to be.
+                    stable_id = COALESCE(excluded.stable_id, stable_id)
+            `).run(String(req.user.id), parseInt(sourceId), stripped, name, Date.now(), row?.stable_id || null);
+        } catch (e) {
+            console.warn('[Playback] Could not record history:', e.message);
+        }
+    }
+}
 
 /**
  * GET /api/playback/conflict
@@ -372,6 +407,10 @@ router.post('/client-event', requireToken, (req, res) => {
 router.delete('/:sessionId', requireToken, async (req, res) => {
     const { sessionId } = req.params;
     try {
+        // A tuner viewer (PIGTV_TUNER=1): only this viewer leaves; the tuner
+        // stops with its last viewer and recording.
+        const tuner = require('../services/tuner');
+        if (tuner.enabled() && await tuner.releaseViewer(sessionId)) return res.json({ success: true });
         const transcodeSession = require('../services/transcodeSession');
         await transcodeSession.removeSession(sessionId);
         res.json({ success: true });
