@@ -56,12 +56,33 @@ test('a source that reports a size or a duration is finite; an open-ended one is
 const URL_ = 'http://provider.invalid/live/u/p/1.ts';
 const sessionArgs = async (options = {}) => (await transcodeSession.createSession(URL_, { videoMode: 'copy', ...options })).buildFFmpegArgs();
 
-test('a paced session reads its input at real time (-re, before -i); an ordinary one does not', async () => {
+test('a paced session reads its input at real time after an 8 s burst (before -i); an ordinary one does not', async () => {
+    // 0144: -readrate 1 -readrate_initial_burst 8 instead of -re (ffmpeg 6.1+), so the first segment
+    // is written at once; after the burst, real time as before.
     const paced = await sessionArgs({ paceInput: true });
-    assert.ok(paced.includes('-re'));
-    assert.ok(paced.indexOf('-re') < paced.indexOf('-i'), '-re is an input option');
-    assert.ok(!(await sessionArgs()).includes('-re'), 'live feeds arrive in real time already; -re only delays their start');
-    assert.ok(!(await sessionArgs({ paceInput: false })).includes('-re'));
+    const at = paced.indexOf('-readrate');
+    assert.deepEqual(paced.slice(at, at + 4), ['-readrate', '1', '-readrate_initial_burst', '8']);
+    assert.ok(at < paced.indexOf('-i'), 'input options');
+    assert.ok(!paced.includes('-re'), 'one pacing option, not both');
+    for (const args of [await sessionArgs(), await sessionArgs({ paceInput: false })]) {
+        assert.ok(!args.includes('-re') && !args.includes('-readrate'), 'live feeds arrive in real time already; pacing only delays their start');
+    }
+});
+
+test('PIGTV_READRATE_BURST=0 goes back to -re; another value sets the burst; nonsense keeps 8', async () => {
+    const real = process.env.PIGTV_READRATE_BURST;
+    try {
+        process.env.PIGTV_READRATE_BURST = '0';
+        const old = await sessionArgs({ paceInput: true });
+        assert.ok(old.includes('-re') && !old.includes('-readrate'));
+        assert.ok(old.indexOf('-re') < old.indexOf('-i'));
+        process.env.PIGTV_READRATE_BURST = '4';
+        assert.deepEqual(transcodeSession.paceArgs(), ['-readrate', '1', '-readrate_initial_burst', '4']);
+        process.env.PIGTV_READRATE_BURST = 'lots';
+        assert.deepEqual(transcodeSession.paceArgs(), ['-readrate', '1', '-readrate_initial_burst', '8']);
+    } finally {
+        if (real === undefined) delete process.env.PIGTV_READRATE_BURST; else process.env.PIGTV_READRATE_BURST = real;
+    }
 });
 
 // ---- resolve() decides from the probe ----
@@ -88,7 +109,7 @@ async function resolveWith(format, url) {
 test('resolve paces the session for a source that ends, and says so in the log', async () => {
     const r = await resolveWith({ size: '106893040', duration: '1929.6' }, 'http://provider.invalid/live/u/p/finite.ts');
     assert.equal(r.paceInput, true);
-    assert.match(r.line, /first segment after 0\.\ds, source ends \(32 min\) - paced to real time, source timing /);
+    assert.match(r.line, /first segment after 0\.\ds, source ends \(32 min\) - paced to real time after an initial 8s burst, source timing /);
 });
 
 test('resolve leaves a live source alone', async () => {
@@ -155,12 +176,13 @@ test('paced, ffmpeg keeps to real time and the start of the stream stays availab
         const input = makeSource();
         const dir = path.join(work, 'paced'); fs.mkdirSync(dir);
         const args = sessionOn(await sessionArgs({ segmentType: 'fmp4', audioMode: 'copy', audioCodec: 'aac', videoCodec: 'h264', paceInput: true }), input, dir);
-        args.splice(args.length - 1, 0, '-t', '7'); // an output option: stop after 7 s of media
+        // An output option: stop after 15 s of media. With the 8 s burst (0144), that is ~7 s of real time.
+        args.splice(args.length - 1, 0, '-t', '15');
         const ms = await run(args, dir);
-        assert.ok(ms > 5000, `7 s of media took ${ms} ms: read at real time, not all at once`);
+        assert.ok(ms > 5000, `15 s of media took ${ms} ms: after the burst, read at real time, not all at once`);
         const have = segments(dir);
         assert.ok(have.includes('seg0000.m4s'), 'the first segment is still there');
-        assert.ok(have.length <= 4, `about 7 s of media in 7 s, not minutes of it (${have.length} segments)`);
+        assert.ok(have.length <= 5, `about 15 s of media, not minutes of it (${have.length} segments)`);
     });
 
 // What makes the probe able to tell: a file server sends a Content-Length, which ffprobe reports as

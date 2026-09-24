@@ -256,7 +256,9 @@ function sessionPlan({ info, caps, settings, userAgent, owner, live, upscale, au
  */
 async function afterStart({ session, ready, info, plan, probeNote, fromProfile, probedAt, cacheKey, sessionStartedAt, remove, note = '' }) {
     const { videoMode, videoRange, frameRate } = plan;
-    const pacing = info.finite === true ? `, source ends${info.durationSec ? ` (${Math.round(info.durationSec / 60)} min)` : ''} - paced to real time` : '';
+    // 0144: after an initial burst, unless PIGTV_READRATE_BURST=0 (plain -re).
+    const paceNote = () => { const b = transcodeSession.readrateBurstSec(); return b > 0 ? ` after an initial ${b}s burst` : ''; };
+    const pacing = info.finite === true ? `, source ends${info.durationSec ? ` (${Math.round(info.durationSec / 60)} min)` : ''} - paced to real time${paceNote()}` : '';
     // Say which way the feed was classified: otherwise the igndts decision is
     // invisible in the log and a wrong call cannot be told from an unrelated fault.
     const timing = videoMode === 'copy'

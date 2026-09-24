@@ -1802,6 +1802,12 @@ check server/services/transcodeSession.js "REFUSED_RETRY_DELAYS_MS = \[1500, 300
 check server/services/transcodeSession.js "this.retryAllowanceMs = (this.retryAllowanceMs || 0) + sinceSpawn + delay;" "the resolve's wait is extended by exactly the retries"
 check test/start-failure.test.js "gets a second retry after 3 s more" "with a test"
 
+echo "=== 0144: a finite source starts with an 8 s burst, then real time ==="
+check server/services/transcodeSession.js "\['-readrate', '1', '-readrate_initial_burst', String(burst)\] : \['-re'\]" "-readrate 1 -readrate_initial_burst N (ffmpeg 6.1+), PIGTV_READRATE_BURST=0 is -re"
+check server/services/transcodeSession.js "if (this.options.paceInput === true) args.push(...paceArgs());" "only for a source that ends"
+check server/services/playbackStrategy.js "after an initial \${b}s burst" "the resolve timing line says so"
+check test/hls-finite-source.test.js "PIGTV_READRATE_BURST=0 goes back to -re" "with a test for the rollback"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

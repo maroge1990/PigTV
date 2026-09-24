@@ -100,6 +100,22 @@ const CLEANUP_INTERVAL_MS = 60 * 1000; // Sweep every minute (a walk over an in-
 const REFUSED_RETRY_WINDOW_MS = 3000;
 const REFUSED_RETRY_DELAYS_MS = [1500, 3000];
 
+// 0144: seconds of a finite source read at full speed before real-time pacing
+// starts. PIGTV_READRATE_BURST=0 goes back to plain -re. Read on every use so
+// the env var can be changed in tests.
+const DEFAULT_READRATE_BURST_SEC = 8;
+function readrateBurstSec() {
+    const raw = process.env.PIGTV_READRATE_BURST;
+    if (raw === undefined || raw === '') return DEFAULT_READRATE_BURST_SEC;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 && n <= 60 ? n : DEFAULT_READRATE_BURST_SEC;
+}
+/** The input options that pace a finite source. */
+function paceArgs() {
+    const burst = readrateBurstSec();
+    return burst > 0 ? ['-readrate', '1', '-readrate_initial_burst', String(burst)] : ['-re'];
+}
+
 /**
  * Generate a unique session ID
  */
@@ -464,10 +480,14 @@ class TranscodeSession extends EventEmitter {
             '-reconnect_delay_max', '3'
         );
 
-        // -re: read the input no faster than it plays. Only for a source that ends (see
+        // Pacing: read the input no faster than it plays. Only for a source that ends (see
         // paceInput in playbackStrategy). Never for a live feed, which arrives in real time
         // anyway: measured, -re on one costs seconds at start-up.
-        if (this.options.paceInput === true) args.push('-re');
+        // 0144: an initial burst first (-readrate_initial_burst, new in ffmpeg 6.1), so the
+        // first segment is written at once instead of after 4 s of real time; after it, real
+        // time, so the file still can't outrun the playlist window. PIGTV_READRATE_BURST=0 is
+        // the old -re.
+        if (this.options.paceInput === true) args.push(...paceArgs());
 
         args.push('-i', this.url);
 
@@ -1452,6 +1472,8 @@ module.exports = {
     TranscodeSession,
     buildMasterPlaylist,
     classifyInputFailure,
+    paceArgs,
+    readrateBurstSec,
     createSession,
     getSession,
     removeSession,
