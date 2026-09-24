@@ -1218,6 +1218,9 @@ async function attachTuner(scheduleId, entry, settings) {
         t.once('ended', () => {
             if (entry.tuner !== t) return;
             entry.tuner = null;
+            // Let go of it: a dead tuner still held would count as a recording's
+            // provider slot, and never be removed.
+            tunerModel.unhold(t, holdKey(scheduleId)).catch(() => {});
             if (!entry.finalizing) console.warn(`[Recordings] #${entry.recordingId} lost its tuner; taking the channel up again`);
         });
         console.log(`[Recordings] #${entry.recordingId} ${shared ? 'shares' : 'started'} tuner ${t.id}`);

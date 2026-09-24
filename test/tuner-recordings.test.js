@@ -434,3 +434,24 @@ test('0130: an Apple TV tuning to an HE-AAC channel that is being recorded joins
         seed(URL_B, APPLE);
     }
 });
+
+test('0131: a recording whose tuner dies lets go of it and takes the channel up again (new init segment, discontinuity)', async () => {
+    const s = due({ lengthMs: 60000 });
+    await engine.tick();
+    const first = tuner.list()[0];
+    await until(() => first.window.length >= 2);
+    await sleep(300);
+    first.process.kill('SIGKILL'); // the tuner's ffmpeg dies (not asked to)
+    await until(() => !tuner.list().includes(first), 5000);
+    assert.ok(!tuner.list().includes(first), 'the dead tuner is released, not kept by the recording\'s hold');
+    await engine.tick(); // the recording takes the channel up again
+    assert.equal(spawns.length, 2);
+    const second = tuner.list()[0];
+    assert.deepEqual(second.recordingIds(), [s.id]);
+    const rec = recordingOf(s);
+    await until(async () => (await get(`/api/recordings/${rec.id}/index.m3u8`)).text.includes('init-2.mp4'));
+    const text = (await get(`/api/recordings/${rec.id}/index.m3u8`)).text;
+    assert.match(text, /\n#EXT-X-DISCONTINUITY\n#EXT-X-MAP:URI="init-2\.mp4"\n/);
+    assert.ok(fs.existsSync(path.join(rec.hls_dir, 'init-2.mp4')));
+    assert.equal(scheduled.getById(s.id).status, 'recording');
+});

@@ -1692,6 +1692,11 @@ echo "=== 0130: a recording's own tuner uses the Apple TV's default capabilities
 check_absent server/services/playbackStrategy.js "ac3: true, eac3: true, flac: false, heaac: true" "no heaac in RECORDING_CAPABILITIES"
 check test/tuner-recordings.test.js "0130: an Apple TV tuning to an HE-AAC channel that is being recorded joins" "with a test"
 
+echo "=== 0131: a recording lets go of a tuner that died ==="
+check server/services/recordingEngine.js "tunerModel.unhold(t, holdKey(scheduleId)).catch(() => {});" "the hold is released when the tuner ends"
+check server/services/streamCoordinator.js "take(slots.filter(s => s.dead), 'ended');" "a dead tuner never counts as a slot"
+check test/tuner-recordings.test.js "0131: a recording whose tuner dies lets go of it" "with a re-tune test"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

@@ -431,7 +431,9 @@ function requestForTuner({ force = false, settings = {}, owner = null, key = nul
         }
     };
     const free = slots.filter(s => s.recordings.length === 0);
-    take(free.filter(s => s.dead), 'ended');
+    // A tuner whose ffmpeg has ended serves nobody, even one a recording has not
+    // let go of yet (it takes the channel up again on its next tick).
+    take(slots.filter(s => s.dead), 'ended');
     take(free.filter(s => s.idleMs >= idleMs), 'idle');
     take(free.filter(s => owner && s.owners.length > 0 && s.owners.every(o => o === owner)), 'replacement');
     if (need <= 0) return { allowed: true, release };
