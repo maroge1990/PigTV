@@ -822,7 +822,7 @@ check server/index.js "require('ffmpeg-static')" "index.js keeps its guarded ffm
 echo "=== 0052: Provider credential redaction (P1-4) ==="
 check server/redact.js "function redact" "redact helper exists"
 check server/routes/transcode.js "url: redact(x.url)" "/sessions response redacts upstream URLs"
-check server/routes/playback.js "error: clientSafe(redact(err.message))" "resolve error body is redacted"
+check server/routes/playback.js "const safe = clientSafe(redact(err.message))" "resolve error body is redacted"
 check server/services/streamProbe.js "redact(stderr)" "ffprobe stderr redacted before leaving probeStream"
 check server/services/transcodeSession.js "redact(args.join" "session ffmpeg command line redacted in logs"
 if node -e '
@@ -1535,7 +1535,7 @@ check_absent server/services/transcodeSession.js "had a problem serving this cha
 check_absent server/services/playbackStrategy.js "Transcode failed to produce a playlist in time" "the old timeout wording is gone"
 check server/services/playbackStrategy.js "throw Object.assign(new Error(probeFailureMessage(err))" "a failed probe never hands its stderr (with the URL) to the client"
 check server/routes/playback.js "FAILURE_TEXT.notInPlaylist()" "a channel not in the playlist says 'This channel is not available'"
-check server/routes/playback.js "error: clientSafe(redact(err.message))" "the resolve route strips any URL from what it returns"
+check server/routes/playback.js "const safe = clientSafe(redact(err.message))" "the resolve route strips any URL from what it returns"
 check test/resolve-errors.test.js "no URL anywhere in the response" "with a route-level no-URL test"
 
 echo "=== 0119: opaque playback handles (C-D) and redacted logs ==="
@@ -1611,6 +1611,20 @@ check public/js/pages/Settings.js "API.lineup.get()" "the panel reads GET /api/l
 check public/js/pages/Settings.js "if (tabName === 'lineup') this.loadLineup();" "and loads when the tab opens"
 check public/js/pages/Settings.js "this.setLineupStatus(err.message" "the server's validation error is shown"
 check test/lineup-editor.test.js "validation error as it comes" "with a test"
+
+echo "=== 0124: admin status page (W2.2) ==="
+check server/index.js "app.use('/api/status', require('./routes/status'))" "GET /api/status is mounted"
+check server/routes/status.js "router.use(requireAuth, requireAdmin)" "and is admin only"
+check server/routes/status.js "res.json(scrubUrls(status))" "the whole document is scrubbed of anything URL-shaped"
+check_absent server/routes/status.js "url: summary.url" "a session's URL is never passed through"
+check server/services/playbackEvents.js "const MAX_EVENTS = 50" "the recent-plays buffer is bounded"
+check server/routes/playback.js "playbackEvents.record({ type: 'play-start'" "play-start feeds it"
+check server/routes/playback.js "playbackEvents.record({ type: 'failure', owner: eventOwner, channel: eventChannel, reason: safe })" "a failed resolve feeds it with the client-safe text"
+check server/services/playbackStrategy.js "playbackEvents.noteResolve(owner, { start:" "resolve notes cold/warm/profile"
+check public/js/pages/StatusPage.js "setInterval(() => this.refresh(), this.refreshMs)" "the page refreshes while shown"
+check public/index.html 'data-page="status"' "with an admin nav entry"
+check test/status.test.js "never a provider URL" "with a no-URL test"
+check test/status.test.js "keeps the last 50" "and a buffer-bound test"
 
 if [ $FAIL -eq 0 ]; then
     echo ""

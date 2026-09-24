@@ -64,6 +64,13 @@
             </svg></span>
           <span>Recordings</span>
         </a>
+        <a href="#" class="nav-link admin-only" data-page="status" style="display:none;">
+          <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
+              class="icon">
+              <path d="M3 13h2v8H3v-8zm4-6h2v14H7V7zm4 3h2v11h-2V10zm4-7h2v18h-2V3zm4 9h2v9h-2v-9z" />
+            </svg></span>
+          <span>Status</span>
+        </a>
         <a href="#" class="nav-link" data-page="settings">
           <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
               class="icon">
@@ -328,6 +335,19 @@
         <div class="recordings-section">
           <h3>Recorded</h3>
           <div id="recordings-list" class="recordings-list">
+            <div class="loading-state">Loading...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status Page (admin; 0124) -->
+      <div id="page-status" class="page">
+        <div class="settings-container status-container">
+          <div class="status-header">
+            <h2>Status</h2>
+            <span id="status-updated" class="setting-hint"></span>
+          </div>
+          <div id="status-content">
             <div class="loading-state">Loading...</div>
           </div>
         </div>
@@ -985,7 +1005,7 @@
 
   <!-- JavaScript -->
   <script src="/js/icons.js"></script>
-  <script src="/js/api.js?v=11"></script>
+  <script src="/js/api.js?v=12"></script>
   <script src="/js/components/VideoPlayer.js?v=9"></script>
   <script src="/js/components/ChannelList.js?v=7"></script>
   <script src="/js/components/SourceManager.js?v=5"></script>
@@ -995,7 +1015,8 @@
   <script src="/js/pages/Guide.js?v=3"></script>
   <script src="/js/pages/RecordingsPage.js?v=8"></script>
   <script src="/js/pages/Settings.js?v=10"></script>
-  <script src="/js/app.js?v=8"></script>
+  <script src="/js/pages/StatusPage.js?v=1"></script>
+  <script src="/js/app.js?v=9"></script>
 </body>
 
 </html>

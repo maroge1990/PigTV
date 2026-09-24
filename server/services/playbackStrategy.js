@@ -29,6 +29,7 @@ const transcodeSession = require('./transcodeSession');
 const channelProfiles = require('./channelProfiles');
 const { MESSAGES: FAILURE_TEXT } = require('./playbackErrors');
 const playbackHandles = require('./playbackHandles');
+const playbackEvents = require('./playbackEvents');
 const { redact } = require('../redact');
 const db = require('../db');
 
@@ -116,6 +117,10 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
         probeCache.set(cacheKey, { result: info, timestamp: probedAt, probedAt });
         probeNote = seconds(Date.now() - probeStartedAt);
     }
+
+    // 0124: how this start was served, for the admin status page's recent plays.
+    // Observation only: nothing here changes what is decided.
+    playbackEvents.noteResolve(owner, { start: fromProfile ? 'profile' : (probeNote === 'cached' ? 'warm' : 'cold') });
 
     // 1. Direct play. Nothing to do — no ffmpeg, no server CPU, no added
     //    latency. Only available when the container is already something the

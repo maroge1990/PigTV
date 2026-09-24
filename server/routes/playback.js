@@ -22,6 +22,20 @@ const xtreamApi = require('../services/xtreamApi');
 const passport = require('passport');
 const { streamAuth } = require('../auth');
 const { createLimiter } = require('../services/rateLimit');
+const playbackEvents = require('../services/playbackEvents');
+
+/** A channel's name for the status page's recent plays (0124); null when unknown. */
+function channelNameFor(sourceId, channelId) {
+    if (sourceId === undefined || channelId === undefined) return null;
+    try {
+        const stripped = String(channelId).replace(/^(?:m3u|xtream)_\d+_/, '');
+        return getDb().prepare(`
+            SELECT name FROM playlist_items WHERE source_id = ? AND type = 'live' AND item_id = ? LIMIT 1
+        `).get(parseInt(sourceId), stripped)?.name || null;
+    } catch (e) {
+        return null;
+    }
+}
 
 // P0-3: resolve spends the provider's single upstream slot and starts ffmpeg;
 // the delete can kill anyone's session. Both must carry a token. streamAuth
@@ -92,6 +106,9 @@ async function streamUrlForChannel(sourceId, channelId) {
  * Returns: { strategy, url, container, reason, info, sessionId? }
  */
 router.post('/resolve', requireToken, async (req, res) => {
+    // 0124: for the status page's recent plays (a name, never a URL)
+    const eventOwner = require('../services/streamCoordinator').ownerKey(req.user);
+    const eventChannel = channelNameFor(req.body?.sourceId, req.body?.channelId);
     try {
         const { sourceId, channelId, url: directUrl, capabilities, upscale, force, audioEncode } = req.body || {};
 
@@ -196,11 +213,14 @@ router.post('/resolve', requireToken, async (req, res) => {
         }
 
         console.log(`[Playback] ${decision.strategy} — ${decision.reason}`);
+        playbackEvents.noteResolve(owner, { channel: eventChannel, strategy: decision.strategy, videoMode: decision.videoMode || null });
         res.json(decision);
     } catch (err) {
         console.error('[Playback] Resolve failed:', redact(err.detail ? `${err.detail} - ${err.message}` : err.message));
         // 0118 (C-B): never a URL in what the client is sent, whatever the error.
-        res.status(err.status || 500).json({ error: clientSafe(redact(err.message)), info: err.info });
+        const safe = clientSafe(redact(err.message));
+        playbackEvents.record({ type: 'failure', owner: eventOwner, channel: eventChannel, reason: safe });
+        res.status(err.status || 500).json({ error: safe, info: err.info });
     }
 });
 
@@ -303,10 +323,20 @@ router.post('/client-event', requireToken, (req, res) => {
         const how = `${text(body.strategy, 20)}(${text(body.container, 12) || '-'}` +
             `${body.videoMode ? `, video ${text(body.videoMode, 10)}` : ''}) hls-delivery=${body.hlsDelivery === true ? 'on' : 'off'}`;
         const from = `from=${coordinator.ownerKey(req.user) || 'unknown'}`;
+        // 0124: the status page's recent plays; the channel is what this owner last resolved.
+        const owner = coordinator.ownerKey(req.user);
+        const last = playbackEvents.lastResolveFor(owner) || {};
+        const sec = (ms) => (typeof ms === 'number' && Number.isFinite(ms) && ms >= 0 ? Math.round(ms / 100) / 10 : null);
         if (body.event === 'play-start') {
             console.log(`[Player] play-start via ${how} resolve=${secs(body.resolveMs)} first-picture=${secs(body.totalMs)} ${from}`);
+            playbackEvents.record({ type: 'play-start', owner, channel: last.channel, start: last.start,
+                strategy: text(body.strategy, 20), videoMode: body.videoMode ? text(body.videoMode, 10) : last.videoMode,
+                firstPictureSec: sec(body.totalMs), resolveSec: sec(body.resolveMs) });
         } else {
             console.log(`[Player] play-end via ${how} watched=${num(body.watchedSec)}s stalls=${num(body.stalls)} ${from}`);
+            playbackEvents.record({ type: 'play-end', owner, channel: last.channel, strategy: text(body.strategy, 20),
+                watchedSec: typeof body.watchedSec === 'number' ? body.watchedSec : null,
+                stalls: typeof body.stalls === 'number' ? body.stalls : null });
         }
         return res.status(204).end();
     }
@@ -314,10 +344,16 @@ router.post('/client-event', requireToken, (req, res) => {
     const state = `networkState=${num(body.networkState)} readyState=${num(body.readyState)} ` +
         `t=${num(body.currentTime)}s buffered=${num(body.bufferedEnd)}s from=${coordinator.ownerKey(req.user) || 'unknown'}`;
 
+    const eventOwner = coordinator.ownerKey(req.user);
+    const lastChannel = (playbackEvents.lastResolveFor(eventOwner) || {}).channel;
     if (body.event === 'start-timeout') {
         // Nothing played for `waited` seconds and there was no error to report.
         console.warn(`[Player] start-timeout via ${text(body.strategy, 20)} path=${text(body.path, 80)} waited=${num(body.waitedSec)}s ${state}`);
+        playbackEvents.record({ type: 'failure', owner: eventOwner, channel: lastChannel, strategy: text(body.strategy, 20),
+            reason: `Nothing played after ${num(body.waitedSec)}s (start-timeout)` });
     } else {
+        playbackEvents.record({ type: 'failure', owner: eventOwner, channel: lastChannel, strategy: text(body.strategy, 20),
+            reason: `Player media error ${text(body.codeName, 30)} (${num(body.code)})` });
         console.warn(
             `[Player] media-error ${text(body.codeName, 30)}(${num(body.code)}) via ${text(body.strategy, 20)} ` +
             `path=${text(body.path, 80)} msg="${redact(text(body.message, 200))}" ${state}`

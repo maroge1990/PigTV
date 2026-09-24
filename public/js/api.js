@@ -131,6 +131,11 @@ const API = {
         favourites: () => API.request('GET', '/library/favourites')
     },
 
+    // Server status (admin; 0124)
+    status: {
+        get: () => API.request('GET', '/status')
+    },
+
     // Channel numbers (admin; 0117 C-A, web editor 0123)
     lineup: {
         get: () => API.request('GET', '/lineup'),

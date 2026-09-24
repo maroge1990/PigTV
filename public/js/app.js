@@ -20,6 +20,7 @@ class App {
         this.pages.guide = new GuidePage(this);
         this.pages.recordings = new RecordingsPage(this);
         this.pages.settings = new SettingsPage(this);
+        this.pages.status = new StatusPage(this);
 
         this.init();
     }
@@ -223,12 +224,15 @@ class App {
 
             this.currentUser = await response.json();
 
-            // Hide settings for viewers
+            // Hide settings for viewers; the Status page is for admins only
             if (this.currentUser.role === 'viewer') {
                 const settingsLink = document.querySelector('.nav-link[data-page="settings"]');
                 if (settingsLink) {
                     settingsLink.style.display = 'none';
                 }
+            }
+            if (this.currentUser.role === 'admin') {
+                document.querySelectorAll('.nav-link.admin-only').forEach(link => { link.style.display = ''; });
             }
 
             // Add logout button to navbar
@@ -277,7 +281,7 @@ class App {
     }
 
     navigateTo(pageName, replaceHistory = false) {
-        if (pageName === 'settings' && this.currentUser?.role !== 'admin') {
+        if ((pageName === 'settings' || pageName === 'status') && this.currentUser?.role !== 'admin') {
             pageName = 'home';
             replaceHistory = true;
         }

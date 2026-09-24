@@ -2712,6 +2712,34 @@ kbd {
   overflow-x: auto;
 }
 
+/* Status page (0124) */
+.status-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.status-section h4 {
+  margin: var(--space-md) 0 var(--space-sm);
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.status-table td {
+  font-size: 0.85rem;
+  vertical-align: top;
+}
+
+.status-event {
+  font-weight: 600;
+}
+
+.status-failure {
+  color: var(--color-error);
+}
+
 /* Channel numbers (Settings, 0123) */
 .lineup-toolbar {
   display: flex;
