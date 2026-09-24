@@ -12,6 +12,7 @@ const jwt = require('jsonwebtoken');
 // playlist served as written (no PROGRAM-DATE-TIME), no tuner flags.
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-tuner-off-'));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
+fs.copyFileSync(path.join(__dirname, '../package.json'), path.join(sandbox, 'package.json')); // routes/info.js reads it
 fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'node_modules'), 'junction');
 process.env.JWT_SECRET = 'test-only-signing-key-not-used-outside-fixtures-12345';
 delete process.env.PIGTV_TUNER;
@@ -25,6 +26,8 @@ const transcodeSession = load('services/transcodeSession');
 const strategy = load('services/playbackStrategy');
 const { probeCache, analyzeProbeResult } = load('services/streamProbe');
 const recordingEngine = load('services/recordingEngine');
+const { scheduled, recordings } = load('db/recordingsDb');
+const realListActive = recordingEngine.listActive;
 recordingEngine.listActive = () => [];
 
 const URL_ = 'http://provider.invalid/live/u/p/441367.ts';
@@ -95,3 +98,39 @@ test('off: the tuner module holds nothing', () => {
     assert.equal(tuner.list().length, 0);
     assert.equal(tuner.listViewers().length, 0);
 });
+
+test('off: /api/info carries none of the tuner flags', async () => {
+    const info = await (await fetch(`${base}/api/info`)).json();
+    for (const flag of ['timeshift', 'recordingHls']) assert.ok(!(flag in info.features), `${flag} is absent`);
+});
+
+test('off: a scheduled recording is today\'s .mkv ffmpeg, and its rows have no new columns',
+    { skip: process.platform === 'win32' && 'uses a shell script as ffmpeg' }, async () => {
+        recordingEngine.listActive = realListActive;
+        // "ffmpeg": writes 2 KB to the output (its last argument) and exits on the "q" a stop sends.
+        const fake = path.join(sandbox, 'fake-ffmpeg.sh');
+        fs.writeFileSync(fake, '#!/bin/sh\nfor a; do last="$a"; done\nhead -c 2000 /dev/zero > "$last"\nhead -c 1 > /dev/null\nexit 0\n', { mode: 0o755 });
+        const root = path.join(sandbox, 'recordings');
+        await db.settings.update({ recordingsPath: root, minFreeSpaceGB: 0 });
+        const source = await db.sources.create({ name: 'M3U', type: 'm3u', url: 'http://provider.invalid/list.m3u' });
+        sqlite.getDb().prepare(`INSERT OR REPLACE INTO playlist_items (id, source_id, item_id, type, name, category_id, stream_url, data, sort_order)
+            VALUES (?, ?, 'pos_1', 'live', 'ABC', 'News', NULL, ?, 1)`).run(`${source.id}:pos_1`, source.id, JSON.stringify({ url: URL_ }));
+        recordingEngine.init({ ffmpegPath: fake, ffprobePath: 'ffprobe' });
+        recordingEngine.shutdown();
+        const s = scheduled.create({ title: 'News', description: null, source_id: source.id, channel_item_id: 'pos_1',
+            channel_name: 'ABC', channel_logo: null, program_start: Date.now() - 1000, program_end: Date.now() + 60000,
+            pre_buffer_min: 0, post_buffer_min: 0, created_by: 1, created_at: Date.now() });
+        // init() ran a tick of its own; the next one starts it.
+        for (let i = 0; i < 20 && scheduled.getById(s.id).status !== 'recording'; i++) {
+            await recordingEngine.tick();
+            await new Promise(r => setTimeout(r, 50));
+        }
+        assert.equal(scheduled.getById(s.id).status, 'recording');
+        assert.equal(tuner.list().length, 0, 'no tuner');
+        const rec = recordings.getById(scheduled.getById(s.id).recording_id);
+        assert.match(rec.file_path, /\.mkv$/);
+        assert.ok(!('format' in rec) && !('hls_dir' in rec), 'the recordings table is as it was');
+        await recordingEngine.cancelScheduled(s.id);
+        assert.equal(recordings.getById(rec.id).status, 'completed');
+        assert.ok(fs.statSync(rec.file_path).size >= 2000);
+    });

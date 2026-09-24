@@ -128,6 +128,8 @@ const APPLE_CLIENT_ROUTES = [
     ['GET', '/api/playback/some-session-id/terminal-status'],
     ['GET', '/api/recordings'], ['GET', '/api/recordings/scheduled'], ['POST', '/api/recordings/schedule'],
     ['GET', '/api/recordings/1/playback'], ['GET', '/api/recordings/1/media.mp4'], ['GET', '/api/recordings/1/markers'],
+    // 0127 (C-E): an HLS recording's playlist and the files it references.
+    ['GET', '/api/recordings/1/index.m3u8'], ['GET', '/api/recordings/1/init.mp4'], ['GET', '/api/recordings/1/seg00000.m4s'],
     ['GET', '/api/proxy/stream'],
     ['GET', '/api/transcode/abc/stream.m3u8'], ['GET', '/api/transcode/abc/master.m3u8'],
     ['DELETE', '/api/playback/abc']

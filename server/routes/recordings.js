@@ -52,14 +52,71 @@ function serveWithRangeSupport(req, res, filePath, contentType) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// HLS recordings (the tuner model, PIGTV_TUNER=1, 0127; contract C-E). The same
+// auth as media.mp4: registered before requireAuth, behind the streamAuth the
+// whole router is mounted with (bearer or ?token=), and the token is carried onto
+// every URI the playlist references. An EVENT playlist while it records, VOD
+// (#EXT-X-ENDLIST) once finished; the client plays it directly.
+// ---------------------------------------------------------------------------
+
+/** The HLS recording with this id, or null (any other recording is not HLS). */
+function hlsRecording(id) {
+    const rec = recordingsDb.getById(parseInt(id));
+    return rec && rec.format === 'hls' && rec.hls_dir ? rec : null;
+}
+
+// Exactly the names the recorder writes (hlsRecorder.js).
+const HLS_RECORDING_FILE = /^\/(\d+)\/(seg\d{4,}\.(?:ts|m4s)|init(?:-\d+)?\.mp4)$/;
+
+// Not an HLS recording: with the tuner off, whatever answered before still does
+// (an HLS recording made while it was on keeps playing after it is turned off).
+const notHls = (res, next) => (require('../services/tuner').enabled()
+    ? res.status(404).json({ error: 'Recording not found' })
+    : next());
+
+router.get('/:id/index.m3u8', (req, res, next) => {
+    try {
+        const rec = hlsRecording(req.params.id);
+        if (!rec) return notHls(res, next);
+        let playlist;
+        try {
+            playlist = fs.readFileSync(path.join(rec.hls_dir, 'index.m3u8'), 'utf8');
+        } catch (e) {
+            return res.status(404).json({ error: 'Recording playlist not found' });
+        }
+        const { withStreamToken } = require('./transcode');
+        res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.send(withStreamToken(playlist, req.query.token));
+    } catch (err) {
+        console.error('[Recordings] Playlist error:', err.message);
+        if (!res.headersSent) res.status(500).json({ error: err.message });
+    }
+});
+
+router.get(HLS_RECORDING_FILE, (req, res, next) => {
+    const rec = hlsRecording(req.params[0]);
+    if (!rec) return notHls(res, next);
+    const file = path.join(rec.hls_dir, req.params[1]);
+    if (!fs.existsSync(file)) return res.status(404).json({ error: 'Segment not found' });
+    // As the live segments: fMP4 too goes out as video/MP2T (blueprint §4).
+    res.setHeader('Content-Type', 'video/MP2T');
+    res.setHeader('Cache-Control', 'public, max-age=31536000');
+    res.sendFile(file);
+});
+
 // Stream a recording for playback, with HTTP Range support for seeking
 router.get('/:id/stream', (req, res) => {
     try {
         const rec = recordingsDb.getById(parseInt(req.params.id));
+        if (rec && rec.format === 'hls' && String(rec.file_path).endsWith('.m3u8')) {
+            return res.status(409).json({ error: 'Recording is not ready as a single file yet' });
+        }
         if (!rec || !rec.file_path || !fs.existsSync(rec.file_path)) {
             return res.status(404).json({ error: 'Recording file not found' });
         }
-        serveWithRangeSupport(req, res, rec.file_path, 'video/x-matroska');
+        serveWithRangeSupport(req, res, rec.file_path, rec.format === 'hls' ? 'video/mp4' : 'video/x-matroska');
     } catch (err) {
         console.error('[Recordings] Stream error:', err);
         if (!res.headersSent) res.status(500).json({ error: err.message });
@@ -76,7 +133,7 @@ router.get('/:id/media.mp4', async (req, res) => {
     try {
         const rec = recordingsDb.getById(parseInt(req.params.id));
         if (!rec) return res.status(404).json({ error: 'Recording not found' });
-        if (rec.status !== 'completed') {
+        if (rec.status !== 'completed' || (rec.format === 'hls' && String(rec.file_path).endsWith('.m3u8'))) {
             return res.status(409).json({ error: 'Recording is not finished yet' });
         }
 
@@ -92,6 +149,9 @@ router.get('/:id/media.mp4', async (req, res) => {
 router.get('/:id/download', (req, res) => {
     try {
         const rec = recordingsDb.getById(parseInt(req.params.id));
+        if (rec && rec.format === 'hls' && String(rec.file_path).endsWith('.m3u8')) {
+            return res.status(409).json({ error: 'Recording is not ready as a single file yet' });
+        }
         if (!rec || !rec.file_path || !fs.existsSync(rec.file_path)) {
             return res.status(404).json({ error: 'Recording file not found' });
         }
@@ -195,6 +255,17 @@ router.get('/:id/playback', async (req, res) => {
     try {
         const rec = recordingsDb.getById(parseInt(req.params.id));
         if (!rec) return res.status(404).json({ error: 'Recording not found' });
+        // 0127 (C-E): an HLS recording plays at once, finished or still recording.
+        if (rec.format === 'hls' && rec.hls_dir && (rec.status === 'completed' || rec.status === 'recording')) {
+            const inProgress = rec.status === 'recording';
+            const progress = inProgress ? recordingEngine.tunedRecordingProgress(rec.id) : null;
+            return res.json({
+                url: `/api/recordings/${rec.id}/index.m3u8`,
+                container: 'hls',
+                durationSec: inProgress ? (progress ? progress.durationSec : 0) : (rec.duration_sec || null),
+                inProgress
+            });
+        }
         if (rec.status !== 'completed') {
             return res.status(409).json({ error: 'Recording is not finished yet' });
         }

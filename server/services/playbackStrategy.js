@@ -414,6 +414,56 @@ async function resolveTuned({ url, capabilities = {}, settings, ffprobePath, ups
 }
 
 /**
+ * The capabilities a recording's own tuner is planned with (0127): what the Apple
+ * TV reports, so a recording and an Apple TV on the same channel usually share
+ * one tuner whichever started first. HE-AAC is copied (the recording is joined
+ * into an MP4 afterwards, where it plays fine).
+ */
+const RECORDING_CAPABILITIES = { hls: true, segmentedDelivery: true, fmp4: true, hevc: true, av1: false,
+    ac3: true, eac3: true, flac: false, heaac: true };
+
+/**
+ * A tuner for a recording: the one already on this stream (whatever its
+ * arguments), or a new one started with RECORDING_CAPABILITIES. The caller holds
+ * it. Throws the client-style sentence when it cannot start.
+ */
+async function acquireTunerForRecording({ url, settings, ffprobePath }) {
+    const tuner = require('./tuner');
+    const running = tuner.findByUrl(url);
+    if (running) return { tuner: running, shared: true };
+
+    const caps = { ...DEFAULT_CAPABILITIES, ...RECORDING_CAPABILITIES };
+    const userAgent = db.getUserAgent(settings);
+    const cacheKey = analysisKey(url, userAgent, caps);
+    const analysis = storedAnalysis(cacheKey) || await probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey });
+    const { info, probeNote, fromProfile, probedAt } = analysis;
+    // Never `direct` for a recording: it always needs segments on disk.
+    const plan = sessionPlan({ info, caps, settings, userAgent, owner: null, live: true, upscale: false, audioEncode: false });
+    const { tuner: t } = tuner.prepare(url, { ...plan.options, info });
+    const again = tuner.findByKey(t.key) || tuner.findByUrl(url);
+    if (again) return { tuner: again, shared: true };
+    tuner.register(t);
+    // Held from the start, so no sweep or release can take it while it starts.
+    tuner.hold(t, 'starting');
+    const startedAt = Date.now();
+    try {
+        await tuner.start(t);
+        const ready = await t.waitForPlaylist(15000);
+        await afterStart({
+            session: t, ready, info, plan, probeNote, fromProfile, probedAt, cacheKey, sessionStartedAt: startedAt,
+            note: `, tuner ${t.id} for a recording`,
+            remove: () => tuner.destroyTuner(t, 'no first segment')
+        });
+    } catch (err) {
+        await tuner.destroyTuner(t, 'failed to start');
+        throw err;
+    } finally {
+        t.holds.delete('starting');
+    }
+    return { tuner: t, shared: false };
+}
+
+/**
  * The client's text for a failed probe (0118, C-B): ffprobe reports the same
  * "Server returned ..." / "Connection refused" lines ffmpeg does, so the same
  * classification applies; a timeout or anything else gets a fixed sentence.
@@ -425,4 +475,4 @@ function probeFailureMessage(err) {
     return reason ? reason.message : FAILURE_TEXT.couldNotRead();
 }
 
-module.exports = { resolve, resolveTuned, DEFAULT_CAPABILITIES, probeFailureMessage };
+module.exports = { resolve, resolveTuned, acquireTunerForRecording, RECORDING_CAPABILITIES, DEFAULT_CAPABILITIES, probeFailureMessage };

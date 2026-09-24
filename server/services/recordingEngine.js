@@ -18,6 +18,8 @@ const xtreamApi = require('./xtreamApi');
 const coordinator = require('./streamCoordinator');
 const { formatLocalStamp } = require('./recordingNames');
 const { redact } = require('../redact');
+const tunerModel = require('./tuner');
+const { HlsRecorder, closeOrphanPlaylist } = require('./hlsRecorder');
 
 const TICK_INTERVAL_MS = 15 * 1000;
 const STDERR_TAIL_LINES = 40;
@@ -811,7 +813,13 @@ async function deleteRecording(id) {
         }
     }
 
-    if (rec.file_path) {
+    if (rec.format === 'hls' && rec.hls_dir) {
+        // 0127: an HLS recording is a folder of its own (playlist, segments, the
+        // joined MP4 and anything derived from it). Only ever a folder two levels
+        // under the recordings root (<root>/<channel>/<recording>), so a bad row
+        // can never take a channel's folder or the root with it.
+        await removeRecordingFolder(rec.hls_dir);
+    } else if (rec.file_path) {
         // The recording and everything derived from it. The native-playback
         // remux and, when "keep original" is on, the compressed copy sit beside
         // the .mkv under names built from it; deleting only the .mkv used to
@@ -828,7 +836,8 @@ async function deleteRecording(id) {
     recordingsDb.delete(id);
 }
 
-async function startRecording(schedule) {
+async function startRecording(schedule, knownUrl = null) {
+    if (tunerModel.enabled()) return startTunedRecording(schedule, knownUrl);
     let streamUrl;
     try {
         streamUrl = await resolveStreamUrl(schedule.source_id, schedule.channel_item_id, schedule.channel_stable_id || null);
@@ -990,6 +999,13 @@ function finalizeRecording(scheduledId, recordingId, outputPath, exitCode, stder
 async function stopRecording(scheduledId, reasonStatus = 'completed') {
     const entry = active.get(scheduledId);
     if (!entry) return;
+    if (entry.kind === 'hls') {
+        // Being deleted: nothing to join into an MP4.
+        if (reasonStatus === 'deleted') entry.noJoin = true;
+        await finalizeTunedRecording(scheduledId, entry);
+        if (reasonStatus === 'cancelled') scheduledDb.setStatus(scheduledId, 'cancelled');
+        return;
+    }
 
     if (entry.hardStopTimer) clearTimeout(entry.hardStopTimer);
 
@@ -1037,7 +1053,11 @@ function reconcileOnStartup() {
     const orphans = scheduledDb.findOrphanedRecording();
     for (const schedule of orphans) {
         console.warn(`[Recordings] Schedule #${schedule.id} was mid-recording when the server last stopped; marking as failed (partial file, if any, was left on disk).`);
-        if (schedule.recording_id) {
+        if (schedule.recording_id && recordingsDb.getById(schedule.recording_id)?.format === 'hls') {
+            // 0127: the segments kept so far are a recording; close its playlist.
+            reconcileTunedRecording(schedule.recording_id).catch(err =>
+                console.error(`[Recordings] Could not close recording #${schedule.recording_id}:`, err.message));
+        } else if (schedule.recording_id) {
             const rec = recordingsDb.getById(schedule.recording_id);
             let fileSize = null;
             try { if (rec?.file_path) fileSize = fs.statSync(rec.file_path).size; } catch (e) { /* ignore */ }
@@ -1085,6 +1105,260 @@ async function enforceFreeSpaceDuringRecording() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Recordings from a tuner (the tuner model, PIGTV_TUNER=1, 0127)
+//
+// The recording holds the tuner for its channel ('rec:<scheduleId>') and an
+// HlsRecorder keeps the segments of its window in its own folder:
+//   <recordings root>/<channel>/<title - date>/index.m3u8, seg00000.m4s, ...
+// EVENT playlist while it records, VOD once finished; then joined (stream copy,
+// no re-encode) into <title - date>.mp4 in the same folder, which becomes
+// file_path, so ad detection, compression, download and media.mp4 work on it
+// as on any MP4. The segments stay too: they are what /index.m3u8 plays, and
+// comskip needs a single file. Deleting the recording deletes the folder.
+// ---------------------------------------------------------------------------
+
+function holdKey(scheduleId) {
+    return `rec:${scheduleId}`;
+}
+
+/** Where a recording's window ends (program end + post-buffer). */
+function stopTimeOf(schedule) {
+    return schedule.program_end + (schedule.post_buffer_min || 0) * 60000;
+}
+
+async function startTunedRecording(schedule, knownUrl) {
+    let streamUrl = knownUrl;
+    if (!streamUrl) {
+        try {
+            streamUrl = await resolveStreamUrl(schedule.source_id, schedule.channel_item_id, schedule.channel_stable_id || null);
+        } catch (err) {
+            console.error(`[Recordings] Could not resolve stream for schedule ${schedule.id}:`, err.message);
+            scheduledDb.setStatus(schedule.id, 'failed', { error: err.message });
+            return;
+        }
+    }
+
+    const root = await getRecordingsRoot();
+    const settings = await getSettings();
+    const minFreeGB = Number.isFinite(settings.minFreeSpaceGB) ? settings.minFreeSpaceGB : 10;
+    if (minFreeGB > 0) {
+        const space = hasFreeSpace(root, minFreeGB);
+        if (!space.ok) {
+            const msg = `Only ${space.freeGB.toFixed(1)} GB free at ${root}, below the ${minFreeGB} GB minimum`;
+            console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${msg}`);
+            scheduledDb.setStatus(schedule.id, 'failed', { error: msg });
+            return;
+        }
+    }
+
+    const channelDir = path.join(root, sanitizeForFs(schedule.channel_name || 'Unknown Channel'));
+    const baseName = `${sanitizeForFs(schedule.title)} - ${formatLocalStamp(schedule.program_start)}`;
+    const folder = uniqueFilePath(channelDir, baseName, '');
+    fs.mkdirSync(folder, { recursive: true });
+
+    const recording = recordingsDb.create({
+        scheduled_id: schedule.id,
+        title: schedule.title,
+        channel_name: schedule.channel_name,
+        channel_logo: schedule.channel_logo,
+        source_id: schedule.source_id,
+        channel_item_id: schedule.channel_item_id,
+        file_path: path.join(folder, 'index.m3u8'),
+        started_at: Date.now()
+    });
+    recordingsDb.setHls(recording.id, folder);
+
+    const intendedStart = schedule.program_start - (schedule.pre_buffer_min || 0) * 60000;
+    const lateBy = Date.now() - intendedStart;
+
+    coordinator.clearPrompt(schedule.id);
+    scheduledDb.setStatus(schedule.id, 'recording', { recording_id: recording.id });
+
+    const recorder = new HlsRecorder({ dir: folder, from: intendedStart, to: stopTimeOf(schedule), label: `Recording #${recording.id}` });
+    const entry = { kind: 'hls', proc: null, recordingId: recording.id, schedule, url: streamUrl, recorder, tuner: null, hardStopTimer: null, stderrTail: [] };
+    active.set(schedule.id, entry);
+    await recorder.writePlaylist(); // an (empty) EVENT playlist from the first moment
+
+    console.log(`[Recordings] Starting recording #${recording.id} for schedule #${schedule.id}: "${schedule.title}" -> ${folder} (from a tuner)`);
+    await attachTuner(schedule.id, entry, settings);
+
+    // What the tuner already held (its window, from 0128 hours of it) may cover the
+    // pre-buffer; the recording is only partial by what no tuner had.
+    const firstPdt = recorder.segments.length ? recorder.segments[0].pdt : Date.now();
+    const missed = firstPdt - intendedStart;
+    if (lateBy > 30000 && missed > 30000) {
+        recordingsDb.markPartial(recording.id, missed);
+        console.log(`[Recordings] #${recording.id} starts ${Math.round(missed / 60000)} min into the programme`);
+    }
+
+    const msUntilStop = Math.max(0, stopTimeOf(schedule) - Date.now());
+    entry.hardStopTimer = setTimeout(() => {
+        console.log(`[Recordings] Scheduled stop time reached for schedule ${schedule.id}`);
+        stopRecording(schedule.id, 'completed').catch(err =>
+            console.error('[Recordings] Error stopping recording:', err.message));
+    }, msUntilStop);
+}
+
+/** Hold the channel's tuner (sharing a viewer's, or starting one) and take its segments. */
+async function attachTuner(scheduleId, entry, settings) {
+    if (entry.attaching || entry.finalizing) return;
+    entry.attaching = true;
+    try {
+        const playbackStrategy = require('./playbackStrategy');
+        const { tuner: t, shared } = await playbackStrategy.acquireTunerForRecording({
+            url: entry.url,
+            settings: { ...settings, ffmpegPath },
+            ffprobePath
+        });
+        if (entry.finalizing) return;
+        tunerModel.hold(t, holdKey(scheduleId));
+        entry.tuner = t;
+        entry.recorder.attach(t);
+        t.once('ended', () => {
+            if (entry.tuner !== t) return;
+            entry.tuner = null;
+            if (!entry.finalizing) console.warn(`[Recordings] #${entry.recordingId} lost its tuner; taking the channel up again`);
+        });
+        console.log(`[Recordings] #${entry.recordingId} ${shared ? 'shares' : 'started'} tuner ${t.id}`);
+    } catch (err) {
+        console.error(`[Recordings] #${entry.recordingId} could not take the channel: ${redact(err.message)}`);
+        entry.lastError = err.message;
+    } finally {
+        entry.attaching = false;
+    }
+}
+
+async function retuneRecordings(now = Date.now()) {
+    for (const [scheduleId, entry] of active) {
+        if (entry.kind !== 'hls' || entry.tuner || entry.attaching || entry.finalizing) continue;
+        if (now >= stopTimeOf(entry.schedule)) continue;
+        const settings = await getSettings();
+        const verdict = await coordinator.requestForRecordingTuned(entry.schedule, settings, entry.url);
+        if (verdict.allowed) await attachTuner(scheduleId, entry, settings);
+    }
+}
+
+async function finalizeTunedRecording(scheduleId, entry) {
+    if (entry.finalizing) return entry.finalizing;
+    entry.finalizing = (async () => {
+        if (entry.hardStopTimer) clearTimeout(entry.hardStopTimer);
+        const t = entry.tuner;
+        // The segments ffmpeg has closed by now belong to the recording.
+        if (t) await t.ingest().catch(() => {});
+        await entry.recorder.finish();
+        entry.tuner = null;
+        await tunerModel.unhold(t, holdKey(scheduleId));
+        active.delete(scheduleId);
+
+        const recorder = entry.recorder;
+        const success = recorder.segments.length > 0;
+        const why = entry.lastError ? redact(entry.lastError) : 'No segments were received from the tuner';
+        recordingsDb.finish(entry.recordingId, {
+            status: success ? 'completed' : 'failed',
+            ended_at: Date.now(),
+            file_size_bytes: recorder.bytes,
+            duration_sec: Math.round(recorder.durationSec()),
+            error: success ? null : why
+        });
+        scheduledDb.setStatus(scheduleId, success ? 'completed' : 'failed', success ? {} : { error: `Recording failed: ${why}` });
+        console.log(`[Recordings] Recording #${entry.recordingId} finished (${success ? 'completed' : 'failed'}), ` +
+            `${recorder.segments.length} segments, ${Math.round(recorder.durationSec())}s, ${recorder.bytes} bytes ` +
+            `(${recorder.links.link} linked, ${recorder.links.copy} copied)`);
+        if (success && !entry.noJoin) queueJoin(entry.recordingId);
+    })();
+    return entry.finalizing;
+}
+
+/** The recording's segments so far, for /playback's durationSec while it records. */
+function tunedRecordingProgress(recordingId) {
+    for (const entry of active.values()) {
+        if (entry.kind === 'hls' && entry.recordingId === recordingId) {
+            return { durationSec: Math.round(entry.recorder.durationSec()), segments: entry.recorder.segments.length };
+        }
+    }
+    return null;
+}
+
+async function reconcileTunedRecording(recordingId) {
+    const rec = recordingsDb.getById(recordingId);
+    const closed = rec && rec.hls_dir ? await closeOrphanPlaylist(rec.hls_dir) : null;
+    recordingsDb.finish(recordingId, {
+        status: closed ? 'completed' : 'failed',
+        ended_at: Date.now(),
+        file_size_bytes: null,
+        duration_sec: closed ? Math.round(closed.durationSec) : null,
+        error: 'Server restarted while this recording was in progress.'
+    });
+    if (closed) queueJoin(recordingId);
+}
+
+// One join at a time: a stream copy, but hours of it on the recordings disk.
+let joinChain = Promise.resolve();
+const joinsPending = new Set();
+
+function queueJoin(recordingId) {
+    if (joinsPending.has(recordingId)) return joinChain;
+    joinsPending.add(recordingId);
+    joinChain = joinChain
+        .then(() => joinHlsRecording(recordingId))
+        .catch(err => console.error(`[Recordings] Could not join #${recordingId} into an MP4:`, err.message))
+        .finally(() => joinsPending.delete(recordingId));
+    return joinChain;
+}
+
+/**
+ * The finished recording's segments as one MP4 (stream copy; the same arguments
+ * as the native-playback remux: hvc1 for HEVC, ASC for AAC, +faststart), for
+ * download and ad detection. It becomes file_path; the HLS folder stays.
+ */
+async function joinHlsRecording(recordingId) {
+    const rec = recordingsDb.getById(recordingId);
+    if (!rec || rec.format !== 'hls' || !rec.hls_dir || rec.status !== 'completed') return;
+    if (!String(rec.file_path).endsWith('.m3u8')) return; // already joined
+    const index = path.join(rec.hls_dir, 'index.m3u8');
+    const output = path.join(rec.hls_dir, `${path.basename(rec.hls_dir)}.mp4`);
+    const partial = `${output}.partial`;
+    try { fs.unlinkSync(partial); } catch (e) { /* none */ }
+
+    const codecs = await nativeTools.codecs(index);
+    const args = buildNativeRemuxArgs(index, partial, codecs);
+    console.log(`[Recordings] Joining #${recordingId} into ${output}`);
+    const result = await nativeTools.ffmpeg(args);
+    if (result.code !== 0 || !fs.existsSync(partial)) {
+        try { fs.unlinkSync(partial); } catch (e) { /* nothing to clean */ }
+        console.error(`[Recordings] Join of #${recordingId} failed:\n  ${result.tail.join('\n  ')}`);
+        recordingsDb.setAdDetectStatus(recordingId, 'failed', 'The recording could not be joined into a single file');
+        return;
+    }
+    const joined = await nativeTools.duration(partial);
+    if (rec.duration_sec && joined && joined < rec.duration_sec * 0.95) {
+        try { fs.unlinkSync(partial); } catch (e) { /* nothing to clean */ }
+        console.error(`[Recordings] Join of #${recordingId} is short (${Math.round(joined)}s of ${rec.duration_sec}s); keeping only the segments`);
+        recordingsDb.setAdDetectStatus(recordingId, 'failed', 'The joined file was incomplete');
+        return;
+    }
+    fs.renameSync(partial, output);
+    verifiedNativeFiles.add(output);
+    recordingsDb.setFilePath(recordingId, output);
+    // Detection is queued the way a finished .mkv's is (finalizeRecording).
+    try { recordingsDb.setAdDetectStatus(recordingId, 'pending'); } catch (e) { /* old database */ }
+    console.log(`[Recordings] #${recordingId} joined (${Math.round(joined || 0)}s)`);
+}
+
+/** rm -r a recording's folder, only when it is <root>/<channel>/<recording>. */
+async function removeRecordingFolder(dir) {
+    const root = path.resolve(await getRecordingsRoot());
+    const target = path.resolve(dir);
+    const rel = path.relative(root, target);
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel) || rel.split(path.sep).length !== 2) {
+        console.warn(`[Recordings] Not deleting ${target}: not a recording folder under ${root}`);
+        return;
+    }
+    await fs.promises.rm(target, { recursive: true, force: true });
+    for (const f of [...verifiedNativeFiles]) if (f.startsWith(target + path.sep)) verifiedNativeFiles.delete(f);
+}
+
 async function tick() {
     // Guard against overlap: if a previous tick is still resolving stream
     // URLs / spawning ffmpeg when the next interval fires, skip this one
@@ -1106,11 +1380,26 @@ async function tick() {
                 continue;
             }
 
+            // The tuner model (0127): which channel matters to the coordinator, since
+            // a recording on a channel a tuner is already playing shares it.
+            let url = null;
+            if (tunerModel.enabled()) {
+                try {
+                    url = await resolveStreamUrl(schedule.source_id, schedule.channel_item_id, schedule.channel_stable_id || null);
+                } catch (err) {
+                    console.error(`[Recordings] Could not resolve stream for schedule ${schedule.id}:`, err.message);
+                    scheduledDb.setStatus(schedule.id, 'failed', { error: err.message });
+                    continue;
+                }
+            }
+
             // The provider may allow only one connection, and a viewer may be
             // using it. The coordinator decides; this loop just respects the
             // answer and tries again next tick, which is what makes a declined
             // recording start the moment playback stops.
-            const verdict = await coordinator.requestForRecording(schedule, settings);
+            const verdict = tunerModel.enabled()
+                ? await coordinator.requestForRecordingTuned(schedule, settings, url)
+                : await coordinator.requestForRecording(schedule, settings);
             if (!verdict.allowed) {
                 if (schedule.status !== 'waiting') {
                     scheduledDb.setStatus(schedule.id, 'waiting', { error: verdict.reason });
@@ -1118,8 +1407,12 @@ async function tick() {
                 continue;
             }
 
-            await startRecording(schedule);
+            await startRecording(schedule, url);
         }
+
+        // A recording whose tuner went away (stalled, or its ffmpeg ended) takes
+        // the channel up again as soon as the coordinator allows.
+        if (tunerModel.enabled()) await retuneRecordings(now);
 
         // Give a viewer notice before a recording is actually due, rather than
         // at the moment it needs the stream.
@@ -1129,7 +1422,14 @@ async function tick() {
             if (schedule.status !== 'scheduled' && schedule.status !== 'waiting') continue;
             const startsAt = schedule.program_start - (schedule.pre_buffer_min || 0) * 60000;
             if (startsAt - now <= leadMs && startsAt > now) {
-                coordinator.announceUpcoming(schedule, settingsForLead);
+                if (tunerModel.enabled()) {
+                    // No warning when the recording will share the tuner a viewer is on.
+                    let url = null;
+                    try { url = await resolveStreamUrl(schedule.source_id, schedule.channel_item_id, schedule.channel_stable_id || null); } catch (e) { /* warned as before */ }
+                    coordinator.announceUpcomingTuned(schedule, settingsForLead, url);
+                } else {
+                    coordinator.announceUpcoming(schedule, settingsForLead);
+                }
             }
         }
 
@@ -1221,6 +1521,9 @@ module.exports = {
     startNativePlaybackAndWait,
     buildNativeRemuxArgs,
     buildCompressArgs,
+    tunedRecordingProgress,
+    queueJoin,
+    tick,
     // Test seam: stand-ins for the ffmpeg/ffprobe calls behind native playback.
     _nativeTools: nativeTools
 };

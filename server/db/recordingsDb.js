@@ -79,7 +79,13 @@ function initSchema() {
         'is_partial INTEGER DEFAULT 0',
         'missed_start_ms INTEGER',   // how much of the programme was already gone
         'ad_detect_status TEXT',     // null|pending|running|done|failed|unavailable
-        'ad_detect_error TEXT'
+        'ad_detect_error TEXT',
+        // 0127, the tuner model: 'hls' for a recording taken from a tuner's segments
+        // (its folder, hls_dir, holds index.m3u8 and the segments; file_path is that
+        // playlist until the joined MP4 exists). NULL for the .mkv recordings. Added
+        // only once PIGTV_TUNER=1 has been used, so with the tuner never on, the
+        // recordings API's rows are exactly as before.
+        ...(require('../services/tuner').enabled() ? ['format TEXT', 'hls_dir TEXT'] : [])
     ]) {
         try {
             db.exec(`ALTER TABLE recordings ADD COLUMN ${col}`);
@@ -237,11 +243,26 @@ const recordings = {
     findPendingAdDetection() {
         const db = getDb();
         initSchema();
+        // An HLS recording (0127) is analysed once it has been joined into an MP4.
         return db.prepare(`
             SELECT * FROM recordings
             WHERE status = 'completed' AND ad_detect_status = 'pending'
+              AND file_path NOT LIKE '%.m3u8'
             ORDER BY ended_at ASC
         `).all();
+    },
+
+    /** 0127: this recording is taken from a tuner, into this folder. */
+    setHls(id, dir) {
+        const db = getDb();
+        initSchema();
+        db.prepare("UPDATE recordings SET format = 'hls', hls_dir = ? WHERE id = ?").run(dir, id);
+    },
+
+    setFilePath(id, filePath) {
+        const db = getDb();
+        initSchema();
+        db.prepare('UPDATE recordings SET file_path = ? WHERE id = ?').run(filePath, id);
     },
 
     replaceMarkers(recordingId, markers, source = 'comskip') {
@@ -312,6 +333,7 @@ const recordings = {
         return db.prepare(`
             SELECT * FROM recordings
             WHERE status = 'completed' AND compress_status = 'pending'
+              AND file_path NOT LIKE '%.m3u8'
             ORDER BY ended_at ASC
         `).all();
     },

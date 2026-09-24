@@ -71,7 +71,11 @@ router.get('/', async (req, res) => {
             ...(require('../services/channelNumbers').numbersEnabled() ? { channelNumbers: true } : {}),
             // 0119 (C-D): a `direct` resolve's url is /api/proxy/stream?h=<opaque handle>.
             // Absent when PIGTV_PLAYBACK_HANDLES=0 (the rollback).
-            ...(require('../services/playbackHandles').handlesEnabled() ? { playbackHandles: true } : {})
+            ...(require('../services/playbackHandles').handlesEnabled() ? { playbackHandles: true } : {}),
+            // 0127 (C-E): recordings are taken from tuners and may be played as HLS
+            // (GET /api/recordings/:id/playback answers container "hls", also while
+            // recording). Only with PIGTV_TUNER=1.
+            ...(require('../services/tuner').enabled() ? { recordingHls: true } : {})
         },
 
         // What the server can produce, so a client knows what to ask for.

@@ -231,5 +231,8 @@ router.delete('/sessions/all', async (req, res) => {
     }
 });
 
+// Shared with the recordings' own playlists (0127).
+router.withStreamToken = withStreamToken;
+
 module.exports = router;
 

@@ -1647,6 +1647,23 @@ check test/tuner.test.js "two devices on the same channel share one tuner" "with
 check test/tuner.test.js "409 at the limit of 1" "a 409 test for different arguments"
 check test/tuner-off.test.js "off by default" "and an env-off test"
 
+echo "=== 0127: the tuner model, T2 - recordings take segments from a tuner ==="
+check server/services/recordingEngine.js "if (tunerModel.enabled()) return startTunedRecording(schedule, knownUrl);" "a recording uses a tuner only when the tuner is on"
+check server/services/recordingEngine.js "requestForRecordingTuned(schedule, settings, url)" "the coordinator lets a recording share the channel's tuner"
+check server/services/playbackStrategy.js "const running = tuner.findByUrl(url);" "a recording joins any tuner already on its channel"
+check server/services/hlsRecorder.js "playlistType: this.finished ? 'VOD' : 'EVENT'" "EVENT while recording, VOD when done"
+check server/services/hlsRecorder.js "await fs.link(from, to);" "segments are hard-linked where the volume allows"
+check server/services/recordingEngine.js "const args = buildNativeRemuxArgs(index, partial, codecs);" "the finished recording is joined with the stream-copy remux arguments"
+check server/services/recordingEngine.js "rel.split(path.sep).length !== 2" "deleting only ever removes a <root>/<channel>/<recording> folder"
+check server/db/recordingsDb.js "AND file_path NOT LIKE '%.m3u8'" "ad detection and compression wait for the joined MP4"
+check server/db/recordingsDb.js "require('../services/tuner').enabled() ? \['format TEXT', 'hls_dir TEXT'\]" "the new columns appear only once the tuner is used"
+check server/routes/recordings.js "router.get('/:id/index.m3u8'" "GET /api/recordings/:id/index.m3u8"
+check server/routes/recordings.js "container: 'hls'," "the playback answer for an HLS recording"
+check server/routes/info.js "recordingHls: true" "flag recordingHls"
+check test/api-404.test.js "\['GET', '/api/recordings/1/index.m3u8'\]" "the new Apple routes are in APPLE_CLIENT_ROUTES"
+check test/tuner-recordings.test.js "watching and recording one channel is one tuner" "with a shared-tuner test"
+check test/tuner-off.test.js "off: /api/info carries none of the tuner flags" "and the flags are absent when off"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

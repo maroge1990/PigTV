@@ -19,6 +19,8 @@ process.chdir(sandbox);
 const load = p => require(path.join(sandbox, 'server', p));
 const tuner = load('services/tuner');
 const hls = load('services/hlsPlaylist');
+const { HlsRecorder } = load('services/hlsRecorder');
+const { buildNativeRemuxArgs } = load('services/recordingEngine');
 
 const source = path.join(sandbox, 'source.ts');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -80,6 +82,60 @@ for (const segmentType of ['fmp4', 'mpegts']) {
                 } else {
                     assert.equal(served.map, null);
                 }
+            } finally {
+                tuner.hooks.spawnArgs = null;
+                await tuner.destroyAll('test over');
+            }
+        });
+}
+
+// 0127: a recording's own folder (hlsRecorder) from a real tuner, joined into one MP4
+// with the recording engine's arguments (stream copy), as the engine does when a
+// recording finishes: the playlist plays, and the MP4 is the whole recording.
+for (const segmentType of ['fmp4', 'mpegts']) {
+    test(`a recording kept from a real tuner (${segmentType}) plays as HLS and joins into one MP4 without re-encoding`,
+        { skip: !haveFfmpeg && 'ffmpeg is not installed here' }, async () => {
+            const { tuner: t } = tuner.prepare('http://provider.invalid/live/2.ts', {
+                ffmpegPath: 'ffmpeg', videoMode: 'copy', segmentType, videoCodec: 'h264',
+                audioCodec: 'aac', audioChannels: 2, audioMode: segmentType === 'fmp4' ? 'copy' : undefined
+            });
+            tuner.hooks.spawnArgs = (x) => {
+                const a = x.buildTunerArgs();
+                for (const flag of ['-user_agent', '-reconnect', '-reconnect_streamed', '-reconnect_delay_max']) {
+                    const i = a.indexOf(flag);
+                    if (i >= 0) a.splice(i, 2);
+                }
+                a[a.indexOf('-i') + 1] = source;
+                return a;
+            };
+            const folder = path.join(sandbox, `rec-${segmentType}`);
+            fs.mkdirSync(folder);
+            try {
+                tuner.register(t);
+                tuner.hold(t, 'rec:1');
+                const recorder = new HlsRecorder({ dir: folder, from: 0, to: Infinity });
+                recorder.attach(t);
+                await tuner.start(t);
+                for (let i = 0; i < 100 && !t.ended; i++) { await t.ingest(); await sleep(100); }
+                await recorder.finish();
+                const index = path.join(folder, 'index.m3u8');
+                const text = fs.readFileSync(index, 'utf8');
+                assert.match(text, /#EXT-X-PLAYLIST-TYPE:VOD\n/);
+                assert.match(text, /#EXT-X-ENDLIST\n$/);
+                assert.equal(recorder.segments.length, t.window.length, 'every segment the tuner made');
+
+                const probe = (file) => JSON.parse(spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration:stream=codec_name',
+                    '-of', 'json', file], { encoding: 'utf8' }).stdout);
+                const hlsProbe = probe(index);
+                assert.ok(Number(hlsProbe.format.duration) > 12, `the playlist plays (${hlsProbe.format.duration}s)`);
+
+                const out = path.join(folder, 'joined.mp4');
+                const join = spawnSync('ffmpeg', buildNativeRemuxArgs(index, out, { video: 'h264', audio: 'aac' }), { encoding: 'utf8' });
+                assert.equal(join.status, 0, join.stderr);
+                const mp4 = probe(out);
+                assert.deepEqual(mp4.streams.map(x => x.codec_name).sort(), ['aac', 'h264']);
+                assert.ok(Math.abs(Number(mp4.format.duration) - recorder.durationSec()) < 0.5,
+                    `the MP4 is the whole recording (${mp4.format.duration}s vs ${recorder.durationSec()}s)`);
             } finally {
                 tuner.hooks.spawnArgs = null;
                 await tuner.destroyAll('test over');
