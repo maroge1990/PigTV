@@ -77,3 +77,14 @@ A Labs section in Settings with persistent toggles, all off by default:
 `library/guide` and `library/channels` rows gain optional `health`: `"ok" | "flaky" | null`. `flaky` means that in the
 last 7 days the channel failed to start ≥2 times, or failed more than 30% of the time. The Apple guide shows a small
 warning dot on flaky channels.
+
+## C-H. Sport categories for the Home screen (25 Sept). Flag: `sportCategories`
+
+Mark picks which categories count as sport (web admin). The Apple Home screen's "Sport on now" row shows only channels
+from those categories.
+- `library/categories` rows gain `sport: bool`.
+- Admin: `PUT /api/library/categories/sport` body `{ sourceId, categoryId, sport: bool }` → `{ success }` (admin only;
+  bumps `library_rev`). Stored per category (source_id + category_id); survives syncs.
+- Web: Settings → Sources' category list (or a small "Home screen" panel) gets a Sport toggle per category.
+- Apple: with the flag, "Sport on now" = guide channels whose category is marked sport, showing what's on now, live
+  programmes first. Without the flag, or with none marked, the row is hidden.
