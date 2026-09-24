@@ -31,7 +31,11 @@ function currentGuideVersion() {
     const rev = db.prepare(`SELECT value FROM meta WHERE key = 'library_rev'`).get()?.value || '0';
     const gens = db.prepare(`SELECT source_id, active_gen FROM epg_state ORDER BY source_id`).all()
         .map(r => `${r.source_id}:${r.active_gen}`).join(',');
-    return `${rev}:${gens}`;
+    // The build is part of the version (0140): a deploy can change how rows are
+    // built or ordered (0139 did) without any data changing, and a client
+    // holding a cached guide must reload it once rather than keep the old shape.
+    const { build } = require('../version');
+    return `${build}:${rev}:${gens}`;
 }
 
 module.exports = { bumpLibraryRev, currentGuideVersion };

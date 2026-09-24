@@ -1778,6 +1778,9 @@ echo "=== 0139: channel numbers are labels; the guide keeps the provider's order
 check server/routes/library.js "const numbered = false" "the guide never orders by number"
 check test/channel-numbers.test.js "numbers never reorder the guide" "with a test"
 
+echo "=== 0140: a deploy refreshes cached guides once ==="
+check server/services/libraryRev.js "build}:\${rev}" "the guide version includes the build"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys
