@@ -1,4 +1,5 @@
 const { getDb } = require('../db/sqlite');
+const { stripBadgeSuffix } = require('./textCleanup');
 const { bumpLibraryRev } = require('./libraryRev');
 const { refreshChannelNumbers } = require('./channelNumbers');
 const { stableChannelId, summarise } = require('./stableIds');
@@ -371,7 +372,8 @@ class SyncService {
 
                 if (type === 'live') {
                     itemId = item.stream_id;
-                    name = item.name || `Channel ${item.stream_id}`;
+                    // 0138: the Xtream path too (the M3U parser already strips it).
+                    name = stripBadgeSuffix(item.name) || `Channel ${item.stream_id}`;
                     catId = item.category_id;
                     icon = item.stream_icon;
                     added = item.added;

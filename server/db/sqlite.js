@@ -400,12 +400,50 @@ function initSchema() {
     }
 
     normalizeFavoriteIds();
+    stripStoredBadges();
     backfillStableIds();
     backfillTvgIds();
     backfillFavoriteIdentities();
     backfillHistoryIdentities();
 
     console.log('[SQLite] Schema initialized');
+}
+
+// Where a name or title was stored before 0099 stripped the badge at ingest.
+const BADGE_COLUMNS = [
+    ['playlist_items', 'name'],
+    ['epg_programs', 'title'],
+    ['channel_history', 'channel_name'],
+    ['scheduled_recordings', 'title'],
+    ['scheduled_recordings', 'channel_name'],
+    ['recordings', 'title'],
+    ['recordings', 'channel_name']
+];
+
+/**
+ * 0138: strip the small-caps "ᴸɪᴠᴇ" / "ɴᴇᴡ" badge (services/textCleanup.js,
+ * 0099) from names and titles stored before ingest stripped it. Once per
+ * database (meta `badge_cleanup`): everything written since is stripped on the
+ * way in, and a sync replaces most of it anyway. Tables that do not exist yet
+ * (the recording tables, before the engine first starts) are skipped; they are
+ * only ever written by code that strips. A name that is ONLY a badge is kept.
+ */
+function stripStoredBadges() {
+    if (db.prepare(`SELECT 1 FROM meta WHERE key = 'badge_cleanup'`).get()) return 0;
+    const { stripBadgeSuffix } = require('../services/textCleanup');
+    db.function('pigtv_strip_badge', { deterministic: true }, (v) => (typeof v === 'string' ? (stripBadgeSuffix(v) || v) : v));
+    const tables = new Set(db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`).all().map(r => r.name));
+    let changed = 0;
+    db.transaction(() => {
+        for (const [table, column] of BADGE_COLUMNS) {
+            if (!tables.has(table)) continue;
+            changed += db.prepare(`UPDATE ${table} SET ${column} = pigtv_strip_badge(${column})
+                                   WHERE ${column} IS NOT NULL AND ${column} <> pigtv_strip_badge(${column})`).run().changes;
+        }
+        db.prepare(`INSERT INTO meta (key, value) VALUES ('badge_cleanup', ?)`).run(String(Date.now()));
+    })();
+    if (changed) console.log(`[SQLite] Removed the small-caps badge from ${changed} stored name(s) and title(s)`);
+    return changed;
 }
 
 /**
@@ -648,5 +686,6 @@ module.exports = {
     backfillTvgIds,
     backfillFavoriteIdentities,
     backfillHistoryIdentities,
+    stripStoredBadges,
     favorites
 };

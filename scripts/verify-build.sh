@@ -1762,6 +1762,18 @@ check server/routes/transcode.js "res.sendFile(segmentPath, { dotfiles: 'allow' 
 check server/routes/recordings.js "res.sendFile(file, { dotfiles: 'allow' });" "and recording segments"
 check test/express5.test.js "a port already in use stops the server" "with a test against the real server"
 
+echo "=== 0138: carried-over small items ==="
+check server/routes/info.js "await sendInfo(req, res);" "/api/info answers even when something inside fails"
+check server/routes/info.js "...safely(() => (require('../services/tuner').timeshiftEnabled()" "a failing feature check drops only its flag"
+check server/db/sqlite.js "function stripStoredBadges()" "stored badges are stripped once"
+check server/db/sqlite.js "SELECT 1 FROM meta WHERE key = 'badge_cleanup'" "and only once"
+check server/services/syncService.js "name = stripBadgeSuffix(item.name)" "the Xtream ingest path strips the badge"
+check server/routes/recordings.js "const suffix = parseInt(parts\[1\], 10);" "a suffix Range is served"
+check test/carried-over-0138.test.js "the EPG parser loses nothing under bursty input" "P2-8: EPG parser under bursty input"
+check test/carried-over-0138.test.js "carries the token onto init.mp4 and every .m4s" "P2-8: the token on fMP4 segments"
+check test/carried-over-0138.test.js "a recording answers Range requests" "P2-8: recordings Range"
+check test/playback-arbitration.test.js "a device changing channel replaces its own old stream without a prompt" "P2-8: the slot holder re-resolving (existing test)"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

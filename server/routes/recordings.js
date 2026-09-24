@@ -25,11 +25,23 @@ function serveWithRangeSupport(req, res, filePath, contentType) {
     const range = req.headers.range;
 
     if (range) {
-        const parts = range.replace(/bytes=/, '').split('-');
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        // One range (a player never asks for several; only the first is served).
+        // 0138: RFC 9110 forms the old parser refused with a 416: a suffix range
+        // ("bytes=-500", the last 500 bytes) and a last byte past the end of the
+        // file, which means "to the end".
+        const parts = range.replace(/bytes=/, '').split(',')[0].trim().split('-');
+        let start, end;
+        if (parts[0] === '' && parts[1]) {
+            const suffix = parseInt(parts[1], 10);
+            start = Math.max(0, fileSize - suffix);
+            end = fileSize - 1;
+            if (isNaN(suffix) || suffix <= 0) start = NaN;
+        } else {
+            start = parseInt(parts[0], 10);
+            end = parts[1] ? Math.min(parseInt(parts[1], 10), fileSize - 1) : fileSize - 1;
+        }
 
-        if (isNaN(start) || isNaN(end) || start > end || end >= fileSize) {
+        if (isNaN(start) || isNaN(end) || start > end || start >= fileSize) {
             res.set('Content-Range', `bytes */${fileSize}`);
             return res.status(416).end();
         }

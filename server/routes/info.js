@@ -18,7 +18,21 @@ const router = express.Router();
 // different rates.
 const API_VERSION = 1;
 
-router.get('/', async (req, res) => {
+/**
+ * A switchable flag's `{name: true}` or `{}`. A check that throws (a settings
+ * or database failure behind it) leaves that flag out and is logged, so
+ * /api/info still answers (0138); a client then does not use that feature.
+ */
+function safely(flag) {
+    try {
+        return flag();
+    } catch (err) {
+        console.warn('[Info] A feature check failed:', err.message);
+        return {};
+    }
+}
+
+async function sendInfo(req, res) {
     const pkg = require('../../package.json');
     const build = require('../version');
 
@@ -68,18 +82,18 @@ router.get('/', async (req, res) => {
             logoCache: true,                 // library `logo` fields are /api/logo/<key>, fetched and cached server-side
             // 0117 (C-A): library rows carry `number`; guide/channels are ordered by it.
             // Absent when PIGTV_CHANNEL_NUMBERS=0 (the rollback).
-            ...(require('../services/channelNumbers').numbersEnabled() ? { channelNumbers: true } : {}),
+            ...safely(() => (require('../services/channelNumbers').numbersEnabled() ? { channelNumbers: true } : {})),
             // 0119 (C-D): a `direct` resolve's url is /api/proxy/stream?h=<opaque handle>.
             // Absent when PIGTV_PLAYBACK_HANDLES=0 (the rollback).
-            ...(require('../services/playbackHandles').handlesEnabled() ? { playbackHandles: true } : {}),
+            ...safely(() => (require('../services/playbackHandles').handlesEnabled() ? { playbackHandles: true } : {})),
             // 0127 (C-E): recordings are taken from tuners and may be played as HLS
             // (GET /api/recordings/:id/playback answers container "hls", also while
             // recording). Only with PIGTV_TUNER=1.
-            ...(require('../services/tuner').enabled() ? { recordingHls: true } : {}),
+            ...safely(() => (require('../services/tuner').enabled() ? { recordingHls: true } : {})),
             // 0128 (C-E): a live playlist may be hours long (timeshift), with
             // PROGRAM-DATE-TIME, delta updates and gzip. Only with PIGTV_TUNER=1 and
             // PIGTV_TIMESHIFT_HOURS above 0 (default 3).
-            ...(require('../services/tuner').timeshiftEnabled() ? { timeshift: true } : {}),
+            ...safely(() => (require('../services/tuner').timeshiftEnabled() ? { timeshift: true } : {})),
             // 0133 (C-G): library/guide and library/channels rows carry `health`
             // ("ok" | "flaky" | null) from the last 7 days' starts.
             channelHealth: true
@@ -94,6 +108,22 @@ router.get('/', async (req, res) => {
             hlsSegmentDuration: 4
         }
     });
+}
+
+router.get('/', async (req, res) => {
+    try {
+        await sendInfo(req, res);
+    } catch (err) {
+        // 0138: a client checks this before anything else, so it must get an
+        // answer that identifies the server even when a feature check (a
+        // settings or database read behind it) failed. No flags: a client then
+        // uses none of the optional features, which is the safe reading.
+        console.error('[Info] failed:', err.message);
+        if (res.headersSent) return;
+        let build = {};
+        try { build = require('../version'); } catch { /* identity unknown */ }
+        res.json({ name: 'PigTV', build: build.build || null, display: build.display || null, apiVersion: API_VERSION, features: {} });
+    }
 });
 
 module.exports = router;
