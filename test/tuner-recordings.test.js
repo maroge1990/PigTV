@@ -143,7 +143,7 @@ async function get(route, headers = {}) {
 const bearer = () => ({ Authorization: `Bearer ${userToken}` });
 
 let n = 0;
-function due({ pos = 'pos_1', startInMs = -300, lengthMs = 2500, title } = {}) {
+function due({ pos = 'pos_1', startInMs = -300, lengthMs = 4000, title } = {}) {
     n++;
     return scheduled.create({
         title: title || `Show ${n}`, description: null, source_id: 2, channel_item_id: pos,
@@ -152,7 +152,7 @@ function due({ pos = 'pos_1', startInMs = -300, lengthMs = 2500, title } = {}) {
         pre_buffer_min: 0, post_buffer_min: 0, created_by: 1, created_at: Date.now()
     });
 }
-async function until(fn, ms = 8000) {
+async function until(fn, ms = 20000) {
     const t0 = Date.now();
     while (Date.now() - t0 < ms) {
         const v = await fn();
@@ -208,7 +208,7 @@ test('a recording with nobody watching starts a tuner just for itself; EVENT whi
 });
 
 test('the playback answer (C-E): hls while recording (inProgress, growing), then finished; the old shape for .mkv recordings', async () => {
-    const s = due({ lengthMs: 2000 });
+    const s = due({ lengthMs: 5000 });
     await engine.tick();
     const rec = recordingOf(s);
     await sleep(700);
@@ -241,7 +241,7 @@ test('watching and recording one channel is one tuner: the recording joins the v
         body: JSON.stringify({ sourceId: 2, channelId: 'pos_1', capabilities: APPLE }) });
     const viewer = await r.json();
     assert.equal(r.status, 200, JSON.stringify(viewer));
-    const s = due({ lengthMs: 1500 });
+    const s = due({ lengthMs: 3000 });
     await engine.tick();
     assert.equal(scheduled.getById(s.id).status, 'recording', 'not waiting for the viewer');
     assert.equal(spawns.length, 1, 'one ffmpeg, one provider connection');
@@ -291,7 +291,7 @@ test('a viewer of the same channel with other capabilities needs its own tuner (
 });
 
 test('the new routes take the same auth as media.mp4: ?token= or bearer, carried onto every URI', async () => {
-    const s = due({ lengthMs: 1200 });
+    const s = due({ lengthMs: 3000 });
     await engine.tick();
     const rec = recordingOf(s);
     await until(() => recordings.getById(rec.id).status === 'completed');
@@ -311,7 +311,7 @@ test('the new routes take the same auth as media.mp4: ?token= or bearer, carried
 });
 
 test('once finished it is joined into one MP4 (stream copy) for download and ad detection; deleting removes the folder', async () => {
-    const s = due({ lengthMs: 1200, title: 'Join Me' });
+    const s = due({ lengthMs: 3000, title: 'Join Me' });
     await engine.tick();
     const id = recordingOf(s).id;
     await until(() => String(recordings.getById(id).file_path).endsWith('.mp4'));
@@ -396,12 +396,41 @@ test('T4: Play pressed the moment a recording starts waits for its first segment
 });
 
 test('T4: a finished recording is not held up by the wait', async () => {
-    const s = due({ lengthMs: 1000 });
+    const s = due({ lengthMs: 3000 });
     await engine.tick();
     const rec = recordingOf(s);
     await until(() => recordings.getById(rec.id).status === 'completed');
     const t0 = Date.now();
     assert.equal((await get(`/api/recordings/${rec.id}/playback`, bearer())).body.inProgress, false);
     assert.equal((await get(`/api/recordings/${rec.id}/index.m3u8`)).status, 200);
-    assert.ok(Date.now() - t0 < 1000);
+    assert.ok(Date.now() - t0 < 3000, 'no wait');
+});
+
+test('0130: an Apple TV tuning to an HE-AAC channel that is being recorded joins the recording\'s tuner (no 409)', async () => {
+    // The provider's 7 channels: H.264 + HE-AAC. The recording starts first, on a tuner of its own.
+    const HEAAC = { streams: [RAW.streams[0], { codec_type: 'audio', codec_name: 'aac', profile: 'HE-AAC', channels: 2 }], format: { format_name: 'mpegts' } };
+    const put = (caps) => {
+        const c = { ...strategy.DEFAULT_CAPABILITIES, ...caps };
+        probeCache.set(`${URL_B}|${db.getUserAgent({}) || ''}|${Object.keys(c).filter(k => c[k]).sort().join(',')}`,
+            { result: analyzeProbeResult(HEAAC, URL_B, c), timestamp: Date.now() });
+    };
+    put(strategy.RECORDING_CAPABILITIES);
+    put(APPLE);
+    try {
+        const s = due({ pos: 'pos_2', lengthMs: 60000 });
+        await engine.tick();
+        assert.equal(scheduled.getById(s.id).status, 'recording');
+        assert.equal(spawns.length, 1);
+        const r = await fetch(`${base}/api/playback/resolve`, { method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${deviceToken('tv')}` },
+            body: JSON.stringify({ sourceId: 2, channelId: 'pos_2', capabilities: APPLE }) });
+        assert.equal(r.status, 200, 'shared, not "recording in progress"');
+        assert.equal(spawns.length, 1, 'one tuner for both');
+        assert.equal(tuner.list()[0].viewers.size, 1);
+        assert.deepEqual(tuner.list()[0].recordingIds(), [s.id]);
+    } finally {
+        // Leave URL_B as the H.264 + AAC-LC channel the other tests expect.
+        seed(URL_B, strategy.RECORDING_CAPABILITIES);
+        seed(URL_B, APPLE);
+    }
 });

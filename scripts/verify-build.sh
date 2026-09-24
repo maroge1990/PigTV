@@ -1688,6 +1688,10 @@ check server/routes/recordings.js "if (inProgress) await recordingEngine.waitFor
 check server/routes/recordings.js "if (rec.status === 'recording') await recordingEngine.waitForFirstTunedSegment(rec.id);" "and the playlist"
 check test/tuner-recordings.test.js "T4: an in-progress recording plays from its start" "with a lifecycle test"
 
+echo "=== 0130: a recording's own tuner uses the Apple TV's default capabilities ==="
+check_absent server/services/playbackStrategy.js "ac3: true, eac3: true, flac: false, heaac: true" "no heaac in RECORDING_CAPABILITIES"
+check test/tuner-recordings.test.js "0130: an Apple TV tuning to an HE-AAC channel that is being recorded joins" "with a test"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="

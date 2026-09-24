@@ -414,13 +414,18 @@ async function resolveTuned({ url, capabilities = {}, settings, ffprobePath, ups
 }
 
 /**
- * The capabilities a recording's own tuner is planned with (0127): what the Apple
- * TV reports, so a recording and an Apple TV on the same channel usually share
- * one tuner whichever started first. HE-AAC is copied (the recording is joined
- * into an MP4 afterwards, where it plays fine).
+ * The capabilities a recording's own tuner is planned with (0127): exactly what
+ * the Apple TV reports by default, so a recording and an Apple TV on the same
+ * channel produce the same arguments and share one tuner whichever started first
+ * (for H.264/HEVC + AAC-LC the web's arguments are the same too). No `heaac`
+ * (0130): with it, a recording of an HE-AAC channel (the provider's 7 channels)
+ * copied the audio into fMP4 while an Apple TV there re-encodes it into MPEG-TS -
+ * two argument sets, so the TV was answered 409 "recording in progress" and
+ * forcing it stopped the recording. HE-AAC is therefore re-encoded to AAC-LC in a
+ * recording, as for a viewer, which also plays in a browser.
  */
 const RECORDING_CAPABILITIES = { hls: true, segmentedDelivery: true, fmp4: true, hevc: true, av1: false,
-    ac3: true, eac3: true, flac: false, heaac: true };
+    ac3: true, eac3: true, flac: false };
 
 /**
  * A tuner for a recording: the one already on this stream (whatever its
