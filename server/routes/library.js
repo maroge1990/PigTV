@@ -219,8 +219,10 @@ router.get('/channels', (req, res) => {
         const total = db.prepare(`SELECT COUNT(*) n FROM playlist_items p WHERE ${clause}`).get(...params).n;
 
         // 0117: by channel number first (nulls last) when numbering is on.
-        const numberOrder = channelNumbers.numbersEnabled()
-            ? `COALESCE(n.number, ${NUMBER_SENTINEL}) ASC, ` : '';
+        // 0139: numbers are labels only. The provider's order is kept, because it
+        // groups channels under their placeholder "header" channels (Mark,
+        // 24 Sept); ordering by number broke that grouping.
+        const numberOrder = '';
         const rows = db.prepare(`
             SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id,
                    n.number AS channel_number
@@ -375,7 +377,7 @@ router.get('/guide', (req, res) => {
 
         const total = db.prepare(`SELECT COUNT(*) n FROM playlist_items p WHERE ${clause}`).get(...params).n;
 
-        const numbered = channelNumbers.numbersEnabled();
+        const numbered = false; // 0139: never order the guide by number (see /channels above)
         let cursorKey = null;
         const pageWhere = [...where];
         const pageParams = [...params];

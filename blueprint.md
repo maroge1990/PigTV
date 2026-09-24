@@ -504,3 +504,4 @@ about 0 on the E-AC-3 channel.
 | 0136 | passport, passport-jwt and passport-local removed; bearer tokens and sign-in done with `jsonwebtoken`/`bcryptjs` directly, same semantics |
 | 0137 | Express 5 (`/{*splat}` fallback, `req.body` default, `extended` query parser, `dotfiles: 'allow'` for `.timeshift`, listen errors exit) |
 | 0138 | `/api/info` survives a failing feature check; stored badges stripped once and on the Xtream ingest path; P2-8 tests; recording Range accepts suffix and past-the-end ranges |
+| 0139 | Channel numbers are labels only: the guide and channel lists keep the provider's order, which groups channels under their placeholder channels (Mark's test 1.4 rejected ordering by number) |

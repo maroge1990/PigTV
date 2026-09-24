@@ -1774,6 +1774,10 @@ check test/carried-over-0138.test.js "carries the token onto init.mp4 and every 
 check test/carried-over-0138.test.js "a recording answers Range requests" "P2-8: recordings Range"
 check test/playback-arbitration.test.js "a device changing channel replaces its own old stream without a prompt" "P2-8: the slot holder re-resolving (existing test)"
 
+echo "=== 0139: channel numbers are labels; the guide keeps the provider's order ==="
+check server/routes/library.js "const numbered = false" "the guide never orders by number"
+check test/channel-numbers.test.js "numbers never reorder the guide" "with a test"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys
@@ -1792,3 +1796,4 @@ else
     echo "=== FAILED — do NOT push ==="
     exit 1
 fi
+

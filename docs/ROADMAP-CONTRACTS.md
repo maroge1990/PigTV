@@ -17,12 +17,12 @@ during testing.
   order (1, 2, 3…); a channel that appears later gets the next free number; a channel that disappears keeps its number
   reserved for 30 days. The admin can renumber in the web app.
 - `library/guide`, `library/channels`, `library/favourites`, `library/recent` rows gain `number` (int or null).
-- With `channelNumbers`, `library/guide` and `library/channels` are **ordered by `number`** (nulls last, then the old
-  order). The cursor from 0111 keeps working (its key includes the number).
+- Numbers are **labels only**: `library/guide` and `library/channels` keep the provider's order, which groups channels
+  under their placeholder channels (Mark, 24 Sept; 0117 ordered by number, and 0139 reverted that).
 - Admin API (web only): `GET /api/lineup` → `[{sourceId, id, stableId, name, number, category}]`;
   `PUT /api/lineup/numbers` body `{numbers: [{sourceId, id, number}]}` → `{success}`. Duplicate numbers → 400.
 - Apple: show the number on the guide's channel tile and in the player's channel list; channel up/down follows
-  guide order (now number order). No number entry on tvOS (the remote has no digits); iOS may offer "Go to number".
+  guide order (the provider's order). No number entry on tvOS (the remote has no digits); iOS may offer "Go to number".
 
 ## C-B. Resolve errors the client may show (roadmap A1.3). No flag (text match)
 

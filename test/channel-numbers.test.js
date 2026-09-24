@@ -102,8 +102,10 @@ test('a completed sync numbers the visible channels in guide order, once per ide
         [104, 'Delta', 'Sport']
     ]);
     const guide = await get('/api/library/guide?limit=50');
+    // Provider order is kept (0139): the cross-listed Alpha appears where each
+    // listing sits, sharing its number.
     assert.deepEqual(guide.channels.map(c => [c.name, c.number]), [
-        ['Alpha', 1], ['Alpha', 1], ['Bravo', 2], ['Charlie', 3], ['Delta', 4]
+        ['Alpha', 1], ['Bravo', 2], ['Charlie', 3], ['Alpha', 1], ['Delta', 4]
     ]);
     const channels = await get('/api/library/channels?limit=50');
     assert.deepEqual(numbersByName(channels.channels), { Alpha: 1, Bravo: 2, Charlie: 3, Delta: 4 });
@@ -134,9 +136,9 @@ test('a provider reorder keeps every number (identity, not position); a new chan
     assert.notEqual(bravoAfter, bravoBefore, 'the reorder really moved the position ids');
 
     const guide = await get('/api/library/guide?limit=50');
-    // Ordered by number: the old (playlist) order would put Echo first.
+    // Provider order (0139), with each channel keeping its number.
     assert.deepEqual(guide.channels.map(c => [c.name, c.number]), [
-        ['Alpha', 1], ['Bravo', 2], ['Delta', 4], ['Echo', 5]
+        ['Echo', 5], ['Delta', 4], ['Bravo', 2], ['Alpha', 1]
     ]);
     assert.ok(d.prepare(`SELECT 1 FROM channel_numbers WHERE number = 3`).get(), 'Charlie keeps 3 while it is gone');
 
@@ -201,7 +203,7 @@ test('PUT /api/lineup/numbers validates: admin only, positive whole numbers, no 
         'a refused request changes nothing');
 });
 
-test('PUT /api/lineup/numbers applies a swap, bumps the guide version, and the guide follows the new order', async () => {
+test('PUT /api/lineup/numbers applies a swap and bumps the guide version; the guide keeps provider order (0139)', async () => {
     const lineup = await get('/api/lineup');
     const id = name => lineup.find(r => r.name === name).id;
     const before = (await get('/api/library/guide/version')).version;
@@ -213,7 +215,9 @@ test('PUT /api/lineup/numbers applies a swap, bumps the guide version, and the g
     assert.deepEqual(r.body, { success: true });
     assert.notEqual((await get('/api/library/guide/version')).version, before, 'renumbering must change the guide version');
     const guide = await get('/api/library/guide?limit=50');
-    assert.deepEqual(guide.channels.map(c => c.name), ['Echo', 'Bravo', 'Delta', 'Alpha', 'Charlie']);
+    assert.deepEqual(guide.channels.map(c => [c.name, c.number]).filter(([n]) => ['Echo', 'Alpha'].includes(n)),
+        [['Echo', 1], ['Alpha', 5]]);
+    assert.deepEqual(guide.channels.map(c => c.name), ['Echo', 'Delta', 'Bravo', 'Alpha', 'Charlie']);
 });
 
 test('a number reserved for a vanished channel yields to the admin', async () => {
@@ -226,7 +230,7 @@ test('a number reserved for a vanished channel yields to the admin', async () =>
     assert.equal(d.prepare(`SELECT channel_key FROM channel_numbers WHERE number = 50`).get().channel_key, bravo.stableId);
 });
 
-test('cursor paging by number is exact: the same rows, once each, in the offset order', async () => {
+test('0139: numbers never reorder the guide; cursor paging stays exact in provider order', async () => {
     // Many channels, then a renumbering that scrambles number order against
     // playlist order and leaves some channels unnumbered (nulls sort last).
     const d = sqlite.getDb();
@@ -240,9 +244,12 @@ test('cursor paging by number is exact: the same rows, once each, in the offset 
     d.prepare(`DELETE FROM channel_numbers WHERE channel_key IN ('sb1', 'sb3', 'sb5')`).run(); // unnumbered
 
     const all = (await get('/api/library/guide?limit=500')).channels;
-    const keys = all.map(c => c.number ?? Infinity);
-    assert.deepEqual([...keys].sort((a, b) => a - b), keys, 'offset listing is ordered by number, nulls last');
-    assert.equal(all.at(-1).number, null);
+    // Provider order (sort_order, then name) is kept whatever the numbers say:
+    // it groups channels under their placeholder channels (Mark, 24 Sept).
+    const bulk = all.filter(c => c.id.startsWith('bulk_'));
+    const expected = [...bulk].sort((a, b) => (1000 + (Number(a.id.slice(5)) % 7)) - (1000 + (Number(b.id.slice(5)) % 7)) || a.name.localeCompare(b.name));
+    assert.deepEqual(bulk.map(c => c.id), expected.map(c => c.id), 'guide stays in provider order after a renumbering');
+    assert.ok(all.some(c => c.number === 200), 'numbers are still returned as labels');
 
     const paged = [];
     let cursor = null;
@@ -255,9 +262,6 @@ test('cursor paging by number is exact: the same rows, once each, in the offset 
     }
     assert.deepEqual(paged.map(c => c.id), all.map(c => c.id), 'cursor pages give the same rows in the same order as the offset listing');
 
-    // A cursor from the un-numbered ordering is refused rather than mis-paged.
-    const legacy = Buffer.from(JSON.stringify({ sk: 1, name: 'x', id: 'y' })).toString('base64');
-    assert.equal((await call('GET', `/api/library/guide?cursor=${encodeURIComponent(legacy)}`)).status, 400);
 });
 
 test('PIGTV_CHANNEL_NUMBERS=0 puts the guide back in its old order (numbers still present)', async () => {
