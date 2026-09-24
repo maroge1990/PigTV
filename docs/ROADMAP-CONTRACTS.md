@@ -90,3 +90,32 @@ from those categories.
 - Web: Settings → Sources' category list (or a small "Home screen" panel) gets a Sport toggle per category.
 - Apple: with the flag, "Sport on now" = guide channels whose category is marked sport, showing what's on now, live
   programmes first. Without the flag, or with none marked, the row is hidden.
+
+## C-I. Sport events (25 Sept, replaces the C-H Home row). Flag: `sportsEvents`
+
+Sport is recognised per **programme**, not per channel: about 100 channels carry NFL only some of the time.
+- **Server:** EPG programme categories are stored at ingest (XMLTV `<category>`). A programme is **sport** when any of these hold:
+  (a) one of its EPG categories matches the sport vocabulary (Sport(s), Football, American Football, Soccer, Basketball, Baseball,
+  Ice Hockey, Cricket, Rugby League/Union, Tennis, Golf, Motor Sport/Racing, Boxing, MMA, Cycling, Athletics, and similar,
+  case-insensitive); (b) its title or categories contain a **followed keyword** (admin list, e.g. "NFL", "AFL", "F1", "Chiefs");
+  (c) it's on a channel whose category is marked sport (C-H) **and** its title reads like a live event ("Live", "vs", "v ").
+  Common non-events are excluded unless a followed keyword matches: News, Highlights, Preview, Replay, Classic, Magazine.
+- **Events:** sport programmes airing at overlapping times with the same **normalised title** (lower-case; "live"/"(live)",
+  channel tags, HD/UHD/4K markers and punctuation removed; whitespace collapsed) are **one event** with several channels.
+- `GET /api/sports/events?hours=N` (default 6, max 24; auth as /library) →
+  `{ now, events: [ { id, title, league, start, end, live, channels: [ { sourceId, id, stableId, name, number, logo, quality } ] } ] }`.
+  - `league`: the followed keyword that matched, else the most specific EPG category, else "Sport".
+  - `live`: on now (start ≤ now < end).
+  - `quality`: "UHD" | "HD" | "SD" | null, from the channel name (4K/UHD, HD/FHD).
+  - Channels are ordered best first: quality, then `health` ok, then favourite, then guide order.
+  - Events are ordered live first (by start), then upcoming (by start).
+- **Admin:** `GET /api/sports/follow` → `{ keywords: [string] }`; `PUT /api/sports/follow` `{ keywords }` (admin; trims and
+  de-duplicates; max 100). `GET /api/sports/preview` (admin) → today's recognised events, each with the rule that matched, to tune
+  the list. Web: Settings → **Sports** panel with the follow list and the preview.
+- `GET /api/sports/categories` (admin) → EPG categories seen with programme counts (also shown on the Status page).
+- **Apple:** a **Sport** tab (Home · TV Guide · Sport · Recordings · Settings):
+  - "On now" events first, then "Starting soon", with filter chips per league.
+  - Event card: title, league, time and progress, a LIVE badge, "3 channels".
+  - Select plays the best channel; a secondary action (long-press or a "Channels" button) picks another.
+  - Home: a "Sport now & next" row (live events, then those within 60 min), linking to the tab. It replaces the C-H row.
+  - Refresh every 60 s while visible.
