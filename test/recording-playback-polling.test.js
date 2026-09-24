@@ -62,7 +62,6 @@ before(async () => {
     token = auth.generateToken({ ...user, id: 1 });
     const app = express();
     app.use(express.json());
-    app.use(auth.passport.initialize());
     app.use('/api/auth', load('routes/auth')); // loading it is what registers the JWT strategy
     app.use('/api/recordings', load('routes/recordings'));
     app.use('/api/info', load('routes/info'));

@@ -62,7 +62,6 @@ before(async () => {
     ins.run(`${epg.id}:blank`, epg.id, 'blank', 'No Match Anywhere Else', '');   // an EPG channel with no icon
 
     const app = express();
-    app.use(auth.passport.initialize());
     app.use('/api/auth', load('routes/auth')); // registers the JWT strategy
     app.use('/api/library', libraryRouter);
     server = app.listen(0, '127.0.0.1');

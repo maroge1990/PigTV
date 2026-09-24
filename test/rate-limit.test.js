@@ -78,7 +78,6 @@ before(async () => {
     await db.users.create({ username: 'guest', role: 'viewer', passwordHash: await auth.hashPassword('guest-password') });
     const app = express();
     app.use(express.json());
-    app.use(auth.passport.initialize());
     app.use('/api/auth', authRouter);
     app.use('/api/devices', devicesRouter);
     server = app.listen(0, '127.0.0.1');

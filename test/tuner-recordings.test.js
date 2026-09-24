@@ -101,7 +101,6 @@ before(async () => {
     channel('pos_2', URL_B);
     const app = express();
     app.use(express.json());
-    app.use(auth.passport.initialize());
     app.locals.ffmpegPath = process.execPath;
     app.locals.ffprobePath = path.join(sandbox, 'no-ffprobe');
     const streamAuth = auth.streamAuthFromSettings(db);

@@ -50,7 +50,6 @@ before(async () => {
     epg = await db.sources.create({ type: 'epg', name: 'Separate guide', url: 'https://guide.invalid/feed?key=epg-secret' });
     const app = express();
     app.use(express.json());
-    app.use(auth.passport.initialize());
     // Mount the actual auth/router implementations, not mocked authorization.
     app.use('/api/auth', require(path.join(sandbox, 'server/routes/auth')));
     app.use('/api/sources', require(path.join(sandbox, 'server/routes/sources')));

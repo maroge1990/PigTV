@@ -55,7 +55,6 @@ before(async () => {
 
     const app = express();
     app.use(express.json());
-    app.use(auth.passport.initialize());
     app.use('/api/auth', load('routes/auth')); // configures the jwt strategy
     app.use('/api/sources', load('routes/sources'));
     server = app.listen(0, '127.0.0.1');

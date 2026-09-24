@@ -1,7 +1,6 @@
 const express = require('express');
 require('dotenv').config();
 const path = require('path');
-const passport = require('passport');
 const compression = require('compression');
 const { shouldCompress } = require('./services/compressionFilter');
 const syncService = require('./services/syncService');
@@ -29,10 +28,9 @@ app.use(compression({ filter: shouldCompress }));
 // client make the server buffer and parse that much JSON.
 app.use(express.json({ limit: '2mb' }));
 
-// Initialize Passport. Authentication is stateless (JWT bearer tokens), so there is
-// deliberately no server-side session store: nothing to grow with cookieless
-// requests, and nothing to lose on a restart.
-app.use(passport.initialize());
+// Authentication is stateless (JWT bearer tokens, verified in server/auth.js), so
+// there is deliberately no server-side session store: nothing to grow with
+// cookieless requests, and nothing to lose on a restart.
 
 // HTML is always revalidated so a redeploy's new page (and the new ?v= script
 // URLs inside it) reaches the browser without a hard reload. Scripts and CSS

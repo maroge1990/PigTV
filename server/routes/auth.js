@@ -13,7 +13,7 @@ const { createLimiter } = require('../services/rateLimit');
 const loginFailures = createLimiter({ windowMs: 15 * 60 * 1000, max: 10 });
 const loginKey = (req) => `${req.socket?.remoteAddress || 'unknown'}|${String(req.body?.username || '').toLowerCase()}`;
 
-// Configure Passport strategies
+// How sign-in and bearer tokens find users (server/auth.js)
 auth.configureLocalStrategy(
     async (username) => await db.users.getByUsername(username),
     async (password, hash) => await auth.verifyPassword(password, hash)
@@ -83,7 +83,7 @@ router.post('/setup', async (req, res) => {
 });
 
 /**
- * Login with Passport Local Strategy
+ * Login with username and password (bcrypt), answered with a JWT
  * POST /api/auth/login
  */
 router.post('/login', (req, res, next) => {
@@ -94,15 +94,10 @@ router.post('/login', (req, res, next) => {
         return res.status(429).json({ error: 'Too many failed sign-in attempts. Try again later.', retryAfterSec });
     }
 
-    auth.passport.authenticate('local', { session: false }, (err, user, info) => {
-        if (err) {
-            console.error('Login error:', err);
-            return res.status(500).json({ error: 'Server error' });
-        }
-
+    auth.authenticateCredentials(req.body).then(({ user, message }) => {
         if (!user) {
             loginFailures.record(key);
-            return res.status(401).json({ error: info?.message || 'Invalid credentials' });
+            return res.status(401).json({ error: message || 'Invalid credentials' });
         }
         loginFailures.clear(key);
 
@@ -117,7 +112,10 @@ router.post('/login', (req, res, next) => {
                 role: user.role
             }
         });
-    })(req, res, next);
+    }).catch((err) => {
+        console.error('Login error:', err);
+        res.status(500).json({ error: 'Server error' });
+    });
 });
 
 /**

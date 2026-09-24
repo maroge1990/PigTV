@@ -7,8 +7,8 @@ const recordingEngine = require('../services/recordingEngine');
 const { recordings: recordingsDb } = require('../db/recordingsDb');
 
 // NOTE: /:id/stream, /:id/media.mp4 and /:id/download are deliberately
-// registered BEFORE the requireAuth middleware. requireAuth is passport-jwt
-// with a Bearer-header extractor, and a <video src> / <a href> / AVURLAsset
+// registered BEFORE the requireAuth middleware. requireAuth reads only a
+// Bearer header (server/auth.js), and a <video src> / <a href> / AVURLAsset
 // request cannot send that header, so these would always 401. The existing
 // live-stream routes (/api/proxy, /api/transcode, /api/remux) are the same
 // way; /api/recordings is wrapped in the same streamAuth middleware they use

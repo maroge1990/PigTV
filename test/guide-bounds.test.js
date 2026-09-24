@@ -49,7 +49,6 @@ before(async () => {
     ins.run(epg.id, 'ch1', now + 30 * H, now + 31 * H, 'Tomorrow, outside the window');
 
     const app = express();
-    app.use(auth.passport.initialize());
     app.use('/api/auth', load('routes/auth')); // registers the JWT strategy
     app.use('/api/library', load('routes/library'));
     server = app.listen(0, '127.0.0.1');

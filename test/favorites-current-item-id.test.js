@@ -48,7 +48,6 @@ before(async () => {
 
     const app = express();
     app.use(express.json());
-    app.use(auth.passport.initialize());
     app.use('/api/auth', load('routes/auth'));
     app.use('/api/favorites', load('routes/favorites'));
     app.use('/api/library', load('routes/library'));

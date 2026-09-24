@@ -1740,6 +1740,17 @@ check scripts/stream-doctor.js "SELECT value FROM app_settings WHERE key = ?" "s
 check test/db-sqlite-store.test.js "the hot path: settings.get() hands out one frozen object and never clones it" "with a hot-path test"
 check test/db-sqlite-store.test.js "the first start migrates a sample db.json" "and a migration test"
 
+echo "=== 0136: auth without passport (S4.3b) ==="
+check_absent package.json '"passport' "no passport packages in package.json"
+check_absent package-lock.json '"node_modules/passport' "nor in the lockfile"
+check_absent server/index.js "passport" "no passport middleware"
+check_absent server/routes/playback.js "require('passport')" "the playback route's optional auth is ours"
+check server/auth.js "payload = jwt.verify(token, JWT_SECRET);" "bearer tokens are verified with jsonwebtoken directly"
+check server/auth.js "const user = await lookupById(payload.id);" "the user (and role) comes from the store"
+check server/auth.js "if (!deviceAuth.isDeviceValid(payload.deviceId)) return null;" "revoked devices are refused"
+check server/routes/auth.js "auth.authenticateCredentials(req.body)" "sign-in checks the password itself (bcrypt)"
+check test/auth-direct-jwt.test.js "passport is gone: not a dependency, not exported" "with a test"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

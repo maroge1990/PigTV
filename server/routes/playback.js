@@ -19,8 +19,7 @@ const { redact } = require('../redact');
 const { MESSAGES: FAILURE_TEXT, clientSafe } = require('../services/playbackErrors');
 const playbackStrategy = require('../services/playbackStrategy');
 const xtreamApi = require('../services/xtreamApi');
-const passport = require('passport');
-const { streamAuth } = require('../auth');
+const { streamAuth, optionalAuth } = require('../auth');
 const { createLimiter } = require('../services/rateLimit');
 const playbackEvents = require('../services/playbackEvents');
 const channelHealth = require('../services/channelHealth');
@@ -45,18 +44,9 @@ function channelNameFor(sourceId, channelId) {
 // below stay optional - they only read or dismiss a prompt.
 const requireToken = streamAuth({ enforce: true });
 
-/**
- * Attach req.user when a token is present, without rejecting requests that
- * have none. Playback resolution itself is not gated — the stream endpoints it
- * returns are already reachable — but knowing the user lets history be
- * recorded.
- */
-function optionalAuth(req, res, next) {
-    passport.authenticate('jwt', { session: false }, (err, user) => {
-        if (user) req.user = user;
-        next();
-    })(req, res, next);
-}
+// optionalAuth (server/auth.js) attaches req.user when a bearer token is
+// present, without rejecting requests that have none: /conflict and
+// /conflict/decline only read or dismiss a prompt.
 
 /**
  * Resolve a channel id to its upstream URL.
