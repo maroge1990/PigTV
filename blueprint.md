@@ -113,8 +113,11 @@ it cannot. There is no remux, no legacy pipe and no browser-side strategy any mo
   33.8% vs 0.0%). It runs on the resolve probe's **own** ffprobe call (`-show_packets -read_intervals %+#300`), because a second
   ffprobe would collide on the one provider connection; without `-read_intervals` a live probe never returns. Also always
   `-dts_delta_threshold 60`. `PIGTV_DTS_AUTO=0` forces `igndts` everywhere (the 0085 behaviour — don't).
-- **Pacing:** `-re` **only** when the probe says the source ends (`format.size` or `duration` present). A finite file read at full
-  speed outruns the window, and hls.js never retries the resulting 404. Blanket `-re` cost ~8 s at start-up.
+- **Pacing:** only when the probe says the source ends (`format.size` or `duration` present). A finite file read at full
+  speed outruns the window, and hls.js never retries the resulting 404. Blanket `-re` cost ~8 s at start-up. Since 0144 it is
+  `-readrate 1 -readrate_initial_burst 8` (ffmpeg 6.1+): 8 s at full speed so the first segment is written at once, then real
+  time. Measured on ffmpeg 9.0 only (first segment 3.6 s → 0.1 s, then exactly 8 s ahead); **production's 6.1 unverified until
+  deployed**. `PIGTV_READRATE_BURST=0` = the old `-re`.
 - **Master playlist** (0100 HDR, 0115 everything). tvOS only switches the panel to HDR on a **master playlist's `VIDEO-RANGE`**, and
   Match Frame Rate only goes to 50 Hz on its **`FRAME-RATE`**. The copied fMP4 already keeps `colr`/`nclx` (measured on `pos_31`, Sky
   Sports Main Event UHD, HDR10/PQ). `classifyVideoRange()` reads `color_transfer`: a copy+fMP4 PQ/HLG session gets `VIDEO-RANGE=PQ|HLG`;
@@ -128,8 +131,10 @@ it cannot. There is no remux, no legacy pipe and no browser-side strategy any mo
 - **A failed start fails fast** (0113). `waitForPlaylist` returns as soon as ffmpeg has ended without a playlist (it used to poll out the
   15 s). `classifyInputFailure()` turns ffmpeg's `Server returned 4xx/404/5xx` / `Connection refused` into a fixed sentence for the
   resolve error (never the URL or ffmpeg's words). A **4xx other than 404, or a 5xx, within ffmpeg's first 3 s** (the provider allows
-  one connection and may not have released the probe's yet; seen on 7 Flix Sydney in the 0109 log) gets **one** retry: folder cleared,
-  1.5 s wait, same shape as the software-decode retry.
+  one connection and may not have released the probe's yet; seen on 7 Flix Sydney in the 0109 log) gets a retry: folder cleared,
+  a wait, same shape as the software-decode retry. Since 0143 **two**, after 1.5 s then 3 s (a re-resolve after a player failure
+  was still refused after 1.5 s), and `waitForPlaylist`'s deadline moves by exactly what the retries cost (worst case +10.5 s
+  on the resolve's 15 s; the Apple client's request timeout is 35 s).
 - **Stall watchdog** (`stallWatchdog.js`): ffmpeg is killed after 20 s without writing a file in the session directory
   (`PIGTV_STALL_TIMEOUT_MS`), with 30 s grace before the first output. Stderr doesn't count, because it gets louder during
   reconnects. Recordings aren't covered (they have a hard-stop timer).
@@ -241,13 +246,24 @@ silent from the start. **Real problems:** `Could not write header`, `FFmpeg exit
 **Status page** (0124): the admin page "Status" = `GET /api/status` (admin): live sessions with channel names, active
 and next 5 recordings, the last 50 plays (first-picture time, cold/warm/profile, failure text; in memory, `playbackEvents.js`),
 sync per source, free disk (transcode tmpfs, recordings), build. Never a URL: fields are whitelisted and the document is
-scrubbed. Look here before `docker logs`. Since 0133 it also lists the **least reliable channels** (7 days).
+scrubbed. Look here before `docker logs`. Since 0133 it also lists the **least reliable channels** (7 days; since 0142 also
+channels that only stall, ranked by failed starts + stalls per hour watched, hours floored at 30 min; stalls and minutes shown).
 
 **Channel health** (0133, C-G, `channelHealth.js`, table `channel_health`): one row per start attempt per identity, kept 30 days
 (pruned daily). A failed resolve is a failed start (a 409 is not an attempt); a client `media-error`/`start-timeout` before
 that owner's `play-start` turns its last resolve into a failed start (`player`); `play-start` gives the first-picture time.
-Client events carry no session id, so the mapping is owner → last resolve (as 0124). `health` on guide/channels rows: flaky
-= ≥2 failed starts or >30% of ≥3 in 7 days. `library_rev` moves only when a channel's class changes.
+Client events carry no session id, so the mapping is owner → last resolve (as 0124). Since 0142 `play-end` stores
+`watched_sec`/`stalls` on that attempt (once, within 24 h). `health` on guide/channels rows: flaky = ≥2 failed starts or >30% of
+≥3 in 7 days, or ≥3 stalls per hour over ≥20 min watched. `library_rev` moves only when a channel's class changes.
+
+**Sport categories** (0146, C-H, `sportCategories.js`, table `sport_categories`): Settings → Sources → the Sport button on a
+category (saved at once) = `PUT /api/library/categories/sport` (admin); `library/categories` and the Sources catalogue carry
+`sport`. No sync writes the table; a change bumps `library_rev`. Feeds the Apple Home screen's "Sport on now" row.
+
+**Logo cache** (0112, fixed 0141): `/api/logo/<key>`, key = hash of the cache version + URL. Downscaled through `format=rgba`
+to an RGBA PNG only when wider than 320 px (a palette PNG with transparency otherwise came out opaque: ABC, 7mate, 7two);
+SVG, small and unconvertible logos are kept as fetched. Bumping `LOGO_CACHE_VERSION` (`logoCache.js`) changes every path and
+drops the stored files once (`meta.logo_cache_version`) - needed because the Apple client caches artwork on disk by URL forever.
 
 **EPG matching** (0134, `epgMapping.js`, table `epg_mappings`, Settings → EPG matching): an admin's tvg-id per identity,
 applied **at query time** over `playlist_items.tvg_id` (guide programmes, now/next, logo fallback), because every sync
@@ -256,11 +272,12 @@ candidates that do have programmes.
 
 **Client diagnostics.** `POST /api/playback/client-event` (token; whitelisted, bounded fields; path only, never a query string):
 `media-error`, `start-timeout`, `play-start`, `play-end`. Log lines end `from=user:<id>` / `from=device:<id>`.
-`scripts/playback-report.js <saved log>` summarises first-picture time (cold/warm, median and p90), stalls/hour and failures, per
-row: `HLS session`, `HLS session [Apple/device]`, `direct` (0113 relabelled it for the one-path world; a "probe profile" play is warm).
+`scripts/playback-report.js <saved log>` summarises first-picture time (cold/warm, median and p90), **client wait** (first
+picture minus resolve, median/p90, 0145: the player's own share), stalls/hour and failures, per row: `HLS session`, `HLS session [Apple/device]`, `direct` (0113 relabelled it for the one-path world; a "probe profile" play is warm).
 **Log vocabulary added in 0113–0115:** `resolve timing … probe profile (age Nd)`; `… first segment NOT produced - ffmpeg ended after Xs
-(provider HTTP 4xx)`; `… , master playlist (SDR, 25.000 fps)`; `[TranscodeSession id] Provider refused the first connection; retrying
-once in 1.5s`; `FFmpeg ended before producing a playlist`. **Capture caveat:** `capture` copies through ffmpeg, which rebases a backward
+(provider HTTP 4xx)`; `… , master playlist (SDR, 25.000 fps)`; `[TranscodeSession id] Provider refused the connection; retry N of 2
+in 1.5s|3s` (0143; was "retrying once in 1.5s"); `… source ends (N min) - paced to real time after an initial 8s burst` (0144);
+`[Logo] Cache version 1 -> 2: dropped N stored logos` (0141, once); `FFmpeg ended before producing a playlist`. **Capture caveat:** `capture` copies through ffmpeg, which rebases a backward
 timestamp step, so a provider reconnect shows up as repeated content, not as a timestamp jump.
 
 **Channel identity** (0096–0098). `item_id` is `pos_N`, the M3U line, and **the provider moves it**. `stable_id`
@@ -321,7 +338,7 @@ the channel up again`, `finished (…) N segments, Ns, … (N linked, N copied)`
   `*.native.mp4` for those once. **HEVC recording playback on an Apple TV is still unconfirmed.**
 
 **Dev environment (macOS, from 23 Sept).**
-- Node 24 from Homebrew (`/opt/homebrew/opt/node@24/bin`; see §2). `npm test`: 513 tests, all pass locally with
+- Node 24 from Homebrew (`/opt/homebrew/opt/node@24/bin`; see §2). `npm test`: 538 tests (24 Sept, after 0146), all pass locally with
   Homebrew ffmpeg 9.0 installed (tests that need ffmpeg skip without one).
 - `bash scripts/verify-build.sh .` uses the system `python3`.
 - The tree is LF. There is no local Docker; the image is only built by CI.
@@ -358,6 +375,10 @@ the reason. Each phase ends with Mark's gate; don't start the next phase's devic
 Risky behaviour ships off by default behind a switch (server env vars; Apple Settings → Labs). The interface between server
 and client for Phases 2–4 is fixed in `docs/ROADMAP-CONTRACTS.md`; build to it exactly.
 
+**Fixes from Mark's 24 Sept test block (0141–0146):** logo transparency (0141), stalls in channel health (0142), two refused-
+connection retries (0143), finite sources start with an 8 s read burst (0144, ffmpeg 6.1 behaviour unverified until deployed),
+client wait in the playback report (0145), sport categories (0146). Local commits; awaiting push, deploy and Mark's checks.
+
 **All phases built by 24 Sept (server 0138, app 22).** Mark's combined device and live test list is `docs/TEST-BLOCK.md`; items move to *Verified* as he reports back.
 
 ### Phase 0: clean-up and correctness (gate: redeploy, CI green, guide unchanged)
@@ -386,7 +407,7 @@ and client for Phases 2–4 is fixed in `docs/ROADMAP-CONTRACTS.md`; build to it
 | S1.3 | Guide API for scale: `tvg_id` column; cursor paging; up to 500 per page; several categories per request; **ETag/304** from the EPG generation, playlist sync time and time window | Committed (0111), awaiting deploy — shipped as `guideCursor`/`guideVersion` (a revision counter plus EPG generations) rather than HTTP ETag/304; several-categories-per-request not done |
 | A1.1 | Guide refreshes cheaply: a few large requests; ETag revalidation; no whole-guide rebuild per page; cache per window | Planned |
 | A1.2 | Channel change feels quicker: the channel card (logo, now/next) shows instantly; one `AVPlayer` across changes; tuned forward buffer; **last channel** | Planned |
-| S1.4 | Logo cache `/api/logo/{key}` (fetch once, resize to about 320 px, long cache headers); limit `/api/proxy/image` to known logo URLs | Committed (0112), awaiting deploy — the cache itself shipped; `/api/proxy/image` was deliberately left open (the web app also uses it for movie/series posters, not just logos) |
+| S1.4 | Logo cache `/api/logo/{key}` (fetch once, resize to about 320 px, long cache headers); limit `/api/proxy/image` to known logo URLs | Committed (0112), awaiting deploy — the cache itself shipped; `/api/proxy/image` was deliberately left open (the web app also uses it for movie/series posters, not just logos). **0141** fixes the lost transparency Mark saw (ABC 546, 7 Mate Melbourne 550, 7two Sydney 551); awaiting his check |
 | A1.3 | Client follow-ups to 0113/0116: show the server's safe resolve-failure message (e.g. "The provider refused this channel…") instead of a generic HTTP 500, via an allow-list of known messages; send `heaac: true` **only after** Mark's device check of HE-AAC passthrough (7 Mate / 7 Flix: sound, treble, lip-sync) | Server side committed (0118: every failure uses the C-B prefixes, never a URL), awaiting deploy; client side per `../PigTV-Swift/blueprint.md` |
 
 ### Phase 2: one lineup, one contract, a steady guide
@@ -420,7 +441,8 @@ and timeshift together. Run old and new side by side against the `stream-doctor`
 | A4.3 | **One player on the TV**: recordings move into the custom player and the AVKit recording path is deleted (Mark, 23 Sept); best after T2 | Planned |
 | A4.4 | iPhone/iPad touch guide and player controls; revisit PiP and AirPlay after the tuner work | Planned |
 | A4.5 | Siri / App Intents ("Play … on PigTV"); Swift 6 language mode | Planned |
-| S4.1 | Channel health: per-channel first-picture time, stalls per hour and failures from client events; flag unreliable channels | Committed (0133): `health` on guide/channels rows, flag `channelHealth`, Status page list; stalls per hour not kept (play-end's `stalls` is not tied to an attempt); Apple dot still to do |
+| S4.1 | Channel health: per-channel first-picture time, stalls per hour and failures from client events; flag unreliable channels | Committed (0133): `health` on guide/channels rows, flag `channelHealth`, Status page list; **stalls since 0142** (play-end mapped to the owner's last resolve; flaky also at ≥3 stalls/h over ≥20 min; list ranked by failed starts + stalls/h); Apple dot still to do |
+| S4.4 | Sport categories for the Apple Home screen's "Sport on now" row (C-H) | Server + web committed (0146): flag `sportCategories`, `sport` on `library/categories`, admin PUT, Sources Sport button; the Apple row still to do |
 | S4.2 | EPG matching tool (web): map channels with no programme information to EPG ids | Committed (0134) |
 | S4.3 | `db.json` into SQLite (and stop copying settings on every segment request); split `routes/proxy.js`; Express 5; `jsonwebtoken` directly instead of passport | Committed: SQLite (0135), no passport (0136), Express 5 (0137). Splitting `routes/proxy.js` not done (238 lines since 0122; not needed) |
 
@@ -506,3 +528,9 @@ about 0 on the E-AC-3 channel.
 | 0138 | `/api/info` survives a failing feature check; stored badges stripped once and on the Xtream ingest path; P2-8 tests; recording Range accepts suffix and past-the-end ranges |
 | 0139 | Channel numbers are labels only: the guide and channel lists keep the provider's order, which groups channels under their placeholder channels (Mark's test 1.4 rejected ordering by number) |
 | 0140 | The guide version includes the server build, so every deploy makes the Apple TV reload its cached guide once |
+| 0141 | Logos keep their transparency: the downscale goes through rgba (a palette PNG with tRNS came out opaque); ≤320 px, SVG and unconvertible logos kept as fetched; cache version 2 in the key, stored logos dropped once |
+| 0142 | Channel health counts stalls: play-end stores watched time and stalls on the owner's last attempt; flaky also at ≥3 stalls/h over ≥20 min; Status list ranked by failed starts + stalls/h, with stalls and minutes watched |
+| 0143 | A refused connection in ffmpeg's first 3 s is retried twice (1.5 s, then 3 s); the resolve's wait extends by exactly what the retries cost |
+| 0144 | A finite source is paced with `-readrate 1 -readrate_initial_burst 8` instead of `-re` (first segment at once); `PIGTV_READRATE_BURST=0` rolls back |
+| 0145 | `playback-report.js` shows the client wait (first picture minus resolve) per path, median and p90 |
+| 0146 | Sport categories (C-H): flag `sportCategories`, `sport` on `library/categories`, admin `PUT /api/library/categories/sport`, Sport button in Settings → Sources |
