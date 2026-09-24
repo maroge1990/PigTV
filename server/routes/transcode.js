@@ -165,7 +165,9 @@ router.get('/:sessionId/:segment', async (req, res) => {
 
     res.setHeader('Content-Type', 'video/MP2T');
     res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache forever (immutable)
-    res.sendFile(segmentPath);
+    // Express 5 (0137): the tuner's timeshift folder is `.timeshift`, which send
+    // would otherwise refuse as a dotfile; segment names are allow-listed.
+    res.sendFile(segmentPath, { dotfiles: 'allow' });
 });
 
 /**

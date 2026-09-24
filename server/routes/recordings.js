@@ -105,7 +105,9 @@ router.get(HLS_RECORDING_FILE, (req, res, next) => {
     // As the live segments: fMP4 too goes out as video/MP2T (blueprint §4).
     res.setHeader('Content-Type', 'video/MP2T');
     res.setHeader('Cache-Control', 'public, max-age=31536000');
-    res.sendFile(file);
+    // Express 5 (0137): send ignores paths through a dot-folder by default; the
+    // file names are allow-listed above, and a folder may be dotted.
+    res.sendFile(file, { dotfiles: 'allow' });
 });
 
 // Stream a recording for playback, with HTTP Range support for seeking
@@ -158,7 +160,7 @@ router.get('/:id/download', (req, res) => {
             return res.status(404).json({ error: 'Recording file not found' });
         }
         const downloadName = `${rec.title || 'recording'}${path.extname(rec.file_path)}`;
-        res.download(rec.file_path, downloadName);
+        res.download(rec.file_path, downloadName, { dotfiles: 'allow' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

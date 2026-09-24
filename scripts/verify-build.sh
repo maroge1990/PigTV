@@ -1751,6 +1751,17 @@ check server/auth.js "if (!deviceAuth.isDeviceValid(payload.deviceId)) return nu
 check server/routes/auth.js "auth.authenticateCredentials(req.body)" "sign-in checks the password itself (bcrypt)"
 check test/auth-direct-jwt.test.js "passport is gone: not a dependency, not exported" "with a test"
 
+echo "=== 0137: Express 5 (S4.3c) ==="
+check package.json '"express": "^5.' "express 5"
+check server/index.js "app.get('/{\*splat}'" "the SPA fallback uses Express 5 wildcard syntax"
+check_absent server/index.js "app.get('\*'" "not the Express 4 '*'"
+check server/index.js "if (req.body === undefined) req.body = {};" "a request without a JSON body still has req.body"
+check server/index.js "app.set('query parser', 'extended');" "query strings parsed as under Express 4"
+check server/index.js "app.listen(PORT, async (err) => {" "a listen failure is handled (Express 5 passes it to the callback)"
+check server/routes/transcode.js "res.sendFile(segmentPath, { dotfiles: 'allow' });" "segments under .timeshift are served"
+check server/routes/recordings.js "res.sendFile(file, { dotfiles: 'allow' });" "and recording segments"
+check test/express5.test.js "a port already in use stops the server" "with a test against the real server"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

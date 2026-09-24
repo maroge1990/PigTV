@@ -14,6 +14,9 @@ const PORT = process.env.PORT || 3000;
 // Trust proxy headers (X-Forwarded-Proto, X-Forwarded-For, etc.)
 // Required for correct protocol detection behind reverse proxies (nginx, Caddy, etc.)
 app.set('trust proxy', true);
+// Express 5 (0137) parses query strings with the 'simple' parser by default;
+// keep Express 4's.
+app.set('query parser', 'extended');
 
 // Middleware
 // Gzip JSON and the small set of text asset types (0108). `filter` is an
@@ -27,6 +30,9 @@ app.use(compression({ filter: shouldCompress }));
 // hundred KB for a very large playlist); 50 MB was never needed and let any
 // client make the server buffer and parse that much JSON.
 app.use(express.json({ limit: '2mb' }));
+// Express 5 (0137) leaves req.body undefined when a request has no JSON body
+// (Express 4 set {}); the routes destructure it, so keep it an object.
+app.use((req, res, next) => { if (req.body === undefined) req.body = {}; next(); });
 
 // Authentication is stateless (JWT bearer tokens, verified in server/auth.js), so
 // there is deliberately no server-side session store: nothing to grow with
@@ -166,7 +172,8 @@ app.use('/api', (req, res) => {
 });
 
 // SPA fallback - serve index.html for all non-API routes
-app.get('*', (req, res) => {
+// Express 5 path syntax (0137): a named wildcard, where Express 4 took '*'.
+app.get('/{*splat}', (req, res) => {
     res.set('Cache-Control', 'no-cache');
     res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
@@ -177,7 +184,14 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, async () => {
+app.listen(PORT, async (err) => {
+    // Express 5 (0137) hands a listen failure (e.g. the port in use) to this
+    // callback instead of throwing it; stop as Express 4's crash did, rather than
+    // carrying on with no server.
+    if (err) {
+        console.error(`Could not listen on port ${PORT}:`, err.message);
+        process.exit(1);
+    }
     console.log(`PigTV server running on http://localhost:${PORT}`);
 
     // Nothing in transcode-cache can belong to this process yet - sweep
