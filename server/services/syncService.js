@@ -12,6 +12,24 @@ const epgParser = require('./epgParser');
 // Sync tracking
 const activeSyncs = new Set(); // sourceId
 
+// 0147: a programme's XMLTV <category> values as stored in epg_programs.categories:
+// a JSON array of the provider's strings, trimmed and de-duplicated (case aside),
+// at most 12 of up to 100 characters; NULL when there are none.
+function categoriesJson(list) {
+    if (!Array.isArray(list) || !list.length) return null;
+    const seen = new Set();
+    const out = [];
+    for (const raw of list) {
+        const text = String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 100);
+        const key = text.toLowerCase();
+        if (!text || seen.has(key)) continue;
+        seen.add(key);
+        out.push(text);
+        if (out.length >= 12) break;
+    }
+    return out.length ? JSON.stringify(out) : null;
+}
+
 class SyncService {
     constructor() {
         this.lastSyncTime = null; // Track when global sync last completed
@@ -529,8 +547,8 @@ class SyncService {
         await this.purgeEpgRows(sourceId, '<>', activeGen);
 
         const programmeStmt = db.prepare(`
-            INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, description, gen)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, description, gen, categories)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         const insertProgrammes = db.transaction((progs) => {
@@ -542,7 +560,8 @@ class SyncService {
                     p.stop ? p.stop.getTime() : 0,
                     p.title,
                     p.description || p.desc,
-                    newGen
+                    newGen,
+                    categoriesJson(p.category)
                 );
             }
         });

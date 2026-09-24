@@ -2751,6 +2751,13 @@ kbd {
   color: var(--color-error);
 }
 
+/* 0147: EPG categories panel (collapsed list) */
+.status-epg-categories summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
 /* Channel numbers (Settings, 0123) */
 .lineup-toolbar {
   display: flex;

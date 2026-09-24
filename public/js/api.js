@@ -137,6 +137,11 @@ const API = {
         get: () => API.request('GET', '/status')
     },
 
+    // Sport (C-I; admin)
+    sports: {
+        categories: () => API.request('GET', '/sports/categories') // 0147
+    },
+
     // Channel numbers (admin; 0117 C-A, web editor 0123)
     lineup: {
         get: () => API.request('GET', '/lineup'),

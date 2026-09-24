@@ -1822,6 +1822,23 @@ check server/services/sportCategories.js "if (changed) bumpLibraryRev();" "a cha
 check public/js/components/SourceManager.js "sportToggleHtml(group)" "the web Sources picker has a Sport toggle"
 check test/sport-categories.test.js "a playlist sync keeps the marks" "with a test"
 
+echo "=== 0147: EPG programme categories stored (C-I) ==="
+check server/db/sqlite.js "ALTER TABLE epg_programs ADD COLUMN categories TEXT" "epg_programs has a categories column"
+check server/db/sqlite.js "p.description, p.data, p.categories" "epg_live exposes it"
+check server/db/sqlite.js "db.exec('DROP VIEW epg_live')" "an older epg_live view is made again"
+check server/services/syncService.js "categoriesJson(p.category)" "the sync stores what the parser collected"
+check server/index.js "app.use('/api/sports', require('./routes/sports'))" "the sports routes are mounted"
+check server/routes/sports.js "router.get('/categories', requireAdmin," "admin GET /api/sports/categories"
+check public/js/pages/StatusPage.js "this.loadEpgCategories();" "the Status page shows the EPG categories"
+check test/epg-categories.test.js "the Xtream path (xmltv.php) stores them too" "with a test"
+python3 - <<'PY2' || FAIL=1
+import sys
+s = open('server/db/sqlite.js').read()
+if not (s.index('ADD COLUMN categories') < s.index("DROP VIEW epg_live") < s.index('CREATE VIEW IF NOT EXISTS epg_live')):
+    print("  ✗ the column and the view drop must come before the view is created"); sys.exit(1)
+print("  ✓ the column is added, and a stale view dropped, before epg_live is created")
+PY2
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

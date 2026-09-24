@@ -18,6 +18,7 @@ class StatusPage {
 
     show() {
         this.refresh();
+        this.loadEpgCategories();
         clearInterval(this.timer);
         this.timer = setInterval(() => this.refresh(), this.refreshMs);
     }
@@ -40,6 +41,34 @@ class StatusPage {
                 content.innerHTML = `<p class="hint">Could not load the server status: ${this.escape(err.message)}</p>`;
             }
         }
+    }
+
+    /**
+     * 0147: the EPG categories the provider's guide tags programmes with, and how
+     * many programmes carry each (GET /api/sports/categories). What sport can be
+     * recognised by. Its own panel, loaded once per visit: it changes only when an
+     * EPG sync lands, and the 5 s refresh would close it every time.
+     */
+    async loadEpgCategories() {
+        const panel = document.getElementById('status-epg-categories');
+        if (!panel) return;
+        try {
+            const rows = await API.sports.categories();
+            panel.innerHTML = this.renderEpgCategories(Array.isArray(rows) ? rows : []);
+        } catch (err) {
+            panel.innerHTML = this.section('EPG categories', `<p class="setting-hint">Could not load the EPG categories: ${this.escape(err.message)}</p>`);
+        }
+    }
+
+    renderEpgCategories(rows) {
+        const e = (v) => this.escape(v);
+        if (!rows.length) {
+            return this.section('EPG categories', '<p class="setting-hint">The guide has no programme categories (or has not synced since the server was updated).</p>');
+        }
+        const table = this.table(['Category', 'Programmes'], rows.map(r => [e(r.category), e(r.programmes)]), '');
+        return this.section('EPG categories',
+            `<p class="setting-hint">The categories your provider's guide gives its programmes, most used first: one of the ways sport is recognised.</p>` +
+            `<details class="status-epg-categories"><summary>${rows.length} categor${rows.length === 1 ? 'y' : 'ies'}</summary>${table}</details>`);
     }
 
     escape(text) {
