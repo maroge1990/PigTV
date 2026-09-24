@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 24 September 2026 · server build **0131** (0113–0131 committed locally, not yet pushed) · Apple client build **16**
+**Last updated:** 24 September 2026 · server build **0138** (0113–0138 committed locally, not yet pushed) · Apple client build **16**
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
 architecture notes live in `../PigTV-Swift/blueprint.md`, which points back here for the roadmap. This file replaced the
@@ -31,7 +31,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Mark deploys. |
 | Shipped through | **0104**; whether it is *running* is whatever `/api/version` says |
-| Next build number | **0133** |
+| Next build number | **0139** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -241,7 +241,18 @@ silent from the start. **Real problems:** `Could not write header`, `FFmpeg exit
 **Status page** (0124): the admin page "Status" = `GET /api/status` (admin): live sessions with channel names, active
 and next 5 recordings, the last 50 plays (first-picture time, cold/warm/profile, failure text; in memory, `playbackEvents.js`),
 sync per source, free disk (transcode tmpfs, recordings), build. Never a URL: fields are whitelisted and the document is
-scrubbed. Look here before `docker logs`.
+scrubbed. Look here before `docker logs`. Since 0133 it also lists the **least reliable channels** (7 days).
+
+**Channel health** (0133, C-G, `channelHealth.js`, table `channel_health`): one row per start attempt per identity, kept 30 days
+(pruned daily). A failed resolve is a failed start (a 409 is not an attempt); a client `media-error`/`start-timeout` before
+that owner's `play-start` turns its last resolve into a failed start (`player`); `play-start` gives the first-picture time.
+Client events carry no session id, so the mapping is owner → last resolve (as 0124). `health` on guide/channels rows: flaky
+= ≥2 failed starts or >30% of ≥3 in 7 days. `library_rev` moves only when a channel's class changes.
+
+**EPG matching** (0134, `epgMapping.js`, table `epg_mappings`, Settings → EPG matching): an admin's tvg-id per identity,
+applied **at query time** over `playlist_items.tvg_id` (guide programmes, now/next, logo fallback), because every sync
+rewrites that column. `GET /api/epg/unmatched` = visible channels with no programmes in the next 24 h + 5 name-scored
+candidates that do have programmes.
 
 **Client diagnostics.** `POST /api/playback/client-event` (token; whitelisted, bounded fields; path only, never a query string):
 `media-error`, `start-timeout`, `play-start`, `play-end`. Log lines end `from=user:<id>` / `from=device:<id>`.
@@ -286,7 +297,15 @@ admin; a visible holder is a 400). Rollback: `PIGTV_CHANNEL_NUMBERS=0` (old orde
   (revisit with a device).
 - Unknown `/api/*` → `404 {"error":"No such API endpoint"}`. **A new Apple-client endpoint goes into `APPLE_CLIENT_ROUTES` in
   `test/api-404.test.js`.**
-- `db.json` is an in-memory write-through cache; a failed save is reported and rolled back.
+- Sources, settings and users live in SQLite since 0135 (`app_sources`, `app_users`, `app_settings`, `meta.next_id`; objects
+  kept as JSON). The first start on 0135 migrates `data/db.json` once and renames it **`db.json.migrated`** (the backup; a
+  `db.json` that reappears later is ignored and logged). **Rolling back past 0135:** rename `db.json.migrated` to `db.json`
+  (anything changed since is not in it). `settings.get()` returns one deep-frozen object, rebuilt only after a write: copy
+  it before adding to it. A failed write is one rolled-back transaction and a plain "could not save its data" error.
+- Auth is `jsonwebtoken` + `bcryptjs` directly (0136; passport removed): `requireAuth` (bearer, 401 "Unauthorized"),
+  `optionalAuth`, `streamAuth` (bearer or `?token=`), role always from the user store, revoked devices refused.
+- Express 5 (0137): wildcards are `/{*splat}`; `req.body` is forced to `{}` when absent; query parser `extended`;
+  `res.sendFile` needs `dotfiles: 'allow'` for anything under a dot-folder (the tuner's `.timeshift`).
 
 **Tuner model (on with `PIGTV_TUNER=1`).** Log lines: `[Tuner <id>] Starting (key …)` / `Stopping (<why>)`; `resolve timing …,
 tuner <id>` (new) or `…, shared tuner <id> (N viewers)` (joined, `first segment after 0.0s`); `Releasing stalled session (tuner)`;
@@ -302,7 +321,7 @@ the channel up again`, `finished (…) N segments, Ns, … (N linked, N copied)`
   `*.native.mp4` for those once. **HEVC recording playback on an Apple TV is still unconfirmed.**
 
 **Dev environment (macOS, from 23 Sept).**
-- Node 24 from Homebrew (`/opt/homebrew/opt/node@24/bin`; see §2). `npm test`: 396 tests, all pass locally with
+- Node 24 from Homebrew (`/opt/homebrew/opt/node@24/bin`; see §2). `npm test`: 513 tests, all pass locally with
   Homebrew ffmpeg 9.0 installed (tests that need ffmpeg skip without one).
 - `bash scripts/verify-build.sh .` uses the system `python3`.
 - The tree is LF. There is no local Docker; the image is only built by CI.
@@ -399,13 +418,12 @@ and timeshift together. Run old and new side by side against the `stream-doctor`
 | A4.3 | **One player on the TV**: recordings move into the custom player and the AVKit recording path is deleted (Mark, 23 Sept); best after T2 | Planned |
 | A4.4 | iPhone/iPad touch guide and player controls; revisit PiP and AirPlay after the tuner work | Planned |
 | A4.5 | Siri / App Intents ("Play … on PigTV"); Swift 6 language mode | Planned |
-| S4.1 | Channel health: per-channel first-picture time, stalls per hour and failures from client events; flag unreliable channels | Planned |
-| S4.2 | EPG matching tool (web): map channels with no programme information to EPG ids | Planned |
-| S4.3 | `db.json` into SQLite (and stop copying settings on every segment request); split `routes/proxy.js`; Express 5; `jsonwebtoken` directly instead of passport | Planned |
+| S4.1 | Channel health: per-channel first-picture time, stalls per hour and failures from client events; flag unreliable channels | Committed (0133): `health` on guide/channels rows, flag `channelHealth`, Status page list; stalls per hour not kept (play-end's `stalls` is not tied to an attempt); Apple dot still to do |
+| S4.2 | EPG matching tool (web): map channels with no programme information to EPG ids | Committed (0134) |
+| S4.3 | `db.json` into SQLite (and stop copying settings on every segment request); split `routes/proxy.js`; Express 5; `jsonwebtoken` directly instead of passport | Committed: SQLite (0135), no passport (0136), Express 5 (0137). Splitting `routes/proxy.js` not done (238 lines since 0122; not needed) |
 
-**Carried over from the old blueprint:** P2-8 tests (EPG parser under bursty input, the token on fMP4 segments, recordings
-Range, viewer-already-holds-slot) · `USER node` (volume ownership first) · fMP4 segment MIME (revisit with a device) ·
-try/catch in `routes/info.js` · optional clean-up of badges in stored rows, and stripping them on the Xtream ingest path.
+**Carried over from the old blueprint:** `USER node` (volume ownership first) · fMP4 segment MIME (revisit with a device).
+(P2-8 tests, the `routes/info.js` try/catch and the stored-badge clean-up shipped in 0138.)
 **Kept on purpose:** the non-VAAPI encoders. **Not planned:** AV1, adding more users, reviving VOD, access from outside the VPN.
 
 **Watch the logs, no code yet:** the provider's ~38 s cut and 19 s resend (§3; decide whether anything should be done about the
@@ -413,7 +431,7 @@ repeated content, which needs a capture that keeps the raw bytes) · 7 Flix Sydn
 Will reconnect` looping after ~14 MB, nothing produced: 0113 doesn't shorten that case, since ffmpeg keeps running) · "Bug 2" (`[mpegts] Invalid timestamps … dts=X+1800`: needs the channel that produces it);
 `source timing` lines (the classifier has seen one uneven feed in five); the 20 s stall timeout (tighten only after real stall logs).
 
-**Live checks still owed:** 0121–0124 on the web (sidebar with numbers, stars incl. a cross-listed channel, guide Earlier/Later,
+**Live checks still owed:** 0133–0138 (Status page "Least reliable channels"; Settings → EPG matching maps a channel and the guide fills; the first start on 0135 leaves `data/db.json.migrated` and sign-in, sources and settings work; login/logout and a paired device on 0136/0137) · 0121–0124 on the web (sidebar with numbers, stars incl. a cross-listed channel, guide Earlier/Later,
 record from the guide, Manage Content save, Settings → Channel numbers, Status page while a channel plays) · 0102–0104 on the web (HLS badge, channel changes, recovery lines) · the HDR panel switch on the TV
 (0100 plus Swift R13) · walk the favourites once since 0097 · 0054: cut the upstream mid-stream (stalled, slot frees) · 0059:
 a favourite round-trips web ↔ Apple · 0062: an HEVC recording plays on the Apple TV · 0073: `timestamp discontinuity` stays
@@ -477,3 +495,10 @@ about 0 on the E-AC-3 channel.
 | 0129 | T4: recordings play from their start while recording (`EXT-X-START`); Play on a just-started recording waits for its first segment |
 | 0130 | A recording's own tuner uses the Apple TV's default capabilities (no `heaac`), so a TV on an HE-AAC channel being recorded shares it |
 | 0131 | A recording releases a tuner that died and re-tunes; a dead tuner never counts as a slot |
+| 0132 | `PIGTV_TIMESHIFT_DIR` puts the tuners' timeshift on a local disk instead of the recordings share |
+| 0133 | Channel health (C-G, S4.1): start attempts per channel (30 days), `health` on guide/channels rows, flag `channelHealth`, Status page "Least reliable channels" |
+| 0134 | EPG matching (S4.2): `GET /api/epg/unmatched` with name-scored candidates, `PUT /api/epg/mapping` (query-time override that survives syncs), Settings → EPG matching |
+| 0135 | Sources, settings and users moved from `db.json` into SQLite (one-time migration, `db.json.migrated` kept); settings served as one frozen object, no clone per request |
+| 0136 | passport, passport-jwt and passport-local removed; bearer tokens and sign-in done with `jsonwebtoken`/`bcryptjs` directly, same semantics |
+| 0137 | Express 5 (`/{*splat}` fallback, `req.body` default, `extended` query parser, `dotfiles: 'allow'` for `.timeshift`, listen errors exit) |
+| 0138 | `/api/info` survives a failing feature check; stored badges stripped once and on the Xtream ingest path; P2-8 tests; recording Range accepts suffix and past-the-end ranges |
