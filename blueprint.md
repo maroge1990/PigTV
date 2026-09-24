@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 24 September 2026 · server build **0120** (0113–0120 committed locally, not yet pushed) · Apple client build **16**
+**Last updated:** 24 September 2026 · server build **0124** (0113–0124 committed locally, not yet pushed) · Apple client build **16**
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
 architecture notes live in `../PigTV-Swift/blueprint.md`, which points back here for the roadmap. This file replaced the
@@ -31,7 +31,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Mark deploys. |
 | Shipped through | **0104**; whether it is *running* is whatever `/api/version` says |
-| Next build number | **0121** |
+| Next build number | **0125** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -85,8 +85,8 @@ it cannot. There is no remux, no legacy pipe and no browser-side strategy any mo
 - The provider allows **one stream** (`maxProviderStreams`, 1; a recording holds its own slot). To admit a viewer, streams are freed
   in this order: anything idle ≥60 s (`viewerIdleTimeoutSec`), silently → the caller's own earlier stream, silently → another
   owner's live stream, only after a **409** `{conflict:{type:"viewer-in-progress",…}}` that `force:true` overrides (same shape as
-  `recording-in-progress`). Owners are `device:<id>` or `user:<id>`. `POST /api/transcode/session` (the movie/series page) uses
-  **soft** mode: it reclaims, but never answers 409.
+  `recording-in-progress`). Owners are `device:<id>` or `user:<id>`. (The `soft` mode for the movie/series page's
+  `POST /api/transcode/session` went with that route in 0122.)
 - Idle sweep: live sessions after **5 min** (`PIGTV_LIVE_IDLE_TIMEOUT_SEC`), seekable ones after 30 min. That's deliberately not
   ~2 min: the 60 s rule already reclaims on demand.
 - **Takeover vs failure** (0094): a displaced client sees only a 404. `admitViewer` leaves an owner-only record (~15 min, in memory),
@@ -161,12 +161,14 @@ it cannot. There is no remux, no legacy pipe and no browser-side strategy any mo
 - No `/api/subtitle` tracks on live: that route opens a second provider connection.
 - Chrome keeps the old URL in `currentSrc` while raising "Empty src attribute", so detect a cleared source from the `src`
   attribute (`isSourceCleared`) and make `vm` test fixtures behave like real Chrome.
-- **Movie/series page** (`WatchPage.js`, latent VOD): it probes, then sends anything not browser-ready through
-  `POST /api/transcode/session`, the only path that can resume (`seekOffset`).
+- **The web reads `/api/library`** (0121): the sidebar pages `/library/channels`, the guide pages `/library/guide` (500 a page,
+  cursor, the 24 h on screen), favourites are `/library/favourites` + `POST/DELETE /api/favorites` with the bare id, and a play
+  resolves by source + bare id (the web never holds a stream URL). Movies, Series and the VOD watch page were deleted in 0122.
 - `/api/proxy/stream` **streams** binary content and drops the upstream when the client leaves (0104). Playlists are read whole
   (they're rewritten, and `?token=` is carried onto every URI). It takes `?h=` (a handle from `playbackHandles.js`: 32 hex,
   in memory, 12 h, LRU-bounded at 10,000; a restart forgets them, unknown → 404; a manifest fetched by handle hands out
-  handles for its URIs) or, for the web's legacy callers until W2.1, `?url=`. Rollback: `PIGTV_PLAYBACK_HANDLES=0`.
+  handles for its URIs) or `?url=`, which only the `PIGTV_PLAYBACK_HANDLES=0` rollback hands out. It is the only route left in
+  `routes/proxy.js` (0122).
 - **Resolve errors** (0118, contract C-B): every provider/channel failure starts "The provider refused this channel",
   "The provider did not respond" or "This channel is not available" (texts in `playbackErrors.js`); a failed ffprobe is
   classified like ffmpeg's stderr and never returned raw; the route strips any `scheme://` from whatever else it returns.
@@ -207,6 +209,11 @@ a wrong classification. `Could not find codec parameters … eac3 … 0 channels
 silent from the start. **Real problems:** `Could not write header`, `FFmpeg exited with code`, `was killed`,
 `Releasing stalled session`, `[HLS] 404 for …`, `asking the server again` repeating on one channel.
 
+**Status page** (0124): the admin page "Status" = `GET /api/status` (admin): live sessions with channel names, active
+and next 5 recordings, the last 50 plays (first-picture time, cold/warm/profile, failure text; in memory, `playbackEvents.js`),
+sync per source, free disk (transcode tmpfs, recordings), build. Never a URL: fields are whitelisted and the document is
+scrubbed. Look here before `docker logs`.
+
 **Client diagnostics.** `POST /api/playback/client-event` (token; whitelisted, bounded fields; path only, never a query string):
 `media-error`, `start-timeout`, `play-start`, `play-end`. Log lines end `from=user:<id>` / `from=device:<id>`.
 `scripts/playback-report.js <saved log>` summarises first-picture time (cold/warm, median and p90), stalls/hour and failures, per
@@ -238,7 +245,9 @@ admin; a visible holder is a 400). Rollback: `PIGTV_CHANNEL_NUMBERS=0` (old orde
 - `/api/library/*` fill a missing logo from the EPG (by tvg-id, then by name).
 - **Ingest-time changes only show after a sync:** a redeploy skips any source synced in the last 24 h (`syncIfStale`), so use
   Settings → Sources → Sync now.
-- Favourites store the bare channel id (`channelIds.js`); `GET /api/favorites` re-presents the composite form.
+- Favourites store the bare channel id (`channelIds.js`); `GET /api/favorites` re-presents the composite form (the web no
+  longer reads it since 0121).
+- Channel numbers are edited in Settings → Channel numbers (0123), which saves only changed rows and shows the server's error.
 
 **Auth, limits, routes.**
 - Stateless bearer tokens (web login + paired devices); no sessions or cookies. `requireStreamAuth` stays **off** (VPN-only).
@@ -328,10 +337,10 @@ and client for Phases 2–4 is fixed in `docs/ROADMAP-CONTRACTS.md`; build to it
 
 | ID | Item | Status |
 |---|---|---|
-| X2.1 | **"My TV" lineup** on the server: the selected categories in order, plus any extra channels, with **channel numbers** (was R11). Used by the guide, channel up/down, Top Shelf and the web. | Server committed (0117: numbers, number order, `GET/PUT /api/lineup`, flag `channelNumbers`), awaiting deploy; the web renumbering screen and the Apple display are still to do |
+| X2.1 | **"My TV" lineup** on the server: the selected categories in order, plus any extra channels, with **channel numbers** (was R11). Used by the guide, channel up/down, Top Shelf and the web. | Server committed (0117); web shows numbers (0121) and has the renumbering screen (0123), awaiting deploy; the Apple display is still to do |
 | A2.1 | **tvOS guide grid on UIKit** (`UICollectionView` with a time-based layout, hosted in SwiftUI), behind a switch; compare on the TV; then delete the SwiftUI grid, edge targets and focus retries | Planned |
-| W2.1 | Web onto `/api/library`; move the Sources category/channel picker off the Xtream-emulation routes; **then remove** the Xtream-emulation and whole-EPG proxy routes, `cache.js`, Movies, Series, Pluto and the plugin loader (Mark, 23 Sept: remove whatever nothing calls) | In progress: the picker's endpoint `GET /api/sources/:id/catalogue` is committed (0120); the web still uses the old routes |
-| W2.2 | Web status page: live sessions, recordings, recent channel starts with first-picture times, sync health | Planned |
+| W2.1 | Web onto `/api/library`; move the Sources category/channel picker off the Xtream-emulation routes; **then remove** the Xtream-emulation and whole-EPG proxy routes, `cache.js`, Movies, Series, Pluto and the plugin loader (Mark, 23 Sept: remove whatever nothing calls) | Committed (0120 catalogue, 0121 web on `/api/library`, 0122 removals), awaiting deploy and Mark's web check |
+| W2.2 | Web status page: live sessions, recordings, recent channel starts with first-picture times, sync health | Committed (0124), awaiting deploy |
 | S2.1 | **P1-4**: an opaque playback handle instead of the credentialed `?url=` (a coordinated client change) | Committed (0119: `direct` → `/api/proxy/stream?h=`, flag `playbackHandles`; proxy/probe logs and stored recording errors redacted), awaiting deploy; needs no client change (same path) |
 
 ### Phase 3: the tuner model (staged, behind a switch, with one env var to go back)
@@ -369,7 +378,8 @@ repeated content, which needs a capture that keeps the raw bytes) · 7 Flix Sydn
 Will reconnect` looping after ~14 MB, nothing produced: 0113 doesn't shorten that case, since ffmpeg keeps running) · "Bug 2" (`[mpegts] Invalid timestamps … dts=X+1800`: needs the channel that produces it);
 `source timing` lines (the classifier has seen one uneven feed in five); the 20 s stall timeout (tighten only after real stall logs).
 
-**Live checks still owed:** 0102–0104 on the web (HLS badge, channel changes, recovery lines) · the HDR panel switch on the TV
+**Live checks still owed:** 0121–0124 on the web (sidebar with numbers, stars incl. a cross-listed channel, guide Earlier/Later,
+record from the guide, Manage Content save, Settings → Channel numbers, Status page while a channel plays) · 0102–0104 on the web (HLS badge, channel changes, recovery lines) · the HDR panel switch on the TV
 (0100 plus Swift R13) · walk the favourites once since 0097 · 0054: cut the upstream mid-stream (stalled, slot frees) · 0059:
 a favourite round-trips web ↔ Apple · 0062: an HEVC recording plays on the Apple TV · 0073: `timestamp discontinuity` stays
 about 0 on the E-AC-3 channel.
@@ -390,7 +400,7 @@ about 0 on the E-AC-3 channel.
 **Decisions on record.**
 - *20 Sept:* stability over channel-change speed; VOD/series kept but unsupported; `requireStreamAuth` off while VPN-only; Mark
   applies and pushes.
-- *21 Sept:* keep the Xtream/upstream proxy and `cache.js`; CI builds the images.
+- *21 Sept:* keep the Xtream/upstream proxy and `cache.js`; CI builds the images. (Superseded 23 Sept: removed in 0122.)
 - *23 Sept:* **one delivery path now**: Phases 3 and 4 shipped together without the trial report, and the web's recovery is a fresh
   HLS session rather than a remux fallback.
 - *23 Sept (later):* development moved to the MacBook. **Claude pushes to `main`** (supersedes "Mark applies and pushes"); the
@@ -421,3 +431,7 @@ about 0 on the E-AC-3 channel.
 | 0118 | Resolve failures all start with a C-B prefix and never carry a URL (404/5xx/refused/timeout reworded; a failed probe no longer returns ffprobe's stderr, which named the stream URL; "channel not found" → "This channel is not available") |
 | 0119 | Opaque playback handles (C-D, S2.1): `direct` resolves answer `/api/proxy/stream?h=<32 hex>`; the proxy takes `h` (and still `url`); flag `playbackHandles`; proxy/probe log lines and a failed recording's stored error now redacted |
 | 0120 | `GET /api/sources/:id/catalogue?type=live` (admin): a source's categories and channels, hidden included, from SQLite, for the Sources picker (W2.1); movie/series → 400 |
+| 0121 | The web reads `/api/library` (W2.1): sidebar, guide (500/page, cursor), favourites and Home tiles; numbers shown; plays by source + bare id; the Sources picker reads the catalogue (movie/series tabs gone) |
+| 0122 | Removed the fork leftovers: Movies/Series/Watch pages and CSS; `/api/proxy/xtream|epg|m3u|cache|image`, `cache.js`, the plugin loader, Pluto headers; `POST /api/transcode/session` + `soft`; `/api/probe`, `/api/subtitle`, `/api/history`, `/api/channels/recent` |
+| 0123 | Settings → Channel numbers: search, inline renumbering, saves changed rows via `PUT /api/lineup/numbers`, shows the server's validation error |
+| 0124 | Admin `GET /api/status` + web Status page (5 s refresh): sessions, recordings, last 50 plays, sync, disk, build; never a URL (W2.2) |
