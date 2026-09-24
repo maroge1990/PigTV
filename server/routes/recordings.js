@@ -75,10 +75,12 @@ const notHls = (res, next) => (require('../services/tuner').enabled()
     ? res.status(404).json({ error: 'Recording not found' })
     : next());
 
-router.get('/:id/index.m3u8', (req, res, next) => {
+router.get('/:id/index.m3u8', async (req, res, next) => {
     try {
         const rec = hlsRecording(req.params.id);
         if (!rec) return notHls(res, next);
+        // Just started, no segment yet: hold the answer until there is one (0129).
+        if (rec.status === 'recording') await recordingEngine.waitForFirstTunedSegment(rec.id);
         let playlist;
         try {
             playlist = fs.readFileSync(path.join(rec.hls_dir, 'index.m3u8'), 'utf8');
@@ -258,6 +260,8 @@ router.get('/:id/playback', async (req, res) => {
         // 0127 (C-E): an HLS recording plays at once, finished or still recording.
         if (rec.format === 'hls' && rec.hls_dir && (rec.status === 'completed' || rec.status === 'recording')) {
             const inProgress = rec.status === 'recording';
+            // 0129: Play pressed the moment it started - answer once there is something to play.
+            if (inProgress) await recordingEngine.waitForFirstTunedSegment(rec.id);
             const progress = inProgress ? recordingEngine.tunedRecordingProgress(rec.id) : null;
             return res.json({
                 url: `/api/recordings/${rec.id}/index.m3u8`,

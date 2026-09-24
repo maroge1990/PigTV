@@ -1280,6 +1280,28 @@ function tunedRecordingProgress(recordingId) {
     return null;
 }
 
+/**
+ * A recording that has only just started may have no segment yet (its tuner is
+ * still probing and starting: several seconds). Wait for the first one, up to
+ * `timeoutMs`, so a client pressing Play straight away gets a playlist it can
+ * play rather than an empty one (0129). Returns at once in every other case.
+ */
+async function waitForFirstTunedSegment(recordingId, timeoutMs = 10000) {
+    let entry = null;
+    for (const e of active.values()) if (e.kind === 'hls' && e.recordingId === recordingId) entry = e;
+    if (!entry || entry.recorder.segments.length > 0) return;
+    await new Promise((resolve) => {
+        let timer = null;
+        const done = () => {
+            clearTimeout(timer);
+            entry.recorder.off('segments', done);
+            resolve();
+        };
+        entry.recorder.on('segments', done);
+        timer = setTimeout(done, timeoutMs);
+    });
+}
+
 async function reconcileTunedRecording(recordingId) {
     const rec = recordingsDb.getById(recordingId);
     const closed = rec && rec.hls_dir ? await closeOrphanPlaylist(rec.hls_dir) : null;
@@ -1522,6 +1544,7 @@ module.exports = {
     buildNativeRemuxArgs,
     buildCompressArgs,
     tunedRecordingProgress,
+    waitForFirstTunedSegment,
     queueJoin,
     tick,
     // Test seam: stand-ins for the ffmpeg/ffprobe calls behind native playback.

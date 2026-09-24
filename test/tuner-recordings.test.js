@@ -7,10 +7,10 @@ const { once } = require('node:events');
 const express = require('express');
 const jwt = require('jsonwebtoken');
 
-// 0127 (T2): with PIGTV_TUNER=1 a scheduled recording takes its
+// 0127 (T2) and 0129 (T4): with PIGTV_TUNER=1 a scheduled recording takes its
 // segments from a tuner - a live viewer's when one is on the channel (one provider
 // connection for both), or one started just for it - into its own folder with its
-// own playlist: EVENT while recording, VOD with
+// own playlist: EVENT while recording (playable from its start, T4), VOD with
 // ENDLIST when done, then joined into one MP4 for download and ad detection.
 //
 // Real routes and engine over a sandbox; ffmpeg is node writing an hls muxer's
@@ -69,7 +69,8 @@ function channel(pos, url) {
 tuner.hooks.freeSpaceGB = () => 1000;
 
 let spawns = [];
-tuner.hooks.spawnArgs = (t) => { spawns.push(t.id); return fakeHlsArgs({ ext: t.options.segmentType === 'fmp4' ? 'm4s' : 'ts', everyMs: 200, duration: 0.2 }); };
+let script = {};
+tuner.hooks.spawnArgs = (t) => { spawns.push(t.id); return fakeHlsArgs({ ext: t.options.segmentType === 'fmp4' ? 'm4s' : 'ts', everyMs: 200, duration: 0.2, ...script }); };
 
 let joins = [];
 engine._nativeTools.codecs = async () => ({ video: 'h264', audio: 'aac' });
@@ -119,6 +120,7 @@ afterEach(async () => {
     await tuner.destroyAll('test over');
     spawns = [];
     joins = [];
+    script = {};
     await db.settings.update({ requireStreamAuth: false, maxProviderStreams: 1 });
 });
 
@@ -344,4 +346,62 @@ test('deleting a recording while it records stops it, releases the tuner and rem
     assert.ok(!fs.existsSync(rec.hls_dir));
     assert.equal(tuner.list().length, 0);
     assert.equal(joins.length, 0, 'nothing joined for a deleted recording');
+});
+
+test('T4: an in-progress recording plays from its start with no live viewer, without disturbing it; inProgress flips with ENDLIST', async () => {
+    const s = due({ lengthMs: 4000 });
+    await engine.tick();
+    const rec = recordingOf(s);
+    await sleep(600);
+    // A client plays it from the start: playlist, init and the first segments.
+    const answer = (await get(`/api/recordings/${rec.id}/playback`, bearer())).body;
+    assert.equal(answer.inProgress, true);
+    const first = await get(answer.url);
+    assert.match(first.text, /#EXT-X-PLAYLIST-TYPE:EVENT\n#EXT-X-INDEPENDENT-SEGMENTS\n#EXT-X-START:TIME-OFFSET=0\.0\n/,
+        'EXT-X-START: a player starts at the beginning, not the live end an EVENT playlist otherwise gets');
+    assert.equal((await fetch(`${base}/api/recordings/${rec.id}/init.mp4`)).status, 200);
+    assert.equal((await fetch(`${base}/api/recordings/${rec.id}/seg00000.m4s`)).status, 200);
+    assert.equal(tuner.list()[0].viewers.size, 0, 'playing a recording is not a tuner viewer: no provider slot, no idle rules');
+    // It grows under the player (EVENT: only appended to). The tuner is read once a second.
+    await sleep(1300);
+    const later = await get(answer.url);
+    assert.ok(later.text.startsWith(first.text.split('\n').slice(0, -1).join('\n')), `the start of the playlist never changes:\n${first.text}\n---\n${later.text}`);
+    assert.ok(later.text.length > first.text.length);
+    await until(() => recordings.getById(rec.id).status === 'completed');
+    const final = (await get(`/api/recordings/${rec.id}/playback`, bearer())).body;
+    assert.equal(final.inProgress, false);
+    const vod = (await get(answer.url)).text;
+    assert.match(vod, /#EXT-X-ENDLIST\n$/);
+    assert.match(vod, /#EXT-X-START:TIME-OFFSET=0\.0\n/);
+    assert.equal(scheduled.getById(s.id).status, 'completed');
+});
+
+test('T4: Play pressed the moment a recording starts waits for its first segment instead of getting an empty playlist', async () => {
+    script = { firstAfterMs: 1500 }; // the tuner is slow to its first segment (probe + ffmpeg start)
+    const s = due({ lengthMs: 6000 });
+    const ticking = engine.tick();
+    await until(() => scheduled.getById(s.id).status === 'recording', 3000);
+    const rec = recordingOf(s);
+    assert.equal(rec.status, 'recording');
+    const t0 = Date.now();
+    const answer = await get(`/api/recordings/${rec.id}/playback`, bearer());
+    assert.equal(answer.status, 200);
+    assert.equal(answer.body.inProgress, true);
+    const waited = Date.now() - t0;
+    assert.ok(waited > 500 && waited < 9000, `held until the first segment (${waited} ms)`);
+    assert.ok(engine.tunedRecordingProgress(rec.id).segments >= 1, 'answered once there was something to play');
+    const playlist = await get(answer.body.url);
+    assert.match(playlist.text, /\nseg00000\.m4s\n/, 'never an empty playlist');
+    await ticking;
+});
+
+test('T4: a finished recording is not held up by the wait', async () => {
+    const s = due({ lengthMs: 1000 });
+    await engine.tick();
+    const rec = recordingOf(s);
+    await until(() => recordings.getById(rec.id).status === 'completed');
+    const t0 = Date.now();
+    assert.equal((await get(`/api/recordings/${rec.id}/playback`, bearer())).body.inProgress, false);
+    assert.equal((await get(`/api/recordings/${rec.id}/index.m3u8`)).status, 200);
+    assert.ok(Date.now() - t0 < 1000);
 });

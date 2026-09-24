@@ -6,14 +6,15 @@
 // Used as tuner.hooks.spawnArgs = (t) => fakeHlsArgs({...}); the tuner then spawns
 // process.execPath with these arguments (its ffmpegPath is process.execPath).
 
-function fakeHlsScript({ ext = 'm4s', everyMs = 100, duration = 4, listSize = 30, stopAfter = Infinity, endAfter = Infinity } = {}) {
+function fakeHlsScript({ ext = 'm4s', everyMs = 100, duration = 4, listSize = 30, stopAfter = Infinity, endAfter = Infinity, firstAfterMs = 0 } = {}) {
     return `
 const fs = require('fs');
 const ext = ${JSON.stringify(ext)};
 const list = [];
 let n = 0;
 if (ext === 'm4s') fs.writeFileSync('init.mp4', 'init-segment');
-const timer = setInterval(() => {
+let timer = null;
+const tick = () => {
     if (n >= ${Number.isFinite(stopAfter) ? stopAfter : 'Infinity'}) return; // alive, silent: a stalled upstream
     const name = 'seg' + String(n).padStart(4, '0') + '.' + ext;
     fs.writeFileSync(name, 'segment-' + n + '-' + 'x'.repeat(200));
@@ -29,7 +30,8 @@ const timer = setInterval(() => {
     fs.writeFileSync('ffmpeg.m3u8.tmp', text);
     fs.renameSync('ffmpeg.m3u8.tmp', 'ffmpeg.m3u8');
     if (ended) { clearInterval(timer); process.exit(0); }
-}, ${everyMs});
+};
+setTimeout(() => { timer = setInterval(tick, ${everyMs}); }, ${firstAfterMs}); // firstAfterMs: a slow start
 process.on('SIGTERM', () => process.exit(255));
 `;
 }

@@ -95,6 +95,7 @@ function formatPdt(ms) {
  * @param {boolean} [p.independentSegments]
  * @param {number}  [p.canSkipUntil]      seconds; adds EXT-X-SERVER-CONTROL
  * @param {boolean} [p.skip]              render a Playlist Delta Update (_HLS_skip=YES)
+ * @param {number}  [p.startOffset]       adds EXT-X-START:TIME-OFFSET (seconds from the start)
  * @returns {{text:string, skipped:number, targetDuration:number}}
  */
 function renderMediaPlaylist(p) {
@@ -111,6 +112,9 @@ function renderMediaPlaylist(p) {
     if (p.discontinuitySequence > 0) lines.push(`#EXT-X-DISCONTINUITY-SEQUENCE:${p.discontinuitySequence}`);
     if (p.playlistType) lines.push(`#EXT-X-PLAYLIST-TYPE:${p.playlistType}`);
     if (p.independentSegments !== false) lines.push('#EXT-X-INDEPENDENT-SEGMENTS');
+    // Where a player starts: without it an EVENT playlist (a recording still being
+    // made) starts near its live end, like live TV (0129).
+    if (Number.isFinite(p.startOffset)) lines.push(`#EXT-X-START:TIME-OFFSET=${Number(p.startOffset).toFixed(1)}`);
     if (skipped > 0) lines.push(`#EXT-X-SKIP:SKIPPED-SEGMENTS=${skipped}`);
 
     let mapInForce = null;

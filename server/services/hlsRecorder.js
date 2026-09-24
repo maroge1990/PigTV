@@ -150,7 +150,10 @@ class HlsRecorder extends EventEmitter {
             // Sticky: an EVENT playlist's target duration must not change.
             targetDuration: this.targetDuration || 1,
             playlistType: this.finished ? 'VOD' : 'EVENT',
-            endList: this.finished
+            endList: this.finished,
+            // 0129: played from its start, also while it is still recording (an
+            // EVENT playlist otherwise starts at its live end).
+            startOffset: 0
         });
         this.targetDuration = targetDuration;
         return text;

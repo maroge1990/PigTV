@@ -1680,6 +1680,14 @@ check test/tuner-timeshift.test.js "below the free-space floor" "with a free-spa
 check test/tuner-timeshift.test.js "leaves out exactly what precedes the Skip Boundary" "a delta-playlist test"
 check test/tuner-timeshift.test.js "playlists may be gzipped, segments never" "and a gzip test"
 
+echo "=== 0129: the tuner model, T4 - watch while recording ==="
+check server/services/hlsPlaylist.js "#EXT-X-START:TIME-OFFSET=" "a playlist can say where to start"
+check server/services/hlsRecorder.js "startOffset: 0" "a recording plays from its start, also while it records"
+check server/services/recordingEngine.js "async function waitForFirstTunedSegment" "Play on a just-started recording waits for its first segment"
+check server/routes/recordings.js "if (inProgress) await recordingEngine.waitForFirstTunedSegment(rec.id);" "in the playback answer"
+check server/routes/recordings.js "if (rec.status === 'recording') await recordingEngine.waitForFirstTunedSegment(rec.id);" "and the playlist"
+check test/tuner-recordings.test.js "T4: an in-progress recording plays from its start" "with a lifecycle test"
+
 if [ $FAIL -eq 0 ]; then
     echo ""
     echo "=== ALL CHECKS PASSED ==="
