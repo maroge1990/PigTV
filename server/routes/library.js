@@ -589,5 +589,7 @@ router.get('/recent', (req, res) => {
 
 // Exposed so tests can force the icon index to be rebuilt.
 router._resetEpgIconIndex = () => { epgIconIndex = null; };
+// 0148: the sport events' channels get their logos the same way (routes/sports.js).
+router.fillMissingLogos = fillMissingLogos;
 
 module.exports = router;

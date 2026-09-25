@@ -99,7 +99,10 @@ async function sendInfo(req, res) {
             channelHealth: true,
             // 0146 (C-H): library/categories rows carry `sport`; admins mark them
             // with PUT /api/library/categories/sport.
-            sportCategories: true
+            sportCategories: true,
+            // 0148 (C-I): GET /api/sports/events lists sport events recognised per
+            // programme, each with its channels best first.
+            sportsEvents: true
         },
 
         // What the server can produce, so a client knows what to ask for.

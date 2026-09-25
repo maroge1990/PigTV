@@ -144,7 +144,7 @@ app.use('/api/library', require('./routes/library'));
 app.use('/api/lineup', require('./routes/lineup'));
 app.use('/api/epg', require('./routes/epg')); // admin: EPG matching (0134)
 app.use('/api/status', require('./routes/status')); // admin (0124)
-app.use('/api/sports', require('./routes/sports')); // C-I: EPG categories (0147)
+app.use('/api/sports', require('./routes/sports')); // C-I: sport events (0148), EPG categories (0147)
 app.use('/api/info', require('./routes/info'));
 // Unauthenticated: an <img> tag cannot send a bearer header, and the route
 // itself is not an open proxy (see routes/logo.js's header comment).

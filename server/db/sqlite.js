@@ -252,6 +252,16 @@ function initSchema() {
         );
     `);
 
+    // Sport follow list (0148, contract C-I): the admin's keywords ("NFL", "F1",
+    // "Chiefs"), in the admin's order (the first that matches names the league).
+    // Only services/sportsEvents.js writes it; no sync touches it.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS sports_follow (
+            position INTEGER PRIMARY KEY,
+            keyword TEXT NOT NULL
+        );
+    `);
+
     // EPG Programs
     // Optimized for range queries
     db.exec(`

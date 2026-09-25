@@ -1839,6 +1839,20 @@ if not (s.index('ADD COLUMN categories') < s.index("DROP VIEW epg_live") < s.ind
 print("  ✓ the column is added, and a stale view dropped, before epg_live is created")
 PY2
 
+echo "=== 0148: sport events and the follow list (C-I) ==="
+check server/routes/info.js "sportsEvents: true" "/api/info advertises sportsEvents"
+check server/routes/sports.js "router.get('/events', (req, res)" "GET /api/sports/events for any signed-in user"
+check server/routes/sports.js "router.get('/preview', requireAdmin," "admin preview"
+check server/routes/sports.js "router.put('/follow', requireAdmin," "admin follow list"
+check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS sports_follow" "the follow list has its own table"
+check server/services/sportsEvents.js "WHERE \${VISIBLE_SQL}" "only visible channels"
+check server/services/sportsEvents.js "sportCategories.isSport(r.source_id, r.category_id)" "the C-H mark is one signal"
+check server/services/sportsEvents.js "const key = \`\${currentGuideVersion()}|\${followVersion}|\${bucket}\`;" "built once per guide version, follow list and minute"
+check server/services/sportsEvents.js "FROM epg_live" "reads the live generation"
+check_absent server/services/sportsEvents.js "FROM epg_programs" "never the raw table"
+check test/api-404.test.js "\['GET', '/api/sports/events'\]" "the Apple client's new route is guarded"
+check test/sports-events.test.js "the same game on three channels is one event" "with a test"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys
