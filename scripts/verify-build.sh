@@ -1918,6 +1918,15 @@ check server/routes/logo.js "original_type = NULL, original_bytes = NULL" "a cac
 check server/db/sqlite.js "'original_type TEXT', 'original_bytes INTEGER'" "logo_cache records the original"
 check test/logo-sizes.test.js "answers the original bytes" "with a test"
 
+echo "=== 0155: a viewer joins a running tuner whose output it can play ==="
+check server/services/playbackStrategy.js "let compatible = joined ? null : findCompatibleTuner(tuner, url, caps, { upscale, audioEncode });" "an exact key first, then a compatible tuner"
+check server/services/playbackStrategy.js "joined compatible tuner" "logged with what the viewer wanted"
+check server/services/playbackStrategy.js "plan = tunerPlan(t);" "the answer describes the joined tuner's output"
+check server/services/playbackStrategy.js "case 'heaac': return caps.heaac === true;" "copied HE-AAC only for a client that decodes it"
+check server/services/tuner.js "this.output = describeOutput(args, this.options);" "a tuner knows what it writes"
+check_absent server/services/playbackStrategy.js "ac3: true, eac3: true, flac: false, heaac: true" "RECORDING_CAPABILITIES still without heaac"
+check test/tuner-recordings.test.js "0155: an Apple TV (heaac: true) joins a recording" "with a test"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 26 September 2026 (handover once-over) · server build **0154** (pushed) · Apple client build **32**
+**Last updated:** 26 September 2026 · server build **0155** (0155 committed locally, not pushed) · Apple client build **32**
 (`../PigTV-Swift/blueprint.md`)
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
@@ -39,8 +39,8 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Development is on Mark's MacBook only (from 23 Sept). |
 | CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
-| Shipped through | **0154** (pushed to `origin/main`, 26 Sept). Mark tested rounds 1–4 on **0151** + app **31**; 0152–0154 and app 32 are awaiting his check (§6). Whether a build is *running* is whatever `/api/version` says. |
-| Next build number | **0155** |
+| Shipped through | **0154** (pushed to `origin/main`, 26 Sept); **0155** committed locally, not pushed. Mark tested rounds 1–4 on **0151** + app **31**; 0152–0154 and app 32 are awaiting his check (§6). Whether a build is *running* is whatever `/api/version` says. |
+| Next build number | **0156** |
 | Tests | `npm test`: **597 tests, all pass** (26 Sept, after 0154; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
@@ -204,7 +204,15 @@ device** (TEST-BLOCK Part 3 deferred; Mark wants to test pause/rewind, start ove
   `-hls_list_size 30`, `independent_segments+temp_file`, **no `delete_segments`** (the server keeps the window).
 - **Key** = sha256 of those exact arguments (its directory masked) + the master-playlist attributes. Same key → the viewer
   joins the running tuner (no slot, no probe: a missing analysis is re-read from the tuner's own with
-  `streamProbe.reanalyzeForCaps`). Different arguments (e.g. web vs Apple TV on an HE-AAC channel) → another tuner, another slot.
+  `streamProbe.reanalyzeForCaps`). **Compatible joining (0155):** no tuner with the viewer's own key, but one on the same URL
+  whose output it can play (`tuner.output`, read from the tuner's arguments: video codec copied or H.264 encoded, fMP4/MPEG-TS,
+  audio copied incl. HE-AAC or AAC-LC encoded, range) → the viewer joins that one (`playbackStrategy.canPlayTunerOutput`: HEVC
+  needs `hevc` and never from MPEG-TS for an fMP4 client, AV1 `av1`, fMP4 `fmp4`, copied HE-AAC `heaac`, AC-3/E-AC-3/FLAC
+  `ac3`/`eac3`/`flac`; H.264 and AAC-LC always; never for an upscale, nor for `audioEncode` on copied audio). An exact key
+  still wins over a compatible tuner (then the one with the most segments). The resolve answer (`segmentType`, `videoMode`,
+  `master.m3u8` vs `stream.m3u8`, FRAME-RATE/VIDEO-RANGE) describes the **joined** tuner; the log says `joined compatible
+  tuner <id> (viewer wanted …)`. Only a viewer that can't play any running tuner (e.g. web without HEVC on a copied-HEVC
+  tuner, or without fMP4) → another tuner, another slot (or the 409).
 - **Viewers** `{id, tunerId, owner, live, lastAccess}`: the `sessionId` resolve returns; DELETE, terminal-status and the idle
   rules (5 min live / 30 min) are per viewer; a tuner stops with its last viewer **and** recording hold (`rec:<scheduleId>`).
   The **coordinator counts tuners** (`requestForTuner`/`admitTuner`): dead → idle (all viewers ≥60 s) → only this owner's,
@@ -217,18 +225,18 @@ device** (TEST-BLOCK Part 3 deferred; Mark wants to test pause/rewind, start ove
   directories are `<recordings>/.timeshift/<id>`; trimmed by time and, every 15 s, below `PIGTV_TIMESHIFT_MIN_FREE_GB` (20) the
   oldest go at once (never below 90 segments); removed on stop and at startup. `CAN-SKIP-UNTIL` = 6 × target duration;
   `_HLS_skip=YES` → `EXT-X-SKIP` delta (version 9). Only these playlists (and recordings' `index.m3u8`) may be gzipped.
-- **Recordings** hold the channel's tuner (any tuner on that URL; else one planned with the Apple TV's default capabilities,
-  no `heaac`, 0130) and an `HlsRecorder` hard-links (same volume) or copies the segments overlapping [start − pre, end + post]
+- **Recordings** hold the channel's tuner (any tuner on that URL; else one planned with `RECORDING_CAPABILITIES`,
+  the Apple TV's before app 27: no `heaac`, 0130) and an `HlsRecorder` hard-links (same volume) or copies the segments overlapping [start − pre, end + post]
   into `<root>/<channel>/<title - date>/`: `index.m3u8` EVENT while recording, VOD + ENDLIST after, `EXT-X-START:TIME-OFFSET=0`
   (plays from its start, also while recording, 0129). Then joined (stream copy, the native-remux arguments) into
   `<title - date>.mp4`, which becomes `file_path` (comskip, compression, download, `media.mp4`). **Both are kept** (2× disk).
   Rows: `format='hls'`, `hls_dir` (columns only added once the tuner is used). A tuner that dies is released and re-tuned
   next tick (new `init-N.mp4` + discontinuity, 0131). Delete removes the folder (only a `<root>/<channel>/<rec>` one).
-  **Caveat since app build 27:** the Apple client now always sends `heaac: true`, so on an HE-AAC channel (the 7 channels) a
-  recording's tuner (planned without `heaac`) and an Apple TV produce different arguments again. A recording that joins a TV's
-  running tuner is fine (`findByUrl`); a TV tuning to an HE-AAC channel **already being recorded** gets the 409
-  `recording-in-progress` (the 0130 problem, back for those channels). Check it in the tuner test; the fix would be to plan
-  `RECORDING_CAPABILITIES` with `heaac: true` (`playbackStrategy.js`), at the cost of HE-AAC recordings not playing in Chrome.
+  **HE-AAC channels (resolved in 0155):** since app build 27 the Apple client always sends `heaac: true`, so on an HE-AAC channel
+  (the 7 channels) its own arguments (HE-AAC copied into fMP4) differ from a recording's (planned without `heaac`: AAC-LC in
+  MPEG-TS, which also plays in a browser). A recording that finds a TV's tuner joins it (`findByUrl`); a TV tuning to a channel
+  already being recorded joins the recording's tuner by compatible joining (above) instead of the 409 `recording-in-progress`.
+  `RECORDING_CAPABILITIES` stays without `heaac`.
 
 ---
 
@@ -495,7 +503,7 @@ cold 8.2 s (n=14), warm 4.8 s (n=2). After round 2 the report's client wait was 
 | ID | Item | Status |
 |---|---|---|
 | T1 | A tuner layer; viewers of one channel share it | **Deferred** (0126): TEST-BLOCK Part 3 not run. Mark wants to test it later |
-| T2 | Recordings take their segments from a tuner (HLS VOD and a joined MP4) | **Deferred** (0127, 0130, 0131): Part 3. See the HE-AAC caveat in §3 |
+| T2 | Recordings take their segments from a tuner (HLS VOD and a joined MP4) | **Deferred** (0127, 0130, 0131, 0155): Part 3. The HE-AAC caveat is resolved (0155, §3) |
 | T3 | Timeshift (3 h per tuner; `PIGTV_TIMESHIFT_DIR` for a local disk, 0132); start over (client side) | **Deferred** (0128, 0132): Part 3 (pause/rewind, start over) |
 | T4 | Watch a recording while it records | **Deferred** (0129): Part 3 (instant recordings) |
 
@@ -531,8 +539,8 @@ cold 8.2 s (n=14), warm 4.8 s (n=2). After round 2 the report's client wait was 
 ### Next
 
 1. Mark's checks of the "awaiting" items above (0152–0154, app 32, R4.7, R4.8).
-2. The tuner test (TEST-BLOCK Part 3) when Mark is ready: pause/rewind, start over, instant recordings; decide on the HE-AAC
-   recording caveat (§3) first.
+2. The tuner test (TEST-BLOCK Part 3) when Mark is ready: pause/rewind, start over, instant recordings; include a TV tuning to
+   an HE-AAC channel (a 7 channel) that is being recorded: it should join (log `joined compatible tuner`), no 409 (0155).
 3. The deferred checks: 1.16 (a recording with breaks), R3.8 (sport empty state), R2.5/R3.11 (a file-based channel).
 4. Anything from §10 Mark wants fixed. **Kept on purpose:** the non-VAAPI encoders. **Not planned:** AV1, more users, reviving
    VOD, access from outside the VPN, AirPlay/PiP, a session keep-alive.
@@ -636,6 +644,7 @@ lines (the classifier has seen one uneven feed in five) · the 20 s stall timeou
 | 0152 | Sport live or replay (C-I): XMLTV `previously-shown`/`premiere`/`new`/`live` stored (`epg_programs.flags`); the first airing of a game within 36 h wins; per-league live hours in the home time zone; builds read the 36 h before now |
 | 0153 | Sport horizon 72 h (C-I): `GET /api/sports/events?hours=` up to 72 (default 6), the preview 72 h, a build kept 5 min and covering 72 h + 5 min; the sync logs its guide's reach |
 | 0154 | Logos at full resolution for the Top Shelf: `/api/logo/<key>?size=full` (the original as fetched, kept beside the resized copy) and `?size=640`; the default stays ≤320 px |
+| 0155 | Tuner: compatible joining. A viewer joins a running tuner on the same stream whose output it can play (an exact key still first), so an Apple TV (`heaac: true`) shares a recording's tuner on an HE-AAC channel instead of a 409 |
 
 ---
 
@@ -687,8 +696,9 @@ env var, and stays off (VPN-only).
 
 **Tuner model (`PIGTV_TUNER=1`)**
 - **Untested live**: never run against the real feed or on a device (TEST-BLOCK Part 3 deferred).
-- On an HE-AAC channel, a TV tuning to a channel whose recording started first gets a 409 (§3 caveat; the Apple client's
-  `heaac: true` differs from the recording's capabilities).
+- ~~On an HE-AAC channel, a TV tuning to a channel whose recording started first gets a 409~~ **Resolved in 0155** (compatible
+  joining, §3): the TV joins the recording's tuner and plays its AAC-LC. A TV that joins that way gets AAC-LC in MPEG-TS, not
+  the HE-AAC-in-fMP4 it would have had alone (the same audio the web gets).
 - **Timeshift disk use**: 3 h per tuner of the source's bitrate (several GB for an HD channel, more for UHD). By default it sits
   on the recordings share; set `PIGTV_TIMESHIFT_DIR=/app/data/timeshift` (§9) and make sure appdata has room. HLS recordings
   also keep both the segments and the joined MP4 (2× disk).

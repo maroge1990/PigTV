@@ -1,6 +1,6 @@
 # PigTV server → Apple client hand-off
 
-**Written 20 September 2026 (server build 0083); kept current in §5 — last entry: build 0154 (26 September 2026).** Audience:
+**Written 20 September 2026 (server build 0083); kept current in §5 — last entry: build 0155 (26 September 2026).** Audience:
 whoever works on the Swift client next, and Mark. The server-side source of truth is `blueprint.md` (this repo); the client's
 state is in `../PigTV-Swift/blueprint.md`. The roadmap contracts C-A…C-I are in `docs/ROADMAP-CONTRACTS.md`.
 
@@ -14,7 +14,7 @@ Ask the server, don't guess. `GET /api/info` (no token) returns `build`, `displa
 `features`. New behaviour is announced with a flag; an older server simply lacks the flag, so **gate on the flag**, and treat a
 missing flag as "off". Since 0138 `/api/info` still answers if a switchable check fails (that flag is then absent).
 
-### Current flags (server 0154, `server/routes/info.js`)
+### Current flags (server 0155, `server/routes/info.js`)
 
 | Flag | Since | Means | What the Apple client (build 32) does with it |
 |---|---|---|---|
@@ -315,6 +315,7 @@ commit** (newest last; the first column is the build number). "Client action" sa
 | 0152 | **Live or replay (C-I), no shape change.** More `GET /api/sports/events` items are `kind: "replay"`: a game whose guide entry is flagged `<previously-shown/>`, a later airing of a game already shown in the last 36 h, or a match-up starting outside its league's live hours in the league's home time zone (an MLB game at 7 am New York time). A guide flag `<live/>`/`<new/>`/`<premiere/>` keeps it live. So "On now" stops showing re-aired games as live (Mark: MLB "being played" at 7 am US time). | None: replays already go in the "Replays" section (0150). |
 | 0153 | **Sport horizon: a whole weekend.** `GET /api/sports/events?hours=` now accepts up to **72** (was clamped to 24); the default stays 6. Everything else unchanged. How far ahead there is anything depends on the provider's guide: the server logs `[Sync] EPG covers until …, N h ahead` after each sync. | **Ask for `hours=72`** for the Sport tab (C-I); an older server answers with 24 h at most. |
 | 0154 | **Full-resolution logos (Top Shelf).** Any `/api/logo/<key>` path the server hands out also answers `?size=full` (the logo exactly as the provider sent it: PNG, JPEG, SVG…, with its own `Content-Type`) and `?size=640` (at most 640 px wide, PNG when converted). Without `size` nothing changes (≤320 px). Any other `size` is a 400; an unknown key is a 404 at every size. Same week-long `Cache-Control`; each size has its own `ETag`. The first `size=full`/`640` request for a logo the server stored before 0154 fetches it from the provider again. | Optional: append `?size=full` (or `640`) to a channel's `logo` path for the Top Shelf (A4.1). Keep the path as given (it already carries the cache version). |
+| 0155 | **Tuner model only (`PIGTV_TUNER=1`, off by default): compatible joining, no shape change.** A viewer now joins a running tuner on the same channel whose output it can play even when its own ideal arguments differ (an exact match is still preferred). So an Apple TV (`heaac: true`, always sent since app 27) tuning to an HE-AAC channel that is being recorded shares the recording's tuner instead of getting the 409 `recording-in-progress`; it then gets that tuner's output (H.264 copied, **AAC-LC in MPEG-TS**, `master.m3u8` with FRAME-RATE/VIDEO-RANGE) rather than HE-AAC copied into fMP4. The resolve answer's `segmentType`/`videoMode`/`url` describe the joined tuner. | None. The player already plays whatever the resolve answer's `url` points at (AAC-LC in MPEG-TS is what it had before app 27). |
 
 Builds with **no client-visible change** (so no row): 0105, 0107, 0109 (the image), 0120, 0121, 0123 (web and admin only),
 0125 (web HTML caching), 0132 (where timeshift is stored), 0145 (the playback report), 0149 and 0151 (web Settings → Sports).

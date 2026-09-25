@@ -454,3 +454,116 @@ test('0131: a recording whose tuner dies lets go of it and takes the channel up 
     assert.ok(fs.existsSync(path.join(rec.hls_dir, 'init-2.mp4')));
     assert.equal(scheduled.getById(s.id).status, 'recording');
 });
+
+// 0155: compatible joining. Since app build 27 the Apple client always sends heaac: true,
+// so on an HE-AAC channel its own arguments (HE-AAC copied into fMP4) differ from a
+// recording's (planned without heaac: AAC-LC in MPEG-TS). A viewer now joins a running
+// tuner on the same stream whose output it can play, instead of needing a second slot.
+const URL_C = 'http://provider.invalid/live/u/p/441399.ts'; // H.264 + HE-AAC (the 7 channels)
+const URL_D = 'http://provider.invalid/live/u/p/441400.ts'; // HEVC + AAC-LC
+const RAW_HEAAC = { streams: [RAW.streams[0], { codec_type: 'audio', codec_name: 'aac', profile: 'HE-AAC', channels: 2 }], format: { format_name: 'mpegts' } };
+const RAW_HEVC = { streams: [{ ...RAW.streams[0], codec_name: 'hevc' }, RAW.streams[1]], format: { format_name: 'mpegts' } };
+const APPLE_27 = { ...APPLE, heaac: true };
+const WEB = { segmentedDelivery: true, fmp4: true }; // hls.js: fMP4, no HEVC, no HE-AAC
+function seedRaw(url, raw, capabilities) {
+    const c = { ...strategy.DEFAULT_CAPABILITIES, ...capabilities };
+    probeCache.set(`${url}|${db.getUserAgent({}) || ''}|${Object.keys(c).filter(k => c[k]).sort().join(',')}`,
+        { result: analyzeProbeResult(raw, url, c), timestamp: Date.now() });
+}
+function resolveAs(device, pos, capabilities) {
+    return fetch(`${base}/api/playback/resolve`, { method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${deviceToken(device)}` },
+        body: JSON.stringify({ sourceId: 2, channelId: pos, capabilities }) });
+}
+async function withLogs(fn) {
+    const lines = [];
+    const log = console.log;
+    console.log = (...a) => { lines.push(a.join(' ')); log(...a); };
+    try { return { result: await fn(), lines }; } finally { console.log = log; }
+}
+
+test('0155: an Apple TV (heaac: true) joins a recording\'s tuner on an HE-AAC channel: no 409, no second ffmpeg; the answer describes that tuner', async () => {
+    channel('pos_3', URL_C);
+    seedRaw(URL_C, RAW_HEAAC, strategy.RECORDING_CAPABILITIES);
+    const s = due({ pos: 'pos_3', lengthMs: 60000 });
+    await engine.tick();
+    assert.equal(scheduled.getById(s.id).status, 'recording');
+    assert.equal(spawns.length, 1);
+    const t = tuner.list()[0];
+    assert.deepEqual({ ...t.output }, { video: 'h264', videoCopied: true, segmentType: 'mpegts', audio: 'aac', audioCopied: false, videoRange: 'SDR' },
+        'the recording\'s tuner: H.264 copied, HE-AAC re-encoded to AAC-LC, MPEG-TS');
+
+    // Not seeded for the Apple TV: its analysis is the running tuner's, re-read for its capabilities.
+    const { result: r, lines } = await withLogs(() => resolveAs('tv', 'pos_3', APPLE_27));
+    const decision = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(decision));
+    assert.equal(spawns.length, 1, 'one ffmpeg, one provider connection');
+    assert.equal(tuner.list().length, 1);
+    assert.equal(t.viewers.size, 1);
+    assert.deepEqual(t.recordingIds(), [s.id]);
+    // What the joined tuner writes, not what the TV would ideally have had (fMP4, HE-AAC copied).
+    assert.equal(decision.segmentType, 'mpegts');
+    assert.equal(decision.videoMode, 'copy');
+    assert.equal(decision.url, `/api/transcode/${decision.sessionId}/master.m3u8`);
+    assert.ok(lines.some(l => l.includes(`joined compatible tuner ${t.id} (viewer wanted `) && l.includes('fmp4 segments') && l.includes('HE-AAC copied')),
+        lines.join('\n'));
+    const master = await get(`/api/transcode/${decision.sessionId}/master.m3u8`);
+    assert.equal(master.status, 200);
+    assert.match(master.text, /VIDEO-RANGE=SDR/);
+    assert.match(master.text, /FRAME-RATE=25\.000/);
+});
+
+test('0155: a viewer that cannot play the running tuner\'s output (web, no HEVC, on a copied-HEVC tuner) still needs its own: 409, or a new tuner with a free slot', async () => {
+    channel('pos_4', URL_D);
+    seedRaw(URL_D, RAW_HEVC, strategy.RECORDING_CAPABILITIES);
+    seedRaw(URL_D, RAW_HEVC, WEB);
+    const s = due({ pos: 'pos_4', lengthMs: 60000 });
+    await engine.tick();
+    assert.equal(tuner.list()[0].output.video, 'hevc');
+    assert.equal(tuner.list()[0].output.segmentType, 'fmp4');
+
+    const refused = await resolveAs('web', 'pos_4', WEB);
+    assert.equal(refused.status, 409);
+    assert.equal((await refused.json()).conflict.type, 'recording-in-progress');
+    assert.equal(spawns.length, 1);
+
+    await db.settings.update({ maxProviderStreams: 2 });
+    const r = await resolveAs('web', 'pos_4', WEB);
+    const decision = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(decision));
+    assert.equal(spawns.length, 2, 'a tuner of its own');
+    assert.equal(tuner.list().length, 2);
+    const own = tuner.list().find(t => t.viewers.size === 1);
+    assert.equal(own.output.video, 'h264', 'HEVC encoded to H.264 for the browser');
+    assert.equal(scheduled.getById(s.id).status, 'recording');
+});
+
+test('0155: an exact match is still preferred over a compatible tuner with more segments', async () => {
+    channel('pos_3', URL_C);
+    seedRaw(URL_C, RAW_HEAAC, APPLE_27);
+    await db.settings.update({ maxProviderStreams: 3 });
+    // The TV's own tuner (HE-AAC copied, fMP4), slow to write segments...
+    script = { everyMs: 1000 };
+    const first = await resolveAs('tv1', 'pos_3', APPLE_27);
+    assert.equal(first.status, 200);
+    const exact = tuner.list()[0];
+    assert.equal(exact.output.audio, 'heaac');
+    // ...then the web's (AAC-LC in MPEG-TS; it cannot play HE-AAC, so no joining), quicker.
+    script = {};
+    const web = await resolveAs('web', 'pos_3', WEB);
+    assert.equal(web.status, 200);
+    assert.equal(spawns.length, 2);
+    const other = tuner.list().find(t => t !== exact);
+    assert.equal(other.output.audio, 'aac');
+    assert.ok(await until(() => other.window.length > exact.window.length + 2, 5000), 'the compatible tuner has more segments');
+
+    // A second TV could play either; it joins the one with its own arguments.
+    const { result: r, lines } = await withLogs(() => resolveAs('tv2', 'pos_3', APPLE_27));
+    const decision = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(decision));
+    assert.equal(spawns.length, 2);
+    assert.equal(exact.viewers.size, 2);
+    assert.equal(other.viewers.size, 1);
+    assert.equal(decision.segmentType, 'fmp4');
+    assert.ok(!lines.some(l => l.includes('joined compatible tuner')));
+});

@@ -5,7 +5,9 @@
  * directory of its own. Viewers (and, from 0127, recordings) attach to a tuner;
  * they do not own an ffmpeg. Two viewers whose resolve produces the same ffmpeg
  * arguments share one tuner, so a second device on the same channel costs no
- * second provider connection.
+ * second provider connection. From 0155 a viewer whose arguments differ also
+ * joins a tuner on the same stream when it can play that tuner's output
+ * (`output`, see describeOutput; playbackStrategy decides).
  *
  *   tuner   TunerSession (a TranscodeSession: the same start, retries, stall
  *           watchdog, failure classification and stop), keyed by its arguments
@@ -219,6 +221,7 @@ class TunerSession extends TranscodeSession {
         this.key = crypto.createHash('sha256')
             .update(JSON.stringify({ args: portable, master: { videoRange: videoRange || null, width: width || 0, height: height || 0, fps: fps || null } }))
             .digest('hex');
+        this.output = describeOutput(args, this.options);
         return this.key;
     }
 
@@ -465,6 +468,45 @@ class TunerSession extends TranscodeSession {
 }
 
 /**
+ * What a tuner's ffmpeg writes (0155), read from the arguments it was keyed on, so
+ * a viewer whose own arguments differ can tell whether it could play them anyway
+ * (compatible joining, playbackStrategy.resolveTuned):
+ *   video        the source's codec when copied ('h264', 'hevc', 'av1', or as
+ *                probed), 'h264' when encoded (every encoder here is H.264)
+ *   segmentType  'fmp4' or 'mpegts'
+ *   audio        when copied: 'heaac' for HE-AAC, else the source's codec ('aac',
+ *                'ac3', 'eac3', ...); when encoded: 'aac' (AAC-LC); 'none' when
+ *                the source has no audio
+ *   videoRange   what the master playlist declares (PQ/HLG/SDR), or null
+ */
+function describeOutput(args, options = {}) {
+    const after = (flag) => { const i = args.lastIndexOf(flag); return i >= 0 ? args[i + 1] : null; };
+    const videoCopied = after('-c:v') === 'copy';
+    const audioCopied = after('-c:a') === 'copy';
+    const vc = String(options.videoCodec || '').toLowerCase();
+    let video = 'h264';
+    if (videoCopied) {
+        if (/hevc|h265|hvc1|hev1/.test(vc)) video = 'hevc';
+        else if (vc.includes('av1')) video = 'av1';
+        else if (/h264|avc/.test(vc)) video = 'h264';
+        else video = vc || 'unknown';
+    }
+    const ac = String(options.audioCodec || '').toLowerCase();
+    const heaac = options.isHeAac === true || String(options.audioProfile || '').toLowerCase().includes('he-aac');
+    let audio = 'aac';
+    if (!ac || ac === 'unknown') audio = 'none';
+    else if (audioCopied) audio = heaac ? 'heaac' : (/eac3|ec-3/.test(ac) ? 'eac3' : ac);
+    return {
+        video,
+        videoCopied,
+        segmentType: options.segmentType === 'fmp4' ? 'fmp4' : 'mpegts',
+        audio,
+        audioCopied,
+        videoRange: options.videoRange || null
+    };
+}
+
+/**
  * A tuner for these arguments: the running one with the same key, or a new one
  * (not yet registered or started). `joined` says which.
  */
@@ -493,6 +535,12 @@ function findByUrl(url) {
         if (!best || t.window.length > best.window.length) best = t;
     }
     return best;
+}
+
+/** Every usable tuner on this stream, most segments first (compatible joining, 0155). */
+function listByUrl(url) {
+    return [...tuners.values()].filter(t => t.url === url && isUsable(t))
+        .sort((a, b) => b.window.length - a.window.length);
 }
 
 function register(t) {
@@ -654,6 +702,8 @@ module.exports = {
     start,
     findByKey,
     findByUrl,
+    listByUrl,
+    describeOutput,
     addViewer,
     viewerTarget,
     getViewer,
