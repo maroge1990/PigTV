@@ -240,3 +240,39 @@ reopen the project first.
 - [ ] R3.15 iPad guide: it **follows your finger** when you swipe sideways and settles on a half hour. Tap a live programme
       (it plays), tap a future one (details open), and touch-and-hold for the menu.
 - [ ] R3.16 iPad/iPhone Sport tab and Home row as on the TV. Siri on iPad: "Play Fox Footy on PigTV".
+
+---
+
+# Round 4: sport rework, Top Shelf, iPad player, speed (server 0151 · app 31, 25 Sept)
+
+Deploy the server (`/api/version` should say **0151**) **and** install **app build 31** together; the sport replays need both.
+
+### Sport
+- [ ] R4.1 Web → Settings → **Sports** preview: **Events** and **Replays** open, **Shows** and **Placeholders** collapsed. The NBA
+      PASS "NO EVENT" slots and "NFL Replay N" channels are under Placeholders. The same game under different titles is one
+      row, listing the titles merged into it. F1 and Formula 1 appear as one league, "F1"; AFL and AFLW stay separate. You
+      can remove the "F1" keyword.
+- [ ] R4.2 Apple TV → **Sport**: On now / Starting soon / Later today hold only real games and sessions. A new **Replays**
+      section (grey REPLAY badge) holds replays of identifiable games. League chips count and filter both.
+- [ ] R4.3 Home's **Sport now & next** shows no replays.
+
+### Apple TV
+- [ ] R4.4 **Top Shelf:** open PigTV once, then go Home and focus PigTV in the top row. Your favourites should appear. Then
+      Settings → **Diagnostics** should show "Top Shelf: Written …, N items · App Group OK" and "Top Shelf extension: Last
+      asked …: returned N items". Note whether the logos load.
+- [ ] R4.5 **Home:** "Continue watching" takes about a third of the screen, and two shelves fit below it, in dark and light.
+- [ ] R4.6 **Tab switching** (Home ↔ Guide ↔ Sport ↔ Recordings ↔ Settings) no longer sticks on the tab you left.
+
+### iPad / iPhone
+- [ ] R4.7 The player shows **only PigTV's controls** (no Apple controls on top). Tap to show or hide; they hide after 4 s
+      unless paused.
+      - Top bar: **Channels** and **TV Guide** (TV Guide closes the player and opens the Guide).
+      - Centre: −15 / play-pause / +15.
+      - Bottom panel: programme info, a **draggable scrub bar**, Go to live, and Favourite / Record / Last channel / channel
+        up-down / Go to number.
+      - Controls are big enough and readable over bright and dark video.
+- [ ] R4.8 **Siri** (iPad): open the **Shortcuts** app and search "PigTV"; you should see "Play channel" and "Open PigTV".
+      Then "Hey Siri, open PigTV", then "Hey Siri, play Fox Footy on PigTV" (a favourite works best).
+
+### Still open from earlier
+R3.8 (sport empty state), R3.11 (file-based channel), 1.16 (recording with breaks), Part 3 (tuner).
