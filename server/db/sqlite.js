@@ -142,6 +142,15 @@ function initSchema() {
         );
         CREATE INDEX IF NOT EXISTS idx_logo_cache_url ON logo_cache(url);
     `);
+    // 0154: the logo as fetched is kept beside the resized copy (routes/logo.js,
+    // `?size=full` for the Apple TV Top Shelf): its type and size, NULL until then.
+    for (const col of ['original_type TEXT', 'original_bytes INTEGER']) {
+        try {
+            db.exec(`ALTER TABLE logo_cache ADD COLUMN ${col}`);
+        } catch (e) {
+            // Column already exists.
+        }
+    }
 
     // Channel profiles (0114, roadmap S1.1): the resolve probe's analysis of a
     // channel, so a repeat play can skip ffprobe (services/channelProfiles.js).

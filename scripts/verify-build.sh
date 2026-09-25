@@ -1782,9 +1782,9 @@ echo "=== 0140: a deploy refreshes cached guides once ==="
 check server/services/libraryRev.js "build}:\${rev}" "the guide version includes the build"
 
 echo "=== 0141: logos keep their transparency ==="
-check server/routes/logo.js "format=rgba,scale='min(\${MAX_WIDTH},iw)':-1,format=rgba" "the downscale converts through rgba (a palette PNG lost its transparency)"
+check server/routes/logo.js "format=rgba,scale='min(\${maxWidth},iw)':-1,format=rgba" "the downscale converts through rgba (a palette PNG lost its transparency)"
 check server/routes/logo.js "'-pix_fmt', 'rgba'" "and writes an rgba PNG"
-check server/routes/logo.js "if (width !== null && width <= MAX_WIDTH) return original;" "a small logo is stored as it came"
+check server/routes/logo.js "if (width !== null && width <= maxWidth) return original;" "a small logo is stored as it came"
 check server/routes/logo.js "function ensureCacheVersion()" "stored logos from an older version are dropped once"
 check server/services/logoCache.js "update(\`v\${LOGO_CACHE_VERSION}|\${url}\`)" "the cache version is in the key (new paths for clients)"
 check test/logo-alpha.test.js "PNG is downscaled with its transparency intact" "with a test per image kind"
@@ -1909,6 +1909,14 @@ check server/routes/sports.js "hours: sportsEvents.MAX_HOURS" "the preview cover
 check server/services/syncService.js "console.log(epgCoverageLine(lastStop));" "the sync logs how far ahead the guide reaches"
 check public/index.html "Recognised in the next 72 hours" "the web preview says so"
 check test/sports-events.test.js "1,000 channels x 108 hours" "with a test"
+
+echo "=== 0154: full-resolution logos for the Top Shelf ==="
+check server/routes/logo.js "const SIZES = { full: '.orig', 640: '.640' };" "?size=full and ?size=640 beside the default copy"
+check server/routes/logo.js "fs.writeFileSync(logoFile(row.key, SIZES.full), fetched);" "the original is kept at fetch"
+check server/routes/logo.js "return res.status(400).json({ error: 'size must be full or 640' });" "any other size is refused"
+check server/routes/logo.js "original_type = NULL, original_bytes = NULL" "a cache-version change clears the originals too"
+check server/db/sqlite.js "'original_type TEXT', 'original_bytes INTEGER'" "logo_cache records the original"
+check test/logo-sizes.test.js "answers the original bytes" "with a test"
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1

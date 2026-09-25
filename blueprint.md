@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 25 September 2026 · server build **0153** (0147–0153 committed locally, not yet pushed) · Apple client build **16**
+**Last updated:** 25 September 2026 · server build **0154** (0147–0154 committed locally, not yet pushed) · Apple client build **16**
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
 architecture notes live in `../PigTV-Swift/blueprint.md`, which points back here for the roadmap. This file replaced the
@@ -31,7 +31,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Mark deploys. |
 | Shipped through | **0104**; whether it is *running* is whatever `/api/version` says |
-| Next build number | **0154** |
+| Next build number | **0155** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -308,6 +308,10 @@ that ended before now. The 0148 route tests switch `LIVE_HOURS` off (they use th
 to an RGBA PNG only when wider than 320 px (a palette PNG with transparency otherwise came out opaque: ABC, 7mate, 7two);
 SVG, small and unconvertible logos are kept as fetched. Bumping `LOGO_CACHE_VERSION` (`logoCache.js`) changes every path and
 drops the stored files once (`meta.logo_cache_version`) - needed because the Apple client caches artwork on disk by URL forever.
+**Sizes (0154, Top Shelf):** the fetched original is kept beside the resized copy (`data/logos/<key>.orig`; `logo_cache.original_type`,
+`original_bytes`); `?size=full` serves it, `?size=640` a ≤640 px copy made once from it (`<key>.640`, same rgba conversion), no size
+the ≤320 px copy as before, any other size 400. Same allow-list, max-age and version drop; each size has its own ETag. A logo stored
+before 0154 is fetched again on its first `size=full`/`640` request.
 
 **EPG matching** (0134, `epgMapping.js`, table `epg_mappings`, Settings → EPG matching): an admin's tvg-id per identity,
 applied **at query time** over `playlist_items.tvg_id` (guide programmes, now/next, logo fallback), because every sync
@@ -493,7 +497,7 @@ and timeshift together. Run old and new side by side against the `stream-doctor`
 
 | ID | Item | Status |
 |---|---|---|
-| A4.1 | Top Shelf: the lineup's "on now" on the Apple TV home screen, with a deep link to play | Planned |
+| A4.1 | Top Shelf: the lineup's "on now" on the Apple TV home screen, with a deep link to play | Planned; server side: full-resolution logos `/api/logo/<key>?size=full` (and `?size=640`) committed (0154) |
 | A4.2 | Stream info overlay (codec, resolution, fps, bitrate, dropped frames, copy or encode, HDR); the same numbers in `play-end` | Planned |
 | A4.3 | **One player on the TV**: recordings move into the custom player and the AVKit recording path is deleted (Mark, 23 Sept); best after T2 | Planned |
 | A4.4 | iPhone/iPad touch guide and player controls; revisit PiP and AirPlay after the tuner work | Planned |
@@ -598,3 +602,4 @@ about 0 on the E-AC-3 channel.
 | 0151 | Web Settings → Sports: the preview grouped by kind (Events, Replays open; Shows, Placeholders collapsed), with why and the merged guide titles |
 | 0152 | Sport live or replay (C-I): XMLTV `previously-shown`/`premiere`/`new`/`live` stored (`epg_programs.flags`); the first airing of a game within 36 h wins; per-league live hours in the home time zone; builds read the 36 h before now |
 | 0153 | Sport horizon 72 h (C-I): `GET /api/sports/events?hours=` up to 72 (default 6), the preview 72 h, a build kept 5 min and covering 72 h + 5 min; the sync logs its guide's reach |
+| 0154 | Logos at full resolution for the Top Shelf: `/api/logo/<key>?size=full` (the original as fetched, kept beside the resized copy) and `?size=640`; the default stays ≤320 px |

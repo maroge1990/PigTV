@@ -13,6 +13,12 @@
  * builds a `logo` field) - a key that was never registered because it never
  * actually appeared as a channel or EPG logo is a plain 404, not a fetch of
  * whatever URL a caller feels like naming.
+ *
+ * 0154 (Top Shelf): `?size=full` answers the logo exactly as fetched (kept
+ * beside the resized copy as `<key>.orig`), `?size=640` a copy at most 640 px
+ * wide (made from the original on first request, `<key>.640`). No size is the
+ * <=320 px copy, as before; any other size is a 400. The same allow-list,
+ * cache lifetime and cache-version handling apply; each size has its own ETag.
  */
 const express = require('express');
 const router = express.Router();
@@ -30,8 +36,9 @@ if (!fs.existsSync(LOGOS_DIR)) fs.mkdirSync(LOGOS_DIR, { recursive: true });
 const FETCH_TIMEOUT_MS = 10000;
 const MAX_BYTES = 2 * 1024 * 1024;
 const MAX_WIDTH = 320;
+const SIZES = { full: '.orig', 640: '.640' }; // 0154: ?size= -> the file beside the default copy
 
-const logoFile = (key) => path.join(LOGOS_DIR, key);
+const logoFile = (key, suffix = '') => path.join(LOGOS_DIR, key + suffix);
 
 // Keys are always our own sha256-derived hex strings (services/logoCache.js);
 // reject anything else before it can be used to build a path or query a row.
@@ -54,7 +61,7 @@ function ensureCacheVersion() {
         for (const name of fs.readdirSync(LOGOS_DIR)) {
             try { fs.rmSync(path.join(LOGOS_DIR, name), { force: true }); removed++; } catch { /* next request overwrites it */ }
         }
-        db.prepare('UPDATE logo_cache SET content_type = NULL, fetched_at = NULL, bytes = NULL').run();
+        db.prepare('UPDATE logo_cache SET content_type = NULL, fetched_at = NULL, bytes = NULL, original_type = NULL, original_bytes = NULL').run();
         db.prepare(`INSERT INTO meta (key, value) VALUES ('logo_cache_version', ?)
                     ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(String(LOGO_CACHE_VERSION));
         console.log(`[Logo] Cache version ${stored ? stored.value : 1} -> ${LOGO_CACHE_VERSION}: dropped ${removed} stored logos; each is fetched again on its next request`);
@@ -67,15 +74,20 @@ function etagFor(row) {
 }
 
 function serveFromDisk(req, res, file, row) {
-    const etag = etagFor(row);
+    serveFile(req, res, file, etagFor(row), row.content_type);
+}
+
+function serveFile(req, res, file, etag, contentType) {
     res.set('Cache-Control', 'public, max-age=604800');
     res.set('ETag', etag);
     if (req.headers['if-none-match'] === etag) return res.status(304).end();
-    res.set('Content-Type', row.content_type || 'image/png');
+    res.set('Content-Type', contentType || 'image/png');
     fs.createReadStream(file)
         .on('error', () => { if (!res.headersSent) res.status(500).end(); })
         .pipe(res);
 }
+
+const isPng = (buf) => buf.length >= 8 && buf.readUInt32BE(0) === 0x89504e47;
 
 /**
  * The pixel width from the image's own header, for the formats logos come in;
@@ -116,10 +128,10 @@ function isSvg(buf, contentType) {
  * transparency at all - the logo's clear background came out solid - and the
  * encoder kept whatever format the decoder chose (pal8, ya8, rgba64be).
  */
-function downscale(ffmpegPath, buffer) {
+function downscale(ffmpegPath, buffer, maxWidth = MAX_WIDTH) {
     return new Promise((resolve, reject) => {
         const args = ['-y', '-i', 'pipe:0',
-            '-vf', `format=rgba,scale='min(${MAX_WIDTH},iw)':-1,format=rgba`,
+            '-vf', `format=rgba,scale='min(${maxWidth},iw)':-1,format=rgba`,
             '-frames:v', '1', '-f', 'image2pipe', '-vcodec', 'png', '-pix_fmt', 'rgba', 'pipe:1'];
         const proc = spawn(ffmpegPath, args);
         const out = [];
@@ -144,15 +156,14 @@ function downscale(ffmpegPath, buffer) {
  * both needed and clearly worked. Already <=320px wide, an SVG, a failed or
  * unrecognisable conversion, or one that came out no smaller: the original.
  */
-async function storableLogo(ffmpegPath, buffer, contentType) {
+async function storableLogo(ffmpegPath, buffer, contentType, maxWidth = MAX_WIDTH) {
     const original = { buffer, type: contentType };
     if (!ffmpegPath || isSvg(buffer, contentType)) return original;
     const width = imageWidth(buffer);
-    if (width !== null && width <= MAX_WIDTH) return original;
+    if (width !== null && width <= maxWidth) return original;
     try {
-        const resized = await downscale(ffmpegPath, buffer);
-        const isPng = resized.length >= 8 && resized.readUInt32BE(0) === 0x89504e47;
-        if (!isPng || resized.length >= buffer.length) return original;
+        const resized = await downscale(ffmpegPath, buffer, maxWidth);
+        if (!isPng(resized) || resized.length >= buffer.length) return original;
         return { buffer: resized, type: 'image/png' };
     } catch {
         // Downscaling is an optimisation, not a requirement for serving the logo.
@@ -181,11 +192,44 @@ async function fetchAndStore(req, row) {
         if (total > MAX_BYTES) throw new Error('logo exceeds the 2 MB limit');
         chunks.push(chunk);
     }
-    const { buffer, type: finalType } = await storableLogo(req.app.locals.ffmpegPath, Buffer.concat(chunks), contentType);
+    const fetched = Buffer.concat(chunks);
+    const { buffer, type: finalType } = await storableLogo(req.app.locals.ffmpegPath, fetched, contentType);
 
+    // 0154: the original beside the resized copy (?size=full); a stale ?size=640 goes.
+    fs.writeFileSync(logoFile(row.key, SIZES.full), fetched);
+    fs.rmSync(logoFile(row.key, SIZES[640]), { force: true });
     fs.writeFileSync(logoFile(row.key), buffer);
-    getDb().prepare('UPDATE logo_cache SET content_type = ?, fetched_at = ?, bytes = ? WHERE key = ?')
-        .run(finalType, Date.now(), buffer.length, row.key);
+    getDb().prepare('UPDATE logo_cache SET content_type = ?, fetched_at = ?, bytes = ?, original_type = ?, original_bytes = ? WHERE key = ?')
+        .run(finalType, Date.now(), buffer.length, contentType, fetched.length, row.key);
+}
+
+/**
+ * 0154: `?size=full` or `?size=640` for a registered key. The original is fetched
+ * again if this logo was stored before 0154 kept originals; the 640 px copy is made
+ * from the original once (ffmpeg, through rgba as the default copy), or is the
+ * original when it is no wider, an SVG, or doesn't convert.
+ */
+async function serveSize(req, res, row, size) {
+    const db = getDb();
+    const orig = logoFile(row.key, SIZES.full);
+    if (!(row.fetched_at && row.original_bytes && fs.existsSync(orig))) {
+        await fetchAndStore(req, row);
+        row = db.prepare('SELECT * FROM logo_cache WHERE key = ?').get(row.key);
+        if (!row || !row.fetched_at || !fs.existsSync(orig)) return res.status(502).json({ error: 'Could not fetch logo' });
+    }
+    if (size === 'full') {
+        return serveFile(req, res, orig, `"${row.key}-full-${row.original_bytes}-v${LOGO_CACHE_VERSION}"`, row.original_type);
+    }
+    const file = logoFile(row.key, SIZES[size]);
+    if (!fs.existsSync(file)) {
+        const { buffer } = await storableLogo(req.app.locals.ffmpegPath, fs.readFileSync(orig), row.original_type, 640);
+        fs.writeFileSync(file, buffer);
+    }
+    const head = Buffer.alloc(8);
+    const fd = fs.openSync(file, 'r');
+    try { fs.readSync(fd, head, 0, 8, 0); } finally { fs.closeSync(fd); }
+    const type = isPng(head) ? 'image/png' : row.original_type;
+    return serveFile(req, res, file, `"${row.key}-640-${fs.statSync(file).size}-v${LOGO_CACHE_VERSION}"`, type);
 }
 
 router.get('/:key', async (req, res) => {
@@ -197,6 +241,14 @@ router.get('/:key', async (req, res) => {
         const db = getDb();
         const row = db.prepare('SELECT * FROM logo_cache WHERE key = ?').get(key);
         if (!row) return res.status(404).json({ error: 'Not found' });
+
+        const size = req.query.size;
+        if (size !== undefined) {
+            if (typeof size !== 'string' || !Object.hasOwn(SIZES, size)) {
+                return res.status(400).json({ error: 'size must be full or 640' });
+            }
+            return await serveSize(req, res, row, size);
+        }
 
         const file = logoFile(key);
         if (row.fetched_at && fs.existsSync(file)) {
