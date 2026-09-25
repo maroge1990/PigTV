@@ -8,6 +8,17 @@ const zlib = require('zlib');
 const { Readable } = require('stream');
 const { stripBadgeSuffix } = require('./textCleanup');
 
+// 0152: XMLTV programme flags, as a bitmask (the same bits as sportsClassify.FLAGS; stored in
+// epg_programs.flags): <previously-shown/> (with or without a start), <premiere/>, <new/>, and
+// the non-standard <live/>; a <category>Live</category> counts as <live/>.
+const PROGRAMME_FLAGS = { 'previously-shown': 1, premiere: 2, new: 4, live: 8 };
+const LIVE_CATEGORY_RE = /^\s*live(?:\s+event)?\s*$/i;
+
+/** Set a flag on a programme being parsed (a channel has no flags). */
+function markFlag(obj, tag) {
+    if (obj && obj.flags !== undefined && PROGRAMME_FLAGS[tag]) obj.flags |= PROGRAMME_FLAGS[tag];
+}
+
 /**
  * Parse XMLTV date format (YYYYMMDDHHmmss +ZZZZ)
  * @param {string} dateStr - XMLTV format date string
@@ -82,12 +93,15 @@ function parse(input) {
                     category: [],
                     icon: null,
                     date: null,
-                    episodeNum: null
+                    episodeNum: null,
+                    flags: 0
                 };
             } else if (currentTag === 'icon') {
                 if (currentObject) {
                     currentObject.icon = attr.src;
                 }
+            } else {
+                markFlag(currentObject, currentTag);
             }
             textBuffer = '';
         });
@@ -127,6 +141,7 @@ function parse(input) {
                         break;
                     case 'category':
                         if (textBuffer && currentObject.category) currentObject.category.push(textBuffer);
+                        if (LIVE_CATEGORY_RE.test(textBuffer)) markFlag(currentObject, 'live');
                         break;
                     case 'date':
                         currentObject.date = textBuffer;
@@ -345,12 +360,15 @@ async function* parseStreaming(input, batchSize = 1000) {
                 category: [],
                 icon: null,
                 date: null,
-                episodeNum: null
+                episodeNum: null,
+                flags: 0
             };
         } else if (currentTag === 'icon') {
             if (currentObject) {
                 currentObject.icon = attr.src;
             }
+        } else {
+            markFlag(currentObject, currentTag);
         }
         textBuffer = '';
     });
@@ -402,6 +420,7 @@ async function* parseStreaming(input, batchSize = 1000) {
                     break;
                 case 'category':
                     if (textBuffer && currentObject.category) currentObject.category.push(textBuffer);
+                    if (LIVE_CATEGORY_RE.test(textBuffer)) markFlag(currentObject, 'live');
                     break;
                 case 'date':
                     currentObject.date = textBuffer;
@@ -464,6 +483,7 @@ async function* parseStreaming(input, batchSize = 1000) {
 }
 
 module.exports = {
+    PROGRAMME_FLAGS,
     parse,
     parseXmltvDate,
     fetchAndParse,

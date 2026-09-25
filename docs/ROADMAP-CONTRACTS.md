@@ -128,6 +128,17 @@ Sport is recognised per **programme**, not per channel: about 100 channels carry
     teams in either order, by name, short name or abbreviation; or the same session and grand prix). League aliases: F1 = Formula
     1 = Formula One = FIA F1 (shown "F1"); AFL and AFLW are separate leagues. A followed keyword that names a league follows that
     league in all its spellings.
+  - **Live or replay (0152).** An `"event"` that names a game (a match-up, or a session of a known league) becomes a `"replay"`
+    when, in this order: (a) the guide's XMLTV flags say so: `<previously-shown/>` → replay; `<live/>`, `<new/>`, `<premiere/>`
+    or a "Live" category → live (flags are stored per programme at ingest, `epg_programs.flags`); (b) the **first airing wins**:
+    of airings of the same game (league + teams, or league + session + grand prix) within 36 h, the earliest is live and one
+    starting more than 30 min after it is a replay, except one 20 h or more later inside its league's live hours (the next game
+    of a series); the server reads the 36 h before now for this; (c) a title marked "Live" → live; (d) the league's **live
+    hours** in its home time zone (`sportsClassify.LIVE_HOURS`: MLB, NBA, WNBA, NHL, MLS 11:00–23:30 and NFL 09:00–23:30
+    New York; EPL, Championship, UEFA 11:00–22:00 London; AFL, AFLW, NRL, NRLW, A-League, BBL 11:00–21:30 Melbourne; F1 and
+    other travelling series none): a start outside them → replay. The admin preview's `kindRule` names the deciding rule
+    (`"replay: outside MLB hours (07:00 America/New_York)"`, `"replay: aired first 11 h 55 min earlier (MLB Network)"`,
+    `"replay: previously shown, says the guide"`). No shape change.
 - **Admin:** `GET /api/sports/follow` → `{ keywords: [string] }`; `PUT /api/sports/follow` `{ keywords }` (admin; trims and
   de-duplicates; max 100). `GET /api/sports/preview` (admin) → today's recognised events, each with the rule that matched, to tune
   the list; since 0150 every kind, each also with `kindRule` (why it is that kind, e.g. `"placeholder: ends in a bare \":\""`). Web: Settings → **Sports** panel with the follow list and the preview.

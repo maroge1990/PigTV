@@ -547,8 +547,8 @@ class SyncService {
         await this.purgeEpgRows(sourceId, '<>', activeGen);
 
         const programmeStmt = db.prepare(`
-            INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, description, gen, categories)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, description, gen, categories, flags)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         const insertProgrammes = db.transaction((progs) => {
@@ -561,7 +561,8 @@ class SyncService {
                     p.title,
                     p.description || p.desc,
                     newGen,
-                    categoriesJson(p.category)
+                    categoriesJson(p.category),
+                    p.flags || null // 0152: <previously-shown/>, <premiere/>, <new/>, <live/> (epgParser.PROGRAMME_FLAGS)
                 );
             }
         });

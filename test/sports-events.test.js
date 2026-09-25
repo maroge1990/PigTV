@@ -122,6 +122,10 @@ before(async () => {
     d.prepare(`UPDATE playlist_items SET is_hidden = 1 WHERE name = 'Hidden HD'`).run();
     d.prepare(`UPDATE categories SET is_hidden = 1 WHERE name = 'Adults'`).run();
     load('services/sportCategories').setSport(source.id, 'Sport', true);
+    // 0152: these tests use the wall clock, so the leagues' live hours (an NBA game "now" is a
+    // replay when now is 7 am in New York) are switched off here; test/sports-live.test.js has them.
+    const { LIVE_HOURS } = load('services/sportsClassify');
+    for (const league of Object.keys(LIVE_HOURS)) delete LIVE_HOURS[league];
 
     const app = express();
     app.use(express.json());
@@ -160,8 +164,9 @@ test('the same game on three channels is one event; a different game at the same
     assert.equal(nfl[0].league, 'American Football', 'the most specific category');
     assert.match(nfl[0].id, /^[0-9a-f]{16}$/);
     const nba = find(body, 'NBA');
-    assert.equal(nba.length, 2, 'the later, non-overlapping airing is its own event');
+    assert.equal(nba.length, 2, 'the later, non-overlapping airing is its own item');
     assert.deepEqual(nba.map(e => e.live), [true, false]);
+    assert.deepEqual(nba.map(e => e.kind), ['event', 'replay'], '0152: the same game 5 h later is a replay of the first airing');
 });
 
 test('(a) an EPG category in the sport vocabulary makes a programme sport', async () => {

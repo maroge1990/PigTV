@@ -1882,6 +1882,24 @@ check public/js/pages/Settings.js "\['placeholder', 'Placeholders'\]" "grouped b
 check public/js/pages/Settings.js "guide title" "the merged guide titles are listed"
 check test/sports-settings.test.js "the preview groups by kind" "with a test"
 
+echo "=== 0152: live or replay from flags, the first airing and league hours (C-I) ==="
+check server/services/epgParser.js "const PROGRAMME_FLAGS = { 'previously-shown': 1, premiere: 2, new: 4, live: 8 };" "the parser collects previously-shown, premiere, new and live"
+check server/services/syncService.js "p.flags || null" "the sync stores them"
+check server/db/sqlite.js "ALTER TABLE epg_programs ADD COLUMN flags INTEGER" "epg_programs has a flags column"
+check server/db/sqlite.js "p.categories, p.flags" "epg_live exposes it (an older view is made again)"
+check server/services/sportsClassify.js "function resolveLive(airings)" "live or replay across a game's airings"
+check server/services/sportsClassify.js "MLB: US_EVENING," "a per-league table of live hours"
+check server/services/sportsEvents.js "all(...chunk, from - LOOKBACK_MS, to)" "a build reads the 36 h before now"
+check server/services/sportsEvents.js "sportsClassify.resolveLive(airings);" "and decides live or replay before merging"
+check test/sports-live.test.js "MLB 7 am case" "with a test"
+python3 - <<'PY3' || FAIL=1
+import sys
+s = open('server/db/sqlite.js').read()
+if not (s.index('ADD COLUMN flags') < s.index("DROP VIEW epg_live") < s.index('CREATE VIEW IF NOT EXISTS epg_live')):
+    print("  ✗ the flags column and the view drop must come before the view is created"); sys.exit(1)
+print("  ✓ the flags column is added, and a stale view dropped, before epg_live is created")
+PY3
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

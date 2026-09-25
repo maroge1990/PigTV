@@ -302,10 +302,19 @@ function initSchema() {
     } catch (e) {
         // Column already exists.
     }
+    // 0152: the programme's XMLTV flags as a bitmask (services/epgParser.js
+    // PROGRAMME_FLAGS: previously-shown 1, premiere 2, new 4, live 8), NULL when
+    // it has none. Sport events use them to tell a live game from a replay.
+    try {
+        db.exec('ALTER TABLE epg_programs ADD COLUMN flags INTEGER');
+    } catch (e) {
+        // Column already exists.
+    }
     // A view keeps the column list it was created with, so an epg_live made
-    // before 0147 has no `categories`: drop it and let it be created again below.
+    // before 0147 has no `categories` (before 0152 no `flags`): drop it and let
+    // it be created again below.
     const liveView = db.prepare(`SELECT sql FROM sqlite_master WHERE type = 'view' AND name = 'epg_live'`).get();
-    if (liveView && !/p\.categories/.test(liveView.sql)) db.exec('DROP VIEW epg_live');
+    if (liveView && !(/p\.categories/.test(liveView.sql) && /p\.flags\b/.test(liveView.sql))) db.exec('DROP VIEW epg_live');
     db.exec(`
         CREATE TABLE IF NOT EXISTS epg_state (
             source_id INTEGER PRIMARY KEY,
@@ -313,7 +322,7 @@ function initSchema() {
         );
         CREATE INDEX IF NOT EXISTS idx_epg_source_gen ON epg_programs(source_id, gen);
         CREATE VIEW IF NOT EXISTS epg_live AS
-            SELECT p.id, p.channel_id, p.source_id, p.start_time, p.end_time, p.title, p.description, p.data, p.categories
+            SELECT p.id, p.channel_id, p.source_id, p.start_time, p.end_time, p.title, p.description, p.data, p.categories, p.flags
             FROM epg_programs p
             LEFT JOIN epg_state s ON s.source_id = p.source_id
             WHERE p.gen = COALESCE(s.active_gen, 0);

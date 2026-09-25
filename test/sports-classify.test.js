@@ -144,9 +144,7 @@ test("Mark's export: after merging, one event per game", () => {
         'Carlton Blues v Richmond Tigers',
         'Dolphins v 49ers',
         'Fremantle v Brisbane Lions · Grand Final',
-        'Hawthorn v Brisbane Lions · Preliminary Final 1',
         'Melbourne Demons v North Melbourne Kangaroos',
-        'Sydney Swans v Fremantle · Preliminary Final 2',
         'Western Bulldogs v Port Adelaide Power'
     ]);
     const nfl = byTitle['Atlanta Falcons v Green Bay Packers'];
@@ -175,15 +173,18 @@ test("Mark's export: after merging, one event per game", () => {
     assert.ok(items.filter(e => e.aliases.some(a => /AFLW|Women's AFL|AFL Women's/.test(a))).every(e => e.league === 'AFLW'));
 
     const replays = items.filter(e => e.kind === 'replay').map(e => e.title).sort();
-    assert.deepEqual(replays, ['AFL Grand Final 2025', 'NBA All-Star Game 2026', 'Packers v Jets', 'Packers v Jets']);
+    assert.deepEqual(replays, ['AFL Grand Final 2025', 'Hawthorn v Brisbane Lions · Preliminary Final 1', 'NBA All-Star Game 2026',
+        'Packers v Jets', 'Packers v Jets', 'Sydney Swans v Fremantle · Preliminary Final 2'],
+    '0152: last week\'s preliminary finals at 6:30 and 9:30 am on Grand Final day are re-airs (outside AFL hours)');
 });
 
-test('the Prime Vision alt cast stays its own event when it does not overlap the game', () => {
+test('the Prime Vision alt cast stays its own item when it does not overlap the game (0152: a replay of it)', () => {
     const x = loadExport();
     const alt = x.programmes.find(p => p.title.includes('Prime Vision'));
     alt.start_time += 6 * 3600000;
     alt.end_time += 6 * 3600000;
     const items = sportsEvents.eventsFromProgrammes(x.channels, x.programmes, x.follow);
-    const games = items.filter(e => e.kind === 'event' && e.title === 'Atlanta Falcons v Green Bay Packers');
-    assert.deepEqual(games.map(e => e.channels.length), [3, 1]);
+    const games = items.filter(e => e.title === 'Atlanta Falcons v Green Bay Packers');
+    assert.deepEqual(games.map(e => [e.kind, e.channels.length]), [['event', 3], ['replay', 1]]);
+    assert.equal(games[1].kindRule, 'replay: aired first 6 h 5 min earlier (NFL Game Pass 1 UHD)', 'measured from the earliest airing');
 });

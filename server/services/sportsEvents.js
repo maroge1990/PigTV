@@ -18,6 +18,10 @@
  * the name (UHD, HD, unknown, SD), then health ok (C-G), then the user's
  * favourite, then guide order.
  *
+ * 0152: an event that names a game can then turn out a replay (sportsClassify.resolveLive:
+ * the guide's XMLTV flags, the first airing within 36 h, a "Live" title, the league's live
+ * hours), so a build also reads the 36 h before its minute.
+ *
  * Only visible channels count (not hidden, not in a hidden category), once per
  * channel identity. The event list scans a window of epg_live across every
  * visible channel, so it is built once per (library_rev + EPG generations,
@@ -35,7 +39,10 @@ const sportsClassify = require('./sportsClassify');
 
 const HOUR_MS = 60 * 60 * 1000;
 const WINDOW_MS = 24 * HOUR_MS;      // what one build covers, from its minute
-const MAX_PROGRAMME_MS = 24 * HOUR_MS; // as routes/library.js: bounds start_time for the index
+// 0152: a build also reads the 36 h before its minute, so a later airing of a game can be
+// told from its first (live) airing (sportsClassify.resolveLive). epg_live holds what the
+// provider's feed carries, usually the previous day too; the sync trims nothing by time.
+const LOOKBACK_MS = 36 * HOUR_MS;
 const DEFAULT_HOURS = 6;
 const MAX_HOURS = 24;
 const MAX_KEYWORDS = 100;
@@ -276,11 +283,11 @@ function programmesFor(db, tvgIds, from, to) {
     for (let i = 0; i < tvgIds.length; i += 500) {
         const chunk = tvgIds.slice(i, i + 500);
         out.push(...db.prepare(`
-            SELECT channel_id, title, start_time, end_time, categories
+            SELECT channel_id, title, start_time, end_time, categories, flags
             FROM epg_live
             WHERE channel_id IN (${chunk.map(() => '?').join(',')})
-              AND start_time > ? AND end_time > ? AND start_time < ?
-        `).all(...chunk, from - MAX_PROGRAMME_MS, from, to));
+              AND start_time >= ? AND start_time < ?
+        `).all(...chunk, from - LOOKBACK_MS, to));
     }
     return out;
 }
@@ -297,14 +304,15 @@ function buildEvents({ from, decorateChannels } = {}) {
 
     const tvgIds = [...new Set(channels.map(ch => ch.tvgId).filter(Boolean))];
     const progs = programmesFor(db, tvgIds, from, from + WINDOW_MS);
-    const events = eventsFromProgrammes(channels, progs, follow);
+    // Items that ended before this minute were only read to find first airings.
+    const events = eventsFromProgrammes(channels, progs, follow).filter(ev => ev.end > from);
     return { from, events, channelCount: channels.length, programmeCount: progs.length };
 }
 
 /**
  * The pure part of a build: every sport item (all kinds) from the visible channels
  * ({ key, order, tvgId, sportChannel, name, ... }) and their programmes (epg_live rows:
- * channel_id, title, start_time, end_time, categories as JSON). `follow` is
+ * channel_id, title, start_time, end_time, categories as JSON, flags (0152)). `follow` is
  * compileFollow()'s result, or the keyword list.
  */
 function eventsFromProgrammes(channels, progs, follow) {
@@ -344,12 +352,15 @@ function eventsFromProgrammes(channels, progs, follow) {
             });
             airings.push({
                 title: p.title, start: p.start_time, end: p.end_time, channel: ch, order: ch.order, verdict,
-                rule: verdict.rule, parsed, kind: kind.kind, why: kind.why, generic: !!kind.generic,
+                rule: verdict.rule, parsed, kind: kind.kind, why: kind.why, generic: !!kind.generic, flags: p.flags | 0,
                 // merged within one canonical league: the one the title names, else the recognised one
                 league: sportsClassify.detectLeague(p.title) || verdict.league
             });
         }
     }
+
+    // 0152: live or replay, across each game's airings (flags, first airing, hours).
+    sportsClassify.resolveLive(airings);
 
     const keywordOrder = new Map(follow.list.map((k, i) => [k.keyword, i]));
     const items = sportsClassify.mergeAirings(airings, a => normaliseTitle(a.title, a.channel.name) || a.title.toLowerCase());

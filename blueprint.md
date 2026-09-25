@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 25 September 2026 · server build **0149** (0147–0149 committed locally, not yet pushed) · Apple client build **16**
+**Last updated:** 25 September 2026 · server build **0152** (0147–0152 committed locally, not yet pushed) · Apple client build **16**
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
 architecture notes live in `../PigTV-Swift/blueprint.md`, which points back here for the roadmap. This file replaced the
@@ -31,7 +31,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Mark deploys. |
 | Shipped through | **0104**; whether it is *running* is whatever `/api/version` says |
-| Next build number | **0150** |
+| Next build number | **0153** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -294,7 +294,13 @@ default 6, 1–24; Apple route; events + replays, all kinds with `include=all`),
 `GET /api/sports/preview` (next 24 h, every kind, with the rule and `kindRule`); web Settings → **Sports** (0149; grouped by
 kind since 0151). Direct DB
 edits don't move the cache key: tests call `sportsEvents.reset()`. The fixture `test/fixtures/sports-export.json` is Mark's
-25 Sept export (titles).
+25 Sept export (titles). **Live or replay (0152, `sportsClassify.resolveLive`):** an event naming a game is checked across
+its airings (same league + teams, or league + session + GP), first answer wins: (a) XMLTV flags (`epg_programs.flags`, a bitmask
+from `epgParser.PROGRAMME_FLAGS`: previously-shown 1 → replay; premiere 2, new 4, live 8 (also a "Live" category) → live);
+(b) the first airing within 36 h is live, one > 30 min later a replay, unless ≥ 20 h later and inside league hours (a series'
+next game); (c) "Live" in the title → live; (d) `LIVE_HOURS` (per league, home time zone, `Intl`): outside → replay. A build
+reads epg_live from **now − 36 h** (the sync trims nothing by time; whatever past the provider's feed carries) and drops items
+that ended before now. The 0148 route tests switch `LIVE_HOURS` off (they use the wall clock); `test/sports-live.test.js` has it.
 
 **Logo cache** (0112, fixed 0141): `/api/logo/<key>`, key = hash of the cache version + URL. Downscaled through `format=rgba`
 to an RGBA PNG only when wider than 320 px (a palette PNG with transparency otherwise came out opaque: ABC, 7mate, 7two);
@@ -426,6 +432,7 @@ client wait in the playback report (0145), sport categories (0146). Local commit
 | S5.3 | Web Settings → Sports: follow-list chips and a preview of recognised events; the Manage Content Sport tooltip | Committed (0149) |
 | S5.4 | Kinds (event / replay / show / placeholder) with loop detection; league aliases (F1 = Formula 1; AFL ≠ AFLW); listings merged by meaning with a clean title and `aliases`; events + replays by default, `include=all` for the rest (Mark's 25 Sept export) | Committed (0150) |
 | S5.5 | Web Settings → Sports preview grouped by kind (Events, Replays; Shows and Placeholders collapsed), with why and the merged guide titles | Committed (0151) |
+| S5.6 | Live or replay from the guide's XMLTV flags, the first airing of a game within 36 h, and per-league live hours (Mark: MLB "being played" at 7 am US time); `kindRule` names the rule | Committed (0152); needs a Sync now after deploy for the flags |
 | A5.1 | Apple Sport tab and Home "Sport now & next" row (replaces the C-H row) | Planned (Swift) |
 
 ### Phase 0: clean-up and correctness (gate: redeploy, CI green, guide unchanged)
@@ -586,3 +593,4 @@ about 0 on the E-AC-3 channel.
 | 0149 | Web Settings → Sports: follow-list chips, preview of recognised events; the Sport toggle's tooltip |
 | 0150 | Sport kinds (C-I): event/replay/show/placeholder per programme (loop channels, stale dates, PPV slots), league aliases, merging by teams/session; `kind`, `aliases` on items; events + replays by default, `include=all`; preview with `kindRule` |
 | 0151 | Web Settings → Sports: the preview grouped by kind (Events, Replays open; Shows, Placeholders collapsed), with why and the merged guide titles |
+| 0152 | Sport live or replay (C-I): XMLTV `previously-shown`/`premiere`/`new`/`live` stored (`epg_programs.flags`); the first airing of a game within 36 h wins; per-league live hours in the home time zone; builds read the 36 h before now |

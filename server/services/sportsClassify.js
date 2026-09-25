@@ -12,6 +12,10 @@
  * Precedence: placeholder > highlights (show) > replay of an identifiable game > show words >
  * a replay signal with no identifiable game (placeholder: a 24/7 replay channel) > event
  * (a match-up or a session) > what EPG categories say > "only matched a keyword" (show).
+ *
+ * 0152: an event that names a game is then checked across its airings (resolveLive): the
+ * guide's flags, the first airing within 36 h, a "Live" title and the league's local live
+ * hours (LIVE_HOURS) can make it a replay.
  */
 const crypto = require('crypto');
 
@@ -48,7 +52,11 @@ const LEAGUES = [
     ['NASCAR', ['nascar']],
     ['IndyCar', ['indycar']],
     ['Supercars', ['supercars']],
-    ['BBL', ['bbl', 'big bash']]
+    ['BBL', ['bbl', 'big bash']],
+    // 0152: leagues the live-hours table (LIVE_HOURS) names
+    ['UEFA', ['uefa', 'champions league', 'europa league', 'conference league']],
+    ['Championship', ['efl championship', 'sky bet championship']],
+    ['A-League', ['a league', 'aleague', 'a leagues']]
 ].map(([name, aliases]) => ({ name, aliases, re: words(aliases) }));
 const ALL_ALIASES_RE = new RegExp(`(?:^| )(?:${LEAGUES.flatMap(l => l.aliases).sort((a, b) => b.length - a.length).join('|')})(?= |$)`, 'g');
 const MOTOR = new Set(['F1', 'MotoGP', 'NASCAR', 'IndyCar', 'Supercars']);
@@ -342,6 +350,219 @@ function loopedProgrammes(programmes) {
     return looped;
 }
 
+// ---- live or replay (0152) ---------------------------------------------------------------------
+
+/**
+ * XMLTV programme flags, as services/epgParser.js collects them and epg_programs.flags stores
+ * them (a bitmask; NULL/0 when none): <previously-shown/>, <premiere/>, <new/>, and the
+ * non-standard <live/> (also set by a <category>Live</category>).
+ */
+const FLAGS = { PREVIOUSLY_SHOWN: 1, PREMIERE: 2, NEW: 4, LIVE: 8 };
+
+/**
+ * When a league's games are played live, in its home time zone: an airing of one of its
+ * match-ups that starts outside the window is a rebroadcast (the last-resort rule in
+ * resolveLive). To add a league: its canonical name (LEAGUES above, or the text a keyword or
+ * category gives it) -> { tz (an IANA zone), from, to ("HH:MM", 24 h, inclusive) }.
+ * A league that travels (F1, MotoGP) has no entry, so the rule never applies to it.
+ */
+const US_EVENING = { tz: 'America/New_York', from: '11:00', to: '23:30' };
+const UK_DAY = { tz: 'Europe/London', from: '11:00', to: '22:00' };
+const AU_DAY = { tz: 'Australia/Melbourne', from: '11:00', to: '21:30' };
+const LIVE_HOURS = {
+    MLB: US_EVENING,
+    NFL: { ...US_EVENING, from: '09:00' }, // the London games kick off at 9:30 am New York time
+    NBA: US_EVENING,
+    WNBA: US_EVENING,
+    NHL: US_EVENING,
+    MLS: US_EVENING,
+    EPL: UK_DAY,
+    Championship: UK_DAY,
+    UEFA: UK_DAY,
+    AFL: AU_DAY,
+    AFLW: AU_DAY,
+    NRL: AU_DAY,
+    NRLW: AU_DAY,
+    'A-League': AU_DAY,
+    BBL: AU_DAY
+};
+
+const clockFormats = new Map();
+/** The local wall-clock time of `ms` in `tz`: { minutes (since midnight), text ("07:00") }. */
+function localClock(ms, tz) {
+    let f = clockFormats.get(tz);
+    if (!f) {
+        f = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+        clockFormats.set(tz, f);
+    }
+    const parts = f.formatToParts(new Date(ms));
+    const h = +parts.find(x => x.type === 'hour').value;
+    const m = +parts.find(x => x.type === 'minute').value;
+    return { minutes: h * 60 + m, text: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}` };
+}
+const hhmm = (s) => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
+
+/** The live-hours entry for a league (its canonical name, or text that names one), or null. */
+function liveHoursFor(league) {
+    if (!league) return null;
+    return LIVE_HOURS[league] || LIVE_HOURS[detectLeagueCached(league)] || null;
+}
+const leagueNames = new Map();
+function detectLeagueCached(text) {
+    if (!leagueNames.has(text)) {
+        if (leagueNames.size > 5000) leagueNames.clear();
+        leagueNames.set(text, detectLeague(text));
+    }
+    return leagueNames.get(text);
+}
+
+/** Does `ms` fall inside the league's live hours? -> { inside, text } (inside is true when the league has none). */
+function inLiveHours(ms, league) {
+    const hours = liveHoursFor(league);
+    if (!hours) return { inside: true, hours: null };
+    const { minutes, text } = localClock(ms, hours.tz);
+    return { inside: minutes >= hhmm(hours.from) && minutes <= hhmm(hours.to), hours, text };
+}
+
+const FIRST_AIRING_WINDOW_MS = 36 * 60 * 60 * 1000; // an earlier airing this recent is the same game
+const SAME_AIRING_MS = 30 * 60 * 1000;             // ...and one starting within 30 min of it is a simulcast
+const NEXT_GAME_MS = 20 * 60 * 60 * 1000;           // ...unless it is a day later, in hours: the next game of a series
+
+const minutesText = (ms) => {
+    const min = Math.round(ms / 60000);
+    return min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ''}` : `${min} min`;
+};
+const flagWhy = (flags) => (flags & FLAGS.LIVE ? 'flagged live in the guide'
+    : flags & FLAGS.PREMIERE ? 'flagged a premiere in the guide' : 'flagged new in the guide');
+
+/**
+ * Index keys for finding a team again without comparing every pair (teamMatch is fuzzy). Of two
+ * matching names, one's words of two letters or more are all among the other's (single letters
+ * are initials), and an abbreviation starts with the name's first letter. So a name is filed
+ * under its whole word set ("=") and every subset of it ("<"), and looked for under its whole
+ * set among the subsets (it is the shorter) and each of its subsets among the whole sets (the
+ * other is); an abbreviation is filed and found by its first letter ("a:", "f:").
+ */
+function wordSubsets(t) {
+    const words = [...new Set(t.tokens.filter(w => w.length > 1))].sort();
+    const out = [];
+    for (let m = 0; m < (1 << words.length); m++) out.push(words.filter((_, i) => m & (1 << i)).join(' '));
+    return { whole: words.join(' '), subsets: out };
+}
+function teamIndexKeys(t) {
+    if (t.abbr) return [`a:${t.tokens[0][0]}`];
+    const { whole, subsets } = wordSubsets(t);
+    return [`=${whole}`, ...subsets.map(x => `<${x}`), `f:${t.tokens[0][0]}`];
+}
+function teamLookupKeys(t) {
+    if (t.abbr) return [`a:${t.tokens[0][0]}`, `f:${t.tokens[0][0]}`];
+    const { whole, subsets } = wordSubsets(t);
+    return [`<${whole}`, ...subsets.map(x => `=${x}`), `a:${t.tokens[0][0]}`];
+}
+
+/** Can this airing be told live or replay: an event naming a game (teams, or a session of a known league)? */
+const decidable = (a) => a.kind === 'event' && (a.parsed.teams
+    || (a.parsed.session && LEAGUES.some(l => l.name === a.league)));
+
+/**
+ * Live or replay, for airings that classifyKind called an event and that name a game (0152).
+ * A match-up airing at an implausible hour is almost always a rebroadcast titled like the live
+ * game (Mark: MLB "being played" at 7 am in the US). Airings of the same game (the merge key:
+ * league + teams, or league + session + grand prix) are walked in start order, and the first
+ * rule that gives an answer decides:
+ *   (a) the guide's flags: <previously-shown/> -> replay; <live/>, <new/>, <premiere/> (or a
+ *       "Live" category) -> live;
+ *   (b) the first airing wins: the earliest airing within 36 h is live, and later airings
+ *       starting more than 30 min after it are replays - except one 20 h or more later that is
+ *       inside its league's live hours (the next game of a series: MLB, NBA and NHL teams meet
+ *       on consecutive days), which starts a new first airing;
+ *   (c) a title marked "Live" -> live (after (b): a rebroadcast often copies the live title);
+ *   (d) the league's live hours (LIVE_HOURS): outside them -> replay.
+ * An airing that is a replay, or outside its league's hours, is never the first airing others
+ * are measured from. Changes `kind` and `why` in place; returns the airings.
+ */
+function resolveLive(airings) {
+    const games = airings.filter(decidable).sort((a, b) => a.start - b.start || (a.order ?? 0) - (b.order ?? 0));
+    const groups = [];          // { league, teams: [pair], session, location, list }
+    const exact = new Map();    // league + pairKey + session -> group
+    const byTeam = new Map();   // league + a team's index key -> [group] (candidates for pairMatch)
+    const sessionsOf = new Map(); // league -> [group] without teams
+    for (const a of games) {
+        const p = a.parsed;
+        let g = null;
+        if (p.teams) {
+            const key = `${a.league}\u0001${pairKey(p.teams)}\u0001${p.session ? p.session.id : ''}`;
+            g = exact.get(key);
+            if (!g) {
+                const seen = new Set();
+                for (const k of teamLookupKeys(p.teams[0])) {
+                    for (const c of byTeam.get(`${a.league}\u0001${k}`) || []) {
+                        if (seen.has(c)) continue;
+                        seen.add(c);
+                        if (sessionMatch(p.session, c.session) && c.teams.some(t => pairMatch(t, p.teams))) { g = c; break; }
+                    }
+                    if (g) break;
+                }
+            }
+            if (!g) {
+                g = { league: a.league, teams: [], session: p.session, location: [], list: [] };
+                groups.push(g);
+            }
+            if (!g.teams.some(t => pairKey(t) === pairKey(p.teams))) {
+                g.teams.push(p.teams);
+                for (const side of p.teams) {
+                    for (const k of teamIndexKeys(side)) {
+                        const k2 = `${a.league}\u0001${k}`;
+                        if (!byTeam.has(k2)) byTeam.set(k2, []);
+                        byTeam.get(k2).push(g);
+                    }
+                }
+            }
+            exact.set(key, g);
+        } else {
+            if (!sessionsOf.has(a.league)) sessionsOf.set(a.league, []);
+            const list = sessionsOf.get(a.league);
+            g = list.find(c => c.session.id === p.session.id && locationMatch(c.location, p.location));
+            if (!g) {
+                g = { league: a.league, teams: [], session: p.session, location: p.location, list: [] };
+                groups.push(g);
+                list.push(g);
+            }
+        }
+        g.list.push(a);
+    }
+    const replay = (a, why) => { a.kind = 'replay'; a.why = why; };
+    for (const g of groups) {
+        let first = null;
+        for (const a of g.list) {
+            const flags = a.flags | 0;
+            let hoursMemo = null;
+            const hours = () => hoursMemo || (hoursMemo = inLiveHours(a.start, a.league));
+            // (a)
+            if (flags & FLAGS.PREVIOUSLY_SHOWN) { replay(a, 'previously shown, says the guide'); continue; }
+            if (flags & (FLAGS.LIVE | FLAGS.NEW | FLAGS.PREMIERE)) { a.why = `${a.why}, ${flagWhy(flags)}`; first = a; continue; }
+            // (b)
+            if (first && a.start - first.start <= FIRST_AIRING_WINDOW_MS) {
+                const gap = a.start - first.start;
+                if (gap <= SAME_AIRING_MS) continue;
+                if (gap >= NEXT_GAME_MS && hours().hours && hours().inside) {
+                    a.why = `${a.why}, a day after the last airing and within ${a.league} hours (the next game)`;
+                    first = a;
+                    continue;
+                }
+                replay(a, `aired first ${minutesText(gap)} earlier${first.channel?.name ? ` (${first.channel.name})` : ''}`);
+                continue;
+            }
+            // (c)
+            if (a.parsed.live) { a.why = `${a.why}, "live" in the title`; first = a; continue; }
+            // (d)
+            if (!hours().inside) { replay(a, `outside ${a.league} hours (${hours().text} ${hours().hours.tz})`); continue; }
+            first = a;
+        }
+    }
+    return airings;
+}
+
 // ---- merging --------------------------------------------------------------------------------
 
 const titleCase = (s) => s.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
@@ -505,5 +726,7 @@ function finishItem(item) {
 module.exports = {
     LEAGUES, normText, canonicalLeague, detectLeague,
     parseTitle, parseSession, parseMatchup, parseDates, teamMatch, pairMatch,
-    classifyKind, channelTokens, loopedProgrammes, mergeAirings, cleanTitle
+    classifyKind, channelTokens, loopedProgrammes, mergeAirings, cleanTitle,
+    // 0152
+    FLAGS, LIVE_HOURS, liveHoursFor, inLiveHours, localClock, resolveLive
 };
