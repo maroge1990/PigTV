@@ -8,6 +8,21 @@ Mark waived the per-phase device gates (24 Sept): everything is built, then test
 therefore **off by default** behind a switch (server env var, or an Apple Settings "Labs" toggle) so he can turn it on
 during testing.
 
+**Status (26 Sept): every contract is implemented on both sides.** Verification is tracked in `blueprint.md` §6 and
+`docs/TEST-BLOCK.md`.
+
+| Contract | Server builds | Apple builds | Status |
+|---|---|---|---|
+| C-A Channel numbers (labels only) | 0117, 0123 (web editor), 0139 (labels only), 0140 | 19, 29 (never over artwork) | Implemented; verified (1.4, 1.20, R3.10) |
+| C-B Resolve errors the client may show | 0113, 0118 | 19 | Implemented; verified (1.14) |
+| C-C HE-AAC passthrough | 0116 | 19 (Labs), 27 (always on) | Implemented; verified (2.9, R2.9) |
+| C-D Opaque playback handle | 0119 | none needed | Implemented |
+| C-E Tuner model | 0126–0132 (`PIGTV_TUNER=1`) | 21 (Start over, HLS recordings) | Implemented; **not yet tested live** (TEST-BLOCK Part 3 deferred) |
+| C-F Labs | none | 19; 27 (only Stream info left) | Implemented; verified (2.1–2.10) |
+| C-G Channel health | 0133, 0142 (stalls) | 19 | Implemented; verified (1.7, R2.6) |
+| C-H Sport categories | 0146 | 28 (row), removed in 30 | Implemented; its Home row superseded by C-I; now one sport signal |
+| C-I Sport events | 0147–0153 | 30, 31 (Replays), 32 (72 h) | Implemented; verified through 0151/app 31 (R3.x, R4.1–R4.3); 0152, 0153 and app 32 awaiting a check |
+
 ---
 
 ## C-A. Channel numbers and the lineup (roadmap X2.1). Flag: `channelNumbers`
@@ -21,8 +36,9 @@ during testing.
   under their placeholder channels (Mark, 24 Sept; 0117 ordered by number, and 0139 reverted that).
 - Admin API (web only): `GET /api/lineup` → `[{sourceId, id, stableId, name, number, category}]`;
   `PUT /api/lineup/numbers` body `{numbers: [{sourceId, id, number}]}` → `{success}`. Duplicate numbers → 400.
-- Apple: show the number on the guide's channel tile and in the player's channel list; channel up/down follows
-  guide order (the provider's order). No number entry on tvOS (the remote has no digits); iOS may offer "Go to number".
+- Apple: show the number as small muted text after the channel's name (guide, player overlay and channel list, detail pages;
+  since app build 29 never drawn over a logo, and not in the Top Shelf title); channel up/down follows guide order (the
+  provider's order). No number entry on tvOS (the remote has no digits); iOS offers "Go to number".
 
 ## C-B. Resolve errors the client may show (roadmap A1.3). No flag (text match)
 
@@ -37,6 +53,8 @@ The server only ever produces these for playback failures (0113 wording, extende
 ## C-C. HE-AAC passthrough (0116). Flag: none (a capability the client sends)
 
 The client sends `capabilities.heaac = true` **only** when Settings → Labs → "HE-AAC passthrough" is on (default off).
+**Superseded (app build 27, Mark's decision after test 2.9):** the Apple client always sends `heaac: true`; the Labs switch is
+gone, and a `'fmt?'` decode failure falls back once to `audioEncode: true` for that channel.
 
 ## C-D. Opaque playback handle (roadmap S2.1 / P1-4). Flag: `playbackHandles`
 
@@ -44,11 +62,13 @@ The client sends `capabilities.heaac = true` **only** when Settings → Labs →
   real URL, 12 h TTL) instead of `?url=<provider URL>`. The path stays `/api/proxy/stream`, which the Apple allow-list
   already accepts. HLS sessions are unchanged (already opaque).
 - No provider URL appears in any `/api/playback`, `/api/library` or `/api/transcode` response, or in any log line (logs use
-  redact()). `/api/proxy/stream?url=` keeps working for the web's legacy callers until W2.1 removes them.
+  redact()). `/api/proxy/stream?url=` is still accepted, but since W2.1 (0121/0122) nothing hands it out except the
+  `PIGTV_PLAYBACK_HANDLES=0` rollback.
 
 ## C-E. Tuner model (roadmap Phase 3). Server env `PIGTV_TUNER=1` (default off). Flags: `timeshift`, `recordingHls`
 
-With the env var off, nothing below changes and the flags are absent.
+With the env var off, nothing below changes and the flags are absent. `PIGTV_TIMESHIFT_DIR` (0132) moves the timeshift
+segments off the recordings share (recommended: `/app/data/timeshift`).
 
 - **Live:** resolve returns the same shape. The playlist is served by the server, not written by ffmpeg, and adds
   `#EXT-X-PROGRAM-DATE-TIME` on segments. The window is up to **3 h** (env `PIGTV_TIMESHIFT_HOURS`, default 3), trimmed if
@@ -67,10 +87,10 @@ With the env var off, nothing below changes and the flags are absent.
 ## C-F. Apple client Settings → "Labs" (Apple-only)
 
 A Labs section in Settings with persistent toggles, all off by default:
-- **New guide (UIKit)** (roadmap A2.1).
-- **HE-AAC passthrough** (C-C).
+- **New guide (UIKit)** (roadmap A2.1). *Removed in app build 27: the UIKit guide is the only guide (Mark).*
+- **HE-AAC passthrough** (C-C). *Removed in app build 27: always on.*
 - **Stream info overlay** (roadmap A4.2): when on, the player's info overlay shows codec, resolution, fps, bitrate and
-  dropped frames.
+  dropped frames. *The only Labs switch left.*
 
 ## C-G. Channel health (roadmap S4.1). Flag: `channelHealth`
 
@@ -87,11 +107,15 @@ from those categories.
 - `library/categories` rows gain `sport: bool`.
 - Admin: `PUT /api/library/categories/sport` body `{ sourceId, categoryId, sport: bool }` → `{ success }` (admin only;
   bumps `library_rev`). Stored per category (source_id + category_id); survives syncs.
-- Web: Settings → Sources' category list (or a small "Home screen" panel) gets a Sport toggle per category.
+- Web: Settings → **Manage Content**: a Sport button at the end of each category's row.
 - Apple: with the flag, "Sport on now" = guide channels whose category is marked sport, showing what's on now, live
   programmes first. Without the flag, or with none marked, the row is hidden.
 
 ## C-I. Sport events (25 Sept, replaces the C-H Home row). Flag: `sportsEvents`
+
+Implemented: server 0147 (categories), 0148 (events), 0149/0151 (web), 0150 (kinds), 0152 (live or replay), 0153 (72 h);
+Apple builds 30 (Sport tab, Home row), 31 (Replays), 32 (72 h in day sections). The heuristics' known misfires are listed in
+`blueprint.md` §10.
 
 Sport is recognised per **programme**, not per channel: about 100 channels carry NFL only some of the time.
 - **Server:** EPG programme categories are stored at ingest (XMLTV `<category>`). A programme is **sport** when any of these hold:
@@ -143,9 +167,12 @@ Sport is recognised per **programme**, not per channel: about 100 channels carry
   de-duplicates; max 100). `GET /api/sports/preview` (admin) → the recognised events of the next 72 h (0153; 24 h before), each with the rule that matched, to tune
   the list; since 0150 every kind, each also with `kindRule` (why it is that kind, e.g. `"placeholder: ends in a bare \":\""`). Web: Settings → **Sports** panel with the follow list and the preview.
 - `GET /api/sports/categories` (admin) → EPG categories seen with programme counts (also shown on the Status page).
-- **Apple:** a **Sport** tab (Home · TV Guide · Sport · Recordings · Settings):
-  - "On now" events first, then "Starting soon", with filter chips per league.
+- **Apple:** a **Sport** tab (Home · TV Guide · Sport · Recordings · Settings), asking `hours=72`:
+  - "On now" events first, then "Starting soon" (60 min), "Later today", "Tomorrow", one section per later weekday, then
+    "Replays" (`kind == "replay"`, grey REPLAY badge), with filter chips per league over the whole window.
   - Event card: title, league, time and progress, a LIVE badge, "3 channels".
   - Select plays the best channel; a secondary action (long-press or a "Channels" button) picks another.
-  - Home: a "Sport now & next" row (live events, then those within 60 min), linking to the tab. It replaces the C-H row.
+  - Home: a "Sport now & next" row (live events, then those within 60 min; never replays), linking to the tab. It replaces
+    the C-H row.
+  - Upcoming events open an event page: Watch when it starts (while the app stays open), Record, the channel list.
   - Refresh every 60 s while visible.

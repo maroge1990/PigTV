@@ -1,4 +1,50 @@
-# Test block: everything built on 23–24 September 2026
+# Test block: everything built on 23–26 September 2026
+
+## Status summary (26 September 2026)
+
+Mark ran four rounds: **round 1** (server 0138 · app 22), **round 2** (0146 · 28), **round 3** (0149 · 30) and **round 4**
+(0151 · 31). The checkboxes below are the original lists and were not ticked one by one; this summary is the record.
+
+**Passed:** everything in rounds 1–4 on the **Apple TV and the web**, except the items below. That includes 1.13 (the HDR
+panel switch on the HDR TV) and the Top Shelf on the TV (R4.4).
+
+**Deferred, and why:**
+
+| Item | Why |
+|---|---|
+| 1.16 Skip break / Auto-skip on a recording with breaks | No recording with detected breaks to test on yet |
+| R2.12 Sport on now (C-H category row) | Superseded by the Sport tab and Home's "Sport now & next" (C-I, round 3) |
+| R3.8 Sport tab empty state | Needs a moment with no followed sport in the next hours |
+| R2.5 / R3.11 File-based channel starts quickly (0144) | The channel could not be identified again |
+| **Part 3** The tuner (`PIGTV_TUNER=1`) | Not yet tested. Mark wants to test it later: pause/rewind, start over and instant recordings (3.3–3.7). Read `blueprint.md` §10 (the HE-AAC recording caveat) first |
+| R4.7, R4.8 iPad/iPhone player controls and Siri (app 31) | Mark: testing tomorrow |
+| 4.2 Siri on Apple TV | Parked: tvOS Siri may not support third-party App Shortcuts |
+
+**Decisions from the rounds:** the UIKit guide is the only guide (2.7); HE-AAC passthrough is always on (2.10); channel
+numbers are labels only, the provider's order kept (1.4); the tuner stays, off by default; sport is recognised per programme
+with a follow list; the app opens on Home; Swift 6 stays on (R2.15).
+
+**Shipped after round 4, awaiting Mark's check** (round 5, below): server 0152 (sport live vs replay), 0153 + app 32 (72 h of
+sport), 0154 + app 32 (Top Shelf rendered cards from full-size logos), and app 32's tab-switch flash fix.
+
+## Round 5: what to check next (server 0154 · app 32)
+
+Deploy the server (`/api/version` should say **0154**), then Settings → Sources → refresh the EPG source (**Sync now**, needed
+for 0152's guide flags), and install **app build 32**.
+- [ ] R5.1 **Sport live or replay:** On now shows games being played now; re-aired games (e.g. an MLB game shown at 7 am New York
+      time, or a later airing of a game already shown) sit under **Replays**. Web → Settings → Sports shows the reason (`kindRule`).
+- [ ] R5.2 **72 hours:** the Sport tab has **Tomorrow** and weekday sections (e.g. "Sunday"); later cards read "Sat 1:30 pm".
+      Home's "Sport now & next" is unchanged.
+- [ ] R5.3 **Top Shelf cards:** focus PigTV on the home screen. Favourites appear as sharp 16:9 cards (logo at its own size,
+      programme title, LIVE and times, a thin pink progress bar), not stretched logos. Settings → Diagnostics shows the cards
+      rendered.
+- [ ] R5.4 **Tab switching:** switch quickly between the five tabs in Light, Dark and System appearance: no white or grey
+      flash.
+- [ ] R5.5 Still open: R4.7, R4.8 (iPad/iPhone), then the deferred items above when possible.
+
+---
+
+# Round 1 (server 0138 · app 22, 24 Sept)
 
 **Server build 0138 · Apple app build 22.** Work through the parts in order. Part 1 has everything off, so it shows
 whether the everyday app still works. Parts 2 and 3 turn the new things on. For anything that fails, send Claude the

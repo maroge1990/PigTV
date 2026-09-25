@@ -1,33 +1,46 @@
 # PigTV server → Apple client hand-off
 
-**Written 20 September 2026 (server session, build 0083); kept current in §5 — last entry: build 0086.** Audience: whoever works on the Swift client next, and Mark.
-The server-side source of truth is `blueprint.md` (this repo); the client's current state and roadmap are in `blueprint.md` in the client project (replacing its old handovers).
-Everything below was checked against the client source in `PigTV-Swift-Client` (read-only) and the server code.
+**Written 20 September 2026 (server build 0083); kept current in §5 — last entry: build 0154 (26 September 2026).** Audience:
+whoever works on the Swift client next, and Mark. The server-side source of truth is `blueprint.md` (this repo); the client's
+state is in `../PigTV-Swift/blueprint.md`. The roadmap contracts C-A…C-I are in `docs/ROADMAP-CONTRACTS.md`.
 
-**The short version.** The server has moved on since the client was last aligned with it. Nothing the client does today
-is broken by that — every route it calls still exists (a server test now guarantees it) — but there are **two things a
-person will hit** (a second device taking over the stream; a stream that dies while paused) and **three server
-improvements the client isn't using yet** (recording playback polling, EPG logo fallback, waiting recordings).
+**Where things stand (26 Sept).** Every request in §1 (C1–C9) is implemented in the Apple client, and so is every contract in
+`ROADMAP-CONTRACTS.md`. §1 is kept as the record of *why* the client behaves as it does; §0 (the current flags), §2 (the
+frozen contract) and §5 (the change log) are the parts to read at the start of a session.
 
 ## 0. Before you start: which server, and what it advertises
 
-Ask the server, don't guess. `GET /api/info` (no token) returns `build`, `display` (e.g. `"v3.7.0 · build 0083"`) and
-`features`. New behaviour is announced with a flag; an older server simply lacks the flag, so **gate on the flag**:
+Ask the server, don't guess. `GET /api/info` (no token) returns `build`, `display` (e.g. `"v3.7.0 · build 0154 (0994a5f)"`) and
+`features`. New behaviour is announced with a flag; an older server simply lacks the flag, so **gate on the flag**, and treat a
+missing flag as "off". Since 0138 `/api/info` still answers if a switchable check fails (that flag is then absent).
 
-| Flag in `features` | Means | Server patch | Present on servers with build ≥ |
+### Current flags (server 0154, `server/routes/info.js`)
+
+| Flag | Since | Means | What the Apple client (build 32) does with it |
 |---|---|---|---|
-| `viewerConflict` | `resolve` may answer 409 `viewer-in-progress` | 0055 (behaviour), flag 0083 | 0083 (behaviour since 0055) |
-| `epgLogoFallback` | `logo` is filled from the EPG icon by the server | 0067 (behaviour), flag 0083 | 0083 (behaviour since 0067) |
-| `clientEvents` | `POST /api/playback/client-event` accepts player diagnostics | 0065 (behaviour), flag 0083 | 0083 |
-| `scheduledWaiting` | `recordings/scheduled` lists `waiting` rows and they can be cancelled | 0082 | 0083 |
-| `recordingPlaybackPolling` | `recordings/:id/playback?async=1` may answer 202 | 0083 | 0083 |
+| `playbackResolve`, `library` | early | The resolve and `/api/library` APIs exist | **Required**: without both (and `apiVersion` 1) the client refuses the server |
+| `guide`, `devicePairing`, `recordings`, `recordingCompression`, `channelHistory`, `adDetection`, `streamCoordination`, `streamTokenAuth` | early | Base features (`comskipAvailable` says whether ad detection can run) | Not read (`devicePairing` is decoded, not gated on) |
+| `viewerConflict` | 0083 (behaviour 0055) | Resolve may answer 409 `viewer-in-progress` | Decoded; the 409 is handled by its `conflict.type` whether or not the flag is present (C1) |
+| `epgLogoFallback` | 0083 (0067) | Library rows fill a missing `logo` from the EPG | Skips the old client-side artwork index |
+| `clientEvents` | 0083 (0065) | `POST /api/playback/client-event` accepts diagnostics | Sends `media-error`, `play-start` and `play-end` (with `watchedSec`, `stalls`, `droppedFrames`, `observedBitrate`) only with it (C7; `start-timeout` is accepted by the server but not sent) |
+| `scheduledWaiting` | 0083 (0082) | `recordings/scheduled` lists cancellable `waiting` rows | Decoded; `waiting` rows are shown and cancellable regardless |
+| `recordingPlaybackPolling` | 0083 | `recordings/:id/playback?async=1` may answer 202 | Sends `?async=1` and polls only with it (C3) |
+| `playbackTerminalStatus` | 0094 | `GET /api/playback/:id/terminal-status` | Asks it once before the one C2 recovery; `taken-over` stops recovery |
+| `guideCursor` | 0111 | Cursor paging, `limit` up to 500 on `library/guide` | Pages 500 at a time by cursor (else 50 by offset) |
+| `guideVersion` | 0111 | `GET /api/library/guide/version` | Skips a guide reload when the version matches (a deploy changes it once, 0140) |
+| `logoCache` | 0112 | `logo` fields are `/api/logo/<key>` | Not read (the paths are used as given); the Top Shelf asks `/api/logo/…?size=full` for such paths (0154; an older server ignores the query) |
+| `channelNumbers` | 0117 | Rows carry `number` (labels; the provider's order is kept since 0139) | Shows the number as muted text after the name; iOS "Go to number". Absent with `PIGTV_CHANNEL_NUMBERS=0` |
+| `playbackHandles` | 0119 | `direct` resolves use `/api/proxy/stream?h=<handle>` | Not read (same path, already allowed); a 404 on it leads to a re-resolve. Absent with `PIGTV_PLAYBACK_HANDLES=0` |
+| `recordingHls` | 0127 | Recordings may be HLS (`container: "hls"`, `inProgress`) | Plays HLS recordings directly; offers "Watch from start (still recording)". **Only with `PIGTV_TUNER=1`** |
+| `timeshift` | 0128 | Hours-long live window with `PROGRAM-DATE-TIME` | Start over, the whole-window scrub bar and ±15 s. **Only with `PIGTV_TUNER=1`** and `PIGTV_TIMESHIFT_HOURS` > 0 |
+| `channelHealth` | 0133 | Rows carry `health` (`ok`/`flaky`/null) | Amber dot on a flaky channel's tile |
+| `sportCategories` | 0146 | `library/categories` rows carry `sport` | Not read any more (C-I replaced the C-H Home row); `sport` still decodes |
+| `sportsEvents` | 0148 | `GET /api/sports/events` | The Sport tab and Home's "Sport now & next"; asks `hours=72` (0153) |
 
-Everything in this document is on `main` (server build 0086 as of 20 September 2026). **Check which build is actually
-running before you start:** `GET /api/info` (no token) → `build`. **Develop against whatever is
-deployed; the flags let each feature switch on by itself as the server catches up.** C1 and C2 below need no flag — the
-server behaviour they handle already exists.
+Also sent by the client, not a flag: `capabilities.segmentedDelivery = true` and `capabilities.heaac = true` (always, since
+app build 27; see 0116), and `audioEncode: true` on the one fallback after a `'fmt?'` decode failure (C9).
 
-## 1. What to change in the client, in priority order
+## 1. What the client was asked to change (C1–C9, all implemented; kept for the reasons)
 
 ### C1 — Handle "another device is watching" (HIGH; behaviour live since server 0055)
 
@@ -190,17 +203,28 @@ fails with an audio-decode error on one channel, retry that channel once with it
 
 ## 2. What must not change (the frozen contract) and what already works
 
-Unchanged and relied on — **do not change without a coordinated server patch**:
-- `library/guide` rows: `id, sourceId, name, logo, category, tvgId, programmes[]` with `startTime`/`endTime` in **ms**.
+Unchanged and relied on — **do not change without a coordinated server and client change** (same list as `blueprint.md` §5):
+- `library/guide` rows: `id, sourceId, name, logo, category, tvgId, programmes[]` with `startTime`/`endTime` in **ms**; additive
+  `stableId`, `number`, `health`, `nextCursor` on the page.
 - `recordings/{id}/markers`: camelCase `startMs`/`endMs`.
 - `recordings/{id}/playback`: bearer header required; `{url, container:"mp4", durationSec}`; `media.mp4` takes
-  `?token=`, supports byte ranges, `+faststart`.
+  `?token=`, supports byte ranges, `+faststart`. With `recordingHls` (tuner on): `{url: ".../index.m3u8", container:"hls",
+  durationSec, inProgress}`.
 - Favourites: the client writes `POST/DELETE favorites` with the **bare** id and lists via `library/favourites` (the
   bare id is canonical since 0059, and `favorites/check` normalises).
-- `playbackURL` allow-list (`/api/proxy/stream`, `/api/remux`, `/api/transcode/…`, `/api/recordings/…`) and the token
-  attached as `?token=`; bearer on `DELETE playback/{id}`; `capabilities.segmentedDelivery = true`.
+- `POST playback/resolve` → `strategy` `"direct"` | `"transcode"` only (0103). `playbackURL` allow-list: `/api/proxy/stream`
+  (a `direct` play, always `?h=<opaque handle>` since 0119, never a provider URL), `/api/transcode/…` and `/api/recordings/…`
+  (`/api/remux` is gone since 0103 and the client no longer allows it); the token attached as `?token=`; bearer on
+  `DELETE playback/{id}`; `capabilities.segmentedDelivery = true`.
+- **Every HLS session with a usable frame rate is handed out as `master.m3u8`** (0115; HDR copies since 0100): one variant with
+  `BANDWIDTH`, `RESOLUTION` (copy only), `FRAME-RATE`, `VIDEO-RANGE` (`SDR`, or `PQ`/`HLG` for an HDR copy into fMP4), **no
+  `CODECS`**. A session with no usable rate, or an HDR feed copied into MPEG-TS, gets `stream.m3u8`. The client sets the display
+  criteria itself from the resolve `info` (`fps`, `videoRange`) and, on AVFoundation -11868 (a non-HDR TV), plays the same
+  session's `stream.m3u8`.
+- Resolve failure `error` texts start with one of the C-B prefixes (`The provider refused this channel`, `The provider did not
+  respond`, `This channel is not available`) and never contain a URL; the client shows those and nothing else.
 
-Server changes that need **no** client change: unknown `/api/*` paths now return `404 {"error":"No such API endpoint",
+Server changes that need **no** client change (history): unknown `/api/*` paths now return `404 {"error":"No such API endpoint",
 "endpoint":"GET /api/x"}` instead of the web page (0079) — the client only checks status codes and none of its routes
 are affected (`test/api-404.test.js` boots the server and asserts every route the client calls still resolves;
 **when the client gains an endpoint, add it to `APPLE_CLIENT_ROUTES` there**); the removed OIDC/SSO routes and the
@@ -209,8 +233,9 @@ sentence instead of pretending to succeed.
 
 ## 3. How to test client changes
 
-- Contract fixtures: add the JSON above (viewer conflict, 429, 202 preparing, 500 failed, `info` with the new flags) to
-  `Tools/test-contracts.sh`. They are exactly what the server emits.
+- Contract fixtures: `PigTVTests/ContractChecks.swift`, run by `sh Tools/test-contracts.sh` (no server). New playback code also
+  gets a test in the client's real-playback harness (`PigTVTests/RealPlaybackTests.swift`: a local HTTP server with a fake
+  PigTV API and a real HLS fixture). See the client's `TESTING.md`.
 - Against the real server, two-device tests need the web app open on another machine: start playback on the TV, then
   on the web ("Another device is watching" appears there), then the reverse to see C1; pause the TV for 6 minutes and
   resume to see C2; schedule a recording, keep watching past its start, and check it appears as `waiting` (C5).
@@ -220,7 +245,7 @@ sentence instead of pretending to succeed.
   had rotated out) - that is what a player reports as a failed segment load. Lines ending `from=device:<id>` are this client's.
 - Feeds on Mark's provider that exercise server edge cases (stream ids as they appear in the server log): **1803789** serves
   a finite ~30-minute file from the start - before build 0086 a player got a segment 404 a few seconds in; its resolve log now
-  ends `source ends (N min) - paced to real time`; it is a good test that the client survives it. **1239048** logs dozens of
+  ends `source ends (N min) - paced to real time after an initial 8s burst` (0144); it is a good test that the client survives it. **1239048** logs dozens of
   harmless `[mp4] Packet duration … out of range` warnings and plays normally - server-log noise, not a client fault.
 - Only a device can settle these, and they are the ones worth recording the result of: whether AVPlayer stops fetching while
   paused (C2 rests on it); whether an HEVC recording plays (`recordings/{id}/playback` promises MP4/`hvc1` but has never been
@@ -232,7 +257,8 @@ Say what the screen needs, not the endpoint. Two ideas already on the list, neit
 riding on the existing 5 s conflict poll (so a short pause can't lose the stream — see C2), and **codec names on
 `recordings/{id}/playback`** so an older Apple TV can say "this recording is HEVC" before AVPlayer fails on it.
 Server changes are pushed straight to `main` as numbered builds (see `blueprint.md` §2; the old `format-patch` files are
-retired); anything that changes an existing response shape is treated as client-coupled and flagged there.
+retired); anything that changes an existing response shape is treated as client-coupled and flagged there. The client's own
+list of requests is `../PigTV-Swift/docs/SERVER-REQUESTS.md` (SR-1 and SR-2, both resolved).
 
 ## 5. Server changes since this document was written
 
@@ -270,11 +296,14 @@ commit** (newest last; the first column is the build number). "Client action" sa
 | 0127 | **The tuner model, stage T2: recordings from a tuner (contract C-E), only with `PIGTV_TUNER=1`.** `/api/info` `features` gains **`recordingHls: true`** (absent when off). A recording now holds the tuner for its channel (sharing a device's, so watching and recording one channel no longer asks anyone to stop, and never answers 409 for that) and keeps its segments in its own folder. **`GET /api/recordings/{id}/playback`** for such a recording answers **`{"url":"/api/recordings/{id}/index.m3u8","container":"hls","durationSec":n,"inProgress":bool}`**, also while `status` is `recording` (`inProgress: true`, an EVENT playlist that grows; `durationSec` = what is recorded so far). When it finishes: VOD playlist with `#EXT-X-ENDLIST`, `inProgress: false`, `durationSec` = the recording's. New routes (same auth as `media.mp4`: bearer or `?token=`, which the server carries onto every URI): `GET /api/recordings/{id}/index.m3u8`, `/init.mp4` (`init-2.mp4`... after a re-tune), `/seg00000.m4s` (or `.ts`). Segments carry `#EXT-X-PROGRAM-DATE-TIME`. Recordings made before (`.mkv`) answer `container: "mp4"` exactly as before. A finished HLS recording is also joined into one MP4 (for download and ad detection; `media.mp4` serves it once joined). A device on the channel being recorded whose capabilities give *different* ffmpeg arguments (the web, typically) still needs its own tuner, so it gets the usual `recording-in-progress` 409. | **Planned (C-E):** with `recordingHls`, play `container == "hls"` directly (no preparation polling) and allow Play on a recording whose status is `recording`. `mp4` answers keep working. |
 | 0128 | **The tuner model, stage T3: timeshift (contract C-E), only with `PIGTV_TUNER=1`** (and `PIGTV_TIMESHIFT_HOURS` > 0, default 3). `/api/info` `features` gains **`timeshift: true`**. A live media playlist now keeps up to **3 hours** of segments (fewer if the server's disk falls below its floor, never fewer than the old 90), each with `#EXT-X-PROGRAM-DATE-TIME`, so the seekable range can be hours long and `AVPlayerItem.currentDate()` is meaningful. The playlist carries **`#EXT-X-SERVER-CONTROL:CAN-SKIP-UNTIL=24.0`** (six target durations) and answers **`_HLS_skip=YES`** with a delta update (`#EXT-X-SKIP:SKIPPED-SEGMENTS=n`, `EXT-X-VERSION:9`; `MEDIA-SEQUENCE` unchanged), which AVPlayer requests on its own; playlists (live and recording) may be **gzip**-encoded (`Content-Encoding: gzip` when asked for; never segments). Start-up is unchanged: a live playlist still starts at the live edge. | **Planned (C-E):** offer **Start over** (seek to the current programme's start with `seek(to: Date)`) when that start is inside the seekable range; let the scrub bar and ±15 s seek use the whole window. Nothing to do for delta updates or gzip. |
 | 0129 | **The tuner model, stage T4: watch while recording (contract C-E), only with `PIGTV_TUNER=1`.** A recording's `index.m3u8` now carries **`#EXT-X-START:TIME-OFFSET=0.0`**, so a recording that is still being made (an EVENT playlist, which a player would otherwise start at its live end) plays **from its beginning**, as a finished one does. Pressing Play the moment a recording starts, before its tuner has produced anything, no longer gets an empty playlist: `/playback` and `index.m3u8` wait (up to 10 s) for the first segment. Playing a recording is not a tuner viewer: it takes no provider slot and does not disturb the recording. When it finishes, the playlist gains `#EXT-X-ENDLIST` (and `/playback` says `inProgress: false`). | **None required** beyond C-E (Play on a `recording` row, `container == "hls"` played directly). **Check on the device:** Play a recording a minute into it: it should start at its first frame and let you watch up to the live edge; at the recording's end, playback should end normally. |
-| 0130 | **Tuner model follow-up (only with `PIGTV_TUNER=1`), found in the manual run.** A recording's own tuner is now planned with exactly the Apple TV's default capabilities (no `heaac`). Before, on an HE-AAC channel (the 7 channels) a recording copied the audio into fMP4 while an Apple TV there gets it re-encoded into MPEG-TS, so the two needed different tuners: a TV tuning to the channel being recorded was answered **409 `recording-in-progress`**, and `force` stopped the recording. Now they share. HLS recordings of HE-AAC channels carry AAC-LC audio (as live viewing does), which also plays in a browser. | None. (If the Labs "HE-AAC passthrough" toggle is on, the TV's arguments differ again for those channels and the 409 returns; a recording started first will not be shared with it.) |
+| 0130 | **Tuner model follow-up (only with `PIGTV_TUNER=1`), found in the manual run.** A recording's own tuner is now planned with exactly the Apple TV's default capabilities (no `heaac`). Before, on an HE-AAC channel (the 7 channels) a recording copied the audio into fMP4 while an Apple TV there gets it re-encoded into MPEG-TS, so the two needed different tuners: a TV tuning to the channel being recorded was answered **409 `recording-in-progress`**, and `force` stopped the recording. Now they share. HLS recordings of HE-AAC channels carry AAC-LC audio (as live viewing does), which also plays in a browser. | None. (If the Labs "HE-AAC passthrough" toggle is on, the TV's arguments differ again for those channels and the 409 returns; a recording started first will not be shared with it.) **Since app build 27 the client always sends `heaac: true`, so this now applies on HE-AAC channels whenever the tuner is on: see `blueprint.md` §10.** |
 | 0131 | **Tuner model fix (only with `PIGTV_TUNER=1`).** When the tuner a recording holds dies (ffmpeg exits), the recording now lets go of it and takes the channel up again on its next tick (new init segment and `#EXT-X-DISCONTINUITY` in its playlist). Before, the dead tuner stayed held forever and counted as the recording's provider slot, so a device could get a bogus `recording-in-progress` 409. | None. |
 | 0133 | **Channel health (roadmap S4.1, contract C-G), additive.** `/api/info` `features` gains **`channelHealth: true`**. `library/guide` and `library/channels` rows gain **`health`**: `"ok"`, `"flaky"` or `null` (no starts in the last 7 days). `flaky` = in the last 7 days at least 2 failed starts, or more than 30% failed with at least 3 attempts. A start is counted per channel identity from the resolve route (a failed resolve is a failed start; a 409 is not an attempt) and from the client's events: a `media-error` or `start-timeout` **before** that owner's `play-start` turns its last resolve into a failed start, and `play-start`'s `totalMs` is kept as the first-picture time. `library_rev` (the guide version) moves when a channel's health changes, not on every play. No other shape changes. | **Planned (C-G):** show a small warning dot on the guide tile of a `flaky` channel. Keep sending `play-start` and `media-error`/`start-timeout`: they are what tells a failed player start from a successful one. |
 | 0134 | **EPG matching (roadmap S4.2), web admin only.** An admin can now map a channel with no programme information to the right EPG channel (Settings → EPG matching; `GET /api/epg/unmatched`, `PUT /api/epg/mapping`, both admin-only, not for the client). A mapping wins over the playlist's tvg-id in every library response: such a channel's `library/guide` row now has `programmes`, its `tvgId` is the **mapped** id, `library/channels`/`favourites`/`recent` rows get `now`/`next`, and a missing `logo` may be filled from that EPG channel. Mapping or unmapping bumps the guide version (`GET /api/library/guide/version`). No shape changes. | None. A client that caches the guide by its version picks mapped channels up on its next refresh. |
+| 0135–0137 | **Storage and auth internals.** Sources, settings and users moved from `db.json` into SQLite (0135); bearer tokens and sign-in done with `jsonwebtoken`/`bcryptjs` without passport (0136); Express 5 (0137). Same routes, status codes and bodies: `401 {"error":"Unauthorized"}` without a valid bearer, revoked devices refused, paired-device tokens keep working. | None. (Verified by Mark: the Apple TV stayed signed in, test 1.1.) |
 | 0138 | Small fixes. **Recording Range requests** (`/api/recordings/{id}/media.mp4` and `/stream`) now also answer a suffix range (`bytes=-N`, the last N bytes) and a range whose last byte is past the end of the file (served to the end) with **206**; both were a 416 before. Other ranges are unchanged. **Names and titles stored before 0099** lose the trailing small-caps "ᴸɪᴠᴇ"/"ɴᴇᴡ" badge once, on the server's first start on this build (channel names, programme titles, recording titles), and channel names from an Xtream source are now stripped at ingest like M3U ones. `/api/info` still answers if one of its switchable feature checks fails (that flag is then absent). | None. A client-side badge stripper can go. |
+| 0139 | **Channel numbers are labels only (C-A amended).** `library/guide` and `library/channels` keep the **provider's order** again (it groups channels under the provider's placeholder channels; 0117's number order broke that, Mark's test 1.4). `number` is still on every row and the admin can still renumber. A guide `cursor` issued by 0117–0138 (which carried a number key) is refused with 400 `Invalid cursor`. | Restart paging from the first page on a 400 (the client does). Channel up/down follows the row order, now the provider's. Show the number as a label only. |
+| 0140 | **A deploy makes cached guides reload once.** `GET /api/library/guide/version` now includes the server build, so the first version check after any deploy differs and the client fetches the guide afresh (needed after 0139 so a cached number-ordered guide went away). | None: the `guideVersion` check does it. |
 | 0141 | **Logos keep their transparency.** Since 0112 a palette PNG logo with a transparent background (ABC, 7mate, 7two among others) was downscaled into an opaque image, so its clear background came out solid. Logos are now converted through RGBA, and ones already ≤320 px wide, SVGs and anything that doesn't convert are served exactly as the provider sent them. **Every `/api/logo/<key>` path changes once** (the cache version is part of the key) and the server drops its stored logos, so a client's disk cache of the old, bad copy is simply never asked for again. No shape change. | None. The next guide load (0140 forces one after a deploy) brings the new paths. |
 | 0142 | **Channel health counts stalls (C-G).** A `play-end` now stores its `watchedSec` and `stalls` on the owner's last resolve (once), and `health` becomes `"flaky"` also when a channel stalled ≥3 times per hour watched over at least 20 minutes watched in the last 7 days (the failed-start rules are unchanged). No shape change; more channels can be `flaky`, and `library_rev` moves when a play-end changes a channel's class. The Status page's list now includes channels that only stall, ranked by failed starts + stalls per hour. | Keep sending `play-end` with `watchedSec` and `stalls` when a play stops: it is now what counts stalls per channel. |
 | 0143 | **A refused connection gets two retries.** When the provider refuses ffmpeg (HTTP 4xx other than 404, or 5xx) within its first ~3 s, the session now retries twice, after 1.5 s and then 3 s (0113 retried once). Seen after a client re-resolved a channel that had just failed: the provider was still counting the old connection. The resolve waits correspondingly longer only in that case (up to ~10.5 s more than today's 15 s); otherwise nothing changes. | None. A resolve can take up to ~26 s in that one case: the Apple client's 35 s request timeout covers it. |
@@ -286,3 +315,6 @@ commit** (newest last; the first column is the build number). "Client action" sa
 | 0152 | **Live or replay (C-I), no shape change.** More `GET /api/sports/events` items are `kind: "replay"`: a game whose guide entry is flagged `<previously-shown/>`, a later airing of a game already shown in the last 36 h, or a match-up starting outside its league's live hours in the league's home time zone (an MLB game at 7 am New York time). A guide flag `<live/>`/`<new/>`/`<premiere/>` keeps it live. So "On now" stops showing re-aired games as live (Mark: MLB "being played" at 7 am US time). | None: replays already go in the "Replays" section (0150). |
 | 0153 | **Sport horizon: a whole weekend.** `GET /api/sports/events?hours=` now accepts up to **72** (was clamped to 24); the default stays 6. Everything else unchanged. How far ahead there is anything depends on the provider's guide: the server logs `[Sync] EPG covers until …, N h ahead` after each sync. | **Ask for `hours=72`** for the Sport tab (C-I); an older server answers with 24 h at most. |
 | 0154 | **Full-resolution logos (Top Shelf).** Any `/api/logo/<key>` path the server hands out also answers `?size=full` (the logo exactly as the provider sent it: PNG, JPEG, SVG…, with its own `Content-Type`) and `?size=640` (at most 640 px wide, PNG when converted). Without `size` nothing changes (≤320 px). Any other `size` is a 400; an unknown key is a 404 at every size. Same week-long `Cache-Control`; each size has its own `ETag`. The first `size=full`/`640` request for a logo the server stored before 0154 fetches it from the provider again. | Optional: append `?size=full` (or `640`) to a channel's `logo` path for the Top Shelf (A4.1). Keep the path as given (it already carries the cache version). |
+
+Builds with **no client-visible change** (so no row): 0105, 0107, 0109 (the image), 0120, 0121, 0123 (web and admin only),
+0125 (web HTML caching), 0132 (where timeshift is stored), 0145 (the playback report), 0149 and 0151 (web Settings → Sports).

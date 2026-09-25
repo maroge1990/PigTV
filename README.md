@@ -4,115 +4,90 @@
 
 <h1 align="center">PigTV</h1>
 
-<p align="center">A self-hosted web player for live TV, with a DVR.</p>
+<p align="center">A self-hosted live TV server with a guide, a DVR, a web app and native Apple TV, iPad and iPhone clients.</p>
 
 ---
 
-PigTV turns an IPTV subscription into something you'd actually want to use: a guide you can read, channels that stay where the provider put them, and recordings that keep running whether or not a browser is open.
+PigTV turns an IPTV subscription (M3U or Xtream Codes, plus XMLTV guide data) into a guide you can read, channels in the
+order your provider intended, recordings that run on the server, and sport events gathered across channels. It is built
+for one household on a private network (it is reached over a VPN) and a provider that allows one stream at a time.
 
-It's a fork of [nodecast-tv](https://github.com/technomancer702/nodecast-tv), rebuilt around scheduled recording, a smarter playback pipeline, and a set of fixes for very large playlists.
+This repository is the **server and the web app**. The Apple client is
+[PigTV-Swift](https://github.com/maroge1990/PigTV-Swift). It started as a fork of
+[nodecast-tv](https://github.com/technomancer702/nodecast-tv); the fork's movies, series and plugin code have been removed.
 
 ## What it does
 
-**Live TV.** Fast channel switching, categories in the order your provider intended, and search across the whole playlist. Tested against 17,000 channels.
-
-**Guide.** A scrolling EPG grid built from XMLTV data. Click a channel to tune it, click a programme to record it. Only the channels you've chosen to see are loaded, so the guide stays quick even when the source carries guide data for fifty thousand channels.
-
-**Recording.** Schedule from the guide with per-recording pre-roll and post-roll. Recording happens server-side, so closing the browser doesn't stop it. Recordings survive restarts unless the server goes down mid-recording, in which case the partial file is kept and the schedule is marked failed. There's a free-space floor that refuses to start a recording that would fill the disk, and stops one that's about to.
-
-**Playback that doesn't work harder than it needs to.** PigTV asks your browser what it can decode, then picks the cheapest path that works: direct play, a container remux, or a transcode. Video is only re-encoded when there's genuinely no alternative. On a machine with VAAPI, decode and encode both run on the GPU.
-
-**Movies and series** are supported when your provider offers them, and can be hidden entirely when it doesn't.
+- **Live TV on one playback path.** Every play asks the server (`POST /api/playback/resolve`), which probes the channel and
+  starts an HLS session that copies what the client can decode and re-encodes only what it can't. Frame rate and HDR are
+  declared in a master playlist so an Apple TV switches to 50 Hz or HDR.
+- **Guide** from XMLTV, with channel numbers (labels; the provider's order is kept), channel health, EPG matching for channels
+  the guide doesn't cover, and a logo cache.
+- **Recordings** scheduled from the guide, made on the server, with ad-break detection (Comskip).
+- **Sport:** events recognised per programme across every channel, with a follow list, replays and a 72-hour horizon.
+- **Web app:** Home, Live TV, Guide, Recordings, a Status page for the admin, and Settings (sources, channel numbers, EPG
+  matching, sports, devices, users).
+- **An optional tuner model** (`PIGTV_TUNER=1`, off by default and not yet tested live): shared tuners, hours of
+  timeshift, watching a recording while it records.
 
 ## Running it
 
-PigTV is published as a container image. The example below matches a typical Unraid setup.
+PigTV is published as a container image, built by CI after the tests pass. A typical setup (Unraid shown):
 
 ```yaml
 services:
   pigtv:
     image: ghcr.io/maroge1990/pigtv:latest
-    container_name: pigtv
+    container_name: PigTV
     ports:
       - "3000:3000"
     volumes:
-      - ./data:/app/data
-      - ./recordings:/app/recordings
+      - ./data:/app/data               # database, settings, logo cache, samples; back it up
+      - ./recordings:/app/recordings   # recordings; somewhere with room
+    tmpfs:
+      - /app/transcode-cache:size=2g   # live HLS sessions
     devices:
-      - /dev/dri:/dev/dri          # hardware transcoding
+      - /dev/dri:/dev/dri              # optional: VAAPI hardware transcoding
     environment:
-      - JWT_SECRET=change-this     # see below
-      - LIBVA_DRIVER_NAME=iHD      # Intel: forces the modern driver
+      - TZ=Australia/Sydney            # required: recording file names use local time
+      - LIBVA_DRIVER_NAME=iHD          # Intel VAAPI only
     restart: unless-stopped
 ```
 
-Open `http://<host>:3000` and sign in. The first account you create is the admin.
+Open `http://<host>:3000` and sign in; the first account created is the admin. Add sources under Settings → Sources, then
+sync each one with its refresh button (⟳, "Refresh Data"; the docs call it **Sync now**). Pair an Apple device under Settings → Devices.
 
-**Set `JWT_SECRET`.** Without it the app falls back to a value that's in this repository, and anyone who knows it can forge a session. Generate one with `openssl rand -hex 32`. Changing it signs everyone out once.
+- `JWT_SECRET` is optional. Without it the server creates a random key once and keeps it in `data/auth-secret`; if you set
+  it, it must be at least 32 characters.
+- Map `/app/recordings` to a real host path, or recordings live inside the container and vanish on the next update.
+- Give the container 15 s or more to stop, so recordings close cleanly.
+- Every `PIGTV_*` environment variable, with its default, is in [`blueprint.md`](blueprint.md) §9.
 
-**Map `/app/recordings`** at somewhere with room. If the host path isn't mounted when the container starts, the app will create the directory inside the container instead, and your recordings will vanish on the next update. Check that the first recording lands where you expect.
-
-**Give the container time to stop.** Recordings are closed gracefully on shutdown, which takes a few seconds. A stop timeout below about 15 seconds risks truncated files.
-
-## Sources
-
-Add sources under Settings. Two kinds are supported:
-
-- **M3U or Xtream Codes** for the channels themselves.
-- **XMLTV** for guide data, matched to channels by `tvg-id`.
-
-They can be the same provider or different ones. After adding or changing a source, run a sync — channel identity and ordering are written during sync, not at startup.
-
-## Hardware transcoding
-
-Pass `/dev/dri` into the container and set the encoder under Settings → Transcoding.
-
-Intel integrated graphics need `LIBVA_DRIVER_NAME=iHD` to use the modern driver. Without it some chips expose a VAAPI encoder but no working scaling pipeline, and transcodes fail to start.
-
-Two toggles are available if your hardware misbehaves:
-
-- **Decode on the GPU** keeps decoding off the CPU. If a session fails to start, PigTV retries once with software decode automatically rather than leaving you with nothing.
-- **Scale on the CPU** works around chips without a usable VAAPI scaling pipeline. On by default.
-
-## When something goes wrong
-
-**A stream is stuck playing after you closed the tab.** Settings → Debug lists every active stream with its age, and kills them individually or all at once. Each one holds a connection to your provider, which matters if your subscription allows only one.
-
-**Playback fails on one channel but works on others.** Open the browser console. PigTV logs the codecs it found and the strategy it chose. `video=copy` means no re-encoding; `video=encode` means it's doing real work and will be slower.
-
-**Channels appear under "Uncategorized".** Run a sync. Category assignment is written during sync.
-
-**The guide is empty.** Check that your XMLTV source has synced and that its channel IDs match the `tvg-id` values in your playlist.
-
-## Contributing to PigTV
-
-`blueprint.md` is the place to start: the reasoning behind the
-architecture, the mistakes already made and what they cost, and the current
-backlog. It is written for someone arriving without context.
-
-`scripts/verify-build.sh` asserts that features exist in the files that serve
-them, which is a different question from whether the code compiles:
+## Developing
 
 ```bash
-./scripts/verify-build.sh .
+git clone https://github.com/maroge1990/PigTV.git && cd PigTV
+export PATH="/opt/homebrew/opt/node@24/bin:$PATH"   # Node 24; better-sqlite3 does not build on Node 26
+npm ci
+npm test                          # node --test; tests that need ffmpeg skip without one
+bash scripts/verify-build.sh .    # asserts features live where they should
+npm start                         # http://localhost:3000
 ```
 
-Run it before publishing a change, and again against a clean checkout of the
-result. Every check in it was added because something got through without it.
+Needs Node 22 or 24 (CI tests both; the image runs 24) and ffmpeg. Pushing to `main` runs the tests and publishes
+`ghcr.io/maroge1990/pigtv:latest` (and a `sha-<short>` tag) only if they pass.
 
-## Building from source
+## Where to read next
 
-```bash
-git clone https://github.com/maroge1990/PigTV.git
-cd PigTV
-npm install
-npm start
-```
+| Document | For |
+|---|---|
+| [`blueprint.md`](blueprint.md) | Start here: how everything works, how changes ship and deploy, the roadmap and its status, the configuration reference, and the known limitations |
+| [`docs/SWIFT-CLIENT-HANDOFF.md`](docs/SWIFT-CLIENT-HANDOFF.md) | The contract with the Apple client, the `/api/info` flags, and every client-visible server change |
+| [`docs/ROADMAP-CONTRACTS.md`](docs/ROADMAP-CONTRACTS.md) | The server ↔ client contracts C-A…C-I |
+| [`docs/TEST-BLOCK.md`](docs/TEST-BLOCK.md) | The device and live test rounds and their results |
+| [`docs/archive/`](docs/archive/README.md) | Frozen history |
 
-Requires Node 20 and ffmpeg with your platform's hardware acceleration support.
+## Licence and credits
 
-Pushing to `main` builds and publishes a container image automatically via GitHub Actions.
-
-## Credits
-
-Built on [nodecast-tv](https://github.com/technomancer702/nodecast-tv) by technomancer702. The DVR, the playback strategy work, and the large-playlist fixes are additions on top.
+GPL-3.0 (see [`LICENSE`](LICENSE)). Built on [nodecast-tv](https://github.com/technomancer702/nodecast-tv) by
+technomancer702; the DVR, the playback pipeline, the Apple client contract and the large-playlist work are additions on top.
