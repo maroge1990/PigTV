@@ -4,14 +4,14 @@
  *   GET /api/sports/events?hours=N[&include=all]   (any signed-in user or device, as /api/library; 0148)
  *       -> { now, events: [{ id, kind, title, aliases, league, start, end, live,
  *                            channels: [{ sourceId, id, stableId, name, number, logo, quality }] }] }
- *          on now or starting within N hours (default 6, 1-24). 0150: kind "event" and
+ *          on now or starting within N hours (default 6, 1-72; 0153, was 1-24). 0150: kind "event" and
  *          "replay" by default; include=all adds "show" and "placeholder". Events first
  *          (live, then upcoming, each by start), then replays (on now first), then the
  *          rest; channels best first
  *   GET /api/sports/follow           (admin; 0148) -> { keywords }
  *   PUT /api/sports/follow {keywords} (admin; 0148) -> { keywords } (trimmed, de-duplicated, max 100)
  *   GET /api/sports/preview          (admin; 0148)
- *       -> { now, events } for the next 24 hours, every kind, each also with `rule`
+ *       -> { now, events } for the next 72 hours (0153), every kind, each also with `rule`
  *          ("keyword" | "category" | "sportChannel"), `match` (what matched) and
  *          `kindRule` (why it is that kind, e.g. "placeholder: ends in a bare \":\"")
  *   GET /api/sports/categories       (admin; 0147)

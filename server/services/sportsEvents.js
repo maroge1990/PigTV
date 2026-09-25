@@ -25,7 +25,8 @@
  * Only visible channels count (not hidden, not in a hidden category), once per
  * channel identity. The event list scans a window of epg_live across every
  * visible channel, so it is built once per (library_rev + EPG generations,
- * follow-list version, minute) for the next 24 hours; each request then only
+ * follow-list version, 5 minutes; 0153, a minute before) for the next 72 hours (0153: a whole
+ * weekend; 24 before); each request then only
  * filters by its `hours`, marks `live` and orders channels for its user.
  */
 const crypto = require('crypto');
@@ -38,13 +39,17 @@ const sportCategories = require('./sportCategories');
 const sportsClassify = require('./sportsClassify');
 
 const HOUR_MS = 60 * 60 * 1000;
-const WINDOW_MS = 24 * HOUR_MS;      // what one build covers, from its minute
+// 0153: a build is kept for 5 minutes (it was rebuilt every minute; a 72 h build on a large guide
+// takes about a second), and covers 72 h (a whole weekend) plus those 5 minutes, so a request
+// late in the bucket still sees its full `hours`. `live` and the time filter are per request.
+const BUILD_EVERY_MS = 5 * 60 * 1000;
+const WINDOW_MS = 72 * HOUR_MS + BUILD_EVERY_MS;
 // 0152: a build also reads the 36 h before its minute, so a later airing of a game can be
 // told from its first (live) airing (sportsClassify.resolveLive). epg_live holds what the
 // provider's feed carries, usually the previous day too; the sync trims nothing by time.
 const LOOKBACK_MS = 36 * HOUR_MS;
 const DEFAULT_HOURS = 6;
-const MAX_HOURS = 24;
+const MAX_HOURS = 72; // 0153 (was 24); the default stays 6 for older clients
 const MAX_KEYWORDS = 100;
 const MAX_KEYWORD_LENGTH = 60;
 
@@ -294,7 +299,7 @@ function programmesFor(db, tvgIds, from, to) {
 
 const RULE_RANK = { keyword: 0, category: 1, sportChannel: 2 };
 
-/** Every sport event in [from, from + 24 h): the cached part of a request. */
+/** Every sport event in [from, from + 72 h): the cached part of a request. */
 function buildEvents({ from, decorateChannels } = {}) {
     const db = getDb();
     const follow = compileFollow(getFollow());
@@ -408,7 +413,7 @@ let cache = null; // { key, built }
 const stats = { builds: 0, lastBuildMs: 0 };
 
 function cachedEvents(now, decorateChannels) {
-    const bucket = Math.floor(now / 60000) * 60000;
+    const bucket = Math.floor(now / BUILD_EVERY_MS) * BUILD_EVERY_MS;
     const key = `${currentGuideVersion()}|${followVersion}|${bucket}`;
     if (cache && cache.key === key) return cache.built;
     const t0 = process.hrtime.bigint();

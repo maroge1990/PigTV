@@ -531,7 +531,7 @@ class SettingsPage {
     //
     // The follow list (GET/PUT /api/sports/follow) as chips: Add puts one in,
     // x takes one out, Save sends the whole list. Below it, the events the
-    // server recognises in the next 24 hours (GET /api/sports/preview), with the
+    // server recognises in the next 72 hours (GET /api/sports/preview; 24 before 0153), with the
     // rule that matched and the channels (expandable), reloaded after a save.
     // 0151: the preview is grouped by kind (0150): Events, then Replays, then
     // Shows and Placeholders collapsed (a click on the heading opens one); each
@@ -660,7 +660,7 @@ class SettingsPage {
         const list = document.getElementById('sports-preview-list');
         if (!list) return;
         if (this.sportsEvents.length === 0) {
-            list.innerHTML = '<tr><td colspan="5" class="hint">No sport recognised in the next 24 hours</td></tr>';
+            list.innerHTML = '<tr><td colspan="5" class="hint">No sport recognised in the next 72 hours</td></tr>';
             return;
         }
         const rules = { keyword: 'Keyword', category: 'EPG category', sportChannel: 'Sport category, live title' };

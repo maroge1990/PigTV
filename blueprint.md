@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 25 September 2026 · server build **0152** (0147–0152 committed locally, not yet pushed) · Apple client build **16**
+**Last updated:** 25 September 2026 · server build **0153** (0147–0153 committed locally, not yet pushed) · Apple client build **16**
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
 architecture notes live in `../PigTV-Swift/blueprint.md`, which points back here for the roadmap. This file replaced the
@@ -31,7 +31,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Mark deploys. |
 | Shipped through | **0104**; whether it is *running* is whatever `/api/version` says |
-| Next build number | **0153** |
+| Next build number | **0154** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -288,10 +288,12 @@ Premiership Football") adds its channel to the event it overlaps most (not its t
 normalised title (lower case; tags, the channel's own name, live/HD words and punctuation removed). The item's title is the
 cleanest form ("Carlton Blues v Richmond Tigers", "Azerbaijan GP · Practice 3", "Sydney Swans v Fremantle · Preliminary Final
 2"); `aliases` lists the raw titles. Visible channels only, once per identity; EPG mapping honoured. Built once per (guide
-version, follow-list version, minute) for 24 h, loop detection included (~0.2 s on 1,000 channels × 30 programmes, was ~0.08 s
-before 0150); a request filters and orders (warm ~20–35 ms over HTTP). `GET /api/sports/events?hours=[&include=all]` (any user,
-default 6, 1–24; Apple route; events + replays, all kinds with `include=all`), admin `GET/PUT /api/sports/follow` (≤100) and
-`GET /api/sports/preview` (next 24 h, every kind, with the rule and `kindRule`); web Settings → **Sports** (0149; grouped by
+version, follow-list version, 5 minutes; a minute before 0153) for 72 h + 5 min ahead and 36 h back (0152), loop detection
+and live/replay included (~0.3 s on 1,000 channels × 30 programmes; ~1.1 s on 1,000 channels × 108 hourly programmes, the
+whole 36 h + 72 h, where every programme is a match-up); a request filters and orders (warm ~20 ms, ~50 ms returning 10,000
+items). The sync logs `[Sync] EPG covers until …, N h ahead` and says when that is less than 72 h. `GET /api/sports/events?hours=[&include=all]` (any user,
+default 6, 1–72 since 0153; Apple route; events + replays, all kinds with `include=all`), admin `GET/PUT /api/sports/follow` (≤100) and
+`GET /api/sports/preview` (next 72 h since 0153, every kind, with the rule and `kindRule`); web Settings → **Sports** (0149; grouped by
 kind since 0151). Direct DB
 edits don't move the cache key: tests call `sportsEvents.reset()`. The fixture `test/fixtures/sports-export.json` is Mark's
 25 Sept export (titles). **Live or replay (0152, `sportsClassify.resolveLive`):** an event naming a game is checked across
@@ -433,6 +435,7 @@ client wait in the playback report (0145), sport categories (0146). Local commit
 | S5.4 | Kinds (event / replay / show / placeholder) with loop detection; league aliases (F1 = Formula 1; AFL ≠ AFLW); listings merged by meaning with a clean title and `aliases`; events + replays by default, `include=all` for the rest (Mark's 25 Sept export) | Committed (0150) |
 | S5.5 | Web Settings → Sports preview grouped by kind (Events, Replays; Shows and Placeholders collapsed), with why and the merged guide titles | Committed (0151) |
 | S5.6 | Live or replay from the guide's XMLTV flags, the first airing of a game within 36 h, and per-league live hours (Mark: MLB "being played" at 7 am US time); `kindRule` names the rule | Committed (0152); needs a Sync now after deploy for the flags |
+| S5.7 | Sport horizon a whole weekend: `hours` up to 72 (default still 6), the preview 72 h; builds kept 5 min; the sync logs how far ahead the guide reaches | Committed (0153) |
 | A5.1 | Apple Sport tab and Home "Sport now & next" row (replaces the C-H row) | Planned (Swift) |
 
 ### Phase 0: clean-up and correctness (gate: redeploy, CI green, guide unchanged)
@@ -594,3 +597,4 @@ about 0 on the E-AC-3 channel.
 | 0150 | Sport kinds (C-I): event/replay/show/placeholder per programme (loop channels, stale dates, PPV slots), league aliases, merging by teams/session; `kind`, `aliases` on items; events + replays by default, `include=all`; preview with `kindRule` |
 | 0151 | Web Settings → Sports: the preview grouped by kind (Events, Replays open; Shows, Placeholders collapsed), with why and the merged guide titles |
 | 0152 | Sport live or replay (C-I): XMLTV `previously-shown`/`premiere`/`new`/`live` stored (`epg_programs.flags`); the first airing of a game within 36 h wins; per-league live hours in the home time zone; builds read the 36 h before now |
+| 0153 | Sport horizon 72 h (C-I): `GET /api/sports/events?hours=` up to 72 (default 6), the preview 72 h, a build kept 5 min and covering 72 h + 5 min; the sync logs its guide's reach |

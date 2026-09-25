@@ -1900,6 +1900,16 @@ if not (s.index('ADD COLUMN flags') < s.index("DROP VIEW epg_live") < s.index('C
 print("  ✓ the flags column is added, and a stale view dropped, before epg_live is created")
 PY3
 
+echo "=== 0153: the sport horizon is a whole weekend (C-I) ==="
+check server/services/sportsEvents.js "const MAX_HOURS = 72;" "hours up to 72"
+check server/services/sportsEvents.js "const DEFAULT_HOURS = 6;" "the default stays 6 for older clients"
+check server/services/sportsEvents.js "const WINDOW_MS = 72 \* HOUR_MS + BUILD_EVERY_MS;" "a build covers 72 h plus its 5 minutes"
+check server/services/sportsEvents.js "Math.floor(now / BUILD_EVERY_MS) \* BUILD_EVERY_MS" "and is kept 5 minutes"
+check server/routes/sports.js "hours: sportsEvents.MAX_HOURS" "the preview covers the same 72 h"
+check server/services/syncService.js "console.log(epgCoverageLine(lastStop));" "the sync logs how far ahead the guide reaches"
+check public/index.html "Recognised in the next 72 hours" "the web preview says so"
+check test/sports-events.test.js "1,000 channels x 108 hours" "with a test"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

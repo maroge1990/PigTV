@@ -103,7 +103,7 @@ Sport is recognised per **programme**, not per channel: about 100 channels carry
   (Since 0150 they are classified by `kind` below instead of dropped.)
 - **Events:** sport programmes airing at overlapping times with the same **normalised title** (lower-case; "live"/"(live)",
   channel tags, HD/UHD/4K markers and punctuation removed; whitespace collapsed) are **one event** with several channels.
-- `GET /api/sports/events?hours=N` (default 6, max 24; auth as /library) →
+- `GET /api/sports/events?hours=N` (default 6, max **72** since 0153 (was 24): a whole weekend; auth as /library) →
   `{ now, events: [ { id, title, league, start, end, live, channels: [ { sourceId, id, stableId, name, number, logo, quality } ] } ] }`.
   - `league`: the followed keyword that matched, else the most specific EPG category, else "Sport". (Since 0150 a keyword's
     league is the canonical league the title names: "Formula 1" titles show "F1", "Women's AFL" titles "AFLW".)
@@ -140,7 +140,7 @@ Sport is recognised per **programme**, not per channel: about 100 channels carry
     (`"replay: outside MLB hours (07:00 America/New_York)"`, `"replay: aired first 11 h 55 min earlier (MLB Network)"`,
     `"replay: previously shown, says the guide"`). No shape change.
 - **Admin:** `GET /api/sports/follow` → `{ keywords: [string] }`; `PUT /api/sports/follow` `{ keywords }` (admin; trims and
-  de-duplicates; max 100). `GET /api/sports/preview` (admin) → today's recognised events, each with the rule that matched, to tune
+  de-duplicates; max 100). `GET /api/sports/preview` (admin) → the recognised events of the next 72 h (0153; 24 h before), each with the rule that matched, to tune
   the list; since 0150 every kind, each also with `kindRule` (why it is that kind, e.g. `"placeholder: ends in a bare \":\""`). Web: Settings → **Sports** panel with the follow list and the preview.
 - `GET /api/sports/categories` (admin) → EPG categories seen with programme counts (also shown on the Status page).
 - **Apple:** a **Sport** tab (Home · TV Guide · Sport · Recordings · Settings):

@@ -81,7 +81,10 @@ const GUIDE = [
     ['secret', 'Cricket: The Ashes', -1 * H, 5 * H, ['Cricket']],
     // for the hours window
     ['sky', 'Golf: The Open', 10 * H, 14 * H, ['Golf']],
-    ['sky', 'Tennis: The Final', 30 * H, 33 * H, ['Tennis']]
+    ['sky', 'Tennis: The Final', 30 * H, 33 * H, ['Tennis']],
+    // 0153: a whole weekend ahead (72 h), and beyond it
+    ['sky', 'Darts: World Final', 70 * H, 73 * H, ['Darts']],
+    ['sky', 'Snooker: World Final', 80 * H, 83 * H, ['Snooker']]
 ];
 
 async function call(method, route, { token = adminToken, body } = {}) {
@@ -268,12 +271,17 @@ test('0150: replays are listed by default with kind "replay"; shows and placehol
     assert.ok(!('kindRule' in all.events[0]), 'the rule is for the admin preview');
 });
 
-test('hours defaults to 6 and is clamped to 1-24', async () => {
+test('hours defaults to 6 and is clamped to 1-72 (0153: a whole weekend; was 24)', async () => {
     assert.equal(find(await events(), 'Golf').length, 0, 'starts in 10 h');
     assert.equal(find(await events('?hours=12'), 'Golf').length, 1);
+    const day = await events('?hours=24');
+    assert.equal(find(day, 'Tennis').length, 0, '30 h away is beyond 24');
     const all = await events('?hours=99');
-    assert.equal(find(all, 'Golf').length, 1, '99 is 24');
-    assert.equal(find(all, 'Tennis').length, 0, '30 h away is beyond 24');
+    assert.equal(find(all, 'Golf').length, 1, '99 is 72');
+    assert.equal(find(all, 'Tennis').length, 1, '30 h away is within 72');
+    assert.equal(find(all, 'Darts').length, 1, '70 h away is within 72');
+    assert.equal(find(all, 'Snooker').length, 0, '80 h away is beyond 72');
+    assert.equal(find(await events('?hours=72'), 'Darts').length, 1);
     const one = await events('?hours=0');
     assert.equal(find(one, 'Rugby').length, 0, '0 is 1 hour: the rugby starts in 3');
     assert.ok(one.events.length >= 3 && one.events.every(e => e.live || e.start < Date.now() + H));
@@ -304,7 +312,9 @@ test('the preview is admin only and says which rule matched', async () => {
         assert.deepEqual(rule('F1'), ['keyword', 'F1']);
         assert.deepEqual(rule('Rugby'), ['category', 'Sport']);
         assert.deepEqual(rule('Liverpool'), ['sportChannel', 'Sport category + live title']);
-        assert.equal(find(body, 'Golf').length, 1, 'the next 24 hours');
+        assert.equal(find(body, 'Golf').length, 1, 'the next 72 hours (0153)');
+        assert.equal(find(body, 'Darts').length, 1, 'the whole weekend');
+        assert.equal(find(body, 'Snooker').length, 0);
         // 0150: every kind, with why
         assert.equal(find(body, 'F1')[0].kindRule, 'event: a session (Race)');
         assert.deepEqual(find(body, 'NFL Highlights').map(e => [e.kind, e.kindRule]), [['show', 'show: highlights ("highlights")']]);
@@ -320,7 +330,7 @@ test('events are for any signed-in user or device, not anonymous callers', async
     assert.equal((await call('GET', '/api/sports/events', { token: null })).status, 401);
 });
 
-test('the list is built once per minute and guide version, not per request', async () => {
+test('the list is built once per 5 minutes (0153; a minute before) and guide version, not per request', async () => {
     const svc = load('services/sportsEvents');
     svc.reset();
     await call('GET', '/api/sports/events');
@@ -387,6 +397,82 @@ test('1,000 channels x 30 programmes: built once, then served from the cache', a
     } finally {
         d.prepare('DELETE FROM playlist_items WHERE source_id = 500').run();
         d.prepare('DELETE FROM epg_programs WHERE source_id = 500').run();
+        svc.reset();
+    }
+});
+
+// 0153: the build covers 72 h ahead (a whole weekend) and, since 0152, reads the 36 h before now.
+// The same 1,000 channels with hourly programmes over that whole span: 108 per channel.
+test('1,000 channels x 108 hours (36 h back, 72 h ahead): built once, then served from the cache', async () => {
+    const d = sqlite.getDb();
+    const svc = load('services/sportsEvents');
+    const insItem = d.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, sort_order, stable_id, tvg_id, is_hidden)
+                               VALUES (?, 501, ?, 'live', ?, 'Bulk', ?, ?, ?, 0)`);
+    const insProg = d.prepare('INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, categories) VALUES (?, 501, ?, ?, ?, ?)');
+    const cats = ['["Sport","Football"]', '["Movie"]', '["News"]', '["Sport","Tennis"]', null];
+    d.transaction(() => {
+        for (let c = 0; c < 1000; c++) {
+            insItem.run(`501:w${c}`, `w${c}`, `Weekend ${c}${c % 3 === 0 ? ' HD' : ''}`, c, `sw${c}`, `wknd${c}`);
+            for (let p = 0; p < 108; p++) {
+                const start = NOW - 36 * H + p * H;
+                insProg.run(`wknd${c}`, start, start + H, `Programme ${(c * 7 + p) % 400} v Team ${p % 11}`, cats[(c + p) % cats.length]);
+            }
+        }
+    })();
+    try {
+        svc.reset();
+        const t0 = performance.now();
+        const cold = await call('GET', '/api/sports/events?hours=72');
+        const coldMs = performance.now() - t0;
+        const builds = svc.stats.builds;
+        const warm = [];
+        for (let i = 0; i < 5; i++) {
+            const t = performance.now();
+            await call('GET', '/api/sports/events?hours=72');
+            warm.push(performance.now() - t);
+        }
+        warm.sort((a, b) => a - b);
+        console.log(`# sports events, 1,000 channels x 108 hours: ${cold.body.events.length} events; cold ${coldMs.toFixed(0)} ms (build ${svc.stats.lastBuildMs.toFixed(0)} ms), warm median ${warm[2].toFixed(1)} ms`);
+        assert.equal(svc.stats.builds, builds, 'warm requests do not rebuild');
+        assert.ok(cold.body.events.every(e => e.end > cold.body.now && e.start < cold.body.now + 72 * H), 'nothing past or beyond 72 h');
+        assert.ok(cold.body.events.some(e => e.start > cold.body.now + 60 * H), 'the third day is in');
+        assert.ok(warm[2] < 2000, `warm median ${warm[2]} ms`);
+    } finally {
+        d.prepare('DELETE FROM playlist_items WHERE source_id = 501').run();
+        d.prepare('DELETE FROM epg_programs WHERE source_id = 501').run();
+        svc.reset();
+    }
+});
+
+test('a sync logs how far ahead the guide reaches, and says when it is less than 72 h', () => {
+    const { epgCoverageLine } = sync;
+    const now = Date.parse('2026-09-25T00:00:00Z');
+    assert.equal(epgCoverageLine(now + 96 * H, now), '[Sync] EPG covers until 2026-09-29T00:00:00.000Z, 96 h ahead');
+    assert.equal(epgCoverageLine(now + 48 * H, now),
+        '[Sync] EPG covers until 2026-09-27T00:00:00.000Z, 48 h ahead (less than the 72 h the Sport list looks ahead)');
+    assert.equal(epgCoverageLine(0, now), '[Sync] EPG coverage: no programme has an end time');
+});
+
+test('0153: one build serves 5 minutes, and still covers the full 72 h at the end of them', () => {
+    const svc = load('services/sportsEvents');
+    const bucket = Math.floor(NOW / (5 * M)) * 5 * M + 10 * 5 * M; // a bucket boundary in the future
+    const late = bucket + 5 * M - 1000;
+    // starts 72 h after the late request, less 2 minutes: beyond 72 h of the build's own start
+    const d = sqlite.getDb();
+    d.prepare('INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, categories) VALUES (?, 99, ?, ?, ?, ?)')
+        .run('sky', late + 72 * H - 2 * M, late + 73 * H, 'Bowls: World Final', '["Bowls"]');
+    try {
+        svc.reset();
+        assert.equal(svc.eventsFor({ now: bucket, hours: 72 }).events.filter(e => e.aliases.includes('Bowls: World Final')).length, 0,
+            'the first request: beyond its 72 h');
+        const builds = svc.stats.builds;
+        const { events: list } = svc.eventsFor({ now: late, hours: 72 });
+        assert.equal(svc.stats.builds, builds, 'no rebuild within the 5 minutes');
+        assert.equal(list.filter(e => e.aliases.includes('Bowls: World Final')).length, 1, 'the late request still sees its whole 72 h');
+        svc.eventsFor({ now: bucket + 5 * M, hours: 72 });
+        assert.equal(svc.stats.builds, builds + 1, 'the next bucket rebuilds');
+    } finally {
+        d.prepare(`DELETE FROM epg_programs WHERE title = 'Bowls: World Final'`).run();
         svc.reset();
     }
 });

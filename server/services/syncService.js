@@ -30,6 +30,18 @@ function categoriesJson(list) {
     return out.length ? JSON.stringify(out) : null;
 }
 
+/**
+ * 0153: one log line saying how far ahead a synced guide reaches. The sync stores whatever the
+ * feed carries (nothing is trimmed by time); the Sport list (C-I) looks up to 72 h ahead, so a
+ * shorter feed is called out.
+ */
+function epgCoverageLine(lastStop, now = Date.now()) {
+    if (!lastStop) return '[Sync] EPG coverage: no programme has an end time';
+    const ahead = Math.round((lastStop - now) / 3600000);
+    const short = ahead < 72 ? ' (less than the 72 h the Sport list looks ahead)' : '';
+    return `[Sync] EPG covers until ${new Date(lastStop).toISOString()}, ${ahead} h ahead${short}`;
+}
+
 class SyncService {
     constructor() {
         this.lastSyncTime = null; // Track when global sync last completed
@@ -537,6 +549,7 @@ class SyncService {
         let allChannels = [];
         let totalProgrammes = 0;
         let batchCount = 0;
+        let lastStop = 0; // 0153: how far ahead the feed reaches (the Sport list looks 72 h ahead)
 
         // The guide stays live while the new feed loads. Programmes are written
         // as the *next* generation, which readers (the epg_live view) cannot
@@ -579,6 +592,10 @@ class SyncService {
 
                 // Save this batch of programmes immediately
                 if (batch.programmes.length > 0) {
+                    for (const p of batch.programmes) {
+                        const stop = p.stop ? p.stop.getTime() : 0;
+                        if (stop > lastStop) lastStop = stop;
+                    }
                     insertProgrammes(batch.programmes);
                     totalProgrammes += batch.programmes.length;
                 }
@@ -594,6 +611,7 @@ class SyncService {
             }
 
             console.log(`[Sync] EPG Parsed: ${allChannels.length} channels, ${totalProgrammes} programmes`);
+            console.log(epgCoverageLine(lastStop));
             logMemory();
 
             // A feed with no programmes at all is a broken feed, not a guide
@@ -763,3 +781,4 @@ class SyncService {
 }
 
 module.exports = new SyncService();
+module.exports.epgCoverageLine = epgCoverageLine; // 0153, for tests
