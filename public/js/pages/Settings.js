@@ -34,6 +34,7 @@ class SettingsPage {
         this.initDebugTools();
         this.initLineup();
         this.initEpgMatching();
+        this.initSports();
     }
 
     initHwDecodeSettings() {
@@ -524,6 +525,141 @@ class SettingsPage {
         } catch (err) {
             this.setEpgStatus(err.message || 'Could not save the mapping', true);
         }
+    }
+
+    // ---- Sports tab (0149, contract C-I) --------------------------------
+    //
+    // The follow list (GET/PUT /api/sports/follow) as chips: Add puts one in,
+    // x takes one out, Save sends the whole list. Below it, the events the
+    // server recognises in the next 24 hours (GET /api/sports/preview), with the
+    // rule that matched and the channels (expandable), reloaded after a save.
+
+    initSports() {
+        this.sportsKeywords = [];
+        this.sportsSaved = [];
+        this.sportsEvents = [];
+        const input = document.getElementById('sports-follow-input');
+        document.getElementById('sports-follow-add')?.addEventListener('click', () => this.addSportsKeyword(input?.value));
+        input?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); this.addSportsKeyword(input.value); }
+        });
+        document.getElementById('sports-follow-save')?.addEventListener('click', () => this.saveSportsFollow());
+        document.getElementById('sports-follow-chips')?.addEventListener('click', (e) => {
+            const button = e.target?.closest?.('button[data-sports-remove]');
+            if (button) this.removeSportsKeyword(Number(button.dataset.sportsRemove));
+        });
+    }
+
+    setSportsStatus(text, isError = false) {
+        const status = document.getElementById('sports-status');
+        if (!status) return;
+        status.textContent = text;
+        status.classList.toggle('error', isError);
+    }
+
+    async loadSports() {
+        try {
+            const follow = await API.sports.follow();
+            this.sportsKeywords = [...(follow?.keywords || [])];
+            this.sportsSaved = [...this.sportsKeywords];
+            this.renderSportsFollow();
+        } catch (err) {
+            this.setSportsStatus(`Could not load the follow list: ${err.message}`, true);
+        }
+        await this.loadSportsPreview();
+    }
+
+    async loadSportsPreview() {
+        const list = document.getElementById('sports-preview-list');
+        try {
+            const preview = await API.sports.preview();
+            this.sportsEvents = preview?.events || [];
+            this.renderSportsPreview();
+        } catch (err) {
+            if (list) list.innerHTML = `<tr><td colspan="5" class="hint">Could not load the preview: ${this.escapeLineup(err.message)}</td></tr>`;
+        }
+    }
+
+    sportsDirty() {
+        return JSON.stringify(this.sportsKeywords) !== JSON.stringify(this.sportsSaved);
+    }
+
+    addSportsKeyword(value) {
+        const text = String(value || '').replace(/\s+/g, ' ').trim();
+        const input = document.getElementById('sports-follow-input');
+        if (input) input.value = '';
+        if (!text) return;
+        if (this.sportsKeywords.some(k => k.toLowerCase() === text.toLowerCase())) {
+            this.setSportsStatus(`Already following ${text}`);
+            return;
+        }
+        this.sportsKeywords.push(text.slice(0, 60));
+        this.renderSportsFollow();
+    }
+
+    removeSportsKeyword(index) {
+        if (!Number.isInteger(index) || index < 0 || index >= this.sportsKeywords.length) return;
+        this.sportsKeywords.splice(index, 1);
+        this.renderSportsFollow();
+    }
+
+    renderSportsFollow() {
+        const e = (v) => this.escapeLineup(v);
+        const chips = document.getElementById('sports-follow-chips');
+        if (chips) {
+            chips.innerHTML = this.sportsKeywords.length
+                ? this.sportsKeywords.map((k, i) => `<span class="btn btn-secondary epg-candidate sports-chip">${e(k)}
+                    <button type="button" class="sports-chip-remove" data-sports-remove="${i}" title="Stop following ${e(k)}" aria-label="Remove ${e(k)}">&times;</button></span>`).join('')
+                : '<span class="setting-hint">No keywords yet</span>';
+        }
+        const save = document.getElementById('sports-follow-save');
+        if (save) save.disabled = !this.sportsDirty();
+        if (this.sportsDirty()) this.setSportsStatus('Not saved yet');
+    }
+
+    async saveSportsFollow() {
+        const save = document.getElementById('sports-follow-save');
+        if (save) save.disabled = true;
+        this.setSportsStatus('Saving...');
+        try {
+            const res = await API.sports.setFollow(this.sportsKeywords);
+            this.sportsKeywords = [...(res?.keywords || [])];
+            this.sportsSaved = [...this.sportsKeywords];
+            this.renderSportsFollow();
+            this.setSportsStatus('Saved');
+            await this.loadSportsPreview();
+        } catch (err) {
+            if (save) save.disabled = false;
+            this.setSportsStatus(err.message || 'Could not save the follow list', true);
+        }
+    }
+
+    sportsTime(ev) {
+        const t = (ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const day = new Date(ev.start).toDateString() === new Date().toDateString()
+            ? '' : `${new Date(ev.start).toLocaleDateString([], { weekday: 'short' })} `;
+        return `${day}${t(ev.start)} – ${t(ev.end)}`;
+    }
+
+    renderSportsPreview() {
+        const e = (v) => this.escapeLineup(v);
+        const list = document.getElementById('sports-preview-list');
+        if (!list) return;
+        const rules = { keyword: 'Keyword', category: 'EPG category', sportChannel: 'Sport category, live title' };
+        list.innerHTML = this.sportsEvents.length === 0
+            ? '<tr><td colspan="5" class="hint">No sport recognised in the next 24 hours</td></tr>'
+            : this.sportsEvents.map(ev => {
+                const n = (ev.channels || []).length;
+                const names = (ev.channels || []).map(c => `<li>${c.number ? `${e(c.number)} ` : ''}${e(c.name)}${c.quality ? ` <span class="setting-hint">${e(c.quality)}</span>` : ''}</li>`).join('');
+                return `
+                <tr class="sports-event-row">
+                    <td>${e(this.sportsTime(ev))}${ev.live ? ' <span class="status-event status-failure">LIVE</span>' : ''}</td>
+                    <td>${e(ev.title)}</td>
+                    <td>${e(ev.league)}</td>
+                    <td>${e(rules[ev.rule] || ev.rule || '–')}${ev.match ? `<div class="setting-hint">${e(ev.match)}</div>` : ''}</td>
+                    <td><details><summary>${n} channel${n === 1 ? '' : 's'}</summary><ul class="sports-channel-list">${names}</ul></details></td>
+                </tr>`;
+            }).join('');
     }
 
     // ---- Debug tab -----------------------------------------------------
@@ -1024,6 +1160,7 @@ class SettingsPage {
         if (tabName === 'debug') this.loadActiveSessions();
         if (tabName === 'lineup') this.loadLineup();
         if (tabName === 'epg') this.loadEpgMatching();
+        if (tabName === 'sports') this.loadSports();
         this.tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
         this.tabContents.forEach(c => c.classList.toggle('active', c.id === `tab-${tabName}`));
 

@@ -139,7 +139,10 @@ const API = {
 
     // Sport (C-I; admin)
     sports: {
-        categories: () => API.request('GET', '/sports/categories') // 0147
+        categories: () => API.request('GET', '/sports/categories'), // 0147
+        follow: () => API.request('GET', '/sports/follow'), // 0148
+        setFollow: (keywords) => API.request('PUT', '/sports/follow', { keywords }),
+        preview: () => API.request('GET', '/sports/preview')
     },
 
     // Channel numbers (admin; 0117 C-A, web editor 0123)

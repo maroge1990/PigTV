@@ -2808,6 +2808,42 @@ kbd {
   padding: 2px 8px;
 }
 
+/* Settings → Sports (0149): follow-list chips and the preview's channel lists */
+.sports-chips {
+  margin: var(--space-sm) 0;
+}
+
+.sports-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
+}
+
+.sports-chip-remove {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.sports-chip-remove:hover {
+  color: var(--color-error);
+}
+
+.sports-channel-list {
+  margin: 4px 0 0;
+  padding-left: 1.2em;
+  font-size: 0.85rem;
+}
+
+.sports-event-row summary {
+  cursor: pointer;
+}
+
 .epg-candidate .epg-score {
   color: var(--color-text-muted);
   margin-left: 4px;

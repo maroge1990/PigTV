@@ -711,13 +711,14 @@ class SourceManager {
     /**
      * 0146 (C-H): the category's Sport toggle. Unlike visibility it saves at
      * once (PUT /api/library/categories/sport): it is one flag, not part of
-     * the Save diff. Sport categories feed the Apple TV's "Sport on now" row.
+     * the Save diff. Since 0148 (C-I) a sport category is one signal for sport
+     * recognition: its channels' live-looking programmes count as sport.
      */
     sportToggleHtml(group) {
         return `<button type="button" class="btn btn-sm btn-ghost sport-toggle${group.sport ? ' active' : ''}"
                         data-category-id="${this.escapeHtml(group.categoryId)}"
                         aria-pressed="${group.sport ? 'true' : 'false'}"
-                        title="Show this category's channels in the Apple TV's Sport on now row">Sport${group.sport ? ' ✓' : ''}</button>`;
+                        title="Sport category: a live-looking programme on its channels (Live, vs, v) counts as sport (Settings → Sports)">Sport${group.sport ? ' ✓' : ''}</button>`;
     }
 
     async toggleSport(button) {

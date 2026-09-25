@@ -368,6 +368,7 @@
             <button class="tab" data-tab="content">Manage Content</button>
             <button class="tab" data-tab="lineup">Channel numbers</button>
             <button class="tab" data-tab="epg">EPG matching</button>
+            <button class="tab" data-tab="sports">Sports</button>
             <button class="tab" data-tab="recording">Recording</button>
             <button class="tab" data-tab="ui">UI</button>
             <button class="tab" data-tab="devices">Devices</button>
@@ -783,6 +784,46 @@
             </div>
           </div>
 
+          <!-- Sports (0149, C-I): GET/PUT /api/sports/follow, GET /api/sports/preview -->
+          <div id="tab-sports" class="tab-content">
+            <div class="settings-section">
+              <h3>Sports</h3>
+              <p class="setting-hint">A programme counts as sport when its guide category is a sport, when its title or category
+                contains a keyword you follow, or when it is on a channel in a Sport category (Manage Content) and its title
+                reads like a live event ("Live", "vs", "v"); news, highlights, previews, replays, classics and magazines don't,
+                unless a keyword you follow matches.</p>
+              <h4>Keywords you follow</h4>
+              <div id="sports-follow-chips" class="epg-candidates sports-chips"></div>
+              <div class="lineup-toolbar">
+                <div class="search-wrapper">
+                  <input type="text" id="sports-follow-input" placeholder="Add a keyword (NFL, AFL, F1, Chiefs...)" class="search-input" maxlength="60">
+                </div>
+                <button id="sports-follow-add" class="btn btn-secondary">Add</button>
+                <button id="sports-follow-save" class="btn btn-primary" disabled>Save</button>
+                <span id="sports-status" class="lineup-status"></span>
+              </div>
+              <h4>Recognised in the next 24 hours</h4>
+              <div class="user-list-container lineup-table-container">
+                <table class="user-table lineup-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Title</th>
+                      <th>League</th>
+                      <th>Matched by</th>
+                      <th>Channels</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sports-preview-list">
+                    <tr>
+                      <td colspan="5" class="hint">Loading...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
           <!-- Users Tab (Admin Only) -->
           <div id="tab-recording" class="tab-content">
             <div class="settings-section">
@@ -1053,16 +1094,16 @@
 
   <!-- JavaScript -->
   <script src="/js/icons.js"></script>
-  <script src="/js/api.js?v=14"></script>
+  <script src="/js/api.js?v=15"></script>
   <script src="/js/components/VideoPlayer.js?v=9"></script>
   <script src="/js/components/ChannelList.js?v=7"></script>
-  <script src="/js/components/SourceManager.js?v=5"></script>
+  <script src="/js/components/SourceManager.js?v=6"></script>
   <script src="/js/components/EpgGuide.js?v=8"></script>
   <script src="/js/pages/HomePage.js?v=4"></script>
   <script src="/js/pages/LivePage.js?v=3"></script>
   <script src="/js/pages/Guide.js?v=3"></script>
   <script src="/js/pages/RecordingsPage.js?v=8"></script>
-  <script src="/js/pages/Settings.js?v=11"></script>
+  <script src="/js/pages/Settings.js?v=12"></script>
   <script src="/js/pages/StatusPage.js?v=3"></script>
   <script src="/js/app.js?v=9"></script>
 </body>

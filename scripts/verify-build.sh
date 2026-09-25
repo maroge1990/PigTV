@@ -1853,6 +1853,15 @@ check_absent server/services/sportsEvents.js "FROM epg_programs" "never the raw 
 check test/api-404.test.js "\['GET', '/api/sports/events'\]" "the Apple client's new route is guarded"
 check test/sports-events.test.js "the same game on three channels is one event" "with a test"
 
+echo "=== 0149: web Settings -> Sports (C-I) ==="
+check public/index.html 'data-tab="sports">Sports</button>' "a Sports tab"
+check public/index.html 'id="sports-preview-list"' "with the preview table"
+check public/js/pages/Settings.js "if (tabName === 'sports') this.loadSports();" "loaded when the tab opens"
+check public/js/pages/Settings.js "await this.loadSportsPreview();" "the preview reloads after a save"
+check public/js/api.js "setFollow: (keywords) => API.request('PUT', '/sports/follow', { keywords })" "saves the follow list"
+check_absent public/js/components/SourceManager.js "Sport on now row" "the Sport toggle no longer promises the old Home row"
+check test/sports-settings.test.js "the preview reloads after a save" "with a test"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys
