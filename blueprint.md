@@ -291,7 +291,8 @@ cleanest form ("Carlton Blues v Richmond Tigers", "Azerbaijan GP · Practice 3",
 version, follow-list version, minute) for 24 h, loop detection included (~0.2 s on 1,000 channels × 30 programmes, was ~0.08 s
 before 0150); a request filters and orders (warm ~20–35 ms over HTTP). `GET /api/sports/events?hours=[&include=all]` (any user,
 default 6, 1–24; Apple route; events + replays, all kinds with `include=all`), admin `GET/PUT /api/sports/follow` (≤100) and
-`GET /api/sports/preview` (next 24 h, every kind, with the rule and `kindRule`); web Settings → **Sports** (0149). Direct DB
+`GET /api/sports/preview` (next 24 h, every kind, with the rule and `kindRule`); web Settings → **Sports** (0149; grouped by
+kind since 0151). Direct DB
 edits don't move the cache key: tests call `sportsEvents.reset()`. The fixture `test/fixtures/sports-export.json` is Mark's
 25 Sept export (titles).
 
@@ -424,6 +425,7 @@ client wait in the playback report (0145), sport categories (0146). Local commit
 | S5.2 | Sport recognised per programme (vocabulary, followed keywords, C-H category + live title, exclusions), grouped into events across channels, best channel first; `GET /api/sports/events`, admin follow list and preview; flag `sportsEvents` | Committed (0148) |
 | S5.3 | Web Settings → Sports: follow-list chips and a preview of recognised events; the Manage Content Sport tooltip | Committed (0149) |
 | S5.4 | Kinds (event / replay / show / placeholder) with loop detection; league aliases (F1 = Formula 1; AFL ≠ AFLW); listings merged by meaning with a clean title and `aliases`; events + replays by default, `include=all` for the rest (Mark's 25 Sept export) | Committed (0150) |
+| S5.5 | Web Settings → Sports preview grouped by kind (Events, Replays; Shows and Placeholders collapsed), with why and the merged guide titles | Committed (0151) |
 | A5.1 | Apple Sport tab and Home "Sport now & next" row (replaces the C-H row) | Planned (Swift) |
 
 ### Phase 0: clean-up and correctness (gate: redeploy, CI green, guide unchanged)
@@ -583,3 +585,4 @@ about 0 on the E-AC-3 channel.
 | 0148 | Sport events (C-I): per-programme recognition, events across channels, best channel first; `GET /api/sports/events`, admin follow list and preview; flag `sportsEvents` |
 | 0149 | Web Settings → Sports: follow-list chips, preview of recognised events; the Sport toggle's tooltip |
 | 0150 | Sport kinds (C-I): event/replay/show/placeholder per programme (loop channels, stale dates, PPV slots), league aliases, merging by teams/session; `kind`, `aliases` on items; events + replays by default, `include=all`; preview with `kindRule` |
+| 0151 | Web Settings → Sports: the preview grouped by kind (Events, Replays open; Shows, Placeholders collapsed), with why and the merged guide titles |

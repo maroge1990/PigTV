@@ -533,11 +533,15 @@ class SettingsPage {
     // x takes one out, Save sends the whole list. Below it, the events the
     // server recognises in the next 24 hours (GET /api/sports/preview), with the
     // rule that matched and the channels (expandable), reloaded after a save.
+    // 0151: the preview is grouped by kind (0150): Events, then Replays, then
+    // Shows and Placeholders collapsed (a click on the heading opens one); each
+    // row says why it is that kind and lists the guide titles merged into it.
 
     initSports() {
         this.sportsKeywords = [];
         this.sportsSaved = [];
         this.sportsEvents = [];
+        this.sportsOpenKinds = new Set(['event', 'replay']);
         const input = document.getElementById('sports-follow-input');
         document.getElementById('sports-follow-add')?.addEventListener('click', () => this.addSportsKeyword(input?.value));
         input?.addEventListener('keydown', (e) => {
@@ -548,6 +552,16 @@ class SettingsPage {
             const button = e.target?.closest?.('button[data-sports-remove]');
             if (button) this.removeSportsKeyword(Number(button.dataset.sportsRemove));
         });
+        document.getElementById('sports-preview-list')?.addEventListener('click', (e) => {
+            const button = e.target?.closest?.('button[data-sports-kind]');
+            if (button) this.toggleSportsKind(button.dataset.sportsKind);
+        });
+    }
+
+    toggleSportsKind(kind) {
+        if (this.sportsOpenKinds.has(kind)) this.sportsOpenKinds.delete(kind);
+        else this.sportsOpenKinds.add(kind);
+        this.renderSportsPreview();
     }
 
     setSportsStatus(text, isError = false) {
@@ -645,21 +659,37 @@ class SettingsPage {
         const e = (v) => this.escapeLineup(v);
         const list = document.getElementById('sports-preview-list');
         if (!list) return;
+        if (this.sportsEvents.length === 0) {
+            list.innerHTML = '<tr><td colspan="5" class="hint">No sport recognised in the next 24 hours</td></tr>';
+            return;
+        }
         const rules = { keyword: 'Keyword', category: 'EPG category', sportChannel: 'Sport category, live title' };
-        list.innerHTML = this.sportsEvents.length === 0
-            ? '<tr><td colspan="5" class="hint">No sport recognised in the next 24 hours</td></tr>'
-            : this.sportsEvents.map(ev => {
-                const n = (ev.channels || []).length;
-                const names = (ev.channels || []).map(c => `<li>${c.number ? `${e(c.number)} ` : ''}${e(c.name)}${c.quality ? ` <span class="setting-hint">${e(c.quality)}</span>` : ''}</li>`).join('');
-                return `
+        const groups = [['event', 'Events'], ['replay', 'Replays'], ['show', 'Shows'], ['placeholder', 'Placeholders']];
+        const row = (ev) => {
+            const n = (ev.channels || []).length;
+            const names = (ev.channels || []).map(c => `<li>${c.number ? `${e(c.number)} ` : ''}${e(c.name)}${c.quality ? ` <span class="setting-hint">${e(c.quality)}</span>` : ''}</li>`).join('');
+            const aliases = (ev.aliases || []).filter(a => a !== ev.title);
+            const titles = aliases.length
+                ? `<details class="sports-aliases"><summary>${aliases.length} guide title${aliases.length === 1 ? '' : 's'}</summary><ul class="sports-channel-list">${aliases.map(a => `<li>${e(a)}</li>`).join('')}</ul></details>`
+                : '';
+            return `
                 <tr class="sports-event-row">
                     <td>${e(this.sportsTime(ev))}${ev.live ? ' <span class="status-event status-failure">LIVE</span>' : ''}</td>
-                    <td>${e(ev.title)}</td>
+                    <td>${e(ev.title)}${titles}</td>
                     <td>${e(ev.league)}</td>
-                    <td>${e(rules[ev.rule] || ev.rule || '–')}${ev.match ? `<div class="setting-hint">${e(ev.match)}</div>` : ''}</td>
+                    <td>${e(rules[ev.rule] || ev.rule || '–')}${ev.match ? `<div class="setting-hint">${e(ev.match)}</div>` : ''}${ev.kindRule ? `<div class="setting-hint">${e(ev.kindRule)}</div>` : ''}</td>
                     <td><details><summary>${n} channel${n === 1 ? '' : 's'}</summary><ul class="sports-channel-list">${names}</ul></details></td>
                 </tr>`;
-            }).join('');
+        };
+        list.innerHTML = groups.map(([kind, label]) => {
+            const items = this.sportsEvents.filter(ev => (ev.kind || 'event') === kind);
+            if (!items.length) return '';
+            const open = this.sportsOpenKinds.has(kind);
+            return `
+                <tr class="sports-kind-row"><th colspan="5">
+                    <button type="button" class="sports-kind-toggle" data-sports-kind="${kind}" aria-expanded="${open}">${open ? '▾' : '▸'} ${label} (${items.length})</button>
+                </th></tr>${open ? items.map(row).join('') : ''}`;
+        }).join('');
     }
 
     // ---- Debug tab -----------------------------------------------------

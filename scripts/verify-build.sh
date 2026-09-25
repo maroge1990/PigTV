@@ -1876,6 +1876,12 @@ check_absent server/services/sportsEvents.js "if (EXCLUDE_RE.test(text) || categ
 check test/fixtures/sports-export.json "NO EVENT STREAMING" "Mark's export is a fixture"
 check test/sports-classify.test.js "after merging, one event per game" "with a test"
 
+echo "=== 0151: web Settings -> Sports preview grouped by kind ==="
+check public/js/pages/Settings.js "this.sportsOpenKinds = new Set(\['event', 'replay'\]);" "events and replays open, the rest collapsed"
+check public/js/pages/Settings.js "\['placeholder', 'Placeholders'\]" "grouped by kind"
+check public/js/pages/Settings.js "guide title" "the merged guide titles are listed"
+check test/sports-settings.test.js "the preview groups by kind" "with a test"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

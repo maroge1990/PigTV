@@ -84,6 +84,37 @@ test('the follow list shows as chips, is edited, saved with PUT /api/sports/foll
     assert.equal(elements['sports-follow-save'].disabled, true);
 });
 
+// 0151: the preview is grouped by kind (0150): Events, Replays, then Shows and Placeholders collapsed until
+// their heading is clicked; each row shows why it is that kind and the guide titles merged into it.
+test('the preview groups by kind: events and replays open, shows and placeholders collapsed; aliases listed', async () => {
+    const { settings, elements } = harness({
+        'GET /api/sports/follow': { keywords: ['AFLW'] },
+        'GET /api/sports/preview': { now: NOW, events: [
+            event('NFL Blitz', { kind: 'show', kindRule: 'show: "blitz"', aliases: ['NFL Blitz'] }),
+            event('Carlton Blues v Richmond Tigers', { kind: 'event', kindRule: 'event: a match-up', league: 'AFLW',
+                aliases: ['Live AFLW: Carlton v Richmond', "Women's AFL - AFLW: Carlton v Richmond"] }),
+            event('NBA 06', { kind: 'placeholder', kindRule: 'placeholder: ends in a bare ":"', aliases: ['NBA 06 :'] }),
+            event('Packers v Jets', { kind: 'replay', kindRule: 'replay: a game with "re airs"', live: false,
+                aliases: ['NFL Game Re-Airs - 2026: Packers vs. Jets - Week 2'] })
+        ] }
+    });
+    settings.initSports();
+    await settings.loadSports();
+    const html = () => elements['sports-preview-list'].innerHTML;
+    const order = ['Events (1)', 'Replays (1)', 'Shows (1)', 'Placeholders (1)'].map(h => html().indexOf(h));
+    assert.ok(order.every((i, n) => i > 0 && (n === 0 || i > order[n - 1])), 'Events, Replays, Shows, Placeholders in that order');
+    assert.ok(html().includes('Carlton Blues v Richmond Tigers') && html().includes('Packers v Jets'), 'events and replays open');
+    assert.ok(!html().includes('NFL Blitz') && !html().includes('>NBA 06<'), 'shows and placeholders collapsed');
+    assert.match(html(), /<summary>2 guide titles<\/summary>[\s\S]*Live AFLW: Carlton v Richmond[\s\S]*Women&#39;s AFL - AFLW/);
+    assert.ok(html().includes('event: a match-up'), 'why it is an event');
+
+    settings.toggleSportsKind('show');
+    assert.ok(html().includes('NFL Blitz') && html().includes('show: &quot;blitz&quot;'), 'a click opens the shows');
+    assert.match(html(), /data-sports-kind="show" aria-expanded="true"/);
+    settings.toggleSportsKind('event');
+    assert.ok(!html().includes('Carlton Blues v Richmond Tigers'), 'events collapse too');
+});
+
 test('the Manage Content Sport toggle says it helps sport recognition', () => {
     const source = js('components/SourceManager.js');
     assert.doesNotMatch(source, /Sport on now row/);

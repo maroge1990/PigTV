@@ -2844,6 +2844,27 @@ kbd {
   cursor: pointer;
 }
 
+/* 0151: the preview grouped by kind */
+.sports-kind-row th {
+  text-align: left;
+  padding-top: var(--space-md);
+}
+
+.sports-kind-toggle {
+  background: none;
+  border: none;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+}
+
+.sports-aliases summary {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
 .epg-candidate .epg-score {
   color: var(--color-text-muted);
   margin-left: 4px;
