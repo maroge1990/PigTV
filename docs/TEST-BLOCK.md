@@ -195,3 +195,48 @@ Deploy the server (Force Update; `/api/version` should say **0146**), then insta
 
 ### Still to test later
 1.13 (HDR on the HDR TV), 1.16 (a recording with breaks), Part 3 (tuner), 4.3/4.4 (iPhone/iPad), and Siri on iPad.
+
+---
+
+# Round 3: Sport, Top Shelf and iPad (server 0149 · app 30, 25 Sept)
+
+Deploy the server (`/api/version` should say **0149**). Install **app build 30**; if Xcode shows odd errors, quit it and
+reopen the project first.
+
+### Sport setup (web)
+- [ ] R3.1 Web → Settings → Sources → **Sync now** on the EPG source. Then **Status → EPG categories**: which categories does
+      your guide use (e.g. "Sport", "American Football")? Send Claude a rough list; it decides how much the follow list
+      needs to do.
+- [ ] R3.2 Web → Settings → **Sports**: add the keywords you follow (NFL, AFL, F1, NRL, team names…) and save. The preview
+      should list today's matching events, with the rule that matched and how many channels carry each one. Check that the
+      same game on several channels shows once, and that nothing obviously wrong appears.
+
+### Sport (Apple TV)
+- [ ] R3.3 The tab bar is **Home · TV Guide · Sport · Recordings · Settings**. The Sport tab shows **On now**, **Starting
+      soon** and **Later today**, with league chips that filter.
+- [ ] R3.4 **Select** a live event: it plays the best channel (UHD/HD first). Channel up/down stays within that event's
+      channels.
+- [ ] R3.5 **Long-press** an event, then "Choose a channel": pick another channel, and it plays.
+- [ ] R3.6 An upcoming event: **Record** creates the right recording in Recordings. **Watch when it starts** plays at
+      kick-off, but only if the app stays open; its Cancel works.
+- [ ] R3.7 Home shows **Sport now & next** (live, then within the hour), with a **See all** card at the end that opens the
+      Sport tab.
+- [ ] R3.8 With no keywords followed and no sport in the next 12 hours, the Sport tab shows a helpful empty state.
+
+### Fixes
+- [ ] R3.9 **Top Shelf:** PigTV in the top row, open the app once, then go Home. Your favourites should show with logos.
+      Console (subsystem `au.markrogers.PigTV.TopShelf`) should show no "write: failed".
+- [ ] R3.10 **Channel numbers:** none on any logo. Where a number still appears, it's small muted text after the name.
+- [ ] R3.11 **R2.5 file-based channel:** find its name with
+      `docker logs PigTV 2>&1 | grep -B8 "source ends" | grep "Starting session" | tail -3`, then
+      `docker exec PigTV node scripts/stream-doctor.js list <id>`. It should now start quickly.
+
+### iPad / iPhone (build 30)
+- [ ] R3.12 Changing channel shows the **Tuning…** card.
+- [ ] R3.13 The **Channels** button opens the new side panel (iPad) or bottom sheet (iPhone). Tapping a row switches
+      channel.
+- [ ] R3.14 Tapping the picture shows the **info overlay** (programme, progress, next; Favourite / Record / Last channel)
+      together with Apple's controls. Check it doesn't overlap Apple's bar, in portrait and landscape.
+- [ ] R3.15 iPad guide: it **follows your finger** when you swipe sideways and settles on a half hour. Tap a live programme
+      (it plays), tap a future one (details open), and touch-and-hold for the menu.
+- [ ] R3.16 iPad/iPhone Sport tab and Home row as on the TV. Siri on iPad: "Play Fox Footy on PigTV".
