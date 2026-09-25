@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 24 September 2026 · server build **0138** (0113–0138 committed locally, not yet pushed) · Apple client build **16**
+**Last updated:** 25 September 2026 · server build **0149** (0147–0149 committed locally, not yet pushed) · Apple client build **16**
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
 architecture notes live in `../PigTV-Swift/blueprint.md`, which points back here for the roadmap. This file replaced the
@@ -31,7 +31,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Mark deploys. |
 | Shipped through | **0104**; whether it is *running* is whatever `/api/version` says |
-| Next build number | **0139** |
+| Next build number | **0150** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -169,6 +169,9 @@ it cannot. There is no remux, no legacy pipe and no browser-side strategy any mo
 - **The web reads `/api/library`** (0121): the sidebar pages `/library/channels`, the guide pages `/library/guide` (500 a page,
   cursor, the 24 h on screen), favourites are `/library/favourites` + `POST/DELETE /api/favorites` with the bare id, and a play
   resolves by source + bare id (the web never holds a stream URL). Movies, Series and the VOD watch page were deleted in 0122.
+- **Sport events feed playback only through the ordinary resolve** (C-I, 0148): an event's `channels[0]` is the best channel
+  (quality from the name, then health ok, then favourite, then guide order) and is played by source + id like any other; nothing in
+  this section changes for it.
 - `/api/proxy/stream` **streams** binary content and drops the upstream when the client leaves (0104). Playlists are read whole
   (they're rewritten, and `?token=` is carried onto every URI). It takes `?h=` (a handle from `playbackHandles.js`: 32 hex,
   in memory, 12 h, LRU-bounded at 10,000; a restart forgets them, unknown → 404; a manifest fetched by handle hands out
@@ -258,7 +261,24 @@ Client events carry no session id, so the mapping is owner → last resolve (as 
 
 **Sport categories** (0146, C-H, `sportCategories.js`, table `sport_categories`): Settings → Sources → the Sport button on a
 category (saved at once) = `PUT /api/library/categories/sport` (admin); `library/categories` and the Sources catalogue carry
-`sport`. No sync writes the table; a change bumps `library_rev`. Feeds the Apple Home screen's "Sport on now" row.
+`sport`. No sync writes the table; a change bumps `library_rev`. Since 0148 it is **one signal** of sport recognition (below),
+not a row of its own (C-I replaces the C-H Home row).
+
+**EPG categories** (0147): `epg_programs.categories` = the programme's XMLTV `<category>` values as a JSON array (trimmed,
+de-duplicated, ≤12; NULL if none), filled by `syncEpgFromUrl` (EPG sources and Xtream `xmltv.php` alike). An older database
+gains the column and its `epg_live` view is **dropped and recreated** (a view keeps its column list). Only data synced since
+0147 has categories: **Sync now** after deploying. `GET /api/sports/categories` (admin, top 200, cached per EPG generation) =
+the Status page's "EPG categories" panel (loaded once per visit, not on the 5 s refresh).
+
+**Sport events** (0148, C-I, `sportsEvents.js`, `routes/sports.js`, table `sports_follow`): per programme, sport = (a) a category
+in the vocabulary, (b) a followed keyword in the title/categories (whole words; the first in the admin's order names the league),
+or (c) a C-H sport category's channel + a live-looking title ("live", "vs", " v "); News/Highlights/Preview/Replay/Classic/Magazine
+excluded unless a keyword matched. Same normalised title (lower case; `[..]` tags, bracketed live/HD tags, the channel's own name,
+live/HD/UHD/FHD/4K/HDR words and punctuation removed; "vs" → "v") + overlapping times = one event. Visible channels only, once
+per identity; EPG mapping honoured. Built once per (guide version, follow-list version, minute) for 24 h (~0.1–0.2 s on 1,000
+channels × 30 programmes); a request filters and orders (warm ~5–30 ms over HTTP). `GET /api/sports/events?hours=` (any user,
+default 6, 1–24; Apple route), admin `GET/PUT /api/sports/follow` (≤100) and `GET /api/sports/preview` (next 24 h, with the rule);
+web Settings → **Sports** (0149). Direct DB edits don't move the cache key: tests call `sportsEvents.reset()`.
 
 **Logo cache** (0112, fixed 0141): `/api/logo/<key>`, key = hash of the cache version + URL. Downscaled through `format=rgba`
 to an RGBA PNG only when wider than 320 px (a palette PNG with transparency otherwise came out opaque: ABC, 7mate, 7two);
@@ -338,7 +358,7 @@ the channel up again`, `finished (…) N segments, Ns, … (N linked, N copied)`
   `*.native.mp4` for those once. **HEVC recording playback on an Apple TV is still unconfirmed.**
 
 **Dev environment (macOS, from 23 Sept).**
-- Node 24 from Homebrew (`/opt/homebrew/opt/node@24/bin`; see §2). `npm test`: 538 tests (24 Sept, after 0146), all pass locally with
+- Node 24 from Homebrew (`/opt/homebrew/opt/node@24/bin`; see §2). `npm test`: 564 tests (25 Sept, after 0149), all pass locally with
   Homebrew ffmpeg 9.0 installed (tests that need ffmpeg skip without one).
 - `bash scripts/verify-build.sh .` uses the system `python3`.
 - The tree is LF. There is no local Docker; the image is only built by CI.
@@ -380,6 +400,15 @@ connection retries (0143), finite sources start with an 8 s read burst (0144, ff
 client wait in the playback report (0145), sport categories (0146). Local commits; awaiting push, deploy and Mark's checks.
 
 **All phases built by 24 Sept (server 0138, app 22).** Mark's combined device and live test list is `docs/TEST-BLOCK.md`; items move to *Verified* as he reports back.
+
+### S5 Sport events (contract C-I, 25 Sept)
+
+| ID | Item | Status |
+|---|---|---|
+| S5.1 | Store EPG programme categories at ingest; admin `GET /api/sports/categories`; Status page "EPG categories" | Committed (0147); needs a Sync now after deploy |
+| S5.2 | Sport recognised per programme (vocabulary, followed keywords, C-H category + live title, exclusions), grouped into events across channels, best channel first; `GET /api/sports/events`, admin follow list and preview; flag `sportsEvents` | Committed (0148) |
+| S5.3 | Web Settings → Sports: follow-list chips and a preview of recognised events; the Manage Content Sport tooltip | Committed (0149) |
+| A5.1 | Apple Sport tab and Home "Sport now & next" row (replaces the C-H row) | Planned (Swift) |
 
 ### Phase 0: clean-up and correctness (gate: redeploy, CI green, guide unchanged)
 
@@ -442,7 +471,7 @@ and timeshift together. Run old and new side by side against the `stream-doctor`
 | A4.4 | iPhone/iPad touch guide and player controls; revisit PiP and AirPlay after the tuner work | Planned |
 | A4.5 | Siri / App Intents ("Play … on PigTV"); Swift 6 language mode | Planned |
 | S4.1 | Channel health: per-channel first-picture time, stalls per hour and failures from client events; flag unreliable channels | Committed (0133): `health` on guide/channels rows, flag `channelHealth`, Status page list; **stalls since 0142** (play-end mapped to the owner's last resolve; flaky also at ≥3 stalls/h over ≥20 min; list ranked by failed starts + stalls/h); Apple dot still to do |
-| S4.4 | Sport categories for the Apple Home screen's "Sport on now" row (C-H) | Server + web committed (0146): flag `sportCategories`, `sport` on `library/categories`, admin PUT, Sources Sport button; the Apple row still to do |
+| S4.4 | Sport categories for the Apple Home screen's "Sport on now" row (C-H) | Server + web committed (0146): flag `sportCategories`, `sport` on `library/categories`, admin PUT, Sources Sport button. Superseded as a Home row by C-I (S5); now one sport signal |
 | S4.2 | EPG matching tool (web): map channels with no programme information to EPG ids | Committed (0134) |
 | S4.3 | `db.json` into SQLite (and stop copying settings on every segment request); split `routes/proxy.js`; Express 5; `jsonwebtoken` directly instead of passport | Committed: SQLite (0135), no passport (0136), Express 5 (0137). Splitting `routes/proxy.js` not done (238 lines since 0122; not needed) |
 
@@ -534,3 +563,6 @@ about 0 on the E-AC-3 channel.
 | 0144 | A finite source is paced with `-readrate 1 -readrate_initial_burst 8` instead of `-re` (first segment at once); `PIGTV_READRATE_BURST=0` rolls back |
 | 0145 | `playback-report.js` shows the client wait (first picture minus resolve) per path, median and p90 |
 | 0146 | Sport categories (C-H): flag `sportCategories`, `sport` on `library/categories`, admin `PUT /api/library/categories/sport`, Sport button in Settings → Sources |
+| 0147 | EPG programme categories stored (`epg_programs.categories`, JSON; view rebuilt on upgrade); admin `GET /api/sports/categories`; Status page "EPG categories" |
+| 0148 | Sport events (C-I): per-programme recognition, events across channels, best channel first; `GET /api/sports/events`, admin follow list and preview; flag `sportsEvents` |
+| 0149 | Web Settings → Sports: follow-list chips, preview of recognised events; the Sport toggle's tooltip |
