@@ -66,6 +66,8 @@ const GUIDE = [
     ['seven', 'Liverpool v Arsenal', -20 * M, 90 * M, []],
     // non-events
     ['espn', 'NFL Highlights', 2 * H, 3 * H, ['Sport']],
+    // 0150: a replay of an identifiable game (listed by default, after the events)
+    ['espn2', 'Classic: Chiefs v Bills 2024', 3 * H, 5 * H, ['Sport', 'American Football']],
     ['fs505', 'Sports Tonight', 150 * M, 4 * H, ['Sport', 'News']],
     // ordering: four channels, two HD
     ['k2', 'Rugby: Wallabies v All Blacks', 3 * H, 5 * H, ['Sport', 'Rugby Union']],
@@ -100,7 +102,8 @@ const events = async (query = '', token = adminToken) => {
     return r.body;
 };
 const titles = (body) => body.events.map(e => e.title);
-const find = (body, prefix) => body.events.filter(e => e.title.startsWith(prefix));
+// 0150: an event's title is its cleanest form ("Chiefs v Bills"); the raw titles are its aliases.
+const find = (body, prefix) => body.events.filter(e => [e.title, ...(e.aliases || [])].some(t => t.startsWith(prefix)));
 const follow = (keywords) => call('PUT', '/api/sports/follow', { body: { keywords } });
 
 before(async () => {
@@ -148,7 +151,9 @@ test('the same game on three channels is one event; a different game at the same
     const nfl = find(body, 'NFL');
     assert.equal(nfl.length, 1, JSON.stringify(titles(body)));
     assert.deepEqual(nfl[0].channels.map(c => c.name).sort(), ['ESPN 2 HD', 'Fox Sports 505 SD', 'Sky Sports UHD']);
-    assert.equal(nfl[0].title, 'NFL Chiefs v Bills [Sky]', 'the earliest airing names it');
+    assert.equal(nfl[0].title, 'Chiefs v Bills', 'the cleanest form names it (0150)');
+    assert.deepEqual([...nfl[0].aliases].sort(), ['LIVE: NFL: Chiefs vs Bills (HD)', 'NFL Chiefs v Bills [Sky]', 'NFL: Chiefs v Bills']);
+    assert.equal(nfl[0].kind, 'event');
     assert.equal(nfl[0].start, NOW - 45 * M);
     assert.equal(nfl[0].end, NOW + 150 * M);
     assert.equal(nfl[0].live, true);
@@ -183,12 +188,15 @@ test('non-events are excluded; hidden channels and categories never count', asyn
     assert.equal(find(body, 'F1').length, 0, 'no category and not followed yet');
 });
 
-test('(b) a followed keyword makes a programme sport, names the league, and overrides the exclusions', async () => {
+test('(b) a followed keyword makes a programme sport and names the league; highlights stay a show', async () => {
     assert.equal((await follow(['F1', 'NFL'])).status, 200);
     try {
         const body = await events('?hours=24');
         assert.equal(find(body, 'F1')[0].league, 'F1');
-        assert.equal(find(body, 'NFL Highlights').length, 1, 'NFL is followed');
+        assert.equal(find(body, 'F1')[0].title, 'Monaco Grand Prix');
+        assert.equal(find(body, 'NFL Highlights').length, 0, 'NFL is followed, but highlights are a show (0150)');
+        const all = await events('?hours=24&include=all');
+        assert.deepEqual(find(all, 'NFL Highlights').map(e => [e.kind, e.league]), [['show', 'NFL']]);
         assert.equal(find(body, 'NFL Chiefs')[0].league, 'NFL', 'the keyword beats the category');
     } finally {
         await follow([]);
@@ -223,15 +231,36 @@ test('channels are ordered by quality, then health ok, then favourite, then guid
     assert.deepEqual(await rugby(), ['ESPN 2 HD', 'Kayo 2 HD', 'Seven', 'ESPN']);
 });
 
-test('events are live first, then upcoming, each by start', async () => {
+test('events are live first, then upcoming, each by start; then replays', async () => {
     const body = await events('?hours=24');
-    const live = body.events.filter(e => e.live);
+    const kinds = body.events.map(e => e.kind);
+    assert.deepEqual([...new Set(kinds)], ['event', 'replay'], 'events, then replays (0150)');
+    const list = body.events.filter(e => e.kind === 'event');
+    const live = list.filter(e => e.live);
     assert.ok(live.length >= 3);
-    assert.ok(body.events.slice(0, live.length).every(e => e.live), 'live ones first');
-    for (let i = 1; i < body.events.length; i++) {
-        const [a, b] = [body.events[i - 1], body.events[i]];
+    assert.ok(list.slice(0, live.length).every(e => e.live), 'live ones first');
+    for (let i = 1; i < list.length; i++) {
+        const [a, b] = [list[i - 1], list[i]];
         if (a.live === b.live) assert.ok(a.start <= b.start, `${a.title} before ${b.title}`);
     }
+});
+
+test('0150: replays are listed by default with kind "replay"; shows and placeholders only with include=all', async () => {
+    const body = await events('?hours=24');
+    const replay = find(body, 'Classic: Chiefs');
+    assert.deepEqual(replay.map(e => [e.kind, e.title]), [['replay', 'Chiefs v Bills']], 'not merged into the live game');
+    assert.equal(find(body, 'NFL: Chiefs')[0].kind, 'event');
+    assert.ok(body.events.every(e => e.kind === 'event' || e.kind === 'replay'));
+    assert.equal(find(body, 'NFL Highlights').length, 0);
+    assert.equal(find(body, 'Sports Tonight').length, 0);
+
+    const all = await events('?hours=24&include=all');
+    assert.deepEqual(find(all, 'NFL Highlights').map(e => e.kind), ['show']);
+    assert.deepEqual(find(all, 'Sports Tonight').map(e => e.kind), ['show']);
+    assert.ok(all.events.length > body.events.length);
+    const order = { event: 0, replay: 1, show: 2, placeholder: 3 };
+    assert.ok(all.events.every((e, i) => i === 0 || order[all.events[i - 1].kind] <= order[e.kind]), 'grouped by kind');
+    assert.ok(!('kindRule' in all.events[0]), 'the rule is for the admin preview');
 });
 
 test('hours defaults to 6 and is clamped to 1-24', async () => {
@@ -271,6 +300,10 @@ test('the preview is admin only and says which rule matched', async () => {
         assert.deepEqual(rule('Rugby'), ['category', 'Sport']);
         assert.deepEqual(rule('Liverpool'), ['sportChannel', 'Sport category + live title']);
         assert.equal(find(body, 'Golf').length, 1, 'the next 24 hours');
+        // 0150: every kind, with why
+        assert.equal(find(body, 'F1')[0].kindRule, 'event: a session (Race)');
+        assert.deepEqual(find(body, 'NFL Highlights').map(e => [e.kind, e.kindRule]), [['show', 'show: highlights ("highlights")']]);
+        assert.equal(find(body, 'Classic: Chiefs')[0].kindRule, 'replay: a game with "classic"');
     } finally {
         await follow([]);
     }

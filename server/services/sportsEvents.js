@@ -1,17 +1,20 @@
 /**
- * Sport events (contract C-I; 0147 categories, 0148 events).
+ * Sport events (contract C-I; 0147 categories, 0148 events, 0150 kinds and merging by meaning).
  *
  * Sport is recognised per PROGRAMME, not per channel: about 100 channels carry
  * NFL only some of the time. A programme is sport when
  *   (a) one of its EPG categories matches the sport vocabulary, or
- *   (b) its title or a category contains a followed keyword (the admin's list), or
+ *   (b) its title or a category names a followed keyword (the admin's list; a league
+ *       keyword stands for all its spellings: "F1" = "Formula 1" = "Formula One"), or
  *   (c) its channel's category is marked sport (C-H, services/sportCategories.js)
  *       and its title reads like a live event ("Live", "vs", " v ").
- * News, Highlights, Preview, Replay, Classic and Magazine (in the title or a
- * category) are not events, unless a followed keyword matches.
  *
- * Sport programmes with the same normalised title at overlapping times are one
- * event with several channels. Channels are ordered best first: quality from
+ * 0150: each sport programme then has a KIND (services/sportsClassify.js): event,
+ * replay (of an identifiable game), show (magazines, highlights, news) or placeholder
+ * (empty PPV slots, stale dated listings, 24/7 replay loops). Programmes of the same
+ * kind and league at overlapping times that name the same game (the same teams, or the
+ * same session and grand prix) are one item with several channels, titled by its
+ * cleanest form and listing the raw titles as `aliases`. Channels are ordered best first: quality from
  * the name (UHD, HD, unknown, SD), then health ok (C-G), then the user's
  * favourite, then guide order.
  *
@@ -28,6 +31,7 @@ const { NUMBER_JOIN, VISIBLE_SQL, CHANNEL_KEY_SQL } = require('./channelNumbers'
 const channelHealth = require('./channelHealth');
 const epgMapping = require('./epgMapping');
 const sportCategories = require('./sportCategories');
+const sportsClassify = require('./sportsClassify');
 
 const HOUR_MS = 60 * 60 * 1000;
 const WINDOW_MS = 24 * HOUR_MS;      // what one build covers, from its minute
@@ -71,20 +75,33 @@ const EXCLUDE_RE = wordRegExp('news|highlights?|previews?|replays?|classics?|mag
 // (c) A title that reads like a live event.
 const LIVE_TITLE_RE = /(?:^|[^\p{L}\p{N}])(?:live|vs)(?=$|[^\p{L}\p{N}])|\sv\s/iu;
 
+/**
+ * A keyword that names a league ("F1", "Formula 1", "AFLW") follows that canonical league
+ * in all its spellings (sportsClassify.LEAGUES), and only it: "AFL" does not follow
+ * "Women's AFL". Any other keyword ("Chiefs") is matched as whole words.
+ */
 function compileFollow(keywords) {
-    const list = keywords.map(k => ({ keyword: k, re: wordRegExp(phrase(k.toLowerCase())) }));
+    const list = keywords.map(k => {
+        const league = sportsClassify.canonicalLeague(k);
+        return { keyword: k, league, re: league ? null : wordRegExp(phrase(k.toLowerCase())) };
+    });
+    const literal = list.filter(k => !k.league);
     return {
         list,
-        any: list.length ? wordRegExp(list.map(k => phrase(k.keyword.toLowerCase())).join('|')) : null
+        leagues: new Set(list.filter(k => k.league).map(k => k.league)),
+        any: literal.length ? wordRegExp(literal.map(k => phrase(k.keyword.toLowerCase())).join('|')) : null
     };
 }
 
 /** The first followed keyword (in list order) in the title or a category, or null. */
-function followedKeyword(follow, title, categories) {
-    if (!follow.any) return null;
+function followedKeyword(follow, title, categories, leagues) {
+    if (!follow.list.length) return null;
     const texts = [title, ...categories].filter(Boolean);
-    if (!texts.some(t => follow.any.test(t))) return null;
-    for (const k of follow.list) if (texts.some(t => k.re.test(t))) return k.keyword;
+    const literalHit = follow.any && texts.some(t => follow.any.test(t));
+    if (!literalHit && !leagues.some(l => follow.leagues.has(l))) return null;
+    for (const k of follow.list) {
+        if (k.league ? leagues.includes(k.league) : texts.some(t => k.re.test(t))) return k;
+    }
     return null;
 }
 
@@ -105,13 +122,17 @@ function leagueFromCategories(categories) {
  * Is this programme sport, and by which rule?
  *   -> null | { rule: 'keyword'|'category'|'sportChannel', match, league }
  * `follow` is compileFollow()'s result; `sportChannel` is C-H's mark on the
- * programme's channel.
+ * programme's channel. A followed keyword's league is the canonical league the title
+ * (else a category) names, else the keyword's own. Whether it is an event, a replay,
+ * a show or a placeholder is sportsClassify.classifyKind's question (0150; before,
+ * news/highlights/preview/replay/classic/magazine were dropped here).
  */
 function classify({ title, categories = [], sportChannel = false }, follow) {
     const text = String(title || '');
-    const keyword = followedKeyword(follow, text, categories);
-    if (keyword) return { rule: 'keyword', match: keyword, league: keyword };
-    if (EXCLUDE_RE.test(text) || categories.some(c => EXCLUDE_RE.test(c))) return null;
+    const titleLeague = sportsClassify.detectLeague(text);
+    const leagues = [titleLeague, ...categories.map(c => sportsClassify.detectLeague(c))].filter(Boolean);
+    const keyword = followedKeyword(follow, text, categories, leagues);
+    if (keyword) return { rule: 'keyword', match: keyword.keyword, league: leagues[0] || keyword.league || keyword.keyword };
     const category = categories.find(c => VOCABULARY_RE.test(String(c).replace(/[\-_/]+/g, ' ')));
     if (category) return { rule: 'category', match: category, league: leagueFromCategories(categories) };
     if (sportChannel && LIVE_TITLE_RE.test(text)) {
@@ -274,17 +295,34 @@ function buildEvents({ from, decorateChannels } = {}) {
     if (decorateChannels) decorateChannels(channels);
     channelHealth.applyHealth(channels);
 
+    const tvgIds = [...new Set(channels.map(ch => ch.tvgId).filter(Boolean))];
+    const progs = programmesFor(db, tvgIds, from, from + WINDOW_MS);
+    const events = eventsFromProgrammes(channels, progs, follow);
+    return { from, events, channelCount: channels.length, programmeCount: progs.length };
+}
+
+/**
+ * The pure part of a build: every sport item (all kinds) from the visible channels
+ * ({ key, order, tvgId, sportChannel, name, ... }) and their programmes (epg_live rows:
+ * channel_id, title, start_time, end_time, categories as JSON). `follow` is
+ * compileFollow()'s result, or the keyword list.
+ */
+function eventsFromProgrammes(channels, progs, follow) {
+    if (Array.isArray(follow)) follow = compileFollow(follow);
     const byTvg = new Map();
     for (const ch of channels) {
         if (!ch.tvgId) continue;
         if (!byTvg.has(ch.tvgId)) byTvg.set(ch.tvgId, []);
         byTvg.get(ch.tvgId).push(ch);
     }
-    const progs = programmesFor(db, [...byTvg.keys()], from, from + WINDOW_MS);
 
     // Titles and category sets repeat across channels and days: classify each once.
+    // Loop detection needs each channel's whole window, so it runs once per build.
+    const looped = sportsClassify.loopedProgrammes(progs);
     const verdicts = new Map();
-    const airingsByTitle = new Map();
+    const parsedTitles = new Map();
+    const channelTokens = new Map();
+    const airings = [];
     for (const p of progs) {
         if (!(p.end_time > p.start_time)) continue;
         let categories = [];
@@ -297,59 +335,56 @@ function buildEvents({ from, decorateChannels } = {}) {
                 verdicts.set(vkey, verdict);
             }
             if (!verdict) continue;
-            const norm = normaliseTitle(p.title, ch.name);
-            if (!norm) continue;
-            if (!airingsByTitle.has(norm)) airingsByTitle.set(norm, []);
-            airingsByTitle.get(norm).push({ title: p.title, start: p.start_time, end: p.end_time, channel: ch, verdict });
+            let parsed = parsedTitles.get(p.title);
+            if (!parsed) { parsed = sportsClassify.parseTitle(p.title); parsedTitles.set(p.title, parsed); }
+            let chTokens = channelTokens.get(ch.key);
+            if (!chTokens) { chTokens = sportsClassify.channelTokens(ch.name); channelTokens.set(ch.key, chTokens); }
+            const kind = sportsClassify.classifyKind({
+                title: p.title, start: p.start_time, categories, rule: verdict.rule, loop: looped.has(p), parsed, chTokens
+            });
+            airings.push({
+                title: p.title, start: p.start_time, end: p.end_time, channel: ch, order: ch.order, verdict,
+                rule: verdict.rule, parsed, kind: kind.kind, why: kind.why, generic: !!kind.generic,
+                // merged within one canonical league: the one the title names, else the recognised one
+                league: sportsClassify.detectLeague(p.title) || verdict.league
+            });
         }
     }
 
     const keywordOrder = new Map(follow.list.map((k, i) => [k.keyword, i]));
-    const events = [];
-    for (const [norm, airings] of airingsByTitle) {
-        airings.sort((a, b) => a.start - b.start || a.channel.order - b.channel.order);
-        let current = null;
-        const flush = () => { if (current) events.push(finishEvent(norm, current, keywordOrder)); };
-        for (const a of airings) {
-            if (current && a.start < current.end) {
-                current.end = Math.max(current.end, a.end);
-                current.airings.push(a);
-            } else {
-                flush();
-                current = { start: a.start, end: a.end, airings: [a] };
-            }
-        }
-        flush();
-    }
-    return { from, events, channelCount: channels.length, programmeCount: progs.length };
+    const items = sportsClassify.mergeAirings(airings, a => normaliseTitle(a.title, a.channel.name) || a.title.toLowerCase());
+    return items.map(item => finishEvent(item, keywordOrder));
 }
 
-function finishEvent(norm, group, keywordOrder) {
-    const first = group.airings[0];
+function finishEvent(item, keywordOrder) {
+    const first = item.airings[0];
     // The rule: the strongest among its programmes (keyword, then category, then sport channel).
     let best = first.verdict;
-    for (const a of group.airings) {
+    for (const a of item.airings) {
         const v = a.verdict;
         if (RULE_RANK[v.rule] < RULE_RANK[best.rule]
             || (v.rule === 'keyword' && best.rule === 'keyword' && keywordOrder.get(v.match) < keywordOrder.get(best.match))) best = v;
     }
     let league = best.league;
     if (best.rule !== 'keyword' && league === 'Sport') {
-        league = group.airings.map(a => a.verdict.league).find(l => l !== 'Sport') || 'Sport';
+        league = item.airings.map(a => a.verdict.league).find(l => l !== 'Sport') || 'Sport';
     }
     const channels = [];
     const seen = new Set();
-    for (const a of group.airings) {
+    for (const a of item.airings) {
         if (seen.has(a.channel.key)) continue;
         seen.add(a.channel.key);
         channels.push(a.channel);
     }
     return {
-        id: crypto.createHash('sha1').update(`${norm}\u0000${group.start}`).digest('hex').slice(0, 16),
-        title: first.title,
+        id: crypto.createHash('sha1').update(`${item.key}\u0000${item.start}`).digest('hex').slice(0, 16),
+        kind: item.kind,
+        kindRule: `${item.kind}: ${item.why}`,
+        title: item.title,
+        aliases: item.aliases,
         league,
-        start: group.start,
-        end: group.end,
+        start: item.start,
+        end: item.end,
         rule: best.rule,
         match: best.match,
         channels
@@ -387,20 +422,28 @@ function favouriteKeys(userId) {
     return new Set(rows.map(f => `${f.source_id}:${f.stable_id || f.item_id}`));
 }
 
+const DEFAULT_KINDS = new Set(['event', 'replay']);
+const KIND_ORDER = { event: 0, replay: 1, show: 2, placeholder: 3 };
+
 /**
  * The events for one request (C-I):
- *   { now, events: [{ id, title, league, start, end, live, channels: [{ sourceId, id, stableId, name, number, logo, quality }] }] }
- * live and on-now first (by start), then upcoming (by start). `withRule` adds
- * `rule` and `match` (the admin preview).
+ *   { now, events: [{ id, kind, title, aliases, league, start, end, live,
+ *                     channels: [{ sourceId, id, stableId, name, number, logo, quality }] }] }
+ * Events and replays (0150), or every kind with `include: 'all'`. Ordered by kind
+ * (events, replays, shows, placeholders), each live first, then by start. `withRule`
+ * adds `rule` and `match` (how it was recognised) and `kindRule` (why it is that kind;
+ * the admin preview).
  */
-function eventsFor({ hours, userId, now = Date.now(), withRule = false, decorateChannels } = {}) {
+function eventsFor({ hours, userId, now = Date.now(), withRule = false, include, decorateChannels } = {}) {
     const span = clampHours(hours) * HOUR_MS;
     const built = cachedEvents(now, decorateChannels);
     const favs = favouriteKeys(userId);
     const isFav = (ch) => favs.has(`${ch.sourceId}:${ch.stableId || ch.id}`) || favs.has(`${ch.sourceId}:${ch.id}`);
 
     const events = [];
+    const all = include === 'all';
     for (const ev of built.events) {
+        if (!all && !DEFAULT_KINDS.has(ev.kind)) continue;
         if (!(ev.end > now && ev.start < now + span)) continue;
         const channels = ev.channels.slice().sort((a, b) =>
             qualityRank(a.quality) - qualityRank(b.quality)
@@ -409,7 +452,9 @@ function eventsFor({ hours, userId, now = Date.now(), withRule = false, decorate
             || a.order - b.order);
         const out = {
             id: ev.id,
+            kind: ev.kind,
             title: ev.title,
+            aliases: ev.aliases,
             league: ev.league,
             start: ev.start,
             end: ev.end,
@@ -419,10 +464,11 @@ function eventsFor({ hours, userId, now = Date.now(), withRule = false, decorate
                 number: ch.number, logo: ch.logo, quality: ch.quality
             }))
         };
-        if (withRule) { out.rule = ev.rule; out.match = ev.match; }
+        if (withRule) { out.rule = ev.rule; out.match = ev.match; out.kindRule = ev.kindRule; }
         events.push(out);
     }
-    events.sort((a, b) => (a.live === b.live ? 0 : a.live ? -1 : 1) || a.start - b.start || a.title.localeCompare(b.title));
+    events.sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]
+        || (a.live === b.live ? 0 : a.live ? -1 : 1) || a.start - b.start || a.title.localeCompare(b.title));
     return { now, events };
 }
 
@@ -472,6 +518,8 @@ module.exports = {
     // 0148
     classify, compileFollow, normaliseTitle, qualityFromName, leagueFromCategories,
     getFollow, setFollow, cleanFollow, eventsFor, buildEvents, clampHours, stats,
+    // 0150
+    eventsFromProgrammes,
     DEFAULT_HOURS, MAX_HOURS, MAX_KEYWORDS,
     reset
 };

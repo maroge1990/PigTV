@@ -100,18 +100,37 @@ Sport is recognised per **programme**, not per channel: about 100 channels carry
   case-insensitive); (b) its title or categories contain a **followed keyword** (admin list, e.g. "NFL", "AFL", "F1", "Chiefs");
   (c) it's on a channel whose category is marked sport (C-H) **and** its title reads like a live event ("Live", "vs", "v ").
   Common non-events are excluded unless a followed keyword matches: News, Highlights, Preview, Replay, Classic, Magazine.
+  (Since 0150 they are classified by `kind` below instead of dropped.)
 - **Events:** sport programmes airing at overlapping times with the same **normalised title** (lower-case; "live"/"(live)",
   channel tags, HD/UHD/4K markers and punctuation removed; whitespace collapsed) are **one event** with several channels.
 - `GET /api/sports/events?hours=N` (default 6, max 24; auth as /library) →
   `{ now, events: [ { id, title, league, start, end, live, channels: [ { sourceId, id, stableId, name, number, logo, quality } ] } ] }`.
-  - `league`: the followed keyword that matched, else the most specific EPG category, else "Sport".
+  - `league`: the followed keyword that matched, else the most specific EPG category, else "Sport". (Since 0150 a keyword's
+    league is the canonical league the title names: "Formula 1" titles show "F1", "Women's AFL" titles "AFLW".)
   - `live`: on now (start ≤ now < end).
   - `quality`: "UHD" | "HD" | "SD" | null, from the channel name (4K/UHD, HD/FHD).
   - Channels are ordered best first: quality, then `health` ok, then favourite, then guide order.
   - Events are ordered live first (by start), then upcoming (by start).
+  - **Additive (0150, 25 Sept, Mark's export):** each item also carries
+    - `kind`: `"event"` | `"replay"` | `"show"` | `"placeholder"`. **`kind` (default "event" when absent)**: a client treats an
+      item without it (an older server) as an event.
+    - `aliases`: `[string]`, the raw guide titles merged into this item. `title` is now the cleanest form ("Carlton Blues v
+      Richmond Tigers", "Azerbaijan GP · Practice 3"), no longer the first raw title.
+  - **Replays included by default.** `GET /api/sports/events` returns `kind` `"event"` **and** `"replay"` items (a replay = an
+    identifiable game or session re-aired: "NFL Game Re-Airs - 2026: Packers vs. Jets", "AFL: Grand Final 2025"). Order: live
+    events, then upcoming events, then replays (on-now replays first, then by start). `?include=all` also returns `"show"`
+    (magazines, highlights, pre/post shows) and `"placeholder"` (empty PPV slots, stale listings, 24/7 replay loops) items, after
+    those. An older client that ignores `kind` shows replays mixed in; the Apple client puts `kind == "replay"` in its own
+    "Replays" section.
+  - **Classification:** placeholder > highlights (show) > replay of a game > show words > a replay channel with no game named
+    (placeholder) > event (a match-up "A v/vs/at/@/x B", or a session: practice, qualifying, sprint, race, finals). Programmes
+    are one item when they are the same kind, the same **canonical league** and overlap in time and name the same game (the same
+    teams in either order, by name, short name or abbreviation; or the same session and grand prix). League aliases: F1 = Formula
+    1 = Formula One = FIA F1 (shown "F1"); AFL and AFLW are separate leagues. A followed keyword that names a league follows that
+    league in all its spellings.
 - **Admin:** `GET /api/sports/follow` → `{ keywords: [string] }`; `PUT /api/sports/follow` `{ keywords }` (admin; trims and
   de-duplicates; max 100). `GET /api/sports/preview` (admin) → today's recognised events, each with the rule that matched, to tune
-  the list. Web: Settings → **Sports** panel with the follow list and the preview.
+  the list; since 0150 every kind, each also with `kindRule` (why it is that kind, e.g. `"placeholder: ends in a bare \":\""`). Web: Settings → **Sports** panel with the follow list and the preview.
 - `GET /api/sports/categories` (admin) → EPG categories seen with programme counts (also shown on the Status page).
 - **Apple:** a **Sport** tab (Home · TV Guide · Sport · Recordings · Settings):
   - "On now" events first, then "Starting soon", with filter chips per league.

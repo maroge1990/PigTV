@@ -1,0 +1,107 @@
+{
+  "about": "0150: titles from Mark's Settings -> Sports preview export (25 Sept 2026), on made-up channels and times. Times are AEST (+10:00) on 2026-09-26 (AFL Grand Final day); an end before its start is the next day. 'blocks' repeats one title in back-to-back blocks, 'each' makes one channel per value with {n} in the name and title.",
+  "day": "2026-09-26",
+  "offset": "+10:00",
+  "from": "06:00",
+  "follow": ["NFL", "NBA", "AFL", "AFLW", "F1", "Formula 1"],
+  "channels": [
+    { "name": "US: NBA PASS PPV {n}", "each": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+      "blocks": { "title": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV {n}", "start": "06:00", "hours": 2, "count": 9 } },
+    { "name": "US: NBA 06", "blocks": { "title": "NBA 06 :", "start": "06:00", "hours": 2, "count": 9 } },
+    { "name": "US: NBA 02", "blocks": { "title": "NBA 02: Knicks (NYK) x Timberwolves (MIN) start:2025-01-18 00:20:00 stop:2025-01-18 04:20:00", "start": "06:00", "hours": 2, "count": 9 } },
+    { "name": "US: NBA 03", "blocks": { "title": "NBA Summer League Lakers vs. Bulls jul 16 :NBA 03", "start": "06:00", "hours": 2, "count": 9 } },
+    { "name": "US: NBA 01", "blocks": { "title": "NBA 01: Lakers v Celtics", "start": "06:00", "hours": 2, "count": 3 } },
+    { "name": "NFL Replay {n}", "each": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+      "blocks": { "title": "NFL Replay {n}", "start": "06:00", "hours": 3, "count": 6 } },
+    { "name": "NFL Redzone Replay", "blocks": { "title": "NFL Redzone Replay 24/7", "start": "06:00", "hours": 4, "count": 4 } },
+    { "name": "NFL Guide", "programmes": [["NFL Replay Channel Guide", "06:00", "23:59"]] },
+
+    { "name": "NFL Network HD", "programmes": [
+      ["NFL Blitz", "06:00", "06:30"],
+      ["NFL Films Presents", "06:30", "07:00"],
+      ["NFL GameDay Final", "07:00", "08:00"],
+      ["NFL GameDay - Week 2", "08:00", "09:00"],
+      ["NFL Throwback - Super Bowl XX", "09:00", "10:00"],
+      ["NFL Daily", "10:00", "11:00"],
+      ["NFL Pro", "11:00", "11:30"],
+      ["The NFL Report", "11:30", "12:00"],
+      ["NFL Live", "12:00", "13:00"],
+      ["NFL Fantasy Live", "13:00", "14:00"],
+      ["NFL Total Access", "14:00", "15:00"],
+      ["NFL Network", "15:00", "16:00"],
+      ["NFL Game Re-Airs - 2026: Packers vs. Jets - Week 2", "16:00", "19:00"],
+      ["NFL Mini: Packers vs. Jets", "19:00", "19:45"],
+      ["Best of the NFL 25/26", "19:45", "21:00"],
+      ["The Makeshift Project : Can NFL Players Tackle Anything?", "21:00", "22:00"]
+    ] },
+    { "name": "ESPN HD", "programmes": [
+      ["NBA Today", "06:00", "07:00"],
+      ["NBA Action", "07:00", "07:30"],
+      ["NBA Documentaries", "07:30", "08:30"],
+      ["NBA Draft", "08:30", "10:00"],
+      ["NBA Playback - 2026 NBA All-Star Game", "10:00", "13:00"],
+      ["SC - NBA Plays of the Year", "13:00", "14:00"]
+    ] },
+    { "name": "Fox Footy HD", "programmes": [
+      ["AFL - AFL Hawthorn v Brisbane Lions PF1", "06:30", "09:30"],
+      ["AFL - AFL Sydney Swans v Fremantle PF2", "09:30", "12:30"],
+      ["AFL Grand Final Pre-Game", "12:30", "14:30"],
+      ["AFL - AFL Grand Final: FRE v BRL", "14:30", "17:30"],
+      ["AFL Tonight", "17:30", "18:30"],
+      ["AFL 360", "18:30", "19:30"],
+      ["AFL: Grand Final 2025", "20:00", "23:00"]
+    ] },
+    { "name": "Fox Footy 2", "programmes": [
+      ["AFL Bounce", "06:00", "07:00"],
+      ["Women's AFL - AFLW: Carlton v Richmond Hls", "20:00", "20:30"]
+    ] },
+    { "name": "Seven HD", "programmes": [
+      ["AFL Grand Final 2026", "14:30", "17:45"],
+      ["Women's AFL - AFLW: Carlton v Richmond", "13:05", "14:30"]
+    ] },
+    { "name": "7plus AFL", "programmes": [["AFL : AFL Grand Final", "14:30", "17:30"]] },
+    { "name": "Kayo 2", "programmes": [["AFL Premiership Football - Fremantle vs. Brisbane Lions", "14:25", "17:40"]] },
+    { "name": "Foxtel 505", "programmes": [["AFL Premiership Football", "13:30", "18:00"]] },
+    { "name": "Kayo 1", "programmes": [
+      ["AFL Women's Premiership Football - Carlton Blues vs. Richmond Tigers", "13:05", "15:35"],
+      ["AFL Women's Premiership Football - Melbourne Demons vs. North Melbourne Kangaroos", "16:05", "18:35"],
+      ["AFL Women's Premiership Football - Western Bulldogs vs. Port Adelaide Power", "19:05", "21:35"]
+    ] },
+    { "name": "Kayo 4 HD", "programmes": [
+      ["Live AFLW: Carlton v Richmond", "13:05", "15:35"],
+      ["Live AFLW: Melbourne v N Melbourne", "16:05", "18:35"],
+      ["Live AFLW: Western Bulldogs v Port Adelaide", "19:05", "21:35"]
+    ] },
+
+    { "name": "Fox 505 HD", "programmes": [["NFL Football - Atlanta Falcons at Green Bay Packers", "10:20", "13:30"]] },
+    { "name": "ESPN 2", "programmes": [["NFL Football - Atlanta Falcons at Green Bay Packers", "10:20", "13:30"]] },
+    { "name": "NFL Game Pass 1 UHD", "programmes": [["NFL Football - Atlanta Falcons at Green Bay Packers", "10:15", "13:30"]] },
+    { "name": "Prime Video 1", "programmes": [["NFL Football - Prime Vision Alt Cast: Atlanta Falcons at Green Bay Packers", "10:20", "13:30"]] },
+    { "name": "Kayo 3", "programmes": [["NFL - Week 2: Dolphins @ 49ers", "06:05", "09:30"]] },
+
+    { "name": "Sky Sports F1 HD", "programmes": [
+      ["Formula 1 : Azerbaijan Practice 2", "07:00", "08:15"],
+      ["The F1 Show: Azerbaijan", "08:15", "09:00"],
+      ["F1 Explained...", "09:00", "09:30"],
+      ["Spanish F1 GP Bitesize Highlights", "09:30", "10:00"],
+      ["F1 Academy Highlights", "10:00", "10:30"],
+      ["Formula 1 : Azerbaijan Practice 3", "18:30", "19:45"],
+      ["Formula 1 Qualifying Pre Show", "21:00", "22:00"],
+      ["Formula 1 : Azerbaijan Qualifying", "22:00", "23:15"],
+      ["Formula 1 Qualifying Post Show", "23:15", "23:45"]
+    ] },
+    { "name": "Fox Sports 506 HD", "programmes": [
+      ["FIA Formula One World Championship - FIA F1: Azerbaijan GP Practice 3", "18:25", "19:45"],
+      ["Formula 1 Pre Qualifying", "21:30", "22:00"],
+      ["FIA Formula One World Championship - FIA F1: Azerbaijan GP Qualifying", "22:00", "23:10"],
+      ["Ted's Qualifying Notebook", "23:45", "00:15", ["Motor Sport", "Formula 1"]]
+    ] },
+    { "name": "Kayo 5", "programmes": [
+      ["Live Azerbaijan F1 GP: Practice 3", "18:30", "19:40"],
+      ["Live Azerbaijan F1 GP: Qualifying", "22:00", "23:15"]
+    ] },
+    { "name": "F1 TV Pro", "programmes": [
+      ["Formula 1 Practice 2026: FORMULA 1 QATAR AIRWAYS AZERBAIJAN GRAND PRIX 2026 Practice 3", "18:30", "19:45"]
+    ] }
+  ]
+}

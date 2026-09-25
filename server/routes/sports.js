@@ -1,16 +1,19 @@
 /**
  * Sport (contract C-I). See services/sportsEvents.js for the rules.
  *
- *   GET /api/sports/events?hours=N   (any signed-in user or device, as /api/library; 0148)
- *       -> { now, events: [{ id, title, league, start, end, live,
+ *   GET /api/sports/events?hours=N[&include=all]   (any signed-in user or device, as /api/library; 0148)
+ *       -> { now, events: [{ id, kind, title, aliases, league, start, end, live,
  *                            channels: [{ sourceId, id, stableId, name, number, logo, quality }] }] }
- *          events on now or starting within N hours (default 6, 1-24), live first,
- *          then upcoming, each by start; channels best first
+ *          on now or starting within N hours (default 6, 1-24). 0150: kind "event" and
+ *          "replay" by default; include=all adds "show" and "placeholder". Events first
+ *          (live, then upcoming, each by start), then replays (on now first), then the
+ *          rest; channels best first
  *   GET /api/sports/follow           (admin; 0148) -> { keywords }
  *   PUT /api/sports/follow {keywords} (admin; 0148) -> { keywords } (trimmed, de-duplicated, max 100)
  *   GET /api/sports/preview          (admin; 0148)
- *       -> { now, events } for the next 24 hours, each also with `rule`
- *          ("keyword" | "category" | "sportChannel") and `match` (what matched)
+ *       -> { now, events } for the next 24 hours, every kind, each also with `rule`
+ *          ("keyword" | "category" | "sportChannel"), `match` (what matched) and
+ *          `kindRule` (why it is that kind, e.g. "placeholder: ends in a bare \":\"")
  *   GET /api/sports/categories       (admin; 0147)
  *       -> [{category, programmes}] the EPG categories in the live guide with how
  *          many programmes carry each, most used first, at most 200 (web Status page)
@@ -39,7 +42,8 @@ function decorateChannels(channels) {
 router.get('/events', (req, res) => {
     try {
         channelNumbers.ensureChannelNumbers(); // as /api/library (0117)
-        res.json(sportsEvents.eventsFor({ hours: req.query.hours, userId: req.user.id, decorateChannels }));
+        const include = req.query.include === 'all' ? 'all' : undefined;
+        res.json(sportsEvents.eventsFor({ hours: req.query.hours, userId: req.user.id, include, decorateChannels }));
     } catch (err) {
         console.error('[Sports] events failed:', err.message);
         res.status(500).json({ error: 'Could not list the sport events' });
@@ -48,7 +52,7 @@ router.get('/events', (req, res) => {
 
 router.get('/preview', requireAdmin, (req, res) => {
     try {
-        res.json(sportsEvents.eventsFor({ hours: sportsEvents.MAX_HOURS, userId: req.user.id, withRule: true, decorateChannels }));
+        res.json(sportsEvents.eventsFor({ hours: sportsEvents.MAX_HOURS, userId: req.user.id, withRule: true, include: 'all', decorateChannels }));
     } catch (err) {
         console.error('[Sports] preview failed:', err.message);
         res.status(500).json({ error: 'Could not list the sport events' });

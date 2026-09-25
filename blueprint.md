@@ -171,7 +171,7 @@ it cannot. There is no remux, no legacy pipe and no browser-side strategy any mo
   resolves by source + bare id (the web never holds a stream URL). Movies, Series and the VOD watch page were deleted in 0122.
 - **Sport events feed playback only through the ordinary resolve** (C-I, 0148): an event's `channels[0]` is the best channel
   (quality from the name, then health ok, then favourite, then guide order) and is played by source + id like any other; nothing in
-  this section changes for it.
+  this section changes for it. Since 0150 a replay item (`kind: "replay"`) plays the same way.
 - `/api/proxy/stream` **streams** binary content and drops the upstream when the client leaves (0104). Playlists are read whole
   (they're rewritten, and `?token=` is carried onto every URI). It takes `?h=` (a handle from `playbackHandles.js`: 32 hex,
   in memory, 12 h, LRU-bounded at 10,000; a restart forgets them, unknown → 404; a manifest fetched by handle hands out
@@ -271,14 +271,29 @@ gains the column and its `epg_live` view is **dropped and recreated** (a view ke
 the Status page's "EPG categories" panel (loaded once per visit, not on the 5 s refresh).
 
 **Sport events** (0148, C-I, `sportsEvents.js`, `routes/sports.js`, table `sports_follow`): per programme, sport = (a) a category
-in the vocabulary, (b) a followed keyword in the title/categories (whole words; the first in the admin's order names the league),
-or (c) a C-H sport category's channel + a live-looking title ("live", "vs", " v "); News/Highlights/Preview/Replay/Classic/Magazine
-excluded unless a keyword matched. Same normalised title (lower case; `[..]` tags, bracketed live/HD tags, the channel's own name,
-live/HD/UHD/FHD/4K/HDR words and punctuation removed; "vs" → "v") + overlapping times = one event. Visible channels only, once
-per identity; EPG mapping honoured. Built once per (guide version, follow-list version, minute) for 24 h (~0.1–0.2 s on 1,000
-channels × 30 programmes); a request filters and orders (warm ~5–30 ms over HTTP). `GET /api/sports/events?hours=` (any user,
-default 6, 1–24; Apple route), admin `GET/PUT /api/sports/follow` (≤100) and `GET /api/sports/preview` (next 24 h, with the rule);
-web Settings → **Sports** (0149). Direct DB edits don't move the cache key: tests call `sportsEvents.reset()`.
+in the vocabulary, (b) a followed keyword in the title/categories, or (c) a C-H sport category's channel + a live-looking title
+("live", "vs", " v "). A keyword that names a league follows its canonical league in every spelling (`sportsClassify.LEAGUES`:
+F1 = Formula 1 = Formula One = FIA F1; AFLW = "Women's AFL" = "AFL Women's", apart from AFL; NFL, NBA, NRL(W), …); other
+keywords match as whole words. **Kinds (0150, `sportsClassify.js`, pure):** each programme is `placeholder` ("no event", "coming
+up", a bare trailing ":", only league + channel words, a date more than a day from the airing, the same title in ≥3 back-to-back
+identical blocks on its channel, "24/7", "channel guide", a replay word with no game named) > `show` for highlights ("Hls",
+"Bitesize", "Plays of") > `replay` (a game or session + replay/re-air/classic/throwback/playback/mini/condensed, or a year before
+the season: Jan–Mar count as last year's) > `show` (a word list: tonight, daily, report, gameday, pre/post show, …; "Live" with
+no game) > `event` (a match-up "A v/vs/at/@/x B", or a session: practice 1–3, qualifying, sprint, race/GP, finals, PF1/QF2, …)
+> EPG news/replay categories (`show`) > a keyword-only title (`show`); category/sport-channel titles stay events. **Merging:**
+same kind + canonical league + overlapping times + the same game: teams in either order (one name's words within the other's,
+single letters as initials, "FRE"/"BRL" by their letters in order), or the same session and a compatible grand prix location;
+a teamless session ("AFL Grand Final 2026") joins the one overlapping match-up of its league; a plain broadcast title ("AFL
+Premiership Football") adds its channel to the event it overlaps most (not its times), else is a show; anything else by the
+normalised title (lower case; tags, the channel's own name, live/HD words and punctuation removed). The item's title is the
+cleanest form ("Carlton Blues v Richmond Tigers", "Azerbaijan GP · Practice 3", "Sydney Swans v Fremantle · Preliminary Final
+2"); `aliases` lists the raw titles. Visible channels only, once per identity; EPG mapping honoured. Built once per (guide
+version, follow-list version, minute) for 24 h, loop detection included (~0.2 s on 1,000 channels × 30 programmes, was ~0.08 s
+before 0150); a request filters and orders (warm ~20–35 ms over HTTP). `GET /api/sports/events?hours=[&include=all]` (any user,
+default 6, 1–24; Apple route; events + replays, all kinds with `include=all`), admin `GET/PUT /api/sports/follow` (≤100) and
+`GET /api/sports/preview` (next 24 h, every kind, with the rule and `kindRule`); web Settings → **Sports** (0149). Direct DB
+edits don't move the cache key: tests call `sportsEvents.reset()`. The fixture `test/fixtures/sports-export.json` is Mark's
+25 Sept export (titles).
 
 **Logo cache** (0112, fixed 0141): `/api/logo/<key>`, key = hash of the cache version + URL. Downscaled through `format=rgba`
 to an RGBA PNG only when wider than 320 px (a palette PNG with transparency otherwise came out opaque: ABC, 7mate, 7two);
@@ -408,6 +423,7 @@ client wait in the playback report (0145), sport categories (0146). Local commit
 | S5.1 | Store EPG programme categories at ingest; admin `GET /api/sports/categories`; Status page "EPG categories" | Committed (0147); needs a Sync now after deploy |
 | S5.2 | Sport recognised per programme (vocabulary, followed keywords, C-H category + live title, exclusions), grouped into events across channels, best channel first; `GET /api/sports/events`, admin follow list and preview; flag `sportsEvents` | Committed (0148) |
 | S5.3 | Web Settings → Sports: follow-list chips and a preview of recognised events; the Manage Content Sport tooltip | Committed (0149) |
+| S5.4 | Kinds (event / replay / show / placeholder) with loop detection; league aliases (F1 = Formula 1; AFL ≠ AFLW); listings merged by meaning with a clean title and `aliases`; events + replays by default, `include=all` for the rest (Mark's 25 Sept export) | Committed (0150) |
 | A5.1 | Apple Sport tab and Home "Sport now & next" row (replaces the C-H row) | Planned (Swift) |
 
 ### Phase 0: clean-up and correctness (gate: redeploy, CI green, guide unchanged)
@@ -566,3 +582,4 @@ about 0 on the E-AC-3 channel.
 | 0147 | EPG programme categories stored (`epg_programs.categories`, JSON; view rebuilt on upgrade); admin `GET /api/sports/categories`; Status page "EPG categories" |
 | 0148 | Sport events (C-I): per-programme recognition, events across channels, best channel first; `GET /api/sports/events`, admin follow list and preview; flag `sportsEvents` |
 | 0149 | Web Settings → Sports: follow-list chips, preview of recognised events; the Sport toggle's tooltip |
+| 0150 | Sport kinds (C-I): event/replay/show/placeholder per programme (loop channels, stale dates, PPV slots), league aliases, merging by teams/session; `kind`, `aliases` on items; events + replays by default, `include=all`; preview with `kindRule` |

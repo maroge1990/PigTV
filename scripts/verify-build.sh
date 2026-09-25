@@ -1862,6 +1862,20 @@ check public/js/api.js "setFollow: (keywords) => API.request('PUT', '/sports/fol
 check_absent public/js/components/SourceManager.js "Sport on now row" "the Sport toggle no longer promises the old Home row"
 check test/sports-settings.test.js "the preview reloads after a save" "with a test"
 
+echo "=== 0150: sport programme kinds and merging by meaning (C-I) ==="
+check server/services/sportsClassify.js "function classifyKind(" "each programme has a kind"
+check server/services/sportsClassify.js "\['F1', \['f1', 'formula 1', 'formula one'" "F1 and Formula 1 are one league"
+check server/services/sportsClassify.js "\['AFLW', \['aflw', 'womens afl'" "AFLW is its own league, looked for before AFL"
+check server/services/sportsClassify.js "function loopedProgrammes(" "loop channels are detected"
+check server/services/sportsClassify.js "function mergeAirings(" "listings merge by meaning"
+check server/services/sportsEvents.js "const looped = sportsClassify.loopedProgrammes(progs);" "loop detection runs once per build"
+check server/services/sportsEvents.js "const DEFAULT_KINDS = new Set(\['event', 'replay'\]);" "events and replays by default"
+check server/routes/sports.js "req.query.include === 'all'" "include=all for every kind"
+check server/routes/sports.js "withRule: true, include: 'all'," "the preview shows every kind"
+check_absent server/services/sportsEvents.js "if (EXCLUDE_RE.test(text) || categories.some" "non-events are classified, not dropped"
+check test/fixtures/sports-export.json "NO EVENT STREAMING" "Mark's export is a fixture"
+check test/sports-classify.test.js "after merging, one event per game" "with a test"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys
