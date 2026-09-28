@@ -1847,7 +1847,7 @@ check server/routes/sports.js "router.put('/follow', requireAdmin," "admin follo
 check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS sports_follow" "the follow list has its own table"
 check server/services/sportsEvents.js "WHERE \${VISIBLE_SQL}" "only visible channels"
 check server/services/sportsEvents.js "sportCategories.isSport(r.source_id, r.category_id)" "the C-H mark is one signal"
-check server/services/sportsEvents.js "const key = \`\${currentGuideVersion()}|\${followVersion}|\${bucket}\`;" "built once per guide version, follow list and minute"
+check server/services/sportsEvents.js "return { bucket, key: \`\${currentGuideVersion()}|\${followVersion}|\${bucket}\` };" "built once per guide version, follow list and minute"
 check server/services/sportsEvents.js "FROM epg_live" "reads the live generation"
 check_absent server/services/sportsEvents.js "FROM epg_programs" "never the raw table"
 check test/api-404.test.js "\['GET', '/api/sports/events'\]" "the Apple client's new route is guarded"
@@ -1957,6 +1957,15 @@ check server/services/streamCoordinator.js "tuner.destroyTuner(s.tuner, 'no answ
 check server/db.js "recordingPromptTimeoutMin: 3" "a settings default"
 check public/index.html "dvr-setting-prompt-timeout" "and a web Settings field"
 check test/recording-prompt-timeout.test.js "it waits, however long" "with a test"
+
+echo "=== 0159: sport events are built off the request path (stale-while-revalidate) ==="
+check server/services/sportsEvents.js "if (cache \&\& buildInFlight === key) return cache.built;" "a request is served the previous result while a background rebuild runs"
+check server/services/sportsEvents.js "function scheduleRebuild(now = Date.now(), decorateChannels = lastDecorateChannels) {" "the rebuild itself runs off the request path (setImmediate)"
+check server/services/sportsEvents.js "function armRebuildTimer()" "a timer aligned to the 5-minute bucket"
+check server/services/syncService.js "require('./sportsEvents').scheduleRebuild();" "triggered after an EPG sync"
+check server/services/sportsEvents.js "rebuild in the background rather than leaving it for the next request" "and when the follow list changes"
+check server/index.js "require('./services/sportsEvents').startBackgroundRebuilds();" "started at server startup"
+check test/sports-background-rebuild.test.js "served the previous result, not a blocking rebuild" "with a test"
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1

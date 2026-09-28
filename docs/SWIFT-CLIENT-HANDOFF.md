@@ -323,4 +323,5 @@ commit** (newest last; the first column is the build number). "Client action" sa
 
 Builds with **no client-visible change** (so no row): 0105, 0107, 0109 (the image), 0120, 0121, 0123 (web and admin only),
 0125 (web HTML caching), 0132 (where timeshift is stored), 0145 (the playback report), 0149 and 0151 (web Settings → Sports),
-0157 (recordings-folder health: web Status page and Settings validation only).
+0157 (recordings-folder health: web Status page and Settings validation only), 0159 (sport events build off the request
+path; `GET /api/sports/events` returns the identical shape, just never a slow synchronous build inline).

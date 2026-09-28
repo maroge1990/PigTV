@@ -222,6 +222,16 @@ app.listen(PORT, async (err) => {
         console.warn('Channel health prune failed:', err.message);
     }
 
+    // 0159: the sport event list is rebuilt in the background (an EPG sync landing,
+    // a follow-list change, and this 5-minute-aligned timer), never inline on a
+    // request - a synchronous build on 1,000 channels can take over a second, and
+    // the event loop it would block also serves live HLS segments.
+    try {
+        require('./services/sportsEvents').startBackgroundRebuilds();
+    } catch (err) {
+        console.warn('Sport event background rebuilds failed to start:', err.message);
+    }
+
     // Bring up the parts that must not wait.
     //
     // These used to sit behind the sync in one sequential block, so a stale

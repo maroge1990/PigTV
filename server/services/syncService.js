@@ -628,6 +628,12 @@ class SyncService {
                 INSERT INTO epg_state (source_id, active_gen) VALUES (?, ?)
                 ON CONFLICT(source_id) DO UPDATE SET active_gen = excluded.active_gen
             `).run(sourceId, newGen);
+
+            // 0159: the Sport tab's event list is keyed on the guide version (among
+            // other things), which just moved - rebuild it now in the background
+            // rather than leaving the first request after this sync to pay for a
+            // synchronous build inline.
+            try { require('./sportsEvents').scheduleRebuild(); } catch (e) { /* best-effort */ }
         } catch (err) {
             // The live guide was never touched; just discard the half-loaded one.
             await this.purgeEpgRows(sourceId, '=', newGen).catch(e =>

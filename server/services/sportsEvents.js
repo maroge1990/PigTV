@@ -239,6 +239,10 @@ function setFollow(keywords) {
     })();
     followCache = null;
     followVersion++;
+    // 0159: rebuild in the background rather than leaving it for the next request to
+    // pay for synchronously (still just as correct if a request beats it to it: see
+    // cachedEvents() above).
+    scheduleRebuild();
     return getFollow();
 }
 
@@ -407,21 +411,105 @@ function finishEvent(item, keywordOrder) {
     };
 }
 
-// ---- the cache and the request --------------------------------------------------
+// ---- the cache and the request (0159: stale-while-revalidate) -------------------
+//
+// buildEvents() is measured at ~0.3-1.1 s on 1,000 channels (module comment above),
+// synchronous - and the event loop it would block also serves live HLS segments, so
+// a request that finds the cache stale used to be able to cause a playback stall.
+// Requests are now always served the last built result; the rebuild for a new key
+// happens on setImmediate (never inline in a request), triggered explicitly by
+// scheduleRebuild() - after an EPG sync, when the follow list changes, and from a
+// timer aligned to the 5-minute bucket (below) - so the fresh result is normally
+// already sitting in `cache` by the time a request asks for it. The one case a
+// request still builds synchronously is the very first one: with nothing cached at
+// all there is nothing else to serve, exactly as before 0159.
 
 let cache = null; // { key, built }
+let buildInFlight = null; // the key a background rebuild is currently working on, or null
+let lastDecorateChannels = null; // the most recent request's channel-decorator, reused by triggers that have none of their own
 const stats = { builds: 0, lastBuildMs: 0 };
 
-function cachedEvents(now, decorateChannels) {
+function buildKeyFor(now) {
     const bucket = Math.floor(now / BUILD_EVERY_MS) * BUILD_EVERY_MS;
-    const key = `${currentGuideVersion()}|${followVersion}|${bucket}`;
-    if (cache && cache.key === key) return cache.built;
+    return { bucket, key: `${currentGuideVersion()}|${followVersion}|${bucket}` };
+}
+
+function runBuild(bucket, key, decorateChannels) {
     const t0 = process.hrtime.bigint();
     const built = buildEvents({ from: bucket, decorateChannels });
     stats.builds++;
     stats.lastBuildMs = Number(process.hrtime.bigint() - t0) / 1e6;
     cache = { key, built };
     return built;
+}
+
+function cachedEvents(now, decorateChannels) {
+    if (decorateChannels) lastDecorateChannels = decorateChannels;
+    const { bucket, key } = buildKeyFor(now);
+    if (cache && cache.key === key) return cache.built;
+    // A background rebuild for exactly this key is already under way (scheduleRebuild,
+    // below): serve the previous result rather than racing it with a second, blocking
+    // build - the point of moving the build off the request path in the first place.
+    if (cache && buildInFlight === key) return cache.built;
+    // Nothing usable yet at all (a fresh start, or reset() in a test), or stale with
+    // no rebuild already in flight for it: there is nothing else to serve, so build
+    // now, synchronously, exactly as every version of this cache always has.
+    return runBuild(bucket, key, decorateChannels);
+}
+
+/**
+ * Rebuild in the background for `now` (default: this minute) without blocking the
+ * caller. An EPG sync landing, an admin saving the follow list, and the 5-minute
+ * timer (below) all call this instead of waiting on a synchronous build inline -
+ * each of those call sites runs on the same single-threaded event loop that also
+ * serves live HLS segments. A request that lands while this is running is answered
+ * by cachedEvents() above from the previous result; once this finishes, the next
+ * request sees the fresh one. A no-op when the key is already current or already
+ * being rebuilt, so it never overlaps itself.
+ */
+function scheduleRebuild(now = Date.now(), decorateChannels = lastDecorateChannels) {
+    const { bucket, key } = buildKeyFor(now);
+    if (cache && cache.key === key) return;
+    if (buildInFlight === key) return;
+    buildInFlight = key;
+    setImmediate(() => {
+        try {
+            runBuild(bucket, key, decorateChannels);
+        } catch (err) {
+            console.error('[Sport] Background rebuild failed:', err.message);
+        } finally {
+            if (buildInFlight === key) buildInFlight = null;
+        }
+    });
+}
+
+// A timer aligned to the 5-minute bucket, so the background rebuild for the next
+// bucket is usually already done by the time anyone asks for it, rather than every
+// request after a bucket rolls over racing to be the one that pays for the build.
+let rebuildTimer = null;
+
+function msUntilNextBucket(now = Date.now()) {
+    const rem = BUILD_EVERY_MS - (now % BUILD_EVERY_MS);
+    return (rem <= 0 ? BUILD_EVERY_MS : rem) + 1000; // a second past the boundary
+}
+
+function armRebuildTimer() {
+    rebuildTimer = setTimeout(() => {
+        scheduleRebuild();
+        armRebuildTimer();
+    }, msUntilNextBucket());
+    if (rebuildTimer.unref) rebuildTimer.unref(); // never keeps the process alive on its own
+}
+
+/** Start the 5-minute-bucket background rebuild timer (called once, at server start). */
+function startBackgroundRebuilds() {
+    if (rebuildTimer) return;
+    armRebuildTimer();
+}
+
+function stopBackgroundRebuilds() {
+    if (rebuildTimer) clearTimeout(rebuildTimer);
+    rebuildTimer = null;
 }
 
 const clampHours = (v) => {
@@ -526,6 +614,7 @@ function reset() {
     categoryCache = null;
     cache = null;
     followCache = null;
+    buildInFlight = null;
 }
 
 module.exports = {
@@ -537,5 +626,7 @@ module.exports = {
     // 0150
     eventsFromProgrammes,
     DEFAULT_HOURS, MAX_HOURS, MAX_KEYWORDS,
-    reset
+    reset,
+    // 0159: builds run in the background instead of blocking a request
+    scheduleRebuild, startBackgroundRebuilds, stopBackgroundRebuilds
 };
