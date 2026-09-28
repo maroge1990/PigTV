@@ -1,0 +1,136 @@
+{
+  "events": [
+    {
+      "id": "1545498",
+      "date": "2026-12-12T09:10Z",
+      "endDate": "2026-12-13T23:59Z",
+      "name": "Melbourne Renegades v Perth Scorchers",
+      "shortName": "MR v PS",
+      "status": {
+        "type": {
+          "id": "0",
+          "description": "Scheduled",
+          "detail": "Scheduled",
+          "shortDetail": "Scheduled",
+          "state": "pre"
+        }
+      },
+      "competitions": [
+        {
+          "id": "1545498",
+          "date": "2026-12-12T09:10Z",
+          "endDate": "2026-12-13T23:59Z",
+          "type": null,
+          "status": {
+            "type": {
+              "id": "0",
+              "description": "Scheduled",
+              "detail": "Scheduled",
+              "shortDetail": "Scheduled",
+              "state": "pre"
+            }
+          },
+          "competitors": [
+            {
+              "id": "509671",
+              "homeAway": "home",
+              "winner": "false",
+              "order": 1,
+              "team": {
+                "id": "509671",
+                "displayName": "Melbourne Renegades",
+                "shortDisplayName": "MR",
+                "name": "Melbourne Renegades",
+                "location": "Australia",
+                "abbreviation": "MR"
+              },
+              "score": ""
+            },
+            {
+              "id": "509670",
+              "homeAway": "away",
+              "winner": "false",
+              "order": 2,
+              "team": {
+                "id": "509670",
+                "displayName": "Perth Scorchers",
+                "shortDisplayName": "PS",
+                "name": "Perth Scorchers",
+                "location": "Australia",
+                "abbreviation": "PS"
+              },
+              "score": ""
+            }
+          ],
+          "description": "1st Match"
+        }
+      ]
+    }
+  ],
+  "teams": [
+    {
+      "id": "509667",
+      "displayName": "Adelaide Strikers",
+      "shortDisplayName": "AS",
+      "name": "Adelaide Strikers",
+      "location": "Australia",
+      "abbreviation": "AS"
+    },
+    {
+      "id": "509668",
+      "displayName": "Brisbane Heat",
+      "shortDisplayName": "BH",
+      "name": "Brisbane Heat",
+      "location": "Australia",
+      "abbreviation": "BH"
+    },
+    {
+      "id": "509669",
+      "displayName": "Hobart Hurricanes",
+      "shortDisplayName": "HH",
+      "name": "Hobart Hurricanes",
+      "location": "Australia",
+      "abbreviation": "HH"
+    },
+    {
+      "id": "509671",
+      "displayName": "Melbourne Renegades",
+      "shortDisplayName": "MR",
+      "name": "Melbourne Renegades",
+      "location": "Australia",
+      "abbreviation": "MR"
+    },
+    {
+      "id": "509672",
+      "displayName": "Melbourne Stars",
+      "shortDisplayName": "MS",
+      "name": "Melbourne Stars",
+      "location": "Australia",
+      "abbreviation": "MS"
+    },
+    {
+      "id": "509670",
+      "displayName": "Perth Scorchers",
+      "shortDisplayName": "PS",
+      "name": "Perth Scorchers",
+      "location": "Australia",
+      "abbreviation": "PS"
+    },
+    {
+      "id": "509673",
+      "displayName": "Sydney Sixers",
+      "shortDisplayName": "SS",
+      "name": "Sydney Sixers",
+      "location": "Australia",
+      "abbreviation": "SS"
+    },
+    {
+      "id": "509674",
+      "displayName": "Sydney Thunder",
+      "shortDisplayName": "ST",
+      "name": "Sydney Thunder",
+      "location": "Australia",
+      "abbreviation": "ST"
+    }
+  ]
+}

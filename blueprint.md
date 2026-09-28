@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 28 September 2026 · server build **0160** (pushed) · Apple client build **32**
+**Last updated:** 28 September 2026 · server build **0161** (committed locally, awaiting review/push - see below) · Apple client build **32**
 (`../PigTV-Swift/blueprint.md`)
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
@@ -39,9 +39,9 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Development is on Mark's MacBook only (from 23 Sept). |
 | CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
-| Shipped through | **0160** (pushed to `origin/main`, 28 Sept; 0156–0160 are a bug-fix run: schedule observability, the recordings-folder health check, the recording prompt timeout, sport events off the request path - see §8). Mark tested rounds 1–4 on **0151** + app **31**; 0152–0160 and app 32 are awaiting his check (§6). Whether a build is *running* is whatever `/api/version` says. |
-| Next build number | **0161** |
-| Tests | `npm test`: **632 tests, all pass** (28 Sept, after 0160; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
+| Shipped through | **0160** (pushed to `origin/main`, 28 Sept; 0156–0160 are a bug-fix run: schedule observability, the recordings-folder health check, the recording prompt timeout, sport events off the request path - see §8). **0161** (ESPN fixtures for live/replay, C-I) is committed locally, not yet pushed - the lead reviews and pushes. Mark tested rounds 1–4 on **0151** + app **31**; 0152–0161 and app 32 are awaiting his check (§6). Whether a build is *running* is whatever `/api/version` says. |
+| Next build number | **0162** |
+| Tests | `npm test`: **652 tests, all pass** (28 Sept, after 0161; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -333,6 +333,22 @@ from `epgParser.PROGRAMME_FLAGS`: previously-shown 1 → replay; premiere 2, new
 next game); (c) "Live" in the title → live; (d) `LIVE_HOURS` (per league, home time zone, `Intl`): outside → replay. A build
 reads epg_live from **now − 36 h** (the sync trims nothing by time; whatever past the provider's feed carries) and drops items
 that ended before now. The 0148 route tests switch `LIVE_HOURS` off (they use the wall clock); `test/sports-live.test.js` has it.
+**A 0-th rule ahead of (a)-(d) (0161, `sportsFixtures.js`, `sportsClassify.fixtureVerdict`):** when ESPN's free scoreboard
+(`site.api.espn.com/apis/site/v2/sports/{path}/scoreboard`) covers the airing's league and time, its answer is checked first -
+matched to a fixture (the existing fuzzy team matchers, extended with the fixture's own displayName/shortDisplayName/name/
+location/abbreviation as aliases; F1 by session + Grand Prix location, reusing `parseTitle`'s own location parsing on the
+event name): live when the airing starts at/near the fixture's real kickoff (≤ 30 min after, and still running), else replay,
+worded with the real kickoff (`ESPN: the game started Sat 1:30 pm; this airing is 19 h later`); not matched, but both teams
+are known to the league and no such fixture exists: replay (`ESPN has no such game at this time`); anything else (unknown
+teams, league not covered, no fixture data, ESPN down) falls through to (a)-(d) unchanged. A multi-day cricket Test (league
+`Cricket` only - IPL/BBL are always a single day) is live on any of its scheduled days, not just near its first ball.
+Fixtures are fetched only for the leagues that matter (the follow list, or a marked sport category's name), refreshed every
+30 min and after an EPG sync, kept in SQLite (`sport_fixtures`, `sport_fixture_teams`, `sport_fixture_status`) so a restart or
+an ESPN outage does not lose them, and never block a request - `sportsEvents.buildEvents()` reads the last stored snapshot.
+International cricket (Tests/ODIs/T20Is) has no fixed ESPN league id, so its series are found each refresh from ESPN's
+cricket "scorepanel" and merged under the canonical league `Cricket` (`sportsClassify.LEAGUES`: IPL and BBL stay their own
+leagues). AFLW has no ESPN feed and stays on the heuristics above. `PIGTV_SPORT_FIXTURES=0` turns fixtures off completely
+(§9); the web Status page's "Sport fixtures" panel shows per-league last fetch, fixture count and last error.
 
 **Logo cache** (0112, fixed 0141): `/api/logo/<key>`, key = hash of the cache version + URL. Downscaled through `format=rgba`
 to an RGBA PNG only when wider than 320 px (a palette PNG with transparency otherwise came out opaque: ABC, 7mate, 7two);
@@ -555,6 +571,7 @@ cold 8.2 s (n=14), warm 4.8 s (n=2). After round 2 the report's client wait was 
 | S5.5 | Web preview grouped by kind | **Verified** (0151; R4.1) |
 | S5.6 | Live or replay from XMLTV flags, the first airing within 36 h and per-league live hours | **Shipped, awaiting a check** (0152; needs a Sync now after deploy for the flags) |
 | S5.7 | Sport horizon 72 h (`hours` up to 72) | **Shipped, awaiting a check** (0153 + app 32) |
+| S5.8 | ESPN fixtures as a first rule ahead of the heuristics (NFL, AFL, NBA, F1, MLB, IPL/BBL, international cricket via the scorepanel); Status page "Sport fixtures" panel; `PIGTV_SPORT_FIXTURES` | **Shipped, awaiting a check** (0161; needs live ESPN data and a real misfire to judge by - see the live-test steps in the 0161 hand-off) |
 | A5.1 | Apple Sport tab, Home "Sport now & next", Replays section | **Verified** (app 30–31; R3.3–R3.7, R4.2, R4.3). Empty state (R3.8): **Deferred** (needs a quiet sport day) |
 | A5.2 | Sport tab over 72 h: Tomorrow and weekday sections | **Shipped, awaiting a check** (app 32) |
 | A5.3 | Apple tab switching: no reloads (app 31); no white flash between tabs (app 32) | Reloads: **Verified** (R4.6). Flash fix: **shipped, awaiting a check** |
@@ -673,6 +690,7 @@ lines (the classifier has seen one uneven feed in five) · the 20 s stall timeou
 | 0158 | A due recording that finds a live viewer on the provider's only stream still asks once, but now takes the stream if nobody answers within `recordingPromptTimeoutMin` minutes (new setting, default 3) of becoming due - not from the earlier lead-time notice. An explicit "Keep watching" still waits, however long. Same behaviour on the tuner path |
 | 0159 | Sport events are built off the request path: a stale cache is now served the previous result while the rebuild runs on `setImmediate` (never inline in a request), triggered after an EPG sync, on a follow-list change, and by a timer aligned to the 5-minute bucket. The build itself is still synchronous (~0.3–1.1 s on the one event loop, now at most once per 5 min and never while a request waits); a worker thread is the follow-up if stalls are ever traced to it |
 | 0160 | The recordings folder is never created inside a disconnected share's mount point (a parent on a filesystem under 1 GB, Unraid's 1 MB `/mnt/remotes` tmpfs), Settings refuses such a path, and the unmounted-share check runs even with a free-space minimum of 0 |
+| 0161 | ESPN fixtures (C-I): a new first rule in `resolveLive` checks ESPN's free scoreboard (real kickoff/session times) before the guide-only heuristics - matched to a fixture by team/session, live near the real kickoff else replay with the real time, or "no such game" when both teams are known but nothing matches; `services/sportsFixtures.js` fetches only the leagues that matter (follow list, sport categories), every 30 min and after an EPG sync, into SQLite (never blocks a request); international cricket (Tests/ODIs/T20Is) is found each refresh from ESPN's cricket scorepanel and merged under a new canonical league `Cricket` (IPL, BBL stay their own); AFLW has no ESPN feed and stays on the heuristics; `PIGTV_SPORT_FIXTURES=0` turns it off; the web Status page gets a "Sport fixtures" panel |
 
 ---
 
@@ -698,6 +716,7 @@ env vars: they live in SQLite and are edited in the web app's Settings (sources,
 | `PIGTV_READRATE_BURST` | `8` | Seconds read at full speed before a finite source is paced to real time (0144; 0–60). `0` = plain `-re` (the rollback). |
 | `PIGTV_CHANNEL_NUMBERS` | on | `0` removes the `channelNumbers` flag (clients then show no numbers); numbers are still stored. |
 | `PIGTV_PLAYBACK_HANDLES` | on | `0` makes `direct` resolves hand out `/api/proxy/stream?url=<provider URL>` again (the C-D rollback; exposes the credentialed URL). |
+| `PIGTV_SPORT_FIXTURES` | on | `0` turns off ESPN fixtures completely (0161, §4 "Sport events"): no fetch ever runs, and `resolveLive`'s ESPN rule never applies - every league is exactly on the guide-only heuristics, as before 0161. |
 | `PIGTV_BUILD` | `server/version.js` | Overrides the build number reported by `/api/version` and `/api/info`. Not normally set. |
 | `PIGTV_COMMIT` | `dev` | The commit shown in the version display; CI sets it as a Docker build arg. |
 | `PIGTV_BUILT_AT` | none | The build time for `/api/version`; CI sets it. |
@@ -733,12 +752,21 @@ env var, and stays off (VPN-only).
 
 **Sport (C-I)**
 - Recognition and live/replay are **heuristics** over guide titles, categories and flags (`sportsClassify.js`; rules in §4 and
-  C-I). Known misfires: a live game that the guide doesn't flag and that starts outside its league's live hours reads as a
+  C-I), now checked against **ESPN fixtures first** (0161) for the leagues ESPN covers and that Mark follows: NFL, AFL, NBA,
+  F1, MLB, and cricket's IPL/BBL plus whatever international series ESPN's scorepanel currently lists. Where fixtures cover a
+  league and an airing's time, the known misfires below do not apply - that is the point of 0161. Everywhere else (AFLW always;
+  any league outside the seven above; a period ESPN has no data for; ESPN down) the heuristics below are exactly as they were:
+  a live game that the guide doesn't flag and that starts outside its league's live hours reads as a
   replay; a replay aired inside league hours, not flagged `previously-shown` and not preceded by an earlier airing in the last
-  36 h reads as live; travelling series (F1) have no live hours, so only flags, the first-airing rule and "Live" in the title
-  decide; titles that name neither teams nor a session merge only by normalised title or become shows; the horizon ends where
-  the provider's guide ends (the sync logs how far ahead it reaches). Mark's 25 Sept export is the fixture
+  36 h reads as live; travelling series (F1, without a fixture) have no live hours, so only flags, the first-airing rule and
+  "Live" in the title decide; titles that name neither teams nor a session merge only by normalised title or become shows; the
+  horizon ends where the provider's guide ends (the sync logs how far ahead it reaches). Mark's 25 Sept export is the fixture
   (`test/fixtures/sports-export.json`); add a misfire there with its expected kind before changing a rule.
+- **ESPN fixture coverage is uneven.** IPL and BBL have fixed league ids and are always fetched when followed; other cricket
+  (Tests, ODIs, T20Is) depends on ESPN's cricket "scorepanel" actually listing the series that day - a series it does not list
+  is invisible to the fixture rule and falls back to the heuristics. ESPN's own `endDate` is trusted for a multi-day match only
+  under the generic `Cricket` league (never IPL/BBL, whose nominal `endDate` is not a real multi-day span). ESPN is unofficial
+  and undocumented: a schema change there degrades to "not matched" (heuristics), never a crash, but was not designed against.
 
 **Web**
 - An **in-progress HLS recording** (tuner on) can't be played in the browser: the web recordings page offers Play only on

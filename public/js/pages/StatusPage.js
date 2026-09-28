@@ -136,6 +136,18 @@ class StatusPage {
         </div>`;
     }
 
+    /** Sport fixtures (0162): per league, last successful fetch, fixture count, last error. */
+    renderSportFixtures(fx) {
+        const e = (v) => this.escape(v);
+        if (!fx || !fx.enabled) {
+            return this.section('Sport fixtures', '<p class="setting-hint">Off (PIGTV_SPORT_FIXTURES=0): live/replay relies on the heuristics only.</p>');
+        }
+        return this.section('Sport fixtures', this.table(
+            ['League', 'Last fetched', 'Fixtures', 'Last error'],
+            (fx.leagues || []).map(l => [e(l.league), this.when(l.lastSuccessAt), e(l.fixtureCount ?? '–'), e(l.lastError || '')]),
+            'Nothing fetched yet (no followed league ESPN covers, or the first refresh has not run)'));
+    }
+
     render(status) {
         const e = (v) => this.escape(v);
         const out = [];
@@ -185,6 +197,9 @@ class StatusPage {
                         : e([ev.strategy, ev.videoMode].filter(Boolean).join(', '))
             ]),
             'No plays since the server started')));
+
+        // Sport fixtures (0162, C-I): ESPN's real kickoff/session times, per league.
+        out.push(this.renderSportFixtures(status.sportFixtures));
 
         // Least reliable channels (0133, C-G): failed starts and (0142) stalls over the last 7 days
         out.push(this.section('Least reliable channels', this.table(

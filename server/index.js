@@ -232,6 +232,15 @@ app.listen(PORT, async (err) => {
         console.warn('Sport event background rebuilds failed to start:', err.message);
     }
 
+    // 0162: ESPN fixtures (real kickoff/session times for sportsClassify.resolveLive's ESPN
+    // rule), refreshed every 30 minutes and after an EPG sync - never inline on a request.
+    // PIGTV_SPORT_FIXTURES=0 turns this off completely (services/sportsFixtures.js).
+    try {
+        require('./services/sportsFixtures').startBackgroundRefresh();
+    } catch (err) {
+        console.warn('Sport fixtures background refresh failed to start:', err.message);
+    }
+
     // Bring up the parts that must not wait.
     //
     // These used to sit behind the sync in one sequential block, so a stale

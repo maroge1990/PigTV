@@ -1,0 +1,202 @@
+{
+  "sports": [
+    {
+      "leagues": [
+        {
+          "teams": [
+            {
+              "team": {
+                "id": "15",
+                "displayName": "Adelaide Crows",
+                "shortDisplayName": "Adelaide Crows",
+                "name": "Adelaide Crows",
+                "location": null,
+                "abbreviation": "ADEL"
+              }
+            },
+            {
+              "team": {
+                "id": "11",
+                "displayName": "Brisbane Lions",
+                "shortDisplayName": "Brisbane Lions",
+                "name": "Brisbane Lions",
+                "location": null,
+                "abbreviation": "BL"
+              }
+            },
+            {
+              "team": {
+                "id": "9",
+                "displayName": "Carlton",
+                "shortDisplayName": "Carlton",
+                "name": "Carlton",
+                "location": null,
+                "abbreviation": "CARL"
+              }
+            },
+            {
+              "team": {
+                "id": "17",
+                "displayName": "Collingwood",
+                "shortDisplayName": "Collingwood",
+                "name": "Collingwood",
+                "location": null,
+                "abbreviation": "COLL"
+              }
+            },
+            {
+              "team": {
+                "id": "16",
+                "displayName": "Essendon",
+                "shortDisplayName": "Essendon",
+                "name": "Essendon",
+                "location": null,
+                "abbreviation": "ESS"
+              }
+            },
+            {
+              "team": {
+                "id": "1",
+                "displayName": "Fremantle",
+                "shortDisplayName": "Fremantle",
+                "name": "Fremantle",
+                "location": null,
+                "abbreviation": "FRE"
+              }
+            },
+            {
+              "team": {
+                "id": "8",
+                "displayName": "GWS GIANTS",
+                "shortDisplayName": "GWS GIANTS",
+                "name": "GWS GIANTS",
+                "location": null,
+                "abbreviation": "GWS"
+              }
+            },
+            {
+              "team": {
+                "id": "14",
+                "displayName": "Geelong Cats",
+                "shortDisplayName": "Geelong Cats",
+                "name": "Geelong Cats",
+                "location": null,
+                "abbreviation": "GEEL"
+              }
+            },
+            {
+              "team": {
+                "id": "10",
+                "displayName": "Gold Coast SUNS",
+                "shortDisplayName": "Gold Coast SUNS",
+                "name": "Gold Coast SUNS",
+                "location": null,
+                "abbreviation": "SUNS"
+              }
+            },
+            {
+              "team": {
+                "id": "13",
+                "displayName": "Hawthorn",
+                "shortDisplayName": "Hawthorn",
+                "name": "Hawthorn",
+                "location": null,
+                "abbreviation": "HAW"
+              }
+            },
+            {
+              "team": {
+                "id": "2",
+                "displayName": "Melbourne",
+                "shortDisplayName": "Melbourne",
+                "name": "Melbourne",
+                "location": null,
+                "abbreviation": "MELB"
+              }
+            },
+            {
+              "team": {
+                "id": "5",
+                "displayName": "North Melbourne",
+                "shortDisplayName": "North Melbourne",
+                "name": "North Melbourne",
+                "location": null,
+                "abbreviation": "NMFC"
+              }
+            },
+            {
+              "team": {
+                "id": "7",
+                "displayName": "Port Adelaide",
+                "shortDisplayName": "Port Adelaide",
+                "name": "Port Adelaide",
+                "location": null,
+                "abbreviation": "PORT"
+              }
+            },
+            {
+              "team": {
+                "id": "12",
+                "displayName": "Richmond",
+                "shortDisplayName": "Richmond",
+                "name": "Richmond",
+                "location": null,
+                "abbreviation": "RICH"
+              }
+            },
+            {
+              "team": {
+                "id": "18",
+                "displayName": "St Kilda",
+                "shortDisplayName": "St Kilda",
+                "name": "St Kilda",
+                "location": null,
+                "abbreviation": "STK"
+              }
+            },
+            {
+              "team": {
+                "id": "4",
+                "displayName": "Sydney Swans",
+                "shortDisplayName": "Sydney Swans",
+                "name": "Sydney Swans",
+                "location": null,
+                "abbreviation": "SYD"
+              }
+            },
+            {
+              "team": {
+                "id": "19",
+                "displayName": "Sydney Swans",
+                "shortDisplayName": "Sydney Swans",
+                "name": "Sydney Swans",
+                "location": null,
+                "abbreviation": "GCFC"
+              }
+            },
+            {
+              "team": {
+                "id": "3",
+                "displayName": "West Coast Eagles",
+                "shortDisplayName": "West Coast Eagles",
+                "name": "West Coast Eagles",
+                "location": null,
+                "abbreviation": "WCE"
+              }
+            },
+            {
+              "team": {
+                "id": "6",
+                "displayName": "Western Bulldogs",
+                "shortDisplayName": "Western Bulldogs",
+                "name": "Western Bulldogs",
+                "location": null,
+                "abbreviation": "WB"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

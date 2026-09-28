@@ -32,6 +32,7 @@ const transcodeSession = require('../services/transcodeSession');
 const playbackEvents = require('../services/playbackEvents');
 const { stableChannelId } = require('../services/stableIds');
 const channelHealth = require('../services/channelHealth');
+const sportsFixtures = require('../services/sportsFixtures');
 
 router.use(requireAuth, requireAdmin);
 
@@ -219,6 +220,9 @@ router.get('/', async (req, res) => {
             events: playbackEvents.recent(),
             // 0133 (C-G): the channels that failed to start most in the last 7 days.
             leastReliable: leastReliable(),
+            // 0162 (C-I): ESPN fixture coverage, per league - last successful fetch, fixture
+            // count, last error. Never a URL (sportsFixtures.statusSummary never puts one in).
+            sportFixtures: sportsFixtures.statusSummary(),
             sync: await syncStatus(),
             disk: {
                 transcodeCache: diskAt(transcodeSession.CACHE_DIR),

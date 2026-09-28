@@ -1,0 +1,76 @@
+{
+  "events": [
+    {
+      "id": "401902644",
+      "date": "2026-10-03T23:00Z",
+      "endDate": null,
+      "name": "Miami Heat at Toronto Raptors",
+      "shortName": "MIA @ TOR",
+      "status": {
+        "type": {
+          "id": "1",
+          "name": "STATUS_SCHEDULED",
+          "state": "pre",
+          "completed": false,
+          "description": "Scheduled",
+          "detail": "Sat, October 3rd at 7:00 PM EDT",
+          "shortDetail": "10/3 - 7:00 PM EDT"
+        }
+      },
+      "competitions": [
+        {
+          "id": "401902644",
+          "date": "2026-10-03T23:00Z",
+          "endDate": null,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "status": {
+            "type": {
+              "id": "1",
+              "name": "STATUS_SCHEDULED",
+              "state": "pre",
+              "completed": false,
+              "description": "Scheduled",
+              "detail": "Sat, October 3rd at 7:00 PM EDT",
+              "shortDetail": "10/3 - 7:00 PM EDT"
+            }
+          },
+          "competitors": [
+            {
+              "id": "28",
+              "homeAway": "home",
+              "winner": null,
+              "order": 0,
+              "team": {
+                "id": "28",
+                "displayName": "Toronto Raptors",
+                "shortDisplayName": "Raptors",
+                "name": "Raptors",
+                "location": "Toronto",
+                "abbreviation": "TOR"
+              },
+              "score": "0"
+            },
+            {
+              "id": "14",
+              "homeAway": "away",
+              "winner": null,
+              "order": 1,
+              "team": {
+                "id": "14",
+                "displayName": "Miami Heat",
+                "shortDisplayName": "Heat",
+                "name": "Heat",
+                "location": "Miami",
+                "abbreviation": "MIA"
+              },
+              "score": "0"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

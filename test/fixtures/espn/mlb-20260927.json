@@ -1,0 +1,292 @@
+{
+  "events": [
+    {
+      "id": "401817103",
+      "date": "2026-09-27T17:05Z",
+      "endDate": null,
+      "name": "Baltimore Orioles at New York Yankees",
+      "shortName": "BAL @ NYY",
+      "status": {
+        "type": {
+          "id": "5",
+          "name": "STATUS_CANCELED",
+          "state": "post",
+          "completed": false,
+          "description": "Canceled",
+          "detail": "Canceled",
+          "shortDetail": "Canceled"
+        }
+      },
+      "competitions": [
+        {
+          "id": "401817103",
+          "date": "2026-09-27T17:05Z",
+          "endDate": null,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "status": {
+            "type": {
+              "id": "5",
+              "name": "STATUS_CANCELED",
+              "state": "post",
+              "completed": false,
+              "description": "Canceled",
+              "detail": "Canceled",
+              "shortDetail": "Canceled"
+            }
+          },
+          "competitors": [
+            {
+              "id": "10",
+              "homeAway": "home",
+              "winner": null,
+              "order": 0,
+              "team": {
+                "id": "10",
+                "displayName": "New York Yankees",
+                "shortDisplayName": "Yankees",
+                "name": "Yankees",
+                "location": "New York",
+                "abbreviation": "NYY"
+              },
+              "score": "0"
+            },
+            {
+              "id": "1",
+              "homeAway": "away",
+              "winner": null,
+              "order": 1,
+              "team": {
+                "id": "1",
+                "displayName": "Baltimore Orioles",
+                "shortDisplayName": "Orioles",
+                "name": "Orioles",
+                "location": "Baltimore",
+                "abbreviation": "BAL"
+              },
+              "score": "0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401817106",
+      "date": "2026-09-27T17:05Z",
+      "endDate": null,
+      "name": "New York Mets at Washington Nationals",
+      "shortName": "NYM @ WSH",
+      "status": {
+        "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+        }
+      },
+      "competitions": [
+        {
+          "id": "401817106",
+          "date": "2026-09-27T17:05Z",
+          "endDate": null,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "status": {
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "competitors": [
+            {
+              "id": "20",
+              "homeAway": "home",
+              "winner": true,
+              "order": 0,
+              "team": {
+                "id": "20",
+                "displayName": "Washington Nationals",
+                "shortDisplayName": "Nationals",
+                "name": "Nationals",
+                "location": "Washington",
+                "abbreviation": "WSH"
+              },
+              "score": "6"
+            },
+            {
+              "id": "21",
+              "homeAway": "away",
+              "winner": false,
+              "order": 1,
+              "team": {
+                "id": "21",
+                "displayName": "New York Mets",
+                "shortDisplayName": "Mets",
+                "name": "Mets",
+                "location": "New York",
+                "abbreviation": "NYM"
+              },
+              "score": "4"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401817108",
+      "date": "2026-09-27T18:30Z",
+      "endDate": null,
+      "name": "Tampa Bay Rays at Philadelphia Phillies",
+      "shortName": "TB @ PHI",
+      "status": {
+        "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+        }
+      },
+      "competitions": [
+        {
+          "id": "401817108",
+          "date": "2026-09-27T18:30Z",
+          "endDate": null,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "status": {
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "competitors": [
+            {
+              "id": "22",
+              "homeAway": "home",
+              "winner": true,
+              "order": 0,
+              "team": {
+                "id": "22",
+                "displayName": "Philadelphia Phillies",
+                "shortDisplayName": "Phillies",
+                "name": "Phillies",
+                "location": "Philadelphia",
+                "abbreviation": "PHI"
+              },
+              "score": "7"
+            },
+            {
+              "id": "30",
+              "homeAway": "away",
+              "winner": false,
+              "order": 1,
+              "team": {
+                "id": "30",
+                "displayName": "Tampa Bay Rays",
+                "shortDisplayName": "Rays",
+                "name": "Rays",
+                "location": "Tampa Bay",
+                "abbreviation": "TB"
+              },
+              "score": "3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401817089",
+      "date": "2026-09-27T19:05Z",
+      "endDate": null,
+      "name": "Chicago Cubs at Boston Red Sox",
+      "shortName": "CHC VS BOS",
+      "status": {
+        "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+        }
+      },
+      "competitions": [
+        {
+          "id": "401817089",
+          "date": "2026-09-27T19:05Z",
+          "endDate": null,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "status": {
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "competitors": [
+            {
+              "id": "2",
+              "homeAway": "home",
+              "winner": false,
+              "order": 0,
+              "team": {
+                "id": "2",
+                "displayName": "Boston Red Sox",
+                "shortDisplayName": "Red Sox",
+                "name": "Red Sox",
+                "location": "Boston",
+                "abbreviation": "BOS"
+              },
+              "score": "2"
+            },
+            {
+              "id": "16",
+              "homeAway": "away",
+              "winner": true,
+              "order": 1,
+              "team": {
+                "id": "16",
+                "displayName": "Chicago Cubs",
+                "shortDisplayName": "Cubs",
+                "name": "Cubs",
+                "location": "Chicago",
+                "abbreviation": "CHC"
+              },
+              "score": "6"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

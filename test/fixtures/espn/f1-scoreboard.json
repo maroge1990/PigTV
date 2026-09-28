@@ -1,0 +1,254 @@
+{
+  "events": [
+    {
+      "id": "600057444",
+      "date": "2026-09-24T08:30Z",
+      "endDate": "2026-09-26T11:00Z",
+      "name": "Qatar Airways Azerbaijan Grand Prix",
+      "shortName": "Qatar Airways Azerbaijan GP",
+      "status": {
+        "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+        }
+      },
+      "competitions": [
+        {
+          "id": "401839108",
+          "date": "2026-09-24T08:30Z",
+          "endDate": null,
+          "type": {
+            "id": "1",
+            "abbreviation": "FP1"
+          },
+          "status": {
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "competitors": [
+            {
+              "id": "5503",
+              "homeAway": null,
+              "winner": false,
+              "order": 1,
+              "athlete": {
+                "id": null,
+                "displayName": "George Russell",
+                "shortName": "G. Russell",
+                "fullName": "George Russell"
+              }
+            },
+            {
+              "id": "4665",
+              "homeAway": null,
+              "winner": false,
+              "order": 2,
+              "athlete": {
+                "id": null,
+                "displayName": "Max Verstappen",
+                "shortName": "M. Verstappen",
+                "fullName": "Max Verstappen"
+              }
+            }
+          ]
+        },
+        {
+          "id": "401839109",
+          "date": "2026-09-24T12:00Z",
+          "endDate": null,
+          "type": {
+            "id": "1",
+            "abbreviation": "FP2"
+          },
+          "status": {
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "competitors": [
+            {
+              "id": "5503",
+              "homeAway": null,
+              "winner": false,
+              "order": 1,
+              "athlete": {
+                "id": null,
+                "displayName": "George Russell",
+                "shortName": "G. Russell",
+                "fullName": "George Russell"
+              }
+            },
+            {
+              "id": "5829",
+              "homeAway": null,
+              "winner": false,
+              "order": 2,
+              "athlete": {
+                "id": null,
+                "displayName": "Kimi Antonelli",
+                "shortName": "K. Antonelli",
+                "fullName": "Kimi Antonelli"
+              }
+            }
+          ]
+        },
+        {
+          "id": "401839110",
+          "date": "2026-09-25T08:30Z",
+          "endDate": null,
+          "type": {
+            "id": "1",
+            "abbreviation": "FP3"
+          },
+          "status": {
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "competitors": [
+            {
+              "id": "4665",
+              "homeAway": null,
+              "winner": false,
+              "order": 1,
+              "athlete": {
+                "id": null,
+                "displayName": "Max Verstappen",
+                "shortName": "M. Verstappen",
+                "fullName": "Max Verstappen"
+              }
+            },
+            {
+              "id": "5503",
+              "homeAway": null,
+              "winner": false,
+              "order": 2,
+              "athlete": {
+                "id": null,
+                "displayName": "George Russell",
+                "shortName": "G. Russell",
+                "fullName": "George Russell"
+              }
+            }
+          ]
+        },
+        {
+          "id": "401839111",
+          "date": "2026-09-25T12:00Z",
+          "endDate": null,
+          "type": {
+            "id": "2",
+            "abbreviation": "Qual"
+          },
+          "status": {
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "competitors": [
+            {
+              "id": "5503",
+              "homeAway": null,
+              "winner": false,
+              "order": 1,
+              "athlete": {
+                "id": null,
+                "displayName": "George Russell",
+                "shortName": "G. Russell",
+                "fullName": "George Russell"
+              }
+            },
+            {
+              "id": "5498",
+              "homeAway": null,
+              "winner": false,
+              "order": 2,
+              "athlete": {
+                "id": null,
+                "displayName": "Charles Leclerc",
+                "shortName": "C. Leclerc",
+                "fullName": "Charles Leclerc"
+              }
+            }
+          ]
+        },
+        {
+          "id": "401839112",
+          "date": "2026-09-26T11:00Z",
+          "endDate": null,
+          "type": {
+            "id": "3",
+            "abbreviation": "Race"
+          },
+          "status": {
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "competitors": [
+            {
+              "id": "5503",
+              "homeAway": null,
+              "winner": true,
+              "order": 1,
+              "athlete": {
+                "id": null,
+                "displayName": "George Russell",
+                "shortName": "G. Russell",
+                "fullName": "George Russell"
+              }
+            },
+            {
+              "id": "4665",
+              "homeAway": null,
+              "winner": false,
+              "order": 2,
+              "athlete": {
+                "id": null,
+                "displayName": "Max Verstappen",
+                "shortName": "M. Verstappen",
+                "fullName": "Max Verstappen"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

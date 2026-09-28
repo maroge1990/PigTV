@@ -271,6 +271,43 @@ function initSchema() {
         );
     `);
 
+    // Sport fixtures (0162, C-I): ESPN's real kickoff/session times, so live-vs-replay does not
+    // have to guess from the guide alone (services/sportsFixtures.js). One row per competition
+    // (an event, or one of an F1 event's sessions); `data` is the provider-shaped JSON record.
+    // Kept in SQLite, not just memory, so a restart or an ESPN outage does not lose the last good
+    // fetch - a stale row is still better than none until the next refresh succeeds.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS sport_fixtures (
+            league TEXT NOT NULL,
+            fixture_id TEXT NOT NULL,
+            start INTEGER NOT NULL,
+            data TEXT NOT NULL,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (league, fixture_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_sport_fixtures_league_start ON sport_fixtures(league, start);
+    `);
+    // A league's team roster (names, for fuzzy matching against the guide), cached a day.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS sport_fixture_teams (
+            league TEXT PRIMARY KEY,
+            data TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+    `);
+    // One row per league: the Status page's "Sport fixtures" panel, and why a league's fixtures
+    // stopped updating. A failure keeps the league's last good fixtures/teams rows untouched.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS sport_fixture_status (
+            league TEXT PRIMARY KEY,
+            last_attempt_at INTEGER,
+            last_success_at INTEGER,
+            last_error TEXT,
+            last_error_at INTEGER,
+            fixture_count INTEGER
+        );
+    `);
+
     // EPG Programs
     // Optimized for range queries
     db.exec(`

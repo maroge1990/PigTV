@@ -37,6 +37,7 @@ const channelHealth = require('./channelHealth');
 const epgMapping = require('./epgMapping');
 const sportCategories = require('./sportCategories');
 const sportsClassify = require('./sportsClassify');
+const sportsFixtures = require('./sportsFixtures');
 
 const HOUR_MS = 60 * 60 * 1000;
 // 0153: a build is kept for 5 minutes (it was rebuilt every minute; a 72 h build on a large guide
@@ -313,8 +314,15 @@ function buildEvents({ from, decorateChannels } = {}) {
 
     const tvgIds = [...new Set(channels.map(ch => ch.tvgId).filter(Boolean))];
     const progs = programmesFor(db, tvgIds, from, from + WINDOW_MS);
+    // 0162: ESPN's real kickoff/session times, for whichever leagues currently matter
+    // (sportsFixtures.neededLeagues() - the follow list, or a marked sport category's own name;
+    // never a scan of this build's own programmes, so this stays cheap even before any of them
+    // are classified). Read here, in the DB-touching build, and handed down as plain data - so
+    // eventsFromProgrammes below stays the pure part of a build its own comment promises: no
+    // caller of it (a test, sportsClassify's own tests) is silently made to open a database.
+    const fixturesByLeague = sportsFixtures.snapshot(sportsFixtures.neededLeagues(db));
     // Items that ended before this minute were only read to find first airings.
-    const events = eventsFromProgrammes(channels, progs, follow).filter(ev => ev.end > from);
+    const events = eventsFromProgrammes(channels, progs, follow, fixturesByLeague).filter(ev => ev.end > from);
     return { from, events, channelCount: channels.length, programmeCount: progs.length };
 }
 
@@ -322,9 +330,11 @@ function buildEvents({ from, decorateChannels } = {}) {
  * The pure part of a build: every sport item (all kinds) from the visible channels
  * ({ key, order, tvgId, sportChannel, name, ... }) and their programmes (epg_live rows:
  * channel_id, title, start_time, end_time, categories as JSON, flags (0152)). `follow` is
- * compileFollow()'s result, or the keyword list.
+ * compileFollow()'s result, or the keyword list. `fixturesByLeague` (0162) is
+ * services/sportsFixtures.js's snapshot, or undefined - plain data in, plain data out; this
+ * function itself never touches the database or the network.
  */
-function eventsFromProgrammes(channels, progs, follow) {
+function eventsFromProgrammes(channels, progs, follow, fixturesByLeague) {
     if (Array.isArray(follow)) follow = compileFollow(follow);
     const byTvg = new Map();
     for (const ch of channels) {
@@ -368,8 +378,8 @@ function eventsFromProgrammes(channels, progs, follow) {
         }
     }
 
-    // 0152: live or replay, across each game's airings (flags, first airing, hours).
-    sportsClassify.resolveLive(airings);
+    // 0152: live or replay, across each game's airings (flags, first airing, hours; 0162: ESPN first).
+    sportsClassify.resolveLive(airings, fixturesByLeague);
 
     const keywordOrder = new Map(follow.list.map((k, i) => [k.keyword, i]));
     const items = sportsClassify.mergeAirings(airings, a => normaliseTitle(a.title, a.channel.name) || a.title.toLowerCase());

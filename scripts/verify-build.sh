@@ -1887,10 +1887,10 @@ check server/services/epgParser.js "const PROGRAMME_FLAGS = { 'previously-shown'
 check server/services/syncService.js "p.flags || null" "the sync stores them"
 check server/db/sqlite.js "ALTER TABLE epg_programs ADD COLUMN flags INTEGER" "epg_programs has a flags column"
 check server/db/sqlite.js "p.categories, p.flags" "epg_live exposes it (an older view is made again)"
-check server/services/sportsClassify.js "function resolveLive(airings)" "live or replay across a game's airings"
+check server/services/sportsClassify.js "function resolveLive(airings, fixturesByLeague)" "live or replay across a game's airings"
 check server/services/sportsClassify.js "MLB: US_EVENING," "a per-league table of live hours"
 check server/services/sportsEvents.js "all(...chunk, from - LOOKBACK_MS, to)" "a build reads the 36 h before now"
-check server/services/sportsEvents.js "sportsClassify.resolveLive(airings);" "and decides live or replay before merging"
+check server/services/sportsEvents.js "sportsClassify.resolveLive(airings, fixturesByLeague);" "and decides live or replay before merging"
 check test/sports-live.test.js "MLB 7 am case" "with a test"
 python3 - <<'PY3' || FAIL=1
 import sys
@@ -1966,6 +1966,24 @@ check server/services/syncService.js "require('./sportsEvents').scheduleRebuild(
 check server/services/sportsEvents.js "rebuild in the background rather than leaving it for the next request" "and when the follow list changes"
 check server/index.js "require('./services/sportsEvents').startBackgroundRebuilds();" "started at server startup"
 check test/sports-background-rebuild.test.js "served the previous result, not a blocking rebuild" "with a test"
+
+echo "=== 0161-0163: cricket league recognition, ESPN fixtures, the ESPN live/replay rule (C-I) ==="
+check server/services/sportsClassify.js "\['IPL', \['ipl', 'indian premier league'\]\]" "IPL is its own league"
+check server/services/sportsClassify.js "\['Cricket', \['test cricket'" "international cricket (Test/ODI/T20I) has a catch-all league"
+check server/services/sportsFixturesEspn.js "const BASE = 'https://site.api.espn.com/apis/site/v2/sports';" "the ESPN provider, fetch only"
+check server/services/sportsFixturesEspn.js "async function discoverCricketSeries(" "international cricket series are discovered from the scorepanel"
+check server/services/sportsFixtures.js "process.env.PIGTV_SPORT_FIXTURES !== '0'" "PIGTV_SPORT_FIXTURES=0 turns it off"
+check server/services/sportsFixtures.js "function neededLeagues(" "only the leagues that matter are fetched"
+check server/services/sportsFixtures.js "const REFRESH_EVERY_MS" "refreshed every 30 minutes"
+check server/services/syncService.js "require('./sportsFixtures').scheduleRefresh();" "and after an EPG sync"
+check server/index.js "require('./services/sportsFixtures').startBackgroundRefresh();" "started at server startup"
+check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS sport_fixtures (" "fixtures survive a restart (SQLite, not just memory)"
+check server/services/sportsClassify.js "function fixtureVerdict(a, leagueData)" "the ESPN rule: matched, or both teams known but no such game"
+check server/services/sportsClassify.js "if (fixturesByLeague) {" "checked first in resolveLive, ahead of the guide's own flags"
+check server/routes/status.js "sportFixtures: sportsFixtures.statusSummary()," "the Status document carries fixture coverage per league"
+check public/js/pages/StatusPage.js "renderSportFixtures(fx)" "and the web Status page shows it"
+check test/fixtures/espn/nfl-20260927.json "Buffalo Bills" "real recorded ESPN responses, not fabricated"
+check test/sports-fixtures.test.js "ESPN: the game started" "with a test"
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1

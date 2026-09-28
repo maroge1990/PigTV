@@ -1,0 +1,152 @@
+{
+  "events": [
+    {
+      "id": "1535465",
+      "date": "2026-05-31T14:00Z",
+      "endDate": "2026-06-01T23:59Z",
+      "name": "Royal Challengers Bengaluru v Gujarat Titans",
+      "shortName": "RCB v GT",
+      "status": {
+        "type": {
+          "id": "1",
+          "description": "Result",
+          "detail": "Final",
+          "shortDetail": "Final",
+          "state": "post"
+        }
+      },
+      "competitions": [
+        {
+          "id": "1535465",
+          "date": "2026-05-31T14:00Z",
+          "endDate": "2026-06-01T23:59Z",
+          "type": null,
+          "status": {
+            "type": {
+              "id": "1",
+              "description": "Result",
+              "detail": "Final",
+              "shortDetail": "Final",
+              "state": "post"
+            }
+          },
+          "competitors": [
+            {
+              "id": "335970",
+              "homeAway": "home",
+              "winner": "true",
+              "order": 2,
+              "team": {
+                "id": "335970",
+                "displayName": "Royal Challengers Bengaluru",
+                "shortDisplayName": "RCB",
+                "name": "Royal Challengers Bengaluru",
+                "location": "India",
+                "abbreviation": "RCB"
+              },
+              "score": "161/5 (18/20 ov, target 156)"
+            },
+            {
+              "id": "1298769",
+              "homeAway": "away",
+              "winner": "false",
+              "order": 1,
+              "team": {
+                "id": "1298769",
+                "displayName": "Gujarat Titans",
+                "shortDisplayName": "GT",
+                "name": "Gujarat Titans",
+                "location": "India",
+                "abbreviation": "GT"
+              },
+              "score": "155/8"
+            }
+          ],
+          "description": "Final"
+        }
+      ]
+    }
+  ],
+  "teams": [
+    {
+      "id": "335974",
+      "displayName": "Chennai Super Kings",
+      "shortDisplayName": "CSK",
+      "name": "Chennai Super Kings",
+      "location": "India",
+      "abbreviation": "CSK"
+    },
+    {
+      "id": "335975",
+      "displayName": "Delhi Capitals",
+      "shortDisplayName": "DC",
+      "name": "Delhi Capitals",
+      "location": "India",
+      "abbreviation": "DC"
+    },
+    {
+      "id": "1298769",
+      "displayName": "Gujarat Titans",
+      "shortDisplayName": "GT",
+      "name": "Gujarat Titans",
+      "location": "India",
+      "abbreviation": "GT"
+    },
+    {
+      "id": "335971",
+      "displayName": "Kolkata Knight Riders",
+      "shortDisplayName": "KKR",
+      "name": "Kolkata Knight Riders",
+      "location": "India",
+      "abbreviation": "KKR"
+    },
+    {
+      "id": "1298768",
+      "displayName": "Lucknow Super Giants",
+      "shortDisplayName": "LSG",
+      "name": "Lucknow Super Giants",
+      "location": "India",
+      "abbreviation": "LSG"
+    },
+    {
+      "id": "335978",
+      "displayName": "Mumbai Indians",
+      "shortDisplayName": "MI",
+      "name": "Mumbai Indians",
+      "location": "India",
+      "abbreviation": "MI"
+    },
+    {
+      "id": "335973",
+      "displayName": "Punjab Kings",
+      "shortDisplayName": "PBKS",
+      "name": "Punjab Kings",
+      "location": "India",
+      "abbreviation": "PBKS"
+    },
+    {
+      "id": "335977",
+      "displayName": "Rajasthan Royals",
+      "shortDisplayName": "RR",
+      "name": "Rajasthan Royals",
+      "location": "India",
+      "abbreviation": "RR"
+    },
+    {
+      "id": "335970",
+      "displayName": "Royal Challengers Bengaluru",
+      "shortDisplayName": "RCB",
+      "name": "Royal Challengers Bengaluru",
+      "location": "India",
+      "abbreviation": "RCB"
+    },
+    {
+      "id": "628333",
+      "displayName": "Sunrisers Hyderabad",
+      "shortDisplayName": "SRH",
+      "name": "Sunrisers Hyderabad",
+      "location": "India",
+      "abbreviation": "SRH"
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "events": [
+    {
+      "id": "1535684",
+      "date": "2026-09-27T04:00Z",
+      "endDate": "2026-10-01T23:59Z",
+      "name": "India Under-19s v Australia Under-19s",
+      "shortName": "IND19 v AUS19",
+      "status": {
+        "type": {
+          "id": "112",
+          "description": "Stumps",
+          "detail": "Live",
+          "shortDetail": "Live",
+          "state": "in"
+        }
+      },
+      "competitions": [
+        {
+          "id": "1535684",
+          "date": "2026-09-27T04:00Z",
+          "endDate": "2026-10-01T23:59Z",
+          "type": null,
+          "status": {
+            "type": {
+              "id": "112",
+              "description": "Stumps",
+              "detail": "Live",
+              "shortDetail": "Live",
+              "state": "in"
+            }
+          },
+          "competitors": [
+            {
+              "id": "1803",
+              "homeAway": "home",
+              "winner": "false",
+              "order": 2,
+              "team": {
+                "id": "1803",
+                "displayName": "India Under-19s",
+                "shortDisplayName": "IND19",
+                "name": "India Under-19s",
+                "location": "India",
+                "abbreviation": "IND19"
+              },
+              "score": "430/8 (92 ov)"
+            },
+            {
+              "id": "233",
+              "homeAway": "away",
+              "winner": "false",
+              "order": 1,
+              "team": {
+                "id": "233",
+                "displayName": "Australia Under-19s",
+                "shortDisplayName": "AUS19",
+                "name": "Australia Under-19s",
+                "location": "Australia",
+                "abbreviation": "AUS19"
+              },
+              "score": "217"
+            }
+          ],
+          "description": "1st Youth Test"
+        }
+      ]
+    }
+  ],
+  "teams": [
+    {
+      "id": "233",
+      "displayName": "Australia Under-19s",
+      "shortDisplayName": "AUS19",
+      "name": "Australia Under-19s",
+      "location": "Australia",
+      "abbreviation": "AUS19"
+    }
+  ]
+}

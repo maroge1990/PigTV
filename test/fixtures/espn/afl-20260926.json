@@ -1,0 +1,76 @@
+{
+  "events": [
+    {
+      "id": "1133711",
+      "date": "2026-09-26T04:30Z",
+      "endDate": null,
+      "name": "Brisbane Lions at Fremantle",
+      "shortName": "BL @ FRE",
+      "status": {
+        "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+        }
+      },
+      "competitions": [
+        {
+          "id": "1133711",
+          "date": "2026-09-26T04:30Z",
+          "endDate": null,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "status": {
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "competitors": [
+            {
+              "id": "1",
+              "homeAway": "home",
+              "winner": false,
+              "order": 0,
+              "team": {
+                "id": "1",
+                "displayName": "Fremantle",
+                "shortDisplayName": "Fremantle",
+                "name": "Fremantle",
+                "location": null,
+                "abbreviation": "FRE"
+              },
+              "score": "89"
+            },
+            {
+              "id": "11",
+              "homeAway": "away",
+              "winner": true,
+              "order": 1,
+              "team": {
+                "id": "11",
+                "displayName": "Brisbane Lions",
+                "shortDisplayName": "Brisbane Lions",
+                "name": "Brisbane Lions",
+                "location": null,
+                "abbreviation": "BL"
+              },
+              "score": "96"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

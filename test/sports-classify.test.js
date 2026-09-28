@@ -119,6 +119,30 @@ test('league aliases: F1 = Formula 1 = Formula One = FIA F1; AFL and AFLW stay a
     assert.equal(sportsEvents.classify({ title: 'AFL: Carlton v Richmond' }, afl).league, 'AFL');
 });
 
+// 0161: cricket had no league of its own besides BBL - "Australia v India - 1st Test" named no
+// league at all (detectLeague === null), so nothing could later tell it apart from any other
+// unrecognised match-up, and Mark's followed "Cricket" keyword had no canonical league to stand
+// for. The old code has no 'IPL' or 'Cricket' entry in LEAGUES.
+test('cricket: IPL and BBL are their own leagues; international Tests/ODIs/T20Is fall to a Cricket catch-all', () => {
+    assert.deepEqual(['IPL', 'Indian Premier League', 'BBL', 'Big Bash', 'Cricket', 'The Ashes', 'Test Cricket', 'T20I']
+        .map(classify.canonicalLeague), ['IPL', 'IPL', 'BBL', 'BBL', 'Cricket', 'Cricket', 'Cricket', 'Cricket']);
+    assert.equal(classify.detectLeague('IPL: Mumbai Indians v Chennai Super Kings'), 'IPL');
+    assert.equal(classify.detectLeague('BBL: Sydney Sixers v Melbourne Stars'), 'BBL');
+    assert.equal(classify.detectLeague('The Ashes: Australia v England'), 'Cricket');
+    assert.equal(classify.detectLeague('Big Bash League'), 'BBL', 'more specific than the generic Cricket catch-all');
+    // a bare "test" is never a league word on its own - far too common outside cricket
+    assert.equal(classify.detectLeague('Screen Test'), null);
+    assert.equal(classify.detectLeague('Field Test'), null);
+
+    // "Australia v India - 1st Test" needs no keyword at all: it is already a plain match-up
+    // (parseMatchup), so it gets a league only from the EPG category ("Cricket") - exactly how a
+    // sport channel's Rugby or Football title already worked before this build.
+    assert.deepEqual(classify.parseTitle('Australia v India - 1st Test').teams.map(t => t.name), ['Australia', 'India']);
+    const follow = sportsEvents.compileFollow(['Cricket']);
+    const verdict = sportsEvents.classify({ title: 'Australia v India - 1st Test', categories: ['Cricket'] }, follow);
+    assert.deepEqual(verdict, { rule: 'keyword', match: 'Cricket', league: 'Cricket' });
+});
+
 test("Mark's export: the noise is classified, not listed as events", () => {
     const items = exportItems();
     const kinds = (title) => [...new Set(aliasOf(items, title).map(e => e.kind))];

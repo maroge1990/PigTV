@@ -1,0 +1,292 @@
+{
+  "events": [
+    {
+      "id": "401872953",
+      "date": "2026-09-27T17:00Z",
+      "endDate": null,
+      "name": "Los Angeles Chargers at Buffalo Bills",
+      "shortName": "LAC @ BUF",
+      "status": {
+        "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+        }
+      },
+      "competitions": [
+        {
+          "id": "401872953",
+          "date": "2026-09-27T17:00Z",
+          "endDate": null,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "status": {
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "competitors": [
+            {
+              "id": "2",
+              "homeAway": "home",
+              "winner": true,
+              "order": 0,
+              "team": {
+                "id": "2",
+                "displayName": "Buffalo Bills",
+                "shortDisplayName": "Bills",
+                "name": "Bills",
+                "location": "Buffalo",
+                "abbreviation": "BUF"
+              },
+              "score": "24"
+            },
+            {
+              "id": "24",
+              "homeAway": "away",
+              "winner": false,
+              "order": 1,
+              "team": {
+                "id": "24",
+                "displayName": "Los Angeles Chargers",
+                "shortDisplayName": "Chargers",
+                "name": "Chargers",
+                "location": "Los Angeles",
+                "abbreviation": "LAC"
+              },
+              "score": "16"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401872949",
+      "date": "2026-09-27T17:00Z",
+      "endDate": null,
+      "name": "Carolina Panthers at Cleveland Browns",
+      "shortName": "CAR @ CLE",
+      "status": {
+        "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+        }
+      },
+      "competitions": [
+        {
+          "id": "401872949",
+          "date": "2026-09-27T17:00Z",
+          "endDate": null,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "status": {
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "competitors": [
+            {
+              "id": "5",
+              "homeAway": "home",
+              "winner": true,
+              "order": 0,
+              "team": {
+                "id": "5",
+                "displayName": "Cleveland Browns",
+                "shortDisplayName": "Browns",
+                "name": "Browns",
+                "location": "Cleveland",
+                "abbreviation": "CLE"
+              },
+              "score": "21"
+            },
+            {
+              "id": "29",
+              "homeAway": "away",
+              "winner": false,
+              "order": 1,
+              "team": {
+                "id": "29",
+                "displayName": "Carolina Panthers",
+                "shortDisplayName": "Panthers",
+                "name": "Panthers",
+                "location": "Carolina",
+                "abbreviation": "CAR"
+              },
+              "score": "18"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401872954",
+      "date": "2026-09-27T17:00Z",
+      "endDate": null,
+      "name": "New York Jets at Detroit Lions",
+      "shortName": "NYJ @ DET",
+      "status": {
+        "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+        }
+      },
+      "competitions": [
+        {
+          "id": "401872954",
+          "date": "2026-09-27T17:00Z",
+          "endDate": null,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "status": {
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "competitors": [
+            {
+              "id": "8",
+              "homeAway": "home",
+              "winner": true,
+              "order": 0,
+              "team": {
+                "id": "8",
+                "displayName": "Detroit Lions",
+                "shortDisplayName": "Lions",
+                "name": "Lions",
+                "location": "Detroit",
+                "abbreviation": "DET"
+              },
+              "score": "31"
+            },
+            {
+              "id": "20",
+              "homeAway": "away",
+              "winner": false,
+              "order": 1,
+              "team": {
+                "id": "20",
+                "displayName": "New York Jets",
+                "shortDisplayName": "Jets",
+                "name": "Jets",
+                "location": "New York",
+                "abbreviation": "NYJ"
+              },
+              "score": "24"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401872951",
+      "date": "2026-09-27T17:00Z",
+      "endDate": null,
+      "name": "Houston Texans at Indianapolis Colts",
+      "shortName": "HOU @ IND",
+      "status": {
+        "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+        }
+      },
+      "competitions": [
+        {
+          "id": "401872951",
+          "date": "2026-09-27T17:00Z",
+          "endDate": null,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "status": {
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "competitors": [
+            {
+              "id": "11",
+              "homeAway": "home",
+              "winner": true,
+              "order": 0,
+              "team": {
+                "id": "11",
+                "displayName": "Indianapolis Colts",
+                "shortDisplayName": "Colts",
+                "name": "Colts",
+                "location": "Indianapolis",
+                "abbreviation": "IND"
+              },
+              "score": "19"
+            },
+            {
+              "id": "34",
+              "homeAway": "away",
+              "winner": false,
+              "order": 1,
+              "team": {
+                "id": "34",
+                "displayName": "Houston Texans",
+                "shortDisplayName": "Texans",
+                "name": "Texans",
+                "location": "Houston",
+                "abbreviation": "HOU"
+              },
+              "score": "17"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
