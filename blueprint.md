@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 29 September 2026 · server build **0162** (committed locally, awaiting review/push - see below) · Apple client build **32**
+**Last updated:** 29 September 2026 · server build **0166** (pushed) · Apple client build **32**
 (`../PigTV-Swift/blueprint.md`)
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
@@ -39,7 +39,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Development is on Mark's MacBook only (from 23 Sept). |
 | CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
-| Shipped through | **0160** (pushed to `origin/main`, 28 Sept; 0156–0160 are a bug-fix run: schedule observability, the recordings-folder health check, the recording prompt timeout, sport events off the request path - see §8). **0161–0162** (ESPN fixtures for live/replay, C-I, and a same-day fix so stale/out-of-window ESPN data can never manufacture a replay) are committed locally, not yet pushed - the lead reviews and pushes. **0163–0166** (dead-code cleanup W10, four-part: dependencies, channel numbering, web player, CSS) are committed locally, awaiting review. Mark tested rounds 1–4 on **0151** + app **31**; 0152–0166 and app 32 are awaiting his check (§6). Whether a build is *running* is whatever `/api/version` says. |
+| Shipped through | **0166** (pushed to `origin/main`, 29 Sept). 0156–0160: a bug-fix run (schedule observability, the recordings-folder health check, the recording prompt timeout, sport events off the request path); 0161–0162: ESPN fixtures for live/replay (C-I), only trusted inside the last successful fetch's window; 0163–0166: dead-code cleanup (W10) - see §8. Mark tested rounds 1–4 on **0151** + app **31**; 0152–0166 and apps 32–34 are awaiting his check (docs/TEST-BLOCK.md round 6). Whether a build is *running* is whatever `/api/version` says. |
 | Next build number | **0167** |
 | Tests | `npm test`: **653 tests, all pass** (29 Sept, after 0162; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
