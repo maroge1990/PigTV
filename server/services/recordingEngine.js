@@ -20,6 +20,7 @@ const { formatLocalStamp } = require('./recordingNames');
 const { redact } = require('../redact');
 const tunerModel = require('./tuner');
 const { HlsRecorder, closeOrphanPlaylist } = require('./hlsRecorder');
+const { checkRecordingsFolder, refusalMessage } = require('./recordingsFolder');
 
 const TICK_INTERVAL_MS = 15 * 1000;
 const STDERR_TAIL_LINES = 40;
@@ -44,11 +45,26 @@ async function getSettings() {
     return settings.get();
 }
 
+/**
+ * The configured recordings folder, creating it if needed - but (0157) only the
+ * final path segment, and only when its parent already exists. `mkdirSync`'s
+ * `recursive: true` used to create every missing segment, which meant a stale
+ * Docker bind mount (the share never actually attached, so the mount point is
+ * simply an empty directory on the container's own filesystem) got a real
+ * folder tree written straight into it - recordings then "succeeded" onto
+ * ephemeral container storage, not the network share, and vanished on the next
+ * restart with no error at all. Refusing to create anything above the final
+ * folder turns that into a clear, immediate failure instead.
+ */
 async function getRecordingsRoot() {
     const settings = await getSettings();
     const root = settings.recordingsPath || '/app/recordings';
     if (!fs.existsSync(root)) {
-        fs.mkdirSync(root, { recursive: true });
+        const parent = path.dirname(root);
+        if (!fs.existsSync(parent)) {
+            throw new Error(`The recordings folder's parent does not exist: ${parent}. Is the share mounted?`);
+        }
+        fs.mkdirSync(root);
     }
     return root;
 }
@@ -884,17 +900,27 @@ async function startRecording(schedule, knownUrl = null) {
         return;
     }
 
-    const root = await getRecordingsRoot();
-
-    // Pre-flight storage check. Recordings are stream copies of live TV with
-    // no size bound, so starting one on a nearly full volume is a good way to
-    // take the whole share down with it.
     const settings = await getSettings();
     const minFreeGB = Number.isFinite(settings.minFreeSpaceGB) ? settings.minFreeSpaceGB : 10;
+    let root;
+    try {
+        root = await getRecordingsRoot();
+    } catch (err) {
+        console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${err.message}`);
+        setScheduleStatus(schedule.id, 'failed', { error: err.message });
+        return;
+    }
+
+    // Pre-flight storage check (0157: also catches an unmounted network share,
+    // which reads back as a tiny filesystem rather than as missing - the case
+    // that actually happened live; see recordingsFolder.js). Recordings are
+    // stream copies of live TV with no size bound, so starting one on a
+    // nearly full (or not really mounted) volume is a good way to take the
+    // whole share down with it.
     if (minFreeGB > 0) {
-        const space = hasFreeSpace(root, minFreeGB);
-        if (!space.ok) {
-            const msg = `Only ${space.freeGB.toFixed(1)} GB free at ${root}, below the ${minFreeGB} GB minimum`;
+        const check = checkRecordingsFolder(root, minFreeGB);
+        if (!check.ok) {
+            const msg = refusalMessage(check, root, minFreeGB);
             console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${msg}`);
             setScheduleStatus(schedule.id, 'failed', { error: msg });
             return;
@@ -1127,7 +1153,14 @@ async function enforceFreeSpaceDuringRecording() {
     const minFreeGB = Number.isFinite(settings.minFreeSpaceGB) ? settings.minFreeSpaceGB : 10;
     if (minFreeGB <= 0) return;
 
-    const root = await getRecordingsRoot();
+    let root;
+    try {
+        root = await getRecordingsRoot();
+    } catch (err) {
+        // The folder health check (below) already logs this state on its own
+        // timer; here there is nothing to enforce against, so skip this tick.
+        return;
+    }
     const space = hasFreeSpace(root, minFreeGB, 0.5);
     if (space.ok) return;
 
@@ -1176,13 +1209,20 @@ async function startTunedRecording(schedule, knownUrl) {
         }
     }
 
-    const root = await getRecordingsRoot();
     const settings = await getSettings();
     const minFreeGB = Number.isFinite(settings.minFreeSpaceGB) ? settings.minFreeSpaceGB : 10;
+    let root;
+    try {
+        root = await getRecordingsRoot();
+    } catch (err) {
+        console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${err.message}`);
+        setScheduleStatus(schedule.id, 'failed', { error: err.message });
+        return;
+    }
     if (minFreeGB > 0) {
-        const space = hasFreeSpace(root, minFreeGB);
-        if (!space.ok) {
-            const msg = `Only ${space.freeGB.toFixed(1)} GB free at ${root}, below the ${minFreeGB} GB minimum`;
+        const check = checkRecordingsFolder(root, minFreeGB);
+        if (!check.ok) {
+            const msg = refusalMessage(check, root, minFreeGB);
             console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${msg}`);
             setScheduleStatus(schedule.id, 'failed', { error: msg });
             return;
@@ -1525,6 +1565,45 @@ async function tick() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Recordings folder health (0157)
+//
+// Checked at startup and every 15 minutes, independently of any recording
+// being due - a broken share should be visible on the Status page long before
+// the next scheduled recording tries to use it and fails. A warning is logged
+// only when the state actually changes (never every 15 minutes for a folder
+// that has been broken for days), plus one line when it recovers.
+// ---------------------------------------------------------------------------
+
+const FOLDER_HEALTH_INTERVAL_MS = 15 * 60 * 1000;
+let folderHealthTimer = null;
+let folderHealthState = null; // 'ok' | 'problem:<type>' | null (never checked yet)
+let folderHealth = { ok: true, problem: null, freeBytes: null, totalBytes: null, root: null, checkedAt: null };
+
+async function checkFolderHealthNow() {
+    const settings = await getSettings();
+    const root = settings.recordingsPath || '/app/recordings';
+    const minFreeGB = Number.isFinite(settings.minFreeSpaceGB) ? settings.minFreeSpaceGB : 10;
+    const result = checkRecordingsFolder(root, minFreeGB);
+    const state = result.ok ? 'ok' : `problem:${result.problem}`;
+
+    if (state !== folderHealthState) {
+        if (result.ok) {
+            if (folderHealthState !== null) console.log(`[Recordings] Recordings folder is reachable again: ${root}`);
+        } else {
+            console.warn(`[Recordings] ${refusalMessage(result, root, minFreeGB)}`);
+        }
+    }
+    folderHealthState = state;
+    folderHealth = { ...result, root, checkedAt: Date.now() };
+    return folderHealth;
+}
+
+/** The last recordings-folder health check, for GET /api/status (0157). */
+function getFolderHealth() {
+    return folderHealth;
+}
+
 function init({ ffmpegPath: fp, ffprobePath: pp } = {}) {
     if (fp) ffmpegPath = fp;
     if (pp) ffprobePath = pp;
@@ -1538,12 +1617,20 @@ function init({ ffmpegPath: fp, ffprobePath: pp } = {}) {
     tickTimer = setInterval(tick, TICK_INTERVAL_MS);
     tick(); // run once immediately
 
+    checkFolderHealthNow().catch(err => console.warn('[Recordings] Folder health check failed:', err.message));
+    if (folderHealthTimer) clearInterval(folderHealthTimer);
+    folderHealthTimer = setInterval(() => {
+        checkFolderHealthNow().catch(err => console.warn('[Recordings] Folder health check failed:', err.message));
+    }, FOLDER_HEALTH_INTERVAL_MS);
+
     console.log('[Recordings] Recording engine initialized');
 }
 
 function shutdown() {
     if (tickTimer) clearInterval(tickTimer);
     tickTimer = null;
+    if (folderHealthTimer) clearInterval(folderHealthTimer);
+    folderHealthTimer = null;
 }
 
 /**
@@ -1587,6 +1674,9 @@ module.exports = {
     waitForFirstTunedSegment,
     queueJoin,
     tick,
+    getFolderHealth,
+    checkFolderHealthNow,
+    getRecordingsRoot,
     // Test seam: stand-ins for the ffmpeg/ffprobe calls behind native playback.
     _nativeTools: nativeTools
 };

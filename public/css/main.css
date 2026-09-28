@@ -2751,6 +2751,15 @@ kbd {
   color: var(--color-error);
 }
 
+/* 0157: the recordings-folder warning banner */
+.status-warning {
+  border-left: 3px solid var(--color-warning);
+}
+
+.status-warning h3 {
+  color: var(--color-warning);
+}
+
 /* 0147: EPG categories panel (collapsed list) */
 .status-epg-categories summary {
   cursor: pointer;

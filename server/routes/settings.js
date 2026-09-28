@@ -25,9 +25,20 @@ router.get('/', async (req, res) => {
  * Update settings (partial update)
  * PUT /api/settings
  */
+/**
+ * A recordingsPath the caller is trying to save is refused outright when it is
+ * unusable (0157) - before this, a typo'd or unmounted path simply saved, and
+ * the only symptom was the Status page quietly saying "unavailable" the next
+ * time a recording was due.
+ */
 router.put('/', requireAdmin, async (req, res) => {
     try {
         const updates = req.body;
+        if (typeof updates.recordingsPath === 'string' && updates.recordingsPath.trim()) {
+            const { validateRecordingsPathSetting } = require('../services/recordingsFolder');
+            const check = validateRecordingsPathSetting(updates.recordingsPath.trim());
+            if (!check.ok) return res.status(400).json({ error: check.reason });
+        }
         const updatedSettings = await settings.update(updates);
 
         // If sync interval changed, restart the server-side sync timer

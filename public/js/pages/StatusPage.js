@@ -117,9 +117,30 @@ class StatusPage {
         </table></div>`;
     }
 
+    // 0157: a clear warning when the recordings folder itself is the problem -
+    // missing, not writable, or (the case that actually happened live) an
+    // unmounted network share reading back as a near-empty filesystem.
+    renderRecordingsFolderWarning(folder) {
+        if (!folder || folder.ok !== false) return '';
+        const e = (v) => this.escape(v);
+        const reasons = {
+            missing: `does not exist: ${e(folder.root)}`,
+            'not-writable': `is not writable: ${e(folder.root)}`,
+            tiny: `isn't reachable: only ${this.bytes(folder.freeBytes)} free at ${e(folder.root)}. Is the network share connected?`,
+            'low-space': `is low on space: only ${this.bytes(folder.freeBytes)} free at ${e(folder.root)}`
+        };
+        const reason = reasons[folder.problem] || `is not usable: ${e(folder.root)}`;
+        return `<div class="settings-section status-section status-warning">
+            <h3>Recordings folder</h3>
+            <p class="setting-hint">The recordings folder ${reason}</p>
+        </div>`;
+    }
+
     render(status) {
         const e = (v) => this.escape(v);
         const out = [];
+
+        out.push(this.renderRecordingsFolderWarning(status.recordingsFolder));
 
         // Live sessions
         out.push(this.section('Live sessions', this.table(

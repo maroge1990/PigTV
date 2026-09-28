@@ -160,6 +160,17 @@ function recentProblems() {
         .map(r => ({ ...recordingSummary(r), error: r.error || null }));
 }
 
+/** The last recordings-folder health check (0157): missing, not writable, an
+ *  unmounted share masquerading as a tiny filesystem, or low on space. */
+function recordingsFolderHealth() {
+    const engine = require('../services/recordingEngine');
+    const h = engine.getFolderHealth();
+    return {
+        ok: h.ok, problem: h.problem, root: h.root,
+        freeBytes: h.freeBytes, totalBytes: h.totalBytes, checkedAt: h.checkedAt
+    };
+}
+
 async function syncStatus() {
     const sources = await db.sources.getAll();
     const rows = getDb().prepare('SELECT source_id, type, status, last_sync, error FROM sync_status').all();
@@ -204,6 +215,7 @@ router.get('/', async (req, res) => {
             sessions: liveSessions(),
             recordings: recordings(),
             recentProblems: recentProblems(),
+            recordingsFolder: recordingsFolderHealth(),
             events: playbackEvents.recent(),
             // 0133 (C-G): the channels that failed to start most in the last 7 days.
             leastReliable: leastReliable(),

@@ -1937,6 +1937,17 @@ check public/js/pages/RecordingsPage.js "renderRecentProblems(items)" "the web R
 check server/routes/status.js "recentProblems: recentProblems()" "and so does the Status document"
 check test/recordings-observability.test.js "scheduled -> missed (was silent)" "with a test"
 
+echo "=== 0157: the recordings folder is checked for real (missing, not writable, an unmounted share, low space) ==="
+check server/services/recordingsFolder.js "function checkRecordingsFolder(dir, minFreeGB = 10)" "a pure(ish) checker, freeBytes/totalBytes and a problem code"
+check server/services/recordingsFolder.js "const TINY_FS_BYTES = 1 \* GB;" "an unmounted share reads as a filesystem too small to be real"
+check server/services/recordingEngine.js "checkFolderHealthNow().catch" "checked at startup"
+check server/services/recordingEngine.js "const FOLDER_HEALTH_INTERVAL_MS = 15 \* 60 \* 1000;" "and every 15 minutes"
+check server/services/recordingEngine.js "if (!fs.existsSync(parent)) {" "getRecordingsRoot only creates the final folder when its parent exists"
+check server/routes/status.js "recordingsFolder: recordingsFolderHealth()" "exposed on /api/status"
+check public/js/pages/StatusPage.js "renderRecordingsFolderWarning(folder)" "and shown as a warning banner on the web Status page"
+check server/routes/settings.js "validateRecordingsPathSetting(updates.recordingsPath.trim());" "a bad recordingsPath is refused with 400, not saved silently"
+check test/recordings-folder.test.js "unmounted network share" "with a test"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys
