@@ -55,9 +55,6 @@ class VideoPlayer {
             defaultVolume: 80,
             rememberVolume: true,
             lastVolume: 80,
-            autoPlayNextEpisode: false,
-            // Only the movie/series page reads this now: live TV always goes through the server.
-            forceProxy: false,
             streamFormat: 'm3u8',
             epgRefreshInterval: '24'
         };
@@ -109,13 +106,6 @@ class VideoPlayer {
                 console.error('[Player] Error saving to localStorage:', localErr);
             }
         }
-    }
-
-    /**
-     * Legacy sync method for compatibility - calls async version
-     */
-    loadSettings() {
-        return this.settings;
     }
 
     /**

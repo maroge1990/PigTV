@@ -127,7 +127,7 @@ class SourceManager {
             return;
         }
 
-        const icons = { xtream: Icons.live, m3u: Icons.guide, epg: Icons.series };
+        const icons = { xtream: Icons.live, m3u: Icons.guide, epg: Icons.guide };
 
         container.innerHTML = sources.map(source => `
       <div class="source-item ${source.enabled ? '' : 'disabled'}" data-id="${source.id}">

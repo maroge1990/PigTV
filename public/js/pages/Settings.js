@@ -821,7 +821,6 @@ class SettingsPage {
         const qualitySelect = document.getElementById('setting-quality');
 
         // Stream processing (use -tc suffix IDs from Transcoding tab)
-        const forceProxyToggle = document.getElementById('setting-force-proxy-tc');
         const streamFormatSelect = document.getElementById('setting-stream-format-tc');
 
         // User-Agent (Transcoding tab versions)
@@ -841,7 +840,6 @@ class SettingsPage {
         if (hwEncoderSelect) hwEncoderSelect.value = s.hwEncoder || 'auto';
         if (maxResolutionSelect) maxResolutionSelect.value = s.maxResolution || '1080p';
         if (qualitySelect) qualitySelect.value = s.quality || 'medium';
-        if (forceProxyToggle) forceProxyToggle.checked = s.forceProxy === true;
         if (streamFormatSelect) streamFormatSelect.value = s.streamFormat || 'm3u8';
         if (userAgentSelect) userAgentSelect.value = s.userAgentPreset || 'chrome';
         if (userAgentCustomInput) userAgentCustomInput.value = s.userAgentCustom || '';
@@ -914,11 +912,6 @@ class SettingsPage {
         });
 
         // Stream processing toggles
-        forceProxyToggle?.addEventListener('change', () => {
-            this.app.player.settings.forceProxy = forceProxyToggle.checked;
-            this.app.player.saveSettings();
-        });
-
         streamFormatSelect?.addEventListener('change', () => {
             this.app.player.settings.streamFormat = streamFormatSelect.value;
             this.app.player.saveSettings();
@@ -1234,7 +1227,6 @@ class SettingsPage {
             const defaultVolumeSlider = document.getElementById('setting-default-volume');
             const volumeValueDisplay = document.getElementById('volume-value');
             const rememberVolumeToggle = document.getElementById('setting-remember-volume');
-            const forceProxyToggle = document.getElementById('setting-force-proxy');
             const epgRefreshSelect = document.getElementById('epg-refresh-interval');
             const streamFormatSelect = document.getElementById('setting-stream-format');
 
@@ -1243,7 +1235,6 @@ class SettingsPage {
             if (defaultVolumeSlider) defaultVolumeSlider.value = s.defaultVolume;
             if (volumeValueDisplay) volumeValueDisplay.textContent = s.defaultVolume + '%';
             if (rememberVolumeToggle) rememberVolumeToggle.checked = s.rememberVolume;
-            if (forceProxyToggle) forceProxyToggle.checked = s.forceProxy || false;
             if (epgRefreshSelect) epgRefreshSelect.value = s.epgRefreshInterval || '24';
             if (streamFormatSelect) streamFormatSelect.value = s.streamFormat || 'm3u8';
 
