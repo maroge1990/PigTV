@@ -80,6 +80,7 @@ function getDefaultSettings() {
     maxProviderStreams: 1,         // How many simultaneous connections the provider allows
     viewerIdleTimeoutSec: 60,      // Silence after which a stream is treated as abandoned
     recordingPromptLeadMin: 5,     // How far ahead a viewer is warned about a due recording
+    recordingPromptTimeoutMin: 3,  // No answer this long after the recording is due: it takes the stream
     // Commercial break detection
     adDetectionEnabled: false,     // Analyse finished recordings for advert breaks
     adAutoSkip: false,             // Skip detected breaks automatically during playback

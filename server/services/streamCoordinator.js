@@ -36,8 +36,29 @@ const DEFAULT_IDLE_TIMEOUT_SEC = 60;
 // How far ahead of a recording the viewer is asked to give up the stream.
 const DEFAULT_PROMPT_LEAD_MIN = 5;
 
+// How long a viewer has to answer the "recording needs your stream" prompt,
+// once the recording is actually due, before the recording takes the stream
+// anyway (0158, Mark's decision). Not answering (the TV switched off while an
+// Apple TV keeps streaming) used to mean the recording waited for the whole
+// programme and was marked missed; an explicit "Keep watching" still waits,
+// exactly as before.
+const DEFAULT_PROMPT_TIMEOUT_MIN = 3;
+
 // Prompts already issued, by schedule id. Cleared when the schedule resolves.
-const prompts = new Map(); // scheduleId -> { issuedAt, declinedAt, schedule }
+//
+// issuedAt   when the prompt first existed at all - as early as announceUpcoming's
+//            lead-time notice, up to recordingPromptLeadMin minutes before the
+//            recording is actually due. Informational only.
+// dueSince   when the recording FIRST became due and still found a live viewer in
+//            its way (set inside requestForRecording/requestForRecordingTuned, never
+//            by announceUpcoming). This, not issuedAt, is what the timeout counts
+//            from: a viewer who has had the early notice on screen for four minutes
+//            has not been asked to give up their stream for four minutes, only warned
+//            it is coming - the clock the task description means starts once the
+//            recording actually needs it.
+// declinedAt set once, by an explicit "Keep watching": today's wait-for-it-to-end
+//            behaviour, unaffected by the timeout below.
+const prompts = new Map(); // scheduleId -> { issuedAt, dueSince, declinedAt, schedule }
 
 // Why a displaced client needs to be told, rather than left to guess.
 //
@@ -186,12 +207,30 @@ async function requestForRecording(schedule, settings = {}) {
         return { allowed: true, reason: 'Nothing is using the provider' };
     }
 
-    // Somebody is watching. Ask once; after that, wait quietly.
+    // Somebody is watching. Ask once; after that, wait quietly - unless nobody
+    // has answered within recordingPromptTimeoutMin minutes of the recording
+    // actually becoming due (dueSince, not the early announceUpcoming notice,
+    // see the `prompts` comment above), in which case the recording takes the
+    // stream itself, the same as it would if it had been forced. An explicit
+    // "Keep watching" (declinedAt set) always keeps today's behaviour: wait.
+    const now = Date.now();
     const existing = prompts.get(schedule.id);
     if (!existing) {
-        prompts.set(schedule.id, { issuedAt: Date.now(), declinedAt: null, schedule });
+        prompts.set(schedule.id, { issuedAt: now, dueSince: now, declinedAt: null, schedule });
         console.log(`[Coordinator] Recording #${schedule.id} is waiting for the stream; asking the viewer`);
         return { allowed: false, prompted: true, reason: 'Waiting for the viewer to stop playback' };
+    }
+    if (!existing.dueSince) existing.dueSince = now; // became due only now; was only announced before
+
+    if (!existing.declinedAt) {
+        const timeoutMs = (Number.isFinite(settings.recordingPromptTimeoutMin)
+            ? settings.recordingPromptTimeoutMin : DEFAULT_PROMPT_TIMEOUT_MIN) * 60000;
+        if (now - existing.dueSince >= timeoutMs) {
+            console.log(`[Coordinator] No answer from the viewer in ${Math.round(timeoutMs / 60000)} min; recording #${schedule.id} takes the stream`);
+            for (const s of live) await releaseStream(s);
+            prompts.delete(schedule.id);
+            return { allowed: true, reason: 'No answer from the viewer; took the stream' };
+        }
     }
 
     return { allowed: false, prompted: false, reason: 'Viewer declined; waiting for playback to stop' };
@@ -245,7 +284,10 @@ function announceUpcoming(schedule, settings = {}) {
     const limit = Number.isFinite(settings.maxProviderStreams) ? settings.maxProviderStreams : 1;
     if (activeStreams().length < limit) return;
     if (prompts.has(schedule.id)) return;
-    prompts.set(schedule.id, { issuedAt: Date.now(), declinedAt: null, schedule });
+    // dueSince stays null: the answer-timeout (0158) counts from when the recording
+    // is actually due and still blocked (requestForRecording, above), not from this
+    // early lead-time notice.
+    prompts.set(schedule.id, { issuedAt: Date.now(), dueSince: null, declinedAt: null, schedule });
 }
 
 /**
@@ -549,10 +591,27 @@ async function requestForRecordingTuned(schedule, settings, url) {
     }
     if (live.length === 0) return { allowed: true, reason: 'Nothing is using the provider' };
 
-    if (!prompts.get(schedule.id)) {
-        prompts.set(schedule.id, { issuedAt: Date.now(), declinedAt: null, schedule });
+    // As requestForRecording (0158): ask once, then take the stream if nobody has
+    // answered within recordingPromptTimeoutMin minutes of the recording becoming
+    // due (dueSince), unless the viewer explicitly declined (keeps waiting).
+    const now = Date.now();
+    const existing = prompts.get(schedule.id);
+    if (!existing) {
+        prompts.set(schedule.id, { issuedAt: now, dueSince: now, declinedAt: null, schedule });
         console.log(`[Coordinator] Recording #${schedule.id} is waiting for the stream; asking the viewer`);
         return { allowed: false, prompted: true, reason: 'Waiting for the viewer to stop playback' };
+    }
+    if (!existing.dueSince) existing.dueSince = now;
+
+    if (!existing.declinedAt) {
+        const timeoutMs = (Number.isFinite(settings.recordingPromptTimeoutMin)
+            ? settings.recordingPromptTimeoutMin : DEFAULT_PROMPT_TIMEOUT_MIN) * 60000;
+        if (now - existing.dueSince >= timeoutMs) {
+            console.log(`[Coordinator] No answer from the viewer in ${Math.round(timeoutMs / 60000)} min; recording #${schedule.id} takes the stream`);
+            for (const s of live) await tuner.destroyTuner(s.tuner, 'no answer from the viewer; a recording needs the stream');
+            prompts.delete(schedule.id);
+            return { allowed: true, reason: 'No answer from the viewer; took the stream' };
+        }
     }
     return { allowed: false, prompted: false, reason: 'Viewer declined; waiting for playback to stop' };
 }
@@ -564,7 +623,8 @@ function announceUpcomingTuned(schedule, settings = {}, url = null) {
     const limit = Number.isFinite(settings.maxProviderStreams) ? settings.maxProviderStreams : 1;
     if (tunerSlots().filter(s => s.recordings.length === 0).length < limit) return;
     if (prompts.has(schedule.id)) return;
-    prompts.set(schedule.id, { issuedAt: Date.now(), declinedAt: null, schedule });
+    // dueSince stays null here too: see the `prompts` comment near the top of this file.
+    prompts.set(schedule.id, { issuedAt: Date.now(), dueSince: null, declinedAt: null, schedule });
 }
 
 module.exports = {
@@ -586,5 +646,9 @@ module.exports = {
     clearPrompt,
     announceUpcoming,
     DEFAULT_IDLE_TIMEOUT_SEC,
-    DEFAULT_PROMPT_LEAD_MIN
+    DEFAULT_PROMPT_LEAD_MIN,
+    DEFAULT_PROMPT_TIMEOUT_MIN,
+    // Test seam: the prompts map, so a test can move a prompt's `dueSince` into the
+    // past instead of actually waiting out recordingPromptTimeoutMin minutes.
+    _prompts: prompts
 };

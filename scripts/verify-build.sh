@@ -1948,6 +1948,16 @@ check public/js/pages/StatusPage.js "renderRecordingsFolderWarning(folder)" "and
 check server/routes/settings.js "validateRecordingsPathSetting(updates.recordingsPath.trim());" "a bad recordingsPath is refused with 400, not saved silently"
 check test/recordings-folder.test.js "unmounted network share" "with a test"
 
+echo "=== 0158: an unanswered recording prompt no longer blocks a recording forever ==="
+check server/services/streamCoordinator.js "const DEFAULT_PROMPT_TIMEOUT_MIN = 3;" "a default timeout, 3 minutes"
+check server/services/streamCoordinator.js "if (now - existing.dueSince >= timeoutMs) {" "counted from dueSince, not the early announceUpcoming notice"
+check server/services/streamCoordinator.js "dueSince: null, declinedAt: null, schedule });" "announceUpcoming leaves dueSince unset"
+check server/services/streamCoordinator.js "No answer from the viewer in \${Math.round(timeoutMs / 60000)} min; recording #\${schedule.id} takes the stream" "logged, classic path"
+check server/services/streamCoordinator.js "tuner.destroyTuner(s.tuner, 'no answer from the viewer; a recording needs the stream')" "and the tuner path takes over the same way"
+check server/db.js "recordingPromptTimeoutMin: 3" "a settings default"
+check public/index.html "dvr-setting-prompt-timeout" "and a web Settings field"
+check test/recording-prompt-timeout.test.js "it waits, however long" "with a test"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

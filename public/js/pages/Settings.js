@@ -152,6 +152,7 @@ class SettingsPage {
             document.getElementById('dvr-setting-pre').value = s.defaultPreBufferMin ?? 1;
             document.getElementById('dvr-setting-post').value = s.defaultPostBufferMin ?? 5;
             document.getElementById('dvr-setting-max').value = s.maxConcurrentRecordings ?? 1;
+            document.getElementById('dvr-setting-prompt-timeout').value = s.recordingPromptTimeoutMin ?? 3;
             document.getElementById('dvr-setting-minfree').value = s.minFreeSpaceGB ?? 10;
             document.getElementById('dvr-setting-codec').value = s.postRecordCodec || 'h264';
             document.getElementById('dvr-setting-bitrate').value = s.postRecordBitrateKbps ?? 3000;
@@ -171,6 +172,7 @@ class SettingsPage {
                 defaultPreBufferMin: parseInt(document.getElementById('dvr-setting-pre').value, 10) || 0,
                 defaultPostBufferMin: parseInt(document.getElementById('dvr-setting-post').value, 10) || 0,
                 maxConcurrentRecordings: parseInt(document.getElementById('dvr-setting-max').value, 10) || 1,
+                recordingPromptTimeoutMin: Math.max(1, parseInt(document.getElementById('dvr-setting-prompt-timeout').value, 10) || 3),
                 minFreeSpaceGB: Math.max(0, parseInt(document.getElementById('dvr-setting-minfree').value, 10) || 0),
                 postRecordCodec: document.getElementById('dvr-setting-codec').value,
                 postRecordBitrateKbps: Math.max(500, parseInt(document.getElementById('dvr-setting-bitrate').value, 10) || 3000),
