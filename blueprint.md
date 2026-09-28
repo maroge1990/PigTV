@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 26 September 2026 · server build **0155** (0155 committed locally, not pushed) · Apple client build **32**
+**Last updated:** 28 September 2026 · server build **0159** (0156-0159 committed locally, not pushed) · Apple client build **32**
 (`../PigTV-Swift/blueprint.md`)
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
@@ -39,9 +39,9 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Development is on Mark's MacBook only (from 23 Sept). |
 | CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
-| Shipped through | **0154** (pushed to `origin/main`, 26 Sept); **0155** committed locally, not pushed. Mark tested rounds 1–4 on **0151** + app **31**; 0152–0154 and app 32 are awaiting his check (§6). Whether a build is *running* is whatever `/api/version` says. |
-| Next build number | **0156** |
-| Tests | `npm test`: **597 tests, all pass** (26 Sept, after 0154; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
+| Shipped through | **0154** (pushed to `origin/main`, 26 Sept); **0155–0159** committed locally, not pushed (a bug-fix run: schedule observability, the recordings-folder health check, the recording prompt timeout, sport events off the request path - see §8). Mark tested rounds 1–4 on **0151** + app **31**; 0152–0159 and app 32 are awaiting his check (§6). Whether a build is *running* is whatever `/api/version` says. |
+| Next build number | **0160** |
+| Tests | `npm test`: **630 tests, all pass** (28 Sept, after 0159; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -320,7 +320,11 @@ whole 36 h + 72 h, where every programme is a match-up); a request filters and o
 items). The sync logs `[Sync] EPG covers until …, N h ahead` and says when that is less than 72 h. `GET /api/sports/events?hours=[&include=all]` (any user,
 default 6, 1–72 since 0153; Apple route; events + replays, all kinds with `include=all`), admin `GET/PUT /api/sports/follow` (≤100) and
 `GET /api/sports/preview` (next 72 h since 0153, every kind, with the rule and `kindRule`); web Settings → **Sports** (0149; grouped by
-kind since 0151). Direct DB
+kind since 0151). **Built off the request path (0159):** a request is always served the last built result; a stale cache key
+triggers a background rebuild (`scheduleRebuild()`, `setImmediate`, never inline in a request) after an EPG sync, on a
+follow-list change, and from a timer aligned to the 5-minute bucket (`startBackgroundRebuilds()`, started once at server
+startup); a request that lands mid-rebuild gets the previous result rather than racing it. Only the very first request ever
+(nothing cached at all) still builds synchronously. Output is unchanged either way. Direct DB
 edits don't move the cache key: tests call `sportsEvents.reset()`. The fixture `test/fixtures/sports-export.json` is Mark's
 25 Sept export (titles). **Live or replay (0152, `sportsClassify.resolveLive`):** an event naming a game is checked across
 its airings (same league + teams, or league + session + GP), first answer wins: (a) XMLTV flags (`epg_programs.flags`, a bitmask
@@ -413,9 +417,28 @@ the channel up again`, `finished (…) N segments, Ns, … (N linked, N copied)`
 - Native playback is a `.native.mp4` remux of the file: `hvc1`, MP2→AAC, shared across concurrent requests, written atomically,
   sidecars deleted with the recording. `?async=1` answers 202 while preparing. Old HEVC sidecars are `hev1`: delete
   `*.native.mp4` for those once. **HEVC recording playback on an Apple TV is still unconfirmed.**
+- **Every status change is logged** (0156, `setScheduleStatus()` wraps `scheduledDb.setStatus`): one line per actual
+  transition, including the `missed`/`failed` paths in `tick()` and `reconcileOnStartup()` that used to change the status
+  with no log line at all. A missed/failed schedule also stays listed for 7 days via
+  `GET /api/recordings/scheduled?include=recent` (flag `scheduleHistory`) - the plain route is unchanged - shown on the web
+  Recordings page ("Recent problems") and the Status page.
+- **The recordings folder is health-checked, not just space-checked** (0157, `services/recordingsFolder.js`,
+  `checkRecordingsFolder()`): missing, not writable, a filesystem under 1 GB total (an unmounted network share or a stale
+  Docker bind reads back this way, not as "missing" - what live testing actually hit), or free space below the configured
+  minimum. Checked at startup and every 15 minutes (`recordingEngine.getFolderHealth()`, on `/api/status`, a warning banner
+  on the web Status page); a warning is logged only on a state change. `getRecordingsRoot()` only creates the final folder
+  when its parent already exists. Settings → Recording → Storage refuses an unusable `recordingsPath` with 400 instead of
+  saving it silently (`services/recordingsFolder.js` `validateRecordingsPathSetting()`).
+- **An unanswered "give up the stream" prompt no longer blocks a recording forever** (0158): if a due recording finds a
+  live viewer on the provider's only stream, it still asks once (`streamCoordinator.js` `requestForRecording` /
+  `requestForRecordingTuned`, `pendingPrompt`), but takes the stream if nobody answers within `recordingPromptTimeoutMin`
+  minutes (setting, default 3) of the recording actually becoming due - tracked as `dueSince` on the prompt entry,
+  deliberately not from the earlier `announceUpcoming` lead-time notice. An explicit "Keep watching" (`declinePrompt`)
+  still waits, however long. Same behaviour on the classic and tuner paths; no new terminal-status value (a client sees an
+  ordinary reclaim: a 404, its one-time re-resolve, then the existing `recording-in-progress` 409).
 
 **Dev environment (macOS, from 23 Sept).**
-- Node 24 from Homebrew (`/opt/homebrew/opt/node@24/bin`; see §2). `npm test`: 597 tests (26 Sept, after 0154), all pass locally with
+- Node 24 from Homebrew (`/opt/homebrew/opt/node@24/bin`; see §2). `npm test`: 630 tests (28 Sept, after 0159), all pass locally with
   Homebrew ffmpeg 9.0 installed (tests that need ffmpeg skip without one).
 - `bash scripts/verify-build.sh .` uses the system `python3`.
 - The tree is LF. There is no local Docker; the image is only built by CI.
@@ -645,6 +668,10 @@ lines (the classifier has seen one uneven feed in five) · the 20 s stall timeou
 | 0153 | Sport horizon 72 h (C-I): `GET /api/sports/events?hours=` up to 72 (default 6), the preview 72 h, a build kept 5 min and covering 72 h + 5 min; the sync logs its guide's reach |
 | 0154 | Logos at full resolution for the Top Shelf: `/api/logo/<key>?size=full` (the original as fetched, kept beside the resized copy) and `?size=640`; the default stays ≤320 px |
 | 0155 | Tuner: compatible joining. A viewer joins a running tuner on the same stream whose output it can play (an exact key still first), so an Apple TV (`heaac: true`) shares a recording's tuner on an HE-AAC channel instead of a 409 |
+| 0156 | Schedule observability: every status change of a scheduled recording writes one log line (centralised, including the `missed` paths that used to be silent); `GET /api/recordings/scheduled?include=recent` also lists missed/failed schedules from the last 7 days (flag `scheduleHistory`); shown on the web Recordings page ("Recent problems") and the Status page |
+| 0157 | The recordings folder is checked for real: `checkRecordingsFolder()` catches missing, not writable, and a filesystem too small to be real (an unmounted network share or a stale Docker bind reads back this way, not as "missing") as well as low free space; checked at startup and every 15 minutes, shown on the Status page; `getRecordingsRoot()` no longer creates a folder tree inside an unmounted mount point; Settings → Recording → Storage refuses an unusable `recordingsPath` with a plain error instead of saving it silently |
+| 0158 | A due recording that finds a live viewer on the provider's only stream still asks once, but now takes the stream if nobody answers within `recordingPromptTimeoutMin` minutes (new setting, default 3) of becoming due - not from the earlier lead-time notice. An explicit "Keep watching" still waits, however long. Same behaviour on the tuner path |
+| 0159 | Sport events are built off the request path: a stale cache is now served the previous result while the rebuild runs on `setImmediate` (never inline in a request), triggered after an EPG sync, on a follow-list change, and by a timer aligned to the 5-minute bucket - the ~0.3–1.1 s synchronous build no longer risks stalling live HLS segment serving |
 
 ---
 

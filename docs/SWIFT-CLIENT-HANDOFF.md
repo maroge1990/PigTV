@@ -1,6 +1,6 @@
 # PigTV server → Apple client hand-off
 
-**Written 20 September 2026 (server build 0083); kept current in §5 — last entry: build 0155 (26 September 2026).** Audience:
+**Written 20 September 2026 (server build 0083); kept current in §5 — last entry: build 0159 (28 September 2026).** Audience:
 whoever works on the Swift client next, and Mark. The server-side source of truth is `blueprint.md` (this repo); the client's
 state is in `../PigTV-Swift/blueprint.md`. The roadmap contracts C-A…C-I are in `docs/ROADMAP-CONTRACTS.md`.
 
@@ -14,7 +14,7 @@ Ask the server, don't guess. `GET /api/info` (no token) returns `build`, `displa
 `features`. New behaviour is announced with a flag; an older server simply lacks the flag, so **gate on the flag**, and treat a
 missing flag as "off". Since 0138 `/api/info` still answers if a switchable check fails (that flag is then absent).
 
-### Current flags (server 0155, `server/routes/info.js`)
+### Current flags (server 0159, `server/routes/info.js`)
 
 | Flag | Since | Means | What the Apple client (build 32) does with it |
 |---|---|---|---|
