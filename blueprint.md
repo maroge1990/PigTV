@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 29 September 2026 · server build **0166** (pushed) · Apple client build **32**
+**Last updated:** 29 September 2026 · server build **0166** (pushed) · Apple client build **34**
 (`../PigTV-Swift/blueprint.md`)
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own

@@ -27,6 +27,52 @@ with a follow list; the app opens on Home; Swift 6 stays on (R2.15).
 **Shipped after round 4, awaiting Mark's check** (round 5, below): server 0152 (sport live vs replay), 0153 + app 32 (72 h of
 sport), 0154 + app 32 (Top Shelf rendered cards from full-size logos), and app 32's tab-switch flash fix.
 
+## Round 6: the 28–29 Sept fix run (server 0166 · app 34)
+
+**Deploy first:** Unraid → Docker → PigTV → **Force Update**; `/api/version` should say **0166**. Then Settings → Sources →
+**Sync now** on the EPG source (the sport fixtures refresh after a sync). Install **app build 34** on the Apple TV. The
+recordings folder must be `/app/recordings/SERVER01_Video/Recordings` (the Docker mapping fixed on 28 Sept).
+Anything that fails: send the step number, what you saw and roughly when.
+
+**Recordings (0156–0160)**
+- [ ] R6.1 Web **Status**: no recordings-folder warning; Disk → Recordings shows about 1.8 TB free of 11 TB.
+- [ ] R6.2 Web **Recordings**: a **Recent problems** section lists the 28 Sept 06:00 NFL (Cardinals at 49ers) failure with
+      its reason. The Apple TV's Recordings tab shows the same section (app 34).
+- [ ] R6.3 Settings → Recording → type a made-up recordings folder and save: a red error, and the setting is not changed.
+- [ ] R6.4 Schedule a short recording from the **Apple TV** for later tonight. Next morning it is in Recordings, and
+      `docker logs PigTV --since 12h | grep "Schedule #"` shows one line per status change (scheduled → recording → completed).
+- [ ] R6.5 **Prompt timeout:** watch channel A; schedule a recording on channel B starting in ~5 minutes; ignore the prompt.
+      About 3 minutes after it is due, playback stops and the recording starts (log: `No answer from the viewer in 3 min`).
+- [ ] R6.6 Repeat R6.5 but choose **Keep watching**: playback continues and the recording waits, as before.
+
+**Sport (0159, 0161–0162, app 33)**
+- [ ] R6.7 Web Status → **Sport fixtures**: NFL, AFL, NBA, F1, MLB (and Cricket when a series is on) each show a recent
+      last fetch and a fixture count.
+- [ ] R6.8 Web Settings → Sports preview: games now carry reasons starting **"ESPN:"** (live at the real start time, replay
+      with "this airing is N h later"). **On now** on the Apple TV no longer lists replays of games already played.
+- [ ] R6.9 AFLW still appears, judged by the old guide rules (known to be rougher; lowest priority).
+- [ ] R6.10 Apple TV: an **upcoming** event with 2+ channels → select a non-recommended channel → **Record on …** /
+      **Watch … when it starts** (no immediate tuning). Record it: the row then shows **Recording scheduled**.
+- [ ] R6.11 The same through long-press → **Choose a channel** on the event card.
+- [ ] R6.12 A **live** event still tunes any channel immediately.
+
+**Guide (app 33)**
+- [ ] R6.13 TV Guide → hold Right (or press Later repeatedly) into tomorrow and the day after: no wall, no blank grid, focus
+      stays put.
+- [ ] R6.14 **Jump to** a day several days ahead: the grid stays visible while it loads.
+- [ ] R6.15 Everyday guide use unchanged: Now, Earlier/Later, categories, search, Favourites.
+
+**Web cleanup (0163–0166)**
+- [ ] R6.16 Web: Live TV plays, the Guide pages, Recordings plays a finished recording, every Settings tab opens and saves,
+      Status loads. (Removed: the unused "Force Backend Proxy" toggle.)
+
+**Still open from earlier rounds:** the tuner (Part 3, `PIGTV_TUNER=1`: pause/rewind, start over, instant recordings), R4.7/R4.8
+(iPad/iPhone), 1.16, R3.8, R2.5/R3.11. **Parked:** W6, the screens that need Back before anything can be selected (send the
+screen when you find it).
+
+**Branding (W11):** choose a direction on the concepts page (A Spotlight, B On Air, C Sunburst; mixing is fine). It is built
+after your choice.
+
 ## Round 5: what to check next (server 0154 · app 32)
 
 Deploy the server (`/api/version` should say **0154**), then Settings → Sources → refresh the EPG source (**Sync now**, needed
