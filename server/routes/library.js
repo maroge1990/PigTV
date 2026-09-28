@@ -243,18 +243,13 @@ router.get('/channels', (req, res) => {
         const clause = where.join(' AND ');
         const total = db.prepare(`SELECT COUNT(*) n FROM playlist_items p WHERE ${clause}`).get(...params).n;
 
-        // 0117: by channel number first (nulls last) when numbering is on.
-        // 0139: numbers are labels only. The provider's order is kept, because it
-        // groups channels under their placeholder "header" channels (Mark,
-        // 24 Sept); ordering by number broke that grouping.
-        const numberOrder = '';
         const rows = db.prepare(`
             SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id,
                    n.number AS channel_number
             FROM playlist_items p
             ${NUMBER_JOIN}
             WHERE ${clause}
-            ORDER BY ${numberOrder}CASE WHEN p.sort_order IS NULL THEN 1 ELSE 0 END, p.sort_order ASC, p.name ASC
+            ORDER BY CASE WHEN p.sort_order IS NULL THEN 1 ELSE 0 END, p.sort_order ASC, p.name ASC
             LIMIT ? OFFSET ?
         `).all(...params, limit, offset);
 
@@ -335,27 +330,20 @@ const SORT_SENTINEL = 999999999;
 const GUIDE_SORT_KEY = `COALESCE(p.sort_order, ${SORT_SENTINEL})`;
 const GUIDE_ORDER_BY = `ORDER BY ${GUIDE_SORT_KEY} ASC, p.name ASC, p.id ASC`;
 
-// 0117 (C-A): with channel numbers on, the guide is ordered by number first
-// (a channel without one after every numbered channel), then the old order.
-// The keyset gains the number as its leading column so a cursor stays exact.
-const GUIDE_NUMBER_KEY = `COALESCE(n.number, ${NUMBER_SENTINEL})`;
-const GUIDE_NUMBERED_ORDER_BY = `ORDER BY ${GUIDE_NUMBER_KEY} ASC, ${GUIDE_SORT_KEY} ASC, p.name ASC, p.id ASC`;
-
 /**
- * Opaque cursor: base64 of the last row's sort key, for keyset paging. `nk`
- * (the number key) is present only when the guide is ordered by number; a
- * cursor made in one ordering is refused (400) in the other rather than
- * silently skipping or repeating rows.
+ * Opaque cursor: base64 of the last row's sort key, for keyset paging.
+ * A cursor with `nk` (number key) is rejected (400) since channel numbers
+ * are labels only and the guide is never ordered by number (0139).
  */
-function encodeGuideCursor(row, numbered) {
-    const key = numbered ? { nk: row.nk } : {};
-    return Buffer.from(JSON.stringify({ ...key, sk: row.sk, name: row.name, id: row.id })).toString('base64');
+function encodeGuideCursor(row) {
+    return Buffer.from(JSON.stringify({ sk: row.sk, name: row.name, id: row.id })).toString('base64');
 }
-function decodeGuideCursor(cursor, numbered) {
+function decodeGuideCursor(cursor) {
     try {
         const obj = JSON.parse(Buffer.from(String(cursor), 'base64').toString('utf8'));
         if (typeof obj.sk !== 'number' || typeof obj.name !== 'string' || typeof obj.id !== 'string') return null;
-        if (numbered ? typeof obj.nk !== 'number' : obj.nk !== undefined) return null;
+        // Reject cursors made when the guide was (incorrectly) ordered by number
+        if (obj.nk !== undefined) return null;
         return obj;
     } catch {
         return null;
@@ -402,49 +390,42 @@ router.get('/guide', (req, res) => {
 
         const total = db.prepare(`SELECT COUNT(*) n FROM playlist_items p WHERE ${clause}`).get(...params).n;
 
-        const numbered = false; // 0139: never order the guide by number (see /channels above)
         let cursorKey = null;
         const pageWhere = [...where];
         const pageParams = [...params];
         if (cursor) {
-            cursorKey = decodeGuideCursor(cursor, numbered);
+            cursorKey = decodeGuideCursor(cursor);
             if (!cursorKey) return res.status(400).json({ error: 'Invalid cursor' });
-            if (numbered) {
-                pageWhere.push(`(${GUIDE_NUMBER_KEY}, ${GUIDE_SORT_KEY}, p.name, p.id) > (?, ?, ?, ?)`);
-                pageParams.push(cursorKey.nk, cursorKey.sk, cursorKey.name, cursorKey.id);
-            } else {
-                pageWhere.push(`(${GUIDE_SORT_KEY}, p.name, p.id) > (?, ?, ?)`);
-                pageParams.push(cursorKey.sk, cursorKey.name, cursorKey.id);
-            }
+            pageWhere.push(`(${GUIDE_SORT_KEY}, p.name, p.id) > (?, ?, ?)`);
+            pageParams.push(cursorKey.sk, cursorKey.name, cursorKey.id);
         }
         const pageClause = pageWhere.join(' AND ');
-        const orderBy = numbered ? GUIDE_NUMBERED_ORDER_BY : GUIDE_ORDER_BY;
 
         // Fetch one extra row (keyset mode) to know whether a next page exists,
         // without a separate COUNT. OFFSET mode keeps its exact old query shape.
         const rows = cursor
             ? db.prepare(`
                 SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id, p.tvg_id, p.id, ${GUIDE_SORT_KEY} AS sk,
-                       n.number AS channel_number, ${GUIDE_NUMBER_KEY} AS nk
+                       n.number AS channel_number
                 FROM playlist_items p
                 ${NUMBER_JOIN}
                 WHERE ${pageClause}
-                ${orderBy}
+                ${GUIDE_ORDER_BY}
                 LIMIT ?
             `).all(...pageParams, limit + 1)
             : db.prepare(`
                 SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id, p.tvg_id, p.id, ${GUIDE_SORT_KEY} AS sk,
-                       n.number AS channel_number, ${GUIDE_NUMBER_KEY} AS nk
+                       n.number AS channel_number
                 FROM playlist_items p
                 ${NUMBER_JOIN}
                 WHERE ${pageClause}
-                ${orderBy}
+                ${GUIDE_ORDER_BY}
                 LIMIT ? OFFSET ?
             `).all(...pageParams, limit + 1, offset);
 
         const hasMore = rows.length > limit;
         const pageRows = hasMore ? rows.slice(0, limit) : rows;
-        const nextCursor = hasMore ? encodeGuideCursor(pageRows[pageRows.length - 1], numbered) : null;
+        const nextCursor = hasMore ? encodeGuideCursor(pageRows[pageRows.length - 1]) : null;
 
         const channels = pageRows.map(row => {
             // The indexed column first (0111 — filled at ingest and backfilled at

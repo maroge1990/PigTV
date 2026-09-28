@@ -80,7 +80,7 @@ async function sendInfo(req, res) {
             guideCursor: true,               // /api/library/guide accepts &cursor= (keyset paging) and limit up to 500
             guideVersion: true,              // GET /api/library/guide/version — cheap "did anything change?" check
             logoCache: true,                 // library `logo` fields are /api/logo/<key>, fetched and cached server-side
-            // 0117 (C-A): library rows carry `number`; guide/channels are ordered by it.
+            // 0117 (C-A): library rows carry `number` (labels only; 0139 disabled number ordering).
             // Absent when PIGTV_CHANNEL_NUMBERS=0 (the rollback).
             ...safely(() => (require('../services/channelNumbers').numbersEnabled() ? { channelNumbers: true } : {})),
             // 0119 (C-D): a `direct` resolve's url is /api/proxy/stream?h=<opaque handle>.
