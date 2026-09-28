@@ -192,6 +192,20 @@ const scheduled = {
         `).all(nowMs);
     },
 
+    // 0156: missed/failed schedules stay visible for a while after the fact
+    // (GET /api/recordings/scheduled?include=recent) instead of simply vanishing
+    // the moment their window passes - which is what made schedule #3's failure
+    // invisible in both UIs until Mark went looking in docker logs.
+    findRecentProblems(sinceMs) {
+        const db = getDb();
+        return db.prepare(`
+            SELECT * FROM scheduled_recordings
+            WHERE status IN ('missed', 'failed')
+              AND program_end >= ?
+            ORDER BY program_end DESC
+        `).all(sinceMs);
+    },
+
     findByProgram(sourceId, channelItemId, programStart) {
         const db = getDb();
         return row(db.prepare(`

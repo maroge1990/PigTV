@@ -8,6 +8,8 @@ class RecordingsPage {
         this.app = app;
         this.scheduledList = document.getElementById('scheduled-recordings-list');
         this.recordingsList = document.getElementById('recordings-list');
+        this.recentProblemsSection = document.getElementById('recent-problems-section');
+        this.recentProblemsList = document.getElementById('recent-problems-list');
         this._refreshTimer = null;
         this.init();
     }
@@ -35,8 +37,14 @@ class RecordingsPage {
 
     async loadScheduled() {
         try {
-            const items = await API.recordings.getScheduled();
-            this.renderScheduled(items);
+            // 0156: include=recent also returns missed/failed schedules from the last
+            // 7 days, so a silent overnight failure (like schedule #3's "0.0 GB free")
+            // stays visible here instead of simply vanishing.
+            const items = await API.recordings.getScheduledWithRecent();
+            const upcoming = items.filter(x => x.status !== 'missed' && x.status !== 'failed');
+            const recent = items.filter(x => x.status === 'missed' || x.status === 'failed');
+            this.renderScheduled(upcoming);
+            this.renderRecentProblems(recent);
         } catch (err) {
             console.error('Failed to load scheduled recordings:', err);
             this.scheduledList.innerHTML = `<div class="empty-state"><p>Failed to load scheduled recordings</p></div>`;
@@ -85,6 +93,30 @@ class RecordingsPage {
         this.scheduledList.querySelectorAll('[data-action="cancel"]').forEach(btn => {
             btn.addEventListener('click', () => this.cancelScheduled(btn.dataset.id));
         });
+    }
+
+    // 0156: schedules that ended up missed or failed in the last 7 days. Only shown
+    // at all when there is something to show - most of the time there is nothing.
+    renderRecentProblems(items) {
+        if (!this.recentProblemsSection || !this.recentProblemsList) return;
+        if (!items || items.length === 0) {
+            this.recentProblemsSection.hidden = true;
+            this.recentProblemsList.innerHTML = '';
+            return;
+        }
+        this.recentProblemsSection.hidden = false;
+        this.recentProblemsList.innerHTML = items.map(item => `
+            <div class="recording-item" data-id="${item.id}">
+                <img class="recording-thumb" src="${this.proxiedLogo(item.channel_logo)}" alt=""
+                     onerror="this.onerror=null;this.src='/img/placeholder.png'">
+                <div class="recording-info">
+                    <div class="recording-title">${this.escape(item.title)}</div>
+                    <div class="recording-meta">${this.escape(item.channel_name || '')} &middot; ${this.formatRange(item.program_start, item.program_end)}</div>
+                    <div class="recording-status status-${item.status}">${this.statusLabel(item.status)}</div>
+                    ${item.error ? `<div class="recording-error">${this.escape(item.error)}</div>` : ''}
+                </div>
+            </div>
+        `).join('');
     }
 
     renderRecordings(items) {

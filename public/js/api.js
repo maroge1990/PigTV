@@ -212,6 +212,8 @@ const API = {
     recordings: {
         schedule: (data) => API.request('POST', '/recordings/schedule', data),
         getScheduled: () => API.request('GET', '/recordings/scheduled'),
+        // 0156: also lists schedules that ended up missed or failed in the last 7 days.
+        getScheduledWithRecent: () => API.request('GET', '/recordings/scheduled?include=recent'),
         getActive: () => API.request('GET', '/recordings/active'),
         compress: (id) => API.request('POST', `/recordings/${id}/compress`),
         getMarkers: (id) => API.request('GET', `/recordings/${id}/markers`),

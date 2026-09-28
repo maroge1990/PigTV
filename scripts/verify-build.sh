@@ -1927,6 +1927,16 @@ check server/services/tuner.js "this.output = describeOutput(args, this.options)
 check_absent server/services/playbackStrategy.js "ac3: true, eac3: true, flac: false, heaac: true" "RECORDING_CAPABILITIES still without heaac"
 check test/tuner-recordings.test.js "0155: an Apple TV (heaac: true) joins a recording" "with a test"
 
+echo "=== 0156: schedule observability and recent problems ==="
+check server/services/recordingEngine.js "function setScheduleStatus(schedule, status, extra = {})" "one log line per actual status change, centralised"
+check_absent server/services/recordingEngine.js "scheduledDb.setStatus(schedule.id, 'missed'" "the missed paths go through it too, not straight to the db"
+check server/db/recordingsDb.js "findRecentProblems(sinceMs)" "missed/failed schedules stay queryable"
+check server/routes/recordings.js "const includeRecent = req.query.include === 'recent';" "?include=recent on the existing route, not a new path"
+check server/routes/info.js "scheduleHistory: true" "advertised as a feature flag"
+check public/js/pages/RecordingsPage.js "renderRecentProblems(items)" "the web Recordings page has a Recent problems section"
+check server/routes/status.js "recentProblems: recentProblems()" "and so does the Status document"
+check test/recordings-observability.test.js "scheduled -> missed (was silent)" "with a test"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

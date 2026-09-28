@@ -138,6 +138,18 @@ class StatusPage {
             `<h4>Recording now</h4>${this.table(['Programme', 'Channel', 'Status', 'Time'], (rec.active || []).map(recRow), 'Nothing is recording')}` +
             `<h4>Next scheduled</h4>${this.table(['Programme', 'Channel', 'Status', 'Time'], (rec.upcoming || []).map(recRow), 'Nothing scheduled')}`));
 
+        // Recent problems (0156): missed/failed schedules from the last 7 days, so a
+        // silent overnight failure shows up here instead of only in docker logs.
+        out.push(this.section('Recent problems', this.table(
+            ['Programme', 'Channel', 'Status', 'Time', 'Reason'],
+            (status.recentProblems || []).map(r => [
+                e(r.title), e(r.channel || '–'),
+                `<span class="status-event status-failure">${e(r.status === 'missed' ? 'Missed' : 'Failed')}</span>`,
+                `${this.when(r.programStart)} – ${this.time(r.programEnd).slice(0, 5)}`,
+                e(r.error || '')
+            ]),
+            'No missed or failed recordings in the last 7 days')));
+
         // Recent plays
         const label = { 'play-start': 'Started', 'play-end': 'Ended', failure: 'Failed' };
         out.push(this.section('Recent plays', this.table(

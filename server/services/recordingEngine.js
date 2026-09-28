@@ -200,8 +200,45 @@ async function scheduleFromProgram({
     });
 }
 
-function listScheduled() {
-    return scheduledDb.listUpcoming();
+const RECENT_PROBLEMS_MS = 7 * 24 * 60 * 60 * 1000; // how long a missed/failed schedule stays visible (0156)
+
+/**
+ * The upcoming/in-progress list, same as ever, plus - only when asked - schedules
+ * that ended up missed or failed whose programme ended within the last 7 days
+ * (0156). Without `includeRecent` the result is exactly listUpcoming(): the plain
+ * route stays byte-for-byte compatible with what the Apple client already decodes.
+ */
+function listScheduled({ includeRecent = false } = {}) {
+    const upcoming = scheduledDb.listUpcoming();
+    if (!includeRecent) return upcoming;
+    const recent = scheduledDb.findRecentProblems(Date.now() - RECENT_PROBLEMS_MS);
+    return [...upcoming, ...recent];
+}
+
+/**
+ * scheduledDb.setStatus, plus one log line per actual status change (0156).
+ *
+ * `schedule` is either the row already in hand (its `.status` is trusted as
+ * "before", no extra query) or a bare id (the current row is read first to
+ * find it). Every path that changes a schedule's status goes through this -
+ * including the `missed` paths in tick() and reconcileOnStartup(), which used
+ * to set the status with no log line at all - so nothing is silent. A status
+ * that does not actually change is never logged (the tick's own guard around
+ * `waiting` already avoided repeating that one; this covers every other
+ * caller the same way, since "before" and "after" are simply compared).
+ */
+function setScheduleStatus(schedule, status, extra = {}) {
+    const id = (typeof schedule === 'object' && schedule !== null) ? schedule.id : schedule;
+    const before = (typeof schedule === 'object' && schedule !== null) ? schedule : scheduledDb.getById(id);
+    const prevStatus = before?.status;
+    const updated = scheduledDb.setStatus(id, status, extra);
+    if (updated && prevStatus && prevStatus !== status) {
+        const title = updated.title || before?.title || 'Untitled';
+        const channel = updated.channel_name || before?.channel_name || 'Unknown channel';
+        const reason = extra.error ? `: ${extra.error}` : '';
+        console.log(`[Recordings] Schedule #${id} "${title}" (${channel}): ${prevStatus} -> ${status}${reason}`);
+    }
+    return updated;
 }
 
 // ---------------------------------------------------------------------------
@@ -775,7 +812,7 @@ async function stopForViewer(scheduleId) {
         recordingsDb.markPartial(entry.recordingId, 0);
     }
     await stopRecording(id, 'completed');
-    scheduledDb.setStatus(id, 'completed', {
+    setScheduleStatus(id, 'completed', {
         error: 'Stopped early: the provider stream was needed for live viewing.'
     });
     coordinator.clearPrompt(id);
@@ -795,7 +832,7 @@ async function cancelScheduled(id) {
     } else if (schedule.status === 'scheduled' || schedule.status === 'waiting') {
         // A waiting recording is one held back for a viewer: cancelling it must also
         // withdraw the prompt that asks that viewer to stop watching.
-        scheduledDb.cancel(id);
+        setScheduleStatus(schedule, 'cancelled');
         coordinator.clearPrompt(id);
     }
     return scheduledDb.getById(id);
@@ -843,7 +880,7 @@ async function startRecording(schedule, knownUrl = null) {
         streamUrl = await resolveStreamUrl(schedule.source_id, schedule.channel_item_id, schedule.channel_stable_id || null);
     } catch (err) {
         console.error(`[Recordings] Could not resolve stream for schedule ${schedule.id}:`, err.message);
-        scheduledDb.setStatus(schedule.id, 'failed', { error: err.message });
+        setScheduleStatus(schedule.id, 'failed', { error: err.message });
         return;
     }
 
@@ -859,7 +896,7 @@ async function startRecording(schedule, knownUrl = null) {
         if (!space.ok) {
             const msg = `Only ${space.freeGB.toFixed(1)} GB free at ${root}, below the ${minFreeGB} GB minimum`;
             console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${msg}`);
-            scheduledDb.setStatus(schedule.id, 'failed', { error: msg });
+            setScheduleStatus(schedule.id, 'failed', { error: msg });
             return;
         }
     }
@@ -895,7 +932,7 @@ async function startRecording(schedule, knownUrl = null) {
     }
 
     coordinator.clearPrompt(schedule.id);
-    scheduledDb.setStatus(schedule.id, 'recording', { recording_id: recording.id });
+    setScheduleStatus(schedule.id, 'recording', { recording_id: recording.id });
 
     const args = [
         '-y',
@@ -979,7 +1016,7 @@ function finalizeRecording(scheduledId, recordingId, outputPath, exitCode, stder
     });
 
     const scheduleExtra = success ? {} : { error: `Recording failed (exit code ${exitCode})` };
-    scheduledDb.setStatus(scheduledId, success ? 'completed' : 'failed', scheduleExtra);
+    setScheduleStatus(scheduledId, success ? 'completed' : 'failed', scheduleExtra);
 
     console.log(`[Recordings] Recording #${recordingId} finished (${success ? 'completed' : 'failed'}), ${fileSize} bytes`);
 
@@ -1003,7 +1040,7 @@ async function stopRecording(scheduledId, reasonStatus = 'completed') {
         // Being deleted: nothing to join into an MP4.
         if (reasonStatus === 'deleted') entry.noJoin = true;
         await finalizeTunedRecording(scheduledId, entry);
-        if (reasonStatus === 'cancelled') scheduledDb.setStatus(scheduledId, 'cancelled');
+        if (reasonStatus === 'cancelled') setScheduleStatus(scheduledId, 'cancelled');
         return;
     }
 
@@ -1039,7 +1076,7 @@ async function stopRecording(scheduledId, reasonStatus = 'completed') {
     // the schedule's final status to 'cancelled' (the recording row itself stays
     // 'completed' if a usable file exists - a partial recording is still valid).
     if (reasonStatus === 'cancelled') {
-        scheduledDb.setStatus(scheduledId, 'cancelled');
+        setScheduleStatus(scheduledId, 'cancelled');
     }
 }
 
@@ -1069,12 +1106,12 @@ function reconcileOnStartup() {
                 error: 'Server restarted while this recording was in progress.'
             });
         }
-        scheduledDb.setStatus(schedule.id, 'failed', { error: 'Server restarted while this recording was in progress.' });
+        setScheduleStatus(schedule.id, 'failed', { error: 'Server restarted while this recording was in progress.' });
     }
 
     const missed = scheduledDb.findMissed(Date.now());
     for (const schedule of missed) {
-        scheduledDb.setStatus(schedule.id, 'missed', { error: 'Server was not running when this recording was due.' });
+        setScheduleStatus(schedule.id, 'missed', { error: 'Server was not running when this recording was due.' });
     }
 }
 
@@ -1098,7 +1135,7 @@ async function enforceFreeSpaceDuringRecording() {
     for (const scheduledId of [...active.keys()]) {
         try {
             await stopRecording(scheduledId, 'completed');
-            scheduledDb.setStatus(scheduledId, 'failed', { error: `Stopped early: only ${space.freeGB.toFixed(1)} GB free` });
+            setScheduleStatus(scheduledId, 'failed', { error: `Stopped early: only ${space.freeGB.toFixed(1)} GB free` });
         } catch (err) {
             console.error('[Recordings] Error stopping recording for low disk space:', err.message);
         }
@@ -1134,7 +1171,7 @@ async function startTunedRecording(schedule, knownUrl) {
             streamUrl = await resolveStreamUrl(schedule.source_id, schedule.channel_item_id, schedule.channel_stable_id || null);
         } catch (err) {
             console.error(`[Recordings] Could not resolve stream for schedule ${schedule.id}:`, err.message);
-            scheduledDb.setStatus(schedule.id, 'failed', { error: err.message });
+            setScheduleStatus(schedule.id, 'failed', { error: err.message });
             return;
         }
     }
@@ -1147,7 +1184,7 @@ async function startTunedRecording(schedule, knownUrl) {
         if (!space.ok) {
             const msg = `Only ${space.freeGB.toFixed(1)} GB free at ${root}, below the ${minFreeGB} GB minimum`;
             console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${msg}`);
-            scheduledDb.setStatus(schedule.id, 'failed', { error: msg });
+            setScheduleStatus(schedule.id, 'failed', { error: msg });
             return;
         }
     }
@@ -1173,7 +1210,7 @@ async function startTunedRecording(schedule, knownUrl) {
     const lateBy = Date.now() - intendedStart;
 
     coordinator.clearPrompt(schedule.id);
-    scheduledDb.setStatus(schedule.id, 'recording', { recording_id: recording.id });
+    setScheduleStatus(schedule.id, 'recording', { recording_id: recording.id });
 
     const recorder = new HlsRecorder({ dir: folder, from: intendedStart, to: stopTimeOf(schedule), label: `Recording #${recording.id}` });
     const entry = { kind: 'hls', proc: null, recordingId: recording.id, schedule, url: streamUrl, recorder, tuner: null, hardStopTimer: null, stderrTail: [] };
@@ -1264,7 +1301,7 @@ async function finalizeTunedRecording(scheduleId, entry) {
             duration_sec: Math.round(recorder.durationSec()),
             error: success ? null : why
         });
-        scheduledDb.setStatus(scheduleId, success ? 'completed' : 'failed', success ? {} : { error: `Recording failed: ${why}` });
+        setScheduleStatus(scheduleId, success ? 'completed' : 'failed', success ? {} : { error: `Recording failed: ${why}` });
         console.log(`[Recordings] Recording #${entry.recordingId} finished (${success ? 'completed' : 'failed'}), ` +
             `${recorder.segments.length} segments, ${Math.round(recorder.durationSec())}s, ${recorder.bytes} bytes ` +
             `(${recorder.links.link} linked, ${recorder.links.copy} copied)`);
@@ -1413,7 +1450,7 @@ async function tick() {
                     url = await resolveStreamUrl(schedule.source_id, schedule.channel_item_id, schedule.channel_stable_id || null);
                 } catch (err) {
                     console.error(`[Recordings] Could not resolve stream for schedule ${schedule.id}:`, err.message);
-                    scheduledDb.setStatus(schedule.id, 'failed', { error: err.message });
+                    setScheduleStatus(schedule.id, 'failed', { error: err.message });
                     continue;
                 }
             }
@@ -1427,7 +1464,7 @@ async function tick() {
                 : await coordinator.requestForRecording(schedule, settings);
             if (!verdict.allowed) {
                 if (schedule.status !== 'waiting') {
-                    scheduledDb.setStatus(schedule.id, 'waiting', { error: verdict.reason });
+                    setScheduleStatus(schedule.id, 'waiting', { error: verdict.reason });
                 }
                 continue;
             }
@@ -1463,7 +1500,7 @@ async function tick() {
             // Say why it was missed. "The viewer kept watching" is actionable;
             // "the window passed" is not.
             const wasWaiting = schedule.status === 'waiting';
-            scheduledDb.setStatus(schedule.id, 'missed', {
+            setScheduleStatus(schedule.id, 'missed', {
                 error: wasWaiting
                     ? 'Playback continued for the whole programme, so the provider stream was never free.'
                     : 'Recording window passed without starting.'

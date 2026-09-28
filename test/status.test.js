@@ -61,6 +61,13 @@ before(async () => {
         sched.run(`Show ${i}`, source.id, `http://logo.invalid/${SECRET}.png`, start, start + 1800000, Date.now());
     }
 
+    // 0156: a schedule that ended up failed a few hours ago - the Status page's
+    // "Recent problems" panel, same 7-day window as the Recordings page's.
+    d.prepare(`INSERT INTO scheduled_recordings (title, source_id, channel_item_id, channel_name, channel_logo, program_start, program_end, status, error, created_at)
+               VALUES (?, ?, 'pos_7', 'Fox Sports 505', ?, ?, ?, 'failed', ?, ?)`)
+        .run('The Big Game', source.id, `http://logo.invalid/${SECRET}.png`, Date.now() - 3600000, Date.now() - 1800000,
+            'Only 0.0 GB free at /app/recordings, below the 10 GB minimum', Date.now());
+
     // A live session on that channel. Its "ffmpeg" is node idling, so it is really running.
     session = await transcodeSession.createSession(STREAM_URL, {
         ffmpegPath: process.execPath, owner: `user:${admin.id}`, live: true, videoMode: 'copy', segmentType: 'fmp4',
@@ -124,6 +131,13 @@ test('the status document has the build, live sessions, recordings, recent plays
 
     assert.deepEqual(body.recordings.active, []);
     assert.deepEqual(body.recordings.upcoming.map(r => r.title), ['Show 1', 'Show 2', 'Show 3', 'Show 4', 'Show 5'], 'the next five, soonest first');
+
+    // 0156: a missed/failed schedule from the last 7 days - invisible before this
+    // build, in both this document and the plain scheduled list.
+    assert.deepEqual(body.recentProblems.map(r => r.title), ['The Big Game']);
+    assert.equal(body.recentProblems[0].status, 'failed');
+    assert.match(body.recentProblems[0].error, /Only 0\.0 GB free/);
+    assert.ok(!body.recordings.upcoming.some(r => r.title === 'The Big Game'), 'a failure never shows up as upcoming');
 
     assert.deepEqual(body.events.map(e => e.type), ['failure', 'play-end', 'play-start'], 'newest first');
     const [failure, end, start] = body.events;

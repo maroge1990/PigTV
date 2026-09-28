@@ -152,6 +152,14 @@ function recordings() {
     return { active, upcoming };
 }
 
+/** Missed/failed schedules from the last 7 days (0156), same list the Recordings page shows. */
+function recentProblems() {
+    const engine = require('../services/recordingEngine');
+    return engine.listScheduled({ includeRecent: true })
+        .filter(r => r.status === 'missed' || r.status === 'failed')
+        .map(r => ({ ...recordingSummary(r), error: r.error || null }));
+}
+
 async function syncStatus() {
     const sources = await db.sources.getAll();
     const rows = getDb().prepare('SELECT source_id, type, status, last_sync, error FROM sync_status').all();
@@ -195,6 +203,7 @@ router.get('/', async (req, res) => {
             build: require('../version'),
             sessions: liveSessions(),
             recordings: recordings(),
+            recentProblems: recentProblems(),
             events: playbackEvents.recent(),
             // 0133 (C-G): the channels that failed to start most in the last 7 days.
             leastReliable: leastReliable(),

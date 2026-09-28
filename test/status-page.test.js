@@ -18,6 +18,10 @@ test('the Status page renders /api/status and refreshes every 5 seconds only whi
         recordings: { active: [], upcoming: [{ id: 1, title: 'News', channel: 'BBC', status: 'scheduled', programStart: Date.now(), programEnd: Date.now() + 1 }] },
         events: [{ at: Date.now(), type: 'play-start', channel: 'BBC', owner: 'user:1', start: 'cold', firstPictureSec: 8.1 },
                  { at: Date.now(), type: 'failure', channel: 'Seven', reason: 'The provider refused this channel' }],
+        // 0156: missed/failed schedules from the last 7 days.
+        recentProblems: [{ id: 9, title: 'The Big Game', channel: 'Fox Sports 505', status: 'failed',
+            programStart: Date.now(), programEnd: Date.now() + 1,
+            error: 'Only 0.0 GB free at /app/recordings, below the 10 GB minimum' }],
         sync: [{ sourceId: 1, name: 'Household', type: 'm3u', enabled: true, feeds: [{ type: 'live', status: 'success', lastSync: Date.now() }] }],
         disk: { transcodeCache: { available: true, freeBytes: 2 * 1024 ** 3, totalBytes: 2 * 1024 ** 3 }, recordings: { available: false } }
     };
@@ -42,6 +46,8 @@ test('the Status page renders /api/status and refreshes every 5 seconds only whi
     assert.ok(html.includes('The provider refused this channel'));
     assert.ok(html.includes('2.0 GB') && html.includes('unavailable'));
     assert.ok(html.includes('build 0124'));
+    assert.ok(html.includes('Recent problems') && html.includes('The Big Game') && html.includes('Only 0.0 GB free'),
+        '0156: a recent missed/failed schedule is shown');
     page.hide();
     assert.deepEqual(cleared.slice(-1), [42], 'the timer stops when the page is left');
 });

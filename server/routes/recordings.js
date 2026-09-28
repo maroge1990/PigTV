@@ -227,10 +227,14 @@ router.get('/active', (req, res) => {
     }
 });
 
-// List upcoming / in-progress scheduled recordings
+// List upcoming / in-progress scheduled recordings. `?include=recent` (0156) also
+// lists schedules that ended up missed or failed in the last 7 days, each with
+// its status and error - otherwise identical to the plain response, so an older
+// Apple client decoding this route unchanged sees no difference.
 router.get('/scheduled', (req, res) => {
     try {
-        res.json(recordingEngine.listScheduled());
+        const includeRecent = req.query.include === 'recent';
+        res.json(recordingEngine.listScheduled({ includeRecent }));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
