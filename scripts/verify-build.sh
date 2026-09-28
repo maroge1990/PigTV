@@ -1517,7 +1517,7 @@ check server/services/channelNumbers.js "RESERVE_MS = 30 \\* 24" "a vanished cha
 check server/services/syncService.js "refreshChannelNumbers()" "a completed sync numbers new channels"
 check server/routes/channels.js "refreshChannelNumbers()" "and so does a hide/show"
 check server/routes/library.js "channelNumbers.ensureChannelNumbers()" "the first library request numbers an empty table"
-check server/routes/library.js "GUIDE_NUMBER_KEY}, \${GUIDE_SORT_KEY}, p.name, p.id) > (?, ?, ?, ?)" "the guide keyset includes the number (cursor stays exact)"
+check_absent server/routes/library.js "GUIDE_NUMBER_KEY" "dead number-keyed cursor code removed in 0164 (numbers are labels only since 0139)"
 check server/routes/library.js "number: row.channel_number ?? null" "library rows carry number"
 check server/routes/lineup.js "router.use(requireAuth, requireAdmin)" "the lineup API is admin only"
 check server/routes/lineup.js "bumpLibraryRev()" "a renumber changes the guide version"
@@ -1775,7 +1775,7 @@ check test/carried-over-0138.test.js "a recording answers Range requests" "P2-8:
 check test/playback-arbitration.test.js "a device changing channel replaces its own old stream without a prompt" "P2-8: the slot holder re-resolving (existing test)"
 
 echo "=== 0139: channel numbers are labels; the guide keeps the provider's order ==="
-check server/routes/library.js "const numbered = false" "the guide never orders by number"
+check_absent server/routes/library.js "const numbered = false" "dead numbered variable removed in 0164 (kept guide in provider order per 0139)"
 check test/channel-numbers.test.js "numbers never reorder the guide" "with a test"
 
 echo "=== 0140: a deploy refreshes cached guides once ==="
