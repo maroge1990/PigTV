@@ -139,6 +139,11 @@ function refusalMessage(check, dir, minFreeGB) {
  */
 function validateRecordingsPathSetting(dir) {
     if (!dir) return { ok: true };
+    // 0167: a relative path ("fake") resolves against the server's own working
+    // folder, whose parent always exists, so it passed every check below.
+    if (!path.isAbsolute(dir)) {
+        return { ok: false, reason: `The recordings folder must be a full path starting with /, for example /app/recordings/SERVER01_Video/Recordings (got "${dir}")` };
+    }
     if (fs.existsSync(dir)) {
         try {
             const probe = path.join(dir, `.pigtv-write-test-${process.pid}-${Date.now()}`);

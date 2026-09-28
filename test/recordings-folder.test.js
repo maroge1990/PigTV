@@ -86,6 +86,14 @@ test('validateRecordingsPathSetting: a not-yet-created folder is fine when its p
     assert.deepEqual(validateRecordingsPathSetting(dir), { ok: true });
 });
 
+test('validateRecordingsPathSetting: a relative path is refused, even one whose parent (the working folder) exists (0167)', () => {
+    for (const dir of ['fake', 'recordings/new', './here']) {
+        const result = validateRecordingsPathSetting(dir);
+        assert.equal(result.ok, false, dir);
+        assert.match(result.reason, /full path starting with \//);
+    }
+});
+
 test('validateRecordingsPathSetting: refused when neither the path nor its parent exists', () => {
     const dir = path.join(scratch, 'nope', 'still-nope', 'recordings');
     const result = validateRecordingsPathSetting(dir);
