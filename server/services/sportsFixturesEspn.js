@@ -1,5 +1,5 @@
 /**
- * ESPN's free public scoreboard JSON (0162+), the provider services/sportsFixtures.js uses for
+ * ESPN's free public scoreboard JSON (0161+), the provider services/sportsFixtures.js uses for
  * real kickoff/session times: this is where sportsClassify.resolveLive's fixture rule gets its
  * ground truth from, instead of guessing live vs replay from the guide alone.
  *

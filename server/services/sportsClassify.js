@@ -478,7 +478,7 @@ const decidable = (a) => a.kind === 'event' && (a.parsed.teams
  * game (Mark: MLB "being played" at 7 am in the US). Airings of the same game (the merge key:
  * league + teams, or league + session + grand prix) are walked in start order, and the first
  * rule that gives an answer decides:
- *   (0) ESPN (0162, fixtureVerdict): when `fixturesByLeague` covers this airing's league and
+ *   (0) ESPN (0161, fixtureVerdict): when `fixturesByLeague` covers this airing's league and
  *       either matches its teams/session to a real fixture (near its real start -> live, else
  *       replay, worded with the real kickoff) or recognises both teams as the league's but finds
  *       no such game at this time (-> replay). Checked first - it settles exactly the cases the
@@ -494,11 +494,13 @@ const decidable = (a) => a.kind === 'event' && (a.parsed.teams
  *   (d) the league's live hours (LIVE_HOURS): outside them -> replay.
  * An airing that is a replay, or outside its league's hours, is never the first airing others
  * are measured from. Changes `kind` and `why` in place; returns the airings. `fixturesByLeague`
- * is services/sportsFixtures.js's pure snapshot (Map of league -> { fixtures, teamsAliases }),
- * or undefined/null when fixtures are off or nothing has been fetched yet - every existing call
- * site (and every test that predates 0162) keeps working unchanged.
+ * is services/sportsFixtures.js's pure snapshot (Map of league -> { fixtures, teamsAliases,
+ * coverage }), or undefined/null when fixtures are off or nothing has been fetched yet - every
+ * existing call site (and every test that predates 0161) keeps working unchanged. `now` (0162)
+ * is only used to judge how fresh that snapshot's coverage is (fixtureVerdict); it defaults to
+ * the real clock and only needs to be passed explicitly by a test.
  */
-function resolveLive(airings, fixturesByLeague) {
+function resolveLive(airings, fixturesByLeague, now = Date.now()) {
     const games = airings.filter(decidable).sort((a, b) => a.start - b.start || (a.order ?? 0) - (b.order ?? 0));
     const groups = [];          // { league, teams: [pair], session, location, list }
     const exact = new Map();    // league + pairKey + session -> group
@@ -557,7 +559,7 @@ function resolveLive(airings, fixturesByLeague) {
             const hours = () => hoursMemo || (hoursMemo = inLiveHours(a.start, a.league));
             // (0)
             if (fixturesByLeague) {
-                const verdict = fixtureVerdict(a, fixturesByLeague.get(a.league));
+                const verdict = fixtureVerdict(a, fixturesByLeague.get(a.league), now);
                 if (verdict) {
                     if (verdict.live) { a.why = `${a.why}, ${verdict.why}`; first = a; } else { replay(a, verdict.why); }
                     continue;
@@ -608,9 +610,17 @@ const overlaps = (a, c) => a.start < c.end && a.end > c.start;
 const locationMatch = (a, b) => !a.length || !b.length || a.every(w => b.includes(w)) || b.every(w => a.includes(w));
 const sessionMatch = (a, b) => !a || !b || a.id === b.id;
 
-// ---- ESPN fixtures (0162): a ground-truth first rule for resolveLive -----------------------
+// ---- ESPN fixtures (0161): a ground-truth first rule for resolveLive -----------------------
 
 const ESPN_GRACE_MS = 30 * 60 * 1000; // "the airing started at/near the real kickoff"
+// 0162: how long ago the last successful fetch can be and still be trusted to say "no such game" -
+// the matched-fixture branch may keep using older data (a kickoff time rarely moves once ESPN has
+// it), but an ABSENCE of a fixture is only evidence while the data is fresh: a day of ESPN being
+// unreachable must never quietly turn a real, unlisted live game into a replay.
+const NO_GAME_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+// ...and the covered window must reach this far either side of the airing, not just touch its
+// start - ESPN saying nothing about the hour before or after is not the same as checking it.
+const NO_GAME_HALF_WINDOW_MS = 12 * 60 * 60 * 1000;
 
 /** A weekday + 12-hour time in `tz` ("Sat 1:30 pm"), for the fixture rule's `why`. */
 function espnWhen(ms, tz) {
@@ -653,14 +663,25 @@ function fixtureLiveVerdict(a, best, kind) {
 }
 
 /**
- * The ESPN fixture rule (0162): when `fixturesByLeague` (services/sportsFixtures.js's snapshot)
- * covers this airing's league, its answer is checked FIRST, ahead of the guide's own flags - a
- * replay wrongly flagged <live/> by the provider, or a first-airing walk with no earlier guide
- * entry, is exactly the case ESPN settles. -> { live, why } | null (null: not covered, or covered
- * but inconclusive - every other rule in resolveLive runs unchanged).
+ * The ESPN fixture rule (0161, gated by coverage since 0162): when `fixturesByLeague` (services/sportsFixtures.js's snapshot)
+ * covers this airing's league AND time, its answer is checked FIRST, ahead of the guide's own
+ * flags - a replay wrongly flagged <live/> by the provider, or a first-airing walk with no earlier
+ * guide entry, is exactly the case ESPN settles. -> { live, why } | null (null: not covered, out of
+ * the covered window, or covered but inconclusive - every other rule in resolveLive runs unchanged).
+ *
+ * `leagueData.coverage` (0162) is the LAST SUCCESSFUL fetch's own [from, to] window and when it
+ * happened: stale or out-of-window data must never manufacture a verdict, let alone a replay, for
+ * a real live game ESPN simply has not been asked about recently. The airing's start has to fall
+ * inside that window for EITHER branch below; the "no such game" branch (an absence, not a
+ * presence) is additionally trusted only while the fetch is recent (NO_GAME_MAX_AGE_MS) and the
+ * window reaches a full NO_GAME_HALF_WINDOW_MS either side of the airing - a matched fixture's own
+ * kickoff time, once seen, rarely moves, but "ESPN found nothing" is only as good as how recently
+ * and how widely ESPN was actually asked.
  */
-function fixtureVerdict(a, leagueData) {
-    if (!leagueData) return null;
+function fixtureVerdict(a, leagueData, now) {
+    if (!leagueData || !leagueData.coverage) return null;
+    const { from, to, at } = leagueData.coverage;
+    if (!(Number.isFinite(from) && Number.isFinite(to)) || a.start < from || a.start > to) return null;
     const p = a.parsed;
     if (p.teams) {
         const candidates = (leagueData.fixtures || []).filter(f => f.teamsAliases && fixtureTeamsMatch(f.teamsAliases[0], f.teamsAliases[1], p.teams));
@@ -668,9 +689,13 @@ function fixtureVerdict(a, leagueData) {
             const best = candidates.reduce((b, c) => (Math.abs(c.start - a.start) < Math.abs(b.start - a.start) ? c : b));
             return fixtureLiveVerdict(a, best, 'game');
         }
-        const teamsAliases = leagueData.teamsAliases || [];
-        if (teamIsKnown(p.teams[0], teamsAliases) && teamIsKnown(p.teams[1], teamsAliases)) {
-            return { live: false, why: 'ESPN has no such game at this time' };
+        const recent = Number.isFinite(at) && Number.isFinite(now) && now - at <= NO_GAME_MAX_AGE_MS;
+        const widelyEnoughCovered = from <= a.start - NO_GAME_HALF_WINDOW_MS && to >= a.start + NO_GAME_HALF_WINDOW_MS;
+        if (recent && widelyEnoughCovered) {
+            const teamsAliases = leagueData.teamsAliases || [];
+            if (teamIsKnown(p.teams[0], teamsAliases) && teamIsKnown(p.teams[1], teamsAliases)) {
+                return { live: false, why: 'ESPN has no such game at this time' };
+            }
         }
         return null;
     }
@@ -829,7 +854,7 @@ module.exports = {
     classifyKind, channelTokens, loopedProgrammes, mergeAirings, cleanTitle,
     // 0152
     FLAGS, LIVE_HOURS, liveHoursFor, inLiveHours, localClock, resolveLive,
-    // 0162: exported so services/sportsFixtures.js can build a snapshot resolveLive understands,
+    // 0161: exported so services/sportsFixtures.js can build a snapshot resolveLive understands,
     // and so tests can exercise the matching/wording directly without a live ESPN fetch.
     sessionMatch, locationMatch, fixtureVerdict, espnWhen
 };

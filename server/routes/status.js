@@ -220,7 +220,7 @@ router.get('/', async (req, res) => {
             events: playbackEvents.recent(),
             // 0133 (C-G): the channels that failed to start most in the last 7 days.
             leastReliable: leastReliable(),
-            // 0162 (C-I): ESPN fixture coverage, per league - last successful fetch, fixture
+            // 0161 (C-I): ESPN fixture coverage, per league - last successful fetch, fixture
             // count, last error. Never a URL (sportsFixtures.statusSummary never puts one in).
             sportFixtures: sportsFixtures.statusSummary(),
             sync: await syncStatus(),

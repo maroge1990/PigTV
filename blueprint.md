@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 28 September 2026 · server build **0161** (committed locally, awaiting review/push - see below) · Apple client build **32**
+**Last updated:** 29 September 2026 · server build **0162** (committed locally, awaiting review/push - see below) · Apple client build **32**
 (`../PigTV-Swift/blueprint.md`)
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
@@ -39,9 +39,9 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Development is on Mark's MacBook only (from 23 Sept). |
 | CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
-| Shipped through | **0160** (pushed to `origin/main`, 28 Sept; 0156–0160 are a bug-fix run: schedule observability, the recordings-folder health check, the recording prompt timeout, sport events off the request path - see §8). **0161** (ESPN fixtures for live/replay, C-I) is committed locally, not yet pushed - the lead reviews and pushes. Mark tested rounds 1–4 on **0151** + app **31**; 0152–0161 and app 32 are awaiting his check (§6). Whether a build is *running* is whatever `/api/version` says. |
-| Next build number | **0162** |
-| Tests | `npm test`: **652 tests, all pass** (28 Sept, after 0161; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
+| Shipped through | **0160** (pushed to `origin/main`, 28 Sept; 0156–0160 are a bug-fix run: schedule observability, the recordings-folder health check, the recording prompt timeout, sport events off the request path - see §8). **0161–0162** (ESPN fixtures for live/replay, C-I, and a same-day fix so stale/out-of-window ESPN data can never manufacture a replay) are committed locally, not yet pushed - the lead reviews and pushes. Mark tested rounds 1–4 on **0151** + app **31**; 0152–0162 and app 32 are awaiting his check (§6). Whether a build is *running* is whatever `/api/version` says. |
+| Next build number | **0163** |
+| Tests | `npm test`: **653 tests, all pass** (29 Sept, after 0162; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -342,9 +342,18 @@ worded with the real kickoff (`ESPN: the game started Sat 1:30 pm; this airing i
 are known to the league and no such fixture exists: replay (`ESPN has no such game at this time`); anything else (unknown
 teams, league not covered, no fixture data, ESPN down) falls through to (a)-(d) unchanged. A multi-day cricket Test (league
 `Cricket` only - IPL/BBL are always a single day) is live on any of its scheduled days, not just near its first ball.
+**Coverage, not just presence (0162):** every league's snapshot carries the exact `[from, to]` window its *last successful*
+fetch covered and when that was; an airing outside that window gets no ESPN verdict at all, matched or not - stale or
+out-of-window data must never decide anything, let alone manufacture a replay for a real live game ESPN simply has not been
+asked about recently. The matched-fixture branch may still use an older but in-window fetch (a real kickoff time rarely
+moves); the "no such game" branch (an absence, not a presence) additionally needs the fetch to be recent (≤ 6 h,
+`NO_GAME_MAX_AGE_MS`) and the window to reach a full 12 h either side of the airing (`NO_GAME_HALF_WINDOW_MS`) - a day of ESPN
+being unreachable falls straight back to (a)-(d) instead of quietly turning an unlisted live game into a replay.
 Fixtures are fetched only for the leagues that matter (the follow list, or a marked sport category's name), refreshed every
 30 min and after an EPG sync, kept in SQLite (`sport_fixtures`, `sport_fixture_teams`, `sport_fixture_status`) so a restart or
 an ESPN outage does not lose them, and never block a request - `sportsEvents.buildEvents()` reads the last stored snapshot.
+A successful fetch fully replaces that league's stored fixtures (cricket included, since every refresh re-discovers and
+re-fetches every active series from scratch), so a postponed or removed game never lingers.
 International cricket (Tests/ODIs/T20Is) has no fixed ESPN league id, so its series are found each refresh from ESPN's
 cricket "scorepanel" and merged under the canonical league `Cricket` (`sportsClassify.LEAGUES`: IPL and BBL stay their own
 leagues). AFLW has no ESPN feed and stays on the heuristics above. `PIGTV_SPORT_FIXTURES=0` turns fixtures off completely
@@ -571,7 +580,7 @@ cold 8.2 s (n=14), warm 4.8 s (n=2). After round 2 the report's client wait was 
 | S5.5 | Web preview grouped by kind | **Verified** (0151; R4.1) |
 | S5.6 | Live or replay from XMLTV flags, the first airing within 36 h and per-league live hours | **Shipped, awaiting a check** (0152; needs a Sync now after deploy for the flags) |
 | S5.7 | Sport horizon 72 h (`hours` up to 72) | **Shipped, awaiting a check** (0153 + app 32) |
-| S5.8 | ESPN fixtures as a first rule ahead of the heuristics (NFL, AFL, NBA, F1, MLB, IPL/BBL, international cricket via the scorepanel); Status page "Sport fixtures" panel; `PIGTV_SPORT_FIXTURES` | **Shipped, awaiting a check** (0161; needs live ESPN data and a real misfire to judge by - see the live-test steps in the 0161 hand-off) |
+| S5.8 | ESPN fixtures as a first rule ahead of the heuristics (NFL, AFL, NBA, F1, MLB, IPL/BBL, international cricket via the scorepanel); coverage-gated so stale/out-of-window data never decides (0162); Status page "Sport fixtures" panel; `PIGTV_SPORT_FIXTURES` | **Shipped, awaiting a check** (0161–0162; needs live ESPN data and a real misfire to judge by - see the live-test steps in the hand-off) |
 | A5.1 | Apple Sport tab, Home "Sport now & next", Replays section | **Verified** (app 30–31; R3.3–R3.7, R4.2, R4.3). Empty state (R3.8): **Deferred** (needs a quiet sport day) |
 | A5.2 | Sport tab over 72 h: Tomorrow and weekday sections | **Shipped, awaiting a check** (app 32) |
 | A5.3 | Apple tab switching: no reloads (app 31); no white flash between tabs (app 32) | Reloads: **Verified** (R4.6). Flash fix: **shipped, awaiting a check** |
@@ -691,6 +700,7 @@ lines (the classifier has seen one uneven feed in five) · the 20 s stall timeou
 | 0159 | Sport events are built off the request path: a stale cache is now served the previous result while the rebuild runs on `setImmediate` (never inline in a request), triggered after an EPG sync, on a follow-list change, and by a timer aligned to the 5-minute bucket. The build itself is still synchronous (~0.3–1.1 s on the one event loop, now at most once per 5 min and never while a request waits); a worker thread is the follow-up if stalls are ever traced to it |
 | 0160 | The recordings folder is never created inside a disconnected share's mount point (a parent on a filesystem under 1 GB, Unraid's 1 MB `/mnt/remotes` tmpfs), Settings refuses such a path, and the unmounted-share check runs even with a free-space minimum of 0 |
 | 0161 | ESPN fixtures (C-I): a new first rule in `resolveLive` checks ESPN's free scoreboard (real kickoff/session times) before the guide-only heuristics - matched to a fixture by team/session, live near the real kickoff else replay with the real time, or "no such game" when both teams are known but nothing matches; `services/sportsFixtures.js` fetches only the leagues that matter (follow list, sport categories), every 30 min and after an EPG sync, into SQLite (never blocks a request); international cricket (Tests/ODIs/T20Is) is found each refresh from ESPN's cricket scorepanel and merged under a new canonical league `Cricket` (IPL, BBL stay their own); AFLW has no ESPN feed and stays on the heuristics; `PIGTV_SPORT_FIXTURES=0` turns it off; the web Status page gets a "Sport fixtures" panel |
+| 0162 | Lead review of 0161: stale or out-of-window ESPN data could manufacture a replay for a real live game (a day of ESPN being unreachable, with yesterday's fixtures still cached, would tell a genuine unlisted game "no such game", and a fixture outside the fetched window could decide at all). Every league's snapshot now carries the exact window its *last successful* fetch covered and when that was (`sport_fixture_status.covered_from`/`covered_to`, `snapshot()`'s `coverage`); `fixtureVerdict` returns no verdict at all for an airing outside that window, and the "no such game" branch additionally requires the fetch to be recent (≤ 6 h) and the window to reach 12 h either side of the airing. A successful fetch fully replaces a league's stored fixtures (cricket now uses the same full-replace `saveFixtures` as every other league, dropping the `mergeFixtures` merge-by-append it had instead), so a postponed or removed game never lingers |
 
 ---
 
@@ -767,6 +777,9 @@ env var, and stays off (VPN-only).
   is invisible to the fixture rule and falls back to the heuristics. ESPN's own `endDate` is trusted for a multi-day match only
   under the generic `Cricket` league (never IPL/BBL, whose nominal `endDate` is not a real multi-day span). ESPN is unofficial
   and undocumented: a schema change there degrades to "not matched" (heuristics), never a crash, but was not designed against.
+  A league whose fetches have been failing (or have never run) falls back to the heuristics automatically once its last good
+  data is either too old (over 6 h, for the "no such game" answer) or does not reach the moment in question (0162) - so an
+  ESPN outage degrades gracefully rather than mislabelling a real live game as a replay.
 
 **Web**
 - An **in-progress HLS recording** (tuner on) can't be played in the browser: the web recordings page offers Play only on

@@ -271,7 +271,7 @@ function initSchema() {
         );
     `);
 
-    // Sport fixtures (0162, C-I): ESPN's real kickoff/session times, so live-vs-replay does not
+    // Sport fixtures (0161, C-I): ESPN's real kickoff/session times, so live-vs-replay does not
     // have to guess from the guide alone (services/sportsFixtures.js). One row per competition
     // (an event, or one of an F1 event's sessions); `data` is the provider-shaped JSON record.
     // Kept in SQLite, not just memory, so a restart or an ESPN outage does not lose the last good
@@ -307,6 +307,18 @@ function initSchema() {
             fixture_count INTEGER
         );
     `);
+    // 0162: the [from, to) window the LAST SUCCESSFUL fetch actually covered, so
+    // sportsClassify.fixtureVerdict can tell "ESPN checked this exact moment and found no game"
+    // from "ESPN has not checked this moment at all" (a fetch that never ran, or one that covered
+    // a different window while today's has been failing) - stale or out-of-window data must never
+    // manufacture a replay for a real live game. Only moves on a successful fetch.
+    for (const col of ['covered_from INTEGER', 'covered_to INTEGER']) {
+        try {
+            db.exec(`ALTER TABLE sport_fixture_status ADD COLUMN ${col}`);
+        } catch (e) {
+            // Column already exists.
+        }
+    }
 
     // EPG Programs
     // Optimized for range queries

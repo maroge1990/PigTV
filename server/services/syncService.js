@@ -634,7 +634,7 @@ class SyncService {
             // rather than leaving the first request after this sync to pay for a
             // synchronous build inline.
             try { require('./sportsEvents').scheduleRebuild(); } catch (e) { /* best-effort */ }
-            // 0162: an EPG sync landing is also one of the three fixture-refresh triggers
+            // 0161: an EPG sync landing is also one of the three fixture-refresh triggers
             // (services/sportsFixtures.js) - a newly-synced guide may sport-recognise a league
             // for the first time, and its fixtures should not wait up to 30 minutes for it.
             try { require('./sportsFixtures').scheduleRefresh(); } catch (e) { /* best-effort */ }

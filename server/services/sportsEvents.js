@@ -314,7 +314,7 @@ function buildEvents({ from, decorateChannels } = {}) {
 
     const tvgIds = [...new Set(channels.map(ch => ch.tvgId).filter(Boolean))];
     const progs = programmesFor(db, tvgIds, from, from + WINDOW_MS);
-    // 0162: ESPN's real kickoff/session times, for whichever leagues currently matter
+    // 0161: ESPN's real kickoff/session times, for whichever leagues currently matter
     // (sportsFixtures.neededLeagues() - the follow list, or a marked sport category's own name;
     // never a scan of this build's own programmes, so this stays cheap even before any of them
     // are classified). Read here, in the DB-touching build, and handed down as plain data - so
@@ -330,7 +330,7 @@ function buildEvents({ from, decorateChannels } = {}) {
  * The pure part of a build: every sport item (all kinds) from the visible channels
  * ({ key, order, tvgId, sportChannel, name, ... }) and their programmes (epg_live rows:
  * channel_id, title, start_time, end_time, categories as JSON, flags (0152)). `follow` is
- * compileFollow()'s result, or the keyword list. `fixturesByLeague` (0162) is
+ * compileFollow()'s result, or the keyword list. `fixturesByLeague` (0161) is
  * services/sportsFixtures.js's snapshot, or undefined - plain data in, plain data out; this
  * function itself never touches the database or the network.
  */
@@ -378,7 +378,7 @@ function eventsFromProgrammes(channels, progs, follow, fixturesByLeague) {
         }
     }
 
-    // 0152: live or replay, across each game's airings (flags, first airing, hours; 0162: ESPN first).
+    // 0152: live or replay, across each game's airings (flags, first airing, hours; 0161: ESPN first).
     sportsClassify.resolveLive(airings, fixturesByLeague);
 
     const keywordOrder = new Map(follow.list.map((k, i) => [k.keyword, i]));

@@ -136,7 +136,7 @@ class StatusPage {
         </div>`;
     }
 
-    /** Sport fixtures (0162): per league, last successful fetch, fixture count, last error. */
+    /** Sport fixtures (0161): per league, last successful fetch, fixture count, last error. */
     renderSportFixtures(fx) {
         const e = (v) => this.escape(v);
         if (!fx || !fx.enabled) {
@@ -198,7 +198,7 @@ class StatusPage {
             ]),
             'No plays since the server started')));
 
-        // Sport fixtures (0162, C-I): ESPN's real kickoff/session times, per league.
+        // Sport fixtures (0161, C-I): ESPN's real kickoff/session times, per league.
         out.push(this.renderSportFixtures(status.sportFixtures));
 
         // Least reliable channels (0133, C-G): failed starts and (0142) stalls over the last 7 days

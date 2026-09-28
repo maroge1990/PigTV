@@ -1,5 +1,5 @@
 /**
- * Sport fixtures (0162, C-I): ESPN's real kickoff/session times, kept in SQLite and refreshed in
+ * Sport fixtures (0161, C-I): ESPN's real kickoff/session times, kept in SQLite and refreshed in
  * the background, so sportsClassify.resolveLive's ESPN rule has ground truth to check the guide's
  * live/replay guesses against instead of only ever guessing itself.
  *
@@ -24,7 +24,7 @@
  * flaky evening does not spam the log every 30 minutes. Each ESPN request has its own 10 s
  * timeout (services/sportsFixturesEspn.js). `PIGTV_SPORT_FIXTURES=0` turns this off completely:
  * no fetch ever runs and snapshot() always returns nothing, so resolveLive's ESPN rule never
- * applies and every league is exactly on the heuristics, as before 0162.
+ * applies and every league is exactly on the heuristics, as before 0161.
  */
 const { getDb } = require('../db/sqlite');
 const sportsClassify = require('./sportsClassify');
@@ -111,17 +111,21 @@ function saveStatus(db, league, patch) {
     const existing = db.prepare('SELECT * FROM sport_fixture_status WHERE league = ?').get(league) || {};
     const row = { ...existing, ...patch };
     db.prepare(`
-        INSERT INTO sport_fixture_status (league, last_attempt_at, last_success_at, last_error, last_error_at, fixture_count)
-        VALUES (@league, @last_attempt_at, @last_success_at, @last_error, @last_error_at, @fixture_count)
+        INSERT INTO sport_fixture_status (league, last_attempt_at, last_success_at, last_error, last_error_at, fixture_count, covered_from, covered_to)
+        VALUES (@league, @last_attempt_at, @last_success_at, @last_error, @last_error_at, @fixture_count, @covered_from, @covered_to)
         ON CONFLICT(league) DO UPDATE SET last_attempt_at = excluded.last_attempt_at, last_success_at = excluded.last_success_at,
-            last_error = excluded.last_error, last_error_at = excluded.last_error_at, fixture_count = excluded.fixture_count
+            last_error = excluded.last_error, last_error_at = excluded.last_error_at, fixture_count = excluded.fixture_count,
+            covered_from = excluded.covered_from, covered_to = excluded.covered_to
     `).run({
         league,
         last_attempt_at: row.last_attempt_at ?? null,
         last_success_at: row.last_success_at ?? null,
         last_error: row.last_error ?? null,
         last_error_at: row.last_error_at ?? null,
-        fixture_count: row.fixture_count ?? null
+        fixture_count: row.fixture_count ?? null,
+        // A failure never touches these: the covered window only ever moves on a success (below).
+        covered_from: row.covered_from ?? null,
+        covered_to: row.covered_to ?? null
     });
 }
 
@@ -129,20 +133,6 @@ function saveFixtures(db, league, records) {
     const now = Date.now();
     db.transaction(() => {
         db.prepare('DELETE FROM sport_fixtures WHERE league = ?').run(league);
-        const insert = db.prepare('INSERT OR REPLACE INTO sport_fixtures (league, fixture_id, start, data, updated_at) VALUES (?, ?, ?, ?, ?)');
-        for (const rec of records) {
-            const fixtureId = rec.sessionAbbr ? `${rec.id}#${rec.sessionAbbr}` : rec.id;
-            insert.run(league, fixtureId, rec.start, JSON.stringify(rec), now);
-        }
-    })();
-}
-
-/** Merge new records for `league` into its existing rows, rather than replacing the whole league - used by cricket, where each refresh only re-fetches a handful of currently active series. */
-function mergeFixtures(db, league, records) {
-    const now = Date.now();
-    const cutoff = Date.now() - LOOKBACK_MS - DAY_MS;
-    db.transaction(() => {
-        db.prepare('DELETE FROM sport_fixtures WHERE league = ? AND start < ?').run(league, cutoff);
         const insert = db.prepare('INSERT OR REPLACE INTO sport_fixtures (league, fixture_id, start, data, updated_at) VALUES (?, ?, ?, ?, ?)');
         for (const rec of records) {
             const fixtureId = rec.sessionAbbr ? `${rec.id}#${rec.sessionAbbr}` : rec.id;
@@ -179,8 +169,11 @@ async function refreshLeague(league, { now = Date.now(), db = getDb() } = {}) {
         return;
     }
     logStateChange(league, true);
-    saveFixtures(db, league, result.records);
-    saveStatus(db, league, { last_success_at: now, last_error: null, fixture_count: result.records.length });
+    saveFixtures(db, league, result.records); // a full replace: a postponed/removed game does not linger
+    saveStatus(db, league, {
+        last_success_at: now, last_error: null, fixture_count: result.records.length,
+        covered_from: now - LOOKBACK_MS, covered_to: now + WINDOW_MS
+    });
 
     const cachedTeams = loadTeams(db, league);
     if (!cachedTeams || now - cachedTeams.updatedAt >= TEAMS_MAX_AGE_MS) {
@@ -218,8 +211,14 @@ async function refreshCricket({ now = Date.now(), db = getDb() } = {}) {
         return;
     }
     logStateChange('Cricket', true);
-    mergeFixtures(db, 'Cricket', records);
-    saveStatus(db, 'Cricket', { last_success_at: now, last_error: null, fixture_count: records.length });
+    // Every refresh re-discovers and re-fetches every currently active series from scratch, so
+    // this is already the WHOLE league's fixture set for this cycle - a full replace (like any
+    // other league) rather than a merge, so a series that finished or was postponed drops out.
+    saveFixtures(db, 'Cricket', records);
+    saveStatus(db, 'Cricket', {
+        last_success_at: now, last_error: null, fixture_count: records.length,
+        covered_from: now - LOOKBACK_MS, covered_to: now + WINDOW_MS
+    });
     if (teams.size) saveTeams(db, 'Cricket', [...teams.values()]);
 }
 
@@ -320,10 +319,19 @@ function toFixture(rec) {
 }
 
 /**
- * The pure snapshot resolveLive(airings, fixturesByLeague) takes: Map<league, { fixtures,
- * teamsAliases }>. Only `leagues` (sportsEvents.js passes the ones its build actually saw) are
- * read, so a build never pays for a league nobody is watching. Synchronous SQLite reads only -
- * never touches the network, never blocks on one - so it is safe to call on every build.
+ * The pure snapshot resolveLive(airings, fixturesByLeague, now) takes: Map<league, { fixtures,
+ * teamsAliases, coverage: { from, to, at } }>. `coverage` is the LAST SUCCESSFUL fetch's own
+ * window and when it happened (sport_fixture_status.covered_from/to/last_success_at) - it is what
+ * lets fixtureVerdict tell "ESPN checked this moment and found nothing" from "ESPN has not
+ * checked this moment" (0162: a league that has never succeeded, or whose covered window does not
+ * reach this airing, is simply not something the ESPN rule can answer for - it is omitted here,
+ * so resolveLive falls straight through to the heuristics for it). A league IS included with an
+ * empty `fixtures` list as long as it has a coverage window: "no games right now" is itself an
+ * answer ESPN gave, not an absence of one.
+ *
+ * Only `leagues` (sportsEvents.js passes the ones its build actually saw) are read, so a build
+ * never pays for a league nobody is watching. Synchronous SQLite reads only - never touches the
+ * network, never blocks on one - so it is safe to call on every build.
  */
 function snapshot(leagues) {
     if (!enabled() || !leagues || !leagues.size) return new Map();
@@ -331,6 +339,8 @@ function snapshot(leagues) {
     const out = new Map();
     for (const league of leagues) {
         if (!ESPN_LEAGUE_PATHS[league] && league !== 'Cricket') continue;
+        const status = db.prepare('SELECT covered_from, covered_to, last_success_at FROM sport_fixture_status WHERE league = ?').get(league);
+        if (!status || !Number.isFinite(status.covered_from) || !Number.isFinite(status.covered_to)) continue;
         const rows = db.prepare('SELECT data FROM sport_fixtures WHERE league = ?').all(league);
         const fixtures = [];
         for (const row of rows) {
@@ -339,10 +349,12 @@ function snapshot(leagues) {
             const fixture = toFixture(rec);
             if (fixture) fixtures.push(fixture);
         }
-        if (!fixtures.length) continue;
         const cachedTeams = loadTeams(db, league);
         const teamsAliases = (cachedTeams?.teams || []).map(teamAliasSides).filter(Boolean);
-        out.set(league, { fixtures, teamsAliases });
+        out.set(league, {
+            fixtures, teamsAliases,
+            coverage: { from: status.covered_from, to: status.covered_to, at: status.last_success_at }
+        });
     }
     return out;
 }

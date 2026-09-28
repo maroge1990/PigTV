@@ -235,110 +235,159 @@ function airing(title, start, { hours = 3, league, channel = `Channel ${order}` 
         league: league || classify.detectLeague(title) || 'Sport', channel: { name: channel }
     };
 }
-const resolve = (snap, ...list) => { classify.resolveLive(list, snap); return list.map(a => `${a.kind}: ${a.why}`); };
+// `now` (0162) is when the caller is asking, for fixtureVerdict to judge the snapshot's coverage
+// by - normally right around the refresh that built it, exactly like a real request shortly after
+// a background refresh; tests that need to check staleness pass a `now` further from it instead.
+const resolve = (snap, now, ...list) => { classify.resolveLive(list, snap, now); return list.map(a => `${a.kind}: ${a.why}`); };
 
 test('matched: live at the real kickoff, replay a long way later, with the ESPN wording', async () => {
+    const refreshedAt = Date.parse('2026-09-27T12:00Z');
     await withEspn({ 'football/nfl/scoreboard': readFx('nfl-20260927'), 'football/nfl/teams': readFx('teams-nfl') }, () =>
-        fixtures.refreshLeague('NFL', { now: Date.parse('2026-09-27T12:00Z') }));
+        fixtures.refreshLeague('NFL', { now: refreshedAt }));
     const snap = fixtures.snapshot(new Set(['NFL']));
     const kickoff = Date.parse('2026-09-27T17:00Z'); // Chargers at Bills
 
     // NFL's live hours are New York's (LIVE_HOURS); 17:00 UTC on 27 Sept 2026 is EDT 1 pm
-    const [live] = resolve(snap, airing('NFL: Chargers v Bills', kickoff, { league: 'NFL' }));
+    const [live] = resolve(snap, refreshedAt, airing('NFL: Chargers v Bills', kickoff, { league: 'NFL' }));
     assert.equal(live, 'event: a match-up, ESPN: the game started Sun 1:00 pm');
 
-    const [replay] = resolve(snap, airing('NFL: Bills v Chargers', kickoff + 19 * H, { league: 'NFL' }));
+    const [replay] = resolve(snap, refreshedAt, airing('NFL: Bills v Chargers', kickoff + 19 * H, { league: 'NFL' }));
     assert.equal(replay, 'replay: ESPN: the game started Sun 1:00 pm; this airing is 19 h later');
 
     // a differently-spelled/abbreviated team name in the guide still matches (BUF, "Chargers" alone)
-    const [live2] = resolve(snap, airing('NFL: BUF v Chargers', kickoff, { league: 'NFL' }));
+    const [live2] = resolve(snap, refreshedAt, airing('NFL: BUF v Chargers', kickoff, { league: 'NFL' }));
     assert.equal(live2, 'event: a match-up, ESPN: the game started Sun 1:00 pm');
 
     // pre-game coverage starting early still counts as live
-    const [pre] = resolve(snap, airing('NFL: Chargers v Bills', kickoff - 45 * M, { league: 'NFL', hours: 1 }));
+    const [pre] = resolve(snap, refreshedAt, airing('NFL: Chargers v Bills', kickoff - 45 * M, { league: 'NFL', hours: 1 }));
     assert.equal(pre, 'event: a match-up, ESPN: the game started Sun 1:00 pm');
+
+    // a matched fixture may keep deciding on OLDER data (a kickoff time rarely moves) - 2 days
+    // after the refresh is well past the 6 h "no such game" cutoff, but this is the matched
+    // branch, not the unmatched one, so it is unaffected
+    const [stillLive] = resolve(snap, refreshedAt + 2 * 24 * H, airing('NFL: Chargers v Bills', kickoff, { league: 'NFL' }));
+    assert.equal(stillLive, 'event: a match-up, ESPN: the game started Sun 1:00 pm');
 });
 
 test('not matched, but both teams are known to the league: ESPN says there is no such game now (a replay from last week, inside league hours)', async () => {
+    const refreshedAt = Date.parse('2026-09-27T12:00Z');
     await withEspn({ 'football/nfl/scoreboard': readFx('nfl-20260927'), 'football/nfl/teams': readFx('teams-nfl') }, () =>
-        fixtures.refreshLeague('NFL', { now: Date.parse('2026-09-27T12:00Z') }));
+        fixtures.refreshLeague('NFL', { now: refreshedAt }));
     const snap = fixtures.snapshot(new Set(['NFL']));
     // Cardinals v Cowboys: real NFL teams (in the roster), but not one of this window's fixtures -
     // the old heuristics would call this live if it falls inside NFL's live hours (LIVE_HOURS).
     const insideHours = Date.parse('2026-09-27T18:00Z'); // 2 pm New York, inside NFL hours
-    const [replay] = resolve(snap, airing('NFL: Cardinals v Cowboys', insideHours, { league: 'NFL' }));
+    const [replay] = resolve(snap, refreshedAt, airing('NFL: Cardinals v Cowboys', insideHours, { league: 'NFL' }));
     assert.equal(replay, 'replay: ESPN has no such game at this time');
 });
 
-test('not matched, and the teams are not ones ESPN knows for this league: falls through to the heuristics unchanged', async () => {
+test('0162: stale or out-of-window fixture data must never manufacture a replay for a real, unlisted game', async () => {
+    const refreshedAt = Date.parse('2026-09-27T12:00Z');
     await withEspn({ 'football/nfl/scoreboard': readFx('nfl-20260927'), 'football/nfl/teams': readFx('teams-nfl') }, () =>
-        fixtures.refreshLeague('NFL', { now: Date.parse('2026-09-27T12:00Z') }));
+        fixtures.refreshLeague('NFL', { now: refreshedAt }));
     const snap = fixtures.snapshot(new Set(['NFL']));
-    const insideHours = Date.parse('2026-09-27T18:00Z');
-    const [event] = resolve(snap, airing('NFL: Rhinos v Sharks', insideHours, { league: 'NFL' }));
-    assert.equal(event, 'event: a match-up', 'no ESPN verdict; (d) league hours decides, as before 0162');
+    const insideHours = Date.parse('2026-09-27T18:00Z'); // inside NFL hours; both teams known; not a fixture
+
+    // ESPN's last successful fetch was 2 days before "now": too stale to trust an ABSENCE of a
+    // game, so the ESPN rule stays silent and (d) league hours decides instead, exactly as before
+    // 0161 - a whole day of ESPN being unreachable must never quietly turn a real live game into
+    // a replay just because yesterday's snapshot didn't happen to list it.
+    const [stale] = resolve(snap, refreshedAt + 2 * 24 * H, airing('NFL: Cardinals v Cowboys', insideHours, { league: 'NFL' }));
+    assert.equal(stale, 'event: a match-up', 'too stale to claim "no such game"; falls through to league hours');
+
+    // an airing outside the fetch's own covered window ([now-36h, now+72h]) gets no verdict at all,
+    // matched or not - ESPN was simply never asked about that moment
+    const outsideWindow = refreshedAt + 100 * H; // the fetch only reaches 72 h past its own `now`
+    const [beyond] = resolve(snap, refreshedAt, airing('NFL: Chargers v Bills', outsideWindow, { league: 'NFL' }));
+    assert.equal(beyond, 'event: a match-up', 'outside the covered window; falls through to the heuristics');
+
+    // fresh data (right after the refresh) still claims "no such game" as before
+    const [fresh] = resolve(snap, refreshedAt, airing('NFL: Cardinals v Cowboys', insideHours, { league: 'NFL' }));
+    assert.equal(fresh, 'replay: ESPN has no such game at this time');
 });
 
-test('a league fixtures never fetched (or ESPN down): every rule is exactly the pre-0162 heuristics', () => {
+test('not matched, and the teams are not ones ESPN knows for this league: falls through to the heuristics unchanged', async () => {
+    const refreshedAt = Date.parse('2026-09-27T12:00Z');
+    await withEspn({ 'football/nfl/scoreboard': readFx('nfl-20260927'), 'football/nfl/teams': readFx('teams-nfl') }, () =>
+        fixtures.refreshLeague('NFL', { now: refreshedAt }));
+    const snap = fixtures.snapshot(new Set(['NFL']));
+    const insideHours = Date.parse('2026-09-27T18:00Z');
+    const [event] = resolve(snap, refreshedAt, airing('NFL: Rhinos v Sharks', insideHours, { league: 'NFL' }));
+    assert.equal(event, 'event: a match-up', 'no ESPN verdict; (d) league hours decides, as before 0161');
+});
+
+test('a league fixtures never fetched (or ESPN down): every rule is exactly the pre-0161 heuristics', () => {
     const empty = new Map();
     const morning = Date.parse('2026-09-26T07:00:00-04:00');
-    const [replay] = resolve(empty, airing('MLB: Yankees v Red Sox', morning, { league: 'MLB' }));
+    const [replay] = resolve(empty, Date.now(), airing('MLB: Yankees v Red Sox', morning, { league: 'MLB' }));
     assert.equal(replay, 'replay: outside MLB hours (07:00 America/New_York)');
-    // resolveLive(airings) with no second argument at all (every pre-0162 call site) behaves the same
+    // resolveLive(airings) with no second/third argument at all (every pre-0161 call site) behaves the same
     const list = [airing('MLB: Yankees v Red Sox', morning, { league: 'MLB' })];
     classify.resolveLive(list);
     assert.equal(list[0].why, 'outside MLB hours (07:00 America/New_York)');
 });
 
 test('F1: practice is told from the race by session, matched to the right Grand Prix by location', async () => {
+    const refreshedAt = Date.parse('2026-09-25T00:00Z');
     await withEspn({ 'racing/f1/scoreboard': readFx('f1-scoreboard') }, () =>
-        fixtures.refreshLeague('F1', { now: Date.parse('2026-09-25T00:00Z') }));
+        fixtures.refreshLeague('F1', { now: refreshedAt }));
     const snap = fixtures.snapshot(new Set(['F1']));
     const raceStart = Date.parse('2026-09-26T11:00Z');
     const fp2Start = Date.parse('2026-09-24T12:00Z');
 
-    const [race] = resolve(snap, airing('F1: Azerbaijan GP', raceStart, { league: 'F1' }));
+    const [race] = resolve(snap, refreshedAt, airing('F1: Azerbaijan GP', raceStart, { league: 'F1' }));
     assert.equal(race, 'event: a session (Race), ESPN: the session started Sat 11:00 am');
 
     // the practice session, aired a day later than its real time, is a replay - matched to
     // Practice 2 specifically, not the race
-    const [practiceReplay] = resolve(snap, airing('F1: Azerbaijan GP Practice 2', fp2Start + 26 * H, { league: 'F1' }));
+    const [practiceReplay] = resolve(snap, refreshedAt, airing('F1: Azerbaijan GP Practice 2', fp2Start + 26 * H, { league: 'F1' }));
     assert.equal(practiceReplay, 'replay: ESPN: the session started Thu 12:00 pm; this airing is 26 h later');
 
     // a differently-worded location ("Baku", the city, vs ESPN's "Qatar Airways Azerbaijan") -
     // shares "azerbaijan" if named, but a session named only by city with none of ESPN's words
     // in common simply is not matched (falls through) - proven by the qualifying/race split below
-    const [qual] = resolve(snap, airing('Formula 1: Azerbaijan Grand Prix - Qualifying', Date.parse('2026-09-25T12:00Z'), { league: 'F1' }));
+    const [qual] = resolve(snap, refreshedAt, airing('Formula 1: Azerbaijan Grand Prix - Qualifying', Date.parse('2026-09-25T12:00Z'), { league: 'F1' }));
     assert.equal(qual, 'event: a session (Qualifying), ESPN: the session started Fri 12:00 pm');
 });
 
 test('a multi-day cricket Test: day 3 of a still-running match is live, not a replay', async () => {
+    const refreshedAt = Date.parse('2026-09-27T12:00Z');
     await withEspn({
         scorepanel: readFx('cricket-scorepanel'),
         'cricket/24377/scoreboard': readFx('cricket-24377-20260927'),
         'cricket/22547/scoreboard': { events: [] }, 'cricket/18479/scoreboard': { events: [] }, 'cricket/8656/scoreboard': { events: [] }
-    }, () => fixtures.refreshCricket({ now: Date.parse('2026-09-27T12:00Z') }));
+    }, () => fixtures.refreshCricket({ now: refreshedAt }));
     const snap = fixtures.snapshot(new Set(['Cricket']));
     // the match: India U19 v Australia U19, 2026-09-27T04:00Z to 2026-10-01T23:59Z
     const day1 = Date.parse('2026-09-27T04:00Z');
     const day3 = Date.parse('2026-09-29T04:00Z');
-    const afterEnd = Date.parse('2026-10-02T04:00Z');
 
-    const [live1] = resolve(snap, airing('India U19 v Australia U19', day1, { league: 'Cricket', hours: 6 }));
+    const [live1] = resolve(snap, refreshedAt, airing('India U19 v Australia U19', day1, { league: 'Cricket', hours: 6 }));
     assert.match(live1, /^event: a match-up, ESPN: the game started/);
 
-    const [live3] = resolve(snap, airing('India U19 v Australia U19', day3, { league: 'Cricket', hours: 6 }));
+    const [live3] = resolve(snap, refreshedAt, airing('India U19 v Australia U19', day3, { league: 'Cricket', hours: 6 }));
     assert.match(live3, /^event: a match-up, ESPN: the game started/, 'day 3 of a live Test is still live');
 
-    const [after] = resolve(snap, airing('India U19 v Australia U19', afterEnd, { league: 'Cricket', hours: 3 }));
+    // a later refresh (as if a day had passed) covers a window reaching past the match's real end,
+    // so an airing well after it can be told a replay - matched-branch logic, no recency needed
+    const laterRefresh = Date.parse('2026-09-30T12:00Z');
+    await withEspn({
+        scorepanel: readFx('cricket-scorepanel'),
+        'cricket/24377/scoreboard': readFx('cricket-24377-20260927'),
+        'cricket/22547/scoreboard': { events: [] }, 'cricket/18479/scoreboard': { events: [] }, 'cricket/8656/scoreboard': { events: [] }
+    }, () => fixtures.refreshCricket({ now: laterRefresh }));
+    const laterSnap = fixtures.snapshot(new Set(['Cricket']));
+    const afterEnd = Date.parse('2026-10-02T02:00Z'); // just over 2 h after the match's real end
+    const [after] = resolve(laterSnap, laterRefresh, airing('India U19 v Australia U19', afterEnd, { league: 'Cricket', hours: 3 }));
     assert.match(after, /^replay: ESPN: the game started/, 'once the Test has finished, a later airing is a replay');
 });
 
 // ---- performance: the fixture rule must not add noticeable time to the sport build -----------
 
 test('performance: matching against a full league of fixtures does not slow resolveLive down', async () => {
+    const refreshedAt = Date.parse('2026-09-27T12:00Z');
     await withEspn({ 'football/nfl/scoreboard': readFx('nfl-20260927'), 'football/nfl/teams': readFx('teams-nfl') }, () =>
-        fixtures.refreshLeague('NFL', { now: Date.parse('2026-09-27T12:00Z') }));
+        fixtures.refreshLeague('NFL', { now: refreshedAt }));
     const snap = fixtures.snapshot(new Set(['NFL']));
     const teamNames = ['Bills', 'Chargers', 'Panthers', 'Browns', 'Jets', 'Lions', 'Texans', 'Colts', 'Cowboys', 'Cardinals'];
     const list = [];
@@ -353,7 +402,7 @@ test('performance: matching against a full league of fixtures does not slow reso
     const withoutMs = performance.now() - withoutFixtures;
 
     const t0 = performance.now();
-    classify.resolveLive(list, snap);
+    classify.resolveLive(list, snap, refreshedAt);
     const withMs = performance.now() - t0;
     console.log(`# resolveLive, 2000 NFL airings against a ${snap.get('NFL').fixtures.length}-fixture/${snap.get('NFL').teamsAliases.length}-team league: without ESPN ${withoutMs.toFixed(1)} ms, with ${withMs.toFixed(1)} ms`);
     assert.ok(withMs < 200, `resolveLive with fixtures took ${withMs} ms`);

@@ -1887,7 +1887,7 @@ check server/services/epgParser.js "const PROGRAMME_FLAGS = { 'previously-shown'
 check server/services/syncService.js "p.flags || null" "the sync stores them"
 check server/db/sqlite.js "ALTER TABLE epg_programs ADD COLUMN flags INTEGER" "epg_programs has a flags column"
 check server/db/sqlite.js "p.categories, p.flags" "epg_live exposes it (an older view is made again)"
-check server/services/sportsClassify.js "function resolveLive(airings, fixturesByLeague)" "live or replay across a game's airings"
+check server/services/sportsClassify.js "function resolveLive(airings, fixturesByLeague, now" "live or replay across a game's airings"
 check server/services/sportsClassify.js "MLB: US_EVENING," "a per-league table of live hours"
 check server/services/sportsEvents.js "all(...chunk, from - LOOKBACK_MS, to)" "a build reads the 36 h before now"
 check server/services/sportsEvents.js "sportsClassify.resolveLive(airings, fixturesByLeague);" "and decides live or replay before merging"
@@ -1967,7 +1967,7 @@ check server/services/sportsEvents.js "rebuild in the background rather than lea
 check server/index.js "require('./services/sportsEvents').startBackgroundRebuilds();" "started at server startup"
 check test/sports-background-rebuild.test.js "served the previous result, not a blocking rebuild" "with a test"
 
-echo "=== 0161-0163: cricket league recognition, ESPN fixtures, the ESPN live/replay rule (C-I) ==="
+echo "=== 0161: cricket league recognition, ESPN fixtures, the ESPN live/replay rule (C-I) ==="
 check server/services/sportsClassify.js "\['IPL', \['ipl', 'indian premier league'\]\]" "IPL is its own league"
 check server/services/sportsClassify.js "\['Cricket', \['test cricket'" "international cricket (Test/ODI/T20I) has a catch-all league"
 check server/services/sportsFixturesEspn.js "const BASE = 'https://site.api.espn.com/apis/site/v2/sports';" "the ESPN provider, fetch only"
@@ -1978,12 +1978,23 @@ check server/services/sportsFixtures.js "const REFRESH_EVERY_MS" "refreshed ever
 check server/services/syncService.js "require('./sportsFixtures').scheduleRefresh();" "and after an EPG sync"
 check server/index.js "require('./services/sportsFixtures').startBackgroundRefresh();" "started at server startup"
 check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS sport_fixtures (" "fixtures survive a restart (SQLite, not just memory)"
-check server/services/sportsClassify.js "function fixtureVerdict(a, leagueData)" "the ESPN rule: matched, or both teams known but no such game"
+check server/services/sportsClassify.js "function fixtureVerdict(a, leagueData, now" "the ESPN rule: matched, or both teams known but no such game"
 check server/services/sportsClassify.js "if (fixturesByLeague) {" "checked first in resolveLive, ahead of the guide's own flags"
 check server/routes/status.js "sportFixtures: sportsFixtures.statusSummary()," "the Status document carries fixture coverage per league"
 check public/js/pages/StatusPage.js "renderSportFixtures(fx)" "and the web Status page shows it"
 check test/fixtures/espn/nfl-20260927.json "Buffalo Bills" "real recorded ESPN responses, not fabricated"
 check test/sports-fixtures.test.js "ESPN: the game started" "with a test"
+
+echo "=== 0162: stale/out-of-window ESPN data must never manufacture a replay (C-I) ==="
+check server/db/sqlite.js "covered_from INTEGER" "the last successful fetch's own covered window is stored"
+check server/services/sportsFixtures.js "covered_from: now - LOOKBACK_MS, covered_to: now + WINDOW_MS" "a success records exactly the window it fetched"
+check server/services/sportsFixtures.js "coverage: { from: status.covered_from, to: status.covered_to, at: status.last_success_at }" "the snapshot carries coverage, not just fixtures"
+check_absent server/services/sportsFixtures.js "function mergeFixtures(" "cricket is a full replace too, so a postponed game does not linger"
+check server/services/sportsClassify.js "const NO_GAME_MAX_AGE_MS" "\"no such game\" is only trusted while the fetch is recent"
+check server/services/sportsClassify.js "const NO_GAME_HALF_WINDOW_MS" "...and only when the window reaches well past the airing on both sides"
+check server/services/sportsClassify.js "if (!leagueData || !leagueData.coverage) return null;" "no coverage at all -> straight through to the heuristics"
+check server/services/sportsClassify.js "a.start < from || a.start > to) return null;" "outside the covered window -> straight through, matched or not"
+check test/sports-fixtures.test.js "must never manufacture a replay for a real, unlisted game" "with a test"
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
