@@ -93,6 +93,30 @@ test('validateRecordingsPathSetting: refused when neither the path nor its paren
     assert.match(result.reason, /does not exist, and neither does its parent/);
 });
 
+// 0160: a disconnected share's mount point exists but sits on a tiny tmpfs
+// (Unraid's /mnt/remotes is 1 MB). A real one can't be made in a test, so the
+// filesystem size is stubbed for the paths under `tinyRoot` only.
+const tinyRoot = path.join(scratch, 'remotes');
+fs.mkdirSync(path.join(tinyRoot, 'SERVER01_Video'), { recursive: true });
+function withTinyFilesystem(fn) {
+    const real = fs.statfsSync;
+    fs.statfsSync = (dir, ...rest) => (String(dir).startsWith(tinyRoot)
+        ? { ...real(scratch), blocks: 256, bsize: 4096, bavail: 256 }
+        : real(dir, ...rest));
+    return Promise.resolve().then(fn).finally(() => { fs.statfsSync = real; });
+}
+
+test('validateRecordingsPathSetting: refused on a tiny filesystem, existing or not yet created (0160)', () => withTinyFilesystem(() => {
+    const existing = validateRecordingsPathSetting(path.join(tinyRoot, 'SERVER01_Video'));
+    assert.equal(existing.ok, false);
+    assert.match(existing.reason, /isn't on a real volume/);
+
+    const notYet = validateRecordingsPathSetting(path.join(tinyRoot, 'SERVER01_Video', 'Recordings'));
+    assert.equal(notYet.ok, false);
+    assert.match(notYet.reason, /its parent isn't on a real volume/);
+    assert.ok(!fs.existsSync(path.join(tinyRoot, 'SERVER01_Video', 'Recordings')));
+}));
+
 // ---- getRecordingsRoot / recordingEngine integration -----------------------
 
 test('getRecordingsRoot only creates the final segment, never a whole missing tree (0157)', async () => {
@@ -111,6 +135,22 @@ test('getRecordingsRoot only creates the final segment, never a whole missing tr
     assert.equal(root, path.join(parentPresent, 'recordings'));
     assert.ok(fs.existsSync(root), 'the final folder is still created when its parent exists');
 });
+
+test('getRecordingsRoot never creates the folder inside a disconnected share, and a minimum of 0 still refuses it (0160)', () => withTinyFilesystem(async () => {
+    const engine = load('services/recordingEngine');
+    const db = load('db');
+    const target = path.join(tinyRoot, 'SERVER01_Video', 'Recordings');
+    await db.settings.update({ recordingsPath: target });
+    await assert.rejects(() => engine.getRecordingsRoot(), /isn't reachable/);
+    assert.ok(!fs.existsSync(target), 'nothing was created on the tiny filesystem');
+
+    // The folder exists on the tiny filesystem: checkRecordingsFolder still says
+    // so with no free-space minimum at all.
+    fs.mkdirSync(target);
+    const check = checkRecordingsFolder(target, 0);
+    assert.equal(check.problem, 'tiny');
+    fs.rmdirSync(target);
+}));
 
 test('the recordings-folder health check logs a warning only when the state changes, and once on recovery', async () => {
     const engine = load('services/recordingEngine');

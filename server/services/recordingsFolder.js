@@ -82,6 +82,21 @@ function checkRecordingsFolder(dir, minFreeGB = 10) {
     return { ok: true, problem: null, freeBytes, totalBytes };
 }
 
+/**
+ * True when `dir`'s filesystem is under 1 GB in total: an unmounted share's mount
+ * point (Unraid keeps /mnt/remotes on a 1 MB tmpfs), not a real recordings volume.
+ * False when it can't be told (no statfs), so an unknown never blocks recording.
+ */
+function onTinyFilesystem(dir) {
+    try {
+        if (typeof fs.statfsSync !== 'function') return false;
+        const st = fs.statfsSync(dir);
+        return st.blocks * st.bsize < TINY_FS_BYTES;
+    } catch (e) {
+        return false;
+    }
+}
+
 /** "1.0 MB" / "9.5 GB" / "an unknown amount", for a plain-language reason. */
 function formatBytes(bytes) {
     if (bytes === null || bytes === undefined || !Number.isFinite(bytes)) return 'an unknown amount';
@@ -132,13 +147,20 @@ function validateRecordingsPathSetting(dir) {
         } catch (e) {
             return { ok: false, reason: `The recordings folder is not writable: ${dir}` };
         }
+        if (onTinyFilesystem(dir)) {
+            return { ok: false, reason: `The recordings folder isn't on a real volume (under 1 GB in total): ${dir}. Is the network share connected?` };
+        }
         return { ok: true };
     }
     const parent = path.dirname(dir);
     if (!fs.existsSync(parent)) {
         return { ok: false, reason: `The recordings folder does not exist, and neither does its parent (${parent}). Is the share mounted?` };
     }
+    // The folder would be created inside a disconnected share's empty mount point.
+    if (onTinyFilesystem(parent)) {
+        return { ok: false, reason: `The recordings folder does not exist, and its parent isn't on a real volume (under 1 GB in total): ${parent}. Is the network share connected?` };
+    }
     return { ok: true };
 }
 
-module.exports = { checkRecordingsFolder, refusalMessage, formatBytes, validateRecordingsPathSetting, TINY_FS_BYTES, GB, MB };
+module.exports = { checkRecordingsFolder, refusalMessage, formatBytes, validateRecordingsPathSetting, onTinyFilesystem, TINY_FS_BYTES, GB, MB };

@@ -20,7 +20,7 @@ const { formatLocalStamp } = require('./recordingNames');
 const { redact } = require('../redact');
 const tunerModel = require('./tuner');
 const { HlsRecorder, closeOrphanPlaylist } = require('./hlsRecorder');
-const { checkRecordingsFolder, refusalMessage } = require('./recordingsFolder');
+const { checkRecordingsFolder, refusalMessage, onTinyFilesystem } = require('./recordingsFolder');
 
 const TICK_INTERVAL_MS = 15 * 1000;
 const STDERR_TAIL_LINES = 40;
@@ -63,6 +63,11 @@ async function getRecordingsRoot() {
         const parent = path.dirname(root);
         if (!fs.existsSync(parent)) {
             throw new Error(`The recordings folder's parent does not exist: ${parent}. Is the share mounted?`);
+        }
+        // 0160: nor inside a disconnected share's empty mount point, which exists
+        // but sits on a tiny tmpfs (Unraid's /mnt/remotes).
+        if (onTinyFilesystem(parent)) {
+            throw new Error(`The recordings folder isn't reachable: ${root} does not exist and ${parent} is not on a real volume. Is the network share connected?`);
         }
         fs.mkdirSync(root);
     }
@@ -917,14 +922,14 @@ async function startRecording(schedule, knownUrl = null) {
     // stream copies of live TV with no size bound, so starting one on a
     // nearly full (or not really mounted) volume is a good way to take the
     // whole share down with it.
-    if (minFreeGB > 0) {
-        const check = checkRecordingsFolder(root, minFreeGB);
-        if (!check.ok) {
-            const msg = refusalMessage(check, root, minFreeGB);
-            console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${msg}`);
-            setScheduleStatus(schedule.id, 'failed', { error: msg });
-            return;
-        }
+    // 0160: always checked; a minimum of 0 only switches off the low-space part
+    // (checkRecordingsFolder ignores free space then), never the unmounted-share one.
+    const check = checkRecordingsFolder(root, minFreeGB);
+    if (!check.ok) {
+        const msg = refusalMessage(check, root, minFreeGB);
+        console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${msg}`);
+        setScheduleStatus(schedule.id, 'failed', { error: msg });
+        return;
     }
 
     const channelDir = path.join(root, sanitizeForFs(schedule.channel_name || 'Unknown Channel'));
@@ -1219,14 +1224,14 @@ async function startTunedRecording(schedule, knownUrl) {
         setScheduleStatus(schedule.id, 'failed', { error: err.message });
         return;
     }
-    if (minFreeGB > 0) {
-        const check = checkRecordingsFolder(root, minFreeGB);
-        if (!check.ok) {
-            const msg = refusalMessage(check, root, minFreeGB);
-            console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${msg}`);
-            setScheduleStatus(schedule.id, 'failed', { error: msg });
-            return;
-        }
+    // 0160: always checked; a minimum of 0 only switches off the low-space part
+    // (checkRecordingsFolder ignores free space then), never the unmounted-share one.
+    const check = checkRecordingsFolder(root, minFreeGB);
+    if (!check.ok) {
+        const msg = refusalMessage(check, root, minFreeGB);
+        console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${msg}`);
+        setScheduleStatus(schedule.id, 'failed', { error: msg });
+        return;
     }
 
     const channelDir = path.join(root, sanitizeForFs(schedule.channel_name || 'Unknown Channel'));

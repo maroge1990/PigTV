@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 28 September 2026 · server build **0159** (0156-0159 committed locally, not pushed) · Apple client build **32**
+**Last updated:** 28 September 2026 · server build **0160** (pushed) · Apple client build **32**
 (`../PigTV-Swift/blueprint.md`)
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
@@ -39,9 +39,9 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Development is on Mark's MacBook only (from 23 Sept). |
 | CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
-| Shipped through | **0154** (pushed to `origin/main`, 26 Sept); **0155–0159** committed locally, not pushed (a bug-fix run: schedule observability, the recordings-folder health check, the recording prompt timeout, sport events off the request path - see §8). Mark tested rounds 1–4 on **0151** + app **31**; 0152–0159 and app 32 are awaiting his check (§6). Whether a build is *running* is whatever `/api/version` says. |
-| Next build number | **0160** |
-| Tests | `npm test`: **630 tests, all pass** (28 Sept, after 0159; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
+| Shipped through | **0160** (pushed to `origin/main`, 28 Sept; 0156–0160 are a bug-fix run: schedule observability, the recordings-folder health check, the recording prompt timeout, sport events off the request path - see §8). Mark tested rounds 1–4 on **0151** + app **31**; 0152–0160 and app 32 are awaiting his check (§6). Whether a build is *running* is whatever `/api/version` says. |
+| Next build number | **0161** |
+| Tests | `npm test`: **632 tests, all pass** (28 Sept, after 0160; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -438,7 +438,7 @@ the channel up again`, `finished (…) N segments, Ns, … (N linked, N copied)`
   ordinary reclaim: a 404, its one-time re-resolve, then the existing `recording-in-progress` 409).
 
 **Dev environment (macOS, from 23 Sept).**
-- Node 24 from Homebrew (`/opt/homebrew/opt/node@24/bin`; see §2). `npm test`: 630 tests (28 Sept, after 0159), all pass locally with
+- Node 24 from Homebrew (`/opt/homebrew/opt/node@24/bin`; see §2). `npm test`: 632 tests (28 Sept, after 0160), all pass locally with
   Homebrew ffmpeg 9.0 installed (tests that need ffmpeg skip without one).
 - `bash scripts/verify-build.sh .` uses the system `python3`.
 - The tree is LF. There is no local Docker; the image is only built by CI.
@@ -671,7 +671,8 @@ lines (the classifier has seen one uneven feed in five) · the 20 s stall timeou
 | 0156 | Schedule observability: every status change of a scheduled recording writes one log line (centralised, including the `missed` paths that used to be silent); `GET /api/recordings/scheduled?include=recent` also lists missed/failed schedules from the last 7 days (flag `scheduleHistory`); shown on the web Recordings page ("Recent problems") and the Status page |
 | 0157 | The recordings folder is checked for real: `checkRecordingsFolder()` catches missing, not writable, and a filesystem too small to be real (an unmounted network share or a stale Docker bind reads back this way, not as "missing") as well as low free space; checked at startup and every 15 minutes, shown on the Status page; `getRecordingsRoot()` no longer creates a folder tree inside an unmounted mount point; Settings → Recording → Storage refuses an unusable `recordingsPath` with a plain error instead of saving it silently |
 | 0158 | A due recording that finds a live viewer on the provider's only stream still asks once, but now takes the stream if nobody answers within `recordingPromptTimeoutMin` minutes (new setting, default 3) of becoming due - not from the earlier lead-time notice. An explicit "Keep watching" still waits, however long. Same behaviour on the tuner path |
-| 0159 | Sport events are built off the request path: a stale cache is now served the previous result while the rebuild runs on `setImmediate` (never inline in a request), triggered after an EPG sync, on a follow-list change, and by a timer aligned to the 5-minute bucket - the ~0.3–1.1 s synchronous build no longer risks stalling live HLS segment serving |
+| 0159 | Sport events are built off the request path: a stale cache is now served the previous result while the rebuild runs on `setImmediate` (never inline in a request), triggered after an EPG sync, on a follow-list change, and by a timer aligned to the 5-minute bucket. The build itself is still synchronous (~0.3–1.1 s on the one event loop, now at most once per 5 min and never while a request waits); a worker thread is the follow-up if stalls are ever traced to it |
+| 0160 | The recordings folder is never created inside a disconnected share's mount point (a parent on a filesystem under 1 GB, Unraid's 1 MB `/mnt/remotes` tmpfs), Settings refuses such a path, and the unmounted-share check runs even with a free-space minimum of 0 |
 
 ---
 
