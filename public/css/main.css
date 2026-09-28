@@ -1339,32 +1339,6 @@ video::cue {
   gap: var(--space-xs);
 }
 
-/* Hidden Items */
-.hidden-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.hidden-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-md);
-  background: var(--color-bg-secondary);
-  border-radius: var(--radius-md);
-}
-
-.hidden-item-info {
-  flex: 1;
-}
-
-.hidden-item-type {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-}
-
 /* Settings Sections */
 .settings-section {
   margin-bottom: var(--space-xl);
