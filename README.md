@@ -60,6 +60,10 @@ sync each one with its refresh button (⟳, "Refresh Data"; the docs call it **S
 - `JWT_SECRET` is optional. Without it the server creates a random key once and keeps it in `data/auth-secret`; if you set
   it, it must be at least 32 characters.
 - Map `/app/recordings` to a real host path, or recordings live inside the container and vanish on the next update.
+- If recordings go to a network share (Unraid Unassigned Devices), map the parent `/mnt/remotes` with Access Mode
+  **Read/Write - Slave** and set Settings → Recording → recordings folder to the full path inside it (for example
+  `/app/recordings/SERVER01_Video/Recordings`). A plain bind of the share's own folder goes stale when the share mounts late
+  or reconnects. The Status page warns when the recordings folder isn't reachable.
 - Give the container 15 s or more to stop, so recordings close cleanly.
 - Every `PIGTV_*` environment variable, with its default, is in [`blueprint.md`](blueprint.md) §9.
 

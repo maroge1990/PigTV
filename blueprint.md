@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 29 September 2026 · server build **0167** (pushed) · Apple client build **34**
+**Last updated:** 29 September 2026 · server build **0167** (pushed) · Apple client build **35** (pushed) · **handover state**
 (`../PigTV-Swift/blueprint.md`)
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
@@ -38,10 +38,10 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Sources, Player, Transcoding, Manage Content, Channel numbers, EPG matching, Sports, Recording, UI, Devices, Debug, Users). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Development is on Mark's MacBook only (from 23 Sept). |
 | CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
-| Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
-| Shipped through | **0167** (pushed to `origin/main`, 29 Sept; 0167: Settings refuses a relative recordings path, R6.3). 0156–0160: a bug-fix run (schedule observability, the recordings-folder health check, the recording prompt timeout, sport events off the request path); 0161–0162: ESPN fixtures for live/replay (C-I), only trusted inside the last successful fetch's window; 0163–0166: dead-code cleanup (W10) - see §8. Mark tested rounds 1–4 on **0151** + app **31**; 0152–0167 and apps 32–34 are awaiting his check (docs/TEST-BLOCK.md round 6). Whether a build is *running* is whatever `/api/version` says. |
+| Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings (fixed 28 Sept):** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (so an SMB share that mounts late or reconnects appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs (schedule #3 failed with "0.0 GB free"). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
+| Shipped through | **0167** (pushed to `origin/main`, 29 Sept) and app **35**. Rounds 1–4 passed on 0151 + app 31; round 5 (0152–0154 + app 32) passed on 28 Sept apart from the five bugs that started the 28–29 Sept fix run (§6 "Fix run"); round 6 (0166 + app 34, `docs/TEST-BLOCK.md`) passed apart from R6.3 (fixed in 0167) and R6.14 (fixed in app 35), with R6.4–R6.6 and R6.16 still to run. Whether a build is *running* is whatever `/api/version` says. |
 | Next build number | **0168** |
-| Tests | `npm test`: **653 tests, all pass** (29 Sept, after 0162; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
+| Tests | `npm test`: **654 tests, all pass** (29 Sept, after 0167; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -461,7 +461,7 @@ the channel up again`, `finished (…) N segments, Ns, … (N linked, N copied)`
   ordinary reclaim: a 404, its one-time re-resolve, then the existing `recording-in-progress` 409).
 
 **Dev environment (macOS, from 23 Sept).**
-- Node 24 from Homebrew (`/opt/homebrew/opt/node@24/bin`; see §2). `npm test`: 632 tests (28 Sept, after 0160), all pass locally with
+- Node 24 from Homebrew (`/opt/homebrew/opt/node@24/bin`; see §2). `npm test`: 654 tests (29 Sept, after 0167), all pass locally with
   Homebrew ffmpeg 9.0 installed (tests that need ffmpeg skip without one).
 - `bash scripts/verify-build.sh .` uses the system `python3`.
 - The tree is LF. There is no local Docker; the image is only built by CI.
@@ -500,8 +500,8 @@ exactly:
 **How it was tested (24–26 Sept).** Mark waived the per-phase gates (24 Sept): everything was built, then tested in four
 rounds (`docs/TEST-BLOCK.md`: round 1 = server 0138 + app 22; round 2 = 0146 + 28; round 3 = 0149 + 30; round 4 = 0151 + 31).
 **Rounds 1–4 passed on the TV and the web**, apart from the deferred items listed in §10 and at the top of TEST-BLOCK.md.
-Built since round 4 and **awaiting Mark's check**: server **0152** (sport live vs replay), **0153** + app **32** (72 h sport
-horizon), **0154** + app **32** (full-size logos → rendered Top Shelf cards), and app **32**'s tab-switch flash fix.
+Round 5 (0152–0154 + app 32): Mark tested everything except the tuner on 28 Sept and reported five bugs, which became the
+fix run below; everything else in it passed. Round 6 (0166 + app 34) covered the fix run.
 
 ### Phase 0: clean-up and correctness
 
@@ -557,7 +557,7 @@ cold 8.2 s (n=14), warm 4.8 s (n=2). After round 2 the report's client wait was 
 
 | ID | Item | Status |
 |---|---|---|
-| A4.1 | Top Shelf: favourites on now with a deep link to play | **Verified** on the TV in round 4 (R4.4, app 31). App **32** replaces the stretched logos with rendered 16:9 cards using 0154's full-size logos: **shipped, awaiting a check** |
+| A4.1 | Top Shelf: favourites on now with a deep link to play | **Verified** on the TV in round 4 (R4.4, app 31). App **32**'s rendered 16:9 cards from 0154's full-size logos: **Verified** (round 5, 28 Sept) |
 | A4.2 | Stream info overlay (Labs) and the same numbers in `play-end` | **Verified** (app 22; 2.8) |
 | A4.3 | One player on the TV: recordings in the custom player | **Verified** (app 21; 1.15, 1.17). Skip break / Auto-skip on a recording with breaks: **Deferred** (1.16, no suitable recording yet) |
 | A4.4 | iPhone On now list; iPad/iPhone player and guide; custom touch controls instead of AVKit's (app 31) | Shipped (apps 22, 29, 31), **awaiting a check**: R4.7 (Mark: "testing tomorrow") |
@@ -576,20 +576,45 @@ cold 8.2 s (n=14), warm 4.8 s (n=2). After round 2 the report's client wait was 
 | S5.3 | Web Settings → Sports: follow list and preview | **Verified** (0149; R3.2) |
 | S5.4 | Kinds (event / replay / show / placeholder), league aliases, merging by meaning | **Verified** (0150; R4.1, R4.2) |
 | S5.5 | Web preview grouped by kind | **Verified** (0151; R4.1) |
-| S5.6 | Live or replay from XMLTV flags, the first airing within 36 h and per-league live hours | **Shipped, awaiting a check** (0152; needs a Sync now after deploy for the flags) |
-| S5.7 | Sport horizon 72 h (`hours` up to 72) | **Shipped, awaiting a check** (0153 + app 32) |
-| S5.8 | ESPN fixtures as a first rule ahead of the heuristics (NFL, AFL, NBA, F1, MLB, IPL/BBL, international cricket via the scorepanel); coverage-gated so stale/out-of-window data never decides (0162); Status page "Sport fixtures" panel; `PIGTV_SPORT_FIXTURES` | **Shipped, awaiting a check** (0161–0162; needs live ESPN data and a real misfire to judge by - see the live-test steps in the hand-off) |
+| S5.6 | Live or replay from XMLTV flags, the first airing within 36 h and per-league live hours | **Verified** as the fallback (round 5); replays still leaked into On now, which S5.8 fixes |
+| S5.7 | Sport horizon 72 h (`hours` up to 72) | **Verified** (0153 + app 32; round 5) |
+| S5.8 | ESPN fixtures as a first rule ahead of the heuristics (NFL, AFL, NBA, F1, MLB, IPL/BBL, international cricket via the scorepanel); coverage-gated so stale/out-of-window data never decides (0162); Status page "Sport fixtures" panel; `PIGTV_SPORT_FIXTURES` | **Verified** (0161–0162; R6.7, R6.8; AFLW on the heuristics, R6.9) |
 | A5.1 | Apple Sport tab, Home "Sport now & next", Replays section | **Verified** (app 30–31; R3.3–R3.7, R4.2, R4.3). Empty state (R3.8): **Deferred** (needs a quiet sport day) |
-| A5.2 | Sport tab over 72 h: Tomorrow and weekday sections | **Shipped, awaiting a check** (app 32) |
-| A5.3 | Apple tab switching: no reloads (app 31); no white flash between tabs (app 32) | Reloads: **Verified** (R4.6). Flash fix: **shipped, awaiting a check** |
+| A5.2 | Sport tab over 72 h: Tomorrow and weekday sections | **Verified** (app 32; round 5) |
+| A5.3 | Apple tab switching: no reloads (app 31); no white flash between tabs (app 32) | Reloads: **Verified** (R4.6). Flash fix: **Verified** (round 5) |
+
+### Fix run (28–29 Sept: Mark's round 5 bugs, then a review of both repos)
+
+Planned as work packages W1–W11 (sized for Sonnet 5 / Haiku 4.5 agents; the lead reviewed every diff before pushing).
+
+| ID | Item | Status |
+|---|---|---|
+| W1 | Sport: an upcoming event's channels offer Record on / Watch when it starts, not an immediate tune (app 33) | **Verified** (R6.10–R6.12) |
+| W2 | Every schedule status change logged; missed/failed schedules kept 7 days (`?include=recent`, `scheduleHistory`); web Recent problems; Status list (0156) | **Verified** (R6.2). The overnight log check R6.4: **to run** |
+| W2b | Recordings folder health check, no folder created on an unmounted share, Settings refuses an unusable path (0157, 0160, 0167) | **Verified** R6.1. R6.3 failed on 0166 (a relative path saved) → fixed in **0167**, re-check pending |
+| W3 | Apple Recordings: Recent problems section (app 34) | **Verified** (R6.2) |
+| W4 | An unanswered recording prompt hands the stream to the recording after `recordingPromptTimeoutMin` (default 3) (0158) | **Shipped, awaiting a check** (R6.5, R6.6) |
+| W5 | Guide extends forward in merged 24 h slices; failed pages retry; far jumps never blank (app 33) | **Verified** (R6.13, R6.15) |
+| W5b | Jump to… and Search are full-screen pages on tvOS (app 35; R6.14 failed on app 34) | **Shipped** (Mark, 29 Sept: "looking good") |
+| W6 | Some pages need Back before anything can be selected (tvOS focus) | **Parked** until Mark names a screen (likely stacked full-screen covers; Apple blueprint §8) |
+| W7 | ESPN fixtures for live/replay (0161–0162) | **Verified** (S5.8 above) |
+| W8 | Sport events built in the background, not on a request (0159) | **Done** (the build itself still runs on the event loop, at most once per 5 min; §10) |
+| W9 | Apple sport refresh: off-main decode, no republish when unchanged, cached sections (app 34) | **Done** |
+| W10 | Dead code: `xml2js`, `nodecast.patch`, number-ordering branches, Movies/Series player/settings leftovers, dead CSS (0163–0166) | **Shipped, awaiting a check** (R6.16) |
+| W11 | Branding "Spotlight": layered tvOS icon, iOS icons, Top Shelf, launch screen, animated splash; the pig logo unchanged, optically centred (app 35) | **Shipped** (Mark, 29 Sept: "looking good"). The wordmark uses the system rounded font (Fredoka was not downloaded) |
 
 ### Next
 
-1. Mark's checks of the "awaiting" items above (0152–0154, app 32, R4.7, R4.8).
-2. The tuner test (TEST-BLOCK Part 3) when Mark is ready: pause/rewind, start over, instant recordings; include a TV tuning to
+1. **Before anything else on the server:** Settings → Recording → set the recordings folder back to
+   `/app/recordings/SERVER01_Video/Recordings` (R6.3 left `fake` saved; 0167 now refuses such a path but doesn't fix a saved one).
+2. The rest of round 6: R6.4 (an overnight recording from the Apple TV), R6.5–R6.6 (the prompt timeout), R6.16 (the web
+   pages after the cleanup).
+3. **Mark's minor bugs from build 35 / 0167** (noted by him on 29 Sept for the next build; not yet reported in detail).
+4. W6 (a screen that needs Back first) when Mark finds one.
+5. The tuner test (TEST-BLOCK Part 3) when Mark is ready: pause/rewind, start over, instant recordings; include a TV tuning to
    an HE-AAC channel (a 7 channel) that is being recorded: it should join (log `joined compatible tuner`), no 409 (0155).
-3. The deferred checks: 1.16 (a recording with breaks), R3.8 (sport empty state), R2.5/R3.11 (a file-based channel).
-4. Anything from §10 Mark wants fixed. **Kept on purpose:** the non-VAAPI encoders. **Not planned:** AV1, more users, reviving
+6. The deferred checks: 1.16 (a recording with breaks), R3.8 (sport empty state), R2.5/R3.11 (a file-based channel).
+7. Anything from §10 Mark wants fixed. **Kept on purpose:** the non-VAAPI encoders. **Not planned:** AV1, more users, reviving
    VOD, access from outside the VPN, AirPlay/PiP, a session keep-alive.
 
 **Watch the logs, no code yet:** the provider's ~38 s cut and 19 s resend (§3, §10) · 7 Flix Sydney's second 0109 failure
@@ -742,7 +767,7 @@ env var, and stays off (VPN-only).
 
 ---
 
-## 10. Known limitations and open issues (26 Sept)
+## 10. Known limitations and open issues (29 Sept)
 
 **Playback and the provider**
 - **The provider cuts the connection about 38 s into a play on some channels and resends ~19 s of old content** (§3). ffmpeg
@@ -783,6 +808,17 @@ env var, and stays off (VPN-only).
   A league whose fetches have been failing (or have never run) falls back to the heuristics automatically once its last good
   data is either too old (over 6 h, for the "no such game" answer) or does not reach the moment in question (0162) - so an
   ESPN outage degrades gracefully rather than mislabelling a real live game as a replay.
+
+**Recordings**
+- The recordings folder must be on a volume Docker sees live: see §1 Deployment (the `/mnt/remotes` RW/Slave mapping). The
+  server checks the folder at startup and every 15 min and warns on the Status page (0157), but it can't fix a Docker mapping.
+- An unanswered "stop playback?" prompt hands the stream to the recording after 3 minutes (0158); a viewer who chose
+  "Keep watching" still blocks the recording for the whole programme.
+
+**Sport build**
+- Since 0159 the sport event list is rebuilt in the background, but the build itself (~0.3–1.1 s on 1,000 channels) still runs
+  on the server's one event loop, at most once per 5 minutes. If playback stutter is ever traced to it, move it to a worker
+  thread.
 
 **Web**
 - An **in-progress HLS recording** (tuner on) can't be played in the browser: the web recordings page offers Play only on

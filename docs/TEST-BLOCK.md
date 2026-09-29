@@ -1,33 +1,42 @@
-# Test block: everything built on 23–26 September 2026
+# Test block: everything built on 23–29 September 2026
 
-## Status summary (26 September 2026)
+## Status summary (29 September 2026)
 
-Mark ran four rounds: **round 1** (server 0138 · app 22), **round 2** (0146 · 28), **round 3** (0149 · 30) and **round 4**
-(0151 · 31). The checkboxes below are the original lists and were not ticked one by one; this summary is the record.
+Mark ran six rounds: **1** (server 0138 · app 22), **2** (0146 · 28), **3** (0149 · 30), **4** (0151 · 31), **5** (0154 · 32,
+28 Sept) and **6** (0166 · 34, 29 Sept). The checkboxes below are the original lists and were not ticked one by one; this
+summary is the record.
 
-**Passed:** everything in rounds 1–4 on the **Apple TV and the web**, except the items below. That includes 1.13 (the HDR
-panel switch on the HDR TV) and the Top Shelf on the TV (R4.4).
+**Passed:** everything in rounds 1–4 on the **Apple TV and the web**, except the items below (including 1.13, the HDR panel
+switch, and R4.4, the Top Shelf). **Round 5:** Mark tested everything except the tuner; it passed apart from five bugs, which
+started the 28–29 Sept fix run (`blueprint.md` §6 "Fix run"): a future sport event's secondary channel tuned instead of
+offering to record; replays in the Sport tab's On now; an overnight recording that silently failed (a stale Docker mount of
+the recordings share, fixed on the Unraid side plus 0156–0160); pages that need Back before anything is selectable (W6,
+parked); the guide stopping about a day ahead. **Round 6:** passed except R6.3 (a relative recordings path saved; fixed in
+**0167**) and R6.14 (Jump to… cut off on tvOS; fixed in **app 35**). R6.7's "F1: 0 fixtures" was correct at the time (the next
+session was just past the 72 h window). Mark's verdict on app 35 and its branding (29 Sept): "looking good", with a few minor
+bugs saved for the next build.
 
-**Deferred, and why:**
+**Still to run:**
 
-| Item | Why |
+| Item | Why / when |
 |---|---|
+| R6.3 again | Re-check on 0167 after setting the recordings folder back to `/app/recordings/SERVER01_Video/Recordings` |
+| R6.4–R6.6 | An overnight recording from the Apple TV; the 3-minute prompt timeout and "Keep watching" (Mark: a later date) |
+| R6.16 | The web pages after the dead-code cleanup (0163–0166) |
 | 1.16 Skip break / Auto-skip on a recording with breaks | No recording with detected breaks to test on yet |
-| R2.12 Sport on now (C-H category row) | Superseded by the Sport tab and Home's "Sport now & next" (C-I, round 3) |
 | R3.8 Sport tab empty state | Needs a moment with no followed sport in the next hours |
 | R2.5 / R3.11 File-based channel starts quickly (0144) | The channel could not be identified again |
 | **Part 3** The tuner (`PIGTV_TUNER=1`) | Not yet tested. Mark wants to test it later: pause/rewind, start over and instant recordings (3.3–3.7). Read `blueprint.md` §10 (the HE-AAC recording caveat) first |
-| R4.7, R4.8 iPad/iPhone player controls and Siri (app 31) | Mark: testing tomorrow |
 | 4.2 Siri on Apple TV | Parked: tvOS Siri may not support third-party App Shortcuts |
+| W6 | Parked until Mark names a screen that needs Back before anything can be selected |
 
 **Decisions from the rounds:** the UIKit guide is the only guide (2.7); HE-AAC passthrough is always on (2.10); channel
 numbers are labels only, the provider's order kept (1.4); the tuner stays, off by default; sport is recognised per programme
-with a follow list; the app opens on Home; Swift 6 stays on (R2.15).
+with a follow list, checked against ESPN fixtures where ESPN covers the league (AFLW stays on the guide rules); an
+unanswered recording prompt hands over after 3 minutes; the app opens on Home; Swift 6 stays on (R2.15); branding
+direction A "Spotlight", the pig logo itself never changed.
 
-**Shipped after round 4, awaiting Mark's check** (round 5, below): server 0152 (sport live vs replay), 0153 + app 32 (72 h of
-sport), 0154 + app 32 (Top Shelf rendered cards from full-size logos), and app 32's tab-switch flash fix.
-
-## Round 6: the 28–29 Sept fix run (server 0166 · app 34)
+## Round 6: the 28–29 Sept fix run (server 0166 · app 34; R6.3 fixed in 0167, R6.14 in app 35)
 
 **Deploy first:** Unraid → Docker → PigTV → **Force Update**; `/api/version` should say **0166**. Then Settings → Sources →
 **Sync now** on the EPG source (the sport fixtures refresh after a sync). Install **app build 34** on the Apple TV. The
@@ -73,7 +82,7 @@ screen when you find it).
 **Branding (W11):** choose a direction on the concepts page (A Spotlight, B On Air, C Sunburst; mixing is fine). It is built
 after your choice.
 
-## Round 5: what to check next (server 0154 · app 32)
+## Round 5 (server 0154 · app 32): passed on 28 Sept apart from the five bugs in the summary
 
 Deploy the server (`/api/version` should say **0154**), then Settings → Sources → refresh the EPG source (**Sync now**, needed
 for 0152's guide flags), and install **app build 32**.
