@@ -39,7 +39,9 @@ function record(event) {
         resolveSec: num(event.resolveSec),
         watchedSec: num(event.watchedSec),
         stalls: num(event.stalls),
-        reason: clean(event.reason, 200)
+        reason: clean(event.reason, 200),
+        // 0174: the provider's name (never a URL); play-start/end inherit the owner's last resolve's.
+        provider: clean(event.provider, 60)
     });
     if (events.length > MAX_EVENTS) events.splice(0, events.length - MAX_EVENTS);
 }

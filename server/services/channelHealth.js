@@ -94,13 +94,14 @@ function countsFor(sourceId, key, now) {
 }
 
 /** Write an attempt, and bump library_rev if it changed the channel's health. */
-function writeAttempt(channel, { ok, reason = null, firstPictureSec = null, now = Date.now() }) {
+function writeAttempt(channel, { ok, reason = null, firstPictureSec = null, providerId = null, now = Date.now() }) {
     const db = getDb();
     const before = countsFor(channel.sourceId, channel.key, now);
     const info = db.prepare(`
-        INSERT INTO channel_health (source_id, channel_key, name, at, ok, first_picture_sec, reason)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(channel.sourceId, channel.key, channel.name || null, now, ok ? 1 : 0, firstPictureSec, ok ? null : reason);
+        INSERT INTO channel_health (source_id, channel_key, name, at, ok, first_picture_sec, reason, provider_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(channel.sourceId, channel.key, channel.name || null, now, ok ? 1 : 0, firstPictureSec, ok ? null : reason,
+        Number.isInteger(Number(providerId)) && providerId !== null ? Number(providerId) : null);
     afterChange(channel.sourceId, channel.key, before, now);
     return Number(info.lastInsertRowid);
 }
@@ -118,11 +119,13 @@ function afterChange(sourceId, key, before, now) {
  * the channel is not in the playlist (nothing to key it on). Never throws:
  * health is a diagnostic and must not be the reason a play fails.
  */
-function recordResolve({ sourceId, channelId, ok, reason, owner, now = Date.now() }) {
+function recordResolve({ sourceId, channelId, ok, reason, owner, providerId = null, now = Date.now() }) {
     try {
         const channel = channelFor(sourceId, channelId);
         if (!channel) return null;
-        const rowId = writeAttempt(channel, { ok, reason: ok ? null : reasonCategory(reason), now });
+        // 0174: always the primary channel's row; provider_id says which provider served
+        // (or last failed) it - a play that failed over to a backup is an ok start.
+        const rowId = writeAttempt(channel, { ok, reason: ok ? null : reasonCategory(reason), providerId, now });
         if (owner) {
             pending.delete(owner);
             if (ok) pending.set(owner, { rowId, at: now, started: false });

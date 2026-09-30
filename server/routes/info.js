@@ -109,7 +109,10 @@ async function sendInfo(req, res) {
             scheduleHistory: true,
             // 0168 (C-K): GET /api/providers/reminders lists providers whose subscription
             // ends within 7 days (or has ended).
-            providerReminders: true
+            providerReminders: true,
+            // 0174 (C-J): a channel resolve answers `provider: { id, name, role, via,
+            // failover }` - which provider it plays on, and whether it failed over.
+            providers: true
         },
 
         // What the server can produce, so a client knows what to ask for.

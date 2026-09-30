@@ -362,18 +362,21 @@ class TranscodeSession extends EventEmitter {
             // the software-decode retry above. Not for a 404 (the
             // channel is not there; asking again will not change that),
             // not after a playlist exists, and at most twice (0143).
+            // 0174: a failover candidate that is not the last gets one retry
+            // after 1 s (options.refusedRetryDelaysMs); otherwise the 0143 two.
             const refused = classifyInputFailure(this.stderrTail);
             const sinceSpawn = this.timings.spawned ? Date.now() - this.timings.spawned : Infinity;
             const refusedEarly = sinceSpawn < REFUSED_RETRY_WINDOW_MS;
             const retries = this._refusedRetries || 0;
-            if (!requested && refused && refused.retryable && refusedEarly && !this.timings.playlistReady && retries < REFUSED_RETRY_DELAYS_MS.length) {
-                const delay = REFUSED_RETRY_DELAYS_MS[retries];
+            const delays = Array.isArray(this.options.refusedRetryDelaysMs) ? this.options.refusedRetryDelaysMs : REFUSED_RETRY_DELAYS_MS;
+            if (!requested && refused && refused.retryable && refusedEarly && !this.timings.playlistReady && retries < delays.length) {
+                const delay = delays[retries];
                 this._refusedRetries = retries + 1;
                 // waitForPlaylist's deadline moves by the time this attempt
                 // used plus the wait, so the last attempt still gets the
                 // resolve's full 15 s (worst case +10.5 s in all).
                 this.retryAllowanceMs = (this.retryAllowanceMs || 0) + sinceSpawn + delay;
-                console.warn(`[TranscodeSession ${this.id}] Provider refused the connection; retry ${retries + 1} of ${REFUSED_RETRY_DELAYS_MS.length} in ${delay / 1000}s`);
+                console.warn(`[TranscodeSession ${this.id}] Provider refused the connection; retry ${retries + 1} of ${delays.length} in ${delay / 1000}s`);
                 this.process = null;
                 this.status = 'pending';
                 // The refusal is in the log already; what the retry says is what counts now.
@@ -393,7 +396,31 @@ class TranscodeSession extends EventEmitter {
             }
         }
         this.process = null;
+        // 0174: ffmpeg ended by itself after the session had played - the
+        // provider may have dropped the channel (see noteLost).
+        if (!requested && this.timings.playlistReady) this.noteLost('exit');
         this.emit('exit', code);
+    }
+
+    /**
+     * 0174 (multi-provider failover): a session that had produced its playlist
+     * ended without anyone asking - ffmpeg exited, or the stall watchdog released
+     * it. Emits 'lost' { how: 'exit' | 'stall', providerReason } once; the resolve
+     * route listens (providerRouting.watchSession) and quarantines the channel on
+     * that provider, so the player's own re-resolve lands on the next provider.
+     * A stall counts as a provider reason; an exit only when ffmpeg's last words
+     * say so (providerFailureIn). Observation only: nothing about how the session
+     * ends changes.
+     */
+    noteLost(how) {
+        if (this._lostNoted) return;
+        this._lostNoted = true;
+        const providerReason = how === 'stall' || !!providerFailureIn(this.stderrTail);
+        try {
+            this.emit('lost', { how, providerReason });
+        } catch (err) {
+            console.warn(`[TranscodeSession ${this.id}] A lost-session listener failed:`, err.message);
+        }
     }
 
     /**
@@ -1126,6 +1153,7 @@ class TranscodeSession extends EventEmitter {
         // coordinator stops counting it straight away rather than after
         // stop()'s SIGTERM/SIGKILL grace period. cleanup() is idempotent.
         sessions.delete(this.id);
+        if (this.timings.playlistReady) this.noteLost('stall');
         try {
             await this.cleanup();
         } catch (err) {
@@ -1178,12 +1206,14 @@ class TranscodeSession extends EventEmitter {
     /**
      * Wait for playlist to be ready (with timeout)
      */
-    async waitForPlaylist(timeoutMs = 10000) {
+    async waitForPlaylist(timeoutMs = 10000, { deadlineAt = null } = {}) {
         const startTime = Date.now();
         // Extended only by a refused-connection retry (0143): the time the
-        // refused attempt took plus the wait before the next one.
+        // refused attempt took plus the wait before the next one. A failover
+        // resolve (0174) also passes a hard deadlineAt that nothing extends.
         const allowance0 = this.retryAllowanceMs || 0;
-        while (Date.now() - startTime < timeoutMs + (this.retryAllowanceMs || 0) - allowance0) {
+        while (Date.now() - startTime < timeoutMs + (this.retryAllowanceMs || 0) - allowance0
+            && !(deadlineAt && Date.now() >= deadlineAt)) {
             if (await this.isPlaylistReady()) {
                 this.timings.playlistReady = Date.now();
                 return true;
@@ -1441,6 +1471,22 @@ function classifyInputFailure(lines) {
     return null;
 }
 
+// 0174: what else in ffmpeg's last words means the provider (or the network to
+// it) failed, beyond classifyInputFailure's HTTP statuses and refused connections.
+const NETWORK_FAILURE_RE = /Connection timed out|Operation timed out|Connection reset by peer|Network is unreachable|No route to host|Failed to resolve hostname|Name or service not known|Input\/output error|I\/O error|Invalid data found when processing input|End of file/i;
+
+/**
+ * True when ffmpeg's stderr tail says the input failed for a provider reason
+ * (multi-provider failover, 0174): an HTTP 4xx/5xx or refused connection
+ * (classifyInputFailure), or a network error reading the stream. False for
+ * everything else - an encoder, GPU or argument error is not the provider's.
+ */
+function providerFailureIn(lines) {
+    if (!Array.isArray(lines)) return false;
+    if (classifyInputFailure(lines)) return true;
+    return lines.some(line => NETWORK_FAILURE_RE.test(String(line)));
+}
+
 /**
  * A one-variant master playlist whose only job is to carry VIDEO-RANGE and
  * FRAME-RATE, which a media playlist cannot. Without VIDEO-RANGE Apple's players
@@ -1475,6 +1521,8 @@ module.exports = {
     TranscodeSession,
     buildMasterPlaylist,
     classifyInputFailure,
+    providerFailureIn,
+    REFUSED_RETRY_DELAYS_MS,
     paceArgs,
     readrateBurstSec,
     createSession,

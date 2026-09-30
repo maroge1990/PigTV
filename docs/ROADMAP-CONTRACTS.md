@@ -178,6 +178,24 @@ Sport is recognised per **programme**, not per channel: about 100 channels carry
   - Upcoming events open an event page: Watch when it starts (while the app stays open), Record, the channel list.
   - Refresh every 60 s while visible.
 
+## C-J. Provider on resolve (30 Sept, multi-provider failover). Flag: `providers`
+
+Implemented: server 0174. A channel can come from the primary provider, the primary's own "(Backup)" feed of it (a
+sibling), or a backup provider; a play that fails on one for a provider reason goes to the next (brief §2.6).
+- `POST /api/playback/resolve` success JSON for a channel play (`sourceId` + `channelId`) gains
+  `provider: { id: Int, name: String, role: "primary"|"backup", via: "primary"|"sibling"|"backup", failover: Bool }`.
+  - `role`: the provider's role; a sibling is on the primary (`role: "primary"`, `via: "sibling"`).
+  - `failover`: true when an earlier provider was tried and failed, or the primary was skipped (down, expired, or this
+    channel failed there in the last 10 min). Being full is not a failover: another device on the primary sends the play
+    to a free backup with `failover: false`.
+  - A bare `url` resolve and the tuner path (`PIGTV_TUNER=1`, primary only) have no `provider`.
+- Additive: a client that ignores it is unaffected. 409 shapes unchanged; when more than one provider carries the channel
+  and all are full, the 409 is for the first one (`force: true` acts on that provider) and its `conflict.message` starts
+  "Every provider that carries this channel is in use."
+- A stream that dies mid-play for a provider reason is quarantined on that provider, so the player's existing single
+  re-resolve (C2) lands on the next provider (a 5-10 s rebuffer, D1). The resolve stays under 30 s in all.
+- **Apple (A1):** show `provider.name` in the info overlay; nothing else depends on it.
+
 ## C-K. Licence reminders (30 Sept, multi-provider failover). Flag: `providerReminders`
 
 Each provider's subscription end comes from its Xtream `player_api.php` (`exp_date`), overridden by dates Mark types in

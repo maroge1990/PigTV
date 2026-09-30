@@ -18,7 +18,6 @@ const { getDb } = require('../db/sqlite');
 const { redact } = require('../redact');
 const { MESSAGES: FAILURE_TEXT, clientSafe } = require('../services/playbackErrors');
 const playbackStrategy = require('../services/playbackStrategy');
-const xtreamApi = require('../services/xtreamApi');
 const { streamAuth, optionalAuth } = require('../auth');
 const { createLimiter } = require('../services/rateLimit');
 const playbackEvents = require('../services/playbackEvents');
@@ -48,44 +47,10 @@ const requireToken = streamAuth({ enforce: true });
 // present, without rejecting requests that have none: /conflict and
 // /conflict/decline only read or dismiss a prompt.
 
-/**
- * Resolve a channel id to its upstream URL.
- *
- * Accepts either the bare item_id or the composite id a client may hold
- * (m3u_<source>_<item>), because both are in circulation.
- */
-async function streamUrlForChannel(sourceId, channelId) {
-    const source = await db.sources.getById(sourceId);
-    // 0118 (C-B): the client may show these, so they use its allowed wording;
-    // `detail` keeps what actually went wrong for the log.
-    if (!source) throw Object.assign(new Error(FAILURE_TEXT.notInPlaylist()), { status: 404, detail: `Source ${sourceId} not found` });
-
-    if (source.type === 'xtream') {
-        const api = xtreamApi.createFromSource(source);
-        return api.buildStreamUrl(channelId, 'live', 'ts');
-    }
-
-    const raw = String(channelId);
-    const stripped = raw.replace(/^(?:m3u|xtream)_\d+_/, '');
-
-    const item = getDb().prepare(`
-        SELECT stream_url, data FROM playlist_items
-        WHERE source_id = ? AND type = 'live'
-          AND (item_id = ? OR item_id = ? OR id = ?)
-        LIMIT 1
-    `).get(sourceId, raw, stripped, `${sourceId}:${stripped}`);
-
-    if (!item) throw Object.assign(new Error(FAILURE_TEXT.notInPlaylist()), { status: 404, detail: `Channel ${channelId} not found` });
-    if (item.stream_url) return item.stream_url;
-
-    try {
-        const data = JSON.parse(item.data || '{}');
-        if (data.url) return data.url;
-        if (data.stream_url) return data.stream_url;
-    } catch (e) { /* fall through */ }
-
-    throw Object.assign(new Error(FAILURE_TEXT.noStreamUrl()), { status: 422, detail: 'Channel has no stream URL' });
-}
+// Resolving a channel to its stream (and, from 0174, to the providers that carry
+// it) lives in services/providerRouting.js.
+const providerRouting = require('../services/providerRouting');
+const { streamUrlForChannel } = providerRouting;
 
 /**
  * POST /api/playback/resolve
@@ -100,15 +65,26 @@ router.post('/resolve', requireToken, async (req, res) => {
     // 0124: for the status page's recent plays (a name, never a URL)
     const eventOwner = require('../services/streamCoordinator').ownerKey(req.user);
     const eventChannel = channelNameFor(req.body?.sourceId, req.body?.channelId);
+    // 0174: the provider of the last candidate tried, for a failure's event and health row.
+    let lastTried = null;
     try {
         const { sourceId, channelId, url: directUrl, capabilities, upscale, force, audioEncode } = req.body || {};
+        const tunerOn = require('../services/tuner').enabled();
 
         let url = directUrl;
+        // 0174: a channel play has an ordered list of providers to try (primary,
+        // sibling, backups). The tuner path is primary-only (D9), as before.
+        let routing = null;
         if (!url) {
             if (sourceId === undefined || channelId === undefined) {
                 return res.status(400).json({ error: 'Provide either url, or sourceId and channelId' });
             }
-            url = await streamUrlForChannel(parseInt(sourceId), channelId);
+            if (tunerOn) {
+                url = await streamUrlForChannel(parseInt(sourceId), channelId);
+            } else {
+                routing = await providerRouting.plan(parseInt(sourceId), channelId);
+                url = routing.candidates[0].url;
+            }
         }
         if (url && !isStreamUrl(url)) {
             return res.status(400).json({ error: NOT_A_STREAM_URL });
@@ -127,7 +103,7 @@ router.post('/resolve', requireToken, async (req, res) => {
         // The tuner model (PIGTV_TUNER=1, 0126): admission is decided per tuner,
         // inside resolveTuned, because a viewer joining a running tuner needs no
         // provider slot at all. Same 409 shapes, same history and logging.
-        if (require('../services/tuner').enabled()) {
+        if (tunerOn) {
             const owner = coordinator.ownerKey(req.user);
             const outcome = await playbackStrategy.resolveTuned({
                 url,
@@ -156,76 +132,197 @@ router.post('/resolve', requireToken, async (req, res) => {
         // and only a stream someone else may be watching is put to the caller
         // as a question. admitViewer stops whatever has to go before we start.
         const owner = coordinator.ownerKey(req.user);
-        // Whose connection this play takes (0173): the channel's own source. A bare
-        // url names none (null), which counts in the primary's pool. P6 replaces
-        // this with the failover candidate chosen.
-        const providerId = (sourceId !== undefined && channelId !== undefined) ? parseInt(sourceId) : null;
-        const verdict = await coordinator.admitViewer({
-            force: force === true,
-            activeRecordings,
-            settings,
-            owner,
-            providerId
-        });
+        // Whose connection this play takes (0173): the candidate's provider. A bare
+        // url names none (null), which counts in the primary's pool.
+        const candidates = routing ? routing.candidates : [{ providerId: null, url }];
+        // 0174: with somewhere to fail over to, the whole resolve has a deadline
+        // (the Apple client gives up at 35 s). With one candidate, as before.
+        const failoverPossible = candidates.length > 1;
+        const deadlineAt = failoverPossible ? Date.now() + providerRouting.DEADLINE_MS : null;
+        const showProvider = !!routing && (routing.backupsConfigured || failoverPossible);
+        const live = sourceId !== undefined && channelId !== undefined;
 
-        if (!verdict.allowed) return sendConflict(res, verdict);
+        // Start one candidate: probe, session, first segment. Throws what resolve throws.
+        const start = (candidate, index) => {
+            const isLast = index === candidates.length - 1;
+            lastTried = candidate;
+            return playbackStrategy.resolve({
+                url: candidate.url,
+                capabilities: capabilities || {},
+                settings,
+                ffprobePath: req.app.locals.ffprobePath,
+                upscale: upscale === true,
+                audioEncode: audioEncode === true,
+                owner,
+                // A channel is live TV; a bare url could be anything, so leave it
+                // on the longer seekable-session timeout.
+                live,
+                providerId: candidate.providerId,
+                // 0174: only the last candidate gets 0143's two refused-connection
+                // retries; an earlier one gets one, after 1 s, then the next provider.
+                ...(failoverPossible ? {
+                    refusedRetryDelaysMs: isLast ? undefined : providerRouting.EARLY_RETRY_DELAYS_MS,
+                    // An earlier one must leave the next time for a cold start.
+                    deadlineAt: isLast ? deadlineAt
+                        : Math.max(deadlineAt - providerRouting.NEXT_RESERVE_MS, Math.min(deadlineAt, Date.now() + providerRouting.MIN_START_MS))
+                } : {}),
+                ...(showProvider ? { timingNote: `, provider ${candidate.providerName} (${candidate.via})` } : {})
+            });
+        };
 
-        if (verdict.sacrificed && verdict.sacrificed.length) {
-            // Finalise rather than discard: what was captured is kept, and the
-            // recording is marked partial so the list explains itself.
-            for (const scheduleId of verdict.sacrificed) {
-                try {
-                    await recordingEngine.stopForViewer(scheduleId);
-                } catch (err) {
-                    console.error('[Playback] Could not stop recording for viewer:', err.message);
-                }
+        // Walk the candidates: the first that can be admitted without disturbing
+        // anybody (a free connection, an idle one reclaimed, this device's own
+        // stream replaced) is started; a start that fails for a provider reason
+        // is noted (breaker, quarantine) and the next is tried.
+        let decision = null;
+        let chosen = null;
+        let failedOver = false;
+        let lastError = null;
+        for (let i = 0; i < candidates.length; i++) {
+            const candidate = candidates[i];
+            if (lastError && deadlineAt && deadlineAt - Date.now() < providerRouting.MIN_START_MS) {
+                console.warn(`[Playback] failover: stopped after ${lastTried.providerName}: less than ${providerRouting.MIN_START_MS / 1000}s left of the resolve`);
+                break;
+            }
+            const ask = { force: false, activeRecordings, settings, owner, providerId: candidate.providerId };
+            if (!coordinator.canAdmitWithoutDisturbing(ask)) continue;
+            const verdict = await coordinator.admitViewer(ask);
+            if (!verdict.allowed) continue;
+            try {
+                decision = await start(candidate, i);
+                chosen = candidate;
+                break;
+            } catch (err) {
+                if (!routing || !providerRouting.isProviderFailure(err)) throw err;
+                lastError = err;
+                failedOver = true;
+                providerRouting.noteFailure(candidate, routing.primaryKey);
+                const next = candidates.slice(i + 1)[0];
+                if (failoverPossible) console.warn(`[Playback] failover: ${candidate.providerName} (${candidate.via}) failed for "${eventChannel || routing.channelName || 'channel'}"` +
+                    ` - ${clientSafe(redact(err.message)).split('. ')[0]}; ${next ? `trying ${next.providerName} (${next.via})` : 'no provider left'}`);
             }
         }
 
-        const decision = await playbackStrategy.resolve({
-            url,
-            capabilities: capabilities || {},
-            settings,
-            ffprobePath: req.app.locals.ffprobePath,
-            upscale: upscale === true,
-            audioEncode: audioEncode === true,
-            owner,
-            // A channel is live TV; a bare url could be anything, so leave it
-            // on the longer seekable-session timeout.
-            live: sourceId !== undefined && channelId !== undefined,
-            providerId
-        });
+        if (!decision) {
+            // Every candidate that could be admitted failed: say why (the last reason).
+            if (lastError) throw lastError;
+
+            // None could be admitted without disturbing somebody: today's 409, for the
+            // first candidate; `force` acts on that candidate's provider only.
+            const first = candidates[0];
+            const verdict = await coordinator.admitViewer({
+                force: force === true,
+                activeRecordings,
+                settings,
+                owner,
+                providerId: first.providerId
+            });
+            if (!verdict.allowed) {
+                return sendConflict(res, verdict, { everyProvider: !!routing && routing.providerCount > 1 });
+            }
+
+            if (verdict.sacrificed && verdict.sacrificed.length) {
+                // Finalise rather than discard: what was captured is kept, and the
+                // recording is marked partial so the list explains itself.
+                for (const scheduleId of verdict.sacrificed) {
+                    try {
+                        await recordingEngine.stopForViewer(scheduleId);
+                    } catch (err) {
+                        console.error('[Playback] Could not stop recording for viewer:', err.message);
+                    }
+                }
+            }
+            // Forced onto the first candidate: nothing else to fall to, so it is
+            // started as the last one (the full retries).
+            lastTried = first;
+            try {
+                decision = await playbackStrategy.resolve({
+                    url: first.url,
+                    capabilities: capabilities || {},
+                    settings,
+                    ffprobePath: req.app.locals.ffprobePath,
+                    upscale: upscale === true,
+                    audioEncode: audioEncode === true,
+                    owner,
+                    live,
+                    providerId: first.providerId,
+                    ...(failoverPossible ? { deadlineAt } : {}),
+                    ...(showProvider ? { timingNote: `, provider ${first.providerName} (${first.via})` } : {})
+                });
+            } catch (err) {
+                if (routing && providerRouting.isProviderFailure(err)) providerRouting.noteFailure(first, routing.primaryKey);
+                throw err;
+            }
+            chosen = first;
+        }
+
+        if (routing) {
+            providerRouting.noteSuccess(chosen);
+            const session = decision.sessionId ? require('../services/transcodeSession').getSession(decision.sessionId) : null;
+            providerRouting.watchSession(session, chosen, routing.primaryKey, eventChannel || routing.channelName);
+            // C-J: which provider this play is on, and whether it got there by failing over.
+            decision = {
+                ...decision,
+                provider: {
+                    id: chosen.providerId,
+                    name: chosen.providerName,
+                    role: chosen.role,
+                    via: chosen.via,
+                    failover: failedOver || routing.primarySkipped
+                }
+            };
+            if (failedOver || routing.primarySkipped) {
+                console.log(`[Playback] failover: "${eventChannel || routing.channelName || 'channel'}" plays on ${chosen.providerName} (${chosen.via})` +
+                    `${routing.primarySkipped ? ' - primary skipped (down, expired or quarantined for this channel)' : ''}`);
+            }
+        }
 
         recordHistory(req, sourceId, channelId);
         // 0133 (C-G): a start the server answered; the client's events may
         // still turn it into a failed start (channelHealth.clientFailed).
-        channelHealth.recordResolve({ sourceId, channelId, ok: true, owner });
+        // 0174: the primary identity's health, whichever provider served it.
+        channelHealth.recordResolve({ sourceId, channelId, ok: true, owner, providerId: chosen.providerId });
 
         console.log(`[Playback] ${decision.strategy} — ${decision.reason}`);
-        playbackEvents.noteResolve(owner, { channel: eventChannel, strategy: decision.strategy, videoMode: decision.videoMode || null });
+        playbackEvents.noteResolve(owner, { channel: eventChannel, strategy: decision.strategy, videoMode: decision.videoMode || null,
+            provider: showProvider ? chosen.providerName : null });
         res.json(decision);
     } catch (err) {
         console.error('[Playback] Resolve failed:', redact(err.detail ? `${err.detail} - ${err.message}` : err.message));
         // 0118 (C-B): never a URL in what the client is sent, whatever the error.
         const safe = clientSafe(redact(err.message));
-        playbackEvents.record({ type: 'failure', owner: eventOwner, channel: eventChannel, reason: safe });
+        const provider = lastTried && lastTried.providerName ? lastTried.providerName : null;
+        playbackEvents.record({ type: 'failure', owner: eventOwner, channel: eventChannel, reason: safe, provider });
         // 0133 (C-G): a failed start, when it names a channel in the playlist.
-        channelHealth.recordResolve({ sourceId: req.body?.sourceId, channelId: req.body?.channelId, ok: false, reason: safe, owner: eventOwner });
+        channelHealth.recordResolve({ sourceId: req.body?.sourceId, channelId: req.body?.channelId, ok: false, reason: safe, owner: eventOwner,
+            providerId: lastTried ? lastTried.providerId : null });
         res.status(err.status || 500).json({ error: safe, info: err.info });
     }
 });
 
 /** The 409 a client repeats with force (the same body for sessions and tuners). */
-function sendConflict(res, verdict) {
+function sendConflict(res, verdict, { everyProvider = false } = {}) {
     const isViewer = verdict.conflict && verdict.conflict.type === 'viewer-in-progress';
+    // 0174: when more than one provider carries the channel and all were full, the
+    // message says so; the shape is unchanged (C-B/C-E).
+    const conflict = everyProvider && verdict.conflict
+        ? { ...verdict.conflict, message: everyProviderMessage(verdict.conflict) }
+        : verdict.conflict;
     return res.status(409).json({
         error: 'Provider stream is in use',
-        conflict: verdict.conflict,
+        conflict,
         // The caller repeats the request with force to proceed.
         resolution: isViewer
             ? 'Repeat this request with "force": true to stop the other stream and watch.'
             : 'Repeat this request with "force": true to stop the recording and watch.'
     });
+}
+
+function everyProviderMessage(conflict) {
+    if (conflict.type === 'recording-in-progress') {
+        return `Every provider that carries this channel is in use. "${conflict.title}" is recording on ${conflict.channelName}, so watching now will stop that recording. What has been recorded so far is kept.`;
+    }
+    return 'Every provider that carries this channel is in use. Watching here will stop another device\'s stream.';
 }
 
 /**
@@ -370,13 +467,13 @@ router.post('/client-event', requireToken, (req, res) => {
         const sec = (ms) => (typeof ms === 'number' && Number.isFinite(ms) && ms >= 0 ? Math.round(ms / 100) / 10 : null);
         if (body.event === 'play-start') {
             console.log(`[Player] play-start via ${how} resolve=${secs(body.resolveMs)} first-picture=${secs(body.totalMs)} ${from}`);
-            playbackEvents.record({ type: 'play-start', owner, channel: last.channel, start: last.start,
+            playbackEvents.record({ type: 'play-start', owner, channel: last.channel, start: last.start, provider: last.provider,
                 strategy: text(body.strategy, 20), videoMode: body.videoMode ? text(body.videoMode, 10) : last.videoMode,
                 firstPictureSec: sec(body.totalMs), resolveSec: sec(body.resolveMs) });
             channelHealth.clientStarted(owner, sec(body.totalMs));
         } else {
             console.log(`[Player] play-end via ${how} watched=${num(body.watchedSec)}s stalls=${num(body.stalls)} ${from}`);
-            playbackEvents.record({ type: 'play-end', owner, channel: last.channel, strategy: text(body.strategy, 20),
+            playbackEvents.record({ type: 'play-end', owner, channel: last.channel, provider: last.provider, strategy: text(body.strategy, 20),
                 watchedSec: typeof body.watchedSec === 'number' ? body.watchedSec : null,
                 stalls: typeof body.stalls === 'number' ? body.stalls : null });
             // 0142: the stalls count towards the channel's health.

@@ -97,16 +97,18 @@ function storedAnalysis(cacheKey) {
 }
 
 /** ffprobe the stream (one provider connection) and cache the analysis. */
-async function probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey }) {
+async function probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, deadlineAt = null }) {
     const probeStartedAt = Date.now();
+    // 0174: a failover resolve bounds the probe by its deadline (never above the usual 15 s).
+    const timeout = deadlineAt ? Math.max(1000, Math.min(15000, deadlineAt - probeStartedAt)) : undefined;
     let raw;
     try {
-        raw = await probeStream(url, ffprobePath, userAgent);
+        raw = await probeStream(url, ffprobePath, userAgent, timeout);
     } catch (err) {
         // 0118 (C-B): ffprobe's error carries its stderr, and with it the stream's
         // (redacted) URL. The log keeps it; the client gets a fixed sentence.
         console.warn(`[Playback] resolve probe failed: ${redact(err.message)}`);
-        throw Object.assign(new Error(probeFailureMessage(err)), { status: err.status });
+        throw Object.assign(new Error(probeFailureMessage(err)), { status: err.status, providerReason: probeFailedForProvider(err) });
     }
     const info = analyzeProbeResult(raw, url, caps);
     const probedAt = Date.now();
@@ -119,7 +121,18 @@ function noteStart(owner, analysis) {
     playbackEvents.noteResolve(owner, { start: analysis.fromProfile ? 'profile' : (analysis.probeNote === 'cached' ? 'warm' : 'cold') });
 }
 
-async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale = false, owner = null, live = false, audioEncode = false, providerId = null }) {
+/*
+ * Failover (0174, routes/playback.js with providerRouting.js) adds three options,
+ * all off by default so a plain resolve is exactly as before:
+ *   refusedRetryDelaysMs  the refused-connection retries for this session (a
+ *                         candidate that is not the last gets [1000], not 0143's two)
+ *   deadlineAt            epoch ms by which the probe and the first segment must be done
+ *   timingNote            appended to the `resolve timing` line (the provider's name)
+ * A failure thrown here carries `providerReason: true` when the provider (or the
+ * network to it) is what failed, which is what makes the route try the next one.
+ */
+async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale = false, owner = null, live = false, audioEncode = false, providerId = null,
+    refusedRetryDelaysMs = undefined, deadlineAt = null, timingNote = '' }) {
     const caps = { ...DEFAULT_CAPABILITIES, ...capabilities };
     const userAgent = db.getUserAgent(settings);
 
@@ -131,7 +144,7 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     // Where the analysis comes from, cheapest first: the 5-minute in-memory cache, then
     // the channel's stored profile (0114: no ffprobe at all), then a probe. `fromProfile`
     // follows a profile through the in-memory cache, so a failed start can drop both.
-    const analysis = storedAnalysis(cacheKey) || await probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey });
+    const analysis = storedAnalysis(cacheKey) || await probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, deadlineAt });
     const { info, probeNote, fromProfile, probedAt } = analysis;
 
     // 0124: how this start was served, for the admin status page's recent plays.
@@ -141,26 +154,28 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     // 1. Direct play. Nothing to do — no ffmpeg, no server CPU, no added
     //    latency. Only available when the container is already something the
     //    client handles and both codecs are decodable.
-    if (info.compatible && !upscale) return directDecision(url, info, probeNote);
+    if (info.compatible && !upscale) return directDecision(url, info, probeNote, timingNote);
 
     // 2. Everything else is an HLS session.
     const plan = sessionPlan({ info, caps, settings, userAgent, owner, live, upscale, audioEncode });
     // Which provider's connection the session holds (0173): the coordinator counts it in that
     // provider's pool. Set here, not in sessionPlan, so a tuner's key never depends on it.
-    const session = await transcodeSession.createSession(url, { ...plan.options, providerId });
+    const session = await transcodeSession.createSession(url, {
+        ...plan.options, providerId, ...(Array.isArray(refusedRetryDelaysMs) ? { refusedRetryDelaysMs } : {})
+    });
 
     const sessionStartedAt = Date.now();
     await session.start();
 
-    const ready = await session.waitForPlaylist(15000);
-    await afterStart({ session, ready, info, plan, probeNote, fromProfile, probedAt, cacheKey, sessionStartedAt,
+    const ready = deadlineAt ? await session.waitForPlaylist(15000, { deadlineAt }) : await session.waitForPlaylist(15000);
+    await afterStart({ session, ready, info, plan, probeNote, fromProfile, probedAt, cacheKey, sessionStartedAt, note: timingNote,
         remove: () => transcodeSession.removeSession(session.id) });
 
     return sessionDecision(session.id, plan, info);
 }
 
-function directDecision(url, info, probeNote) {
-    console.log(`[Playback] resolve timing: direct, probe ${probeNote}`);
+function directDecision(url, info, probeNote, note = '') {
+    console.log(`[Playback] resolve timing: direct, probe ${probeNote}${note}`);
     // 0119 (C-D): an opaque handle, not the provider's URL (PIGTV_PLAYBACK_HANDLES=0
     // goes back to ?url=).
     return {
@@ -299,6 +314,10 @@ async function afterStart({ session, ready, info, plan, probeNote, fromProfile, 
         // opened) or never produced a segment in time (the provider did not respond).
         const err = new Error(failure || (ended ? FAILURE_TEXT.couldNotOpen() : FAILURE_TEXT.timeout()));
         err.info = info;
+        // 0174: the provider's fault (failover may try the next one) when ffmpeg said
+        // so, or when nothing came in time; an unexplained exit (an encoder, GPU or
+        // argument error) is not.
+        err.providerReason = ended ? transcodeSession.providerFailureIn(session.stderrTail || []) : true;
         throw err;
     }
 }
@@ -543,7 +562,7 @@ async function acquireTunerForRecording({ url, settings, ffprobePath }) {
     const caps = { ...DEFAULT_CAPABILITIES, ...RECORDING_CAPABILITIES };
     const userAgent = db.getUserAgent(settings);
     const cacheKey = analysisKey(url, userAgent, caps);
-    const analysis = storedAnalysis(cacheKey) || await probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey });
+    const analysis = storedAnalysis(cacheKey) || await probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, deadlineAt });
     const { info, probeNote, fromProfile, probedAt } = analysis;
     // Never `direct` for a recording: it always needs segments on disk.
     const plan = sessionPlan({ info, caps, settings, userAgent, owner: null, live: true, upscale: false, audioEncode: false });
@@ -576,6 +595,15 @@ async function acquireTunerForRecording({ url, settings, ffprobePath }) {
  * "Server returned ..." / "Connection refused" lines ffmpeg does, so the same
  * classification applies; a timeout or anything else gets a fixed sentence.
  */
+/**
+ * 0174: did ffprobe fail on the provider's stream (a timeout, or ffprobe ran and
+ * could not read it) rather than locally (ffprobe missing, unparsable output)?
+ */
+function probeFailedForProvider(err) {
+    const text = String(err && err.message || '');
+    return /Probe timeout/i.test(text) || /^ffprobe exited with code/i.test(text);
+}
+
 function probeFailureMessage(err) {
     const text = String(err && err.message || '');
     if (/Probe timeout/i.test(text)) return FAILURE_TEXT.timeout();
