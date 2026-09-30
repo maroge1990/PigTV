@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 29 September 2026 · server build **0167** (pushed) · Apple client build **35** (pushed) · **handover state**
+**Last updated:** 1 October 2026 · server build **0177** (pushed) · Apple client build **36** (pushed) · **multi-provider failover built, awaiting round 7**
 (`../PigTV-Swift/blueprint.md`)
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
@@ -20,8 +20,9 @@ limitations and open issues.
 | `blueprint.md` (this) | How things work, the rules, the roadmap and its status |
 | `README.md` | The short entry point: what PigTV is, how to run it |
 | `docs/SWIFT-CLIENT-HANDOFF.md` | The Apple-client contract, the current `/api/info` flags, and the log of server changes the client must know about (its §5) |
-| `docs/ROADMAP-CONTRACTS.md` | The server ↔ client contracts C-A…C-I (all implemented) |
-| `docs/TEST-BLOCK.md` | Mark's device and live test rounds 1–4, with a status summary at the top |
+| `docs/ROADMAP-CONTRACTS.md` | The server ↔ client contracts C-A…C-K (all implemented) |
+| `docs/TEST-BLOCK.md` | Mark's device and live test rounds 1–7, with a status summary at the top |
+| `docs/MULTI-PROVIDER-BRIEF.md` | Multi-provider failover (30 Sept): decisions, design, work packages P1–P8/A1 |
 | `../PigTV-Swift/blueprint.md` | The Apple client: architecture, device-verification state, client rules |
 | `docs/archive/` | Frozen: the old blueprint, per-build write-ups (0048–0104) and the 16 Sept code review (P1-x/P2-x reasoning) |
 
@@ -37,11 +38,11 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 |---|---|
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Sources, Player, Transcoding, Manage Content, Channel numbers, EPG matching, Sports, Recording, UI, Devices, Debug, Users). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Development is on Mark's MacBook only (from 23 Sept). |
-| CI | On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
+| CI | Both repos are **public** since 30 Sept (free Actions minutes; history checked for secrets). `gh` is signed in on the MacBook: `gh run view <id> --log-failed`. On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings (fixed 28 Sept):** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (so an SMB share that mounts late or reconnects appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs (schedule #3 failed with "0.0 GB free"). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
-| Shipped through | **0167** (pushed to `origin/main`, 29 Sept) and app **35**. Rounds 1–4 passed on 0151 + app 31; round 5 (0152–0154 + app 32) passed on 28 Sept apart from the five bugs that started the 28–29 Sept fix run (§6 "Fix run"); round 6 (0166 + app 34, `docs/TEST-BLOCK.md`) passed apart from R6.3 (fixed in 0167) and R6.14 (fixed in app 35), with R6.4–R6.6 and R6.16 still to run. Whether a build is *running* is whatever `/api/version` says. |
-| Next build number | **0168** |
-| Tests | `npm test`: **654 tests, all pass** (29 Sept, after 0167; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
+| Shipped through | **0177** (pushed, 30 Sept–1 Oct: multi-provider failover 0168–0177, §6) and app **36**. Round 7 (`docs/TEST-BLOCK.md`) not yet run. Before that: **0167** and app **35**. Rounds 1–4 passed on 0151 + app 31; round 5 (0152–0154 + app 32) passed on 28 Sept apart from the five bugs that started the 28–29 Sept fix run (§6 "Fix run"); round 6 (0166 + app 34, `docs/TEST-BLOCK.md`) passed apart from R6.3 (fixed in 0167) and R6.14 (fixed in app 35), with R6.4–R6.6 and R6.16 still to run. Whether a build is *running* is whatever `/api/version` says. |
+| Next build number | **0178** |
+| Tests | `npm test`: **775 tests, all pass** (1 Oct, after 0177, on CI; timing tests can fail locally when the Mac is loaded - check `uptime`, rerun, or trust CI; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -603,6 +604,29 @@ Planned as work packages W1–W11 (sized for Sonnet 5 / Haiku 4.5 agents; the le
 | W10 | Dead code: `xml2js`, `nodecast.patch`, number-ordering branches, Movies/Series player/settings leftovers, dead CSS (0163–0166) | **Shipped, awaiting a check** (R6.16) |
 | W11 | Branding "Spotlight": layered tvOS icon, iOS icons, Top Shelf, launch screen, animated splash; the pig logo unchanged, optically centred (app 35) | **Shipped** (Mark, 29 Sept: "looking good"). The wordmark uses the system rounded font (Fredoka was not downloaded) |
 
+### Multi-provider failover (30 Sept–1 Oct; `docs/MULTI-PROVIDER-BRIEF.md`, contracts C-J/C-K)
+
+Backups are **list only** (`backup_channels`, never the guide), linked to the primary's visible channels
+(`channel_links`: exact id → auto; channel number / same-region name → pending review). Failover order: the primary, its own
+"(Backup)" sibling (single-channel failures only), then backups in **Settings → Providers order** (Mark, 30 Sept). Per-provider
+connection pools; a breaker (2 channels / 5 min → down, 3→15 min cooldown, half-open); 10-min channel quarantine after a
+mid-play death. Tuner path unchanged (primary only).
+
+| WP | Item | Status |
+|---|---|---|
+| P1 | Provider fields, `player_api` account info (expiry, connections), reminders C-K (0168, 0169 EPGenius `dns` key) | **Shipped** |
+| P2 | Backup sync into `backup_channels`, EPGenius id overlay by stream id (0170) | **Shipped** |
+| P3 | Linker + `/api/links` (0171) | **Shipped** |
+| P4 | Web Settings → Providers, Backup links (0172) | **Shipped** |
+| P5 | Per-provider connection pools (0173) | **Shipped** |
+| P6 | Resolve failover, breaker, quarantine, C-J (0174) | **Shipped** |
+| P8 | Status Providers panel, admin renewal banner (0175, lead fixes 0176) | **Shipped** |
+| P7 | Recordings: free provider at start, start failover, parts on a mid-recording death (0177) | **Shipped** |
+| A1 | Apple build 36: provider in stream info, reminder banner, renewed recovery after 2 min | **Shipped** |
+| — | Swift CI: tests signed ad hoc so the App Group exists (red since build 31) | **Fixed** (green 30 Sept) |
+
+Everything above is tested against fakes only: **round 7** is the live check.
+
 ### Next
 
 1. **Before anything else on the server:** Settings → Recording → set the recordings folder back to
@@ -729,6 +753,17 @@ lines (the classifier has seen one uneven feed in five) · the 20 s stall timeou
 | 0165 | Dead-code cleanup W10 (part 3): removed web player / settings leftovers from deleted Movies/Series pages (0122): `autoPlayNextEpisode`, `forceProxy` settings, legacy `loadSettings()` method, `movies` and `series` icons, `forceProxy` toggle from Settings tabs, HTML element for it |
 | 0166 | Dead-code cleanup W10 (part 4): removed dead CSS selectors for the hidden-items list (`.hidden-list`, `.hidden-item`, `.hidden-item-info`, `.hidden-item-type`; 26 lines) that were never used after 0122; CSS file 4087 → 4061 lines |
 | 0167 | Settings refuses a relative recordings path ("fake" passed: its parent is the server's working folder, which exists); R6.3 |
+
+| 0168 | Multi-provider P1: source `role`/`priority`/`maxConnections`/`subscription`/`idOverlayUrl`; `provider_accounts` from `player_api.php` (6 h, after sync, Check now; a failed read keeps the last); `GET /api/providers/reminders` (C-K) |
+| 0169 | EPGenius's `#EXT-X-CREDENTIALS` uses the key `dns` |
+| 0170 | Backup sources sync their live list only into `backup_channels` (never the library); optional EPGenius id overlay by stream id |
+| 0171 | Channel linker (`channelLinks.js`, `channel_links`, admin `/api/links`): exact id, Fox number, same-region name, siblings, quality pairing, event slots never |
+| 0172 | Web Settings → Providers and Backup links; a settings-only source PUT no longer triggers a sync |
+| 0173 | Per-provider connection pools (sessions and recordings carry `providerId`; single provider unchanged) |
+| 0174 | Resolve failover across candidates, breaker, quarantine, retries/30 s deadline, `provider` on resolve (C-J), `channel_health.provider_id` |
+| 0175 | Status Providers panel, provider names on sessions, admin renewal banner |
+| 0176 | Lead fixes to 0175: duplicate reminders route removed, banner uses the local day, `accountOk` null until read, tests |
+| 0177 | Recordings choose a free provider, fail over at start, continue as part N+1 on a mid-recording death or 30 s stall (max 3); `part`, `provider_id`, `provider_name` |
 
 ---
 

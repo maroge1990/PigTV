@@ -1,4 +1,4 @@
-# Test block: everything built on 23–29 September 2026
+# Test block: everything built on 23 September – 1 October 2026
 
 ## Status summary (29 September 2026)
 
@@ -35,6 +35,53 @@ numbers are labels only, the provider's order kept (1.4); the tuner stays, off b
 with a follow list, checked against ESPN fixtures where ESPN covers the league (AFLW stays on the guide rules); an
 unanswered recording prompt hands over after 3 minutes; the app opens on Home; Swift 6 stays on (R2.15); branding
 direction A "Spotlight", the pig logo itself never changed.
+
+## Round 7: multi-provider failover (server 0177 · app 36)
+
+**Deploy first:** Unraid → Docker → PigTV → **Force Update**; `/api/version` should say **0177**. Install **app build 36**.
+Anything that fails: send the step number, what you saw and roughly when. Useful log filter:
+`docker logs PigTV --since 30m 2>&1 | grep -E "failover|\[Providers\]|resolve timing|Recordings"`
+
+**Set-up (web, admin)**
+- [ ] R7.1 Settings → Sources → edit **Strong8K**: paste the **new** playlist link (server moved to `vip.wd.omguhd.top`) →
+      Save → **Sync now**. Favourites, channel numbers and scheduled recordings are unchanged afterwards.
+- [ ] R7.2 Settings → Sources → add **Trex** as **Xtream**, role **Backup** (server `http://line.trx-pro-iptvstore.cc`, its
+      username and password). Then Settings → **Providers** → Trex → paste its EPGenius M3U link as the id overlay → Save →
+      Sync now. The card shows about 55,000 backup channels.
+- [ ] R7.3 Add **Dream4K** the same way (Xtream `http://line.d4k-pro-iptvstore.cc`, role Backup, its EPGenius link as overlay).
+- [ ] R7.4 Providers: order the backups the way you want with the arrows. **Check now** on each: Strong8K expires
+      **14 Jan 2027**, Dream4K **29 Mar 2027**, Trex **30 Mar 2027**, each "1 connection". (Strong8K's account page returned
+      502 all of 30 Sept; if it still does, the card shows the error and the provider still works.)
+- [ ] R7.5 Settings → **Backup links**: the summary shows mostly *auto* for UK Sky/TNT and NZ, *pending* for Australian
+      channels on Trex. Approve the AU sport and free-to-air you care about ("Approve all pending in <category>" is fine
+      after a quick look). Link **ESPN (AU)** to Trex "AU| ESPN 1 HD" by hand with **Pick…**. Nothing looks wrong-country
+      (no US ABC for ABC, no French beIN).
+
+**Failover (Apple TV)**
+- [ ] R7.6 Play a linked channel normally: it plays on Strong8K. Stream info (Labs) shows no provider line, or "Strong8K".
+- [ ] R7.7 **Second device**: while the TV plays, play a different linked channel on the iPad or web. It plays (on a backup)
+      with **no** "another device is watching" prompt. Status → Providers shows 1/1 on two providers.
+- [ ] R7.8 **Primary down** (simulate): Settings → Sources → edit Strong8K and temporarily break its password (or wait for a
+      real outage). Play a linked channel: it plays within ~20 s; stream info says "Provider: Trex (backup) · switched from
+      primary". Play a second channel: after 2 channel failures Status shows Strong8K **down until hh:mm**, and later plays go
+      straight to the backup. Put the password back; after the cooldown the next play is on Strong8K again.
+- [ ] R7.9 **Mid-play**: with a channel playing on Strong8K, break Strong8K the same way (or restart the Strong8K line from
+      its provider's panel if that exists). The TV rebuffers ~5–20 s and carries on on the backup.
+- [ ] R7.10 An **unlinked** channel with Strong8K broken fails with the usual "The provider refused this channel" message.
+
+**Recordings**
+- [ ] R7.11 While the TV watches a channel on Strong8K, a recording due on another linked channel starts **without a prompt**
+      (on a backup). Recordings shows it; Status shows it under the backup.
+- [ ] R7.12 Everything busy (TV on Strong8K, iPad on Trex, Dream4K in use or disabled): a due recording prompts as before.
+- [ ] R7.13 (Optional) Break Strong8K during a short recording that started on it: a "(part 2)" recording appears on a
+      backup; part 1 is kept.
+
+**Reminders**
+- [ ] R7.14 Settings → Providers → Trex → set an **end date** 3 days from today. Reload the web app: an admin banner says
+      "Trex expires … (in 3 days)". Close it; reload: gone until tomorrow. The Apple TV shows a short banner on launch (once
+      today), not during playback. Clear the end date afterwards.
+
+**With no backups (regression)** - [ ] R7.15 Disable both backups: everything plays, records and prompts exactly as before 0168.
 
 ## Round 6: the 28–29 Sept fix run (server 0166 · app 34; R6.3 fixed in 0167, R6.14 in app 35)
 
