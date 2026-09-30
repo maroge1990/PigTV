@@ -1,0 +1,9308 @@
+{
+"categories": [
+{
+"category_id": "1137",
+"category_name": "|CA| ✪ QUEBEC SPORT"
+},
+{
+"category_id": "1169",
+"category_name": "|AU| ✪ STANEVENT"
+},
+{
+"category_id": "1206",
+"category_name": "|AU| ✪ STAN SPORT PPV"
+},
+{
+"category_id": "1282",
+"category_name": "|NZ| ✪ NEW ZEALAND"
+},
+{
+"category_id": "150",
+"category_name": "|AS| ✪ AFGHANISTAN"
+},
+{
+"category_id": "1769",
+"category_name": "|UK| ✪ TNT SPORTS EVENT"
+},
+{
+"category_id": "1778",
+"category_name": "|UK| ✪ SKY SPORT + PPV"
+},
+{
+"category_id": "1779",
+"category_name": "|PL| ✪ CANAL+ XTRA SPORT"
+},
+{
+"category_id": "1836",
+"category_name": "|NZ| ✪ DAZN NEW ZEALAND"
+},
+{
+"category_id": "1944",
+"category_name": "|UK| ✪ TNT SPORTS"
+},
+{
+"category_id": "1961",
+"category_name": "|CA| ✪ TSN+ EVENT"
+},
+{
+"category_id": "2026",
+"category_name": "|FR| ✪ CANAL+ SPORT"
+},
+{
+"category_id": "2032",
+"category_name": "|AS| ✪ UZBERKISTAN"
+},
+{
+"category_id": "2033",
+"category_name": "|AS| ✪ KAZAKHSTAN"
+},
+{
+"category_id": "2253",
+"category_name": "|UK| ✪ HBO MAX / TNT EVENT"
+},
+{
+"category_id": "2255",
+"category_name": "EN| ✪ STAN EVENTS"
+},
+{
+"category_id": "2264",
+"category_name": "|CZ| ✪  CANAL+ SPORT"
+},
+{
+"category_id": "2517",
+"category_name": "|UK| ✪ SKY STORE PREMIERE"
+},
+{
+"category_id": "2543",
+"category_name": "|CA| ✪  QUEBEC SPORT ᵁᴴᴰ"
+},
+{
+"category_id": "2615",
+"category_name": "|UK| ✪ SKY SPORTS + PPV B"
+},
+{
+"category_id": "396",
+"category_name": "|AU| ✪ AUSTRALIA"
+},
+{
+"category_id": "576",
+"category_name": "|KD| ✪ KURDISTAN"
+},
+{
+"category_id": "722",
+"category_name": "|AF| ✪ TANZANIA"
+},
+{
+"category_id": "755",
+"category_name": "|CA| ✪ SPORT"
+},
+{
+"category_id": "797",
+"category_name": "|CA| ✪ FUBO SPORT"
+},
+{
+"category_id": "918",
+"category_name": "|CA| ✪ SPORTSNET PPV"
+},
+{
+"category_id": "919",
+"category_name": "|CA| ✪ SUPER SPORTS"
+},
+{
+"category_id": "922",
+"category_name": "|AU| ✪ KAYO PPV"
+},
+{
+"category_id": "925",
+"category_name": "|AS| ✪ PAKISTAN"
+}
+],
+"streams": [
+{
+"stream_id": 1948303,
+"name": "|FR| canal+ FOOT UHD",
+"category_id": "2026",
+"epg_channel_id": null
+},
+{
+"stream_id": 256628,
+"name": "|FR|  CANAL+ SPORT 360 ᵁᴴᴰ",
+"category_id": "2026",
+"epg_channel_id": "canalplussport360.fr"
+},
+{
+"stream_id": 256124,
+"name": "|FR| CANAL+ Sport 360 ᵁᴴᴰ",
+"category_id": "2026",
+"epg_channel_id": "canalplussport360.fr"
+},
+{
+"stream_id": 256630,
+"name": "|FR| CANAL+ SPORT360 ᴴᴰ",
+"category_id": "2026",
+"epg_channel_id": "canalplussport360.fr"
+},
+{
+"stream_id": 256122,
+"name": "|FR| CANAL+ Sport 360 ᴴᴰ",
+"category_id": "2026",
+"epg_channel_id": "canalplussport360.fr"
+},
+{
+"stream_id": 32774,
+"name": "|FR|  CANAL+ SPORT ᵁᴴᴰ",
+"category_id": "2026",
+"epg_channel_id": "canalplussport.fr"
+},
+{
+"stream_id": 250679,
+"name": "|FR| CANAL+ SPORT ᵁᴴᴰ",
+"category_id": "2026",
+"epg_channel_id": "canalplussport.fr"
+},
+{
+"stream_id": 250,
+"name": "|FR| Canal+ Sport ᴴᴰ",
+"category_id": "2026",
+"epg_channel_id": "canalplussport.fr"
+},
+{
+"stream_id": 12885,
+"name": "|FR| CANAL  SPORT ˢᴰ",
+"category_id": "2026",
+"epg_channel_id": "canalplussport.fr"
+},
+{
+"stream_id": 115870,
+"name": "|FR|  CANAL+ PREMIER LEAGUE ᵁᴴᴰ",
+"category_id": "2026",
+"epg_channel_id": "canalpluspremierleague.fr"
+},
+{
+"stream_id": 114146,
+"name": "|FR| CANAL+ PREMIER LEAGUE ᴴᴰ",
+"category_id": "2026",
+"epg_channel_id": "canalpluspremierleague.fr"
+},
+{
+"stream_id": 115874,
+"name": "|FR| CANAL+ PREMIER LEAGUE ˢᴰ",
+"category_id": "2026",
+"epg_channel_id": "canalpluspremierleague.fr"
+},
+{
+"stream_id": 256123,
+"name": "|FR| CANAL+ FOOT ᵁᴴᴰ",
+"category_id": "2026",
+"epg_channel_id": "canalplusfoot.fr"
+},
+{
+"stream_id": 256629,
+"name": "|FR| CANAL+ FOOT 4K.",
+"category_id": "2026",
+"epg_channel_id": "canalplusfoot.fr"
+},
+{
+"stream_id": 256121,
+"name": "|FR| CANAL+ FOOT ˢᴰ",
+"category_id": "2026",
+"epg_channel_id": "canalplusfoot.fr"
+},
+{
+"stream_id": 256631,
+"name": "|FR| CANAL FOOT ᴴᴰ",
+"category_id": "2026",
+"epg_channel_id": "canalplusfoot.fr"
+},
+{
+"stream_id": 1063875,
+"name": "|FR| EVENEMENT SPORT UHD",
+"category_id": "2026",
+"epg_channel_id": null
+},
+{
+"stream_id": 1097440,
+"name": "CA| HPITV",
+"category_id": "755",
+"epg_channel_id": null
+},
+{
+"stream_id": 613714,
+"name": "CA - ONE SOCCER",
+"category_id": "755",
+"epg_channel_id": null
+},
+{
+"stream_id": 1615595,
+"name": "|CA| CBN Commonwealth Broadcasting Network HD",
+"category_id": "755",
+"epg_channel_id": "24taas.ca"
+},
+{
+"stream_id": 69660,
+"name": "|CA| TSN 1",
+"category_id": "755",
+"epg_channel_id": "tsn1.ca"
+},
+{
+"stream_id": 69659,
+"name": "|CA| TSN 2",
+"category_id": "755",
+"epg_channel_id": "tsn2.ca"
+},
+{
+"stream_id": 69658,
+"name": "|CA| TSN 3",
+"category_id": "755",
+"epg_channel_id": "tsn3.ca"
+},
+{
+"stream_id": 69657,
+"name": "|CA| TSN 4",
+"category_id": "755",
+"epg_channel_id": "tsn4.ca"
+},
+{
+"stream_id": 69656,
+"name": "|CA| TSN 5",
+"category_id": "755",
+"epg_channel_id": "tsn5.ca"
+},
+{
+"stream_id": 860561,
+"name": "|CA| TNT Sports 1 FHD",
+"category_id": "755",
+"epg_channel_id": "tntsports1.uk"
+},
+{
+"stream_id": 860550,
+"name": "|CA| TNT Sport 1 HD",
+"category_id": "755",
+"epg_channel_id": "tntsports1.uk"
+},
+{
+"stream_id": 860560,
+"name": "|CA| TNT Sports 2 FHD",
+"category_id": "755",
+"epg_channel_id": "tntsports2.uk"
+},
+{
+"stream_id": 860551,
+"name": "|CA| TNT Sport 2 HD",
+"category_id": "755",
+"epg_channel_id": "tntsports2.uk"
+},
+{
+"stream_id": 860558,
+"name": "|CA| TNT SPORTS 3 FHD",
+"category_id": "755",
+"epg_channel_id": "tntsports3.uk"
+},
+{
+"stream_id": 860552,
+"name": "|CA| TNT Sports 3 HD",
+"category_id": "755",
+"epg_channel_id": "tntsports3.uk"
+},
+{
+"stream_id": 860557,
+"name": "TNT SPORTS 4 FHD",
+"category_id": "755",
+"epg_channel_id": null
+},
+{
+"stream_id": 860553,
+"name": "|CA| TNT Sports 4 HD",
+"category_id": "755",
+"epg_channel_id": "tntsports4.uk"
+},
+{
+"stream_id": 860559,
+"name": "|CA| TNT SPORTS 3 FHD",
+"category_id": "755",
+"epg_channel_id": "tntsports3.uk"
+},
+{
+"stream_id": 860555,
+"name": "|CA| Sky Sports Premier League FHD",
+"category_id": "755",
+"epg_channel_id": "skysportspremiereleague.uk"
+},
+{
+"stream_id": 860554,
+"name": "|CA| Sky Cinema Premiere HD",
+"category_id": "755",
+"epg_channel_id": "skysportspremiereleague.uk"
+},
+{
+"stream_id": 860556,
+"name": "|CA| Sky Sports Football HD",
+"category_id": "755",
+"epg_channel_id": "skysportsfootball.uk"
+},
+{
+"stream_id": 55218,
+"name": "|CA| BEIN SPORT 1 ᴴᴰ",
+"category_id": "755",
+"epg_channel_id": "beinsports.us"
+},
+{
+"stream_id": 13131,
+"name": "|CA| BEIN SPORTS",
+"category_id": "755",
+"epg_channel_id": "beinsports.us"
+},
+{
+"stream_id": 60717,
+"name": "|CA| BEIN SPORTS",
+"category_id": "755",
+"epg_channel_id": "beinsports.us"
+},
+{
+"stream_id": 60720,
+"name": "|CA| BEIN SPORTS CONNECT 4",
+"category_id": "755",
+"epg_channel_id": "beinsports4.us"
+},
+{
+"stream_id": 60721,
+"name": "|CA| BEIN SPORTS CONNECT 5",
+"category_id": "755",
+"epg_channel_id": "beinsports5.us"
+},
+{
+"stream_id": 22075,
+"name": "|CA| BEIN SPORTS CONNECT ᴴᴰ US",
+"category_id": "755",
+"epg_channel_id": "beinsports.us"
+},
+{
+"stream_id": 22076,
+"name": "|CA| BEIN SPORTS CONNECT LALIGA",
+"category_id": "755",
+"epg_channel_id": "beinsportespanol.us"
+},
+{
+"stream_id": 22074,
+"name": "|CA| BEIN SPORTS ᴴᴰ",
+"category_id": "755",
+"epg_channel_id": "beinsports.us"
+},
+{
+"stream_id": 69666,
+"name": "|CA| BEIN SPORTS ᴴᴰ",
+"category_id": "755",
+"epg_channel_id": "beinsport.ca"
+},
+{
+"stream_id": 69679,
+"name": "|CA| SPORTSMAN ᴴᴰ",
+"category_id": "755",
+"epg_channel_id": "sportsnet360.ca"
+},
+{
+"stream_id": 69583,
+"name": "|CA| SPORTSNET 360 ᴴᴰ",
+"category_id": "918",
+"epg_channel_id": "sportsnet360.ca"
+},
+{
+"stream_id": 69584,
+"name": "|CA| SPORTSNET EAST ᴴᴰ",
+"category_id": "918",
+"epg_channel_id": "sportsneteast.ca"
+},
+{
+"stream_id": 69585,
+"name": "|CA| SPORTSNET ONE ᴴᴰ",
+"category_id": "918",
+"epg_channel_id": "sportsnetone.ca"
+},
+{
+"stream_id": 69581,
+"name": "|CA| SPORTSNET ONTARIO ᴴᴰ",
+"category_id": "918",
+"epg_channel_id": "sportsnetontario.ca"
+},
+{
+"stream_id": 69586,
+"name": "|CA| SPORTSNET  PACIFIC ᴴᴰ",
+"category_id": "918",
+"epg_channel_id": "sportsnetpacific.ca"
+},
+{
+"stream_id": 69582,
+"name": "|CA| SPORTSNET WEST ᴴᴰ",
+"category_id": "918",
+"epg_channel_id": "sportsnetwest.ca"
+},
+{
+"stream_id": 1232596,
+"name": "Sportsnet Central Sep 29 @ Sep 30 5:00 AM :Sportsnet+  01",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232597,
+"name": "The JD Bunkis Podcast Sep 30 @ Sep 30 9:00 AM :Sportsnet+  02",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232598,
+"name": "The FAN Hockey Show Sep 30 @ Sep 30 12:00 PM :Sportsnet+  03",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232599,
+"name": "Frankly Hockey Sep 30 @ Sep 30 2:00 PM :Sportsnet+  04",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232600,
+"name": "MLB: NL Wildcard Philadelphia vs Atlanta Game 2 @ Sep 30 2:00 PM :Sportsnet+  05",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232601,
+"name": "Blair & Barker Sep 30 @ Sep 30 3:00 PM :Sportsnet+  06",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232602,
+"name": "Real Kyper & Bourne Sep 30 @ Sep 30 4:00 PM :Sportsnet+  07",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232603,
+"name": "NHL Tonight First Shift @ Sep 30 4:00 PM :Sportsnet+  08",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232604,
+"name": "MLB: AL Wildcard Chicago White Sox vs Houston Game 2 @ Sep 30 5:00 PM :Sportsnet+  09",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232605,
+"name": "NHL Now @ Sep 30 5:00 PM :Sportsnet+  10",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232606,
+"name": "The FAN Pregame Sep 30 @ Sep 30 6:00 PM :Sportsnet+  11",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232607,
+"name": "NHL: Pittsburgh vs Philadelphia @ Sep 30 7:30 PM :Sportsnet+  12",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232608,
+"name": "MLB: AL Wildcard Boston vs New York Yankees Game 2 @ Sep 30 8:00 PM :Sportsnet+  13",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232609,
+"name": "NHL: Los Angeles vs Colorado @ Sep 30 10:00 PM :Sportsnet+  14",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232610,
+"name": "MLB: NL Wildcard Chicago Cubs vs San Diego Game 2 @ Sep 30 10:00 PM :Sportsnet+  15",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232611,
+"name": ":Sportsnet+  16",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232612,
+"name": ":Sportsnet+  17",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232613,
+"name": ":Sportsnet+  18",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232614,
+"name": ":Sportsnet+  19",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232615,
+"name": ":Sportsnet+  20",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232616,
+"name": ":Sportsnet+  21",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232617,
+"name": ":Sportsnet+  22",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232618,
+"name": ":Sportsnet+  23",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232619,
+"name": ":Sportsnet+  24",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232620,
+"name": ":Sportsnet+  25",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232621,
+"name": ":Sportsnet+  26",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232622,
+"name": ":Sportsnet+  27",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232623,
+"name": ":Sportsnet+  28",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232624,
+"name": ":Sportsnet+  29",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232625,
+"name": ":Sportsnet+  30",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232626,
+"name": ":Sportsnet+  31",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232627,
+"name": ":Sportsnet+  32",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232628,
+"name": ":Sportsnet+  33",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232629,
+"name": ":Sportsnet+  34",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232630,
+"name": ":Sportsnet+  35",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232631,
+"name": ":Sportsnet+  36",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232632,
+"name": ":Sportsnet+  37",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232633,
+"name": ":Sportsnet+  38",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232634,
+"name": ":Sportsnet+  39",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232635,
+"name": ":Sportsnet+  40",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232636,
+"name": ":Sportsnet+  41",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232637,
+"name": ":Sportsnet+  42",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232638,
+"name": ":Sportsnet+  43",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232639,
+"name": ":Sportsnet+  44",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232640,
+"name": ":Sportsnet+  45",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232641,
+"name": ":Sportsnet+  46",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232642,
+"name": ":Sportsnet+  47",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232643,
+"name": ":Sportsnet+  48",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232644,
+"name": ":Sportsnet+  49",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 1232645,
+"name": ":Sportsnet+  50",
+"category_id": "918",
+"epg_channel_id": null
+},
+{
+"stream_id": 69716,
+"name": "|CA| SUPER SPORTS CH 368 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69688,
+"name": "|CA| SUPER SPORTS CH 431 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69689,
+"name": "|CA| SUPER SPORTS CH 432 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69717,
+"name": "|CA| SUPER SPORTS CH 432 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69690,
+"name": "|CA| SUPER SPORTS CH 433 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69691,
+"name": "|CA| SUPER SPORTS CH 434 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69692,
+"name": "|CA| SUPER SPORTS CH 435 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69693,
+"name": "|CA| SUPER SPORTS CH 436 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69718,
+"name": "|CA| SUPER SPORTS CH 436 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69694,
+"name": "|CA| SUPER SPORTS CH 437 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69719,
+"name": "|CA| SUPER SPORTS CH 437 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69696,
+"name": "|CA| SUPER SPORTS CH 438 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69720,
+"name": "|CA| SUPER SPORTS CH 438 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69695,
+"name": "|CA| SUPER SPORTS CH 439 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69721,
+"name": "|CA| SUPER SPORTS CH 439 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69697,
+"name": "|CA| SUPER SPORTS CH 440 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69722,
+"name": "|CA| SUPER SPORTS CH 440  (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69698,
+"name": "|CA| SUPER SPORTS CH 441 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69723,
+"name": "|CA| SUPER SPORTS CH 441 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69699,
+"name": "|CA| SUPER SPORTS CH 442 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69724,
+"name": "|CA| SUPER SPORTS CH 442 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69700,
+"name": "|CA| SUPER SPORTS CH 443 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69725,
+"name": "|CA| SUPER SPORTS CH 443  (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69701,
+"name": "|CA| SUPER SPORTS CH 444 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69726,
+"name": "|CA| SUPER SPORTS CH 444  (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69702,
+"name": "|CA| SUPER SPORTS CH 450 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69727,
+"name": "|CA| SUPER SPORTS CH 450 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69703,
+"name": "|CA| SUPER SPORTS CH 452 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69704,
+"name": "|CA| SUPER SPORTS CH 453 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69707,
+"name": "|CA| SUPER SPORTS CH 454 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69705,
+"name": "|CA| SUPER SPORTS CH 455 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69706,
+"name": "|CA| SUPER SPORTS CH 456 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69708,
+"name": "|CA| SUPER SPORTS CH 457 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69709,
+"name": "|CA| SUPER SPORTS CH 458 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69710,
+"name": "|CA| SUPER SPORTS CH 459 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69711,
+"name": "|CA| SUPER SPORTS CH 460 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69712,
+"name": "|CA| SUPER SPORTS CH 461 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69728,
+"name": "|CA| SUPER SPORTS CH 461 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69713,
+"name": "|CA| SUPER SPORTS CH 462 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69729,
+"name": "|CA| SUPER SPORTS CH 462 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69714,
+"name": "|CA| SUPER SPORTS CH 464 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 69715,
+"name": "|CA| SUPER SPORTS CH 465 (R)",
+"category_id": "919",
+"epg_channel_id": null
+},
+{
+"stream_id": 281792,
+"name": "CA | Fubo Sports 4K",
+"category_id": "797",
+"epg_channel_id": null
+},
+{
+"stream_id": 1294908,
+"name": "CA | Fubo Sports 1",
+"category_id": "797",
+"epg_channel_id": null
+},
+{
+"stream_id": 281793,
+"name": "CA | Fubo Sports 10",
+"category_id": "797",
+"epg_channel_id": null
+},
+{
+"stream_id": 281794,
+"name": "CA | Fubo Sports 9",
+"category_id": "797",
+"epg_channel_id": null
+},
+{
+"stream_id": 281795,
+"name": "Fubo Sports 8",
+"category_id": "797",
+"epg_channel_id": null
+},
+{
+"stream_id": 281796,
+"name": "CA | Fubo Sports 7",
+"category_id": "797",
+"epg_channel_id": null
+},
+{
+"stream_id": 281797,
+"name": "CA | Fubo Sports 6",
+"category_id": "797",
+"epg_channel_id": null
+},
+{
+"stream_id": 281798,
+"name": "CA | Fubo Sports 5",
+"category_id": "797",
+"epg_channel_id": null
+},
+{
+"stream_id": 1294905,
+"name": "CA | Fubo Sports 4",
+"category_id": "797",
+"epg_channel_id": null
+},
+{
+"stream_id": 1294906,
+"name": "CA | Fubo Sports 3",
+"category_id": "797",
+"epg_channel_id": null
+},
+{
+"stream_id": 1294907,
+"name": "CA | Fubo Sports 2",
+"category_id": "797",
+"epg_channel_id": null
+},
+{
+"stream_id": 1282748,
+"name": "|FR| TSN 4K WEST",
+"category_id": "1137",
+"epg_channel_id": null
+},
+{
+"stream_id": 1282747,
+"name": "|FR| SPORTSNET ONE 4K",
+"category_id": "1137",
+"epg_channel_id": null
+},
+{
+"stream_id": 1282746,
+"name": "|FR| SPORTSNET 4K",
+"category_id": "1137",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943966,
+"name": "|CA|  RDS ",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943968,
+"name": "|CA|  RDS 2",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943967,
+"name": "|CA|  RDS Info Sports",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943948,
+"name": "|CA|  TVA Sports",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943953,
+"name": "|CA|  TVA Sports 2",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943961,
+"name": "|CA|  TSN 1",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943955,
+"name": "|CA|  TSN 2",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943958,
+"name": "|CA|  TSN 3 ",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943951,
+"name": "|CA|  TSN 4",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943954,
+"name": "|CA|  FUBO Sports Network",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943965,
+"name": "|CA|  NFL Network",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943963,
+"name": "|CA|  Premier League Highlights by Fubo Sports Network",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943964,
+"name": "|CA|  Red Bull TV",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943950,
+"name": "|CA|  Sportsnet 360",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943957,
+"name": "|CA|  Sportsnet East",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943962,
+"name": "|CA|  Sportsnet ONE",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943956,
+"name": "|CA|  Sportsnet Ontario",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943959,
+"name": "|CA|  Sportsnet Pacific",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 1943960,
+"name": "|CA|  Sportsnet West",
+"category_id": "2543",
+"epg_channel_id": null
+},
+{
+"stream_id": 49021,
+"name": "|FR|  RDS INFO",
+"category_id": "1137",
+"epg_channel_id": "rdsinfo.ca"
+},
+{
+"stream_id": 69507,
+"name": "|FR|  TVA SPORTS ᴴᴰ",
+"category_id": "1137",
+"epg_channel_id": "tvasports.ca"
+},
+{
+"stream_id": 49034,
+"name": "|FR|  TVA SPORTS ᴴᴰ",
+"category_id": "1137",
+"epg_channel_id": "tvasports.ca"
+},
+{
+"stream_id": 69506,
+"name": "|FR|  TVA SPORTS 2 ᴴᴰ",
+"category_id": "1137",
+"epg_channel_id": "tvasports2.ca"
+},
+{
+"stream_id": 77296,
+"name": "|CA|  TSN/RDS EXTRA 1",
+"category_id": "755",
+"epg_channel_id": "rds.ca"
+},
+{
+"stream_id": 77295,
+"name": "|CA|  TSN/RDS EXTRA 2",
+"category_id": "755",
+"epg_channel_id": "rds2.ca"
+},
+{
+"stream_id": 77293,
+"name": "|CA|  TSN/RDS EXTRA 4",
+"category_id": "755",
+"epg_channel_id": "rds.ca"
+},
+{
+"stream_id": 77292,
+"name": "|CA|  TSN/RDS EXTRA 5",
+"category_id": "755",
+"epg_channel_id": "rds.ca"
+},
+{
+"stream_id": 49019,
+"name": "|FR|  RDS HD",
+"category_id": "1137",
+"epg_channel_id": "rds.ca"
+},
+{
+"stream_id": 69518,
+"name": "|FR|  RDS ᴴᴰ",
+"category_id": "1137",
+"epg_channel_id": "rds.ca"
+},
+{
+"stream_id": 49020,
+"name": "|FR|  RDS 2",
+"category_id": "1137",
+"epg_channel_id": "rds2.ca"
+},
+{
+"stream_id": 69519,
+"name": "|FR|  RDS2 ᴴᴰ",
+"category_id": "1137",
+"epg_channel_id": "rds2.ca"
+},
+{
+"stream_id": 1242292,
+"name": "CA (TSN+ 001) | ATP 500 Tennis: Tokyo _ Early Round Coverage Day #1 (2026-09-29 22:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242293,
+"name": "CA (TSN+ 002) | ATP 500 Tennis: Tokyo _ Day #1 (Colosseum) (2026-09-29 22:00:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242294,
+"name": "CA (TSN+ 003) | ATP 500 Tennis: Beijing _ Early Round Coverage Day #1 (2026-09-29 23:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242295,
+"name": "CA (TSN+ 004) | ATP 500 Tennis: Beijing _ Day #1 (Diamond) (2026-09-29 23:00:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242296,
+"name": "CA (TSN+ 005) | ATP 500 Tennis: Beijing _ Day #1 (Lotus) (2026-09-30 01:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242297,
+"name": "CA (TSN+ 006) | Pat McAfee Show (2026-09-30 12:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242298,
+"name": "CA (TSN+ 007) | Rich Eisen Show (2026-09-30 12:00:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242299,
+"name": "CA (TSN+ 008) | ATP 500 Tennis: Tokyo _ Day #2 (Colosseum) (2026-09-30 22:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242300,
+"name": "CA (TSN+ 009) | ATP 500 Tennis: Tokyo _ Day #2 (Show Court) (2026-09-30 22:00:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242301,
+"name": "CA (TSN+ 010) | ATP 500 Tennis: Tokyo _ Day #2 (Court 1) (2026-09-30 22:00:10)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242302,
+"name": "CA (TSN+ 011) | ATP 500 Tennis: Tokyo _ Early Round Coverage Day #2 (2026-09-30 22:00:15)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242303,
+"name": "CA (TSN+ 012) | ATP 500 Tennis: Beijing _ Early Round Coverage Day #2 (2026-09-30 23:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242304,
+"name": "CA (TSN+ 013) | ATP 500 Tennis: Beijing _ Day #2 (Lotus) (2026-09-30 23:00:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242305,
+"name": "CA (TSN+ 014) | ATP 500 Tennis: Beijing _ Day #2 (Moon) (2026-09-30 23:00:10)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242306,
+"name": "CA (TSN+ 015) | ATP 500 Tennis: Beijing _ Day #2 (Brad Drewett) (2026-09-30 23:00:15)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242307,
+"name": "CA (TSN+ 016) | ATP 500 Tennis: Beijing _ Day #2 (Diamond) (2026-10-01 00:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242308,
+"name": "CA (TSN+ 017) | Pat McAfee Show (2026-10-01 12:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242309,
+"name": "CA (TSN+ 018) | Rich Eisen Show (2026-10-01 12:00:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242310,
+"name": "CA (TSN+ 019) | NCAA Football: North Texas vs. Tulsa (2026-10-01 21:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242311,
+"name": "CA (TSN+ 020) | ATP 500 Tennis: Tokyo _ Early Round Coverage Day #3 (2026-10-01 22:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242312,
+"name": "CA (TSN+ 021) | WTA 1000 Tennis: Beijing _ Early Round Coverage Day #3 (2026-10-01 23:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242313,
+"name": "CA (TSN+ 022) | Formula 1 Driver Tracker _ Bahrain Grand Prix Practice #1 (2026-10-02 00:20:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242314,
+"name": "CA (TSN+ 023) | Formula 1 Pit Lane _ Bahrain Grand Prix Practice #1 (2026-10-02 00:20:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242315,
+"name": "CA (TSN+ 024) | Formula 1 Timing Channel _ Bahrain Grand Prix Practice #1 (2026-10-02 00:20:10)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242316,
+"name": "CA (TSN+ 025) | Formula 1 On_Board Camera: Lance Stroll _ Bahrain Grand Prix Practice #1 (2026-10-02 00:20:15)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242317,
+"name": "CA (TSN+ 026) | Formula 1 On_Board Camera: George Russell _ Bahrain Grand Prix Practice #1 (2026-10-02 00:20:20)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242318,
+"name": "CA (TSN+ 027) | Formula 1 On_Board Camera: Max Verstappen _ Bahrain Grand Prix Practice #1 (2026-10-02 00:20:25)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242319,
+"name": "CA (TSN+ 028) | Formula 1 Mixed On_Board Camera _ Bahrain Grand Prix Practice #1 (2026-10-02 00:20:30)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242320,
+"name": "CA (TSN+ 029) | ATP 500 Tennis: Beijing _ Early Round Coverage Day #3 (2026-10-02 01:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242321,
+"name": "CA TSN+ 30",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242322,
+"name": "CA (TSN+ 031) | ATP 500 Tennis: Beijing _ Day #3 (Diamond) (2026-10-02 03:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242323,
+"name": "CA (TSN+ 032) | Formula 1 Driver Tracker _ Bahrain Grand Prix Practice #2 (2026-10-02 03:50:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242324,
+"name": "CA (TSN+ 033) | Formula 1 Pit Lane _ Bahrain Grand Prix Practice #2 (2026-10-02 03:50:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242325,
+"name": "CA (TSN+ 034) | Formula 1 Timing Channel _ Bahrain Grand Prix Practice #2 (2026-10-02 03:50:10)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242326,
+"name": "CA (TSN+ 035) | Formula 1 On_Board Camera: Lance Stroll _ Bahrain Grand Prix Practice #2 (2026-10-02 03:50:15)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242327,
+"name": "CA (TSN+ 036) | Formula 1 On_Board Camera: George Russell _ Bahrain Grand Prix Practice #2 (2026-10-02 03:50:20)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242328,
+"name": "CA (TSN+ 037) | Formula 1 On_Board Camera: Max Verstappen _ Bahrain Grand Prix Practice #2 (2026-10-02 03:50:25)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242329,
+"name": "CA (TSN+ 038) | Formula 1 Mixed On_Board Camera _ Bahrain Grand Prix Practice #2 (2026-10-02 03:50:30)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242330,
+"name": "CA (TSN+ 039) | Pat McAfee Show (2026-10-02 12:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242331,
+"name": "CA (TSN+ 040) | Rich Eisen Show (2026-10-02 12:00:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242332,
+"name": "CA (TSN+ 041) | NSL on TSN: Montreal vs. Ottawa (2026-10-02 19:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242333,
+"name": "CA (TSN+ 042) | ATP 500 Tennis: Tokyo _ Early Round Coverage Day #4 (2026-10-02 22:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242334,
+"name": "CA (TSN+ 043) | NCAA Football: Montana State vs. Idaho (2026-10-02 22:30:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242335,
+"name": "CA (TSN+ 044) | WTA 1000 Tennis: Beijing _ Early Round Coverage Day #4 (2026-10-02 23:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242336,
+"name": "CA (TSN+ 045) | ATP 500 Tennis: Beijing _ Early Round Coverage Day #4 (2026-10-02 23:00:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242337,
+"name": "CA (TSN+ 046) | ATP 500 Tennis: Beijing _ Day #4 (Diamond) (2026-10-02 23:00:10)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242338,
+"name": "CA (TSN+ 047) | Formula 1 Driver Tracker _ Bahrain Grand Prix Practice #3 (2026-10-03 00:20:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242339,
+"name": "CA (TSN+ 048) | Formula 1 Pit Lane _ Bahrain Grand Prix Practice #3 (2026-10-03 00:20:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242340,
+"name": "CA (TSN+ 049) | Formula 1 Timing Channel _ Bahrain Grand Prix Practice #3 (2026-10-03 00:20:10)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242341,
+"name": "CA (TSN+ 050) | Formula 1 On_Board Camera: Lance Stroll _ Bahrain Grand Prix Practice #3 (2026-10-03 00:20:15)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242342,
+"name": "CA (TSN+ 051) | Formula 1 On_Board Camera: George Russell _ Bahrain Grand Prix Practice #3 (2026-10-03 00:20:20)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242343,
+"name": "CA (TSN+ 052) | Formula 1 On_Board Camera: Max Verstappen_ Bahrain Grand Prix Practice #3 (2026-10-03 00:20:25)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242344,
+"name": "CA (TSN+ 053) | Formula 1 Mixed On_Board Camera _ Bahrain Grand Prix Practice #3 (2026-10-03 00:20:30)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242345,
+"name": "CA (TSN+ 054) | ATP 500 Tennis: Beijing _ Day #4 (Lotus) (2026-10-03 01:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242346,
+"name": "CA (TSN+ 055) | Formula 1 Driver Tracker _ Bahrain Grand Prix Qualifying (2026-10-03 03:50:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242347,
+"name": "CA (TSN+ 056) | Formula 1 Pit Lane _ Bahrain Grand Prix Qualifying (2026-10-03 03:50:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242348,
+"name": "CA (TSN+ 057) | Formula 1 Timing Channel _ Bahrain Grand Prix Qualifying (2026-10-03 03:50:10)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242349,
+"name": "CA (TSN+ 058) | Formula 1 On_Board Camera: Lance Stroll _ Bahrain Grand Prix Qualifying (2026-10-03 03:50:15)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242350,
+"name": "CA (TSN+ 059) | Formula 1 On_Board Camera: George Russell _ Bahrain Grand Prix Qualifying (2026-10-03 03:50:20)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242351,
+"name": "CA (TSN+ 060) | Formula 1 On_Board Camera: Max Verstappen _ Bahrain Grand Prix Qualifying (2026-10-03 03:50:25)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242352,
+"name": "CA (TSN+ 061) | Formula 1 Mixed On_Board Camera: Bahrain Grand Prix Qualifying (2026-10-03 03:50:30)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242353,
+"name": "CA (TSN+ 062) | NCAA Football: Notre Dame vs. North Carolina (2026-10-03 12:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242354,
+"name": "CA (TSN+ 063) | NCAA Football: UCF vs. Houston (2026-10-03 12:00:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242355,
+"name": "CA (TSN+ 064) | NCAA Football: Vanderbilt vs. Georgia (2026-10-03 12:45:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242356,
+"name": "CA (TSN+ 065) | 2026 NASCAR ORAP Series Practice & Qualifying: Focused Health 302 (2026-10-03 14:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242357,
+"name": "CA (TSN+ 066) | NCAA Football: Virginia vs. Florida State (2026-10-03 15:30:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242358,
+"name": "CA (TSN+ 067) | NCAA Football: Auburn vs. Tennessee (2026-10-03 15:30:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242359,
+"name": "CA (TSN+ 068) | NCAA Football: Kentucky vs. South Carolina (2026-10-03 16:15:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242360,
+"name": "CA (TSN+ 069) | NASCAR Cup Series Practice & Qualifying: South Point 400 (2026-10-03 16:30:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242361,
+"name": "CA (TSN+ 070) | 2026 NASCAR O`Reilly Auto Parts Series Playoffs: Focused Health 302 (2026-10-03 19:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242362,
+"name": "CA (TSN+ 071) | NCAA Football: BYU vs. TCU (2026-10-03 19:00:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242363,
+"name": "CA (TSN+ 072) | NCAA Football: Arkansas vs. Texas A&M (2026-10-03 19:00:10)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242364,
+"name": "CA (TSN+ 073) | NCAA Football: LSU vs. McNeese (2026-10-03 19:45:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242365,
+"name": "CA (TSN+ 074) | ATP 500 Tennis: Tokyo _ Quarterfinals (2026-10-03 22:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242366,
+"name": "CA (TSN+ 075) | NCAA Football: Baylor vs. Arizona State (2026-10-03 22:30:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242367,
+"name": "CA (TSN+ 076) | WTA 1000 Tennis: Beijing _ Early Round Coverage Day #5 (2026-10-03 23:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242368,
+"name": "CA (TSN+ 077) | ATP 500 Tennis: Beijing _ Quarterfinals (2026-10-04 01:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242369,
+"name": "CA (TSN+ 078) | ATP 500 Tennis: Beijing _ Quarterfinals (Diamond) (2026-10-04 01:00:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242370,
+"name": "CA (TSN+ 079) | Formula 1 Driver Tracker _ Bahrain Grand Prix (2026-10-04 02:30:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242371,
+"name": "CA (TSN+ 080) | Formula 1 On_Board Camera: Max Verstappen _ Bahrain Grand Prix (2026-10-04 02:30:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242372,
+"name": "CA (TSN+ 081) | Formula 1 Mixed On_Board Camera _ Bahrain Grand Prix (2026-10-04 02:30:10)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242373,
+"name": "CA (TSN+ 082) | Formula 1 Timing Channel _ Bahrain Grand Prix (2026-10-04 02:30:15)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242374,
+"name": "CA (TSN+ 083) | Formula 1 On_Board Camera: Lance Stroll _ Bahrain Grand Prix (2026-10-04 02:30:20)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242375,
+"name": "CA (TSN+ 084) | Formula 1 On_Board Camera: George Russell _ Bahrain Grand Prix (2026-10-04 02:30:25)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242376,
+"name": "CA (TSN+ 085) | Formula 1 Pit Lane _ Bahrain Grand Prix (2026-10-04 02:30:30)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242377,
+"name": "CA (TSN+ 086) | ATP 500 Tennis: Beijing _ Quarterfinals (Lotus) (2026-10-04 07:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242378,
+"name": "CA (TSN+ 087) | NFL International Series: Colts vs. Commanders (2026-10-04 09:30:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242379,
+"name": "CA (TSN+ 088) | NFL Fantasy Focus (2026-10-04 10:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242380,
+"name": "CA (TSN+ 089) | NFL RedZone (2026-10-04 13:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242381,
+"name": "CA (TSN+ 090) | NFL on TSN: Jaguars vs. Bengals (2026-10-04 13:00:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242382,
+"name": "CA (TSN+ 091) | LaLiga 2: Girona vs. Las Palmas (2026-10-04 14:48:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242383,
+"name": "CA (TSN+ 092) | NASCAR Cup Series On_Board Camera: South Point 400 (2026-10-04 17:30:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242384,
+"name": "CA (TSN+ 093) | NASCAR Cup Series On_Board Camera: South Point 400 (2026-10-04 17:30:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242385,
+"name": "CA (TSN+ 094) | WTA 1000 Tennis: Beijing _ Early Round Coverage Day #6 (2026-10-04 23:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242386,
+"name": "CA (TSN+ 095) | ATP 500 Tennis: Beijing _ Semifinals (2026-10-05 03:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242387,
+"name": "CA (TSN+ 096) | ATP 500 Tennis: Tokyo _ Semifinals (2026-10-05 03:00:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242388,
+"name": "CA (TSN+ 097) | Pat McAfee Show (2026-10-05 12:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242389,
+"name": "CA (TSN+ 098) | Rich Eisen Show (2026-10-05 12:00:05)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242390,
+"name": "CA (TSN+ 099) | Monday Night Football with Peyton and Eli: Falcons vs. Saints (2026-10-05 20:15:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1242391,
+"name": "CA (TSN+ 100) | WTA 1000 Tennis: Beijing _ Round of 16 (2026-10-05 23:00:00)",
+"category_id": "1961",
+"epg_channel_id": null
+},
+{
+"stream_id": 1700203,
+"name": "|TAN| AZAM SPORTS 1",
+"category_id": "722",
+"epg_channel_id": null
+},
+{
+"stream_id": 262957,
+"name": "|TAN| Azam Sports 1",
+"category_id": "722",
+"epg_channel_id": null
+},
+{
+"stream_id": 1700204,
+"name": "|TAN| AZAM SPORTS 2",
+"category_id": "722",
+"epg_channel_id": null
+},
+{
+"stream_id": 262955,
+"name": "|TAN| Azam Sports 2",
+"category_id": "722",
+"epg_channel_id": null
+},
+{
+"stream_id": 1700205,
+"name": "|TAN| AZAM SPORTS 3",
+"category_id": "722",
+"epg_channel_id": null
+},
+{
+"stream_id": 262953,
+"name": "|TAN| Azam Sports 3",
+"category_id": "722",
+"epg_channel_id": null
+},
+{
+"stream_id": 1700230,
+"name": "|TAN| ID",
+"category_id": "722",
+"epg_channel_id": null
+},
+{
+"stream_id": 1700228,
+"name": "|TAN| HISTORY",
+"category_id": "722",
+"epg_channel_id": null
+},
+{
+"stream_id": 1700224,
+"name": "|TAN| ESPN",
+"category_id": "722",
+"epg_channel_id": null
+},
+{
+"stream_id": 1700223,
+"name": "|TAN| DISCOVERY AFRICA",
+"category_id": "722",
+"epg_channel_id": null
+},
+{
+"stream_id": 1700206,
+"name": "|TAN| AZAM SPORTS 4",
+"category_id": "722",
+"epg_channel_id": null
+},
+{
+"stream_id": 1700200,
+"name": "|TAN| AL JAZEERA",
+"category_id": "722",
+"epg_channel_id": null
+},
+{
+"stream_id": 1285328,
+"name": "|TAN| KIX Movies",
+"category_id": "722",
+"epg_channel_id": null
+},
+{
+"stream_id": 262952,
+"name": "|TAN| Sinema Zetu",
+"category_id": "722",
+"epg_channel_id": null
+},
+{
+"stream_id": 262986,
+"name": "|TAN| CGTN Documentary",
+"category_id": "722",
+"epg_channel_id": null
+},
+{
+"stream_id": 262954,
+"name": "|TAN| Azam One",
+"category_id": "722",
+"epg_channel_id": null
+},
+{
+"stream_id": 262956,
+"name": "|TAN| Azam TWO",
+"category_id": "722",
+"epg_channel_id": null
+},
+{
+"stream_id": 262964,
+"name": "|TAN| ZBC 2",
+"category_id": "722",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670485,
+"name": "UK| SKY STORE PREMIERE 1",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670486,
+"name": "UK| SKY STORE PREMIERE 2",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670487,
+"name": "UK| SKY STORE PREMIERE 3",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670488,
+"name": "UK| SKY STORE PREMIERE 4",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670489,
+"name": "UK| SKY STORE PREMIERE 5",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670490,
+"name": "UK| SKY STORE PREMIERE 6",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670491,
+"name": "UK| SKY STORE PREMIERE 7",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670492,
+"name": "UK| SKY STORE PREMIERE 8",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670493,
+"name": "UK| SKY STORE PREMIERE 9",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670494,
+"name": "UK| SKY STORE PREMIERE 10",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670495,
+"name": "UK| SKY STORE PREMIERE 11",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670496,
+"name": "UK| SKY STORE PREMIERE 12",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670497,
+"name": "UK| SKY STORE PREMIERE 13",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670498,
+"name": "UK| SKY STORE PREMIERE 14",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670499,
+"name": "UK| SKY STORE PREMIERE 15",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670500,
+"name": "UK| SKY STORE PREMIERE 16",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670501,
+"name": "UK| SKY STORE PREMIERE 17",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670502,
+"name": "UK| SKY STORE PREMIERE 18",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670503,
+"name": "UK| SKY STORE PREMIERE 19",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670504,
+"name": "UK| SKY STORE PREMIERE 20",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1670505,
+"name": "UK| SKY STORE PREMIERE 21",
+"category_id": "2517",
+"epg_channel_id": null
+},
+{
+"stream_id": 1451770,
+"name": "✦ ✦ ✦ TNT SPORTS ✦ ✦ ✦",
+"category_id": "1944",
+"epg_channel_id": null
+},
+{
+"stream_id": 1235747,
+"name": "NOW| TNT SPORTS 1 ᵁᴴᴰ",
+"category_id": "1944",
+"epg_channel_id": "tntsports1.uk"
+},
+{
+"stream_id": 1235748,
+"name": "NOW| TNT SPORTS 2 ᵁᴴᴰ",
+"category_id": "1944",
+"epg_channel_id": "tntsports2.uk"
+},
+{
+"stream_id": 1235749,
+"name": "NOW| TNT SPORTS 3 ᵁᴴᴰ",
+"category_id": "1944",
+"epg_channel_id": "tntsports3.uk"
+},
+{
+"stream_id": 1235745,
+"name": "NOW| TNT SPORTS  4 ᵁᴴᴰ",
+"category_id": "1944",
+"epg_channel_id": "tntsports4.uk"
+},
+{
+"stream_id": 1701221,
+"name": "UK| TNT SPORTS Extra 5",
+"category_id": "1944",
+"epg_channel_id": "tntsports1.uk"
+},
+{
+"stream_id": 1701222,
+"name": "UK| TNT SPORTS Extra 5",
+"category_id": "1944",
+"epg_channel_id": "tntsports1.uk"
+},
+{
+"stream_id": 1701227,
+"name": "UK| TNT SPORTS Extra 6",
+"category_id": "1944",
+"epg_channel_id": "tntsports1.uk"
+},
+{
+"stream_id": 1451794,
+"name": "✦ ✦ ✦ SKY SPORT + PPV ✦ ✦ ✦",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102893,
+"name": "UK Sky Sports+ FHD",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102895,
+"name": "UK Sky Sports+ HD",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102896,
+"name": "UK Sky Sports+ SD",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102897,
+"name": "UK Sky Sport+ 1",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102898,
+"name": "UK Sky Sport+ 2",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102899,
+"name": "UK Sky Sport+ 3",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102900,
+"name": "UK Sky Sport+ 4",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102901,
+"name": "UK Sky Sport+ 5",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102902,
+"name": "UK Sky Sport+ 6",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102903,
+"name": "UK Sky Sport+ 7",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102904,
+"name": "Sky Sports + 8",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102905,
+"name": "UK Sky Sport+ 9",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102906,
+"name": "UK Sky Sport+ 10",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102907,
+"name": "UK Sky Sport+ 11",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102908,
+"name": "UK Sky Sport+ 12",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102909,
+"name": "UK Sky Sport+ 13",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102910,
+"name": "UK Sky Sport+ 14",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102911,
+"name": "UK Sky Sport+ 15",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102912,
+"name": "UK Sky Sport+ 16",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102913,
+"name": "UK Sky Sport+ 17",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102914,
+"name": "UK Sky Sport+ 18",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102915,
+"name": "UK Sky Sport+ 19",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102916,
+"name": "UK Sky Sport+ 20",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102917,
+"name": "UK Sky Sport+ 21",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102918,
+"name": "UK Sky Sport+ 22",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102919,
+"name": "UK Sky Sport+ 23",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102920,
+"name": "UK Sky Sport+ 24",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102921,
+"name": "UK Sky Sport+ 25",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102922,
+"name": "UK Sky Sport+ 26",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102923,
+"name": "UK Sky Sport+ 27",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102924,
+"name": "UK Sky Sport+ 28",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102925,
+"name": "UK Sky Sport+ 29",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102926,
+"name": "UK Sky Sport+ 30",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102927,
+"name": "UK Sky Sport+ 31",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102928,
+"name": "UK Sky Sport+ 32",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102929,
+"name": "UK Sky Sport+ 33",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102930,
+"name": "UK Sky Sport+ 34",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102931,
+"name": "UK Sky Sport+ 35",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102932,
+"name": "UK Sky Sport+ 36",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102933,
+"name": "UK Sky Sport+ 37",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102934,
+"name": "UK Sky Sport+ 38",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 1102935,
+"name": "UK Sky Sport+ 39",
+"category_id": "1778",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098864,
+"name": "South Africa v Australia @ Sep 30 12:00 PM :Sky Sports UK  01",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098865,
+"name": "World Grand Prix Darts D3 @ Sep 30 7:00 PM :Sky Sports UK  02",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098866,
+"name": ":Sky Sports UK  03",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098867,
+"name": ":Sky Sports UK  04",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098868,
+"name": ":Sky Sports UK  05",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098869,
+"name": ":Sky Sports UK  06",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098870,
+"name": ":Sky Sports UK  07",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098872,
+"name": ":Sky Sports UK  09",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098871,
+"name": ":Sky Sports UK  08",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098873,
+"name": ":Sky Sports UK  10",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098874,
+"name": ":Sky Sports UK  11",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098875,
+"name": ":Sky Sports UK  12",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098876,
+"name": ":Sky Sports UK  13",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098877,
+"name": ":Sky Sports UK  14",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098878,
+"name": ":Sky Sports UK  15",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098879,
+"name": ":Sky Sports UK  16",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098880,
+"name": ":Sky Sports UK  17",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098881,
+"name": ":Sky Sports UK  18",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098882,
+"name": ":Sky Sports UK  19",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098883,
+"name": ":Sky Sports UK  20",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098884,
+"name": ":Sky Sports UK  21",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098885,
+"name": ":Sky Sports UK  22",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098886,
+"name": ":Sky Sports UK  23",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098887,
+"name": ":Sky Sports UK  24",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098888,
+"name": ":Sky Sports UK  25",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098889,
+"name": ":Sky Sports UK  26",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098890,
+"name": ":Sky Sports UK  27",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098891,
+"name": ":Sky Sports UK  28",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098892,
+"name": ":Sky Sports UK  29",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098893,
+"name": ":Sky Sports UK  30",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098894,
+"name": ":Sky Sports UK  31",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098895,
+"name": ":Sky Sports UK  32",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098896,
+"name": ":Sky Sports UK  33",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098897,
+"name": ":Sky Sports UK  34",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098898,
+"name": ":Sky Sports UK  35",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098899,
+"name": ":Sky Sports UK  36",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098900,
+"name": ":Sky Sports UK  37",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098901,
+"name": ":Sky Sports UK  38",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098902,
+"name": ":Sky Sports UK  39",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098903,
+"name": ":Sky Sports UK  40",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098904,
+"name": ":Sky Sports UK  41",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098905,
+"name": ":Sky Sports UK  42",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098906,
+"name": ":Sky Sports UK  43",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098907,
+"name": ":Sky Sports UK  44",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098908,
+"name": ":Sky Sports UK  45",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098909,
+"name": ":Sky Sports UK  46",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098910,
+"name": ":Sky Sports UK  47",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098911,
+"name": ":Sky Sports UK  48",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098912,
+"name": ":Sky Sports UK  49",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 2098913,
+"name": ":Sky Sports UK  50",
+"category_id": "2615",
+"epg_channel_id": null
+},
+{
+"stream_id": 1451786,
+"name": "✦ ✦ ✦  TNT SPORTS EVENT ✦ ✦ ✦",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1895567,
+"name": "UK| TNT Sports Ultimate 4K",
+"category_id": "1944",
+"epg_channel_id": "tntsports1.uk"
+},
+{
+"stream_id": 1177511,
+"name": "|UK| TNT SPORTS 1 ᵁᴴᴰ D",
+"category_id": "1769",
+"epg_channel_id": "tntsports1.uk"
+},
+{
+"stream_id": 1177513,
+"name": "|UK| TNT SPORTS  3 ᵁᴴᴰ D",
+"category_id": "1769",
+"epg_channel_id": "tntsports3.uk"
+},
+{
+"stream_id": 1177512,
+"name": "|UK| TNT SPORTS  4 ᵁᴴᴰ D",
+"category_id": "1769",
+"epg_channel_id": "tntsports4.uk"
+},
+{
+"stream_id": 1177514,
+"name": "|UK| TNT SPORTS  4 ᵁᴴᴰ D",
+"category_id": "1769",
+"epg_channel_id": "tntsports4.uk"
+},
+{
+"stream_id": 968927,
+"name": "|UK| TNT SPORTS 5 ᵁᴴᴰ D",
+"category_id": "1769",
+"epg_channel_id": "tntsports5.uk"
+},
+{
+"stream_id": 1084620,
+"name": "TNT Sports | Event 1",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1084619,
+"name": "TNT Sports | Event 2",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1084618,
+"name": "TNT Sports | Event 3",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1084617,
+"name": "TNT Sports | Event 4",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1084616,
+"name": "TNT Sports | Event 5",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1084615,
+"name": "TNT Sports | Event 6",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1084614,
+"name": "TNT Sports | Event 7",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1084613,
+"name": "TNT Sports | Event 8",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1084612,
+"name": "TNT Sports | Event 9",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1084611,
+"name": "TNT Sports | Event 10",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1084610,
+"name": "TNT Sports | Event 11",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1084609,
+"name": "TNT Sports | Event 12",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1084608,
+"name": "TNT Sports | Event 13",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1084607,
+"name": "TNT Sports | Event 14",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1084606,
+"name": "TNT Sports | Event 15",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1084605,
+"name": "TNT Sports | Event 16",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1084604,
+"name": "TNT Sports | Event 17",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1084603,
+"name": "TNT Sports | Event 18",
+"category_id": "1769",
+"epg_channel_id": null
+},
+{
+"stream_id": 1057818,
+"name": "NZ Premier Sports 1 HD",
+"category_id": "1282",
+"epg_channel_id": null
+},
+{
+"stream_id": 1057817,
+"name": "NZ Premier Sports 2 HD",
+"category_id": "1282",
+"epg_channel_id": null
+},
+{
+"stream_id": 1057819,
+"name": "NZ TVNZ  DUKE",
+"category_id": "1282",
+"epg_channel_id": null
+},
+{
+"stream_id": 579815,
+"name": "|NZ| SKY ESPN ᵁᴴᴰ",
+"category_id": "1282",
+"epg_channel_id": "espn.nz"
+},
+{
+"stream_id": 579814,
+"name": "|NZ| SKY ESPN 2 ᵁᴴᴰ",
+"category_id": "1282",
+"epg_channel_id": "espn2.nz"
+},
+{
+"stream_id": 579826,
+"name": "|NZ| SKY SPORTS 1 ᵁᴴᴰ",
+"category_id": "1282",
+"epg_channel_id": "skysport1.nz"
+},
+{
+"stream_id": 579825,
+"name": "|NZ| SKY SPORTS 2 ᵁᴴᴰ",
+"category_id": "1282",
+"epg_channel_id": "skysport2.nz"
+},
+{
+"stream_id": 579824,
+"name": "|NZ| SKY SPORTS 3 ᵁᴴᴰ",
+"category_id": "1282",
+"epg_channel_id": "skysport3.nz"
+},
+{
+"stream_id": 579823,
+"name": "|NZ| SKY SPORTS 4 ᵁᴴᴰ",
+"category_id": "1282",
+"epg_channel_id": "skysport4.nz"
+},
+{
+"stream_id": 579822,
+"name": "|NZ| SKY SPORTS 5 ᵁᴴᴰ",
+"category_id": "1282",
+"epg_channel_id": "skysport5.nz"
+},
+{
+"stream_id": 579821,
+"name": "|NZ| SKY SPORTS 6 ᵁᴴᴰ",
+"category_id": "1282",
+"epg_channel_id": "skysport6.nz"
+},
+{
+"stream_id": 579820,
+"name": "|NZ| SKY SPORTS 7 ᵁᴴᴰ",
+"category_id": "1282",
+"epg_channel_id": "skysport7.nz"
+},
+{
+"stream_id": 579818,
+"name": "|NZ| SKY SPORTS 9 ᵁᴴᴰ",
+"category_id": "1282",
+"epg_channel_id": "skysport9.nz"
+},
+{
+"stream_id": 579816,
+"name": "|NZ| SKY SPORTS Select",
+"category_id": "1282",
+"epg_channel_id": "skysportpopup1.nz"
+},
+{
+"stream_id": 579819,
+"name": "|NZ| SKY SPORTS Premier League ᵁᴴᴰ",
+"category_id": "1282",
+"epg_channel_id": "eden.nz"
+},
+{
+"stream_id": 579817,
+"name": "|NZ| SKY SPORTS Select ᵁᴴᴰ",
+"category_id": "1282",
+"epg_channel_id": "skysportselect.nz"
+},
+{
+"stream_id": 1149381,
+"name": "NZ-DAZN 1 HD (D): RWS Muay Thai| RWS: Petchthongchai vs. Pearse| Sat 26 Oct 14:45",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149382,
+"name": "NZ-DAZN 2 HD (D): IRONMAN Pro Series| VinFast IRONMAN World Championship _ Men’s Race| Sat 26 Oct 16:30",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149383,
+"name": "NZ-DAZN 3 HD (D): Fight Night 106 | 2024| Catterall vs. Prograis: Prelims| Sat 26 Oct 18:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149384,
+"name": "NZ-DAZN 4 HD (D): KOK World Series _ Slovakia| Sat 26 Oct 18:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149385,
+"name": "NZ-DAZN 5 HD (D): Lega Basket Serie A| Basket Cremona vs. Virtus Bologna| Sat 26 Oct 19:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149386,
+"name": "NZ-DAZN 6 HD (D): Fight Night 106 | 2024| Catterall vs. Prograis| Sat 26 Oct 20:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149387,
+"name": "NZ-DAZN 7 HD (D): Saudi League| Al Hilal vs. Al Taawoun| Sat 26 Oct 20:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149388,
+"name": "NZ-DAZN 8 HD (D): Lega Basket Serie A| Olimpia Milano vs. Napoli| Sat 26 Oct 20:30",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149389,
+"name": "NZ-DAZN 9 HD (D): FIM World Supercross Championship| World Supercross Round 1 _ Canadian GP| Sun 27 Oct 03:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149390,
+"name": "NZ-DAZN 10 HD (D): SLB Trophy| Manchester Basketball vs. Sheffield Sharks| Sun 27 Oct 16:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149391,
+"name": "NZ-DAZN 11 HD (D): Lega Basket Serie A| Reyer Venezia vs. Scafati| Sun 27 Oct 16:30",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149392,
+"name": "NZ-DAZN 12 HD (D): NFL Game Pass| Ravens @ Browns| Sun 27 Oct 17:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149393,
+"name": "NZ-DAZN 13 HD (D): NFL Game Pass| Titans @ Lions| Sun 27 Oct 17:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149394,
+"name": "NZ-DAZN 14 HD (D): NFL Game Pass| Colts @ Texans| Sun 27 Oct 17:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149395,
+"name": "NZ-DAZN 15 HD (D): NFL Game Pass| Packers @ Jaguars| Sun 27 Oct 17:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149396,
+"name": "NZ-DAZN 16 HD (D): NFL Game Pass| Cardinals @ Dolphins| Sun 27 Oct 17:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149397,
+"name": "NZ-DAZN 17 HD (D): NFL Game Pass| Jets @ Patriots| Sun 27 Oct 17:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149398,
+"name": "NZ-DAZN 18 HD (D): NFL Game Pass| Falcons @ Buccaneers| Sun 27 Oct 17:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149399,
+"name": "NZ-DAZN 19 HD (D): NFL Game Pass| Eagles @ Bengals| Sun 27 Oct 17:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149400,
+"name": "NZ-DAZN 20 HD (D): SLB Trophy| Caledonia Gladiators vs. Cheshire Phoenix| Sun 27 Oct 17:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149401,
+"name": "NZ-DAZN 21 HD (D): SLB Trophy| Leicester Riders vs. London Lions| Sun 27 Oct 17:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149402,
+"name": "NZ-DAZN 22 HD (D): NFL Game Pass| Redzone _ Week 8| Sun 27 Oct 18:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149403,
+"name": "NZ-DAZN 23 HD (D): NFL Game Pass| Saints @ Chargers| Sun 27 Oct 21:05",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149404,
+"name": "NZ-DAZN 24 HD (D): NFL Game Pass| Bills @ Seahawks| Sun 27 Oct 21:05",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149405,
+"name": "NZ-DAZN 25 HD (D): NFL Game Pass| Bears @ Commanders| Sun 27 Oct 21:25",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149406,
+"name": "NZ-DAZN 26 HD (D): NFL Game Pass| Panthers @ Broncos| Sun 27 Oct 21:25",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149407,
+"name": "NZ-DAZN 27 HD (D): NFL Game Pass| Chiefs @ Raiders| Sun 27 Oct 21:25",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149408,
+"name": "NZ-DAZN 28 HD (D): NFL Game Pass| Cowboys @ 49ers| Mon 28 Oct 00:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149409,
+"name": "NZ-DAZN 29 HD (D): Ballon d’Or| Ballon d`Or Ceremony 2024| Mon 28 Oct 18:45",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149410,
+"name": "NZ-DAZN 30 HD (D): NFL Game Pass| Giants @ Steelers| Mon 28 Oct 23:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149411,
+"name": "NZ-DAZN 31 HD (D): NFL Game Pass _ Ultimate| Manningcast | MNF with Peyton and Eli: Giants @ Steelers| Tue 29 Oct 01:00",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149412,
+"name": "NZ-DAZN 32 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149413,
+"name": "NZ-DAZN 33 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149414,
+"name": "NZ-DAZN 34 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149415,
+"name": "NZ-DAZN 35 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149416,
+"name": "NZ-DAZN 36 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149417,
+"name": "NZ-DAZN 37 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149418,
+"name": "NZ-DAZN 38 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149419,
+"name": "NZ-DAZN 39 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149420,
+"name": "NZ-DAZN 40 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149421,
+"name": "NZ-DAZN 41 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149422,
+"name": "NZ-DAZN 42 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149423,
+"name": "NZ-DAZN 43 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149424,
+"name": "NZ-DAZN 44 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149425,
+"name": "NZ-DAZN 45 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149426,
+"name": "NZ-DAZN 46 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149427,
+"name": "NZ-DAZN 47 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149428,
+"name": "NZ-DAZN 48 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149429,
+"name": "NZ-DAZN 49 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1149430,
+"name": "NZ-DAZN 50 HD (D)",
+"category_id": "1836",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513144,
+"name": "HBO UK 061|  Glasgow - Bowls and Para Bowls (2026-08-01 07:20:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513145,
+"name": "HBO UK 068|  Glasgow - Track Cycling and Para Track Cycling (2026-08-01 08:50:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513146,
+"name": "Carlos Alcaraz - Novak Djokovic 9213027 (2026-02-01 08:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513147,
+"name": "HBO UK 002|  MLB - Boston Red Sox @ New York Yankees (2026-10-02 00:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513148,
+"name": "HBO UK 074|  Roland-Garros - Roland-Garros (2026-05-27 09:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513149,
+"name": "HBO UK 075|  Giro d'Italia - Giro d'Italia (2026-05-27 09:45:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513150,
+"name": "HBO UK 055|  Shanghai Masters - Kyren Wilson - Zhao Xintong (2026-08-01 06:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513151,
+"name": "HBO UK 057|  Finland - WRC (2026-08-01 11:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513152,
+"name": "Nordic Combined (2026-02-01 09:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513153,
+"name": "Oslo - Multiview (2026-03-22 14:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513154,
+"name": "Lillehammer - Lillehammer | Men's Slalom (2026-03-25 09:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513155,
+"name": "The Ocean Race Europe | Kiel 8575318 (2025-08-10 11:15:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513156,
+"name": "Canberra United - Melbourne Victory (2026-02-01 03:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513157,
+"name": "Ross Muir - Abdulraouf Saigh (2025-08-08 11:00:03)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513158,
+"name": "Liam Highfield - Sultan Aljoakar (2025-08-08 13:33:54)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513159,
+"name": "Zhao Hanyang - Musab Sayegh (2025-08-08 13:24:19)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513160,
+"name": "Jonas Luz - Musaad Almisfir (2025-08-08 13:06:04)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513161,
+"name": "Chang Bingyu - Marco Fu (2025-08-08 17:00:02)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513162,
+"name": "Chatchapong Nasa - Fahad Alghamdi (2025-08-08 17:00:02)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513163,
+"name": "Mink Nutcharut - Umut Dikme (2025-08-08 18:26:22)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513164,
+"name": "Farakh Ajaib -Saud Albaker (2025-08-08 19:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513165,
+"name": "Louis Heathcote - Ayman Alamri (2025-08-08 19:19:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513166,
+"name": "Mohammad Shehab - Abdullah Alotayyani (2025-08-08 20:36:23)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513167,
+"name": "Hatem Yassen - Ng On-yee (2025-08-08 19:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513168,
+"name": "Arctic Race of Norway | Stage 4 8500867 (2025-08-10 14:45:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513169,
+"name": "Arctic Race of Norway | Stage 4",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513170,
+"name": "Snooker 8574853 (2025-08-10 16:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513171,
+"name": "Snooker 8574880 (2025-08-10 16:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513172,
+"name": "Snooker 8574896 (2025-08-10 16:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513173,
+"name": "Snooker 8574924 (2025-08-10 16:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513174,
+"name": "Ken Doherty - Jimmy White (2025-08-08 17:39:09)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513175,
+"name": "Kreishh Gurbaxani - Reanne Evans 8574943 (2025-08-08 11:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513176,
+"name": "Leone Crowley - Ziyad Alqabbani (2025-08-08 14:30:41)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513177,
+"name": "Hatem Yassen - Ng On-Yee (2025-08-08 19:29:40)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513178,
+"name": "Ken Doherty - Jimmy White 8605515 (2025-08-08 16:59:47)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513179,
+"name": "Ken Doherty - Jimmy White 8574934 (2025-08-08 17:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513180,
+"name": "New York Mets @ Milwaukee Brewers (2025-08-10 17:59:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513181,
+"name": "Snooker 8574862 (2025-08-10 18:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513182,
+"name": "Snooker 8574886 (2025-08-10 18:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513183,
+"name": "Snooker 8574903 (2025-08-10 18:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513184,
+"name": "Snooker 8574925 (2025-08-10 18:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513185,
+"name": "Snooker 8574944 (2025-08-10 18:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513194,
+"name": "D+ 200 (D)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513195,
+"name": "HBO UK 012|  MLB - Chicago Cubs @ San Diego Padres  (2026-10-01 03:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513196,
+"name": "Andalucia - Andalucia | MX2 | Race 2 (2026-03-22 14:00:51)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513197,
+"name": "HBO UK 015|  MLB - Chicago Cubs @ San Diego Padres (2026-10-02 03:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513198,
+"name": "HBO UK 010|  Japan - MotoGP | Round 16 | Japan (2026-10-02 04:15:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513199,
+"name": "HBO UK 076|  Ireland - New Zealand (2026-05-27 10:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513200,
+"name": "HBO UK 051|  Finland - WRC (2026-08-01 16:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513201,
+"name": "Oslo - Oslo | Women's Mass Start (2026-03-22 12:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513202,
+"name": "HBO UK 027|  MLB - Atlanta Braves @ Milwaukee Brewers (2026-08-21 20:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513203,
+"name": "HBO UK 006|  Italy - Italy (2026-10-02 05:45:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513204,
+"name": "HBO UK 024|  Premier League - Saint Lucia Kings - Jamaica Kingsmen (2026-08-21 23:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513205,
+"name": "HBO UK 036|  Las Vegas - World Series of Poker | Las Vegas (2026-08-05 00:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513206,
+"name": "HBO UK 047|  Ultimate Pool (2026-08-03 17:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513207,
+"name": "Andalucia - Andalucia | MXGP | Race 2 (2026-03-22 15:00:51)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513208,
+"name": "Challenge Mallorca 9188828 (2026-02-01 11:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513209,
+"name": "HBO UK 038|  MLB - New York Yankees @ Chicago Cubs (2026-08-02 17:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513210,
+"name": "HBO UK 035|  West Indies - Pakistan (2026-08-02 13:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513211,
+"name": "HBO UK 001|  Italy - WRC (2026-10-01 07:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513212,
+"name": "Gallagher PREM - Leicester Tigers - Bristol Bears (2026-03-22 14:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513213,
+"name": "Crans Montana | Men's Downhill 9097544 (2026-02-01 09:45:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513214,
+"name": "UCI Cyclo-Cross World Championships 9143892 (2026-01-31 14:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513215,
+"name": "Arctic Race of Norway | Stage 4 (2025-08-10 14:44:34)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513216,
+"name": "Shaun Murphy - Neil Robertson 9215360 (2026-01-31 13:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513217,
+"name": "HBO UK 031|  World Championships - Flanders | MXGP | Race 1 (2026-08-02 12:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513218,
+"name": "HBO UK 072|  Roland-Garros - Tennis (2026-05-27 08:55:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513219,
+"name": "HBO UK 021|  AFL - Collingwood - Brisbane Lions (2026-08-21 09:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513220,
+"name": "HBO UK 016|  MLB - Philadelphia Phillies @ Atlanta Braves (2026-09-30 18:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513221,
+"name": "Brazil - MotoGP | Brazil (2026-03-21 20:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513222,
+"name": "Seefeld | Women's HS 109 9223834 (2026-02-01 09:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513223,
+"name": "HBO UK 059|  Glasgow - Bowls and Para Bowls (2026-08-01 07:20:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513224,
+"name": "HBO UK 073|  Roland-Garros - Multiview (2026-05-27 09:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513225,
+"name": "HBO UK 037|  Wisla - Wisla | Men's HS 134 (2026-08-02 12:35:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513226,
+"name": "Seefeld | Men's HS 109 9060153 (2026-02-01 11:20:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513227,
+"name": "Vikersund - Vikersund | Men's HS 240 Ski Flying (2026-03-22 16:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513228,
+"name": "HBO UK 007|  MALAKASA - European Championships Shotgun | Malakasa (2026-10-01 12:15:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513229,
+"name": "HBO UK 050|  Tour of Poland - Tour of Poland  (2026-08-03 08:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513230,
+"name": "HBO UK 066|  Perth - Supercars Championship (2026-08-01 08:15:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513231,
+"name": "Keaton Hance - Ziga Sesko 9213035 (2026-02-01 03:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513232,
+"name": "HBO UK 018|  Italy - WRC (2026-10-02 05:45:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513233,
+"name": "HBO UK 032|  Oulton Park - BSB | Round 6 | Oulton Park (2026-08-02 12:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513234,
+"name": "HBO UK 033|  UEFA Champions League - UEFA Champions League Draw (2026-08-03 10:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513235,
+"name": "HBO UK 017|  Shenzhen Open - Snooker (2026-10-01 11:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513236,
+"name": "HBO UK 004|  AFL - Carlton - Hawthorn (2026-10-01 09:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513237,
+"name": "HBO UK 039|  UEFA Conference League - UEFA Conference League Draw (2026-08-03 12:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513238,
+"name": "HBO UK 005|  MLB - Boston Red Sox @ New York Yankees  (2026-10-01 00:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513239,
+"name": "HBO UK 003|  MLB - Philadelphia Phillies @ Atlanta Braves  (2026-10-01 18:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513240,
+"name": "HBO UK 028|  Premier League - Saint Lucia Kings - Guyana Amazon Warriors (2026-08-19 22:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513241,
+"name": "HBO UK 040|  Glasgow - Closing Ceremony (2026-08-02 18:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513242,
+"name": "Lillehammer - Lillehammer | Men's Giant Slalom (2026-03-24 08:15:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513243,
+"name": "Snooker 8574923 (2025-08-10 10:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513244,
+"name": "Carlos Alcaraz - Novak Djokovic 9188661 (2026-02-01 08:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513245,
+"name": "Carlos Alcaraz - Novak Djokovic 9188661 (2026-02-01 08:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513246,
+"name": "Miami | Qualifying (2026-01-31 14:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513247,
+"name": "Challenge Mallorca 9159205 (2026-01-31 13:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513248,
+"name": "HBO UK 045|  UEFA Europa League - UEFA Europa League Draw (2026-08-03 11:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513249,
+"name": "India - New Zealand (2026-01-31 13:15:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513250,
+"name": "Seefeld | Women's Compact 5km (2026-01-31 13:35:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513251,
+"name": "Seefeld | Women's HS 109 9060155 (2026-02-01 09:05:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513252,
+"name": "Winterberg - Winterberg | Team Parallel Slalom (2026-03-22 13:35:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513253,
+"name": "HBO UK 060|  Glasgow - Bowls and Para Bowls (2026-08-01 07:20:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513254,
+"name": "HBO UK 046|  Tour de France - Tour de France Femmes avec Zwift (2026-08-03 13:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513255,
+"name": "HBO UK 043|  World Championships - Flanders | MX2 | Race 2 (2026-08-02 14:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513256,
+"name": "HBO UK 044|  West Indies - Pakistan (2026-08-03 13:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513257,
+"name": "HBO UK 014|  MLB - Chicago Cubs @ San Diego Padres (2026-10-02 03:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513258,
+"name": "UCI Cyclo-Cross World Championships 9143891 (2026-02-01 10:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513259,
+"name": "HBO UK 013|  Shenzhen Open - Shenzhen Open (2026-10-01 11:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513260,
+"name": "Northampton Saints - Leicester Tigers (2026-01-31 14:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513261,
+"name": "Willingen | Men's HS 147 9143920 (2026-01-31 14:45:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513262,
+"name": "HBO UK 034|  Glasgow - Track Cycling and Para Track Cycling (2026-08-02 07:50:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513263,
+"name": "HBO UK 054|  Shanghai Masters - Kyren Wilson - Zhao Xintong (2026-08-01 11:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513264,
+"name": "HBO UK 071|  Roland-Garros - M. Granollers / H. Zeballos - H. Heliövaara / H. Patten (2026-06-06 09:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513265,
+"name": "Sjusjoen | Men's Relay (2026-02-01 09:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513266,
+"name": "HBO UK 041|  Tour de France - Tour de France Femmes avec Zwift (2026-08-02 13:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513267,
+"name": "HBO UK 065|  Glasgow - Netball | (2026-08-01 11:50:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513268,
+"name": "HBO UK 065|  Glasgow - Netball | (2026-08-01 11:50:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513269,
+"name": "HBO UK 056|  Australia - Ireland (2026-08-01 06:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513270,
+"name": "HBO UK 011|  MLB - Chicago Cubs @ San Diego Padres  (2026-10-01 02:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513271,
+"name": "Challenge Mallorca 9081936 (2026-02-01 11:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513272,
+"name": "Volta Ciclista a Catalunya - Volta Ciclista a Catalunya | Stage 1 (2026-03-23 14:20:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513273,
+"name": "Cadel Evans Great Ocean Road Race (2026-02-01 02:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513274,
+"name": "Andalucia - Andalucia | MXGP | Race 1 (2026-03-22 12:00:51)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513275,
+"name": "Willingen | Men's HS 147 9186359 (2026-01-31 15:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513276,
+"name": "Miami | Free Practice 2 (2026-01-31 12:20:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513277,
+"name": "West Indies - Pakistan 8575337 (2025-08-10 13:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513278,
+"name": "The Ocean Race Europe | Kiel 8575319 (2025-08-10 13:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513279,
+"name": "Sjusjøen | Women's Pursuit (2026-01-31 12:20:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513280,
+"name": "Jumping | London",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513281,
+"name": "Shaun Murphy - Neil Robertson 9085349 (2026-01-31 13:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513282,
+"name": "Lillehammer - Lillehammer | Women's Slalom (2026-03-24 09:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513283,
+"name": "Snooker 8574892 (2025-08-10 12:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513284,
+"name": "Snooker 8574920 (2025-08-10 12:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513285,
+"name": "Volta Ciclista a Catalunya - Volta Ciclista a Catalunya | Stage 2 (2026-03-24 14:20:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513286,
+"name": "Oslo - Oslo | Men's Mass Start (2026-03-22 14:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513287,
+"name": "Sjusjøen | Men's Relay (2026-02-01 09:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513288,
+"name": "Crans Montana | Men's Downhill 9188635 (2026-02-01 09:45:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513289,
+"name": "Paris - Jumping | Paris (2026-03-22 14:21:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513290,
+"name": "HBO UK 020|  MLB - Chicago White Sox @ Houston Astros (2026-09-30 21:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513291,
+"name": "HBO UK 019|  Italy - WRC (2026-10-01 14:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513292,
+"name": "HBO UK 058|  Finland - WRC (2026-08-01 06:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513293,
+"name": "HBO UK 062|  Glasgow - Bowls and Para Bowls (2026-08-01 07:20:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513294,
+"name": "Andalucia - Andalucia | MX2 | Race 1 (2026-03-22 11:00:51)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513295,
+"name": "Miami | Race (2026-01-31 18:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513296,
+"name": "Craigleith - Craigleith | Ski Cross (2026-03-22 15:20:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513297,
+"name": "Craigleith - Craigleith | Ski Cross (2026-03-22 15:20:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513298,
+"name": "Tour de l'Ain | Stage 3 (2025-08-08 14:30:14)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513299,
+"name": "Tour de l'Ain | Stage 3 (2025-08-08 14:30:14)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513300,
+"name": "Aryna Sabalenka - Elena Rybakina 9227329 (2026-01-31 08:35:47)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513301,
+"name": "HBO UK 042|  Glasgow - Track Cycling and Para Track Cycling (2026-08-02 13:50:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513302,
+"name": "Lillehammer - Lillehammer | Women's Giant Slalom (2026-03-25 08:15:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513303,
+"name": "West Indies - Pakistan 8605458 (2025-08-08 17:30:22)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513304,
+"name": "HBO UK 025|  Tour of Limousin - Tour du Limousin | Stage 3 (2026-08-20 12:45:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513305,
+"name": "HBO UK 008|  MLB - Chicago White Sox @ Houston Astros (2026-10-01 21:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513306,
+"name": "HBO UK 052|  Finland - WRC (2026-08-01 09:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513307,
+"name": "UCI Cyclo-Cross World Championships  9186358 (2026-01-31 14:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513308,
+"name": "HBO UK 009|  MLB - Chicago White Sox @ Houston Astros (2026-10-01 21:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513309,
+"name": "HBO UK 026|  Aachen - Jumping | Aachen (2026-08-21 16:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513310,
+"name": "HBO UK 049|  Las Vegas - World Series of Poker | Las Vegas (2026-08-04 01:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513311,
+"name": "HBO UK 069|  Glasgow - Multiview (2026-08-01 08:50:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513312,
+"name": "Boí Taüll | Relay (2026-02-01 08:35:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513313,
+"name": "HBO UK 053|  Kyrgyzstan - F1H2O World Championship | Round 2 | Kyrgyzstan (2026-08-01 06:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513314,
+"name": "Seefeld | Men's Compact 7.5km (2026-01-31 14:20:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513315,
+"name": "HBO UK 048|  MLB - San Francisco Giants @ Texas Rangers (2026-08-04 00:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513316,
+"name": "HBO UK 070|  Glasgow - Athletics and Para Athletics (2026-08-01 10:40:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513317,
+"name": "HBO UK 029|  AFL - St Kilda - Gold Coast Suns (2026-08-20 09:15:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513318,
+"name": "HBO UK 030|  Tour of Britain - Tour of Britain Women | Stage 2 (2026-08-20 11:10:23)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513319,
+"name": "HBO UK 077|  Giro d'Italia - Multiscreen  (2026-05-27 10:20:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513320,
+"name": "Lillehammer - Lillehammer | Men's Super-G (2026-03-22 11:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513321,
+"name": "HBO UK 023|  Haute Savoie - UCI Cross-country Short Track World Cup | Men Elite | Haute Savoie (2026-08-21 16:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513322,
+"name": "HBO UK 063|  Glasgow - Bowls and Para Bowls (2026-08-01 07:20:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513323,
+"name": "HBO UK 022|  Indianapolis - LIV Golf Indianapolis | Round 2 (2026-08-21 15:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513324,
+"name": "HBO UK 064|  Glasgow - Glasgow 2026 | TNT 360 (2026-08-01 07:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513325,
+"name": "[UHD] - Liverpool - Newcastle United (2026-01-31 19:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513326,
+"name": "Judd Trump - Ali Carter 9085357 (2026-01-31 19:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513327,
+"name": "Liverpool - Newcastle United (2026-01-31 19:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513328,
+"name": "Judd Trump - Ali Carter 9215274 (2026-01-31 19:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513329,
+"name": "UFC 325 | Volkanovski - Lopes 9187899 (2026-02-01 00:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513330,
+"name": "Ekaterina Tupitsyna - Ksenia Efremova (2026-02-01 01:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513331,
+"name": "UFC 325 | Volkanovski - Lopes 9188027 (2026-02-01 02:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513332,
+"name": "Ekaterina Tupitsyna - Ksenia efremova (2026-02-01 01:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513333,
+"name": "Newcastle Jets - Wellington Phoenix 9227847 (2026-02-01 05:55:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513334,
+"name": "Keaton Hance - Ziga Sesko 9085438 (2026-02-01 03:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513335,
+"name": "Central Coast Mariners - Melbourne Victory 9226815 (2026-02-01 05:55:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513336,
+"name": "Central Coast Mariners - Melbourne Victory 9219326 (2026-02-01 06:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513337,
+"name": "Martin De La Puente - Tokito Oda (2026-01-31 07:34:17)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513338,
+"name": "[UHD] - TNT Sports Ultimate Reload 9226734 (2026-02-01 07:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513339,
+"name": "Newcastle Jets - Wellington Phoenix 9223812 (2026-02-01 06:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513340,
+"name": "Carlos Alcaraz - Novak Djokovic 9223771 (2026-02-01 07:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513341,
+"name": "Carlos Alcaraz - Novak Djokovic 9227330 (2026-02-01 08:00:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513342,
+"name": "[UHD] - Carlos Alcaraz - Novak Djokovic (2026-02-01 07:30:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513344,
+"name": "[UHD] - TNT Sports Ultimate Reload 9226733 (2026-02-01 07:15:00)",
+"category_id": "2253",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513447,
+"name": "SS3 Vaumeilh / Claret 1 - WRC Monte Carlo 2026 (2026-01-22 19:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513448,
+"name": "Fijian Drua v Force - Super Rugby Pacific Round 9 2026 (2026-04-11 04:00:29)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513449,
+"name": "STAN 041|  Day 9 - Wimbledon 2026 (2026-07-07 10:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513450,
+"name": "STAN 037|  Day 5 - Wimbledon 2026 (2026-07-03 10:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513451,
+"name": "Viktoria Plzeň v Porto - UEFA Europa League 2025/2026 (2026-01-22 17:40:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513452,
+"name": "Malmö FF v Crvena zvezda - UEFA Europa League 2025/2026 (2026-01-22 17:40:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513453,
+"name": "Bologna v Celtic - UEFA Europa League 2025/2026 (2026-01-22 17:40:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513454,
+"name": "STAN 021|  Manawatū v Canterbury - NPC Round 10 2026 (2026-10-03 01:00:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513455,
+"name": "STAN 008|  Waikato v Tasman - NPC Round 10 2026 (2026-10-03 06:00:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513456,
+"name": "Atalanta v Athletic Club - UEFA Champions League 2025/2026 (2026-01-21 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513457,
+"name": "STAN 048|  Athens: Day 6 - WTA 250 (2026-07-18 16:30:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513458,
+"name": "STAN 026|  Cross-country Olympic: Lake Placid - UCI Mountain Bike World Series 2026 (2026-10-03 17:45:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513459,
+"name": "Brentford v Nottingham Forest - Premier League 2025/2026 (2026-01-25 13:50:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513460,
+"name": "STAN 049|  Athens: Day 7 - WTA 250 (2026-07-19 17:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513461,
+"name": "Slavia Praha v Barcelona - UEFA Champions League 2025/2026 (2026-01-21 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513462,
+"name": "Feyenoord v Sturm Graz - UEFA Europa League 2025/2026 (2026-01-22 17:40:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513463,
+"name": "Burnley v Tottenham Hotspur - Premier League 2025/2026 (2026-01-24 14:50:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513464,
+"name": "Rangers v Ludogorets Razgrad - UEFA Europa League 2025/2026 (2026-01-22 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513465,
+"name": "STAN 039|  Day 7 - Wimbledon 2026 (2026-07-05 10:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513466,
+"name": "STAN 024|  Spain v South Africa - WXV 2026 (2026-10-04 09:50:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513467,
+"name": "STAN 029|  Beijing: Day 5 - WTA 1000 (2026-10-04 03:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513468,
+"name": "STAN 027|  Gloucester v Harlequins - PREM Rugby Round 2 2026/27 (2026-10-03 16:25:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513469,
+"name": "STAN 046|  Day 14 - Wimbledon 2026 (2026-07-12 10:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513470,
+"name": "Bayern München v Union Saint-Gilloise - UEFA Champions League 2025/2026 (2026-01-21 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513471,
+"name": "STAN 001|  Live Stage 4 - WRC Italy 2026 (2026-10-04 08:00:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513472,
+"name": "STAN 010|  Cross-country Short Track: Lake Placid - UCI Mountain Bike World Series 2026 (2026-10-02 15:30:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513473,
+"name": "STAN 018|  Bristol v Northampton - PREM Rugby Round 2 2026/27 (2026-10-03 14:00:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513474,
+"name": "STAN 047|  Athens: Day 5 - WTA 250 (2026-07-17 14:30:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513475,
+"name": "Nice v Go Ahead Eagles - UEFA Europa League 2025/2026 (2026-01-22 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513476,
+"name": "STAN 023|  Live Stage 1 - WRC Italy 2026 (2026-10-01 14:00:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513477,
+"name": "STAN 005|  Portland Thorns v Boston Legacy - NWSL 2026 (2026-10-04 00:45:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513478,
+"name": "Brann v Midtjylland - UEFA Europa League 2025/2026 (2026-01-22 17:40:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513479,
+"name": "Freiburg v Maccabi Tel Aviv - UEFA Europa League 2025/2026 (2026-01-22 17:40:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513480,
+"name": "AO Daily Review: Day 4 - Jan 21 (2026-01-21 11:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513481,
+"name": "Courtside: Day 8 - Australian Open 2026 (2026-01-24 22:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513482,
+"name": "Premier League Live - Bournemouth v Liverpool - Premier League 2025/26 (2026-01-24 17:20:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513483,
+"name": "Galatasaray v Atlético de Madrid - UEFA Champions League 2025/2026 (2026-01-21 17:40:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513484,
+"name": "STAN 012|  Beijing: Day 3 - WTA 1000 (2026-10-02 03:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513485,
+"name": "Juventus v Benfica - UEFA Champions League 2025/2026 (2026-01-21 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513486,
+"name": "STAN 025|  Race 1 (MXGP & MX2) - France Motocross of Nations 2026 (2026-10-04 11:00:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513487,
+"name": "Manchester City v Wolverhampton Wanderers - Premier League 2025/2026 (2026-01-24 14:50:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513488,
+"name": "Ferencváros v Panathinaikos - UEFA Europa League 2025/2026 (2026-01-22 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513489,
+"name": "Qarabağ v Eintracht Frankfurt - UEFA Champions League 2025/2026 (2026-01-21 17:40:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513490,
+"name": "STAN 043|  Day 11 - Wimbledon 2026 (2026-07-09 10:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513491,
+"name": "4K - Bournemouth v Liverpool - Premier League 2025/2026 (2026-01-24 17:20:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513492,
+"name": "West Ham United v Sunderland - Premier League 2025/2026 (2026-01-24 11:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513493,
+"name": "Goal Rush - 25 Jan Premier League 2025/26 (2026-01-24 14:50:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513494,
+"name": "Jovic v Hon - Women's Singles R2 Australian Open 2026 (2026-01-21 10:00:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513495,
+"name": "STAN 009|  Southland v Northland - NPC Round 10 2026 (2026-10-02 06:00:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513496,
+"name": "PAOK v Real Betis - UEFA Europa League 2025/2026 (2026-01-22 17:40:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513497,
+"name": "Young Boys v Olympique Lyonnais - UEFA Europa League 2025/2026 (2026-01-22 17:40:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513498,
+"name": "Newcastle United v PSV - UEFA Champions League 2025/2026 (2026-01-21 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513499,
+"name": "Dinamo Zagreb v FCSB - UEFA Europa League 2025/2026 (2026-01-22 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513500,
+"name": "STAN 015|  Kansas City Current v Bay FC - NWSL 2026 (2026-10-03 22:30:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513501,
+"name": "STAN 002|  Bay Of Plenty v North Harbour - NPC Round 10 2026 (2026-10-04 03:30:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513502,
+"name": "STAN 011|  Taranaki v Wellington - NPC Round 10 2026 (2026-10-04 01:00:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513503,
+"name": "STAN 020|  Bath v Exeter - PREM Rugby Round 2 2026/27 (2026-10-02 18:40:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513504,
+"name": "STAN 016|  Live Stage 5 - WRC Italy 2026 (2026-10-04 12:00:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513505,
+"name": "STAN 013|  AUS U18s v New Zealand Schools - Australian Schoolboys/U18s 2026 (2026-10-04 02:25:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513506,
+"name": "STAN 028|  Newcastle v Leicester - PREM Rugby Round 2 2026/27 (2026-10-03 18:40:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513507,
+"name": "STAN 019|  Beijing: Day 4 - WTA 1000 (2026-10-03 03:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513508,
+"name": "STAN 022|  Counties Manukau v Hawke's Bay - NPC Round 10 2026 (2026-10-03 04:00:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513509,
+"name": "STAN 050|  Hamburg: Day 5 - WTA 250 (2026-07-24 09:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513510,
+"name": "STAN 003|  AUS School Boys XV v New Zealand Maori - Australian Schoolboys/U18s 2026 (2026-10-03 23:25:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513511,
+"name": "Courtside: Day 7 - Australian Open 2026 (2026-01-23 22:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513512,
+"name": "Medjedovic v De Minaur - Men's Singles R2 Australian Open 2026 (2026-01-21 08:00:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513513,
+"name": "Olympique Marseille v Liverpool - UEFA Champions League 2025/2026 (2026-01-21 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513514,
+"name": "Courtside: Day 6 - Australian Open 2026 (2026-01-22 22:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513515,
+"name": "STAN 004|  Live Stage 3 - WRC Italy 2026 (2026-10-03 12:30:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513516,
+"name": "STAN 007|  Live Stage 2 - WRC Italy 2026 (2026-10-03 06:00:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513517,
+"name": "STAN 045|  Day 13 - Wimbledon 2026 (2026-07-11 10:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513583,
+"name": "STAN 034|  Day 2 - Wimbledon 2026 (2026-06-30 10:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513584,
+"name": "STAN 035|  Day 3 - Wimbledon 2026 (2026-07-01 10:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513585,
+"name": "Crystal Palace v Chelsea - Premier League 2025/2026 (2026-01-25 13:50:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513586,
+"name": "Courtside: Day 5 - Australian Open 2026 (2026-01-21 22:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513587,
+"name": "STAN 036|  Day 4 - Wimbledon 2026 (2026-07-02 10:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513588,
+"name": "Animated Feed: Day 5 - Australian Open 2026 (2026-01-22 00:00:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513589,
+"name": "Newcastle United v Aston Villa - Premier League 2025/2026 (2026-01-25 13:50:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513590,
+"name": "STAN 032|  SS13 Menalo Mt 2 - WRC Greece 2026 (2026-06-27 16:00:01)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513591,
+"name": "Courtside 2: Day 5 - Australian Open 2026 (2026-01-22 01:00:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513592,
+"name": "4K - Arsenal v Man United - Premier League 2025/26 (2026-01-25 16:20:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513593,
+"name": "STAN 033|  Day 1 - Wimbledon 2026 (2026-06-29 10:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513594,
+"name": "SS1 Toudon / Saint-Antonin - WRC Monte Carlo 2026 (2026-01-22 15:00:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513595,
+"name": "Arsenal v Manchester United - Premier League 2025/2026 (2026-01-25 16:20:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513596,
+"name": "Chelsea v Pafos - UEFA Champions League 2025/2026 (2026-01-21 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513568,
+"name": "STAN 006|  Manchester United v Liverpool - WSL 2026/27 (2026-10-03 12:20:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513569,
+"name": "STAN 044|  Day 12 - Wimbledon 2026 (2026-07-10 10:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513570,
+"name": "Football Zone: MD7 Thursday - UEFA Champions League 2025/26 (2026-01-21 19:40:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513571,
+"name": "STAN 030|  Seattle Reign v North Carolina Courage - NWSL 2026 (2026-10-03 02:00:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513572,
+"name": "STAN 031|  France v Fiji - Junior World Championship Round 1 2026 (2026-06-27 13:50:01)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513573,
+"name": "STAN 017|  Otago v Auckland - NPC Round 10 2026 (2026-10-01 06:00:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513574,
+"name": "STAN 038|  Day 6 - Wimbledon 2026 (2026-07-04 10:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513575,
+"name": "Sporting Braga v Nottingham Forest - UEFA Europa League 2025/2026 (2026-01-22 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513576,
+"name": "Fenerbahçe v Aston Villa - UEFA Europa League 2025/2026 (2026-01-22 17:40:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513577,
+"name": "Premier League Live - 26 Jan Premier League 2025/2026 (2026-01-25 13:00:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513578,
+"name": "STAN 042|  Day 10 - Wimbledon 2026 (2026-07-08 10:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513579,
+"name": "Salzburg v Basel - UEFA Europa League 2025/2026 (2026-01-22 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513580,
+"name": "STAN 014|  Force v Waratahs - Super Rugby AUS Grand Final 2026 (2026-10-03 06:30:11)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513581,
+"name": "Fulham v Brighton & Hove Albion - Premier League 2025/2026 (2026-01-24 14:50:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513582,
+"name": "STAN 040|  Day 8 - Wimbledon 2026 (2026-07-06 10:00:25)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513518,
+"name": "Courtside: Day 9 - Australian Open 2026 (2026-01-25 22:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513519,
+"name": "Everton v Leeds United - Premier League 2025/2026 (2026-01-26 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513520,
+"name": "Day 10 - Australian Open 2026 (2026-01-26 22:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513521,
+"name": "Courtside: Day 10 - Australian Open 2026 (2026-01-26 22:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513522,
+"name": "Day 11 - Australian Open 2026 (2026-01-27 22:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513523,
+"name": "Courtside: Day 11 - Australian Open 2026 (2026-01-27 22:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513524,
+"name": "Football Zone: MD8 Thursday - UEFA Champions League 2025/26 (2026-01-28 19:40:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513525,
+"name": "Atlético de Madrid v Bodø / Glimt - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513526,
+"name": "Napoli v Chelsea - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513527,
+"name": "PSG v Newcastle United - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513528,
+"name": "Manchester City v Galatasaray - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513529,
+"name": "Union Saint-Gilloise v Atalanta - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513530,
+"name": "Club Brugge v Olympique Marseille - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513531,
+"name": "Pafos v Slavia Praha - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513532,
+"name": "Benfica v Real Madrid - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513533,
+"name": "PSV v Bayern München - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513534,
+"name": "Brighton & Hove Albion v Everton - Premier League 2025/2026 (2026-01-31 14:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513535,
+"name": "Wolverhampton Wanderers v AFC Bournemouth - Premier League 2025/2026 (2026-01-31 14:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513536,
+"name": "Leeds United v Arsenal - Premier League 2025/2026 (2026-01-31 14:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513537,
+"name": "Chelsea v West Ham United - Premier League 2025/2026 (2026-01-31 17:25:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513538,
+"name": "Liverpool v Newcastle United - Premier League 2025/2026 (2026-01-31 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513539,
+"name": "Nottingham Forest v Crystal Palace - Premier League 2025/2026 (2026-02-01 13:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513540,
+"name": "Manchester United v Fulham - Premier League 2025/2026 (2026-02-01 13:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513541,
+"name": "Aston Villa v Brentford - Premier League 2025/2026 (2026-02-01 13:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513542,
+"name": "Tottenham Hotspur v Manchester City - Premier League 2025/2026 (2026-02-01 16:25:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513543,
+"name": "Sunderland v Burnley - Premier League 2025/2026 (2026-02-02 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513544,
+"name": "Manchester United v Tottenham Hotspur - Premier League 2025/2026 (2026-02-07 12:25:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513545,
+"name": "Arsenal v Sunderland - Premier League 2025/2026 (2026-02-07 14:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513546,
+"name": "Wolverhampton Wanderers v Chelsea - Premier League 2025/2026 (2026-02-07 14:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513547,
+"name": "Newcastle United v Brentford - Premier League 2025/2026 (2026-02-07 14:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513548,
+"name": "Brighton & Hove Albion v Crystal Palace - Premier League 2025/2026 (2026-02-07 14:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513549,
+"name": "Burnley v West Ham United - Premier League 2025/2026 (2026-02-07 14:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513550,
+"name": "Utrecht v Genk - UEFA Europa League 2025/2026 (2026-01-22 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513551,
+"name": "Barcelona v København - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513552,
+"name": "Courtside: Day 5 - Australian Open 2026 (2026-01-21 22:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513553,
+"name": "Salzburg v Basel - UEFA Europa League 2025/2026 (2026-01-22 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513554,
+"name": "Dinamo Zagreb v FCSB - UEFA Europa League 2025/2026 (2026-01-22 19:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513555,
+"name": "Courtside: Day 6 - Australian Open 2026 (2026-01-22 22:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513556,
+"name": "Courtside: Day 7 - Australian Open 2026 (2026-01-23 22:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513557,
+"name": "Courtside: Day 8 - Australian Open 2026 (2026-01-24 22:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513558,
+"name": "Courtside: Day 9 - Australian Open 2026 (2026-01-25 22:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513559,
+"name": "Courtside: Day 10 - Australian Open 2026 (2026-01-26 22:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513560,
+"name": "Courtside: Day 11 - Australian Open 2026 (2026-01-27 22:30:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513561,
+"name": "Brighton & Hove Albion v Crystal Palace - Premier League 2025/2026 (2026-02-07 14:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513562,
+"name": "Newcastle United v Brentford - Premier League 2025/2026 (2026-02-07 14:55:06)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513563,
+"name": "Vekic v Andreeva - Women's Singles R1 Australian Open 2026 (2026-01-19 08:03:37)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513564,
+"name": "Yuan v Swiatek - Women's Singles R1 Australian Open 2026 (2026-01-19 08:07:33)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513565,
+"name": "Sierra v Uchijima - Women's Singles R1 Australian Open 2026 (2026-01-19 08:24:31)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513566,
+"name": "Mertens v Tararudee - Women's Singles R1 Australian Open 2026 (2026-01-19 08:39:42)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1513567,
+"name": "Bellucci v Ruud - Men's Singles R1 Australian Open 2026 (2026-01-19 10:22:07)",
+"category_id": "2255",
+"epg_channel_id": null
+},
+{
+"stream_id": 1161583,
+"name": "PL| CANAL+ 360 HD",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1108264,
+"name": "PL CANAL+ EXTRA 1 ᴴᴰ",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1108266,
+"name": "PL CANAL+ EXTRA 2",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1108265,
+"name": "PL CANAL+ EXTRA 3 ᴴᴰ",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1108267,
+"name": "PL CANAL+ EXTRA 4 ᴴᴰ",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1161350,
+"name": "PL CANAL+ EXTRA 5 ᴴᴰ",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1161351,
+"name": "PL CANAL+ EXTRA 6 ᴴᴰ",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1161352,
+"name": "PL CANAL+ EXTRA 7 ᴴᴰ",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1630664,
+"name": "PL| CANAL+ EXTRA 8 PPV",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1630665,
+"name": "PL| CANAL+ EXTRA 9 PPV",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1630666,
+"name": "PL| CANAL+ EXTRA 10 PPV",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1630667,
+"name": "PL| CANAL+ EXTRA 11 PPV",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1630668,
+"name": "PL| CANAL+ EXTRA 12 PPV",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1630669,
+"name": "PL| CANAL+ EXTRA 13 PPV",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1630670,
+"name": "PL| CANAL+ EXTRA 14 PPV",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1630671,
+"name": "PL| CANAL+ EXTRA 15 PPV",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1630672,
+"name": "PL| CANAL+ EXTRA 16 PPV",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1630673,
+"name": "PL| CANAL+ EXTRA 17 PPV",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1630674,
+"name": "PL| CANAL+ EXTRA 18 PPV",
+"category_id": "1779",
+"epg_channel_id": null
+},
+{
+"stream_id": 1184930,
+"name": "CZ| CANAL+ SPORT FHD",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1184931,
+"name": "CZ| CANAL+ SPORT HD",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1178544,
+"name": "CZ| CANAL+ SPORT 1",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1178808,
+"name": "CZ| CANAL+ SPORT 2",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1184932,
+"name": "CZ| CANAL+ SPORT 4 FHD",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1184933,
+"name": "CZ| CANAL+ SPORT 4 HD",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1178836,
+"name": "CZ| CANAL+ SPORT 4",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1184934,
+"name": "CZ| CANAL+ SPORT 5 FHD",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1184935,
+"name": "CZ| CANAL+ SPORT 5 HD",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1178862,
+"name": "CZ| CANAL+ SPORT 5",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1184936,
+"name": "CZ| CANAL+ SPORT 6 FHD",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1184937,
+"name": "CZ| CANAL+ SPORT 6 HD",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1178901,
+"name": "CZ| CANAL+ SPORT 6",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1184938,
+"name": "CZ| CANAL+ SPORT 7 FHD",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1184939,
+"name": "CZ| CANAL+ SPORT 7 HD",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1178926,
+"name": "CZ| CANAL+ SPORT 7",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1184940,
+"name": "CZ| CANAL+ SPORT 8 FHD",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1184941,
+"name": "CZ| CANAL+ SPORT 8 HD",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1178952,
+"name": "CZ| CANAL+ SPORT 8",
+"category_id": "2264",
+"epg_channel_id": null
+},
+{
+"stream_id": 1951032,
+"name": "|KRD| Shams tv",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 606601,
+"name": "|KRD| CHANNEL 8",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280407,
+"name": "|KRD| Rudwa ᵁᴴᴰ ◉",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280408,
+"name": "|KRD| Kurdistan 24 ᵁᴴᴰ ◉",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129963,
+"name": "|KRD| Kurdistan TV ᴴᴰ ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 31214,
+"name": "|KRD| Kurdistan TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129973,
+"name": "|KRD| Kurdsat TV ᴴᴰ ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129974,
+"name": "|KRD| Kurdsat News ᴴᴰ ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129978,
+"name": "|KRD| NRT 1 ᴴᴰ ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 185937,
+"name": "KRD| KNN ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129956,
+"name": "|KRD| Iraqia Kurdish TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 1073891,
+"name": "|KRD| ZOOM",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129965,
+"name": "|KRD| Gali Kurdistan TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 29289,
+"name": "|KRD|  KIRKUK TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129977,
+"name": "|KRD| NRT 2 ᴴᴰ ku Sorani",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312633,
+"name": "|KRD| KURDMAX ᵁᴴᴰ KUR",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312634,
+"name": "|KRD| KURDMAX ᵁᴴᴰ SOR",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129971,
+"name": "|KRD| KurdMax Kurmanji ᴴᴰ ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129970,
+"name": "|KRD| KurdMax Show ᴴᴰ ku Sorani",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129968,
+"name": "|KRD| AVA TV ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280410,
+"name": "|KRD| A TV ᵁᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280466,
+"name": "|KRD| BMC",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280461,
+"name": "|KRD| ASTERA SHOW ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280458,
+"name": "|KRD| ASTERA FAMILY ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280457,
+"name": "|KRD| ASTERA DOCUMENTARY",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280427,
+"name": "|KRD| ARO DRAMA ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129916,
+"name": "|KRD|  Reng Document ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129919,
+"name": "|KRD|  Reng TV ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280426,
+"name": "|KRD| JAMAWAR",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129962,
+"name": "|KRD| Zagros TV ᴴᴰ ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280455,
+"name": "|KRD| ASMAN TV ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280444,
+"name": "|KRD| NEW MAX BOX",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280438,
+"name": "|KRD| LAWAN ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129841,
+"name": "|KRD|  Helhelok TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312733,
+"name": "|KRD| ZNAR ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280470,
+"name": "|KRD| Euro Kurd ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280437,
+"name": "|KRD| NRT SPORT ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280502,
+"name": "|KRD| LD SPORT ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280462,
+"name": "|KRD| ASTERA SPORT ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 456277,
+"name": "|KRD| SEE SPORT 1 ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 456278,
+"name": "|KRD| SEE SPORT 2 ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280440,
+"name": "|KRD| SEE SPORT 3 ᵁᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280431,
+"name": "|KRD| ZAXO SPORT ᵁᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280484,
+"name": "|KRD| LIVEDREAM ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280488,
+"name": "|KRD| MIHRAD",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280476,
+"name": "|KRD| DIMAN ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280474,
+"name": "|KRD| BABOLY ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280468,
+"name": "|KRD| DAHEN TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280425,
+"name": "|KRD| BASK ᵁᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280422,
+"name": "|KRD| Aryan TV ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129959,
+"name": "|KRD| Speda TV ᴴᴰ ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129929,
+"name": "|KRD|  Speda Drama ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 29295,
+"name": "|KRD|  PAYAM",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129975,
+"name": "|KRD| NRT 4 ᴴᴰ ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129955,
+"name": "|KRD| Sahar Kurdi TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280434,
+"name": "|KRD| RANYA ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129945,
+"name": "|KRD| TRT Kurdi ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 29296,
+"name": "|KRD|  WAAR ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280432,
+"name": "|KRD| ZAXO ᵁᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 58615,
+"name": "|KRD| Sterk TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129950,
+"name": "|KRD| Cira TV ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129952,
+"name": "|KRD| Aryen TV ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129951,
+"name": "|KRD| Ronahi TV ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129938,
+"name": "|KRD| Jin ᴴᴰ ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129939,
+"name": "|KRD| Rojava ᴴᴰ ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 29297,
+"name": "|KRD|  RONAHI TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129887,
+"name": "|KRD|  Kurd TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129888,
+"name": "|KRD|  Minara ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129915,
+"name": "|KRD|  Rasan ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312686,
+"name": "|KRD| SIMA DOCUMENTARY ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129960,
+"name": "|KRD| Amozhgary TV ᴴᴰ ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129958,
+"name": "|KRD| Bangawaz TV ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280442,
+"name": "|KRD| MINHRAB ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280441,
+"name": "|KRD| TASAWF ᵁᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280436,
+"name": "|KRD| NOOR ᵁᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312693,
+"name": "|KRD| SUROYO TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 197297,
+"name": "KRD| Medya Haber ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129817,
+"name": "|KRD|  Biaban Family ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129832,
+"name": "|KRD|  Derwaze TV ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129834,
+"name": "|KRD|  Duhok Sports ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129835,
+"name": "|KRD|  Duhok TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129848,
+"name": "|KRD|  Ishtar ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129883,
+"name": "|KRD|  Kurd Show ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129899,
+"name": "|KRD|  NewLine 1 ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129900,
+"name": "|KRD|  NewLine 2 ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129906,
+"name": "|KRD|  Niga Family ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129931,
+"name": "|KRD|  Srusht ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 86267,
+"name": "|KU| Amozhgary ᴴᴰ KU.",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 86275,
+"name": "|KU| Waar TV ᴴᴰ KU.",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 456254,
+"name": "|KRD| AMED TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 456256,
+"name": "|KRD| ASO SPORT TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 456258,
+"name": "|KRD| BINER ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 456262,
+"name": "|KRD| DIMEN ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 456266,
+"name": "|KRD| FIRST KIDS ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 456267,
+"name": "|KRD| FOX ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 456279,
+"name": "|KRD| XABIR ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 6421,
+"name": "|KRD| MINBIJ TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129967,
+"name": "|KRD| AVA Entertainment",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129979,
+"name": "|KRD| K24 ᴴᴰ ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129961,
+"name": "|KRD| Kirkuk TV ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129940,
+"name": "|KRD| Komal TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129957,
+"name": "|KRD| Payam TV ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312553,
+"name": "|KRD| QALAM TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312554,
+"name": "|KRD| K24 Documentary ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312555,
+"name": "|KRD| KU - NET ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312556,
+"name": "|KRD| ᵁᴴᴰURD ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312564,
+"name": "|KRD| ATV KURD ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312565,
+"name": "|KRD| Azhin ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312567,
+"name": "|KRD| Barin Family ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312568,
+"name": "|KRD| Barin ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312570,
+"name": "|KRD| Barin Quran ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312571,
+"name": "|KRD| BEFRIN ᴴᴰ (ONLY LIVE)",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312572,
+"name": "|KRD| BK4 ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312579,
+"name": "|KRD| Dasinya TV ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312580,
+"name": "|KRD| Delal TV ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312582,
+"name": "|KRD| DUHOK TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312583,
+"name": "|KRD| Eman TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312584,
+"name": "|KRD| First ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312590,
+"name": "|KRD| iRaqia Kurdi ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312592,
+"name": "|KRD| Kalapor Tv",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312594,
+"name": "|KRD| Khak ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312620,
+"name": "|KRD| KTV ᵁᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312623,
+"name": "|KRD| KURD TV ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312629,
+"name": "|KRD| Kurdistan 24 ᵁᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312630,
+"name": "|KRD| KURDISTAN ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312635,
+"name": "|KRD| Life ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312638,
+"name": "|KRD| MMN Action ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312641,
+"name": "|KRD| MMN Clipᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312642,
+"name": "|KRD| MMN Drama ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312645,
+"name": "|KRD| MMN Radio Turk ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312646,
+"name": "|KRD| MMN Showᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312651,
+"name": "|KRD| Newline Sport ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312659,
+"name": "|KRD| Nishtimani Mn ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312660,
+"name": "|KRD| NISHTIMANY MN",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312661,
+"name": "|KRD| NOHADRA ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312664,
+"name": "|KRD| Nubar Sport  ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312666,
+"name": "|KRD| NUJEN TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312670,
+"name": "|KRD| PIROOZ TV ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312672,
+"name": "|KRD| QALAM AYINI ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312675,
+"name": "|KRD| QALAT ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312676,
+"name": "|KRD| RASOULALLAH TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312681,
+"name": "|KRD| ROJHELAT TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312682,
+"name": "|KRD| ROUH ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312687,
+"name": "|KRD| SIMA ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312689,
+"name": "|KRD| SOZ ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312690,
+"name": "|KRD| SOZ QURAN TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312691,
+"name": "|KRD| SUBORO TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 496351,
+"name": "|KRD| Suryoyo Sat",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312694,
+"name": "|KRD| U TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312726,
+"name": "|KRD| WASELA QURAN ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312727,
+"name": "|KRD| WWE ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312737,
+"name": "|KRD| EZDAN TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312738,
+"name": "|KRD| GELI KURDISTAN TV ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312740,
+"name": "|KRD| LIFE ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312744,
+"name": "|KRD| SADA TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312746,
+"name": "|KRD| SIMA ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129980,
+"name": "|KRD| Rudaw TV ᴴᴰ ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129953,
+"name": "|KRD| Sterk TV ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 150570,
+"name": "|KRD| Kani TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 150589,
+"name": "|KRD| K4U  TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 129964,
+"name": "|KRD| Waar TV ᴴᴰ ku",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280482,
+"name": "|KRD| KURDSHOW ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280415,
+"name": "|KRD| IMN Kurdish",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280413,
+"name": "|KRD| Kurd Channels ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280409,
+"name": "|KRD| Kurd Max ᵁᴴᴰ ◉",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280498,
+"name": "|KRD| ZHYAR",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280495,
+"name": "|KRD| U TV ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280493,
+"name": "|KRD| SAUDI SUNNAH",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280485,
+"name": "|KRD| MMN QURAN ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280480,
+"name": "|KRD| KRD WWE ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280479,
+"name": "|KRD| KRD LD Family ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280467,
+"name": "|KRD| CIRA TV",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280463,
+"name": "|KRD| AVA MEDIA",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280454,
+"name": "|KRD| AMOZHGARY TV ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280443,
+"name": "|KRD| ZNAR ᵁᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280429,
+"name": "|KRD| DERIN ᵁᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312560,
+"name": "|KRD| Aro Family",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280412,
+"name": "|KRD| KNN ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 280411,
+"name": "|KRD| Bangwaz ᵁᴴᴰ ◉",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 312563,
+"name": "|KRD| Astera Culture ᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 50217,
+"name": "AVA ᵁᴴᴰ KURDISTAN",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 50213,
+"name": "|KRD| RUDAW KURDISTAN ᵁᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 50178,
+"name": "|KRD| WAAR ᵁᴴᴰ",
+"category_id": "576",
+"epg_channel_id": null
+},
+{
+"stream_id": 1591400,
+"name": "AFG: AFGHAN INTERNATIONAL HD",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 92488,
+"name": "| AFG |  Zhwandoon",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49380,
+"name": "| AFG | 1TV Afghanistan AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49381,
+"name": "| AFG | Afghan Javan AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49382,
+"name": "| AFG | Afghan Time TV AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49383,
+"name": "| AFG | AMC TV AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49384,
+"name": "| AFG | Arezo TV ᴴᴰ AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49385,
+"name": "| AFG | Arezu TV AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49386,
+"name": "| AFG | Aria Music AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49387,
+"name": "| AFG | Ariana News AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49388,
+"name": "| AFG | Ariana TV AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49389,
+"name": "| AFG | Ariana USA AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49391,
+"name": "| AFG | ATN News AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49392,
+"name": "| AFG | ATN INT ᴴᴰ AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49395,
+"name": "| AFG | Bahar TV ᴴᴰ AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49396,
+"name": "| AFG | Batur AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49397,
+"name": "| AFG | Hazara World TV AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49399,
+"name": "| AFG | Iman TV AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49400,
+"name": "| AFG | Kana TV ᴴᴰ AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49401,
+"name": "| AFG | Zarin TV AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49403,
+"name": "| AFG | Kayhan TV ᴴᴰ AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49404,
+"name": "| AFG | Khurshid TV AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49405,
+"name": "| AFG | Payam E Afghanistan AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49406,
+"name": "| AFG | Lemar ᴴᴰ AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49408,
+"name": "| AFG | RTA NEWS AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49410,
+"name": "| AFG | RTA NEWS",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49412,
+"name": "| AFG | Noor TV AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49413,
+"name": "| AFG | One TV AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49414,
+"name": "| AFG | Pashto TV AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49415,
+"name": "| AFG | Payame Afghan AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 1277506,
+"name": "| AFG |  PAMIR TV HD",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49416,
+"name": "| AFG | Shamshad AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49418,
+"name": "| AFG | Tamadon Afghan AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49419,
+"name": "| AFG | Tolo ᴴᴰ AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49420,
+"name": "| AFG | Tolo News ᴴᴰ AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49421,
+"name": "| AFG | Tuti TV AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 49422,
+"name": "| AFG | Watan Tv AFG",
+"category_id": "150",
+"epg_channel_id": null
+},
+{
+"stream_id": 626607,
+"name": "|PK| ARY QTV",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87155,
+"name": "|PK| ARY NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87156,
+"name": "|PK| ATN NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87148,
+"name": "|PK| BOL NEWS ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87172,
+"name": "|PK| CAPITAL TV",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87152,
+"name": "|PK| CHANNEL 24 ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87176,
+"name": "|PK| CITY 41",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87177,
+"name": "|PK| CITY 42",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87160,
+"name": "|PK| DAWN NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87164,
+"name": "|PK| DUNYA NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87158,
+"name": "|PK| EXPRESS NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87144,
+"name": "|PK| GEO NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87178,
+"name": "|PK| GEO TEZZ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87150,
+"name": "|PK| GNN ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87149,
+"name": "|PK| GTV ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87145,
+"name": "|PK| HUM NEWS ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87157,
+"name": "|PK| KHYBER NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87168,
+"name": "|PK| KOHINOOR NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87161,
+"name": "|PK| KTN NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87146,
+"name": "|PK| LAHORE NEWS ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87147,
+"name": "|PK| LAHORE RANG ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87174,
+"name": "|PK| MEHRAN TV",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87173,
+"name": "|PK| METRO 1",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87153,
+"name": "|PK| NEO NEWS ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87163,
+"name": "|PK| NEWS ONE",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87162,
+"name": "|PK| PTV NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87151,
+"name": "|PK| PUBLIC NEWS ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87166,
+"name": "|PK| ROHI TV",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87167,
+"name": "|PK| ROZE NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 87165,
+"name": "|PK| SINDH NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49157,
+"name": "|PK| HUM TV ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49158,
+"name": "|PK| HUM SITARY",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49159,
+"name": "|PK| MASALA TV",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49162,
+"name": "|PK| ARY ZINDAGI",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49163,
+"name": "|PK| BOL ENTERTAINMENT ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49165,
+"name": "|PK| GEO KAHANI",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49166,
+"name": "|PK| A PLUS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49167,
+"name": "|PK| EXPRESS ENTERTAINMENT",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49168,
+"name": "|PK| APNA CHANNEL",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49169,
+"name": "|PK| URDU 1 ᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49170,
+"name": "|PK| TV ONE",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49175,
+"name": "|PK| PTV HOME",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49176,
+"name": "|PK| PTV WORLD",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49177,
+"name": "|PK| PTV BOLAN",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49178,
+"name": "|PK| K-21",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49179,
+"name": "|PK| PLAY TV",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49181,
+"name": "|PK| SEE TV",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49182,
+"name": "|PK| KASHISH",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49183,
+"name": "|PK| PASHTO 1",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49185,
+"name": "|PK| KTN ENTERTAINMENT",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49186,
+"name": "|PK| SINDH ENTERTAINMENT",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49187,
+"name": "|PK| ARY NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49188,
+"name": "|PK| GEO NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49189,
+"name": "|PK| GEO TEZZ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49191,
+"name": "|PK| GNN ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49193,
+"name": "UK-92 News ˢᴰ*",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49194,
+"name": "|PK| 92 NEWS ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49195,
+"name": "|PK| BOL NEWS ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49196,
+"name": "|PK| HUM NEWS ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49198,
+"name": "|PK| PUBLIC NEWS ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49199,
+"name": "|PK| NEO NEWS ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49200,
+"name": "|PK| CHANNEL 24 ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49201,
+"name": "|PK| LAHORE NEWS ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49202,
+"name": "|PK| LAHROE RANG ᵁᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49203,
+"name": "|PK| SAAMA NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49204,
+"name": "|PK| DUNYA NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49205,
+"name": "|PK| EXPRESS NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49206,
+"name": "|PK| NEWS ONE",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49208,
+"name": "|PK| DAWN NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49209,
+"name": "|PK| ABBTAKK NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49210,
+"name": "|PK| CAPITAL TV",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49212,
+"name": "|PK| CITY 41",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49213,
+"name": "|PK| CITY 42",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49217,
+"name": "|PK| ROZE NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49219,
+"name": "|PK| KHYBER NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49220,
+"name": "|PK| AVT KHYBER",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49221,
+"name": "|PK| KTN NEWS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49222,
+"name": "|PK| AWAZ TV",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49223,
+"name": "|PK| ROHI TV",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49228,
+"name": "|PK| ARY MUSIK",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49229,
+"name": "|PK| 8XM ᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49230,
+"name": "|PK| RAAVI",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49232,
+"name": "|PK| FILMWORLD",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49236,
+"name": "|PK| CARTOON NETWORK ᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49237,
+"name": "|PK| KIDS ZONE+ᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49240,
+"name": "|PK| PTV SPORTS RAW",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49241,
+"name": "|PK| PTV SPORTS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49242,
+"name": "|PK| GEO SUPER",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49259,
+"name": "|PK| CINEMACHI KIDS",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49261,
+"name": "|PK| POP Kids ᴴᴰ",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49263,
+"name": "|PK| PEACE TV ENGLISH",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49264,
+"name": "|PK| WASEEB TV",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49265,
+"name": "|PK| SAUDI SUNNAH TV",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49266,
+"name": "|PK| SAUDI AL QURAN TV",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49271,
+"name": "|PK| AHLEBAIT",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49273,
+"name": "|PK| METRO 1",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49274,
+"name": "|PK| PEACE TV URDU",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49275,
+"name": "|PK| HADI TV",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49276,
+"name": "|PK| MADANI TV",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49279,
+"name": "|PK| MEHRAN TV",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49280,
+"name": "|PK| Star Plus ᵁᴴᴰ*",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49282,
+"name": "|PK| Geo News ˢᴰ*",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49284,
+"name": "|PK| PTV Home",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49286,
+"name": "|PK| TV One",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49287,
+"name": "|PK| APLUS Europe",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49288,
+"name": "|PK| Geo Kahani ˢᴰ*",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49291,
+"name": "|PK| Hum Masala ˢᴰ*",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49294,
+"name": "|PK| Samaa TV ˢᴰ*",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 49295,
+"name": "|PK| Dunya News",
+"category_id": "925",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291853,
+"name": "|UZ| ЭлТР HD KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291852,
+"name": "|UZ| УТРК Спорт KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291851,
+"name": "|UZ| УТРК Музыка KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291850,
+"name": "|UZ| УТРК Маданият KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291849,
+"name": "|UZ| УТРК Баластан KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291848,
+"name": "|UZ| УТРК HD KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291847,
+"name": "|UZ| ТНТ-Кыргызстан KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291846,
+"name": "|UZ| Семейный KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291845,
+"name": "|UZ| ОшПирим KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291844,
+"name": "|UZ| НТС HD KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291843,
+"name": "|UZ| НТВ Кыргызстан KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291842,
+"name": "|UZ| Манас HD KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291841,
+"name": "|UZ| Илим Билим KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291840,
+"name": "|UZ| Жаша! KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291839,
+"name": "|UZ| Ала-Тоо 24 KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291838,
+"name": "|UZ| Vostok TV KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291837,
+"name": "|UZ| TV 15 KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291836,
+"name": "|UZ| Setanta Qyrsyzstan HD KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291835,
+"name": "|UZ| RTV Media KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291834,
+"name": "|UZ| RegionTV KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291833,
+"name": "|UZ| Q Sport HD KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291832,
+"name": "|UZ| NUR TV KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291831,
+"name": "|UZ| KyrgyzSport KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291830,
+"name": "|UZ| Kinoteatr KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291829,
+"name": "|UZ| Jibek Joly KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291828,
+"name": "|UZ| Cinéma HD KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291827,
+"name": "|UZ| Cinemax KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291826,
+"name": "|UZ| 312 ТВ HD KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291825,
+"name": "|UZ| 312 Музыка HD KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291824,
+"name": "|UZ| 312 Кино HD KG",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291823,
+"name": "|UZ| ТВ Синамо TJ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291822,
+"name": "|UZ| Тоҷикистон HD TJ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291821,
+"name": "|UZ| Сафина HD TJ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291820,
+"name": "|UZ| Баҳористон TJ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291819,
+"name": "|UZ| Чахоннамо TJ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291818,
+"name": "|UZ| Futbol TJ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291817,
+"name": "|UZ| Zo'r TV HD UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291816,
+"name": "|UZ| Yoshlar UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291815,
+"name": "|UZ| Toshkent UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291814,
+"name": "|UZ| Taraqqiyot TV UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291813,
+"name": "|UZ| Sport UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291812,
+"name": "|UZ| Ruxsor TV UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291811,
+"name": "|UZ| Renessans TV UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291810,
+"name": "|UZ| O'zbekiston 24 HD UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291809,
+"name": "|UZ| O'zbekiston Tarixi HD UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291808,
+"name": "|UZ| Nurafshon TV UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291807,
+"name": "|UZ| Navo UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291806,
+"name": "|UZ| My5 HD UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291805,
+"name": "|UZ| Milliy TV UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291804,
+"name": "|UZ| Mahalla UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291803,
+"name": "|UZ| Madaniyat va Ma'rifat UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291802,
+"name": "|UZ| Kinoteatr UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291801,
+"name": "|UZ| Dunyo Bo'ylab UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291800,
+"name": "|UZ| Dasturxon TV UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291799,
+"name": "|UZ| Bolajon UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291798,
+"name": "|UZ| Biz Music HD UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291797,
+"name": "|UZ| Biz Cinema UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291796,
+"name": "|UZ| Aqlvoy TV UZ",
+"category_id": "2032",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291869,
+"name": "|KZ| El Arna KZ",
+"category_id": "2033",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291868,
+"name": "|KZ| Setanta Sports 2 HD KZ",
+"category_id": "2033",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291867,
+"name": "|KZ| Setanta Sports 1 HD KZ",
+"category_id": "2033",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291866,
+"name": "|KZ| Saryarqa KZ",
+"category_id": "2033",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291865,
+"name": "|KZ| Kazakhstan KZ",
+"category_id": "2033",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291864,
+"name": "|KZ| Jibek Joly TV KZ",
+"category_id": "2033",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291863,
+"name": "|KZ| 5 канал KZ",
+"category_id": "2033",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291862,
+"name": "|KZ| 31 канал KZ",
+"category_id": "2033",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291861,
+"name": "|KZ| Хабар HD KZ",
+"category_id": "2033",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291860,
+"name": "|KZ| Туран ТВ KZ",
+"category_id": "2033",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291859,
+"name": "|KZ| ТНТ Music",
+"category_id": "2033",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291858,
+"name": "|KZ| СТС Kids [Multi-Audio]",
+"category_id": "2033",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291857,
+"name": "|KZ| Седьмой канал KZ",
+"category_id": "2033",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291856,
+"name": "|KZ| Первый канал Евразия KZ",
+"category_id": "2033",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291855,
+"name": "|KZ| НТК KZ",
+"category_id": "2033",
+"epg_channel_id": null
+},
+{
+"stream_id": 1291854,
+"name": "|KZ| КТК HD KZ",
+"category_id": "2033",
+"epg_channel_id": null
+},
+{
+"stream_id": 1137376,
+"name": "|AU|| CHANNEL 9 HD",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197176,
+"name": "|AU|  BEIN SPORTS 1",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 288372,
+"name": "||AU|| BEIN SPORTS 2 ᴴᴰ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 288373,
+"name": "||AU|| BEIN SPORTS 3 ᴴᴰ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 288350,
+"name": "|AU| STAN EVENT 1",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288351,
+"name": "|AU| STAN EVENT 2 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288352,
+"name": "|AU| STAN EVENT 3 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288353,
+"name": "|AU| STAN EVENT 4 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288354,
+"name": "|AU| STAN EVENT 5 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288355,
+"name": "|AU| STAN EVENT 6 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288356,
+"name": "|AU| STAN EVENT 7 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288357,
+"name": "|AU| STAN EVENT 8 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288358,
+"name": "|AU| STAN EVENT 9 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288359,
+"name": "|AU| STAN EVENT 10 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288360,
+"name": "|AU| STAN EVENT 11 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288361,
+"name": "|AU| STAN EVENT 12 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288362,
+"name": "|AU| STAN EVENT 13 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288363,
+"name": "|AU| STAN EVENT 14 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288364,
+"name": "|AU| STAN EVENT 15 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288365,
+"name": "|AU| STAN EVENT 16 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288366,
+"name": "|AU| STAN EVENT 17 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288367,
+"name": "|AU| STAN EVENT 18 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288368,
+"name": "|AU| STAN EVENT 19 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 288369,
+"name": "|AU| STAN EVENT 20 ",
+"category_id": "1169",
+"epg_channel_id": null
+},
+{
+"stream_id": 197185,
+"name": "|AU|  Fox Sports 501",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197186,
+"name": "|AU|  Fox Sports 502",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 1098502,
+"name": "|AU| Fox Sports 503",
+"category_id": "396",
+"epg_channel_id": "foxsports503.au"
+},
+{
+"stream_id": 197188,
+"name": "|AU|  Fox Sports 504",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197189,
+"name": "|AU|  Fox Sports 505",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197190,
+"name": "|AU|  Fox Sports 506",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197191,
+"name": "|AU|  Fox Sports 507",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 306283,
+"name": "||AU||  OPTUS 10",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 306284,
+"name": "||AU||  OPTUS 9",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 288370,
+"name": "|AU|  7FLIX",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 288371,
+"name": "|AU|  ABC NEWS SYDNEY",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197249,
+"name": "|AU|  Wonder ᴴᴰ ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197100,
+"name": "|AU|  7 Flix",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197101,
+"name": "|AU|  7 Flix Brisbane ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197102,
+"name": "|AU|  7 Flix Melbourne",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197103,
+"name": "|AU|  7 Flix Perth ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197104,
+"name": "|AU|  7 Flix Sydney ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197105,
+"name": "|AU|  7TWO",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197106,
+"name": "|AU|  7 mate",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197110,
+"name": "|AU|  7 Mate Sydney",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197115,
+"name": "|AU|  7 Two ᴴᴰ ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 1080784,
+"name": "|AU|| SEVEN MALBOURNE",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 1080782,
+"name": "|AU|| SEVEN SYDNEY",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197120,
+"name": "|AU|  9 Brisbane",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197122,
+"name": "|AU|  9 Gem ᴴᴰ ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197126,
+"name": "|AU|  9 Go! ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197133,
+"name": "|AU|  9 Life Brisbane",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197139,
+"name": "|AU|  9 Rush Brisbane ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197144,
+"name": "|AU|  9Gem ᴴᴰ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197145,
+"name": "|AU|  9Go! ᴴᴰ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197146,
+"name": "|AU|  9Go! Sydney",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197147,
+"name": "|AU|  9Life ᴴᴰ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197090,
+"name": "|AU|  10 Shake Adelaide ᴴᴰ ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197091,
+"name": "|AU|  10 Shake Brisbane ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197148,
+"name": "|AU|  ABC",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197149,
+"name": "|AU|  ABC Brisbane",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197151,
+"name": "|AU|  ABC Kids Brisbane",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197155,
+"name": "|AU|  ABC Kids Sydney ᴴᴰ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197157,
+"name": "|AU|  ABC ME ᴴᴰ ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197161,
+"name": "|AU|  ABC Melbourne ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197163,
+"name": "|AU|  ABC News Brisbane",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197167,
+"name": "|AU|  ABC News Sydney ᴴᴰ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197168,
+"name": "|AU|  ABC One ᴴᴰ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197178,
+"name": "|AU|  Bloomberg TV Asia Live Event ᴴᴰ ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197179,
+"name": "|AU|  Channel 9 Brisbane",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197180,
+"name": "|AU|  Channel 9 Melbourne ᴴᴰ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197181,
+"name": "|AU|  Channel 9 Sydney",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197182,
+"name": "|AU|  ESPN 2 ᴴᴰ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197192,
+"name": "|AU|  Fox Sports News ᵁᴴᴰ ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197200,
+"name": "|AU|  NITV",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197205,
+"name": "|AU|  Outdoor Channel ᵁᴴᴰ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197206,
+"name": "|AU|  Outdoor Channel ᴴᴰ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197211,
+"name": "|AU|  RACING",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197214,
+"name": "|AU|  Redbull TV",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197217,
+"name": "|AU|  SBS Brisbane ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197228,
+"name": "|AU|  SBS Viceland Brisbane",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197232,
+"name": "|AU|  SBS World Movies ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197233,
+"name": "|AU|  SBS World Movies Brisbane ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197238,
+"name": "|AU|  Sky News Extra ",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197239,
+"name": "|AU|  Sky Racing 1",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197242,
+"name": "|AU|  Sky Racing 2",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 197247,
+"name": "|AU|  TVSN Shopping",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 288384,
+"name": "||AU|| ABC KIDS",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 288385,
+"name": "||AU|| SBS FOOD",
+"category_id": "396",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096033,
+"name": "Golden Knights vs Blackhawks @ Sep 30 12:30 PM :Kayo  01",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096034,
+"name": "Mississauga vs Vancouver @ Sep 30 3:40 PM :Kayo  02",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096035,
+"name": "New Zealand vs Cairns @ Sep 30 5:00 PM :Kayo  03",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096036,
+"name": "The Run Home with Joel and Fletch @ Sep 30 5:00 PM :Kayo  04",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096037,
+"name": "NRL Tonight @ Sep 30 6:00 PM :Kayo  05",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096038,
+"name": "India vs West Indies G2 @ Sep 30 6:20 PM :Kayo  06",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096039,
+"name": "ESPN FC @ Sep 30 6:30 PM :Kayo  07",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096040,
+"name": "NRL 360 @ Sep 30 6:30 PM :Kayo  08",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096041,
+"name": "FSN Daily Review @ Sep 30 7:00 PM :Kayo  09",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096042,
+"name": "Dally M Red Carpet @ Sep 30 7:30 PM :Kayo  10",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096043,
+"name": "MotorRacing 360 @ Sep 30 7:30 PM :Kayo  11",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096044,
+"name": "Sydney vs Brisbane @ Sep 30 7:30 PM :Kayo  12",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096045,
+"name": "Dally M Awards @ Sep 30 8:00 PM :Kayo  13",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096046,
+"name": "South Africa vs Australia G3 @ Sep 30 9:00 PM :Kayo  14",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096047,
+"name": "World Grand Prix Day 3 @ Oct 1 4:00 AM :Kayo  15",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096048,
+"name": "Braves vs Phillies Wild Card @ Oct 1 4:00 AM :Kayo  16",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096049,
+"name": "OL Lyon vs Chelsea @ Oct 1 4:55 AM :Kayo  17",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096050,
+"name": "Toronto vs Brampton @ Oct 1 6:25 AM :Kayo  18",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096051,
+"name": "Astros vs White Sox Wild Card @ Oct 1 7:00 AM :Kayo  19",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096052,
+"name": "Mystics vs Dream WNBA Playoffs @ Oct 1 8:30 AM :Kayo  20",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096053,
+"name": "Vancouver vs Montreal @ Oct 1 8:55 AM :Kayo  21",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096054,
+"name": "NSW vs QLD @ Oct 1 9:25 AM :Kayo  22",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096055,
+"name": "Yankees vs Red Sox Wild Card @ Oct 1 10:00 AM :Kayo  23",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096056,
+"name": "Wings vs Valkyries WNBA Playoffs @ Oct 1 11:00 AM :Kayo  24",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096057,
+"name": "Whiterock vs Mississauga @ Oct 1 11:40 AM :Kayo  25",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096058,
+"name": "Padres vs Cubs Wild Card @ Oct 1 1:00 PM :Kayo  26",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096059,
+"name": "VIC vs SA @ Oct 1 1:55 PM :Kayo  27",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096060,
+"name": ":Kayo  28",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096061,
+"name": ":Kayo  29",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096062,
+"name": ":Kayo  30",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096063,
+"name": ":Kayo  31",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096064,
+"name": ":Kayo  32",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096065,
+"name": ":Kayo  33",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096066,
+"name": ":Kayo  34",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096067,
+"name": ":Kayo  35",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096068,
+"name": ":Kayo  36",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096069,
+"name": ":Kayo  37",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096070,
+"name": ":Kayo  38",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096071,
+"name": ":Kayo  39",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096072,
+"name": ":Kayo  40",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096073,
+"name": ":Kayo  41",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096074,
+"name": ":Kayo  42",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096075,
+"name": ":Kayo  43",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096076,
+"name": ":Kayo  44",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096077,
+"name": ":Kayo  45",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096078,
+"name": ":Kayo  46",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096079,
+"name": ":Kayo  47",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096080,
+"name": ":Kayo  48",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096081,
+"name": ":Kayo  49",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096082,
+"name": ":Kayo  50",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096083,
+"name": ":Kayo  51",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096084,
+"name": ":Kayo  52",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096085,
+"name": ":Kayo  53",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096086,
+"name": ":Kayo  54",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096087,
+"name": ":Kayo  55",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096088,
+"name": ":Kayo  56",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096089,
+"name": ":Kayo  57",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096090,
+"name": ":Kayo  58",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096091,
+"name": ":Kayo  59",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096092,
+"name": ":Kayo  60",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096093,
+"name": ":Kayo  61",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096094,
+"name": ":Kayo  62",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096095,
+"name": ":Kayo  63",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096096,
+"name": ":Kayo  64",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096097,
+"name": ":Kayo  65",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096098,
+"name": ":Kayo  66",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096099,
+"name": ":Kayo  67",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096100,
+"name": ":Kayo  68",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096101,
+"name": ":Kayo  69",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096102,
+"name": ":Kayo  70",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096103,
+"name": ":Kayo  71",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096104,
+"name": ":Kayo  72",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096105,
+"name": ":Kayo  73",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096106,
+"name": ":Kayo  74",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096107,
+"name": ":Kayo  75",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096108,
+"name": ":Kayo  76",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096109,
+"name": ":Kayo  77",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096110,
+"name": ":Kayo  78",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096111,
+"name": ":Kayo  79",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096112,
+"name": ":Kayo  80",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096113,
+"name": ":Kayo  81",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096114,
+"name": ":Kayo  82",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096115,
+"name": ":Kayo  83",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096116,
+"name": ":Kayo  84",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096117,
+"name": ":Kayo  85",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096118,
+"name": ":Kayo  86",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096119,
+"name": ":Kayo  87",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096120,
+"name": ":Kayo  88",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096121,
+"name": ":Kayo  89",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096122,
+"name": ":Kayo  90",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096123,
+"name": ":Kayo  91",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096124,
+"name": ":Kayo  92",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096125,
+"name": ":Kayo  93",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096126,
+"name": ":Kayo  94",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096127,
+"name": ":Kayo  95",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096128,
+"name": ":Kayo  96",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096129,
+"name": ":Kayo  97",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096130,
+"name": ":Kayo  98",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096131,
+"name": ":Kayo  99",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2096132,
+"name": ":Kayo  100",
+"category_id": "922",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095953,
+"name": "WEC: Race 6 Hours of Fuji @ Sep 27 2:30 AM :Stan Sports  01",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095954,
+"name": "Super Rugby AUS: Waratahs vs Force @ Sep 27 3:40 AM :Stan Sports  02",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095955,
+"name": "NPC: Hawkes Bay vs Taranaki @ Sep 27 5:00 AM :Stan Sports  03",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095956,
+"name": "Super Rugby AUS: Brumbies vs Reds @ Sep 27 5:30 AM :Stan Sports  04",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095957,
+"name": "WTA 250: Seoul Day 7 @ Sep 27 7:30 AM :Stan Sports  05",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095958,
+"name": "Flight Centre Series: Australia vs South Africa @ Sep 27 9:30 AM :Stan Sports  06",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095959,
+"name": "WTA 500: Singapore Day 7 @ Sep 27 10:00 AM :Stan Sports  07",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095960,
+"name": "Laver Cup: Day 3 • Day Session @ Sep 27 12:00 PM :Stan Sports  08",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095961,
+"name": "WXV: Ireland vs Japan @ Sep 27 12:35 PM :Stan Sports  09",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095962,
+"name": "WSL: Manchester United vs West Ham United @ Sep 27 12:50 PM :Stan Sports  10",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095963,
+"name": "UCI Road World Championships: Men Elite Road Race @ Sep 27 1:50 PM :Stan Sports  11",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095964,
+"name": "WSL: Tottenham Hotspur vs Aston Villa @ Sep 27 1:50 PM :Stan Sports  12",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095965,
+"name": "WSL: Liverpool vs Everton @ Sep 27 1:50 PM :Stan Sports  13",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095966,
+"name": "WSL: Birmingham City vs Crystal Palace @ Sep 27 1:50 PM :Stan Sports  14",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095967,
+"name": "Premiership Rugby: Leicester vs Saracens @ Sep 27 2:55 PM :Stan Sports  15",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095968,
+"name": "WSL: Chelsea vs Arsenal @ Sep 27 4:20 PM :Stan Sports  16",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095969,
+"name": "UCI Mountain Bike World Series: Downhill Whistler @ Sep 27 8:45 PM :Stan Sports  17",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095970,
+"name": "NWSL: Utah Royals vs North Carolina Courage @ Sep 28 12:00 AM :Stan Sports  18",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095971,
+"name": ":Stan Sports  19",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095972,
+"name": ":Stan Sports  20",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095973,
+"name": ":Stan Sports  21",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095974,
+"name": ":Stan Sports  22",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095975,
+"name": ":Stan Sports  23",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095976,
+"name": ":Stan Sports  24",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095977,
+"name": ":Stan Sports  25",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095978,
+"name": ":Stan Sports  26",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095979,
+"name": ":Stan Sports  27",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095980,
+"name": ":Stan Sports  28",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095981,
+"name": ":Stan Sports  29",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095982,
+"name": ":Stan Sports  30",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095983,
+"name": ":Stan Sports  31",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095984,
+"name": ":Stan Sports  32",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095985,
+"name": ":Stan Sports  33",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095986,
+"name": ":Stan Sports  34",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095987,
+"name": ":Stan Sports  35",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095988,
+"name": ":Stan Sports  36",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095989,
+"name": ":Stan Sports  37",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095990,
+"name": ":Stan Sports  38",
+"category_id": "1206",
+"epg_channel_id": null
+},
+{
+"stream_id": 2095991,
+"name": ":Stan Sports  39",
+"category_id": "1206",
+"epg_channel_id": null
+}
+]
+}
