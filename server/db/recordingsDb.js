@@ -80,6 +80,12 @@ function initSchema() {
         'missed_start_ms INTEGER',   // how much of the programme was already gone
         'ad_detect_status TEXT',     // null|pending|running|done|failed|unavailable
         'ad_detect_error TEXT',
+        // 0177 (multi-provider P7): the provider (a source id) this recording's
+        // connection was on, and which part of its schedule it is - 1 for the first
+        // (or only) one, 2 and 3 for the continuations made when a provider died
+        // mid-recording. NULL on recordings made before, and on the tuner's.
+        'provider_id INTEGER',
+        'part INTEGER',
         // 0127, the tuner model: 'hls' for a recording taken from a tuner's segments
         // (its folder, hls_dir, holds index.m3u8 and the segments; file_path is that
         // playlist until the joined MP4 exists). NULL for the .mkv recordings. Added
@@ -313,6 +319,32 @@ const recordings = {
         db.prepare('DELETE FROM recording_markers WHERE recording_id = ?').run(recordingId);
     },
 
+    /**
+     * 0177: this part stopped before the programme did (its provider died and the
+     * recording continued in the next part). Partial, with a note saying so; the
+     * missing span at its start, if any, is kept.
+     */
+    markEndedEarly(id, note) {
+        const db = getDb();
+        initSchema();
+        db.prepare('UPDATE recordings SET is_partial = 1, missed_start_ms = COALESCE(missed_start_ms, 0), error = ? WHERE id = ?')
+            .run(note || null, id);
+    },
+
+    /** 0177: the recording moved to another provider before it had recorded anything. */
+    setProvider(id, providerId) {
+        const db = getDb();
+        initSchema();
+        db.prepare('UPDATE recordings SET provider_id = ? WHERE id = ?').run(providerId ?? null, id);
+    },
+
+    /** 0177: every recording (part) made for a schedule, first part first. */
+    listBySchedule(scheduledId) {
+        const db = getDb();
+        initSchema();
+        return db.prepare('SELECT * FROM recordings WHERE scheduled_id = ? ORDER BY id ASC').all(scheduledId);
+    },
+
     markPartial(id, missedStartMs) {
         const db = getDb();
         initSchema();
@@ -358,11 +390,12 @@ const recordings = {
         const stmt = db.prepare(`
             INSERT INTO recordings
                 (scheduled_id, title, channel_name, channel_logo, source_id, channel_item_id,
-                 file_path, started_at, status)
+                 file_path, started_at, status, provider_id, part)
             VALUES (@scheduled_id, @title, @channel_name, @channel_logo, @source_id, @channel_item_id,
-                    @file_path, @started_at, 'recording')
+                    @file_path, @started_at, 'recording', @provider_id, @part)
         `);
-        const info = stmt.run(data);
+        // provider_id/part (0177) are the default path's; the tuner's recordings leave them NULL.
+        const info = stmt.run({ provider_id: null, part: null, ...data });
         return this.getById(info.lastInsertRowid);
     },
 

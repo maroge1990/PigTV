@@ -200,7 +200,7 @@ class StatusPage {
 
         // Recordings
         const rec = status.recordings || { active: [], upcoming: [] };
-        const recRow = (r) => [e(r.title), e(r.channel || '–'), e(r.status), `${this.when(r.programStart)} – ${this.time(r.programEnd).slice(0, 5)}`];
+        const recRow = (r) => [e(r.title), `${e(r.channel || '–')}${r.provider ? ` <span class="setting-hint">(${e(r.provider)})</span>` : ''}`, e(r.status), `${this.when(r.programStart)} – ${this.time(r.programEnd).slice(0, 5)}`];
         out.push(this.section('Recordings',
             `<h4>Recording now</h4>${this.table(['Programme', 'Channel', 'Status', 'Time'], (rec.active || []).map(recRow), 'Nothing is recording')}` +
             `<h4>Next scheduled</h4>${this.table(['Programme', 'Channel', 'Status', 'Time'], (rec.upcoming || []).map(recRow), 'Nothing scheduled')}`));

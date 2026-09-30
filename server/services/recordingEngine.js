@@ -21,16 +21,41 @@ const { redact } = require('../redact');
 const tunerModel = require('./tuner');
 const { HlsRecorder, closeOrphanPlaylist } = require('./hlsRecorder');
 const { checkRecordingsFolder, refusalMessage, onTinyFilesystem } = require('./recordingsFolder');
+const providerRouting = require('./providerRouting');
+const { providerFailureIn } = require('./transcodeSession');
 
 const TICK_INTERVAL_MS = 15 * 1000;
 const STDERR_TAIL_LINES = 40;
+
+// Provider failover for recordings (0177, multi-provider brief 2.7; default path only,
+// and only with a backup provider configured). Tunable so a test need not wait them out.
+const failoverTuning = {
+    // An ffmpeg that ends this soon after it was started (or before it wrote anything)
+    // failed to START: the next provider takes over the same recording row.
+    startFailoverMs: 20 * 1000,
+    // An ffmpeg that ends later has recorded something: the recording continues in a
+    // new part. Not within this long of the stop time, though - that is simply the end.
+    endGraceMs: 10 * 1000,
+    // A recording file that has not grown for this long has stalled (the provider went
+    // silent without closing the connection; ffmpeg's -reconnect can wait on it for
+    // ever). Checked on the scheduler's tick, so noticed within stallMs + 15 s.
+    stallMs: 30 * 1000,
+    // At most this many parts per schedule.
+    maxParts: 3
+};
 
 let ffmpegPath = 'ffmpeg';
 let ffprobePath = 'ffprobe';
 let tickTimer = null;
 let tickRunning = false;
 // scheduledId -> { proc, recordingId, hardStopTimer, stderrTail: [] }
+// (0177, default path: also the schedule, its provider route, which candidate and
+// part this is, and whether a stop was asked for - see spawnPart.)
 const active = new Map();
+// 0177: schedules whose provider died mid-recording and whose next part is waiting
+// for a free connection. Still `recording`; retried every tick until the stop time.
+// scheduledId -> { schedule, nextPart, lostAt, starting, waitingLogged }
+const continuations = new Map();
 
 function sanitizeForFs(str) {
     return String(str || 'Untitled')
@@ -181,6 +206,112 @@ async function resolveStreamUrl(sourceId, channelItemId, stableId = null) {
     } catch (e) { /* fall through */ }
 
     throw new Error(`No stream URL available for channel ${channelItemId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Which provider a recording uses (0177, multi-provider brief 2.7; default path)
+//
+// The same ordered candidates a play gets (providerRouting.plan: the primary, its
+// own "(Backup)" sibling unless the primary is down, then the backups in their
+// Settings → Providers order). The primary candidate's stream is still found the way
+// it always was (resolveStreamUrl: the schedule's channel identity first), and plan
+// is asked about the playlist row that identity names now, so both agree on the
+// channel. With no backup configured the route is the primary alone and every
+// decision below is exactly the one made before.
+// ---------------------------------------------------------------------------
+
+/** The item_id the schedule's channel has now (its identity first, as resolveStreamUrl finds it). */
+function currentItemId(source, schedule) {
+    if (!source || source.type === 'xtream' || !schedule.channel_stable_id) return schedule.channel_item_id;
+    try {
+        const row = getDb().prepare(`
+            SELECT item_id FROM playlist_items
+            WHERE source_id = ? AND type = 'live' AND stable_id = ?
+            ORDER BY CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END, sort_order ASC
+            LIMIT 1
+        `).get(schedule.source_id, schedule.channel_stable_id);
+        return row ? row.item_id : schedule.channel_item_id;
+    } catch (e) {
+        return schedule.channel_item_id;
+    }
+}
+
+/**
+ * { candidates: [{ providerId, providerName, role, via, url, channelKey }], primaryKey, multi }.
+ * Throws what resolveStreamUrl throws (the schedule then fails, as before).
+ */
+async function routeFor(schedule) {
+    const primaryUrl = await resolveStreamUrl(schedule.source_id, schedule.channel_item_id, schedule.channel_stable_id || null);
+    const single = {
+        candidates: [{ providerId: schedule.source_id, providerName: null, role: 'primary', via: 'primary', url: primaryUrl, channelKey: null }],
+        primaryKey: null,
+        multi: false
+    };
+    let plan;
+    try {
+        const source = await sourcesDb.getById(schedule.source_id);
+        plan = await providerRouting.plan(schedule.source_id, currentItemId(source, schedule));
+    } catch (e) {
+        return single; // nothing to fail over to that plan can name: as before
+    }
+    if (!plan || !plan.backupsConfigured) return single;
+    return {
+        candidates: plan.candidates.map(c => (c.via === 'primary' ? { ...c, url: primaryUrl } : c)),
+        primaryKey: plan.primaryKey,
+        multi: true
+    };
+}
+
+/** The first candidate after `from` with a free connection (canRecordFreely), or -1. */
+function freeCandidate(route, settings, from = 0) {
+    const recordings = listActive();
+    for (let i = from; i < route.candidates.length; i++) {
+        if (coordinator.canRecordFreely(route.candidates[i].providerId, settings, recordings)) return i;
+    }
+    return -1;
+}
+
+/**
+ * The provider a due recording starts on, and the coordinator's verdict for it:
+ * the first candidate with a free connection, without asking anybody; when none is
+ * free, today's prompt flow on the first candidate (the 0158 timeout included).
+ * With no backup configured, today's requestForRecording on the schedule's source.
+ */
+async function chooseProvider(schedule, settings) {
+    let route;
+    try {
+        route = await routeFor(schedule);
+    } catch (err) {
+        // The channel cannot be resolved: as before, the coordinator is asked first and
+        // the recording then fails in startRecording, where the resolve is tried again.
+        return { route: null, index: 0, verdict: await coordinator.requestForRecording(schedule, settings, schedule.source_id) };
+    }
+    if (!route.multi) {
+        return { route, index: 0, verdict: await coordinator.requestForRecording(schedule, settings, schedule.source_id) };
+    }
+    const index = freeCandidate(route, settings);
+    if (index < 0) {
+        return { route, index: 0, verdict: await coordinator.requestForRecording(schedule, settings, route.candidates[0].providerId) };
+    }
+    // Free: requestForRecording is still called, for its reclaim of abandoned streams in
+    // that pool. It can only say no when the pool is one live viewer plus abandoned
+    // streams at a limit above 1 - there is a free connection (canRecordFreely), so the
+    // recording goes ahead without a prompt either way.
+    const verdict = await coordinator.requestForRecording(schedule, settings, route.candidates[index].providerId);
+    if (!verdict.allowed) coordinator.clearPrompt(schedule.id);
+    if (index > 0) {
+        console.log(`[Recordings] Schedule #${schedule.id} records on ${route.candidates[index].providerName}: ` +
+            `${route.candidates[0].providerName} has no free connection`);
+    }
+    return { route, index, verdict: { allowed: true, reason: verdict.allowed ? verdict.reason : 'A provider connection is free' } };
+}
+
+/** The provider an upcoming recording's viewer warning is about; undefined when none is needed. */
+async function announceProviderFor(schedule, settings) {
+    let route;
+    try { route = await routeFor(schedule); } catch (e) { return schedule.source_id; }
+    if (!route.multi) return schedule.source_id;
+    return freeCandidate(route, settings) >= 0 ? undefined : route.candidates[0].providerId;
 }
 
 async function scheduleFromProgram({
@@ -815,7 +946,9 @@ async function remuxForNativePlayback(rec, input, output) {
 function listActive() {
     // 0173: each with the provider whose connection it holds, for the coordinator's
     // pools - the one it was started on, else its schedule's source.
-    return scheduledDb.findActive().map(row => {
+    // 0177: a schedule waiting for a free connection to continue in its next part
+    // holds no connection, so it is not listed.
+    return scheduledDb.findActive().filter(row => !continuations.has(row.id)).map(row => {
         const entry = active.get(row.id);
         return { ...row, providerId: entry && entry.providerId !== undefined ? entry.providerId : (row.source_id ?? null) };
     });
@@ -845,8 +978,25 @@ async function stopForViewer(scheduleId) {
     return true;
 }
 
+/**
+ * Every recording, as its rows. 0177 (additive): each part of a recording that
+ * continued on another provider is its own item, with `part` and `provider_id`
+ * (columns) and `provider_name` - the provider's name only, never its address.
+ */
 function listRecordings() {
-    return recordingsDb.listAll();
+    const rows = recordingsDb.listAll();
+    let names = new Map();
+    try {
+        names = new Map(getDb().prepare('SELECT id, data FROM app_sources').all().map(r => {
+            let name = null;
+            try { name = JSON.parse(r.data).name || null; } catch (e) { /* unnamed */ }
+            return [Number(r.id), name];
+        }));
+    } catch (e) { /* no names: null */ }
+    return rows.map(r => ({
+        ...r,
+        provider_name: r.provider_id === null || r.provider_id === undefined ? null : (names.get(Number(r.provider_id)) ?? null)
+    }));
 }
 
 async function cancelScheduled(id) {
@@ -855,6 +1005,10 @@ async function cancelScheduled(id) {
 
     if (schedule.status === 'recording' && active.has(id)) {
         await stopRecording(id, 'cancelled');
+    } else if (schedule.status === 'recording' && continuations.has(id)) {
+        // 0177: between parts (waiting for a free provider): nothing is running.
+        continuations.delete(id);
+        setScheduleStatus(schedule, 'cancelled');
     } else if (schedule.status === 'scheduled' || schedule.status === 'waiting') {
         // A waiting recording is one held back for a viewer: cancelling it must also
         // withdraw the prompt that asks that viewer to stop watching.
@@ -899,17 +1053,32 @@ async function deleteRecording(id) {
     recordingsDb.delete(id);
 }
 
-async function startRecording(schedule, knownUrl = null) {
+async function startRecording(schedule, knownUrl = null, choice = null) {
     if (tunerModel.enabled()) return startTunedRecording(schedule, knownUrl);
-    let streamUrl;
-    try {
-        streamUrl = await resolveStreamUrl(schedule.source_id, schedule.channel_item_id, schedule.channel_stable_id || null);
-    } catch (err) {
-        console.error(`[Recordings] Could not resolve stream for schedule ${schedule.id}:`, err.message);
-        setScheduleStatus(schedule.id, 'failed', { error: err.message });
-        return;
+    // 0177: tick() chose the provider (chooseProvider); anyone else gets the first candidate.
+    let route = choice && choice.route;
+    if (!route) {
+        try {
+            route = await routeFor(schedule);
+        } catch (err) {
+            console.error(`[Recordings] Could not resolve stream for schedule ${schedule.id}:`, err.message);
+            setScheduleStatus(schedule.id, 'failed', { error: err.message });
+            return;
+        }
     }
+    return startPart(schedule, route, choice ? choice.index : 0, 1, {
+        refuse: (msg) => setScheduleStatus(schedule.id, 'failed', { error: msg })
+    });
+}
 
+/**
+ * Start part `part` of a recording on candidate `index` of `route`: pre-flight the
+ * folder, create its recordings row, spawn ffmpeg. Part 1 is the recording as it has
+ * always been; parts 2 and 3 (0177) continue it after its provider died, in a file of
+ * their own beside it ("<title - date> (part N).mkv"), with the gap noted.
+ * `refuse(message)` is called when the folder check fails.
+ */
+async function startPart(schedule, route, index, part, { gapMs = 0, refuse } = {}) {
     const settings = await getSettings();
     const minFreeGB = Number.isFinite(settings.minFreeSpaceGB) ? settings.minFreeSpaceGB : 10;
     let root;
@@ -917,7 +1086,7 @@ async function startRecording(schedule, knownUrl = null) {
         root = await getRecordingsRoot();
     } catch (err) {
         console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${err.message}`);
-        setScheduleStatus(schedule.id, 'failed', { error: err.message });
+        refuse(err.message);
         return;
     }
 
@@ -933,7 +1102,7 @@ async function startRecording(schedule, knownUrl = null) {
     if (!check.ok) {
         const msg = refusalMessage(check, root, minFreeGB);
         console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${msg}`);
-        setScheduleStatus(schedule.id, 'failed', { error: msg });
+        refuse(msg);
         return;
     }
 
@@ -943,8 +1112,9 @@ async function startRecording(schedule, knownUrl = null) {
     // Local time, not UTC - a 7:30pm program should read 19-30 in the filename.
     // "Local" is the process's TZ, which docker-compose.yml passes through.
     const dateStr = formatLocalStamp(schedule.program_start);
-    const baseName = `${sanitizeForFs(schedule.title)} - ${dateStr}`;
+    const baseName = `${sanitizeForFs(schedule.title)} - ${dateStr}${part > 1 ? ` (part ${part})` : ''}`;
     const outputPath = uniqueFilePath(channelDir, baseName, '.mkv');
+    const candidate = route.candidates[index];
 
     const recording = recordingsDb.create({
         scheduled_id: schedule.id,
@@ -954,22 +1124,35 @@ async function startRecording(schedule, knownUrl = null) {
         source_id: schedule.source_id,
         channel_item_id: schedule.channel_item_id,
         file_path: outputPath,
-        started_at: Date.now()
+        started_at: Date.now(),
+        provider_id: candidate.providerId ?? null,
+        part
     });
 
-    // A recording held back by a viewer starts late. Record how much of the
-    // programme was already gone, so the list can say "missing the first 12
-    // minutes" rather than a bare "partial".
-    const intendedStart = schedule.program_start - (schedule.pre_buffer_min || 0) * 60000;
-    const lateBy = Date.now() - intendedStart;
-    if (lateBy > 30000) {
-        recordingsDb.markPartial(recording.id, lateBy);
-        console.log(`[Recordings] #${recording.id} starts ${Math.round(lateBy / 60000)} min into the programme`);
+    if (part === 1) {
+        // A recording held back by a viewer starts late. Record how much of the
+        // programme was already gone, so the list can say "missing the first 12
+        // minutes" rather than a bare "partial".
+        const intendedStart = schedule.program_start - (schedule.pre_buffer_min || 0) * 60000;
+        const lateBy = Date.now() - intendedStart;
+        if (lateBy > 30000) {
+            recordingsDb.markPartial(recording.id, lateBy);
+            console.log(`[Recordings] #${recording.id} starts ${Math.round(lateBy / 60000)} min into the programme`);
+        }
+    } else {
+        // A continuation misses whatever went by between the parts.
+        recordingsDb.markPartial(recording.id, gapMs);
     }
 
     coordinator.clearPrompt(schedule.id);
     setScheduleStatus(schedule.id, 'recording', { recording_id: recording.id });
 
+    spawnPart(schedule, settings, { recordingId: recording.id, outputPath, route, index, part, lostAt: part > 1 ? Date.now() - gapMs : null });
+}
+
+/** Run ffmpeg for one part on its candidate. Its exit decides what happens next (onPartExit). */
+function spawnPart(schedule, settings, { recordingId, outputPath, route, index, part, lostAt = null }) {
+    const candidate = route.candidates[index];
     const args = [
         '-y',
         // The same identity playback presents (the userAgentPreset setting). A
@@ -979,7 +1162,7 @@ async function startRecording(schedule, knownUrl = null) {
         '-reconnect', '1',
         '-reconnect_streamed', '1',
         '-reconnect_delay_max', '5',
-        '-i', streamUrl,
+        '-i', candidate.url,
         // Map video and audio only. An IPTV MPEG-TS multiplex often carries
         // teletext, SCTE-35 and other private data streams that the matroska
         // muxer refuses, which would fail the whole recording. -ignore_unknown
@@ -994,12 +1177,20 @@ async function startRecording(schedule, knownUrl = null) {
         outputPath
     ];
 
-    console.log(`[Recordings] Starting recording #${recording.id} for schedule #${schedule.id}: "${schedule.title}" -> ${outputPath}`);
+    // The provider is named only when there is more than one to choose from (never its URL).
+    const on = route.multi ? ` on ${candidate.providerName}` : '';
+    console.log(`[Recordings] Starting recording #${recordingId} for schedule #${schedule.id}: "${schedule.title}"${on} -> ${outputPath}`);
 
     const proc = spawn(ffmpegPath, args, { stdio: ['pipe', 'ignore', 'pipe'] });
-    // providerId (0173): the pool this recording's connection counts in. The
-    // schedule's own source for now; P7 chooses among the providers.
-    const entry = { proc, recordingId: recording.id, stderrTail: [], hardStopTimer: null, providerId: schedule.source_id ?? null };
+    // providerId (0173): the pool this recording's connection counts in - the
+    // candidate it was started on (0177), the schedule's own source without backups.
+    const now = Date.now();
+    const entry = {
+        proc, recordingId, stderrTail: [], hardStopTimer: null, providerId: candidate.providerId ?? null,
+        schedule, route, index, part, outputPath, lostAt,
+        spawnedAt: now, lastSize: 0, lastGrowthAt: now, played: false,
+        stopRequested: false, stalled: false
+    };
     active.set(schedule.id, entry);
 
     proc.stderr?.on('data', (chunk) => {
@@ -1015,12 +1206,12 @@ async function startRecording(schedule, knownUrl = null) {
     });
 
     proc.on('close', (code) => {
-        finalizeRecording(schedule.id, recording.id, outputPath, code, entry.stderrTail);
+        onPartExit(schedule, entry, code).catch(err =>
+            console.error(`[Recordings] Error ending recording #${recordingId}:`, err.message));
     });
 
     // Hard stop at program end + post-buffer, in case something upstream never closes the connection
-    const stopAt = schedule.program_end + (schedule.post_buffer_min * 60000);
-    const msUntilStop = Math.max(0, stopAt - Date.now());
+    const msUntilStop = Math.max(0, stopTimeOf(schedule) - Date.now());
     entry.hardStopTimer = setTimeout(() => {
         console.log(`[Recordings] Scheduled stop time reached for schedule ${schedule.id}`);
         stopRecording(schedule.id, 'completed').catch(err =>
@@ -1028,8 +1219,156 @@ async function startRecording(schedule, knownUrl = null) {
     }, msUntilStop);
 }
 
-function finalizeRecording(scheduledId, recordingId, outputPath, exitCode, stderrTail) {
-    active.delete(scheduledId);
+function fileSizeOf(file) {
+    try { return fs.statSync(file).size; } catch (e) { return 0; }
+}
+
+/**
+ * A part's ffmpeg has exited. Nothing changes unless all of these hold (0177):
+ * a backup provider is configured, nobody asked it to stop (stopRecording - the stop
+ * time, a cancel, a viewer taking the stream, low disk space, a delete, shutdown - sets
+ * stopRequested), the stop time is not about to be reached anyway, and it ended for a
+ * provider reason (its stderr says so - transcodeSession.providerFailureIn - or it
+ * stalled). Then the provider is noted as failed (breaker, quarantine) and:
+ *   - it had only just started (or recorded nothing): the next candidate with a free
+ *     connection takes over the SAME recording row and file path;
+ *   - it had been recording: this part is kept, marked partial, and the recording
+ *     continues in the next part on the next free provider (up to maxParts).
+ * Otherwise the part is finalised exactly as before.
+ */
+async function onPartExit(schedule, entry, exitCode) {
+    if (entry.hardStopTimer) clearTimeout(entry.hardStopTimer);
+    const now = Date.now();
+    const size = fileSizeOf(entry.outputPath);
+    const unrequested = !entry.stopRequested && now < stopTimeOf(schedule) - failoverTuning.endGraceMs;
+    const providerReason = entry.stalled || providerFailureIn(entry.stderrTail);
+    const candidate = entry.route.candidates[entry.index];
+
+    if (!entry.route.multi || !unrequested || !providerReason) {
+        finalizeRecording(schedule.id, entry.recordingId, entry.outputPath, exitCode, entry.stderrTail);
+        return;
+    }
+
+    if (active.get(schedule.id) === entry) active.delete(schedule.id);
+    providerRouting.noteFailure(candidate, entry.route.primaryKey);
+    const how = entry.stalled ? 'stalled' : 'lost the stream';
+
+    if (now - entry.spawnedAt < failoverTuning.startFailoverMs || size <= 1024) {
+        // Start failover: the same row, the same file path. What ffmpeg wrote before
+        // failing is at most a few seconds (usually just a container header, often
+        // nothing), and a second writer appending to a Matroska file does not make one
+        // playable file, so it is deleted and the next attempt writes the path afresh -
+        // the list keeps one recording, not a stub plus the real one.
+        const settings = await getSettings();
+        const next = freeCandidate(entry.route, settings, entry.index + 1);
+        if (next >= 0) {
+            const nextCandidate = entry.route.candidates[next];
+            console.warn(`[Recordings] #${entry.recordingId} ${how} on ${candidate.providerName} as it started; ` +
+                `starting again on ${nextCandidate.providerName}`);
+            try { fs.unlinkSync(entry.outputPath); } catch (e) { /* nothing was written */ }
+            recordingsDb.setProvider(entry.recordingId, nextCandidate.providerId);
+            spawnPart(schedule, settings, {
+                recordingId: entry.recordingId, outputPath: entry.outputPath,
+                route: entry.route, index: next, part: entry.part, lostAt: entry.lostAt
+            });
+            return;
+        }
+        console.warn(`[Recordings] #${entry.recordingId} ${how} on ${candidate.providerName} as it started; no other provider has a free connection`);
+        if (entry.part > 1) {
+            // A continuation that never got going: drop its empty row (and file) and wait
+            // for another provider, as a part that could not start at all does.
+            try { fs.unlinkSync(entry.outputPath); } catch (e) { /* nothing was written */ }
+            recordingsDb.delete(entry.recordingId);
+            waitForNextPart(schedule, entry.part, entry.lostAt ?? now);
+            return;
+        }
+        finalizeRecording(schedule.id, entry.recordingId, entry.outputPath, exitCode, entry.stderrTail, {
+            scheduleError: `Recording failed: ${candidate.providerName} did not deliver the stream, and no other provider had a free connection.`
+        });
+        return;
+    }
+
+    // Mid-recording: keep this part, continue in the next.
+    const last = entry.part >= failoverTuning.maxParts;
+    finalizeRecording(schedule.id, entry.recordingId, entry.outputPath, exitCode, entry.stderrTail, { scheduleStatus: last });
+    recordingsDb.markEndedEarly(entry.recordingId, last
+        ? `Stopped early: ${candidate.providerName} ${how} (part ${entry.part} of at most ${failoverTuning.maxParts}).`
+        : `Stopped early: ${candidate.providerName} ${how}; the recording continues in part ${entry.part + 1}.`);
+    if (last) {
+        console.warn(`[Recordings] #${entry.recordingId} ${how} on ${candidate.providerName}; ` +
+            `schedule #${schedule.id} already has ${entry.part} parts, so it ends here`);
+        return;
+    }
+    console.warn(`[Recordings] #${entry.recordingId} ${how} on ${candidate.providerName}; continuing in part ${entry.part + 1}`);
+    waitForNextPart(schedule, entry.part + 1, now);
+}
+
+/** Queue part `nextPart` and try to start it at once; tick() retries until the stop time. */
+function waitForNextPart(schedule, nextPart, lostAt) {
+    continuations.set(schedule.id, { schedule, nextPart, lostAt, starting: false, waitingLogged: false });
+    return continuePart(schedule.id).catch(err =>
+        console.error(`[Recordings] Could not continue schedule #${schedule.id}:`, err.message));
+}
+
+/**
+ * Start a queued part on the first candidate with a free connection - the provider
+ * that died is quarantined for this channel (or down), so the route leaves it out.
+ * Nothing free: wait for the next tick, as a declined recording does (no prompt).
+ * Past the stop time: the schedule ends with the parts it has.
+ */
+async function continuePart(scheduleId, now = Date.now()) {
+    const cont = continuations.get(scheduleId);
+    if (!cont || cont.starting) return;
+    const schedule = cont.schedule;
+    if (now >= stopTimeOf(schedule)) {
+        continuations.delete(scheduleId);
+        finishSchedule(scheduleId);
+        return;
+    }
+    cont.starting = true;
+    try {
+        const settings = await getSettings();
+        let route = null;
+        try { route = await routeFor(schedule); } catch (e) { route = null; }
+        // (Backups removed meanwhile: the route is the primary alone, tried the same way.)
+        const index = route ? freeCandidate(route, settings) : -1;
+        if (index < 0) {
+            if (!cont.waitingLogged) {
+                console.warn(`[Recordings] Schedule #${scheduleId}: part ${cont.nextPart} is waiting for a provider with a free connection`);
+                cont.waitingLogged = true;
+            }
+            return;
+        }
+        if (continuations.get(scheduleId) !== cont) return; // cancelled meanwhile
+        continuations.delete(scheduleId);
+        await startPart(schedule, route, index, cont.nextPart, {
+            gapMs: Date.now() - cont.lostAt,
+            refuse: (msg) => finishSchedule(scheduleId, msg)
+        });
+    } finally {
+        cont.starting = false;
+    }
+}
+
+/**
+ * A schedule's recording is over (0177, parts): completed when any of its parts
+ * recorded something, else failed.
+ */
+function finishSchedule(scheduleId, why = null) {
+    const parts = recordingsDb.listBySchedule(scheduleId);
+    const any = parts.some(r => r.status === 'completed');
+    setScheduleStatus(scheduleId, any ? 'completed' : 'failed', any
+        ? (why ? { error: `Stopped early: ${why}` } : {})
+        : { error: why ? `Recording failed: ${why}` : 'Recording failed: no part recorded anything' });
+}
+
+/**
+ * Finish a recording row from its file. The schedule's status follows (unless
+ * `scheduleStatus` is false - 0177, a part the recording continues after): completed
+ * when this part, or an earlier part of the same schedule, recorded something.
+ */
+function finalizeRecording(scheduledId, recordingId, outputPath, exitCode, stderrTail, { scheduleStatus = true, scheduleError = null } = {}) {
+    if (active.get(scheduledId)?.recordingId === recordingId) active.delete(scheduledId);
 
     let fileSize = 0;
     let existedAndHasData = false;
@@ -1053,8 +1392,13 @@ function finalizeRecording(scheduledId, recordingId, outputPath, exitCode, stder
         error: success ? null : redact((stderrTail || []).slice(-10).join('\n')) || `ffmpeg exited with code ${exitCode}`
     });
 
-    const scheduleExtra = success ? {} : { error: `Recording failed (exit code ${exitCode})` };
-    setScheduleStatus(scheduledId, success ? 'completed' : 'failed', scheduleExtra);
+    if (scheduleStatus) {
+        // An earlier part (0177) counts: the schedule did record.
+        const earlier = !success && recordingsDb.listBySchedule(scheduledId)
+            .some(r => r.id !== recordingId && r.status === 'completed');
+        const scheduleExtra = (success || earlier) ? {} : { error: scheduleError || `Recording failed (exit code ${exitCode})` };
+        setScheduleStatus(scheduledId, (success || earlier) ? 'completed' : 'failed', scheduleExtra);
+    }
 
     console.log(`[Recordings] Recording #${recordingId} finished (${success ? 'completed' : 'failed'}), ${fileSize} bytes`);
 
@@ -1071,6 +1415,37 @@ function finalizeRecording(scheduledId, recordingId, outputPath, exitCode, stder
     }
 }
 
+/**
+ * 0177: a recording whose file has stopped growing has stalled - its provider went
+ * silent without closing the connection. Only with a backup to move to (the route is
+ * multi); stopped the way a stop is, but marked stalled, so onPartExit continues it on
+ * the next provider. Also where a part that is recording counts as a success for its
+ * provider's breaker (a half-open provider is up again).
+ */
+function checkRecordingStalls(now = Date.now()) {
+    for (const entry of active.values()) {
+        if (entry.kind === 'hls' || !entry.route || !entry.route.multi || entry.stopRequested || entry.stalled) continue;
+        const size = fileSizeOf(entry.outputPath);
+        if (size > entry.lastSize) {
+            entry.lastSize = size;
+            entry.lastGrowthAt = now;
+            if (!entry.played && size > 1024) {
+                entry.played = true;
+                providerRouting.noteSuccess(entry.route.candidates[entry.index]);
+            }
+            continue;
+        }
+        if (now - entry.lastGrowthAt < failoverTuning.stallMs) continue;
+        entry.stalled = true;
+        console.warn(`[Recordings] #${entry.recordingId} has had no data for ${Math.round((now - entry.lastGrowthAt) / 1000)}s ` +
+            `from ${entry.route.candidates[entry.index].providerName}; ending this part`);
+        try { entry.proc.stdin?.write('q'); } catch (e) { /* killed below */ }
+        const proc = entry.proc;
+        // A stalled ffmpeg may be blocked reading the input and never see the "q".
+        setTimeout(() => { if (proc.exitCode === null && proc.signalCode === null) { try { proc.kill('SIGKILL'); } catch (e) { /* gone */ } } }, 5000).unref?.();
+    }
+}
+
 async function stopRecording(scheduledId, reasonStatus = 'completed') {
     const entry = active.get(scheduledId);
     if (!entry) return;
@@ -1083,6 +1458,8 @@ async function stopRecording(scheduledId, reasonStatus = 'completed') {
     }
 
     if (entry.hardStopTimer) clearTimeout(entry.hardStopTimer);
+    // Asked for (0177): an exit that follows is never a provider failure to fail over from.
+    entry.stopRequested = true;
 
     await new Promise((resolve) => {
         let resolved = false;
@@ -1107,8 +1484,8 @@ async function stopRecording(scheduledId, reasonStatus = 'completed') {
         setTimeout(done, 9000); // safety net so callers never hang forever
     });
 
-    // The proc's 'close' handler registered in startRecording (finalizeRecording)
-    // runs before the listener above, since it was registered first - by now the
+    // The proc's 'close' handler registered in spawnPart (onPartExit ->
+    // finalizeRecording, synchronously for a requested stop) runs before the listener above, since it was registered first - by now the
     // recordings row and scheduled_recordings row already reflect completed/failed
     // based on whether a usable file was written. For an explicit cancel, override
     // the schedule's final status to 'cancelled' (the recording row itself stays
@@ -1132,7 +1509,10 @@ function reconcileOnStartup() {
             // 0127: the segments kept so far are a recording; close its playlist.
             reconcileTunedRecording(schedule.recording_id).catch(err =>
                 console.error(`[Recordings] Could not close recording #${schedule.recording_id}:`, err.message));
-        } else if (schedule.recording_id) {
+        } else if (schedule.recording_id && recordingsDb.getById(schedule.recording_id)?.status === 'recording') {
+            // 0177: only a part still marked as recording. One between parts (its
+            // provider died and the next had not started) is already finished, and so
+            // is every earlier part: they are kept as they are.
             const rec = recordingsDb.getById(schedule.recording_id);
             let fileSize = null;
             try { if (rec?.file_path) fileSize = fs.statSync(rec.file_path).size; } catch (e) { /* ignore */ }
@@ -1511,9 +1891,16 @@ async function tick() {
             // using it. The coordinator decides; this loop just respects the
             // answer and tries again next tick, which is what makes a declined
             // recording start the moment playback stops.
-            const verdict = tunerModel.enabled()
-                ? await coordinator.requestForRecordingTuned(schedule, settings, url)
-                : await coordinator.requestForRecording(schedule, settings, schedule.source_id);
+            // 0177: with backups, the first provider with a free connection is
+            // used without asking; the prompt is only for when every one is busy.
+            let choice = null;
+            let verdict;
+            if (tunerModel.enabled()) {
+                verdict = await coordinator.requestForRecordingTuned(schedule, settings, url);
+            } else {
+                choice = await chooseProvider(schedule, settings);
+                verdict = choice.verdict;
+            }
             if (!verdict.allowed) {
                 if (schedule.status !== 'waiting') {
                     setScheduleStatus(schedule.id, 'waiting', { error: verdict.reason });
@@ -1521,8 +1908,13 @@ async function tick() {
                 continue;
             }
 
-            await startRecording(schedule, url);
+            await startRecording(schedule, url, choice);
         }
+
+        // 0177: a part whose provider died and that waits for a free one, and
+        // recordings whose file has stopped growing (default path, with backups).
+        for (const scheduleId of [...continuations.keys()]) await continuePart(scheduleId, now);
+        checkRecordingStalls(now);
 
         // A recording whose tuner went away (stalled, or its ffmpeg ended) takes
         // the channel up again as soon as the coordinator allows.
@@ -1542,7 +1934,9 @@ async function tick() {
                     try { url = await resolveStreamUrl(schedule.source_id, schedule.channel_item_id, schedule.channel_stable_id || null); } catch (e) { /* warned as before */ }
                     coordinator.announceUpcomingTuned(schedule, settingsForLead, url);
                 } else {
-                    coordinator.announceUpcoming(schedule, settingsForLead, schedule.source_id);
+                    // 0177: no warning when a provider has a free connection for it.
+                    const providerId = await announceProviderFor(schedule, settingsForLead);
+                    if (providerId !== undefined) coordinator.announceUpcoming(schedule, settingsForLead, providerId);
                 }
             }
         }
@@ -1690,5 +2084,7 @@ module.exports = {
     checkFolderHealthNow,
     getRecordingsRoot,
     // Test seam: stand-ins for the ffmpeg/ffprobe calls behind native playback.
-    _nativeTools: nativeTools
+    _nativeTools: nativeTools,
+    // Test seam (0177): the failover timings, so a test need not wait them out.
+    _failoverTuning: failoverTuning
 };

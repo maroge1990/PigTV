@@ -161,7 +161,8 @@ function recordingSummary(r) {
 
 function recordings() {
     const engine = require('../services/recordingEngine');
-    const active = engine.listActive().map(recordingSummary);
+    // 0177: a recording now names the provider whose connection it holds.
+    const active = engine.listActive().map(r => ({ ...recordingSummary(r), provider: providerName(r.providerId) }));
     const activeIds = new Set(active.map(r => r.id));
     const upcoming = engine.listScheduled()
         .filter(r => !activeIds.has(r.id) && r.status !== 'recording')

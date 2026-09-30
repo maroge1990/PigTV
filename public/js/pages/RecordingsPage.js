@@ -133,6 +133,7 @@ class RecordingsPage {
                     <div class="recording-title">${this.escape(item.title)}</div>
                     <div class="recording-meta">
                         ${this.escape(item.channel_name || '')} &middot;
+                        ${item.part > 1 ? `Part ${Number(item.part)}${item.provider_name ? ` (${this.escape(item.provider_name)})` : ''} &middot;` : ''}
                         ${item.started_at ? new Date(item.started_at).toLocaleString() : ''} &middot;
                         ${this.formatSize(item.file_size_bytes)}
                     </div>

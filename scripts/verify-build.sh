@@ -2051,6 +2051,17 @@ check server/routes/info.js "providers: true" "the C-J flag"
 check docs/ROADMAP-CONTRACTS.md "## C-J. Provider on resolve" "C-J is written down"
 check test/provider-failover.test.js "with no backup configured: today" "with tests"
 
+echo "=== 0177: recordings choose a free provider, fail over, continue in parts (multi-provider P7) ==="
+check server/services/recordingEngine.js "providerId, settings, recordings)) return i;" "a recording takes the first provider with a free connection"
+check server/services/recordingEngine.js "return { route, index: 0, verdict: await coordinator.requestForRecording(schedule, settings, route.candidates" "all busy: today's prompt on the first candidate"
+check server/services/recordingEngine.js "if (!entry.route.multi || !unrequested || !providerReason) {" "only an unrequested provider-reason exit fails over, and only with a backup"
+check server/services/recordingEngine.js "entry.stopRequested = true;" "a requested stop is never a provider failure"
+check server/services/recordingEngine.js "const last = entry.part >= failoverTuning.maxParts;" "at most 3 parts"
+check server/db/recordingsDb.js "'provider_id INTEGER'," "recordings carry their provider"
+check server/db/recordingsDb.js "'part INTEGER'," "and their part"
+check docs/SWIFT-CLIENT-HANDOFF.md "| 0177 |" "the additive list fields are in the client handoff"
+check test/recording-failover.test.js "no backup configured: a 502 at start fails the recording exactly as before" "with tests"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys
