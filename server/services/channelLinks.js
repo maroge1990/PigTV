@@ -167,11 +167,24 @@ function rawEpgKey(epg) {
     return !s || s.includes('dummy') ? null : s;
 }
 
+/**
+ * A raw name with any leading label ("NOW:", "VIP:", "UK|", not only a country) dropped, then
+ * nameTokens() with a trailing plural "s" removed per word: "VIP: SKY SPORTS ACTION ᴿᴬᵂ" and
+ * "UK| SKY SPORT ACTION HD" agree, "SPORTSNET 360" and "SPORTSMAN" do not (0179).
+ */
+function looseRawKey(name) {
+    const s = String(name || '').replace(/^[\s|✪]*[A-Za-z0-9]{2,5}\s*[|:]+\s*/, '');
+    return nameTokens(s).map(t => (t.length > 3 && t.endsWith('s') ? t.slice(0, -1) : t)).join('');
+}
+
 /** What the raw rules compare for one channel's raw row ({ name, epg, category }), or null. */
 function describeRaw(raw) {
     if (!raw || !raw.name) return null;
     return {
         nameKey: rawNameKey(raw.name),
+        // The loose name (prefixes, quality tags and punctuation gone): what a raw-epg match must
+        // also agree on before it is used unreviewed (0179).
+        looseKey: looseRawKey(raw.name),
         epg: rawEpgKey(raw.epg),
         region: regionOf({ name: raw.name, group: raw.category, tvgId: raw.epg }),
         event: isEventSlot({ name: raw.name, group: raw.category })
@@ -336,7 +349,11 @@ function candidatesFor(primary, backup) {
             for (const row of idx.byRawEpg.get(p.raw.epg) || []) {
                 if (p.region && row.f.region && p.region !== row.f.region) continue;
                 if (p.raw.region && row.f.raw.region && p.raw.region !== row.f.raw.region) continue;
-                add(row, 'raw-epg', row.f.digits === p.digits ? 'auto' : 'pending');
+                // 0179: a shared raw epg id alone is not enough to play a channel unreviewed - a
+                // provider's data error puts one id on two channels (Dream4K lists "SPORTSMAN" under
+                // sportsnet360.ca). Auto only when the loose names agree too; otherwise pending.
+                const namesAgree = Boolean(p.raw.looseKey) && (p.raw.looseKey === row.f.raw.looseKey || p.nameKey === row.f.nameKey);
+                add(row, 'raw-epg', row.f.digits === p.digits && namesAgree ? 'auto' : 'pending');
             }
         }
     }

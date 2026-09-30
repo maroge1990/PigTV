@@ -124,6 +124,12 @@ test('raw-epg: the raw epg ids match case-insensitively; the variant-word guard 
     assert.deepEqual(links.candidatesFor(links.describe({ name: 'Sky Sport 1', raw: at('UK: SKY SPORT 1', 'skysport1.uk', 'UK| SPORTS') }), nz).filter(c => c.method === 'raw-epg'), []);
     const unknown = links.indexBackup([row('8', at('SKY SPORT 1 HD', 'skysport1.uk', 'Misc'))]);
     assert.equal(best(links.describe({ name: 'Sky Sport 1', raw: at('SKY SPORT ONE', 'skysport1.uk', 'Misc') }), unknown).method, 'raw-epg');
+    // 0179: one raw id on two different channels (Dream4K lists "SPORTSMAN" under sportsnet360.ca):
+    // never auto. Labels ("VIP:", "NOW:") and plurals ("SPORT"/"SPORTS") still agree.
+    const sn = links.indexBackup([row('10', at('|CA| SPORTSMAN ᴴᴰ', 'sportsnet360.ca', '|CA| SPORTS'))]);
+    assert.equal(best(links.describe({ name: 'Sportsnet 360', raw: at('CA: SPORTSNET 360 HD', 'sportsnet360.ca', 'CA| SPORTS') }), sn).status, 'pending');
+    const act = links.indexBackup([row('11', at('UK| SKY SPORTS ACTION HD', 'skysportsaction.uk'))]);
+    assert.equal(best(links.describe({ name: 'Sky Sports Action', raw: at('VIP: SKY SPORT ACTION ᴿᴬᵂ', 'SkySportsAction.uk', 'UK| SPORTS') }), act).status, 'auto');
     assert.equal(links.candidatesFor(links.describe({ name: 'X', raw: at('X', 'dummy-123') }), links.indexBackup([row('6', at('Y', 'dummy-123'))])).length, 0, 'a dummy id is nothing');
 });
 
