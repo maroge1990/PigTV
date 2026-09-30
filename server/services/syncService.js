@@ -254,6 +254,9 @@ class SyncService {
             // 0117: number any channel that is new, refresh the reservations of
             // the ones still here, release numbers reserved for 30 days.
             if (source.type !== 'epg' && !isBackup) refreshChannelNumbers();
+            // 0171: the primary's channels may have changed: relink them to the backups (a no-op
+            // with no backup provider). After the numbers, so it sees what is visible now.
+            if (source.type !== 'epg' && !isBackup) await this.relinkAfterPrimarySync();
             // 0168: the provider's account (expiry, connections) is re-read after a good sync,
             // in the background: it never slows or fails the sync.
             if (source.type !== 'epg') {
@@ -330,6 +333,19 @@ class SyncService {
             await this.syncEpgFromUrl(source.id, xmltvUrl);
         } catch (e) {
             console.warn('[Sync] XMLTV fetch failed, skipping EPG sync for now:', e.message);
+        }
+    }
+
+    /**
+     * 0171: relink every backup after a primary sync. Guarded like the backup side: a failure
+     * is logged and never fails the sync.
+     */
+    async relinkAfterPrimarySync() {
+        try {
+            const links = require('./channelLinks');
+            if (typeof links.relinkAll === 'function') await links.relinkAll();
+        } catch (e) {
+            if (e && e.code !== 'MODULE_NOT_FOUND') console.warn('[Sync] Relink after primary sync failed:', redact(e.message));
         }
     }
 

@@ -1996,6 +1996,21 @@ check server/services/sportsClassify.js "if (!leagueData || !leagueData.coverage
 check server/services/sportsClassify.js "a.start < from || a.start > to) return null;" "outside the covered window -> straight through, matched or not"
 check test/sports-fixtures.test.js "must never manufacture a replay for a real, unlisted game" "with a test"
 
+echo "=== 0171: the channel linker (multi-provider P3) ==="
+check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS channel_links (" "links live in their own table"
+check server/db/sqlite.js "UNIQUE (primary_source_id, primary_key, backup_source_id, rank)" "one row per rank per channel and provider"
+check server/services/channelLinks.js "function candidatesFor(primary, backup)" "the matcher is a pure function"
+check server/services/channelLinks.js "function indexBackup(rows)" "a backup is bucketed by tvg key, name key and Fox number (no N x M scan)"
+check server/services/channelLinks.js "if (p.event) return \[\];" "event/PPV slots never link"
+check server/services/channelLinks.js "if (!backups.some(b => b.enabled)" "with no backup provider nothing is linked"
+check server/services/channelLinks.js "const USABLE = new Set(\['auto', 'approved', 'manual'\]);" "only auto/approved/manual links are used"
+check server/services/syncService.js "await this.relinkAfterPrimarySync();" "a primary sync relinks"
+check server/index.js "app.use('/api/links', require('./routes/links'));" "the admin link API is mounted"
+check server/routes/links.js "router.use(requireAuth, requireAdmin);" "and is admin only"
+check_absent server/services/channelLinks.js "url_data," "the linker never reads a backup's stream URL"
+check test/channel-links.test.js "the wrong country never links" "with fixture tests"
+check test/channel-links-perf.test.js "relink in under 3 s" "and a performance test"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

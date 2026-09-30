@@ -252,6 +252,29 @@ function initSchema() {
         CREATE INDEX IF NOT EXISTS idx_backup_channels_overlay ON backup_channels(source_id, overlay_tvg_id);
     `);
 
+    // Links from a primary channel to the same channel elsewhere (0171, multi-provider brief 2.4,
+    // services/channelLinks.js). `primary_key` is the channel's identity (COALESCE(stable_id,
+    // item_id), the favourites' key). `backup_source_id` is a backup provider, or the primary's own
+    // id for a sibling "(Backup)" feed, whose `backup_stream_id` is then that sibling's identity.
+    // method: exact | number | name | sibling | manual. status: auto | pending | approved |
+    // rejected | manual | broken. Only rank 1 with auto/approved/manual is used for playback.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS channel_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            primary_source_id INTEGER NOT NULL,
+            primary_key TEXT NOT NULL,
+            backup_source_id INTEGER NOT NULL,
+            backup_stream_id TEXT NOT NULL,
+            method TEXT NOT NULL,
+            status TEXT NOT NULL,
+            rank INTEGER NOT NULL,
+            score INTEGER,
+            updated_at INTEGER,
+            UNIQUE (primary_source_id, primary_key, backup_source_id, rank)
+        );
+        CREATE INDEX IF NOT EXISTS idx_channel_links_backup ON channel_links(backup_source_id, status);
+    `);
+
     // Channel health (0133, roadmap S4.1, contract C-G): one row per start
     // attempt, keyed like channel_numbers (source + stable_id, else item_id).
     // `ok` is 0 for a failed start; `reason` is its category (refused,

@@ -116,7 +116,8 @@ test('an Xtream backup writes backup_channels and nothing the library reads', as
     assert.equal(row.category_name, 'UK| SPORTS');
     assert.equal(row.tvg_id, 'SkySportsF1.uk');
     assert.equal(row.url_data, null, 'an Xtream backup stores no URL');
-    assert.equal(row.region, null); assert.equal(row.quality, null); assert.equal(row.is_event, null);
+    // 0171: the linker (channelLinks.js) fills these after the sync.
+    assert.equal(row.region, 'UK'); assert.equal(row.quality, 'hd'); assert.equal(row.is_event, 0);
     const status = sqlite.getDb().prepare('SELECT status FROM sync_status WHERE source_id = ?').get(s.id);
     assert.equal(status.status, 'success');
 });
@@ -269,18 +270,26 @@ test('the admin search returns at most 200 rows and never url_data', async () =>
 });
 
 test('the relink hook runs after a backup sync, and a missing hook is a no-op', async () => {
-    const s = await xtream({ name: 'Hooked', role: 'backup' });
-    await silently(() => sync.syncSource(s.id)); // no channelLinks module needed
-    assert.equal(count('backup_channels', s.id), RAW.streams.length);
-
     const file = path.join(sandbox, 'server/services/channelLinks.js');
     const original = fs.existsSync(file) ? fs.readFileSync(file) : null;
+    const s = await xtream({ name: 'Hooked', role: 'backup' });
+    const forget = () => { for (const k of Object.keys(require.cache)) if (k.endsWith('/services/channelLinks.js')) delete require.cache[k]; };
+    forget();
+    if (original) fs.rmSync(file);
+    try {
+        await silently(() => sync.syncSource(s.id)); // no channelLinks module needed
+    } finally {
+        if (original) fs.writeFileSync(file, original);
+    }
+    assert.equal(count('backup_channels', s.id), RAW.streams.length);
+
+    forget();
     fs.writeFileSync(file, 'const seen = []; module.exports = { seen, relinkSource(id) { seen.push(id); } };');
     try {
         await silently(() => sync.syncSource(s.id));
         assert.deepEqual(load('services/channelLinks').seen, [s.id]);
     } finally {
-        delete require.cache[file];
+        forget();
         if (original) fs.writeFileSync(file, original); else fs.rmSync(file);
     }
 });
