@@ -21,7 +21,8 @@ const db = load('db');
 const auth = load('auth');
 const sqlite = load('db/sqlite');
 // A sync would go to the network; these tests only store and read.
-load('services/syncService').syncSource = async () => {};
+let syncs = 0;
+load('services/syncService').syncSource = async () => { syncs++; };
 
 const OVERLAY = 'http://epgenius.invalid/list.m3u?user=SECRETUSER&pass=SECRETPASS';
 let server, base, adminToken, viewerToken;
@@ -188,4 +189,19 @@ test('a non-admin sees only id, type, name and enabled; no provider field, login
     const created = await call('PUT', `/api/sources/${id}`, { name: 'Trex 2' });
     assert.ok(!created.text.includes('SECRETPASS') && !created.text.includes('secret-pass'));
     await call('DELETE', `/api/sources/${id}`);
+});
+
+test('0172: changing only the order, limit or dates does not start a sync; any other change still does', async () => {
+    const created = await call('POST', '/api/sources', { type: 'xtream', name: 'Backup', url: 'http://b.invalid', username: 'u', password: 'p', role: 'backup' });
+    const id = created.body.id;
+    await new Promise(r => setImmediate(r));
+    syncs = 0;
+    assert.equal((await call('PUT', `/api/sources/${id}`, { priority: 2 })).status, 200);
+    assert.equal((await call('PUT', `/api/sources/${id}`, { maxConnections: 3, subscription: { endsAt: '2027-03-30' } })).status, 200);
+    assert.equal(syncs, 0, 'no sync for settings-only updates');
+    assert.equal((await call('PUT', `/api/sources/${id}`, { role: 'primary' })).status, 200);
+    assert.equal(syncs, 1, 'a role change syncs (the backup and primary paths differ)');
+    assert.equal((await call('PUT', `/api/sources/${id}`, { name: 'Renamed' })).status, 200);
+    assert.equal(syncs, 2);
+    await db.sources.delete(id);
 });

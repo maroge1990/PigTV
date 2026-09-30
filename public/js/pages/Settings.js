@@ -35,6 +35,8 @@ class SettingsPage {
         this.initLineup();
         this.initEpgMatching();
         this.initSports();
+        this.providers = new ProvidersSettings();
+        this.backupLinks = new BackupLinksSettings();
     }
 
     initHwDecodeSettings() {
@@ -1186,6 +1188,8 @@ class SettingsPage {
         if (tabName === 'lineup') this.loadLineup();
         if (tabName === 'epg') this.loadEpgMatching();
         if (tabName === 'sports') this.loadSports();
+        if (tabName === 'providers') this.providers.load();
+        if (tabName === 'backuplinks') { if (this.backupLinks.stale) this.backupLinks.load(); else this.backupLinks.reload(); }
         this.tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
         this.tabContents.forEach(c => c.classList.toggle('active', c.id === `tab-${tabName}`));
 
@@ -1212,6 +1216,8 @@ class SettingsPage {
             if (usersTab) {
                 usersTab.style.display = 'block';
             }
+            // 0172: the provider pages are admin-only too
+            document.querySelectorAll('.tabs .admin-tab').forEach(t => { t.style.display = ''; });
         }
 
         // Load sources when page is shown

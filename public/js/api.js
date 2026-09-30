@@ -98,6 +98,33 @@ const API = {
         estimate: (id) => API.request('GET', `/sources/${id}/estimate`), // Estimate M3U size
         estimateByUrl: (url, type) => API.request('POST', '/sources/estimate', { url, type }), // Estimate by URL (before creation)
         catalogue: (id) => API.request('GET', `/sources/${id}/catalogue?type=live`), // Sources picker (0120)
+        // Providers (0172; admin): settings, account info and a backup's channels for the manual pick
+        providers: () => API.request('GET', '/sources/providers'),
+        account: (id) => API.request('GET', `/sources/${id}/account`),
+        checkAccount: (id) => API.request('POST', `/sources/${id}/account/check`),
+        backupChannels: (id, search = '', limit = 50) =>
+            API.request('GET', `/sources/${id}/backup-channels?search=${encodeURIComponent(search || '')}&limit=${limit}`),
+    },
+
+    // Backup links (0172; admin): the review page's calls (0171)
+    links: {
+        // filters: { status, backupSourceId, categoryId, search, unlinked }; empty ones are left out
+        list: (filters = {}, offset = 0, limit = 100) => {
+            const params = [`offset=${offset}`, `limit=${limit}`];
+            if (filters.status) params.push(`status=${encodeURIComponent(filters.status)}`);
+            if (filters.backupSourceId) params.push(`backupSourceId=${encodeURIComponent(filters.backupSourceId)}`);
+            if (filters.categoryId) params.push(`categoryId=${encodeURIComponent(filters.categoryId)}`);
+            if (filters.search) params.push(`search=${encodeURIComponent(filters.search)}`);
+            if (filters.unlinked) params.push('unlinked=1');
+            return API.request('GET', `/links?${params.join('&')}`);
+        },
+        summary: () => API.request('GET', '/links/summary'),
+        setStatus: (id, status) => API.request('PUT', `/links/${id}`, { status }),
+        addManual: (primarySourceId, primaryKey, backupSourceId, streamId) =>
+            API.request('POST', '/links', { primarySourceId, primaryKey, backupSourceId, streamId }),
+        approvePending: (categoryId, backupSourceId = null) =>
+            API.request('POST', '/links/approve-pending', backupSourceId ? { categoryId, backupSourceId } : { categoryId }),
+        relink: () => API.request('POST', '/links/relink')
     },
 
     // Library (0121, W2.1): the same browsing API the Apple client uses. Rows carry

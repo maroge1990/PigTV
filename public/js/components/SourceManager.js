@@ -109,6 +109,7 @@ class SourceManager {
     async loadSources() {
         try {
             const sources = await API.sources.getAll();
+            this.providerCount = sources.filter(s => s.type !== 'epg').length; // 0172: the add form's default role
 
             this.renderSourceList(this.xtreamList, sources.filter(s => s.type === 'xtream'), 'xtream');
             this.renderSourceList(this.m3uList, sources.filter(s => s.type === 'm3u'), 'm3u');
@@ -237,6 +238,17 @@ class SourceManager {
       </div>
     `;
 
+        // 0172: a new Xtream or M3U source says what it is. The first is the primary; later ones default to
+        // backups (list only, tried when a channel will not play on the primary).
+        const roleField = type !== 'epg' && !source.id ? `
+      <div class="form-group">
+        <label for="source-role">Role</label>
+        <select id="source-role" class="form-input">
+          <option value="primary"${this.providerCount ? '' : ' selected'}>Primary: its channels and guide are shown</option>
+          <option value="backup"${this.providerCount ? ' selected' : ''}>Backup: list only, used when a channel fails on the primary</option>
+        </select>
+      </div>` : '';
+
         if (type === 'xtream') {
             return `
         ${nameField}
@@ -251,10 +263,11 @@ class SourceManager {
                  value="" autocomplete="new-password"
                  placeholder="${source.hasPassword ? 'Leave blank to keep saved password' : ''}">
         </div>
+        ${roleField}
       `;
         }
 
-        return nameField + urlField;
+        return nameField + urlField + roleField;
     }
 
     escapeSourceText(value) {
@@ -300,7 +313,8 @@ class SourceManager {
                 }
             }
 
-            await API.sources.create({ type, name, url, username, password });
+            const role = document.getElementById('source-role')?.value;
+            await API.sources.create({ type, name, url, username, password, ...(role ? { role } : {}) });
             document.getElementById('modal').classList.remove('active');
             await this.loadSources();
 

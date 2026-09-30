@@ -4059,3 +4059,233 @@ kbd {
 
 .skip-ad-btn:hover { background: rgba(0, 0, 0, 0.88); transform: scale(1.03); }
 .skip-ad-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--color-accent); }
+
+/* Settings -> Providers (0172) */
+.provider-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.provider-card.disabled {
+  opacity: 0.7;
+}
+
+.provider-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.provider-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.provider-actions {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.provider-badge {
+  font-size: 0.7rem;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+}
+
+.provider-badge.primary {
+  background: var(--color-accent-dim);
+  color: var(--color-text-primary);
+}
+
+.provider-badge.off {
+  color: var(--color-warning);
+}
+
+.provider-body {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(300px, 1.2fr);
+  gap: var(--space-md);
+  align-items: start;
+}
+
+.provider-body .setting-hint,
+.provider-body .provider-save {
+  grid-column: 1 / -1;
+}
+
+.provider-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px var(--space-md);
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.provider-facts dt {
+  color: var(--color-text-muted);
+}
+
+.provider-facts dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.provider-soon { color: var(--color-warning); }
+.provider-expired, .provider-error { color: var(--color-error); }
+.provider-ok { color: var(--color-text-primary); }
+.provider-busy { color: var(--color-warning); }
+
+.provider-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+}
+
+.provider-field label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-bottom: 2px;
+}
+
+.provider-field.wide {
+  grid-column: 1 / -1;
+}
+
+.provider-clear {
+  margin-top: 4px;
+}
+
+.provider-save {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.setting-hint.inline {
+  display: inline;
+  margin: 0;
+}
+
+/* Settings -> Backup links (0172) */
+.links-table-container {
+  max-height: 65vh;
+  overflow: auto;
+}
+
+.links-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-bg-tertiary);
+}
+
+.links-table td {
+  vertical-align: top;
+  font-size: 0.85rem;
+  padding: var(--space-sm);
+}
+
+.links-table .link-channel {
+  min-width: 220px;
+  max-width: 320px;
+}
+
+.links-check {
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.link-item {
+  margin-bottom: var(--space-xs);
+}
+
+.link-item.compact {
+  padding: 4px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.link-name {
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+
+.link-meta {
+  margin: 2px 0;
+}
+
+.link-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.link-btn,
+.user-table .btn.link-btn {
+  font-size: 0.75rem;
+  padding: 1px 8px;
+  margin: 0;
+}
+
+.link-badge {
+  font-size: 0.7rem;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--color-bg-tertiary);
+}
+
+.link-badge.ok { color: var(--color-success, #4caf50); }
+.link-badge.warn { color: var(--color-warning); }
+.link-badge.bad { color: var(--color-error); }
+
+.link-more summary {
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.links-pick-results {
+  max-height: 50vh;
+  overflow-y: auto;
+  margin-top: var(--space-sm);
+}
+
+.links-pick-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font: inherit;
+  padding: var(--space-sm);
+}
+
+.links-pick-row:hover {
+  background: var(--color-bg-hover);
+}
+
+@media (max-width: 800px) {
+  .provider-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+#links-summary .user-table th,
+#links-summary .user-table td {
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}

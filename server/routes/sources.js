@@ -208,8 +208,11 @@ router.put('/:id', async (req, res) => {
             password: password !== undefined ? password : existing.password,
             ...checked.fields
         });
-        // Trigger Sync (if critical fields changed? safely just trigger it)
-        syncService.syncSource(parseInt(req.params.id)).catch(console.error);
+        // Trigger Sync (if critical fields changed? safely just trigger it). 0172: except when the
+        // request only touched failover order, connection limit or subscription dates (the
+        // Providers page); those change nothing a sync reads, and a backup's sync is a big one.
+        const settingsOnly = Object.keys(req.body || {}).every(k => ['priority', 'maxConnections', 'subscription'].includes(k));
+        if (!settingsOnly) syncService.syncSource(parseInt(req.params.id)).catch(console.error);
         res.json(sourceSummary(updated));
     } catch (err) {
         console.error('Error updating source:', err);

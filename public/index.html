@@ -368,6 +368,8 @@
           <!-- Tabs -->
           <div class="tabs">
             <button class="tab active" data-tab="sources">Sources</button>
+            <button class="tab admin-tab" data-tab="providers" id="providers-tab" style="display:none;">Providers</button>
+            <button class="tab admin-tab" data-tab="backuplinks" id="backuplinks-tab" style="display:none;">Backup links</button>
             <button class="tab" data-tab="player">Player</button>
             <button class="tab" data-tab="transcode">Transcoding</button>
             <button class="tab" data-tab="content">Manage Content</button>
@@ -694,6 +696,58 @@
               <div id="content-tree" class="content-tree">
                 <p class="hint">Select a source to view groups and channels</p>
               </div>
+            </div>
+          </div>
+
+          <!-- Providers (0172): GET /api/sources/providers, /api/sources/:id/account, PUT /api/sources/:id -->
+          <div id="tab-providers" class="tab-content">
+            <div class="settings-section">
+              <h3>Providers</h3>
+              <p class="setting-hint">The primary provider's channels, guide and categories are the only ones shown. Backups are list
+                only: when a channel will not play on the primary it is tried on the backups, in the order below, using the links
+                on the Backup links tab. Each provider has its own connection limit. Add or remove a provider on the Sources tab.
+                A manual end date wins over purchase date + term, which win over the date the provider reports; a blank
+                connection limit reads it from the account (1 when the account does not say).</p>
+              <div class="lineup-toolbar"><span id="providers-status" class="lineup-status"></span></div>
+              <div id="providers-list" class="providers-list"><p class="hint">Loading...</p></div>
+            </div>
+          </div>
+
+          <!-- Backup links (0172): GET /api/links, /api/links/summary, PUT /api/links/:id -->
+          <div id="tab-backuplinks" class="tab-content">
+            <div class="settings-section">
+              <h3>Backup links</h3>
+              <p class="setting-hint">Each primary channel is matched to the same channel on every backup provider. A link found by
+                its guide id is used at once (Auto); one found by number or name waits for you (Needs review). Only Auto, Approved and
+                Manual links are used for playback. Approve or reject a link, or pick the right channel by hand.</p>
+              <div id="links-summary"></div>
+              <div class="lineup-toolbar">
+                <div class="search-wrapper">
+                  <input type="text" id="links-search" placeholder="Search channels..." class="search-input">
+                </div>
+                <select id="links-category" class="source-select"><option value="">All categories</option></select>
+                <select id="links-provider" class="source-select"><option value="">Any provider</option></select>
+                <select id="links-status" class="source-select">
+                  <option value="">Any status</option>
+                  <option value="pending">Needs review</option>
+                  <option value="auto">Auto</option>
+                  <option value="approved">Approved</option>
+                  <option value="manual">Manual</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="broken">Broken</option>
+                </select>
+                <label class="links-check"><input type="checkbox" id="links-unlinked"> Without a link</label>
+                <button type="button" class="btn btn-secondary" data-links-action="relink">Relink now</button>
+                <span id="links-status-text" class="lineup-status"></span>
+              </div>
+              <div id="links-bulk" class="lineup-toolbar"></div>
+              <div class="user-list-container links-table-container">
+                <table class="user-table links-table">
+                  <thead id="links-head"><tr><th>Channel</th></tr></thead>
+                  <tbody id="links-list"><tr><td class="hint">Loading...</td></tr></tbody>
+                </table>
+              </div>
+              <div id="links-pager" class="lineup-toolbar"></div>
             </div>
           </div>
 
@@ -1093,16 +1147,18 @@
 
   <!-- JavaScript -->
   <script src="/js/icons.js"></script>
-  <script src="/js/api.js?v=15"></script>
+  <script src="/js/api.js?v=16"></script>
   <script src="/js/components/VideoPlayer.js?v=9"></script>
   <script src="/js/components/ChannelList.js?v=7"></script>
-  <script src="/js/components/SourceManager.js?v=6"></script>
+  <script src="/js/components/SourceManager.js?v=7"></script>
   <script src="/js/components/EpgGuide.js?v=8"></script>
   <script src="/js/pages/HomePage.js?v=4"></script>
   <script src="/js/pages/LivePage.js?v=3"></script>
   <script src="/js/pages/Guide.js?v=3"></script>
   <script src="/js/pages/RecordingsPage.js?v=9"></script>
-  <script src="/js/pages/Settings.js?v=14"></script>
+  <script src="/js/pages/ProvidersSettings.js?v=1"></script>
+  <script src="/js/pages/BackupLinksSettings.js?v=1"></script>
+  <script src="/js/pages/Settings.js?v=15"></script>
   <script src="/js/pages/StatusPage.js?v=4"></script>
   <script src="/js/app.js?v=9"></script>
 </body>

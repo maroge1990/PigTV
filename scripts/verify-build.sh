@@ -2011,6 +2011,17 @@ check_absent server/services/channelLinks.js "url_data," "the linker never reads
 check test/channel-links.test.js "the wrong country never links" "with fixture tests"
 check test/channel-links-perf.test.js "relink in under 3 s" "and a performance test"
 
+echo "=== 0172: the provider admin pages (multi-provider P4) ==="
+check public/index.html 'id="tab-providers"' "the Providers tab has its section"
+check public/index.html 'id="tab-backuplinks"' "and so does Backup links"
+check public/index.html 'pages/BackupLinksSettings.js' "its script is loaded (before Settings.js builds it)"
+check public/js/pages/Settings.js "this.providers = new ProvidersSettings();" "Settings builds the Providers panel"
+check public/js/pages/Settings.js "this.backupLinks = new BackupLinksSettings();" "and the Backup links panel"
+check public/js/pages/ProvidersSettings.js "if (values.clearOverlay) body.idOverlayUrl = '';" "the overlay address is write-only: empty keeps it, Remove clears it"
+check_absent public/js/pages/ProvidersSettings.js "p.idOverlayUrl" "the page never reads the stored overlay address"
+check server/routes/sources.js "const settingsOnly = Object.keys(req.body" "order, limit and date edits do not start a backup sync"
+check test/providers-page.test.js "never the overlay address" "with tests"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys
