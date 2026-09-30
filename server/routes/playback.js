@@ -156,11 +156,16 @@ router.post('/resolve', requireToken, async (req, res) => {
         // and only a stream someone else may be watching is put to the caller
         // as a question. admitViewer stops whatever has to go before we start.
         const owner = coordinator.ownerKey(req.user);
+        // Whose connection this play takes (0173): the channel's own source. A bare
+        // url names none (null), which counts in the primary's pool. P6 replaces
+        // this with the failover candidate chosen.
+        const providerId = (sourceId !== undefined && channelId !== undefined) ? parseInt(sourceId) : null;
         const verdict = await coordinator.admitViewer({
             force: force === true,
             activeRecordings,
             settings,
-            owner
+            owner,
+            providerId
         });
 
         if (!verdict.allowed) return sendConflict(res, verdict);
@@ -187,7 +192,8 @@ router.post('/resolve', requireToken, async (req, res) => {
             owner,
             // A channel is live TV; a bare url could be anything, so leave it
             // on the longer seekable-session timeout.
-            live: sourceId !== undefined && channelId !== undefined
+            live: sourceId !== undefined && channelId !== undefined,
+            providerId
         });
 
         recordHistory(req, sourceId, channelId);
@@ -268,7 +274,10 @@ router.get('/conflict', optionalAuth, async (req, res) => {
     try {
         const settings = await db.settings.get();
         const coordinator = require('../services/streamCoordinator');
-        res.json(coordinator.pendingPrompt(settings) || null);
+        // 0173: a viewer is asked only about a recording that needs the provider
+        // it is watching on. Not watching anything (or not identified): as before.
+        const providerId = coordinator.ownerProvider(coordinator.ownerKey(req.user));
+        res.json(coordinator.pendingPrompt(settings, providerId) || null);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

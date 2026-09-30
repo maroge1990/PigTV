@@ -25,6 +25,15 @@ function getDb() {
     return db;
 }
 
+/**
+ * Whether the database has been opened (and not closed) by now. For a caller that must not be
+ * the one to open it: the stream coordinator reads the providers only from an open database, so
+ * a unit test that never touches one keeps today's single-provider behaviour (0173).
+ */
+function isOpen() {
+    return !!db && db.open === true;
+}
+
 function initSchema() {
     if (!db) throw new Error('Database not initialized');
 
@@ -860,6 +869,7 @@ const favorites = {
 
 module.exports = {
     getDb,
+    isOpen,
     initSchema,
     // Exported so the migrations can be exercised directly; initSchema calls them.
     backfillStableIds,

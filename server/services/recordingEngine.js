@@ -813,7 +813,12 @@ async function remuxForNativePlayback(rec, input, output) {
 }
 
 function listActive() {
-    return scheduledDb.findActive();
+    // 0173: each with the provider whose connection it holds, for the coordinator's
+    // pools - the one it was started on, else its schedule's source.
+    return scheduledDb.findActive().map(row => {
+        const entry = active.get(row.id);
+        return { ...row, providerId: entry && entry.providerId !== undefined ? entry.providerId : (row.source_id ?? null) };
+    });
 }
 
 /**
@@ -992,7 +997,9 @@ async function startRecording(schedule, knownUrl = null) {
     console.log(`[Recordings] Starting recording #${recording.id} for schedule #${schedule.id}: "${schedule.title}" -> ${outputPath}`);
 
     const proc = spawn(ffmpegPath, args, { stdio: ['pipe', 'ignore', 'pipe'] });
-    const entry = { proc, recordingId: recording.id, stderrTail: [], hardStopTimer: null };
+    // providerId (0173): the pool this recording's connection counts in. The
+    // schedule's own source for now; P7 chooses among the providers.
+    const entry = { proc, recordingId: recording.id, stderrTail: [], hardStopTimer: null, providerId: schedule.source_id ?? null };
     active.set(schedule.id, entry);
 
     proc.stderr?.on('data', (chunk) => {
@@ -1506,7 +1513,7 @@ async function tick() {
             // recording start the moment playback stops.
             const verdict = tunerModel.enabled()
                 ? await coordinator.requestForRecordingTuned(schedule, settings, url)
-                : await coordinator.requestForRecording(schedule, settings);
+                : await coordinator.requestForRecording(schedule, settings, schedule.source_id);
             if (!verdict.allowed) {
                 if (schedule.status !== 'waiting') {
                     setScheduleStatus(schedule.id, 'waiting', { error: verdict.reason });
@@ -1535,7 +1542,7 @@ async function tick() {
                     try { url = await resolveStreamUrl(schedule.source_id, schedule.channel_item_id, schedule.channel_stable_id || null); } catch (e) { /* warned as before */ }
                     coordinator.announceUpcomingTuned(schedule, settingsForLead, url);
                 } else {
-                    coordinator.announceUpcoming(schedule, settingsForLead);
+                    coordinator.announceUpcoming(schedule, settingsForLead, schedule.source_id);
                 }
             }
         }

@@ -66,6 +66,7 @@ const DEFAULT_CAPABILITIES = {
  * @param {boolean} opts.audioEncode  re-encode the audio rather than copying it in the HLS
  *                                    session, for a stream whose audio
  *                                    frames the client's decoder could not cope with
+ * @param {number|null} opts.providerId the source whose connection the session holds (0173)
  * @returns {Promise<object>} a decision, including a playable URL
  */
 // Where the seconds of a channel change go, for `docker logs | grep "resolve timing"`.
@@ -118,7 +119,7 @@ function noteStart(owner, analysis) {
     playbackEvents.noteResolve(owner, { start: analysis.fromProfile ? 'profile' : (analysis.probeNote === 'cached' ? 'warm' : 'cold') });
 }
 
-async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale = false, owner = null, live = false, audioEncode = false }) {
+async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale = false, owner = null, live = false, audioEncode = false, providerId = null }) {
     const caps = { ...DEFAULT_CAPABILITIES, ...capabilities };
     const userAgent = db.getUserAgent(settings);
 
@@ -144,7 +145,9 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
 
     // 2. Everything else is an HLS session.
     const plan = sessionPlan({ info, caps, settings, userAgent, owner, live, upscale, audioEncode });
-    const session = await transcodeSession.createSession(url, plan.options);
+    // Which provider's connection the session holds (0173): the coordinator counts it in that
+    // provider's pool. Set here, not in sessionPlan, so a tuner's key never depends on it.
+    const session = await transcodeSession.createSession(url, { ...plan.options, providerId });
 
     const sessionStartedAt = Date.now();
     await session.start();

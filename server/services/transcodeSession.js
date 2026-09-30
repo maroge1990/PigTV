@@ -1395,7 +1395,10 @@ function getAllSessions() {
         startTime: s.startTime,
         lastAccess: s.lastAccess,
         idleMs: Date.now() - s.lastAccess,
-        owner: s.options.owner || null
+        owner: s.options.owner || null,
+        // The provider (a source id) whose connection this session holds (0173); null when the
+        // resolve named no source (a bare url), which counts against the primary's pool.
+        providerId: s.options.providerId ?? null
     }));
 }
 

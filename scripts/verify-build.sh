@@ -351,7 +351,7 @@ echo "=== 0031: coordinator + favourites ==="
 check server/services/streamCoordinator.js "requestForRecording" "recording arbitration"
 check server/services/streamCoordinator.js "requestForViewer" "viewer arbitration"
 check server/services/streamCoordinator.js "staleStreams" "idle reclaim"
-check server/services/streamCoordinator.js "activeRecordings.length + 1" "requesting viewer is counted"
+check server/services/streamCoordinator.js "recordings.length + 1" "requesting viewer is counted"
 check server/db/recordingsDb.js "markPartial" "partial recordings tracked"
 check server/db/recordingsDb.js "'scheduled', 'waiting'" "waiting schedules retried"
 check server/services/recordingEngine.js "stopForViewer" "recording yields to viewer"
@@ -2021,6 +2021,19 @@ check public/js/pages/ProvidersSettings.js "if (values.clearOverlay) body.idOver
 check_absent public/js/pages/ProvidersSettings.js "p.idOverlayUrl" "the page never reads the stored overlay address"
 check server/routes/sources.js "const settingsOnly = Object.keys(req.body" "order, limit and date edits do not start a backup sync"
 check test/providers-page.test.js "never the overlay address" "with tests"
+
+echo "=== 0173: per-provider connection pools (multi-provider P5) ==="
+check server/services/streamCoordinator.js "function providerLimit" "each provider has its own connection limit"
+check server/services/streamCoordinator.js "if (!dir.multi) return legacy;" "with no backup the limit is maxProviderStreams, as before"
+check server/services/streamCoordinator.js "const streams = streamsInPool(pool, dir).sort" "a viewer is counted within its provider's pool"
+check server/services/streamCoordinator.js "function canAdmitWithoutDisturbing" "admission can be asked without acting (P6 walks candidates)"
+check server/services/streamCoordinator.js "function canRecordFreely" "and so can a recording's (P7)"
+check server/services/streamCoordinator.js "function releaseOwnerElsewhere" "a device watches one thing across providers"
+check server/services/streamCoordinator.js "if (typeof sqlite.isOpen !== 'function' || !sqlite.isOpen()) return LEGACY_DIRECTORY;" "the coordinator never opens the database itself"
+check server/services/transcodeSession.js "providerId: s.options.providerId ?? null" "sessions carry their provider"
+check server/routes/playback.js "const providerId = (sourceId !== undefined && channelId !== undefined) ? parseInt(sourceId) : null;" "resolve admits the viewer on the channel's provider"
+check server/services/recordingEngine.js "coordinator.requestForRecording(schedule, settings, schedule.source_id)" "a recording asks its own provider's pool"
+check test/provider-pools.test.js "with no backup configured every scenario has today" "with tests"
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1

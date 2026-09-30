@@ -24,6 +24,17 @@
  *     replaces its own earlier stream without asking (it can only watch one
  *     thing), and an abandoned stream is reclaimed silently, so the question
  *     is only ever put when a person really is on the other end.
+ *
+ * Provider pools (0173, multi-provider P5; default path only - the tuner functions
+ * further down are unchanged and keep one global pool). With backup providers
+ * configured, every provider has its own connections, so every rule above is
+ * applied per provider: a viewer or recording asking for provider B counts,
+ * reclaims and asks about B's streams and B's recordings only. A stream or
+ * recording belongs to the pool of its `providerId` (a source id); a backup is its
+ * own pool, and everything else - the primary, any other non-backup source, and a
+ * bare-url resolve with no source (providerId null) - is the primary's pool, which
+ * is exactly today's single pool. With no backup configured there is only that
+ * pool and nothing here behaves differently from before.
  */
 
 const transcodeSession = require('./transcodeSession');
@@ -144,8 +155,134 @@ function activeStreams() {
         url: s.url,
         idleMs: s.idleMs,
         startTime: s.startTime,
-        owner: s.owner || null
+        owner: s.owner || null,
+        providerId: s.providerId ?? null
     }));
+}
+
+// ---------------------------------------------------------------------------
+// Provider pools (0173)
+// ---------------------------------------------------------------------------
+
+const PRIMARY_POOL = 'primary';
+const LEGACY_DIRECTORY = Object.freeze({ multi: false, primary: null, backups: new Map() });
+
+/**
+ * The providers as the pools see them: `primary` (the first enabled non-backup
+ * stream source), `backups` (every backup source, by id, enabled or not, so a
+ * stream still running on one that was just disabled stays in its own pool) and
+ * `multi` (at least one enabled backup: pools are per provider).
+ *
+ * Read from the database only when it is already open - this is never the thing
+ * that opens it - and read afresh on every call (a handful of rows), so a provider
+ * added or disabled in Settings counts at once. Anything unreadable is today's
+ * single pool: a coordinator failure must not be what stops playback.
+ */
+function providerDirectory() {
+    try {
+        const sqlite = require('../db/sqlite');
+        if (typeof sqlite.isOpen !== 'function' || !sqlite.isOpen()) return LEGACY_DIRECTORY;
+        const { withDefaults } = require('./providerFields');
+        const all = sqlite.getDb().prepare('SELECT data FROM app_sources ORDER BY id').all()
+            .map(r => { try { return withDefaults(JSON.parse(r.data)); } catch (e) { return null; } })
+            .filter(src => src && src.type !== 'epg');
+        const backups = new Map(all.filter(src => src.role === 'backup').map(src => [Number(src.id), src]));
+        const multi = [...backups.values()].some(src => src.enabled !== false);
+        if (!multi) return LEGACY_DIRECTORY;
+        const primaries = all.filter(src => src.role !== 'backup');
+        const primary = primaries.find(src => src.enabled !== false) || primaries[0] || null;
+        return { multi, primary, backups };
+    } catch (err) {
+        return LEGACY_DIRECTORY;
+    }
+}
+
+/** The pool a providerId counts in: a backup's own id, else the primary's pool. */
+function poolKey(providerId, dir) {
+    if (!dir.multi || providerId === null || providerId === undefined) return PRIMARY_POOL;
+    const id = Number(providerId);
+    return dir.backups.has(id) ? id : PRIMARY_POOL;
+}
+
+/** A recording's provider: the one it was started on, else its schedule's source. */
+function recordingProvider(rec) {
+    if (!rec) return null;
+    return rec.providerId !== undefined ? rec.providerId : (rec.source_id ?? null);
+}
+
+function streamsInPool(pool, dir) {
+    return activeStreams().filter(s => poolKey(s.providerId, dir) === pool);
+}
+
+function recordingsInPool(recordings, pool, dir) {
+    return (recordings || []).filter(r => poolKey(recordingProvider(r), dir) === pool);
+}
+
+/** The provider id a pool stands for, for a conflict body: a backup's id, the primary's id, or null. */
+function poolProviderId(pool, dir) {
+    if (pool !== PRIMARY_POOL) return pool;
+    return dir.primary ? Number(dir.primary.id) : null;
+}
+
+/**
+ * How many connections this provider allows.
+ *
+ *   No backup configured (today's setup): `settings.maxProviderStreams`, default 1,
+ *     exactly as before - the account's max_connections and a manual override are
+ *     not consulted, so nothing changes until a backup is added.
+ *   A backup: its effective limit (providerAccounts.effectiveLimit: the manual
+ *     `maxConnections` > the account's max_connections > 1).
+ *   The primary, with backups configured: its manual `maxConnections` when set
+ *     (the admin said so, for this provider); otherwise the larger of its account's
+ *     max_connections (or 1) and `settings.maxProviderStreams`, so an admin who had
+ *     raised the legacy setting above 1 does not lose connections by adding a backup.
+ */
+function providerLimit(providerId, settings = {}, dir = providerDirectory()) {
+    const legacy = Number.isFinite(settings.maxProviderStreams) ? settings.maxProviderStreams : 1;
+    if (!dir.multi) return legacy;
+    let accounts;
+    try { accounts = require('./providerAccounts'); } catch (e) { return legacy; }
+    const account = (id) => { try { return accounts.getAccount(id); } catch (e) { return null; } };
+    const pool = poolKey(providerId, dir);
+    if (pool !== PRIMARY_POOL) return accounts.effectiveLimit(dir.backups.get(pool), account(pool));
+    const primary = dir.primary;
+    if (!primary) return legacy;
+    const manual = Number(primary.maxConnections);
+    if (Number.isInteger(manual) && manual > 0) return manual;
+    return Math.max(accounts.effectiveLimit({ ...primary, maxConnections: null }, account(primary.id)), legacy);
+}
+
+/**
+ * This owner's streams on every provider except `providerId`'s: a device watches
+ * one thing, so admitting it on one provider replaces what it had on the others.
+ * Empty for an unidentified caller, and always empty with one provider (one pool).
+ */
+function ownStreamsElsewhere(owner, providerId, dir = providerDirectory()) {
+    if (!owner || !dir.multi) return [];
+    const pool = poolKey(providerId, dir);
+    return activeStreams().filter(s => s.owner === owner && poolKey(s.providerId, dir) !== pool);
+}
+
+/**
+ * Release this owner's streams on other providers, as admitViewer does for a
+ * viewer admitted on `providerId` (cause `replacement`, with the same
+ * terminal-status note today's replacement leaves). Returns how many went.
+ */
+async function releaseOwnerElsewhere(owner, providerId) {
+    let released = 0;
+    for (const stream of ownStreamsElsewhere(owner, providerId)) {
+        console.log(`[Coordinator] Releasing ${stream.id} (replacement, ${Math.round(stream.idleMs / 1000)}s idle): its device is now watching on another provider`);
+        noteReplaced(stream);
+        if (await releaseStream(stream)) released++;
+    }
+    return released;
+}
+
+/** The provider of this owner's most recently started stream; undefined when it has none. */
+function ownerProvider(owner) {
+    if (!owner) return undefined;
+    const mine = activeStreams().filter(s => s.owner === owner).sort((a, b) => b.startTime - a.startTime);
+    return mine.length ? mine[0].providerId : undefined;
 }
 
 /**
@@ -177,22 +314,29 @@ async function releaseStream(stream) {
  * Returns { allowed, reason, prompted } — never throws, because a coordinator
  * failure must not be the thing that stops a recording.
  */
-async function requestForRecording(schedule, settings = {}) {
+async function requestForRecording(schedule, settings = {}, providerId = undefined) {
     const idleTimeout = Number.isFinite(settings.viewerIdleTimeoutSec)
         ? settings.viewerIdleTimeoutSec : DEFAULT_IDLE_TIMEOUT_SEC;
 
+    // Within the pool of the provider the recording will use (0173); with no
+    // backup configured that is every stream, as before. As before, only viewer
+    // streams are counted here, not other recordings (see canRecordFreely).
+    const dir = providerDirectory();
+    const pool = poolKey(providerId, dir);
+
     // More than one provider connection available? Then there is nothing to
     // arbitrate and everything proceeds as before.
-    const limit = Number.isFinite(settings.maxProviderStreams) ? settings.maxProviderStreams : 1;
-    const streams = activeStreams();
+    const limit = providerLimit(providerId, settings, dir);
+    const streams = streamsInPool(pool, dir);
     if (streams.length < limit) {
         return { allowed: true, reason: 'A provider connection is free' };
     }
 
     // Reclaim anything registered but abandoned, without asking: there is
     // nobody to ask.
-    const stale = staleStreams(idleTimeout);
-    const live = liveViewers(idleTimeout);
+    const cutoff = idleTimeout * 1000;
+    const stale = streams.filter(s => s.idleMs >= cutoff);
+    const live = streams.filter(s => s.idleMs < cutoff);
 
     if (live.length === 0 && stale.length > 0) {
         for (const s of stale) {
@@ -216,11 +360,12 @@ async function requestForRecording(schedule, settings = {}) {
     const now = Date.now();
     const existing = prompts.get(schedule.id);
     if (!existing) {
-        prompts.set(schedule.id, { issuedAt: now, dueSince: now, declinedAt: null, schedule });
+        prompts.set(schedule.id, { issuedAt: now, dueSince: now, declinedAt: null, schedule, providerId: providerId ?? null });
         console.log(`[Coordinator] Recording #${schedule.id} is waiting for the stream; asking the viewer`);
         return { allowed: false, prompted: true, reason: 'Waiting for the viewer to stop playback' };
     }
     if (!existing.dueSince) existing.dueSince = now; // became due only now; was only announced before
+    existing.providerId = providerId ?? null; // the pool whose viewers are asked (pendingPrompt)
 
     if (!existing.declinedAt) {
         const timeoutMs = (Number.isFinite(settings.recordingPromptTimeoutMin)
@@ -237,16 +382,47 @@ async function requestForRecording(schedule, settings = {}) {
 }
 
 /**
+ * Could a recording start on this provider now without asking anybody? True when
+ * the pool has a free connection, or would have one once its abandoned streams
+ * are reclaimed (requestForRecording does that). Non-mutating: for choosing the
+ * provider a recording starts on (P7) before requestForRecording is called on it.
+ *
+ * Unlike requestForRecording, recordings already running on the provider count
+ * (D4: a recording holds a connection until it ends), so a second recording is
+ * not stacked onto a provider whose only connection a recording already holds.
+ * `activeRecordings` defaults to recordingEngine.listActive().
+ */
+function canRecordFreely(providerId, settings = {}, activeRecordings = undefined) {
+    const dir = providerDirectory();
+    const pool = poolKey(providerId, dir);
+    const limit = providerLimit(providerId, settings, dir);
+    let recordings = activeRecordings;
+    if (recordings === undefined) {
+        try { recordings = require('./recordingEngine').listActive(); } catch (e) { recordings = []; }
+    }
+    const held = recordingsInPool(recordings, pool, dir).length;
+    const cutoff = (Number.isFinite(settings.viewerIdleTimeoutSec)
+        ? settings.viewerIdleTimeoutSec : DEFAULT_IDLE_TIMEOUT_SEC) * 1000;
+    const live = streamsInPool(pool, dir).filter(s => s.idleMs < cutoff).length;
+    return live + held < limit;
+}
+
+/**
  * What the player should surface, if anything. Polled by a client that is
  * playing; returns null when there is nothing to say.
+ *
+ * `providerId` (0173): only a prompt for that provider's pool - the one the
+ * asking viewer is watching on. Omitted (undefined), any prompt, as before.
  */
-function pendingPrompt(settings = {}) {
+function pendingPrompt(settings = {}, providerId = undefined) {
     const leadMs = (Number.isFinite(settings.recordingPromptLeadMin)
         ? settings.recordingPromptLeadMin : DEFAULT_PROMPT_LEAD_MIN) * 60000;
     const now = Date.now();
+    const dir = providerId === undefined ? null : providerDirectory();
 
     for (const [scheduleId, entry] of prompts) {
         if (entry.declinedAt) continue;
+        if (dir && poolKey(entry.providerId, dir) !== poolKey(providerId, dir)) continue;
         const s = entry.schedule;
         const startsAt = s.program_start - (s.pre_buffer_min || 0) * 60000;
         if (startsAt - now > leadMs) continue;
@@ -280,14 +456,16 @@ function clearPrompt(scheduleId) {
  * Announce a recording so a viewer can be warned before it is due, even though
  * the conflict has not happened yet.
  */
-function announceUpcoming(schedule, settings = {}) {
-    const limit = Number.isFinite(settings.maxProviderStreams) ? settings.maxProviderStreams : 1;
-    if (activeStreams().length < limit) return;
+function announceUpcoming(schedule, settings = {}, providerId = undefined) {
+    // Only the viewers of the provider the recording will use are warned (0173).
+    const dir = providerDirectory();
+    const limit = providerLimit(providerId, settings, dir);
+    if (streamsInPool(poolKey(providerId, dir), dir).length < limit) return;
     if (prompts.has(schedule.id)) return;
     // dueSince stays null: the answer-timeout (0158) counts from when the recording
     // is actually due and still blocked (requestForRecording, above), not from this
     // early lead-time notice.
-    prompts.set(schedule.id, { issuedAt: Date.now(), dueSince: null, declinedAt: null, schedule });
+    prompts.set(schedule.id, { issuedAt: Date.now(), dueSince: null, declinedAt: null, schedule, providerId: providerId ?? null });
 }
 
 /**
@@ -318,17 +496,26 @@ function ownerKey(user) {
  * abandoned ones, then this owner's own earlier stream, and only then
  * something somebody else may be watching.
  */
-function requestForViewer({ force = false, activeRecordings = [], settings = {}, owner = null } = {}) {
-    const limit = Number.isFinite(settings.maxProviderStreams) ? settings.maxProviderStreams : 1;
+function requestForViewer({ force = false, activeRecordings = [], settings = {}, owner = null, providerId = undefined } = {}) {
+    // Everything below is within the pool of the provider asked for (0173): its
+    // streams, its recordings, its limit. No providerId is the primary's pool,
+    // which with no backup configured is every stream, as before.
+    const dir = providerDirectory();
+    const pool = poolKey(providerId, dir);
+    const limit = providerLimit(providerId, settings, dir);
     const idleMs = (Number.isFinite(settings.viewerIdleTimeoutSec)
         ? settings.viewerIdleTimeoutSec : DEFAULT_IDLE_TIMEOUT_SEC) * 1000;
+    // A device watches one thing: once admitted here, its streams on the other
+    // providers go too (always none with a single provider).
+    const elsewhere = () => ownStreamsElsewhere(owner, providerId, dir).map(s => ({ stream: s, cause: 'replacement' }));
+    const recordings = recordingsInPool(activeRecordings, pool, dir);
 
     // The caller is asking to open one more connection, so count it. A
     // recording holds a connection of its own: its ffmpeg talks to the
     // provider directly and never appears in the viewer registries.
-    const streams = activeStreams().sort((a, b) => b.idleMs - a.idleMs); // most idle first
-    let need = streams.length + activeRecordings.length + 1 - limit;
-    if (need <= 0) return { allowed: true, release: [] };
+    const streams = streamsInPool(pool, dir).sort((a, b) => b.idleMs - a.idleMs); // most idle first
+    let need = streams.length + recordings.length + 1 - limit;
+    if (need <= 0) return { allowed: true, release: elsewhere() };
 
     // Entries are { stream, cause }. The cause does not change what happens to
     // the stream - everything released here is released because somebody else
@@ -347,48 +534,61 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
     };
     take(streams.filter(s => s.idleMs >= idleMs), 'idle');
     take(streams.filter(s => owner && s.owner === owner), 'replacement');
-    if (need <= 0) return { allowed: true, release };
+    if (need <= 0) return { allowed: true, release: [...release, ...elsewhere()] };
 
     const others = streams.filter(s => !held.has(s));
+    // Which provider the answer is about, only when there is more than one
+    // (additive; the single-provider body is exactly as before).
+    const tagged = (conflict) => (dir.multi ? { ...conflict, providerId: poolProviderId(pool, dir) } : conflict);
 
     if (!force) {
-        if (activeRecordings.length > 0) {
-            const rec = activeRecordings[0];
+        if (recordings.length > 0) {
+            const rec = recordings[0];
             return {
                 allowed: false,
                 release,
-                conflict: {
+                conflict: tagged({
                     type: 'recording-in-progress',
                     scheduleId: rec.id,
                     title: rec.title,
                     channelName: rec.channel_name,
                     endsAt: rec.program_end + (rec.post_buffer_min || 0) * 60000,
                     message: `"${rec.title}" is recording on ${rec.channel_name}. Your provider allows one stream at a time, so watching now will stop that recording. What has been recorded so far is kept.`
-                }
+                })
             };
         }
         const other = others[0];
         return {
             allowed: false,
             release,
-            conflict: {
+            conflict: tagged({
                 type: 'viewer-in-progress',
                 streamId: other.id,
                 lastActiveSec: Math.round(other.idleMs / 1000),
                 message: `Another device is watching. Your provider allows ${limit === 1 ? 'one stream' : limit + ' streams'} at a time, so watching here will stop it.`
-            }
+            })
         };
     }
 
     // Forced: take recordings first (what was captured is kept), then viewers.
     const sacrificed = [];
-    for (const r of activeRecordings) {
+    for (const r of recordings) {
         if (need <= 0) break;
         sacrificed.push(r.id);
         need--;
     }
     take(others, 'forced-takeover');
-    return { allowed: true, release, sacrificed };
+    return { allowed: true, release: [...release, ...elsewhere()], sacrificed };
+}
+
+/**
+ * Would this viewer be admitted on this provider without disturbing anybody - a
+ * free connection, an abandoned stream reclaimed, or its own earlier stream
+ * replaced - with no 409 and no force? Non-mutating: for walking a channel's
+ * providers in order (P6) before admitViewer is called on the one chosen.
+ */
+function canAdmitWithoutDisturbing({ providerId = undefined, owner = null, settings = {}, activeRecordings = [] } = {}) {
+    return requestForViewer({ force: false, providerId, owner, settings, activeRecordings }).allowed === true;
 }
 
 /**
@@ -639,6 +839,12 @@ module.exports = {
     requestForRecording,
     requestForViewer,
     admitViewer,
+    // Provider pools (0173)
+    providerLimit,
+    canAdmitWithoutDisturbing,
+    canRecordFreely,
+    releaseOwnerElsewhere,
+    ownerProvider,
     ownerKey,
     terminalStatus,
     pendingPrompt,

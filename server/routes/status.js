@@ -117,6 +117,7 @@ function liveSessions() {
             id: summary.id,
             channel: channelNameForUrl(summary.url) || 'unknown',
             owner: summary.owner || null,
+            providerId: summary.providerId ?? null,
             video: options.videoMode === 'copy' ? 'copy' : 'encode',
             audio: options.audioMode === 'copy' ? 'copy' : (options.audioMode === 'encode' ? 'encode' : 'auto'),
             segmentType: options.segmentType || null,
