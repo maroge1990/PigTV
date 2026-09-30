@@ -120,6 +120,9 @@ test('login: an xtream source\'s own; an M3U\'s from the header, else from its f
 
     const line = '#EXT-X-CREDENTIALS:[{"server":"trex.invalid:80","username":"hdruser","password":"hdrpass"}]';
     assert.deepEqual(accounts.parseCredentialsHeader(line), { url: 'http://trex.invalid:80', username: 'hdruser', password: 'hdrpass' });
+    // The shape EPGenius actually writes (30 Sept), with a space after each colon.
+    const epgenius = '#EXT-X-CREDENTIALS:[{"provider": "dream", "dns": "http://line.dream.invalid", "username": "du", "password": "dp"}]';
+    assert.deepEqual(accounts.parseCredentialsHeader(epgenius), { url: 'http://line.dream.invalid', username: 'du', password: 'dp' });
     assert.equal(accounts.parseCredentialsHeader('#EXT-X-CREDENTIALS:not json'), null);
     assert.equal(accounts.parseCredentialsHeader('#EXTINF:-1,x'), null);
 

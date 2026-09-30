@@ -76,7 +76,9 @@ const withScheme = (server) => (/^https?:\/\//i.test(server) ? server : `http://
 
 /**
  * The login out of a `#EXT-X-CREDENTIALS:[{...}]` header line (an EPGenius M3U names its
- * provider's server and login there), else null. Key names are read leniently.
+ * provider's server and login there), else null. EPGenius writes
+ * `{"provider":"trex","dns":"http://host","username":"…","password":"…"}` (seen 30 Sept);
+ * other key names are read leniently.
  */
 function parseCredentialsHeader(line) {
     const m = /^#EXT-X-CREDENTIALS:\s*(.+)$/i.exec(String(line || '').trim());
@@ -85,7 +87,7 @@ function parseCredentialsHeader(line) {
     try { list = JSON.parse(m[1]); } catch { return null; }
     for (const c of Array.isArray(list) ? list : [list]) {
         if (!c || typeof c !== 'object') continue;
-        const server = c.server ?? c.server_url ?? c.host ?? c.url ?? c.portal;
+        const server = c.dns ?? c.server ?? c.server_url ?? c.host ?? c.url ?? c.portal;
         const username = c.username ?? c.user;
         const password = c.password ?? c.pass;
         if (server && username && password) return { url: withScheme(String(server)), username: String(username), password: String(password) };
