@@ -2040,7 +2040,7 @@ check server/services/providerRouting.js "async function plan(sourceId, channelI
 check server/services/providerRouting.js "if (primaryDown || primaryExpired || isQuarantined(id, streamId, now)) continue;" "a sibling only when the primary is not down (D5)"
 check server/services/providerRouting.js "if (distinct >= BREAKER_CHANNELS) trip(" "the breaker counts distinct channels"
 check server/services/providerRouting.js "// Nowhere else to go: the primary, as it always was." "with nothing else configured the primary is always tried"
-check server/routes/playback.js "if (!routing || !providerRouting.isProviderFailure(err)) throw err;" "only a provider-reason failure fails over"
+check server/routes/playback.js "if (err.superseded || !routing || !providerRouting.isProviderFailure(err)) throw err;" "only a provider-reason failure fails over"
 check server/routes/playback.js "refusedRetryDelaysMs: isLast ? undefined : providerRouting.EARLY_RETRY_DELAYS_MS," "0143's two retries only on the last candidate"
 check server/routes/playback.js "return sendConflict(res, verdict, { everyProvider: !!routing && routing.providerCount > 1 });" "all full: the 409 for the first candidate"
 check server/services/transcodeSession.js "if (!requested && this.timings.playlistReady) this.noteLost('exit');" "an unrequested end after playing is reported (quarantine)"
@@ -2072,6 +2072,14 @@ check server/services/channelLinks.js "const METHOD_ORDER = { 'raw-name': 0, 'ra
 check server/services/channelLinks.js "function rawNameKey(name) {" "the raw name is normalised minimally"
 check test/raw-bridge.test.js "both ways: Dream4K as the primary" "with a both-ways test"
 check test/raw-bridge.test.js "no code path names a provider" "and a provider-neutrality test"
+
+echo "=== 0180: a start stopped on request is not a provider failure (P10) ==="
+check server/services/transcodeSession.js "this.stopRequested = true;" "stop() records that it was asked"
+check server/services/playbackStrategy.js "if (session.stopRequested) {" "a stopped start throws superseded, not a failure"
+check server/routes/playback.js "if (err.superseded || !routing || !providerRouting.isProviderFailure(err)) throw err;" "a superseded start is never failed over"
+check server/routes/playback.js "if (isSuperseded(owner, generation)) throw playbackStrategy.supersededError();" "an overtaken walk starts no further candidate"
+check public/js/components/VideoPlayer.js "if (res.status === 499) return VideoPlayer.SUPERSEDED;" "the web player ignores a superseded resolve"
+check test/provider-failover.test.js "0180: a start replaced by the same viewer" "with a replacement test"
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1

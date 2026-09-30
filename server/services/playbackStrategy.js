@@ -168,10 +168,24 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     await session.start();
 
     const ready = deadlineAt ? await session.waitForPlaylist(15000, { deadlineAt }) : await session.waitForPlaylist(15000);
+    // 0180: stopped on request while it was starting (the viewer's next play replaced it,
+    // a DELETE, a force): not a provider failure, so no failover, breaker, quarantine,
+    // profile or health change. The route answers it with a plain SUPERSEDED error.
+    if (session.stopRequested) {
+        console.log(`[Playback] start superseded: session ${session.id} was stopped on request before it produced a playlist`);
+        try { await transcodeSession.removeSession(session.id); } catch (e) { /* already gone */ }
+        throw supersededError();
+    }
     await afterStart({ session, ready, info, plan, probeNote, fromProfile, probedAt, cacheKey, sessionStartedAt, note: timingNote,
         remove: () => transcodeSession.removeSession(session.id) });
 
     return sessionDecision(session.id, plan, info);
+}
+
+/** The resolve was overtaken (0180): its session was stopped on request, or the owner asked again. */
+const SUPERSEDED_MESSAGE = 'Playback was replaced by a newer request';
+function supersededError() {
+    return Object.assign(new Error(SUPERSEDED_MESSAGE), { superseded: true, status: 499 });
 }
 
 function directDecision(url, info, probeNote, note = '') {
@@ -611,4 +625,4 @@ function probeFailureMessage(err) {
     return reason ? reason.message : FAILURE_TEXT.couldNotRead();
 }
 
-module.exports = { resolve, resolveTuned, acquireTunerForRecording, RECORDING_CAPABILITIES, DEFAULT_CAPABILITIES, probeFailureMessage, canPlayTunerOutput };
+module.exports = { supersededError, SUPERSEDED_MESSAGE, resolve, resolveTuned, acquireTunerForRecording, RECORDING_CAPABILITIES, DEFAULT_CAPABILITIES, probeFailureMessage, canPlayTunerOutput };

@@ -792,6 +792,9 @@ class VideoPlayer {
                 }
                 return this.resolvePlayback(channel, streamUrl, { force: true, audioEncode });
             }
+            // 0180: the server stopped this start because a newer play from this viewer took
+            // over. Not a failure: the newer play owns the screen, so this one says nothing.
+            if (res.status === 499) return VideoPlayer.SUPERSEDED;
             if (!res.ok) return null;
             const decision = await res.json();
             if (!decision || !decision.url) return null;
@@ -1009,6 +1012,8 @@ class VideoPlayer {
                 this.abandonPlay();
                 return;
             }
+            // 0180: overtaken by a newer play; leave the screen, the spinner and the retry alone.
+            if (decision === VideoPlayer.SUPERSEDED) return;
             if (!decision) {
                 if (this.recoverPlayback('The server could not start this channel')) return;
                 this.loadingSpinner?.classList.remove('show');
@@ -1627,6 +1632,7 @@ class VideoPlayer {
 // local strategy": the two used to share null, so cancelling fell through to the local
 // path and took the stream regardless.
 VideoPlayer.CANCELLED = Symbol('playback-cancelled');
+VideoPlayer.SUPERSEDED = Symbol('playback-superseded');
 
 // Export
 window.VideoPlayer = VideoPlayer;

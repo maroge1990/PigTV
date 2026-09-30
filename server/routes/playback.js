@@ -23,6 +23,19 @@ const { createLimiter } = require('../services/rateLimit');
 const playbackEvents = require('../services/playbackEvents');
 const channelHealth = require('../services/channelHealth');
 
+// 0180: the newest resolve per owner. A play that finds a newer one from the same
+// owner has been superseded (the viewer zapped on): it starts no further candidate.
+const ownerGeneration = new Map();
+function bumpOwnerGeneration(owner) {
+    if (!owner) return 0;
+    const n = (ownerGeneration.get(owner) || 0) + 1;
+    ownerGeneration.set(owner, n);
+    return n;
+}
+function isSuperseded(owner, generation) {
+    return !!owner && ownerGeneration.get(owner) !== generation;
+}
+
 /** A channel's name for the status page's recent plays (0124); null when unknown. */
 function channelNameFor(sourceId, channelId) {
     if (sourceId === undefined || channelId === undefined) return null;
@@ -132,6 +145,7 @@ router.post('/resolve', requireToken, async (req, res) => {
         // and only a stream someone else may be watching is put to the caller
         // as a question. admitViewer stops whatever has to go before we start.
         const owner = coordinator.ownerKey(req.user);
+        const generation = bumpOwnerGeneration(owner);
         // Whose connection this play takes (0173): the candidate's provider. A bare
         // url names none (null), which counts in the primary's pool.
         const candidates = routing ? routing.candidates : [{ providerId: null, url }];
@@ -180,6 +194,8 @@ router.post('/resolve', requireToken, async (req, res) => {
         let lastError = null;
         for (let i = 0; i < candidates.length; i++) {
             const candidate = candidates[i];
+            // 0180: the owner's newer request took over while this one was walking.
+            if (isSuperseded(owner, generation)) throw playbackStrategy.supersededError();
             if (lastError && deadlineAt && deadlineAt - Date.now() < providerRouting.MIN_START_MS) {
                 console.warn(`[Playback] failover: stopped after ${lastTried.providerName}: less than ${providerRouting.MIN_START_MS / 1000}s left of the resolve`);
                 break;
@@ -193,7 +209,9 @@ router.post('/resolve', requireToken, async (req, res) => {
                 chosen = candidate;
                 break;
             } catch (err) {
-                if (!routing || !providerRouting.isProviderFailure(err)) throw err;
+                // 0180: stopped on request (or overtaken), not a provider failure: nothing
+                // is noted and no later candidate is started.
+                if (err.superseded || !routing || !providerRouting.isProviderFailure(err)) throw err;
                 lastError = err;
                 failedOver = true;
                 providerRouting.noteFailure(candidate, routing.primaryKey);
@@ -250,7 +268,7 @@ router.post('/resolve', requireToken, async (req, res) => {
                     ...(showProvider ? { timingNote: `, provider ${first.providerName} (${first.via})` } : {})
                 });
             } catch (err) {
-                if (routing && providerRouting.isProviderFailure(err)) providerRouting.noteFailure(first, routing.primaryKey);
+                if (!err.superseded && routing && providerRouting.isProviderFailure(err)) providerRouting.noteFailure(first, routing.primaryKey);
                 throw err;
             }
             chosen = first;
@@ -288,6 +306,13 @@ router.post('/resolve', requireToken, async (req, res) => {
             provider: showProvider ? chosen.providerName : null });
         res.json(decision);
     } catch (err) {
+        // 0180: a start overtaken by the same viewer's next play. Not a failure: no
+        // failure event, no channel-health row, nothing for the breaker. 499 is used
+        // because no client reads it as a provider error or a prompt (409 is the
+        // conflict prompt); the web player ignores it and the Apple client has moved on.
+        if (err.superseded) {
+            return res.status(499).json({ error: playbackStrategy.SUPERSEDED_MESSAGE, superseded: true });
+        }
         console.error('[Playback] Resolve failed:', redact(err.detail ? `${err.detail} - ${err.message}` : err.message));
         // 0118 (C-B): never a URL in what the client is sent, whatever the error.
         const safe = clientSafe(redact(err.message));

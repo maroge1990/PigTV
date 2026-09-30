@@ -452,6 +452,95 @@ test('the channel list: primary, sibling, backups by priority; the primary skipp
     assert.deepEqual(list.map(c => c.url), [url.A(101), url.A(109), url.B(5001)]);
 });
 
+// ------------------------------------------------ 0180: a start stopped on request --
+
+const failoverLines = () => logLines.filter(l => /\[Playback\] failover/.test(l));
+
+test('0180: a start replaced by the same viewer\'s next play is not a provider failure', async () => {
+    behaviour.set(url.A(103), 'hang');
+    logLines.length = 0;
+    const failedBefore = sqlite.getDb().prepare('SELECT COUNT(*) AS n FROM channel_health WHERE ok = 0').get().n;
+    const first = play('pos_3');                 // starts ffmpeg, which never produces a playlist
+    await sleep(500);
+    assert.equal(startsOf(url.A(103)), 1);
+    const second = await play('pos_4');          // the zap: the coordinator releases the first as a replacement
+    const r = await first;
+    assert.equal(second.status, 200, second.text);
+    assert.equal(r.status, 499, r.text);
+    assert.deepEqual(r.body, { error: 'Playback was replaced by a newer request', superseded: true });
+    assert.deepEqual(failoverLines(), [], 'no failover line');
+    assert.equal(startsOf(url.B(5003)) + startsOf(url.C(7003)) + startsOf(url.A(109)), 0, 'no later candidate was started');
+    assert.equal(startsOf(url.A(103)), 1, 'and no retry');
+    assert.equal(routing.isQuarantined(A.id, 's103'), false, 'not quarantined');
+    assert.equal(routing.providerState(A.id), 'up');
+    const failed = sqlite.getDb().prepare('SELECT COUNT(*) AS n FROM channel_health WHERE ok = 0').get().n;
+    assert.equal(failed, failedBefore, 'no failed start in channel health');
+    assert.equal(playbackEvents.recent().filter(e => e.type === 'failure').length, 0, 'no failure event');
+    assert.equal(coordinator.activeStreams().length, 1, 'only the newer session exists');
+    assert.ok(!logLines.some(l => /ended before producing a playlist/.test(l)), 'not logged as an ffmpeg failure');
+});
+
+test('0180: repeated zaps never trip the breaker', async () => {
+    for (const [n, key] of [[101, 'pos_1'], [102, 'pos_2'], [103, 'pos_3']]) {
+        behaviour.set(url.A(n), 'hang');
+        const slow = play(key);
+        await sleep(400);
+        await play('pos_4');
+        assert.equal((await slow).status, 499);
+    }
+    assert.equal(routing.providerState(A.id), 'up', 'three overtaken starts on three channels count for nothing');
+    for (const k of ['s101', 's102', 's103']) assert.equal(routing.isQuarantined(A.id, k), false);
+});
+
+test('0180: a session stopped by DELETE mid-start ends the resolve without failover', async () => {
+    behaviour.set(url.A(102), 'hang');
+    logLines.length = 0;
+    const slow = play('pos_2');
+    await sleep(500);
+    const [live] = transcodeSession.getAllSessions();
+    await transcodeSession.getSession(live.id).stop();
+    const r = await slow;
+    assert.equal(r.status, 499, r.text);
+    assert.deepEqual(failoverLines(), []);
+    assert.equal(startsOf(url.B(5002)) + startsOf(url.C(7002)), 0);
+    assert.equal(routing.providerState(A.id), 'up');
+});
+
+test('0180: a walk that the owner\'s newer request overtook starts no further candidate', async () => {
+    behaviour.set(url.A(101), '502');
+    behaviour.set(url.A(109), 'hang');
+    logLines.length = 0;
+    const walking = play('pos_1');               // primary 502 (retry 1 s), then the sibling
+    await sleep(300);
+    await play('pos_4');
+    const r = await walking;
+    assert.equal(r.status, 499, r.text);
+    assert.equal(startsOf(url.B(5001)) + startsOf(url.C(7001)), 0, 'the backups were never started');
+});
+
+test('0180: a genuine provider failure still fails over exactly as before', async () => {
+    behaviour.set(url.A(103), '502');
+    const r = await play('pos_3');
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.body.provider.failover, true);
+    assert.equal(failoverLines().filter(l => /failed for/.test(l)).length >= 1, true);
+});
+
+test('0180: with no backup, a stopped start is also just superseded; a real failure is unchanged', async () => {
+    await db.sources.update(B.id, { enabled: false });
+    await db.sources.update(C.id, { enabled: false });
+    sqlite.getDb().prepare('DELETE FROM channel_links').run();
+    behaviour.set(url.A(104), 'hang');
+    const slow = play('pos_4');
+    await sleep(400);
+    await play('pos_3');
+    assert.equal((await slow).status, 499);
+    behaviour.set(url.A(102), '502');
+    const bad = await play('pos_2');
+    assert.equal(bad.status, 500);
+    assert.match(bad.body.error, /^The provider refused this channel/);
+});
+
 test('no line this feature logs carries a URL', () => {
     const ours = logLines.filter(l => /\[Playback\] failover|\[Providers\]|mid-play|\[Playback\] resolve timing/.test(l));
     assert.ok(ours.length > 0);

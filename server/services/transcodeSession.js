@@ -1043,6 +1043,9 @@ class TranscodeSession extends EventEmitter {
     stop() {
         if (this._stopPromise) return this._stopPromise;
 
+        // 0180: somebody asked for this (a DELETE, a replacement, a force, shutdown);
+        // ffmpeg ending because of it is not the provider's failure.
+        this.stopRequested = true;
         this.status = 'stopped';
         this.stopWatchdog();
 
@@ -1218,6 +1221,9 @@ class TranscodeSession extends EventEmitter {
                 this.timings.playlistReady = Date.now();
                 return true;
             }
+            // 0180: stopped on request (a replacement, a DELETE): not a failure, so no
+            // "ended before producing a playlist" diagnostics; the resolve reports it.
+            if (this.stopRequested) return false;
             // ffmpeg has already ended without a playlist, and nothing will
             // restart it (a pending retry leaves the status 'pending'): there is
             // nothing to wait for. Before 0113 this polled out the whole timeout
