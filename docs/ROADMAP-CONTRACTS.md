@@ -22,6 +22,7 @@ during testing.
 | C-G Channel health | 0133, 0142 (stalls) | 19 | Implemented; verified (1.7, R2.6) |
 | C-H Sport categories | 0146 | 28 (row), removed in 30 | Implemented; its Home row superseded by C-I; now one sport signal |
 | C-I Sport events | 0147–0153 | 30, 31 (Replays), 32 (72 h) | Implemented; verified through 0151/app 31 (R3.x, R4.1–R4.3); 0152, 0153 and app 32 awaiting a check |
+| C-K Licence reminders | 0168 | A1 (build 36) | Server implemented; Apple pending |
 
 ---
 
@@ -176,3 +177,19 @@ Sport is recognised per **programme**, not per channel: about 100 channels carry
     the C-H row.
   - Upcoming events open an event page: Watch when it starts (while the app stays open), Record, the channel list.
   - Refresh every 60 s while visible.
+
+## C-K. Licence reminders (30 Sept, multi-provider failover). Flag: `providerReminders`
+
+Each provider's subscription end comes from its Xtream `player_api.php` (`exp_date`), overridden by dates Mark types in
+(an end date, or a purchase date plus a term in months). The server tells clients which are due, so the Apple TV can warn.
+- `GET /api/providers/reminders` → `200 [ { id, name, expiresAt, daysLeft } ]`, soonest first; `[]` when nothing is due.
+  Token required: any signed-in user or paired device.
+  - Lists **enabled** providers whose effective expiry is **7 days or less** away, or already past. Backups are included.
+  - `expiresAt`: milliseconds since 1970. `daysLeft`: whole days, rounded up; 0 or negative once it has ended.
+  - Nothing else is returned: no role, login or URL.
+  - A provider whose expiry is unknown (its account could not be read and no dates are set) is never listed. A failed
+    account check keeps the last good values and never makes a provider look expired.
+- **Apple:** on launch and when returning to the foreground, at most once per local day per device, a short popup naming
+  the provider and date ("Trex expires Tue 30 Mar. Renew it, then update the dates in PigTV's web settings."), closing
+  after 15 s or on any button. Without the flag, or with an empty list, nothing is shown.
+- Added to `APPLE_CLIENT_ROUTES` in `test/api-404.test.js`.
