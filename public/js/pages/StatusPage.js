@@ -173,7 +173,8 @@ class StatusPage {
                 `<span class="status-event ${stateClass(p.state)}">${e(p.state || 'up')}${p.downUntil ? ` until ${this.time(p.downUntil)}` : ''}</span>`,
                 `${p.connections.used}/${p.connections.limit}`,
                 expiryText(p),
-                p.accountOk ? '<span class="status-event status-success">OK</span>' : '<span class="status-event status-failure">Error</span>'
+                p.accountOk === null || p.accountOk === undefined ? 'not checked yet'
+                    : p.accountOk ? '<span class="status-event status-success">OK</span>' : '<span class="status-event status-failure">Error</span>'
             ]),
             'No providers'));
     }

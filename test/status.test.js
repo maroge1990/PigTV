@@ -167,6 +167,22 @@ test('never a provider URL: not the session\'s, the sync error\'s, a logo\'s or 
     assert.ok(!text.includes('://'), 'nothing URL-shaped at all');
 });
 
+test('0176: the status document lists providers with state, connections and expiry, and names each session\'s provider', async () => {
+    const { body, text } = await get('/api/status', adminToken);
+    assert.ok(Array.isArray(body.providers));
+    const p = body.providers.find(x => x.id === source.id);
+    assert.ok(p, 'the stream source is listed');
+    assert.equal(p.name, 'Household');
+    assert.equal(p.role, 'primary');
+    assert.equal(p.state, 'up');
+    assert.deepEqual(Object.keys(p.connections).sort(), ['limit', 'used']);
+    assert.equal(p.accountOk, null, 'never read: neither OK nor an error');
+    assert.deepEqual(Object.keys(p).sort(), ['accountCheckedAt', 'accountOk', 'connections', 'downUntil', 'enabled', 'expired',
+        'expiresAt', 'expirySource', 'id', 'name', 'role', 'state'], 'whitelisted fields only');
+    assert.ok(!text.includes(SECRET));
+    assert.ok('provider' in body.sessions[0], 'sessions carry a provider name field');
+});
+
 test('the recent-plays buffer keeps the last 50, newest first', () => {
     playbackEvents.reset();
     for (let i = 1; i <= 60; i++) playbackEvents.record({ type: 'play-end', channel: `Channel ${i}`, watchedSec: i });

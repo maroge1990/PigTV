@@ -209,47 +209,22 @@ class App {
         const text = document.getElementById('provider-reminder-text');
         const closeBtn = document.getElementById('provider-reminder-close');
         if (!banner || !text || !closeBtn) return;
-
+        const R = window.ProviderReminders;
+        banner.style.display = 'none';
+        if (R.dismissedToday(localStorage)) return;
         try {
-            // Check if dismissed today
-            const dismissed = localStorage.getItem('pigtv_reminder_dismissed');
-            const today = new Date().toISOString().split('T')[0];
-            if (dismissed === today) {
-                banner.style.display = 'none';
-                return;
-            }
-
             const reminders = await API.request('GET', '/providers/reminders');
-            if (!Array.isArray(reminders) || reminders.length === 0) {
-                banner.style.display = 'none';
-                return;
-            }
-
-            // Build reminder text: "Provider expires Date (N days). Renew it, then update..."
-            const lines = reminders.map(r => {
-                const date = new Date(r.expiresAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: '2-digit' });
-                if (r.daysLeft === 0) {
-                    return `${r.name} is expired. Renew it, then update the dates in Settings → Providers.`;
-                } else {
-                    return `${r.name} expires ${date} (in ${r.daysLeft} day${r.daysLeft === 1 ? '' : 's'}). Renew it, then update the dates in Settings → Providers.`;
-                }
-            });
-            text.innerHTML = lines.map(l => `<div>${this.escape(l)}</div>`).join('');
-
-            closeBtn.addEventListener('click', (e) => {
+            if (!Array.isArray(reminders) || reminders.length === 0) return;
+            text.innerHTML = R.lines(reminders).map(l => `<div>${this.escape(l)}</div>`).join('');
+            // Assigned, not added: a second sign-in must not stack listeners.
+            closeBtn.onclick = (e) => {
                 e.preventDefault();
-                try {
-                    localStorage.setItem('pigtv_reminder_dismissed', today);
-                } catch (err) {
-                    console.warn('Could not store dismissed reminder:', err);
-                }
+                R.dismiss(localStorage);
                 banner.style.display = 'none';
-            });
-
+            };
             banner.style.display = 'flex';
         } catch (err) {
             console.warn('Could not fetch provider reminders:', err.message);
-            banner.style.display = 'none';
         }
     }
 

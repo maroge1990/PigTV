@@ -263,7 +263,8 @@ function providersStatus(settings = {}) {
                 expirySource: expInfo.from || null,
                 expired,
                 accountCheckedAt: account?.checked_at || null,
-                accountOk: account?.ok !== false
+                // null until the account was first read (SQLite stores ok as 0/1)
+                accountOk: account && account.checked_at ? account.ok === 1 || account.ok === true : null
             };
         });
     } catch (e) {
