@@ -2,11 +2,12 @@ const { getDb } = require('../db/sqlite');
 const { stripBadgeSuffix } = require('./textCleanup');
 const { bumpLibraryRev } = require('./libraryRev');
 const { refreshChannelNumbers } = require('./channelNumbers');
-const { stableChannelId, summarise } = require('./stableIds');
+const { stableChannelId, providerStreamId, summarise } = require('./stableIds');
 const { sources, settings } = require('../db'); // For source config and settings
 const xtreamApi = require('./xtreamApi');
 const { redact } = require('../redact');
 const m3uParser = require('./m3uParser');
+const backupChannels = require('./backupChannels');
 const epgParser = require('./epgParser');
 
 // Sync tracking
@@ -154,9 +155,10 @@ class SyncService {
                 if (!source.enabled) continue;
 
                 // Check if we have any data at all for this source
-                const hasData = db.prepare(
-                    'SELECT COUNT(*) as c FROM playlist_items WHERE source_id = ?'
-                ).get(source.id);
+                // 0170: a backup provider keeps its channels in backup_channels
+                const hasData = source.role === 'backup' && source.type !== 'epg'
+                    ? { c: backupChannels.count(source.id) }
+                    : db.prepare('SELECT COUNT(*) as c FROM playlist_items WHERE source_id = ?').get(source.id);
 
                 if (!hasData || hasData.c === 0) {
                     console.log(`[Sync] Source "${source.name}" has no data, syncing...`);
@@ -228,9 +230,14 @@ class SyncService {
             // Update status
             this.updateSyncStatus(sourceId, 'all', 'syncing');
 
-            if (source.type === 'xtream') {
+            const isBackup = source.role === 'backup' && source.type !== 'epg';
+            if (isBackup) {
+                await this.syncBackup(source);
+            } else if (source.type === 'xtream') {
+                this.dropBackupRows(source.id);
                 await this.syncXtream(source);
             } else if (source.type === 'm3u') {
+                this.dropBackupRows(source.id);
                 await this.syncM3u(source);
             } else if (source.type === 'epg') {
                 await this.syncEpg(source);
@@ -242,10 +249,11 @@ class SyncService {
             // generation flip inside syncEpg() also changes epg_state directly,
             // which currentGuideVersion() reads on its own - this bump covers the
             // playlist/category side, which has nothing else recording a change.
-            bumpLibraryRev();
+            // 0170: a backup provider is not library-facing: nothing it does moves the library.
+            if (!isBackup) bumpLibraryRev();
             // 0117: number any channel that is new, refresh the reservations of
             // the ones still here, release numbers reserved for 30 days.
-            if (source.type !== 'epg') refreshChannelNumbers();
+            if (source.type !== 'epg' && !isBackup) refreshChannelNumbers();
             // 0168: the provider's account (expiry, connections) is re-read after a good sync,
             // in the background: it never slows or fails the sync.
             if (source.type !== 'epg') {
@@ -322,6 +330,121 @@ class SyncService {
             await this.syncEpgFromUrl(source.id, xmltvUrl);
         } catch (e) {
             console.warn('[Sync] XMLTV fetch failed, skipping EPG sync for now:', e.message);
+        }
+    }
+
+    /**
+     * 0170: a source that is a primary (again) has no backup rows.
+     */
+    dropBackupRows(sourceId) {
+        const n = backupChannels.removeFor(sourceId);
+        if (n > 0) console.log(`[Sync] Removed ${n} backup channels of source ${sourceId} (it is a primary now)`);
+    }
+
+    /**
+     * 0170: a source that became a backup keeps nothing in the library. Returns whether
+     * anything was removed (then the library, and the channel numbers, have changed).
+     */
+    dropLibraryRows(sourceId) {
+        const db = getDb();
+        const items = db.prepare('DELETE FROM playlist_items WHERE source_id = ?').run(sourceId).changes;
+        const cats = db.prepare('DELETE FROM categories WHERE source_id = ?').run(sourceId).changes;
+        if (items + cats === 0) return false;
+        console.log(`[Sync] Removed ${items} channels and ${cats} categories of source ${sourceId} from the library (it is a backup now)`);
+        return true;
+    }
+
+    /**
+     * 0170 (multi-provider P2): sync a backup provider. List only: the live categories and
+     * streams (Xtream) or the live entries (M3U), no VOD, series or XMLTV. Writes
+     * backup_channels alone, replaced in one transaction after everything has been fetched,
+     * so a failed fetch leaves the previous rows. Then the optional id overlay, then the linker.
+     */
+    async syncBackup(source) {
+        if (this.dropLibraryRows(source.id)) {
+            refreshChannelNumbers();
+            bumpLibraryRev();
+        }
+
+        const rows = [];
+        if (source.type === 'xtream') {
+            const api = xtreamApi.createFromSource(source);
+            console.log(`[Sync] Fetching backup live channels for ${source.name}`);
+            const cats = await api.getLiveCategories();
+            const streams = await api.getLiveStreams();
+            if (!Array.isArray(streams)) throw new Error('The backup provider returned no channel list');
+            const names = new Map((Array.isArray(cats) ? cats : []).map(c => [String(c.category_id), c.category_name]));
+            for (const s of streams) {
+                if (!s || s.stream_id == null) continue;
+                rows.push({
+                    streamId: String(s.stream_id),
+                    name: stripBadgeSuffix(s.name) || `Channel ${s.stream_id}`,
+                    categoryId: s.category_id == null ? null : String(s.category_id),
+                    categoryName: names.get(String(s.category_id)) || null,
+                    tvgId: s.epg_channel_id || null,
+                    logo: s.stream_icon || null,
+                    urlData: null
+                });
+            }
+        } else if (source.type === 'm3u') {
+            console.log(`[Sync] Fetching backup playlist for ${source.name}`);
+            let credentialsLine = null;
+            for await (const batch of m3uParser.fetchAndParseStreaming(source.url)) {
+                if (batch.credentials) credentialsLine = batch.credentials;
+                for (const ch of batch.channels) {
+                    const streamId = providerStreamId(ch.url) || stableChannelId(ch.url);
+                    if (!streamId) continue;
+                    rows.push({
+                        streamId,
+                        name: ch.name,
+                        categoryId: ch.groupTitle || null,
+                        categoryName: ch.groupTitle || null,
+                        tvgId: backupChannels.realTvgId(ch),
+                        logo: ch.tvgLogo || null,
+                        urlData: ch.url
+                    });
+                }
+            }
+            if (credentialsLine) {
+                try { require('./providerAccounts').noteM3uHeader(source.id, credentialsLine); } catch (e) { /* the stream URLs are the fallback */ }
+            }
+        } else {
+            throw new Error(`A ${source.type} source cannot be a backup`);
+        }
+        // Nothing listed is a failed fetch, not an empty provider: keep what we had.
+        if (!rows.length) throw new Error('The backup provider listed no channels');
+
+        const overlay = source.idOverlayUrl ? await this.fetchOverlay(source) : null;
+        backupChannels.replaceAll(source.id, rows, overlay);
+        console.log(`[Sync] Backup ${source.name}: ${rows.length} channels${overlay ? `, ${overlay.size} overlay ids` : ''}`);
+
+        try {
+            const links = require('./channelLinks');
+            if (typeof links.relinkSource === 'function') await links.relinkSource(source.id);
+        } catch (e) {
+            if (e && e.code !== 'MODULE_NOT_FOUND') console.warn('[Sync] Relink after backup sync failed:', redact(e.message));
+        }
+    }
+
+    /**
+     * 0170: the id overlay of a backup: an EPGenius M3U whose tvg-ids are copied onto the raw
+     * list by stream id. Returns Map(stream id -> tvg-id). A failure is logged (redacted, no
+     * URL) and is not fatal: the overlay values the rows already have are kept.
+     */
+    async fetchOverlay(source) {
+        try {
+            const map = new Map();
+            for await (const batch of m3uParser.fetchAndParseStreaming(source.idOverlayUrl)) {
+                for (const ch of batch.channels) {
+                    const id = providerStreamId(ch.url);
+                    const tvg = backupChannels.realTvgId(ch);
+                    if (id && tvg) map.set(id, tvg);
+                }
+            }
+            return map;
+        } catch (e) {
+            console.warn(`[Sync] Overlay for ${source.name} failed, keeping the previous ids: ${redact(e && e.message)}`);
+            return backupChannels.overlayOf(source.id);
         }
     }
 

@@ -225,6 +225,33 @@ function initSchema() {
         );
     `);
 
+    // A backup provider's live channels (0170, multi-provider brief 2.3). Never read by the
+    // library, guide or numbers: those only see playlist_items. `stream_id` is the provider's
+    // numeric stream id (an M3U entry with none gets a hash of its credential-stripped URL).
+    // `url_data` holds an M3U backup's stream URL, which contains the login: it is never
+    // returned by an API or logged. It is NULL for an Xtream backup (the URL is built at
+    // resolve time). `region`, `quality` and `is_event` are the linker's (channelLinks.js).
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS backup_channels (
+            source_id INTEGER NOT NULL,
+            stream_id TEXT NOT NULL,
+            name TEXT,
+            category_id TEXT,
+            category_name TEXT,
+            tvg_id TEXT,
+            overlay_tvg_id TEXT,
+            logo TEXT,
+            url_data TEXT,
+            region TEXT,
+            quality TEXT,
+            is_event INTEGER,
+            updated_at INTEGER,
+            PRIMARY KEY (source_id, stream_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_backup_channels_tvg ON backup_channels(source_id, tvg_id);
+        CREATE INDEX IF NOT EXISTS idx_backup_channels_overlay ON backup_channels(source_id, overlay_tvg_id);
+    `);
+
     // Channel health (0133, roadmap S4.1, contract C-G): one row per start
     // attempt, keyed like channel_numbers (source + stable_id, else item_id).
     // `ok` is 0 for a failed start; `reason` is its category (refused,

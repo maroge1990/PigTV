@@ -11,6 +11,7 @@ const { NUMBER_JOIN } = require('../services/channelNumbers');
 const sportCategories = require('../services/sportCategories');
 const providerFields = require('../services/providerFields');
 const providerAccounts = require('../services/providerAccounts');
+const backupChannels = require('../services/backupChannels');
 
 router.use(requireAuth);
 router.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
@@ -57,7 +58,8 @@ router.get('/status', requireAdmin, async (req, res) => {
 // The providers with their settings (admin; 0168): every non-EPG source, role and all.
 router.get('/providers', requireAdmin, async (req, res) => {
     try {
-        res.json((await sources.getAll()).filter(s => s.type !== 'epg').map(adminSummary));
+        res.json((await sources.getAll()).filter(s => s.type !== 'epg').map(s => ({
+            ...adminSummary(s), ...(s.role === 'backup' ? { backupChannels: backupChannels.count(s.id) } : {}) })));
     } catch (err) {
         console.error('Error getting providers:', err);
         res.status(500).json({ error: 'Failed to get providers' });
@@ -241,6 +243,7 @@ router.delete('/:id', async (req, res) => {
         deleteSyncStatus.run(sourceId);
         deleteNumbers.run(sourceId);
         providerAccounts.remove(sourceId); // 0168
+        backupChannels.removeFor(sourceId); // 0170
 
         console.log(`[Source] Cascade delete for source ${sourceId}: ${catResult.changes} categories, ${itemResult.changes} items, ${epgResult.changes} EPG programs`);
 
@@ -286,6 +289,22 @@ router.post('/:id/toggle', async (req, res) => {
  *     effective: { expiresAt, expirySource: 'manual'|'term'|'account'|null, limit, expired } }
  * POST /api/sources/:id/account/check   reads the provider's player_api.php now, answers the same.
  */
+/**
+ * GET /api/sources/:id/backup-channels?search=&limit=   (admin; 0170)
+ * A backup provider's channels for the manual pick: up to 200 rows of
+ * { stream_id, name, category_name, tvg_id, overlay_tvg_id }. Never the stream URL.
+ */
+router.get('/:id/backup-channels', async (req, res) => {
+    try {
+        const source = await sources.getById(req.params.id);
+        if (!source || source.type === 'epg') return res.status(404).json({ error: 'Provider not found' });
+        res.json(backupChannels.search(source.id, req.query.search, req.query.limit));
+    } catch (err) {
+        console.error('Error searching backup channels:', err);
+        res.status(500).json({ error: 'Failed to search the backup channels' });
+    }
+});
+
 router.get('/:id/account', async (req, res) => {
     try {
         const source = await sources.getById(req.params.id);
