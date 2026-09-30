@@ -134,7 +134,9 @@ const APPLE_CLIENT_ROUTES = [
     ['GET', '/api/transcode/abc/stream.m3u8'], ['GET', '/api/transcode/abc/master.m3u8'],
     ['DELETE', '/api/playback/abc'],
     // 0148 (C-I): the Sport tab and the Home screen's "Sport now & next" row.
-    ['GET', '/api/sports/events']
+    ['GET', '/api/sports/events'],
+    // 0168 (C-K): licence reminders.
+    ['GET', '/api/providers/reminders']
 ];
 
 test('every route the Apple client calls still reaches its real handler', async () => {

@@ -52,7 +52,8 @@ function readInChild(expr) {
 }
 
 test('the first start migrates a sample db.json and keeps it as db.json.migrated', async () => {
-    assert.deepEqual(await db.sources.getAll(), SAMPLE.sources, 'sources, every field');
+    // 0168: a non-EPG source stored with no role reads as a primary (stored rows are not rewritten).
+    assert.deepEqual(await db.sources.getAll(), SAMPLE.sources.map(s => (s.type === 'epg' ? s : { ...s, role: 'primary' })), 'sources, every field');
     assert.deepEqual(await db.users.getAll(), SAMPLE.users, 'users, password hashes included');
     const settings = await db.settings.get();
     assert.equal(settings.quality, 'high');

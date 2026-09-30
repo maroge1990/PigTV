@@ -206,6 +206,25 @@ function initSchema() {
         );
     `);
 
+    // Provider account info (0168, multi-provider brief 2.2): what a provider's
+    // player_api.php said about the login, one row per source. `exp_date` is in ms.
+    // A failed read updates only ok/error/checked_at, so the last good values stay.
+    // `m3u_login` is the login an M3U source's playlist header named (JSON), if any.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS provider_accounts (
+            source_id INTEGER PRIMARY KEY,
+            status TEXT,
+            exp_date INTEGER,
+            max_connections INTEGER,
+            active_cons INTEGER,
+            is_trial INTEGER,
+            checked_at INTEGER,
+            ok INTEGER NOT NULL DEFAULT 0,
+            error TEXT,
+            m3u_login TEXT
+        );
+    `);
+
     // Channel health (0133, roadmap S4.1, contract C-G): one row per start
     // attempt, keyed like channel_numbers (source + stable_id, else item_id).
     // `ok` is 0 for a failed start; `reason` is its category (refused,

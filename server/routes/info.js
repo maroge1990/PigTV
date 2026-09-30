@@ -106,7 +106,10 @@ async function sendInfo(req, res) {
             // 0156: GET /api/recordings/scheduled?include=recent also lists schedules
             // that ended up missed or failed in the last 7 days, each with its status
             // and error - a missed/failed recording no longer simply disappears.
-            scheduleHistory: true
+            scheduleHistory: true,
+            // 0168 (C-K): GET /api/providers/reminders lists providers whose subscription
+            // ends within 7 days (or has ended).
+            providerReminders: true
         },
 
         // What the server can produce, so a client knows what to ask for.

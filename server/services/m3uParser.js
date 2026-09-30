@@ -194,6 +194,7 @@ async function* parseStreaming(input, batchSize = 500) {
     let currentGroup = null;
     let batch = [];
     let count = 0;
+    let credentials = null; // 0168: the #EXT-X-CREDENTIALS header line, if the playlist has one
 
     let lines;
     if (typeof input === 'string') {
@@ -210,7 +211,9 @@ async function* parseStreaming(input, batchSize = 500) {
         const trimmed = line.trim();
         if (!trimmed) continue;
 
-        if (trimmed.startsWith('#EXTINF:')) {
+        if (trimmed.startsWith('#EXT-X-CREDENTIALS:')) {
+            credentials = trimmed;
+        } else if (trimmed.startsWith('#EXTINF:')) {
             currentInfo = parseExtinf(trimmed);
             if (currentInfo.groupTitle) {
                 groupsSet.add(currentInfo.groupTitle);
@@ -239,7 +242,7 @@ async function* parseStreaming(input, batchSize = 500) {
 
                 // Yield batch when full
                 if (batch.length >= batchSize) {
-                    yield { channels: batch, groups: groupsSet, isLast: false };
+                    yield { channels: batch, groups: groupsSet, isLast: false, credentials };
                     batch = [];
                 }
             }
@@ -248,10 +251,10 @@ async function* parseStreaming(input, batchSize = 500) {
 
     // Yield remaining channels
     if (batch.length > 0) {
-        yield { channels: batch, groups: groupsSet, isLast: true };
+        yield { channels: batch, groups: groupsSet, isLast: true, credentials };
     } else {
         // Yield empty final batch with isLast=true so caller knows we're done
-        yield { channels: [], groups: groupsSet, isLast: true };
+        yield { channels: [], groups: groupsSet, isLast: true, credentials };
     }
 }
 

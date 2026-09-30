@@ -246,6 +246,11 @@ class SyncService {
             // 0117: number any channel that is new, refresh the reservations of
             // the ones still here, release numbers reserved for 30 days.
             if (source.type !== 'epg') refreshChannelNumbers();
+            // 0168: the provider's account (expiry, connections) is re-read after a good sync,
+            // in the background: it never slows or fails the sync.
+            if (source.type !== 'epg') {
+                try { require('./providerAccounts').refresh(sourceId).catch(() => {}); } catch (e) { /* best-effort */ }
+            }
             console.log(`[Sync] Completed sync for source ${source.name}`);
 
         } catch (err) {
@@ -711,8 +716,10 @@ class SyncService {
         let batchCount = 0;
 
         // Stream and process in batches (default 500 channels per batch)
+        let credentialsLine = null; // 0168: the playlist's #EXT-X-CREDENTIALS header, if any
         for await (const batch of m3uParser.fetchAndParseStreaming(source.url)) {
             batchCount++;
+            if (batch.credentials) credentialsLine = batch.credentials;
 
             // Map M3U channel format to our schema
             const playlistItems = batch.channels.map(ch => ({
@@ -747,6 +754,10 @@ class SyncService {
                 console.log(`[Sync] Processed ${totalChannels} channels so far...`);
                 logMemory();
             }
+        }
+
+        if (credentialsLine) {
+            try { require('./providerAccounts').noteM3uHeader(source.id, credentialsLine); } catch (e) { /* the stream URLs are the fallback */ }
         }
 
         console.log(`[Sync] M3U Parsed: ${totalChannels} channels, ${allGroups.size} groups`);

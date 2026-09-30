@@ -122,6 +122,7 @@ process.on('SIGTERM', async () => {
 // API Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/sources', require('./routes/sources'));
+app.use('/api/providers', require('./routes/providers')); // C-K: licence reminders (0168)
 // Stream endpoints accept a token in the query string, because media players
 // cannot send headers. Enforcement is off unless requireStreamAuth is set.
 const streamAuth = require('./auth').streamAuthFromSettings(require('./db'));
@@ -262,6 +263,13 @@ app.listen(PORT, async (err) => {
             console.warn('Recording engine failed to start:', err.message);
         }
     }, 2000);
+
+    // 0168: provider account info (expiry, connection limit) 30 s after startup, then every 6 h.
+    try {
+        require('./services/providerAccounts').startTimers();
+    } catch (err) {
+        console.warn('Provider account refresh failed to start:', err.message);
+    }
 
     // Sync runs independently and may take a long time on a stale EPG source.
     setTimeout(() => {

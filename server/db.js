@@ -211,16 +211,19 @@ function takeId(db) {
 }
 
 const parseRow = (row) => (row ? JSON.parse(row.data) : undefined);
+// 0168: a non-EPG source stored with no role reads as a primary (nothing is rewritten).
+const { withDefaults } = require('./services/providerFields');
+const parseSource = (row) => withDefaults(parseRow(row));
 
 // ---------------------------------------------------------------- sources --
 
 const sources = {
   async getAll() {
-    return store().prepare('SELECT data FROM app_sources ORDER BY id').all().map(parseRow);
+    return store().prepare('SELECT data FROM app_sources ORDER BY id').all().map(parseSource);
   },
 
   async getById(id) {
-    return parseRow(store().prepare('SELECT data FROM app_sources WHERE id = ?').get(parseInt(id)));
+    return parseSource(store().prepare('SELECT data FROM app_sources WHERE id = ?').get(parseInt(id)));
   },
 
   async getByType(type) {
@@ -237,7 +240,7 @@ const sources = {
         updated_at: new Date().toISOString()
       };
       db.prepare('INSERT INTO app_sources (id, data) VALUES (?, ?)').run(newSource.id, JSON.stringify(newSource));
-      return newSource;
+      return withDefaults(newSource);
     });
   },
 
@@ -248,7 +251,7 @@ const sources = {
       if (!current) return null;
       const updated = { ...current, ...updates, id: current.id, updated_at: new Date().toISOString() };
       db.prepare('UPDATE app_sources SET data = ? WHERE id = ?').run(JSON.stringify(updated), key);
-      return updated;
+      return withDefaults(updated);
     });
   },
 
@@ -264,7 +267,7 @@ const sources = {
       source.enabled = !source.enabled;
       source.updated_at = new Date().toISOString();
       db.prepare('UPDATE app_sources SET data = ? WHERE id = ?').run(JSON.stringify(source), key);
-      return source;
+      return withDefaults(source);
     });
   }
 };

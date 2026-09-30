@@ -9,6 +9,8 @@ const { requireAuth, requireAdmin } = require('../auth');
 const { bumpLibraryRev } = require('../services/libraryRev');
 const { NUMBER_JOIN } = require('../services/channelNumbers');
 const sportCategories = require('../services/sportCategories');
+const providerFields = require('../services/providerFields');
+const providerAccounts = require('../services/providerAccounts');
 
 router.use(requireAuth);
 router.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
@@ -18,6 +20,15 @@ router.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); }
 function sourceSummary(source) {
     return { id: source.id, type: source.type, name: source.name, enabled: source.enabled };
 }
+
+// What an admin sees of a source: the summary plus its provider settings (0168). The ID overlay
+// address is a capability URL with a login in it, so only the single-source edit form gets it
+// (GET /:id); the provider list says only whether one is set. The lists everyone can read
+// (GET /, GET /type/:type) and the create/update replies stay the plain summary.
+const adminSummary = (source) => ({ ...sourceSummary(source), ...providerFields.adminView(source) });
+
+// Does this source have live channels? (for "one enabled primary with streams")
+const hasStreams = (id) => Boolean(getDb().prepare(`SELECT 1 FROM playlist_items WHERE source_id = ? AND type = 'live' LIMIT 1`).get(id));
 
 // Get all sources
 router.get('/', async (req, res) => {
@@ -43,6 +54,16 @@ router.get('/status', requireAdmin, async (req, res) => {
     }
 });
 
+// The providers with their settings (admin; 0168): every non-EPG source, role and all.
+router.get('/providers', requireAdmin, async (req, res) => {
+    try {
+        res.json((await sources.getAll()).filter(s => s.type !== 'epg').map(adminSummary));
+    } catch (err) {
+        console.error('Error getting providers:', err);
+        res.status(500).json({ error: 'Failed to get providers' });
+    }
+});
+
 // Get sources by type
 router.get('/type/:type', async (req, res) => {
     try {
@@ -63,8 +84,9 @@ router.get('/:id', requireAdmin, async (req, res) => {
         }
         // Only the admin edit form needs the URL/username. Passwords remain
         // write-only: an omitted password on update preserves the saved value.
-        res.json({ ...sourceSummary(source), url: source.url, username: source.username,
-            hasPassword: Boolean(source.password) });
+        res.json({ ...adminSummary(source), url: source.url, username: source.username,
+            hasPassword: Boolean(source.password),
+            ...(source.type !== 'epg' ? { idOverlayUrl: source.idOverlayUrl ?? null } : {}) });
     } catch (err) {
         console.error('Error getting source:', err);
         res.status(500).json({ error: 'Failed to get source' });
@@ -148,7 +170,12 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ error: 'Invalid source type' });
         }
 
-        const source = await sources.create({ type, name, url, username, password });
+        const checked = providerFields.validate(req.body, {
+            type, others: await sources.getAll(), hasStreams, enabled: true
+        });
+        if (checked.error) return res.status(400).json({ error: checked.error });
+
+        const source = await sources.create({ type, name, url, username, password, ...checked.fields });
         // Trigger Sync
         syncService.syncSource(source.id).catch(console.error);
         res.status(201).json(sourceSummary(source));
@@ -167,11 +194,17 @@ router.put('/:id', async (req, res) => {
         }
 
         const { name, url, username, password } = req.body;
+        const checked = providerFields.validate(req.body, {
+            existing, type: existing.type, enabled: existing.enabled,
+            others: (await sources.getAll()).filter(o => o.id !== existing.id), hasStreams
+        });
+        if (checked.error) return res.status(400).json({ error: checked.error });
         const updated = await sources.update(req.params.id, {
             name: name || existing.name,
             url: url || existing.url,
             username: username !== undefined ? username : existing.username,
-            password: password !== undefined ? password : existing.password
+            password: password !== undefined ? password : existing.password,
+            ...checked.fields
         });
         // Trigger Sync (if critical fields changed? safely just trigger it)
         syncService.syncSource(parseInt(req.params.id)).catch(console.error);
@@ -207,6 +240,7 @@ router.delete('/:id', async (req, res) => {
         deleteEpgState.run(sourceId);
         deleteSyncStatus.run(sourceId);
         deleteNumbers.run(sourceId);
+        providerAccounts.remove(sourceId); // 0168
 
         console.log(`[Source] Cascade delete for source ${sourceId}: ${catResult.changes} categories, ${itemResult.changes} items, ${epgResult.changes} EPG programs`);
 
@@ -243,6 +277,35 @@ router.post('/:id/toggle', async (req, res) => {
     } catch (err) {
         console.error('Error toggling source:', err);
         res.status(500).json({ error: 'Failed to toggle source' });
+    }
+});
+
+/**
+ * GET /api/sources/:id/account   (admin; 0168)
+ *   { account: { status, expiresAt, maxConnections, activeCons, isTrial, checkedAt, ok, error } | null,
+ *     effective: { expiresAt, expirySource: 'manual'|'term'|'account'|null, limit, expired } }
+ * POST /api/sources/:id/account/check   reads the provider's player_api.php now, answers the same.
+ */
+router.get('/:id/account', async (req, res) => {
+    try {
+        const source = await sources.getById(req.params.id);
+        if (!source || source.type === 'epg') return res.status(404).json({ error: 'Provider not found' });
+        res.json(providerAccounts.describe(source));
+    } catch (err) {
+        console.error('Error getting provider account:', err);
+        res.status(500).json({ error: 'Failed to get the provider account' });
+    }
+});
+
+router.post('/:id/account/check', async (req, res) => {
+    try {
+        const source = await sources.getById(req.params.id);
+        if (!source || source.type === 'epg') return res.status(404).json({ error: 'Provider not found' });
+        await providerAccounts.refresh(source.id);
+        res.json(providerAccounts.describe(source));
+    } catch (err) {
+        console.error('Error checking provider account:', err);
+        res.status(500).json({ error: 'Failed to check the provider account' });
     }
 });
 
