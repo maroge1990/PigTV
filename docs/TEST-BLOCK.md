@@ -36,9 +36,9 @@ with a follow list, checked against ESPN fixtures where ESPN covers the league (
 unanswered recording prompt hands over after 3 minutes; the app opens on Home; Swift 6 stays on (R2.15); branding
 direction A "Spotlight", the pig logo itself never changed.
 
-## Round 7: multi-provider failover (server 0177 · app 36)
+## Round 7: multi-provider failover (server 0179 · app 36)
 
-**Deploy first:** Unraid → Docker → PigTV → **Force Update**; `/api/version` should say **0177**. Install **app build 36**.
+**Deploy first:** Unraid → Docker → PigTV → **Force Update**; `/api/version` should say **0179**. Install **app build 36**.
 Anything that fails: send the step number, what you saw and roughly when. Useful log filter:
 `docker logs PigTV --since 30m 2>&1 | grep -E "failover|\[Providers\]|resolve timing|Recordings"`
 
@@ -48,12 +48,14 @@ Anything that fails: send the step number, what you saw and roughly when. Useful
 - [ ] R7.2 Settings → Sources → add **Trex** as **Xtream**, role **Backup** (server `http://line.trx-pro-iptvstore.cc`, its
       username and password). Then Settings → **Providers** → Trex → paste its EPGenius M3U link as the id overlay → Save →
       Sync now. The card shows about 55,000 backup channels.
-- [ ] R7.3 Add **Dream4K** the same way (Xtream `http://line.d4k-pro-iptvstore.cc`, role Backup, its EPGenius link as overlay).
-- [ ] R7.4 Providers: order the backups the way you want with the arrows. **Check now** on each: Strong8K expires
+- [ ] R7.3 Add **Dream4K** the same way: **Xtream** (not its EPGenius M3U: the raw list has the Australian free-to-air
+      channels EPGenius dropped), server `http://line.d4k-pro-iptvstore.cc`, role Backup, its EPGenius link as the overlay.
+- [ ] R7.4 Providers: order the backups with the arrows (plan: **Dream4K first** - a different upstream from Strong8K;
+      Trex, which shares Strong8K's upstream, second). **Check now** on each: Strong8K expires
       **14 Jan 2027**, Dream4K **29 Mar 2027**, Trex **30 Mar 2027**, each "1 connection". (Strong8K's account page returned
       502 all of 30 Sept; if it still does, the card shows the error and the provider still works.)
-- [ ] R7.5 Settings → **Backup links**: the summary shows mostly *auto* for UK Sky/TNT and NZ, *pending* for Australian
-      channels on Trex. Approve the AU sport and free-to-air you care about ("Approve all pending in <category>" is fine
+- [ ] R7.5 Settings → **Backup links**: Trex shows mostly *auto* (raw-name / raw-epg) including most Australian channels
+      (0178); Dream4K shows *auto* for UK TNT, NZ, AU Fox/beIN, and *pending* for its Australian free-to-air (messy names). Approve the AU sport and free-to-air you care about ("Approve all pending in <category>" is fine
       after a quick look). Link **ESPN (AU)** to Trex "AU| ESPN 1 HD" by hand with **Pick…**. Nothing looks wrong-country
       (no US ABC for ABC, no French beIN).
 
