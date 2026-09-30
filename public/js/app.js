@@ -29,7 +29,10 @@ class App {
         // Check authentication first
         await this.checkAuth();
         if (!this.currentUser) return;
-        if (this.currentUser.role === 'admin') this.sourceManager.pollSyncStatus();
+        if (this.currentUser.role === 'admin') {
+            this.sourceManager.pollSyncStatus();
+            this.showProviderReminders();
+        }
 
         // Mobile menu toggle
         const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
@@ -199,6 +202,61 @@ class App {
             `Recording "${first.title}" on ${first.channel_name || 'unknown channel'} until ${untilStr}${extra}. ` +
             `Live playback may fail while this runs if your provider allows only one stream.`;
         banner.style.display = 'flex';
+    }
+
+    async showProviderReminders() {
+        const banner = document.getElementById('provider-reminder-banner');
+        const text = document.getElementById('provider-reminder-text');
+        const closeBtn = document.getElementById('provider-reminder-close');
+        if (!banner || !text || !closeBtn) return;
+
+        try {
+            // Check if dismissed today
+            const dismissed = localStorage.getItem('pigtv_reminder_dismissed');
+            const today = new Date().toISOString().split('T')[0];
+            if (dismissed === today) {
+                banner.style.display = 'none';
+                return;
+            }
+
+            const reminders = await API.request('GET', '/providers/reminders');
+            if (!Array.isArray(reminders) || reminders.length === 0) {
+                banner.style.display = 'none';
+                return;
+            }
+
+            // Build reminder text: "Provider expires Date (N days). Renew it, then update..."
+            const lines = reminders.map(r => {
+                const date = new Date(r.expiresAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: '2-digit' });
+                if (r.daysLeft === 0) {
+                    return `${r.name} is expired. Renew it, then update the dates in Settings → Providers.`;
+                } else {
+                    return `${r.name} expires ${date} (in ${r.daysLeft} day${r.daysLeft === 1 ? '' : 's'}). Renew it, then update the dates in Settings → Providers.`;
+                }
+            });
+            text.innerHTML = lines.map(l => `<div>${this.escape(l)}</div>`).join('');
+
+            closeBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                try {
+                    localStorage.setItem('pigtv_reminder_dismissed', today);
+                } catch (err) {
+                    console.warn('Could not store dismissed reminder:', err);
+                }
+                banner.style.display = 'none';
+            });
+
+            banner.style.display = 'flex';
+        } catch (err) {
+            console.warn('Could not fetch provider reminders:', err.message);
+            banner.style.display = 'none';
+        }
+    }
+
+    escape(text) {
+        return String(text ?? '').replace(/[&<>"']/g, ch => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[ch]);
     }
 
     async checkAuth() {

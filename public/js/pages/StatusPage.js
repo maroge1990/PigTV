@@ -148,11 +148,44 @@ class StatusPage {
             'Nothing fetched yet (no followed league ESPN covers, or the first refresh has not run)'));
     }
 
+    renderProviders(providers) {
+        const e = (v) => this.escape(v);
+        if (!providers || !providers.length) {
+            return this.section('Providers', '<p class="setting-hint">No providers configured.</p>');
+        }
+        const stateClass = (state) => {
+            if (state === 'down') return 'status-failure';
+            if (state === 'half-open') return 'status-warning';
+            return 'status-success';
+        };
+        const expiryText = (prov) => {
+            if (!prov.expiresAt) return 'unknown';
+            if (prov.expired) return '<span class="status-event status-failure">Expired</span>';
+            const d = new Date(prov.expiresAt);
+            const days = prov.daysLeft !== undefined ? prov.daysLeft : Math.ceil((prov.expiresAt - Date.now()) / (24 * 60 * 60 * 1000));
+            return `${d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} (${days}d)`;
+        };
+        return this.section('Providers', this.table(
+            ['Name', 'Role', 'State', 'Connections', 'Expires', 'Account'],
+            providers.map(p => [
+                e(p.name),
+                e(p.role || 'primary'),
+                `<span class="status-event ${stateClass(p.state)}">${e(p.state || 'up')}${p.downUntil ? ` until ${this.time(p.downUntil)}` : ''}</span>`,
+                `${p.connections.used}/${p.connections.limit}`,
+                expiryText(p),
+                p.accountOk ? '<span class="status-event status-success">OK</span>' : '<span class="status-event status-failure">Error</span>'
+            ]),
+            'No providers'));
+    }
+
     render(status) {
         const e = (v) => this.escape(v);
         const out = [];
 
         out.push(this.renderRecordingsFolderWarning(status.recordingsFolder));
+
+        // Providers (P8, 0175)
+        out.push(this.renderProviders(status.providers));
 
         // Live sessions
         out.push(this.section('Live sessions', this.table(

@@ -3968,6 +3968,40 @@ kbd {
   50% { opacity: 0.35; }
 }
 
+/* Provider reminder banner (P8, 0175) */
+.provider-reminder {
+  justify-content: space-between;
+  gap: var(--space-md);
+  background: rgba(59, 130, 246, 0.12);
+  border-bottom: 1px solid var(--color-accent);
+}
+
+.provider-reminder #provider-reminder-text {
+  flex: 1;
+}
+
+.provider-reminder #provider-reminder-text > div {
+  display: inline;
+  margin-right: var(--space-sm);
+}
+
+.btn-close {
+  flex: 0 0 auto;
+  width: auto;
+  padding: 4px 8px;
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 1.25rem;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+
+.btn-close:hover {
+  color: var(--color-text-primary);
+}
+
 /* The whole EPG channel cell tunes the channel */
 .epg-channel-info {
   cursor: pointer;

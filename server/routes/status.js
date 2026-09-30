@@ -33,6 +33,10 @@ const playbackEvents = require('../services/playbackEvents');
 const { stableChannelId } = require('../services/stableIds');
 const channelHealth = require('../services/channelHealth');
 const sportsFixtures = require('../services/sportsFixtures');
+const providerRouting = require('../services/providerRouting');
+const providerAccounts = require('../services/providerAccounts');
+const streamCoordinator = require('../services/streamCoordinator');
+const recordingEngine = require('../services/recordingEngine');
 
 router.use(requireAuth, requireAdmin);
 
@@ -107,6 +111,17 @@ function tunerRows(now) {
     return rows;
 }
 
+function providerName(providerId) {
+    if (providerId === null || providerId === undefined) return null;
+    try {
+        const id = Number(providerId);
+        const row = getDb().prepare('SELECT name FROM app_sources WHERE id = ?').get(id);
+        return row?.name || null;
+    } catch (e) {
+        return null;
+    }
+}
+
 function liveSessions() {
     const now = Date.now();
     if (require('../services/tuner').enabled()) return tunerRows(now);
@@ -118,6 +133,7 @@ function liveSessions() {
             channel: channelNameForUrl(summary.url) || 'unknown',
             owner: summary.owner || null,
             providerId: summary.providerId ?? null,
+            provider: providerName(summary.providerId),
             video: options.videoMode === 'copy' ? 'copy' : 'encode',
             audio: options.audioMode === 'copy' ? 'copy' : (options.audioMode === 'encode' ? 'encode' : 'auto'),
             segmentType: options.segmentType || null,
@@ -208,12 +224,60 @@ function leastReliable() {
     }
 }
 
+/** P8: Provider status for the Status page and admin reminder banner. */
+function providersStatus(settings = {}) {
+    try {
+        const snapshot = providerRouting.snapshot();
+        const activeStreams = streamCoordinator.activeStreams();
+        const activeRecordings = recordingEngine.listActive();
+
+        return (snapshot.providers || []).map(prov => {
+            const id = Number(prov.id);
+            // Count active sessions and recordings for this provider
+            const streamCount = activeStreams.filter(s => s.providerId === id).length;
+            const recCount = activeRecordings.filter(r => {
+                const recProvider = r.providerId !== undefined ? r.providerId : (r.source_id ?? null);
+                return recProvider === id;
+            }).length;
+            const used = streamCount + recCount;
+
+            const account = providerAccounts.getAccount(id);
+            const sourceRow = getDb().prepare('SELECT data FROM app_sources WHERE id = ?').get(id);
+            let source = null;
+            if (sourceRow) {
+                try { source = JSON.parse(sourceRow.data); } catch (e) { /* skip */ }
+            }
+            const expInfo = providerAccounts.expiryInfo(source, account);
+            const limit = streamCoordinator.providerLimit(id, settings);
+            const expired = providerAccounts.isExpired(source, account);
+
+            return {
+                id,
+                name: prov.name,
+                role: prov.role || 'primary',
+                enabled: source?.enabled !== false,
+                state: prov.state || 'up',
+                downUntil: prov.downUntil || null,
+                connections: { used, limit },
+                expiresAt: expInfo.at || null,
+                expirySource: expInfo.from || null,
+                expired,
+                accountCheckedAt: account?.checked_at || null,
+                accountOk: account?.ok !== false
+            };
+        });
+    } catch (e) {
+        return [];
+    }
+}
+
 router.get('/', async (req, res) => {
     try {
         const settings = await db.settings.get();
         const status = {
             generatedAt: Date.now(),
             build: require('../version'),
+            providers: providersStatus(settings),
             sessions: liveSessions(),
             recordings: recordings(),
             recentProblems: recentProblems(),
