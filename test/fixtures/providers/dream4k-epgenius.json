@@ -1,0 +1,3215 @@
+[
+{
+"name": "ESPN",
+"tvgId": "espn.us",
+"group": "SPORTS",
+"streamId": "1236465",
+"logo": null
+},
+{
+"name": "ESPN 2",
+"tvgId": "espn2.us",
+"group": "SPORTS",
+"streamId": "1236463",
+"logo": null
+},
+{
+"name": "ESPN 8 Ocho",
+"tvgId": "ESPN8:TheOcho(ESPN8).us",
+"group": "SPORTS",
+"streamId": "1847714",
+"logo": null
+},
+{
+"name": "ESPN News",
+"tvgId": "espnnews.us",
+"group": "SPORTS",
+"streamId": "1236464",
+"logo": null
+},
+{
+"name": "ESPN U",
+"tvgId": "espnu.us",
+"group": "SPORTS",
+"streamId": "1236466",
+"logo": null
+},
+{
+"name": "Fox Sports 1",
+"tvgId": "fs1.us",
+"group": "SPORTS",
+"streamId": "1236473",
+"logo": null
+},
+{
+"name": "Fox Sports 2",
+"tvgId": "fs2.us",
+"group": "SPORTS",
+"streamId": "1236474",
+"logo": null
+},
+{
+"name": "ACC Network",
+"tvgId": "accnetwork.us",
+"group": "SPORTS",
+"streamId": "1236425",
+"logo": null
+},
+{
+"name": "Big 12 Studios",
+"tvgId": "big12studios.us",
+"group": "SPORTS",
+"streamId": "1847743",
+"logo": null
+},
+{
+"name": "Big Ten Network",
+"tvgId": "bigtennetwork.us",
+"group": "SPORTS",
+"streamId": "13145",
+"logo": null
+},
+{
+"name": "Pac-12 Insider",
+"tvgId": "pacinsider.us.minus12",
+"group": "SPORTS",
+"streamId": "1847765",
+"logo": null
+},
+{
+"name": "SEC Network",
+"tvgId": "secnetwork.us",
+"group": "SPORTS",
+"streamId": "1236548",
+"logo": null
+},
+{
+"name": "ACCDN",
+"tvgId": "ACCDigitalNetwork(ACCDN).us",
+"group": "SPORTS",
+"streamId": "1847741",
+"logo": null
+},
+{
+"name": "All Women's Sports Network",
+"tvgId": "allwomenssportsnetwork.us",
+"group": "SPORTS",
+"streamId": "1847727",
+"logo": null
+},
+{
+"name": "Altitude Sports",
+"tvgId": "altitudesports.us",
+"group": "SPORTS",
+"streamId": "1254942",
+"logo": null
+},
+{
+"name": "CBS Sports",
+"tvgId": "cbssportshq.us",
+"group": "SPORTS",
+"streamId": "11152",
+"logo": null
+},
+{
+"name": "CBS Sports HQ",
+"tvgId": "cbssportshq.us",
+"group": "SPORTS",
+"streamId": "1847696",
+"logo": null
+},
+{
+"name": "CHSN",
+"tvgId": "chsn.us",
+"group": "SPORTS",
+"streamId": "289346",
+"logo": null
+},
+{
+"name": "Fantasy Sports Network",
+"tvgId": "esportsnetwork.us",
+"group": "SPORTS",
+"streamId": "54241",
+"logo": null
+},
+{
+"name": "Fox Soccer Plus",
+"tvgId": "foxsoccerplus.us",
+"group": "SPORTS",
+"streamId": "197342",
+"logo": null
+},
+{
+"name": "Fubo Sports Network",
+"tvgId": "fubosportsnetwork.us",
+"group": "SPORTS",
+"streamId": "1847706",
+"logo": null
+},
+{
+"name": "Golazo Network",
+"tvgId": "cbssportsgolazonetwork.us",
+"group": "SPORTS",
+"streamId": "1767484",
+"logo": null
+},
+{
+"name": "Golf Channel",
+"tvgId": "golfchannel.us",
+"group": "SPORTS",
+"streamId": "13136",
+"logo": null
+},
+{
+"name": "MASN",
+"tvgId": "midatlanticsportsnetwork.us",
+"group": "SPORTS",
+"streamId": "1309472",
+"logo": null
+},
+{
+"name": "MASN 2",
+"tvgId": "midatlanticsportsnetwork2.us",
+"group": "SPORTS",
+"streamId": "1309473",
+"logo": null
+},
+{
+"name": "MLB Network",
+"tvgId": "mlbnetwork.us",
+"group": "SPORTS",
+"streamId": "75384",
+"logo": null
+},
+{
+"name": "MLB Strike Zone",
+"tvgId": "mlbstrikezone.us",
+"group": "SPORTS",
+"streamId": "1236508",
+"logo": null
+},
+{
+"name": "MSG",
+"tvgId": "msg.us",
+"group": "SPORTS",
+"streamId": "1236513",
+"logo": null
+},
+{
+"name": "MSGSN",
+"tvgId": "msgsnplus.us",
+"group": "SPORTS",
+"streamId": "1236511",
+"logo": null
+},
+{
+"name": "MSG Sportszone",
+"tvgId": "msgsportszone.us",
+"group": "SPORTS",
+"streamId": "1847723",
+"logo": null
+},
+{
+"name": "NASCAR",
+"tvgId": "nascarchannel.us",
+"group": "SPORTS",
+"streamId": "1847735",
+"logo": null
+},
+{
+"name": "NBA TV",
+"tvgId": "nbatv.us",
+"group": "SPORTS",
+"streamId": "1236522",
+"logo": null
+},
+{
+"name": "NBC Sports Bay Area",
+"tvgId": "nbcsportsbayarea.us",
+"group": "SPORTS",
+"streamId": "1258296",
+"logo": null
+},
+{
+"name": "NBC Sports Boston",
+"tvgId": "nbcsportsboston.us",
+"group": "SPORTS",
+"streamId": "76672",
+"logo": null
+},
+{
+"name": "NBC Sports California",
+"tvgId": "nbcsportscalifornia.us",
+"group": "SPORTS",
+"streamId": "289343",
+"logo": null
+},
+{
+"name": "NBC Sports Now",
+"tvgId": "nbcsportsnow.us",
+"group": "SPORTS",
+"streamId": "1847701",
+"logo": null
+},
+{
+"name": "NBC Sports Philadelphia",
+"tvgId": "nbcsportsphiladelphia.us",
+"group": "SPORTS",
+"streamId": "289349",
+"logo": null
+},
+{
+"name": "NBC Sports Washington",
+"tvgId": "nbcsnwashington.us",
+"group": "SPORTS",
+"streamId": "289350",
+"logo": null
+},
+{
+"name": "NESN",
+"tvgId": "nesn.us",
+"group": "SPORTS",
+"streamId": "1236526",
+"logo": null
+},
+{
+"name": "NESN Nation",
+"tvgId": "newsnation.us",
+"group": "SPORTS",
+"streamId": "1847724",
+"logo": null
+},
+{
+"name": "NESN+",
+"tvgId": "nesnplus.us",
+"group": "SPORTS",
+"streamId": "1236525",
+"logo": null
+},
+{
+"name": "NFL Network",
+"tvgId": "nflnetwork.us",
+"group": "SPORTS",
+"streamId": "1236529",
+"logo": null
+},
+{
+"name": "NFL Redzone",
+"tvgId": "nflredzone.us",
+"group": "SPORTS",
+"streamId": "1669084",
+"logo": null
+},
+{
+"name": "NHL Network",
+"tvgId": "nhl.us",
+"group": "SPORTS",
+"streamId": "1236532",
+"logo": null
+},
+{
+"name": "Pickleball TV",
+"tvgId": "pickleballtv.us",
+"group": "SPORTS",
+"streamId": "1847753",
+"logo": null
+},
+{
+"name": "Red Bull Tv",
+"tvgId": "redbulltv.us",
+"group": "SPORTS",
+"streamId": "13112",
+"logo": null
+},
+{
+"name": "RYZ Sports",
+"tvgId": null,
+"group": "SPORTS",
+"streamId": "1847720",
+"logo": null
+},
+{
+"name": "SNY",
+"tvgId": "sportsnetnewyork.us",
+"group": "SPORTS",
+"streamId": "14625",
+"logo": null
+},
+{
+"name": "Spectrum Sportsnet LA Dodgers",
+"tvgId": "spectrumsportsnetla.us",
+"group": "SPORTS",
+"streamId": "277495",
+"logo": null
+},
+{
+"name": "Sportsnet Pittsburgh",
+"tvgId": "sportsnetpittsburgh.us",
+"group": "SPORTS",
+"streamId": "277499",
+"logo": null
+},
+{
+"name": "Tennis Channel",
+"tvgId": "tennischannel.us",
+"group": "SPORTS",
+"streamId": "1236583",
+"logo": null
+},
+{
+"name": "Tennis Channel 2",
+"tvgId": "TheTennisChannel2(T2).us",
+"group": "SPORTS",
+"streamId": "1847721",
+"logo": null
+},
+{
+"name": "UFC",
+"tvgId": "UFC24_7.us",
+"group": "SPORTS",
+"streamId": "1847747",
+"logo": null
+},
+{
+"name": "Willow Cricket",
+"tvgId": "willowcricket.us",
+"group": "SPORTS",
+"streamId": "13141",
+"logo": null
+},
+{
+"name": "Willow Cricket 2",
+"tvgId": "willow2.us",
+"group": "SPORTS",
+"streamId": "282231",
+"logo": null
+},
+{
+"name": "WWE Network",
+"tvgId": "wwenetwork.us",
+"group": "SPORTS",
+"streamId": "1847712",
+"logo": null
+},
+{
+"name": "Yahoo! Sports Network",
+"tvgId": "esportsnetwork.us",
+"group": "SPORTS",
+"streamId": "1847755",
+"logo": null
+},
+{
+"name": "YES Network",
+"tvgId": "yesnetwork.us",
+"group": "SPORTS",
+"streamId": "197352",
+"logo": null
+},
+{
+"name": "NBA Summer League Mavericks vs. Thunder Jul 16 :NBA 01",
+"tvgId": "dummy-4718",
+"group": "NBA",
+"streamId": "303206",
+"logo": null
+},
+{
+"name": "NBA Summer League Nets vs. Rockets jul 16 :NBA 02",
+"tvgId": "dummy-4719",
+"group": "NBA",
+"streamId": "303207",
+"logo": null
+},
+{
+"name": "NBA Summer League Lakers vs. Bulls jul 16 :NBA 03",
+"tvgId": "dummy-4720",
+"group": "NBA",
+"streamId": "303208",
+"logo": null
+},
+{
+"name": "NBA Summer League Warriors vs. Knicks jul 16 :NBA 04",
+"tvgId": "dummy-4721",
+"group": "NBA",
+"streamId": "303209",
+"logo": null
+},
+{
+"name": "NBA Summer League Raptors vs. Heat jul 17 :NBA 05",
+"tvgId": "dummy-4722",
+"group": "NBA",
+"streamId": "303210",
+"logo": null
+},
+{
+"name": "NBA 06 :",
+"tvgId": "dummy-4723",
+"group": "NBA",
+"streamId": "303211",
+"logo": null
+},
+{
+"name": "NBA 07 :",
+"tvgId": "dummy-4724",
+"group": "NBA",
+"streamId": "303212",
+"logo": null
+},
+{
+"name": "NBA 08 :",
+"tvgId": "dummy-4725",
+"group": "NBA",
+"streamId": "303213",
+"logo": null
+},
+{
+"name": "NBA 09 :",
+"tvgId": "dummy-4726",
+"group": "NBA",
+"streamId": "303214",
+"logo": null
+},
+{
+"name": "NBA 10 :",
+"tvgId": "dummy-4727",
+"group": "NBA",
+"streamId": "303215",
+"logo": null
+},
+{
+"name": "NBA 11 :",
+"tvgId": "dummy-4728",
+"group": "NBA",
+"streamId": "303216",
+"logo": null
+},
+{
+"name": "NBA 12 :",
+"tvgId": "dummy-4729",
+"group": "NBA",
+"streamId": "303217",
+"logo": null
+},
+{
+"name": "NBA 13 :",
+"tvgId": "dummy-4730",
+"group": "NBA",
+"streamId": "303218",
+"logo": null
+},
+{
+"name": "NBA 14 :",
+"tvgId": "dummy-4731",
+"group": "NBA",
+"streamId": "303219",
+"logo": null
+},
+{
+"name": "San Antonio Spurs vs New York Knicks @ Jun 13 8:30 PM :NBA  01",
+"tvgId": "dummy-4732",
+"group": "NBA",
+"streamId": "290357",
+"logo": null
+},
+{
+"name": ":NBA  02",
+"tvgId": "dummy-4733",
+"group": "NBA",
+"streamId": "290358",
+"logo": null
+},
+{
+"name": ":NBA  03",
+"tvgId": "dummy-4734",
+"group": "NBA",
+"streamId": "290359",
+"logo": null
+},
+{
+"name": ":NBA  04",
+"tvgId": "dummy-4735",
+"group": "NBA",
+"streamId": "290360",
+"logo": null
+},
+{
+"name": ":NBA  05",
+"tvgId": "dummy-4736",
+"group": "NBA",
+"streamId": "290361",
+"logo": null
+},
+{
+"name": ":NBA  06",
+"tvgId": "dummy-4737",
+"group": "NBA",
+"streamId": "290362",
+"logo": null
+},
+{
+"name": ":NBA  07",
+"tvgId": "dummy-4738",
+"group": "NBA",
+"streamId": "290363",
+"logo": null
+},
+{
+"name": ":NBA  08",
+"tvgId": "dummy-4739",
+"group": "NBA",
+"streamId": "290364",
+"logo": null
+},
+{
+"name": ":NBA  09",
+"tvgId": "dummy-4740",
+"group": "NBA",
+"streamId": "290365",
+"logo": null
+},
+{
+"name": ":NBA  10",
+"tvgId": "dummy-4741",
+"group": "NBA",
+"streamId": "290366",
+"logo": null
+},
+{
+"name": ":NBA  11",
+"tvgId": "dummy-4742",
+"group": "NBA",
+"streamId": "290367",
+"logo": null
+},
+{
+"name": ":NBA  12",
+"tvgId": "dummy-4743",
+"group": "NBA",
+"streamId": "290368",
+"logo": null
+},
+{
+"name": ":NBA  13",
+"tvgId": "dummy-4744",
+"group": "NBA",
+"streamId": "290369",
+"logo": null
+},
+{
+"name": ":NBA  14",
+"tvgId": "dummy-4745",
+"group": "NBA",
+"streamId": "290370",
+"logo": null
+},
+{
+"name": ":NBA  15",
+"tvgId": "dummy-4746",
+"group": "NBA",
+"streamId": "290371",
+"logo": null
+},
+{
+"name": "Atlanta Hawks",
+"tvgId": "NBA-AtlantaHawks.us",
+"group": "NBA",
+"streamId": "276116",
+"logo": null
+},
+{
+"name": "Boston Celtics",
+"tvgId": "NBA-BostonCeltics.us",
+"group": "NBA",
+"streamId": "276117",
+"logo": null
+},
+{
+"name": "Brooklyn Nets",
+"tvgId": "NBA-BrooklynNets.us",
+"group": "NBA",
+"streamId": "276118",
+"logo": null
+},
+{
+"name": "Charlotte Hornets",
+"tvgId": "NBA-CharlotteHornets.us",
+"group": "NBA",
+"streamId": "276119",
+"logo": null
+},
+{
+"name": "Chicago Bulls",
+"tvgId": "NBA-ChicagoBulls.us",
+"group": "NBA",
+"streamId": "276120",
+"logo": null
+},
+{
+"name": "Cleveland Cavaliers",
+"tvgId": "NBA-ClevelandCavaliers.us",
+"group": "NBA",
+"streamId": "276121",
+"logo": null
+},
+{
+"name": "Dallas Mavericks",
+"tvgId": "NBA-DallasMavericks.us",
+"group": "NBA",
+"streamId": "276122",
+"logo": null
+},
+{
+"name": "Denver Nuggets",
+"tvgId": "NBA-DenverNuggets.us",
+"group": "NBA",
+"streamId": "276123",
+"logo": null
+},
+{
+"name": "Detroit Pistons",
+"tvgId": "NBA-DetroitPistons.us",
+"group": "NBA",
+"streamId": "276124",
+"logo": null
+},
+{
+"name": "Golden State Warriors",
+"tvgId": "NBA-GoldenStateWarriors.us",
+"group": "NBA",
+"streamId": "276125",
+"logo": null
+},
+{
+"name": "Houston Rockets",
+"tvgId": "NBA-HoustonRockets.us",
+"group": "NBA",
+"streamId": "276126",
+"logo": null
+},
+{
+"name": "Los Angeles Clippers",
+"tvgId": "NBA-LAClippers.us",
+"group": "NBA",
+"streamId": "276128",
+"logo": null
+},
+{
+"name": "Los Angeles Lakers",
+"tvgId": "NBA-LosAngelesLakers.us",
+"group": "NBA",
+"streamId": "276129",
+"logo": null
+},
+{
+"name": "Memphis Grizzlies",
+"tvgId": "NBA-MemphisGrizzlies.us",
+"group": "NBA",
+"streamId": "276130",
+"logo": null
+},
+{
+"name": "Los Angeles Lakers",
+"tvgId": "LosAngelesLakers.nba",
+"group": "NBA",
+"streamId": "276131",
+"logo": null
+},
+{
+"name": "Milwaukee Bucks",
+"tvgId": "NBA-MilwaukeeBucks.us",
+"group": "NBA",
+"streamId": "276132",
+"logo": null
+},
+{
+"name": "Minnesota Timberwolves",
+"tvgId": "NBA-MinnesotaTimberwolves.us",
+"group": "NBA",
+"streamId": "276133",
+"logo": null
+},
+{
+"name": "New Orleans Pelicans",
+"tvgId": "NBA-NewOrleansPelicans.us",
+"group": "NBA",
+"streamId": "276134",
+"logo": null
+},
+{
+"name": "New York Knicks",
+"tvgId": "NBA-NewYorkKnicks.us",
+"group": "NBA",
+"streamId": "276135",
+"logo": null
+},
+{
+"name": "Oklahoma City Thunder",
+"tvgId": "NBA-OklahomaCityThunder.us",
+"group": "NBA",
+"streamId": "276136",
+"logo": null
+},
+{
+"name": "Dallas Mavericks",
+"tvgId": "NBA-DallasMavericks.us",
+"group": "NBA",
+"streamId": "276137",
+"logo": null
+},
+{
+"name": "Phoenix Suns",
+"tvgId": "NBA-PhoenixSuns.us",
+"group": "NBA",
+"streamId": "276139",
+"logo": null
+},
+{
+"name": "Portland Trail Blazers",
+"tvgId": "NBA-PortlandTrailBlazers.us",
+"group": "NBA",
+"streamId": "276140",
+"logo": null
+},
+{
+"name": "San Antonio Spurs",
+"tvgId": "NBA-SanAntonioSpurs.us",
+"group": "NBA",
+"streamId": "276127",
+"logo": null
+},
+{
+"name": "Toronto Raptors",
+"tvgId": "NBA-TorontoRaptors.us",
+"group": "NBA",
+"streamId": "276143",
+"logo": null
+},
+{
+"name": "Washington Wizards",
+"tvgId": "WashingtonWizards.nba",
+"group": "NBA",
+"streamId": "276138",
+"logo": null
+},
+{
+"name": "Sacramento Kings",
+"tvgId": "SacramentoKings.nba",
+"group": "NBA",
+"streamId": "276141",
+"logo": null
+},
+{
+"name": "San Antonio Spurs",
+"tvgId": "SanAntonioSpurs.nba",
+"group": "NBA",
+"streamId": "276142",
+"logo": null
+},
+{
+"name": "Utah Jazz",
+"tvgId": "UtahJazz.nba",
+"group": "NBA",
+"streamId": "276144",
+"logo": null
+},
+{
+"name": "Washington Wizards",
+"tvgId": "WashingtonWizards.nba",
+"group": "NBA",
+"streamId": "276145",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event 4K",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK SKY SPORTS",
+"streamId": "1109407",
+"logo": null
+},
+{
+"name": "Sky Sports F1 4K",
+"tvgId": "skysportsf1.uk",
+"group": "UK SKY SPORTS",
+"streamId": "1109408",
+"logo": null
+},
+{
+"name": "Sky Sports 1 4K",
+"tvgId": "skysports1.uk",
+"group": "UK SKY SPORTS",
+"streamId": "1095188",
+"logo": null
+},
+{
+"name": "Sky Sports 2 4K",
+"tvgId": "skysports2.uk",
+"group": "UK SKY SPORTS",
+"streamId": "1095189",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK SKY SPORTS",
+"streamId": "50271",
+"logo": null
+},
+{
+"name": "Sky Sports Premier League",
+"tvgId": "skysportspremierleague.uk",
+"group": "UK SKY SPORTS",
+"streamId": "303269",
+"logo": null
+},
+{
+"name": "Sky Sports Football",
+"tvgId": "skysportsfootball.uk",
+"group": "UK SKY SPORTS",
+"streamId": "303268",
+"logo": null
+},
+{
+"name": "Sky Sports+",
+"tvgId": "skysportsplus.uk",
+"group": "UK SKY SPORTS",
+"streamId": "10528",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket",
+"tvgId": "skysportscricket.uk",
+"group": "UK SKY SPORTS",
+"streamId": "303266",
+"logo": null
+},
+{
+"name": "Sky Sports Golf",
+"tvgId": "skysportsgolf.uk",
+"group": "UK SKY SPORTS",
+"streamId": "303267",
+"logo": null
+},
+{
+"name": "Sky Sports F1",
+"tvgId": "skysportsf1.uk",
+"group": "UK SKY SPORTS",
+"streamId": "303265",
+"logo": null
+},
+{
+"name": "Sky Sports Tennis",
+"tvgId": "skysportstennis.uk",
+"group": "UK SKY SPORTS",
+"streamId": "1955684",
+"logo": null
+},
+{
+"name": "Sky Sports Action",
+"tvgId": "skysportsaction.uk",
+"group": "UK SKY SPORTS",
+"streamId": "303264",
+"logo": null
+},
+{
+"name": "Sky Sports Mix",
+"tvgId": "skysportsmix.uk",
+"group": "UK SKY SPORTS",
+"streamId": "303262",
+"logo": null
+},
+{
+"name": "Sky Sports News",
+"tvgId": "skysportsnews.uk",
+"group": "UK SKY SPORTS",
+"streamId": "303260",
+"logo": null
+},
+{
+"name": "Sky Sports Racing",
+"tvgId": "skysportsracing.uk",
+"group": "UK SKY SPORTS",
+"streamId": "303261",
+"logo": null
+},
+{
+"name": "TNT Sports Ultimate 4K",
+"tvgId": "tntsportsultimate.uk",
+"group": "UK TNT SPORTS",
+"streamId": "522060",
+"logo": null
+},
+{
+"name": "TNT Sports Ultimate 4K",
+"tvgId": "tntsportsultimate.uk",
+"group": "UK TNT SPORTS",
+"streamId": "1164394",
+"logo": null
+},
+{
+"name": "TNT Sports 1",
+"tvgId": "tntsports1.uk",
+"group": "UK TNT SPORTS",
+"streamId": "860561",
+"logo": null
+},
+{
+"name": "TNT Sports 2",
+"tvgId": "tntsports2.uk",
+"group": "UK TNT SPORTS",
+"streamId": "860560",
+"logo": null
+},
+{
+"name": "TNT Sports 3",
+"tvgId": "tntsports3.uk",
+"group": "UK TNT SPORTS",
+"streamId": "860558",
+"logo": null
+},
+{
+"name": "TNT Sports 4",
+"tvgId": "tntsports4.uk",
+"group": "UK TNT SPORTS",
+"streamId": "303256",
+"logo": null
+},
+{
+"name": "TNT Sports Box Office 1",
+"tvgId": "tntsportboxoffice1.uk",
+"group": "UK TNT SPORTS",
+"streamId": "484357",
+"logo": null
+},
+{
+"name": "TNT Sports Box Office 2",
+"tvgId": "tntsportboxoffice2.uk",
+"group": "UK TNT SPORTS",
+"streamId": "484345",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 1",
+"tvgId": "dummy-6802819",
+"group": "UK TNT SPORTS",
+"streamId": "1084620",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 2",
+"tvgId": "dummy-6802820",
+"group": "UK TNT SPORTS",
+"streamId": "1084619",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 3",
+"tvgId": "dummy-6802821",
+"group": "UK TNT SPORTS",
+"streamId": "1084618",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 4",
+"tvgId": "dummy-6802822",
+"group": "UK TNT SPORTS",
+"streamId": "1084617",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 5",
+"tvgId": "dummy-6802823",
+"group": "UK TNT SPORTS",
+"streamId": "1084616",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 6",
+"tvgId": "dummy-6802824",
+"group": "UK TNT SPORTS",
+"streamId": "1084615",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 7",
+"tvgId": "dummy-6802825",
+"group": "UK TNT SPORTS",
+"streamId": "1084614",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 8",
+"tvgId": "dummy-6802826",
+"group": "UK TNT SPORTS",
+"streamId": "1084613",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 9",
+"tvgId": "dummy-6802827",
+"group": "UK TNT SPORTS",
+"streamId": "1084612",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 10",
+"tvgId": "dummy-6802828",
+"group": "UK TNT SPORTS",
+"streamId": "1084611",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 11",
+"tvgId": "dummy-6802829",
+"group": "UK TNT SPORTS",
+"streamId": "1084610",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 12",
+"tvgId": "dummy-6802830",
+"group": "UK TNT SPORTS",
+"streamId": "1084609",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 13",
+"tvgId": "dummy-6802831",
+"group": "UK TNT SPORTS",
+"streamId": "1084608",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 14",
+"tvgId": "dummy-6802832",
+"group": "UK TNT SPORTS",
+"streamId": "1084607",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 15",
+"tvgId": "dummy-6802833",
+"group": "UK TNT SPORTS",
+"streamId": "1084606",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 16",
+"tvgId": "dummy-6802834",
+"group": "UK TNT SPORTS",
+"streamId": "1084605",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 17",
+"tvgId": "dummy-6802835",
+"group": "UK TNT SPORTS",
+"streamId": "1084604",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 18",
+"tvgId": "dummy-6802836",
+"group": "UK TNT SPORTS",
+"streamId": "1084603",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 1",
+"tvgId": "dummy-6802837",
+"group": "UK TNT SPORTS",
+"streamId": "513741",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 2",
+"tvgId": "dummy-6802838",
+"group": "UK TNT SPORTS",
+"streamId": "513742",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 3",
+"tvgId": "dummy-6802839",
+"group": "UK TNT SPORTS",
+"streamId": "513743",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 4",
+"tvgId": "dummy-6802840",
+"group": "UK TNT SPORTS",
+"streamId": "513744",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 5",
+"tvgId": "dummy-6802841",
+"group": "UK TNT SPORTS",
+"streamId": "513745",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 6",
+"tvgId": "dummy-6802842",
+"group": "UK TNT SPORTS",
+"streamId": "513746",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 7",
+"tvgId": "dummy-6802843",
+"group": "UK TNT SPORTS",
+"streamId": "513747",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 8",
+"tvgId": "dummy-6802844",
+"group": "UK TNT SPORTS",
+"streamId": "513748",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 9",
+"tvgId": "dummy-6802845",
+"group": "UK TNT SPORTS",
+"streamId": "513749",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 10",
+"tvgId": "dummy-6802846",
+"group": "UK TNT SPORTS",
+"streamId": "513750",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 11",
+"tvgId": "dummy-6802847",
+"group": "UK TNT SPORTS",
+"streamId": "513751",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 12",
+"tvgId": "dummy-6802848",
+"group": "UK TNT SPORTS",
+"streamId": "513752",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 13",
+"tvgId": "dummy-6802849",
+"group": "UK TNT SPORTS",
+"streamId": "513753",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 14",
+"tvgId": "dummy-6802850",
+"group": "UK TNT SPORTS",
+"streamId": "513754",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 15",
+"tvgId": "dummy-6802851",
+"group": "UK TNT SPORTS",
+"streamId": "513755",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 16",
+"tvgId": "dummy-6802852",
+"group": "UK TNT SPORTS",
+"streamId": "513756",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 17",
+"tvgId": "dummy-6802853",
+"group": "UK TNT SPORTS",
+"streamId": "513757",
+"logo": null
+},
+{
+"name": "TNT Sports | Event 18",
+"tvgId": "dummy-6802854",
+"group": "UK TNT SPORTS",
+"streamId": "513758",
+"logo": null
+},
+{
+"name": "South Africa v Australia @ Sep 24 8:30 AM :Sky Sports UK  01",
+"tvgId": "dummy-6054998",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098864",
+"logo": null
+},
+{
+"name": "Azerbaijan F1 GP: Practice 1 @ Sep 24 9:00 AM :Sky Sports UK  02",
+"tvgId": "dummy-6054999",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098865",
+"logo": null
+},
+{
+"name": "Azerbaijan F2: Qualifying @ Sep 24 10:55 AM :Sky Sports UK  03",
+"tvgId": "dummy-6055000",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098866",
+"logo": null
+},
+{
+"name": "England v Sri Lanka @ Sep 24 12:00 PM :Sky Sports UK  04",
+"tvgId": "dummy-6055001",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098867",
+"logo": null
+},
+{
+"name": "Azerbaijan F1 GP: Practice 2 @ Sep 24 12:30 PM :Sky Sports UK  05",
+"tvgId": "dummy-6055002",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098868",
+"logo": null
+},
+{
+"name": "The F1 Show: Azerbaijan @ Sep 24 2:15 PM :Sky Sports UK  06",
+"tvgId": "dummy-6055003",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098869",
+"logo": null
+},
+{
+"name": "Presidents Cup @ Sep 24 5:30 PM :Sky Sports UK  07",
+"tvgId": "dummy-6055004",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098870",
+"logo": null
+},
+{
+"name": "Fever @ Lynx @ Sep 25 1:00 AM :Sky Sports UK  09",
+"tvgId": "dummy-6055005",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098872",
+"logo": null
+},
+{
+"name": "Falcons @ Packers @ Sep 25 12:00 AM :Sky Sports UK  08",
+"tvgId": "dummy-6055006",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098871",
+"logo": null
+},
+{
+"name": "Aces @ Mercury @ Sep 25 3:00 AM :Sky Sports UK  10",
+"tvgId": "dummy-6055007",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098873",
+"logo": null
+},
+{
+"name": "Azerbaijan F2: Sprint @ Sep 25 5:10 AM :Sky Sports UK  11",
+"tvgId": "dummy-6055008",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098874",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  12",
+"tvgId": "dummy-6055009",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098875",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  13",
+"tvgId": "dummy-6055010",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098876",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  14",
+"tvgId": "dummy-6055011",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098877",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  15",
+"tvgId": "dummy-6055012",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098878",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  16",
+"tvgId": "dummy-6055013",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098879",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  17",
+"tvgId": "dummy-6055014",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098880",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  18",
+"tvgId": "dummy-6055015",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098881",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  19",
+"tvgId": "dummy-6055016",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098882",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  20",
+"tvgId": "dummy-6055017",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098883",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  21",
+"tvgId": "dummy-6055018",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098884",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  22",
+"tvgId": "dummy-6055019",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098885",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  23",
+"tvgId": "dummy-6055020",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098886",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  24",
+"tvgId": "dummy-6055021",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098887",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  25",
+"tvgId": "dummy-6055022",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098888",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  26",
+"tvgId": "dummy-6055023",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098889",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  27",
+"tvgId": "dummy-6055024",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098890",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  28",
+"tvgId": "dummy-6055025",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098891",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  29",
+"tvgId": "dummy-6055026",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098892",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  30",
+"tvgId": "dummy-6055027",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098893",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  31",
+"tvgId": "dummy-6055028",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098894",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  32",
+"tvgId": "dummy-6055029",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098895",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  33",
+"tvgId": "dummy-6055030",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098896",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  34",
+"tvgId": "dummy-6055031",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098897",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  35",
+"tvgId": "dummy-6055032",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098898",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  36",
+"tvgId": "dummy-6055033",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098899",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  37",
+"tvgId": "dummy-6055034",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098900",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  38",
+"tvgId": "dummy-6055035",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098901",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  39",
+"tvgId": "dummy-6055036",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098902",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  40",
+"tvgId": "dummy-6055037",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098903",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  41",
+"tvgId": "dummy-6055038",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098904",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  42",
+"tvgId": "dummy-6055039",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098905",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  43",
+"tvgId": "dummy-6055040",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098906",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  44",
+"tvgId": "dummy-6055041",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098907",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  45",
+"tvgId": "dummy-6055042",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098908",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  46",
+"tvgId": "dummy-6055043",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098909",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  47",
+"tvgId": "dummy-6055044",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098910",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  48",
+"tvgId": "dummy-6055045",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098911",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  49",
+"tvgId": "dummy-6055046",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098912",
+"logo": null
+},
+{
+"name": ":Sky Sports UK  50",
+"tvgId": "dummy-6055047",
+"group": "UK SKY SPORTS + PPV",
+"streamId": "2098913",
+"logo": null
+},
+{
+"name": "Bein Sports 1",
+"tvgId": "beinsports1.au",
+"group": "AU SPORTS",
+"streamId": "197176",
+"logo": null
+},
+{
+"name": "Bein Sports 2",
+"tvgId": "beinsports2.au",
+"group": "AU SPORTS",
+"streamId": "288372",
+"logo": null
+},
+{
+"name": "Bein Sports 3",
+"tvgId": "beinsports3.au",
+"group": "AU SPORTS",
+"streamId": "288373",
+"logo": null
+},
+{
+"name": "Fox Sports 501",
+"tvgId": "foxsports501.au",
+"group": "AU SPORTS",
+"streamId": "197185",
+"logo": null
+},
+{
+"name": "Fox Sports 502",
+"tvgId": "foxsports502.au",
+"group": "AU SPORTS",
+"streamId": "197186",
+"logo": null
+},
+{
+"name": "Fox Sports 503",
+"tvgId": "foxsports503.au",
+"group": "AU SPORTS",
+"streamId": "1098502",
+"logo": null
+},
+{
+"name": "Fox Sports 504",
+"tvgId": "foxsports504.au",
+"group": "AU SPORTS",
+"streamId": "197188",
+"logo": null
+},
+{
+"name": "Fox Sports 505",
+"tvgId": "foxsports505.au",
+"group": "AU SPORTS",
+"streamId": "197189",
+"logo": null
+},
+{
+"name": "Fox Sports 506",
+"tvgId": "foxsports506.au",
+"group": "AU SPORTS",
+"streamId": "197190",
+"logo": null
+},
+{
+"name": "Fox Sports 507",
+"tvgId": "foxsports507.au",
+"group": "AU SPORTS",
+"streamId": "197191",
+"logo": null
+},
+{
+"name": "Fox Sports News",
+"tvgId": "foxsportsnews.au",
+"group": "AU SPORTS",
+"streamId": "197192",
+"logo": null
+},
+{
+"name": "Sky Racing 1",
+"tvgId": "skyracing1.au",
+"group": "AU SPORTS",
+"streamId": "197239",
+"logo": null
+},
+{
+"name": "Sky Racing 2",
+"tvgId": "skyracing2.au",
+"group": "AU SPORTS",
+"streamId": "197242",
+"logo": null
+},
+{
+"name": "Sky News Extra",
+"tvgId": "skynewsextra.au",
+"group": "AU SPORTS",
+"streamId": "197238",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 1",
+"tvgId": "dummy-10641",
+"group": "AU STAN EVENTS",
+"streamId": "288350",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 2",
+"tvgId": "dummy-10642",
+"group": "AU STAN EVENTS",
+"streamId": "288351",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 3",
+"tvgId": "dummy-10643",
+"group": "AU STAN EVENTS",
+"streamId": "288352",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 4",
+"tvgId": "dummy-10644",
+"group": "AU STAN EVENTS",
+"streamId": "288353",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 5",
+"tvgId": "dummy-10645",
+"group": "AU STAN EVENTS",
+"streamId": "288354",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 6",
+"tvgId": "dummy-10646",
+"group": "AU STAN EVENTS",
+"streamId": "288355",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 7",
+"tvgId": "dummy-10647",
+"group": "AU STAN EVENTS",
+"streamId": "288356",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 8",
+"tvgId": "dummy-10648",
+"group": "AU STAN EVENTS",
+"streamId": "288357",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 9",
+"tvgId": "dummy-10649",
+"group": "AU STAN EVENTS",
+"streamId": "288358",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 10",
+"tvgId": "dummy-10650",
+"group": "AU STAN EVENTS",
+"streamId": "288359",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 11",
+"tvgId": "dummy-10651",
+"group": "AU STAN EVENTS",
+"streamId": "288360",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 12",
+"tvgId": "dummy-10652",
+"group": "AU STAN EVENTS",
+"streamId": "288361",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 13",
+"tvgId": "dummy-10653",
+"group": "AU STAN EVENTS",
+"streamId": "288362",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 14",
+"tvgId": "dummy-10654",
+"group": "AU STAN EVENTS",
+"streamId": "288363",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 15",
+"tvgId": "dummy-10655",
+"group": "AU STAN EVENTS",
+"streamId": "288364",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 16",
+"tvgId": "dummy-10656",
+"group": "AU STAN EVENTS",
+"streamId": "288365",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 17",
+"tvgId": "dummy-10657",
+"group": "AU STAN EVENTS",
+"streamId": "288366",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 18",
+"tvgId": "dummy-10658",
+"group": "AU STAN EVENTS",
+"streamId": "288367",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 19",
+"tvgId": "dummy-10659",
+"group": "AU STAN EVENTS",
+"streamId": "288368",
+"logo": null
+},
+{
+"name": "|AU| STAN EVENT 20",
+"tvgId": "dummy-10660",
+"group": "AU STAN EVENTS",
+"streamId": "288369",
+"logo": null
+},
+{
+"name": "WTA 500: Singapore Day 4 @ Sep 24 5:59 AM :Stan Sports  01",
+"tvgId": "dummy-5933828",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095953",
+"logo": null
+},
+{
+"name": ":Stan Sports  02",
+"tvgId": "dummy-5933829",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095954",
+"logo": null
+},
+{
+"name": ":Stan Sports  03",
+"tvgId": "dummy-5933830",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095955",
+"logo": null
+},
+{
+"name": ":Stan Sports  04",
+"tvgId": "dummy-5933831",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095956",
+"logo": null
+},
+{
+"name": ":Stan Sports  05",
+"tvgId": "dummy-5933832",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095957",
+"logo": null
+},
+{
+"name": ":Stan Sports  06",
+"tvgId": "dummy-5933833",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095958",
+"logo": null
+},
+{
+"name": ":Stan Sports  07",
+"tvgId": "dummy-5933834",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095959",
+"logo": null
+},
+{
+"name": ":Stan Sports  08",
+"tvgId": "dummy-5933835",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095960",
+"logo": null
+},
+{
+"name": ":Stan Sports  09",
+"tvgId": "dummy-5933836",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095961",
+"logo": null
+},
+{
+"name": ":Stan Sports  10",
+"tvgId": "dummy-5933837",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095962",
+"logo": null
+},
+{
+"name": ":Stan Sports  11",
+"tvgId": "dummy-5933838",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095963",
+"logo": null
+},
+{
+"name": ":Stan Sports  12",
+"tvgId": "dummy-5933839",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095964",
+"logo": null
+},
+{
+"name": ":Stan Sports  13",
+"tvgId": "dummy-5933840",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095965",
+"logo": null
+},
+{
+"name": ":Stan Sports  14",
+"tvgId": "dummy-5933841",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095966",
+"logo": null
+},
+{
+"name": ":Stan Sports  15",
+"tvgId": "dummy-5933842",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095967",
+"logo": null
+},
+{
+"name": ":Stan Sports  16",
+"tvgId": "dummy-5933843",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095968",
+"logo": null
+},
+{
+"name": ":Stan Sports  17",
+"tvgId": "dummy-5933844",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095969",
+"logo": null
+},
+{
+"name": ":Stan Sports  18",
+"tvgId": "dummy-5933845",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095970",
+"logo": null
+},
+{
+"name": ":Stan Sports  19",
+"tvgId": "dummy-5933846",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095971",
+"logo": null
+},
+{
+"name": ":Stan Sports  20",
+"tvgId": "dummy-5933847",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095972",
+"logo": null
+},
+{
+"name": ":Stan Sports  21",
+"tvgId": "dummy-5933848",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095973",
+"logo": null
+},
+{
+"name": ":Stan Sports  22",
+"tvgId": "dummy-5933849",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095974",
+"logo": null
+},
+{
+"name": ":Stan Sports  23",
+"tvgId": "dummy-5933850",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095975",
+"logo": null
+},
+{
+"name": ":Stan Sports  24",
+"tvgId": "dummy-5933851",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095976",
+"logo": null
+},
+{
+"name": ":Stan Sports  25",
+"tvgId": "dummy-5933852",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095977",
+"logo": null
+},
+{
+"name": ":Stan Sports  26",
+"tvgId": "dummy-5933853",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095978",
+"logo": null
+},
+{
+"name": ":Stan Sports  27",
+"tvgId": "dummy-5933854",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095979",
+"logo": null
+},
+{
+"name": ":Stan Sports  28",
+"tvgId": "dummy-5933855",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095980",
+"logo": null
+},
+{
+"name": ":Stan Sports  29",
+"tvgId": "dummy-5933856",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095981",
+"logo": null
+},
+{
+"name": ":Stan Sports  30",
+"tvgId": "dummy-5933857",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095982",
+"logo": null
+},
+{
+"name": ":Stan Sports  31",
+"tvgId": "dummy-5933858",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095983",
+"logo": null
+},
+{
+"name": ":Stan Sports  32",
+"tvgId": "dummy-5933859",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095984",
+"logo": null
+},
+{
+"name": ":Stan Sports  33",
+"tvgId": "dummy-5933860",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095985",
+"logo": null
+},
+{
+"name": ":Stan Sports  34",
+"tvgId": "dummy-5933861",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095986",
+"logo": null
+},
+{
+"name": ":Stan Sports  35",
+"tvgId": "dummy-5933862",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095987",
+"logo": null
+},
+{
+"name": ":Stan Sports  36",
+"tvgId": "dummy-5933863",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095988",
+"logo": null
+},
+{
+"name": ":Stan Sports  37",
+"tvgId": "dummy-5933864",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095989",
+"logo": null
+},
+{
+"name": ":Stan Sports  38",
+"tvgId": "dummy-5933865",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095990",
+"logo": null
+},
+{
+"name": ":Stan Sports  39",
+"tvgId": "dummy-5933866",
+"group": "AU STAN SPORTS PPV",
+"streamId": "2095991",
+"logo": null
+},
+{
+"name": "SS3 Vaumeilh / Claret 1 - WRC Monte Carlo 2026 (2026-01-22 19:30:06)",
+"tvgId": "dummy-10109",
+"group": "EN STAN EVENTS",
+"streamId": "1513447",
+"logo": null
+},
+{
+"name": "Fijian Drua v Force - Super Rugby Pacific Round 9 2026 (2026-04-11 04:00:29)",
+"tvgId": "dummy-10110",
+"group": "EN STAN EVENTS",
+"streamId": "1513448",
+"logo": null
+},
+{
+"name": "STAN 041|  Day 9 - Wimbledon 2026 (2026-07-07 10:00:25)",
+"tvgId": "dummy-10111",
+"group": "EN STAN EVENTS",
+"streamId": "1513449",
+"logo": null
+},
+{
+"name": "STAN 037|  Day 5 - Wimbledon 2026 (2026-07-03 10:00:25)",
+"tvgId": "dummy-10112",
+"group": "EN STAN EVENTS",
+"streamId": "1513450",
+"logo": null
+},
+{
+"name": "Viktoria Plzeň v Porto - UEFA Europa League 2025/2026 (2026-01-22 17:40:06)",
+"tvgId": "dummy-10113",
+"group": "EN STAN EVENTS",
+"streamId": "1513451",
+"logo": null
+},
+{
+"name": "Malmö FF v Crvena zvezda - UEFA Europa League 2025/2026 (2026-01-22 17:40:06)",
+"tvgId": "dummy-10114",
+"group": "EN STAN EVENTS",
+"streamId": "1513452",
+"logo": null
+},
+{
+"name": "Bologna v Celtic - UEFA Europa League 2025/2026 (2026-01-22 17:40:06)",
+"tvgId": "dummy-10115",
+"group": "EN STAN EVENTS",
+"streamId": "1513453",
+"logo": null
+},
+{
+"name": "STAN 021|  Auckland v Manawatū - NPC Round 9 2026 (2026-09-25 07:00:10)",
+"tvgId": "dummy-10116",
+"group": "EN STAN EVENTS",
+"streamId": "1513454",
+"logo": null
+},
+{
+"name": "STAN 008|  Women Junior Road Race - UCI Road World Championships Montreal 2026 (2026-09-25 18:05:07)",
+"tvgId": "dummy-10117",
+"group": "EN STAN EVENTS",
+"streamId": "1513455",
+"logo": null
+},
+{
+"name": "Atalanta v Athletic Club - UEFA Champions League 2025/2026 (2026-01-21 19:55:06)",
+"tvgId": "dummy-10118",
+"group": "EN STAN EVENTS",
+"streamId": "1513456",
+"logo": null
+},
+{
+"name": "STAN 048|  Athens: Day 6 - WTA 250 (2026-07-18 16:30:25)",
+"tvgId": "dummy-10119",
+"group": "EN STAN EVENTS",
+"streamId": "1513457",
+"logo": null
+},
+{
+"name": "STAN 026|  Canterbury v Southland - NPC Round 9 2026 (2026-09-26 05:00:07)",
+"tvgId": "dummy-10120",
+"group": "EN STAN EVENTS",
+"streamId": "1513458",
+"logo": null
+},
+{
+"name": "Brentford v Nottingham Forest - Premier League 2025/2026 (2026-01-25 13:50:06)",
+"tvgId": "dummy-10121",
+"group": "EN STAN EVENTS",
+"streamId": "1513459",
+"logo": null
+},
+{
+"name": "STAN 049|  Athens: Day 7 - WTA 250 (2026-07-19 17:00:25)",
+"tvgId": "dummy-10122",
+"group": "EN STAN EVENTS",
+"streamId": "1513460",
+"logo": null
+},
+{
+"name": "Slavia Praha v Barcelona - UEFA Champions League 2025/2026 (2026-01-21 19:55:06)",
+"tvgId": "dummy-10123",
+"group": "EN STAN EVENTS",
+"streamId": "1513461",
+"logo": null
+},
+{
+"name": "Feyenoord v Sturm Graz - UEFA Europa League 2025/2026 (2026-01-22 17:40:06)",
+"tvgId": "dummy-10124",
+"group": "EN STAN EVENTS",
+"streamId": "1513462",
+"logo": null
+},
+{
+"name": "Burnley v Tottenham Hotspur - Premier League 2025/2026 (2026-01-24 14:50:06)",
+"tvgId": "dummy-10125",
+"group": "EN STAN EVENTS",
+"streamId": "1513463",
+"logo": null
+},
+{
+"name": "Rangers v Ludogorets Razgrad - UEFA Europa League 2025/2026 (2026-01-22 19:55:06)",
+"tvgId": "dummy-10126",
+"group": "EN STAN EVENTS",
+"streamId": "1513464",
+"logo": null
+},
+{
+"name": "STAN 039|  Day 7 - Wimbledon 2026 (2026-07-05 10:00:25)",
+"tvgId": "dummy-10127",
+"group": "EN STAN EVENTS",
+"streamId": "1513465",
+"logo": null
+},
+{
+"name": "STAN 024|  England v New Zealand - WXV 2026 (2026-09-26 13:50:07)",
+"tvgId": "dummy-10128",
+"group": "EN STAN EVENTS",
+"streamId": "1513466",
+"logo": null
+},
+{
+"name": "STAN 029|  Exeter v Gloucester - PREM Rugby Round 1 2026/27 (2026-09-26 14:00:07)",
+"tvgId": "dummy-10129",
+"group": "EN STAN EVENTS",
+"streamId": "1513467",
+"logo": null
+},
+{
+"name": "STAN 027|  North Harbour v Otago - Farah Palmer Cup Round 5 2026 (2026-09-26 04:30:07)",
+"tvgId": "dummy-10130",
+"group": "EN STAN EVENTS",
+"streamId": "1513468",
+"logo": null
+},
+{
+"name": "STAN 046|  Day 14 - Wimbledon 2026 (2026-07-12 10:00:25)",
+"tvgId": "dummy-10131",
+"group": "EN STAN EVENTS",
+"streamId": "1513469",
+"logo": null
+},
+{
+"name": "Bayern München v Union Saint-Gilloise - UEFA Champions League 2025/2026 (2026-01-21 19:55:06)",
+"tvgId": "dummy-10132",
+"group": "EN STAN EVENTS",
+"streamId": "1513470",
+"logo": null
+},
+{
+"name": "STAN 001|  Northland v Hawke's Bay - Farah Palmer Cup Round 5 2026 (2026-09-25 23:30:07)",
+"tvgId": "dummy-10133",
+"group": "EN STAN EVENTS",
+"streamId": "1513471",
+"logo": null
+},
+{
+"name": "STAN 010|  Wales v USA - WXV 2026 (2026-09-26 13:45:07)",
+"tvgId": "dummy-10134",
+"group": "EN STAN EVENTS",
+"streamId": "1513472",
+"logo": null
+},
+{
+"name": "STAN 018|  Qualifying: 6 Hours of Fuji - WEC 2026 (2026-09-26 04:50:07)",
+"tvgId": "dummy-10135",
+"group": "EN STAN EVENTS",
+"streamId": "1513473",
+"logo": null
+},
+{
+"name": "STAN 047|  Athens: Day 5 - WTA 250 (2026-07-17 14:30:25)",
+"tvgId": "dummy-10136",
+"group": "EN STAN EVENTS",
+"streamId": "1513474",
+"logo": null
+},
+{
+"name": "Nice v Go Ahead Eagles - UEFA Europa League 2025/2026 (2026-01-22 19:55:06)",
+"tvgId": "dummy-10137",
+"group": "EN STAN EVENTS",
+"streamId": "1513475",
+"logo": null
+},
+{
+"name": "STAN 023|  Italy v South Africa - WXV 2026 (2026-09-26 12:20:07)",
+"tvgId": "dummy-10138",
+"group": "EN STAN EVENTS",
+"streamId": "1513476",
+"logo": null
+},
+{
+"name": "STAN 005|  Free Practice 3: 6 Hours of Fuji - WEC 2026 (2026-09-26 00:20:07)",
+"tvgId": "dummy-10139",
+"group": "EN STAN EVENTS",
+"streamId": "1513477",
+"logo": null
+},
+{
+"name": "Brann v Midtjylland - UEFA Europa League 2025/2026 (2026-01-22 17:40:06)",
+"tvgId": "dummy-10140",
+"group": "EN STAN EVENTS",
+"streamId": "1513478",
+"logo": null
+},
+{
+"name": "Freiburg v Maccabi Tel Aviv - UEFA Europa League 2025/2026 (2026-01-22 17:40:06)",
+"tvgId": "dummy-10141",
+"group": "EN STAN EVENTS",
+"streamId": "1513479",
+"logo": null
+},
+{
+"name": "AO Daily Review: Day 4 - Jan 21 (2026-01-21 11:30:06)",
+"tvgId": "dummy-10142",
+"group": "EN STAN EVENTS",
+"streamId": "1513480",
+"logo": null
+},
+{
+"name": "Courtside: Day 8 - Australian Open 2026 (2026-01-24 22:30:06)",
+"tvgId": "dummy-10143",
+"group": "EN STAN EVENTS",
+"streamId": "1513481",
+"logo": null
+},
+{
+"name": "Premier League Live - Bournemouth v Liverpool - Premier League 2025/26 (2026-01-24 17:20:06)",
+"tvgId": "dummy-10144",
+"group": "EN STAN EVENTS",
+"streamId": "1513482",
+"logo": null
+},
+{
+"name": "Galatasaray v Atlético de Madrid - UEFA Champions League 2025/2026 (2026-01-21 17:40:06)",
+"tvgId": "dummy-10145",
+"group": "EN STAN EVENTS",
+"streamId": "1513483",
+"logo": null
+},
+{
+"name": "STAN 012|  Day 2 • Day Session - Laver Cup 2026 (2026-09-26 12:00:25)",
+"tvgId": "dummy-10146",
+"group": "EN STAN EVENTS",
+"streamId": "1513484",
+"logo": null
+},
+{
+"name": "Juventus v Benfica - UEFA Champions League 2025/2026 (2026-01-21 19:55:06)",
+"tvgId": "dummy-10147",
+"group": "EN STAN EVENTS",
+"streamId": "1513485",
+"logo": null
+},
+{
+"name": "STAN 025|  Charlton Athletic v Manchester City - WSL 2026/27 (2026-09-26 12:20:07)",
+"tvgId": "dummy-10148",
+"group": "EN STAN EVENTS",
+"streamId": "1513486",
+"logo": null
+},
+{
+"name": "Manchester City v Wolverhampton Wanderers - Premier League 2025/2026 (2026-01-24 14:50:06)",
+"tvgId": "dummy-10149",
+"group": "EN STAN EVENTS",
+"streamId": "1513487",
+"logo": null
+},
+{
+"name": "Ferencváros v Panathinaikos - UEFA Europa League 2025/2026 (2026-01-22 19:55:06)",
+"tvgId": "dummy-10150",
+"group": "EN STAN EVENTS",
+"streamId": "1513488",
+"logo": null
+},
+{
+"name": "Qarabağ v Eintracht Frankfurt - UEFA Champions League 2025/2026 (2026-01-21 17:40:06)",
+"tvgId": "dummy-10151",
+"group": "EN STAN EVENTS",
+"streamId": "1513489",
+"logo": null
+},
+{
+"name": "STAN 043|  Day 11 - Wimbledon 2026 (2026-07-09 10:00:25)",
+"tvgId": "dummy-10152",
+"group": "EN STAN EVENTS",
+"streamId": "1513490",
+"logo": null
+},
+{
+"name": "4K - Bournemouth v Liverpool - Premier League 2025/2026 (2026-01-24 17:20:06)",
+"tvgId": "dummy-10153",
+"group": "EN STAN EVENTS",
+"streamId": "1513491",
+"logo": null
+},
+{
+"name": "West Ham United v Sunderland - Premier League 2025/2026 (2026-01-24 11:30:06)",
+"tvgId": "dummy-10154",
+"group": "EN STAN EVENTS",
+"streamId": "1513492",
+"logo": null
+},
+{
+"name": "Goal Rush - 25 Jan Premier League 2025/26 (2026-01-24 14:50:06)",
+"tvgId": "dummy-10155",
+"group": "EN STAN EVENTS",
+"streamId": "1513493",
+"logo": null
+},
+{
+"name": "Jovic v Hon - Women's Singles R2 Australian Open 2026 (2026-01-21 10:00:06)",
+"tvgId": "dummy-10156",
+"group": "EN STAN EVENTS",
+"streamId": "1513494",
+"logo": null
+},
+{
+"name": "STAN 009|  Scotland v Australia - WXV 2026 (2026-09-26 15:00:07)",
+"tvgId": "dummy-10157",
+"group": "EN STAN EVENTS",
+"streamId": "1513495",
+"logo": null
+},
+{
+"name": "PAOK v Real Betis - UEFA Europa League 2025/2026 (2026-01-22 17:40:06)",
+"tvgId": "dummy-10158",
+"group": "EN STAN EVENTS",
+"streamId": "1513496",
+"logo": null
+},
+{
+"name": "Young Boys v Olympique Lyonnais - UEFA Europa League 2025/2026 (2026-01-22 17:40:06)",
+"tvgId": "dummy-10159",
+"group": "EN STAN EVENTS",
+"streamId": "1513497",
+"logo": null
+},
+{
+"name": "Newcastle United v PSV - UEFA Champions League 2025/2026 (2026-01-21 19:55:06)",
+"tvgId": "dummy-10160",
+"group": "EN STAN EVENTS",
+"streamId": "1513498",
+"logo": null
+},
+{
+"name": "Dinamo Zagreb v FCSB - UEFA Europa League 2025/2026 (2026-01-22 19:55:06)",
+"tvgId": "dummy-10161",
+"group": "EN STAN EVENTS",
+"streamId": "1513499",
+"logo": null
+},
+{
+"name": "STAN 015|  Singapore: Day 6 - WTA 500 (2026-09-26 06:30:25)",
+"tvgId": "dummy-10162",
+"group": "EN STAN EVENTS",
+"streamId": "1513500",
+"logo": null
+},
+{
+"name": "STAN 002|  Gotham FC v Chicago Stars - NWSL 2026 (2026-09-26 00:00:07)",
+"tvgId": "dummy-10163",
+"group": "EN STAN EVENTS",
+"streamId": "1513501",
+"logo": null
+},
+{
+"name": "STAN 011|  AUS U18s vs AUS School Boys XV - Australian Schoolboys/U18s 2026 (2026-09-25 04:00:13)",
+"tvgId": "dummy-10164",
+"group": "EN STAN EVENTS",
+"streamId": "1513502",
+"logo": null
+},
+{
+"name": "STAN 020|  Singapore: Day 5 - WTA 500 (2026-09-25 04:40:52)",
+"tvgId": "dummy-10165",
+"group": "EN STAN EVENTS",
+"streamId": "1513503",
+"logo": null
+},
+{
+"name": "STAN 016|  Auckland v Manawatū - Farah Palmer Cup Round 5 2026 (2026-09-25 04:30:12)",
+"tvgId": "dummy-10166",
+"group": "EN STAN EVENTS",
+"streamId": "1513504",
+"logo": null
+},
+{
+"name": "STAN 013|  Seoul: Day 6 - WTA 250 (2026-09-26 05:00:25)",
+"tvgId": "dummy-10167",
+"group": "EN STAN EVENTS",
+"streamId": "1513505",
+"logo": null
+},
+{
+"name": "STAN 028|  North Harbour v Otago - NPC Round 9 2026 (2026-09-26 07:00:07)",
+"tvgId": "dummy-10168",
+"group": "EN STAN EVENTS",
+"streamId": "1513506",
+"logo": null
+},
+{
+"name": "STAN 019|  Day 1 • Night Session - Laver Cup 2026 (2026-09-25 18:00:25)",
+"tvgId": "dummy-10169",
+"group": "EN STAN EVENTS",
+"streamId": "1513507",
+"logo": null
+},
+{
+"name": "STAN 022|  Day 1 • Day Session - Laver Cup 2026 (2026-09-25 11:30:25)",
+"tvgId": "dummy-10170",
+"group": "EN STAN EVENTS",
+"streamId": "1513508",
+"logo": null
+},
+{
+"name": "STAN 050|  Hamburg: Day 5 - WTA 250 (2026-07-24 09:00:25)",
+"tvgId": "dummy-10171",
+"group": "EN STAN EVENTS",
+"streamId": "1513509",
+"logo": null
+},
+{
+"name": "STAN 003|  Northland v Counties Manukau - NPC Round 9 2026 (2026-09-26 02:00:07)",
+"tvgId": "dummy-10172",
+"group": "EN STAN EVENTS",
+"streamId": "1513510",
+"logo": null
+},
+{
+"name": "Courtside: Day 7 - Australian Open 2026 (2026-01-23 22:30:06)",
+"tvgId": "dummy-10173",
+"group": "EN STAN EVENTS",
+"streamId": "1513511",
+"logo": null
+},
+{
+"name": "Medjedovic v De Minaur - Men's Singles R2 Australian Open 2026 (2026-01-21 08:00:06)",
+"tvgId": "dummy-10174",
+"group": "EN STAN EVENTS",
+"streamId": "1513512",
+"logo": null
+},
+{
+"name": "Olympique Marseille v Liverpool - UEFA Champions League 2025/2026 (2026-01-21 19:55:06)",
+"tvgId": "dummy-10175",
+"group": "EN STAN EVENTS",
+"streamId": "1513513",
+"logo": null
+},
+{
+"name": "Courtside: Day 6 - Australian Open 2026 (2026-01-22 22:30:06)",
+"tvgId": "dummy-10176",
+"group": "EN STAN EVENTS",
+"streamId": "1513514",
+"logo": null
+},
+{
+"name": "STAN 004|  Racing Louisville v San Diego Wave - NWSL 2026 (2026-09-25 22:30:07)",
+"tvgId": "dummy-10177",
+"group": "EN STAN EVENTS",
+"streamId": "1513515",
+"logo": null
+},
+{
+"name": "STAN 007|  Northampton v Newcastle - PREM Rugby Round 1 2026/27 (2026-09-25 18:40:07)",
+"tvgId": "dummy-10178",
+"group": "EN STAN EVENTS",
+"streamId": "1513516",
+"logo": null
+},
+{
+"name": "STAN 045|  Day 13 - Wimbledon 2026 (2026-07-11 10:00:25)",
+"tvgId": "dummy-10179",
+"group": "EN STAN EVENTS",
+"streamId": "1513517",
+"logo": null
+},
+{
+"name": "STAN 034|  Day 2 - Wimbledon 2026 (2026-06-30 10:00:25)",
+"tvgId": "dummy-10180",
+"group": "EN STAN EVENTS",
+"streamId": "1513583",
+"logo": null
+},
+{
+"name": "STAN 035|  Day 3 - Wimbledon 2026 (2026-07-01 10:00:25)",
+"tvgId": "dummy-10181",
+"group": "EN STAN EVENTS",
+"streamId": "1513584",
+"logo": null
+},
+{
+"name": "Crystal Palace v Chelsea - Premier League 2025/2026 (2026-01-25 13:50:06)",
+"tvgId": "dummy-10182",
+"group": "EN STAN EVENTS",
+"streamId": "1513585",
+"logo": null
+},
+{
+"name": "Courtside: Day 5 - Australian Open 2026 (2026-01-21 22:30:06)",
+"tvgId": "dummy-10183",
+"group": "EN STAN EVENTS",
+"streamId": "1513586",
+"logo": null
+},
+{
+"name": "STAN 036|  Day 4 - Wimbledon 2026 (2026-07-02 10:00:25)",
+"tvgId": "dummy-10184",
+"group": "EN STAN EVENTS",
+"streamId": "1513587",
+"logo": null
+},
+{
+"name": "Animated Feed: Day 5 - Australian Open 2026 (2026-01-22 00:00:06)",
+"tvgId": "dummy-10185",
+"group": "EN STAN EVENTS",
+"streamId": "1513588",
+"logo": null
+},
+{
+"name": "Newcastle United v Aston Villa - Premier League 2025/2026 (2026-01-25 13:50:06)",
+"tvgId": "dummy-10186",
+"group": "EN STAN EVENTS",
+"streamId": "1513589",
+"logo": null
+},
+{
+"name": "STAN 032|  SS13 Menalo Mt 2 - WRC Greece 2026 (2026-06-27 16:00:01)",
+"tvgId": "dummy-10187",
+"group": "EN STAN EVENTS",
+"streamId": "1513590",
+"logo": null
+},
+{
+"name": "Courtside 2: Day 5 - Australian Open 2026 (2026-01-22 01:00:06)",
+"tvgId": "dummy-10188",
+"group": "EN STAN EVENTS",
+"streamId": "1513591",
+"logo": null
+},
+{
+"name": "4K - Arsenal v Man United - Premier League 2025/26 (2026-01-25 16:20:06)",
+"tvgId": "dummy-10189",
+"group": "EN STAN EVENTS",
+"streamId": "1513592",
+"logo": null
+},
+{
+"name": "STAN 033|  Day 1 - Wimbledon 2026 (2026-06-29 10:00:25)",
+"tvgId": "dummy-10190",
+"group": "EN STAN EVENTS",
+"streamId": "1513593",
+"logo": null
+},
+{
+"name": "SS1 Toudon / Saint-Antonin - WRC Monte Carlo 2026 (2026-01-22 15:00:06)",
+"tvgId": "dummy-10191",
+"group": "EN STAN EVENTS",
+"streamId": "1513594",
+"logo": null
+},
+{
+"name": "Arsenal v Manchester United - Premier League 2025/2026 (2026-01-25 16:20:06)",
+"tvgId": "dummy-10192",
+"group": "EN STAN EVENTS",
+"streamId": "1513595",
+"logo": null
+},
+{
+"name": "Chelsea v Pafos - UEFA Champions League 2025/2026 (2026-01-21 19:55:06)",
+"tvgId": "dummy-10193",
+"group": "EN STAN EVENTS",
+"streamId": "1513596",
+"logo": null
+},
+{
+"name": "STAN 006|  Harlequins v Bath - PREM Rugby Round 1 2026/27 (2026-09-25 18:40:07)",
+"tvgId": "dummy-10194",
+"group": "EN STAN EVENTS",
+"streamId": "1513568",
+"logo": null
+},
+{
+"name": "STAN 044|  Day 12 - Wimbledon 2026 (2026-07-10 10:00:25)",
+"tvgId": "dummy-10195",
+"group": "EN STAN EVENTS",
+"streamId": "1513569",
+"logo": null
+},
+{
+"name": "Football Zone: MD7 Thursday - UEFA Champions League 2025/26 (2026-01-21 19:40:06)",
+"tvgId": "dummy-10196",
+"group": "EN STAN EVENTS",
+"streamId": "1513570",
+"logo": null
+},
+{
+"name": "STAN 030|  Men Under 23 Road Race - UCI Road World Championships Montreal 2026 (2026-09-25 12:50:07)",
+"tvgId": "dummy-10197",
+"group": "EN STAN EVENTS",
+"streamId": "1513571",
+"logo": null
+},
+{
+"name": "STAN 031|  France v Fiji - Junior World Championship Round 1 2026 (2026-06-27 13:50:01)",
+"tvgId": "dummy-10198",
+"group": "EN STAN EVENTS",
+"streamId": "1513572",
+"logo": null
+},
+{
+"name": "STAN 017|  France v Canada - WXV 2026 (2026-09-26 15:35:07)",
+"tvgId": "dummy-10199",
+"group": "EN STAN EVENTS",
+"streamId": "1513573",
+"logo": null
+},
+{
+"name": "STAN 038|  Day 6 - Wimbledon 2026 (2026-07-04 10:00:25)",
+"tvgId": "dummy-10200",
+"group": "EN STAN EVENTS",
+"streamId": "1513574",
+"logo": null
+},
+{
+"name": "Sporting Braga v Nottingham Forest - UEFA Europa League 2025/2026 (2026-01-22 19:55:06)",
+"tvgId": "dummy-10201",
+"group": "EN STAN EVENTS",
+"streamId": "1513575",
+"logo": null
+},
+{
+"name": "Fenerbahçe v Aston Villa - UEFA Europa League 2025/2026 (2026-01-22 17:40:06)",
+"tvgId": "dummy-10202",
+"group": "EN STAN EVENTS",
+"streamId": "1513576",
+"logo": null
+},
+{
+"name": "Premier League Live - 26 Jan Premier League 2025/2026 (2026-01-25 13:00:06)",
+"tvgId": "dummy-10203",
+"group": "EN STAN EVENTS",
+"streamId": "1513577",
+"logo": null
+},
+{
+"name": "STAN 042|  Day 10 - Wimbledon 2026 (2026-07-08 10:00:25)",
+"tvgId": "dummy-10204",
+"group": "EN STAN EVENTS",
+"streamId": "1513578",
+"logo": null
+},
+{
+"name": "Salzburg v Basel - UEFA Europa League 2025/2026 (2026-01-22 19:55:06)",
+"tvgId": "dummy-10205",
+"group": "EN STAN EVENTS",
+"streamId": "1513579",
+"logo": null
+},
+{
+"name": "STAN 014|  Women Elite Road Race - UCI Road World Championships Montreal 2026 (2026-09-26 12:50:07)",
+"tvgId": "dummy-10206",
+"group": "EN STAN EVENTS",
+"streamId": "1513580",
+"logo": null
+},
+{
+"name": "Fulham v Brighton & Hove Albion - Premier League 2025/2026 (2026-01-24 14:50:06)",
+"tvgId": "dummy-10207",
+"group": "EN STAN EVENTS",
+"streamId": "1513581",
+"logo": null
+},
+{
+"name": "STAN 040|  Day 8 - Wimbledon 2026 (2026-07-06 10:00:25)",
+"tvgId": "dummy-10208",
+"group": "EN STAN EVENTS",
+"streamId": "1513582",
+"logo": null
+},
+{
+"name": "Courtside: Day 9 - Australian Open 2026 (2026-01-25 22:30:06)",
+"tvgId": "dummy-10209",
+"group": "EN STAN EVENTS",
+"streamId": "1513518",
+"logo": null
+},
+{
+"name": "Everton v Leeds United - Premier League 2025/2026 (2026-01-26 19:55:06)",
+"tvgId": "dummy-10210",
+"group": "EN STAN EVENTS",
+"streamId": "1513519",
+"logo": null
+},
+{
+"name": "Day 10 - Australian Open 2026 (2026-01-26 22:30:06)",
+"tvgId": "dummy-10211",
+"group": "EN STAN EVENTS",
+"streamId": "1513520",
+"logo": null
+},
+{
+"name": "Courtside: Day 10 - Australian Open 2026 (2026-01-26 22:30:06)",
+"tvgId": "dummy-10212",
+"group": "EN STAN EVENTS",
+"streamId": "1513521",
+"logo": null
+},
+{
+"name": "Day 11 - Australian Open 2026 (2026-01-27 22:30:06)",
+"tvgId": "dummy-10213",
+"group": "EN STAN EVENTS",
+"streamId": "1513522",
+"logo": null
+},
+{
+"name": "Courtside: Day 11 - Australian Open 2026 (2026-01-27 22:30:06)",
+"tvgId": "dummy-10214",
+"group": "EN STAN EVENTS",
+"streamId": "1513523",
+"logo": null
+},
+{
+"name": "Football Zone: MD8 Thursday - UEFA Champions League 2025/26 (2026-01-28 19:40:06)",
+"tvgId": "dummy-10215",
+"group": "EN STAN EVENTS",
+"streamId": "1513524",
+"logo": null
+},
+{
+"name": "Atlético de Madrid v Bodø / Glimt - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"tvgId": "dummy-10216",
+"group": "EN STAN EVENTS",
+"streamId": "1513525",
+"logo": null
+},
+{
+"name": "Napoli v Chelsea - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"tvgId": "dummy-10217",
+"group": "EN STAN EVENTS",
+"streamId": "1513526",
+"logo": null
+},
+{
+"name": "PSG v Newcastle United - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"tvgId": "dummy-10218",
+"group": "EN STAN EVENTS",
+"streamId": "1513527",
+"logo": null
+},
+{
+"name": "Manchester City v Galatasaray - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"tvgId": "dummy-10219",
+"group": "EN STAN EVENTS",
+"streamId": "1513528",
+"logo": null
+},
+{
+"name": "Union Saint-Gilloise v Atalanta - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"tvgId": "dummy-10220",
+"group": "EN STAN EVENTS",
+"streamId": "1513529",
+"logo": null
+},
+{
+"name": "Club Brugge v Olympique Marseille - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"tvgId": "dummy-10221",
+"group": "EN STAN EVENTS",
+"streamId": "1513530",
+"logo": null
+},
+{
+"name": "Pafos v Slavia Praha - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"tvgId": "dummy-10222",
+"group": "EN STAN EVENTS",
+"streamId": "1513531",
+"logo": null
+},
+{
+"name": "Benfica v Real Madrid - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"tvgId": "dummy-10223",
+"group": "EN STAN EVENTS",
+"streamId": "1513532",
+"logo": null
+},
+{
+"name": "PSV v Bayern München - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"tvgId": "dummy-10224",
+"group": "EN STAN EVENTS",
+"streamId": "1513533",
+"logo": null
+},
+{
+"name": "Brighton & Hove Albion v Everton - Premier League 2025/2026 (2026-01-31 14:55:06)",
+"tvgId": "dummy-10225",
+"group": "EN STAN EVENTS",
+"streamId": "1513534",
+"logo": null
+},
+{
+"name": "Wolverhampton Wanderers v AFC Bournemouth - Premier League 2025/2026 (2026-01-31 14:55:06)",
+"tvgId": "dummy-10226",
+"group": "EN STAN EVENTS",
+"streamId": "1513535",
+"logo": null
+},
+{
+"name": "Leeds United v Arsenal - Premier League 2025/2026 (2026-01-31 14:55:06)",
+"tvgId": "dummy-10227",
+"group": "EN STAN EVENTS",
+"streamId": "1513536",
+"logo": null
+},
+{
+"name": "Chelsea v West Ham United - Premier League 2025/2026 (2026-01-31 17:25:06)",
+"tvgId": "dummy-10228",
+"group": "EN STAN EVENTS",
+"streamId": "1513537",
+"logo": null
+},
+{
+"name": "Liverpool v Newcastle United - Premier League 2025/2026 (2026-01-31 19:55:06)",
+"tvgId": "dummy-10229",
+"group": "EN STAN EVENTS",
+"streamId": "1513538",
+"logo": null
+},
+{
+"name": "Nottingham Forest v Crystal Palace - Premier League 2025/2026 (2026-02-01 13:55:06)",
+"tvgId": "dummy-10230",
+"group": "EN STAN EVENTS",
+"streamId": "1513539",
+"logo": null
+},
+{
+"name": "Manchester United v Fulham - Premier League 2025/2026 (2026-02-01 13:55:06)",
+"tvgId": "dummy-10231",
+"group": "EN STAN EVENTS",
+"streamId": "1513540",
+"logo": null
+},
+{
+"name": "Aston Villa v Brentford - Premier League 2025/2026 (2026-02-01 13:55:06)",
+"tvgId": "dummy-10232",
+"group": "EN STAN EVENTS",
+"streamId": "1513541",
+"logo": null
+},
+{
+"name": "Tottenham Hotspur v Manchester City - Premier League 2025/2026 (2026-02-01 16:25:06)",
+"tvgId": "dummy-10233",
+"group": "EN STAN EVENTS",
+"streamId": "1513542",
+"logo": null
+},
+{
+"name": "Sunderland v Burnley - Premier League 2025/2026 (2026-02-02 19:55:06)",
+"tvgId": "dummy-10234",
+"group": "EN STAN EVENTS",
+"streamId": "1513543",
+"logo": null
+},
+{
+"name": "Manchester United v Tottenham Hotspur - Premier League 2025/2026 (2026-02-07 12:25:06)",
+"tvgId": "dummy-10235",
+"group": "EN STAN EVENTS",
+"streamId": "1513544",
+"logo": null
+},
+{
+"name": "Arsenal v Sunderland - Premier League 2025/2026 (2026-02-07 14:55:06)",
+"tvgId": "dummy-10236",
+"group": "EN STAN EVENTS",
+"streamId": "1513545",
+"logo": null
+},
+{
+"name": "Wolverhampton Wanderers v Chelsea - Premier League 2025/2026 (2026-02-07 14:55:06)",
+"tvgId": "dummy-10237",
+"group": "EN STAN EVENTS",
+"streamId": "1513546",
+"logo": null
+},
+{
+"name": "Newcastle United v Brentford - Premier League 2025/2026 (2026-02-07 14:55:06)",
+"tvgId": "dummy-10238",
+"group": "EN STAN EVENTS",
+"streamId": "1513547",
+"logo": null
+},
+{
+"name": "Brighton & Hove Albion v Crystal Palace - Premier League 2025/2026 (2026-02-07 14:55:06)",
+"tvgId": "dummy-10239",
+"group": "EN STAN EVENTS",
+"streamId": "1513548",
+"logo": null
+},
+{
+"name": "Burnley v West Ham United - Premier League 2025/2026 (2026-02-07 14:55:06)",
+"tvgId": "dummy-10240",
+"group": "EN STAN EVENTS",
+"streamId": "1513549",
+"logo": null
+},
+{
+"name": "Utrecht v Genk - UEFA Europa League 2025/2026 (2026-01-22 19:55:06)",
+"tvgId": "dummy-10241",
+"group": "EN STAN EVENTS",
+"streamId": "1513550",
+"logo": null
+},
+{
+"name": "Barcelona v København - UEFA Champions League 2025/2026 (2026-01-28 19:55:06)",
+"tvgId": "dummy-10242",
+"group": "EN STAN EVENTS",
+"streamId": "1513551",
+"logo": null
+},
+{
+"name": "Courtside: Day 5 - Australian Open 2026 (2026-01-21 22:30:06)",
+"tvgId": "dummy-10243",
+"group": "EN STAN EVENTS",
+"streamId": "1513552",
+"logo": null
+},
+{
+"name": "Salzburg v Basel - UEFA Europa League 2025/2026 (2026-01-22 19:55:06)",
+"tvgId": "dummy-10244",
+"group": "EN STAN EVENTS",
+"streamId": "1513553",
+"logo": null
+},
+{
+"name": "Dinamo Zagreb v FCSB - UEFA Europa League 2025/2026 (2026-01-22 19:55:06)",
+"tvgId": "dummy-10245",
+"group": "EN STAN EVENTS",
+"streamId": "1513554",
+"logo": null
+},
+{
+"name": "Courtside: Day 6 - Australian Open 2026 (2026-01-22 22:30:06)",
+"tvgId": "dummy-10246",
+"group": "EN STAN EVENTS",
+"streamId": "1513555",
+"logo": null
+},
+{
+"name": "Courtside: Day 7 - Australian Open 2026 (2026-01-23 22:30:06)",
+"tvgId": "dummy-10247",
+"group": "EN STAN EVENTS",
+"streamId": "1513556",
+"logo": null
+},
+{
+"name": "Courtside: Day 8 - Australian Open 2026 (2026-01-24 22:30:06)",
+"tvgId": "dummy-10248",
+"group": "EN STAN EVENTS",
+"streamId": "1513557",
+"logo": null
+},
+{
+"name": "Courtside: Day 9 - Australian Open 2026 (2026-01-25 22:30:06)",
+"tvgId": "dummy-10249",
+"group": "EN STAN EVENTS",
+"streamId": "1513558",
+"logo": null
+},
+{
+"name": "Courtside: Day 10 - Australian Open 2026 (2026-01-26 22:30:06)",
+"tvgId": "dummy-10250",
+"group": "EN STAN EVENTS",
+"streamId": "1513559",
+"logo": null
+},
+{
+"name": "Courtside: Day 11 - Australian Open 2026 (2026-01-27 22:30:06)",
+"tvgId": "dummy-10251",
+"group": "EN STAN EVENTS",
+"streamId": "1513560",
+"logo": null
+},
+{
+"name": "Brighton & Hove Albion v Crystal Palace - Premier League 2025/2026 (2026-02-07 14:55:06)",
+"tvgId": "dummy-10252",
+"group": "EN STAN EVENTS",
+"streamId": "1513561",
+"logo": null
+},
+{
+"name": "Newcastle United v Brentford - Premier League 2025/2026 (2026-02-07 14:55:06)",
+"tvgId": "dummy-10253",
+"group": "EN STAN EVENTS",
+"streamId": "1513562",
+"logo": null
+},
+{
+"name": "Vekic v Andreeva - Women's Singles R1 Australian Open 2026 (2026-01-19 08:03:37)",
+"tvgId": "dummy-10254",
+"group": "EN STAN EVENTS",
+"streamId": "1513563",
+"logo": null
+},
+{
+"name": "Yuan v Swiatek - Women's Singles R1 Australian Open 2026 (2026-01-19 08:07:33)",
+"tvgId": "dummy-10255",
+"group": "EN STAN EVENTS",
+"streamId": "1513564",
+"logo": null
+},
+{
+"name": "Sierra v Uchijima - Women's Singles R1 Australian Open 2026 (2026-01-19 08:24:31)",
+"tvgId": "dummy-10256",
+"group": "EN STAN EVENTS",
+"streamId": "1513565",
+"logo": null
+},
+{
+"name": "Mertens v Tararudee - Women's Singles R1 Australian Open 2026 (2026-01-19 08:39:42)",
+"tvgId": "dummy-10257",
+"group": "EN STAN EVENTS",
+"streamId": "1513566",
+"logo": null
+},
+{
+"name": "Bellucci v Ruud - Men's Singles R1 Australian Open 2026 (2026-01-19 10:22:07)",
+"tvgId": "dummy-10258",
+"group": "EN STAN EVENTS",
+"streamId": "1513567",
+"logo": null
+},
+{
+"name": "Sky Sport 1",
+"tvgId": "skysport1.nz",
+"group": "NZ SPORTS",
+"streamId": "579826",
+"logo": null
+},
+{
+"name": "Sky Sport 2",
+"tvgId": "skysport2.nz",
+"group": "NZ SPORTS",
+"streamId": "579825",
+"logo": null
+},
+{
+"name": "Sky Sport 3",
+"tvgId": "skysport3.nz",
+"group": "NZ SPORTS",
+"streamId": "579824",
+"logo": null
+},
+{
+"name": "Sky Sport 4",
+"tvgId": "skysport4.nz",
+"group": "NZ SPORTS",
+"streamId": "579823",
+"logo": null
+},
+{
+"name": "Sky Sport 5",
+"tvgId": "skysport5.nz",
+"group": "NZ SPORTS",
+"streamId": "579822",
+"logo": null
+},
+{
+"name": "Sky Sport 6",
+"tvgId": "skysport6.nz",
+"group": "NZ SPORTS",
+"streamId": "579821",
+"logo": null
+},
+{
+"name": "Sky Sport 7",
+"tvgId": "skysport7.nz",
+"group": "NZ SPORTS",
+"streamId": "579820",
+"logo": null
+},
+{
+"name": "Sky Sport 9",
+"tvgId": "skysport9.nz",
+"group": "NZ SPORTS",
+"streamId": "579818",
+"logo": null
+},
+{
+"name": "Sky Sport Premier League",
+"tvgId": "skysportpremierleague.nz",
+"group": "NZ SPORTS",
+"streamId": "579819",
+"logo": null
+}
+]

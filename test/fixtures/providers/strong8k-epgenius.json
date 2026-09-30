@@ -1,0 +1,8969 @@
+[
+{
+"name": "### LOCAL NETWORKS ###",
+"tvgId": "local.gr",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "604294",
+"logo": null
+},
+{
+"name": "ABC",
+"tvgId": "abcsydney.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441345",
+"logo": null
+},
+{
+"name": "SBS",
+"tvgId": "sbssydney.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441321",
+"logo": null
+},
+{
+"name": "10 Bold",
+"tvgId": "10bold.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441337",
+"logo": null
+},
+{
+"name": "7 Flix Sydney",
+"tvgId": "7flixsydney.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441372",
+"logo": null
+},
+{
+"name": "7 Mate Melbourne",
+"tvgId": "7matemelbourne.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441367",
+"logo": null
+},
+{
+"name": "7 Two Sydney",
+"tvgId": "7twosydney.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441365",
+"logo": null
+},
+{
+"name": "7 Bravo",
+"tvgId": "Channel7BravoMelbourne.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "749649",
+"logo": null
+},
+{
+"name": "Channel 9",
+"tvgId": "Channel9Sydney.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "1537674",
+"logo": null
+},
+{
+"name": "9 Gem",
+"tvgId": "9gem.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "1537673",
+"logo": null
+},
+{
+"name": "9 Go!",
+"tvgId": "9go.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "1537672",
+"logo": null
+},
+{
+"name": "9 Life",
+"tvgId": "9life.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "1537671",
+"logo": null
+},
+{
+"name": "9 Rush",
+"tvgId": "9rush.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "1537670",
+"logo": null
+},
+{
+"name": "SBS Viceland National",
+"tvgId": "SBSVicelandMelbourne.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441319",
+"logo": null
+},
+{
+"name": "SBS Food National",
+"tvgId": "SBSFoodSydney.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441325",
+"logo": null
+},
+{
+"name": "SBS World Movies National",
+"tvgId": "SBSWorldMoviesSydney.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441317",
+"logo": null
+},
+{
+"name": "ABC ME",
+"tvgId": "ABCMESydney.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441347",
+"logo": null
+},
+{
+"name": "ABC Kids",
+"tvgId": "ABCKids_ABCTV PlusBrisbane.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441351",
+"logo": null
+},
+{
+"name": "BBC Entertainment",
+"tvgId": "BBCEntertain.us",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "1537635",
+"logo": null
+},
+{
+"name": "BBC Select",
+"tvgId": "BBCSelect.us",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "1537633",
+"logo": null
+},
+{
+"name": "BBC First",
+"tvgId": "bbcfirst.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "1537634",
+"logo": null
+},
+{
+"name": "### SPORTS ###",
+"tvgId": "local.gr",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "604294",
+"logo": null
+},
+{
+"name": "Fox Sports News 500",
+"tvgId": "NSW-SydneyFoxSportsNews.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441308",
+"logo": null
+},
+{
+"name": "Fox Cricket 501",
+"tvgId": "NSW-SydneyFOXCRICKET.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441307",
+"logo": null
+},
+{
+"name": "Fox League 502",
+"tvgId": "NSW-SydneyFOXLEAGUE.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441306",
+"logo": null
+},
+{
+"name": "Fox Sports 503",
+"tvgId": "NSW-SydneyFOXSPORTS503.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441305",
+"logo": null
+},
+{
+"name": "Fox Footy 504",
+"tvgId": "NSW-SydneyFoxFooty.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441304",
+"logo": null
+},
+{
+"name": "Fox Sports 505",
+"tvgId": "NSW-SydneyFOXSPORTS505.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441360",
+"logo": null
+},
+{
+"name": "Fox Sports 506",
+"tvgId": "NSW-SydneyFOXSPORTS506.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441302",
+"logo": null
+},
+{
+"name": "Fox Sports More+ 507",
+"tvgId": "NSW-SydneyFOXSPORTSMORE.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441301",
+"logo": null
+},
+{
+"name": "beIN Sports 1",
+"tvgId": "beINSPORTS.sg",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "1968698",
+"logo": null
+},
+{
+"name": "beIN Sports 2",
+"tvgId": "beINSPORTS2.sg",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "1968697",
+"logo": null
+},
+{
+"name": "beIN Sports 3",
+"tvgId": "beINSPORTS3.sg",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "1968696",
+"logo": null
+},
+{
+"name": "ESPN",
+"tvgId": "espn.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441310",
+"logo": null
+},
+{
+"name": "ESPN 2",
+"tvgId": "espn2.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441309",
+"logo": null
+},
+{
+"name": "Sky Racing 1",
+"tvgId": "447013",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441297",
+"logo": null
+},
+{
+"name": "Sky Racing 2",
+"tvgId": "447012",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441296",
+"logo": null
+},
+{
+"name": "Sky Sport Premier League",
+"tvgId": "skysportpremierleague.nz",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "670268",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket (UK)",
+"tvgId": "skysportscricket.uk",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "1290236",
+"logo": null
+},
+{
+"name": "Sky Sport Select",
+"tvgId": "skysportselect.nz",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "2006098",
+"logo": null
+},
+{
+"name": "Sky Sport 1",
+"tvgId": "skysport1.nz",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "2006097",
+"logo": null
+},
+{
+"name": "Sky Sport 2",
+"tvgId": "skysport2.nz",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "2006096",
+"logo": null
+},
+{
+"name": "Sky Sport 3",
+"tvgId": "skysport3.nz",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "2006107",
+"logo": null
+},
+{
+"name": "Sky Sport 4",
+"tvgId": "skysport4.nz",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "2006094",
+"logo": null
+},
+{
+"name": "Sky Sport 5",
+"tvgId": "skysport5.nz",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "2006093",
+"logo": null
+},
+{
+"name": "Sky Sport 6",
+"tvgId": "skysport6.nz",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "2006092",
+"logo": null
+},
+{
+"name": "Sky Sport 7",
+"tvgId": "skysport7.nz",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "2006091",
+"logo": null
+},
+{
+"name": "Sky Sport 8",
+"tvgId": "skysport8.nz",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "2006090",
+"logo": null
+},
+{
+"name": "Sky Sport 9",
+"tvgId": "skysport9.nz",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "2006089",
+"logo": null
+},
+{
+"name": "Liv Golf",
+"tvgId": "dummy-857775",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "749781",
+"logo": null
+},
+{
+"name": "Racing",
+"tvgId": "dummy-857784",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441335",
+"logo": null
+},
+{
+"name": "Racing.com National",
+"tvgId": "40886",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441333",
+"logo": null
+},
+{
+"name": "Redbull TV National",
+"tvgId": "447029",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441329",
+"logo": null
+},
+{
+"name": "### ENTERTAINMENT CHANNELS ###",
+"tvgId": "local.gr",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "604294",
+"logo": null
+},
+{
+"name": "Sky News",
+"tvgId": "skynews.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441300",
+"logo": null
+},
+{
+"name": "Sky News Extra",
+"tvgId": "skynewsextra.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441299",
+"logo": null
+},
+{
+"name": "Sky News Now",
+"tvgId": "skynewsnow.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "750645",
+"logo": null
+},
+{
+"name": "Fail Army",
+"tvgId": "failarmy.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "1537459",
+"logo": null
+},
+{
+"name": "Redbull TV",
+"tvgId": "RedbullTV.us",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "441331",
+"logo": null
+},
+{
+"name": "Bloomberg",
+"tvgId": "bloombergbla.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "1537639",
+"logo": null
+},
+{
+"name": "Channel News Asia",
+"tvgId": "channelnewsasia.au",
+"group": "🇦🇺 TV Guide (Australia)",
+"streamId": "1541191",
+"logo": null
+},
+{
+"name": "### NBA List 1 ###",
+"tvgId": null,
+"group": "🏀 NBA League Pass",
+"streamId": "595618",
+"logo": null
+},
+{
+"name": "NBA TV",
+"tvgId": "nbatv.us",
+"group": "🏀 NBA League Pass",
+"streamId": "607602",
+"logo": null
+},
+{
+"name": "NBA TV (Backup)",
+"tvgId": "nbatv.us",
+"group": "🏀 NBA League Pass",
+"streamId": "616097",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 1",
+"tvgId": "dummy-3067185",
+"group": "🏀 NBA League Pass",
+"streamId": "1634335",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 2",
+"tvgId": "dummy-3067186",
+"group": "🏀 NBA League Pass",
+"streamId": "1634334",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 3",
+"tvgId": "dummy-3067187",
+"group": "🏀 NBA League Pass",
+"streamId": "1634333",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 4",
+"tvgId": "dummy-3067188",
+"group": "🏀 NBA League Pass",
+"streamId": "1634332",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 5",
+"tvgId": "dummy-3067189",
+"group": "🏀 NBA League Pass",
+"streamId": "1634331",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 6",
+"tvgId": "dummy-3067190",
+"group": "🏀 NBA League Pass",
+"streamId": "1634330",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 7",
+"tvgId": "dummy-3067191",
+"group": "🏀 NBA League Pass",
+"streamId": "1634329",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 8",
+"tvgId": "dummy-3067192",
+"group": "🏀 NBA League Pass",
+"streamId": "1634328",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 9",
+"tvgId": "dummy-3067193",
+"group": "🏀 NBA League Pass",
+"streamId": "1634327",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 10",
+"tvgId": "dummy-3067194",
+"group": "🏀 NBA League Pass",
+"streamId": "1634326",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 11",
+"tvgId": "dummy-3067195",
+"group": "🏀 NBA League Pass",
+"streamId": "1634325",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 12",
+"tvgId": "dummy-3067196",
+"group": "🏀 NBA League Pass",
+"streamId": "1634324",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 13",
+"tvgId": "dummy-3067197",
+"group": "🏀 NBA League Pass",
+"streamId": "1634323",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 14",
+"tvgId": "dummy-3067198",
+"group": "🏀 NBA League Pass",
+"streamId": "1634322",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 15",
+"tvgId": "dummy-3067199",
+"group": "🏀 NBA League Pass",
+"streamId": "1634321",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 16",
+"tvgId": "dummy-3067200",
+"group": "🏀 NBA League Pass",
+"streamId": "1634320",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 17",
+"tvgId": "dummy-3067201",
+"group": "🏀 NBA League Pass",
+"streamId": "1634319",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 18",
+"tvgId": "dummy-3067202",
+"group": "🏀 NBA League Pass",
+"streamId": "1634318",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 19",
+"tvgId": "dummy-3067203",
+"group": "🏀 NBA League Pass",
+"streamId": "1634317",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: NBA PASS PPV 20",
+"tvgId": "dummy-3067204",
+"group": "🏀 NBA League Pass",
+"streamId": "1634316",
+"logo": null
+},
+{
+"name": "### NBA TEAM FEEDS ###",
+"tvgId": null,
+"group": "🏀 NBA League Pass",
+"streamId": "595618",
+"logo": null
+},
+{
+"name": "Atlanta Hawks",
+"tvgId": "AtlantaHawks.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633411",
+"logo": null
+},
+{
+"name": "Boston Celtics",
+"tvgId": "BostonCeltics.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633409",
+"logo": null
+},
+{
+"name": "Brooklyn Nets",
+"tvgId": "BrooklynNets.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633407",
+"logo": null
+},
+{
+"name": "Charlotte Hornets",
+"tvgId": "CharlotteHornets.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633405",
+"logo": null
+},
+{
+"name": "Chicago Bulls",
+"tvgId": "ChicagoBulls.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633403",
+"logo": null
+},
+{
+"name": "Cleveland Cavaliers",
+"tvgId": "ClevelandCavaliers.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633401",
+"logo": null
+},
+{
+"name": "Dallas Mavericks",
+"tvgId": "DallasMavericks.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633399",
+"logo": null
+},
+{
+"name": "Denver Nuggets",
+"tvgId": "DenverNuggets.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633397",
+"logo": null
+},
+{
+"name": "Detroit Pistons",
+"tvgId": "DetroitPistons.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633395",
+"logo": null
+},
+{
+"name": "Golden State Warriors",
+"tvgId": "GoldenStateWarriors.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633393",
+"logo": null
+},
+{
+"name": "Houston Rockets",
+"tvgId": "HoustonRockets.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633391",
+"logo": null
+},
+{
+"name": "Indiana Pacers",
+"tvgId": "IndianaPacers.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633389",
+"logo": null
+},
+{
+"name": "Los Angeles Clippers",
+"tvgId": "LosAngelesLakers.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633377",
+"logo": null
+},
+{
+"name": "Los Angeles Lakers",
+"tvgId": "LosAngelesLakers.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633375",
+"logo": null
+},
+{
+"name": "Memphis Grizzlies",
+"tvgId": "MemphisGrizzlies.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633373",
+"logo": null
+},
+{
+"name": "Miami Heat",
+"tvgId": "MiamiHeat.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633371",
+"logo": null
+},
+{
+"name": "Milwaukee Bucks",
+"tvgId": "MilwaukeeBucks.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633369",
+"logo": null
+},
+{
+"name": "Minnesota Timberwolves",
+"tvgId": "MinnesotaTimberwolves.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633367",
+"logo": null
+},
+{
+"name": "New Orleans Pelicans",
+"tvgId": "NewOrleansPelicans.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633365",
+"logo": null
+},
+{
+"name": "New York Knicks",
+"tvgId": "NewYorkKnicks.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633363",
+"logo": null
+},
+{
+"name": "Oklahoma City Thunder",
+"tvgId": "OklahomaCityThunder.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633361",
+"logo": null
+},
+{
+"name": "Orlando Magic",
+"tvgId": "OrlandoMagic.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633359",
+"logo": null
+},
+{
+"name": "Philadelphia 76ers",
+"tvgId": "Philadelphia76ers.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633357",
+"logo": null
+},
+{
+"name": "Phoenix Suns",
+"tvgId": "PhoenixSuns.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633355",
+"logo": null
+},
+{
+"name": "Portland Trail Blazers",
+"tvgId": "PortlandTrailBlazers.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633353",
+"logo": null
+},
+{
+"name": "Sacramento Kings",
+"tvgId": "SacramentoKings.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633351",
+"logo": null
+},
+{
+"name": "San Antonio Spurs",
+"tvgId": "SanAntonioSpurs.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633349",
+"logo": null
+},
+{
+"name": "Toronto Raptors",
+"tvgId": "TorontoRaptors.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633347",
+"logo": null
+},
+{
+"name": "Utah Jazz",
+"tvgId": "UtahJazz.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633345",
+"logo": null
+},
+{
+"name": "Washington Wizards",
+"tvgId": "WashingtonWizards.nba",
+"group": "🏀 NBA League Pass",
+"streamId": "633343",
+"logo": null
+},
+{
+"name": "### NBA GAMES LIST 2 ###",
+"tvgId": null,
+"group": "🏀 NBA League Pass",
+"streamId": "1634336",
+"logo": null
+},
+{
+"name": "NBA Summer League Mavericks vs. Thunder Jul 16 :NBA 01",
+"tvgId": "dummy-2711960",
+"group": "🏀 NBA League Pass",
+"streamId": "607601",
+"logo": null
+},
+{
+"name": "NBA 02: Knicks (NYK) x Timberwolves (MIN) start:2025-01-18 00:20:00 stop:2025-01-18 04:20:00",
+"tvgId": "dummy-2711961",
+"group": "🏀 NBA League Pass",
+"streamId": "607600",
+"logo": null
+},
+{
+"name": "NBA Summer League Lakers vs. Bulls jul 16 :NBA 03",
+"tvgId": "dummy-2711962",
+"group": "🏀 NBA League Pass",
+"streamId": "607599",
+"logo": null
+},
+{
+"name": "NBA Summer League Warriors vs. Knicks jul 16 :NBA 04",
+"tvgId": "dummy-2711963",
+"group": "🏀 NBA League Pass",
+"streamId": "607598",
+"logo": null
+},
+{
+"name": "NBA Summer League Raptors vs. Heat jul 17 :NBA 05",
+"tvgId": "dummy-2711964",
+"group": "🏀 NBA League Pass",
+"streamId": "607597",
+"logo": null
+},
+{
+"name": "NBA 06 :",
+"tvgId": "dummy-2711965",
+"group": "🏀 NBA League Pass",
+"streamId": "607596",
+"logo": null
+},
+{
+"name": "NBA 07 :",
+"tvgId": "dummy-2711966",
+"group": "🏀 NBA League Pass",
+"streamId": "607595",
+"logo": null
+},
+{
+"name": "NBA 08 :",
+"tvgId": "dummy-2711967",
+"group": "🏀 NBA League Pass",
+"streamId": "607594",
+"logo": null
+},
+{
+"name": "NBA 09 :",
+"tvgId": "dummy-2711968",
+"group": "🏀 NBA League Pass",
+"streamId": "607593",
+"logo": null
+},
+{
+"name": "NBA 10 :",
+"tvgId": "dummy-2711969",
+"group": "🏀 NBA League Pass",
+"streamId": "607592",
+"logo": null
+},
+{
+"name": "NBA 11 :",
+"tvgId": "dummy-2711970",
+"group": "🏀 NBA League Pass",
+"streamId": "607591",
+"logo": null
+},
+{
+"name": "NBA 12 :",
+"tvgId": "dummy-2711971",
+"group": "🏀 NBA League Pass",
+"streamId": "607590",
+"logo": null
+},
+{
+"name": "NBA 13 :",
+"tvgId": "dummy-2711972",
+"group": "🏀 NBA League Pass",
+"streamId": "607589",
+"logo": null
+},
+{
+"name": "NBA 14 :",
+"tvgId": "dummy-2711973",
+"group": "🏀 NBA League Pass",
+"streamId": "607588",
+"logo": null
+},
+{
+"name": "NBA 15 :",
+"tvgId": "dummy-2711974",
+"group": "🏀 NBA League Pass",
+"streamId": "607587",
+"logo": null
+},
+{
+"name": "### NBA REPLAY ###",
+"tvgId": null,
+"group": "🏀 NBA League Pass",
+"streamId": "595601",
+"logo": null
+},
+{
+"name": "Replay Info",
+"tvgId": null,
+"group": "🏀 NBA League Pass",
+"streamId": "595600",
+"logo": null
+},
+{
+"name": "Replay Highlights",
+"tvgId": "dummy-3398",
+"group": "🏀 NBA League Pass",
+"streamId": "595599",
+"logo": null
+},
+{
+"name": "Replay 1",
+"tvgId": "dummy-3399",
+"group": "🏀 NBA League Pass",
+"streamId": "595598",
+"logo": null
+},
+{
+"name": "Replay 2",
+"tvgId": "dummy-3400",
+"group": "🏀 NBA League Pass",
+"streamId": "595597",
+"logo": null
+},
+{
+"name": "Replay 3",
+"tvgId": "dummy-3401",
+"group": "🏀 NBA League Pass",
+"streamId": "595596",
+"logo": null
+},
+{
+"name": "Replay 4",
+"tvgId": "dummy-3402",
+"group": "🏀 NBA League Pass",
+"streamId": "595595",
+"logo": null
+},
+{
+"name": "Replay 5",
+"tvgId": "dummy-3403",
+"group": "🏀 NBA League Pass",
+"streamId": "595594",
+"logo": null
+},
+{
+"name": "Replay 6",
+"tvgId": "dummy-3404",
+"group": "🏀 NBA League Pass",
+"streamId": "595593",
+"logo": null
+},
+{
+"name": "Replay 7",
+"tvgId": "dummy-3405",
+"group": "🏀 NBA League Pass",
+"streamId": "595592",
+"logo": null
+},
+{
+"name": "Replay 8",
+"tvgId": "dummy-3406",
+"group": "🏀 NBA League Pass",
+"streamId": "595591",
+"logo": null
+},
+{
+"name": "Replay 9",
+"tvgId": "dummy-3407",
+"group": "🏀 NBA League Pass",
+"streamId": "595590",
+"logo": null
+},
+{
+"name": "Replay 10",
+"tvgId": "dummy-3408",
+"group": "🏀 NBA League Pass",
+"streamId": "595589",
+"logo": null
+},
+{
+"name": "Replay 11",
+"tvgId": "dummy-3409",
+"group": "🏀 NBA League Pass",
+"streamId": "595588",
+"logo": null
+},
+{
+"name": "Replay 12",
+"tvgId": "dummy-3410",
+"group": "🏀 NBA League Pass",
+"streamId": "595587",
+"logo": null
+},
+{
+"name": "Replay 13",
+"tvgId": "dummy-3411",
+"group": "🏀 NBA League Pass",
+"streamId": "595586",
+"logo": null
+},
+{
+"name": "Replay 14",
+"tvgId": "dummy-3412",
+"group": "🏀 NBA League Pass",
+"streamId": "595585",
+"logo": null
+},
+{
+"name": "Replay 15",
+"tvgId": "dummy-3413",
+"group": "🏀 NBA League Pass",
+"streamId": "595584",
+"logo": null
+},
+{
+"name": "Replay 16",
+"tvgId": "dummy-3414",
+"group": "🏀 NBA League Pass",
+"streamId": "595583",
+"logo": null
+},
+{
+"name": "Replay 17",
+"tvgId": "dummy-3415",
+"group": "🏀 NBA League Pass",
+"streamId": "595582",
+"logo": null
+},
+{
+"name": "#### APPLE TV F1 PPV ####",
+"tvgId": null,
+"group": "🏎️ Formula 1 ",
+"streamId": "1899394",
+"logo": null
+},
+{
+"name": "NEXT | F1 WEEKEND WARM-UP | Thu 01 Oct 04:30 EDT (US) | 8K EXCLUSIVE | US: APPLE TV F1 PPV 1",
+"tvgId": "dummy-3994328",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899393",
+"logo": null
+},
+{
+"name": "NEXT | BAHRAIN: RACE | Sun 04 Oct 01:50 EDT (US) | 8K EXCLUSIVE | US: APPLE TV F1 PPV 2",
+"tvgId": "dummy-3994329",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899392",
+"logo": null
+},
+{
+"name": "NEXT | SINGAPORE: SPRINT | Sat 10 Oct 04:15 EDT (US) | 8K EXCLUSIVE | US: APPLE TV F1 PPV 3",
+"tvgId": "dummy-3994330",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899391",
+"logo": null
+},
+{
+"name": "NEXT | SINGAPORE: RACE | Sun 11 Oct 06:50 EDT (US) | 8K EXCLUSIVE | US: APPLE TV F1 PPV 4",
+"tvgId": "dummy-3994331",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899390",
+"logo": null
+},
+{
+"name": "NEXT | UNITED STATES: RACE | Sun 25 Oct 14:50 EDT (US) | 8K EXCLUSIVE | US: APPLE TV F1 PPV 5",
+"tvgId": "dummy-3994332",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899389",
+"logo": null
+},
+{
+"name": "NEXT | MEXICO: RACE | Sun 01 Nov 13:50 EST (US) | 8K EXCLUSIVE | US: APPLE TV F1 PPV 6",
+"tvgId": "dummy-3994333",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899388",
+"logo": null
+},
+{
+"name": "NEXT | SÃO PAULO: RACE | Sun 08 Nov 10:50 EST (US) | 8K EXCLUSIVE | US: APPLE TV F1 PPV 7",
+"tvgId": "dummy-3994334",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899387",
+"logo": null
+},
+{
+"name": "NEXT | LAS VEGAS: RACE | Sat 21 Nov 21:50 EST (US) | 8K EXCLUSIVE | US: APPLE TV F1 PPV 8",
+"tvgId": "dummy-3994335",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899386",
+"logo": null
+},
+{
+"name": "NEXT | QATAR: RACE | Sun 29 Nov 09:50 EST (US) | 8K EXCLUSIVE | US: APPLE TV F1 PPV 9",
+"tvgId": "dummy-3994336",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899385",
+"logo": null
+},
+{
+"name": "NEXT | ABU DHABI: RACE | Sun 06 Dec 06:50 EST (US) | 8K EXCLUSIVE | US: APPLE TV F1 PPV 10",
+"tvgId": "dummy-3994337",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899384",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: APPLE TV F1 PPV 11",
+"tvgId": "dummy-3994338",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899383",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: APPLE TV F1 PPV 12",
+"tvgId": "dummy-3994339",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899382",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: APPLE TV F1 PPV 13",
+"tvgId": "dummy-3994340",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899381",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: APPLE TV F1 PPV 14",
+"tvgId": "dummy-3994341",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899380",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: APPLE TV F1 PPV 15",
+"tvgId": "dummy-3994342",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899379",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: APPLE TV F1 PPV 16",
+"tvgId": "dummy-3994343",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899378",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: APPLE TV F1 PPV 17",
+"tvgId": "dummy-3994344",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899377",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: APPLE TV F1 PPV 18",
+"tvgId": "dummy-3994345",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899376",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: APPLE TV F1 PPV 19",
+"tvgId": "dummy-3994346",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899375",
+"logo": null
+},
+{
+"name": "- NO EVENT STREAMING - | 8K EXCLUSIVE | US: APPLE TV F1 PPV 20",
+"tvgId": "dummy-3994347",
+"group": "🏎️ Formula 1 ",
+"streamId": "1899374",
+"logo": null
+},
+{
+"name": "ACC Network",
+"tvgId": "accnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "325834",
+"logo": null
+},
+{
+"name": "AFN Sports",
+"tvgId": "afnsports.us",
+"group": "🏈 Sport Networks",
+"streamId": "576996",
+"logo": null
+},
+{
+"name": "Altitude Sports",
+"tvgId": "altitudesport.us",
+"group": "🏈 Sport Networks",
+"streamId": "325085",
+"logo": null
+},
+{
+"name": "Altitude Sports 2",
+"tvgId": "altitude2.us",
+"group": "🏈 Sport Networks",
+"streamId": "1824605",
+"logo": null
+},
+{
+"name": "Angels Broadcast TV",
+"tvgId": "AngelsBroadcastTelevision.us",
+"group": "🏈 Sport Networks",
+"streamId": "1975723",
+"logo": null
+},
+{
+"name": "Bein Sports",
+"tvgId": "beinsports.us",
+"group": "🏈 Sport Networks",
+"streamId": "325025",
+"logo": null
+},
+{
+"name": "Bein Sports",
+"tvgId": "beinsports.ca",
+"group": "🏈 Sport Networks",
+"streamId": "414148",
+"logo": null
+},
+{
+"name": "beIN Sports 1",
+"tvgId": "412167",
+"group": "🏈 Sport Networks",
+"streamId": "595835",
+"logo": null
+},
+{
+"name": "Bein Sports 2",
+"tvgId": "beinsports.us",
+"group": "🏈 Sport Networks",
+"streamId": "325031",
+"logo": null
+},
+{
+"name": "beIN Sports 2",
+"tvgId": "412129",
+"group": "🏈 Sport Networks",
+"streamId": "595834",
+"logo": null
+},
+{
+"name": "beIN Sports 3",
+"tvgId": "412175",
+"group": "🏈 Sport Networks",
+"streamId": "595833",
+"logo": null
+},
+{
+"name": "Bein Sports 4",
+"tvgId": "beinsports4.us",
+"group": "🏈 Sport Networks",
+"streamId": "325030",
+"logo": null
+},
+{
+"name": "Bein Sports 5",
+"tvgId": "beinsports5.us",
+"group": "🏈 Sport Networks",
+"streamId": "325029",
+"logo": null
+},
+{
+"name": "Bein Sports 6",
+"tvgId": "beinsports6.us",
+"group": "🏈 Sport Networks",
+"streamId": "325028",
+"logo": null
+},
+{
+"name": "Bein Sports 7",
+"tvgId": "beinsports7.us",
+"group": "🏈 Sport Networks",
+"streamId": "325027",
+"logo": null
+},
+{
+"name": "Bein Sports 8",
+"tvgId": "beinsports8.us",
+"group": "🏈 Sport Networks",
+"streamId": "325026",
+"logo": null
+},
+{
+"name": "Big 12 Studios",
+"tvgId": "big12studios.us",
+"group": "🏈 Sport Networks",
+"streamId": "1568855",
+"logo": null
+},
+{
+"name": "Big 12 Studios",
+"tvgId": "big12studios.us",
+"group": "🏈 Sport Networks",
+"streamId": "1548404",
+"logo": null
+},
+{
+"name": "Big Ten Network",
+"tvgId": "bigtennetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "1568853",
+"logo": null
+},
+{
+"name": "Big Ten Network",
+"tvgId": "bigtennetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "325024",
+"logo": null
+},
+{
+"name": "Billiard TV",
+"tvgId": "billiardtv.us",
+"group": "🏈 Sport Networks",
+"streamId": "832054",
+"logo": null
+},
+{
+"name": "Billiard TV",
+"tvgId": "billiardtv.us",
+"group": "🏈 Sport Networks",
+"streamId": "1536949",
+"logo": null
+},
+{
+"name": "Boxing TV",
+"tvgId": "boxingtv.us",
+"group": "🏈 Sport Networks",
+"streamId": "832056",
+"logo": null
+},
+{
+"name": "Braves Vision",
+"tvgId": "bravesvision.us",
+"group": "🏈 Sport Networks",
+"streamId": "325931",
+"logo": null
+},
+{
+"name": "CBS Sports Galazo Network",
+"tvgId": "cbssportsgolazonetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "648290",
+"logo": null
+},
+{
+"name": "CBS Sports Network",
+"tvgId": "cbssportsnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "429939",
+"logo": null
+},
+{
+"name": "CBS Sports Network",
+"tvgId": "cbssportsnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "325023",
+"logo": null
+},
+{
+"name": "Chicago Sports Network",
+"tvgId": "chicagosportsnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "324936",
+"logo": null
+},
+{
+"name": "Chicago Sports Network",
+"tvgId": "chicagosportsnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "324938",
+"logo": null
+},
+{
+"name": "Chicago Sports Network",
+"tvgId": "chicagosportsnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "1820317",
+"logo": null
+},
+{
+"name": "Chicago Sports Network",
+"tvgId": "chicagosportsnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "1820318",
+"logo": null
+},
+{
+"name": "Chicago Sports Network Plus",
+"tvgId": "chicagosportsnetworkplus.us",
+"group": "🏈 Sport Networks",
+"streamId": "325064",
+"logo": null
+},
+{
+"name": "Dazn Combat",
+"tvgId": "swervecombat.us",
+"group": "🏈 Sport Networks",
+"streamId": "525582",
+"logo": null
+},
+{
+"name": "Dazn Fast+",
+"tvgId": "dummy-2392",
+"group": "🏈 Sport Networks",
+"streamId": "525580",
+"logo": null
+},
+{
+"name": "Dazn Rise",
+"tvgId": "dummy-2396",
+"group": "🏈 Sport Networks",
+"streamId": "525579",
+"logo": null
+},
+{
+"name": "Dazn Womans Football",
+"tvgId": "dummy-2393",
+"group": "🏈 Sport Networks",
+"streamId": "525581",
+"logo": null
+},
+{
+"name": "Eleven Sports",
+"tvgId": "dummy-4",
+"group": "🏈 Sport Networks",
+"streamId": "483973",
+"logo": null
+},
+{
+"name": "ESPN (720p)",
+"tvgId": "espn.us",
+"group": "🏈 Sport Networks",
+"streamId": "325020",
+"logo": null
+},
+{
+"name": "ESPN (720p)",
+"tvgId": "espn.us",
+"group": "🏈 Sport Networks",
+"streamId": "605011",
+"logo": null
+},
+{
+"name": "ESPN 2 (720p)",
+"tvgId": "espn2.us",
+"group": "🏈 Sport Networks",
+"streamId": "325021",
+"logo": null
+},
+{
+"name": "ESPN U",
+"tvgId": "espnu.us",
+"group": "🏈 Sport Networks",
+"streamId": "1568789",
+"logo": null
+},
+{
+"name": "ESPN U",
+"tvgId": "espnu.us",
+"group": "🏈 Sport Networks",
+"streamId": "434360",
+"logo": null
+},
+{
+"name": "ESPN U (720p)",
+"tvgId": "espnu.us",
+"group": "🏈 Sport Networks",
+"streamId": "437219",
+"logo": null
+},
+{
+"name": "ESPN News (720p)",
+"tvgId": "espnnews.us",
+"group": "🏈 Sport Networks",
+"streamId": "325019",
+"logo": null
+},
+{
+"name": "ESPN 8 The Ocho",
+"tvgId": "espn8theocho.us",
+"group": "🏈 Sport Networks",
+"streamId": "1536816",
+"logo": null
+},
+{
+"name": "Eurosport 1",
+"tvgId": "eurosport1.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1290304",
+"logo": null
+},
+{
+"name": "Eurosport 2",
+"tvgId": "eurosport2.us",
+"group": "🏈 Sport Networks",
+"streamId": "1562502",
+"logo": null
+},
+{
+"name": "Fanduel TV Racing",
+"tvgId": "fandueltv.us",
+"group": "🏈 Sport Networks",
+"streamId": "1568784",
+"logo": null
+},
+{
+"name": "Fantasy Sports Network",
+"tvgId": "esportsnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "736024",
+"logo": null
+},
+{
+"name": "Fight Network",
+"tvgId": "fightnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "325048",
+"logo": null
+},
+{
+"name": "Fight Network",
+"tvgId": "fightnetwork.ca",
+"group": "🏈 Sport Networks",
+"streamId": "498738",
+"logo": null
+},
+{
+"name": "Fite Tv 24/7",
+"tvgId": "dummy-3795822",
+"group": "🏈 Sport Networks",
+"streamId": "1860578",
+"logo": null
+},
+{
+"name": "Fite Tv 24/7",
+"tvgId": "dummy-3795823",
+"group": "🏈 Sport Networks",
+"streamId": "1860577",
+"logo": null
+},
+{
+"name": "Formula 1 Channel",
+"tvgId": "f1tv.us",
+"group": "🏈 Sport Networks",
+"streamId": "1860579",
+"logo": null
+},
+{
+"name": "FOX Deportes",
+"tvgId": "foxdeportes.us",
+"group": "🏈 Sport Networks",
+"streamId": "429584",
+"logo": null
+},
+{
+"name": "Fox Soccer Plus",
+"tvgId": "foxsoccerplus.us",
+"group": "🏈 Sport Networks",
+"streamId": "325018",
+"logo": null
+},
+{
+"name": "FOX Soccer Plus",
+"tvgId": "foxsoccerplus.us",
+"group": "🏈 Sport Networks",
+"streamId": "429583",
+"logo": null
+},
+{
+"name": "FS1 (720p)",
+"tvgId": "foxsports1.us",
+"group": "🏈 Sport Networks",
+"streamId": "429588",
+"logo": null
+},
+{
+"name": "FS1 (720p)",
+"tvgId": "foxsports1.us",
+"group": "🏈 Sport Networks",
+"streamId": "429586",
+"logo": null
+},
+{
+"name": "FS1 (720p)",
+"tvgId": "foxsports1.us",
+"group": "🏈 Sport Networks",
+"streamId": "429590",
+"logo": null
+},
+{
+"name": "FS1 (1080p)",
+"tvgId": "foxsports1.us",
+"group": "🏈 Sport Networks",
+"streamId": "325017",
+"logo": null
+},
+{
+"name": "FS2 (720p)",
+"tvgId": "foxsports2.us",
+"group": "🏈 Sport Networks",
+"streamId": "429587",
+"logo": null
+},
+{
+"name": "FS2 (720p)",
+"tvgId": "foxsports2.us",
+"group": "🏈 Sport Networks",
+"streamId": "429585",
+"logo": null
+},
+{
+"name": "FS2 (720p)",
+"tvgId": "foxsports2.us",
+"group": "🏈 Sport Networks",
+"streamId": "429589",
+"logo": null
+},
+{
+"name": "FS2 (720p)",
+"tvgId": "foxsports2.us",
+"group": "🏈 Sport Networks",
+"streamId": "325016",
+"logo": null
+},
+{
+"name": "FS2 (720p)",
+"tvgId": "foxsports2.us",
+"group": "🏈 Sport Networks",
+"streamId": "1568776",
+"logo": null
+},
+{
+"name": "Fubo Sports Network",
+"tvgId": "fubosportsnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "325046",
+"logo": null
+},
+{
+"name": "Fuse",
+"tvgId": "fuse.us",
+"group": "🏈 Sport Networks",
+"streamId": "325053",
+"logo": null
+},
+{
+"name": "Ginx Esports",
+"tvgId": "ginxtvesportsen.uk",
+"group": "🏈 Sport Networks",
+"streamId": "325043",
+"logo": null
+},
+{
+"name": "Golf Channel",
+"tvgId": "golfchannel.ca",
+"group": "🏈 Sport Networks",
+"streamId": "1568762",
+"logo": null
+},
+{
+"name": "Golf Channel",
+"tvgId": "golfchannel.us",
+"group": "🏈 Sport Networks",
+"streamId": "325003",
+"logo": null
+},
+{
+"name": "Golf Channel",
+"tvgId": "golfchannel.ca",
+"group": "🏈 Sport Networks",
+"streamId": "414163",
+"logo": null
+},
+{
+"name": "Golfpass",
+"tvgId": "golfpass.us",
+"group": "🏈 Sport Networks",
+"streamId": "1568761",
+"logo": null
+},
+{
+"name": "LaLiga TV",
+"tvgId": "laligatv.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1290226",
+"logo": null
+},
+{
+"name": "Liverpool FC TV",
+"tvgId": "lfctv.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1290225",
+"logo": null
+},
+{
+"name": "Manchester United TV",
+"tvgId": "mutv.uk",
+"group": "🏈 Sport Networks",
+"streamId": "588055",
+"logo": null
+},
+{
+"name": "Marquee Sports Network",
+"tvgId": "marqueesportsnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "325071",
+"logo": null
+},
+{
+"name": "MASN Sports",
+"tvgId": "masn.us",
+"group": "🏈 Sport Networks",
+"streamId": "751663",
+"logo": null
+},
+{
+"name": "MASN Sports 2",
+"tvgId": "masn2.us",
+"group": "🏈 Sport Networks",
+"streamId": "751664",
+"logo": null
+},
+{
+"name": "Mav TV",
+"tvgId": "mavtv.ca",
+"group": "🏈 Sport Networks",
+"streamId": "414159",
+"logo": null
+},
+{
+"name": "MLB Network",
+"tvgId": "mlbnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "325002",
+"logo": null
+},
+{
+"name": "MLB Network",
+"tvgId": "mlbnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "431198",
+"logo": null
+},
+{
+"name": "MLB Network 720p30",
+"tvgId": "mlbnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "1904227",
+"logo": null
+},
+{
+"name": "MLB Network 720p60",
+"tvgId": "mlbnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "1904230",
+"logo": null
+},
+{
+"name": "MLB Network 720p60",
+"tvgId": "mlbnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "1904228",
+"logo": null
+},
+{
+"name": "MLB Network 1080p30",
+"tvgId": "mlbnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "1904226",
+"logo": null
+},
+{
+"name": "MLB Strike Zone",
+"tvgId": "mlbstrikezone.us",
+"group": "🏈 Sport Networks",
+"streamId": "325049",
+"logo": null
+},
+{
+"name": "Monumental Sports Network",
+"tvgId": "monumentalsportsnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "324969",
+"logo": null
+},
+{
+"name": "Moto America",
+"tvgId": "motoamericatv.us",
+"group": "🏈 Sport Networks",
+"streamId": "832051",
+"logo": null
+},
+{
+"name": "MSG",
+"tvgId": "msg.us",
+"group": "🏈 Sport Networks",
+"streamId": "325888",
+"logo": null
+},
+{
+"name": "MSG Sportszone",
+"tvgId": "msgsportsnet.us",
+"group": "🏈 Sport Networks",
+"streamId": "1536599",
+"logo": null
+},
+{
+"name": "MU TV",
+"tvgId": "mutv.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1290298",
+"logo": null
+},
+{
+"name": "Nascar",
+"tvgId": "400000121",
+"group": "🏈 Sport Networks",
+"streamId": "1536588",
+"logo": null
+},
+{
+"name": "NBA Channel",
+"tvgId": "dummy-1242868",
+"group": "🏈 Sport Networks",
+"streamId": "1536582",
+"logo": null
+},
+{
+"name": "NBA TV",
+"tvgId": "nbatv.us",
+"group": "🏈 Sport Networks",
+"streamId": "1568694",
+"logo": null
+},
+{
+"name": "NBA TV",
+"tvgId": "nbatv.us",
+"group": "🏈 Sport Networks",
+"streamId": "1536581",
+"logo": null
+},
+{
+"name": "NBA TV",
+"tvgId": "nbatv.ca",
+"group": "🏈 Sport Networks",
+"streamId": "414160",
+"logo": null
+},
+{
+"name": "NBC Golf",
+"tvgId": "golfpass.us",
+"group": "🏈 Sport Networks",
+"streamId": "325001",
+"logo": null
+},
+{
+"name": "NBC SN",
+"tvgId": "nbcsportsnow.us",
+"group": "🏈 Sport Networks",
+"streamId": "324919",
+"logo": null
+},
+{
+"name": "NBC Sports Bay Area",
+"tvgId": "nbcsportsbayarea.us",
+"group": "🏈 Sport Networks",
+"streamId": "324951",
+"logo": null
+},
+{
+"name": "NBC Sports Bay Area",
+"tvgId": "nbcsportsbayarea.us",
+"group": "🏈 Sport Networks",
+"streamId": "325065",
+"logo": null
+},
+{
+"name": "NBC SPORTS BAY AREA (A) ᴿᴬᵂ",
+"tvgId": "nbcsportsbayarea.us",
+"group": "🏈 Sport Networks",
+"streamId": "1820218",
+"logo": null
+},
+{
+"name": "NBC SPORTS BAY AREA (D) ᴿᴬᵂ",
+"tvgId": "nbcsportsbayarea.us",
+"group": "🏈 Sport Networks",
+"streamId": "1820199",
+"logo": null
+},
+{
+"name": "NBC SPORTS BAY AREA (S) ᴿᴬᵂ",
+"tvgId": "nbcsportsbayarea.us",
+"group": "🏈 Sport Networks",
+"streamId": "1820201",
+"logo": null
+},
+{
+"name": "NBC SPORTS BAY AREA PLUS (A) ᴿᴬᵂ",
+"tvgId": "nbcsportsbayareaplus.us",
+"group": "🏈 Sport Networks",
+"streamId": "1820258",
+"logo": null
+},
+{
+"name": "NBC SPORTS BAY AREA PLUS ALTERNATE (A) ᴿᴬᵂ",
+"tvgId": "nbcsportsbayareaplus.us",
+"group": "🏈 Sport Networks",
+"streamId": "1819971",
+"logo": null
+},
+{
+"name": "NBC Sports Boston",
+"tvgId": "nbcsportsboston.us",
+"group": "🏈 Sport Networks",
+"streamId": "324939",
+"logo": null
+},
+{
+"name": "NBC SPORTS BOSTON (A) ᴿᴬᵂ",
+"tvgId": "nbcsportsboston.us",
+"group": "🏈 Sport Networks",
+"streamId": "1820217",
+"logo": null
+},
+{
+"name": "NBC SPORTS BOSTON (D) ᴿᴬᵂ",
+"tvgId": "nbcsportsboston.us",
+"group": "🏈 Sport Networks",
+"streamId": "1820198",
+"logo": null
+},
+{
+"name": "NBC Sports California",
+"tvgId": "nbcsportscalifornia.us",
+"group": "🏈 Sport Networks",
+"streamId": "324952",
+"logo": null
+},
+{
+"name": "NBC Sports California",
+"tvgId": "nbcsportscalifornia.us",
+"group": "🏈 Sport Networks",
+"streamId": "325063",
+"logo": null
+},
+{
+"name": "NBC SPORTS CALIFORNIA (A) ᴿᴬᵂ",
+"tvgId": "nbcsportscalifornia.us",
+"group": "🏈 Sport Networks",
+"streamId": "1820216",
+"logo": null
+},
+{
+"name": "NBC SPORTS CALIFORNIA (D) ᴿᴬᵂ",
+"tvgId": "nbcsportscalifornia.us",
+"group": "🏈 Sport Networks",
+"streamId": "1820197",
+"logo": null
+},
+{
+"name": "NBC SPORTS CALIFORNIA PLUS 2 (A) ᴿᴬᵂ",
+"tvgId": "nbcsportscaliforniaplus2.us",
+"group": "🏈 Sport Networks",
+"streamId": "1820316",
+"logo": null
+},
+{
+"name": "NBC SPORTS CALIFORNIA PLUS (A) ᴿᴬᵂ",
+"tvgId": "nbcsportscaliforniaplus.us",
+"group": "🏈 Sport Networks",
+"streamId": "1820215",
+"logo": null
+},
+{
+"name": "NBC Sports Network",
+"tvgId": "peacocknbcsportsonpeacock.us",
+"group": "🏈 Sport Networks",
+"streamId": "325067",
+"logo": null
+},
+{
+"name": "NBC Sports Northwest",
+"tvgId": "nbcsportsnorthwest.us",
+"group": "🏈 Sport Networks",
+"streamId": "325066",
+"logo": null
+},
+{
+"name": "NBC Sports Now",
+"tvgId": "nbcsportsnow.us",
+"group": "🏈 Sport Networks",
+"streamId": "1568692",
+"logo": null
+},
+{
+"name": "NBC Sports Now",
+"tvgId": "nbcsportsnow.us",
+"group": "🏈 Sport Networks",
+"streamId": "1520115",
+"logo": null
+},
+{
+"name": "NBC SPORTS NOW (A) ᴿᴬᵂ",
+"tvgId": "nbcsportsnow.us",
+"group": "🏈 Sport Networks",
+"streamId": "1819948",
+"logo": null
+},
+{
+"name": "NBC SPORTS NOW (PC) ᴿᴬᵂ",
+"tvgId": "nbcsportsnow.us",
+"group": "🏈 Sport Networks",
+"streamId": "1820219",
+"logo": null
+},
+{
+"name": "NBC SPORTS NOW (S) ᴿᴬᵂ",
+"tvgId": "nbcsportsnow.us",
+"group": "🏈 Sport Networks",
+"streamId": "1820288",
+"logo": null
+},
+{
+"name": "NBC Sports Philadelfia",
+"tvgId": "nbcsportsphiladelphia.us",
+"group": "🏈 Sport Networks",
+"streamId": "325061",
+"logo": null
+},
+{
+"name": "NBC Sports Philadelphia",
+"tvgId": "nbcsportsphiladelphia.us",
+"group": "🏈 Sport Networks",
+"streamId": "324933",
+"logo": null
+},
+{
+"name": "NBC SPORTS PHILADELPHIA (D) ᴿᴬᵂ",
+"tvgId": "nbcsportsphiladelphia.us",
+"group": "🏈 Sport Networks",
+"streamId": "1820196",
+"logo": null
+},
+{
+"name": "NBC SPORTS PHILADELPHIA PLUS (D) ᴿᴬᵂ",
+"tvgId": "nbcsportsphiladelphiaplus.us",
+"group": "🏈 Sport Networks",
+"streamId": "1820200",
+"logo": null
+},
+{
+"name": "NBC Sports Washington",
+"tvgId": "draftkingsnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "324934",
+"logo": null
+},
+{
+"name": "NBC Sports Washington",
+"tvgId": "draftkingsnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "325062",
+"logo": null
+},
+{
+"name": "NESN (540p)",
+"tvgId": "nesn.us",
+"group": "🏈 Sport Networks",
+"streamId": "828139",
+"logo": null
+},
+{
+"name": "NESN (540p)",
+"tvgId": "nesn.us",
+"group": "🏈 Sport Networks",
+"streamId": "437221",
+"logo": null
+},
+{
+"name": "NESN (1080p)",
+"tvgId": "nesn.us",
+"group": "🏈 Sport Networks",
+"streamId": "828142",
+"logo": null
+},
+{
+"name": "NFL Channel",
+"tvgId": "nflchannel.us",
+"group": "🏈 Sport Networks",
+"streamId": "1476221",
+"logo": null
+},
+{
+"name": "NFL Network",
+"tvgId": "nflnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "1031378",
+"logo": null
+},
+{
+"name": "NFL Network (720p)",
+"tvgId": "nflnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "395713",
+"logo": null
+},
+{
+"name": "NFL Network (720p)",
+"tvgId": "nflnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "1568687",
+"logo": null
+},
+{
+"name": "NHL Network",
+"tvgId": "nhlnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "604331",
+"logo": null
+},
+{
+"name": "NHL Network (Backup)",
+"tvgId": "nhlnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "1568686",
+"logo": null
+},
+{
+"name": "NHRA Drag Racing",
+"tvgId": "nhratv.us",
+"group": "🏈 Sport Networks",
+"streamId": "1536552",
+"logo": null
+},
+{
+"name": "One Soccer",
+"tvgId": "onesoccer.ca",
+"group": "🏈 Sport Networks",
+"streamId": "751301",
+"logo": null
+},
+{
+"name": "Outdoor Channel",
+"tvgId": "I531.46737.schedulesdirect.org",
+"group": "🏈 Sport Networks",
+"streamId": "325838",
+"logo": null
+},
+{
+"name": "Pac 12 Arizona",
+"tvgId": "dummy-2342",
+"group": "🏈 Sport Networks",
+"streamId": "325000",
+"logo": null
+},
+{
+"name": "Pac 12 Bay Area",
+"tvgId": "dummy-2343",
+"group": "🏈 Sport Networks",
+"streamId": "324999",
+"logo": null
+},
+{
+"name": "Pac 12 Los Angeles",
+"tvgId": "dummy-2347",
+"group": "🏈 Sport Networks",
+"streamId": "324998",
+"logo": null
+},
+{
+"name": "Pac 12 Mountain",
+"tvgId": "dummy-2344",
+"group": "🏈 Sport Networks",
+"streamId": "324997",
+"logo": null
+},
+{
+"name": "Pac 12 National",
+"tvgId": "dummy-2345",
+"group": "🏈 Sport Networks",
+"streamId": "325032",
+"logo": null
+},
+{
+"name": "Pac 12 Oregon",
+"tvgId": "dummy-2346",
+"group": "🏈 Sport Networks",
+"streamId": "324996",
+"logo": null
+},
+{
+"name": "Pac 12 Washington",
+"tvgId": "dummy-2348",
+"group": "🏈 Sport Networks",
+"streamId": "324995",
+"logo": null
+},
+{
+"name": "Padeltime TV",
+"tvgId": "dummy-2400",
+"group": "🏈 Sport Networks",
+"streamId": "832053",
+"logo": null
+},
+{
+"name": "Pickleball TV",
+"tvgId": "pickleballtv.us",
+"group": "🏈 Sport Networks",
+"streamId": "1568673",
+"logo": null
+},
+{
+"name": "Pickleball TV",
+"tvgId": "pickleballtv.us",
+"group": "🏈 Sport Networks",
+"streamId": "1536515",
+"logo": null
+},
+{
+"name": "Pickleball(pbTV)",
+"tvgId": "pickleballtv.us",
+"group": "🏈 Sport Networks",
+"streamId": "1005880",
+"logo": null
+},
+{
+"name": "Premier League",
+"tvgId": "englishpremiereleaguesoccer.us",
+"group": "🏈 Sport Networks",
+"streamId": "1860593",
+"logo": null
+},
+{
+"name": "Premier Sports 1",
+"tvgId": "premiersports1.uk",
+"group": "🏈 Sport Networks",
+"streamId": "621620",
+"logo": null
+},
+{
+"name": "Premier Sports 2",
+"tvgId": "premiersports2.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1290229",
+"logo": null
+},
+{
+"name": "Pursuit Channel",
+"tvgId": "pursuitchannel.us",
+"group": "🏈 Sport Networks",
+"streamId": "1568667",
+"logo": null
+},
+{
+"name": "Racer Network",
+"tvgId": "racernetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "1568663",
+"logo": null
+},
+{
+"name": "Racer Network",
+"tvgId": "racernetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "325887",
+"logo": null
+},
+{
+"name": "Racer Select",
+"tvgId": "465231",
+"group": "🏈 Sport Networks",
+"streamId": "1536498",
+"logo": null
+},
+{
+"name": "Racing TV",
+"tvgId": "racing.uk",
+"group": "🏈 Sport Networks",
+"streamId": "587988",
+"logo": null
+},
+{
+"name": "RDS",
+"tvgId": "rds.ca",
+"group": "🏈 Sport Networks",
+"streamId": "412899",
+"logo": null
+},
+{
+"name": "RDS 2",
+"tvgId": "rds2.ca",
+"group": "🏈 Sport Networks",
+"streamId": "498682",
+"logo": null
+},
+{
+"name": "RDS Info",
+"tvgId": "rdsinfo.ca",
+"group": "🏈 Sport Networks",
+"streamId": "412930",
+"logo": null
+},
+{
+"name": "Root Sports",
+"tvgId": "rootsportsnorthwest.us",
+"group": "🏈 Sport Networks",
+"streamId": "325070",
+"logo": null
+},
+{
+"name": "Ryz Sports",
+"tvgId": "Ryz.Sports.Network.us2",
+"group": "🏈 Sport Networks",
+"streamId": "1536474",
+"logo": null
+},
+{
+"name": "SEC Network",
+"tvgId": "secnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "1568650",
+"logo": null
+},
+{
+"name": "Sec Network",
+"tvgId": "secnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "549252",
+"logo": null
+},
+{
+"name": "Sky Sports 1 ᴴᴰᴿ",
+"tvgId": "skysports1.uk",
+"group": "🏈 Sport Networks",
+"streamId": "950400",
+"logo": null
+},
+{
+"name": "Sky Sports 1 ᵁᴴᴰ ᴴᴰᴿ",
+"tvgId": "skysports1.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1527597",
+"logo": null
+},
+{
+"name": "Sky Sports 2 ᴴᴰᴿ",
+"tvgId": "skysports2.uk",
+"group": "🏈 Sport Networks",
+"streamId": "950399",
+"logo": null
+},
+{
+"name": "Sky Sports +",
+"tvgId": "skysportsplus.uk",
+"group": "🏈 Sport Networks",
+"streamId": "588042",
+"logo": null
+},
+{
+"name": "Sky Sports +",
+"tvgId": "skysportsplus.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1562530",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket",
+"tvgId": "skysportscricket.uk",
+"group": "🏈 Sport Networks",
+"streamId": "588066",
+"logo": null
+},
+{
+"name": "Sky Sports F1 ᴴᴰ",
+"tvgId": "skysportsf1.uk",
+"group": "🏈 Sport Networks",
+"streamId": "2043940",
+"logo": null
+},
+{
+"name": "Sky Sports F1 ᵁᴴᴰ ᴴᴰᴿ",
+"tvgId": "skysportsf1.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1527595",
+"logo": null
+},
+{
+"name": "Sky Sports F1 ᵁᴴᴰ ᴴᴰᴿ",
+"tvgId": "skysportsf1.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1527633",
+"logo": null
+},
+{
+"name": "Sky Sports Football",
+"tvgId": "skysportsfootball.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1290205",
+"logo": null
+},
+{
+"name": "Sky Sports Golf",
+"tvgId": "skysportsgolf.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1527623",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event (Backup)",
+"tvgId": "skysportsmainevent.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1544239",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event ᴴᴰ",
+"tvgId": "skysportsmainevent.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1562535",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event ᴴᴰᴿ",
+"tvgId": "skysportsmainevent.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1290248",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event ᵁᴴᴰ ᴴᴰᴿ",
+"tvgId": "skysportsmainevent.uk",
+"group": "🏈 Sport Networks",
+"streamId": "950402",
+"logo": null
+},
+{
+"name": "Sky Sports Mix",
+"tvgId": "skysportsmix.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1527621",
+"logo": null
+},
+{
+"name": "Sky Sports Mix",
+"tvgId": "skysportsmix.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1562531",
+"logo": null
+},
+{
+"name": "Sky Sports Mix",
+"tvgId": "skysportsmix.uk",
+"group": "🏈 Sport Networks",
+"streamId": "621626",
+"logo": null
+},
+{
+"name": "Sky Sports Mix",
+"tvgId": "skysportsmix.uk",
+"group": "🏈 Sport Networks",
+"streamId": "588038",
+"logo": null
+},
+{
+"name": "Sky Sports News ᵁᴴᴰ ᴴᴰᴿ",
+"tvgId": "skysportsnews.uk",
+"group": "🏈 Sport Networks",
+"streamId": "621657",
+"logo": null
+},
+{
+"name": "Sky Sports NFL",
+"tvgId": "skysportsactionhd.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1527627",
+"logo": null
+},
+{
+"name": "Sky Sports NFL",
+"tvgId": "skysportsnfl.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1562534",
+"logo": null
+},
+{
+"name": "Sky Sports Premier League",
+"tvgId": "skysportspremierleague.uk",
+"group": "🏈 Sport Networks",
+"streamId": "621633",
+"logo": null
+},
+{
+"name": "Sky Sports Racing",
+"tvgId": "skysportsracing.uk",
+"group": "🏈 Sport Networks",
+"streamId": "621627",
+"logo": null
+},
+{
+"name": "Sky Sports Tennis",
+"tvgId": "skysportstennis.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1527629",
+"logo": null
+},
+{
+"name": "Sky Sports Tennis",
+"tvgId": "skysportstennis.uk",
+"group": "🏈 Sport Networks",
+"streamId": "706975",
+"logo": null
+},
+{
+"name": "Space City Home Network",
+"tvgId": "spacecityhomenetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "325045",
+"logo": null
+},
+{
+"name": "Space City Home Network",
+"tvgId": null,
+"group": "🏈 Sport Networks",
+"streamId": "1965755",
+"logo": null
+},
+{
+"name": "SPECTRUM OC16 ᴴᴰ",
+"tvgId": "spectrumoc16.us",
+"group": "🏈 Sport Networks",
+"streamId": "926254",
+"logo": null
+},
+{
+"name": "SPECTRUM SPORTS 2 ᴴᴰ",
+"tvgId": "spectrumsports.us",
+"group": "🏈 Sport Networks",
+"streamId": "926256",
+"logo": null
+},
+{
+"name": "SPECTRUM SPORTS ENCORE ᴴᴰ",
+"tvgId": "spectrumsportsoc.us",
+"group": "🏈 Sport Networks",
+"streamId": "926257",
+"logo": null
+},
+{
+"name": "SPECTRUM XCAST 2 ᴴᴰ",
+"tvgId": "spectrumxcast2.us",
+"group": "🏈 Sport Networks",
+"streamId": "926263",
+"logo": null
+},
+{
+"name": "SPECTRUM XCAST MULTIVIEW",
+"tvgId": "spectrumxcastmultiview.us",
+"group": "🏈 Sport Networks",
+"streamId": "926264",
+"logo": null
+},
+{
+"name": "SPECTRUM XCAST ᴴᴰ",
+"tvgId": "spectrumxcast.us",
+"group": "🏈 Sport Networks",
+"streamId": "926262",
+"logo": null
+},
+{
+"name": "Sport Stak",
+"tvgId": "sports.us",
+"group": "🏈 Sport Networks",
+"streamId": "832052",
+"logo": null
+},
+{
+"name": "Sportsman Channel",
+"tvgId": "sportsmanchannel.us",
+"group": "🏈 Sport Networks",
+"streamId": "1568642",
+"logo": null
+},
+{
+"name": "Sportsman Channel",
+"tvgId": "sportsmanchannel.us",
+"group": "🏈 Sport Networks",
+"streamId": "325044",
+"logo": null
+},
+{
+"name": "Sportsnet 360",
+"tvgId": "sportsnet360.ca",
+"group": "🏈 Sport Networks",
+"streamId": "1239006",
+"logo": null
+},
+{
+"name": "Sportsnet 360",
+"tvgId": "sportsnet360.ca",
+"group": "🏈 Sport Networks",
+"streamId": "414068",
+"logo": null
+},
+{
+"name": "Sportsnet East",
+"tvgId": "sportsnet.ca",
+"group": "🏈 Sport Networks",
+"streamId": "1238999",
+"logo": null
+},
+{
+"name": "Sportsnet East",
+"tvgId": "sportsnet.ca",
+"group": "🏈 Sport Networks",
+"streamId": "500453",
+"logo": null
+},
+{
+"name": "Sportsnet Event ᵁᴴᴰ",
+"tvgId": "Sportsnet.4K.ca2",
+"group": "🏈 Sport Networks",
+"streamId": "1803789",
+"logo": null
+},
+{
+"name": "Sportsnet LA Dodgers",
+"tvgId": "sportsnetladodgers.us",
+"group": "🏈 Sport Networks",
+"streamId": "325052",
+"logo": null
+},
+{
+"name": "Sportsnet LA Dodgers",
+"tvgId": "sportsnetladodgers.us",
+"group": "🏈 Sport Networks",
+"streamId": "437220",
+"logo": null
+},
+{
+"name": "Sportsnet LA Lakers",
+"tvgId": "spectrumsportsnetlakers.us",
+"group": "🏈 Sport Networks",
+"streamId": "325051",
+"logo": null
+},
+{
+"name": "Sportsnet Pittsburgh",
+"tvgId": "at&tsportsnetpittsburgh.us",
+"group": "🏈 Sport Networks",
+"streamId": "325068",
+"logo": null
+},
+{
+"name": "Sportsnet New York",
+"tvgId": "sportsnetnewyork.us",
+"group": "🏈 Sport Networks",
+"streamId": "325034",
+"logo": null
+},
+{
+"name": "Sportsnet One",
+"tvgId": "sportsnetone.ca",
+"group": "🏈 Sport Networks",
+"streamId": "1238991",
+"logo": null
+},
+{
+"name": "Sportsnet One",
+"tvgId": "sportsnetone.ca",
+"group": "🏈 Sport Networks",
+"streamId": "414070",
+"logo": null
+},
+{
+"name": "Sportsnet Ontario",
+"tvgId": "sportsnetontario.ca",
+"group": "🏈 Sport Networks",
+"streamId": "1238983",
+"logo": null
+},
+{
+"name": "Sportsnet Pacific",
+"tvgId": "sportsnetpacific.ca",
+"group": "🏈 Sport Networks",
+"streamId": "414071",
+"logo": null
+},
+{
+"name": "Sportsnet Pacific",
+"tvgId": "sportsnetpacific.ca",
+"group": "🏈 Sport Networks",
+"streamId": "1238976",
+"logo": null
+},
+{
+"name": "Sportsnet West",
+"tvgId": "sportsnetwest.ca",
+"group": "🏈 Sport Networks",
+"streamId": "1238968",
+"logo": null
+},
+{
+"name": "Sportsnet World",
+"tvgId": "sportsnetworld.ca",
+"group": "🏈 Sport Networks",
+"streamId": "1238961",
+"logo": null
+},
+{
+"name": "Sportsnet World",
+"tvgId": "sportsnetworld.ca",
+"group": "🏈 Sport Networks",
+"streamId": "500455",
+"logo": null
+},
+{
+"name": "Stadium",
+"tvgId": "stadium.us",
+"group": "🏈 Sport Networks",
+"streamId": "325054",
+"logo": null
+},
+{
+"name": "Stadium",
+"tvgId": "stadium.us",
+"group": "🏈 Sport Networks",
+"streamId": "325057",
+"logo": null
+},
+{
+"name": "Stadium 2",
+"tvgId": "stadium2.us",
+"group": "🏈 Sport Networks",
+"streamId": "325056",
+"logo": null
+},
+{
+"name": "Stadium 3",
+"tvgId": "stadium3.us",
+"group": "🏈 Sport Networks",
+"streamId": "325055",
+"logo": null
+},
+{
+"name": "Supersport Tennis",
+"tvgId": "dummy-2539",
+"group": "🏈 Sport Networks",
+"streamId": "325091",
+"logo": null
+},
+{
+"name": "TBS",
+"tvgId": "tbs.us",
+"group": "🏈 Sport Networks",
+"streamId": "325803",
+"logo": null
+},
+{
+"name": "TBS (West)",
+"tvgId": "tbswest.us",
+"group": "🏈 Sport Networks",
+"streamId": "325943",
+"logo": null
+},
+{
+"name": "Tennis",
+"tvgId": "tennischannel.us",
+"group": "🏈 Sport Networks",
+"streamId": "324994",
+"logo": null
+},
+{
+"name": "Tennis Channel",
+"tvgId": "tennischannel.us",
+"group": "🏈 Sport Networks",
+"streamId": "325092",
+"logo": null
+},
+{
+"name": "Tennis Channel Plus 1",
+"tvgId": "tennistv_event1.p13",
+"group": "🏈 Sport Networks",
+"streamId": "488431",
+"logo": null
+},
+{
+"name": "Tennis Channel Plus 2",
+"tvgId": "tennistv_event2.p13",
+"group": "🏈 Sport Networks",
+"streamId": "488432",
+"logo": null
+},
+{
+"name": "Tennis Channel Plus 3",
+"tvgId": "tennistv_event3.p13",
+"group": "🏈 Sport Networks",
+"streamId": "488433",
+"logo": null
+},
+{
+"name": "Tennis Channel Plus 4",
+"tvgId": "tennistv_event4.p13",
+"group": "🏈 Sport Networks",
+"streamId": "488435",
+"logo": null
+},
+{
+"name": "Tennis Channel Plus 5",
+"tvgId": "tennistv_event5.p13",
+"group": "🏈 Sport Networks",
+"streamId": "488436",
+"logo": null
+},
+{
+"name": "Tennis Channel Plus 6",
+"tvgId": "tennistv_event6.p13",
+"group": "🏈 Sport Networks",
+"streamId": "488437",
+"logo": null
+},
+{
+"name": "Tennis Channel Plus 7",
+"tvgId": "tennistv_event7.p13",
+"group": "🏈 Sport Networks",
+"streamId": "488438",
+"logo": null
+},
+{
+"name": "Tennis Channel Plus 8",
+"tvgId": "tennistv_event8.p13",
+"group": "🏈 Sport Networks",
+"streamId": "488439",
+"logo": null
+},
+{
+"name": "Tennis Channel Plus 9",
+"tvgId": "tennistv_event9.p13",
+"group": "🏈 Sport Networks",
+"streamId": "488440",
+"logo": null
+},
+{
+"name": "Tennis Channel Plus 10",
+"tvgId": "tennistv_event10.p13",
+"group": "🏈 Sport Networks",
+"streamId": "488441",
+"logo": null
+},
+{
+"name": "Tennis Channel Plus 11",
+"tvgId": "tennistv_event11.p13",
+"group": "🏈 Sport Networks",
+"streamId": "488442",
+"logo": null
+},
+{
+"name": "Tennis Channel Plus 12",
+"tvgId": "tennistv_event12.p13",
+"group": "🏈 Sport Networks",
+"streamId": "488443",
+"logo": null
+},
+{
+"name": "The Fight Network",
+"tvgId": "thefightnetwork.ca",
+"group": "🏈 Sport Networks",
+"streamId": "414074",
+"logo": null
+},
+{
+"name": "TNT",
+"tvgId": "tnt.us",
+"group": "🏈 Sport Networks",
+"streamId": "1568603",
+"logo": null
+},
+{
+"name": "TNT",
+"tvgId": "tnt.us",
+"group": "🏈 Sport Networks",
+"streamId": "325799",
+"logo": null
+},
+{
+"name": "TNT Sports 1",
+"tvgId": "tntsports1.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1290337",
+"logo": null
+},
+{
+"name": "TNT Sports 1",
+"tvgId": "tntsports1.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1527617",
+"logo": null
+},
+{
+"name": "TNT Sports 2",
+"tvgId": "tntsports2.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1527615",
+"logo": null
+},
+{
+"name": "TNT Sports 2",
+"tvgId": "tntsports2.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1290336",
+"logo": null
+},
+{
+"name": "TNT Sports 3",
+"tvgId": "tntsports3.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1527613",
+"logo": null
+},
+{
+"name": "TNT Sports 3",
+"tvgId": "tntsports3.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1290335",
+"logo": null
+},
+{
+"name": "TNT Sports 4",
+"tvgId": "tntsports4.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1290319",
+"logo": null
+},
+{
+"name": "TNT Sports 4",
+"tvgId": "tntsports4.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1527611",
+"logo": null
+},
+{
+"name": "TNT Sports Ultimate",
+"tvgId": "tntultimate.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1290338",
+"logo": null
+},
+{
+"name": "TNT Sports Ultimate ᵁᴴᴰ ᴴᴰᴿ",
+"tvgId": "tntultimate.uk",
+"group": "🏈 Sport Networks",
+"streamId": "1069751",
+"logo": null
+},
+{
+"name": "TruTV",
+"tvgId": "trutv.us",
+"group": "🏈 Sport Networks",
+"streamId": "325798",
+"logo": null
+},
+{
+"name": "TSN 1",
+"tvgId": "tsn1.ca",
+"group": "🏈 Sport Networks",
+"streamId": "1239048",
+"logo": null
+},
+{
+"name": "TSN 2",
+"tvgId": "tsn2.ca",
+"group": "🏈 Sport Networks",
+"streamId": "1239038",
+"logo": null
+},
+{
+"name": "TSN 2",
+"tvgId": "tsn2.ca",
+"group": "🏈 Sport Networks",
+"streamId": "434023",
+"logo": null
+},
+{
+"name": "TSN 3",
+"tvgId": "tsn3.ca",
+"group": "🏈 Sport Networks",
+"streamId": "1239030",
+"logo": null
+},
+{
+"name": "TSN 3",
+"tvgId": "tsn3.ca",
+"group": "🏈 Sport Networks",
+"streamId": "434024",
+"logo": null
+},
+{
+"name": "TSN 4",
+"tvgId": "tsn4.ca",
+"group": "🏈 Sport Networks",
+"streamId": "1239023",
+"logo": null
+},
+{
+"name": "TSN 4",
+"tvgId": "tsn4.ca",
+"group": "🏈 Sport Networks",
+"streamId": "434025",
+"logo": null
+},
+{
+"name": "TSN 5",
+"tvgId": "tsn5.ca",
+"group": "🏈 Sport Networks",
+"streamId": "1239014",
+"logo": null
+},
+{
+"name": "TSN 5",
+"tvgId": "tsn5.ca",
+"group": "🏈 Sport Networks",
+"streamId": "434026",
+"logo": null
+},
+{
+"name": "TUDN Extra 1",
+"tvgId": "tudnxtra1.us",
+"group": "🏈 Sport Networks",
+"streamId": "1860591",
+"logo": null
+},
+{
+"name": "TUDN Extra 2",
+"tvgId": "tudnxtra2.us",
+"group": "🏈 Sport Networks",
+"streamId": "1860590",
+"logo": null
+},
+{
+"name": "TUDN Extra 3",
+"tvgId": "tudnxtra3.us",
+"group": "🏈 Sport Networks",
+"streamId": "1860589",
+"logo": null
+},
+{
+"name": "TUDN Extra 4",
+"tvgId": "tudnxtra4.us",
+"group": "🏈 Sport Networks",
+"streamId": "1860588",
+"logo": null
+},
+{
+"name": "TUDN Extra 5",
+"tvgId": "tudnxtra5.us",
+"group": "🏈 Sport Networks",
+"streamId": "1860587",
+"logo": null
+},
+{
+"name": "TUDN Extra 6",
+"tvgId": "tudnxtra6.us",
+"group": "🏈 Sport Networks",
+"streamId": "1860586",
+"logo": null
+},
+{
+"name": "TUDN Extra 7",
+"tvgId": "tudnxtra7.us",
+"group": "🏈 Sport Networks",
+"streamId": "1860585",
+"logo": null
+},
+{
+"name": "TUDN Extra 8",
+"tvgId": "tudnxtra8.us",
+"group": "🏈 Sport Networks",
+"streamId": "1860584",
+"logo": null
+},
+{
+"name": "TUDN Extra 9",
+"tvgId": "tudnxtra9.us",
+"group": "🏈 Sport Networks",
+"streamId": "1860583",
+"logo": null
+},
+{
+"name": "TUDN Extra 10",
+"tvgId": "tudnxtra10.us",
+"group": "🏈 Sport Networks",
+"streamId": "1860582",
+"logo": null
+},
+{
+"name": "TUDN Xtra 11",
+"tvgId": "TUDNxtra11.us",
+"group": "🏈 Sport Networks",
+"streamId": "1860581",
+"logo": null
+},
+{
+"name": "TUDN Zona",
+"tvgId": "zonafutbollatino.us",
+"group": "🏈 Sport Networks",
+"streamId": "1860592",
+"logo": null
+},
+{
+"name": "TVA Sports",
+"tvgId": "tvasports.ca",
+"group": "🏈 Sport Networks",
+"streamId": "498806",
+"logo": null
+},
+{
+"name": "TVA Sports 2",
+"tvgId": "tvasports2.ca",
+"group": "🏈 Sport Networks",
+"streamId": "1044084",
+"logo": null
+},
+{
+"name": "Ufc",
+"tvgId": "ufc.us",
+"group": "🏈 Sport Networks",
+"streamId": "325059",
+"logo": null
+},
+{
+"name": "USA Network",
+"tvgId": "usanetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "1568586",
+"logo": null
+},
+{
+"name": "USA Network",
+"tvgId": "usanetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "325796",
+"logo": null
+},
+{
+"name": "USA Network",
+"tvgId": "usanetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "325924",
+"logo": null
+},
+{
+"name": "USA Network",
+"tvgId": "usanetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "610437",
+"logo": null
+},
+{
+"name": "V SPORT ᵁᴴᴰ ³⁸⁴⁰ᴾ",
+"tvgId": "dummy-3",
+"group": "🏈 Sport Networks",
+"streamId": "483974",
+"logo": null
+},
+{
+"name": "VSiN",
+"tvgId": "vsinvegassportsinformationnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "325899",
+"logo": null
+},
+{
+"name": "Wild TV",
+"tvgId": "wildtv.ca",
+"group": "🏈 Sport Networks",
+"streamId": "498643",
+"logo": null
+},
+{
+"name": "Willow Cricket",
+"tvgId": "willowcricket.us",
+"group": "🏈 Sport Networks",
+"streamId": "324993",
+"logo": null
+},
+{
+"name": "Willow Cricket",
+"tvgId": "willowcricketcanada.ca",
+"group": "🏈 Sport Networks",
+"streamId": "414075",
+"logo": null
+},
+{
+"name": "Willow Cricket Extra",
+"tvgId": "willowcricket.us",
+"group": "🏈 Sport Networks",
+"streamId": "508003",
+"logo": null
+},
+{
+"name": "World Fishing Network",
+"tvgId": "worldfishingnetwork(us).us",
+"group": "🏈 Sport Networks",
+"streamId": "498645",
+"logo": null
+},
+{
+"name": "WWE",
+"tvgId": "wwe.us",
+"group": "🏈 Sport Networks",
+"streamId": "324992",
+"logo": null
+},
+{
+"name": "Yahoo Sports Network",
+"tvgId": "dummy-3795820",
+"group": "🏈 Sport Networks",
+"streamId": "1860580",
+"logo": null
+},
+{
+"name": "Yes Network",
+"tvgId": "yesnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "1568576",
+"logo": null
+},
+{
+"name": "YES Network",
+"tvgId": "yesnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "325004",
+"logo": null
+},
+{
+"name": "YES Network",
+"tvgId": "yesnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "325041",
+"logo": null
+},
+{
+"name": "Yes Network",
+"tvgId": "yesnetwork.us",
+"group": "🏈 Sport Networks",
+"streamId": "325036",
+"logo": null
+},
+{
+"name": "Z Classic",
+"tvgId": "classica.us",
+"group": "🏈 Sport Networks",
+"streamId": "325060",
+"logo": null
+},
+{
+"name": "##### TSN SPORT ᴿᴬᵂ ⁶⁰ᶠᵖˢ #####",
+"tvgId": null,
+"group": "CA| TSN Sports",
+"streamId": "1239051",
+"logo": null
+},
+{
+"name": "TSN 1 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn1.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239048",
+"logo": null
+},
+{
+"name": "TSN 1 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn1.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239047",
+"logo": null
+},
+{
+"name": "TSN 1 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn1.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239046",
+"logo": null
+},
+{
+"name": "TSN 1 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn1.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239045",
+"logo": null
+},
+{
+"name": "TSN 2 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn2.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239040",
+"logo": null
+},
+{
+"name": "TSN 2 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn2.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239038",
+"logo": null
+},
+{
+"name": "TSN 2 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn2.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239037",
+"logo": null
+},
+{
+"name": "TSN 2 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn2.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239036",
+"logo": null
+},
+{
+"name": "TSN 3 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn3.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239032",
+"logo": null
+},
+{
+"name": "TSN 3 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn3.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239030",
+"logo": null
+},
+{
+"name": "TSN 3 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn3.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239029",
+"logo": null
+},
+{
+"name": "TSN 3 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn3.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239028",
+"logo": null
+},
+{
+"name": "TSN 4 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn4.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239023",
+"logo": null
+},
+{
+"name": "TSN 4 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn4.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239022",
+"logo": null
+},
+{
+"name": "TSN 4 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn4.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239021",
+"logo": null
+},
+{
+"name": "TSN 4 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn4.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239020",
+"logo": null
+},
+{
+"name": "TSN 5 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn5.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239014",
+"logo": null
+},
+{
+"name": "TSN 5 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn5.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239013",
+"logo": null
+},
+{
+"name": "TSN 5 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn5.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239012",
+"logo": null
+},
+{
+"name": "TSN 5 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn5.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239011",
+"logo": null
+},
+{
+"name": "TSN 5 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "tsn5.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239009",
+"logo": null
+},
+{
+"name": "SPORTSN ET 360 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnet360.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239006",
+"logo": null
+},
+{
+"name": "SPORTSN ET 360 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnet360.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239005",
+"logo": null
+},
+{
+"name": "SPORTSN ET 360 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnet360.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239004",
+"logo": null
+},
+{
+"name": "SPORTSN ET 360 ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnet360.ca",
+"group": "CA| TSN Sports",
+"streamId": "1239001",
+"logo": null
+},
+{
+"name": "SPORTSN ET EAST ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnet.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238999",
+"logo": null
+},
+{
+"name": "SPORTSN ET EAST ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnet.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238998",
+"logo": null
+},
+{
+"name": "SPORTSN ET EAST ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnet.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238997",
+"logo": null
+},
+{
+"name": "SPORTSN ET EAST ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnet.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238996",
+"logo": null
+},
+{
+"name": "SPORTSN ET EAST ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnet.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238993",
+"logo": null
+},
+{
+"name": "SPORTSN ET ONE ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetone.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238991",
+"logo": null
+},
+{
+"name": "SPORTSN ET ONE ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetone.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238990",
+"logo": null
+},
+{
+"name": "SPORTSN ET ONE ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetone.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238988",
+"logo": null
+},
+{
+"name": "SPORTSN ET ONE ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetone.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238986",
+"logo": null
+},
+{
+"name": "SPORTSN ET ONTARIO ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetontario.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238984",
+"logo": null
+},
+{
+"name": "SPORTSN ET ONTARIO ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetontario.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238983",
+"logo": null
+},
+{
+"name": "SPORTSN ET ONTARIO ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetontario.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238982",
+"logo": null
+},
+{
+"name": "SPORTSN ET ONTARIO ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetontario.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238981",
+"logo": null
+},
+{
+"name": "SPORTSN ET ONTARIO ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetontario.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238980",
+"logo": null
+},
+{
+"name": "SPORTSN ET PACIFIC ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetpacific.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238976",
+"logo": null
+},
+{
+"name": "SPORTSN ET PACIFIC ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetpacific.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238975",
+"logo": null
+},
+{
+"name": "SPORTSN ET PACIFIC ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetpacific.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238974",
+"logo": null
+},
+{
+"name": "SPORTSN ET PACIFIC ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetpacific.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238973",
+"logo": null
+},
+{
+"name": "SPORTSN ET PACIFIC ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetpacific.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238970",
+"logo": null
+},
+{
+"name": "SPORTSN ET WEST ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetwest.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238968",
+"logo": null
+},
+{
+"name": "SPORTSN ET WEST ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetwest.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238967",
+"logo": null
+},
+{
+"name": "SPORTSN ET WEST ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetwest.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238966",
+"logo": null
+},
+{
+"name": "SPORTSN ET WEST ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetwest.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238964",
+"logo": null
+},
+{
+"name": "SPORTSN ET WORLD ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetworld.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238961",
+"logo": null
+},
+{
+"name": "SPORTSN ET WORLD ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetworld.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238960",
+"logo": null
+},
+{
+"name": "SPORTSN ET WORLD ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetworld.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238959",
+"logo": null
+},
+{
+"name": "SPORTSN ET WORLD ⁽ᴮᴷ⁾ ᴿᴬᵂ",
+"tvgId": "sportsnetworld.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238955",
+"logo": null
+},
+{
+"name": "SPORTSN ET WORLD EXTRA 4 ᴿᴬᵂ",
+"tvgId": "sportsnetworld.ca",
+"group": "CA| TSN Sports",
+"streamId": "1238948",
+"logo": null
+},
+{
+"name": "### MAIN EVENT ###",
+"tvgId": "dummy-1918805",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "604294",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event UHD 50fps",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290248",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event UHD 50fps",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "950402",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event UHD 50fps",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1544239",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event UHD 50fps",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1544240",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event UHD 50fps",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527598",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event 1080p50",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1562535",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event 1080p50",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527639",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event 1080p25",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290207",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event 1080p25",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290220",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event 1080p25",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588046",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event 1080p25",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621634",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event 1080p25",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290241",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event 720p25",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527638",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event 720p25",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290315",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event 720p25",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588072",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event 720p25",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621656",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event 720p25",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290294",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event 576p25",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588027",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event 576p25",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290281",
+"logo": null
+},
+{
+"name": "Sky Sports Main Event 480p25",
+"tvgId": "skysportsmainevent.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290260",
+"logo": null
+},
+{
+"name": "### PREMIER LEAGUE ###",
+"tvgId": "dummy-1918804",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "604294",
+"logo": null
+},
+{
+"name": "Sky Sports Premier League 1080p50",
+"tvgId": "skysportspremierleague.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588045",
+"logo": null
+},
+{
+"name": "Sky Sports Premier League 1080p50",
+"tvgId": "skysportspremierleague.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527637",
+"logo": null
+},
+{
+"name": "Sky Sports Premier League 1080p50",
+"tvgId": "skysportspremierleague.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1562529",
+"logo": null
+},
+{
+"name": "Sky Sports Premier League 1080p25",
+"tvgId": "skysportspremierleague.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621633",
+"logo": null
+},
+{
+"name": "Sky Sports Premier League 1080p25",
+"tvgId": "skysportspremierleague.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290206",
+"logo": null
+},
+{
+"name": "Sky Sports Premier League 1080p25",
+"tvgId": "skysportspremierleague.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290219",
+"logo": null
+},
+{
+"name": "Sky Sports Premier League 1080p25",
+"tvgId": "skysportspremierleague.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588026",
+"logo": null
+},
+{
+"name": "Sky Sports Premier League 1080p25",
+"tvgId": "skysportspremierleague.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290240",
+"logo": null
+},
+{
+"name": "Sky Sports Premier League 720p25",
+"tvgId": "skysportspremierleague.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290293",
+"logo": null
+},
+{
+"name": "Sky Sports Premier League 720p25",
+"tvgId": "skysportspremierleague.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290314",
+"logo": null
+},
+{
+"name": "Sky Sports Premier League 720p25",
+"tvgId": "skysportspremierleague.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527636",
+"logo": null
+},
+{
+"name": "Sky Sports Premier League 720p25",
+"tvgId": "skysports.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588071",
+"logo": null
+},
+{
+"name": "Sky Sports Premier League 720p25",
+"tvgId": "skysportspremierleague.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621655",
+"logo": null
+},
+{
+"name": "Sky Sports Premier League 576p25",
+"tvgId": "skysportspremierleague.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290259",
+"logo": null
+},
+{
+"name": "Sky Sports Premier League 576p25",
+"tvgId": "skysportspremierleague.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290280",
+"logo": null
+},
+{
+"name": "Sky Sports Premier League 576p25",
+"tvgId": "skysportspremierleague.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290258",
+"logo": null
+},
+{
+"name": "### SKY SPORTS 1 ###",
+"tvgId": "dummy-1918807",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "604294",
+"logo": null
+},
+{
+"name": "Sky Sports 1 UHD 50fps",
+"tvgId": "skysports1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "950400",
+"logo": null
+},
+{
+"name": "Sky Sports 1 UHD 50fps",
+"tvgId": "skysports1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527597",
+"logo": null
+},
+{
+"name": "Sky Sports 1 UHD 50fps",
+"tvgId": "skysports1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290246",
+"logo": null
+},
+{
+"name": "### SKY SPORTS 2 ###",
+"tvgId": "dummy-1918806",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "604294",
+"logo": null
+},
+{
+"name": "Sky Sports 2 UHD 50fps",
+"tvgId": "skysports2.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "950399",
+"logo": null
+},
+{
+"name": "Sky Sports 2 UHD 50fps",
+"tvgId": "skysports2.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527596",
+"logo": null
+},
+{
+"name": "### FOOTBALL ###",
+"tvgId": "dummy-1918803",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "604294",
+"logo": null
+},
+{
+"name": "Sky Sports Football 1080p50",
+"tvgId": "skysportsfootball.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527635",
+"logo": null
+},
+{
+"name": "Sky Sports Football 1080p50",
+"tvgId": "skysportsfootball.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290205",
+"logo": null
+},
+{
+"name": "Sky Sports Football 1080p50",
+"tvgId": "skysportsfootball.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1562521",
+"logo": null
+},
+{
+"name": "Sky Sports Football 1080p25",
+"tvgId": "skysportsfootball.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621632",
+"logo": null
+},
+{
+"name": "Sky Sports Football 1080p25",
+"tvgId": "skysportsfootball.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588044",
+"logo": null
+},
+{
+"name": "Sky Sports Football 1080p25",
+"tvgId": "skysportsfootball.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290218",
+"logo": null
+},
+{
+"name": "Sky Sports Football 1080p25",
+"tvgId": "skysportsfootball.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290239",
+"logo": null
+},
+{
+"name": "Sky Sports Football 720p25",
+"tvgId": "skysportsfootball.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527634",
+"logo": null
+},
+{
+"name": "Sky Sports Football 720p25",
+"tvgId": "skysportsfootball.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621654",
+"logo": null
+},
+{
+"name": "Sky Sports Football 720p25",
+"tvgId": "skysportsfootball.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588070",
+"logo": null
+},
+{
+"name": "Sky Sports Football 720p25",
+"tvgId": "skysportsfootball.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290292",
+"logo": null
+},
+{
+"name": "Sky Sports Football 720p25",
+"tvgId": "skysportsfootball.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290313",
+"logo": null
+},
+{
+"name": "Sky Sports Football 576p25",
+"tvgId": "skysportsfootball.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588021",
+"logo": null
+},
+{
+"name": "Sky Sports Football 576p25",
+"tvgId": "skysportsfootball.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290279",
+"logo": null
+},
+{
+"name": "Sky Sports Football 576p25",
+"tvgId": "skysportsfootball.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290256",
+"logo": null
+},
+{
+"name": "### F1 Racing ###",
+"tvgId": "dummy-1918801",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "604294",
+"logo": null
+},
+{
+"name": "Sky Sports F1 UHD 50fps",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527595",
+"logo": null
+},
+{
+"name": "Sky Sports F1 UHD 50fps",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290247",
+"logo": null
+},
+{
+"name": "Sky Sports F1 UHD 50fps",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "950401",
+"logo": null
+},
+{
+"name": "Sky Sports F1 UHD 50fps",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1544244",
+"logo": null
+},
+{
+"name": "Sky Sports F1 1080p50",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "2043939",
+"logo": null
+},
+{
+"name": "Sky Sports F1 1080p50",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "2043940",
+"logo": null
+},
+{
+"name": "Sky Sports F1 1080p50",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527633",
+"logo": null
+},
+{
+"name": "Sky Sports F1 1080p50",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1562533",
+"logo": null
+},
+{
+"name": "Sky Sports F1 1080p25",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290235",
+"logo": null
+},
+{
+"name": "Sky Sports F1 1080p25",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1544243",
+"logo": null
+},
+{
+"name": "Sky Sports F1 1080p25",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290199",
+"logo": null
+},
+{
+"name": "Sky Sports F1 1080p25",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290212",
+"logo": null
+},
+{
+"name": "Sky Sports F1 1080p25",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588040",
+"logo": null
+},
+{
+"name": "Sky Sports F1 1080p25",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621629",
+"logo": null
+},
+{
+"name": "Sky Sports F1 720p25",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290286",
+"logo": null
+},
+{
+"name": "Sky Sports F1 720p25",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527632",
+"logo": null
+},
+{
+"name": "Sky Sports F1 720p25",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290307",
+"logo": null
+},
+{
+"name": "Sky Sports F1 720p25",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588065",
+"logo": null
+},
+{
+"name": "Sky Sports F1 720p25",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621653",
+"logo": null
+},
+{
+"name": "Sky Sports F1 576p25",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290272",
+"logo": null
+},
+{
+"name": "Sky Sports F1 576p25",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588022",
+"logo": null
+},
+{
+"name": "Sky Sports F1 576p25",
+"tvgId": "skysportsf1.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290251",
+"logo": null
+},
+{
+"name": "### ACTION ###",
+"tvgId": "dummy-1918802",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "604294",
+"logo": null
+},
+{
+"name": "Sky Sports NFL 1080p50",
+"tvgId": "skysportsactionhd.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527627",
+"logo": null
+},
+{
+"name": "Sky Sports NFL 1080p50",
+"tvgId": "skysportsactionhd.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1562534",
+"logo": null
+},
+{
+"name": "Sky Sports NFL 1080p50",
+"tvgId": "skysportsactionhd.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290203",
+"logo": null
+},
+{
+"name": "Sky Sports NFL 1080p25",
+"tvgId": "skysportsactionhd.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290216",
+"logo": null
+},
+{
+"name": "Sky Sports NFL 1080p25",
+"tvgId": "skysportsactionhd.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290237",
+"logo": null
+},
+{
+"name": "Sky Sports NFL 1080p25",
+"tvgId": "skysportsactionhd.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621630",
+"logo": null
+},
+{
+"name": "Sky Sports NFL 1080p25",
+"tvgId": "skysportsactionhd.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588043",
+"logo": null
+},
+{
+"name": "Sky Sports NFL 720p25",
+"tvgId": "skysportsactionhd.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621650",
+"logo": null
+},
+{
+"name": "Sky Sports NFL 720p25",
+"tvgId": "skysportsactionhd.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588068",
+"logo": null
+},
+{
+"name": "Sky Sports NFL 720p25",
+"tvgId": "skysportsactionhd.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290290",
+"logo": null
+},
+{
+"name": "Sky Sports NFL 720p25",
+"tvgId": "skysportsactionhd.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527626",
+"logo": null
+},
+{
+"name": "Sky Sports NFL 720p25",
+"tvgId": "skysportsactionhd.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290311",
+"logo": null
+},
+{
+"name": "Sky Sports NFL 576p25",
+"tvgId": "skysportsactionhd.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588025",
+"logo": null
+},
+{
+"name": "Sky Sports NFL 576p25",
+"tvgId": "skysportsactionhd.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290277",
+"logo": null
+},
+{
+"name": "Sky Sports NFL 480p25",
+"tvgId": "skysportsactionhd.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290255",
+"logo": null
+},
+{
+"name": "### PLUS ###",
+"tvgId": "dummy-1918798",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "604294",
+"logo": null
+},
+{
+"name": "Sky Sports + 1080p50",
+"tvgId": "skysportsplus.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1562530",
+"logo": null
+},
+{
+"name": "Sky Sports + 1080p50",
+"tvgId": "skysportsplus.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527619",
+"logo": null
+},
+{
+"name": "Sky Sports + 1080p50",
+"tvgId": "skysportsplus.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588042",
+"logo": null
+},
+{
+"name": "Sky Sports + 1080p50",
+"tvgId": "skysportsplus.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588024",
+"logo": null
+},
+{
+"name": "Sky Sports + 1080p25",
+"tvgId": "skysportsplus.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290198",
+"logo": null
+},
+{
+"name": "Sky Sports + 1080p25",
+"tvgId": "skysportsplus.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290211",
+"logo": null
+},
+{
+"name": "Sky Sports + 1080p25",
+"tvgId": "skysportsplus.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290231",
+"logo": null
+},
+{
+"name": "Sky Sports + 1080p25",
+"tvgId": "skysportsplus.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621631",
+"logo": null
+},
+{
+"name": "Sky Sports + 720p25",
+"tvgId": "skysportsplus.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527618",
+"logo": null
+},
+{
+"name": "Sky Sports + 720p25",
+"tvgId": "skysportsplus.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588067",
+"logo": null
+},
+{
+"name": "Sky Sports + 720p25",
+"tvgId": "skysportsplus.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290285",
+"logo": null
+},
+{
+"name": "Sky Sports + 720p25",
+"tvgId": "skysportsplus.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290305",
+"logo": null
+},
+{
+"name": "Sky Sports + 720p25",
+"tvgId": "skysportsplus.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621651",
+"logo": null
+},
+{
+"name": "Sky Sports + 576p25",
+"tvgId": "skysportsplus.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290271",
+"logo": null
+},
+{
+"name": "Sky Sports + 480p25",
+"tvgId": "skysportsplus.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290250",
+"logo": null
+},
+{
+"name": "### NEWS ###",
+"tvgId": "dummy-1918799",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "604294",
+"logo": null
+},
+{
+"name": "Sky Sports News 1080p50",
+"tvgId": "skysportsnews.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527641",
+"logo": null
+},
+{
+"name": "Sky Sports News 1080p50",
+"tvgId": "skysportsnews.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1562537",
+"logo": null
+},
+{
+"name": "Sky Sports News 1080p50",
+"tvgId": "skysportsnews.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290209",
+"logo": null
+},
+{
+"name": "Sky Sports News 1080p50",
+"tvgId": "skysportsnews.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290222",
+"logo": null
+},
+{
+"name": "Sky Sports News 1080p25",
+"tvgId": "skysportsnews.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290243",
+"logo": null
+},
+{
+"name": "Sky Sports News 1080p50",
+"tvgId": "skysportsnews.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588037",
+"logo": null
+},
+{
+"name": "Sky Sports News 720p25",
+"tvgId": "skysportsnews.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588069",
+"logo": null
+},
+{
+"name": "Sky Sports News 720p25",
+"tvgId": "skysportsnews.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290296",
+"logo": null
+},
+{
+"name": "Sky Sports News 720p25",
+"tvgId": "skysportsnews.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290317",
+"logo": null
+},
+{
+"name": "Sky Sports News 720p25",
+"tvgId": "skysportsnews.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527640",
+"logo": null
+},
+{
+"name": "Sky Sports News 720p25",
+"tvgId": "skysportsnews.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588018",
+"logo": null
+},
+{
+"name": "Sky Sports News 720p25",
+"tvgId": "skysportsnews.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621657",
+"logo": null
+},
+{
+"name": "Sky Sports News 576p25",
+"tvgId": "skysportsnews.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290283",
+"logo": null
+},
+{
+"name": "Sky Sports News 480p25",
+"tvgId": "skysportsnews.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290261",
+"logo": null
+},
+{
+"name": "Sky Sports News (OFFLINE)",
+"tvgId": "skysportsnews.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621635",
+"logo": null
+},
+{
+"name": "### CRICKET ###",
+"tvgId": "dummy-1918800",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "604294",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket 1080p50",
+"tvgId": "skysportscricket.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527625",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket 1080p50",
+"tvgId": "skysportscricket.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1562536",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket 1080p50",
+"tvgId": "skysportscricket.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290202",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket 1080p25",
+"tvgId": "skysportscricket.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290215",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket 1080p25",
+"tvgId": "skysportscricket.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290236",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket 1080p25",
+"tvgId": "skysportscricket.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588041",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket 720p50",
+"tvgId": "skysportscricket.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588066",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket 720p25",
+"tvgId": "skysportscricket.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290288",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket 720p25",
+"tvgId": "skysportscricket.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527624",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket 720p25",
+"tvgId": "skysportscricket.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290310",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket 720p25",
+"tvgId": "skysportscricket.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621652",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket 576p25",
+"tvgId": "skysportscricket.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290273",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket 576p25",
+"tvgId": "skysportscricket.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588023",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket 576p25",
+"tvgId": "skysportscricket.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290253",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket (OFFLINE)",
+"tvgId": "skysportscricket.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621628",
+"logo": null
+},
+{
+"name": "### GOLF ###",
+"tvgId": "dummy-1",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "604294",
+"logo": null
+},
+{
+"name": "Sky Sports Golf 1080p50",
+"tvgId": "skysportsgolf.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527623",
+"logo": null
+},
+{
+"name": "Sky Sports Golf 1080p50",
+"tvgId": "skysportsgolf.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1562532",
+"logo": null
+},
+{
+"name": "Sky Sports Golf 1080p50",
+"tvgId": "skysportsgolf.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290200",
+"logo": null
+},
+{
+"name": "Sky Sports Golf 1080p25",
+"tvgId": "skysportsgolf.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290213",
+"logo": null
+},
+{
+"name": "Sky Sports Golf 1080p25",
+"tvgId": "skysportsgolf.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290234",
+"logo": null
+},
+{
+"name": "Sky Sports Golf 1080p25",
+"tvgId": "skysportsgolf.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621625",
+"logo": null
+},
+{
+"name": "Sky Sports Golf 1080p25",
+"tvgId": "skysportsgolf.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588039",
+"logo": null
+},
+{
+"name": "Sky Sports Golf 720p25",
+"tvgId": "skysportsgolf.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588062",
+"logo": null
+},
+{
+"name": "Sky Sports Golf 720p25",
+"tvgId": "skysportsgolf.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290287",
+"logo": null
+},
+{
+"name": "Sky Sports Golf 720p25",
+"tvgId": "skysportsgolf.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527622",
+"logo": null
+},
+{
+"name": "Sky Sports Golf 720p25",
+"tvgId": "skysportsgolf.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290309",
+"logo": null
+},
+{
+"name": "Sky Sports Golf 720p25",
+"tvgId": "skysportsgolf.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621647",
+"logo": null
+},
+{
+"name": "Sky Sports Golf 576p25",
+"tvgId": "skysportsgolf.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588020",
+"logo": null
+},
+{
+"name": "Sky Sports Golf 576p25",
+"tvgId": "skysportsgolf.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290276",
+"logo": null
+},
+{
+"name": "Sky Sports Golf 480p25",
+"tvgId": "skysportsgolf.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290252",
+"logo": null
+},
+{
+"name": "### MIX ###",
+"tvgId": "dummy-1918797",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "604294",
+"logo": null
+},
+{
+"name": "Sky Sports Mix 1080p50",
+"tvgId": "skysportsmix.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527621",
+"logo": null
+},
+{
+"name": "Sky Sports Mix 1080p50",
+"tvgId": "skysportsmix.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1562531",
+"logo": null
+},
+{
+"name": "Sky Sports Mix 1080p25",
+"tvgId": "skysportsmix.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290204",
+"logo": null
+},
+{
+"name": "Sky Sports Mix 1080p25",
+"tvgId": "skysportsmix.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290217",
+"logo": null
+},
+{
+"name": "Sky Sports Mix 1080p25",
+"tvgId": "skysportsmix.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290238",
+"logo": null
+},
+{
+"name": "Sky Sports Mix 1080p25",
+"tvgId": "skysportsmix.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621626",
+"logo": null
+},
+{
+"name": "Sky Sports Mix 1080p50",
+"tvgId": "skysportsmix.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588038",
+"logo": null
+},
+{
+"name": "Sky Sports Mix 720p25",
+"tvgId": "skysportsmix.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588064",
+"logo": null
+},
+{
+"name": "Sky Sports Mix 720p25",
+"tvgId": "skysportsmix.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290291",
+"logo": null
+},
+{
+"name": "Sky Sports Mix 720p25",
+"tvgId": "skysportsmix.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527620",
+"logo": null
+},
+{
+"name": "Sky Sports Mix 720p25",
+"tvgId": "skysportsmix.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290312",
+"logo": null
+},
+{
+"name": "Sky Sports Mix 720p25",
+"tvgId": "skysportsmix.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621648",
+"logo": null
+},
+{
+"name": "Sky Sports Mix 576p25",
+"tvgId": "skysportsmix.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290278",
+"logo": null
+},
+{
+"name": "Sky Sports Mix 576p25",
+"tvgId": "skysportsmix.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588019",
+"logo": null
+},
+{
+"name": "Sky Sports Mix 576p25",
+"tvgId": "skysportsmix.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290257",
+"logo": null
+},
+{
+"name": "### TENNIS ###",
+"tvgId": "dummy-1918796",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "604294",
+"logo": null
+},
+{
+"name": "Sky Sports Tennis 1080p50",
+"tvgId": "skysportstennis.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527629",
+"logo": null
+},
+{
+"name": "Sky Sports Tennis 1080p50",
+"tvgId": "skysportstennis.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1562527",
+"logo": null
+},
+{
+"name": "Sky Sports Tennis 1080p25",
+"tvgId": "skysportstennis.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "706975",
+"logo": null
+},
+{
+"name": "Sky Sports Tennis 1080p25",
+"tvgId": "skysportstennis.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "707005",
+"logo": null
+},
+{
+"name": "Sky Sports Tennis 1080p25",
+"tvgId": "skysportstennis.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290232",
+"logo": null
+},
+{
+"name": "Sky Sports Tennis 720p25",
+"tvgId": "skysportstennis.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "707004",
+"logo": null
+},
+{
+"name": "Sky Sports Tennis 720p25",
+"tvgId": "skysportstennis.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290306",
+"logo": null
+},
+{
+"name": "Sky Sports Tennis 720p25",
+"tvgId": "skysportstennis.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527628",
+"logo": null
+},
+{
+"name": "Sky Sports Tennis 720p25",
+"tvgId": "skysportstennis.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "706974",
+"logo": null
+},
+{
+"name": "Sky Sports Tennis 576p50",
+"tvgId": "skysportstennis.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "707006",
+"logo": null
+},
+{
+"name": "Sky Sports Tennis 576p25",
+"tvgId": "skysportstennis.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290274",
+"logo": null
+},
+{
+"name": "### RACING ###",
+"tvgId": "dummy-1918795",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "604294",
+"logo": null
+},
+{
+"name": "Sky Sports Racing 1080p50",
+"tvgId": "skysportsracing.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1562528",
+"logo": null
+},
+{
+"name": "Sky Sports Racing 1080p50",
+"tvgId": "skysportsracing.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527631",
+"logo": null
+},
+{
+"name": "Sky Sports Racing 1080p25",
+"tvgId": "skysportsracing.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290214",
+"logo": null
+},
+{
+"name": "Sky Sports Racing 1080p25",
+"tvgId": "skysportsracing.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290233",
+"logo": null
+},
+{
+"name": "Sky Sports Racing 1080p25",
+"tvgId": "skysportsracing.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621627",
+"logo": null
+},
+{
+"name": "Sky Sports Racing 1080p25",
+"tvgId": "skysportsracing.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588036",
+"logo": null
+},
+{
+"name": "Sky Sports Racing 1080p25",
+"tvgId": "skysportsracing.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290201",
+"logo": null
+},
+{
+"name": "Sky Sports Racing 720p25",
+"tvgId": "skysportsracing.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588063",
+"logo": null
+},
+{
+"name": "Sky Sports Racing 720p25",
+"tvgId": "skysportsracing.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290289",
+"logo": null
+},
+{
+"name": "Sky Sports Racing 720p25",
+"tvgId": "skysportsracing.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290308",
+"logo": null
+},
+{
+"name": "Sky Sports Racing 720p25",
+"tvgId": "skysportsracing.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527630",
+"logo": null
+},
+{
+"name": "Sky Sports Racing 720p25",
+"tvgId": "skysportsracing.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621649",
+"logo": null
+},
+{
+"name": "Sky Sports Racing 576p25",
+"tvgId": "skysportsracing.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588017",
+"logo": null
+},
+{
+"name": "Sky Sports Racing 576p25",
+"tvgId": "skysportsracing.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290275",
+"logo": null
+},
+{
+"name": "Sky Sports Racing 576p25",
+"tvgId": "skysportsracing.uk",
+"group": "UK| Sky Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290254",
+"logo": null
+},
+{
+"name": "TNT Sports Ultimate ᵁᴴᴰ ᴴᴰᴿ",
+"tvgId": "tntsportsultimate.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1069751",
+"logo": null
+},
+{
+"name": "TNT Sports Ultimate ᵁᴴᴰ ᴴᴰᴿ",
+"tvgId": "tntsportsultimate.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1544247",
+"logo": null
+},
+{
+"name": "TNT Sports Ultimate ᵁᴴᴰ ᴴᴰᴿ",
+"tvgId": "tntsportsultimate.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1544246",
+"logo": null
+},
+{
+"name": "TNT Sports 1 (1080p50)",
+"tvgId": "tntsports1.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527617",
+"logo": null
+},
+{
+"name": "TNT Sports 1 (1080p50)",
+"tvgId": "tntsports1.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1562525",
+"logo": null
+},
+{
+"name": "TNT Sports 1 (1080p50)",
+"tvgId": "tntsports1.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290337",
+"logo": null
+},
+{
+"name": "TNT Sports 1 (1080p25)",
+"tvgId": "tntsports1.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290322",
+"logo": null
+},
+{
+"name": "TNT Sports 1 (1080p25)",
+"tvgId": "tntsports1.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290327",
+"logo": null
+},
+{
+"name": "TNT Sports 1 (1080p25)",
+"tvgId": "tntsports1.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290332",
+"logo": null
+},
+{
+"name": "TNT Sports 1 (1080p25)",
+"tvgId": "tntsports1.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621639",
+"logo": null
+},
+{
+"name": "TNT Sports 1 (1080p25)",
+"tvgId": "tntsports1.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588012",
+"logo": null
+},
+{
+"name": "TNT Sports 1 (720p25)",
+"tvgId": "tntsports1.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588077",
+"logo": null
+},
+{
+"name": "TNT Sports 1 (720p25)",
+"tvgId": "tntsports1.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290372",
+"logo": null
+},
+{
+"name": "TNT Sports 1 (720p25)",
+"tvgId": "tntsports1.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290377",
+"logo": null
+},
+{
+"name": "TNT Sports 1 (720p25)",
+"tvgId": "tntsports1.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527616",
+"logo": null
+},
+{
+"name": "TNT Sports 1 (720p25)",
+"tvgId": "tntsports1.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621661",
+"logo": null
+},
+{
+"name": "TNT Sports 1 (576p25)",
+"tvgId": "tntsports1.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290349",
+"logo": null
+},
+{
+"name": "TNT Sports 1 (576p25)",
+"tvgId": "tntsports1.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588031",
+"logo": null
+},
+{
+"name": "TNT Sports 1 (576p25)",
+"tvgId": "tntsports1.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290366",
+"logo": null
+},
+{
+"name": "TNT Sports 1 (480p25)",
+"tvgId": "tntsports1.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290355",
+"logo": null
+},
+{
+"name": "TNT Sports 2 (1080p50)",
+"tvgId": "tntsports2.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527615",
+"logo": null
+},
+{
+"name": "TNT Sports 2 (1080p50)",
+"tvgId": "tntsports2.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527614",
+"logo": null
+},
+{
+"name": "TNT Sports 2 (1080p50)",
+"tvgId": "tntsports2.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1562524",
+"logo": null
+},
+{
+"name": "TNT Sports 2 (1080p25)",
+"tvgId": "tntsports2.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290321",
+"logo": null
+},
+{
+"name": "TNT Sports 2 (1080p25)",
+"tvgId": "tntsports2.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290326",
+"logo": null
+},
+{
+"name": "TNT Sports 2 (1080p25)",
+"tvgId": "tntsports2.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290331",
+"logo": null
+},
+{
+"name": "TNT Sports 2 (1080p25)",
+"tvgId": "tntsports2.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621638",
+"logo": null
+},
+{
+"name": "TNT Sports 2 (1080p25)",
+"tvgId": "tntsports2.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588011",
+"logo": null
+},
+{
+"name": "TNT Sports 2 (720p25)",
+"tvgId": "tntsports2.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588075",
+"logo": null
+},
+{
+"name": "TNT Sports 2 (720p25)",
+"tvgId": "tntsports2.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290371",
+"logo": null
+},
+{
+"name": "TNT Sports 2 (720p25)",
+"tvgId": "tntsports2.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290376",
+"logo": null
+},
+{
+"name": "TNT Sports 2 (720p25)",
+"tvgId": "tntsports2.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621660",
+"logo": null
+},
+{
+"name": "TNT Sports 2 (576p25)",
+"tvgId": "tntsports2.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290348",
+"logo": null
+},
+{
+"name": "TNT Sports 2 (576p25)",
+"tvgId": "tntsports2.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588030",
+"logo": null
+},
+{
+"name": "TNT Sports 2 (576p25)",
+"tvgId": "tntsports2.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290365",
+"logo": null
+},
+{
+"name": "TNT Sports 2 (480p25)",
+"tvgId": "tntsports2.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290354",
+"logo": null
+},
+{
+"name": "TNT Sports 3 (1080p50)",
+"tvgId": "tntsports3.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527613",
+"logo": null
+},
+{
+"name": "TNT Sports 3 (1080p50)",
+"tvgId": "tntsports3.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527612",
+"logo": null
+},
+{
+"name": "TNT Sports 3 (1080p50)",
+"tvgId": "tntsports3.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1562523",
+"logo": null
+},
+{
+"name": "TNT Sports 3 (1080p25)",
+"tvgId": "tntsports3.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290320",
+"logo": null
+},
+{
+"name": "TNT Sports 3 (1080p25)",
+"tvgId": "tntsports3.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290325",
+"logo": null
+},
+{
+"name": "TNT Sports 3 (1080p25)",
+"tvgId": "tntsports3.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290330",
+"logo": null
+},
+{
+"name": "TNT Sports 3 (1080p25)",
+"tvgId": "tntsports3.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621637",
+"logo": null
+},
+{
+"name": "TNT Sports 3 (1080p25)",
+"tvgId": "tntsports3.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588010",
+"logo": null
+},
+{
+"name": "TNT Sports 3 (720p25)",
+"tvgId": "tntsports3.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588074",
+"logo": null
+},
+{
+"name": "TNT Sports 3 (720p25)",
+"tvgId": "tntsports3.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290370",
+"logo": null
+},
+{
+"name": "TNT Sports 3 (720p25)",
+"tvgId": "tntsports3.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290375",
+"logo": null
+},
+{
+"name": "TNT Sports 3 (720p25)",
+"tvgId": "tntsports3.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621659",
+"logo": null
+},
+{
+"name": "TNT Sports 3 (576p50)",
+"tvgId": "tntsports3.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290347",
+"logo": null
+},
+{
+"name": "TNT Sports 3 (576p25)",
+"tvgId": "tntsports3.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588029",
+"logo": null
+},
+{
+"name": "TNT Sports 3 (576p25)",
+"tvgId": "tntsports3.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290364",
+"logo": null
+},
+{
+"name": "TNT Sports 3 (480p25)",
+"tvgId": "tntsports3.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290353",
+"logo": null
+},
+{
+"name": "TNT Sports 4 (1080p50)",
+"tvgId": "tntsports4.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290319",
+"logo": null
+},
+{
+"name": "TNT Sports 4 (1080p50)",
+"tvgId": "tntsports4.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290324",
+"logo": null
+},
+{
+"name": "TNT Sports 4 (1080p50)",
+"tvgId": "tntsports4.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527611",
+"logo": null
+},
+{
+"name": "TNT Sports 4 (1080p50)",
+"tvgId": "tntsports4.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290329",
+"logo": null
+},
+{
+"name": "TNT Sports 4 (1080p50)",
+"tvgId": "tntsports4.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1527610",
+"logo": null
+},
+{
+"name": "TNT Sports 4 (1080p50)",
+"tvgId": "tntsports4.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1562522",
+"logo": null
+},
+{
+"name": "TNT Sports 4 (1080p50)",
+"tvgId": "tntsports4.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290334",
+"logo": null
+},
+{
+"name": "TNT Sports 4 (1080p25)",
+"tvgId": "tntsports4.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1537390",
+"logo": null
+},
+{
+"name": "TNT Sports 4 (1080p25)",
+"tvgId": "tntsports4.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621636",
+"logo": null
+},
+{
+"name": "TNT Sports 4 (1080p25)",
+"tvgId": "tntsports4.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588009",
+"logo": null
+},
+{
+"name": "TNT Sports 4 (720p50)",
+"tvgId": "tntsports4.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290369",
+"logo": null
+},
+{
+"name": "TNT Sports 4 (720p50)",
+"tvgId": "tntsports4.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290374",
+"logo": null
+},
+{
+"name": "TNT Sports 4 (720p25)",
+"tvgId": "tntsports4.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588073",
+"logo": null
+},
+{
+"name": "TNT Sports 4 (720p25)",
+"tvgId": "tntsports4.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "621658",
+"logo": null
+},
+{
+"name": "TNT Sports 4 (576p50)",
+"tvgId": "tntsports4.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290346",
+"logo": null
+},
+{
+"name": "TNT Sports 4 (576p50)",
+"tvgId": "tntsports4.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290363",
+"logo": null
+},
+{
+"name": "TNT Sports 4 (576p25)",
+"tvgId": "tntsports4.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "588028",
+"logo": null
+},
+{
+"name": "TNT Sports 4 (480p50)",
+"tvgId": "tntsports4.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290352",
+"logo": null
+},
+{
+"name": "TNT Sports 5",
+"tvgId": "TNTSports5.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290362",
+"logo": null
+},
+{
+"name": "TNT Sports 6",
+"tvgId": "TNTSports6.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "2048952",
+"logo": null
+},
+{
+"name": "TNT Sports 7",
+"tvgId": "TNTSports7.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290360",
+"logo": null
+},
+{
+"name": "TNT Sports 8",
+"tvgId": "TNTSports8.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290359",
+"logo": null
+},
+{
+"name": "TNT Sports 9",
+"tvgId": "TNTSports9.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290358",
+"logo": null
+},
+{
+"name": "TNT Sports 10",
+"tvgId": "TNTSports10.uk",
+"group": "UK| TNT Sports ᴳᴬᴺᴶᴬ",
+"streamId": "1290357",
+"logo": null
+},
+{
+"name": "DUMMY CATEGORY",
+"tvgId": "dummy-371692",
+"group": "🇦🇺 Australia ⬇️",
+"streamId": "604294",
+"logo": null
+},
+{
+"name": "7FLIX BRISBANE",
+"tvgId": "7flixbrisbane.au",
+"group": "AU| Entertainment",
+"streamId": "441378",
+"logo": null
+},
+{
+"name": "7FLIX CANBERRA",
+"tvgId": "7flixcanberra.au",
+"group": "AU| Entertainment",
+"streamId": "441377",
+"logo": null
+},
+{
+"name": "7FLIX PERTH",
+"tvgId": "7flixperth.au",
+"group": "AU| Entertainment",
+"streamId": "441373",
+"logo": null
+},
+{
+"name": "7TWO MELBOURNE",
+"tvgId": "7twomelbourne.au",
+"group": "AU| Entertainment",
+"streamId": "441366",
+"logo": null
+},
+{
+"name": "CHANNEL 7TWO SYDNEY",
+"tvgId": "channel9sydney.au",
+"group": "AU| Entertainment",
+"streamId": "441342",
+"logo": null
+},
+{
+"name": "9Gem (Gold-coast)",
+"tvgId": "9gem.au",
+"group": "AU| Entertainment",
+"streamId": "1537663",
+"logo": null
+},
+{
+"name": "9Gem (Lismore)",
+"tvgId": "9gem.au",
+"group": "AU| Entertainment",
+"streamId": "1537658",
+"logo": null
+},
+{
+"name": "9Gem (Newcastle)",
+"tvgId": "9gem.au",
+"group": "AU| Entertainment",
+"streamId": "1537653",
+"logo": null
+},
+{
+"name": "9Gem (Nsw)",
+"tvgId": "9gem.au",
+"group": "AU| Entertainment",
+"streamId": "1537688",
+"logo": null
+},
+{
+"name": "9Gem (Qld)",
+"tvgId": "9gem.au",
+"group": "AU| Entertainment",
+"streamId": "1537678",
+"logo": null
+},
+{
+"name": "9Gem (Sa)",
+"tvgId": "9gem.au",
+"group": "AU| Entertainment",
+"streamId": "1537673",
+"logo": null
+},
+{
+"name": "9Gem (Vic)",
+"tvgId": "9gem.au",
+"group": "AU| Entertainment",
+"streamId": "1537683",
+"logo": null
+},
+{
+"name": "9Gem (Wa)",
+"tvgId": "9gem.au",
+"group": "AU| Entertainment",
+"streamId": "1537668",
+"logo": null
+},
+{
+"name": "9Go! (Gold-coast)",
+"tvgId": "9go.au",
+"group": "AU| Entertainment",
+"streamId": "1537662",
+"logo": null
+},
+{
+"name": "9Go! (Lismore)",
+"tvgId": "9go.au",
+"group": "AU| Entertainment",
+"streamId": "1537657",
+"logo": null
+},
+{
+"name": "9Go! (Newcastle)",
+"tvgId": "9go.au",
+"group": "AU| Entertainment",
+"streamId": "1537652",
+"logo": null
+},
+{
+"name": "9Go! (Nsw)",
+"tvgId": "9go.au",
+"group": "AU| Entertainment",
+"streamId": "1537687",
+"logo": null
+},
+{
+"name": "9Go! (Qld)",
+"tvgId": "9go.au",
+"group": "AU| Entertainment",
+"streamId": "1537677",
+"logo": null
+},
+{
+"name": "9Go! (Sa)",
+"tvgId": "9go.au",
+"group": "AU| Entertainment",
+"streamId": "1537672",
+"logo": null
+},
+{
+"name": "9Go! (Vic)",
+"tvgId": "9go.au",
+"group": "AU| Entertainment",
+"streamId": "1537682",
+"logo": null
+},
+{
+"name": "9Go! (Wa)",
+"tvgId": "9go.au",
+"group": "AU| Entertainment",
+"streamId": "1537667",
+"logo": null
+},
+{
+"name": "9life (Gold-coast)",
+"tvgId": "9life.au",
+"group": "AU| Entertainment",
+"streamId": "1537661",
+"logo": null
+},
+{
+"name": "9life (Lismore)",
+"tvgId": "9life.au",
+"group": "AU| Entertainment",
+"streamId": "1537656",
+"logo": null
+},
+{
+"name": "9life (Newcastle)",
+"tvgId": "9life.au",
+"group": "AU| Entertainment",
+"streamId": "1537651",
+"logo": null
+},
+{
+"name": "9life (Nsw)",
+"tvgId": "9life.au",
+"group": "AU| Entertainment",
+"streamId": "1537686",
+"logo": null
+},
+{
+"name": "9life (Qld)",
+"tvgId": "9life.au",
+"group": "AU| Entertainment",
+"streamId": "1537676",
+"logo": null
+},
+{
+"name": "9life (Sa)",
+"tvgId": "9life.au",
+"group": "AU| Entertainment",
+"streamId": "1537671",
+"logo": null
+},
+{
+"name": "9life (Vic)",
+"tvgId": "9life.au",
+"group": "AU| Entertainment",
+"streamId": "1537681",
+"logo": null
+},
+{
+"name": "9life (Wa)",
+"tvgId": "9life.au",
+"group": "AU| Entertainment",
+"streamId": "1537666",
+"logo": null
+},
+{
+"name": "9rush (Gold-coast)",
+"tvgId": "9rush.au",
+"group": "AU| Entertainment",
+"streamId": "1537660",
+"logo": null
+},
+{
+"name": "9rush (Lismore)",
+"tvgId": "9rush.au",
+"group": "AU| Entertainment",
+"streamId": "1537655",
+"logo": null
+},
+{
+"name": "9rush (Newcastle)",
+"tvgId": "9rush.au",
+"group": "AU| Entertainment",
+"streamId": "1537650",
+"logo": null
+},
+{
+"name": "9rush (Nsw)",
+"tvgId": "9rush.au",
+"group": "AU| Entertainment",
+"streamId": "1537685",
+"logo": null
+},
+{
+"name": "9rush (Qld)",
+"tvgId": "9rush.au",
+"group": "AU| Entertainment",
+"streamId": "1537675",
+"logo": null
+},
+{
+"name": "9rush (Sa)",
+"tvgId": "9rush.au",
+"group": "AU| Entertainment",
+"streamId": "1537670",
+"logo": null
+},
+{
+"name": "9rush (Vic)",
+"tvgId": "9rush.au",
+"group": "AU| Entertainment",
+"streamId": "1537680",
+"logo": null
+},
+{
+"name": "9rush (Wa)",
+"tvgId": "9rush.au",
+"group": "AU| Entertainment",
+"streamId": "1537665",
+"logo": null
+},
+{
+"name": "Channel 9 (Gold-coast)",
+"tvgId": "channel9perth.au",
+"group": "AU| Entertainment",
+"streamId": "1537664",
+"logo": null
+},
+{
+"name": "Channel 9 (Lismore)",
+"tvgId": "channel9perth.au",
+"group": "AU| Entertainment",
+"streamId": "1537659",
+"logo": null
+},
+{
+"name": "Channel 9 (Newcastle)",
+"tvgId": "channel9perth.au",
+"group": "AU| Entertainment",
+"streamId": "1537654",
+"logo": null
+},
+{
+"name": "Channel 9 (Qld)",
+"tvgId": "channel9perth.au",
+"group": "AU| Entertainment",
+"streamId": "1537679",
+"logo": null
+},
+{
+"name": "Channel 9 (Sa)",
+"tvgId": "channel9perth.au",
+"group": "AU| Entertainment",
+"streamId": "1537674",
+"logo": null
+},
+{
+"name": "Channel 9 (Vic)",
+"tvgId": "channel9perth.au",
+"group": "AU| Entertainment",
+"streamId": "1537684",
+"logo": null
+},
+{
+"name": "Channel 9 (Wa)",
+"tvgId": "channel9perth.au",
+"group": "AU| Entertainment",
+"streamId": "1537669",
+"logo": null
+},
+{
+"name": "10 SHAKE PERTH",
+"tvgId": "10shakeperth.au",
+"group": "AU| Entertainment",
+"streamId": "441382",
+"logo": null
+},
+{
+"name": "SBS BRISBANE",
+"tvgId": "sbsbrisbane.au",
+"group": "AU| Entertainment",
+"streamId": "441327",
+"logo": null
+},
+{
+"name": "SBS FOOD MELBOURNE",
+"tvgId": "sbsfoodmelbourne.au",
+"group": "AU| Entertainment",
+"streamId": "441326",
+"logo": null
+},
+{
+"name": "SBS MELBOURNE",
+"tvgId": "sbsmelbourne.au",
+"group": "AU| Entertainment",
+"streamId": "441323",
+"logo": null
+},
+{
+"name": "SBS VICELAND MELBOURNE",
+"tvgId": "sbsvicelandmelbourne.au",
+"group": "AU| Entertainment",
+"streamId": "441320",
+"logo": null
+},
+{
+"name": "SBS VICELAND PERTH",
+"tvgId": "sbsvicelandperth.au",
+"group": "AU| Entertainment",
+"streamId": "441318",
+"logo": null
+},
+{
+"name": "SBS WORLD MOVIES PERTH",
+"tvgId": "sbsworldmoviesperth.au",
+"group": "AU| Entertainment",
+"streamId": "441316",
+"logo": null
+},
+{
+"name": "ABC MELBOURNE",
+"tvgId": "abcmelbourne.au",
+"group": "AU| Entertainment",
+"streamId": "441349",
+"logo": null
+},
+{
+"name": "ABC PERTH",
+"tvgId": "abcperth.au",
+"group": "AU| Entertainment",
+"streamId": "441346",
+"logo": null
+},
+{
+"name": "ABC ME",
+"tvgId": "dummy-889562",
+"group": "AU| Entertainment",
+"streamId": "441347",
+"logo": null
+},
+{
+"name": "ABC NEWS AUSTRALIA HD",
+"tvgId": "abcnews.au",
+"group": "AU| Entertainment",
+"streamId": "750644",
+"logo": null
+},
+{
+"name": "ACOUNTRY PRACTICE HD",
+"tvgId": "acountrypractice.au",
+"group": "AU| Entertainment",
+"streamId": "789218",
+"logo": null
+},
+{
+"name": "AL JAZEERA (NZ)",
+"tvgId": "dummy-889565",
+"group": "AU| Entertainment",
+"streamId": "441344",
+"logo": null
+},
+{
+"name": "All SAINTS HD",
+"tvgId": "allsaints.au",
+"group": "AU| Entertainment",
+"streamId": "789221",
+"logo": null
+},
+{
+"name": "ANGLERS PARADIS HD",
+"tvgId": "anglersparadis.au",
+"group": "AU| Entertainment",
+"streamId": "789222",
+"logo": null
+},
+{
+"name": "AUSTRALIA GOT TALANE HD",
+"tvgId": "gottalane.au",
+"group": "AU| Entertainment",
+"streamId": "789760",
+"logo": null
+},
+{
+"name": "BBC ENTERTAIN",
+"tvgId": "abcentertains.au",
+"group": "AU| Entertainment",
+"streamId": "1537635",
+"logo": null
+},
+{
+"name": "BBC FIRST",
+"tvgId": "bbcfirst.au",
+"group": "AU| Entertainment",
+"streamId": "1537634",
+"logo": null
+},
+{
+"name": "BBC SELECT",
+"tvgId": "bbcselect.au",
+"group": "AU| Entertainment",
+"streamId": "1537633",
+"logo": null
+},
+{
+"name": "BIOPIC HD",
+"tvgId": "biopic.au",
+"group": "AU| Entertainment",
+"streamId": "789764",
+"logo": null
+},
+{
+"name": "BLOOMBERG TV+",
+"tvgId": "bloombergtv.au",
+"group": "AU| Entertainment",
+"streamId": "1537639",
+"logo": null
+},
+{
+"name": "BLUE HEELERS HD",
+"tvgId": "blueheelers.au",
+"group": "AU| Entertainment",
+"streamId": "789765",
+"logo": null
+},
+{
+"name": "BLUE LIGHT HD",
+"tvgId": "bluelight.au",
+"group": "AU| Entertainment",
+"streamId": "789766",
+"logo": null
+},
+{
+"name": "BONDI VET HD",
+"tvgId": "bondivet.au",
+"group": "AU| Entertainment",
+"streamId": "789767",
+"logo": null
+},
+{
+"name": "CBS NEWS",
+"tvgId": "dummy-1147633",
+"group": "AU| Entertainment",
+"streamId": "1537638",
+"logo": null
+},
+{
+"name": "EWTN ASIA PACIFIC HD",
+"tvgId": "dummy-889510",
+"group": "AU| Entertainment",
+"streamId": "799434",
+"logo": null
+},
+{
+"name": "OUTBACK TRUCKERS HD",
+"tvgId": "outbacktruckers.au",
+"group": "AU| Entertainment",
+"streamId": "749944",
+"logo": null
+},
+{
+"name": "PROPERTY DREAMS HD",
+"tvgId": "propertydreams.au",
+"group": "AU| Entertainment",
+"streamId": "749945",
+"logo": null
+},
+{
+"name": "SKY NEWS EXTRA 2",
+"tvgId": "skynewsextra.au",
+"group": "AU| Entertainment",
+"streamId": "441298",
+"logo": null
+},
+{
+"name": "TVSN SHOPPING (NZ)",
+"tvgId": "tvsnshopping.au",
+"group": "AU| Entertainment",
+"streamId": "441314",
+"logo": null
+},
+{
+"name": "Fox Sports News 500",
+"tvgId": "foxsportsnews.au",
+"group": "AU| Sports",
+"streamId": "441308",
+"logo": null
+},
+{
+"name": "Fox Cricket 501",
+"tvgId": "FoxCricket.alt.au",
+"group": "AU| Sports",
+"streamId": "441307",
+"logo": null
+},
+{
+"name": "Fox Cricket",
+"tvgId": "FoxCricket.alt.au",
+"group": "AU| Sports",
+"streamId": "441368",
+"logo": null
+},
+{
+"name": "Fox League 502",
+"tvgId": "FoxLeague.alt.au",
+"group": "AU| Sports",
+"streamId": "441306",
+"logo": null
+},
+{
+"name": "Fox Sports 503",
+"tvgId": "FoxSports503.alt.au",
+"group": "AU| Sports",
+"streamId": "441305",
+"logo": null
+},
+{
+"name": "Fox Footy 504",
+"tvgId": "FoxFooty.alt.au",
+"group": "AU| Sports",
+"streamId": "441304",
+"logo": null
+},
+{
+"name": "Fox Sports 505",
+"tvgId": "FoxSports505.au",
+"group": "AU| Sports",
+"streamId": "441360",
+"logo": null
+},
+{
+"name": "Fox Sports 506",
+"tvgId": "FoxSports506.alt.au",
+"group": "AU| Sports",
+"streamId": "441302",
+"logo": null
+},
+{
+"name": "Fox Sports More+ 507",
+"tvgId": "FoxSportsMore.alt.au",
+"group": "AU| Sports",
+"streamId": "441301",
+"logo": null
+},
+{
+"name": "Bein Sports 1",
+"tvgId": "beinsports1.au",
+"group": "AU| Sports",
+"streamId": "441313",
+"logo": null
+},
+{
+"name": "Bein Sports 2",
+"tvgId": "beinsports2.au",
+"group": "AU| Sports",
+"streamId": "441312",
+"logo": null
+},
+{
+"name": "Bein Sports 3",
+"tvgId": "beinsports3.au",
+"group": "AU| Sports",
+"streamId": "441311",
+"logo": null
+},
+{
+"name": "ESPN",
+"tvgId": "espn.au",
+"group": "AU| Sports",
+"streamId": "441310",
+"logo": null
+},
+{
+"name": "ESPN 2",
+"tvgId": "espn2.au",
+"group": "AU| Sports",
+"streamId": "441309",
+"logo": null
+},
+{
+"name": "Sky Racing 1",
+"tvgId": "447013",
+"group": "AU| Sports",
+"streamId": "441297",
+"logo": null
+},
+{
+"name": "Sky Racing 2",
+"tvgId": "447012",
+"group": "AU| Sports",
+"streamId": "441296",
+"logo": null
+},
+{
+"name": "Sky Sport Premier League",
+"tvgId": "skysportpremierleague.nz",
+"group": "AU| Sports",
+"streamId": "670268",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket (UK)",
+"tvgId": "skysportscricket.uk",
+"group": "AU| Sports",
+"streamId": "1290236",
+"logo": null
+},
+{
+"name": "Sky Sport Select",
+"tvgId": "skysportselect.nz",
+"group": "AU| Sports",
+"streamId": "2006098",
+"logo": null
+},
+{
+"name": "Sky Sport 1",
+"tvgId": "skysport1.nz",
+"group": "AU| Sports",
+"streamId": "2006097",
+"logo": null
+},
+{
+"name": "Sky Sport 2",
+"tvgId": "skysport2.nz",
+"group": "AU| Sports",
+"streamId": "2006096",
+"logo": null
+},
+{
+"name": "Sky Sport 3",
+"tvgId": "skysport3.nz",
+"group": "AU| Sports",
+"streamId": "2006107",
+"logo": null
+},
+{
+"name": "Sky Sport 4",
+"tvgId": "skysport4.nz",
+"group": "AU| Sports",
+"streamId": "2006094",
+"logo": null
+},
+{
+"name": "Sky Sport 5",
+"tvgId": "skysport5.nz",
+"group": "AU| Sports",
+"streamId": "2006093",
+"logo": null
+},
+{
+"name": "Sky Sport 6",
+"tvgId": "skysport6.nz",
+"group": "AU| Sports",
+"streamId": "2006092",
+"logo": null
+},
+{
+"name": "Sky Sport 7",
+"tvgId": "skysport7.nz",
+"group": "AU| Sports",
+"streamId": "2006091",
+"logo": null
+},
+{
+"name": "Sky Sport 8",
+"tvgId": "skysport8.nz",
+"group": "AU| Sports",
+"streamId": "2006090",
+"logo": null
+},
+{
+"name": "Sky Sport 9",
+"tvgId": "skysport9.nz",
+"group": "AU| Sports",
+"streamId": "2006089",
+"logo": null
+},
+{
+"name": "Bein Sports 1",
+"tvgId": "beinsports1.au",
+"group": "AU| Sports",
+"streamId": "1537642",
+"logo": null
+},
+{
+"name": "Bein Sports 2",
+"tvgId": "beinsports2.au",
+"group": "AU| Sports",
+"streamId": "1537641",
+"logo": null
+},
+{
+"name": "Bein Sports 3",
+"tvgId": "beinsports3.au",
+"group": "AU| Sports",
+"streamId": "1537640",
+"logo": null
+},
+{
+"name": "Racing.com National",
+"tvgId": "40886",
+"group": "AU| Sports",
+"streamId": "441333",
+"logo": null
+},
+{
+"name": "Redbull TV National",
+"tvgId": "447029",
+"group": "AU| Sports",
+"streamId": "441329",
+"logo": null
+},
+{
+"name": "Laliga Tv",
+"tvgId": "dummy-1147634",
+"group": "AU| Sports",
+"streamId": "1537637",
+"logo": null
+},
+{
+"name": "Liv Golf",
+"tvgId": "dummy-857775",
+"group": "AU| Sports",
+"streamId": "749781",
+"logo": null
+},
+{
+"name": "Racing",
+"tvgId": "dummy-857784",
+"group": "AU| Sports",
+"streamId": "441335",
+"logo": null
+},
+{
+"name": "RACING.COM MELBOURNE",
+"tvgId": "racingcommelbourne.au",
+"group": "AU| Sports",
+"streamId": "441334",
+"logo": null
+},
+{
+"name": "RACING.COM PERTH",
+"tvgId": "racingcomperth.au",
+"group": "AU| Sports",
+"streamId": "441332",
+"logo": null
+},
+{
+"name": "REDBULL TV MELBOURNE",
+"tvgId": "dummy-889591",
+"group": "AU| Sports",
+"streamId": "441330",
+"logo": null
+},
+{
+"name": "REDBULL TV PERTH",
+"tvgId": "dummy-889593",
+"group": "AU| Sports",
+"streamId": "441328",
+"logo": null
+},
+{
+"name": "SKY RACING 1 HD",
+"tvgId": "skyracing1.au",
+"group": "AU| Sports",
+"streamId": "441294",
+"logo": null
+},
+{
+"name": "SKY RACING 2 HD",
+"tvgId": "skyracing2.au",
+"group": "AU| Sports",
+"streamId": "441295",
+"logo": null
+},
+{
+"name": "##### AU ESPN PLAY PPV #####",
+"tvgId": null,
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618113",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 1 (D)",
+"tvgId": "dummy-889646",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618112",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 2 (D)",
+"tvgId": "dummy-889647",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618111",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 3 (D)",
+"tvgId": "dummy-889648",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618110",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 4 (D)",
+"tvgId": "dummy-889649",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618109",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 5 (D)",
+"tvgId": "dummy-889650",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618108",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 6 (D)",
+"tvgId": "dummy-889651",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618107",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 7 (D)",
+"tvgId": "dummy-889652",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618106",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 8 (D)",
+"tvgId": "dummy-889653",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618105",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 9 (D)",
+"tvgId": "dummy-889654",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618104",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 10 (D)",
+"tvgId": "dummy-889655",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618103",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 11 (D)",
+"tvgId": "dummy-889656",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618102",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 12 (D)",
+"tvgId": "dummy-889657",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618101",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 13 (D)",
+"tvgId": "dummy-889658",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618100",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 14 (D)",
+"tvgId": "dummy-889659",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618099",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 15 (D)",
+"tvgId": "dummy-889660",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618098",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 16 (D)",
+"tvgId": "dummy-889661",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618097",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 17 (D)",
+"tvgId": "dummy-889662",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618096",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 18 (D)",
+"tvgId": "dummy-889663",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618095",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 19 (D)",
+"tvgId": "dummy-889664",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618094",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 20 (D)",
+"tvgId": "dummy-889665",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618093",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 21 (D)",
+"tvgId": "dummy-889666",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618092",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 22 (D)",
+"tvgId": "dummy-889667",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618091",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 23 (D)",
+"tvgId": "dummy-889668",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618090",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 24 (D)",
+"tvgId": "dummy-889669",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618089",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 25 (D)",
+"tvgId": "dummy-889670",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618088",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 26 (D)",
+"tvgId": "dummy-889671",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618087",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 27 (D)",
+"tvgId": "dummy-889672",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618086",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 28 (D)",
+"tvgId": "dummy-889673",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618085",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 29 (D)",
+"tvgId": "dummy-889674",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618084",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 30 (D)",
+"tvgId": "dummy-889675",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618083",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 31 (D)",
+"tvgId": "dummy-889676",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618082",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 32 (D)",
+"tvgId": "dummy-889677",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618081",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 33 (D)",
+"tvgId": "dummy-889678",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618080",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 34 (D)",
+"tvgId": "dummy-889679",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618079",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 35 (D)",
+"tvgId": "dummy-889680",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618078",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 36 (D)",
+"tvgId": "dummy-889681",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618077",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 37 (D)",
+"tvgId": "dummy-889682",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618076",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 38 (D)",
+"tvgId": "dummy-889683",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618075",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 39 (D)",
+"tvgId": "dummy-889684",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618074",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 40 (D)",
+"tvgId": "dummy-889685",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618073",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 41 (D)",
+"tvgId": "dummy-889686",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618072",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 42 (D)",
+"tvgId": "dummy-889687",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618071",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 43 (D)",
+"tvgId": "dummy-889688",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618070",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 44 (D)",
+"tvgId": "dummy-889689",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618069",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 45 (D)",
+"tvgId": "dummy-889690",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618068",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 46 (D)",
+"tvgId": "dummy-889691",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618067",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 47 (D)",
+"tvgId": "dummy-889692",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618066",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 48 (D)",
+"tvgId": "dummy-889693",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618065",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 49 (D)",
+"tvgId": "dummy-889694",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618064",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 50 (D)",
+"tvgId": "dummy-889695",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618063",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 51 (D)",
+"tvgId": "dummy-889696",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618062",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 52 (D): WatchESPN NCAAM | Cal State Northridge vs. Idaho | 11-09-2023 9:00pm",
+"tvgId": "dummy-889697",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618061",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 53 (D)",
+"tvgId": "dummy-889698",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618060",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 54 (D)",
+"tvgId": "dummy-889699",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618059",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 55 (D)",
+"tvgId": "dummy-889700",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618058",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 56 (D)",
+"tvgId": "dummy-889701",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618057",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 57 (D)",
+"tvgId": "dummy-889702",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618056",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 58 (D)",
+"tvgId": "dummy-889703",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618055",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 59 (D)",
+"tvgId": "dummy-889704",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618054",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 60 (D)",
+"tvgId": "dummy-889705",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618053",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 61 (D)",
+"tvgId": "dummy-889706",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618052",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 62 (D)",
+"tvgId": "dummy-889707",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618051",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 63 (D)",
+"tvgId": "dummy-889708",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618050",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 64 (D)",
+"tvgId": "dummy-889709",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618049",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 65 (D)",
+"tvgId": "dummy-889710",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618048",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 66 (D)",
+"tvgId": "dummy-889711",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618047",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 67 (D)",
+"tvgId": "dummy-889712",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618046",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 68 (D)",
+"tvgId": "dummy-889713",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618045",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 69 (D)",
+"tvgId": "dummy-889714",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618044",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 70 (D)",
+"tvgId": "dummy-889715",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618043",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 71 (D)",
+"tvgId": "dummy-889716",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618042",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 72 (D)",
+"tvgId": "dummy-889717",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618041",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 73 (D)",
+"tvgId": "dummy-889718",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618040",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 74 (D)",
+"tvgId": "dummy-889719",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618039",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 75 (D)",
+"tvgId": "dummy-889720",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618038",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 76 (D)",
+"tvgId": "dummy-889721",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618037",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 77 (D)",
+"tvgId": "dummy-889722",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618036",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 78 (D)",
+"tvgId": "dummy-889723",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618035",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 79 (D)",
+"tvgId": "dummy-889724",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618034",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 80 (D)",
+"tvgId": "dummy-889725",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618033",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 81 (D)",
+"tvgId": "dummy-889726",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618032",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 82 (D)",
+"tvgId": "dummy-889727",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618031",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 83 (D)",
+"tvgId": "dummy-889728",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618030",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 84 (D)",
+"tvgId": "dummy-889729",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618029",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 85 (D)",
+"tvgId": "dummy-889730",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618028",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 86 (D)",
+"tvgId": "dummy-889731",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618027",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 87 (D)",
+"tvgId": "dummy-889732",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618026",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 88 (D)",
+"tvgId": "dummy-889733",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618025",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 89 (D)",
+"tvgId": "dummy-889734",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618024",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 90 (D)",
+"tvgId": "dummy-889735",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618023",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 91 (D)",
+"tvgId": "dummy-889736",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618022",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 92 (D)",
+"tvgId": "dummy-889737",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618021",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 93 (D)",
+"tvgId": "dummy-889738",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618020",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 94 (D)",
+"tvgId": "dummy-889739",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618019",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 95 (D)",
+"tvgId": "dummy-889740",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618018",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 96 (D)",
+"tvgId": "dummy-889741",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618017",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 97 (D)",
+"tvgId": "dummy-889742",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618016",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 98 (D)",
+"tvgId": "dummy-889743",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618015",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 99 (D)",
+"tvgId": "dummy-889744",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618014",
+"logo": null
+},
+{
+"name": "(AU) ESPN PLAY 100 (D)",
+"tvgId": "dummy-889745",
+"group": "AU| ESPN PLAY PPV",
+"streamId": "618013",
+"logo": null
+},
+{
+"name": "### RUGBY PPV ###",
+"tvgId": null,
+"group": "AU| RUGBY",
+"streamId": "605906",
+"logo": null
+},
+{
+"name": "Rugby 1: Hull KR vs Warrington 08:00pm",
+"tvgId": "dummy-3680",
+"group": "AU| RUGBY",
+"streamId": "605905",
+"logo": null
+},
+{
+"name": "Rugby 2 :",
+"tvgId": "dummy-3681",
+"group": "AU| RUGBY",
+"streamId": "605904",
+"logo": null
+},
+{
+"name": "Rugby 3: Knights vs Titans 5:00am Sun",
+"tvgId": "dummy-3682",
+"group": "AU| RUGBY",
+"streamId": "605903",
+"logo": null
+},
+{
+"name": "Rugby 4: Australia vs Wales 5:30pm",
+"tvgId": "dummy-3683",
+"group": "AU| RUGBY",
+"streamId": "605902",
+"logo": null
+},
+{
+"name": "Rugby 5: Spain vs Uruguay 5:30pm",
+"tvgId": "dummy-3684",
+"group": "AU| RUGBY",
+"streamId": "605901",
+"logo": null
+},
+{
+"name": "Rugby 6 : Canada vs Spain 2:00 am",
+"tvgId": "dummy-3685",
+"group": "AU| RUGBY",
+"streamId": "605900",
+"logo": null
+},
+{
+"name": "Rugby 7: USA  vs Portugal  2:00am Sun",
+"tvgId": "dummy-3686",
+"group": "AU| RUGBY",
+"streamId": "605899",
+"logo": null
+},
+{
+"name": "Rugby 8: Dolphins vs Titans 7:15am Sun",
+"tvgId": "dummy-3687",
+"group": "AU| RUGBY",
+"streamId": "605898",
+"logo": null
+},
+{
+"name": "Rugby 9: Roosters vs Eels 7:00am Sat",
+"tvgId": "dummy-3688",
+"group": "AU| RUGBY",
+"streamId": "605897",
+"logo": null
+},
+{
+"name": "Rugby 10: Southland vs Counties Manukau 5:35am Sun",
+"tvgId": "dummy-3689",
+"group": "AU| RUGBY",
+"streamId": "605896",
+"logo": null
+},
+{
+"name": "Rugby 11: Raiders vs Broncos 7:05am Sun",
+"tvgId": "dummy-3690",
+"group": "AU| RUGBY",
+"streamId": "605895",
+"logo": null
+},
+{
+"name": "Rugby 12: Knights vs Titans 4:45am Sun",
+"tvgId": "dummy-3691",
+"group": "AU| RUGBY",
+"streamId": "605894",
+"logo": null
+},
+{
+"name": "Rugby 5: Spain vs Uruguay 5:30pm",
+"tvgId": "dummy-3692",
+"group": "AU| RUGBY",
+"streamId": "605893",
+"logo": null
+},
+{
+"name": "Rugby 14: Tasman vs Auckland 5:35am Sun",
+"tvgId": "dummy-3693",
+"group": "AU| RUGBY",
+"streamId": "605892",
+"logo": null
+},
+{
+"name": "Rugby 15: Eels vs Knights 7:05am Sun",
+"tvgId": "dummy-3694",
+"group": "AU| RUGBY",
+"streamId": "605891",
+"logo": null
+},
+{
+"name": "Rugby 16:",
+"tvgId": "dummy-3695",
+"group": "AU| RUGBY",
+"streamId": "605890",
+"logo": null
+},
+{
+"name": "AU (STAN 01) | AUS U18s v New Zealand Barbarians U18  Australian Schoolboys/U18s 2026 (2026-09-30 11:25:29)",
+"tvgId": "dummy-1999825",
+"group": "AU| STAN PPV",
+"streamId": "1535961",
+"logo": null
+},
+{
+"name": "AU (STAN 02) | New Zealand Schools v AUS School Boys XV Australian Schoolboys/U18s 2026 (2026-09-30 13:25:29)",
+"tvgId": "dummy-1999826",
+"group": "AU| STAN PPV",
+"streamId": "1535960",
+"logo": null
+},
+{
+"name": "AU (STAN 03) | Otago v Auckland  NPC Round 10 2026 (2026-10-01 16:00:29)",
+"tvgId": "dummy-1999827",
+"group": "AU| STAN PPV",
+"streamId": "1535959",
+"logo": null
+},
+{
+"name": "AU (STAN 04) | Live Stage 1  WRC Italy 2026 (2026-10-02 00:00:29)",
+"tvgId": "dummy-1999828",
+"group": "AU| STAN PPV",
+"streamId": "1535958",
+"logo": null
+},
+{
+"name": "AU (STAN 05) | Beijing: Day 3  WTA 1000 (2026-10-02 13:00:29)",
+"tvgId": "dummy-1999829",
+"group": "AU| STAN PPV",
+"streamId": "1535957",
+"logo": null
+},
+{
+"name": "AU (STAN 06) | Southland v Northland  NPC Round 10 2026 (2026-10-02 16:00:29)",
+"tvgId": "dummy-1999830",
+"group": "AU| STAN PPV",
+"streamId": "1535956",
+"logo": null
+},
+{
+"name": "AU (STAN 07) | Crosscountry Short Track: Lake Placid  UCI Mountain Bike World Series 2026 (2026-10-03 01:30:29)",
+"tvgId": "dummy-1999831",
+"group": "AU| STAN PPV",
+"streamId": "1535955",
+"logo": null
+},
+{
+"name": "AU (STAN 08) | Bath v Exeter  PREM Rugby Round 2 2026/27 (2026-10-03 04:40:29)",
+"tvgId": "dummy-1999832",
+"group": "AU| STAN PPV",
+"streamId": "1535954",
+"logo": null
+},
+{
+"name": "AU (STAN 09) | Manawatū v Canterbury  NPC Round 10 2026 (2026-10-03 11:00:29)",
+"tvgId": "dummy-1999833",
+"group": "AU| STAN PPV",
+"streamId": "1535953",
+"logo": null
+},
+{
+"name": "AU (STAN 10) | Seattle Reign v North Carolina Courage  NWSL 2026 (2026-10-03 12:00:29)",
+"tvgId": "dummy-1999834",
+"group": "AU| STAN PPV",
+"streamId": "1535952",
+"logo": null
+},
+{
+"name": "AU (STAN 11) | Beijing: Day 4  WTA 1000 (2026-10-03 13:00:29)",
+"tvgId": "dummy-1999835",
+"group": "AU| STAN PPV",
+"streamId": "1535951",
+"logo": null
+},
+{
+"name": "AU (STAN 12) | Counties Manukau v Hawke`s Bay  NPC Round 10 2026 (2026-10-03 14:00:29)",
+"tvgId": "dummy-1999836",
+"group": "AU| STAN PPV",
+"streamId": "1535950",
+"logo": null
+},
+{
+"name": "AU (STAN 13) | Waikato v Tasman  NPC Round 10 2026 (2026-10-03 16:00:29)",
+"tvgId": "dummy-1999837",
+"group": "AU| STAN PPV",
+"streamId": "1535949",
+"logo": null
+},
+{
+"name": "AU (STAN 14) | Live Stage 2  WRC Italy 2026 (2026-10-03 16:00:34)",
+"tvgId": "dummy-1999838",
+"group": "AU| STAN PPV",
+"streamId": "1535948",
+"logo": null
+},
+{
+"name": "AU (STAN 15) | Force v Waratahs  Super Rugby AUS Grand Final 2026 (2026-10-03 16:25:29)",
+"tvgId": "dummy-1999839",
+"group": "AU| STAN PPV",
+"streamId": "1535947",
+"logo": null
+},
+{
+"name": "AU (STAN 16) | Manchester United v Liverpool  WSL 2026/27 (2026-10-03 22:20:29)",
+"tvgId": "dummy-1999840",
+"group": "AU| STAN PPV",
+"streamId": "1535946",
+"logo": null
+},
+{
+"name": "AU (STAN 17) | Live Stage 3  WRC Italy 2026 (2026-10-03 22:30:29)",
+"tvgId": "dummy-1999841",
+"group": "AU| STAN PPV",
+"streamId": "1535945",
+"logo": null
+},
+{
+"name": "AU (STAN 18) | Bristol v Northampton  PREM Rugby Round 2 2026/27 (2026-10-04 00:00:29)",
+"tvgId": "dummy-1999842",
+"group": "AU| STAN PPV",
+"streamId": "1535944",
+"logo": null
+},
+{
+"name": "AU (STAN 19) | Gloucester v Harlequins  PREM Rugby Round 2 2026/27 (2026-10-04 03:25:29)",
+"tvgId": "dummy-1999843",
+"group": "AU| STAN PPV",
+"streamId": "1535943",
+"logo": null
+},
+{
+"name": "AU (STAN 20) | Crosscountry Olympic: Lake Placid  UCI Mountain Bike World Series 2026 (2026-10-04 04:45:29)",
+"tvgId": "dummy-1999844",
+"group": "AU| STAN PPV",
+"streamId": "1535942",
+"logo": null
+},
+{
+"name": "AU (STAN 21) | Newcastle v Leicester  PREM Rugby Round 2 2026/27 (2026-10-04 05:40:29)",
+"tvgId": "dummy-1999845",
+"group": "AU| STAN PPV",
+"streamId": "1535941",
+"logo": null
+},
+{
+"name": "AU (STAN 22) | Kansas City Current v Bay FC  NWSL 2026 (2026-10-04 09:30:29)",
+"tvgId": "dummy-1999846",
+"group": "AU| STAN PPV",
+"streamId": "1535940",
+"logo": null
+},
+{
+"name": "AU (STAN 23) | AUS School Boys XV v New Zealand Maori  Australian Schoolboys/U18s 2026 (2026-10-04 10:25:29)",
+"tvgId": "dummy-1999847",
+"group": "AU| STAN PPV",
+"streamId": "1535939",
+"logo": null
+},
+{
+"name": "AU (STAN 24) | Portland Thorns v Boston Legacy  NWSL 2026 (2026-10-04 11:45:29)",
+"tvgId": "dummy-1999848",
+"group": "AU| STAN PPV",
+"streamId": "1535938",
+"logo": null
+},
+{
+"name": "AU (STAN 25) | Taranaki v Wellington  NPC Round 10 2026 (2026-10-04 12:00:29)",
+"tvgId": "dummy-1999849",
+"group": "AU| STAN PPV",
+"streamId": "1535937",
+"logo": null
+},
+{
+"name": "AU (STAN 26) | AUS U18s v New Zealand Schools  Australian Schoolboys/U18s 2026 (2026-10-04 13:25:29)",
+"tvgId": "dummy-1999850",
+"group": "AU| STAN PPV",
+"streamId": "1535936",
+"logo": null
+},
+{
+"name": "AU (STAN 27) | Beijing: Day 5  WTA 1000 (2026-10-04 14:00:29)",
+"tvgId": "dummy-1999851",
+"group": "AU| STAN PPV",
+"streamId": "1535935",
+"logo": null
+},
+{
+"name": "AU (STAN 28) | Bay Of Plenty v North Harbour  NPC Round 10 2026 (2026-10-04 14:30:29)",
+"tvgId": "dummy-1999852",
+"group": "AU| STAN PPV",
+"streamId": "1535934",
+"logo": null
+},
+{
+"name": "AU (STAN 29) | Live Stage 4  WRC Italy 2026 (2026-10-04 19:00:29)",
+"tvgId": "dummy-1999853",
+"group": "AU| STAN PPV",
+"streamId": "1535933",
+"logo": null
+},
+{
+"name": "AU (STAN 30) | Spain v South Africa  WXV 2026 (2026-10-04 20:50:29)",
+"tvgId": "dummy-1999854",
+"group": "AU| STAN PPV",
+"streamId": "1535932",
+"logo": null
+},
+{
+"name": "AU (STAN 31) | Race 1 (MXGP & MX2)  France Motocross of Nations 2026 (2026-10-04 22:00:29)",
+"tvgId": "dummy-1999855",
+"group": "AU| STAN PPV",
+"streamId": "1535931",
+"logo": null
+},
+{
+"name": "AU (STAN 32) | Live Stage 5  WRC Italy 2026 (2026-10-04 23:00:29)",
+"tvgId": "dummy-1999856",
+"group": "AU| STAN PPV",
+"streamId": "1535930",
+"logo": null
+},
+{
+"name": "AU (STAN 33) | Race 2 (MX2 & Open)  France Motocross of Nations 2026 (2026-10-04 23:30:29)",
+"tvgId": "dummy-1999857",
+"group": "AU| STAN PPV",
+"streamId": "1535929",
+"logo": null
+},
+{
+"name": "AU (STAN 34) | West Ham United v Chelsea  WSL 2026/27 (2026-10-04 23:50:29)",
+"tvgId": "dummy-1999858",
+"group": "AU| STAN PPV",
+"streamId": "1535928",
+"logo": null
+},
+{
+"name": "AU (STAN 35) | Aston Villa v Crystal Palace  WSL 2026/27 (2026-10-04 23:50:34)",
+"tvgId": "dummy-1999859",
+"group": "AU| STAN PPV",
+"streamId": "1535927",
+"logo": null
+},
+{
+"name": "AU (STAN 36) | Tottenham Hotspur v London City Lionesses  WSL 2026/27 (2026-10-04 23:50:39)",
+"tvgId": "dummy-1999860",
+"group": "AU| STAN PPV",
+"streamId": "1535926",
+"logo": null
+},
+{
+"name": "AU (STAN 37) | Brighton & Hove Albion v Charlton Athletic  WSL 2026/27 (2026-10-04 23:50:44)",
+"tvgId": "dummy-1999861",
+"group": "AU| STAN PPV",
+"streamId": "1535925",
+"logo": null
+},
+{
+"name": "AU (STAN 38) | Everton v Birmingham City  WSL 2026/27 (2026-10-04 23:50:49)",
+"tvgId": "dummy-1999862",
+"group": "AU| STAN PPV",
+"streamId": "1535924",
+"logo": null
+},
+{
+"name": "AU (STAN 39) | Saracens v Sale  PREM Rugby Round 2 2026/27 (2026-10-05 00:55:29)",
+"tvgId": "dummy-1999863",
+"group": "AU| STAN PPV",
+"streamId": "1535923",
+"logo": null
+},
+{
+"name": "AU (STAN 40) | Race 3 (Open & MXGP)  France Motocross of Nations 2026 (2026-10-05 00:55:34)",
+"tvgId": "dummy-1999864",
+"group": "AU| STAN PPV",
+"streamId": "1535922",
+"logo": null
+},
+{
+"name": "AU (STAN 41) | Manchester City v Arsenal  WSL 2026/27 (2026-10-05 02:20:29)",
+"tvgId": "dummy-1999865",
+"group": "AU| STAN PPV",
+"streamId": "1535921",
+"logo": null
+},
+{
+"name": "AU (STAN 42) | Gotham FC v Angel City FC  NWSL 2026 (2026-10-05 03:00:29)",
+"tvgId": "dummy-1999866",
+"group": "AU| STAN PPV",
+"streamId": "1535920",
+"logo": null
+},
+{
+"name": "AU (STAN 43) | Downhill: Lake Placid  UCI Mountain Bike World Series 2026 (2026-10-05 03:45:29)",
+"tvgId": "dummy-1999867",
+"group": "AU| STAN PPV",
+"streamId": "1535919",
+"logo": null
+},
+{
+"name": "AU (STAN 44) | Daejeon v Jeonbuk  K League 2026 (2026-10-09 15:55:29)",
+"tvgId": "dummy-1999868",
+"group": "AU| STAN PPV",
+"streamId": "1535918",
+"logo": null
+},
+{
+"name": "AU (STAN 45) | Incheon v Pohang  K League 2026 (2026-10-09 18:25:29)",
+"tvgId": "dummy-1999869",
+"group": "AU| STAN PPV",
+"streamId": "1535917",
+"logo": null
+},
+{
+"name": "AU (STAN 46) | Kashima Antlers v Gamba Osaka  J.League 2026 (2026-10-09 20:55:29)",
+"tvgId": "dummy-1999870",
+"group": "AU| STAN PPV",
+"streamId": "1535916",
+"logo": null
+},
+{
+"name": "AU (STAN 47) | Leicester v Gloucester  PREM Rugby Round 3 2026/27 (2026-10-10 05:40:29)",
+"tvgId": "dummy-1999871",
+"group": "AU| STAN PPV",
+"streamId": "1535915",
+"logo": null
+},
+{
+"name": "AU (STAN 48) | Women`s Elite  UCI Gravel World Championships 2026 (2026-10-10 13:00:29)",
+"tvgId": "dummy-1999872",
+"group": "AU| STAN PPV",
+"streamId": "1535914",
+"logo": null
+},
+{
+"name": "AU (STAN 49) | Seoul v Jeju  K League 2026 (2026-10-10 15:55:29)",
+"tvgId": "dummy-1999873",
+"group": "AU| STAN PPV",
+"streamId": "1535913",
+"logo": null
+},
+{
+"name": "AU (STAN 50) | Cerezo Osaka v Yokohama F. Marinos  J.League 2026 (2026-10-10 15:55:34)",
+"tvgId": "dummy-1999874",
+"group": "AU| STAN PPV",
+"streamId": "1535912",
+"logo": null
+},
+{
+"name": "AU (STAN 51) | New Zealand v Australia  Bledisloe Cup Game 1 2026 (2026-10-10 16:00:29)",
+"tvgId": "dummy-1999875",
+"group": "AU| STAN PPV",
+"streamId": "1535911",
+"logo": null
+},
+{
+"name": "AU (STAN 52) | New Zealand v Australia: SKY NZ Coverage  Bledisloe Cup Game 1 2026 (2026-10-10 16:00:34)",
+"tvgId": "dummy-1999876",
+"group": "AU| STAN PPV",
+"streamId": "1535910",
+"logo": null
+},
+{
+"name": "AU (STAN 53) | Arsenal v Leeds United  Premier League Matchweek 6 2026/2027 (2026-10-10 21:30:29)",
+"tvgId": "dummy-1999877",
+"group": "AU| STAN PPV",
+"streamId": "1535909",
+"logo": null
+},
+{
+"name": "AU (STAN 54) |  • Arsenal v Leeds United  Premier League Matchweek 6 2026/2027 (2026-10-10 22:20:29)",
+"tvgId": "dummy-1999878",
+"group": "AU| STAN PPV",
+"streamId": "1535908",
+"logo": null
+},
+{
+"name": "AU (STAN 55) | Chelsea v Bournemouth  Premier League Matchweek 6 2026/2027 (2026-10-11 00:50:29)",
+"tvgId": "dummy-1999879",
+"group": "AU| STAN PPV",
+"streamId": "1535907",
+"logo": null
+},
+{
+"name": "AU (STAN 56) | Aston Villa v Brentford  Premier League Matchweek 6 2026/2027 (2026-10-11 00:50:34)",
+"tvgId": "dummy-1999880",
+"group": "AU| STAN PPV",
+"streamId": "1535906",
+"logo": null
+},
+{
+"name": "AU (STAN 57) | Sunderland v Brighton & Hove Albion  Premier League Matchweek 6 2026/2027 (2026-10-11 00:50:39)",
+"tvgId": "dummy-1999881",
+"group": "AU| STAN PPV",
+"streamId": "1535905",
+"logo": null
+},
+{
+"name": "AU (STAN 58) | Ipswich Town v Fulham  Premier League Matchweek 6 2026/2027 (2026-10-11 00:50:44)",
+"tvgId": "dummy-1999882",
+"group": "AU| STAN PPV",
+"streamId": "1535904",
+"logo": null
+},
+{
+"name": "AU (STAN 59) | Goal Rush • 11 October  Premier League 2026/2027 (2026-10-11 00:50:49)",
+"tvgId": "dummy-1999883",
+"group": "AU| STAN PPV",
+"streamId": "1535903",
+"logo": null
+},
+{
+"name": "AU (STAN 60) | Northampton v Bath  PREM Rugby Round 3 2026/27 (2026-10-11 01:00:29)",
+"tvgId": "dummy-1999884",
+"group": "AU| STAN PPV",
+"streamId": "1535902",
+"logo": null
+},
+{
+"name": "AU (STAN 61) | Manchester United v Tottenham Hotspur  Premier League Matchweek 6 2026/2027 (2026-10-11 03:20:29)",
+"tvgId": "dummy-1999885",
+"group": "AU| STAN PPV",
+"streamId": "1535901",
+"logo": null
+},
+{
+"name": "AU (STAN 62) |  • Manchester United v Tottenham Hotspur  Premier League Matchweek 6 2026/2027 (2026-10-11 03:20:34)",
+"tvgId": "dummy-1999886",
+"group": "AU| STAN PPV",
+"streamId": "1535900",
+"logo": null
+},
+{
+"name": "AU (STAN 63) | Saracens v Bristol  PREM Rugby Round 3 2026/27 (2026-10-11 03:25:29)",
+"tvgId": "dummy-1999887",
+"group": "AU| STAN PPV",
+"streamId": "1535899",
+"logo": null
+},
+{
+"name": "AU (STAN 64) | Semi Final: PFL Africa 2026 (2026-10-11 05:00:29)",
+"tvgId": "dummy-1999888",
+"group": "AU| STAN PPV",
+"streamId": "1535898",
+"logo": null
+},
+{
+"name": "AU (STAN 65) | PL Saturday Wrap: Matchweek 6  Oct 11 (2026-10-11 06:00:29)",
+"tvgId": "dummy-1999889",
+"group": "AU| STAN PPV",
+"streamId": "1535897",
+"logo": null
+},
+{
+"name": "AU (STAN 66) | Men`s Elite  UCI Gravel World Championships 2026 (2026-10-11 13:00:29)",
+"tvgId": "dummy-1999890",
+"group": "AU| STAN PPV",
+"streamId": "1535896",
+"logo": null
+},
+{
+"name": "AU (STAN 67) | Chiba v Nagasaki  J.League 2026 (2026-10-11 15:55:29)",
+"tvgId": "dummy-1999891",
+"group": "AU| STAN PPV",
+"streamId": "1535895",
+"logo": null
+},
+{
+"name": "AU (STAN 68) | Gwangju v Ulsan  K League 2026 (2026-10-11 15:55:34)",
+"tvgId": "dummy-1999892",
+"group": "AU| STAN PPV",
+"streamId": "1535894",
+"logo": null
+},
+{
+"name": "AU (STAN 69) | Kawasaki Frontale v Nagoya Grampus  J.League 2026 (2026-10-11 17:55:29)",
+"tvgId": "dummy-1999893",
+"group": "AU| STAN PPV",
+"streamId": "1535893",
+"logo": null
+},
+{
+"name": "AU (STAN 70) | Crystal Palace v Nottingham Forest  Premier League Matchweek 6 2026/2027 (2026-10-11 23:00:29)",
+"tvgId": "dummy-1999894",
+"group": "AU| STAN PPV",
+"streamId": "1535892",
+"logo": null
+},
+{
+"name": "AU (STAN 71) | Hull City v Everton  Premier League Matchweek 6 2026/2027 (2026-10-11 23:50:29)",
+"tvgId": "dummy-1999895",
+"group": "AU| STAN PPV",
+"streamId": "1535891",
+"logo": null
+},
+{
+"name": "AU (STAN 72) | Exeter v Newcastle  PREM Rugby Round 3 2026/27 (2026-10-12 00:55:29)",
+"tvgId": "dummy-1999896",
+"group": "AU| STAN PPV",
+"streamId": "1535890",
+"logo": null
+},
+{
+"name": "AU (STAN 73) | Sale v Harlequins  PREM Rugby Round 3 2026/27 (2026-10-12 00:55:34)",
+"tvgId": "dummy-1999897",
+"group": "AU| STAN PPV",
+"streamId": "1535889",
+"logo": null
+},
+{
+"name": "AU (STAN 74) | Liverpool v Manchester City  Premier League Matchweek 6 2026/2027 (2026-10-12 02:20:29)",
+"tvgId": "dummy-1999898",
+"group": "AU| STAN PPV",
+"streamId": "1535888",
+"logo": null
+},
+{
+"name": "AU (STAN 75) |  • Liverpool v Manchester City  Premier League Matchweek 6 2026/2027 (2026-10-12 02:20:34)",
+"tvgId": "dummy-1999899",
+"group": "AU| STAN PPV",
+"streamId": "1535887",
+"logo": null
+},
+{
+"name": "AU (STAN 76) | Coventry City v Newcastle United  Premier League Matchweek 6 2026/2027 (2026-10-13 05:30:29)",
+"tvgId": "dummy-1999900",
+"group": "AU| STAN PPV",
+"streamId": "1535886",
+"logo": null
+},
+{
+"name": "AU (STAN 77) | Canada v England  WXV 2026 (2026-10-17 09:50:29)",
+"tvgId": "dummy-1999901",
+"group": "AU| STAN PPV",
+"streamId": "1535885",
+"logo": null
+},
+{
+"name": "AU (STAN 78) | PFL 14  Chicago 2026 (2026-10-17 10:00:29)",
+"tvgId": "dummy-1999902",
+"group": "AU| STAN PPV",
+"streamId": "1535884",
+"logo": null
+},
+{
+"name": "AU (STAN 79) | Australia v Scotland  WXV 2026 (2026-10-17 11:45:29)",
+"tvgId": "dummy-1999903",
+"group": "AU| STAN PPV",
+"streamId": "1535883",
+"logo": null
+},
+{
+"name": "AU (STAN 80) | New Zealand v France  WXV 2026 (2026-10-17 12:55:29)",
+"tvgId": "dummy-1999904",
+"group": "AU| STAN PPV",
+"streamId": "1535882",
+"logo": null
+},
+{
+"name": "AU (STAN 81) | Australia v New Zealand: SKY NZ Coverage  Bledisloe Cup Game 2 2026 (2026-10-17 14:30:29)",
+"tvgId": "dummy-1999905",
+"group": "AU| STAN PPV",
+"streamId": "1535881",
+"logo": null
+},
+{
+"name": "AU (STAN 82) | Australia v New Zealand  Bledisloe Cup Game 2 2026 (2026-10-17 15:00:29)",
+"tvgId": "dummy-1999906",
+"group": "AU| STAN PPV",
+"streamId": "1535880",
+"logo": null
+},
+{
+"name": "AU (STAN 83) | Free Practice 3: 6 Hours of Barcelona (LMGT3)  WEC 2026 (2026-10-17 17:40:29)",
+"tvgId": "dummy-1999907",
+"group": "AU| STAN PPV",
+"streamId": "1535879",
+"logo": null
+},
+{
+"name": "AU (STAN 84) | Qualifying: 6 Hours of Barcelona (LMGT3)  WEC 2026 (2026-10-17 20:40:29)",
+"tvgId": "dummy-1999908",
+"group": "AU| STAN PPV",
+"streamId": "1535878",
+"logo": null
+},
+{
+"name": "AU (STAN 85) | Everton v Chelsea  Premier League Matchweek 7 2026/2027 (2026-10-17 21:30:29)",
+"tvgId": "dummy-1999909",
+"group": "AU| STAN PPV",
+"streamId": "1535877",
+"logo": null
+},
+{
+"name": "AU (STAN 86) | Free Practice 3: 6 Hours of Barcelona (Hypercar)  WEC 2026 (2026-10-17 21:30:34)",
+"tvgId": "dummy-1999910",
+"group": "AU| STAN PPV",
+"streamId": "1535876",
+"logo": null
+},
+{
+"name": "AU (STAN 87) |  • Everton v Chelsea  Premier League Matchweek 7 2026/2027 (2026-10-17 22:20:29)",
+"tvgId": "dummy-1999911",
+"group": "AU| STAN PPV",
+"streamId": "1535875",
+"logo": null
+},
+{
+"name": "AU (STAN 88) | Arsenal v Birmingham City  WSL 2026/27 (2026-10-17 22:35:29)",
+"tvgId": "dummy-1999912",
+"group": "AU| STAN PPV",
+"streamId": "1535874",
+"logo": null
+},
+{
+"name": "AU (STAN 89) | Qualifying: 6 Hours of Barcelona (Hypercar)  WEC 2026 (2026-10-18 00:30:29)",
+"tvgId": "dummy-1999913",
+"group": "AU| STAN PPV",
+"streamId": "1535873",
+"logo": null
+},
+{
+"name": "AU (STAN 90) | Brentford v Liverpool  Premier League Matchweek 7 2026/2027 (2026-10-18 00:50:29)",
+"tvgId": "dummy-1999914",
+"group": "AU| STAN PPV",
+"streamId": "1535872",
+"logo": null
+},
+{
+"name": "AU (STAN 91) | Manchester City v Ipswich Town  Premier League Matchweek 7 2026/2027 (2026-10-18 00:50:34)",
+"tvgId": "dummy-1999915",
+"group": "AU| STAN PPV",
+"streamId": "1535871",
+"logo": null
+},
+{
+"name": "AU (STAN 92) | Fulham v Hull City  Premier League Matchweek 7 2026/2027 (2026-10-18 00:50:39)",
+"tvgId": "dummy-1999916",
+"group": "AU| STAN PPV",
+"streamId": "1535870",
+"logo": null
+},
+{
+"name": "AU (STAN 93) | Newcastle United v Aston Villa  Premier League Matchweek 7 2026/2027 (2026-10-18 03:20:29)",
+"tvgId": "dummy-1999917",
+"group": "AU| STAN PPV",
+"streamId": "1535869",
+"logo": null
+},
+{
+"name": "AU (STAN 94) |  • Newcastle United v Aston Villa  Premier League Matchweek 7 2026/2027 (2026-10-18 03:20:34)",
+"tvgId": "dummy-1999918",
+"group": "AU| STAN PPV",
+"streamId": "1535868",
+"logo": null
+},
+{
+"name": "AU (STAN 95) | Race: 6 Hours of Barcelona  WEC 2026 (2026-10-18 20:30:29)",
+"tvgId": "dummy-1999919",
+"group": "AU| STAN PPV",
+"streamId": "1535867",
+"logo": null
+},
+{
+"name": "AU (STAN 96) | Chelsea v Tottenham Hotspur  WSL 2026/27 (2026-10-18 21:50:29)",
+"tvgId": "dummy-1999920",
+"group": "AU| STAN PPV",
+"streamId": "1535866",
+"logo": null
+},
+{
+"name": "AU (STAN 97) | Crystal Palace v West Ham United  WSL 2026/27 (2026-10-18 21:50:34)",
+"tvgId": "dummy-1999921",
+"group": "AU| STAN PPV",
+"streamId": "1535865",
+"logo": null
+},
+{
+"name": "AU (STAN 98) | Goal Rush: Leeds United v Manchester United • 18 Oct  Premier League 2026/2027 (2026-10-18 23:00:29)",
+"tvgId": "dummy-1999922",
+"group": "AU| STAN PPV",
+"streamId": "1535864",
+"logo": null
+},
+{
+"name": "AU (STAN 99) | PL Live • 18 Oct  Premier League 2026/27 (2026-10-18 23:00:34)",
+"tvgId": "dummy-1999923",
+"group": "AU| STAN PPV",
+"streamId": "1535863",
+"logo": null
+},
+{
+"name": "AU (STAN 100) | London City Lionesses v Everton  WSL 2026/27 (2026-10-18 23:50:29)",
+"tvgId": "dummy-1999924",
+"group": "AU| STAN PPV",
+"streamId": "1535862",
+"logo": null
+},
+{
+"name": "####### STAN PPV #######",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966357",
+"logo": null
+},
+{
+"name": "AU (STAN 01) | Atlético de Madrid v Arsenal  UEFA Champions League 2025/2026 (2026-04-30 04:00:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966356",
+"logo": null
+},
+{
+"name": "AU (STAN 02) | Hurricanes v Crusaders  Super Rugby Pacific Round 12 2026 (2026-05-01 16:15:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966355",
+"logo": null
+},
+{
+"name": "AU (STAN 03) | Waratahs v Force  Super Rugby Pacific Round 12 2026 (2026-05-01 19:00:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966354",
+"logo": null
+},
+{
+"name": "AU (STAN 04) | Fijian Drua v Highlanders  Super Rugby Pacific Round 12 2026 (2026-05-02 13:50:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966353",
+"logo": null
+},
+{
+"name": "AU (STAN 05) | Moana Pasifika v Blues  Super Rugby Pacific Round 12 2026 (2026-05-02 16:30:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966352",
+"logo": null
+},
+{
+"name": "AU (STAN 06) | Reds v Brumbies  Super Rugby Pacific Round 12 2026 (2026-05-02 19:00:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966351",
+"logo": null
+},
+{
+"name": "AU (STAN 07) | Arsenal v Atlético de Madrid  UEFA Champions League 2025/2026 (2026-05-06 04:55:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966350",
+"logo": null
+},
+{
+"name": "AU (STAN 08) | Bayern München v Paris SaintGermain  UEFA Champions League 2025/2026 (2026-05-07 04:00:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966349",
+"logo": null
+},
+{
+"name": "AU (STAN 09) | Crusaders v Blues  Super Rugby Pacific Round 13 2026 (2026-05-08 16:30:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966348",
+"logo": null
+},
+{
+"name": "AU (STAN 10) | Reds v Chiefs  Super Rugby Pacific Round 13 2026 (2026-05-08 19:00:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966347",
+"logo": null
+},
+{
+"name": "AU (STAN 11) | Highlanders v Waratahs  Super Rugby Pacific Round 13 2026 (2026-05-09 14:00:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966346",
+"logo": null
+},
+{
+"name": "AU (STAN 12) | Moana Pasifika v Hurricanes  Super Rugby Pacific Round 13 2026 (2026-05-09 16:40:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966345",
+"logo": null
+},
+{
+"name": "AU (STAN 13) | Brumbies v Force  Super Rugby Pacific Round 13 2026 (2026-05-09 19:00:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966344",
+"logo": null
+},
+{
+"name": "AU (STAN 14) | Chiefs v Highlanders  Super Rugby Pacific Round 14 2026 (2026-05-15 16:30:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966343",
+"logo": null
+},
+{
+"name": "AU (STAN 15) | Fijian Drua v Waratahs  Super Rugby Pacific Round 14 2026 (2026-05-16 14:20:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966342",
+"logo": null
+},
+{
+"name": "AU (STAN 16) | Blues v Hurricanes  Super Rugby Pacific Round 14 2026 (2026-05-16 16:30:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966341",
+"logo": null
+},
+{
+"name": "AU (STAN 17) | Force v Reds  Super Rugby Pacific Round 14 2026 (2026-05-16 19:00:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966340",
+"logo": null
+},
+{
+"name": "AU (STAN 18) | Crusaders v Chiefs  Super Rugby Pacific Round 15 2026 (2026-05-22 16:30:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966339",
+"logo": null
+},
+{
+"name": "AU (STAN 19) | Waratahs v Brumbies  Super Rugby Pacific Round 15 2026 (2026-05-22 19:00:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966338",
+"logo": null
+},
+{
+"name": "AU (STAN 20) | Moana Pasifika v Reds  Super Rugby Pacific Round 15 2026 (2026-05-23 14:00:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966337",
+"logo": null
+},
+{
+"name": "AU (STAN 21) | Hurricanes v Highlanders  Super Rugby Pacific Round 15 2026 (2026-05-23 16:30:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966336",
+"logo": null
+},
+{
+"name": "AU (STAN 22) | Force v Fijian Drua  Super Rugby Pacific Round 15 2026 (2026-05-23 19:00:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966335",
+"logo": null
+},
+{
+"name": "AU (STAN 23) | Crusaders v Hurricanes  Super Rugby Pacific Round 16 2026 (2026-05-29 16:30:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966334",
+"logo": null
+},
+{
+"name": "AU (STAN 24) | Reds v Fijian Drua  Super Rugby Pacific Round 16 2026 (2026-05-29 19:00:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966333",
+"logo": null
+},
+{
+"name": "AU (STAN 25) | Brumbies v Moana Pasifika  Super Rugby Pacific Round 16 2026 (2026-05-30 14:00:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966332",
+"logo": null
+},
+{
+"name": "AU (STAN 26) | Chiefs v Blues  Super Rugby Pacific Round 16 2026 (2026-05-30 16:30:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966331",
+"logo": null
+},
+{
+"name": "AU (STAN 27) | Force v Waratahs  Super Rugby Pacific Round 16 2026 (2026-05-30 19:00:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966330",
+"logo": null
+},
+{
+"name": "AU (STAN 28) |  (2099-01-01 00:00:01)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966329",
+"logo": null
+},
+{
+"name": "AU (STAN 29) |  (2099-01-01 00:00:02)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966328",
+"logo": null
+},
+{
+"name": "AU (STAN 30) |  (2099-01-01 00:00:03)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966327",
+"logo": null
+},
+{
+"name": "AU (STAN 31) |  (2099-01-01 00:00:04)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966326",
+"logo": null
+},
+{
+"name": "AU (STAN 32) |  (2099-01-01 00:00:05)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966325",
+"logo": null
+},
+{
+"name": "AU (STAN 33) |  (2099-01-01 00:00:06)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966324",
+"logo": null
+},
+{
+"name": "AU (STAN 34) |  (2099-01-01 00:00:07)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966323",
+"logo": null
+},
+{
+"name": "AU (STAN 35) |  (2099-01-01 00:00:08)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966322",
+"logo": null
+},
+{
+"name": "AU (STAN 36) |  (2099-01-01 00:00:09)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966321",
+"logo": null
+},
+{
+"name": "AU (STAN 37) |  (2099-01-01 00:00:10)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966320",
+"logo": null
+},
+{
+"name": "AU (STAN 38) |  (2099-01-01 00:00:11)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966319",
+"logo": null
+},
+{
+"name": "AU (STAN 39) |  (2099-01-01 00:00:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966318",
+"logo": null
+},
+{
+"name": "AU (STAN 40) |  (2099-01-01 00:00:13)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966317",
+"logo": null
+},
+{
+"name": "AU (STAN 41) |  (2099-01-01 00:00:14)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966316",
+"logo": null
+},
+{
+"name": "AU (STAN 42) |  (2099-01-01 00:00:15)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966315",
+"logo": null
+},
+{
+"name": "AU (STAN 43) |  (2099-01-01 00:00:16)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966314",
+"logo": null
+},
+{
+"name": "AU (STAN 44) |  (2099-01-01 00:00:17)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966313",
+"logo": null
+},
+{
+"name": "AU (STAN 45) |  (2099-01-01 00:00:18)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966312",
+"logo": null
+},
+{
+"name": "AU (STAN 46) |  (2099-01-01 00:00:19)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966311",
+"logo": null
+},
+{
+"name": "AU (STAN 47) |  (2099-01-01 00:00:20)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966310",
+"logo": null
+},
+{
+"name": "AU (STAN 48) |  (2099-01-01 00:00:21)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966309",
+"logo": null
+},
+{
+"name": "AU (STAN 49) |  (2099-01-01 00:00:22)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966308",
+"logo": null
+},
+{
+"name": "AU (STAN 50) |  (2099-01-01 00:00:23)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966307",
+"logo": null
+},
+{
+"name": "AU (STAN 51) |  (2099-01-01 00:00:24)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966306",
+"logo": null
+},
+{
+"name": "AU (STAN 52) |  (2099-01-01 00:00:25)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966305",
+"logo": null
+},
+{
+"name": "AU (STAN 53) |  (2099-01-01 00:00:26)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966304",
+"logo": null
+},
+{
+"name": "AU (STAN 54) |  (2099-01-01 00:00:27)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966303",
+"logo": null
+},
+{
+"name": "AU (STAN 55) |  (2099-01-01 00:00:28)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966302",
+"logo": null
+},
+{
+"name": "AU (STAN 56) |  (2099-01-01 00:00:29)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966301",
+"logo": null
+},
+{
+"name": "AU (STAN 57) |  (2099-01-01 00:00:30)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966300",
+"logo": null
+},
+{
+"name": "AU (STAN 58) |  (2099-01-01 00:00:31)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966299",
+"logo": null
+},
+{
+"name": "AU (STAN 59) |  (2099-01-01 00:00:32)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966298",
+"logo": null
+},
+{
+"name": "AU (STAN 60) |  (2099-01-01 00:00:33)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966297",
+"logo": null
+},
+{
+"name": "AU (STAN 61) |  (2099-01-01 00:00:34)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966296",
+"logo": null
+},
+{
+"name": "AU (STAN 62) |  (2099-01-01 00:00:35)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966295",
+"logo": null
+},
+{
+"name": "AU (STAN 63) |  (2099-01-01 00:00:36)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966294",
+"logo": null
+},
+{
+"name": "AU (STAN 64) |  (2099-01-01 00:00:37)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966293",
+"logo": null
+},
+{
+"name": "AU (STAN 65) |  (2099-01-01 00:00:38)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966292",
+"logo": null
+},
+{
+"name": "AU (STAN 66) |  (2099-01-01 00:00:39)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966291",
+"logo": null
+},
+{
+"name": "AU (STAN 67) |  (2099-01-01 00:00:40)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966290",
+"logo": null
+},
+{
+"name": "AU (STAN 68) |  (2099-01-01 00:00:41)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966289",
+"logo": null
+},
+{
+"name": "AU (STAN 69) |  (2099-01-01 00:00:42)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966288",
+"logo": null
+},
+{
+"name": "AU (STAN 70) |  (2099-01-01 00:00:43)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966287",
+"logo": null
+},
+{
+"name": "AU (STAN 71) |  (2099-01-01 00:00:44)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966286",
+"logo": null
+},
+{
+"name": "AU (STAN 72) |  (2099-01-01 00:00:45)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966285",
+"logo": null
+},
+{
+"name": "AU (STAN 73) |  (2099-01-01 00:00:46)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966284",
+"logo": null
+},
+{
+"name": "AU (STAN 74) |  (2099-01-01 00:00:47)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966283",
+"logo": null
+},
+{
+"name": "AU (STAN 75) |  (2099-01-01 00:00:48)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966282",
+"logo": null
+},
+{
+"name": "AU (STAN 76) |  (2099-01-01 00:00:49)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966281",
+"logo": null
+},
+{
+"name": "AU (STAN 77) |  (2099-01-01 00:00:50)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966280",
+"logo": null
+},
+{
+"name": "AU (STAN 78) |  (2099-01-01 00:00:51)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966279",
+"logo": null
+},
+{
+"name": "AU (STAN 79) |  (2099-01-01 00:00:52)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966278",
+"logo": null
+},
+{
+"name": "AU (STAN 80) |  (2099-01-01 00:00:53)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966277",
+"logo": null
+},
+{
+"name": "AU (STAN 81) |  (2099-01-01 00:00:54)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966276",
+"logo": null
+},
+{
+"name": "AU (STAN 82) |  (2099-01-01 00:00:55)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966275",
+"logo": null
+},
+{
+"name": "AU (STAN 83) |  (2099-01-01 00:00:56)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966274",
+"logo": null
+},
+{
+"name": "AU (STAN 84) |  (2099-01-01 00:00:57)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966273",
+"logo": null
+},
+{
+"name": "AU (STAN 85) |  (2099-01-01 00:00:58)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966272",
+"logo": null
+},
+{
+"name": "AU (STAN 86) |  (2099-01-01 00:00:59)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966271",
+"logo": null
+},
+{
+"name": "AU (STAN 87) |  (2099-01-01 00:01:00)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966270",
+"logo": null
+},
+{
+"name": "AU (STAN 88) |  (2099-01-01 00:01:01)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966269",
+"logo": null
+},
+{
+"name": "AU (STAN 89) |  (2099-01-01 00:01:02)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966268",
+"logo": null
+},
+{
+"name": "AU (STAN 90) |  (2099-01-01 00:01:03)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966267",
+"logo": null
+},
+{
+"name": "AU (STAN 91) |  (2099-01-01 00:01:04)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966266",
+"logo": null
+},
+{
+"name": "AU (STAN 92) |  (2099-01-01 00:01:05)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966265",
+"logo": null
+},
+{
+"name": "AU (STAN 93) |  (2099-01-01 00:01:06)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966264",
+"logo": null
+},
+{
+"name": "AU (STAN 94) |  (2099-01-01 00:01:07)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966263",
+"logo": null
+},
+{
+"name": "AU (STAN 95) |  (2099-01-01 00:01:08)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966262",
+"logo": null
+},
+{
+"name": "AU (STAN 96) |  (2099-01-01 00:01:09)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966261",
+"logo": null
+},
+{
+"name": "AU (STAN 97) |  (2099-01-01 00:01:10)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966260",
+"logo": null
+},
+{
+"name": "AU (STAN 98) |  (2099-01-01 00:01:11)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966259",
+"logo": null
+},
+{
+"name": "AU (STAN 99) |  (2099-01-01 00:01:12)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966258",
+"logo": null
+},
+{
+"name": "AU (STAN 100) |  (2099-01-01 00:01:13)",
+"tvgId": null,
+"group": "AU| STAN PPV",
+"streamId": "1966257",
+"logo": null
+},
+{
+"name": "##### WORLD CRICKET #####",
+"tvgId": null,
+"group": "World Cricket",
+"streamId": "852146",
+"logo": null
+},
+{
+"name": "Astro Cricket",
+"tvgId": "Astro.Sports.Plus.my",
+"group": "World Cricket",
+"streamId": "852145",
+"logo": null
+},
+{
+"name": "ATN Cricket",
+"tvgId": "atncricketplus.ca",
+"group": "World Cricket",
+"streamId": "852136",
+"logo": null
+},
+{
+"name": "Flow Sports",
+"tvgId": "dummy-3986377",
+"group": "World Cricket",
+"streamId": "852117",
+"logo": null
+},
+{
+"name": "Fox Cricket",
+"tvgId": "foxcricket.au",
+"group": "World Cricket",
+"streamId": "852135",
+"logo": null
+},
+{
+"name": "Geo Super",
+"tvgId": "dummy-3986370",
+"group": "World Cricket",
+"streamId": "852124",
+"logo": null
+},
+{
+"name": "Hub Sports 3",
+"tvgId": "hubsports3.sg",
+"group": "World Cricket",
+"streamId": "852119",
+"logo": null
+},
+{
+"name": "IPL 2026 Channel 1",
+"tvgId": "dummy-3986346",
+"group": "World Cricket",
+"streamId": "1897096",
+"logo": null
+},
+{
+"name": "IPL 2026 Channel 2",
+"tvgId": "dummy-3986347",
+"group": "World Cricket",
+"streamId": "1897095",
+"logo": null
+},
+{
+"name": "IPL 2026 Channel 3",
+"tvgId": "dummy-3986348",
+"group": "World Cricket",
+"streamId": "1897094",
+"logo": null
+},
+{
+"name": "Ptv Sports",
+"tvgId": "dummy-3986369",
+"group": "World Cricket",
+"streamId": "852125",
+"logo": null
+},
+{
+"name": "Rta Sports",
+"tvgId": "dummy-3986376",
+"group": "World Cricket",
+"streamId": "852118",
+"logo": null
+},
+{
+"name": "Rush Plus",
+"tvgId": "dummy-3986378",
+"group": "World Cricket",
+"streamId": "852116",
+"logo": null
+},
+{
+"name": "Rush Sport",
+"tvgId": "dummy-3986379",
+"group": "World Cricket",
+"streamId": "852115",
+"logo": null
+},
+{
+"name": "Sky Sport 1",
+"tvgId": "skysport1.nz",
+"group": "World Cricket",
+"streamId": "852130",
+"logo": null
+},
+{
+"name": "Sky Sport 3",
+"tvgId": "skysport3.nz",
+"group": "World Cricket",
+"streamId": "852129",
+"logo": null
+},
+{
+"name": "Sky Sport 4",
+"tvgId": "skysport4.nz",
+"group": "World Cricket",
+"streamId": "852128",
+"logo": null
+},
+{
+"name": "Sky Sports Cricket",
+"tvgId": "skysportscricket.uk",
+"group": "World Cricket",
+"streamId": "852133",
+"logo": null
+},
+{
+"name": "Sony Sports Network",
+"tvgId": "dummy-3986368",
+"group": "World Cricket",
+"streamId": "852126",
+"logo": null
+},
+{
+"name": "Sony Sports Network",
+"tvgId": "dummy-3986361",
+"group": "World Cricket",
+"streamId": "852134",
+"logo": null
+},
+{
+"name": "Sony Sports Network",
+"tvgId": "464301",
+"group": "World Cricket",
+"streamId": "852144",
+"logo": null
+},
+{
+"name": "Sportsmax",
+"tvgId": "dummy-3986380",
+"group": "World Cricket",
+"streamId": "852114",
+"logo": null
+},
+{
+"name": "Sportsmax 2",
+"tvgId": "dummy-3986381",
+"group": "World Cricket",
+"streamId": "852113",
+"logo": null
+},
+{
+"name": "Sportsmax Cricket",
+"tvgId": "dummy-3986382",
+"group": "World Cricket",
+"streamId": "852112",
+"logo": null
+},
+{
+"name": "Star Sports 1 English",
+"tvgId": "464285",
+"group": "World Cricket",
+"streamId": "852142",
+"logo": null
+},
+{
+"name": "Star Sports 1 Hindi",
+"tvgId": "STAR.SPORTS.1.HINDI.in",
+"group": "World Cricket",
+"streamId": "852143",
+"logo": null
+},
+{
+"name": "Star Sports 2",
+"tvgId": "464295",
+"group": "World Cricket",
+"streamId": "852141",
+"logo": null
+},
+{
+"name": "Star Sports 3",
+"tvgId": "464163",
+"group": "World Cricket",
+"streamId": "852140",
+"logo": null
+},
+{
+"name": "Star Sports Khel",
+"tvgId": "463852",
+"group": "World Cricket",
+"streamId": "852139",
+"logo": null
+},
+{
+"name": "Starzplay / Crlife 1",
+"tvgId": "dummy-3986372",
+"group": "World Cricket",
+"streamId": "852122",
+"logo": null
+},
+{
+"name": "Starzplay / Crlife 1",
+"tvgId": "dummy-3986373",
+"group": "World Cricket",
+"streamId": "852121",
+"logo": null
+},
+{
+"name": "Starzplay / Crlife 2",
+"tvgId": "dummy-3986371",
+"group": "World Cricket",
+"streamId": "852123",
+"logo": null
+},
+{
+"name": "Starzplay / Crlife 2",
+"tvgId": "dummy-3986374",
+"group": "World Cricket",
+"streamId": "852120",
+"logo": null
+},
+{
+"name": "Supersports Cricket",
+"tvgId": "dummy-3986363",
+"group": "World Cricket",
+"streamId": "852132",
+"logo": null
+},
+{
+"name": "TENS SPORTS",
+"tvgId": "dummy-3986367",
+"group": "World Cricket",
+"streamId": "852127",
+"logo": null
+},
+{
+"name": "Willow Cricket",
+"tvgId": "willowcricket.us",
+"group": "World Cricket",
+"streamId": "852137",
+"logo": null
+},
+{
+"name": "Willow Cricket Extra",
+"tvgId": "dummy-3986357",
+"group": "World Cricket",
+"streamId": "852138",
+"logo": null
+}
+]
