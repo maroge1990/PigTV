@@ -54,7 +54,8 @@ const AU_CITIES = ['sydney', 'melbourne', 'brisbane', 'adelaide', 'perth', 'canb
 const NOISE_WORDS = new Set([...AU_CITIES, 'national', 'nsw', 'vic', 'qld', 'tas', '9now']);
 const STATE_CITY_PREFIX = new RegExp(`^(?:${AU_STATES})-(?:${AU_CITIES.join('|')})`);
 const QUALITY_WORD = /^(?:uhd|fhd|hd|sd|4k|8k|hevc|hdr|raw|ganja|h26[45]|backup|bk|\d{3,4}[pi]\d{0,3}|\d{2,3}fps)$/;
-const PREFIX = /^\s*[|(\[]?\s*([a-z]{2})\s*[|:)\]]\s*/;
+// A region prefix: `AU:`, `AU|`, `AU |`, `(AU)`, and Dream4K's `|AU|`, `||AU||`, `|AU||`, `|AU|  `, `|✪ AU|`.
+const PREFIX = /^[\s|(\[✪]*([a-z]{2})\s*[|:)\]]+\s*/;
 
 const country = (code) => {
     const c = String(code || '').toLowerCase();
@@ -147,6 +148,36 @@ function nameKey(name) {
     return nameTokens(name).join('');
 }
 
+/**
+ * The comparable form of a *raw* provider name (P9): case, whitespace runs and the country-prefix
+ * separator only (`AU:`, `AU|`, `|AU|`, `||AU||`, `AU |` -> `au|`). Superscript tags, brackets,
+ * qualities and everything else are kept: two providers of one upstream list a channel under the
+ * same raw name character for character, so nothing needs to be guessed.
+ */
+function rawNameKey(name) {
+    let s = String(name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const m = /^[\s|✪]*([a-z]{2})\s*[|:]+\s*/.exec(s);
+    if (m && country(m[1])) s = `${m[1]}|${s.slice(m[0].length)}`;
+    return s;
+}
+
+/** A raw epg_channel_id compared case-insensitively; null for none or a placeholder. */
+function rawEpgKey(epg) {
+    const s = String(epg || '').trim().toLowerCase();
+    return !s || s.includes('dummy') ? null : s;
+}
+
+/** What the raw rules compare for one channel's raw row ({ name, epg, category }), or null. */
+function describeRaw(raw) {
+    if (!raw || !raw.name) return null;
+    return {
+        nameKey: rawNameKey(raw.name),
+        epg: rawEpgKey(raw.epg),
+        region: regionOf({ name: raw.name, group: raw.category, tvgId: raw.epg }),
+        event: isEventSlot({ name: raw.name, group: raw.category })
+    };
+}
+
 /** 'uhd' (UHD/4K/8K/2160/3840/HDR), 'hd', 'sd' or 'unknown', from the whole name. */
 function qualityOf(name) {
     const s = fold(name);
@@ -215,7 +246,7 @@ const digitsOf = tokens => [
  * Everything the matcher compares, for one channel of either side. `overlayTvgId` is a backup's
  * EPGenius id (it wins over its own for the region).
  */
-function describe({ name, group, tvgId, overlayTvgId } = {}) {
+function describe({ name, group, tvgId, overlayTvgId, raw } = {}) {
     const tokens = nameTokens(name);
     return {
         name: String(name || ''),
@@ -228,13 +259,14 @@ function describe({ name, group, tvgId, overlayTvgId } = {}) {
         nameKey: tokens.join(''),
         digits: digitsOf(tokens),
         fox: foxNumber(name),
-        cities: citiesOf(name, overlayTvgId || tvgId)
+        cities: citiesOf(name, overlayTvgId || tvgId),
+        raw: describeRaw(raw)
     };
 }
 
 /** Buckets of a backup's channels by tvg key, region + name key and region + Fox number. */
 function indexBackup(rows) {
-    const idx = { byTvg: new Map(), byName: new Map(), byFox: new Map() };
+    const idx = { byTvg: new Map(), byName: new Map(), byFox: new Map(), byRawName: new Map(), byRawEpg: new Map() };
     const push = (map, key, row) => { const list = map.get(key); if (list) list.push(row); else map.set(key, [row]); };
     for (const r of rows) {
         const f = r.f || (r.f = describe(r));
@@ -243,16 +275,20 @@ function indexBackup(rows) {
         if (f.overlayKey && f.overlayKey !== f.tvgKey) push(idx.byTvg, f.overlayKey, r);
         if (f.region && f.nameKey) push(idx.byName, `${f.region}|${f.nameKey}`, r);
         if (f.region && f.fox) push(idx.byFox, `${f.region}|${f.fox}`, r);
+        if (f.raw && !f.raw.event) {
+            if (f.raw.region) push(idx.byRawName, `${f.raw.region}|${f.raw.nameKey}`, r);
+            if (f.raw.epg) push(idx.byRawEpg, f.raw.epg, r);
+        }
     }
     return idx;
 }
 
-const METHOD_ORDER = { exact: 0, number: 1, name: 2 };
+const METHOD_ORDER = { 'raw-name': 0, 'raw-epg': 1, exact: 2, number: 3, name: 4 };
 // HD over SD; an unmarked stream is usually HD, so it comes before UHD for a non-UHD channel.
 const QUALITY_ORDER = { hd: 0, unknown: 1, uhd: 2, sd: 3 };
 
 function scoreOf(c) {
-    const base = c.method === 'exact' ? (c.status === 'auto' ? 90 : 75) : c.method === 'number' ? 70 : 60;
+    const base = c.method === 'raw-name' ? 95 : c.method === 'raw-epg' ? (c.status === 'auto' ? 92 : 77) : c.method === 'exact' ? (c.status === 'auto' ? 90 : 75) : c.method === 'number' ? 70 : 60;
     return Math.min(100, base + (c.sameQuality ? 5 : 0) + (c.sameName ? 3 : 0) + (c.sameCity ? 2 : 0));
 }
 
@@ -279,7 +315,8 @@ function candidatesFor(primary, backup) {
     const found = new Map();
     const add = (row, method, status) => {
         const streamId = String(row.streamId ?? row.stream_id);
-        if (found.has(streamId)) return;
+        const had = found.get(streamId);
+        if (had && (had.status === 'auto' || status !== 'auto')) return;
         const f = row.f;
         const c = {
             streamId, method, status, row,
@@ -290,6 +327,19 @@ function candidatesFor(primary, backup) {
         c.score = scoreOf(c);
         found.set(streamId, c);
     };
+    // The raw rules (P9) come first: the provider's own names and ids, compared raw with raw.
+    if (p.raw && !p.raw.event && !p.event) {
+        if (p.raw.region) {
+            for (const row of idx.byRawName.get(`${p.raw.region}|${p.raw.nameKey}`) || []) add(row, 'raw-name', 'auto');
+        }
+        if (p.raw.epg) {
+            for (const row of idx.byRawEpg.get(p.raw.epg) || []) {
+                if (p.region && row.f.region && p.region !== row.f.region) continue;
+                if (p.raw.region && row.f.raw.region && p.raw.region !== row.f.raw.region) continue;
+                add(row, 'raw-epg', row.f.digits === p.digits ? 'auto' : 'pending');
+            }
+        }
+    }
     if (p.tvgKey) {
         for (const row of idx.byTvg.get(p.tvgKey) || []) {
             if (p.region && row.f.region && p.region !== row.f.region) continue;
@@ -370,6 +420,9 @@ function providers() {
     };
 }
 
+/** The provider's stream id in a stable id (`s1562537` -> `1562537`), else null. */
+const streamIdOf = stableId => { const m = /^s(\d+)$/.exec(String(stableId || '')); return m ? m[1] : null; };
+
 /** The visible live channels of a primary source, one per identity, describe()'d. */
 function visibleChannels(sourceId) {
     const epgMapping = require('./epgMapping');
@@ -382,13 +435,14 @@ function visibleChannels(sourceId) {
         WHERE ${VISIBLE_SQL} AND p.source_id = ?
         ORDER BY COALESCE(p.sort_order, 999999999), p.name, p.id
     `).all(sourceId);
+    const rawMap = require('./rawChannels').loadMap(sourceId);
     const byKey = new Map();
     for (const r of rows) {
         const had = byKey.get(r.channel_key);
         if (had) { had.categoryIds.add(r.category_id); continue; }
         const tvgId = epgMapping.effectiveTvgId(r.source_id, r.stable_id, r.item_id, r.tvg_id);
         byKey.set(r.channel_key, {
-            ...describe({ name: r.name, group: r.category_name, tvgId }),
+            ...describe({ name: r.name, group: r.category_name, tvgId, raw: rawMap.get(streamIdOf(r.stable_id)) }),
             sourceId: r.source_id, key: r.channel_key, itemId: r.item_id, tvgId,
             categoryId: r.category_id, categoryName: r.category_name, number: r.number ?? null,
             categoryIds: new Set([r.category_id])
@@ -464,12 +518,13 @@ async function loadBackup(sourceId) {
         SELECT stream_id, name, category_name, tvg_id, overlay_tvg_id, region, quality, is_event
         FROM backup_channels WHERE source_id = ?
     `).all(sourceId);
+    const rawMap = require('./rawChannels').loadMap(sourceId);
     const update = db.prepare('UPDATE backup_channels SET region = ?, quality = ?, is_event = ? WHERE source_id = ? AND stream_id = ?');
     for (let i = 0; i < rows.length; i += CHUNK) {
         const changed = [];
         for (const r of rows.slice(i, i + CHUNK)) {
             r.streamId = r.stream_id;
-            r.f = describe({ name: r.name, group: r.category_name, tvgId: r.tvg_id, overlayTvgId: r.overlay_tvg_id });
+            r.f = describe({ name: r.name, group: r.category_name, tvgId: r.tvg_id, overlayTvgId: r.overlay_tvg_id, raw: rawMap.get(String(r.stream_id)) });
             const ev = r.f.event ? 1 : 0;
             if (r.region !== r.f.region || r.quality !== r.f.quality || r.is_event !== ev) changed.push(r);
         }
@@ -772,7 +827,7 @@ module.exports = {
     MAX_RANK,
     STATUSES,
     // pure
-    fold, tvgKey, regionOf, nameKey, nameTokens, qualityOf, isSibling, isPlaceholder, isEventSlot, foxNumber,
+    fold, tvgKey, regionOf, rawNameKey, describeRaw, nameKey, nameTokens, qualityOf, isSibling, isPlaceholder, isEventSlot, foxNumber,
     describe, indexBackup, candidatesFor, siblingCandidatesFor, planLinks,
     // store
     relinkSource, relinkAll, removeFor, usableLinks, visibleChannels,

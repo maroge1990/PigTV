@@ -247,6 +247,7 @@ router.delete('/:id', async (req, res) => {
         deleteNumbers.run(sourceId);
         providerAccounts.remove(sourceId); // 0168
         backupChannels.removeFor(sourceId); // 0170
+        require('../services/rawChannels').removeFor(sourceId); // 0178
         require('../services/channelLinks').removeFor(sourceId); // 0171
 
         console.log(`[Source] Cascade delete for source ${sourceId}: ${catResult.changes} categories, ${itemResult.changes} items, ${epgResult.changes} EPG programs`);

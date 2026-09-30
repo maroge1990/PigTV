@@ -2004,7 +2004,7 @@ check server/services/channelLinks.js "function indexBackup(rows)" "a backup is 
 check server/services/channelLinks.js "if (p.event) return \[\];" "event/PPV slots never link"
 check server/services/channelLinks.js "if (!backups.some(b => b.enabled)" "with no backup provider nothing is linked"
 check server/services/channelLinks.js "const USABLE = new Set(\['auto', 'approved', 'manual'\]);" "only auto/approved/manual links are used"
-check server/services/syncService.js "await this.relinkAfterPrimarySync();" "a primary sync relinks"
+check server/services/syncService.js "await this.relinkAfterPrimarySync(source);" "a primary sync relinks"
 check server/index.js "app.use('/api/links', require('./routes/links'));" "the admin link API is mounted"
 check server/routes/links.js "router.use(requireAuth, requireAdmin);" "and is admin only"
 check_absent server/services/channelLinks.js "url_data," "the linker never reads a backup's stream URL"
@@ -2061,6 +2061,17 @@ check server/db/recordingsDb.js "'provider_id INTEGER'," "recordings carry their
 check server/db/recordingsDb.js "'part INTEGER'," "and their part"
 check docs/SWIFT-CLIENT-HANDOFF.md "| 0177 |" "the additive list fields are in the client handoff"
 check test/recording-failover.test.js "no backup configured: a 502 at start fails the recording exactly as before" "with tests"
+
+echo "=== 0178: raw-list bridge for the linker (multi-provider P9) ==="
+check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS provider_raw_channels (" "every provider's raw rows have a table"
+check server/services/rawChannels.js "async function fetchFor(source)" "fetched with the derived login, never throwing"
+check server/services/syncService.js "await require('./rawChannels').fetchFor(source);" "a primary sync reads its raw rows only when a backup exists"
+check server/services/syncService.js "await rawChannels.fetchMissing(await sources.getAll(), source.id);" "and the first backup fetches the others'"
+check server/routes/sources.js "require('../services/rawChannels').removeFor(sourceId);" "deleting a source removes its raw rows"
+check server/services/channelLinks.js "const METHOD_ORDER = { 'raw-name': 0, 'raw-epg': 1," "raw-name and raw-epg rank above the name rules"
+check server/services/channelLinks.js "function rawNameKey(name) {" "the raw name is normalised minimally"
+check test/raw-bridge.test.js "both ways: Dream4K as the primary" "with a both-ways test"
+check test/raw-bridge.test.js "no code path names a provider" "and a provider-neutrality test"
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1

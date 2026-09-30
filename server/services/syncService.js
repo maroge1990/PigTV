@@ -256,7 +256,7 @@ class SyncService {
             if (source.type !== 'epg' && !isBackup) refreshChannelNumbers();
             // 0171: the primary's channels may have changed: relink them to the backups (a no-op
             // with no backup provider). After the numbers, so it sees what is visible now.
-            if (source.type !== 'epg' && !isBackup) await this.relinkAfterPrimarySync();
+            if (source.type !== 'epg' && !isBackup) await this.relinkAfterPrimarySync(source);
             // 0168: the provider's account (expiry, connections) is re-read after a good sync,
             // in the background: it never slows or fails the sync.
             if (source.type !== 'epg') {
@@ -340,7 +340,16 @@ class SyncService {
      * 0171: relink every backup after a primary sync. Guarded like the backup side: a failure
      * is logged and never fails the sync.
      */
-    async relinkAfterPrimarySync() {
+    async relinkAfterPrimarySync(source) {
+        try {
+            // 0178 (P9): with a backup configured, this provider's raw Xtream rows are read too
+            // (one more API call); with none, nothing is fetched and nothing changes.
+            if (source && (await sources.getAll()).some(s => s.role === 'backup' && s.type !== 'epg' && s.enabled)) {
+                await require('./rawChannels').fetchFor(source);
+            }
+        } catch (e) {
+            console.warn('[Sync] Raw list fetch failed:', redact(e && e.message));
+        }
         try {
             const links = require('./channelLinks');
             if (typeof links.relinkAll === 'function') await links.relinkAll();
@@ -383,12 +392,14 @@ class SyncService {
         }
 
         const rows = [];
+        let rawList = null;
         if (source.type === 'xtream') {
             const api = xtreamApi.createFromSource(source);
             console.log(`[Sync] Fetching backup live channels for ${source.name}`);
             const cats = await api.getLiveCategories();
             const streams = await api.getLiveStreams();
             if (!Array.isArray(streams)) throw new Error('The backup provider returned no channel list');
+            rawList = require('./rawChannels').toRows(cats, streams);
             const names = new Map((Array.isArray(cats) ? cats : []).map(c => [String(c.category_id), c.category_name]));
             for (const s of streams) {
                 if (!s || s.stream_id == null) continue;
@@ -433,6 +444,18 @@ class SyncService {
         const overlay = source.idOverlayUrl ? await this.fetchOverlay(source) : null;
         backupChannels.replaceAll(source.id, rows, overlay);
         console.log(`[Sync] Backup ${source.name}: ${rows.length} channels${overlay ? `, ${overlay.size} overlay ids` : ''}`);
+
+        // 0178 (P9): the raw rows of every provider, written the same way whatever its role. An
+        // Xtream backup's come from the fetch above; an M3U backup's are fetched; the other
+        // providers get theirs now if this is the first backup (they were not fetched before).
+        try {
+            const rawChannels = require('./rawChannels');
+            if (rawList) rawChannels.replaceAll(source.id, rawList);
+            else await rawChannels.fetchFor(source);
+            await rawChannels.fetchMissing(await sources.getAll(), source.id);
+        } catch (e) {
+            console.warn('[Sync] Raw rows after backup sync failed:', redact(e && e.message));
+        }
 
         try {
             const links = require('./channelLinks');

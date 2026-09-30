@@ -1,6 +1,6 @@
 # PigTV: blueprint (single source of truth)
 
-**Last updated:** 1 October 2026 · server build **0177** (pushed) · Apple client build **36** (pushed) · **multi-provider failover built, awaiting round 7**
+**Last updated:** 1 October 2026 · server build **0178** (built, not pushed) · Apple client build **36** (pushed) · **multi-provider failover built, awaiting round 7**
 (`../PigTV-Swift/blueprint.md`)
 
 Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
@@ -42,7 +42,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings (fixed 28 Sept):** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (so an SMB share that mounts late or reconnects appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs (schedule #3 failed with "0.0 GB free"). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
 | Shipped through | **0177** (pushed, 30 Sept–1 Oct: multi-provider failover 0168–0177, §6) and app **36**. Round 7 (`docs/TEST-BLOCK.md`) not yet run. Before that: **0167** and app **35**. Rounds 1–4 passed on 0151 + app 31; round 5 (0152–0154 + app 32) passed on 28 Sept apart from the five bugs that started the 28–29 Sept fix run (§6 "Fix run"); round 6 (0166 + app 34, `docs/TEST-BLOCK.md`) passed apart from R6.3 (fixed in 0167) and R6.14 (fixed in app 35), with R6.4–R6.6 and R6.16 still to run. Whether a build is *running* is whatever `/api/version` says. |
 | Next build number | **0178** |
-| Tests | `npm test`: **775 tests, all pass** (1 Oct, after 0177, on CI; timing tests can fail locally when the Mac is loaded - check `uptime`, rerun, or trust CI; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
+| Tests | `npm test`: **790 tests, all pass** (1 Oct, after 0178, on CI; timing tests can fail locally when the Mac is loaded - check `uptime`, rerun, or trust CI; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -622,6 +622,7 @@ mid-play death. Tuner path unchanged (primary only).
 | P6 | Resolve failover, breaker, quarantine, C-J (0174) | **Shipped** |
 | P8 | Status Providers panel, admin renewal banner (0175, lead fixes 0176) | **Shipped** |
 | P7 | Recordings: free provider at start, start failover, parts on a mid-recording death (0177) | **Shipped** |
+| P9 | Raw-list bridge: every provider's raw Xtream rows (`provider_raw_channels`); linker rules `raw-name`/`raw-epg` above the name rules, symmetric in either role (0178) | **Shipped** |
 | A1 | Apple build 36: provider in stream info, reminder banner, renewed recovery after 2 min | **Shipped** |
 | — | Swift CI: tests signed ad hoc so the App Group exists (red since build 31) | **Fixed** (green 30 Sept) |
 
@@ -764,6 +765,7 @@ lines (the classifier has seen one uneven feed in five) · the 20 s stall timeou
 | 0175 | Status Providers panel, provider names on sessions, admin renewal banner |
 | 0176 | Lead fixes to 0175: duplicate reminders route removed, banner uses the local day, `accountOk` null until read, tests |
 | 0177 | Recordings choose a free provider, fail over at start, continue as part N+1 on a mid-recording death or 30 s stall (max 3); `part`, `provider_id`, `provider_name` |
+| 0178 | Raw-list bridge (P9): `provider_raw_channels` for every provider (fetched only when a backup exists); linker methods `raw-name` (auto) and `raw-epg` (auto, pending on the variant guard) rank above exact/number/name; Dream4K prefix styles understood |
 
 ---
 

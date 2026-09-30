@@ -14,7 +14,7 @@ const LinkFormat = {
     PAGE_SIZE: 100,
 
     STATUS_LABELS: { auto: 'Auto', pending: 'Needs review', approved: 'Approved', manual: 'Manual', rejected: 'Rejected', broken: 'Broken' },
-    METHOD_LABELS: { exact: 'same guide id', number: 'channel number', name: 'same name', manual: 'picked by hand', sibling: 'own backup feed' },
+    METHOD_LABELS: { 'raw-name': 'same raw name', 'raw-epg': 'same raw guide id', exact: 'same guide id', number: 'channel number', name: 'same name', manual: 'picked by hand', sibling: 'own backup feed' },
 
     statusLabel: (s) => LinkFormat.STATUS_LABELS[s] || String(s || ''),
     methodLabel: (m) => LinkFormat.METHOD_LABELS[m] || String(m || ''),

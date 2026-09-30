@@ -261,6 +261,21 @@ function initSchema() {
         CREATE INDEX IF NOT EXISTS idx_backup_channels_overlay ON backup_channels(source_id, overlay_tvg_id);
     `);
 
+    // A provider's own raw Xtream rows (0178, multi-provider P9, services/rawChannels.js): the raw
+    // name, epg_channel_id and category of each stream id, for every provider whatever its role, so
+    // the linker can compare raw with raw (Strong8K and Trex resell one upstream).
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS provider_raw_channels (
+            source_id INTEGER NOT NULL,
+            stream_id TEXT NOT NULL,
+            name TEXT,
+            epg_channel_id TEXT,
+            category_name TEXT,
+            updated_at INTEGER,
+            PRIMARY KEY (source_id, stream_id)
+        );
+    `);
+
     // Links from a primary channel to the same channel elsewhere (0171, multi-provider brief 2.4,
     // services/channelLinks.js). `primary_key` is the channel's identity (COALESCE(stable_id,
     // item_id), the favourites' key). `backup_source_id` is a backup provider, or the primary's own

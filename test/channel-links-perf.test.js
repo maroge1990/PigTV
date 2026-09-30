@@ -19,6 +19,7 @@ const load = p => require(path.join(sandbox, 'server', p));
 const db = load('db');
 const sqlite = load('db/sqlite');
 const backupChannels = load('services/backupChannels');
+const rawChannels = load('services/rawChannels');
 const links = load('services/channelLinks');
 
 const STRONG8K = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/providers/strong8k-epgenius.json'), 'utf8'));
@@ -73,12 +74,21 @@ test('1,000 visible channels against a 55,000-row backup relink in under 3 s', a
     }
     backupChannels.replaceAll(backup.id, rows, null);
     assert.equal(backupChannels.count(backup.id), 55000);
+    // 0178 (P9): the raw rows of both sides too (every primary channel has one, every backup row has one),
+    // so the raw-name / raw-epg buckets are as crowded as a real pair of providers'.
+    rawChannels.replaceAll(backup.id, rows.map(r => ({ streamId: r.streamId, name: r.name, epg: r.tvgId, category: r.categoryName })));
+    rawChannels.replaceAll(primary.id, Array.from({ length: 1000 }, (_, i) => {
+        const r = rows[i * 37];
+        return { streamId: String(900000 + i), name: r.name, epg: r.tvgId, category: r.categoryName };
+    }));
 
     let t = Date.now();
     const first = await quiet(() => links.relinkSource(backup.id));
     const firstMs = Date.now() - t;
     assert.equal(first.channels, 1000);
     assert.ok(first.backups[backup.id].auto > 0, 'it links something');
+    const byMethod = d.prepare("SELECT method, COUNT(*) AS n FROM channel_links WHERE backup_source_id = ? GROUP BY method").all(backup.id);
+    assert.ok(byMethod.some(m => m.method === 'raw-name' && m.n > 100), `the raw bridge is exercised: ${JSON.stringify(byMethod)}`);
     assert.ok(firstMs < 3000, `the first relink (which also fills region/quality/is_event) took ${firstMs} ms`);
 
     t = Date.now();
