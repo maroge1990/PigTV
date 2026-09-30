@@ -179,6 +179,23 @@ test('Providers cards show the settings but never the overlay address, and escap
     void F;
 });
 
+test('0181: a provider that is the same account as another shows a red warning naming it; one that is not shows none', () => {
+    const { context } = harness();
+    const panel = new context.ProvidersSettings();
+    const base = { type: 'xtream', enabled: true, priority: null, maxConnections: null, subscription: {}, hasIdOverlay: false };
+    panel.providers = [{ ...base, id: 1, name: 'Dream4K', role: 'primary', sharesAccountWith: [2] },
+        { ...base, id: 2, name: 'Trex <i>', role: 'backup', priority: 1, sharesAccountWith: [1] },
+        { ...base, id: 3, name: 'Strong8K', role: 'backup', priority: 2, sharesAccountWith: [] }];
+    panel.accounts = new Map(); panel.syncRows = new Map();
+    panel.render();
+    const out = context.document.getElementById('providers-list').innerHTML;
+    assert.equal((out.match(/count as one connection/g) || []).length, 2, 'both twins are warned, the third is not');
+    assert.ok(out.includes("Same server and login as Dream4K: these count as one connection. Check this provider's settings."));
+    assert.ok(out.includes('Same server and login as Trex &lt;i&gt;: these'), 'the name is escaped');
+    assert.match(out, /class="provider-warning provider-error"/, 'in the error colour');
+    assert.ok(/providers[^"]*ProvidersSettings\.js\?v=2/.test(html) || /ProvidersSettings\.js\?v=2/.test(html), 'the script version was bumped');
+});
+
 test('Providers: a refused save shows the server\'s sentence on that card', async () => {
     const { context, elements } = harness({
         'PUT /api/sources/1': { __status: 400, error: 'There is already a primary provider (Strong8K). Make it a backup first, or disable it.' }

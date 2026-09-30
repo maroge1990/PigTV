@@ -2081,6 +2081,15 @@ check server/routes/playback.js "if (isSuperseded(owner, generation)) throw play
 check public/js/components/VideoPlayer.js "if (res.status === 499) return VideoPlayer.SUPERSEDED;" "the web player ignores a superseded resolve"
 check test/provider-failover.test.js "0180: a start replaced by the same viewer" "with a replacement test"
 
+echo "=== 0181: the same account is one connection pool (P10) ==="
+check server/services/accountKey.js "createHash('sha256')" "the account key is a hash, never the login"
+check server/services/streamCoordinator.js "const lowestShared = (own) => {" "a shared pool's limit is the lowest among its sources"
+check server/services/streamCoordinator.js "return dir.poolOf && dir.poolOf.has(id) ? dir.poolOf.get(id) : id;" "poolKey folds a twin into its pool"
+check server/routes/sources.js "sharesAccountWith: sharing(s) })));" "the admin list names the twins by id"
+check public/js/pages/ProvidersSettings.js "these count as one connection. Check this provider's settings." "Settings -> Providers warns"
+check test/provider-pools.test.js "0181: two sources with the same server and login are one pool" "with a pool test"
+check test/providers-page.test.js "0181: a provider that is the same account" "and a warning test"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

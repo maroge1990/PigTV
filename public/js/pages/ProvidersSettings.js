@@ -208,6 +208,15 @@ class ProvidersSettings {
         return `<dl class="provider-facts">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
     }
 
+    /** 0181: a provider with the same server and login as another counts as one connection with it. */
+    sharedAccountHtml(p) {
+        const ids = Array.isArray(p.sharesAccountWith) ? p.sharesAccountWith : [];
+        if (!ids.length) return '';
+        const names = ids.map(id => (this.providers.find(o => o.id === id) || {}).name).filter(Boolean);
+        if (!names.length) return '';
+        return `<p class="provider-warning provider-error" role="alert">Same server and login as ${ProviderFormat.esc(names.join(', '))}: these count as one connection. Check this provider's settings.</p>`;
+    }
+
     cardHtml(p, backupIndex, backupCount) {
         const F = ProviderFormat;
         const e = F.esc;
@@ -231,6 +240,7 @@ class ProvidersSettings {
                     <button type="button" class="btn btn-sm btn-secondary" data-provider-action="sync" data-id="${p.id}">Sync now</button>
                 </div>
             </div>
+            ${this.sharedAccountHtml(p)}
             <div class="provider-body">
                 <div class="provider-info" id="provider-info-${p.id}">${this.infoHtml(p)}</div>
                 <div class="provider-form">

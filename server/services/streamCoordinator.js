@@ -35,6 +35,12 @@
  * bare-url resolve with no source (providerId null) - is the primary's pool, which
  * is exactly today's single pool. With no backup configured there is only that
  * pool and nothing here behaves differently from before.
+ *
+ * Sources that are the same account (0181: the same server origin and login, see
+ * accountKey.js) share one pool, whatever they are called: the provider counts one
+ * connection for both, so a backup with the primary's login counts in the primary's
+ * pool, two such backups in the lower id's, and the pool's limit is the lowest
+ * effective limit among them.
  */
 
 const transcodeSession = require('./transcodeSession');
@@ -191,7 +197,24 @@ function providerDirectory() {
         if (!multi) return LEGACY_DIRECTORY;
         const primaries = all.filter(src => src.role !== 'backup');
         const primary = primaries.find(src => src.enabled !== false) || primaries[0] || null;
-        return { multi, primary, backups };
+        // 0181: a backup that is the primary's account (or an earlier backup's) counts in that pool.
+        const { accountKeyFor } = require('./accountKey');
+        const poolOf = new Map();       // backup id -> the pool it counts in
+        const merged = new Map();       // pool -> the backups folded into it
+        const firstOfKey = new Map();   // account key -> the pool that owns it
+        const primaryKey = primary ? accountKeyFor(primary) : null;
+        if (primaryKey) firstOfKey.set(primaryKey, PRIMARY_POOL);
+        for (const b of [...backups.values()].sort((x, y) => Number(x.id) - Number(y.id))) {
+            const key = accountKeyFor(b);
+            const owner = key && firstOfKey.has(key) ? firstOfKey.get(key) : Number(b.id);
+            if (key && !firstOfKey.has(key)) firstOfKey.set(key, owner);
+            poolOf.set(Number(b.id), owner);
+            if (owner !== Number(b.id)) {
+                if (!merged.has(owner)) merged.set(owner, []);
+                merged.get(owner).push(b);
+            }
+        }
+        return { multi, primary, backups, poolOf, merged };
     } catch (err) {
         return LEGACY_DIRECTORY;
     }
@@ -201,7 +224,8 @@ function providerDirectory() {
 function poolKey(providerId, dir) {
     if (!dir.multi || providerId === null || providerId === undefined) return PRIMARY_POOL;
     const id = Number(providerId);
-    return dir.backups.has(id) ? id : PRIMARY_POOL;
+    if (!dir.backups.has(id)) return PRIMARY_POOL;
+    return dir.poolOf && dir.poolOf.has(id) ? dir.poolOf.get(id) : id;
 }
 
 /** A recording's provider: the one it was started on, else its schedule's source. */
@@ -244,12 +268,19 @@ function providerLimit(providerId, settings = {}, dir = providerDirectory()) {
     try { accounts = require('./providerAccounts'); } catch (e) { return legacy; }
     const account = (id) => { try { return accounts.getAccount(id); } catch (e) { return null; } };
     const pool = poolKey(providerId, dir);
-    if (pool !== PRIMARY_POOL) return accounts.effectiveLimit(dir.backups.get(pool), account(pool));
+    // 0181: sources that are one account are one pool, limited by the lowest of them
+    // (enabled ones; a disabled duplicate only when nothing else is left).
+    const sharers = (dir.merged && dir.merged.get(pool)) || [];
+    const lowestShared = (own) => {
+        const live = sharers.filter(src => src.enabled !== false);
+        return Math.min(own, ...(live.length ? live : sharers).map(src => accounts.effectiveLimit(src, account(src.id))));
+    };
+    if (pool !== PRIMARY_POOL) return lowestShared(accounts.effectiveLimit(dir.backups.get(pool), account(pool)));
     const primary = dir.primary;
     if (!primary) return legacy;
     const manual = Number(primary.maxConnections);
-    if (Number.isInteger(manual) && manual > 0) return manual;
-    return Math.max(accounts.effectiveLimit({ ...primary, maxConnections: null }, account(primary.id)), legacy);
+    if (Number.isInteger(manual) && manual > 0) return lowestShared(manual);
+    return lowestShared(Math.max(accounts.effectiveLimit({ ...primary, maxConnections: null }, account(primary.id)), legacy));
 }
 
 /**

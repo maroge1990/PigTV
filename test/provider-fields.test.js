@@ -205,3 +205,20 @@ test('0172: changing only the order, limit or dates does not start a sync; any o
     assert.equal(syncs, 2);
     await db.sources.delete(id);
 });
+
+test('0181: GET /api/sources/providers names the other providers that are the same account (ids only, admin only)', async () => {
+    const a = await db.sources.create({ type: 'xtream', name: 'Dream4K', url: 'http://Dream.invalid:80', username: 'sameuser', password: 'PW-ONE' });
+    const b = await db.sources.create({ type: 'xtream', name: 'Trex', url: 'http://dream.invalid/', username: 'sameuser', password: 'PW-TWO', role: 'backup' });
+    const c = await db.sources.create({ type: 'xtream', name: 'Other login', url: 'http://dream.invalid', username: 'differentuser', password: 'p', role: 'backup' });
+    const d = await db.sources.create({ type: 'xtream', name: 'Other server', url: 'http://other.invalid', username: 'sameuser', password: 'p', role: 'backup' });
+    const list = await call('GET', '/api/sources/providers');
+    const of = (id) => list.body.find(p => p.id === id);
+    assert.deepEqual(of(a.id).sharesAccountWith, [b.id]);
+    assert.deepEqual(of(b.id).sharesAccountWith, [a.id]);
+    assert.deepEqual(of(c.id).sharesAccountWith, [], 'same server, different username: separate');
+    assert.deepEqual(of(d.id).sharesAccountWith, [], 'same username, different server: separate');
+    for (const secret of ['sameuser', 'differentuser', 'PW-ONE', 'PW-TWO']) assert.ok(!list.text.includes(secret), `the list leaks ${secret}`);
+    assert.ok(!/"[0-9a-f]{16}"/.test(list.text), 'no account key is returned');
+    assert.equal((await call('GET', '/api/sources/providers', null, viewerToken)).status, 403);
+    for (const s of [a, b, c, d]) await db.sources.delete(s.id);
+});

@@ -90,6 +90,7 @@ afterEach(async () => {
     for (const k of ['maxConnections']) {
         for (const src of [A, B, C]) await db.sources.update(src.id, { [k]: null });
     }
+    await db.sources.update(B.id, { url: 'http://trex.invalid', username: 'u' });
     resolveCalls.length = 0;
 });
 
@@ -349,4 +350,46 @@ test('with no backup configured every scenario has today\'s outcome, whatever pr
     assert.equal((await coordinator.requestForRecording(due(96), S, C.id)).prompted, true);
     assert.ok(alive(theirs));
     assert.equal(await coordinator.releaseOwnerElsewhere('device:tv', A.id), 0);
+});
+
+// ------------------------------------------ 0181: the same account is one pool --
+
+test('0181: two sources with the same server and login are one pool; another login on the same server stays separate', async () => {
+    // Trex configured with Strong8K's server and login (the 1 Oct live cause), written with another case and the default port.
+    await db.sources.update(B.id, { url: 'HTTP://Strong.invalid:80/', username: 'u' });
+    await session('device:tv', 5, A.id);
+    const opts = { owner: 'device:ipad', settings: S, activeRecordings: [] };
+    assert.equal(coordinator.canAdmitWithoutDisturbing({ ...opts, providerId: B.id }), false, 'a second viewer on the twin is not admitted');
+    assert.equal(coordinator.canAdmitWithoutDisturbing({ ...opts, providerId: A.id }), false);
+    assert.equal(coordinator.canAdmitWithoutDisturbing({ ...opts, providerId: C.id }), true, 'an unrelated provider is unaffected');
+    const verdict = coordinator.requestForViewer({ ...opts, providerId: B.id });
+    assert.equal(verdict.allowed, false);
+    assert.equal(verdict.conflict.type, 'viewer-in-progress', 'asked about, not silently disturbed');
+    assert.equal(transcodeSession.getAllSessions().length, 1, 'nothing was stopped');
+    // A viewer on the twin holds the primary's connection too.
+    for (const s of transcodeSession.getAllSessions()) await transcodeSession.removeSession(s.id);
+    await session('device:tv', 5, B.id);
+    assert.equal(coordinator.canAdmitWithoutDisturbing({ ...opts, providerId: A.id }), false);
+    // Same server, a different username: its own account, its own pool.
+    await db.sources.update(B.id, { username: 'someone-else' });
+    assert.equal(coordinator.canAdmitWithoutDisturbing({ ...opts, providerId: A.id }), true);
+});
+
+test('0181: a shared pool\'s limit is the lowest among its sources', async () => {
+    await db.sources.update(B.id, { url: 'http://strong.invalid', username: 'u', maxConnections: 1 });
+    await db.sources.update(A.id, { maxConnections: 3 });
+    const dir = () => coordinator.providerLimit(B.id, S);
+    assert.equal(dir(), 1);
+    assert.equal(coordinator.providerLimit(A.id, S), 1, 'the primary sees the same pool limit');
+    await db.sources.update(B.id, { maxConnections: 5 });
+    assert.equal(coordinator.providerLimit(A.id, S), 3);
+    await db.sources.update(A.id, { maxConnections: null });
+});
+
+test('0181: no twin, no change: the primary and backups keep their own limits and pools', async () => {
+    await db.sources.update(A.id, { maxConnections: 2 });
+    await db.sources.update(B.id, { maxConnections: 4 });
+    assert.equal(coordinator.providerLimit(A.id, S), 2);
+    assert.equal(coordinator.providerLimit(B.id, S), 4);
+    await db.sources.update(A.id, { maxConnections: null });
 });

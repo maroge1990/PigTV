@@ -4176,6 +4176,7 @@ kbd {
 
 .provider-soon { color: var(--color-warning); }
 .provider-expired, .provider-error { color: var(--color-error); }
+.provider-warning { margin: 8px 0 0; font-weight: 600; }
 .provider-ok { color: var(--color-text-primary); }
 .provider-busy { color: var(--color-warning); }
 

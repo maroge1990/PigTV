@@ -58,8 +58,17 @@ router.get('/status', requireAdmin, async (req, res) => {
 // The providers with their settings (admin; 0168): every non-EPG source, role and all.
 router.get('/providers', requireAdmin, async (req, res) => {
     try {
-        res.json((await sources.getAll()).filter(s => s.type !== 'epg').map(s => ({
-            ...adminSummary(s), ...(s.role === 'backup' ? { backupChannels: backupChannels.count(s.id) } : {}) })));
+        const all = (await sources.getAll()).filter(s => s.type !== 'epg');
+        // 0181: which other providers are the same account (same server and login): ids only,
+        // the key behind it is a hash that is never returned.
+        const { accountKeyFor } = require('../services/accountKey');
+        const keys = new Map(all.map(s => [s.id, accountKeyFor(s)]));
+        const sharing = (s) => keys.get(s.id)
+            ? all.filter(o => o.id !== s.id && keys.get(o.id) === keys.get(s.id)).map(o => o.id)
+            : [];
+        res.json(all.map(s => ({
+            ...adminSummary(s), ...(s.role === 'backup' ? { backupChannels: backupChannels.count(s.id) } : {}),
+            sharesAccountWith: sharing(s) })));
     } catch (err) {
         console.error('Error getting providers:', err);
         res.status(500).json({ error: 'Failed to get providers' });
