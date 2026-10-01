@@ -76,34 +76,20 @@ after(() => {
 
 const reset = () => { requests = []; reply = { body: userInfo() }; };
 
-test('effectiveExpiry: manual end date > purchase date + term > the account > unknown', () => {
+test('effectiveExpiry: the account\'s end date, else unknown; hand-typed dates are not read (0182)', () => {
     const account = { exp_date: UTC(2026, 6, 1) };
-    assert.equal(accounts.effectiveExpiry({ subscription: { endsAt: '2026-12-25', purchasedAt: '2026-01-01', termMonths: 3 } }, account), UTC(2026, 12, 25));
-    assert.equal(accounts.effectiveExpiry({ subscription: { endsAt: null, purchasedAt: '2026-01-01', termMonths: 3 } }, account), UTC(2026, 4, 1));
-    assert.equal(accounts.effectiveExpiry({ subscription: { purchasedAt: '2026-01-01', termMonths: null } }, account), UTC(2026, 6, 1), 'no term: the account');
-    assert.equal(accounts.effectiveExpiry({ subscription: { purchasedAt: null, termMonths: 3 } }, account), UTC(2026, 6, 1), 'no purchase date: the account');
     assert.equal(accounts.effectiveExpiry({}, account), UTC(2026, 6, 1));
+    assert.equal(accounts.effectiveExpiry({ subscription: { endsAt: '2026-12-25', purchasedAt: '2026-01-01', termMonths: 3 } }, account), UTC(2026, 6, 1));
+    assert.equal(accounts.effectiveExpiry({ subscription: { endsAt: '2026-12-25' } }, null), null);
     assert.equal(accounts.effectiveExpiry({}, { exp_date: null }), null, 'unlimited or never read');
     assert.equal(accounts.effectiveExpiry({}, null), null);
-    assert.equal(accounts.expiryInfo({ subscription: { endsAt: '2026-12-25' } }, account).from, 'manual');
-    assert.equal(accounts.expiryInfo({ subscription: { purchasedAt: '2026-01-01', termMonths: 1 } }, account).from, 'term');
     assert.equal(accounts.expiryInfo({}, account).from, 'account');
+    assert.equal(accounts.expiryInfo({}, null).from, null);
 });
 
-test('purchasedAt + termMonths: month arithmetic clamps the day and crosses years and leap years', () => {
-    const at = (purchasedAt, termMonths) => accounts.effectiveExpiry({ subscription: { purchasedAt, termMonths } }, null);
-    assert.equal(at('2026-01-31', 1), UTC(2026, 2, 28));
-    assert.equal(at('2028-01-31', 1), UTC(2028, 2, 29), 'a leap year');
-    assert.equal(at('2026-03-15', 12), UTC(2027, 3, 15));
-    assert.equal(at('2026-11-30', 3), UTC(2027, 2, 28));
-    assert.equal(at('2026-12-31', 2), UTC(2027, 2, 28));
-    assert.equal(at('2026-09-30', 1), UTC(2026, 10, 30));
-    assert.equal(at('2026-09-30', 24), UTC(2028, 9, 30));
-});
-
-test('effectiveLimit: the manual limit > the account\'s > 1; isExpired needs a past date', () => {
-    assert.equal(accounts.effectiveLimit({ maxConnections: 4 }, { max_connections: 2 }), 4);
-    assert.equal(accounts.effectiveLimit({ maxConnections: null }, { max_connections: 2 }), 2);
+test('effectiveLimit: the account\'s, else 1; a hand-typed limit is not read (0182); isExpired needs a past date', () => {
+    assert.equal(accounts.effectiveLimit({ maxConnections: 4 }, { max_connections: 2 }), 2);
+    assert.equal(accounts.effectiveLimit({}, { max_connections: 2 }), 2);
     assert.equal(accounts.effectiveLimit({}, { max_connections: 0 }), 1);
     assert.equal(accounts.effectiveLimit({}, null), 1);
     assert.equal(accounts.effectiveLimit(undefined, undefined), 1);
@@ -111,7 +97,7 @@ test('effectiveLimit: the manual limit > the account\'s > 1; isExpired needs a p
     assert.equal(accounts.isExpired({}, { exp_date: now - 1000 }, now), true);
     assert.equal(accounts.isExpired({}, { exp_date: now + 1000 }, now), false);
     assert.equal(accounts.isExpired({}, null, now), false, 'unknown is not expired');
-    assert.equal(accounts.isExpired({ subscription: { endsAt: '2000-01-01' } }, { exp_date: now + DAY }, now), true, 'the manual date wins');
+    assert.equal(accounts.isExpired({ subscription: { endsAt: '2000-01-01' } }, { exp_date: now + DAY }, now), false, 'a hand-typed date is not read');
 });
 
 test('login: an xtream source\'s own; an M3U\'s from the header, else from its first /live/<u>/<p>/<id> URL', async () => {
@@ -217,16 +203,16 @@ test('admin GET /api/sources/:id/account and POST .../account/check return the s
     reset();
     const exp = Math.floor((Date.now() + 40 * DAY) / 1000);
     reply = { body: userInfo({ exp_date: String(exp), max_connections: '2' }) };
-    const s = await newSource({ maxConnections: 5 });
+    const s = await newSource();
     assert.deepEqual((await call('GET', `/api/sources/${s.id}/account`)).body, {
-        account: null, effective: { expiresAt: null, expirySource: null, limit: 5, expired: false }
+        account: null, effective: { expiresAt: null, expirySource: null, limit: 1, expired: false }
     });
     const checked = (await call('POST', `/api/sources/${s.id}/account/check`)).body;
     assert.equal(checked.account.ok, true);
     assert.equal(checked.account.maxConnections, 2);
     assert.equal(checked.account.expiresAt, exp * 1000);
     assert.equal(checked.account.isTrial, false);
-    assert.deepEqual(checked.effective, { expiresAt: exp * 1000, expirySource: 'account', limit: 5, expired: false });
+    assert.deepEqual(checked.effective, { expiresAt: exp * 1000, expirySource: 'account', limit: 2, expired: false });
     assert.deepEqual((await call('GET', `/api/sources/${s.id}/account`)).body, checked);
     const text = JSON.stringify(checked);
     assert.ok(!text.includes('trexpass') && !text.includes(fakeUrl));
@@ -239,16 +225,17 @@ test('admin GET /api/sources/:id/account and POST .../account/check return the s
 test('reminders: enabled providers ending within 7 days or past; soonest first; nothing else; any signed-in user', async () => {
     reset();
     for (const s of await db.sources.getAll()) { await db.sources.delete(s.id); accounts.remove(s.id); }
-    const soon = await newSource({ name: 'Soon', subscription: { endsAt: new Date(Date.now() + 3 * DAY).toISOString().slice(0, 10) } });
-    const past = await newSource({ name: 'Past', role: 'backup', subscription: { endsAt: '2020-01-01' } });
-    await newSource({ name: 'Far', subscription: { endsAt: new Date(Date.now() + 60 * DAY).toISOString().slice(0, 10) } });
-    const off = await newSource({ name: 'Off', subscription: { endsAt: '2020-01-01' } });
+    const ends = (source, at) => sqlite.getDb().prepare(`INSERT INTO provider_accounts (source_id, exp_date, checked_at, ok) VALUES (?, ?, ?, 1)`)
+        .run(source.id, at, Date.now());
+    const soon = await newSource({ name: 'Soon' }); ends(soon, Date.now() + 3 * DAY + 60000);
+    const past = await newSource({ name: 'Past', role: 'backup' }); ends(past, Date.UTC(2020, 0, 1));
+    ends(await newSource({ name: 'Far' }), Date.now() + 60 * DAY);
+    const off = await newSource({ name: 'Off' }); ends(off, Date.UTC(2020, 0, 1));
     await db.sources.toggleEnabled(off.id);
     await newSource({ name: 'Unknown' });
-    await db.sources.create({ type: 'epg', name: 'Guide', url: 'http://g.invalid/x.xml', subscription: { endsAt: '2020-01-01' } });
-    const viaAccount = await newSource({ name: 'ViaAccount' });
-    sqlite.getDb().prepare(`INSERT INTO provider_accounts (source_id, exp_date, checked_at, ok) VALUES (?, ?, ?, 1)`)
-        .run(viaAccount.id, Date.now() + 6 * DAY, Date.now());
+    await newSource({ name: 'HandTyped', subscription: { endsAt: '2020-01-01' } }); // 0182: not read
+    await db.sources.create({ type: 'epg', name: 'Guide', url: 'http://g.invalid/x.xml' });
+    const viaAccount = await newSource({ name: 'ViaAccount' }); ends(viaAccount, Date.now() + 6 * DAY);
 
     const r = await call('GET', '/api/providers/reminders', viewerToken);
     assert.equal(r.status, 200);

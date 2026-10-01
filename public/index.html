@@ -323,7 +323,7 @@
         <div id="epg-grid" class="epg-grid">
           <div class="empty-state">
             <p>No EPG data available</p>
-            <p class="hint">Add an EPG source in Settings</p>
+            <p class="hint">Add a guide address to your provider in Settings</p>
           </div>
         </div>
       </div>
@@ -373,76 +373,24 @@
           <h2>Settings</h2>
 
           <!-- Tabs -->
+          <!-- 0182: six tabs. Channels has three views (the strip below); Playback and System
+               show their panels one under the other. Backup links opens from a provider card. -->
           <div class="tabs">
-            <button class="tab active" data-tab="sources">Sources</button>
             <button class="tab admin-tab" data-tab="providers" id="providers-tab" style="display:none;">Providers</button>
-            <button class="tab admin-tab" data-tab="backuplinks" id="backuplinks-tab" style="display:none;">Backup links</button>
-            <button class="tab" data-tab="player">Player</button>
-            <button class="tab" data-tab="transcode">Transcoding</button>
-            <button class="tab" data-tab="content">Manage Content</button>
-            <button class="tab" data-tab="lineup">Channel numbers</button>
-            <button class="tab" data-tab="epg">EPG matching</button>
-            <button class="tab" data-tab="sports">Sports</button>
+            <button class="tab" data-tab="channels">Channels</button>
+            <button class="tab active" data-tab="playback">Playback</button>
             <button class="tab" data-tab="recording">Recording</button>
-            <button class="tab" data-tab="ui">UI</button>
-            <button class="tab" data-tab="devices">Devices</button>
-            <button class="tab" data-tab="debug">Debug</button>
-            <button class="tab" data-tab="users" id="users-tab" style="display:none;">Users</button>
+            <button class="tab" data-tab="sports">Sports</button>
+            <button class="tab" data-tab="system">System</button>
           </div>
-
-          <!-- Sources Tab -->
-          <div id="tab-sources" class="tab-content active">
-            <div class="source-section">
-              <div class="section-header">
-                <h3>Xtream Connections</h3>
-                <button class="btn btn-primary" id="add-xtream">+ Add Xtream</button>
-              </div>
-              <div id="xtream-list" class="source-list"></div>
-            </div>
-
-            <div class="source-section">
-              <div class="section-header">
-                <h3>M3U Playlists</h3>
-                <button class="btn btn-primary" id="add-m3u">+ Add M3U</button>
-              </div>
-              <div id="m3u-list" class="source-list"></div>
-            </div>
-
-            <div class="source-section">
-              <div class="section-header">
-                <h3>EPG Sources</h3>
-                <button class="btn btn-primary" id="add-epg">+ Add EPG</button>
-              </div>
-              <div id="epg-list" class="source-list"></div>
-            </div>
-
-            <div class="source-section">
-              <h3>EPG Data Settings</h3>
-              <div class="setting-item">
-                <label for="epg-refresh-interval">Auto-refresh EPG data every:</label>
-                <select id="epg-refresh-interval" class="form-input">
-                  <option value="1">1 hour</option>
-                  <option value="2">2 hours</option>
-                  <option value="4">4 hours</option>
-                  <option value="12">12 hours</option>
-                  <option value="24" selected>24 hours</option>
-                  <option value="0">Manual only</option>
-                </select>
-              </div>
-              <div class="setting-item">
-                <span class="setting-label">Last Refreshed:</span>
-                <span id="epg-last-refreshed" class="hint">Never</span>
-              </div>
-              <p class="hint">Use the <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
-                  class="icon" style="width: 1em; height: 1em; vertical-align: middle;">
-                  <path
-                    d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
-                </svg> button next to EPG sources for manual refresh</p>
-            </div>
+          <div class="subtabs hidden" id="subtabs-channels">
+            <button class="subtab active" data-subtab="content">Manage content</button>
+            <button class="subtab" data-subtab="lineup">Channel numbers</button>
+            <button class="subtab" data-subtab="epg">EPG matching</button>
           </div>
 
           <!-- Player Tab -->
-          <div id="tab-player" class="tab-content">
+          <div id="tab-player" class="tab-content active">
             <div class="settings-section">
               <h3>Keyboard Controls</h3>
               <div class="setting-item">
@@ -502,7 +450,7 @@
           </div>
 
           <!-- Transcoding Tab -->
-          <div id="tab-transcode" class="tab-content">
+          <div id="tab-transcode" class="tab-content active">
             <div class="settings-section">
               <h3>Detected Hardware</h3>
               <div id="hw-info-container" class="hw-info-container">
@@ -567,7 +515,8 @@
               </div>
             </div>
 
-            <div class="settings-section">
+            <details class="settings-section settings-advanced">
+              <summary>Advanced: hardware decoding and how the provider is contacted</summary>
               <h3>Hardware Decoding</h3>
               <div class="setting-item">
                 <label class="setting-toggle">
@@ -592,6 +541,31 @@
                 </div>
               </div>
 
+              <h3>How the provider is contacted</h3>
+              <div class="setting-item">
+                <div class="setting-info" style="flex: 1;">
+                  <span class="setting-label">User-Agent</span>
+                  <span class="setting-hint">HTTP User-Agent for stream requests. Try VLC if your provider blocks
+                    Chrome.</span>
+                </div>
+                <select id="setting-user-agent-tc" class="source-select" style="width: auto; min-width: 200px;">
+                  <option value="chrome">Chrome (Default)</option>
+                  <option value="vlc">VLC</option>
+                  <option value="tivimate">TiviMate</option>
+                  <option value="custom">Custom...</option>
+                </select>
+              </div>
+              <div class="setting-item" id="custom-user-agent-container-tc" style="display: none;">
+                <div class="setting-info" style="flex: 1;">
+                  <span class="setting-label">Custom User-Agent</span>
+                  <span class="setting-hint">Enter your own User-Agent string.</span>
+                </div>
+                <input type="text" id="setting-user-agent-custom-tc" class="search-input" style="width: 300px;"
+                  placeholder="Custom User-Agent string...">
+              </div>
+            </details>
+
+            <div class="settings-section">
               <h3>Upscaling</h3>
               <div class="setting-item">
                 <label class="setting-toggle">
@@ -627,55 +601,6 @@
               </div>
             </div>
 
-            <div class="settings-section">
-              <h3>Stream Processing</h3>
-              <div class="setting-item">
-                <div class="setting-info" style="flex: 1;">
-                  <span class="setting-label">How live channels play</span>
-                  <span class="setting-hint">The server checks each channel and delivers it as HLS segments - the
-                    same way on every device. The video is passed through untouched whenever this browser can
-                    play it, and only the audio (or, when needed, the video) is converted otherwise. There is
-                    nothing to set here.</span>
-                </div>
-              </div>
-              <div class="setting-item">
-                <div class="setting-info" style="flex: 1;">
-                  <span class="setting-label">Stream Output Format</span>
-                  <span class="setting-hint">Container format for Xtream streams. Try TS if you experience buffering
-                    issues.</span>
-                </div>
-                <select id="setting-stream-format-tc" class="source-select" style="width: auto; min-width: 200px;">
-                  <option value="m3u8">HLS (m3u8) - Recommended</option>
-                  <option value="ts">MPEG-TS (ts) - Better buffer</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="settings-section">
-              <h3>HTTP Settings</h3>
-              <div class="setting-item">
-                <div class="setting-info" style="flex: 1;">
-                  <span class="setting-label">User-Agent</span>
-                  <span class="setting-hint">HTTP User-Agent for stream requests. Try VLC if your provider blocks
-                    Chrome.</span>
-                </div>
-                <select id="setting-user-agent-tc" class="source-select" style="width: auto; min-width: 200px;">
-                  <option value="chrome">Chrome (Default)</option>
-                  <option value="vlc">VLC</option>
-                  <option value="tivimate">TiviMate</option>
-                  <option value="custom">Custom...</option>
-                </select>
-              </div>
-              <div class="setting-item" id="custom-user-agent-container-tc" style="display: none;">
-                <div class="setting-info" style="flex: 1;">
-                  <span class="setting-label">Custom User-Agent</span>
-                  <span class="setting-hint">Enter your own User-Agent string.</span>
-                </div>
-                <input type="text" id="setting-user-agent-custom-tc" class="search-input" style="width: 300px;"
-                  placeholder="Custom User-Agent string...">
-              </div>
-            </div>
-
           </div>
 
           <!-- Manage Content Tab -->
@@ -706,23 +631,42 @@
             </div>
           </div>
 
-          <!-- Providers (0172): GET /api/sources/providers, /api/sources/:id/account, PUT /api/sources/:id -->
+          <!-- Providers (0172; the one place for content input since 0182): GET /api/sources/providers,
+               /api/sources/:id, /api/sources/:id/account, POST/PUT/DELETE /api/sources, PUT /api/sources/order -->
           <div id="tab-providers" class="tab-content">
             <div class="settings-section">
               <h3>Providers</h3>
-              <p class="setting-hint">The primary provider's channels, guide and categories are the only ones shown. Backups are list
-                only: when a channel will not play on the primary it is tried on the backups, in the order below, using the links
-                on the Backup links tab. Each provider has its own connection limit. Add or remove a provider on the Sources tab.
-                A manual end date wins over purchase date + term, which win over the date the provider reports; a blank
-                connection limit reads it from the account (1 when the account does not say).</p>
+              <p class="setting-hint">One card per provider. The first card is the primary: its channels, categories and guide
+                are the ones shown. The cards below it are backups: when a channel will not play on the primary it is tried on
+                them, in this order. Move a card up or down to change the order. The subscription end and the number of
+                connections are read from each provider's account.</p>
               <div class="lineup-toolbar"><span id="providers-status" class="lineup-status"></span></div>
               <div id="providers-list" class="providers-list"><p class="hint">Loading...</p></div>
+              <div class="provider-footer">
+                <div class="setting-item">
+                  <label for="epg-refresh-interval">Sync channels and guide every:</label>
+                  <select id="epg-refresh-interval" class="form-input">
+                    <option value="1">1 hour</option>
+                    <option value="2">2 hours</option>
+                    <option value="4">4 hours</option>
+                    <option value="12">12 hours</option>
+                    <option value="24" selected>24 hours</option>
+                    <option value="0">Manual only</option>
+                  </select>
+                </div>
+                <div class="setting-item">
+                  <span class="setting-label">Last full sync:</span>
+                  <span id="epg-last-refreshed" class="hint">Never</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- Backup links (0172): GET /api/links, /api/links/summary, PUT /api/links/:id -->
+          <!-- Backup links (0172): GET /api/links, /api/links/summary, PUT /api/links/:id.
+               0182: opened from a backup's card (Review links), not from a tab of its own. -->
           <div id="tab-backuplinks" class="tab-content">
             <div class="settings-section">
+              <button type="button" class="btn btn-sm btn-secondary" id="links-back">&larr; Providers</button>
               <h3>Backup links</h3>
               <p class="setting-hint">Each primary channel is matched to the same channel on every backup provider. A link found by
                 its guide id is used at once (Auto); one found by number or name waits for you (Needs review). Only Auto, Approved and
@@ -1015,20 +959,6 @@
             </div>
           </div>
 
-          <div id="tab-debug" class="tab-content">
-            <div class="settings-section">
-              <h3>Stream Management</h3>
-              <p class="setting-hint">Every active stream, whether transcoded or remuxed, holds an ffmpeg
-                process and a connection to your provider. If one is left running after a browser close, kill it here.</p>
-              <div id="active-sessions-list" style="margin: var(--space-md) 0;">
-                <span class="setting-hint">Loading...</span>
-              </div>
-              <button id="refresh-sessions" class="btn btn-secondary">Refresh</button>
-              <button id="kill-all-streams" class="btn btn-danger">Kill All Streams</button>
-              <span id="kill-streams-status" style="margin-left: 8px; font-size: 0.85rem;"></span>
-            </div>
-          </div>
-
           <div id="tab-users" class="tab-content">
             <div class="settings-section">
               <h3>User Management</h3>
@@ -1154,21 +1084,21 @@
 
   <!-- JavaScript -->
   <script src="/js/icons.js"></script>
-  <script src="/js/api.js?v=16"></script>
-  <script src="/js/components/VideoPlayer.js?v=10"></script>
+  <script src="/js/api.js?v=17"></script>
+  <script src="/js/components/VideoPlayer.js?v=11"></script>
   <script src="/js/components/ChannelList.js?v=7"></script>
-  <script src="/js/components/SourceManager.js?v=7"></script>
+  <script src="/js/components/SourceManager.js?v=8"></script>
   <script src="/js/components/EpgGuide.js?v=8"></script>
   <script src="/js/pages/HomePage.js?v=4"></script>
   <script src="/js/pages/LivePage.js?v=3"></script>
   <script src="/js/pages/Guide.js?v=3"></script>
   <script src="/js/pages/RecordingsPage.js?v=9"></script>
-  <script src="/js/pages/ProvidersSettings.js?v=2"></script>
+  <script src="/js/pages/ProvidersSettings.js?v=3"></script>
   <script src="/js/pages/BackupLinksSettings.js?v=1"></script>
-  <script src="/js/pages/Settings.js?v=15"></script>
-  <script src="/js/pages/StatusPage.js?v=5"></script>
-  <script src="/js/providerReminders.js?v=1"></script>
-  <script src="/js/app.js?v=10"></script>
+  <script src="/js/pages/Settings.js?v=17"></script>
+  <script src="/js/pages/StatusPage.js?v=6"></script>
+  <script src="/js/providerReminders.js?v=2"></script>
+  <script src="/js/app.js?v=11"></script>
 </body>
 
 </html>

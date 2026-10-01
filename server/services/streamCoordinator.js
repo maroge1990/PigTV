@@ -254,12 +254,10 @@ function poolProviderId(pool, dir) {
  *   No backup configured (today's setup): `settings.maxProviderStreams`, default 1,
  *     exactly as before - the account's max_connections and a manual override are
  *     not consulted, so nothing changes until a backup is added.
- *   A backup: its effective limit (providerAccounts.effectiveLimit: the manual
- *     `maxConnections` > the account's max_connections > 1).
- *   The primary, with backups configured: its manual `maxConnections` when set
- *     (the admin said so, for this provider); otherwise the larger of its account's
- *     max_connections (or 1) and `settings.maxProviderStreams`, so an admin who had
- *     raised the legacy setting above 1 does not lose connections by adding a backup.
+ *   A backup: its account's max_connections, else 1 (providerAccounts.effectiveLimit).
+ *   The primary, with backups configured: the larger of its account's max_connections
+ *     (or 1) and `settings.maxProviderStreams`, so an admin who had raised the legacy
+ *     setting above 1 does not lose connections by adding a backup.
  */
 function providerLimit(providerId, settings = {}, dir = providerDirectory()) {
     const legacy = Number.isFinite(settings.maxProviderStreams) ? settings.maxProviderStreams : 1;
@@ -278,9 +276,7 @@ function providerLimit(providerId, settings = {}, dir = providerDirectory()) {
     if (pool !== PRIMARY_POOL) return lowestShared(accounts.effectiveLimit(dir.backups.get(pool), account(pool)));
     const primary = dir.primary;
     if (!primary) return legacy;
-    const manual = Number(primary.maxConnections);
-    if (Number.isInteger(manual) && manual > 0) return lowestShared(manual);
-    return lowestShared(Math.max(accounts.effectiveLimit({ ...primary, maxConnections: null }, account(primary.id)), legacy));
+    return lowestShared(Math.max(accounts.effectiveLimit(primary, account(primary.id)), legacy));
 }
 
 /**

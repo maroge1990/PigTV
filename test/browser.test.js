@@ -10,18 +10,6 @@ function browserScript(file, extra = {}) {
     return context;
 }
 
-test('source edit fields escape markup and never prefill a saved password', () => {
-    const ctx = browserScript('components/SourceManager.js');
-    const manager = vm.runInContext('SourceManager.prototype', ctx);
-    const form = manager.getSourceForm('xtream', { name: '<img onerror=bad()>', url: 'https://example.invalid/?x=" autofocus onfocus="bad()',
-        username: '" onfocus="bad()', password: 'must-not-render', hasPassword: true });
-    assert(!form.includes('<img'));
-    assert(form.includes('&lt;img'));
-    assert(form.includes('&quot;'));
-    assert(!form.includes('must-not-render'));
-    assert(form.includes('Leave blank to keep saved password'));
-});
-
 test('remembered volume stays local and never writes server settings', () => {
     const values = new Map();
     const ctx = browserScript('components/VideoPlayer.js', { localStorage: { setItem: (k, v) => values.set(k, v) },

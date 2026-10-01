@@ -22,8 +22,8 @@ function sourceSummary(source) {
     return { id: source.id, type: source.type, name: source.name, enabled: source.enabled };
 }
 
-// What an admin sees of a source: the summary plus its provider settings (0168). The ID overlay
-// address is a capability URL with a login in it, so only the single-source edit form gets it
+// What an admin sees of a source: the summary plus its provider settings (0168). The guide and
+// ID overlay addresses can carry a login, so only the single-source edit form gets them
 // (GET /:id); the provider list says only whether one is set. The lists everyone can read
 // (GET /, GET /type/:type) and the create/update replies stay the plain summary.
 const adminSummary = (source) => ({ ...sourceSummary(source), ...providerFields.adminView(source) });
@@ -97,7 +97,7 @@ router.get('/:id', requireAdmin, async (req, res) => {
         // write-only: an omitted password on update preserves the saved value.
         res.json({ ...adminSummary(source), url: source.url, username: source.username,
             hasPassword: Boolean(source.password),
-            ...(source.type !== 'epg' ? { idOverlayUrl: source.idOverlayUrl ?? null } : {}) });
+            ...(source.type !== 'epg' ? { epgUrl: source.epgUrl ?? null, idOverlayUrl: source.idOverlayUrl ?? null } : {}) });
     } catch (err) {
         console.error('Error getting source:', err);
         res.status(500).json({ error: 'Failed to get source' });
@@ -181,18 +181,71 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ error: 'Invalid source type' });
         }
 
-        const checked = providerFields.validate(req.body, {
-            type, others: await sources.getAll(), hasStreams, enabled: true
-        });
+        const all = await sources.getAll();
+        const checked = providerFields.validate(req.body, { type, others: all, hasStreams, enabled: true });
         if (checked.error) return res.status(400).json({ error: checked.error });
 
-        const source = await sources.create({ type, name, url, username, password, ...checked.fields });
+        // 0182: a provider added after the first is a backup, at the end of the failover order,
+        // unless the request says otherwise.
+        const providers = all.filter(s => s.type !== 'epg');
+        const place = {};
+        if (type !== 'epg' && providers.length) {
+            if (!checked.fields.role) place.role = 'backup';
+            if ((checked.fields.role || place.role) === 'backup' && checked.fields.priority == null) {
+                place.priority = Math.min(99, Math.max(0, ...providers.filter(s => s.role === 'backup').map(s => s.priority || 0)) + 1);
+            }
+        }
+
+        const source = await sources.create({ type, name, url, username, password, ...checked.fields, ...place });
         // Trigger Sync
         syncService.syncSource(source.id).catch(console.error);
         res.status(201).json(sourceSummary(source));
     } catch (err) {
         console.error('Error creating source:', err);
         res.status(500).json({ error: 'Failed to create source' });
+    }
+});
+
+/**
+ * Save the providers in this order (first = primary, then backups 1..n) and sync the ones
+ * whose role changed, in the background. Returns whether any role changed.
+ */
+async function applyOrder(providers, ids) {
+    const before = new Map(providers.map(s => [s.id, s]));
+    const places = ids.map((id, i) => ({ id, role: i === 0 ? 'primary' : 'backup', priority: i === 0 ? null : i }));
+    if (!places.some(p => before.get(p.id).role !== p.role || (before.get(p.id).priority ?? null) !== p.priority)) return false;
+    await sources.setOrder(places);
+    const changed = places.filter(p => before.get(p.id).role !== p.role);
+    // The demoted provider first, so its channels are out of the library before the new primary's arrive.
+    changed.sort((a, b) => (a.role === 'backup' ? 0 : 1) - (b.role === 'backup' ? 0 : 1));
+    (async () => { for (const p of changed) await syncService.syncSource(p.id); })().catch(console.error);
+    return changed.length > 0;
+}
+
+/** Primary first, then the backups by priority (empty last), then id. */
+const inOrder = (providers) => [...providers].sort((a, b) =>
+    (a.role === 'backup' ? 1 : 0) - (b.role === 'backup' ? 1 : 0) || (a.priority ?? 999) - (b.priority ?? 999) || a.id - b.id);
+
+/**
+ * PUT /api/sources/order   (admin; 0182)   body: { ids: [providerId, ...] }
+ *
+ * The order of the provider cards is the whole of their roles: the first is the primary
+ * (its channels and guide are shown), the rest are backups tried in that order. Every
+ * provider must be named once. Saved in one go; a provider whose role changed is synced
+ * (the old primary leaves the library, the new one fills it).
+ */
+router.put('/order', async (req, res) => {
+    try {
+        const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(Number) : null;
+        const providers = (await sources.getAll()).filter(s => s.type !== 'epg');
+        const known = new Set(providers.map(s => s.id));
+        if (!ids || ids.length !== providers.length || new Set(ids).size !== ids.length || !ids.every(id => known.has(id))) {
+            return res.status(400).json({ error: 'ids must list every provider exactly once' });
+        }
+        res.json({ success: true, primaryChanged: await applyOrder(providers, ids) });
+    } catch (err) {
+        console.error('Error saving the provider order:', err);
+        res.status(500).json({ error: 'Failed to save the provider order' });
     }
 });
 
@@ -218,9 +271,10 @@ router.put('/:id', async (req, res) => {
             ...checked.fields
         });
         // Trigger Sync (if critical fields changed? safely just trigger it). 0172: except when the
-        // request only touched failover order, connection limit or subscription dates (the
-        // Providers page); those change nothing a sync reads, and a backup's sync is a big one.
-        const settingsOnly = Object.keys(req.body || {}).every(k => ['priority', 'maxConnections', 'subscription'].includes(k));
+        // request only touched the failover order; that changes nothing a sync reads, and a
+        // backup's sync is a big one.
+        const keys = Object.keys(req.body || {});
+        const settingsOnly = keys.length > 0 && keys.every(k => k === 'priority');
         if (!settingsOnly) syncService.syncSource(parseInt(req.params.id)).catch(console.error);
         res.json(sourceSummary(updated));
     } catch (err) {
@@ -264,6 +318,12 @@ router.delete('/:id', async (req, res) => {
         // Delete source config and related hidden items (favorites handled by db.js)
         await sources.delete(sourceId);
 
+        // 0182: the cards close up. With the primary gone, the first backup takes its place.
+        if (existing.type !== 'epg') {
+            const left = inOrder((await sources.getAll()).filter(s => s.type !== 'epg'));
+            if (left.length) await applyOrder(left, left.map(s => s.id));
+        }
+
         // Its channels are gone from the guide too, and nothing else here
         // triggers a sync (which would otherwise bump this on its own).
         bumpLibraryRev();
@@ -300,7 +360,7 @@ router.post('/:id/toggle', async (req, res) => {
 /**
  * GET /api/sources/:id/account   (admin; 0168)
  *   { account: { status, expiresAt, maxConnections, activeCons, isTrial, checkedAt, ok, error } | null,
- *     effective: { expiresAt, expirySource: 'manual'|'term'|'account'|null, limit, expired } }
+ *     effective: { expiresAt, expirySource: 'account'|null, limit, expired } }
  * POST /api/sources/:id/account/check   reads the provider's player_api.php now, answers the same.
  */
 /**

@@ -46,14 +46,15 @@ test('wording: days left, tomorrow, and expired', () => {
         { id: 2, name: 'Dream4K', expiresAt: at, daysLeft: 1 },
         { id: 3, name: 'Strong8K', expiresAt: at, daysLeft: -2 }
     ]);
-    assert.match(soon, /^Trex expires .+ \(in 5 days\)\. Renew it, then update the dates in Settings → Providers\.$/);
+    assert.match(soon, /^Trex expires .+ \(in 5 days\)\. Renew it; PigTV reads the new date from the provider \(Settings → Providers → Check account\)\.$/);
     assert.match(tomorrow, /\(tomorrow\)/);
     assert.match(gone, /^Strong8K expired on /);
     assert.deepEqual([...R.lines([])], []);
 });
 
 test('the Status page shows a Providers panel with state, connections, expiry and account', async () => {
-    const elements = { 'status-content': { innerHTML: '', querySelector: () => null }, 'status-updated': { textContent: '' } };
+    const handlers = [];
+    const elements = { 'status-content': { innerHTML: '', querySelector: () => null, addEventListener: (type, fn) => handlers.push(fn) }, 'status-updated': { textContent: '' } };
     const status = {
         generatedAt: Date.now(), build: { display: 'build 0176' }, sessions: [], recordings: { active: [], upcoming: [] },
         events: [], recentProblems: [], sync: [], disk: { transcodeCache: { available: false }, recordings: { available: false } },

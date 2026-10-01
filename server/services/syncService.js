@@ -239,6 +239,7 @@ class SyncService {
             } else if (source.type === 'm3u') {
                 this.dropBackupRows(source.id);
                 await this.syncM3u(source);
+                await this.syncProviderGuide(source);
             } else if (source.type === 'epg') {
                 await this.syncEpg(source);
             }
@@ -327,13 +328,47 @@ class SyncService {
 
         // 7. EPG (Xmltv)
         // Try to fetch XMLTV if available
-        console.log(`[Sync] Fetching EPG for ${source.name}`);
-        try {
-            const xmltvUrl = api.getXmltvUrl();
-            await this.syncEpgFromUrl(source.id, xmltvUrl);
-        } catch (e) {
-            console.warn('[Sync] XMLTV fetch failed, skipping EPG sync for now:', e.message);
+        // 0182: the guide address on the provider's card wins; with none, the provider's own XMLTV.
+        let ownUrl = null;
+        try { ownUrl = api.getXmltvUrl(); } catch (e) { /* no XMLTV address for this login */ }
+        await this.syncProviderGuide(source, ownUrl);
+    }
+
+    /**
+     * 0182: the primary provider's guide, stored under the provider's own id: the address on
+     * its card (`epgUrl`), else `ownUrl` (an Xtream login's XMLTV). A failure is recorded as
+     * the provider's 'epg' sync status and never fails the channel sync; the guide it had is
+     * kept. With no address at all, whatever guide it had is removed.
+     */
+    async syncProviderGuide(source, ownUrl = null) {
+        const url = source.epgUrl || ownUrl;
+        if (!url) {
+            await this.dropGuide(source.id);
+            return;
         }
+        console.log(`[Sync] Fetching EPG for ${source.name}`);
+        this.updateSyncStatus(source.id, 'epg', 'syncing');
+        try {
+            await this.syncEpgFromUrl(source.id, url);
+            this.updateSyncStatus(source.id, 'epg', 'success');
+        } catch (e) {
+            // The address can carry a login: it is never stored or logged.
+            const message = String(redact(e && e.message)).replace(/\bhttps?:\/\/\S+/gi, '[address]').slice(0, 200);
+            console.warn(`[Sync] Guide for ${source.name} failed, keeping the previous one: ${message}`);
+            this.updateSyncStatus(source.id, 'epg', 'error', message);
+        }
+    }
+
+    /** 0182: remove a provider's guide (it became a backup, or its guide address was removed). */
+    async dropGuide(sourceId) {
+        const db = getDb();
+        const had = db.prepare('SELECT 1 FROM epg_programs WHERE source_id = ? LIMIT 1').get(sourceId);
+        db.prepare(`DELETE FROM sync_status WHERE source_id = ? AND type = 'epg'`).run(sourceId);
+        if (!had) return;
+        const removed = await this.purgeEpgRows(sourceId, '<>', -1);
+        db.prepare('DELETE FROM epg_state WHERE source_id = ?').run(sourceId);
+        console.log(`[Sync] Removed ${removed} guide programmes of source ${sourceId}`);
+        try { require('./sportsEvents').scheduleRebuild(); } catch (e) { /* best-effort */ }
     }
 
     /**
@@ -381,11 +416,12 @@ class SyncService {
 
     /**
      * 0170 (multi-provider P2): sync a backup provider. List only: the live categories and
-     * streams (Xtream) or the live entries (M3U), no VOD, series or XMLTV. Writes
+     * streams (Xtream) or the live entries (M3U), no VOD, series or guide. Writes
      * backup_channels alone, replaced in one transaction after everything has been fetched,
      * so a failed fetch leaves the previous rows. Then the optional id overlay, then the linker.
      */
     async syncBackup(source) {
+        await this.dropGuide(source.id); // 0182: only the primary's guide is shown
         if (this.dropLibraryRows(source.id)) {
             refreshChannelNumbers();
             bumpLibraryRev();

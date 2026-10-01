@@ -12,9 +12,28 @@ class StatusPage {
         this.app = app;
         this.timer = null;
         this.refreshMs = 5000;
+        // 0182: stopping a stuck stream moved here from Settings -> Debug. The table is rebuilt
+        // every 5 s, so the buttons are handled where they bubble to.
+        document.getElementById('status-content')?.addEventListener('click', (e) => {
+            const button = e.target?.closest?.('button[data-kill-session], button[data-kill-all]');
+            if (button) this.kill(button);
+        });
     }
 
     async init() { }
+
+    async kill(button) {
+        const all = button.dataset.killAll !== undefined;
+        if (all && !confirm('Stop every live stream? Anyone watching is cut off; recordings are not affected.')) return;
+        button.disabled = true;
+        try {
+            if (all) await API.transcode.killAllSessions();
+            else await API.transcode.killSession(button.dataset.killSession);
+        } catch (err) {
+            alert(`Could not stop the stream: ${err.message}`);
+        }
+        await this.refresh();
+    }
 
     show() {
         this.refresh();
@@ -189,14 +208,17 @@ class StatusPage {
         out.push(this.renderProviders(status.providers));
 
         // Live sessions
+        const sessions = status.sessions || [];
         out.push(this.section('Live sessions', this.table(
-            ['Channel', 'Owner', 'Video / audio', 'Segments', 'Up', 'Idle', 'ffmpeg'],
-            (status.sessions || []).map(s => [
+            ['Channel', 'Owner', 'Video / audio', 'Segments', 'Up', 'Idle', 'ffmpeg', ''],
+            sessions.map(s => [
                 e(s.channel), e(s.owner || '–'), `${e(s.video)} / ${e(s.audio)}`, e(s.segmentType || '–'),
                 this.duration(s.uptimeSec), this.duration(s.idleSec),
-                `${e(s.ffmpeg)}${s.error ? `<div class="setting-hint">${e(s.error)}</div>` : ''}`
+                `${e(s.ffmpeg)}${s.error ? `<div class="setting-hint">${e(s.error)}</div>` : ''}`,
+                `<button type="button" class="btn btn-sm btn-danger" data-kill-session="${e(s.id)}" title="Stop this stream and free its provider connection">Stop</button>`
             ]),
-            'Nothing is playing')));
+            'Nothing is playing')
+            + (sessions.length > 1 ? '<p><button type="button" class="btn btn-sm btn-danger" data-kill-all>Stop all streams</button></p>' : '')));
 
         // Recordings
         const rec = status.recordings || { active: [], upcoming: [] };

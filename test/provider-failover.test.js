@@ -152,6 +152,10 @@ function linkAll() {
     }
 }
 
+// 0182: a provider is expired when its account says so (hand-typed dates are gone).
+const expire = (src) => sqlite.getDb().prepare('INSERT OR REPLACE INTO provider_accounts (source_id, exp_date, checked_at, ok) VALUES (?, ?, ?, 1)')
+    .run(src.id, Date.UTC(2020, 0, 31), Date.now());
+
 afterEach(async () => {
     for (const s of transcodeSession.getAllSessions()) await transcodeSession.removeSession(s.id);
     routing.reset();
@@ -160,7 +164,8 @@ afterEach(async () => {
     starts.clear();
     writeProbe({});
     playbackEvents.reset();
-    for (const src of [B, C]) await db.sources.update(src.id, { enabled: true, subscription: null });
+    for (const src of [B, C]) await db.sources.update(src.id, { enabled: true });
+    sqlite.getDb().prepare('DELETE FROM provider_accounts').run();
     linkAll();
 });
 
@@ -227,7 +232,7 @@ test('a single failing channel: its sibling "(Backup)" feed is tried before the 
 });
 
 test('an expired backup is skipped', async () => {
-    await db.sources.update(B.id, { subscription: { purchasedAt: null, termMonths: null, endsAt: '2020-01-31' } });
+    expire(B);
     behaviour.set(url.A(103), '502');
     const r = await play('pos_3');
     assert.equal(r.status, 200, r.text);
@@ -441,9 +446,9 @@ test('the channel list: primary, sibling, backups by priority; the primary skipp
     const plan = await routing.plan(A.id, 'pos_1');
     assert.deepEqual(shape(plan.candidates), [['Strong8K', 'sibling'], ['Trex', 'backup'], ['Dream4K', 'backup']]);
     assert.equal(plan.primarySkipped, true);
-    await db.sources.update(A.id, { subscription: { purchasedAt: null, termMonths: null, endsAt: '2020-01-31' } });
+    expire(A);
     assert.deepEqual(shape(await routing.candidatesFor(A.id, 'pos_2')), [['Trex', 'backup'], ['Dream4K', 'backup']]);
-    await db.sources.update(A.id, { subscription: null });
+    sqlite.getDb().prepare('DELETE FROM provider_accounts').run();
     await db.sources.update(C.id, { enabled: false });
     assert.deepEqual(shape(await routing.candidatesFor(A.id, 'pos_2')), [['Strong8K', 'primary'], ['Trex', 'backup']]);
     // The URLs are for playbackStrategy only; they are what the links name.

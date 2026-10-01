@@ -30,7 +30,6 @@ class App {
         await this.checkAuth();
         if (!this.currentUser) return;
         if (this.currentUser.role === 'admin') {
-            this.sourceManager.pollSyncStatus();
             this.showProviderReminders();
         }
 

@@ -16,9 +16,9 @@
 
     function lines(reminders) {
         return (reminders || []).map(r => {
-            if (!(r.daysLeft > 0)) return `${r.name} expired on ${formatDate(r.expiresAt)}. Renew it, then update the dates in Settings → Providers.`;
+            if (!(r.daysLeft > 0)) return `${r.name} expired on ${formatDate(r.expiresAt)}. Renew it; PigTV reads the new date from the provider (Settings → Providers → Check account).`;
             const when = r.daysLeft === 1 ? 'tomorrow' : `in ${r.daysLeft} days`;
-            return `${r.name} expires ${formatDate(r.expiresAt)} (${when}). Renew it, then update the dates in Settings → Providers.`;
+            return `${r.name} expires ${formatDate(r.expiresAt)} (${when}). Renew it; PigTV reads the new date from the provider (Settings → Providers → Check account).`;
         });
     }
 

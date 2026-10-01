@@ -274,7 +274,10 @@ app.listen(PORT, async (err) => {
 
     // Sync runs independently and may take a long time on a stale EPG source.
     setTimeout(() => {
-        syncService.syncIfStale()
+        // 0182: one card per provider (roles from the order, the guide on the primary), once.
+        require('./services/providerMigration').run()
+            .catch(err => console.warn('Provider consolidation failed:', err.message))
+            .then(() => syncService.syncIfStale())
             .catch(console.error)
             .finally(() => syncService.startSyncTimer().catch(console.error));
     }, 5000);

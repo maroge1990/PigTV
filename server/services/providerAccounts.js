@@ -3,11 +3,11 @@
  *
  * Every provider (a source) is an Xtream login underneath, so its player_api.php
  * says when the subscription ends and how many connections it allows. That is read
- * into `provider_accounts` (one row per source) and combined with what Mark types in
- * (the source's own `subscription` and `maxConnections`) by two pure functions:
+ * into `provider_accounts` (one row per source). 0182: the account is the only source
+ * of both; the dates and limit that used to be typed in by hand are gone.
  *
- *   effectiveExpiry = manual endsAt > purchasedAt + termMonths > account exp_date > unknown (null)
- *   effectiveLimit  = maxConnections > account max_connections > 1
+ *   effectiveExpiry = account exp_date, else unknown (null)
+ *   effectiveLimit  = account max_connections, else 1
  *
  * A failed read (Strong8K's player_api.php answered 502 all of 30 Sept) keeps the last
  * good values and never marks a provider expired: only a date in the past does.
@@ -17,7 +17,6 @@
 
 const { getDb } = require('../db/sqlite');
 const { redact } = require('../redact');
-const { parseDate } = require('./providerFields');
 
 const TIMEOUT_MS = 10000;
 const REFRESH_MS = 6 * 60 * 60 * 1000;
@@ -27,26 +26,8 @@ const REMINDER_DAYS = 7;
 
 // ------------------------------------------------------------ expiry, limit --
 
-/** End of a calendar day (UTC), ms. */
-const endOfDay = (y, m, d) => Date.UTC(y, m - 1, d, 23, 59, 59, 999);
-
-/** 'YYYY-MM-DD' plus whole months, the day clamped to the month's length (31 Jan + 1 month = 28/29 Feb). */
-function addMonths([y, m, d], months) {
-    const index = (y * 12 + (m - 1)) + months;
-    const ny = Math.floor(index / 12);
-    const nm = (index % 12) + 1;
-    const last = new Date(Date.UTC(ny, nm, 0)).getUTCDate();
-    return [ny, nm, Math.min(d, last)];
-}
-
-/** { at: ms | null, from: 'manual' | 'term' | 'account' | null } for the precedence in the header. */
+/** { at: ms | null, from: 'account' | null }: when the provider's account says it ends. */
 function expiryInfo(source, account) {
-    const sub = source?.subscription || {};
-    const ends = parseDate(sub.endsAt);
-    if (ends) return { at: endOfDay(...ends), from: 'manual' };
-    const bought = parseDate(sub.purchasedAt);
-    const term = Number.isInteger(sub.termMonths) && sub.termMonths > 0 ? sub.termMonths : null;
-    if (bought && term) return { at: endOfDay(...addMonths(bought, term)), from: 'term' };
     const exp = Number(account?.exp_date);
     if (Number.isFinite(exp) && exp > 0) return { at: exp, from: 'account' };
     return { at: null, from: null };
@@ -55,10 +36,8 @@ function expiryInfo(source, account) {
 /** Effective expiry in ms, or null when nothing says. */
 const effectiveExpiry = (source, account) => expiryInfo(source, account).at;
 
-/** Effective connection limit: manual > the account's > 1. */
+/** Effective connection limit: the account's, else 1. */
 function effectiveLimit(source, account) {
-    const manual = Number(source?.maxConnections);
-    if (Number.isInteger(manual) && manual > 0) return manual;
     const fromAccount = Number(account?.max_connections);
     if (Number.isInteger(fromAccount) && fromAccount > 0) return fromAccount;
     return 1;
@@ -293,7 +272,7 @@ function remove(sourceId) {
 }
 
 module.exports = {
-    effectiveExpiry, effectiveLimit, isExpired, expiryInfo, addMonths,
+    effectiveExpiry, effectiveLimit, isExpired, expiryInfo,
     parseCredentialsHeader, loginFromStreamUrl, deriveLogin, noteM3uHeader, parseAccountReply,
     refresh, refreshAll, startTimers, getAccount, describe, reminders, remove
 };

@@ -41,7 +41,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | CI | Both repos are **public** since 30 Sept (free Actions minutes; history checked for secrets). `gh` is signed in on the MacBook: `gh run view <id> --log-failed`. On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings (fixed 28 Sept):** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (so an SMB share that mounts late or reconnects appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs (schedule #3 failed with "0.0 GB free"). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
 | Shipped through | **0177** (pushed, 30 Sept–1 Oct: multi-provider failover 0168–0177, §6) and app **36**. Round 7 (`docs/TEST-BLOCK.md`) not yet run. Before that: **0167** and app **35**. Rounds 1–4 passed on 0151 + app 31; round 5 (0152–0154 + app 32) passed on 28 Sept apart from the five bugs that started the 28–29 Sept fix run (§6 "Fix run"); round 6 (0166 + app 34, `docs/TEST-BLOCK.md`) passed apart from R6.3 (fixed in 0167) and R6.14 (fixed in app 35), with R6.4–R6.6 and R6.16 still to run. Whether a build is *running* is whatever `/api/version` says. |
-| Next build number | **0182** |
+| Next build number | **0183** |
 | Tests | `npm test`: **790 tests, all pass** (1 Oct, after 0178, on CI; timing tests can fail locally when the Mac is loaded - check `uptime`, rerun, or trust CI; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
@@ -629,7 +629,35 @@ mid-play death. Tuner path unchanged (primary only).
 
 Everything above is tested against fakes only: **round 7** is the live check.
 
+### Settings consolidation (2 Oct; 0182, pushed; not yet deployed)
+
+Settings went from 14 tabs to 6: **Providers** (admin), **Channels** (Manage content, Channel numbers, EPG matching on a
+strip under the tab), **Playback** (Player + Transcoding, the VAAPI workarounds and User-Agent under "Advanced"),
+**Recording**, **Sports**, **System** (theme, devices, users). Debug is gone: the Status page's Live sessions has a Stop
+button per stream.
+
+- **Providers is the one place for content input.** One card per provider, every card the same form (name, Xtream login
+  or M3U address, guide (EPG) address, channel ID list). The card order is the roles: first = primary (its channels and
+  guide are shown), the rest = backups in failover order. `PUT /api/sources/order { ids }` saves it in one go and syncs the
+  providers whose role changed; moving a card to the top asks first. A provider added after the first is a backup at the
+  end; deleting the primary promotes the first backup. Backup links opens from a backup's card ("Review links").
+- **The guide belongs to the provider** (`epgUrl` on the source). Only the primary's is synced, stored under the
+  provider's own id (`syncProviderGuide`; an Xtream login with no address uses its own XMLTV); a provider that becomes a
+  backup has its guide rows dropped. The guide's sync state is the provider's `epg` row in `sync_status`.
+- **Nothing is typed by hand that the account reports.** The manual connection limit and the purchase/term/end dates are
+  removed: expiry and limit come from `player_api.php` alone (`providerAccounts`).
+- **One-time move at startup** (`services/providerMigration.js`, meta `providers_consolidated`): strips the hand-typed
+  fields, makes exactly one primary and numbers the backups, and turns the first enabled standalone EPG source into the
+  primary's guide address (its programmes are moved, not re-downloaded). Other standalone EPG sources keep working and
+  are listed under the cards until deleted.
+- Removed settings: Stream Output Format (never read by the server) and the unused defaults `forceProxy`,
+  `autoPlayNextEpisode`, `probeCacheTTL`, `seriesProbeCacheDays`. **Not done:** "Max concurrent recordings" is still a
+  setting (deriving it from the provider pools needs a change in the recording engine); the Apple TV reminder text still
+  says "update the dates in PigTV's web settings".
+
 ### Next
+
+**With the next Swift build (app 37):** reword the provider reminder in `PigTV-Swift/PigTV/ProviderReminders.swift`. It still says "update the dates in PigTV's web settings"; since 0182 there are no dates to type (the web banner already says PigTV reads the new date from the provider). Update its test too.
 
 1. **Before anything else on the server:** Settings → Recording → set the recordings folder back to
    `/app/recordings/SERVER01_Video/Recordings` (R6.3 left `fake` saved; 0167 now refuses such a path but doesn't fix a saved one).

@@ -4094,6 +4094,40 @@ kbd {
 .skip-ad-btn:hover { background: rgba(0, 0, 0, 0.88); transform: scale(1.03); }
 .skip-ad-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--color-accent); }
 
+/* Settings: the strip under the Channels tab, and collapsed advanced options (0182) */
+.subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+
+.subtab {
+  padding: 4px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.subtab.active {
+  background: var(--color-accent-dim);
+  color: var(--color-text-primary);
+  border-color: transparent;
+}
+
+.settings-advanced > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.settings-advanced[open] > summary {
+  margin-bottom: var(--space-md);
+}
+
 /* Settings -> Providers (0172) */
 .provider-card {
   background: var(--color-bg-secondary);
@@ -4197,8 +4231,45 @@ kbd {
   grid-column: 1 / -1;
 }
 
-.provider-clear {
-  margin-top: 4px;
+.provider-place {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.6em;
+  height: 1.6em;
+  border-radius: 50%;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.provider-card[data-id="new"] .provider-body {
+  display: block;
+}
+
+.provider-card[data-id="new"] .provider-save {
+  margin-top: var(--space-sm);
+}
+
+.provider-field {
+  min-width: 0;
+}
+
+.provider-inline {
+  margin-left: var(--space-sm);
+}
+
+.provider-add {
+  margin-bottom: var(--space-md);
+}
+
+.provider-legacy .provider-head {
+  margin: var(--space-sm) 0 0;
+}
+
+.provider-footer {
+  margin-top: var(--space-md);
 }
 
 .provider-save {

@@ -46,9 +46,6 @@ function getDefaultSettings() {
     defaultVolume: 80,
     rememberVolume: true,
     lastVolume: 80,
-    autoPlayNextEpisode: false,
-    forceProxy: false,
-    streamFormat: 'm3u8',
     epgRefreshInterval: '24',
     // User-Agent settings
     userAgentPreset: 'chrome',    // chrome | vlc | tivimate | custom
@@ -58,9 +55,6 @@ function getDefaultSettings() {
     maxResolution: '1080p',       // 4k | 1080p | 720p | 480p
     quality: 'medium',            // high | medium | low
     audioMixPreset: 'auto',       // auto | itu | night | cinematic | passthrough
-    // Probe cache settings
-    probeCacheTTL: 300,           // 5 minutes for URL probe cache
-    seriesProbeCacheDays: 7,       // 7 days for series episode probe cache
     // Upscaling settings
     upscaleEnabled: false,
     upscaleMethod: 'hardware',    // hardware | software
@@ -257,6 +251,19 @@ const sources = {
 
   async delete(id) {
     write((db) => { db.prepare('DELETE FROM app_sources WHERE id = ?').run(parseInt(id)); });
+  },
+
+  /** 0182: the role and failover place of every provider, saved together: [{ id, role, priority }]. */
+  async setOrder(places) {
+    write((db) => {
+      const read = db.prepare('SELECT data FROM app_sources WHERE id = ?');
+      const save = db.prepare('UPDATE app_sources SET data = ? WHERE id = ?');
+      for (const p of places) {
+        const current = parseRow(read.get(p.id));
+        if (!current) continue;
+        save.run(JSON.stringify({ ...current, role: p.role, priority: p.priority, updated_at: new Date().toISOString() }), p.id);
+      }
+    });
   },
 
   async toggleEnabled(id) {

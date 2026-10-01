@@ -16,6 +16,9 @@ class SettingsPage {
         this.tabs.forEach(tab => {
             tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
         });
+        document.querySelectorAll('.subtabs .subtab').forEach(sub => {
+            sub.addEventListener('click', () => this.switchTab(sub.dataset.subtab));
+        });
 
         // Player settings
         this.initPlayerSettings();
@@ -26,17 +29,23 @@ class SettingsPage {
         // User management (admin only)
         this.initUserManagement();
 
-        // Recording / UI / Debug tabs
+        // Recording / UI tabs
         this.initHwDecodeSettings();
         this.initDevices();
         this.initRecordingSettings();
         this.initUiSettings();
-        this.initDebugTools();
         this.initLineup();
         this.initEpgMatching();
         this.initSports();
         this.providers = new ProvidersSettings();
         this.backupLinks = new BackupLinksSettings();
+        document.getElementById('links-back')?.addEventListener('click', () => this.switchTab('providers'));
+    }
+
+    /** 0182: the backup links of one provider, opened from its card. */
+    showBackupLinks(providerId) {
+        if (providerId != null) this.backupLinks.filters.backupSourceId = String(providerId);
+        this.switchTab('backuplinks');
     }
 
     initHwDecodeSettings() {
@@ -696,67 +705,6 @@ class SettingsPage {
         }).join('');
     }
 
-    // ---- Debug tab -----------------------------------------------------
-
-    initDebugTools() {
-        const refreshBtn = document.getElementById('refresh-sessions');
-        if (refreshBtn) refreshBtn.addEventListener('click', () => this.loadActiveSessions());
-
-        const killBtn = document.getElementById('kill-all-streams');
-        if (killBtn) {
-            killBtn.addEventListener('click', async () => {
-                const status = document.getElementById('kill-streams-status');
-                killBtn.disabled = true;
-                try {
-                    const result = await API.transcode.killAllSessions();
-                    if (status) status.textContent = `Killed ${result.killed || 0} session(s)`;
-                    await this.loadActiveSessions();
-                    setTimeout(() => { if (status) status.textContent = ''; }, 3000);
-                } catch (err) {
-                    if (status) status.textContent = 'Failed: ' + err.message;
-                } finally {
-                    killBtn.disabled = false;
-                }
-            });
-        }
-    }
-
-    async loadActiveSessions() {
-        const list = document.getElementById('active-sessions-list');
-        if (!list) return;
-        try {
-            const sessions = await API.transcode.getSessions();
-            if (!Array.isArray(sessions) || sessions.length === 0) {
-                list.innerHTML = '<span class="setting-hint">No active sessions</span>';
-                return;
-            }
-            list.innerHTML = sessions.map(sess => {
-                const age = sess.startTime ? Math.round((Date.now() - sess.startTime) / 1000) : null;
-                return `
-                <div class="setting-item">
-                    <div class="setting-info">
-                        <span class="setting-label">HLS session — ${sess.id}${age !== null ? ` (${age}s)` : ''}</span>
-                        <span class="setting-hint">${sess.url || ''}</span>
-                    </div>
-                    <button class="btn btn-sm btn-danger" data-kill-session="${sess.id}">Kill</button>
-                </div>`;
-            }).join('');
-            list.querySelectorAll('[data-kill-session]').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    btn.disabled = true;
-                    try {
-                        await API.transcode.killSession(btn.dataset.killSession);
-                        await this.loadActiveSessions();
-                    } catch (err) {
-                        btn.disabled = false;
-                    }
-                });
-            });
-        } catch (err) {
-            list.innerHTML = '<span class="setting-hint">Could not load sessions</span>';
-        }
-    }
-
     initPlayerSettings() {
         const arrowKeysToggle = document.getElementById('setting-arrow-keys');
         const overlayDurationInput = document.getElementById('setting-overlay-duration');
@@ -822,9 +770,6 @@ class SettingsPage {
         const maxResolutionSelect = document.getElementById('setting-max-resolution');
         const qualitySelect = document.getElementById('setting-quality');
 
-        // Stream processing (use -tc suffix IDs from Transcoding tab)
-        const streamFormatSelect = document.getElementById('setting-stream-format-tc');
-
         // User-Agent (Transcoding tab versions)
         const userAgentSelect = document.getElementById('setting-user-agent-tc');
         const userAgentCustomInput = document.getElementById('setting-user-agent-custom-tc');
@@ -842,7 +787,6 @@ class SettingsPage {
         if (hwEncoderSelect) hwEncoderSelect.value = s.hwEncoder || 'auto';
         if (maxResolutionSelect) maxResolutionSelect.value = s.maxResolution || '1080p';
         if (qualitySelect) qualitySelect.value = s.quality || 'medium';
-        if (streamFormatSelect) streamFormatSelect.value = s.streamFormat || 'm3u8';
         if (userAgentSelect) userAgentSelect.value = s.userAgentPreset || 'chrome';
         if (userAgentCustomInput) userAgentCustomInput.value = s.userAgentCustom || '';
         if (customUaContainer) {
@@ -910,12 +854,6 @@ class SettingsPage {
 
         upscaleTargetSelect?.addEventListener('change', () => {
             this.app.player.settings.upscaleTarget = upscaleTargetSelect.value;
-            this.app.player.saveSettings();
-        });
-
-        // Stream processing toggles
-        streamFormatSelect?.addEventListener('change', () => {
-            this.app.player.settings.streamFormat = streamFormatSelect.value;
             this.app.player.saveSettings();
         });
 
@@ -1179,49 +1117,60 @@ class SettingsPage {
         }
     }
 
-    switchTab(tabName) {
-        if (tabName === 'transcode') this.loadHwDecodeSettings();
-        if (tabName === 'devices') this.loadDevices();
-        if (tabName === 'recording') this.loadRecordingSettings();
-        if (tabName === 'ui') this.loadUiSettings();
-        if (tabName === 'debug') this.loadActiveSessions();
-        if (tabName === 'lineup') this.loadLineup();
-        if (tabName === 'epg') this.loadEpgMatching();
-        if (tabName === 'sports') this.loadSports();
-        if (tabName === 'providers') this.providers.load();
-        if (tabName === 'backuplinks') { if (this.backupLinks.stale) this.backupLinks.load(); else this.backupLinks.reload(); }
-        this.tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
-        this.tabContents.forEach(c => c.classList.toggle('active', c.id === `tab-${tabName}`));
-
-        // Load content browser when switching to that tab
-        if (tabName === 'content') {
-            this.app.sourceManager.loadContentSources();
+    /**
+     * 0182: six tabs over the same panels. `name` is a tab or one of its panels:
+     *   channels  one panel at a time, picked on the strip under the tabs
+     *   playback, system  their panels one under the other
+     *   backuplinks  belongs to Providers (opened from a backup's card)
+     */
+    switchTab(name) {
+        const groups = SettingsPage.GROUPS;
+        const tab = groups[name] ? name
+            : (Object.keys(groups).find(g => groups[g].includes(name)) || (name === 'backuplinks' ? 'providers' : name));
+        let panels = [name];
+        if (tab === 'channels') {
+            this.channelsPanel = groups.channels.includes(name) ? name : (this.channelsPanel || groups.channels[0]);
+            panels = [this.channelsPanel];
+        } else if (groups[tab]) {
+            panels = groups[tab].filter(p => p !== 'users' || this.isAdmin());
         }
+        panels.forEach(panel => this.loadPanel(panel));
+        this.tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+        this.tabContents.forEach(c => c.classList.toggle('active', panels.some(p => c.id === `tab-${p}`)));
+        document.getElementById('subtabs-channels')?.classList.toggle('hidden', tab !== 'channels');
+        document.querySelectorAll('.subtabs .subtab').forEach(sub => sub.classList.toggle('active', panels.includes(sub.dataset.subtab)));
+    }
 
-        // Load users when switching to users tab
-        if (tabName === 'users') {
-            this.loadUsers();
-        }
+    isAdmin() {
+        return this.app.currentUser?.role === 'admin';
+    }
 
-        // Load hardware info when switching to transcode tab
-        if (tabName === 'transcode') {
-            this.loadHardwareInfo();
-        }
+    /** What a panel needs fetched when it comes into view. */
+    loadPanel(panel) {
+        if (panel === 'transcode') { this.loadHwDecodeSettings(); this.loadHardwareInfo(); }
+        if (panel === 'devices') this.loadDevices();
+        if (panel === 'recording') this.loadRecordingSettings();
+        if (panel === 'ui') this.loadUiSettings();
+        if (panel === 'lineup') this.loadLineup();
+        if (panel === 'epg') this.loadEpgMatching();
+        if (panel === 'sports') this.loadSports();
+        if (panel === 'providers') this.providers.load();
+        if (panel === 'backuplinks') { if (this.backupLinks.stale) this.backupLinks.load(); else this.backupLinks.reload(); }
+        if (panel === 'content') this.app.sourceManager.loadContentSources();
+        if (panel === 'users') this.loadUsers();
     }
 
     async show() {
-        // Show users tab for admin
-        if (this.app.currentUser && this.app.currentUser.role === 'admin') {
-            const usersTab = document.getElementById('users-tab');
-            if (usersTab) {
-                usersTab.style.display = 'block';
-            }
-            // 0172: the provider pages are admin-only too
+        // 0182: an admin lands on Providers the first time, a viewer on Playback; after that,
+        // on the tab they left.
+        if (this.isAdmin()) {
             document.querySelectorAll('.tabs .admin-tab').forEach(t => { t.style.display = ''; });
+            if (!this.openedOnce) this.switchTab('providers');
+            else if (document.getElementById('tab-providers')?.classList.contains('active')) this.providers.load();
+        } else if (!this.openedOnce) {
+            this.switchTab('playback');
         }
-
-        // Load sources when page is shown
-        await this.app.sourceManager.loadSources();
+        this.openedOnce = true;
 
         // Refresh ALL player settings from server
         if (this.app.player?.settings) {
@@ -1234,7 +1183,6 @@ class SettingsPage {
             const volumeValueDisplay = document.getElementById('volume-value');
             const rememberVolumeToggle = document.getElementById('setting-remember-volume');
             const epgRefreshSelect = document.getElementById('epg-refresh-interval');
-            const streamFormatSelect = document.getElementById('setting-stream-format');
 
             if (arrowKeysToggle) arrowKeysToggle.checked = s.arrowKeysChangeChannel;
             if (overlayDurationInput) overlayDurationInput.value = s.overlayDuration;
@@ -1242,19 +1190,6 @@ class SettingsPage {
             if (volumeValueDisplay) volumeValueDisplay.textContent = s.defaultVolume + '%';
             if (rememberVolumeToggle) rememberVolumeToggle.checked = s.rememberVolume;
             if (epgRefreshSelect) epgRefreshSelect.value = s.epgRefreshInterval || '24';
-            if (streamFormatSelect) streamFormatSelect.value = s.streamFormat || 'm3u8';
-
-            // User-Agent settings
-            const userAgentSelect = document.getElementById('setting-user-agent');
-            const userAgentCustomInput = document.getElementById('setting-user-agent-custom');
-            const customUaContainer = document.getElementById('custom-user-agent-container');
-            if (userAgentSelect) {
-                userAgentSelect.value = s.userAgentPreset || 'chrome';
-                if (customUaContainer) {
-                    customUaContainer.style.display = userAgentSelect.value === 'custom' ? 'flex' : 'none';
-                }
-            }
-            if (userAgentCustomInput) userAgentCustomInput.value = s.userAgentCustom || '';
         }
 
         // Update EPG last refreshed display
@@ -1310,5 +1245,7 @@ class SettingsPage {
         // Page is hidden
     }
 }
+
+SettingsPage.GROUPS = { channels: ['content', 'lineup', 'epg'], playback: ['player', 'transcode'], system: ['ui', 'devices', 'users'] };
 
 window.SettingsPage = SettingsPage;

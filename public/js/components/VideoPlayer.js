@@ -55,7 +55,6 @@ class VideoPlayer {
             defaultVolume: 80,
             rememberVolume: true,
             lastVolume: 80,
-            streamFormat: 'm3u8',
             epgRefreshInterval: '24'
         };
     }

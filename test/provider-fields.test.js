@@ -6,8 +6,8 @@ const path = require('node:path');
 const { once } = require('node:events');
 const express = require('express');
 
-// 0168 (multi-provider P1): a source gains provider fields (role, priority, maxConnections,
-// subscription, idOverlayUrl). They are validated on POST/PUT, an old source reads as a
+// 0168 (multi-provider P1): a source gains provider fields (role, priority, and since 0182
+// epgUrl and idOverlayUrl on any role; the hand-typed limit and dates are gone). They are validated on POST/PUT, an old source reads as a
 // primary, and nothing sensitive reaches a non-admin.
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-provider-fields-'));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
@@ -24,6 +24,7 @@ const sqlite = load('db/sqlite');
 let syncs = 0;
 load('services/syncService').syncSource = async () => { syncs++; };
 
+const GUIDE = 'http://epgenius.invalid/guide.xml?user=SECRETUSER&pass=SECRETPASS';
 const OVERLAY = 'http://epgenius.invalid/list.m3u?user=SECRETUSER&pass=SECRETPASS';
 let server, base, adminToken, viewerToken;
 
@@ -81,26 +82,29 @@ test('an existing source with no role reads as primary, an EPG source has none, 
     await db.sources.delete(old.id); await db.sources.delete(epg.id);
 });
 
-test('POST stores valid provider fields; PUT keeps what it does not mention and merges the subscription', async () => {
+test('POST stores valid provider fields; PUT keeps what it does not mention; the old limit and dates are ignored', async () => {
     const r = await call('POST', '/api/sources', {
         type: 'xtream', name: 'Trex', url: 'http://trex.invalid', username: 'u', password: 'secret-pass',
-        role: 'backup', priority: 1, maxConnections: 2, idOverlayUrl: OVERLAY,
-        subscription: { purchasedAt: '2026-01-31', termMonths: 3 }
+        role: 'backup', priority: 1, epgUrl: GUIDE, idOverlayUrl: OVERLAY,
+        maxConnections: 2, subscription: { purchasedAt: '2026-01-31', termMonths: 3 }
     });
     assert.equal(r.status, 201, r.text);
     const id = r.body.id;
-    const put = await call('PUT', `/api/sources/${id}`, { subscription: { endsAt: '2026-12-01' } });
+    const raw = () => JSON.parse(sqlite.getDb().prepare('SELECT data FROM app_sources WHERE id = ?').get(id).data);
+    assert.equal('maxConnections' in raw() || 'subscription' in raw(), false, '0182: not stored');
+    const put = await call('PUT', `/api/sources/${id}`, { priority: 2 });
     assert.equal(put.status, 200, put.text);
     const one = (await call('GET', `/api/sources/${id}`)).body;
-    assert.deepEqual(one.subscription, { purchasedAt: '2026-01-31', termMonths: 3, endsAt: '2026-12-01' });
-    assert.equal(one.role, 'backup'); assert.equal(one.priority, 1); assert.equal(one.maxConnections, 2);
-    assert.equal(one.idOverlayUrl, OVERLAY, 'the admin edit form gets it');
+    assert.equal(one.role, 'backup'); assert.equal(one.priority, 2);
+    assert.equal(one.epgUrl, GUIDE, 'the admin edit form gets the guide address');
+    assert.equal(one.idOverlayUrl, OVERLAY, 'and the overlay address');
+    assert.ok(!('maxConnections' in one) && !('subscription' in one));
     assert.equal(one.hasPassword, true);
     assert.ok(!('password' in one));
-    const cleared = await call('PUT', `/api/sources/${id}`, { maxConnections: null, idOverlayUrl: '' });
+    const cleared = await call('PUT', `/api/sources/${id}`, { epgUrl: '', idOverlayUrl: '' });
     assert.equal(cleared.status, 200);
     const after = (await call('GET', `/api/sources/${id}`)).body;
-    assert.equal(after.maxConnections, null); assert.equal(after.idOverlayUrl, null);
+    assert.equal(after.epgUrl, null); assert.equal(after.idOverlayUrl, null);
     await call('DELETE', `/api/sources/${id}`);
 });
 
@@ -109,15 +113,10 @@ test('bad input is a 400 with a plain sentence', async () => {
     const cases = [
         [{ role: 'boss' }, /role must be/],
         [{ priority: 0 }, /priority/], [{ priority: 'first' }, /priority/],
-        [{ maxConnections: 0 }, /maxConnections/], [{ maxConnections: 1.5 }, /maxConnections/], [{ maxConnections: '3' }, /maxConnections/],
-        [{ subscription: 'yes' }, /subscription must be an object/],
-        [{ subscription: { endsAt: '2026-02-30' } }, /endsAt must be a real date/],
-        [{ subscription: { purchasedAt: '30/09/2026' } }, /purchasedAt must be a real date/],
-        [{ subscription: { termMonths: 0 } }, /termMonths/], [{ subscription: { termMonths: 121 } }, /termMonths/],
-        [{ role: 'backup', idOverlayUrl: 'ftp://x.invalid/a.m3u' }, /idOverlayUrl must be an http/],
-        [{ role: 'backup', idOverlayUrl: 'not a url' }, /idOverlayUrl must be an http/],
-        [{ role: 'primary', idOverlayUrl: 'http://x.invalid/a.m3u' }, /only applies to a backup/],
-        [{ idOverlayUrl: 'http://x.invalid/a.m3u' }, /only applies to a backup/]
+        [{ idOverlayUrl: 'ftp://x.invalid/a.m3u' }, /idOverlayUrl must be an http/],
+        [{ idOverlayUrl: 'not a url' }, /idOverlayUrl must be an http/],
+        [{ epgUrl: 'ftp://x.invalid/a.xml' }, /epgUrl must be an http/],
+        [{ epgUrl: 42 }, /epgUrl must be an http/]
     ];
     for (const [extra, pattern] of cases) {
         const r = await call('POST', '/api/sources', { ...good, ...extra });
@@ -128,6 +127,10 @@ test('bad input is a 400 with a plain sentence', async () => {
     const epg = await call('POST', '/api/sources', { type: 'epg', name: 'G', url: 'http://g.invalid/x.xml', role: 'primary' });
     assert.equal(epg.status, 400);
     assert.match(epg.body.error, /EPG source has no provider settings/);
+    // 0182: every card is the same, so the primary may keep an overlay address too.
+    const primary = await call('POST', '/api/sources', { ...good, role: 'primary', idOverlayUrl: OVERLAY });
+    assert.equal(primary.status, 201, primary.text);
+    await call('DELETE', `/api/sources/${primary.body.id}`);
 });
 
 test('a second enabled primary that has streams is refused; a backup, or a primary without streams, is not', async () => {
@@ -150,28 +153,75 @@ test('a second enabled primary that has streams is refused; a backup, or a prima
     for (const s of (await call('GET', '/api/sources')).body) await call('DELETE', `/api/sources/${s.id}`);
 });
 
-test('no provider fields at all behaves as today: the same summary, and a plain second source is accepted', async () => {
+test('0182: the first provider added is the primary; later ones are backups at the end of the order', async () => {
     const a = await call('POST', '/api/sources', { type: 'm3u', name: 'One', url: 'http://one.invalid/a.m3u' });
     assert.equal(a.status, 201);
-    addLive(a.body.id);
     const b = await call('POST', '/api/sources', { type: 'm3u', name: 'Two', url: 'http://two.invalid/a.m3u' });
-    assert.equal(b.status, 201);
-    const raw = JSON.parse(sqlite.getDb().prepare('SELECT data FROM app_sources WHERE id = ?').get(b.body.id).data);
-    for (const k of ['role', 'priority', 'maxConnections', 'subscription', 'idOverlayUrl']) assert.equal(k in raw, false, k);
+    const c = await call('POST', '/api/sources', { type: 'xtream', name: 'Three', url: 'http://three.invalid', username: 'u', password: 'p' });
+    const list = (await call('GET', '/api/sources/providers')).body;
+    const of = (id) => list.find(p => p.id === id);
+    assert.equal(of(a.body.id).role, 'primary');
+    assert.deepEqual([of(b.body.id).role, of(b.body.id).priority], ['backup', 1]);
+    assert.deepEqual([of(c.body.id).role, of(c.body.id).priority], ['backup', 2]);
+    // An EPG source is not a provider and does not make the next one a backup.
+    for (const s of list) await call('DELETE', `/api/sources/${s.id}`);
+    await call('POST', '/api/sources', { type: 'epg', name: 'G', url: 'http://g.invalid/x.xml' });
+    const first = await call('POST', '/api/sources', { type: 'm3u', name: 'First', url: 'http://one.invalid/a.m3u' });
+    assert.equal((await db.sources.getById(first.body.id)).role, 'primary');
     for (const s of (await call('GET', '/api/sources')).body) await call('DELETE', `/api/sources/${s.id}`);
+});
+
+test('0182: PUT /api/sources/order makes the first the primary and numbers the backups; only changed roles sync', async () => {
+    const ids = [];
+    for (const name of ['A', 'B', 'C']) ids.push((await call('POST', '/api/sources', { type: 'xtream', name, url: `http://${name}.invalid`, username: 'u', password: 'p' })).body.id);
+    const [a, b, c] = ids;
+    addLive(a);
+    await new Promise(r => setImmediate(r));
+    const roles = async () => Object.fromEntries((await call('GET', '/api/sources/providers')).body.map(p => [p.id, [p.role, p.priority]]));
+    const order = (list, token) => call('PUT', '/api/sources/order', { ids: list }, token);
+
+    for (const bad of [[a, b], [a, b, b], [a, b, 9999], 'abc']) {
+        const r = await order(bad);
+        assert.equal(r.status, 400, JSON.stringify(bad));
+        assert.match(r.body.error, /every provider exactly once/);
+    }
+    assert.equal((await order([a, b, c], viewerToken)).status, 403);
+
+    syncs = 0;
+    let r = await order([a, c, b]);
+    assert.deepEqual(r.body, { success: true, primaryChanged: false });
+    assert.deepEqual(await roles(), { [a]: ['primary', null], [c]: ['backup', 1], [b]: ['backup', 2] });
+    await new Promise(r2 => setTimeout(r2, 20));
+    assert.equal(syncs, 0, 'reordering backups syncs nothing');
+
+    r = await order([c, a, b]);
+    assert.deepEqual(r.body, { success: true, primaryChanged: true });
+    assert.deepEqual(await roles(), { [c]: ['primary', null], [a]: ['backup', 1], [b]: ['backup', 2] });
+    await new Promise(r2 => setTimeout(r2, 20));
+    assert.equal(syncs, 2, 'the old and the new primary are synced');
+
+    // Deleting the primary closes the cards up: the first backup takes its place.
+    syncs = 0;
+    assert.equal((await call('DELETE', `/api/sources/${c}`)).status, 200);
+    assert.deepEqual(await roles(), { [a]: ['primary', null], [b]: ['backup', 1] });
+    await new Promise(r2 => setTimeout(r2, 20));
+    assert.equal(syncs, 1, 'the promoted provider is synced');
+    assert.equal((await call('DELETE', `/api/sources/${b}`)).status, 200);
+    assert.deepEqual(await roles(), { [a]: ['primary', null] });
+    await call('DELETE', `/api/sources/${a}`);
 });
 
 test('a non-admin sees only id, type, name and enabled; no provider field, login, overlay address or password', async () => {
     const r = await call('POST', '/api/sources', {
         type: 'xtream', name: 'Trex', url: 'http://trex.invalid', username: 'loginname', password: 'secret-pass',
-        role: 'backup', priority: 2, maxConnections: 3, idOverlayUrl: OVERLAY, subscription: { endsAt: '2026-12-01' }
+        role: 'backup', priority: 2, epgUrl: GUIDE, idOverlayUrl: OVERLAY
     });
     const id = r.body.id;
     for (const route of ['/api/sources', '/api/sources/type/xtream']) {
         const v = await call('GET', route, null, viewerToken);
         assert.equal(v.status, 200, route);
         assert.deepEqual(Object.keys(v.body[0]).sort(), ['enabled', 'id', 'name', 'type'], route);
-        for (const secret of ['SECRETUSER', 'SECRETPASS', 'secret-pass', 'loginname', 'epgenius', 'trex.invalid']) {
+        for (const secret of ['SECRETUSER', 'SECRETPASS', 'secret-pass', 'loginname', 'epgenius', 'trex.invalid', 'guide.xml']) {
             assert.ok(!v.text.includes(secret), `${route} leaks ${secret}`);
         }
     }
@@ -179,26 +229,26 @@ test('a non-admin sees only id, type, name and enabled; no provider field, login
     for (const [method, route] of [['GET', `/api/sources/${id}`], ['GET', `/api/sources/${id}/account`], ['POST', `/api/sources/${id}/account/check`]]) {
         assert.equal((await call(method, route, null, viewerToken)).status, 403, route);
     }
-    // An admin's provider list carries the settings but not the overlay address, and never a password.
+    // An admin's provider list carries the settings but not the guide or overlay address, and never a password.
     assert.equal((await call('GET', '/api/sources/providers', null, viewerToken)).status, 403);
     const list = await call('GET', '/api/sources/providers');
     assert.equal(list.body[0].role, 'backup');
-    assert.deepEqual(list.body[0].subscription, { purchasedAt: null, termMonths: null, endsAt: '2026-12-01' });
+    assert.equal(list.body[0].hasEpg, true);
     assert.equal(list.body[0].hasIdOverlay, true);
+    assert.ok(!('subscription' in list.body[0]) && !('maxConnections' in list.body[0]));
     for (const secret of ['SECRETUSER', 'SECRETPASS', 'secret-pass']) assert.ok(!list.text.includes(secret), `admin list leaks ${secret}`);
     const created = await call('PUT', `/api/sources/${id}`, { name: 'Trex 2' });
     assert.ok(!created.text.includes('SECRETPASS') && !created.text.includes('secret-pass'));
     await call('DELETE', `/api/sources/${id}`);
 });
 
-test('0172: changing only the order, limit or dates does not start a sync; any other change still does', async () => {
+test('0172: changing only the order does not start a sync; any other change still does', async () => {
     const created = await call('POST', '/api/sources', { type: 'xtream', name: 'Backup', url: 'http://b.invalid', username: 'u', password: 'p', role: 'backup' });
     const id = created.body.id;
     await new Promise(r => setImmediate(r));
     syncs = 0;
     assert.equal((await call('PUT', `/api/sources/${id}`, { priority: 2 })).status, 200);
-    assert.equal((await call('PUT', `/api/sources/${id}`, { maxConnections: 3, subscription: { endsAt: '2027-03-30' } })).status, 200);
-    assert.equal(syncs, 0, 'no sync for settings-only updates');
+    assert.equal(syncs, 0, 'no sync for an order-only update');
     assert.equal((await call('PUT', `/api/sources/${id}`, { role: 'primary' })).status, 200);
     assert.equal(syncs, 1, 'a role change syncs (the backup and primary paths differ)');
     assert.equal((await call('PUT', `/api/sources/${id}`, { name: 'Renamed' })).status, 200);

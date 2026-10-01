@@ -87,9 +87,6 @@ afterEach(async () => {
     for (const id of [...coordinator._prompts.keys()]) coordinator.clearPrompt(id);
     clearAccounts();
     await threeProviders();
-    for (const k of ['maxConnections']) {
-        for (const src of [A, B, C]) await db.sources.update(src.id, { [k]: null });
-    }
     await db.sources.update(B.id, { url: 'http://trex.invalid', username: 'u' });
     resolveCalls.length = 0;
 });
@@ -104,33 +101,30 @@ after(() => {
 
 // ------------------------------------------------------------------ limits --
 
-test('limit: with no backup configured it is maxProviderStreams (default 1), whatever the account or override says', async () => {
+test('limit: with no backup configured it is maxProviderStreams (default 1), whatever the account says', async () => {
     await singleProvider();
     setAccount(A.id, 4);
-    await db.sources.update(A.id, { maxConnections: 5 });
     assert.equal(coordinator.providerLimit(A.id, {}), 1);
     assert.equal(coordinator.providerLimit(A.id, { maxProviderStreams: 3 }), 3);
     assert.equal(coordinator.providerLimit(null, { maxProviderStreams: 2 }), 2);
     assert.equal(coordinator.providerLimit(B.id, { maxProviderStreams: 2 }), 2, 'a disabled backup is not a pool of its own');
 });
 
-test('limit: a backup uses its manual override, else its account, else 1', async () => {
+test('limit: a backup uses its account, else 1', async () => {
     assert.equal(coordinator.providerLimit(B.id, S), 1);
     setAccount(B.id, 3);
     assert.equal(coordinator.providerLimit(B.id, S), 3);
     await db.sources.update(B.id, { maxConnections: 2 });
-    assert.equal(coordinator.providerLimit(B.id, S), 2, 'the manual override wins over the account');
-    assert.equal(coordinator.providerLimit(B.id, { maxProviderStreams: 6 }), 2, 'the legacy setting never applies to a backup');
+    assert.equal(coordinator.providerLimit(B.id, S), 3, '0182: a hand-typed limit is not read');
+    assert.equal(coordinator.providerLimit(B.id, { maxProviderStreams: 6 }), 3, 'the legacy setting never applies to a backup');
 });
 
-test('limit: the primary with backups takes its override, else the larger of its account and maxProviderStreams', async () => {
+test('limit: the primary with backups takes the larger of its account and maxProviderStreams', async () => {
     assert.equal(coordinator.providerLimit(A.id, S), 1);
     assert.equal(coordinator.providerLimit(null, { maxProviderStreams: 2 }), 2, 'an admin who raised the legacy setting keeps it');
     setAccount(A.id, 3);
     assert.equal(coordinator.providerLimit(A.id, S), 3);
     assert.equal(coordinator.providerLimit(A.id, { maxProviderStreams: 4 }), 4);
-    await db.sources.update(A.id, { maxConnections: 1 });
-    assert.equal(coordinator.providerLimit(A.id, { maxProviderStreams: 4 }), 1, 'a manual override is the limit');
 });
 
 // ------------------------------------------------------------------ viewers --
@@ -376,20 +370,18 @@ test('0181: two sources with the same server and login are one pool; another log
 });
 
 test('0181: a shared pool\'s limit is the lowest among its sources', async () => {
-    await db.sources.update(B.id, { url: 'http://strong.invalid', username: 'u', maxConnections: 1 });
-    await db.sources.update(A.id, { maxConnections: 3 });
-    const dir = () => coordinator.providerLimit(B.id, S);
-    assert.equal(dir(), 1);
+    await db.sources.update(B.id, { url: 'http://strong.invalid', username: 'u' });
+    setAccount(B.id, 1);
+    setAccount(A.id, 3);
+    assert.equal(coordinator.providerLimit(B.id, S), 1);
     assert.equal(coordinator.providerLimit(A.id, S), 1, 'the primary sees the same pool limit');
-    await db.sources.update(B.id, { maxConnections: 5 });
+    setAccount(B.id, 5);
     assert.equal(coordinator.providerLimit(A.id, S), 3);
-    await db.sources.update(A.id, { maxConnections: null });
 });
 
 test('0181: no twin, no change: the primary and backups keep their own limits and pools', async () => {
-    await db.sources.update(A.id, { maxConnections: 2 });
-    await db.sources.update(B.id, { maxConnections: 4 });
+    setAccount(A.id, 2);
+    setAccount(B.id, 4);
     assert.equal(coordinator.providerLimit(A.id, S), 2);
     assert.equal(coordinator.providerLimit(B.id, S), 4);
-    await db.sources.update(A.id, { maxConnections: null });
 });

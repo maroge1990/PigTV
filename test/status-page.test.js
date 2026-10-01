@@ -8,7 +8,8 @@ const vm = require('node:vm');
 const js = (file) => fs.readFileSync(path.join(__dirname, '../public/js', file), 'utf8');
 
 test('the Status page renders /api/status and refreshes every 5 seconds only while shown', async () => {
-    const elements = { 'status-content': { innerHTML: '', querySelector: () => null }, 'status-updated': { textContent: '' } };
+    const handlers = [];
+    const elements = { 'status-content': { innerHTML: '', querySelector: () => null, addEventListener: (type, fn) => handlers.push(fn) }, 'status-updated': { textContent: '' } };
     const intervals = [];
     const cleared = [];
     const requests = [];
@@ -29,7 +30,7 @@ test('the Status page renders /api/status and refreshes every 5 seconds only whi
         console, localStorage: { getItem: () => 'tok' },
         document: { getElementById: (id) => elements[id] || null },
         setInterval: (fn, ms) => { intervals.push(ms); return 42; }, clearInterval: (t) => cleared.push(t),
-        fetch: async (url) => { requests.push(url); return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => status }; }
+        fetch: async (url, opts = {}) => { requests.push(opts.method && opts.method !== 'GET' ? `${opts.method} ${url}` : url); return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => status }; }
     });
     context.window = context;
     vm.runInContext(js('api.js'), context);
@@ -48,6 +49,14 @@ test('the Status page renders /api/status and refreshes every 5 seconds only whi
     assert.ok(html.includes('build 0124'));
     assert.ok(html.includes('Recent problems') && html.includes('The Big Game') && html.includes('Only 0.0 GB free'),
         '0156: a recent missed/failed schedule is shown');
+    // 0182: a stuck stream is stopped here (it was Settings -> Debug).
+    assert.ok(html.includes('data-kill-session="a"'), 'a Stop button on the session');
+    assert.ok(!html.includes('data-kill-all'), 'Stop all only with more than one stream');
+    const button = { dataset: { killSession: 'a' }, disabled: false };
+    handlers[0]({ target: { closest: () => button } });
+    await new Promise(r => setImmediate(r)); await new Promise(r => setImmediate(r));
+    assert.ok(requests.some(r => /^DELETE \/api\/transcode\/a(\?|$)/.test(r)), requests.join());
+    assert.equal(button.disabled, true);
     page.hide();
     assert.deepEqual(cleared.slice(-1), [42], 'the timer stops when the page is left');
 });
