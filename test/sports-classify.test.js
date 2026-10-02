@@ -112,7 +112,11 @@ test('league aliases: F1 = Formula 1 = Formula One = FIA F1; AFL and AFLW stay a
     assert.equal(classify.detectLeague('Premier League: Arsenal v Leeds United'), 'EPL');
     assert.equal(classify.detectLeague('Live: English Premier League - Chelsea v Spurs'), 'EPL');
     assert.equal(classify.detectLeague('Indian Premier League: Mumbai v Chennai'), 'IPL');
-    for (const other of ['Scottish Premier League: Celtic v Rangers', 'Premier League Darts', "Women's Premier League: UP v Delhi", 'Lanka Premier League']) {
+    assert.equal(classify.detectLeague('Sky Sports Premier League: Brentford v Aston Villa'), 'EPL');
+    assert.equal(classify.detectLeague('Soccer - Premier League - Bournemouth v Chelsea'), 'EPL');
+    // 0186: any other country's is not (Mark: "Canadian Premier League Soccer - Cavalry FC at Atlético Ottawa" came up as EPL)
+    for (const other of ['Canadian Premier League Soccer - Cavalry FC at Atlético Ottawa', 'Jamaica Premier League: Arnett Gardens v Cavalier',
+        'Liga Premier League de Fútbol', 'Scottish Premier League: Celtic v Rangers', 'Premier League Darts', "Women's Premier League: UP v Delhi", 'Lanka Premier League']) {
         assert.equal(classify.detectLeague(other), null, other);
     }
     assert.deepEqual(['Premier League', 'EPL', 'La Liga', 'Bundesliga', 'NBL', 'Super Rugby'].map(classify.canonicalLeague),

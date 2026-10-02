@@ -46,11 +46,13 @@ const LEAGUES = [
     ['MLB', ['mlb']],
     ['NHL', ['nhl']],
     ['MLS', ['mls']],
-    // 0185: guides say plain "Premier League"; other countries' and other sports' are told apart
-    // by the word before or after it (third element: a title this matches is not this league).
+    // 0185: guides say plain "Premier League". 0186: it is the English one only when no other
+    // word names whose it is: any word straight before it that is not on the short list below
+    // ("Canadian Premier League Soccer", "Scottish Premier League") makes it someone else's, as
+    // does another sport after it (third element: a title this matches is not this league).
     ['IPL', ['ipl', 'indian premier league']],
     ['EPL', ['epl', 'english premier league', 'premier league'],
-        /(?:^| )(?:indian|scottish|welsh|irish|northern ireland|lanka|caribbean|pakistan|bangladesh|nepal|womens|russian|egyptian|saudi|kabaddi|darts) premier league|premier league (?:darts|cricket|kabaddi|snooker|2|cup)(?= |$)/],
+        /(?:^| )(?!(?:english|england|epl|live|the|new|football|soccer|sports?|uk|hd|fhd|uhd|4k|sky|bt|tnt|nbc|usa|peacock|optus|stan|bein|on|of|in) )[^ ]+ premier league(?= |$)|premier league (?:darts|cricket|kabaddi|snooker|2|cup)(?= |$)/],
     ['La Liga', ['la liga', 'laliga']],
     ['Bundesliga', ['bundesliga']],
     ['Serie A', ['serie a']],
