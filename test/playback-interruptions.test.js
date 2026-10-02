@@ -67,6 +67,23 @@ test('nothing stored is a URL, and a bad call never throws', () => {
     assert.doesNotThrow(() => { ix.noteLost(); ix.noteResolved(); ix.noteResolved({ owner: 'x' }); });
 });
 
+test('0190: looking at a stream on the Status page does not make it look watched, and it is named by its resolve', async () => {
+    const sessions = load('services/transcodeSession');
+    const s = await sessions.createSession('http://p.invalid/live/u/p/1.ts', { live: true });
+    s.lastAccess = Date.now() - 90000;
+    assert.equal(sessions.peekSession(s.id), s);
+    assert.ok(Date.now() - s.lastAccess >= 90000, 'peek leaves the idle time alone');
+    sessions.getSession(s.id);
+    assert.ok(Date.now() - s.lastAccess < 1000, 'a client\'s access still counts');
+    assert.equal(sessions.peekSession('nope'), null);
+    await sessions.removeSession(s.id);
+    const status = fs.readFileSync(path.join(sandbox, 'server/routes/status.js'), 'utf8');
+    assert.match(status, /const session = transcodeSession\.peekSession\(summary\.id\);/);
+    assert.doesNotMatch(status, /transcodeSession\.getSession\(/, 'nothing on the Status route touches a session');
+    assert.match(status, /channel: options\.channelName \|\| channelNameForUrl\(summary\.url\) \|\| 'unknown',/);
+    assert.match(fs.readFileSync(path.join(sandbox, 'server/routes/playback.js'), 'utf8'), /played\.options\.channelName = channelLabel;/);
+});
+
 test('the resolve route records both ends, and Status shows it', () => {
     const route = fs.readFileSync(path.join(sandbox, 'server/routes/playback.js'), 'utf8');
     assert.match(route, /interruptions\.noteResolved\(\{ owner, channel: channelLabel, provider: providerLabel \}\)/);

@@ -1359,6 +1359,16 @@ function getSession(sessionId) {
 }
 
 /**
+ * 0190: the session without counting as a client's access. getSession() touches it, which
+ * is right for a playlist or segment request and wrong for an observer: the Status page,
+ * refreshing every 5 s, kept every stream looking watched, so an abandoned one was never
+ * reclaimed or swept while the page was open.
+ */
+function peekSession(sessionId) {
+    return sessions.get(sessionId) || null;
+}
+
+/**
  * Stop and remove a session
  */
 async function removeSession(sessionId) {
@@ -1541,6 +1551,7 @@ module.exports = {
     readrateBurstSec,
     createSession,
     getSession,
+    peekSession,
     removeSession,
     cleanupStaleSessions,
     sweepOrphanedCache,

@@ -335,7 +335,7 @@ class Relay {
                 refusedRetryDelaysMs: [1000],
                 deadlineAt: Date.now() + START_DEADLINE_MS,
                 timingNote: `, relay ${this.id} ${standby ? 'standby' : 'takeover'} on ${candidate.providerName}`,
-                sessionOptions: standby ? { standby: true } : null
+                sessionOptions: { channelName: ctx.channelName || null, ...(standby ? { standby: true } : {}) }
             });
         } catch (err) {
             if (routing().isProviderFailure(err)) {

@@ -212,7 +212,7 @@ class StatusPage {
         out.push(this.section('Live sessions', this.table(
             ['Channel', 'Owner', 'Video / audio', 'Segments', 'Up', 'Idle', 'ffmpeg', ''],
             sessions.map(s => [
-                e(s.channel), e(s.owner || '–'), `${e(s.video)} / ${e(s.audio)}`, e(s.segmentType || '–'),
+                `${e(s.channel)}${s.provider ? ` <span class="setting-hint">(${e(s.provider)})</span>` : ''}`, e(s.owner || '–'), `${e(s.video)} / ${e(s.audio)}`, e(s.segmentType || '–'),
                 this.duration(s.uptimeSec), this.duration(s.idleSec),
                 `${e(s.ffmpeg)}${s.error ? `<div class="setting-hint">${e(s.error)}</div>` : ''}`,
                 `<button type="button" class="btn btn-sm btn-danger" data-kill-session="${e(s.id)}" title="Stop this stream and free its provider connection">Stop</button>`

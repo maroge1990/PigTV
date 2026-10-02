@@ -126,11 +126,14 @@ function liveSessions() {
     const now = Date.now();
     if (require('../services/tuner').enabled()) return tunerRows(now);
     return transcodeSession.getAllSessions().map(summary => {
-        const session = transcodeSession.getSession(summary.id);
+        // peek, not get: looking at a stream must not make it look watched (0190).
+        const session = transcodeSession.peekSession(summary.id);
         const options = session?.options || {};
         return {
             id: summary.id,
-            channel: channelNameForUrl(summary.url) || 'unknown',
+            // 0190: the name the resolve gave it. Guessing from the address only finds a
+            // primary channel, so every play on a backup read "unknown".
+            channel: options.channelName || channelNameForUrl(summary.url) || 'unknown',
             owner: summary.owner || null,
             providerId: summary.providerId ?? null,
             provider: providerName(summary.providerId),

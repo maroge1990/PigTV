@@ -304,6 +304,8 @@ router.post('/resolve', requireToken, async (req, res) => {
             const providerLabel = chosen ? chosen.providerName : null;
             interruptions.noteResolved({ owner, channel: channelLabel, provider: providerLabel });
             const played = decision.sessionId ? require('../services/transcodeSession').getSession(decision.sessionId) : null;
+            // 0190: the Status page names the stream by this.
+            if (played && played.options && channelLabel) played.options.channelName = channelLabel;
             if (played && typeof played.once === 'function') {
                 played.once('lost', ({ how, providerReason } = {}) => interruptions.noteLost({
                     owner, channel: channelLabel, provider: providerLabel, how, providerReason,
