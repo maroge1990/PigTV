@@ -789,11 +789,18 @@
                 reads like a live event ("Live", "vs", "v"). Each is then an event (a match-up or a session), a replay of a game,
                 a show (magazines, highlights, pre and post shows) or a placeholder (empty PPV slots, old listings, 24/7 replay
                 channels). Listings of the same game on different channels are merged. The Apple TV lists events and replays.</p>
-              <h4>Keywords you follow</h4>
+              <h4>What you follow</h4>
               <div id="sports-follow-chips" class="epg-candidates sports-chips"></div>
               <div class="lineup-toolbar">
+                <select id="sports-league-select" class="source-select" aria-label="Add a league">
+                  <option value="">Add a league...</option>
+                </select>
+                <select id="sports-team-league" class="source-select" aria-label="League of a team to add">
+                  <option value="">Add a team from...</option>
+                </select>
+                <select id="sports-team-select" class="source-select hidden" aria-label="Team to add"></select>
                 <div class="search-wrapper">
-                  <input type="text" id="sports-follow-input" placeholder="Add a keyword (NFL, AFL, F1, Chiefs...)" class="search-input" maxlength="60">
+                  <input type="text" id="sports-follow-input" placeholder="Or any other keyword" class="search-input" maxlength="60">
                 </div>
                 <button id="sports-follow-add" class="btn btn-secondary">Add</button>
                 <button id="sports-follow-save" class="btn btn-primary" disabled>Save</button>
@@ -1084,7 +1091,7 @@
 
   <!-- JavaScript -->
   <script src="/js/icons.js"></script>
-  <script src="/js/api.js?v=17"></script>
+  <script src="/js/api.js?v=18"></script>
   <script src="/js/components/VideoPlayer.js?v=11"></script>
   <script src="/js/components/ChannelList.js?v=7"></script>
   <script src="/js/components/SourceManager.js?v=8"></script>
@@ -1095,7 +1102,7 @@
   <script src="/js/pages/RecordingsPage.js?v=9"></script>
   <script src="/js/pages/ProvidersSettings.js?v=4"></script>
   <script src="/js/pages/BackupLinksSettings.js?v=1"></script>
-  <script src="/js/pages/Settings.js?v=17"></script>
+  <script src="/js/pages/Settings.js?v=18"></script>
   <script src="/js/pages/StatusPage.js?v=6"></script>
   <script src="/js/providerReminders.js?v=2"></script>
   <script src="/js/app.js?v=11"></script>

@@ -61,7 +61,15 @@ router.get('/preview', requireAdmin, (req, res) => {
 
 router.get('/follow', requireAdmin, (req, res) => {
     try {
-        res.json({ keywords: sportsEvents.getFollow() });
+        // 0185: the leagues the server knows by name, for the Sports tab's list; `fixtures` says
+        // whether real kickoff times are fetched for it (ESPN).
+        const { LEAGUES } = require('../services/sportsClassify');
+        const { ESPN_LEAGUE_PATHS } = require('../services/sportsFixtures');
+        const NO_ROSTER = new Set(['F1', 'IPL', 'BBL']); // sessions, or cricket ids with no team list
+        const leagues = LEAGUES.map(l => ({ name: l.name, fixtures: Boolean(ESPN_LEAGUE_PATHS[l.name]) || l.name === 'Cricket',
+            teams: Boolean(ESPN_LEAGUE_PATHS[l.name]) && !NO_ROSTER.has(l.name) }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+        res.json({ keywords: sportsEvents.getFollow(), leagues });
     } catch (err) {
         console.error('[Sports] follow list failed:', err.message);
         res.status(500).json({ error: 'Could not read the follow list' });
@@ -76,6 +84,24 @@ router.put('/follow', requireAdmin, (req, res) => {
     } catch (err) {
         console.error('[Sports] saving the follow list failed:', err.message);
         res.status(500).json({ error: 'Could not save the follow list' });
+    }
+});
+
+/**
+ * GET /api/sports/teams?league=NFL   (admin; 0185) -> { league, teams: ['Arizona Cardinals', ...] }
+ * The teams of a league, for the Sports tab's team list. A team is followed as the keyword
+ * "<league>: <team>".
+ */
+router.get('/teams', requireAdmin, async (req, res) => {
+    try {
+        const league = require('../services/sportsClassify').canonicalLeague(req.query.league);
+        if (!league) return res.status(400).json({ error: 'league must be one the server knows (see GET /api/sports/follow)' });
+        const roster = await require('../services/sportsFixtures').rosterFor(league);
+        const teams = [...new Set(roster.map(t => t.displayName).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+        res.json({ league, teams });
+    } catch (err) {
+        console.error('[Sports] teams failed:', err.message);
+        res.status(500).json({ error: 'Could not list the teams' });
     }
 });
 

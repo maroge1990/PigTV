@@ -40,8 +40,12 @@ const REFRESH_EVERY_MS = 30 * 60 * 1000;
 const TEAMS_MAX_AGE_MS = DAY_MS;
 const MAX_CRICKET_SERIES = 20; // scorepanel's own list is small; a cap keeps a bad response bounded
 
-// canonical league (sportsClassify.LEAGUES) -> ESPN's URL path. 'Cricket' (international) is
-// handled separately (discoverCricketSeries): it has no single fixed path. AFLW has no ESPN feed.
+// canonical league (sportsClassify.LEAGUES) -> ESPN's URL path, or several whose fixtures are
+// merged (UEFA). 'Cricket' (international) is handled separately (discoverCricketSeries): it has
+// no single fixed path. AFLW has no ESPN feed. 0185: every team league below answered with
+// fixtures on 2 Oct 2026. Not here: UFC, IndyCar, NASCAR, golf and tennis (ESPN has them, but
+// as events without two teams, which needs its own matching); MotoGP, Supercars and netball
+// (no ESPN feed).
 const ESPN_LEAGUE_PATHS = {
     NFL: 'football/nfl',
     AFL: 'australian-football/afl',
@@ -49,7 +53,22 @@ const ESPN_LEAGUE_PATHS = {
     F1: 'racing/f1',
     MLB: 'baseball/mlb',
     IPL: 'cricket/8048',
-    BBL: 'cricket/8044'
+    BBL: 'cricket/8044',
+    NHL: 'hockey/nhl',
+    WNBA: 'basketball/wnba',
+    NBL: 'basketball/nbl',
+    NRL: 'rugby-league/3',
+    'Super Rugby': 'rugby/242041',
+    EPL: 'soccer/eng.1',
+    Championship: 'soccer/eng.2',
+    'FA Cup': 'soccer/eng.fa',
+    UEFA: ['soccer/uefa.champions', 'soccer/uefa.europa'],
+    'La Liga': 'soccer/esp.1',
+    Bundesliga: 'soccer/ger.1',
+    'Serie A': 'soccer/ita.1',
+    'Ligue 1': 'soccer/fra.1',
+    MLS: 'soccer/usa.1',
+    'A-League': 'soccer/aus.1'
 };
 
 function enabled() {
@@ -63,7 +82,8 @@ function followedLeagues(db) {
     const rows = db.prepare('SELECT keyword FROM sports_follow').all();
     const out = new Set();
     for (const r of rows) {
-        const l = sportsClassify.canonicalLeague(r.keyword);
+        // a league by name, or the league of a followed team ("NFL: Arizona Cardinals", 0185)
+        const l = sportsClassify.canonicalLeague(r.keyword) || sportsClassify.teamFollow(r.keyword)?.league;
         if (l) out.add(l);
     }
     return out;
@@ -155,14 +175,52 @@ function loadTeams(db, league) {
     try { return { teams: JSON.parse(row.data), updatedAt: row.updated_at }; } catch { return null; }
 }
 
+/** The cached roster of a league ([{ displayName, shortDisplayName, name, location, abbreviation }]), or []. */
+function teamsOf(league, db = getDb()) {
+    return loadTeams(db, league)?.teams || [];
+}
+
+/**
+ * 0185: a league's roster for the Sports tab's team list: the cached one, else read from ESPN
+ * now and kept. [] for a league with no ESPN feed or no teams (F1, cricket), or when ESPN does
+ * not answer. Only an admin's request for the list calls this; nothing on the playback path does.
+ */
+async function rosterFor(league, { db = getDb() } = {}) {
+    const cached = teamsOf(league, db);
+    if (cached.length || !enabled()) return cached;
+    const teams = [];
+    for (const path of [].concat(ESPN_LEAGUE_PATHS[league] || [])) {
+        const r = await espn.fetchTeams(path);
+        if (r.ok) teams.push(...r.teams);
+    }
+    if (teams.length) saveTeams(db, league, teams);
+    return teams;
+}
+
 // ---- refreshing one league --------------------------------------------------------------------
 
-/** NFL/AFL/NBA/F1/MLB/IPL/BBL: one fixed ESPN league path. */
+/** One league's ESPN path(s), fetched and merged: { ok, records, teams, error } (ok when any path answered). */
+async function fetchPaths(paths, now) {
+    const records = [];
+    const teams = [];
+    let anyOk = false;
+    let error = null;
+    for (const path of paths) {
+        const r = await espn.fetchScoreboard(path, now - LOOKBACK_MS, now + WINDOW_MS);
+        if (!r.ok) { error = r.error; continue; }
+        anyOk = true;
+        records.push(...r.records);
+        teams.push(...r.teams);
+    }
+    return anyOk ? { ok: true, records, teams } : { ok: false, error };
+}
+
+/** A league with fixed ESPN path(s): everything in ESPN_LEAGUE_PATHS. */
 async function refreshLeague(league, { now = Date.now(), db = getDb() } = {}) {
-    const path = ESPN_LEAGUE_PATHS[league];
-    if (!path) return;
+    const paths = [].concat(ESPN_LEAGUE_PATHS[league] || []);
+    if (!paths.length) return;
     saveStatus(db, league, { last_attempt_at: now });
-    const result = await espn.fetchScoreboard(path, now - LOOKBACK_MS, now + WINDOW_MS);
+    const result = await fetchPaths(paths, now);
     if (!result.ok) {
         logStateChange(league, false, result.error);
         saveStatus(db, league, { last_error: result.error || 'failed', last_error_at: now });
@@ -177,8 +235,12 @@ async function refreshLeague(league, { now = Date.now(), db = getDb() } = {}) {
 
     const cachedTeams = loadTeams(db, league);
     if (!cachedTeams || now - cachedTeams.updatedAt >= TEAMS_MAX_AGE_MS) {
-        const teamsResult = await espn.fetchTeams(path);
-        if (teamsResult.ok && teamsResult.teams.length) saveTeams(db, league, teamsResult.teams);
+        const rosters = [];
+        for (const path of paths) {
+            const teamsResult = await espn.fetchTeams(path);
+            if (teamsResult.ok) rosters.push(...teamsResult.teams);
+        }
+        if (rosters.length) saveTeams(db, league, rosters);
         else if (result.teams && result.teams.length) saveTeams(db, league, result.teams); // cricket paths: no /teams endpoint
     }
 }
@@ -389,7 +451,7 @@ function reset() {
 module.exports = {
     enabled, neededLeagues, refreshAll, refreshLeague, refreshCricket, scheduleRefresh,
     startBackgroundRefresh, stopBackgroundRefresh, snapshot, statusSummary, reset,
-    ESPN_LEAGUE_PATHS,
+    ESPN_LEAGUE_PATHS, teamsOf, rosterFor,
     // exposed for tests
     toFixture, teamAliasSides, f1Session
 };

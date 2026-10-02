@@ -108,6 +108,15 @@ test('league aliases: F1 = Formula 1 = Formula One = FIA F1; AFL and AFLW stay a
         ['F1', 'F1', 'F1', 'F1', 'AFLW', 'AFLW', 'AFL', 'NFL', null]);
     assert.equal(classify.detectLeague('FIA Formula One World Championship - FIA F1: Azerbaijan GP Practice 3'), 'F1');
     assert.equal(classify.detectLeague('Formula 1 : Azerbaijan Practice 3'), 'F1');
+    // 0185: plain "Premier League" is the English one; other countries' and sports' are not.
+    assert.equal(classify.detectLeague('Premier League: Arsenal v Leeds United'), 'EPL');
+    assert.equal(classify.detectLeague('Live: English Premier League - Chelsea v Spurs'), 'EPL');
+    assert.equal(classify.detectLeague('Indian Premier League: Mumbai v Chennai'), 'IPL');
+    for (const other of ['Scottish Premier League: Celtic v Rangers', 'Premier League Darts', "Women's Premier League: UP v Delhi", 'Lanka Premier League']) {
+        assert.equal(classify.detectLeague(other), null, other);
+    }
+    assert.deepEqual(['Premier League', 'EPL', 'La Liga', 'Bundesliga', 'NBL', 'Super Rugby'].map(classify.canonicalLeague),
+        ['EPL', 'EPL', 'La Liga', 'Bundesliga', 'NBL', 'Super Rugby']);
     assert.equal(classify.detectLeague("AFL Women's Premiership Football - Carlton Blues vs. Richmond Tigers"), 'AFLW');
     assert.equal(classify.detectLeague("Women's AFL - AFLW: Carlton v Richmond"), 'AFLW');
     assert.equal(classify.detectLeague('AFL - AFL Grand Final: FRE v BRL'), 'AFL');

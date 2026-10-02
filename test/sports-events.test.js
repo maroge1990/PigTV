@@ -288,11 +288,50 @@ test('hours defaults to 6 and is clamped to 1-72 (0153: a whole weekend; was 24)
     assert.equal(find(await events('?hours=abc'), 'NBA').length, 2, 'not a number: the default 6 (the second NBA starts in 5 h)');
 });
 
+test('0185: a followed team ("NFL: Arizona Cardinals") follows its games by full name, or by a short name inside its league', async () => {
+    const ev = load('services/sportsEvents');
+    const roster = [
+        { displayName: 'Arizona Cardinals', shortDisplayName: 'Cardinals', name: 'Cardinals', location: 'Arizona', abbreviation: 'ARI' },
+        { displayName: 'Seattle Seahawks', shortDisplayName: 'Seahawks', name: 'Seahawks', location: 'Seattle', abbreviation: 'SEA' },
+        { displayName: 'New York Giants', shortDisplayName: 'Giants', name: 'Giants', location: 'New York', abbreviation: 'NYG' },
+        { displayName: 'New York Jets', shortDisplayName: 'Jets', name: 'Jets', location: 'New York', abbreviation: 'NYJ' }
+    ];
+    sqlite.getDb().prepare('INSERT OR REPLACE INTO sport_fixture_teams (league, data, updated_at) VALUES (?, ?, ?)').run('NFL', JSON.stringify(roster), Date.now());
+    const follow = ev.compileFollow(['NFL: Arizona Cardinals', 'nfl: New York Jets']);
+    const hit = (title, categories = []) => ev.classify({ title, categories }, follow);
+    assert.deepEqual(hit('Arizona Cardinals at Seattle Seahawks'), { rule: 'keyword', match: 'NFL: Arizona Cardinals', league: 'NFL' }, 'the full name needs no league');
+    assert.equal(hit('NFL: Cardinals @ Seahawks').match, 'NFL: Arizona Cardinals', 'the nickname, in an NFL programme');
+    assert.equal(hit('Arizona at Seattle', ['NFL']).match, 'NFL: Arizona Cardinals', 'the place, when one team has it');
+    assert.equal(hit('MLB: St. Louis Cardinals at Chicago Cubs'), null, 'another league\'s Cardinals');
+    assert.equal(hit('Cardinals in the Vatican'), null, 'the nickname alone, outside the league');
+    assert.equal(hit('NFL: Seahawks @ 49ers'), null, 'another NFL game is not followed');
+    assert.equal(hit('NFL: New York at Dallas'), null, 'a place two teams share names neither');
+    assert.equal(hit('NFL: Jets @ Bills').match, 'nfl: New York Jets');
+    // With no roster yet, the name as written still works.
+    const bare = ev.compileFollow(['EPL: Arsenal']);
+    assert.equal(ev.classify({ title: 'Premier League: Arsenal v Leeds United', categories: [] }, bare).league, 'EPL');
+    // The team's league gets its fixtures fetched, and the team list is served to the admin.
+    await call('PUT', '/api/sports/follow', { body: { keywords: ['NFL: Arizona Cardinals'] } });
+    assert.deepEqual([...load('services/sportsFixtures').neededLeagues()], ['NFL']);
+    const teams = await call('GET', '/api/sports/teams?league=nfl');
+    assert.deepEqual(teams.body, { league: 'NFL', teams: ['Arizona Cardinals', 'New York Giants', 'New York Jets', 'Seattle Seahawks'] });
+    assert.equal((await call('GET', '/api/sports/teams?league=Quidditch')).status, 400);
+    assert.equal((await call('GET', '/api/sports/teams?league=NFL', { token: viewerToken })).status, 403);
+    await call('PUT', '/api/sports/follow', { body: { keywords: [] } });
+    sqlite.getDb().prepare('DELETE FROM sport_fixture_teams').run();
+});
+
 test('the follow list: admin only, trimmed and de-duplicated, at most 100', async () => {
     const saved = await follow([' NFL ', 'nfl', 'Chiefs', '', '  AFL  ']);
     assert.equal(saved.status, 200);
     assert.deepEqual(saved.body, { keywords: ['NFL', 'Chiefs', 'AFL'] });
-    assert.deepEqual((await call('GET', '/api/sports/follow')).body, { keywords: ['NFL', 'Chiefs', 'AFL'] });
+    const read = (await call('GET', '/api/sports/follow')).body;
+    assert.deepEqual(read.keywords, ['NFL', 'Chiefs', 'AFL']);
+    // 0185: with the leagues the Sports tab offers, and whether each has real fixture times
+    assert.deepEqual(read.leagues.find(l => l.name === 'EPL'), { name: 'EPL', fixtures: true, teams: true });
+    assert.deepEqual(read.leagues.find(l => l.name === 'MotoGP'), { name: 'MotoGP', fixtures: false, teams: false });
+    assert.deepEqual(read.leagues.find(l => l.name === 'Cricket'), { name: 'Cricket', fixtures: true, teams: false });
+    assert.deepEqual(read.leagues.find(l => l.name === 'F1'), { name: 'F1', fixtures: true, teams: false });
     assert.equal((await call('PUT', '/api/sports/follow', { body: { keywords: 'NFL' } })).status, 400);
     assert.equal((await call('PUT', '/api/sports/follow', { body: { keywords: [3] } })).status, 400);
     assert.equal((await follow(Array.from({ length: 101 }, (_, i) => `k${i}`))).status, 400);
@@ -300,7 +339,7 @@ test('the follow list: admin only, trimmed and de-duplicated, at most 100', asyn
     assert.equal((await call('GET', '/api/sports/follow', { token: viewerToken })).status, 403);
     assert.equal((await call('PUT', '/api/sports/follow', { token: viewerToken, body: { keywords: [] } })).status, 403);
     await follow([]);
-    assert.deepEqual((await call('GET', '/api/sports/follow')).body, { keywords: [] });
+    assert.deepEqual((await call('GET', '/api/sports/follow')).body.keywords, []);
 });
 
 test('the preview is admin only and says which rule matched', async () => {

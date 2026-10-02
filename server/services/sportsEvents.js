@@ -91,19 +91,61 @@ const LIVE_TITLE_RE = /(?:^|[^\p{L}\p{N}])(?:live|vs)(?=$|[^\p{L}\p{N}])|\sv\s/i
 /**
  * A keyword that names a league ("F1", "Formula 1", "AFLW") follows that canonical league
  * in all its spellings (sportsClassify.LEAGUES), and only it: "AFL" does not follow
- * "Women's AFL". Any other keyword ("Chiefs") is matched as whole words.
+ * "Women's AFL". A team ("NFL: Arizona Cardinals", 0185) follows that team's games: its full
+ * name anywhere, or one of its shorter names ("Cardinals", "Arizona") in a programme of its
+ * league - the St. Louis Cardinals are MLB, so the short name alone would not do. Any other
+ * keyword ("Chiefs") is matched as whole words.
  */
 function compileFollow(keywords) {
     const list = keywords.map(k => {
         const league = sportsClassify.canonicalLeague(k);
-        return { keyword: k, league, re: league ? null : wordRegExp(phrase(k.toLowerCase())) };
+        if (league) return { keyword: k, league, team: null, re: null };
+        const team = sportsClassify.teamFollow(k);
+        if (team) return { keyword: k, league: null, team: teamNames(team), re: null };
+        return { keyword: k, league: null, team: null, re: wordRegExp(phrase(k.toLowerCase())) };
     });
-    const literal = list.filter(k => !k.league);
+    const literal = [
+        ...list.filter(k => k.re).map(k => phrase(k.keyword.toLowerCase())),
+        ...list.filter(k => k.team).flatMap(k => k.team.phrases)
+    ];
     return {
         list,
         leagues: new Set(list.filter(k => k.league).map(k => k.league)),
-        any: literal.length ? wordRegExp(literal.map(k => phrase(k.keyword.toLowerCase())).join('|')) : null
+        any: literal.length ? wordRegExp(literal.join('|')) : null
     };
+}
+
+/**
+ * A followed team's names as patterns: { league, full (its whole name), short (its nickname,
+ * and its place when no other team of the league shares it), phrases }. The shorter names come
+ * from the league's cached roster; without one, only the name as written is known.
+ */
+function teamNames({ league, team }) {
+    const fold = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const wanted = fold(team);
+    let roster = [];
+    try { roster = sportsFixtures.teamsOf(league); } catch (e) { /* no roster yet */ }
+    const entry = roster.find(t => fold(t.displayName) === wanted);
+    const short = new Set();
+    if (entry) {
+        for (const name of [entry.name, entry.shortDisplayName]) if (fold(name) && fold(name) !== wanted) short.add(fold(name));
+        const place = fold(entry.location);
+        if (place && place !== wanted && roster.filter(t => fold(t.location) === place).length === 1) short.add(place);
+    }
+    const fullPhrase = phrase(wanted);
+    const shortPhrases = [...short].filter(n => n.length >= 3).map(phrase);
+    return {
+        league,
+        full: wordRegExp(fullPhrase),
+        short: shortPhrases.length ? wordRegExp(shortPhrases.join('|')) : null,
+        phrases: [fullPhrase, ...shortPhrases]
+    };
+}
+
+/** Does a followed team play in this programme? */
+function teamFollowed(team, texts, leagues) {
+    if (texts.some(t => team.full.test(t))) return true;
+    return Boolean(team.short) && leagues.includes(team.league) && texts.some(t => team.short.test(t));
 }
 
 /** The first followed keyword (in list order) in the title or a category, or null. */
@@ -113,7 +155,7 @@ function followedKeyword(follow, title, categories, leagues) {
     const literalHit = follow.any && texts.some(t => follow.any.test(t));
     if (!literalHit && !leagues.some(l => follow.leagues.has(l))) return null;
     for (const k of follow.list) {
-        if (k.league ? leagues.includes(k.league) : texts.some(t => k.re.test(t))) return k;
+        if (k.league ? leagues.includes(k.league) : k.team ? teamFollowed(k.team, texts, leagues) : texts.some(t => k.re.test(t))) return k;
     }
     return null;
 }
@@ -145,7 +187,7 @@ function classify({ title, categories = [], sportChannel = false }, follow) {
     const titleLeague = sportsClassify.detectLeague(text);
     const leagues = [titleLeague, ...categories.map(c => sportsClassify.detectLeague(c))].filter(Boolean);
     const keyword = followedKeyword(follow, text, categories, leagues);
-    if (keyword) return { rule: 'keyword', match: keyword.keyword, league: leagues[0] || keyword.league || keyword.keyword };
+    if (keyword) return { rule: 'keyword', match: keyword.keyword, league: leagues[0] || keyword.league || (keyword.team && keyword.team.league) || keyword.keyword };
     const category = categories.find(c => VOCABULARY_RE.test(String(c).replace(/[\-_/]+/g, ' ')));
     if (category) return { rule: 'category', match: category, league: leagueFromCategories(categories) };
     if (sportChannel && LIVE_TITLE_RE.test(text)) {

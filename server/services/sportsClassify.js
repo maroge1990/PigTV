@@ -46,14 +46,24 @@ const LEAGUES = [
     ['MLB', ['mlb']],
     ['NHL', ['nhl']],
     ['MLS', ['mls']],
-    ['EPL', ['epl', 'english premier league']],
+    // 0185: guides say plain "Premier League"; other countries' and other sports' are told apart
+    // by the word before or after it (third element: a title this matches is not this league).
+    ['IPL', ['ipl', 'indian premier league']],
+    ['EPL', ['epl', 'english premier league', 'premier league'],
+        /(?:^| )(?:indian|scottish|welsh|irish|northern ireland|lanka|caribbean|pakistan|bangladesh|nepal|womens|russian|egyptian|saudi|kabaddi|darts) premier league|premier league (?:darts|cricket|kabaddi|snooker|2|cup)(?= |$)/],
+    ['La Liga', ['la liga', 'laliga']],
+    ['Bundesliga', ['bundesliga']],
+    ['Serie A', ['serie a']],
+    ['Ligue 1', ['ligue 1']],
+    ['FA Cup', ['fa cup']],
     ['UFC', ['ufc']],
     ['MotoGP', ['motogp', 'moto gp']],
     ['NASCAR', ['nascar']],
     ['IndyCar', ['indycar']],
     ['Supercars', ['supercars']],
     ['BBL', ['bbl', 'big bash']],
-    ['IPL', ['ipl', 'indian premier league']],
+    ['NBL', ['nbl']],
+    ['Super Rugby', ['super rugby']],
     // 0161: international cricket (Tests, ODIs, T20Is) has no fixed competition name the way
     // IPL/BBL do, so it is caught by the sport itself, most specific spellings first - never the
     // bare word "test" on its own (far too common outside cricket: "screen test", "field test").
@@ -65,7 +75,7 @@ const LEAGUES = [
     ['UEFA', ['uefa', 'champions league', 'europa league', 'conference league']],
     ['Championship', ['efl championship', 'sky bet championship']],
     ['A-League', ['a league', 'aleague', 'a leagues']]
-].map(([name, aliases]) => ({ name, aliases, re: words(aliases) }));
+].map(([name, aliases, not]) => ({ name, aliases, re: words(aliases), not: not || null }));
 const ALL_ALIASES_RE = new RegExp(`(?:^| )(?:${LEAGUES.flatMap(l => l.aliases).sort((a, b) => b.length - a.length).join('|')})(?= |$)`, 'g');
 const MOTOR = new Set(['F1', 'MotoGP', 'NASCAR', 'IndyCar', 'Supercars']);
 
@@ -76,11 +86,22 @@ function canonicalLeague(keyword) {
     return null;
 }
 
+/**
+ * 0185: a followed team is written "League: Team" ("NFL: Arizona Cardinals"), the league in any
+ * spelling the server knows. -> { league (canonical), team } | null for any other keyword.
+ */
+function teamFollow(keyword) {
+    const m = /^([^:]{1,30}):\s*(\S.*)$/.exec(String(keyword || '').trim());
+    if (!m) return null;
+    const league = canonicalLeague(m[1]);
+    return league ? { league, team: m[2].trim() } : null;
+}
+
 /** The canonical league a title (or category) mentions, most specific first, or null. */
 function detectLeague(text) {
     const t = normText(text);
     if (!t) return null;
-    for (const l of LEAGUES) if (l.re.test(t)) return l.name;
+    for (const l of LEAGUES) if (l.re.test(t) && !(l.not && l.not.test(t))) return l.name;
     return null;
 }
 
@@ -701,7 +722,18 @@ function fixtureVerdict(a, leagueData, now) {
     }
     if (p.session) {
         const candidates = (leagueData.fixtures || []).filter(f => f.session && sessionMatch(f.session, p.session) && locationMatch(f.location, p.location));
-        if (!candidates.length) return null;
+        if (!candidates.length) {
+            // 0185: last weekend's grand prix shown again midweek. ESPN has no session of this
+            // league anywhere near this airing, so it cannot be live. Trusted like "no such game":
+            // only on a fresh fetch whose window reaches well either side. With any session of the
+            // league nearby (a race weekend, perhaps named differently) nothing is concluded.
+            const recent = Number.isFinite(at) && Number.isFinite(now) && now - at <= NO_GAME_MAX_AGE_MS;
+            const widelyEnoughCovered = from <= a.start - NO_GAME_HALF_WINDOW_MS && to >= a.start + NO_GAME_HALF_WINDOW_MS;
+            const anyNearby = (leagueData.fixtures || []).some(f => Math.abs(f.start - a.start) <= NO_GAME_HALF_WINDOW_MS
+                || (f.end && f.start <= a.start && f.end >= a.start));
+            if (recent && widelyEnoughCovered && !anyNearby) return { live: false, why: `ESPN has no ${a.league} session at this time` };
+            return null;
+        }
         const best = candidates.reduce((b, c) => (Math.abs(c.start - a.start) < Math.abs(b.start - a.start) ? c : b));
         return fixtureLiveVerdict(a, best, 'session');
     }
@@ -849,7 +881,7 @@ function finishItem(item) {
 }
 
 module.exports = {
-    LEAGUES, normText, canonicalLeague, detectLeague,
+    LEAGUES, normText, canonicalLeague, detectLeague, teamFollow,
     parseTitle, parseSession, parseMatchup, parseSide, parseDates, teamMatch, pairMatch,
     classifyKind, channelTokens, loopedProgrammes, mergeAirings, cleanTitle,
     // 0152

@@ -41,7 +41,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | CI | Both repos are **public** since 30 Sept (free Actions minutes; history checked for secrets). `gh` is signed in on the MacBook: `gh run view <id> --log-failed`. On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings (fixed 28 Sept):** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (so an SMB share that mounts late or reconnects appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs (schedule #3 failed with "0.0 GB free"). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
 | Shipped through | **0177** (pushed, 30 Sept–1 Oct: multi-provider failover 0168–0177, §6) and app **36**. Round 7 (`docs/TEST-BLOCK.md`) not yet run. Before that: **0167** and app **35**. Rounds 1–4 passed on 0151 + app 31; round 5 (0152–0154 + app 32) passed on 28 Sept apart from the five bugs that started the 28–29 Sept fix run (§6 "Fix run"); round 6 (0166 + app 34, `docs/TEST-BLOCK.md`) passed apart from R6.3 (fixed in 0167) and R6.14 (fixed in app 35), with R6.4–R6.6 and R6.16 still to run. Whether a build is *running* is whatever `/api/version` says. |
-| Next build number | **0185** |
+| Next build number | **0186** |
 | Tests | `npm test`: **790 tests, all pass** (1 Oct, after 0178, on CI; timing tests can fail locally when the Mac is loaded - check `uptime`, rerun, or trust CI; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
@@ -664,6 +664,23 @@ playlist's rows are unchanged. No login, or the provider not answering: the play
 **0184 (2 Oct, pushed): provider cards say more.** An M3U card shows whether a login was found in its playlist; a
 backup card shows "Covers N of M primary channels" beside Review links; the overlay field is now "EPGenius playlist
 (optional)" and only on Xtream cards (an M3U playlist is its own id list).
+
+**0185 (2 Oct, pushed): more sport fixtures, "Premier League" is EPL, old grand prix no longer live.**
+- ESPN fixtures (real kickoff times) now also for EPL, Championship, FA Cup, UEFA (Champions + Europa League, merged),
+  La Liga, Bundesliga, Serie A, Ligue 1, MLS, A-League, NHL, WNBA, NBL, NRL and Super Rugby
+  (`sportsFixtures.ESPN_LEAGUE_PATHS`; a league is fetched only when followed or named by a sport category).
+  Not added: UFC, IndyCar, NASCAR, golf, tennis (ESPN lists them as events without two teams: needs its own matching);
+  MotoGP, Supercars, netball (no ESPN feed).
+- A title saying plain "Premier League" is EPL, unless it is another country's or another sport's (Indian, Scottish,
+  Women's, darts...). One "EPL" keyword now covers both spellings.
+- F1: an airing naming a grand prix ESPN has no session for, with no F1 session within 12 h either side, is a replay
+  ("ESPN has no F1 session at this time"). Before, last weekend's race shown again midweek fell through to
+  "first airing = live" (Mark: Azerbaijan GP in Live sport all week).
+- Settings → Sports: leagues are picked from a list ("Add a league...", those with real fixture times first; `GET /api/sports/follow`
+  now also returns `leagues`). The text box stays for other keywords.
+- Teams can be followed: pick a league, then a team (`GET /api/sports/teams?league=`, ESPN's roster). Stored as the keyword
+  `"NFL: Arizona Cardinals"`. It matches the full name anywhere, or the nickname/place ("Cardinals", "Arizona") only in a
+  programme of that league; the team's league gets its fixtures fetched.
 
 ### Next
 

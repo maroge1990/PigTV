@@ -561,6 +561,20 @@ class SettingsPage {
             if (e.key === 'Enter') { e.preventDefault(); this.addSportsKeyword(input.value); }
         });
         document.getElementById('sports-follow-save')?.addEventListener('click', () => this.saveSportsFollow());
+        // 0185: leagues are picked from a list, so they are spelt the way the server knows them.
+        const leagueSelect = document.getElementById('sports-league-select');
+        leagueSelect?.addEventListener?.('change', () => {
+            if (leagueSelect.value) this.addSportsKeyword(leagueSelect.value);
+            leagueSelect.value = '';
+        });
+        // ...and so are teams: a league first, then one of its teams ("NFL: Arizona Cardinals").
+        const teamLeague = document.getElementById('sports-team-league');
+        const teamSelect = document.getElementById('sports-team-select');
+        teamLeague?.addEventListener?.('change', () => this.loadSportsTeams(teamLeague.value));
+        teamSelect?.addEventListener?.('change', () => {
+            if (teamSelect.value && teamLeague.value) this.addSportsKeyword(`${teamLeague.value}: ${teamSelect.value}`);
+            teamSelect.value = '';
+        });
         document.getElementById('sports-follow-chips')?.addEventListener('click', (e) => {
             const button = e.target?.closest?.('button[data-sports-remove]');
             if (button) this.removeSportsKeyword(Number(button.dataset.sportsRemove));
@@ -589,6 +603,7 @@ class SettingsPage {
             const follow = await API.sports.follow();
             this.sportsKeywords = [...(follow?.keywords || [])];
             this.sportsSaved = [...this.sportsKeywords];
+            this.sportsLeagues = Array.isArray(follow?.leagues) ? follow.leagues : [];
             this.renderSportsFollow();
         } catch (err) {
             this.setSportsStatus(`Could not load the follow list: ${err.message}`, true);
@@ -604,6 +619,26 @@ class SettingsPage {
             this.renderSportsPreview();
         } catch (err) {
             if (list) list.innerHTML = `<tr><td colspan="5" class="hint">Could not load the preview: ${this.escapeLineup(err.message)}</td></tr>`;
+        }
+    }
+
+    /** Fill the team list for a league (GET /api/sports/teams); hidden until a league is chosen. */
+    async loadSportsTeams(league) {
+        const select = document.getElementById('sports-team-select');
+        if (!select) return;
+        select.classList.toggle('hidden', !league);
+        if (!league) return;
+        select.innerHTML = '<option value="">Loading...</option>';
+        try {
+            const reply = await API.sports.teams(league);
+            const e = (v) => this.escapeLineup(v);
+            const teams = reply?.teams || [];
+            select.innerHTML = teams.length
+                ? '<option value="">Choose a team...</option>' + teams.map(t => `<option value="${e(t)}">${e(t)}</option>`).join('')
+                : '<option value="">No team list for this league</option>';
+        } catch (err) {
+            select.innerHTML = '<option value="">Could not load the teams</option>';
+            this.setSportsStatus(err.message || 'Could not load the teams', true);
         }
     }
 
@@ -638,6 +673,25 @@ class SettingsPage {
                 ? this.sportsKeywords.map((k, i) => `<span class="btn btn-secondary epg-candidate sports-chip">${e(k)}
                     <button type="button" class="sports-chip-remove" data-sports-remove="${i}" title="Stop following ${e(k)}" aria-label="Remove ${e(k)}">&times;</button></span>`).join('')
                 : '<span class="setting-hint">No keywords yet</span>';
+        }
+        // The leagues not followed yet; those with real fixture times first.
+        const select = document.getElementById('sports-league-select');
+        if (select) {
+            const followed = new Set(this.sportsKeywords.map(k => k.toLowerCase()));
+            const left = (this.sportsLeagues || []).filter(l => !followed.has(l.name.toLowerCase()));
+            const options = (list) => list.map(l => `<option value="${e(l.name)}">${e(l.name)}</option>`).join('');
+            const withTimes = left.filter(l => l.fixtures);
+            const without = left.filter(l => !l.fixtures);
+            select.innerHTML = '<option value="">Add a league...</option>'
+                + (withTimes.length ? `<optgroup label="With real fixture times">${options(withTimes)}</optgroup>` : '')
+                + (without.length ? `<optgroup label="From the guide only">${options(without)}</optgroup>` : '');
+        }
+        // Teams come from the leagues with a roster (not the motor sports or cricket).
+        const teamLeague = document.getElementById('sports-team-league');
+        if (teamLeague && !teamLeague.value) {
+            const withTeams = (this.sportsLeagues || []).filter(l => l.teams);
+            teamLeague.innerHTML = '<option value="">Add a team from...</option>'
+                + withTeams.map(l => `<option value="${e(l.name)}">${e(l.name)}</option>`).join('');
         }
         const save = document.getElementById('sports-follow-save');
         if (save) save.disabled = !this.sportsDirty();

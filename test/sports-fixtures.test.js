@@ -350,6 +350,50 @@ test('F1: practice is told from the race by session, matched to the right Grand 
     assert.equal(qual, 'event: a session (Qualifying), ESPN: the session started Fri 12:00 pm');
 });
 
+test('0185: last weekend\'s grand prix shown again midweek is a replay, when ESPN has no F1 session anywhere near it', async () => {
+    // Wednesday after the race: ESPN's window holds no F1 session at all.
+    const refreshedAt = Date.parse('2026-09-30T00:00Z');
+    await withEspn({ 'racing/f1/scoreboard': { events: [] } }, () => fixtures.refreshLeague('F1', { now: refreshedAt }));
+    const quiet = fixtures.snapshot(new Set(['F1']));
+    const midweek = Date.parse('2026-09-30T10:00Z');
+    assert.deepEqual(resolve(quiet, refreshedAt, airing('F1: Azerbaijan GP', midweek, { league: 'F1' })),
+        ['replay: ESPN has no F1 session at this time']);
+    // An old fetch is not trusted to say "nothing": the guide's own rules decide, as before.
+    const [stale] = resolve(quiet, refreshedAt + 7 * H, airing('F1: Azerbaijan GP', midweek, { league: 'F1' }));
+    assert.match(stale, /^event: /);
+    // Nor is the edge of the covered window (less than 12 h of it after the airing).
+    const [edge] = resolve(quiet, refreshedAt, airing('F1: Azerbaijan GP', refreshedAt + 65 * H, { league: 'F1' }));
+    assert.match(edge, /^event: /);
+
+    // During a race weekend a session named for somewhere else is left alone: ESPN does have
+    // F1 on at that time, and the guide may simply word the place differently.
+    const weekend = Date.parse('2026-09-25T00:00Z');
+    await withEspn({ 'racing/f1/scoreboard': readFx('f1-scoreboard') }, () => fixtures.refreshLeague('F1', { now: weekend }));
+    const busy = fixtures.snapshot(new Set(['F1']));
+    const [other] = resolve(busy, weekend, airing('F1: Baku City Circuit Race', Date.parse('2026-09-26T11:00Z'), { league: 'F1' }));
+    assert.match(other, /^event: /);
+});
+
+test('0185: more leagues have ESPN fixtures; a league with two feeds (UEFA) merges them', async () => {
+    for (const league of ['EPL', 'Championship', 'FA Cup', 'UEFA', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1', 'MLS', 'A-League', 'NHL', 'WNBA', 'NBL', 'NRL', 'Super Rugby']) {
+        assert.ok(fixtures.ESPN_LEAGUE_PATHS[league], league);
+        assert.equal(classify.canonicalLeague(league), league, `${league} can be followed by name`);
+    }
+    const now = Date.parse('2026-09-27T12:00Z');
+    const game = (id, home, away) => ({ events: [{ id, date: '2026-09-27T19:00Z', name: `${away} at ${home}`, competitions: [{ id, date: '2026-09-27T19:00Z',
+        competitors: [{ team: { displayName: home } }, { team: { displayName: away } }] }] }] });
+    await withEspn({
+        'soccer/uefa.champions/scoreboard': game('1', 'Arsenal', 'Lens'),
+        'soccer/uefa.europa/scoreboard': game('2', 'AZ Alkmaar', 'Roma'),
+        'soccer/uefa.champions/teams': null, 'soccer/uefa.europa/teams': null
+    }, () => fixtures.refreshLeague('UEFA', { now }));
+    const uefa = fixtures.snapshot(new Set(['UEFA'])).get('UEFA');
+    assert.equal(uefa.fixtures.length, 2, 'both competitions');
+    // One feed down: the other still counts as a good fetch.
+    await withEspn({ 'soccer/uefa.champions/scoreboard': game('1', 'Arsenal', 'Lens'), 'soccer/uefa.europa/scoreboard': null }, () => fixtures.refreshLeague('UEFA', { now }));
+    assert.equal(fixtures.snapshot(new Set(['UEFA'])).get('UEFA').fixtures.length, 1);
+});
+
 test('a multi-day cricket Test: day 3 of a still-running match is live, not a replay', async () => {
     const refreshedAt = Date.parse('2026-09-27T12:00Z');
     await withEspn({

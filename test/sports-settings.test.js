@@ -14,7 +14,7 @@ const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8
 function harness(replies) {
     const requests = [];
     const el = () => ({ innerHTML: '', textContent: '', value: '', disabled: false, classList: { toggle() {} }, addEventListener() {} });
-    const elements = Object.fromEntries(['sports-follow-chips', 'sports-follow-input', 'sports-follow-add', 'sports-follow-save',
+    const elements = Object.fromEntries(['sports-follow-chips', 'sports-league-select', 'sports-team-league', 'sports-team-select', 'sports-follow-input', 'sports-follow-add', 'sports-follow-save',
         'sports-status', 'sports-preview-list'].map(id => [id, el()]));
     const context = vm.createContext({
         console: { ...console, log() {}, warn() {}, error() {} },
@@ -51,7 +51,7 @@ test('Settings has a Sports tab explaining what counts as sport', () => {
 test('the follow list shows as chips, is edited, saved with PUT /api/sports/follow, and the preview reloads', async () => {
     let previews = 0;
     const { settings, elements, requests } = harness({
-        'GET /api/sports/follow': { keywords: ['NFL'] },
+        'GET /api/sports/follow': { keywords: ['NFL'], leagues: [{ name: 'EPL', fixtures: true }, { name: 'F1', fixtures: true }, { name: 'MotoGP', fixtures: false }, { name: 'NFL', fixtures: true }] },
         'PUT /api/sports/follow': { keywords: ['NFL', 'F1'] },
         'GET /api/sports/preview': () => { previews++; return { now: NOW, events: previews === 1 ? [event('NFL: Chiefs <v> Bills')] : [event('F1: Monaco', { league: 'F1', match: 'F1' })] }; }
     });
@@ -59,6 +59,15 @@ test('the follow list shows as chips, is edited, saved with PUT /api/sports/foll
     await settings.loadSports();
     assert.match(elements['sports-follow-chips'].innerHTML, /NFL[\s\S]*data-sports-remove="0"/);
     assert.equal(elements['sports-follow-save'].disabled, true, 'nothing to save');
+    // 0185: leagues are picked from a list: the ones not followed yet, those with real fixture times first.
+    const picker = () => elements['sports-league-select'].innerHTML;
+    assert.match(picker(), /Add a league[\s\S]*With real fixture times[\s\S]*value="EPL"[\s\S]*value="F1"[\s\S]*From the guide only[\s\S]*value="MotoGP"/);
+    assert.ok(!picker().includes('value="NFL"'), 'already followed');
+    assert.match(html, /id="sports-league-select"/);
+
+    // ...and teams: a league with a roster, then one of its teams.
+    assert.match(html, /id="sports-team-league"[\s\S]*id="sports-team-select"/);
+    assert.match(js('pages/Settings.js'), /addSportsKeyword\(`\$\{teamLeague\.value\}: \$\{teamSelect\.value\}`\)/);
 
     const rows = elements['sports-preview-list'].innerHTML;
     assert.ok(rows.includes('NFL: Chiefs &lt;v&gt; Bills'), 'escaped');
@@ -71,6 +80,7 @@ test('the follow list shows as chips, is edited, saved with PUT /api/sports/foll
     settings.addSportsKeyword('nfl');
     assert.deepEqual([...settings.sportsKeywords], ['NFL', 'F1'], 'trimmed; a duplicate is not added');
     assert.equal(elements['sports-follow-save'].disabled, false);
+    assert.ok(!picker().includes('value="F1"') && picker().includes('value="EPL"'), 'a league just added leaves the list');
     settings.addSportsKeyword('Chiefs');
     settings.removeSportsKeyword(2);
     assert.deepEqual([...settings.sportsKeywords], ['NFL', 'F1']);
