@@ -2,7 +2,7 @@
 
 ## Outstanding as of 2 October 2026 (server 0186 · app 36)
 
-Mark's results of 2 Oct are ticked. Still open: A1 (re-check on 0187), D5–D10, G2–G4, G6, G7, H (the tuner), K (captures). Round 7 below was written for 0179 and the old
+Mark's results of 2 Oct are ticked. Still open: A1 (re-check on 0187), D5–D10, G2–G4, G6, G7, H (the tuner), K (captures), **L (in-stream recovery and the standby, 0189)**. Round 7 below was written for 0179 and the old
 Sources/Providers tabs; **R7.1–R7.5 and R7.14 are replaced by the steps here** (0182 moved providers onto cards and removed
 the hand-typed dates). R7.6–R7.13 and R7.15 are unchanged and repeated here in short.
 
@@ -50,6 +50,19 @@ the hand-typed dates). R7.6–R7.13 and R7.15 are unchanged and repeated here in
 - [x] F3 Status → Sport fixtures lists each followed league (EPL shows 0 until a matchday is within 72 h).
 - [x] F4 No other country's Premier League is labelled EPL (0186).
 - [x] F5 Midweek re-airings of last weekend's grand prix show as replays, not in Live sport.
+
+**L. In-stream recovery and the hot standby (0189; experimental, `docs/STANDBY-BRIEF.md`)**
+Turn on: Unraid → Docker → PigTV → Edit → add `PIGTV_RELAY` = `1` (and for L4–L7 also `PIGTV_STANDBY` = `1`) → Apply.
+Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "\[Relay|failover|Coordinator"`
+- [ ] L0 Before turning anything on, note Status → Interruptions after a few normal days: the baseline.
+- [ ] L1 Relay on, normal viewing for an evening on the Apple TV and the web: nothing is different. Status → Live sessions says "In-stream recovery is on".
+- [ ] L2 **Cold switch**: play a linked channel, then break Strong8K's playlist address on its card (as D3/D4). The picture freezes ~20–30 s and carries on **without** the player restarting or an error; log: `[Relay …] Strong8K … switching` then `now on <backup> after N s`. Interruptions shows the row with "Back in N s (on <backup>)".
+- [ ] L3 The same on the **iPad** and the **web**. If any player shows an error or restarts instead, note which.
+- [ ] L4 **Standby**: with `PIGTV_STANDBY=1`, play a linked channel for a minute. Status: "standby on <backup> (ready)", and Providers shows that backup's connection in use.
+- [ ] L5 Break Strong8K again: the picture carries on after ~10 s, with a jump or a few seconds repeated. Log: `wrote nothing for 10 s; switching`, `now on <backup> after 0.0 s`.
+- [ ] L6 **Giving way**: with a standby running, play another channel on a second device, or let a recording start: it gets the backup's connection with **no prompt**; log `standby on … gone: its connection was needed`. The first device keeps playing.
+- [ ] L7 Change channel a few times quickly with the standby on: each old relay ends (`[Relay …] ended`), no stray streams left on Status after a minute.
+- [ ] L8 Roll back: remove both variables → Apply. Everything as before.
 
 **G. Still open from earlier rounds**
 - [x] G1 R6.3 again: recordings folder set back to `/app/recordings/SERVER01_Video/Recordings`; a bad path is refused.

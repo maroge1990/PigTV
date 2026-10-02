@@ -1320,6 +1320,10 @@ class TranscodeSession extends EventEmitter {
         // into this.dir.
         await this.stop();
 
+        // 0189: a relay leg's segments are still listed in the relay's playlist after its
+        // ffmpeg has gone; the relay (services/streamRelay.js) removes the folder itself.
+        if (this.retainDir) return;
+
         try {
             await fs.rm(this.dir, { recursive: true, force: true });
             console.log(`[TranscodeSession ${this.id}] Cleaned up session directory`);
@@ -1371,6 +1375,8 @@ async function removeSession(sessionId) {
 async function cleanupStaleSessions() {
     const now = Date.now();
     for (const [id, session] of sessions) {
+        // 0189: a standby has no client of its own; its relay ends it.
+        if (session.options.standby === true) continue;
         const limit = session.options.live === true ? LIVE_SESSION_TIMEOUT_MS : SESSION_TIMEOUT_MS;
         if (now - session.lastAccess > limit) {
             console.log(`[TranscodeSession] Cleaning up stale session ${id}`);
@@ -1434,7 +1440,9 @@ function getAllSessions() {
         owner: s.options.owner || null,
         // The provider (a source id) whose connection this session holds (0173); null when the
         // resolve named no source (a bare url), which counts against the primary's pool.
-        providerId: s.options.providerId ?? null
+        providerId: s.options.providerId ?? null,
+        // 0189: a relay's hot standby: nobody watches it, and anybody may take its connection.
+        standby: s.options.standby === true
     }));
 }
 

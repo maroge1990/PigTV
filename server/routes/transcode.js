@@ -24,10 +24,14 @@ transcodeSession.startCleanupInterval();
 const tuner = require('../services/tuner');
 if (tuner.enabled()) tuner.startSweep();
 
-/** What serves this id: a tuner (through its viewer) when the tuner model is on, else the session. */
+// In-stream recovery (PIGTV_RELAY=1, 0189): a relay answers for the id of the session it
+// started with, across every ffmpeg that has carried the stream since.
+const relay = require('../services/streamRelay');
+
+/** What serves this id: a tuner (through its viewer) when the tuner model is on, else a relay, else the session. */
 function lookup(sessionId) {
     if (tuner.enabled()) return tuner.viewerTarget(sessionId) || transcodeSession.getSession(sessionId);
-    return transcodeSession.getSession(sessionId);
+    return relay.get(sessionId) || transcodeSession.getSession(sessionId);
 }
 
 /** _HLS_skip=YES (or v2): a delta update, when the playlist offers them (0128). */
@@ -147,7 +151,8 @@ router.get('/:sessionId/:segment', async (req, res) => {
     // routing, so an encoded slash (..%2F..%2Fx.mp4) arrives here as a real
     // path; a suffix check alone let it reach path.join. Refuse anything that
     // is not one of those names.
-    if (!/^(seg\d{4,}\.(ts|m4s)|init\.mp4)$/.test(segment)) {
+    // 0189: a relay's later legs are L<n>-seg0001.m4s / L<n>-init.mp4.
+    if (!/^(L\d{1,3}-)?(seg\d{4,}\.(ts|m4s)|init\.mp4)$/.test(segment)) {
         return res.status(404).json({ error: 'Invalid segment' });
     }
 
@@ -179,7 +184,7 @@ router.delete('/:sessionId', async (req, res) => {
 
     try {
         if (!(tuner.enabled() && await tuner.releaseViewer(sessionId))) {
-            await transcodeSession.removeSession(sessionId);
+            if (!(await relay.close(sessionId))) await transcodeSession.removeSession(sessionId);
         }
         res.json({ success: true });
     } catch (err) {
@@ -210,6 +215,7 @@ router.get('/sessions', (req, res) => {
  */
 router.delete('/sessions/all', async (req, res) => {
     try {
+        await relay.closeAll(); // 0189: so no relay restarts what is being stopped
         const sessions = transcodeSession.getAllSessions();
         let killed = 0;
         for (const session of sessions) {

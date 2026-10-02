@@ -218,6 +218,10 @@ class StatusPage {
                 `<button type="button" class="btn btn-sm btn-danger" data-kill-session="${e(s.id)}" title="Stop this stream and free its provider connection">Stop</button>`
             ]),
             'Nothing is playing')
+            // 0189: what in-stream recovery is doing (PIGTV_RELAY=1), one line per stream.
+            + ((status.relay && status.relay.enabled) ? `<p class="setting-hint">In-stream recovery is on${status.relay.standby ? ', with a hot standby' : ''}. `
+                + ((status.relay.streams || []).map(r => `${e(r.channel || 'A channel')}: on ${e(r.provider)}${r.switches ? ` after ${e(r.switches)} switch${r.switches === 1 ? '' : 'es'}` : ''}`
+                    + `${r.standby ? `, standby on ${e(r.standby)} (${r.standbyReady ? 'ready' : 'starting'})` : (status.relay.standby ? ', no standby' : '')}`).join('; ') || 'Nothing followed.') + '</p>' : '')
             + (sessions.length > 1 ? '<p><button type="button" class="btn btn-sm btn-danger" data-kill-all>Stop all streams</button></p>' : '')));
 
         // Interruptions (0188): the measure any recovery change is judged against.

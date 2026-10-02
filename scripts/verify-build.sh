@@ -88,8 +88,9 @@ check server/services/syncService.js "pos_" "position-based ID"
 check server/services/syncService.js "syncIfStale" "startup stale check"
 check server/index.js "syncIfStale" "startup calls syncIfStale"
 check server/routes/transcode.js "sessions/all" "kill-all endpoint"
-check public/index.html "kill-all-streams" "kill button markup"
-check public/js/pages/Settings.js "killAllSessions" "kill button handler"
+# 0182: stopping a stream moved from Settings -> Debug to the Status page.
+check public/js/pages/StatusPage.js "data-kill-all" "stop-all button (Status page)"
+check public/js/pages/StatusPage.js "killAllSessions" "stop button handler (Status page)"
 check server/services/syncService.js "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" "14-param INSERT"
 
 echo "=== 0009: Movies/Series toggle (removed with Movies/Series in 0122) ==="
@@ -112,11 +113,12 @@ check server/routes/library.js "c.sort_order ASC, c.name ASC" "real endpoint ord
 
 echo "=== 0017: settings reorganisation ==="
 check public/index.html "data-tab=\"recording\"" "Recording tab"
-check public/index.html "data-tab=\"ui\"" "UI tab"
-check public/index.html "data-tab=\"debug\"" "Debug tab"
+# 0182: six tabs; the theme panel sits under System, Debug is on the Status page.
+check public/index.html "id=\"tab-ui\"" "UI panel (under System)"
+check public/index.html "data-tab=\"system\"" "System tab"
 check public/js/pages/Settings.js "loadRecordingSettings" "recording handlers"
 check public/js/pages/Settings.js "loadUiSettings" "ui handlers"
-check public/js/pages/Settings.js "loadActiveSessions" "debug handlers"
+check public/js/pages/StatusPage.js "data-kill-session" "per-stream stop (Status page)"
 check public/js/api.js "killAllSessions" "transcode api group"
 
 echo "=== 0017: guide cell + transcode + uncategorized ==="
@@ -1603,11 +1605,11 @@ check test/api-404.test.js "the removed fork routes answer the generic 404, even
 check test/api-404.test.js "nothing in the web app still calls a removed route" "and that nothing in public/ calls them"
 
 echo "=== 0123: channel-number editor (Settings -> Channel numbers) ==="
-check public/index.html 'data-tab="lineup"' "the Settings tab exists"
+check public/index.html 'data-subtab="lineup"' "the Settings view exists (under Channels, 0182)"
 check public/index.html 'id="lineup-list"' "with its list"
 check public/js/api.js "API.request('PUT', '/lineup/numbers', { numbers })" "api.js saves through PUT /api/lineup/numbers"
 check public/js/pages/Settings.js "API.lineup.get()" "the panel reads GET /api/lineup"
-check public/js/pages/Settings.js "if (tabName === 'lineup') this.loadLineup();" "and loads when the tab opens"
+check public/js/pages/Settings.js "if (panel === 'lineup') this.loadLineup();" "and loads when the panel opens"
 check public/js/pages/Settings.js "this.setLineupStatus(err.message" "the server's validation error is shown"
 check test/lineup-editor.test.js "validation error as it comes" "with a test"
 
@@ -1723,7 +1725,7 @@ check server/index.js "app.use('/api/epg', require('./routes/epg'));" "the EPG a
 check server/routes/epg.js "router.use(requireAuth, requireAdmin);" "admin only"
 check server/routes/epg.js "router.put('/mapping'" "PUT /api/epg/mapping"
 check server/routes/epg.js "router.get('/unmatched'" "GET /api/epg/unmatched"
-check public/index.html 'data-tab="epg">EPG matching' "Settings has an EPG matching tab"
+check public/index.html 'data-subtab="epg">EPG matching' "Settings has an EPG matching view (under Channels, 0182)"
 check public/js/pages/Settings.js "async loadEpgMatching()" "which loads the unmatched list"
 check test/epg-matching.test.js "the mapping survives a playlist sync" "with a sync-survival test"
 
@@ -1856,7 +1858,7 @@ check test/sports-events.test.js "the same game on three channels is one event" 
 echo "=== 0149: web Settings -> Sports (C-I) ==="
 check public/index.html 'data-tab="sports">Sports</button>' "a Sports tab"
 check public/index.html 'id="sports-preview-list"' "with the preview table"
-check public/js/pages/Settings.js "if (tabName === 'sports') this.loadSports();" "loaded when the tab opens"
+check public/js/pages/Settings.js "if (panel === 'sports') this.loadSports();" "loaded when the tab opens"
 check public/js/pages/Settings.js "await this.loadSportsPreview();" "the preview reloads after a save"
 check public/js/api.js "setFollow: (keywords) => API.request('PUT', '/sports/follow', { keywords })" "saves the follow list"
 check_absent public/js/components/SourceManager.js "Sport on now row" "the Sport toggle no longer promises the old Home row"
@@ -2017,10 +2019,10 @@ check public/index.html 'id="tab-backuplinks"' "and so does Backup links"
 check public/index.html 'pages/BackupLinksSettings.js' "its script is loaded (before Settings.js builds it)"
 check public/js/pages/Settings.js "this.providers = new ProvidersSettings();" "Settings builds the Providers panel"
 check public/js/pages/Settings.js "this.backupLinks = new BackupLinksSettings();" "and the Backup links panel"
-check public/js/pages/ProvidersSettings.js "if (values.clearOverlay) body.idOverlayUrl = '';" "the overlay address is write-only: empty keeps it, Remove clears it"
+check public/js/pages/ProvidersSettings.js "for (const k of \['epgUrl', 'idOverlayUrl'\]) if (v(k) !== String(saved\[k\] ?? '')) body\[k\] = v(k);" "0182: an emptied guide or overlay address is removed, an unchanged one is not sent"
 check_absent public/js/pages/ProvidersSettings.js "p.idOverlayUrl" "the page never reads the stored overlay address"
-check server/routes/sources.js "const settingsOnly = Object.keys(req.body" "order, limit and date edits do not start a backup sync"
-check test/providers-page.test.js "never the overlay address" "with tests"
+check server/routes/sources.js "const settingsOnly = keys.length > 0 && keys.every(k => k === 'priority');" "an order-only edit does not start a backup sync"
+check test/providers-page.test.js "no address, login or password" "with tests"
 
 echo "=== 0173: per-provider connection pools (multi-provider P5) ==="
 check server/services/streamCoordinator.js "function providerLimit" "each provider has its own connection limit"
@@ -2090,6 +2092,48 @@ check public/js/pages/ProvidersSettings.js "these count as one connection. Check
 check test/provider-pools.test.js "0181: two sources with the same server and login are one pool" "with a pool test"
 check test/providers-page.test.js "0181: a provider that is the same account" "and a warning test"
 
+echo "=== 0182-0187: one Providers section, six tabs, sport lists, the build number ==="
+check server/routes/sources.js "router.put('/order', async" "the card order is saved in one call"
+python3 - <<'PY' || FAIL=1
+import sys
+s = open('server/routes/sources.js').read()
+if s.index("router.put('/order'") > s.index("router.put('/:id'"):
+    print("  ✗ PUT /order is registered after PUT /:id, which would swallow it"); sys.exit(1)
+print("  ✓ PUT /order is registered before PUT /:id")
+PY
+check server/services/syncService.js "async syncProviderGuide(source, ownUrl = null)" "the primary's guide comes from its own card"
+check server/services/syncService.js "await this.dropGuide(source.id); // 0182" "a backup keeps no guide"
+check server/index.js "require('./services/providerMigration').run()" "the one-time provider move runs at startup"
+check server/services/syncService.js "rawList = await this.addUnlistedChannels(source, rows);" "0183: an M3U backup gets the provider's whole list"
+check public/index.html 'data-tab="channels">Channels' "six tabs: Channels"
+check public/index.html 'id="subtabs-channels"' "with its three views on a strip"
+check_absent public/index.html 'data-tab="sources"' "the Sources tab is gone"
+check_absent public/index.html 'id="tab-debug"' "the Debug tab is gone"
+check server/routes/sports.js "router.get('/teams', requireAdmin" "0185: a league's teams for the Sports tab"
+check server/services/sportsClassify.js "function teamFollow(keyword)" "a team is followed as League: Team"
+check server/services/sportsFixtures.js "EPL: 'soccer/eng.1'" "EPL has ESPN fixtures"
+python3 - <<'PY' || FAIL=1
+import re, sys, subprocess
+build = re.search(r"const BUILD = '(\d{4})';", open('server/version.js').read()).group(1)
+nxt = re.search(r"Next build number \| \*\*(\d{4})\*\*", open('blueprint.md').read())
+if not nxt or int(nxt.group(1)) != int(build) + 1:
+    print(f"  ✗ version.js says build {build} but the blueprint's next build number is {nxt.group(1) if nxt else '?'} (0187: every build bumps both)"); sys.exit(1)
+print(f"  ✓ version.js ({build}) is one behind the blueprint's next build number")
+PY
+
+echo "=== 0188-0189: interruptions, in-stream recovery and the standby (off by default) ==="
+check server/routes/status.js "interruptions: require('../services/playbackInterruptions').summary()," "Status reports streams lost mid-play"
+check server/services/streamRelay.js "const enabled = () => on('PIGTV_RELAY');" "the relay is behind PIGTV_RELAY"
+check server/services/streamRelay.js "const standbyEnabled = () => enabled() && on('PIGTV_STANDBY');" "the standby needs the relay"
+check server/services/streamRelay.js "text.replace(/^#EXT-X-ENDLIST" "a relay never passes ffmpeg's ENDLIST on"
+check server/routes/transcode.js "return relay.get(sessionId) || transcodeSession.getSession(sessionId);" "a relay answers for its id"
+check server/services/transcodeSession.js "if (this.retainDir) return;" "a relay leg's folder outlives its ffmpeg"
+check server/services/transcodeSession.js "if (session.options.standby === true) continue;" "the idle sweep leaves a standby to its relay"
+check server/services/streamCoordinator.js "take(streams.filter(s => s.standby), 'standby');" "a viewer takes a standby's connection first"
+check server/services/streamCoordinator.js "Releasing standby" "a recording takes a standby's connection unasked"
+check test/stream-relay.test.js "the coordinator treats a standby as abandoned" "with tests"
+check scripts/relay-rig.js "relay-rig.js standby stall" "and a real-ffmpeg rig"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys
@@ -2108,4 +2152,3 @@ else
     echo "=== FAILED — do NOT push ==="
     exit 1
 fi
-

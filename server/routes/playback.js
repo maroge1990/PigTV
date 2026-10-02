@@ -146,6 +146,7 @@ router.post('/resolve', requireToken, async (req, res) => {
         // as a question. admitViewer stops whatever has to go before we start.
         const owner = coordinator.ownerKey(req.user);
         const generation = bumpOwnerGeneration(owner);
+
         // Whose connection this play takes (0173): the candidate's provider. A bare
         // url names none (null), which counts in the primary's pool.
         const candidates = routing ? routing.candidates : [{ providerId: null, url }];
@@ -308,6 +309,15 @@ router.post('/resolve', requireToken, async (req, res) => {
                     owner, channel: channelLabel, provider: providerLabel, how, providerReason,
                     playedSec: played.startTime ? (Date.now() - played.startTime) / 1000 : null
                 }));
+                // 0189 (PIGTV_RELAY=1): keep this stream going across a lost provider. A
+                // channel play only; off, adopt() does nothing.
+                if (routing && live) {
+                    require('../services/streamRelay').adopt(played, {
+                        sourceId: parseInt(sourceId), channelId, capabilities: capabilities || {}, settings,
+                        ffprobePath: req.app.locals.ffprobePath, upscale: upscale === true, audioEncode: audioEncode === true,
+                        owner, channelName: channelLabel, primaryKey: routing.primaryKey, candidate: chosen
+                    });
+                }
             }
         }
 
@@ -444,7 +454,9 @@ router.get('/conflict', optionalAuth, async (req, res) => {
 router.get('/:sessionId/terminal-status', requireToken, (req, res) => {
     const coordinator = require('../services/streamCoordinator');
     const owner = coordinator.ownerKey(req.user);
-    res.json({ status: coordinator.terminalStatus(req.params.sessionId, owner) });
+    // 0189: a relay's stream is known to the coordinator by its playing leg's id.
+    const playingId = require('../services/streamRelay').playingSessionId(req.params.sessionId);
+    res.json({ status: coordinator.terminalStatus(playingId, owner) });
 });
 
 /**
@@ -561,7 +573,8 @@ router.delete('/:sessionId', requireToken, async (req, res) => {
         const tuner = require('../services/tuner');
         if (tuner.enabled() && await tuner.releaseViewer(sessionId)) return res.json({ success: true });
         const transcodeSession = require('../services/transcodeSession');
-        await transcodeSession.removeSession(sessionId);
+        // 0189: a relay ends with every leg it has; else the one session.
+        if (!(await require('../services/streamRelay').close(sessionId))) await transcodeSession.removeSession(sessionId);
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });

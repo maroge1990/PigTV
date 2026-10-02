@@ -289,6 +289,8 @@ router.get('/', async (req, res) => {
             leastReliable: leastReliable(),
             // 0188: streams lost mid-play in the last 7 days, and how long they took to come back.
             interruptions: require('../services/playbackInterruptions').summary(),
+            // 0189: streams a relay is keeping going (PIGTV_RELAY=1), and their standbys.
+            relay: (() => { const r = require('../services/streamRelay'); return { enabled: r.enabled(), standby: r.standbyEnabled(), streams: r.list() }; })(),
             // 0161 (C-I): ESPN fixture coverage, per league - last successful fetch, fixture
             // count, last error. Never a URL (sportsFixtures.statusSummary never puts one in).
             sportFixtures: sportsFixtures.statusSummary(),

@@ -41,7 +41,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | CI | Both repos are **public** since 30 Sept (free Actions minutes; history checked for secrets). `gh` is signed in on the MacBook: `gh run view <id> --log-failed`. On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings (fixed 28 Sept):** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (so an SMB share that mounts late or reconnects appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs (schedule #3 failed with "0.0 GB free"). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
 | Shipped through | **0177** (pushed, 30 Sept–1 Oct: multi-provider failover 0168–0177, §6) and app **36**. Round 7 (`docs/TEST-BLOCK.md`) not yet run. Before that: **0167** and app **35**. Rounds 1–4 passed on 0151 + app 31; round 5 (0152–0154 + app 32) passed on 28 Sept apart from the five bugs that started the 28–29 Sept fix run (§6 "Fix run"); round 6 (0166 + app 34, `docs/TEST-BLOCK.md`) passed apart from R6.3 (fixed in 0167) and R6.14 (fixed in app 35), with R6.4–R6.6 and R6.16 still to run. Whether a build is *running* is whatever `/api/version` says. |
-| Next build number | **0189** |
+| Next build number | **0190** |
 | Tests | `npm test`: **790 tests, all pass** (1 Oct, after 0178, on CI; timing tests can fail locally when the Mac is loaded - check `uptime`, rerun, or trust CI; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
@@ -695,6 +695,16 @@ not bumped in 0182–0186, so every one of them reported 0181 (test A1 failed on
 (time to recover, and on which provider). Status → **Interruptions** shows the last 7 days: count, per hour watched, typical
 and worst recovery. This is the baseline for the in-stream recovery / standby work (`docs/STANDBY-BRIEF.md`).
 
+**0189 (2 Oct, pushed; OFF by default): in-stream recovery and the hot standby** (`docs/STANDBY-BRIEF.md`,
+`services/streamRelay.js`). `PIGTV_RELAY=1`: a relay keeps one HLS stream going across more than one ffmpeg ("legs"); when
+the playing leg is lost the next provider is started and joined on after an `EXT-X-DISCONTINUITY`. `PIGTV_STANDBY=1` adds a
+second copy of the channel on another provider's free connection, joined on after 10 s of silence. The coordinator treats a
+standby as abandoned (a viewer or recording takes its connection unasked). With both unset nothing changes.
+Checked with real ffmpeg on the MacBook (`node scripts/relay-rig.js [standby] [stall]`): cold switch ~10 s after the loss,
+standby switch at once after the 10 s; an ffmpeg HLS reader and hls.js both read across the join without an error.
+**Not checked: AVPlayer on the Apple TV / iPad, and real providers.** Found on the way: when a provider closes a stream
+cleanly ffmpeg exits 0 and writes `#EXT-X-ENDLIST`, which without the relay tells the player the stream has ended.
+
 ### Next
 
 **With the next Swift build (app 37):** remove the Siri / App Shortcuts feature from the code (Mark, 2 Oct: it failed on tvOS and he does not want it). Also reword the provider reminder in `PigTV-Swift/PigTV/ProviderReminders.swift`. It still says "update the dates in PigTV's web settings"; since 0182 there are no dates to type (the web banner already says PigTV reads the new date from the provider). Update its test too.
@@ -850,6 +860,9 @@ env vars: they live in SQLite and are edited in the web app's Settings (sources,
 | Variable | Default | Purpose |
 |---|---|---|
 | `PIGTV_TUNER` | off | `1`/`true`/`yes`/`on` turns on the tuner model (§3, C-E): shared tuners, timeshift, HLS recordings; adds the `timeshift` and `recordingHls` flags. Untested live (§10). Unset it to roll back; HLS recordings made meanwhile keep playing. |
+| `PIGTV_RELAY` | off | `1`/`true`/`yes` turns on **in-stream recovery** (0189, `docs/STANDBY-BRIEF.md`): a channel play that loses its stream is carried on by the next provider (or the same one) inside the same HLS stream; the player never re-resolves. Experimental; not with the tuner. Unset to roll back. |
+| `PIGTV_STANDBY` | off | With `PIGTV_RELAY=1`: a **hot standby** of the playing channel runs on another provider's free connection and is joined on when the playing one goes quiet. Gives way to any viewer or recording. |
+| `PIGTV_RELAY_SWITCH_MS` | `10000` | With a standby ready: how long the playing stream may write nothing before the standby takes over (min 3000). |
 | `PIGTV_TIMESHIFT_HOURS` | `3` | With the tuner: hours of segments each tuner keeps. `0` = no timeshift (the 90-segment window on the tmpfs; no `timeshift` flag). |
 | `PIGTV_TIMESHIFT_DIR` | `<recordings>/.timeshift` | With the tuner: where timeshift segments live. **Recommended `/app/data/timeshift`** (local appdata instead of the recordings share, 0132). Recordings then copy segments instead of hard-linking them. |
 | `PIGTV_TIMESHIFT_MIN_FREE_GB` | `20` | With the tuner: below this much free space the oldest timeshift segments are dropped (never below 90 per tuner). |

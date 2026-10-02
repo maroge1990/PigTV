@@ -132,7 +132,7 @@ function noteStart(owner, analysis) {
  * network to it) is what failed, which is what makes the route try the next one.
  */
 async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale = false, owner = null, live = false, audioEncode = false, providerId = null,
-    refusedRetryDelaysMs = undefined, deadlineAt = null, timingNote = '' }) {
+    refusedRetryDelaysMs = undefined, deadlineAt = null, timingNote = '', sessionOptions = null }) {
     const caps = { ...DEFAULT_CAPABILITIES, ...capabilities };
     const userAgent = db.getUserAgent(settings);
 
@@ -161,7 +161,9 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     // Which provider's connection the session holds (0173): the coordinator counts it in that
     // provider's pool. Set here, not in sessionPlan, so a tuner's key never depends on it.
     const session = await transcodeSession.createSession(url, {
-        ...plan.options, providerId, ...(Array.isArray(refusedRetryDelaysMs) ? { refusedRetryDelaysMs } : {})
+        ...plan.options, providerId, ...(Array.isArray(refusedRetryDelaysMs) ? { refusedRetryDelaysMs } : {}),
+        // 0189: extra session options from the relay (a standby is marked as one).
+        ...(sessionOptions || {})
     });
 
     const sessionStartedAt = Date.now();

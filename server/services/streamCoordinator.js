@@ -162,8 +162,32 @@ function activeStreams() {
         idleMs: s.idleMs,
         startTime: s.startTime,
         owner: s.owner || null,
-        providerId: s.providerId ?? null
+        providerId: s.providerId ?? null,
+        // 0189: a relay's hot standby (services/streamRelay.js). Nobody watches it: it counts
+        // as abandoned from the start, so whoever needs its connection takes it unasked.
+        standby: s.standby === true
     }));
+}
+
+/** Abandoned: silent for the idle timeout, or a standby (0189), which never has a viewer. */
+const isStale = (s, cutoffMs) => s.standby === true || s.idleMs >= cutoffMs;
+const idleText = (s) => (s.standby ? 'a standby' : `${Math.round(s.idleMs / 1000)}s idle`);
+
+/**
+ * 0189: is a connection of this provider free right now - no viewer (watching or not), no
+ * recording and no standby on it? Stricter than canAdmitWithoutDisturbing, which would reclaim
+ * an idle stream: a standby must never take anything from anybody.
+ */
+function hasFreeConnection(providerId, settings = {}, activeRecordings = []) {
+    const dir = providerDirectory();
+    const pool = poolKey(providerId, dir);
+    return streamsInPool(pool, dir).length + recordingsInPool(activeRecordings, pool, dir).length < providerLimit(providerId, settings, dir);
+}
+
+/** 0189: do two providers share a connection pool (the same provider, or the same account)? */
+function samePool(a, b) {
+    const dir = providerDirectory();
+    return poolKey(a, dir) === poolKey(b, dir);
 }
 
 // ---------------------------------------------------------------------------
@@ -317,12 +341,12 @@ function ownerProvider(owner) {
  */
 function liveViewers(idleTimeoutSec = DEFAULT_IDLE_TIMEOUT_SEC) {
     const cutoff = idleTimeoutSec * 1000;
-    return activeStreams().filter(s => s.idleMs < cutoff);
+    return activeStreams().filter(s => !isStale(s, cutoff));
 }
 
 function staleStreams(idleTimeoutSec = DEFAULT_IDLE_TIMEOUT_SEC) {
     const cutoff = idleTimeoutSec * 1000;
-    return activeStreams().filter(s => s.idleMs >= cutoff);
+    return activeStreams().filter(s => isStale(s, cutoff));
 }
 
 async function releaseStream(stream) {
@@ -354,9 +378,25 @@ async function requestForRecording(schedule, settings = {}, providerId = undefin
     // More than one provider connection available? Then there is nothing to
     // arbitrate and everything proceeds as before.
     const limit = providerLimit(providerId, settings, dir);
-    const streams = streamsInPool(pool, dir);
+    let streams = streamsInPool(pool, dir);
     if (streams.length < limit) {
         return { allowed: true, reason: 'A provider connection is free' };
+    }
+
+    // 0189: a standby gives way first, whoever else is on the provider: with it gone
+    // there may be a free connection and nobody to ask.
+    const standbys = streams.filter(s => s.standby);
+    if (standbys.length) {
+        for (const s of standbys) {
+            if (streams.length < limit) break;
+            console.log(`[Coordinator] Releasing standby ${s.id} for recording #${schedule.id}`);
+            await releaseStream(s);
+            streams = streams.filter(x => x !== s);
+        }
+        if (streams.length < limit) {
+            prompts.delete(schedule.id);
+            return { allowed: true, reason: 'A standby gave up its connection' };
+        }
     }
 
     // Reclaim anything registered but abandoned, without asking: there is
@@ -430,7 +470,7 @@ function canRecordFreely(providerId, settings = {}, activeRecordings = undefined
     const held = recordingsInPool(recordings, pool, dir).length;
     const cutoff = (Number.isFinite(settings.viewerIdleTimeoutSec)
         ? settings.viewerIdleTimeoutSec : DEFAULT_IDLE_TIMEOUT_SEC) * 1000;
-    const live = streamsInPool(pool, dir).filter(s => s.idleMs < cutoff).length;
+    const live = streamsInPool(pool, dir).filter(s => !isStale(s, cutoff)).length;
     return live + held < limit;
 }
 
@@ -487,7 +527,8 @@ function announceUpcoming(schedule, settings = {}, providerId = undefined) {
     // Only the viewers of the provider the recording will use are warned (0173).
     const dir = providerDirectory();
     const limit = providerLimit(providerId, settings, dir);
-    if (streamsInPool(poolKey(providerId, dir), dir).length < limit) return;
+    // 0189: a standby is not a viewer to warn; it gives way when the recording starts.
+    if (streamsInPool(poolKey(providerId, dir), dir).filter(s => !s.standby).length < limit) return;
     if (prompts.has(schedule.id)) return;
     // dueSince stays null: the answer-timeout (0158) counts from when the recording
     // is actually due and still blocked (requestForRecording, above), not from this
@@ -540,7 +581,8 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
     // The caller is asking to open one more connection, so count it. A
     // recording holds a connection of its own: its ffmpeg talks to the
     // provider directly and never appears in the viewer registries.
-    const streams = streamsInPool(pool, dir).sort((a, b) => b.idleMs - a.idleMs); // most idle first
+    // Most idle first; a standby (0189) before any of them.
+    const streams = streamsInPool(pool, dir).sort((a, b) => (b.standby === true) - (a.standby === true) || b.idleMs - a.idleMs);
     let need = streams.length + recordings.length + 1 - limit;
     if (need <= 0) return { allowed: true, release: elsewhere() };
 
@@ -559,6 +601,7 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
             need--;
         }
     };
+    take(streams.filter(s => s.standby), 'standby');
     take(streams.filter(s => s.idleMs >= idleMs), 'idle');
     take(streams.filter(s => owner && s.owner === owner), 'replacement');
     if (need <= 0) return { allowed: true, release: [...release, ...elsewhere()] };
@@ -627,7 +670,7 @@ async function admitViewer(opts = {}) {
     const verdict = requestForViewer(opts);
     if (verdict.allowed) {
         for (const { stream, cause } of verdict.release || []) {
-            console.log(`[Coordinator] Releasing ${stream.id} (${cause}, ${Math.round(stream.idleMs / 1000)}s idle) to admit a new viewer`);
+            console.log(`[Coordinator] Releasing ${stream.id} (${cause}, ${idleText(stream)}) to admit a new viewer`);
             // Before the release, while the owner is still known. Everything
             // admitViewer releases is released to admit somebody else - including
             // a stream picked for being idle, because a client paused longer than
@@ -868,6 +911,8 @@ module.exports = {
     admitViewer,
     // Provider pools (0173)
     providerLimit,
+    hasFreeConnection,
+    samePool,
     canAdmitWithoutDisturbing,
     canRecordFreely,
     releaseOwnerElsewhere,
