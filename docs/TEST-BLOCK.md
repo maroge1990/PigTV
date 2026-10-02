@@ -1,4 +1,74 @@
-# Test block: everything built on 23 September – 1 October 2026
+# Test block: everything built on 23 September – 2 October 2026
+
+## Outstanding as of 2 October 2026 (server 0186 · app 36)
+
+Mark's results of 2 Oct are ticked. Still open: A1 (re-check on 0187), D5–D10, G2–G4, G6, G7, H (the tuner), K (captures). Round 7 below was written for 0179 and the old
+Sources/Providers tabs; **R7.1–R7.5 and R7.14 are replaced by the steps here** (0182 moved providers onto cards and removed
+the hand-typed dates). R7.6–R7.13 and R7.15 are unchanged and repeated here in short.
+
+**A. Deploy and the 0182 upgrade step**
+- [ ] A1 **FAILED 2 Oct (badge said 0181: version.js was not bumped in 0182–0186; fixed in 0187, re-check)** Back up the data folder, Force Update, `/api/version` says **0186**.
+- [x] A2 Log has one line `[Providers] One card per provider: …`; the guide is not empty afterwards.
+- [x] A3 Favourites, channel numbers and scheduled recordings are unchanged.
+
+**B. Settings → Providers (0182, 0184)**
+- [x] B1 One card per provider, the primary first; each shows Account, Expires, Connections, Channels, Guide.
+- [x] B2 Edit opens the same form on every card; Save with no change closes it; a changed guide address starts a sync.
+- [x] B3 Add a provider from the blank card (it becomes the last backup); Delete removes it.
+- [x] B4 Move a backup up/down: saved at once, no sync. (Optional, disruptive: move a backup to the top, confirm, then back.)
+- [x] B5 Check account on each: Strong8K **14 Jan 2027**, Dream4K **29 Mar 2027**, Trex **30 Mar 2027**.
+- [x] B6 M3U cards show "Login: Found in the playlist"; backup cards show "Covers N of M primary channels".
+- [x] B7 "Sync channels and guide every" keeps its value after a reload.
+
+**C. Backups and links (0183; replaces R7.2–R7.5)**
+- [x] C1 Sync now on Dream4K and Trex: Backup channels rises to each provider's full list (tens of thousands).
+- [x] C2 Review links: Australian channels now have candidates. Nothing wrong-country among the Auto links (no US ABC, no French beIN).
+- [x] C3 Approve the AU sport and free-to-air you care about; "Covers" on the card goes up.
+- [x] C4 A sync of a backup while something is playing causes no stutter (note it if it does).
+
+**D. Failover (R7.6–R7.13, R7.15)**
+- [x] D1 (R7.6) A linked channel plays on Strong8K.
+- [x] D2 (R7.7) Second device plays a different linked channel on a backup with no "another device" prompt.
+- [x] D3 (R7.8) Primary down (break Strong8K's playlist address on its card): a linked channel plays on a backup within ~20 s; after two failures Status shows Strong8K down; restored after the cooldown.
+- [x] D4 (R7.9) Mid-play break: rebuffers ~5–20 s, carries on on the backup.
+- [ ] D5 (R7.10) An unlinked channel fails with "The provider refused this channel".
+- [ ] D6 (R7.11, Mark testing 2 Oct) A due recording starts on a backup without a prompt while the TV watches.
+- [ ] D7 (R7.12) Everything busy: the recording prompts as before.
+- [ ] D8 (R7.13, optional) Break the primary during a recording: a "(part 2)" appears on a backup.
+- [ ] D9 (R7.15) Both backups disabled: everything behaves as before.
+- [ ] D10 (replaces R7.14) The expiry banner appears for a provider within 7 days of its account's end (web and Apple TV), and can be dismissed for the day. Nothing to type: it can only be checked when one is actually close.
+
+**E. Settings layout and Status (0182)**
+- [x] E1 Six tabs; Channels has Manage content / Channel numbers / EPG matching; each opens and saves.
+- [x] E2 Playback: Player and Transcoding settings save; "Advanced" opens.
+- [x] E3 System: theme, devices and users work.
+- [x] E4 Status → Live sessions: Stop ends that stream; Stop all appears with two or more.
+
+**F. Sport (0185, 0186)**
+- [x] F1 Settings → Sports: "Add a league…" lists leagues; picking EPL adds a chip; Save.
+- [x] F2 "Add a team from…" → NFL → a team: chip "NFL: <team>"; after Save its games show "Matched by: keyword".
+- [x] F3 Status → Sport fixtures lists each followed league (EPL shows 0 until a matchday is within 72 h).
+- [x] F4 No other country's Premier League is labelled EPL (0186).
+- [x] F5 Midweek re-airings of last weekend's grand prix show as replays, not in Live sport.
+
+**G. Still open from earlier rounds**
+- [x] G1 R6.3 again: recordings folder set back to `/app/recordings/SERVER01_Video/Recordings`; a bad path is refused.
+- [ ] G2 R6.4 An overnight recording scheduled from the Apple TV is there next morning.
+- [ ] G3 R6.5 Prompt ignored: the recording takes the stream ~3 minutes after it is due.
+- [ ] G4 R6.6 "Keep watching": playback continues, the recording waits.
+- [x] G5 R6.16 Web: Live TV, Guide, Recordings play; every Settings tab opens and saves (now the six tabs, see E).
+- [ ] G6 1.16 Skip break / Auto-skip on a recording with detected breaks.
+- [ ] G7 R3.8 Sport tab empty state (a moment with no followed sport).
+- [x] G8 R2.5 / R3.11 A file-based channel starts quickly (needs that channel found again).
+- [x] G9 Mark's minor bugs from app 35 / 0167 (29 Sept): not yet reported in detail.
+
+**H. The tuner (Part 3, `PIGTV_TUNER=1`): never run** - 3.1 to 3.9 below, including an HE-AAC channel being recorded while a TV tunes to it.
+
+**I. Closed (2 Oct)** - 4.2 Siri on Apple TV: failed, and Mark does not want the feature; it is removed in the next Swift build (blueprint §6 Next). W6 dropped with it.
+
+**J. Older checks: passed (Mark, 2 Oct)** - 0054 cutting the upstream mid-stream frees the slot · 0062 an HEVC recording plays on the Apple TV · 0073 `timestamp discontinuity` stays near 0 on the E-AC-3 channel.
+
+**K. Captures wanted while the fault is happening** - Fox Footy 504 audio timestamp flood · the ~38 s cut with ~19 s resent (7 channels) · 7 Flix Sydney "Stream ends prematurely" loop.
 
 ## Status summary (29 September 2026)
 

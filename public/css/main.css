@@ -239,7 +239,7 @@ h4 {
   font-size: 1.5rem;
   font-weight: 500;
   letter-spacing: -0.03em;
-  color: #fff;
+  color: var(--color-text-primary); /* was #fff: invisible on the light theme's navbar */
   /* Visual correction: shift text slightly down to align optically with icon center */
   padding-top: 2px;
 }
