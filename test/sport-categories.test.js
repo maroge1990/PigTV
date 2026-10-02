@@ -158,7 +158,7 @@ test('the web Sources picker shows a Sport toggle per category and saves it', as
     await manager.toggleSport(button);
     assert.deepEqual(JSON.parse(JSON.stringify(calls)), [[7, '10', true]]);
     assert.equal(group.sport, true);
-    assert.equal(button.textContent, 'Sport ✓');
+    assert.equal(button.textContent, 'Sport'); // Selection is graphical; the accessible pressed state persists.
     assert.match(manager.getGroupHtml(group), /aria-pressed="true"/);
     assert.doesNotMatch(manager.getGroupHtml({ ...group, categoryId: null }), /sport-toggle/, 'no toggle for a group with no category');
 });

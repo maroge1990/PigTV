@@ -14,9 +14,18 @@
   --color-bg-hover: #22222f;
   --color-bg-active: #2a2a3a;
 
-  --color-accent: #FF5C8A;
-  --color-accent-hover: #FF7FA3;
-  --color-accent-dim: rgba(255, 92, 138, 0.2);
+  --color-accent: #EF7AAE;
+  --color-on-accent: #442A19;
+  --color-accent-text: #EF7AAE;
+  --color-control-border: #7E7589;
+  --color-surface-active: var(--color-bg-active);
+  --color-surface: var(--color-bg-secondary);
+  --color-surface-hover: var(--color-bg-hover);
+  --color-text-bright: var(--color-text-primary);
+  --color-bg: var(--color-on-accent);
+  --color-accent-rgb: 239, 122, 174;
+  --color-accent-hover: #F6B7D4;
+  --color-accent-dim: rgba(239, 122, 174, 0.14);
 
   --color-success: #10b981;
   --color-warning: #f59e0b;
@@ -24,7 +33,7 @@
 
   --color-text-primary: #F5F1F4;
   --color-text-secondary: #A79FAE;
-  --color-text-muted: #7E7589;
+  --color-text-muted: #A79FAE;
 
   --color-border: #2E2634;
   --color-border-light: #3f3f46;
@@ -51,7 +60,7 @@
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 20px rgba(255, 92, 138, 0.3);
+  --shadow-glow: 0 0 20px rgba(239, 122, 174, 0.3);
 
   /* Transitions */
   --transition-fast: 150ms ease;
@@ -86,6 +95,10 @@
   --color-bg-active: #E6DCE4;
 
   --color-accent: #D6336C;
+  --color-accent-rgb: 214, 51, 108;
+  --color-on-accent: #FFFFFF;
+  --color-accent-text: #B02356;
+  --color-control-border: #857B8D;
   --color-accent-hover: #B02356;
   --color-accent-dim: rgba(214, 51, 108, 0.14);
 
@@ -95,7 +108,7 @@
 
   --color-text-primary: #1C1620;
   --color-text-secondary: #5C5364;
-  --color-text-muted: #857B8D;
+  --color-text-muted: #5C5364;
 
   --color-border: #E2D9E0;
   --color-border-light: #CFC4CE;
@@ -235,7 +248,7 @@ h4 {
 }
 
 .brand-text {
-  font-family: 'Century Gothic', sans-serif;
+  font-family: 'Arial Rounded MT Bold', system-ui, sans-serif;
   font-size: 1.5rem;
   font-weight: 500;
   letter-spacing: -0.03em;
@@ -3154,7 +3167,8 @@ kbd {
 }
 
 .captions-option.active::before {
-  content: "✓ ";
+  content: "";
+  position: absolute; left: 4px; top: 25%; bottom: 25%; width: 3px; border-radius: 2px; background: var(--color-accent);
 }
 
 .watch-btn-lg {
@@ -4395,3 +4409,29 @@ kbd {
   padding: 6px 10px;
   font-size: 0.85rem;
 }
+
+
+/* Pig family 1.0: visual state adapters. No control dimensions or routes change. */
+.btn-primary, .version-badge, .content-type-toggle .btn.active,
+.content-group-header .sport-toggle.active, .btn-ghost.active { color: var(--color-on-accent); }
+.nav-link.active, .tab.active, .subtab.active { color: var(--color-accent-text); }
+.form-input, .search-input, .form-select { border-color: var(--color-control-border); }
+:where(button,a,input,select,textarea,[role="button"]):focus-visible {
+  outline: 2px solid var(--color-accent); outline-offset: 3px;
+}
+.nav-link.active, .sport-toggle.active, .content-type-toggle .btn.active { position: relative; }
+.nav-link.active::after, .sport-toggle.active::after, .content-type-toggle .btn.active::after {
+  content: ''; position: absolute; width: 24px; height: 3px; border-radius: 2px;
+  bottom: 2px; left: 50%; transform: translateX(-50%); background: currentColor; pointer-events: none;
+}
+.captions-option { position: relative; }
+.captions-option.active { background: var(--color-accent-dim); }
+.brand-mark { transform: translateY(9.464%); }
+@media (forced-colors: active) {
+  .nav-link.active::after, .captions-option.active::before { background: Highlight; }
+}
+
+/* Outlined raster wordmark: identical artwork on platforms without the authoring font. */
+.brand-text { background: url('/img/pigtv-wordmark-dark.png') center / contain no-repeat; color: transparent; }
+.brand-text .brand-accent { color: transparent; }
+[data-theme="light"] .brand-text { background-image: url('/img/pigtv-wordmark-light.png'); }

@@ -248,7 +248,7 @@ class SourceManager {
         return `<button type="button" class="btn btn-sm btn-ghost sport-toggle${group.sport ? ' active' : ''}"
                         data-category-id="${this.escapeHtml(group.categoryId)}"
                         aria-pressed="${group.sport ? 'true' : 'false'}"
-                        title="Sport category: a live-looking programme on its channels (Live, vs, v) counts as sport (Settings → Sports)">Sport${group.sport ? ' ✓' : ''}</button>`;
+                        title="Sport category: a live-looking programme on its channels (Live, vs, v) counts as sport (Settings → Sports)">Sport</button>`;
     }
 
     async toggleSport(button) {
@@ -266,7 +266,7 @@ class SourceManager {
         button.disabled = false;
         button.classList.toggle('active', group.sport);
         button.setAttribute('aria-pressed', group.sport ? 'true' : 'false');
-        button.textContent = group.sport ? 'Sport ✓' : 'Sport';
+        button.textContent = 'Sport';
     }
 
     escapeHtml(text) {

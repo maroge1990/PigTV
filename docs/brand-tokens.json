@@ -1,0 +1,100 @@
+{
+  "status": "approved-2026-10-02",
+  "version": "1.0",
+  "date": "2026-10-02",
+  "logo": {
+    "pink": "#F6B7D4",
+    "rose": "#EF7AAE",
+    "brown": "#442A19",
+    "brownSecondary": "#5A3926",
+    "coral": "#EA5048",
+    "innerEar": "#F8C7DD",
+    "white": "#FFFFFF"
+  },
+  "light": {
+    "canvas": "#FBF8FA",
+    "surface": "#FFFFFF",
+    "raised": "#F2ECF0",
+    "text": "#1C1620",
+    "secondary": "#5C5364",
+    "accent": "#D6336C",
+    "onAccent": "#FFFFFF",
+    "hover": "#B02356",
+    "border": "#E2D9E0",
+    "controlBorder": "#857B8D",
+    "success": "#0F8A5F",
+    "warning": "#B4690E",
+    "danger": "#C2372C",
+    "textAccent": "#B02356"
+  },
+  "dark": {
+    "canvas": "#15111A",
+    "surface": "#1E1925",
+    "raised": "#251E2E",
+    "text": "#F5F1F4",
+    "secondary": "#A79FAE",
+    "accent": "#EF7AAE",
+    "onAccent": "#442A19",
+    "hover": "#F6B7D4",
+    "border": "#2E2634",
+    "controlBorder": "#7E7589",
+    "success": "#10B981",
+    "warning": "#F59E0B",
+    "danger": "#EF4444",
+    "textAccent": "#EF7AAE"
+  },
+  "derived": {
+    "selectedFill": {
+      "source": "accent",
+      "alpha": 0.14,
+      "over": "surface"
+    },
+    "focusFill": {
+      "source": "accent",
+      "alpha": 0.22,
+      "over": "surface"
+    }
+  },
+  "media": {
+    "canvas": "#000000",
+    "text": "#FFFFFF",
+    "solidPanel": "#15111A",
+    "translucentPanel": {
+      "source": "#000000",
+      "alpha": 0.55
+    },
+    "accent": "#EF7AAE",
+    "onAccent": "#442A19"
+  },
+  "provenance": "Logo values sampled from opaque pixels of PigLogo.png. Light roles and dark neutrals/status colours already exist in web CSS. Dark accent and onAccent are sampled logo colours. No new base hex values; opacity composites are derived. Palette assignments approved by user on 2 October 2026.",
+  "paletteStatus": "approved-by-user-2026-10-02",
+  "alignment": {
+    "logoOpticalAnchor": {
+      "x": 0.4996936292586657,
+      "y": 0.40536030991995403
+    },
+    "rule": "Align optical anchor with intended visual centre; preserve aspect ratio.",
+    "master": "assets/pig-master-transparent.png"
+  },
+  "selection": {
+    "fillAlpha": 0.14,
+    "indicator": "short inset accent bar",
+    "ticks": false,
+    "focus": "separate outer ring"
+  },
+  "radiatingLight": {
+    "status": "approved-excluding-rays",
+    "colours": [
+      "#EF7AAE",
+      "#F6B7D4"
+    ],
+    "directions": [
+      "soft halo",
+      "bloom"
+    ],
+    "motion": "static",
+    "constraints": "Decorative identity contexts only; behind opaque form surfaces; never encode focus or selection.",
+    "default": "soft halo",
+    "excluded": "rays"
+  }
+}

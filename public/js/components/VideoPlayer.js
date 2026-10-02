@@ -568,7 +568,7 @@ class VideoPlayer {
         if (!this.captionsList) return;
 
         // Clear existing list (keep only Off option)
-        this.captionsList.innerHTML = '<button class="captions-option" data-index="-1">Off</button>';
+        this.captionsList.innerHTML = '<button class="captions-option" data-index="-1" aria-pressed="false">Off</button>';
 
         // Add tracks
         if (this.video.textTracks && this.video.textTracks.length > 0) {
@@ -578,13 +578,13 @@ class VideoPlayer {
                 const track = this.video.textTracks[i];
                 const btn = document.createElement('button');
                 btn.className = 'captions-option';
+                btn.setAttribute('aria-pressed', 'false');
                 btn.textContent = track.label || `Track ${i + 1} (${track.language || 'unknown'})`;
                 btn.dataset.index = i;
 
                 if (track.mode === 'showing') {
                     btn.classList.add('active');
-                    // Add checkmark
-                    btn.innerHTML += ' <span style="float: right;">✓</span>';
+                    btn.setAttribute('aria-pressed', 'true');
                     hasActiveTrack = true;
                 }
 
@@ -601,7 +601,7 @@ class VideoPlayer {
             if (offBtn) {
                 if (!hasActiveTrack) {
                     offBtn.classList.add('active');
-                    offBtn.innerHTML += ' <span style="float: right;">✓</span>';
+                    offBtn.setAttribute('aria-pressed', 'true');
                 }
                 offBtn.onclick = (e) => {
                     e.stopPropagation();

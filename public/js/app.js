@@ -334,6 +334,8 @@ class App {
         // Update nav
         document.querySelectorAll('.nav-link').forEach(link => {
             link.classList.toggle('active', link.dataset.page === pageName);
+            if (link.dataset.page === pageName) link.setAttribute('aria-current', 'page');
+            else link.removeAttribute('aria-current');
         });
 
         // Update pages
