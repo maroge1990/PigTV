@@ -66,9 +66,12 @@ router.get('/providers', requireAdmin, async (req, res) => {
         const sharing = (s) => keys.get(s.id)
             ? all.filter(o => o.id !== s.id && keys.get(o.id) === keys.get(s.id)).map(o => o.id)
             : [];
+        // 0184: whether an Xtream login is known for it (an M3U's is read out of its playlist):
+        // the account check and the provider's full channel list both need one.
+        const hasLogin = (s) => { try { return Boolean(providerAccounts.deriveLogin(s)); } catch { return false; } };
         res.json(all.map(s => ({
             ...adminSummary(s), ...(s.role === 'backup' ? { backupChannels: backupChannels.count(s.id) } : {}),
-            sharesAccountWith: sharing(s) })));
+            hasLogin: hasLogin(s), sharesAccountWith: sharing(s) })));
     } catch (err) {
         console.error('Error getting providers:', err);
         res.status(500).json({ error: 'Failed to get providers' });

@@ -144,6 +144,7 @@ test('the save body: everything for a new provider, only what changed for a save
         { type: 'xtream', name: 'Dream4K', url: 'http://d.invalid', username: 'u', password: 'p', idOverlayUrl: 'http://e.invalid/list.m3u' });
     assert.deepEqual(plain(F.buildSave(null, { name: 'S', type: 'm3u', url: 'http://s.invalid/a.m3u', username: 'ignored', password: 'ignored', epgUrl: 'http://s.invalid/g.xml' }).body),
         { type: 'm3u', name: 'S', url: 'http://s.invalid/a.m3u', epgUrl: 'http://s.invalid/g.xml' });
+    assert.equal('idOverlayUrl' in F.buildSave(null, { name: 'S', type: 'm3u', url: 'http://s.invalid/a.m3u', idOverlayUrl: 'http://e.invalid/x.m3u' }).body, false, '0184: an M3U playlist is its own id list');
     assert.equal(F.buildSave(null, { ...typed, name: ' ' }).error, 'Give the provider a name');
     assert.equal(F.buildSave(null, { ...typed, url: '' }).error, 'Enter the server address');
     assert.equal(F.buildSave(null, { ...typed, type: 'm3u', url: '' }).error, 'Enter the playlist address');
@@ -161,9 +162,10 @@ test('the save body: everything for a new provider, only what changed for a save
 test('Providers cards are all the same: facts, the same buttons, no address or login until Edit; names escaped', () => {
     const { context } = harness();
     const panel = new context.ProvidersSettings();
-    const backup = { id: 4, type: 'xtream', name: 'Trex <b>', enabled: true, role: 'backup', priority: 1, hasEpg: true, hasIdOverlay: true,
+    const backup = { id: 4, type: 'm3u', hasLogin: false, name: 'Trex <b>', enabled: true, role: 'backup', priority: 1, hasEpg: true, hasIdOverlay: true,
         url: 'http://host.invalid', password: 'hunter2', backupChannels: 55123 };
-    panel.providers = [backup, { id: 1, type: 'm3u', name: 'Strong8K', enabled: true, role: 'primary', priority: null, hasEpg: true, hasIdOverlay: false }];
+    panel.setCoverage({ linkable: 2100, providers: [{ backupSourceId: 4, role: 'backup', linked: 1840 }, { backupSourceId: 1, role: 'sibling', linked: 5 }] });
+    panel.providers = [backup, { id: 1, type: 'm3u', hasLogin: true, name: 'Strong8K', enabled: true, role: 'primary', priority: null, hasEpg: true, hasIdOverlay: false }];
     panel.accounts = new Map([[4, { account: { status: 'Active', checkedAt: Date.now() - 60000, activeCons: 0, maxConnections: 2, ok: false,
         error: 'The provider did not answer (http://host.invalid/player_api.php?username=u&password=p)' },
         effective: { expiresAt: new Date(2027, 2, 30, 12).getTime(), expirySource: 'account', limit: 2, expired: false } }]]);
@@ -180,6 +182,8 @@ test('Providers cards are all the same: facts, the same buttons, no address or l
     assert.ok(out.includes('Tue 30 Mar 2027'));
     assert.ok(out.includes('0 of 2 in use'));
     assert.ok(out.includes('55,123') && out.includes('data-provider-action="links" data-id="4"'), 'backup channel count and the way to its links');
+    assert.ok(out.includes('1,840 of 2,100 primary channels'), '0184: how much of the primary this backup covers');
+    assert.ok(out.includes('Found in the playlist') && out.includes('Not found in the playlist'), '0184: whether a login could be read from an M3U');
     assert.ok(out.includes('The last good values are kept'));
     assert.ok(out.includes('Failed just now: HTTP 502'), 'the primary shows its guide sync');
     assert.ok(out.includes('Saved; used when this provider is first'), 'a backup keeps its guide address');
@@ -232,7 +236,7 @@ test('0181: a provider that is the same account as another shows a red warning n
     assert.ok(out.includes("Same server and login as Dream4K: these count as one connection. Check this provider's settings."));
     assert.ok(out.includes('Same server and login as Trex &lt;i&gt;: these'), 'the name is escaped');
     assert.match(out, /class="provider-warning provider-error"/, 'in the error colour');
-    assert.ok(/providers[^"]*ProvidersSettings\.js\?v=3/.test(html) || /ProvidersSettings\.js\?v=3/.test(html), 'the script version was bumped');
+    assert.ok(/providers[^"]*ProvidersSettings\.js\?v=4/.test(html) || /ProvidersSettings\.js\?v=4/.test(html), 'the script version was bumped');
 });
 
 const formCard = (values) => ({ querySelector: (sel) => { const m = /data-field="(\w+)"/.exec(sel); return m && m[1] in values ? { value: values[m[1]] } : null; } });

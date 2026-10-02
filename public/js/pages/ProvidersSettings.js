@@ -110,7 +110,7 @@ const ProviderFormat = {
             const body = { type, name: v('name'), url: v('url') };
             if (type === 'xtream') { body.username = v('username'); body.password = v('password'); }
             if (v('epgUrl')) body.epgUrl = v('epgUrl');
-            if (v('idOverlayUrl')) body.idOverlayUrl = v('idOverlayUrl');
+            if (type === 'xtream' && v('idOverlayUrl')) body.idOverlayUrl = v('idOverlayUrl'); // an M3U playlist is its own id list
             return { body };
         }
         const body = {};
@@ -128,6 +128,7 @@ class ProvidersSettings {
     constructor() {
         this.providers = [];
         this.guides = [];            // standalone EPG sources left from before 0182
+        this.coverage = new Map();   // backup id -> { linked, linkable } (GET /api/links/summary)
         this.accounts = new Map();   // id -> { account, effective }
         this.syncRows = new Map();   // id -> { all, epg } sync_status rows
         this.polls = new Map();      // id -> polls left while a sync runs
@@ -164,21 +165,31 @@ class ProvidersSettings {
         const mine = ++this.token;
         const list = document.getElementById('providers-list');
         try {
-            const [providers, statuses, all] = await Promise.all([
+            const [providers, statuses, all, summary] = await Promise.all([
                 API.sources.providers(),
                 API.sources.getStatus().catch(() => []),
-                API.sources.getAll().catch(() => [])
+                API.sources.getAll().catch(() => []),
+                API.links.summary().catch(() => null)
             ]);
             if (mine !== this.token) return;
             this.providers = Array.isArray(providers) ? providers : [];
             this.guides = (Array.isArray(all) ? all : []).filter(s => s.type === 'epg');
             this.setSyncRows(statuses);
+            this.setCoverage(summary);
             const accounts = await Promise.all(this.providers.map(p => API.sources.account(p.id).catch(() => null)));
             if (mine !== this.token) return;
             this.accounts = new Map(this.providers.map((p, i) => [p.id, accounts[i]]));
             this.render();
         } catch (err) {
             if (list) list.innerHTML = `<p class="hint">Could not load the providers: ${ProviderFormat.esc(err.message)}</p>`;
+        }
+    }
+
+    /** 0184: how many of the primary's channels each backup can stand in for. */
+    setCoverage(summary) {
+        this.coverage = new Map();
+        for (const p of (summary && Array.isArray(summary.providers)) ? summary.providers : []) {
+            if (p.role === 'backup') this.coverage.set(p.backupSourceId, { linked: p.linked || 0, linkable: summary.linkable || 0 });
         }
     }
 
@@ -208,10 +219,16 @@ class ProvidersSettings {
         if (account && account.error) {
             rows.push(['Check error', `<span class="provider-error">${e(F.safeText(account.error))}</span>${account.ok ? '' : ' <span class="setting-hint inline">The last good values are kept.</span>'}`]);
         }
+        if (p.type === 'm3u' && p.hasLogin !== undefined) {
+            rows.push(['Login', p.hasLogin ? 'Found in the playlist'
+                : '<span class="provider-soon">Not found in the playlist: no account details, and only the playlist\'s own channels</span>']);
+        }
         rows.push(['Channels', `<span class="provider-${sync.level}">${e(sync.text)}</span>`]);
         rows.push(['Guide', this.guideFact(p)]);
         if (p.role === 'backup') {
-            rows.push(['Backup channels', `${e(Number(p.backupChannels || 0).toLocaleString())}
+            rows.push(['Backup channels', e(Number(p.backupChannels || 0).toLocaleString())]);
+            const cover = this.coverage.get(p.id);
+            rows.push(['Covers', `${cover ? `${e(cover.linked.toLocaleString())} of ${e(cover.linkable.toLocaleString())} primary channels` : 'Not linked yet'}
                 <button type="button" class="btn btn-sm btn-secondary provider-inline" data-provider-action="links" data-id="${p.id}">Review links</button>`]);
         }
         return `<dl class="provider-facts">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
@@ -265,11 +282,11 @@ class ProvidersSettings {
                            placeholder="https://example.com/guide.xml">
                     <span class="setting-hint">This provider's guide, shown while it is first. Empty: an Xtream login uses the provider's own guide.</span>
                 </div>
-                <div class="provider-field wide">
-                    <label>Channel ID list (an EPGenius M3U)</label>
+                <div class="provider-field wide provider-login${xtream ? '' : ' hidden'}">
+                    <label>EPGenius playlist (optional)</label>
                     <input type="text" class="form-input" data-field="idOverlayUrl" value="${e(s.idOverlayUrl)}" autocomplete="off"
-                           placeholder="Optional">
-                    <span class="setting-hint">Optional. Gives this provider's channels the ids that match them to the first provider's, while it is a backup.</span>
+                           placeholder="https://example.com/epgenius.m3u">
+                    <span class="setting-hint">This provider's EPGenius M3U. Its guide ids are laid over the provider's own channel list, which makes matching to the first provider reliable while this one is a backup.</span>
                 </div>
             </div>
             <div class="provider-save">

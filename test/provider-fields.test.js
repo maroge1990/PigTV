@@ -234,6 +234,7 @@ test('a non-admin sees only id, type, name and enabled; no provider field, login
     const list = await call('GET', '/api/sources/providers');
     assert.equal(list.body[0].role, 'backup');
     assert.equal(list.body[0].hasEpg, true);
+    assert.equal(list.body[0].hasLogin, true, '0184: an Xtream source has its own login');
     assert.equal(list.body[0].hasIdOverlay, true);
     assert.ok(!('subscription' in list.body[0]) && !('maxConnections' in list.body[0]));
     for (const secret of ['SECRETUSER', 'SECRETPASS', 'secret-pass']) assert.ok(!list.text.includes(secret), `admin list leaks ${secret}`);
