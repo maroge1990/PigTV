@@ -220,6 +220,27 @@ class StatusPage {
             'Nothing is playing')
             + (sessions.length > 1 ? '<p><button type="button" class="btn btn-sm btn-danger" data-kill-all>Stop all streams</button></p>' : '')));
 
+        // Interruptions (0188): the measure any recovery change is judged against.
+        const ix = status.interruptions;
+        if (ix) {
+            const secs = (v) => (v === null || v === undefined ? '–' : `${Math.round(v)} s`);
+            const line = ix.count === 0
+                ? `No stream was lost mid-play in the last ${ix.days} days (${e(ix.watchedHours)} h watched).`
+                : `${e(ix.count)} lost mid-play in the last ${ix.days} days over ${e(ix.watchedHours)} h watched`
+                    + `${ix.perHour === null ? '' : ` (${e(ix.perHour)} per hour)`}; ${e(ix.recovered)} came back, `
+                    + `typically in ${secs(ix.medianRecoverSec)}, at worst ${secs(ix.worstRecoverSec)}.`;
+            out.push(this.section('Interruptions', `<p class="setting-hint">${line}</p>` + this.table(
+                ['When', 'Channel', 'Provider', 'What happened', 'After playing', 'Back in'],
+                (ix.recent || []).map(r => [
+                    this.when(r.at), e(r.channel || '–'), e(r.provider || '–'),
+                    e(r.how === 'stall' ? 'Stopped sending' : (r.providerReason ? 'Provider dropped it' : 'Stream ended')),
+                    this.duration(r.playedSec),
+                    r.recoverSec === null ? '<span class="status-event status-failure">Not recovered</span>'
+                        : `${e(r.recoverSec)} s${r.recoveredProvider && r.recoveredProvider !== r.provider ? ` <span class="setting-hint">(on ${e(r.recoveredProvider)})</span>` : ''}`
+                ]),
+                'None')));
+        }
+
         // Recordings
         const rec = status.recordings || { active: [], upcoming: [] };
         const recRow = (r) => [e(r.title), `${e(r.channel || '–')}${r.provider ? ` <span class="setting-hint">(${e(r.provider)})</span>` : ''}`, e(r.status), `${this.when(r.programStart)} – ${this.time(r.programEnd).slice(0, 5)}`];

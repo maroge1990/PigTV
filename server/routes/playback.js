@@ -295,6 +295,22 @@ router.post('/resolve', requireToken, async (req, res) => {
             }
         }
 
+        // 0188: the baseline for recovery work. This resolve closes the viewer's open loss of
+        // this channel, if any; and a loss of the session it started is recorded when it happens.
+        {
+            const interruptions = require('../services/playbackInterruptions');
+            const channelLabel = eventChannel || (routing && routing.channelName) || null;
+            const providerLabel = chosen ? chosen.providerName : null;
+            interruptions.noteResolved({ owner, channel: channelLabel, provider: providerLabel });
+            const played = decision.sessionId ? require('../services/transcodeSession').getSession(decision.sessionId) : null;
+            if (played && typeof played.once === 'function') {
+                played.once('lost', ({ how, providerReason } = {}) => interruptions.noteLost({
+                    owner, channel: channelLabel, provider: providerLabel, how, providerReason,
+                    playedSec: played.startTime ? (Date.now() - played.startTime) / 1000 : null
+                }));
+            }
+        }
+
         recordHistory(req, sourceId, channelId);
         // 0133 (C-G): a start the server answered; the client's events may
         // still turn it into a failed start (channelHealth.clientFailed).

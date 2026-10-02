@@ -287,6 +287,8 @@ router.get('/', async (req, res) => {
             events: playbackEvents.recent(),
             // 0133 (C-G): the channels that failed to start most in the last 7 days.
             leastReliable: leastReliable(),
+            // 0188: streams lost mid-play in the last 7 days, and how long they took to come back.
+            interruptions: require('../services/playbackInterruptions').summary(),
             // 0161 (C-I): ESPN fixture coverage, per league - last successful fetch, fixture
             // count, last error. Never a URL (sportsFixtures.statusSummary never puts one in).
             sportFixtures: sportsFixtures.statusSummary(),
