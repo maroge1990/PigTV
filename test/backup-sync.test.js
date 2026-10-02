@@ -127,6 +127,7 @@ test('an M3U backup keeps the stream URL and the numeric stream id, with a hash 
         { name: 'UK| SKY SPORTS F1 HD', tvgId: '', group: 'UK| SPORTS', url: liveUrl(83453) },
         { name: 'Odd feed', tvgId: 'odd.id', group: 'Misc', url: `${fakeUrl}/stream/odd.m3u8?username=u&password=p` },
     ]);
+    mode.streams = []; // the provider's own list cannot be read: the playlist alone is used
     const s = await m3uSource({ role: 'backup' });
     await silently(() => sync.syncSource(s.id));
     const r = rows(s.id);
@@ -140,6 +141,34 @@ test('an M3U backup keeps the stream URL and the numeric stream id, with a hash 
     assert.equal(odd.tvg_id, 'odd.id');
     assert.equal(count('playlist_items', s.id), 0);
     assert.equal(count('categories', s.id), 0);
+});
+
+test('0183: an M3U backup also gets the provider\'s channels its playlist leaves out, playable from the login', async () => {
+    const kept = OVERLAY_ENTRIES.slice(0, 3);
+    mode.m3u = m3u(kept.map(e => ({ ...e, url: liveUrl(e.streamId) })));
+    const s = await m3uSource({ name: 'Curated', role: 'backup' });
+    const seen = await silently(() => sync.syncSource(s.id));
+    const r = rows(s.id);
+    assert.equal(r.length, RAW.streams.length, 'every channel the provider has');
+    // The playlist's own rows are untouched: its name, its EPGenius id, its address.
+    const listed = r.find(x => x.stream_id === String(kept[0].streamId));
+    assert.equal(listed.name, kept[0].name);
+    assert.equal(listed.tvg_id, kept[0].tvgId || null);
+    assert.equal(listed.url_data, liveUrl(kept[0].streamId));
+    // A channel only the provider lists: raw name, category and guide id, and an address built from the login.
+    const keptIds = new Set(kept.map(e => String(e.streamId)));
+    const raw = RAW.streams.find(x => !keptIds.has(String(x.stream_id)) && x.epg_channel_id);
+    const extra = r.find(x => x.stream_id === String(raw.stream_id));
+    assert.equal(extra.url_data, liveUrl(raw.stream_id));
+    assert.equal(extra.tvg_id, raw.epg_channel_id);
+    assert.equal(extra.category_name, RAW.categories.find(c => String(c.category_id) === String(raw.category_id)).category_name);
+    assert.equal(count('provider_raw_channels', s.id), RAW.streams.length, 'the raw rows come from the same fetch');
+    assert.equal(hits.filter(h => h.endsWith('get_live_streams')).length, 1, 'the provider is asked once');
+    assert.ok(seen.some(l => l.includes(`${RAW.streams.length - 3} channels the playlist leaves out`)));
+    assert.ok(!seen.some(l => l.includes('bkpass')), 'the login is never logged');
+    // Never returned to a route.
+    assert.ok(!(await get(`/api/sources/${s.id}/backup-channels?search=&limit=200`)).text.includes('bkpass'));
+    await db.sources.delete(s.id);
 });
 
 test('the overlay copies EPGenius tvg-ids onto the raw list by stream id', async () => {
@@ -245,6 +274,7 @@ test('the admin search returns at most 200 rows and never url_data', async () =>
     const many = [];
     for (let i = 1; i <= 260; i++) many.push({ name: `Sky Channel ${i}`, tvgId: `sky${i}.uk`, group: 'UK| SPORTS', url: liveUrl(5000 + i) });
     mode.m3u = m3u(many);
+    mode.streams = []; // only the playlist's rows, so the counts below are the playlist's
     const s = await m3uSource({ name: 'Big', role: 'backup' });
     await silently(() => sync.syncSource(s.id));
 

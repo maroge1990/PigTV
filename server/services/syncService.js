@@ -471,6 +471,10 @@ class SyncService {
             if (credentialsLine) {
                 try { require('./providerAccounts').noteM3uHeader(source.id, credentialsLine); } catch (e) { /* the stream URLs are the fallback */ }
             }
+            // 0183: the playlist (an EPGenius M3U is a curated cut) is not all the provider has.
+            // With the login the playlist names, the provider's whole list is read too, and the
+            // channels the playlist leaves out are added, so they can back the primary up as well.
+            rawList = await this.addUnlistedChannels(source, rows);
         } else {
             throw new Error(`A ${source.type} source cannot be a backup`);
         }
@@ -498,6 +502,48 @@ class SyncService {
             if (typeof links.relinkSource === 'function') await links.relinkSource(source.id);
         } catch (e) {
             if (e && e.code !== 'MODULE_NOT_FOUND') console.warn('[Sync] Relink after backup sync failed:', redact(e.message));
+        }
+    }
+
+    /**
+     * 0183: for an M3U backup whose login is known (its playlist header, a stream address or
+     * its get.php address), read the provider's whole Xtream list and append the channels the
+     * playlist does not carry: name, category and guide id as the provider gives them, the
+     * stream address built from the login. The playlist's own rows are left as they are (they
+     * carry the EPGenius ids). Returns the raw rows for provider_raw_channels, or null when
+     * there is no login or the provider could not be read (then the playlist alone is used).
+     */
+    async addUnlistedChannels(source, rows) {
+        const accounts = require('./providerAccounts');
+        const login = accounts.deriveLogin(source) || rows.map(r => accounts.loginFromStreamUrl(r.urlData)).find(Boolean);
+        if (!login) return null;
+        try {
+            const api = new xtreamApi.XtreamApi(login.url, login.username, login.password);
+            const cats = await api.getLiveCategories();
+            const streams = await api.getLiveStreams();
+            if (!Array.isArray(streams) || !streams.length) throw new Error('no channel list');
+            const names = new Map((Array.isArray(cats) ? cats : []).map(c => [String(c.category_id), c.category_name]));
+            const listed = new Set(rows.map(r => r.streamId));
+            let added = 0;
+            for (const s of streams) {
+                if (!s || s.stream_id == null || listed.has(String(s.stream_id))) continue;
+                listed.add(String(s.stream_id));
+                rows.push({
+                    streamId: String(s.stream_id),
+                    name: stripBadgeSuffix(s.name) || `Channel ${s.stream_id}`,
+                    categoryId: s.category_id == null ? null : String(s.category_id),
+                    categoryName: names.get(String(s.category_id)) || null,
+                    tvgId: s.epg_channel_id || null,
+                    logo: s.stream_icon || null,
+                    urlData: api.buildStreamUrl(s.stream_id, 'live', 'ts')
+                });
+                added++;
+            }
+            console.log(`[Sync] Backup ${source.name}: ${added} channels the playlist leaves out were added from the provider's own list`);
+            return require('./rawChannels').toRows(cats, streams);
+        } catch (e) {
+            console.warn(`[Sync] The provider's own list for ${source.name} could not be read, using the playlist alone: ${redact(e && e.message)}`);
+            return null;
         }
     }
 
