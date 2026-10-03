@@ -41,7 +41,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | CI | Both repos are **public** since 30 Sept (free Actions minutes; history checked for secrets). `gh` is signed in on the MacBook: `gh run view <id> --log-failed`. On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings (fixed 28 Sept):** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (so an SMB share that mounts late or reconnects appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs (schedule #3 failed with "0.0 GB free"). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
 | Shipped through | **0177** (pushed, 30 Sept–1 Oct: multi-provider failover 0168–0177, §6) and app **36**. Round 7 (`docs/TEST-BLOCK.md`) not yet run. Before that: **0167** and app **35**. Rounds 1–4 passed on 0151 + app 31; round 5 (0152–0154 + app 32) passed on 28 Sept apart from the five bugs that started the 28–29 Sept fix run (§6 "Fix run"); round 6 (0166 + app 34, `docs/TEST-BLOCK.md`) passed apart from R6.3 (fixed in 0167) and R6.14 (fixed in app 35), with R6.4–R6.6 and R6.16 still to run. Whether a build is *running* is whatever `/api/version` says. |
-| Next build number | **0199** |
+| Next build number | **0200** |
 | Tests | `npm test`: **790 tests, all pass** (1 Oct, after 0178, on CI; timing tests can fail locally when the Mac is loaded - check `uptime`, rerun, or trust CI; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
@@ -810,6 +810,18 @@ connection, never reclaiming or prompting; the same owner's resolve of that chan
 decision). A warm session is the first thing any viewer or recording reclaims, silently; 90 s TTL. `/api/info`
 `features.warming` + `warmingEnabled`; Status `warming { enabled, active, hits, misses, expired, reclaimed }`.
 
+**0199 (4 Oct): the image runs as PUID/PGID (99:100 by default), is built in stages, and reports its health (audit R17).**
+`docker/entrypoint.sh` (as root only long enough to): own the container's own folders (`/app/data`, `/app/transcode-cache`,
+`/app/config`) as PUID:PGID when they aren't already, add the user to the `/dev/dri` render/card groups so VAAPI keeps
+working, check — never chown — that the recordings folder is writable (one clear WARNING naming the fix if not), then
+`exec setpriv` to drop to that user, so SIGTERM still reaches node. `PUID=0` runs as root (escape hatch, logged).
+Builder stage compiles better-sqlite3 and Comskip; the runtime stage has no compilers. `chmod 777` gone; `.dockerignore`
+(no host `node_modules`, data, `.env`). `GET /api/health` (unauthenticated: `{ ok, db, recordingsFolder }` from the cached
+folder state, never touching the share) + `HEALTHCHECK`. `engines` `>=22`. `scripts/backup-db.sh` (online SQLite backup,
+newest 7 kept) and restore in **`docs/OPERATIONS.md`**, with the first-deploy checklist. CI: `docker-smoke.yml` builds
+and starts the image on branches without publishing (checked: 99:100, own folders owned, recordings writable, ffmpeg,
+Comskip's libraries, clean SIGTERM).
+
 ### Next
 
 **Done in app 37 (4 Oct):** Siri / App Shortcuts removed; the provider reminder reworded. **Next performance target:** the first Home → TV Guide switch on the Apple TV (the Guide grid; app 37's blueprint). **Server:** each `/api/sports/events` request filters/sorts the cached events on the main thread (0195 note).
@@ -971,6 +983,7 @@ env vars: they live in SQLite and are edited in the web app's Settings (sources,
 | `PIGTV_TIMESHIFT_MIN_FREE_GB` | `20` | With the tuner: below this much free space the oldest timeshift segments are dropped (never below 90 per tuner). |
 | `PIGTV_LIVE_IDLE_TIMEOUT_SEC` | `300` | A live session nobody has fetched from for this long is removed by the idle sweep (seekable sessions: 30 min, fixed). |
 | `PIGTV_SPORT_WORKER` | on | `0`: sport events are built on the main thread, as before 0195 (blocks it while building). |
+| `PUID` / `PGID` | 99 / 100 | The user the container runs as (0199; Unraid's nobody:users). `PUID=0` runs as root. See `docs/OPERATIONS.md`. |
 | `PIGTV_NATIVE_PREPARE` | on | `0`: finished recordings are not prepared in the background; Play prepares on demand, as before 0193. |
 | `PIGTV_KEEP_MKV` | off | `1`: preparation keeps the original `.mkv` beside the prepared MP4 instead of deleting it (0193). |
 | `PIGTV_BLANK_KBPS` | 500 / 250 | A live play whose segments carry less than this (kbps, audio included; 500 from 720p up, 250 below) over its first 20 s is marked **blank** (0191): logged, quarantined on that provider for the next play, health reason `blank`. `0` switches it off. |

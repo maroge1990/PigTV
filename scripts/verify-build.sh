@@ -2210,6 +2210,31 @@ check test/stream-auth-enforced.test.js "Referrer-Policy" "with tests"
 echo "=== R11: the warming switch is in Settings ==="
 check public/index.html 'id="setting-warm-next-channel"' "Settings has a Warm the next channel switch"
 check public/js/pages/Settings.js "bind('setting-warm-next-channel', 'warmNextChannel');" "and saves it"
+echo "=== R17: hardened image ==="
+check Dockerfile "FROM ubuntu:24.04 AS builder" "multi-stage build: compilers live in a builder stage"
+check Dockerfile "COPY --from=builder /app/node_modules" "runtime takes node_modules from the builder"
+check_absent Dockerfile "chmod 777" "no world-writable folders"
+check Dockerfile "HEALTHCHECK" "image declares a healthcheck"
+check Dockerfile "api/health" "healthcheck uses /api/health"
+check Dockerfile 'ENTRYPOINT \["/app/docker/entrypoint.sh"\]' "entrypoint drops privileges before node"
+check docker/entrypoint.sh 'PUID="${PUID:-99}"' "PUID defaults to 99"
+check docker/entrypoint.sh 'PGID="${PGID:-100}"' "PGID defaults to 100"
+check docker/entrypoint.sh "setpriv" "privileges dropped with setpriv"
+check docker/entrypoint.sh 'exec setpriv' "node is exec'd so SIGTERM reaches it"
+check_absent docker/entrypoint.sh 'chown -R .*recordings' "the recordings share is never chowned"
+check server/index.js "/api/health" "health endpoint exists"
+check package.json '"node": ">=22' "engines matches the Node versions CI tests"
+check scripts/backup-db.js "db.backup" "database backup uses SQLite's online backup"
+check docs/OPERATIONS.md "Restore" "restore procedure documented"
+python3 - <<'PY' || FAIL=1
+import re, sys
+d = open('Dockerfile').read()
+runtime = d[d.rindex('FROM ubuntu:24.04\n'):]
+bad = [t for t in ('build-essential', 'g++', 'python3', 'autoconf', 'libtool', '-dev ') if re.search(r'^\s*' + re.escape(t), runtime, re.M)]
+if bad:
+    print("  ✗ the runtime stage installs build tools:", bad); sys.exit(1)
+print("  ✓ the runtime stage installs no compilers or -dev packages")
+PY
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
