@@ -8,6 +8,7 @@
  *          "replay" by default; include=all adds "show" and "placeholder". Events first
  *          (live, then upcoming, each by start), then replays (on now first), then the
  *          rest; channels best first
+ *          Answered from a per-minute cache with an ETag (If-None-Match -> 304); `now` is the minute's start
  *   GET /api/sports/follow           (admin; 0148) -> { keywords }
  *   PUT /api/sports/follow {keywords} (admin; 0148) -> { keywords } (trimmed, de-duplicated, max 100)
  *   GET /api/sports/preview          (admin; 0148)
@@ -44,7 +45,22 @@ router.get('/events', async (req, res) => {
     try {
         channelNumbers.ensureChannelNumbers(); // as /api/library (0117)
         const include = req.query.include === 'all' ? 'all' : undefined;
-        res.json(await sportsEvents.eventsFor({ hours: req.query.hours, userId: req.user.id, include, decorateChannels }));
+        // The serialised answer, kept per minute (sportsEvents.eventsResponse): a repeat is a buffer
+        // send, and the ETag lets a client that sends If-None-Match have a 304. `no-cache` rather
+        // than the router's `no-store` so such a client may keep the body to revalidate; one that
+        // never asks gets the 200 it always did.
+        const r = await sportsEvents.eventsResponse({ hours: req.query.hours, userId: req.user.id, include, decorateChannels });
+        res.set({ 'Cache-Control': 'private, no-cache', ETag: r.etag, Vary: 'Accept-Encoding' });
+        if (req.fresh) return res.status(304).end();
+        res.type('json');
+        if (/\bgzip\b/.test(req.headers['accept-encoding'] || '') && r.body.length > 1024) {
+            // compressed once per cached answer, not per request (the compression middleware
+            // leaves a response that already has a Content-Encoding alone)
+            const gz = await r.gzip();
+            res.set('Content-Encoding', 'gzip');
+            return res.send(gz);
+        }
+        res.send(r.body);
     } catch (err) {
         console.error('[Sports] events failed:', err.message);
         res.status(500).json({ error: 'Could not list the sport events' });

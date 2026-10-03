@@ -160,7 +160,7 @@ test('/api/info advertises sportsEvents', async () => {
 
 test('the same game on three channels is one event; a different game at the same time is another', async () => {
     const body = await events();
-    assert.ok(Math.abs(body.now - Date.now()) < 5000);
+    assert.ok(body.now <= Date.now() && Date.now() - body.now < 65000, "now is the start of the current minute (the answer is kept per minute)");
     const nfl = find(body, 'NFL');
     assert.equal(nfl.length, 1, JSON.stringify(titles(body)));
     assert.deepEqual(nfl[0].channels.map(c => c.name).sort(), ['ESPN 2 HD', 'Fox Sports 505 SD', 'Sky Sports UHD']);
@@ -523,4 +523,61 @@ test('0153: one build serves 5 minutes, and still covers the full 72 h at the en
         d.prepare(`DELETE FROM epg_programs WHERE title = 'Bowls: World Final'`).run();
         svc.reset();
     }
+});
+
+// The answer is kept per minute and carries an ETag: a client that sends If-None-Match gets a 304
+// while nothing changed; one that does not (the Apple client today) gets the 200 it always did.
+test('/events: ETag and 304 when unchanged; no If-None-Match is a plain 200; the same bytes either way', async () => {
+    const svc = load('services/sportsEvents');
+    svc.reset();
+    sqlite.getDb().prepare('DELETE FROM favorites').run(); // earlier tests leave the viewer a favourite
+    // the answer is per minute: do not straddle a minute boundary
+    if (60000 - (Date.now() % 60000) < 4000) await new Promise(r => setTimeout(r, 4100));
+    // node:http, not fetch: fetch adds `Cache-Control: no-cache` to a conditional request, which is
+    // (correctly) never answered with a 304; URLSession and the browsers do not
+    const get = (headers = {}, token = adminToken) => new Promise((resolve, reject) => {
+        require('node:http').get(`${base}/api/sports/events?hours=72`, { headers: { Authorization: `Bearer ${token}`, ...headers } }, (res) => {
+            const chunks = [];
+            res.on('data', c => chunks.push(c));
+            res.on('end', () => resolve({ status: res.statusCode, headers: { get: (n) => res.headers[n.toLowerCase()] ?? null }, text: async () => Buffer.concat(chunks).toString() }));
+        }).on('error', reject);
+    });
+    const first = await get({ 'Accept-Encoding': 'identity' });
+    assert.equal(first.status, 200);
+    const etag = first.headers.get('etag');
+    assert.match(etag, /^W\/"/);
+    const text = await first.text();
+    assert.ok(JSON.parse(text).events.length > 0);
+    assert.match(first.headers.get('content-type'), /application\/json/);
+
+    const plain = await get({ 'Accept-Encoding': 'identity' });
+    assert.equal(plain.status, 200, 'no If-None-Match: a full answer');
+    assert.equal(await plain.text(), text, 'the same bytes');
+
+    const same = await get({ 'If-None-Match': etag });
+    assert.equal(same.status, 304);
+    assert.equal(await same.text(), '');
+    assert.equal((await get({ 'If-None-Match': '"something else"' })).status, 200);
+
+    // two users with the same (no) favourites have the same answer, so the same ETag; a favourite
+    // added changes this user's
+    const other = await get({ 'If-None-Match': etag }, viewerToken);
+    assert.equal(other.status, 304);
+    const d = sqlite.getDb();
+    const espn = d.prepare(`SELECT item_id, stable_id FROM playlist_items WHERE name = 'ESPN'`).get();
+    d.prepare(`INSERT INTO favorites (user_id, source_id, item_id, item_type, stable_id) VALUES (?, ?, ?, 'channel', ?)`)
+        .run(String(viewer.id), source.id, espn.item_id, espn.stable_id);
+    try {
+        const changed = await get({ 'If-None-Match': etag }, viewerToken);
+        assert.equal(changed.status, 200, 'a favourite changed the answer');
+        assert.notEqual(changed.headers.get('etag'), etag);
+    } finally {
+        d.prepare('DELETE FROM favorites WHERE user_id = ?').run(String(viewer.id));
+    }
+
+    // a client that takes gzip gets the same JSON compressed (once, then kept)
+    const zipped = await fetch(`${base}/api/sports/events?hours=72`, { headers: { Authorization: `Bearer ${adminToken}`, 'Accept-Encoding': 'gzip' } });
+    assert.equal(zipped.status, 200);
+    assert.equal(zipped.headers.get('content-encoding'), 'gzip');
+    assert.equal(await zipped.text(), text);
 });

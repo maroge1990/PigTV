@@ -178,3 +178,125 @@ test('the worker\'s database connection is read-only', async () => {
     await w.terminate();
     assert.match(message, /READONLY/);
 });
+
+// ---- the per-minute serialised answer: /events costs the serving loop a few ms ----------------
+//
+// eventsFor() stays as the reference (it is the path /preview takes). eventsResponse() must give the
+// bytes of JSON.stringify(eventsFor({ now: <the minute's start> })) for every input that matters:
+// hours, include, the user's favourites; and must notice when any of them, or the build, or the
+// clock, changes. A request is "the Apple client's": hours=72, a user with a handful of favourites.
+const MIN = 60 * 1000;
+const MINUTE = Math.floor(NOW / MIN) * MIN;
+const insertFavourites = (userId, names) => {
+    const d = sqlite.getDb();
+    for (const name of names) {
+        const row = d.prepare('SELECT item_id, stable_id FROM playlist_items WHERE name = ? AND source_id = 701').get(name);
+        d.prepare(`INSERT INTO favorites (user_id, source_id, item_id, item_type, stable_id) VALUES (?, 701, ?, 'channel', ?)`)
+            .run(String(userId), row.item_id, row.stable_id);
+    }
+};
+const clearFavourites = (userId) => sqlite.getDb().prepare('DELETE FROM favorites WHERE user_id = ?').run(String(userId));
+const reference = async (opts) => JSON.stringify(await svc.eventsFor({ ...opts, now: MINUTE }));
+const median = (xs) => xs.slice().sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+const timeIt = async (fn, n = 5) => { const t = []; for (let i = 0; i < n; i++) { const t0 = performance.now(); await fn(); t.push(performance.now() - t0); } return median(t); };
+
+test('the serialised answer is the bytes of eventsFor + JSON.stringify, for several hours, kinds and users', async () => {
+    svc.reset();
+    insertFavourites('bob', ['Weekend 401', 'Weekend 12 HD', 'Weekend 404', 'Weekend 407']);
+    try {
+        for (const hours of [1, 6, 24, 72]) {
+            for (const include of [undefined, 'all']) {
+                for (const userId of [undefined, 'nobody', 'bob']) {
+                    const r = await svc.eventsResponse({ hours, userId, include, now: NOW });
+                    const want = await reference({ hours, userId, include });
+                    assert.equal(r.body.toString(), want, `hours=${hours} include=${include} user=${userId}`);
+                }
+            }
+        }
+        // the favourites really do change the order for bob (otherwise the above proves little)
+        const plain = await svc.eventsResponse({ hours: 72, userId: 'nobody', now: NOW });
+        const bobs = await svc.eventsResponse({ hours: 72, userId: 'bob', now: NOW });
+        assert.notEqual(plain.body.toString(), bobs.body.toString());
+        assert.notEqual(plain.etag, bobs.etag);
+    } finally { clearFavourites('bob'); }
+});
+
+test('a second request in the same minute is the cached buffer; the minute rolling over, a favourite and a new build each invalidate', async () => {
+    svc.reset();
+    clearFavourites('amy');
+    const first = await svc.eventsResponse({ hours: 72, userId: 'amy', now: MINUTE + 1000 });
+    assert.equal(first.cached, false);
+    const again = await svc.eventsResponse({ hours: 72, userId: 'amy', now: MINUTE + 59000 });
+    assert.equal(again.cached, true);
+    assert.equal(again.body, first.body, 'the same buffer');
+    assert.equal(again.etag, first.etag);
+
+    const next = await svc.eventsResponse({ hours: 72, userId: 'amy', now: MINUTE + MIN });
+    assert.equal(next.cached, false, 'a new minute');
+    assert.notEqual(next.etag, first.etag);
+    assert.equal(JSON.parse(next.body).now, MINUTE + MIN);
+
+    insertFavourites('amy', ['Weekend 401']);
+    try {
+        const fav = await svc.eventsResponse({ hours: 72, userId: 'amy', now: MINUTE + MIN });
+        assert.equal(fav.cached, false, 'a favourite was added');
+        assert.notEqual(fav.etag, next.etag);
+        assert.equal(fav.body.toString(), JSON.stringify(await svc.eventsFor({ hours: 72, userId: 'amy', now: MINUTE + MIN })));
+        clearFavourites('amy');
+        const gone = await svc.eventsResponse({ hours: 72, userId: 'amy', now: MINUTE + MIN });
+        assert.equal(gone.etag, next.etag, 'back to the same answer, the same ETag');
+    } finally { clearFavourites('amy'); }
+
+    const revision = svc.stats.revision;
+    svc.setFollow(['Zzyzx Open']);
+    await svc.idle();
+    assert.ok(svc.stats.revision > revision, 'rebuilt (more than once if the request is in a later 5-minute bucket than the clock)');
+    const rebuilt = await svc.eventsResponse({ hours: 72, userId: 'amy', now: MINUTE + MIN });
+    assert.equal(rebuilt.cached, false, 'a new build');
+    assert.notEqual(rebuilt.etag, next.etag);
+    svc.setFollow([]);
+    await svc.idle();
+});
+
+test('the response cache is bounded, and keeps only the current minute and build', async () => {
+    svc.reset();
+    for (let h = 1; h <= 40; h++) await svc.eventsResponse({ hours: (h % 72) + 1, userId: `u${h}`, now: MINUTE });
+    assert.ok(svc.responseCacheSize().entries <= 12, `entries ${svc.responseCacheSize().entries}`);
+    const old = svc.responseCacheSize().entries;
+    await svc.eventsResponse({ hours: 72, now: MINUTE + MIN });
+    assert.equal(svc.responseCacheSize().entries, 1, `the previous minute's ${old} entries are dropped`);
+    assert.ok(svc.responseCacheSize().bytes > 0);
+    svc.reset();
+    assert.equal(svc.responseCacheSize().entries, 0);
+});
+
+test('benchmark: the Apple client\'s request (hours=72) on 1,000 channels', async () => {
+    svc.reset();
+    insertFavourites('apple', ['Weekend 3 HD', 'Weekend 401', 'Weekend 21 HD', 'Weekend 404', 'Weekend 99 HD', 'Weekend 407']);
+    try {
+        await svc.eventsFor({ hours: 72, userId: 'apple', now: MINUTE }); // built, cached
+        const opts = { hours: 72, userId: 'apple', now: MINUTE };
+
+        // before: what the route did on every request, on the main thread, broken down
+        const built = (await svc.eventsFor({ ...opts, include: 'all' })).events; // ~ the window's events
+        const filterMs = await timeIt(() => { let n = 0; for (const e of built) if (e.end > MINUTE && e.start < MINUTE + 72 * H) n++; return n; });
+        const refMs = await timeIt(() => svc.eventsFor(opts)); // filter + live + per-user ordering + object building
+        const events = await svc.eventsFor(opts);
+        const stringifyMs = await timeIt(() => Buffer.from(JSON.stringify(events)));
+        const before = refMs + stringifyMs;
+
+        // after
+        svc.reset();
+        await svc.eventsFor(opts); // the build, with its prepared halves
+        const cold = await timeIt(async () => { svc.clearResponses(); await svc.eventsResponse(opts); }, 5);
+        await svc.eventsResponse(opts);
+        const warm = await timeIt(() => svc.eventsResponse(opts), 20);
+        const body = (await svc.eventsResponse(opts)).body;
+        console.log(`# /events hours=72, ${events.events.length} events, ${(body.length / 1e6).toFixed(1)} MB: `
+            + `before ${before.toFixed(1)} ms (eventsFor ${refMs.toFixed(1)} of which a bare window filter ${filterMs.toFixed(1)}, `
+            + `JSON.stringify+Buffer ${stringifyMs.toFixed(1)}); after: once a minute ${cold.toFixed(1)} ms, repeats ${warm.toFixed(2)} ms`);
+        assert.equal(body.toString(), await reference(opts), 'the same bytes');
+        assert.ok(warm < 10, `a warm request took ${warm.toFixed(2)} ms of the main thread`);
+        assert.ok(cold < before, `a cold miss (${cold.toFixed(1)} ms) is cheaper than before (${before.toFixed(1)} ms)`);
+    } finally { clearFavourites('apple'); }
+});

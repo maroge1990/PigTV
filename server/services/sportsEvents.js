@@ -631,10 +631,12 @@ async function runJob(job) {
     try {
         const { built, buildMs } = await computeBuild(job.bucket, getFollow().slice());
         await decorateBuilt(built, lastDecorateChannels);
+        await prepareBuilt(built); // after the logos: the serialised channels carry them
         if (job.generation === generation) { // not reset() meanwhile
             cache = { key: job.key, built }; // atomically replaces the previous result
             stats.builds++;
             stats.revision++;
+            built.rev = stats.revision;
             stats.lastBuildMs = buildMs;
             stats.lastTotalMs = Number(process.hrtime.bigint() - t0) / 1e6;
             if (job.key === wantedKey) staleSince = 0;
@@ -809,6 +811,175 @@ async function eventsFor({ hours, userId, now = Date.now(), withRule = false, in
     return { now, events };
 }
 
+// ---- the serialised answer (a request costs the serving loop a few ms, not 100-200) ----------
+//
+// eventsFor() above is the reference: it filters ~10,000 cached events by `hours`, marks `live`,
+// orders every event's channels for the user and builds ~10,000 objects that res.json then
+// walks again - 100-200 ms of the loop that also serves live HLS segments, for every Home and
+// Sport appearance and every minute after. Nearly all of that is the same for every request, so:
+//   per build   each event's JSON is written once, in two halves around `"live":` (the one field
+//               that moves with the clock), with its channels in the order a user with no
+//               favourites sees them; events sorted once by kind, start, title. This is done in
+//               slices at the end of the build (prepareBuilt), not by a request.
+//   per request the events in the window are picked (a compare each), put live-first, and the
+//               strings joined - for a user whose favourites are among an event's channels, only
+//               THAT event's channels are re-ordered and re-written.
+//   per minute  the finished body is kept per (build, hours, include, favourites, minute) and
+//               a repeat is a buffer send with an ETag, so an unchanged answer is a 304.
+// The inputs that can change an answer are exactly those: the build (guide, follow list, channel
+// health, logos - all baked in at build time; health refreshes with the 5-minute build), the
+// window, the user's favourites (read per request: one indexed query - the key is a hash of
+// WHICH channels, so two users with the same favourites share an entry) and the clock, which
+// is why `now` is the minute's start here (live flips, and events enter and leave, at most a
+// minute late). The bytes are those of eventsFor({ now: <that minute> }) through res.json.
+// The cold miss (once a minute per distinct request) is a few ms of string joining, so it stays
+// on the main thread: the worker would have to send ~MBs back, which costs more than it saves.
+
+const MINUTE_MS = 60 * 1000;
+const PREP_SLICE = 500; // events per slice: ~2 ms of stringify, then back to the loop
+const RESPONSE_ENTRIES = 12; // a couple of hours values x include x a handful of distinct favourite sets
+const RESPONSE_BYTES = 48 * 1024 * 1024; // each 72 h body is a few MB (plus its gzip); least recently used go first
+const bootNonce = crypto.randomBytes(3).toString('hex'); // a restart restarts `revision`: its ETags must not collide
+const responses = new Map(); // key -> entry, least recently used first (a Map iterates in insertion order)
+let responseBytes = 0;
+
+const channelJson = (ch) => JSON.stringify({
+    sourceId: ch.sourceId, id: ch.id, stableId: ch.stableId, name: ch.name,
+    number: ch.number, logo: ch.logo, quality: ch.quality
+});
+const favKeysOf = (ch) => [`${ch.sourceId}:${ch.stableId || ch.id}`, `${ch.sourceId}:${ch.id}`];
+const byBaseOrder = (a, b) => qualityRank(a.quality) - qualityRank(b.quality)
+    || healthRank(a.health) - healthRank(b.health)
+    || a.order - b.order;
+
+/** The ',"channels":[...]}' end of an event's JSON for these channels, already in order. */
+const channelsTail = (channels, jsons) => `,"channels":[${channels.map(ch => jsons.get(ch)).join(',')}]}`;
+
+async function prepareBuilt(built) {
+    if (built.prep) return built.prep;
+    const jsons = new Map(); // channel -> its JSON, shared by every event naming it
+    const entries = [];
+    const byFav = new Map(); // "sourceId:identity" -> entries with such a channel
+    const sorted = built.events.slice().sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]
+        || a.start - b.start || a.title.localeCompare(b.title));
+    for (let i = 0; i < sorted.length; i++) {
+        const ev = sorted[i];
+        for (const ch of ev.channels) if (!jsons.has(ch)) jsons.set(ch, channelJson(ch));
+        const channels = ev.channels.slice().sort(byBaseOrder);
+        const entry = {
+            ev, kind: KIND_ORDER[ev.kind],
+            head: JSON.stringify({ id: ev.id, kind: ev.kind, title: ev.title, aliases: ev.aliases, league: ev.league, start: ev.start, end: ev.end })
+                .slice(0, -1) + ',"live":',
+            tail: channelsTail(channels, jsons)
+        };
+        entries.push(entry);
+        for (const ch of ev.channels) {
+            for (const k of favKeysOf(ch)) {
+                const list = byFav.get(k);
+                if (!list) byFav.set(k, [entry]); else if (list[list.length - 1] !== entry) list.push(entry);
+            }
+        }
+        if ((i + 1) % PREP_SLICE === 0) await yieldToLoop();
+    }
+    built.prep = { entries, byFav, jsons, favTails: new Map() };
+    return built.prep;
+}
+
+/**
+ * The ends of the events a user's favourites touch, re-ordered for them: Map(entry -> tail).
+ * Kept per set of favourites for the life of the build (a few sets at most).
+ */
+function favouriteTails(prep, favs, favSig) {
+    let tails = prep.favTails.get(favSig);
+    if (tails) return tails;
+    const isFav = (ch) => favs.has(`${ch.sourceId}:${ch.stableId || ch.id}`) || favs.has(`${ch.sourceId}:${ch.id}`);
+    tails = new Map();
+    for (const k of favs) {
+        for (const entry of prep.byFav.get(k) || []) {
+            if (tails.has(entry)) continue;
+            const channels = entry.ev.channels.slice().sort((a, b) =>
+                qualityRank(a.quality) - qualityRank(b.quality)
+                || healthRank(a.health) - healthRank(b.health)
+                || (isFav(b) ? 1 : 0) - (isFav(a) ? 1 : 0)
+                || a.order - b.order);
+            tails.set(entry, channelsTail(channels, prep.jsons));
+        }
+    }
+    if (prep.favTails.size >= 8) prep.favTails.delete(prep.favTails.keys().next().value);
+    prep.favTails.set(favSig, tails);
+    return tails;
+}
+
+function assemble(prep, tails, minute, span, all) {
+    const lanes = [[], [], [], [], [], [], [], []]; // kind x (live, not live): the order the answer wants
+    const end = minute + span;
+    for (const entry of prep.entries) {
+        const ev = entry.ev;
+        if (!all && !DEFAULT_KINDS.has(ev.kind)) continue;
+        if (!(ev.end > minute && ev.start < end)) continue;
+        const live = ev.start <= minute && minute < ev.end;
+        lanes[entry.kind * 2 + (live ? 0 : 1)].push(entry);
+    }
+    const parts = [];
+    for (let l = 0; l < lanes.length; l++) {
+        const live = l % 2 === 0 ? 'true' : 'false';
+        for (const entry of lanes[l]) parts.push(entry.head + live + (tails.get(entry) || entry.tail));
+    }
+    return Buffer.from(`{"now":${minute},"events":[${parts.join(',')}]}`);
+}
+
+function trimResponses(rev, minute) {
+    for (const [k, e] of responses) {
+        if (e.rev < rev || e.minute < minute) { responses.delete(k); responseBytes -= e.bytes; }
+    }
+    while (responses.size > RESPONSE_ENTRIES || responseBytes > RESPONSE_BYTES) {
+        const [k, e] = responses.entries().next().value;
+        responses.delete(k);
+        responseBytes -= e.bytes;
+    }
+}
+
+/**
+ * The /events answer, serialised: { body: Buffer, etag, gzip(): Promise<Buffer>, cached }.
+ * Same JSON as `JSON.stringify(await eventsFor({ hours, userId, include, now: <the minute's start> }))`.
+ */
+async function eventsResponse({ hours, userId, now = Date.now(), include, decorateChannels } = {}) {
+    const hrs = clampHours(hours);
+    const all = include === 'all';
+    const minute = Math.floor(now / MINUTE_MS) * MINUTE_MS;
+    const built = await cachedEvents(now, decorateChannels);
+    const favs = favouriteKeys(userId);
+    const favSig = favs.size ? crypto.createHash('sha1').update([...favs].sort().join('\u0000')).digest('hex').slice(0, 12) : '';
+    const key = `${built.rev}|${hrs}|${all ? 'all' : 'd'}|${favSig}|${minute}`;
+    const hit = built.rev ? responses.get(key) : null;
+    if (hit) {
+        responses.delete(key); // most recently used goes last
+        responses.set(key, hit);
+        return { ...hit.out, cached: true };
+    }
+    const prep = await prepareBuilt(built);
+    const body = assemble(prep, favs.size ? favouriteTails(prep, favs, favSig) : new Map(), minute, hrs * HOUR_MS, all);
+    const etag = `W/"${bootNonce}-${built.rev || 'x'}-${crypto.createHash('sha1').update(key).digest('hex').slice(0, 12)}"`;
+    const entry = { rev: built.rev, minute, bytes: body.length };
+    let gz = null;
+    entry.out = {
+        body, etag, cached: false,
+        // compressed once, off the loop (zlib's threadpool), for every client that takes gzip
+        gzip: () => gz || (gz = new Promise((resolve, reject) => require('zlib').gzip(body, (err, buf) => {
+            if (err) return reject(err);
+            if (responses.get(key) === entry) { entry.bytes += buf.length; responseBytes += buf.length; }
+            resolve(buf);
+        })))
+    };
+    if (built.rev) {
+        trimResponses(built.rev, minute);
+        responses.set(key, entry);
+        responseBytes += entry.bytes;
+        trimResponses(built.rev, minute);
+    }
+    return entry.out;
+}
+
 // ---- 0147: EPG categories ---------------------------------------------------------
 
 const CATEGORY_LIMIT = 200;
@@ -846,6 +1017,8 @@ function categoryCounts({ now = Date.now() } = {}) {
 function reset() {
     categoryCache = null;
     cache = null;
+    responses.clear();
+    responseBytes = 0;
     followCache = null;
     generation++; // a build still under way will not publish into the fresh state
     running = null;
@@ -859,7 +1032,10 @@ module.exports = {
     categoryCounts, epgGenerations, CATEGORY_LIMIT,
     // 0148
     classify, compileFollow, normaliseTitle, qualityFromName, leagueFromCategories,
-    getFollow, setFollow, cleanFollow, eventsFor, buildEvents, clampHours, stats,
+    getFollow, setFollow, cleanFollow, eventsFor, buildEvents, clampHours, stats, eventsResponse,
+    // for tests: what the response cache holds, and an empty one
+    responseCacheSize: () => ({ entries: responses.size, bytes: responseBytes }),
+    clearResponses: () => { responses.clear(); responseBytes = 0; },
     // 0150
     eventsFromProgrammes,
     DEFAULT_HOURS, MAX_HOURS, MAX_KEYWORDS,
