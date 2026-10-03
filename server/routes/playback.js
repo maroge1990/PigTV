@@ -311,6 +311,9 @@ router.post('/resolve', requireToken, async (req, res) => {
                     owner, channel: channelLabel, provider: providerLabel, how, providerReason,
                     playedSec: played.startTime ? (Date.now() - played.startTime) / 1000 : null
                 }));
+                // 0191: a blank or placeholder picture marks this attempt's health row
+                // (providerRouting.watchSession quarantines the channel on the provider).
+                played.once('blank', () => channelHealth.sessionBlank(owner));
                 // 0189 (PIGTV_RELAY=1): keep this stream going across a lost provider. A
                 // channel play only; off, adopt() does nothing.
                 if (routing && live) {

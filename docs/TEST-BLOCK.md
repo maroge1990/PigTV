@@ -2,7 +2,7 @@
 
 ## Outstanding as of 2 October 2026 (server 0186 · app 36)
 
-Mark's results of 2 Oct are ticked. Still open: A1 (re-check on 0187), D5–D10, G2–G4, G6, G7, H (the tuner), K (captures), **L (in-stream recovery and the standby, 0189)**. Round 7 below was written for 0179 and the old
+Mark's results of 2 Oct are ticked. Still open: A1 (re-check on 0187), D5–D10, G2–G4, G6, G7, H (the tuner), K (captures), **L (in-stream recovery and the standby, 0189)**, **M (0191)**. Round 7 below was written for 0179 and the old
 Sources/Providers tabs; **R7.1–R7.5 and R7.14 are replaced by the steps here** (0182 moved providers onto cards and removed
 the hand-typed dates). R7.6–R7.13 and R7.15 are unchanged and repeated here in short.
 
@@ -63,6 +63,15 @@ Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "\[Relay|failover|Coor
 - [ ] L6 **Giving way**: with a standby running, play another channel on a second device, or let a recording start: it gets the backup's connection with **no prompt**; log `standby on … gone: its connection was needed`. The first device keeps playing.
 - [ ] L7 Change channel a few times quickly with the standby on: each old relay ends (`[Relay …] ended`), no stray streams left on Status after a minute.
 - [ ] L8 Roll back: remove both variables → Apply. Everything as before.
+
+**M. Reconnect loop and blank pictures (0191)**
+Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "Timestamps looping|Blank picture|blank picture|Relay|lost .* mid-play"`
+- [ ] M1 Deploy, `/api/version` says **0191**.
+- [ ] M2 Play 7mate Melbourne for 30 s: log `Blank picture: … kbps … at 1080p`, then `Strong8K is sending a blank picture for "7 Mate Melbourne"`. Status → Least reliable shows it with **Blank picture**. Playback itself carries on.
+- [ ] M3 Play a few normal channels (a sport channel, a 7 channel, an SD one) for a minute each: **no** `Blank picture` line for any of them. If one appears for a real picture, note the channel and the kbps.
+- [ ] M4 Fox Footy for an hour or so (relay on, see L): when Strong8K drops it, either nothing happens beyond a short freeze or the log shows `Timestamps looping … ending the session so it restarts cleanly` followed by the relay's `now on Strong8K after N s`. The picture must **not** wander back and forth for minutes any more. Status → Interruptions shows "Timestamps broke after a reconnect" for such a row.
+- [ ] M5 The 7 channels' ~38 s cut still plays through as before (a short repeat, no restart, no `Timestamps looping`).
+- [ ] M6 `docker exec PigTV node scripts/stream-doctor.js capture pos_1178 300` (nothing playing): says `the connection held` or when the provider closed it, and lists `jumps` per stream plus `PICTURE : has picture data`. On `pos_1157` (7mate) it says `PICTURE : BLANK`.
 
 **G. Still open from earlier rounds**
 - [x] G1 R6.3 again: recordings folder set back to `/app/recordings/SERVER01_Video/Recordings`; a bad path is refused.

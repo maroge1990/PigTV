@@ -237,7 +237,7 @@ class StatusPage {
                 ['When', 'Channel', 'Provider', 'What happened', 'After playing', 'Back in'],
                 (ix.recent || []).map(r => [
                     this.when(r.at), e(r.channel || '–'), e(r.provider || '–'),
-                    e(r.how === 'stall' ? 'Stopped sending' : (r.providerReason ? 'Provider dropped it' : 'Stream ended')),
+                    e(r.how === 'stall' ? 'Stopped sending' : r.how === 'timestamps' ? 'Timestamps broke after a reconnect' : (r.providerReason ? 'Provider dropped it' : 'Stream ended')),
                     this.duration(r.playedSec),
                     r.recoverSec === null ? '<span class="status-event status-failure">Not recovered</span>'
                         : `${e(r.recoverSec)} s${r.recoveredProvider && r.recoveredProvider !== r.provider ? ` <span class="setting-hint">(on ${e(r.recoveredProvider)})</span>` : ''}`
@@ -290,7 +290,8 @@ class StatusPage {
                 ch.stallsPerHour !== null && ch.stallsPerHour !== undefined ? `${e(ch.stalls)} (${Number(ch.stallsPerHour).toFixed(1)}/h)` : e(ch.stalls ?? 0),
                 ch.watchedMin !== null && ch.watchedMin !== undefined ? `${Math.round(ch.watchedMin)} min` : '–',
                 ch.medianFirstPictureSec !== null && ch.medianFirstPictureSec !== undefined ? `${Number(ch.medianFirstPictureSec).toFixed(1)}s` : '–',
-                ch.health === 'flaky' ? '<span class="status-event status-failure">Flaky</span>' : e(ch.health || '–')
+                (ch.health === 'flaky' ? '<span class="status-event status-failure">Flaky</span>' : e(ch.health || '–'))
+                    + (ch.blank ? ' <span class="status-event status-failure">Blank picture</span>' : '')
             ]),
             'No failed starts or stalls in the last 7 days')));
 

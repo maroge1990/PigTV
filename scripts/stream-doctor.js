@@ -21,6 +21,11 @@
  * or from a checkout. Provider credentials never reach the console: every URL
  * goes through the server's own redact().
  *
+ * capture saves the provider's raw bytes (0191; before, it copied through ffmpeg,
+ * which smooths over the very jumps it was meant to find) and says whether the
+ * connection held. classify reports jumps per stream, the A/V start skew and
+ * whether the picture is blank, besides the evenness verdict.
+ *
  * capture and probecost open a connection to the provider, which allows ONE.
  * Nothing may be playing while they run. list, classify and bench touch only
  * files on disk and are always safe.
@@ -142,7 +147,45 @@ function cmdList(search) {
     }
 }
 
-function cmdCapture(search, secArg) {
+// The provider's bytes, untouched. An ffmpeg capture (-c copy) cannot be used for
+// this: ffmpeg's demuxer rebases a backward timestamp step before anything is
+// written, so a provider jump or a reconnect arrives in the file already smoothed
+// over - the 23 Sept 19 s resend and the 3 Oct Fox Footy captures both "classified
+// EVEN" that way. A plain HTTP read also has no reconnect, so it shows exactly when
+// the provider closes or goes silent (3 Oct: ETIMEDOUT 1045 s into an idle capture).
+function rawFetch(url, sec, file, ua) {
+    return new Promise((resolve) => {
+        const out = fs.createWriteStream(file);
+        const t0 = Date.now();
+        let settled = false;
+        let req = null;
+        const finish = (how) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            if (req) req.destroy();
+            out.end(() => resolve({ how, seconds: Math.round((Date.now() - t0) / 1000), bytes: fs.statSync(file).size }));
+        };
+        const timer = setTimeout(() => finish('complete'), sec * 1000);
+        const get = (target, hops) => {
+            const lib = target.startsWith('https:') ? require('https') : require('http');
+            req = lib.get(target, { headers: { 'User-Agent': ua } }, (res) => {
+                if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && hops < 5) {
+                    res.resume();
+                    return get(new URL(res.headers.location, target).href, hops + 1);
+                }
+                if (res.statusCode !== 200) { res.resume(); return finish(`HTTP ${res.statusCode}`); }
+                res.pipe(out, { end: false });
+                res.on('end', () => finish('closed by the provider'));
+                res.on('error', (err) => finish(`error ${err.code || err.message}`));
+            });
+            req.on('error', (err) => finish(`error ${err.code || err.message}`));
+        };
+        get(url, 0);
+    });
+}
+
+async function cmdCapture(search, secArg) {
     const { row, url } = oneChannel(search);
     const sec = Number.parseInt(secArg, 10) || 60;
     const slug = String(row.item_id).replace(/[^A-Za-z0-9_-]/g, '_');
@@ -151,23 +194,49 @@ function cmdCapture(search, secArg) {
 
     console.log(`Channel : ${row.name}  (source ${row.source_id}, id ${row.item_id})`);
     console.log(`URL     : ${redact(url)}`);
-    console.log(`Grabbing ${sec}s -> ${ts}`);
+    console.log(`Grabbing ${sec}s of raw bytes -> ${ts}`);
 
-    // A straight copy of the bytes the provider sends: no decode, no re-timing, so
-    // the sample carries the source's own timestamps exactly as the server sees them.
-    const grab = spawnSync('ffmpeg', [
-        '-hide_banner', '-loglevel', 'warning',
-        '-user_agent', userAgent(),
-        '-probesize', '5000000', '-analyzeduration', '5000000',
-        '-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '3',
-        '-i', url,
-        '-map', '0', '-c', 'copy', '-t', String(sec),
-        '-f', 'mpegts', '-y', ts
-    ], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-    if (grab.stderr) console.log(redact(grab.stderr).trim().split('\n').slice(0, 20).join('\n'));
-    if (!fs.existsSync(ts) || fs.statSync(ts).size === 0) die(`Capture produced nothing (ffmpeg exit ${grab.status}).`);
-    console.log(`Captured ${(fs.statSync(ts).size / 1e6).toFixed(1)} MB\n`);
+    const got = await rawFetch(url, sec, ts, userAgent());
+    if (!got.bytes) die(`Capture produced nothing (${got.how}).`);
+    console.log(`Captured ${(got.bytes / 1e6).toFixed(1)} MB in ${got.seconds}s - ` +
+        (got.how === 'complete' ? 'the connection held' : `${got.how} at ${got.seconds}s`) + '\n');
     cmdClassify(ts);
+}
+
+// Steps over this are a jump (the stream's own frame and audio steps are well under).
+const JUMP_TICKS = 90000; // 1 s at 90 kHz
+const WRAP_TICKS = 2 ** 32; // half the 33-bit range: a step this far back is the clock wrapping
+
+/**
+ * What a raw capture's timestamps do, per stream: where each starts, every backward
+ * step or forward gap over a second (a 33-bit wrap named as such), and the seconds of
+ * media actually carried (the sum of the ordinary steps). Exported for the tests.
+ */
+function timeline(packets, streams) {
+    const kinds = new Map((streams || []).map((st) => [Number(st.index), st.codec_type]));
+    const per = new Map();
+    packets.forEach((pk, i) => {
+        const dts = Number(pk.dts);
+        if (!Number.isFinite(dts)) return;
+        const idx = Number(pk.stream_index);
+        const s = per.get(idx) || { index: idx, kind: kinds.get(idx) || pk.codec_type || '?', first: dts, last: null, packets: 0, carried: 0, jumps: [] };
+        if (s.last !== null) {
+            const step = dts - s.last;
+            if (step < 0 || step > JUMP_TICKS) {
+                s.jumps.push({ packet: i, atSec: s.carried / 90000, stepSec: step / 90000, wrap: step < -WRAP_TICKS });
+            } else {
+                s.carried += step;
+            }
+        }
+        s.last = dts;
+        s.packets++;
+        per.set(idx, s);
+    });
+    const list = [...per.values()].map((s) => ({ ...s, seconds: s.carried / 90000 }));
+    const video = list.find((s) => s.kind === 'video');
+    const audio = list.find((s) => s.kind === 'audio');
+    const skewSec = video && audio ? (audio.first - video.first) / 90000 : null;
+    return { streams: list, video, audio, skewSec };
 }
 
 function cmdClassify(file) {
@@ -197,6 +266,31 @@ function cmdClassify(file) {
     console.log('  VERDICT         : ' + (verdict === null ? 'cannot tell - the server would keep the source DTS'
         : verdict ? 'UNEVEN - the server rebuilds DTS (igndts)'
             : 'EVEN - the server keeps the source DTS'));
+
+    // 0191: what the evenness verdict cannot see - jumps, the A/V start, and a blank picture.
+    const tl = timeline(packets, json.streams);
+    if (tl.skewSec !== null) console.log('  A/V start skew  : ' + (tl.skewSec * 1000).toFixed(0) + ' ms (audio minus video)');
+    for (const st of tl.streams) {
+        const label = `${st.kind} (stream ${st.index})`;
+        if (!st.jumps.length) { console.log(`  jumps           : none in ${label}`); continue; }
+        console.log(`  jumps           : ${st.jumps.length} in ${label}`);
+        for (const j of st.jumps.slice(0, 10)) {
+            console.log(`                    ~${Math.round(j.atSec)}s in: ${j.stepSec >= 0 ? '+' : ''}${j.stepSec.toFixed(2)}s` +
+                (j.wrap ? '  (33-bit clock wrap - normal)' : j.stepSec < 0 ? '  (backwards: repeated content or a provider reset)' : '  (gap)'));
+        }
+        if (st.jumps.length > 10) console.log(`                    … ${st.jumps.length - 10} more`);
+    }
+    if (tl.video && tl.video.seconds > 0) {
+        const vs = (json.streams || []).find((s) => s.codec_type === 'video') || {};
+        const kbps = Math.round((fs.statSync(file).size * 8) / tl.video.seconds / 1000);
+        // The server's own threshold, for the same reason as classifyTimestamps above.
+        const { blankKbps } = require(path.join(ROOT, 'server/services/transcodeSession'));
+        const limit = blankKbps(Number(vs.height) || 0);
+        console.log('  media rate      : ' + kbps + ' kbps over ' + Math.round(tl.video.seconds) + 's' + (vs.height ? ` at ${vs.height}p` : ''));
+        console.log('  PICTURE         : ' + (kbps < limit
+            ? `BLANK - under ${limit} kbps: a black or still placeholder (the server marks such a play blank)`
+            : 'has picture data'));
+    }
 }
 
 // The flag sets worth comparing. Each takes the server's own arguments and
@@ -365,8 +459,8 @@ function cmdProbeCost(search) {
 const USAGE = `stream-doctor - what a feed sends, and what the server's ffmpeg does with it
 
   list <search>          find a channel (name, pos_N, or URL fragment)
-  capture <pos_N> [sec]  grab a sample + classify it        (uses the provider slot)
-  classify <sample.ts>   what a captured feed's timestamps do
+  capture <pos_N> [sec]  grab the raw bytes + classify them (uses the provider slot)
+  classify <sample.ts>   timestamps, jumps, A/V skew, blank picture
   bench <sample.ts>      score candidate ffmpeg flags against it
   probecost <pos_N>      time the resolve probe             (uses the provider slot)
 
@@ -386,7 +480,7 @@ async function main(argv) {
 }
 
 // Requirable so a test can check where samples land without running anything.
-module.exports = { SAMPLE_DIR: OUT, DATA_DIR: DATA, main };
+module.exports = { SAMPLE_DIR: OUT, DATA_DIR: DATA, main, timeline, rawFetch };
 
 if (require.main === module) {
     main(process.argv).then(() => process.exit(0), (err) => die(redact(err && err.stack || String(err))));

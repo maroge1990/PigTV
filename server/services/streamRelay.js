@@ -240,7 +240,8 @@ class Relay {
         if (this.closed || this.switching) return;
 
         const quietMs = Date.now() - this.lastProgressAt;
-        if (leg.lost) return this.switchOver(leg.lost.how === 'stall' ? 'stopped sending' : 'ended');
+        if (leg.lost) return this.switchOver(leg.lost.how === 'stall' ? 'stopped sending'
+            : leg.lost.how === 'timestamps' ? 'broke its timestamps after a reconnect' : 'ended');
         if (this.standbyReady() && leg.joined && quietMs > switchAfterMs()) {
             return this.switchOver(`wrote nothing for ${Math.round(quietMs / 1000)} s`);
         }

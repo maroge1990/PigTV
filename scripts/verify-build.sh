@@ -177,7 +177,7 @@ check public/index.html "pigtv-logo.png" "logo in navbar"
 check public/login.html "pigtv-logo.png" "logo on login"
 check .github/workflows/docker-publish.yml "/pigtv" "CI image renamed"
 check README.md "PigTV" "README rebranded"
-check public/css/main.css "FF5C8A" "accent retuned"
+check public/css/main.css "EF7AAE" "accent retuned (the 3 Oct brand refresh)"
 if [ -f public/img/pigtv-logo.png ]; then echo "  \u2713 logo file present"; else echo "  \u2717 MISSING: logo file"; FAIL=1; fi
 if grep -rqi "nodecast" package.json public/index.html public/login.html .github/workflows/docker-publish.yml docker-compose.yml Dockerfile; then
     echo "  \u2717 MISSING: nodecast references remain"; FAIL=1
@@ -2133,6 +2133,16 @@ check server/services/streamCoordinator.js "take(streams.filter(s => s.standby),
 check server/services/streamCoordinator.js "Releasing standby" "a recording takes a standby's connection unasked"
 check test/stream-relay.test.js "the coordinator treats a standby as abandoned" "with tests"
 check scripts/relay-rig.js "relay-rig.js standby stall" "and a real-ffmpeg rig"
+
+echo "=== 0191: reconnect timestamp loop, blank pictures, raw captures ==="
+check server/services/transcodeSession.js "this.handleTimestampLoop(" "a timestamp loop after a reconnect ends the session"
+check server/services/transcodeSession.js "this.noteLost('timestamps');" "as lost, so the relay or the player restarts it"
+check server/services/transcodeSession.js "this.emit('blank', { kbps, seconds });" "a near-empty picture is marked blank"
+check server/services/providerRouting.js "session.once('blank'" "a blank channel is quarantined on its provider"
+check server/routes/playback.js "channelHealth.sessionBlank(owner)" "and its health row failed"
+check public/js/pages/StatusPage.js "Blank picture" "Status shows it"
+check scripts/stream-doctor.js "function rawFetch(" "capture keeps the provider's raw bytes"
+check test/reconnect-recovery.test.js "a single rebase after a reconnect" "with tests"
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1

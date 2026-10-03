@@ -192,7 +192,16 @@ function watchSession(session, candidate, primaryKey, label = null) {
         if (!providerReason) return;
         noteFailure(candidate, primaryKey);
         console.warn(`[Playback] ${candidate.providerName} lost ${label ? `"${label}"` : 'a channel'} mid-play ` +
-            `(${how === 'stall' ? 'stalled' : 'ffmpeg exited'}); not used for it for ${QUARANTINE_MS / MINUTE} min`);
+            `(${how === 'stall' ? 'stalled' : how === 'timestamps' ? 'timestamps broke after a reconnect' : 'ffmpeg exited'}); ` +
+            `not used for it for ${QUARANTINE_MS / MINUTE} min`);
+    });
+    // 0191: a blank or placeholder picture. Quarantined, so the next play of the channel
+    // tries another provider first, but not counted toward the breaker: the provider is
+    // up, it is this one channel that is wrong. The play itself goes on.
+    session.once('blank', ({ kbps } = {}) => {
+        quarantine(candidate.providerId, candidate.channelKey);
+        console.warn(`[Playback] ${candidate.providerName} is sending a blank picture for ${label ? `"${label}"` : 'a channel'} ` +
+            `(${kbps} kbps); the next play tries another provider first for ${QUARANTINE_MS / MINUTE} min`);
     });
 }
 

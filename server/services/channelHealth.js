@@ -178,6 +178,27 @@ function clientFailed(owner, now = Date.now()) {
 }
 
 /**
+ * 0191: the server found the owner's last started play blank (transcodeSession.checkPicture):
+ * a black or still placeholder, not the channel. The attempt becomes a failure with reason
+ * 'blank' even though it "played". The pending entry stays, so play-end still lands on it.
+ */
+function sessionBlank(owner, now = Date.now()) {
+    try {
+        const p = owner ? pending.get(owner) : null;
+        if (!p || now - p.at > ENDED_MS) return false;
+        const db = getDb();
+        const row = db.prepare('SELECT source_id, channel_key FROM channel_health WHERE id = ?').get(p.rowId);
+        if (!row) return false;
+        const before = countsFor(row.source_id, row.channel_key, now);
+        db.prepare(`UPDATE channel_health SET ok = 0, reason = 'blank' WHERE id = ?`).run(p.rowId);
+        afterChange(row.source_id, row.channel_key, before, now);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+/**
  * A client's play-end (0142): how long the owner's last started attempt was
  * watched and how often it stalled. Matched like the other client events
  * (owner -> last resolve), once per attempt.
@@ -237,14 +258,15 @@ function applyHealth(rows, now = Date.now()) {
  */
 function leastReliable({ limit = 10, now = Date.now() } = {}) {
     const rows = getDb().prepare(`
-        SELECT source_id, channel_key, name, ok, first_picture_sec, stalls, watched_sec, at FROM channel_health
+        SELECT source_id, channel_key, name, ok, reason, first_picture_sec, stalls, watched_sec, at FROM channel_health
         WHERE at >= ? ORDER BY at ASC
     `).all(now - WINDOW_MS);
     const byKey = new Map();
     for (const r of rows) {
         const k = `${r.source_id}:${r.channel_key}`;
-        const e = byKey.get(k) || { name: null, attempts: 0, failures: 0, stalls: 0, watched: 0, pictures: [] };
+        const e = byKey.get(k) || { name: null, attempts: 0, failures: 0, stalls: 0, watched: 0, pictures: [], blank: false };
         e.name = r.name || e.name; // the latest name wins
+        e.blank = r.reason === 'blank'; // 0191: whether the latest attempt was a blank picture
         e.attempts++;
         if (!r.ok) e.failures++;
         e.stalls += r.stalls || 0;
@@ -270,6 +292,7 @@ function leastReliable({ limit = 10, now = Date.now() } = {}) {
             stallsPerHour: e.watched > 0 ? round1(e.stalls / (e.watched / 3600)) : null,
             medianFirstPictureSec: median(e.pictures),
             health: classify(e.attempts, e.failures, e.stalls, e.watched),
+            blank: e.blank,
             score: round1(e.failures + e.stalls / (Math.max(e.watched, RANK_MIN_WATCH_SEC) / 3600))
         }))
         .sort((a, b) => b.score - a.score
@@ -308,7 +331,7 @@ function reset() {
 }
 
 module.exports = {
-    recordResolve, clientStarted, clientFailed, clientEnded, applyHealth, leastReliable, prune, startPruneTimer,
+    recordResolve, clientStarted, clientFailed, clientEnded, sessionBlank, applyHealth, leastReliable, prune, startPruneTimer,
     classify, reasonCategory, reset,
     WINDOW_MS, KEEP_MS
 };

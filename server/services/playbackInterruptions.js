@@ -34,7 +34,7 @@ function table() {
                 owner TEXT,
                 channel TEXT,
                 provider TEXT,
-                how TEXT NOT NULL,            -- 'stall' | 'exit'
+                how TEXT NOT NULL,            -- 'stall' | 'exit' | 'timestamps' (0191)
                 provider_reason INTEGER NOT NULL DEFAULT 0,
                 played_sec REAL,              -- how long the session had been up
                 recovered_at INTEGER,
@@ -56,7 +56,7 @@ function noteLost({ owner = null, channel = null, provider = null, how = 'exit',
         db.prepare('DELETE FROM playback_interruptions WHERE at < ?').run(now - KEEP_MS);
         db.prepare(`INSERT INTO playback_interruptions (at, owner, channel, provider, how, provider_reason, played_sec)
                     VALUES (?, ?, ?, ?, ?, ?, ?)`)
-            .run(now, text(owner, 60), text(channel, 120), text(provider, 60), how === 'stall' ? 'stall' : 'exit',
+            .run(now, text(owner, 60), text(channel, 120), text(provider, 60), how === 'stall' || how === 'timestamps' ? how : 'exit',
                 providerReason ? 1 : 0, Number.isFinite(playedSec) ? playedSec : null);
     } catch (err) {
         console.warn('[Interruptions] could not record a lost stream:', err.message);

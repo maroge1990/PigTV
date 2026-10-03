@@ -57,6 +57,41 @@ const DTS_DELTA_THRESHOLD_SEC = (() => {
     return Number.isFinite(sec) && sec > 0 ? sec : 60;
 })();
 
+// 0191: a live session whose timestamps go into a loop after ffmpeg reconnects in
+// place. -reconnect reopens the provider's stream mid-play, and the new response
+// starts a few seconds back (the provider resends its buffer). Usually ffmpeg
+// rebases once and carries on (the 7 channels' ~38 s cut, blueprint §3). On Fox
+// Footy (3 Oct, Strong8K) it did not: every audio packet after the reconnect was
+// "timestamp discontinuity ... -140478" (~47 a second), each correction moved the
+// one per-input offset and dragged the video with it, the output timeline drifted
+// 227 s in two minutes (the picture jumping back and forth), and the play ended in
+// 404s. A raw capture of the same feed has no jumps, and the server's arguments
+// bench clean on it, so the loop comes from the reconnect, not the feed or the flags.
+// So: within TS_LOOP_AFTER_RECONNECT_MS of a reconnect, TS_LOOP_LINES timestamp
+// warnings inside TS_LOOP_WINDOW_MS end the session as lost (how 'timestamps').
+// The relay (PIGTV_RELAY) then starts a fresh ffmpeg behind an EXT-X-DISCONTINUITY;
+// without it the player re-resolves - either way a clean timeline, seconds instead
+// of minutes of drift. A single rebase logs a handful of lines and is left alone.
+const TS_LOOP_WINDOW_MS = 10000;
+const TS_LOOP_LINES = 25;
+const TS_LOOP_AFTER_RECONNECT_MS = 120000;
+const RECONNECT_LINE = /Will reconnect at/;
+const TIMESTAMP_WARNING = /timestamp discontinuity|Non-monotonic DTS|Packet duration: -?\d+ \/ dts: -?\d+ is out of range/;
+
+// 0191: a picture with almost no data in it. 7mate Melbourne (3 Oct, Strong8K) played
+// a black 1080p picture for its whole capture at 193 kbps, audio included; a real
+// HD channel is several Mbps. Once a live session has BLANK_CHECK_SEC of segments,
+// a rate under the threshold (kbps, audio included) marks it blank: logged, the
+// channel quarantined on that provider (the next play tries another first) and its
+// health row marked. Playback itself is left alone. A still slate is caught too,
+// which is the point: neither is the channel.
+const BLANK_CHECK_SEC = 20;
+const blankKbps = (height) => {
+    const n = Number.parseInt(process.env.PIGTV_BLANK_KBPS, 10);
+    if (Number.isFinite(n) && n >= 0) return n;
+    return height && height < 720 ? 250 : 500;
+};
+
 // Whether igndts is decided per feed from the probe (the default, see
 // buildFFmpegArgs) or applied to every copy session the way 0085 did it.
 // PIGTV_DTS_AUTO=0 restores the old behaviour with a container restart rather
@@ -240,6 +275,7 @@ class TranscodeSession extends EventEmitter {
                             console.log(`[FFmpeg ${this.id}] ${redact(line)}`);
                             this.stderrTail.push(line.trim());
                             if (this.stderrTail.length > 20) this.stderrTail.shift();
+                            this.noteStderrLine(line);
                         }
                     });
                     stderrBuffer = lines[lines.length - 1];
@@ -405,7 +441,7 @@ class TranscodeSession extends EventEmitter {
     /**
      * 0174 (multi-provider failover): a session that had produced its playlist
      * ended without anyone asking - ffmpeg exited, or the stall watchdog released
-     * it. Emits 'lost' { how: 'exit' | 'stall', providerReason } once; the resolve
+     * it. Emits 'lost' { how: 'exit' | 'stall' | 'timestamps', providerReason } once; the resolve
      * route listens (providerRouting.watchSession) and quarantines the channel on
      * that provider, so the player's own re-resolve lands on the next provider.
      * A stall counts as a provider reason; an exit only when ffmpeg's last words
@@ -415,7 +451,7 @@ class TranscodeSession extends EventEmitter {
     noteLost(how) {
         if (this._lostNoted) return;
         this._lostNoted = true;
-        const providerReason = how === 'stall' || !!providerFailureIn(this.stderrTail);
+        const providerReason = how === 'stall' || how === 'timestamps' || !!providerFailureIn(this.stderrTail);
         try {
             this.emit('lost', { how, providerReason });
         } catch (err) {
@@ -1048,6 +1084,7 @@ class TranscodeSession extends EventEmitter {
         this.stopRequested = true;
         this.status = 'stopped';
         this.stopWatchdog();
+        this.stopPictureCheck();
 
         // Also when ffmpeg has already exited and only the exit bookkeeping is
         // pending (see the 'exit' listener in start()): there is nothing to signal,
@@ -1165,6 +1202,97 @@ class TranscodeSession extends EventEmitter {
     }
 
     /**
+     * 0191: one line of ffmpeg's stderr, for the reconnect timestamp-loop guard (see
+     * TS_LOOP_LINES). A live session only, and only once it has a playlist: before
+     * that a failure is the resolve's to judge.
+     */
+    noteStderrLine(line, now = Date.now()) {
+        if (this.options.live !== true || this._tsLoopHandled) return;
+        if (RECONNECT_LINE.test(line)) { this._reconnectAt = now; return; }
+        if (this._reconnectAt === undefined || now - this._reconnectAt > TS_LOOP_AFTER_RECONNECT_MS) return;
+        if (!this.timings.playlistReady || !TIMESTAMP_WARNING.test(line)) return;
+        const seen = this._tsWarnings || (this._tsWarnings = []);
+        seen.push(now);
+        while (seen.length && now - seen[0] > TS_LOOP_WINDOW_MS) seen.shift();
+        if (seen.length >= TS_LOOP_LINES) {
+            this._tsLoopHandled = true;
+            this.handleTimestampLoop(Math.round((now - this._reconnectAt) / 1000));
+        }
+    }
+
+    /**
+     * 0191: ffmpeg reconnected in place and its timestamps have gone into a loop. End
+     * the session as lost, the way a stall does: the relay restarts the channel behind
+     * a discontinuity, or the player re-resolves. Either is a clean timeline; letting
+     * ffmpeg carry on is minutes of the picture wandering and then 404s anyway.
+     */
+    async handleTimestampLoop(sinceReconnectSec) {
+        console.error(`[TranscodeSession ${this.id}] Timestamps looping ${sinceReconnectSec}s after ffmpeg reconnected to the provider ` +
+            `(${TS_LOOP_LINES}+ timestamp warnings in ${TS_LOOP_WINDOW_MS / 1000}s); ending the session so it restarts cleanly`);
+        sessions.delete(this.id);
+        this.noteLost('timestamps');
+        try {
+            await this.cleanup();
+        } catch (err) {
+            console.error(`[TranscodeSession ${this.id}] Could not clean up after the timestamp loop:`, err.message);
+        }
+    }
+
+    /** 0191: check a live session's picture data rate once it has BLANK_CHECK_SEC of segments. */
+    startPictureCheck() {
+        if (this.options.live !== true || this._pictureTimer || this.blank !== undefined) return;
+        this._pictureTimer = setInterval(() => {
+            this.checkPicture().catch(err => console.warn(`[TranscodeSession ${this.id}] Picture check failed:`, err.message));
+        }, this.options.pictureCheckMs ?? 5000);
+        if (typeof this._pictureTimer.unref === 'function') this._pictureTimer.unref();
+    }
+
+    stopPictureCheck() {
+        if (this._pictureTimer) clearInterval(this._pictureTimer);
+        this._pictureTimer = null;
+    }
+
+    /**
+     * 0191: the media rate of the segments listed so far (audio included). Decides once,
+     * when there are BLANK_CHECK_SEC of them: under blankKbps the session is marked blank,
+     * logged and 'blank' is emitted (the route quarantines the channel on that provider
+     * and marks its health row). Returns { kbps, seconds } or null when it is too early.
+     */
+    async checkPicture() {
+        if (this.blank !== undefined) { this.stopPictureCheck(); return null; }
+        let parsed;
+        try {
+            parsed = require('./hlsPlaylist').parseMediaPlaylist(await fs.readFile(this.playlistPath, 'utf8'));
+        } catch {
+            return null;
+        }
+        let seconds = 0;
+        let bytes = 0;
+        for (const seg of parsed.segments) {
+            try {
+                bytes += (await fs.stat(path.join(this.dir, seg.name))).size;
+                seconds += seg.duration;
+            } catch { /* rotated out between the read and the stat */ }
+        }
+        if (seconds < BLANK_CHECK_SEC) return null;
+        this.stopPictureCheck();
+        const kbps = Math.round((bytes * 8) / seconds / 1000);
+        const height = Number(this.options.height) || 0;
+        const limit = blankKbps(height);
+        this.blank = kbps < limit;
+        if (this.blank) {
+            console.warn(`[TranscodeSession ${this.id}] Blank picture: ${kbps} kbps over ${Math.round(seconds)}s` +
+                `${height ? ` at ${height}p` : ''} (under ${limit}) - the provider is sending a black or still placeholder, not the channel`);
+            try {
+                this.emit('blank', { kbps, seconds });
+            } catch (err) {
+                console.warn(`[TranscodeSession ${this.id}] A blank-picture listener failed:`, err.message);
+            }
+        }
+        return { kbps, seconds };
+    }
+
+    /**
      * Remove every segment and playlist file from this session's directory,
      * without removing the directory itself. Used before the software-decode
      * retry restarts ffmpeg into the same directory - the previous attempt's
@@ -1219,6 +1347,7 @@ class TranscodeSession extends EventEmitter {
             && !(deadlineAt && Date.now() >= deadlineAt)) {
             if (await this.isPlaylistReady()) {
                 this.timings.playlistReady = Date.now();
+                this.startPictureCheck();
                 return true;
             }
             // 0180: stopped on request (a replacement, a DELETE): not a failure, so no
@@ -1497,7 +1626,8 @@ function classifyInputFailure(lines) {
 
 // 0174: what else in ffmpeg's last words means the provider (or the network to
 // it) failed, beyond classifyInputFailure's HTTP statuses and refused connections.
-const NETWORK_FAILURE_RE = /Connection timed out|Operation timed out|Connection reset by peer|Network is unreachable|No route to host|Failed to resolve hostname|Name or service not known|Input\/output error|I\/O error|Invalid data found when processing input|End of file/i;
+// 0191: "Stream ends prematurely" too - the provider closing a live response mid-play.
+const NETWORK_FAILURE_RE = /Stream ends prematurely|Connection timed out|Operation timed out|Connection reset by peer|Network is unreachable|No route to host|Failed to resolve hostname|Name or service not known|Input\/output error|I\/O error|Invalid data found when processing input|End of file/i;
 
 /**
  * True when ffmpeg's stderr tail says the input failed for a provider reason
@@ -1549,6 +1679,11 @@ module.exports = {
     REFUSED_RETRY_DELAYS_MS,
     paceArgs,
     readrateBurstSec,
+    blankKbps,
+    TS_LOOP_LINES,
+    TS_LOOP_WINDOW_MS,
+    TS_LOOP_AFTER_RECONNECT_MS,
+    BLANK_CHECK_SEC,
     createSession,
     getSession,
     peekSession,

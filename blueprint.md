@@ -41,7 +41,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | CI | Both repos are **public** since 30 Sept (free Actions minutes; history checked for secrets). `gh` is signed in on the MacBook: `gh run view <id> --log-failed`. On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings (fixed 28 Sept):** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (so an SMB share that mounts late or reconnects appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs (schedule #3 failed with "0.0 GB free"). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
 | Shipped through | **0177** (pushed, 30 Sept–1 Oct: multi-provider failover 0168–0177, §6) and app **36**. Round 7 (`docs/TEST-BLOCK.md`) not yet run. Before that: **0167** and app **35**. Rounds 1–4 passed on 0151 + app 31; round 5 (0152–0154 + app 32) passed on 28 Sept apart from the five bugs that started the 28–29 Sept fix run (§6 "Fix run"); round 6 (0166 + app 34, `docs/TEST-BLOCK.md`) passed apart from R6.3 (fixed in 0167) and R6.14 (fixed in app 35), with R6.4–R6.6 and R6.16 still to run. Whether a build is *running* is whatever `/api/version` says. |
-| Next build number | **0191** |
+| Next build number | **0192** |
 | Tests | `npm test`: **790 tests, all pass** (1 Oct, after 0178, on CI; timing tests can fail locally when the Mac is loaded - check `uptime`, rerun, or trust CI; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
@@ -382,8 +382,9 @@ picture minus resolve, median/p90, 0145: the player's own share), stalls/hour an
 **Log vocabulary added in 0113–0115:** `resolve timing … probe profile (age Nd)`; `… first segment NOT produced - ffmpeg ended after Xs
 (provider HTTP 4xx)`; `… , master playlist (SDR, 25.000 fps)`; `[TranscodeSession id] Provider refused the connection; retry N of 2
 in 1.5s|3s` (0143; was "retrying once in 1.5s"); `… source ends (N min) - paced to real time after an initial 8s burst` (0144);
-`[Logo] Cache version 1 -> 2: dropped N stored logos` (0141, once); `FFmpeg ended before producing a playlist`. **Capture caveat:** `capture` copies through ffmpeg, which rebases a backward
-timestamp step, so a provider reconnect shows up as repeated content, not as a timestamp jump.
+`[Logo] Cache version 1 -> 2: dropped N stored logos` (0141, once); `FFmpeg ended before producing a playlist`. **Captures** (0191): `capture` saves the
+provider's raw bytes, so a backward step or a dropped connection shows as itself; before 0191 it copied through ffmpeg, which
+rebased the step first (a reconnect showed up only as repeated content, and every capture "classified EVEN").
 
 **Channel identity** (0096–0098). `item_id` is `pos_N`, the M3U line, and **the provider moves it**. `stable_id`
 (`stableIds.js`) is the provider stream id from the URL (`s441360`), otherwise a hash of the credential-stripped URL. Favourites,
@@ -710,6 +711,27 @@ cleanly ffmpeg exits 0 and writes `#EXT-X-ENDLIST`, which without the relay tell
 so an abandoned one was never reclaimed for another viewer or recording, nor swept. It now uses `peekSession()`. Live
 sessions shows the channel name the resolve knew (a play on a backup read "unknown") and the provider beside it.
 
+**0191 (3 Oct): reconnect timestamp loop, blank pictures, raw captures** (from Mark's channel diagnosis of Fox Footy 504
+and 7 Mate Melbourne on Strong8K). Fox Footy: a raw capture (no ffmpeg) of 20 min had no timestamp jumps and a 2 ms A/V
+start skew, and the server's arguments bench clean on it; but Strong8K drops connections at random **even with one idle
+connection** (ETIMEDOUT 1045 s into a raw capture; PigTV plays lost it at ~2.5 and ~18 min). ffmpeg's in-place
+`-reconnect` then got a response starting ~3.8 s back, and instead of rebasing once (the 7 channels' 38 s cut, §3) its
+audio went into a loop: `timestamp discontinuity … -140478` on every packet, each moving the one per-input offset, 227 s
+of drift in two minutes (the picture "moving back and forth in time"), then exit, cleanup and 404s.
+`transcodeSession.noteStderrLine`: within 120 s of a `Will reconnect`, 25 timestamp warnings in 10 s end a live session
+that has played as lost (`how: 'timestamps'`, a provider reason), like a stall: the relay restarts it behind a
+discontinuity, otherwise the player re-resolves. A single rebase (checked with real ffmpeg: a cut plus a 3.8 s resend logs
+2 lines) is left alone. 7mate: the provider sends black (`blackdetect` 0–120 s, 193 kbps at 1080p with audio; the probe
+also sees a finite ~10 min file). `checkPicture`: once a live session has 20 s of segments, under 500 kbps (250 below 720p,
+`PIGTV_BLANK_KBPS`) it is **blank**: logged, the channel quarantined on that provider without counting toward its breaker
+(the next play tries another provider first), the play's health row failed with reason `blank`, Status → Least reliable
+shows "Blank picture". The play goes on. `Stream ends prematurely` now counts as a provider reason for a lost session.
+`stream-doctor capture` saves the provider's **raw bytes** (the ffmpeg capture smoothed the jumps away, which is why every
+capture "classified EVEN") and says whether the connection held; `classify` adds per-stream jumps (a 33-bit wrap named as
+normal), the A/V start skew and a blank-picture verdict.
+**Recommended:** turn on `PIGTV_RELAY=1` (TEST-BLOCK L): with it a drop or a timestamp loop is a short freeze inside the
+same stream instead of the player's error-and-restart. Not checked on the Apple TV yet.
+
 ### Next
 
 **With the next Swift build (app 37):** remove the Siri / App Shortcuts feature from the code (Mark, 2 Oct: it failed on tvOS and he does not want it). Also reword the provider reminder in `PigTV-Swift/PigTV/ProviderReminders.swift`. It still says "update the dates in PigTV's web settings"; since 0182 there are no dates to type (the web banner already says PigTV reads the new date from the provider). Update its test too.
@@ -726,7 +748,7 @@ sessions shows the channel name the resolve knew (a play on a backup read "unkno
 7. Anything from §10 Mark wants fixed. **Kept on purpose:** the non-VAAPI encoders. **Not planned:** AV1, more users, reviving
    VOD, access from outside the VPN, AirPlay/PiP, a session keep-alive.
 
-**Watch the logs, no code yet:** Fox Footy 504 on Strong8K (1 Oct): an audio `timestamp discontinuity … -140478` flood during one play, but two 60 s captures (`pos_1178`, `pos_31148`) bench clean on every flag set: a transient provider fault; capture again *while* it happens · the provider's ~38 s cut and 19 s resend (§3, §10) · 7 Flix Sydney's second 0109 failure
+**Watch the logs, no code yet:** `Timestamps looping … after ffmpeg reconnected` and `Blank picture` lines (0191: how often, which channels, any false positive) · the provider's ~38 s cut and 19 s resend (§3, §10) · 7 Flix Sydney's second 0109 failure
 (`Stream ends prematurely … Will reconnect` looping after ~14 MB, nothing produced: 0113 doesn't shorten that case, since ffmpeg
 keeps running) · "Bug 2" (`[mpegts] Invalid timestamps … dts=X+1800`: needs the channel that produces it) · `source timing`
 lines (the classifier has seen one uneven feed in five) · the 20 s stall timeout (tighten only after real stall logs).
@@ -872,6 +894,7 @@ env vars: they live in SQLite and are edited in the web app's Settings (sources,
 | `PIGTV_TIMESHIFT_DIR` | `<recordings>/.timeshift` | With the tuner: where timeshift segments live. **Recommended `/app/data/timeshift`** (local appdata instead of the recordings share, 0132). Recordings then copy segments instead of hard-linking them. |
 | `PIGTV_TIMESHIFT_MIN_FREE_GB` | `20` | With the tuner: below this much free space the oldest timeshift segments are dropped (never below 90 per tuner). |
 | `PIGTV_LIVE_IDLE_TIMEOUT_SEC` | `300` | A live session nobody has fetched from for this long is removed by the idle sweep (seekable sessions: 30 min, fixed). |
+| `PIGTV_BLANK_KBPS` | 500 / 250 | A live play whose segments carry less than this (kbps, audio included; 500 from 720p up, 250 below) over its first 20 s is marked **blank** (0191): logged, quarantined on that provider for the next play, health reason `blank`. `0` switches it off. |
 | `PIGTV_STALL_TIMEOUT_MS` | `20000` | The stall watchdog kills an ffmpeg that has written no file for this long (grace before the first output: the larger of this and 30 s). |
 | `PIGTV_TERMINAL_STATUS_TTL_SEC` | `900` | How long a "taken over" record is kept for `GET /api/playback/:id/terminal-status`. |
 | `PIGTV_PROBE_PROFILES` | on | `0`/`false`/`no`/`off` turns channel profiles off (every play runs ffprobe, as before 0114). |
@@ -899,7 +922,9 @@ env var, and stays off (VPN-only).
 **Playback and the provider**
 - **The provider cuts the connection about 38 s into a play on some channels and resends ~19 s of old content** (§3). ffmpeg
   rebases the timestamps, so the player neither freezes nor rewinds, but the viewer sees a short repeat and the stream sits
-  ~19 s further behind live. No code change made; a fix needs a capture that keeps the raw bytes.
+  ~19 s further behind live. No code change made for the repeat itself; `stream-doctor capture` keeps the raw bytes since 0191,
+  so it can now be measured. When the rebase goes wrong instead (a timestamp loop, Fox Footy 3 Oct) the session is ended and
+  restarted cleanly (0191).
 - **Provider refusals are retried** (two retries in ffmpeg's first 3 s, 0143) and the Apple client re-resolves once, but a
   channel can still fail to start during a provider outage; the viewer sees the C-B message and a Retry button.
 - The 8 s read burst for finite sources (0144) is measured on ffmpeg 9.0 only; production runs Ubuntu's 6.x (6.1+ needed) and

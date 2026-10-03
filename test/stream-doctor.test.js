@@ -117,3 +117,59 @@ test('a provider URL never reaches the output, even in an error', () => {
     assert.ok(!out.includes('myuser') && !out.includes('mypass'), out);
     assert.match(out, /1239048\.ts/, 'while still identifying the stream');
 });
+
+// ---- 0191: raw capture and the jump report (no ffmpeg needed) ----
+
+const doctor = require('../scripts/stream-doctor');
+
+test('the jump report finds a backward step per stream, the A/V start skew and the media carried', () => {
+    const packets = [];
+    let v = 830 * 90000, a = 830 * 90000 + 180; // audio 2 ms after video, as the raw Fox Footy capture
+    for (let i = 0; i < 500; i++) { packets.push({ stream_index: 0, dts: String(v) }); v += 1800; }
+    v -= 7.6 * 90000; // the provider resending 7.6 s
+    for (let i = 0; i < 500; i++) { packets.push({ stream_index: 0, dts: String(v) }); v += 1800; }
+    for (let i = 0; i < 300; i++) { packets.push({ stream_index: 1, dts: String(a) }); a += 1920; }
+    const tl = doctor.timeline(packets, [{ index: 0, codec_type: 'video' }, { index: 1, codec_type: 'audio' }]);
+    assert.equal(tl.video.jumps.length, 1);
+    assert.equal(Math.round(tl.video.jumps[0].stepSec * 100) / 100, -7.58);
+    assert.equal(tl.video.jumps[0].wrap, false);
+    assert.equal(Math.round(tl.video.jumps[0].atSec), 10);
+    assert.equal(tl.audio.jumps.length, 0);
+    assert.equal(Math.round(tl.skewSec * 1000), 2);
+    assert.equal(Math.round(tl.video.seconds), 20, 'the jump is not counted as media');
+});
+
+test('the jump report names a 33-bit clock wrap as normal, and ignores packets without a DTS', () => {
+    const tl = doctor.timeline([
+        { stream_index: 0, dts: String(2 ** 33 - 1800) }, { stream_index: 0, dts: 'N/A' }, { stream_index: 0, dts: '0' }
+    ], [{ index: 0, codec_type: 'video' }]);
+    assert.equal(tl.video.jumps.length, 1);
+    assert.equal(tl.video.jumps[0].wrap, true);
+});
+
+test('capture reads the provider\'s raw bytes, follows a redirect and says how the connection ended', async () => {
+    const http = require('node:http');
+    const server = http.createServer((req, res) => {
+        if (req.url === '/live/u/p/1.ts') { res.writeHead(302, { Location: '/stream/1.ts' }); return res.end(); }
+        if (req.url === '/stream/1.ts') { res.writeHead(200); res.write(Buffer.alloc(188 * 100, 0x47)); return setTimeout(() => res.end(), 50); }
+        if (req.url === '/forever.ts') { res.writeHead(200); res.write(Buffer.alloc(188, 0x47)); return; } // never ends
+        res.writeHead(404); res.end();
+    });
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-doctor-raw-'));
+    try {
+        const closed = await doctor.rawFetch(`${base}/live/u/p/1.ts`, 30, path.join(dir, 'a.ts'), 'test');
+        assert.equal(closed.how, 'closed by the provider');
+        assert.equal(closed.bytes, 18800, 'byte for byte what was sent');
+        const held = await doctor.rawFetch(`${base}/forever.ts`, 1, path.join(dir, 'b.ts'), 'test');
+        assert.equal(held.how, 'complete', 'still open when the time was up');
+        const missing = await doctor.rawFetch(`${base}/nope.ts`, 5, path.join(dir, 'c.ts'), 'test');
+        assert.equal(missing.how, 'HTTP 404');
+        assert.equal(missing.bytes, 0);
+    } finally {
+        server.closeAllConnections();
+        server.close();
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+});
