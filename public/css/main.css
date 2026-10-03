@@ -4435,3 +4435,29 @@ kbd {
 .brand-text { background: url('/img/pigtv-wordmark-dark.png') center / contain no-repeat; color: transparent; }
 .brand-text .brand-accent { color: transparent; }
 [data-theme="light"] .brand-text { background-image: url('/img/pigtv-wordmark-light.png'); }
+
+/* Playback menus stay on a protected dark surface in either page appearance. */
+.watch-captions-menu,
+.player-overflow-menu {
+  --color-text-primary: #F5F1F4;
+  --color-text-muted: #A79FAE;
+  --color-accent: #EF7AAE;
+  --color-accent-dim: rgba(239, 122, 174, 0.14);
+  --color-bg-hover: #251E2E;
+  background: rgba(30, 25, 37, 0.96);
+  border-color: #7E7589;
+}
+.captions-option:focus-visible,
+.overflow-menu-item:focus-visible { outline-offset: -3px; }
+
+/* Secondary settings fields share the same palette as the main forms. */
+.settings-section input:is([type="text"], [type="number"], [type="password"], [type="email"], [type="url"]),
+.settings-section select {
+  background-color: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  border-color: var(--color-control-border);
+  border-style: solid;
+  border-radius: var(--radius-sm);
+}
+.settings-section input::placeholder { color: var(--color-text-muted); }
+.record-options input[type="number"] { border-color: var(--color-control-border); }
