@@ -41,7 +41,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | CI | Both repos are **public** since 30 Sept (free Actions minutes; history checked for secrets). `gh` is signed in on the MacBook: `gh run view <id> --log-failed`. On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings (fixed 28 Sept):** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (so an SMB share that mounts late or reconnects appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs (schedule #3 failed with "0.0 GB free"). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
 | Shipped through | **0177** (pushed, 30 Sept–1 Oct: multi-provider failover 0168–0177, §6) and app **36**. Round 7 (`docs/TEST-BLOCK.md`) not yet run. Before that: **0167** and app **35**. Rounds 1–4 passed on 0151 + app 31; round 5 (0152–0154 + app 32) passed on 28 Sept apart from the five bugs that started the 28–29 Sept fix run (§6 "Fix run"); round 6 (0166 + app 34, `docs/TEST-BLOCK.md`) passed apart from R6.3 (fixed in 0167) and R6.14 (fixed in app 35), with R6.4–R6.6 and R6.16 still to run. Whether a build is *running* is whatever `/api/version` says. |
-| Next build number | **0198** |
+| Next build number | **0199** |
 | Tests | `npm test`: **790 tests, all pass** (1 Oct, after 0178, on CI; timing tests can fail locally when the Mac is loaded - check `uptime`, rerun, or trust CI; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
@@ -795,6 +795,20 @@ stays. Status → Live sessions has a relay table: per stream its state (`starti
 `timestamps`, `blank`, `standby-incompatible`, `standby-reclaimed`, `no-candidate`, `incompatible`); reasons also go to
 Recent plays and the Interruptions rows (`reason` column). `joinable()` now also requires the same video codec, frame
 size, frame rate (1 %), audio codec and channel count (an unknown field counts as compatible, logged once).
+
+**0198 (4 Oct): provider connections are leased before the probe; the likely next channel can be warmed (audit R11).**
+Admission used to count only sessions that already existed, so two contenders deciding during each other's probe could
+both be admitted (one connection too many; the standby's `hasFreeConnection()` + await had the same race). Now every
+admission takes a **lease** synchronously with its decision (`streamCoordinator`: purpose viewer / recording / standby /
+warm), counted in the pool until its session or recording exists (then that is counted instead), released on every
+failure path, expiring after 60 s unbound with a warning. Recordings bind theirs to the recording and give it up when
+ffmpeg exits; a viewer that forces past an unstarted recording takes its lease and that start waits for the next tick.
+`tryReserveFree()` is how a standby or warm start takes a connection only when one is free. **Warming** (Settings →
+Transcoding → **Warm the next channel**, `warmNextChannel`, off by default): `POST /api/playback/warm` (same body as
+resolve; 200 `{ warm, ttlSec: 90, refreshed }` or 204 when off / nothing free / tuner) starts the channel on a spare
+connection, never reclaiming or prompting; the same owner's resolve of that channel adopts it (`warm: true` in the
+decision). A warm session is the first thing any viewer or recording reclaims, silently; 90 s TTL. `/api/info`
+`features.warming` + `warmingEnabled`; Status `warming { enabled, active, hits, misses, expired, reclaimed }`.
 
 ### Next
 

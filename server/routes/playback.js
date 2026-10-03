@@ -155,7 +155,7 @@ router.post('/resolve', requireToken, async (req, res) => {
         const live = sourceId !== undefined && channelId !== undefined;
 
         // Start one candidate: probe, session, first segment. Throws what resolve throws.
-        const start = (candidate, index) => {
+        const start = (candidate, index, lease) => {
             const isLast = index === candidates.length - 1;
             lastTried = candidate;
             return playbackStrategy.resolve({
@@ -170,6 +170,8 @@ router.post('/resolve', requireToken, async (req, res) => {
                 // on the longer seekable-session timeout.
                 live,
                 providerId: candidate.providerId,
+                // R11: the connection lease taken when this candidate was admitted.
+                lease,
                 // 0174: only the last candidate gets 0143's two refused-connection
                 // retries; an earlier one gets one, after 1 s, then the next provider.
                 ...(failoverPossible ? {
@@ -190,7 +192,31 @@ router.post('/resolve', requireToken, async (req, res) => {
         let chosen = null;
         let failedOver = false;
         let lastError = null;
-        for (let i = 0; i < candidates.length; i++) {
+        // The client hung up while we were busy: nobody is left to start a stream for. The
+        // newer-request check below is the same "do not start any further" answer (R11).
+        const clientGone = () => !!(res.socket && res.socket.destroyed);
+
+        // R12: this owner warmed this very channel earlier and the session is still running (and
+        // is not needed by anybody else): it becomes the viewer's session, with no new start.
+        // Otherwise a warm session for something else ends first. Never on the tuner path (above).
+        const warming = require('../services/channelWarming');
+        const warmKey = routing && live ? warming.keyFor({ sourceId, channelId, capabilities, upscale, audioEncode }) : null;
+        if (warmKey) {
+            const entry = await warming.forResolve(owner, warmKey, settings);
+            if (entry && warming.claim(owner)) {
+                const verdict = await coordinator.admitViewer({ force: false, activeRecordings, settings, owner, providerId: entry.candidate.providerId, adopt: entry.sessionId });
+                const adopted = verdict.allowed ? warming.adopt(owner) : null;
+                if (adopted) {
+                    const { candidate: warmCandidate, ...warmDecision } = adopted;
+                    decision = warmDecision;
+                    chosen = warmCandidate;
+                } else {
+                    warming.unclaim(owner);
+                }
+            }
+        }
+
+        for (let i = 0; !decision && i < candidates.length; i++) {
             const candidate = candidates[i];
             // 0180: the owner's newer request took over while this one was walking.
             if (isSuperseded(owner, generation)) throw playbackStrategy.supersededError();
@@ -202,8 +228,14 @@ router.post('/resolve', requireToken, async (req, res) => {
             if (!coordinator.canAdmitWithoutDisturbing(ask)) continue;
             const verdict = await coordinator.admitViewer(ask);
             if (!verdict.allowed) continue;
+            // R11: the lease is released on every way out that leaves no session to count:
+            // a probe that failed (and the failover to the next candidate), a start overtaken
+            // by the viewer's next play, the client gone, a direct play. Once the session exists
+            // the lease is bound to it and releaseUnbound leaves it alone.
+            const lease = verdict.lease;
             try {
-                decision = await start(candidate, i);
+                if (clientGone()) throw playbackStrategy.supersededError();
+                decision = await start(candidate, i, lease);
                 chosen = candidate;
                 break;
             } catch (err) {
@@ -216,6 +248,8 @@ router.post('/resolve', requireToken, async (req, res) => {
                 const next = candidates.slice(i + 1)[0];
                 if (failoverPossible) console.warn(`[Playback] failover: ${candidate.providerName} (${candidate.via}) failed for "${eventChannel || routing.channelName || 'channel'}"` +
                     ` - ${clientSafe(redact(err.message)).split('. ')[0]}; ${next ? `trying ${next.providerName} (${next.via})` : 'no provider left'}`);
+            } finally {
+                coordinator.releaseUnbound(lease);
             }
         }
 
@@ -252,6 +286,7 @@ router.post('/resolve', requireToken, async (req, res) => {
             // started as the last one (the full retries).
             lastTried = first;
             try {
+                if (clientGone()) throw playbackStrategy.supersededError();
                 decision = await playbackStrategy.resolve({
                     url: first.url,
                     capabilities: capabilities || {},
@@ -262,12 +297,15 @@ router.post('/resolve', requireToken, async (req, res) => {
                     owner,
                     live,
                     providerId: first.providerId,
+                    lease: verdict.lease,
                     ...(failoverPossible ? { deadlineAt } : {}),
                     ...(showProvider ? { timingNote: `, provider ${first.providerName} (${first.via})` } : {})
                 });
             } catch (err) {
                 if (!err.superseded && routing && providerRouting.isProviderFailure(err)) providerRouting.noteFailure(first, routing.primaryKey);
                 throw err;
+            } finally {
+                coordinator.releaseUnbound(verdict.lease);
             }
             chosen = first;
         }
@@ -324,13 +362,16 @@ router.post('/resolve', requireToken, async (req, res) => {
             }
         }
 
+        // R12: what this owner is watching now, so a warm request for it is ignored.
+        if (warmKey && decision.sessionId) warming.noteWatching(owner, warmKey, decision.sessionId);
+
         recordHistory(req, sourceId, channelId);
         // 0133 (C-G): a start the server answered; the client's events may
         // still turn it into a failed start (channelHealth.clientFailed).
         // 0174: the primary identity's health, whichever provider served it.
         channelHealth.recordResolve({ sourceId, channelId, ok: true, owner, providerId: chosen.providerId });
 
-        console.log(`[Playback] ${decision.strategy} — ${decision.reason}`);
+        console.log(`[Playback] ${decision.strategy} — ${decision.reason}${decision.warm ? ' (warm: adopted a session started ahead)' : ''}`);
         playbackEvents.noteResolve(owner, { channel: eventChannel, strategy: decision.strategy, videoMode: decision.videoMode || null,
             provider: showProvider ? chosen.providerName : null });
         res.json(decision);
@@ -351,6 +392,44 @@ router.post('/resolve', requireToken, async (req, res) => {
         channelHealth.recordResolve({ sourceId: req.body?.sourceId, channelId: req.body?.channelId, ok: false, reason: safe, owner: eventOwner,
             providerId: lastTried ? lastTried.providerId : null });
         res.status(err.status || 500).json({ error: safe, info: err.info });
+    }
+});
+
+/**
+ * POST /api/playback/warm
+ *
+ * Body: the same as resolve for a channel - { sourceId, channelId, capabilities, upscale?, audioEncode? }.
+ *
+ * A client that can guess the channel its viewer will play next asks for it to be started ahead,
+ * so a following resolve finds the session already running (R12; services/channelWarming.js).
+ * Only ever on a provider connection nobody is using: nothing is reclaimed and nobody is asked.
+ *
+ *   204  nothing was warmed (the warmNextChannel setting is off, the tuner is in use, the
+ *        owner is already watching that channel, no connection is free, or the start failed)
+ *   200  { warm: true, ttlSec, refreshed }: a warm session for this channel exists and
+ *        lives ttlSec more seconds (refreshed: it was already warm and its time was extended)
+ *   400  no sourceId/channelId
+ */
+router.post('/warm', requireToken, async (req, res) => {
+    try {
+        const { sourceId, channelId, capabilities, upscale, audioEncode } = req.body || {};
+        if (sourceId === undefined || channelId === undefined) {
+            return res.status(400).json({ error: 'Provide sourceId and channelId' });
+        }
+        const settings = { ...(await db.settings.get()), ffmpegPath: req.app.locals.ffmpegPath || 'ffmpeg' };
+        const warming = require('../services/channelWarming');
+        if (!warming.enabled(settings) || require('../services/tuner').enabled()) return res.status(204).end();
+        const owner = require('../services/streamCoordinator').ownerKey(req.user);
+        const result = await warming.warm({
+            owner, sourceId, channelId, capabilities: capabilities || {}, upscale: upscale === true, audioEncode: audioEncode === true,
+            settings, ffprobePath: req.app.locals.ffprobePath
+        });
+        if (!result) return res.status(204).end();
+        res.json({ warm: true, ttlSec: result.ttlSec, refreshed: result.refreshed });
+    } catch (err) {
+        // A guess must never be the reason anything fails: say nothing was done.
+        console.warn('[Warm] request failed:', redact(err && err.message));
+        if (!res.headersSent) res.status(204).end();
     }
 });
 

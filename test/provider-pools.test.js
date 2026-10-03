@@ -84,6 +84,7 @@ before(async () => {
 
 afterEach(async () => {
     for (const s of transcodeSession.getAllSessions()) await transcodeSession.removeSession(s.id);
+    coordinator._leases.clear(); // R11: these tests decide and never start anything, so they never release the leases a verdict carries
     for (const id of [...coordinator._prompts.keys()]) coordinator.clearPrompt(id);
     clearAccounts();
     await threeProviders();

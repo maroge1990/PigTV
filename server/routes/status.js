@@ -292,6 +292,8 @@ router.get('/', async (req, res) => {
             leastReliable: leastReliable(),
             // 0188: streams lost mid-play in the last 7 days, and how long they took to come back.
             interruptions: require('../services/playbackInterruptions').summary(),
+            // R11: channels warmed ahead (the warmNextChannel setting).
+            warming: require('../services/channelWarming').status(settings),
             // 0189: streams a relay is keeping going (Settings: In-stream recovery), and their standbys.
             relay: (() => { const r = require('../services/streamRelay'); return { ...r.modeOf(settings), streams: r.list() }; })(),
             // 0161 (C-I): ESPN fixture coverage, per league - last successful fetch, fixture

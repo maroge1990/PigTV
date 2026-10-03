@@ -68,6 +68,7 @@ class SettingsPage {
         const standby = document.getElementById('setting-standby-enabled');
         bind('setting-relay-enabled', 'relayEnabled');
         bind('setting-standby-enabled', 'standbyEnabled');
+        bind('setting-warm-next-channel', 'warmNextChannel'); // R11
         relay?.addEventListener('change', () => { if (standby) standby.disabled = !relay.checked; });
     }
 
@@ -86,6 +87,8 @@ class SettingsPage {
                 standby.checked = s.standbyEnabled === true;
                 standby.disabled = s.relayEnabled !== true;
             }
+            const warm = document.getElementById('setting-warm-next-channel');
+            if (warm) warm.checked = s.warmNextChannel === true;
         } catch (err) {
             console.error('Failed to load hardware decode settings:', err);
         }

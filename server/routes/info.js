@@ -112,8 +112,15 @@ async function sendInfo(req, res) {
             providerReminders: true,
             // 0174 (C-J): a channel resolve answers `provider: { id, name, role, via,
             // failover }` - which provider it plays on, and whether it failed over.
-            providers: true
+            providers: true,
+            // R12: POST /api/playback/warm exists (it does nothing unless `warmingEnabled`).
+            warming: true
         },
+
+        // R12: whether the admin has switched channel warming on (the warmNextChannel setting).
+        warmingEnabled: await (async () => {
+            try { return (await require('../db').settings.get()).warmNextChannel === true; } catch (e) { return false; }
+        })(),
 
         // What the server can produce, so a client knows what to ask for.
         comskipAvailable,

@@ -1471,8 +1471,15 @@ class TranscodeSession extends EventEmitter {
  */
 async function createSession(url, options = {}) {
     await ensureCacheDir();
-    const session = new TranscodeSession(url, options);
+    // R11: `onRegistered` is called in the same tick the session joins the registry, so the
+    // connection lease that backed it can hand its count over to the session with no moment in
+    // which both (or neither) are counted. It is not a session option.
+    const { onRegistered, ...sessionOptions } = options;
+    const session = new TranscodeSession(url, sessionOptions);
     sessions.set(session.id, session);
+    if (typeof onRegistered === 'function') {
+        try { onRegistered(session); } catch (err) { console.warn('[TranscodeSession] onRegistered failed:', err.message); }
+    }
     return session;
 }
 
@@ -1581,7 +1588,9 @@ function getAllSessions() {
         // resolve named no source (a bare url), which counts against the primary's pool.
         providerId: s.options.providerId ?? null,
         // 0189: a relay's hot standby: nobody watches it, and anybody may take its connection.
-        standby: s.options.standby === true
+        standby: s.options.standby === true,
+        // R12: started ahead for the channel its owner may play next; reclaimed before a standby.
+        warm: s.options.warm === true
     }));
 }
 

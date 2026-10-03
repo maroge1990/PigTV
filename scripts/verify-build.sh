@@ -2034,7 +2034,7 @@ check test/providers-page.test.js "no address, login or password" "with tests"
 echo "=== 0173: per-provider connection pools (multi-provider P5) ==="
 check server/services/streamCoordinator.js "function providerLimit" "each provider has its own connection limit"
 check server/services/streamCoordinator.js "if (!dir.multi) return legacy;" "with no backup the limit is maxProviderStreams, as before"
-check server/services/streamCoordinator.js "const streams = streamsInPool(pool, dir).sort" "a viewer is counted within its provider's pool"
+check server/services/streamCoordinator.js "const streams = streamsInPool(pool, dir).filter(s => !adopt" "a viewer is counted within its provider's pool"
 check server/services/streamCoordinator.js "function canAdmitWithoutDisturbing" "admission can be asked without acting (P6 walks candidates)"
 check server/services/streamCoordinator.js "function canRecordFreely" "and so can a recording's (P7)"
 check server/services/streamCoordinator.js "function releaseOwnerElsewhere" "a device watches one thing across providers"
@@ -2144,6 +2144,20 @@ check server/services/transcodeSession.js "if (session.options.standby === true)
 check server/services/streamCoordinator.js "take(streams.filter(s => s.standby), 'standby');" "a viewer takes a standby's connection first"
 check server/services/streamCoordinator.js "Releasing standby" "a recording takes a standby's connection unasked"
 check test/stream-relay.test.js "the coordinator treats a standby as abandoned" "with tests"
+
+echo "=== R11: provider connections are leased before the probe ==="
+check server/services/streamCoordinator.js "function tryReserveFree(" "a standby or warm start reserves a free connection atomically"
+check server/services/streamCoordinator.js "if (!opts.adopt) verdict.lease = takeLease(opts.providerId, 'viewer'" "admitting a viewer takes its lease before anything is awaited"
+check server/services/playbackStrategy.js "onRegistered: (s) => { leaseLost = !coordinator.bindLease(lease, s.id); }" "the lease is bound in the tick the session is registered"
+check server/routes/playback.js "coordinator.releaseUnbound(lease);" "a failed start releases its lease"
+check test/connection-leases.test.js "two concurrent resolves for a one-connection provider" "with tests"
+
+echo "=== R12: channel warming (off by default) ==="
+check server/db.js "warmNextChannel: false" "warming is off by default"
+check server/routes/playback.js "router.post('/warm', requireToken" "warm requires a signed-in user"
+check server/services/channelWarming.js "tryReserveFree(c.providerId, 'warm'" "a warm start only takes a free connection"
+check server/services/streamCoordinator.js "take(streams.filter(s => s.warm), 'warm');" "a warm session is reclaimed first"
+check test/playback-warm.test.js "a recording that falls due takes the warm session first" "with tests"
 check scripts/relay-rig.js "relay-rig.js standby stall" "and a real-ffmpeg rig"
 
 echo "=== 0191: reconnect timestamp loop, blank pictures, raw captures ==="
@@ -2192,6 +2206,10 @@ check_absent server/auth.js "streamAuthFromSettings" "no setting turns it off"
 check server/routes/proxy.js "The proxy takes a playback handle (h), not a URL" "the proxy refuses a caller's URL"
 check server/routes/playback.js "router.post('/conflict/decline', requireToken," "the recording prompt needs a token"
 check test/stream-auth-enforced.test.js "Referrer-Policy" "with tests"
+
+echo "=== R11: the warming switch is in Settings ==="
+check public/index.html 'id="setting-warm-next-channel"' "Settings has a Warm the next channel switch"
+check public/js/pages/Settings.js "bind('setting-warm-next-channel', 'warmNextChannel');" "and saves it"
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1

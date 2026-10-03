@@ -132,7 +132,7 @@ function noteStart(owner, analysis) {
  * network to it) is what failed, which is what makes the route try the next one.
  */
 async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale = false, owner = null, live = false, audioEncode = false, providerId = null,
-    refusedRetryDelaysMs = undefined, deadlineAt = null, timingNote = '', sessionOptions = null }) {
+    refusedRetryDelaysMs = undefined, deadlineAt = null, timingNote = '', sessionOptions = null, lease = null }) {
     const caps = { ...DEFAULT_CAPABILITIES, ...capabilities };
     const userAgent = db.getUserAgent(settings);
 
@@ -160,11 +160,25 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     const plan = sessionPlan({ info, caps, settings, userAgent, owner, live, upscale, audioEncode });
     // Which provider's connection the session holds (0173): the coordinator counts it in that
     // provider's pool. Set here, not in sessionPlan, so a tuner's key never depends on it.
+    // R11: the connection lease the caller took when it admitted this start. It is checked just
+    // before the session exists (it may have been reclaimed while the probe ran: a viewer
+    // arrived and took the connection a standby or warm start was holding) and bound to the
+    // session the moment it is registered. A start that fails before then never reaches the
+    // bind; the caller releases the lease.
+    const coordinator = lease ? require('./streamCoordinator') : null;
+    if (coordinator && !coordinator.leaseAlive(lease)) throw supersededError();
+    let leaseLost = false;
     const session = await transcodeSession.createSession(url, {
         ...plan.options, providerId, ...(Array.isArray(refusedRetryDelaysMs) ? { refusedRetryDelaysMs } : {}),
         // 0189: extra session options from the relay (a standby is marked as one).
-        ...(sessionOptions || {})
+        ...(sessionOptions || {}),
+        ...(coordinator ? { onRegistered: (s) => { leaseLost = !coordinator.bindLease(lease, s.id); } } : {})
     });
+    if (leaseLost) {
+        // Reclaimed in the instant between the check and the registration: give the session back.
+        try { await transcodeSession.removeSession(session.id); } catch (e) { /* already gone */ }
+        throw supersededError();
+    }
 
     const sessionStartedAt = Date.now();
     await session.start();

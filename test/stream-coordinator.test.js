@@ -27,6 +27,7 @@ const recording = { id: 7, title: 'The News', channel_name: 'ABC', program_end: 
 
 afterEach(async () => {
     for (const s of transcodeSession.getAllSessions()) await transcodeSession.removeSession(s.id);
+    coordinator._leases.clear(); // R11: these tests decide and never start anything, so they never release the leases a verdict carries
 });
 
 after(() => {

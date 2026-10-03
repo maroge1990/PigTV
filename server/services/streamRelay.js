@@ -426,7 +426,7 @@ class Relay {
     }
 
     /** Start one candidate as a leg: probe, session, first segment. Null when it cannot be used. */
-    async startLeg(candidate, { owner, standby = false } = {}) {
+    async startLeg(candidate, { owner, standby = false, lease = null } = {}) {
         const { ctx } = this;
         let decision;
         try {
@@ -440,6 +440,7 @@ class Relay {
                 owner,
                 live: true,
                 providerId: candidate.providerId,
+                lease, // R11: bound to the leg's session when it exists
                 refusedRetryDelaysMs: [1000],
                 deadlineAt: Date.now() + START_DEADLINE_MS,
                 timingNote: `, relay ${this.id} ${standby ? 'standby' : 'takeover'} on ${candidate.providerName}`,
@@ -481,7 +482,7 @@ class Relay {
             if (this.unusable.has(candidate.providerId)) continue;
             // The viewer has started something else since: this play is over, and admitting
             // it again would stop what they are watching now.
-            if (coordinator().activeStreams().some(s => s.owner && s.owner === ctx.owner)) {
+            if (coordinator().activeStreams().some(s => s.owner && s.owner === ctx.owner && !s.warm)) {
                 this.close('the viewer is watching something else');
                 return null;
             }
@@ -489,7 +490,9 @@ class Relay {
             if (!coordinator().canAdmitWithoutDisturbing(ask)) continue;
             const verdict = await coordinator().admitViewer(ask);
             if (!verdict.allowed) continue;
-            const leg = await this.startLeg(candidate, { owner: ctx.owner });
+            // R11: the lease taken with the admission is bound to the leg's session, or given back.
+            let leg;
+            try { leg = await this.startLeg(candidate, { owner: ctx.owner, lease: verdict.lease }); } finally { coordinator().releaseUnbound(verdict.lease); }
             if (leg) return leg;
         }
         return null;
@@ -535,12 +538,16 @@ class Relay {
             return;
         }
         const playingOn = this.active.candidate.providerId;
+        // R11: the connection is leased in the same step it is found free, so a viewer or recording
+        // arriving while the standby probes counts it (and, as it is only a standby, takes it).
+        let lease = null;
         const candidate = candidates.find(c => c.providerId !== null && c.providerId !== undefined
             && !this.unusable.has(c.providerId)
             && !coordinator().samePool(c.providerId, playingOn)
-            && coordinator().hasFreeConnection(c.providerId, ctx.settings, activeRecordings()));
+            && (lease = coordinator().tryReserveFree(c.providerId, 'standby', ctx.settings, activeRecordings(), { owner: `standby:${this.id}` })));
         if (!candidate) return;
-        const leg = await this.startLeg(candidate, { owner: `standby:${this.id}`, standby: true });
+        let leg;
+        try { leg = await this.startLeg(candidate, { owner: `standby:${this.id}`, standby: true, lease }); } finally { coordinator().releaseUnbound(lease); }
         if (!leg) return;
         if (this.closed || this.standby) {
             await this.retire(leg, true);

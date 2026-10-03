@@ -41,6 +41,33 @@
  * connection for both, so a backup with the primary's login counts in the primary's
  * pool, two such backups in the lower id's, and the pool's limit is the lowest
  * effective limit among them.
+ *
+ * Leases (R11). Every rule above counts the sessions that exist. But a viewer is
+ * admitted, then resolve spends seconds probing the stream before its session is
+ * registered, and in that gap a second contender (another device, a recording that
+ * has just come due, a relay's standby) sees the connection as free and is admitted
+ * too: the provider then sees one connection more than it allows. So the decision
+ * that admits somebody also takes a LEASE on the connection, in the same tick,
+ * before anything is awaited. A lease is { id, providerId, pool, owner, purpose
+ * ('viewer' | 'recording' | 'standby' | 'warm'), createdAt, expiresAt, sessionId,
+ * onReclaim }. While it is unbound it counts in its pool like the session it will
+ * become; bind() hands the count over to the session (never both), and it is
+ * released on a failed probe, a cancel or a departure. One that nobody released
+ * expires after LEASE_TTL_MS with a warning, so a bug can never leak a connection.
+ * Recordings bind to the recording (the schedule's row is what listActive() counts),
+ * and a lease already listed there is not counted twice.
+ *
+ * An unbound standby or warm lease is as reclaimable as the session it will be: a
+ * viewer that arrives during its probe takes the connection and the lease's
+ * onReclaim tells its owner to stop. tryReserveFree() is the way for work that must
+ * never disturb anybody (a standby, a warm channel) to take a connection: a lease
+ * only when one is free right now, atomically, else null.
+ *
+ * Warm (R11, off by default; services/channelWarming.js): a session started for the
+ * channel a viewer is likely to play next, on a connection nobody wants. Like a
+ * standby it is abandoned from the start, and it is the FIRST thing reclaimed (before
+ * a standby): unasked and silently, no prompt, no terminal-status note, and it never
+ * displaces a recording or a viewer - it is only ever started on a free connection.
  */
 
 const transcodeSession = require('./transcodeSession');
@@ -165,23 +192,199 @@ function activeStreams() {
         providerId: s.providerId ?? null,
         // 0189: a relay's hot standby (services/streamRelay.js). Nobody watches it: it counts
         // as abandoned from the start, so whoever needs its connection takes it unasked.
-        standby: s.standby === true
+        standby: s.standby === true,
+        // R12: a session started ahead for the channel its owner may play next. Nobody
+        // watches it either, and it is reclaimed before even a standby.
+        warm: s.warm === true
     }));
 }
 
-/** Abandoned: silent for the idle timeout, or a standby (0189), which never has a viewer. */
-const isStale = (s, cutoffMs) => s.standby === true || s.idleMs >= cutoffMs;
-const idleText = (s) => (s.standby ? 'a standby' : `${Math.round(s.idleMs / 1000)}s idle`);
+/** Abandoned: silent for the idle timeout, or a standby (0189) or a warm session (R12), which never have a viewer. */
+const isStale = (s, cutoffMs) => s.standby === true || s.warm === true || s.idleMs >= cutoffMs;
+const idleText = (s) => (s.warm ? 'a warm session' : s.standby ? 'a standby' : `${Math.round(s.idleMs / 1000)}s idle`);
+
+// ---------------------------------------------------------------------------
+// Leases (R11)
+// ---------------------------------------------------------------------------
+
+// Long enough for the slowest legitimate probe (15 s) plus a cold start; short enough that
+// a lease a bug forgot to release cannot hold a connection for more than a minute.
+const LEASE_TTL_MS = 60 * 1000;
+// A lease bound to a recording is only a record (the recording row is what counts); it is
+// dropped when its ffmpeg exits, and this is only the net under that.
+const BOUND_RECORDING_KEEP_MS = 24 * 60 * 60 * 1000;
+
+// A lease is never idle: it is a start in progress, so only its purpose (standby, warm) can make it reclaimable.
+const LEASE_IDLE_MS = 0;
+
+const leases = new Map(); // lease id -> lease
+let leaseSeq = 0;
+
+const isBound = (l) => l.sessionId !== null || l.recordingId !== null;
+
+/** Drop expired unbound leases (with a warning) and bound ones whose session or recording is gone. */
+function pruneLeases(now = Date.now()) {
+    for (const [id, l] of leases) {
+        if (l.sessionId !== null) {
+            const alive = typeof transcodeSession.peekSession === 'function' ? transcodeSession.peekSession(l.sessionId) : true;
+            if (!alive) leases.delete(id);
+        } else if (l.recordingId !== null) {
+            if (now - l.createdAt > BOUND_RECORDING_KEEP_MS) leases.delete(id);
+        } else if (l.expiresAt <= now) {
+            console.warn(`[Coordinator] Lease ${id} (${l.purpose}, provider ${l.providerId ?? 'primary'}) expired unbound after ${Math.round((now - l.createdAt) / 1000)}s; releasing its connection`);
+            leases.delete(id);
+            l.released = true;
+            callReclaim(l, 'expired');
+        }
+    }
+}
+
+function callReclaim(lease, why) {
+    if (typeof lease.onReclaim !== 'function') return;
+    try { lease.onReclaim(why); } catch (err) { console.warn(`[Coordinator] onReclaim of lease ${lease.id} failed:`, err.message); }
+}
+
+/**
+ * Take a lease on a connection of `providerId`'s pool. Synchronous on purpose: it is called in
+ * the same tick as the decision it backs. It does not check that a connection is free -
+ * the caller has decided already (admitViewer, requestForRecording, tryReserveFree).
+ */
+function takeLease(providerId, purpose, { owner = null, onReclaim = null, ttlMs = LEASE_TTL_MS, schedule = null } = {}) {
+    const dir = providerDirectory();
+    const now = Date.now();
+    const lease = {
+        id: `lease-${++leaseSeq}-${now.toString(36)}`,
+        providerId: providerId ?? null,
+        pool: poolKey(providerId, dir),
+        owner: owner || null,
+        purpose,
+        createdAt: now,
+        expiresAt: now + ttlMs,
+        sessionId: null,
+        recordingId: null,
+        released: false,
+        onReclaim: typeof onReclaim === 'function' ? onReclaim : null,
+        scheduleId: schedule ? Number(schedule.id) : null,
+        schedule: schedule || null
+    };
+    leases.set(lease.id, lease);
+    return lease;
+}
+
+const leaseId = (lease) => (lease && typeof lease === 'object' ? lease.id : lease);
+
+/** Is this lease still held (not released, reclaimed or expired)? */
+function leaseAlive(lease) {
+    pruneLeases();
+    const l = leases.get(leaseId(lease));
+    return !!l && !l.released;
+}
+
+/** The session now exists: it is what counts from here. False when the lease was lost meanwhile. */
+function bindLease(lease, sessionId) {
+    pruneLeases();
+    const l = leases.get(leaseId(lease));
+    if (!l || l.released) return false;
+    l.sessionId = String(sessionId);
+    return true;
+}
+
+/** The recording is now running (its row is what listActive() counts). False when the lease was lost. */
+function bindLeaseToRecording(lease, recordingId) {
+    pruneLeases();
+    const l = leases.get(leaseId(lease));
+    if (!l || l.released) return false;
+    l.recordingId = Number(recordingId);
+    return true;
+}
+
+/** Give the lease up (a failure, a cancel, the work ended). Idempotent; true when there was one. */
+function releaseLease(lease) {
+    const l = lease && leases.get(leaseId(lease));
+    if (!l) return false;
+    leases.delete(l.id);
+    l.released = true;
+    return true;
+}
+
+/** Release a lease only while it holds a connection of its own, i.e. before it is bound. */
+function releaseUnbound(lease) {
+    const l = lease && leases.get(leaseId(lease));
+    if (!l || isBound(l)) return false;
+    return releaseLease(l);
+}
+
+/** A warm session was adopted by its owner (or any lease changes what it stands for). */
+function convertLease(lease, purpose) {
+    const l = leases.get(leaseId(lease));
+    if (!l) return false;
+    l.purpose = purpose;
+    return true;
+}
+
+/** Leases not yet bound in this pool, optionally of one kind of purpose (see streamsInPool / recordingsInPool). */
+function unboundLeasesInPool(pool, dir) {
+    pruneLeases();
+    return [...leases.values()].filter(l => !isBound(l) && !l.released && poolKey(l.providerId, dir) === pool);
+}
+
+/** A lease in the shape of a stream, for the counts and the reclaim order. */
+function leaseAsStream(l) {
+    return {
+        id: l.id,
+        type: 'lease',
+        lease: l,
+        url: null,
+        idleMs: LEASE_IDLE_MS,
+        startTime: l.createdAt,
+        owner: l.owner,
+        providerId: l.providerId,
+        standby: l.purpose === 'standby',
+        warm: l.purpose === 'warm'
+    };
+}
+
+/** A recording lease in the shape of a recording row, for the viewer's conflict and the count. */
+function leaseAsRecording(l) {
+    const sch = l.schedule || {};
+    return {
+        id: l.scheduleId,
+        lease: l,
+        title: sch.title || 'A recording',
+        channel_name: sch.channel_name || 'this channel',
+        program_end: sch.program_end || Date.now(),
+        post_buffer_min: sch.post_buffer_min || 0,
+        providerId: l.providerId
+    };
+}
+
+/** Every lease currently held, for diagnostics and tests. */
+function listLeases() {
+    pruneLeases();
+    return [...leases.values()].map(l => ({ id: l.id, providerId: l.providerId, pool: l.pool, owner: l.owner, purpose: l.purpose,
+        createdAt: l.createdAt, expiresAt: l.expiresAt, sessionId: l.sessionId, recordingId: l.recordingId }));
+}
 
 /**
  * 0189: is a connection of this provider free right now - no viewer (watching or not), no
  * recording and no standby on it? Stricter than canAdmitWithoutDisturbing, which would reclaim
- * an idle stream: a standby must never take anything from anybody.
+ * an idle stream: a standby must never take anything from anybody. Leases count (R11).
  */
 function hasFreeConnection(providerId, settings = {}, activeRecordings = []) {
     const dir = providerDirectory();
     const pool = poolKey(providerId, dir);
     return streamsInPool(pool, dir).length + recordingsInPool(activeRecordings, pool, dir).length < providerLimit(providerId, settings, dir);
+}
+
+/**
+ * R11: a lease on a free connection of this provider, or null. "Free" is hasFreeConnection's
+ * meaning - nobody is disturbed, nothing is reclaimed - and the check and the lease are one
+ * synchronous step, so two callers cannot both find the same connection free. For work that
+ * starts after an await (a standby's probe, a warm channel's start) and must not take anything.
+ */
+function tryReserveFree(providerId, purpose, settings = {}, activeRecordings = [], extra = {}) {
+    if (!hasFreeConnection(providerId, settings, activeRecordings)) return null;
+    return takeLease(providerId, purpose, extra);
 }
 
 /** 0189: do two providers share a connection pool (the same provider, or the same account)? */
@@ -258,12 +461,22 @@ function recordingProvider(rec) {
     return rec.providerId !== undefined ? rec.providerId : (rec.source_id ?? null);
 }
 
+// R11: the sessions in a pool plus the leases that will become sessions. A bound lease is not
+// listed (its session is), so nothing is counted twice.
 function streamsInPool(pool, dir) {
-    return activeStreams().filter(s => poolKey(s.providerId, dir) === pool);
+    const sessions = activeStreams().filter(s => poolKey(s.providerId, dir) === pool);
+    const pending = unboundLeasesInPool(pool, dir).filter(l => l.purpose !== 'recording').map(leaseAsStream);
+    return [...sessions, ...pending];
 }
 
+// The recordings in a pool: the running ones, plus recordings that have been admitted but whose
+// row is not yet 'recording' (a lease already listed in `recordings` is not counted twice).
 function recordingsInPool(recordings, pool, dir) {
-    return (recordings || []).filter(r => poolKey(recordingProvider(r), dir) === pool);
+    const running = (recordings || []).filter(r => poolKey(recordingProvider(r), dir) === pool);
+    const known = new Set((recordings || []).map(r => Number(r.id)));
+    const pending = unboundLeasesInPool(pool, dir)
+        .filter(l => l.purpose === 'recording' && !known.has(l.scheduleId)).map(leaseAsRecording);
+    return [...running, ...pending];
 }
 
 /** The provider id a pool stands for, for a conflict body: a backup's id, the primary's id, or null. */
@@ -332,7 +545,7 @@ async function releaseOwnerElsewhere(owner, providerId) {
 /** The provider of this owner's most recently started stream; undefined when it has none. */
 function ownerProvider(owner) {
     if (!owner) return undefined;
-    const mine = activeStreams().filter(s => s.owner === owner).sort((a, b) => b.startTime - a.startTime);
+    const mine = activeStreams().filter(s => s.owner === owner && !s.warm).sort((a, b) => b.startTime - a.startTime);
     return mine.length ? mine[0].providerId : undefined;
 }
 
@@ -350,8 +563,17 @@ function staleStreams(idleTimeoutSec = DEFAULT_IDLE_TIMEOUT_SEC) {
 }
 
 async function releaseStream(stream) {
+    // R11: an unbound lease has no session to remove: giving the lease up is the release, and its
+    // owner (a probe in progress) is told so it stops instead of starting a session nobody counts.
+    if (stream.lease) {
+        releaseLease(stream.lease);
+        callReclaim(stream.lease, 'reclaimed');
+        return true;
+    }
     try {
         await transcodeSession.removeSession(stream.id);
+        // R12: a warm session's owner-side bookkeeping (the count of reclaimed ones).
+        if (stream.warm) { try { require('./channelWarming').noteReclaimed(stream.id); } catch (e) { /* observation only */ } }
         return true;
     } catch (err) {
         console.error(`[Coordinator] Could not release ${stream.id}:`, err.message);
@@ -375,28 +597,39 @@ async function requestForRecording(schedule, settings = {}, providerId = undefin
     const dir = providerDirectory();
     const pool = poolKey(providerId, dir);
 
+    // R11: every verdict that allows the recording carries the lease on its connection, taken
+    // in the same tick as the decision - before any release below is awaited - and handed to
+    // the engine, which binds it to the recording (and releases it if the start fails).
+    const leased = (verdict) => ({ ...verdict, lease: takeLease(providerId, 'recording', { schedule }) });
+
     // More than one provider connection available? Then there is nothing to
     // arbitrate and everything proceeds as before.
     const limit = providerLimit(providerId, settings, dir);
     let streams = streamsInPool(pool, dir);
     if (streams.length < limit) {
-        return { allowed: true, reason: 'A provider connection is free' };
+        return leased({ allowed: true, reason: 'A provider connection is free' });
     }
 
-    // 0189: a standby gives way first, whoever else is on the provider: with it gone
-    // there may be a free connection and nobody to ask.
-    const standbys = streams.filter(s => s.standby);
-    if (standbys.length) {
-        for (const s of standbys) {
-            if (streams.length < limit) break;
-            console.log(`[Coordinator] Releasing standby ${s.id} for recording #${schedule.id}`);
+    // 0189 / R12: a warm session (first) and a standby give way, whoever else is on the provider:
+    // with them gone there may be a free connection and nobody to ask.
+    const giveWay = [...streams.filter(s => s.warm), ...streams.filter(s => s.standby && !s.warm)];
+    if (giveWay.length) {
+        const needed = streams.length - limit + 1;
+        const going = giveWay.slice(0, needed);
+        const enough = going.length >= needed;
+        // Enough of them: the decision is made now, so the lease is taken before the first release.
+        const verdict = enough ? leased({ allowed: true, reason: going.every(s => s.warm) ? 'A warm session gave up its connection' : 'A standby gave up its connection' }) : null;
+        for (const s of going) {
+            console.log(s.warm ? `[Coordinator] Releasing warm session ${s.id} for recording #${schedule.id}` : `[Coordinator] Releasing standby ${s.id} for recording #${schedule.id}`);
             await releaseStream(s);
-            streams = streams.filter(x => x !== s);
         }
-        if (streams.length < limit) {
+        if (verdict) {
             prompts.delete(schedule.id);
-            return { allowed: true, reason: 'A standby gave up its connection' };
+            return verdict;
         }
+        // Not enough: those went, and the rest is decided on what is there after the awaits.
+        streams = streamsInPool(pool, dir);
+        if (streams.length < limit) return leased({ allowed: true, reason: 'A provider connection is free' });
     }
 
     // Reclaim anything registered but abandoned, without asking: there is
@@ -406,16 +639,17 @@ async function requestForRecording(schedule, settings = {}, providerId = undefin
     const live = streams.filter(s => s.idleMs < cutoff);
 
     if (live.length === 0 && stale.length > 0) {
+        const verdict = leased({ allowed: true, reason: 'Reclaimed an abandoned stream' });
         for (const s of stale) {
             console.log(`[Coordinator] Reclaiming idle stream ${s.id} (${Math.round(s.idleMs / 1000)}s silent) for recording #${schedule.id}`);
             await releaseStream(s);
         }
         prompts.delete(schedule.id);
-        return { allowed: true, reason: 'Reclaimed an abandoned stream' };
+        return verdict;
     }
 
     if (live.length === 0) {
-        return { allowed: true, reason: 'Nothing is using the provider' };
+        return leased({ allowed: true, reason: 'Nothing is using the provider' });
     }
 
     // Somebody is watching. Ask once; after that, wait quietly - unless nobody
@@ -439,9 +673,10 @@ async function requestForRecording(schedule, settings = {}, providerId = undefin
             ? settings.recordingPromptTimeoutMin : DEFAULT_PROMPT_TIMEOUT_MIN) * 60000;
         if (now - existing.dueSince >= timeoutMs) {
             console.log(`[Coordinator] No answer from the viewer in ${Math.round(timeoutMs / 60000)} min; recording #${schedule.id} takes the stream`);
+            const verdict = leased({ allowed: true, reason: 'No answer from the viewer; took the stream' });
             for (const s of live) await releaseStream(s);
             prompts.delete(schedule.id);
-            return { allowed: true, reason: 'No answer from the viewer; took the stream' };
+            return verdict;
         }
     }
 
@@ -527,8 +762,8 @@ function announceUpcoming(schedule, settings = {}, providerId = undefined) {
     // Only the viewers of the provider the recording will use are warned (0173).
     const dir = providerDirectory();
     const limit = providerLimit(providerId, settings, dir);
-    // 0189: a standby is not a viewer to warn; it gives way when the recording starts.
-    if (streamsInPool(poolKey(providerId, dir), dir).filter(s => !s.standby).length < limit) return;
+    // 0189 / R12: a standby or a warm session is not a viewer to warn; it gives way when the recording starts.
+    if (streamsInPool(poolKey(providerId, dir), dir).filter(s => !s.standby && !s.warm).length < limit) return;
     if (prompts.has(schedule.id)) return;
     // dueSince stays null: the answer-timeout (0158) counts from when the recording
     // is actually due and still blocked (requestForRecording, above), not from this
@@ -564,7 +799,7 @@ function ownerKey(user) {
  * abandoned ones, then this owner's own earlier stream, and only then
  * something somebody else may be watching.
  */
-function requestForViewer({ force = false, activeRecordings = [], settings = {}, owner = null, providerId = undefined } = {}) {
+function requestForViewer({ force = false, activeRecordings = [], settings = {}, owner = null, providerId = undefined, adopt = null } = {}) {
     // Everything below is within the pool of the provider asked for (0173): its
     // streams, its recordings, its limit. No providerId is the primary's pool,
     // which with no backup configured is every stream, as before.
@@ -581,8 +816,11 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
     // The caller is asking to open one more connection, so count it. A
     // recording holds a connection of its own: its ffmpeg talks to the
     // provider directly and never appears in the viewer registries.
-    // Most idle first; a standby (0189) before any of them.
-    const streams = streamsInPool(pool, dir).sort((a, b) => (b.standby === true) - (a.standby === true) || b.idleMs - a.idleMs);
+    // Most idle first; a standby (0189) before any of them, and a warm session (R12) before that.
+    // `adopt` (R12) is a warm session this very request is about to turn into its viewer
+    // session: it already holds the connection the +1 below asks for, so it is not counted.
+    const streams = streamsInPool(pool, dir).filter(s => !adopt || s.id !== adopt)
+        .sort((a, b) => (b.warm === true) - (a.warm === true) || (b.standby === true) - (a.standby === true) || b.idleMs - a.idleMs);
     let need = streams.length + recordings.length + 1 - limit;
     if (need <= 0) return { allowed: true, release: elsewhere() };
 
@@ -601,6 +839,7 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
             need--;
         }
     };
+    take(streams.filter(s => s.warm), 'warm');
     take(streams.filter(s => s.standby), 'standby');
     take(streams.filter(s => s.idleMs >= idleMs), 'idle');
     take(streams.filter(s => owner && s.owner === owner), 'replacement');
@@ -669,6 +908,15 @@ function canAdmitWithoutDisturbing({ providerId = undefined, owner = null, setti
 async function admitViewer(opts = {}) {
     const verdict = requestForViewer(opts);
     if (verdict.allowed) {
+        // R11: the lease on the connection is taken here, in the tick of the decision and before
+        // the first release is awaited, so a contender arriving while those finish (or while the
+        // caller probes) counts it. Not for an adopted warm session: it holds its own lease.
+        if (!opts.adopt) verdict.lease = takeLease(opts.providerId, 'viewer', { owner: opts.owner });
+        // A recording that was admitted but has not started yet, and is forced out: it must not
+        // start after all (its engine checks the lease), and its count goes with it.
+        for (const id of verdict.sacrificed || []) {
+            for (const l of leases.values()) if (l.purpose === 'recording' && l.scheduleId === Number(id) && !isBound(l)) releaseLease(l);
+        }
         for (const { stream, cause } of verdict.release || []) {
             console.log(`[Coordinator] Releasing ${stream.id} (${cause}, ${idleText(stream)}) to admit a new viewer`);
             // Before the release, while the owner is still known. Everything
@@ -681,7 +929,8 @@ async function admitViewer(opts = {}) {
             // an explicit DELETE goes to transcodeSession.removeSession, the idle
             // sweep and the stall watchdog end sessions on their own, and a
             // recording reclaims streams via requestForRecording.
-            noteReplaced(stream);
+            // A warm session or a lease is not a stream anybody could be told was taken over.
+            if (!stream.warm && !stream.lease) noteReplaced(stream);
             await releaseStream(stream);
         }
     }
@@ -909,6 +1158,17 @@ module.exports = {
     requestForRecording,
     requestForViewer,
     admitViewer,
+    // Leases (R11)
+    takeLease,
+    tryReserveFree,
+    bindLease,
+    bindLeaseToRecording,
+    releaseLease,
+    releaseUnbound,
+    convertLease,
+    leaseAlive,
+    listLeases,
+    LEASE_TTL_MS,
     // Provider pools (0173)
     providerLimit,
     hasFreeConnection,
@@ -928,5 +1188,6 @@ module.exports = {
     DEFAULT_PROMPT_TIMEOUT_MIN,
     // Test seam: the prompts map, so a test can move a prompt's `dueSince` into the
     // past instead of actually waiting out recordingPromptTimeoutMin minutes.
-    _prompts: prompts
+    _prompts: prompts,
+    _leases: leases
 };

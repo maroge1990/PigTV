@@ -303,7 +303,10 @@ async function chooseProvider(schedule, settings) {
         console.log(`[Recordings] Schedule #${schedule.id} records on ${route.candidates[index].providerName}: ` +
             `${route.candidates[0].providerName} has no free connection`);
     }
-    return { route, index, verdict: { allowed: true, reason: verdict.allowed ? verdict.reason : 'A provider connection is free' } };
+    // R11: the lease on the connection (requestForRecording took it when it allowed; when it
+    // said no, a connection is free all the same - canRecordFreely - so take one now).
+    const lease = verdict.lease || coordinator.takeLease(route.candidates[index].providerId, 'recording', { schedule });
+    return { route, index, verdict: { allowed: true, reason: verdict.allowed ? verdict.reason : 'A provider connection is free', lease } };
 }
 
 /** The provider an upcoming recording's viewer warning is about; undefined when none is needed. */
@@ -1296,6 +1299,8 @@ async function deleteRecording(id) {
 
 async function startRecording(schedule, knownUrl = null, choice = null) {
     if (tunerModel.enabled()) return startTunedRecording(schedule, knownUrl);
+    // R11: the connection lease chooseProvider's verdict carries; startPart binds or releases it.
+    const lease = choice && choice.verdict ? choice.verdict.lease || null : null;
     // 0177: tick() chose the provider (chooseProvider); anyone else gets the first candidate.
     let route = choice && choice.route;
     if (!route) {
@@ -1304,10 +1309,12 @@ async function startRecording(schedule, knownUrl = null, choice = null) {
         } catch (err) {
             console.error(`[Recordings] Could not resolve stream for schedule ${schedule.id}:`, err.message);
             setScheduleStatus(schedule.id, 'failed', { error: err.message });
+            coordinator.releaseLease(lease);
             return;
         }
     }
     return startPart(schedule, route, choice ? choice.index : 0, 1, {
+        lease,
         refuse: (msg) => setScheduleStatus(schedule.id, 'failed', { error: msg })
     });
 }
@@ -1319,8 +1326,25 @@ async function startRecording(schedule, knownUrl = null, choice = null) {
  * their own beside it ("<title - date> (part N).mkv"), with the gap noted.
  * `refuse(message)` is called when the folder check fails.
  */
-async function startPart(schedule, route, index, part, { gapMs = 0, refuse } = {}) {
+async function startPart(schedule, route, index, part, opts = {}) {
+    // R11: whatever happens, a lease this start was given is either bound to the running recording
+    // (and released when its ffmpeg exits) or given back here - never left to expire.
+    let started = false;
+    try {
+        started = await startPartLeased(schedule, route, index, part, opts);
+    } finally {
+        if (!started) coordinator.releaseLease(opts.lease);
+    }
+}
+
+async function startPartLeased(schedule, route, index, part, { gapMs = 0, refuse, lease = null } = {}) {
     const settings = await getSettings();
+    // A viewer that forced the stream while this start was getting ready took the lease with it:
+    // the connection is theirs, so this recording waits for the next tick instead.
+    if (lease && !coordinator.leaseAlive(lease)) {
+        console.log(`[Recordings] Schedule #${schedule.id}: its connection was taken before it started; waiting`);
+        return false;
+    }
     const minFreeGB = Number.isFinite(settings.minFreeSpaceGB) ? settings.minFreeSpaceGB : 10;
     let root;
     try {
@@ -1328,7 +1352,7 @@ async function startPart(schedule, route, index, part, { gapMs = 0, refuse } = {
     } catch (err) {
         console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${err.message}`);
         refuse(err.message);
-        return;
+        return false;
     }
 
     // Pre-flight storage check (0157: also catches an unmounted network share,
@@ -1344,7 +1368,7 @@ async function startPart(schedule, route, index, part, { gapMs = 0, refuse } = {
         const msg = refusalMessage(check, root, minFreeGB);
         console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${msg}`);
         refuse(msg);
-        return;
+        return false;
     }
 
     const channelDir = path.join(root, sanitizeForFs(schedule.channel_name || 'Unknown Channel'));
@@ -1387,12 +1411,16 @@ async function startPart(schedule, route, index, part, { gapMs = 0, refuse } = {
 
     coordinator.clearPrompt(schedule.id);
     setScheduleStatus(schedule.id, 'recording', { recording_id: recording.id });
+    // From here the schedule's row says 'recording' and listActive() counts it: the lease stops
+    // counting (it would be counted twice) and is released when the ffmpeg exits (onPartExit).
+    if (lease) coordinator.bindLeaseToRecording(lease, recording.id);
 
-    spawnPart(schedule, settings, { recordingId: recording.id, outputPath, route, index, part, lostAt: part > 1 ? Date.now() - gapMs : null });
+    spawnPart(schedule, settings, { recordingId: recording.id, outputPath, route, index, part, lostAt: part > 1 ? Date.now() - gapMs : null, lease });
+    return true;
 }
 
 /** Run ffmpeg for one part on its candidate. Its exit decides what happens next (onPartExit). */
-function spawnPart(schedule, settings, { recordingId, outputPath, route, index, part, lostAt = null }) {
+function spawnPart(schedule, settings, { recordingId, outputPath, route, index, part, lostAt = null, lease = null }) {
     const candidate = route.candidates[index];
     const args = [
         '-y',
@@ -1428,7 +1456,7 @@ function spawnPart(schedule, settings, { recordingId, outputPath, route, index, 
     const now = Date.now();
     const entry = {
         proc, recordingId, stderrTail: [], hardStopTimer: null, providerId: candidate.providerId ?? null,
-        schedule, route, index, part, outputPath, lostAt,
+        schedule, route, index, part, outputPath, lostAt, lease,
         spawnedAt: now, lastSize: 0, lastGrowthAt: now, played: false,
         stopRequested: false, stalled: false
     };
@@ -1479,6 +1507,9 @@ function fileSizeOf(file) {
  */
 async function onPartExit(schedule, entry, exitCode) {
     if (entry.hardStopTimer) clearTimeout(entry.hardStopTimer);
+    // R11: the ffmpeg is gone, so the connection its lease stood for is too. (A failover to
+    // another provider below is counted by the schedule's row, which stays 'recording'.)
+    coordinator.releaseLease(entry.lease);
     const now = Date.now();
     const size = fileSizeOf(entry.outputPath);
     const unrequested = !entry.stopRequested && now < stopTimeOf(schedule) - failoverTuning.endGraceMs;

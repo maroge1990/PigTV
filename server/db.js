@@ -76,6 +76,7 @@ function getDefaultSettings() {
     viewerIdleTimeoutSec: 60,      // Silence after which a stream is treated as abandoned
     recordingPromptLeadMin: 5,     // How far ahead a viewer is warned about a due recording
     recordingPromptTimeoutMin: 3,  // No answer this long after the recording is due: it takes the stream
+    warmNextChannel: false,        // Start the channel a viewer will probably play next on a spare provider connection (R11)
     // Commercial break detection
     adDetectionEnabled: false,     // Analyse finished recordings for advert breaks
     adAutoSkip: false,             // Skip detected breaks automatically during playback
