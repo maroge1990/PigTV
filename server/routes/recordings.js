@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const fs = require('fs');
+const fsp = require('fs').promises;
 const path = require('path');
+const { pipeline } = require('stream/promises');
 const { requireAuth } = require('../auth');
 const recordingEngine = require('../services/recordingEngine');
 const { recordings: recordingsDb } = require('../db/recordingsDb');
@@ -15,12 +17,25 @@ const { recordings: recordingsDb } = require('../db/recordingsDb');
 // (see server/index.js), which accepts the token as ?token= instead — opt-in
 // enforcement via the requireStreamAuth setting, same as those.
 
+// Pipe a file to the response, closing the file whatever happens. A player that
+// seeks abandons its range request part-way, which is ordinary and not logged;
+// anything else (a read error on the share) goes to the caller's error path.
+async function sendFileRange(stream, res) {
+    try {
+        await pipeline(stream, res);
+    } catch (err) {
+        if (err.code === 'ERR_STREAM_PREMATURE_CLOSE' || res.destroyed) return;
+        throw err;
+    }
+}
+
 // Serve a local file with HTTP Range support, for seeking. Shared by
 // /:id/stream (the original .mkv) and /:id/media.mp4 (the native-playback
 // remux) — the byte-range mechanics are identical, only the content type
-// and which file differ.
-function serveWithRangeSupport(req, res, filePath, contentType) {
-    const stat = fs.statSync(filePath);
+// and which file differ. Async to avoid blocking the event loop on slow
+// network shares (SMB); callers must await it.
+async function serveWithRangeSupport(req, res, filePath, contentType) {
+    const stat = await fsp.stat(filePath);
     const fileSize = stat.size;
     const range = req.headers.range;
 
@@ -53,14 +68,14 @@ function serveWithRangeSupport(req, res, filePath, contentType) {
             'Content-Length': end - start + 1,
             'Content-Type': contentType
         });
-        fs.createReadStream(filePath, { start, end }).pipe(res);
+        await sendFileRange(fs.createReadStream(filePath, { start, end }), res);
     } else {
         res.set({
             'Content-Length': fileSize,
             'Content-Type': contentType,
             'Accept-Ranges': 'bytes'
         });
-        fs.createReadStream(filePath).pipe(res);
+        await sendFileRange(fs.createReadStream(filePath), res);
     }
 }
 
@@ -95,7 +110,7 @@ router.get('/:id/index.m3u8', async (req, res, next) => {
         if (rec.status === 'recording') await recordingEngine.waitForFirstTunedSegment(rec.id);
         let playlist;
         try {
-            playlist = fs.readFileSync(path.join(rec.hls_dir, 'index.m3u8'), 'utf8');
+            playlist = await fsp.readFile(path.join(rec.hls_dir, 'index.m3u8'), 'utf8');
         } catch (e) {
             return res.status(404).json({ error: 'Recording playlist not found' });
         }
@@ -109,32 +124,46 @@ router.get('/:id/index.m3u8', async (req, res, next) => {
     }
 });
 
-router.get(HLS_RECORDING_FILE, (req, res, next) => {
-    const rec = hlsRecording(req.params[0]);
-    if (!rec) return notHls(res, next);
-    const file = path.join(rec.hls_dir, req.params[1]);
-    if (!fs.existsSync(file)) return res.status(404).json({ error: 'Segment not found' });
-    // As the live segments: fMP4 too goes out as video/MP2T (blueprint §4).
-    res.setHeader('Content-Type', 'video/MP2T');
-    res.setHeader('Cache-Control', 'public, max-age=31536000');
-    // Express 5 (0137): send ignores paths through a dot-folder by default; the
-    // file names are allow-listed above, and a folder may be dotted.
-    res.sendFile(file, { dotfiles: 'allow' });
+router.get(HLS_RECORDING_FILE, async (req, res, next) => {
+    try {
+        const rec = hlsRecording(req.params[0]);
+        if (!rec) return notHls(res, next);
+        const file = path.join(rec.hls_dir, req.params[1]);
+        try {
+            await fsp.access(file, fs.constants.F_OK);
+        } catch (e) {
+            return res.status(404).json({ error: 'Segment not found' });
+        }
+        // As the live segments: fMP4 too goes out as video/MP2T (blueprint §4).
+        res.setHeader('Content-Type', 'video/MP2T');
+        res.setHeader('Cache-Control', 'public, max-age=31536000');
+        // Express 5 (0137): send ignores paths through a dot-folder by default; the
+        // file names are allow-listed above, and a folder may be dotted.
+        res.sendFile(file, { dotfiles: 'allow' });
+    } catch (err) {
+        console.error('[Recordings] HLS segment error:', err.message);
+        if (!res.headersSent) res.status(500).json({ error: err.message });
+    }
 });
 
 // Stream a recording for playback, with HTTP Range support for seeking
-router.get('/:id/stream', (req, res) => {
+router.get('/:id/stream', async (req, res) => {
     try {
         const rec = recordingsDb.getById(parseInt(req.params.id));
         if (rec && rec.format === 'hls' && String(rec.file_path).endsWith('.m3u8')) {
             return res.status(409).json({ error: 'Recording is not ready as a single file yet' });
         }
-        if (!rec || !rec.file_path || !fs.existsSync(rec.file_path)) {
+        if (!rec || !rec.file_path) {
+            return res.status(404).json({ error: 'Recording file not found' });
+        }
+        try {
+            await fsp.access(rec.file_path, fs.constants.F_OK);
+        } catch (e) {
             return res.status(404).json({ error: 'Recording file not found' });
         }
         // 0192: once prepared (audit R06) the recording itself is an MP4.
         const isMp4 = rec.format === 'hls' || path.extname(rec.file_path).toLowerCase() === '.mp4';
-        serveWithRangeSupport(req, res, rec.file_path, isMp4 ? 'video/mp4' : 'video/x-matroska');
+        await serveWithRangeSupport(req, res, rec.file_path, isMp4 ? 'video/mp4' : 'video/x-matroska');
     } catch (err) {
         console.error('[Recordings] Stream error:', err);
         if (!res.headersSent) res.status(500).json({ error: err.message });
@@ -156,7 +185,7 @@ router.get('/:id/media.mp4', async (req, res) => {
         }
 
         const filePath = await recordingEngine.ensureNativePlayback(rec);
-        serveWithRangeSupport(req, res, filePath, 'video/mp4');
+        await serveWithRangeSupport(req, res, filePath, 'video/mp4');
     } catch (err) {
         console.error('[Recordings] Native media error:', err.message);
         if (!res.headersSent) res.status(500).json({ error: err.message });
@@ -164,13 +193,18 @@ router.get('/:id/media.mp4', async (req, res) => {
 });
 
 // Download a recording
-router.get('/:id/download', (req, res) => {
+router.get('/:id/download', async (req, res) => {
     try {
         const rec = recordingsDb.getById(parseInt(req.params.id));
         if (rec && rec.format === 'hls' && String(rec.file_path).endsWith('.m3u8')) {
             return res.status(409).json({ error: 'Recording is not ready as a single file yet' });
         }
-        if (!rec || !rec.file_path || !fs.existsSync(rec.file_path)) {
+        if (!rec || !rec.file_path) {
+            return res.status(404).json({ error: 'Recording file not found' });
+        }
+        try {
+            await fsp.access(rec.file_path, fs.constants.F_OK);
+        } catch (e) {
             return res.status(404).json({ error: 'Recording file not found' });
         }
         const downloadName = `${rec.title || 'recording'}${path.extname(rec.file_path)}`;

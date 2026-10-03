@@ -2161,6 +2161,12 @@ check server/services/recordingEngine.js "if (rec.compress_status === 'done' && 
 check server/db/recordingsDb.js "'native_status TEXT'," "the preparation state is a migrated column"
 check test/recording-prepare.test.js "never deletes the original when the original" "with tests"
 
+echo "=== 0194: recordings routes read files asynchronously (audit R09) ==="
+check_absent server/routes/recordings.js "fs.statSync(" "no synchronous stat in a recordings request"
+check_absent server/routes/recordings.js "fs.existsSync(" "no synchronous existence check in a recordings request"
+check_absent server/routes/recordings.js "fs.readFileSync(" "no synchronous read in a recordings request"
+check server/routes/recordings.js "async function sendFileRange(" "files are piped with error handling"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys
