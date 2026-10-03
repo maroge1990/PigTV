@@ -56,10 +56,8 @@ const API = {
      * (/api/transcode, /api/proxy/stream) accept the token as
      * a query parameter instead - the same mechanism native clients use,
      * and the reason those URLs are already documented as bearer tokens
-     * in their own right. Harmless to include even when requireStreamAuth
-     * is off (streamAuth only rejects a *missing* token when enforcement
-     * is on), and required once it's on, since none of these URLs can
-     * carry a header. The server carries this token forward onto every
+     * in their own right. Required: the server's stream auth is always on
+     * (R01) and none of these URLs can carry a header. The server carries this token forward onto every
      * child playlist/segment URI on its own once it sees it on the
      * top-level request - the caller only needs to get it onto that one.
      */
@@ -230,9 +228,8 @@ const API = {
     // DVR / Recordings
     transcode: {
         // Mounted behind the same streamAuth middleware as every other
-        // /api/transcode route (segments, playlists). Enforcement is off
-        // by default, so these worked unauthenticated until now — but
-        // that was the setting being off, not these routes being exempt.
+        // /api/transcode route (segments, playlists), which is always on (R01).
+        // getSessions and killAllSessions also need an admin.
         getSessions: () => API.streamFetch('/api/transcode/sessions').then(r => r.json()),
         killSession: (id) => API.streamFetch(`/api/transcode/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(r => r.json()),
         killAllSessions: () => API.streamFetch('/api/transcode/sessions/all', { method: 'DELETE' }).then(r => r.json())

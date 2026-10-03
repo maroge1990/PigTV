@@ -59,7 +59,9 @@ async function resolve(body) {
 }
 
 before(async () => {
-    token = jwt.sign({ id: 1, username: 'owner', role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    // Stream auth (R01) looks the user up, so the token has to belong to a real account.
+    const owner = await db.users.create({ username: 'owner', role: 'admin' });
+    token = jwt.sign({ id: owner.id, username: 'owner', role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '1h' });
     source = await db.sources.create({ type: 'm3u', name: 'Household', url: 'http://provider.invalid/list.m3u' });
     const app = express();
     app.use(express.json());

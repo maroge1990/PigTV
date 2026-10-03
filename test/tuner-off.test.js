@@ -36,6 +36,8 @@ const FFMPEG_PLAYLIST = '#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:4\n#EX
 let server, base;
 let tunedCalls = 0;
 before(async () => {
+    // Stream auth (R01) looks the token's user up, and these tokens name user id 1.
+    await db.users.create({ username: 'owner', role: 'admin' });
     const realTuned = strategy.resolveTuned;
     strategy.resolveTuned = async (...a) => { tunedCalls++; return realTuned(...a); };
     // A session whose "ffmpeg" writes the playlist ffmpeg would and stays up.

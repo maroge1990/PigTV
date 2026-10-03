@@ -47,8 +47,8 @@ after(async () => {
     try { fs.rmSync(sandbox, { recursive: true, force: true }); } catch { /* leave it to the OS temp cleaner */ }
 });
 
-const call = async (method, route) => {
-    const response = await fetch(`${base}${route}`, { method, redirect: 'manual' });
+const call = async (method, route, token) => {
+    const response = await fetch(`${base}${route}`, { method, redirect: 'manual', headers: token ? { Authorization: `Bearer ${token}` } : {} });
     const type = response.headers.get('content-type') || '';
     const text = await response.text();
     let body = null;
@@ -72,9 +72,16 @@ test('it also covers a missing path under a real router, and paths the old code 
     assert.equal((await call('GET', '/api/auth/oidc/login')).status, 404, 'the removed SSO route');
 });
 
+// The first-run admin's token, made once on this sandbox's empty database. Stream auth
+// (R01) checks that the user exists, so a token has to belong to a real account.
+let adminTokenPromise;
+const adminToken = () => adminTokenPromise ||= fetch(`${base}/api/auth/setup`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'owner', password: 'a-long-enough-password' }) }).then(r => r.json()).then(b => b.token);
+
 test('the piped remux and the legacy piped transcode are gone - one delivery path (0103)', async () => {
+    const token = await adminToken();
     for (const route of ['/api/remux?url=http%3A%2F%2Fx%2F1.ts', '/api/transcode?url=http%3A%2F%2Fx%2F1.ts']) {
-        const r = await call('GET', route);
+        const r = await call('GET', route, token);
         assert.equal(r.status, 404, route);
         assert.equal(r.body?.error, 'No such API endpoint', route);
     }
@@ -165,9 +172,7 @@ const REMOVED_ROUTES = [
 ];
 
 test('the removed fork routes answer the generic 404, even with a token (0122)', async () => {
-    const setup = await fetch(`${base}/api/auth/setup`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'admin', password: 'fixture-password' }) });
-    const { token } = await setup.json();
+    const token = await adminToken();
     assert.ok(token, 'the sandbox admin');
     const still = [];
     for (const [method, route] of REMOVED_ROUTES) {

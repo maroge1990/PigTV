@@ -18,6 +18,7 @@ fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'n
 process.chdir(sandbox);
 
 const CHUNK = Buffer.alloc(64 * 1024, 7);
+const handles = require(path.join(sandbox, 'server/services/playbackHandles'));
 let upstream, proxy, upstreamBase, proxyBase;
 let release = () => {};
 let upstreamClosed = null;
@@ -52,7 +53,7 @@ after(() => {
 const within = (ms, p, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(`${what} did not happen within ${ms} ms`)), ms))]);
 
 test('a binary response is streamed: the first bytes arrive before the upstream has finished', async () => {
-    const response = await within(3000, fetch(`${proxyBase}/api/proxy/stream?url=${encodeURIComponent(`${upstreamBase}/movie.mp4`)}`), 'the response headers');
+    const response = await within(3000, fetch(`${proxyBase}/api/proxy/stream?h=${handles.createHandle(`${upstreamBase}/movie.mp4`)}`), 'the response headers');
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('content-type'), 'video/mp4');
     const reader = response.body.getReader();
@@ -68,7 +69,7 @@ test('a binary response is streamed: the first bytes arrive before the upstream 
 
 test('a client that goes away releases the upstream connection too', async () => {
     const controller = new AbortController();
-    const response = await within(3000, fetch(`${proxyBase}/api/proxy/stream?url=${encodeURIComponent(`${upstreamBase}/endless.ts`)}`,
+    const response = await within(3000, fetch(`${proxyBase}/api/proxy/stream?h=${handles.createHandle(`${upstreamBase}/endless.ts`)}`,
         { signal: controller.signal }), 'the response headers');
     const reader = response.body.getReader();
     await within(3000, reader.read(), 'the first chunk');

@@ -16,9 +16,9 @@
  * the map by a whole playlist on every refresh.
  *
  * A server restart forgets every handle: the client re-resolves, as it does
- * after any failed start. `PIGTV_PLAYBACK_HANDLES=0` is the rollback (resolve
- * goes back to `?url=`); `?url=` itself keeps working for the web's legacy
- * callers until W2.1 removes them.
+ * after any failed start. Handles are the only way to name a proxy target
+ * (R01): the `PIGTV_PLAYBACK_HANDLES=0` rollback and the proxy's `?url=` form
+ * are gone, so the proxy cannot be pointed at an address a caller chose.
  */
 const crypto = require('crypto');
 
@@ -30,10 +30,6 @@ const HANDLE_RE = /^[0-9a-f]{32}$/;
 const byHandle = new Map();
 // url -> handle, to hand out the same handle for the same URL.
 const byUrl = new Map();
-
-function handlesEnabled() {
-    return process.env.PIGTV_PLAYBACK_HANDLES !== '0';
-}
 
 function drop(handle) {
     const entry = byHandle.get(handle);
@@ -91,7 +87,6 @@ function clearHandles() {
 module.exports = {
     TTL_MS,
     MAX_HANDLES,
-    handlesEnabled,
     createHandle,
     resolveHandle,
     handleCount,

@@ -18,7 +18,7 @@ const { getDb } = require('../db/sqlite');
 const { redact } = require('../redact');
 const { MESSAGES: FAILURE_TEXT, clientSafe } = require('../services/playbackErrors');
 const playbackStrategy = require('../services/playbackStrategy');
-const { streamAuth, optionalAuth } = require('../auth');
+const { streamAuth } = require('../auth');
 const { createLimiter } = require('../services/rateLimit');
 const playbackEvents = require('../services/playbackEvents');
 const channelHealth = require('../services/channelHealth');
@@ -51,14 +51,11 @@ function channelNameFor(sourceId, channelId) {
 
 // P0-3: resolve spends the provider's single upstream slot and starts ffmpeg;
 // the delete can kill anyone's session. Both must carry a token. streamAuth
-// with enforce accepts a bearer header (webapp and native both send one) or a
-// ?token=, and rejects a request that has neither. conflict/conflict-decline
-// below stay optional - they only read or dismiss a prompt.
-const requireToken = streamAuth({ enforce: true });
-
-// optionalAuth (server/auth.js) attaches req.user when a bearer token is
-// present, without rejecting requests that have none: /conflict and
-// /conflict/decline only read or dismiss a prompt.
+// accepts a bearer header (webapp and native both send one) or a ?token=, and
+// rejects a request that has neither. R01: so do /conflict and
+// /conflict/decline - both clients always send a token, and without one anyone
+// on the network could read a viewer's recording prompt or dismiss it for them.
+const requireToken = streamAuth;
 
 // Resolving a channel to its stream (and, from 0174, to the providers that carry
 // it) lives in services/providerRouting.js.
@@ -423,7 +420,7 @@ function recordHistory(req, sourceId, channelId) {
  * resolve means a client can be told about an approaching recording without
  * having to ask to play something first.
  */
-router.get('/conflict', optionalAuth, async (req, res) => {
+router.get('/conflict', requireToken, async (req, res) => {
     try {
         const settings = await db.settings.get();
         const coordinator = require('../services/streamCoordinator');
@@ -471,7 +468,7 @@ router.get('/:sessionId/terminal-status', requireToken, (req, res) => {
  * starts as soon as playback stops. Declining is remembered so the same
  * recording never asks twice.
  */
-router.post('/conflict/decline', optionalAuth, (req, res) => {
+router.post('/conflict/decline', requireToken, (req, res) => {
     try {
         const { scheduleId } = req.body || {};
         if (scheduleId === undefined) return res.status(400).json({ error: 'scheduleId is required' });

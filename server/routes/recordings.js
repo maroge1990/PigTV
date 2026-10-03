@@ -14,8 +14,8 @@ const { recordings: recordingsDb } = require('../db/recordingsDb');
 // request cannot send that header, so these would always 401. The existing
 // live-stream routes (/api/proxy, /api/transcode, /api/remux) are the same
 // way; /api/recordings is wrapped in the same streamAuth middleware they use
-// (see server/index.js), which accepts the token as ?token= instead — opt-in
-// enforcement via the requireStreamAuth setting, same as those.
+// (see server/index.js), which accepts the token as ?token= instead and is
+// always enforced (R01), so these are never open.
 
 // Pipe a file to the response, closing the file whatever happens. A player that
 // seeks abandons its range request part-way, which is ordinary and not logged;

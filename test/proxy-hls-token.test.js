@@ -28,6 +28,7 @@ const MANIFEST = [
     ''
 ].join('\n');
 
+const handles = require(path.join(sandbox, 'server/services/playbackHandles'));
 let upstream, proxy, upstreamBase, proxyBase;
 
 before(async () => {
@@ -54,7 +55,8 @@ after(() => {
 });
 
 async function fetchManifest(query = '') {
-    const url = `${proxyBase}/api/proxy/stream?url=${encodeURIComponent(`${upstreamBase}/live/index.m3u8`)}${query}`;
+    // The proxy takes opaque handles only (R01): mint one for the manifest, as a direct resolve does.
+    const url = `${proxyBase}/api/proxy/stream?h=${handles.createHandle(`${upstreamBase}/live/index.m3u8`)}${query}`;
     const response = await fetch(url);
     assert.equal(response.status, 200);
     return (await response.text()).split('\n');
@@ -70,7 +72,7 @@ test('with a token, every rewritten segment, key and init URI carries it', async
     const refs = references(await fetchManifest('&token=tok-123'));
     assert.equal(refs.length, 4, 'segment, absolute segment, key and init map are all rewritten');
     for (const ref of refs) {
-        assert.match(ref, /\/api\/proxy\/stream\?url=/, `${ref} goes back through the proxy`);
+        assert.match(ref, /\/api\/proxy\/stream\?h=[0-9a-f]{32}&/, `${ref} goes back through the proxy`);
         assert.ok(ref.endsWith('&token=tok-123'), `${ref} must carry the token or the player is refused on its first segment`);
     }
 });
@@ -90,7 +92,7 @@ test('without a token nothing is appended', async () => {
 
 test('the rewritten URIs still point at the right upstream files', async () => {
     const refs = references(await fetchManifest('&token=t'));
-    const targets = refs.map(r => decodeURIComponent(new URL(r).searchParams.get('url')));
+    const targets = refs.map(r => handles.resolveHandle(new URL(r).searchParams.get('h')));
     assert.deepEqual(targets.sort(), [
         `${upstreamBase}/live/init.mp4`,
         `${upstreamBase}/live/key.bin`,

@@ -331,8 +331,16 @@ check server/routes/library.js "24 \* 60 \* 60 \* 1000" "guide window capped"
 check server/routes/library.js "isNow" "current programme flagged"
 check server/auth.js "streamAuth" "stream auth middleware"
 check server/auth.js "req.query.token" "token accepted in query"
-check server/auth.js "enforce" "enforcement is opt-in"
-check server/db.js "requireStreamAuth" "stream auth setting"
+check server/auth.js "userFromToken(token)" "stream auth validates like the bearer path (user looked up, role from the store)"
+check_absent server/auth.js "{ enforce" "stream auth has no opt-out (R01: always enforced)"
+check_absent server/auth.js "streamAuthFromSettings" "no settings-driven enforcement"
+check_absent server/db.js "requireStreamAuth" "the stream auth setting is gone from the defaults"
+check server/index.js "Referrer-Policy" "tokens ride in media URLs: no Referer leaks"
+check server/routes/transcode.js "router.get('/sessions', requireAdmin" "session list is admin only"
+check server/routes/transcode.js "router.delete('/sessions/all', requireAdmin" "kill-all is admin only"
+check_absent server/routes/proxy.js "req.query.url;" "the proxy no longer reads a caller-supplied URL"
+check_absent server/services/playbackHandles.js "handlesEnabled" "playback handles are always on"
+check test/stream-auth-enforced.test.js "?url= is a 400" "always-on stream auth has tests"
 check server/routes/info.js "apiVersion" "api version reported"
 check server/routes/info.js "features" "feature flags"
 check server/index.js "api/info" "info mounted"
@@ -809,7 +817,7 @@ echo "=== 0050: Auth gate on state-changing routes (P0-3) ==="
 check server/index.js "app.use('/api/channels', requireAuth" "channels requires auth"
 # (0122: /api/probe and /api/subtitle were removed; resolve and the session delete keep
 #  their own always-on token middleware, checked next.)
-check server/routes/playback.js "streamAuth({ enforce: true })" "always-on token middleware"
+check server/routes/playback.js "const requireToken = streamAuth;" "always-on token middleware"
 check server/routes/playback.js "router.post('/resolve', requireToken" "resolve requires a token"
 check server/routes/playback.js "router.delete('/:sessionId', requireToken" "session delete requires a token"
 # (0122: /api/probe and /api/subtitle, and the movie/series page that called them, are gone.)
@@ -915,10 +923,9 @@ check server/routes/proxy.js "const proxiedUrl = " "rewriter builds URIs in one 
 check server/routes/proxy.js "URI=\"\${proxiedUrl(absoluteUrl)}\"" "key/init/map URI attributes carry the token"
 check server/routes/proxy.js "return proxiedUrl(absoluteUrl);" "segment lines carry the token"
 # Both rewrite sites must go through proxiedUrl; a third hand-built URL would
-# silently drop the token again. (0119 split the line: proxiedUrl builds either
-# ?h= or ?url=, so count the "/stream?" prefix, which only it writes.)
+# silently drop the token again. (Count the "/stream?" prefix, which only it writes.)
 if [ "$(grep -c '/stream?' server/routes/proxy.js)" = "1" ]; then
-  echo "  ✓ only proxiedUrl builds /stream?url= URIs in the rewriter"
+  echo "  ✓ only proxiedUrl builds /stream?h= URIs in the rewriter"
 else
   echo "  ✗ MISSING: a rewriter URL is built outside proxiedUrl (would drop the token)"; FAIL=1
 fi
@@ -2173,6 +2180,13 @@ check server/db/sqlite.js "new Database(dbPath, { readonly: true, fileMustExist:
 check_absent server/services/sportsEvents.js "runBuild(bucket, key, decorateChannels);" "no synchronous rebuild on the serving loop"
 check server/index.js "sportsEvents').shutdown()" "the worker is stopped at shutdown"
 check test/sports-worker.test.js "never blocks" "with tests"
+
+echo "=== 0196: media always needs a signed-in user; handles only (audit R01) ==="
+check server/auth.js "if (!token) return res.status(401).json({ error: 'Authentication required' });" "stream auth is always enforced"
+check_absent server/auth.js "streamAuthFromSettings" "no setting turns it off"
+check server/routes/proxy.js "The proxy takes a playback handle (h), not a URL" "the proxy refuses a caller's URL"
+check server/routes/playback.js "router.post('/conflict/decline', requireToken," "the recording prompt needs a token"
+check test/stream-auth-enforced.test.js "Referrer-Policy" "with tests"
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1

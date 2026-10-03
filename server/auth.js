@@ -97,13 +97,13 @@ function bearerToken(req) {
 }
 
 /**
- * The user a request's bearer header names, or null when there is no valid
- * token, the user no longer exists, or the device has been revoked. What
- * passport-jwt's strategy did, step for step.
+ * The user a token names, or null when it does not verify, the user no longer
+ * exists, or the device has been revoked. What passport-jwt's strategy did,
+ * step for step. The role comes from the user store, never from the token, so
+ * a demoted or deleted user loses access at once rather than at expiry.
  */
-async function userFromBearer(req) {
-    const token = bearerToken(req);
-    if (!token) return null;
+async function userFromToken(token) {
+    if (!token || typeof token !== 'string') return null;
     let payload;
     try {
         payload = jwt.verify(token, JWT_SECRET);
@@ -128,6 +128,11 @@ async function userFromBearer(req) {
         role: user.role,
         deviceId: payload.deviceId || null
     };
+}
+
+/** The user a request's bearer header names, or null (see userFromToken). */
+async function userFromBearer(req) {
+    return userFromToken(bearerToken(req));
 }
 
 /**
@@ -155,61 +160,31 @@ function optionalAuth(req, res, next) {
 }
 
 /**
- * Authenticate a stream request.
+ * Authenticate a stream request. Always enforced (R01): the media endpoints
+ * (/api/proxy, /api/transcode, the recordings' media routes) serve only PigTV's
+ * own clients, so there is no unauthenticated mode and no setting to turn it off.
  *
  * A media player cannot send an Authorization header: a <video src> and
  * AVPlayer both just issue a plain GET. So stream endpoints accept the token
  * as a query parameter instead, which is the usual answer and the reason those
- * URLs should be treated as bearer tokens in their own right.
+ * URLs should be treated as bearer tokens in their own right (they are kept
+ * out of logs by redact(), and every response carries Referrer-Policy:
+ * no-referrer).
  *
- * Enforcement is opt-in via the requireStreamAuth setting. Off, this only
- * populates req.user when a token happens to be present; on, an unauthenticated
- * stream request is refused. Defaulting to off keeps a LAN-only setup working
- * exactly as it does, while giving a remote or shared setup a way to lock down.
+ * The token is validated exactly as userFromBearer does (userFromToken): JWT
+ * verified, user looked up in the store (the role is the store's, not the
+ * token's), device revocation checked. Any failure, including a user-store
+ * error, is a 401 JSON: a stream request is never let through unchecked.
  */
-function streamAuth({ enforce = false } = {}) {
-    return (req, res, next) => {
-        const token = req.query.token
-            || (req.headers.authorization || '').replace(/^Bearer\s+/i, '')
-            || null;
-
-        if (!token) {
-            if (enforce) return res.status(401).json({ error: 'Authentication required' });
-            return next();
-        }
-
-        try {
-            const payload = jwt.verify(token, JWT_SECRET);
-            if (payload.deviceId) {
-                const deviceAuth = require('./services/deviceAuth');
-                if (!deviceAuth.isDeviceValid(payload.deviceId)) {
-                    if (enforce) return res.status(401).json({ error: 'Device has been removed' });
-                    return next();
-                }
-                deviceAuth.touchDevice(payload.deviceId);
-            }
-            req.user = { id: payload.id, username: payload.username, role: payload.role, deviceId: payload.deviceId || null };
-            return next();
-        } catch (err) {
-            if (enforce) return res.status(401).json({ error: 'Invalid or expired token' });
-            return next();
-        }
-    };
-}
-
-/**
- * Build the stream middleware from settings, read per request so the setting
- * takes effect without a restart.
- */
-function streamAuthFromSettings(db) {
-    return async (req, res, next) => {
-        let enforce = false;
-        try {
-            const settings = await db.settings.get();
-            enforce = settings.requireStreamAuth === true;
-        } catch (e) { /* a settings failure must not lock out playback */ }
-        return streamAuth({ enforce })(req, res, next);
-    };
+function streamAuth(req, res, next) {
+    const queryToken = typeof req.query?.token === 'string' ? req.query.token : null;
+    const token = queryToken || bearerToken(req);
+    if (!token) return res.status(401).json({ error: 'Authentication required' });
+    userFromToken(token).then((user) => {
+        if (!user) return res.status(401).json({ error: 'Invalid or expired token' });
+        req.user = user;
+        next();
+    }, () => res.status(401).json({ error: 'Invalid or expired token' }));
 }
 
 /**
@@ -245,7 +220,6 @@ module.exports = {
     requireAuth,
     optionalAuth,
     streamAuth,
-    streamAuthFromSettings,
     requireAdmin,
     requireRole
 };

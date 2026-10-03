@@ -44,7 +44,9 @@ before(async () => {
     await once(upstream, 'listening');
     upstreamBase = `http://127.0.0.1:${upstream.address().port}`;
 
-    token = jwt.sign({ id: 1, username: 'owner', role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    // Stream auth (R01) looks the user up, so the token has to belong to a real account.
+    const owner = await db.users.create({ username: 'owner', role: 'admin' });
+    token = jwt.sign({ id: owner.id, username: 'owner', role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '1h' });
     const app = express();
     app.use(express.json());
     app.use('/api/info', load('routes/info'));
@@ -104,7 +106,7 @@ test('a direct resolve returns ?h=<32 hex> and no provider URL anywhere in the J
 test('an unknown, malformed or expired handle is a 404', async () => {
     const handles = load('services/playbackHandles');
     const expired = handles.createHandle(`${upstreamBase}/expired.ts`, Date.now() - handles.TTL_MS - 1000);
-    for (const h of ['0123456789abcdef0123456789abcdef', 'not-a-handle', '', expired]) {
+    for (const h of ['0123456789abcdef0123456789abcdef', 'not-a-handle', expired]) {
         const r = await fetch(`${base}/api/proxy/stream?h=${encodeURIComponent(h)}`);
         assert.equal(r.status, 404, `handle "${h}"`);
         assert.match((await r.json()).error, /Unknown or expired playback handle/);
@@ -132,10 +134,14 @@ test('a manifest reached through a handle hands out handles, not the upstream ad
     assert.deepEqual(Buffer.from(await seg.arrayBuffer()), BODY);
 });
 
-test('?url= still works for the web\'s legacy callers', async () => {
-    const r = await fetch(`${base}/api/proxy/stream?url=${encodeURIComponent(`${upstreamBase}/live/2.ts`)}`);
-    assert.equal(r.status, 200);
-    assert.deepEqual(Buffer.from(await r.arrayBuffer()), BODY);
+test('?url= is refused with a 400, whatever it names (R01: the proxy takes handles only)', async () => {
+    for (const q of [`url=${encodeURIComponent(`${upstreamBase}/live/2.ts`)}`, 'url=http%3A%2F%2F127.0.0.1%3A1%2Fapi%2Fversion',
+        `url=${encodeURIComponent(`${upstreamBase}/live/2.ts`)}&h=${'0'.repeat(32)}`]) {
+        const r = await fetch(`${base}/api/proxy/stream?${q}`);
+        assert.equal(r.status, 400, q);
+    }
+    assert.equal((await fetch(`${base}/api/proxy/stream`)).status, 400, 'no handle at all');
+    assert.equal((await fetch(`${base}/api/proxy/stream?h=`)).status, 400, 'an empty handle');
 });
 
 test('the registry: 32 hex, one handle per live URL, 12 h expiry, bounded size', () => {
@@ -156,15 +162,15 @@ test('the registry: 32 hex, one handle per live URL, 12 h expiry, bounded size',
     assert.equal(handles.resolveHandle(first), null, 'the least recently used went first');
 });
 
-test('PIGTV_PLAYBACK_HANDLES=0 goes back to ?url= and drops the flag', async () => {
+test('handles are always on: the flag is advertised and PIGTV_PLAYBACK_HANDLES=0 no longer changes anything', async () => {
     process.env.PIGTV_PLAYBACK_HANDLES = '0';
     try {
         const info = await (await fetch(`${base}/api/info`)).json();
-        assert.equal(info.features.playbackHandles, undefined);
+        assert.equal(info.features.playbackHandles, true);
         const capabilities = { segmentedDelivery: true };
         await primeDirectProbe(STREAM, capabilities);
         const decision = await strategy.resolve({ url: STREAM, capabilities, settings: await db.settings.get() });
-        assert.match(decision.url, /^\/api\/proxy\/stream\?url=/);
+        assert.match(decision.url, /^\/api\/proxy\/stream\?h=[0-9a-f]{32}$/);
     } finally {
         delete process.env.PIGTV_PLAYBACK_HANDLES;
     }

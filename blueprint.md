@@ -41,7 +41,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | CI | Both repos are **public** since 30 Sept (free Actions minutes; history checked for secrets). `gh` is signed in on the MacBook: `gh run view <id> --log-failed`. On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings (fixed 28 Sept):** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (so an SMB share that mounts late or reconnects appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs (schedule #3 failed with "0.0 GB free"). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
 | Shipped through | **0177** (pushed, 30 Sept–1 Oct: multi-provider failover 0168–0177, §6) and app **36**. Round 7 (`docs/TEST-BLOCK.md`) not yet run. Before that: **0167** and app **35**. Rounds 1–4 passed on 0151 + app 31; round 5 (0152–0154 + app 32) passed on 28 Sept apart from the five bugs that started the 28–29 Sept fix run (§6 "Fix run"); round 6 (0166 + app 34, `docs/TEST-BLOCK.md`) passed apart from R6.3 (fixed in 0167) and R6.14 (fixed in app 35), with R6.4–R6.6 and R6.16 still to run. Whether a build is *running* is whatever `/api/version` says. |
-| Next build number | **0196** |
+| Next build number | **0197** |
 | Tests | `npm test`: **790 tests, all pass** (1 Oct, after 0178, on CI; timing tests can fail locally when the Mac is loaded - check `uptime`, rerun, or trust CI; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
@@ -190,7 +190,7 @@ it cannot. There is no remux, no legacy pipe and no browser-side strategy any mo
 - `/api/proxy/stream` **streams** binary content and drops the upstream when the client leaves (0104). Playlists are read whole
   (they're rewritten, and `?token=` is carried onto every URI). It takes `?h=` (a handle from `playbackHandles.js`: 32 hex,
   in memory, 12 h, LRU-bounded at 10,000; a restart forgets them, unknown → 404; a manifest fetched by handle hands out
-  handles for its URIs) or `?url=`, which only the `PIGTV_PLAYBACK_HANDLES=0` rollback hands out. It is the only route left in
+  handles for its URIs); since 0196 a `?url=` is refused (400) and there is no rollback. It is the only route left in
   `routes/proxy.js` (0122).
 - **Resolve errors** (0118, contract C-B): every provider/channel failure starts "The provider refused this channel",
   "The provider did not respond" or "This channel is not available" (texts in `playbackErrors.js`); a failed ffprobe is
@@ -414,7 +414,7 @@ Admin: `GET /api/lineup`, `PUT /api/lineup/numbers` (a reserved number yields to
 - Channel numbers are edited in Settings → Channel numbers (0123), which saves only changed rows and shows the server's error.
 
 **Auth, limits, routes.**
-- Stateless bearer tokens (web login + paired devices); no sessions or cookies. `requireStreamAuth` stays **off** (VPN-only).
+- Stateless bearer tokens (web login + paired devices); no sessions or cookies. Media routes (`/api/proxy`, `/api/transcode`, recordings' media) always need a token (0196; `requireStreamAuth` is gone).
   Stream URLs carry `?token=`.
 - Limits: JSON body 2 MB; failed logins 10 per 15 min per (socket, username); pairing 60 starts / 1 500 polls per 10 min.
 - HLS file names are allow-listed (`seg\d{4,}.(ts|m4s)`, `init.mp4`). fMP4 segments are served as `video/MP2T` on purpose
@@ -774,6 +774,18 @@ cached a request never builds; only the very first awaits one. At most one build
 the cached events on the main thread (~100–200 ms measured under heavy load) — a candidate for next time.
 Tests `test/sports-worker.test.js`.
 
+**0196 (4 Oct): media and session control always need a signed-in user; the proxy takes handles only (audit R01).**
+An audit fetched a recording and proxied the server's own loopback `/api/version` with no token: `requireStreamAuth`
+was off by default, a settings read failure also meant "off", and `/api/proxy/stream?url=` (the 0119 rollback) fetched
+anything. Mark (3 Oct): nothing but PigTV's own players uses these streams. Now: `streamAuth` is always enforced on
+`/api/proxy`, `/api/transcode`, the recordings' media routes and `/api/playback` (resolve, release, and the recording
+prompt's `/conflict` and `/conflict/decline`), and validates like the bearer path (`userFromToken`: JWT, user still
+exists, role from the store, device not revoked); the setting is gone. `?url=` → 400 and `PIGTV_PLAYBACK_HANDLES` is
+removed. `GET /api/transcode/sessions` and `DELETE /api/transcode/sessions/all` (it kills every stream and tuner) are
+admin-only. Every response carries `Referrer-Policy: no-referrer`. Both clients already put `?token=` on every media
+URL. **Rollout:** an old client build or a script without a token now gets 401; deleting a user cuts off their devices
+at once. Tests `test/stream-auth-enforced.test.js`.
+
 ### Next
 
 **With the next Swift build (app 37):** remove the Siri / App Shortcuts feature from the code (Mark, 2 Oct: it failed on tvOS and he does not want it). Also reword the provider reminder in `PigTV-Swift/PigTV/ProviderReminders.swift`. It still says "update the dates in PigTV's web settings"; since 0182 there are no dates to type (the web banner already says PigTV reads the new date from the provider). Update its test too.
@@ -814,7 +826,7 @@ lines (the classifier has seen one uneven feed in five) · the 20 s stall timeou
 - `scripts/verify-build.sh` asserts that features live where they should; add the check that would have caught each bug.
 
 **Decisions on record.**
-- *20 Sept:* stability over channel-change speed; VOD/series kept but unsupported (superseded 23 Sept: removed in 0122); `requireStreamAuth` off while VPN-only; Mark
+- *20 Sept:* stability over channel-change speed; VOD/series kept but unsupported (superseded 23 Sept: removed in 0122); `requireStreamAuth` off while VPN-only (superseded 3 Oct: always enforced, 0196); Mark
   applies and pushes.
 - *21 Sept:* keep the Xtream/upstream proxy and `cache.js`; CI builds the images. (Superseded 23 Sept: removed in 0122.)
 - *23 Sept:* **one delivery path now**: Phases 3 and 4 shipped together without the trial report, and the web's recovery is a fresh
@@ -948,7 +960,6 @@ env vars: they live in SQLite and are edited in the web app's Settings (sources,
 | `PIGTV_DTS_DELTA_THRESHOLD_SEC` | `60` | ffmpeg's `-dts_delta_threshold` for sessions. |
 | `PIGTV_READRATE_BURST` | `8` | Seconds read at full speed before a finite source is paced to real time (0144; 0–60). `0` = plain `-re` (the rollback). |
 | `PIGTV_CHANNEL_NUMBERS` | on | `0` removes the `channelNumbers` flag (clients then show no numbers); numbers are still stored. |
-| `PIGTV_PLAYBACK_HANDLES` | on | `0` makes `direct` resolves hand out `/api/proxy/stream?url=<provider URL>` again (the C-D rollback; exposes the credentialed URL). |
 | `PIGTV_SPORT_FIXTURES` | on | `0` turns off ESPN fixtures completely (0161, §4 "Sport events"): no fetch ever runs, and `resolveLive`'s ESPN rule never applies - every league is exactly on the guide-only heuristics, as before 0161. |
 | `PIGTV_BUILD` | `server/version.js` | Overrides the build number reported by `/api/version` and `/api/info`. Not normally set. |
 | `PIGTV_COMMIT` | `dev` | The commit shown in the version display; CI sets it as a Docker build arg. |
@@ -957,8 +968,7 @@ env vars: they live in SQLite and are edited in the web app's Settings (sources,
 Other environment the server or image uses: `JWT_SECRET` (optional: at least 32 characters; unset, a random key is created
 once and kept in `data/auth-secret`, so back that file up with the data folder); `PORT` (3000); `TZ` (**must** be set, e.g.
 `Australia/Sydney`: recording file names use local time); `NODE_ENV=production`; `LIBVA_DRIVER_NAME=iHD` for Intel VAAPI.
-The live-session tmpfs is `/app/transcode-cache` (2 GB in `docker-compose.yml`). `requireStreamAuth` is a setting, not an
-env var, and stays off (VPN-only).
+The live-session tmpfs is `/app/transcode-cache` (2 GB in `docker-compose.yml`). Stream auth is always on since 0196 (there is no setting).
 
 ---
 

@@ -61,7 +61,7 @@ before(async () => {
     const app = express();
     app.use(express.json());
     app.use('/api/info', load('routes/info'));
-    app.use('/api/transcode', auth.streamAuth({ enforce: true }), load('routes/transcode'));
+    app.use('/api/transcode', auth.streamAuth, load('routes/transcode'));
     app.use('/api/recordings', load('routes/recordings'));
     server = app.listen(0, '127.0.0.1');
     await once(server, 'listening');

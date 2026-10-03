@@ -49,6 +49,8 @@ tuner.hooks.freeSpaceGB = PLENTY;
 
 let server, base;
 before(async () => {
+    // Stream auth (R01) looks the token's user up, and these tokens name user id 1.
+    await db.users.create({ username: 'owner', role: 'admin' });
     await db.settings.update({ recordingsPath: recordingsRoot, maxProviderStreams: 1 });
     const app = express();
     app.use(compression({ filter: shouldCompress }));

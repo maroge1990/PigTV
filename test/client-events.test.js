@@ -24,7 +24,8 @@ const logged = [];
 const realWarn = console.warn;
 
 before(async () => {
-    token = auth.generateToken({ id: 1, username: 'owner', role: 'admin' });
+    // Stream auth (R01) looks the user up, so the token has to belong to a real account.
+    token = auth.generateToken(await load('db').users.create({ username: 'owner', role: 'admin' }));
     const app = express();
     app.use(express.json());
     app.use('/api/playback', router);

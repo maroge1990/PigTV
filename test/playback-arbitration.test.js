@@ -30,7 +30,7 @@ recordingEngine.listActive = () => activeRecordings;
 recordingEngine.stopForViewer = async () => {};
 playbackStrategy.resolve = async (opts) => {
     resolveCalls.push(opts);
-    return { strategy: 'direct', url: '/api/proxy/stream?url=x', reason: 'stubbed' };
+    return { strategy: 'direct', url: '/api/proxy/stream?h=00000000000000000000000000000000', reason: 'stubbed' };
 };
 
 function deviceToken(deviceId) {
@@ -60,6 +60,8 @@ async function holding(owner, idleSec) {
 const stillRegistered = s => transcodeSession.getAllSessions().some(x => x.id === s.id);
 
 before(async () => {
+    // Stream auth (R01) looks the token's user up, and these tokens name user id 1.
+    await load('db').users.create({ username: 'owner', role: 'admin' });
     const app = express();
     app.use(express.json());
     app.use('/api/playback', load('routes/playback'));

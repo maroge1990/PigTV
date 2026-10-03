@@ -86,6 +86,8 @@ async function get(p) {
 }
 
 before(async () => {
+    // Stream auth (R01) looks the token's user up, and these tokens name user id 1.
+    await db.users.create({ username: 'owner', role: 'admin' });
     await db.settings.update({ maxProviderStreams: 1 });
     const app = express();
     app.use(express.json());

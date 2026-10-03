@@ -19,6 +19,9 @@ app.set('trust proxy', true);
 app.set('query parser', 'extended');
 
 // Middleware
+// Tokens ride in media URLs (?token=), so never let a browser pass the page URL
+// on as a Referer to anything a page embeds or links to.
+app.use((req, res, next) => { res.set('Referrer-Policy', 'no-referrer'); next(); });
 // Gzip JSON and the small set of text asset types (0108). `filter` is an
 // allow-list (server/services/compressionFilter.js): HLS playlists/segments,
 // recording media and anything requested with a Range header are never
@@ -125,12 +128,12 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/sources', require('./routes/sources'));
 app.use('/api/providers', require('./routes/providers')); // C-K: licence reminders (0168)
 // Stream endpoints accept a token in the query string, because media players
-// cannot send headers. Enforcement is off unless requireStreamAuth is set.
-const streamAuth = require('./auth').streamAuthFromSettings(require('./db'));
+// cannot send headers. Always enforced (R01): there is no setting to turn it off.
+const streamAuth = require('./auth').streamAuth;
 
 // P0-3: a handful of routes change state or spend real resources (hide every
 // channel) yet were reachable with no token at all. Gate them independently of
-// the requireStreamAuth setting, which only governs the media endpoints above.
+// streamAuth, which governs the media endpoints below and is itself always on.
 //   requireAuth - header JWT; callers here always send an Authorization header
 // (/api/probe and /api/subtitle, which ran ffprobe/ffmpeg against a caller's URL
 // for the movie/series page, went with it in 0122.)

@@ -81,16 +81,17 @@ engine._nativeTools.ffmpeg = async (args) => {
     return { code: 0, tail: [] };
 };
 
-let server, base, userToken;
+let server, base, userToken, ownerId;
 function deviceToken(deviceId) {
     sqlite.getDb().prepare(
         'INSERT OR IGNORE INTO devices (id, user_id, name, platform, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(deviceId, '1', deviceId, 'test', Date.now(), Date.now());
-    return jwt.sign({ id: 1, username: 'owner', role: 'admin', deviceId }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    ).run(deviceId, String(ownerId), deviceId, 'test', Date.now(), Date.now());
+    return jwt.sign({ id: ownerId, username: 'owner', role: 'admin', deviceId }, process.env.JWT_SECRET, { expiresIn: '1h' });
 }
 
 before(async () => {
     const user = await db.users.create({ username: 'owner', role: 'admin' });
+    ownerId = user.id; // stream auth (R01) looks the token's user up, so device tokens must name the real account
     userToken = auth.generateToken(user);
     // What a recording's own tuner is planned from (RECORDING_CAPABILITIES).
     seed(URL_A, strategy.RECORDING_CAPABILITIES);
@@ -103,7 +104,7 @@ before(async () => {
     app.use(express.json());
     app.locals.ffmpegPath = process.execPath;
     app.locals.ffprobePath = path.join(sandbox, 'no-ffprobe');
-    const streamAuth = auth.streamAuthFromSettings(db);
+    const streamAuth = auth.streamAuth;
     app.use('/api/auth', load('routes/auth'));
     app.use('/api/playback', load('routes/playback'));
     app.use('/api/transcode', streamAuth, load('routes/transcode'));
@@ -120,7 +121,7 @@ afterEach(async () => {
     spawns = [];
     joins = [];
     script = {};
-    await db.settings.update({ requireStreamAuth: false, maxProviderStreams: 1 });
+    await db.settings.update({ maxProviderStreams: 1 });
 });
 
 after(() => {
@@ -132,7 +133,8 @@ after(() => {
     try { fs.rmSync(sandbox, { recursive: true, force: true }); } catch { /* leave it to the OS temp cleaner */ }
 });
 
-async function get(route, headers = {}) {
+// Stream auth is always on (R01), so a request carries the owner's bearer unless a test passes {} to go without.
+async function get(route, headers = bearer()) {
     const r = await fetch(`${base}${route}`, { headers });
     const text = await r.text();
     let body = null;
@@ -201,7 +203,7 @@ test('a recording with nobody watching starts a tuner just for itself; EVENT whi
     assert.ok(Math.abs(done.duration_sec - segs.length * 0.2) <= 1);
     assert.equal(tuner.list().length, 0, 'the tuner existed only for the recording, and stopped with it');
     for (const f of ['init.mp4', ...segs]) {
-        const r = await fetch(`${base}/api/recordings/${rec.id}/${f}`);
+        const r = await fetch(`${base}/api/recordings/${rec.id}/${f}`, { headers: bearer() });
         assert.equal(r.status, 200, f);
     }
 });
@@ -289,14 +291,13 @@ test('a viewer of the same channel with other capabilities needs its own tuner (
     assert.equal(scheduled.getById(s.id).status, 'recording');
 });
 
-test('the new routes take the same auth as media.mp4: ?token= or bearer, carried onto every URI', async () => {
+test('the new routes take the same auth as media.mp4 (always enforced): ?token= or bearer, carried onto every URI', async () => {
     const s = due({ lengthMs: 3000 });
     await engine.tick();
     const rec = recordingOf(s);
     await until(() => recordings.getById(rec.id).status === 'completed');
-    await db.settings.update({ requireStreamAuth: true });
-    assert.equal((await get(`/api/recordings/${rec.id}/index.m3u8`)).status, 401);
-    assert.equal((await get(`/api/recordings/${rec.id}/seg00000.m4s`)).status, 401);
+    assert.equal((await get(`/api/recordings/${rec.id}/index.m3u8`, {})).status, 401);
+    assert.equal((await get(`/api/recordings/${rec.id}/seg00000.m4s`, {})).status, 401);
     assert.equal((await get(`/api/recordings/${rec.id}/index.m3u8`, bearer())).status, 200);
     const withToken = await get(`/api/recordings/${rec.id}/index.m3u8?token=${encodeURIComponent(userToken)}`);
     assert.equal(withToken.status, 200);
@@ -322,10 +323,10 @@ test('once finished it is joined into one MP4 (stream copy) for download and ad 
     assert.equal(rec.file_path, path.join(rec.hls_dir, `${path.basename(rec.hls_dir)}.mp4`));
     assert.equal(rec.ad_detect_status, 'pending', 'queued for ad detection, as a finished .mkv is');
     assert.equal((await get(`/api/recordings/${id}/index.m3u8`)).status, 200, 'the HLS copy stays, for playback');
-    const dl = await fetch(`${base}/api/recordings/${id}/download`);
+    const dl = await fetch(`${base}/api/recordings/${id}/download`, { headers: bearer() });
     assert.equal(dl.status, 200);
     assert.equal(await dl.text(), 'joined-mp4');
-    const stream = await fetch(`${base}/api/recordings/${id}/stream`);
+    const stream = await fetch(`${base}/api/recordings/${id}/stream`, { headers: bearer() });
     assert.equal(stream.headers.get('content-type'), 'video/mp4');
 
     const del = await fetch(`${base}/api/recordings/${id}`, { method: 'DELETE', headers: bearer() });
@@ -358,8 +359,8 @@ test('T4: an in-progress recording plays from its start with no live viewer, wit
     const first = await get(answer.url);
     assert.match(first.text, /#EXT-X-PLAYLIST-TYPE:EVENT\n#EXT-X-INDEPENDENT-SEGMENTS\n#EXT-X-START:TIME-OFFSET=0\.0\n/,
         'EXT-X-START: a player starts at the beginning, not the live end an EVENT playlist otherwise gets');
-    assert.equal((await fetch(`${base}/api/recordings/${rec.id}/init.mp4`)).status, 200);
-    assert.equal((await fetch(`${base}/api/recordings/${rec.id}/seg00000.m4s`)).status, 200);
+    assert.equal((await fetch(`${base}/api/recordings/${rec.id}/init.mp4`, { headers: bearer() })).status, 200);
+    assert.equal((await fetch(`${base}/api/recordings/${rec.id}/seg00000.m4s`, { headers: bearer() })).status, 200);
     assert.equal(tuner.list()[0].viewers.size, 0, 'playing a recording is not a tuner viewer: no provider slot, no idle rules');
     // It grows under the player (EVENT: only appended to). The tuner is read once a second.
     await sleep(1300);

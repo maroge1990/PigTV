@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { redact } = require('../redact');
+const { requireAdmin } = require('../auth');
 const transcodeSession = require('../services/transcodeSession');
 
 /**
@@ -13,7 +14,12 @@ const transcodeSession = require('../services/transcodeSession');
  *   GET  /api/transcode/:id/stream.m3u8 - Get HLS playlist
  *   GET  /api/transcode/:id/:segment.ts - Get segment file
  *   DELETE /api/transcode/:id          - Stop and cleanup session
- *   GET /api/transcode/sessions        - List all sessions (debug)
+ *   GET /api/transcode/sessions        - List all sessions (admin; debug)
+ *   DELETE /api/transcode/sessions/all - Stop every session (admin)
+ *
+ * The router is mounted behind streamAuth (always on, R01), so req.user is set
+ * on every route here. The two session-wide routes also require an admin: they
+ * list every provider URL in use and can kill every live stream and tuner.
  */
 
 // Start session cleanup interval
@@ -56,7 +62,7 @@ function noteMissing(sessionId, file, why) {
  * the playlist's own URL — that's ordinary URI resolution, not a bug in
  * anything here — so a client that authenticated to fetch stream.m3u8 with
  * ?token=... arrives at every following segment and init-segment request
- * with no token at all. With requireStreamAuth on, streamAuth then rejects
+ * with no token at all. Stream auth is always on, so streamAuth then rejects
  * every one of them: the playlist loads, nothing in it plays, and the
  * failure looks like a broken player rather than a missing token.
  *
@@ -73,7 +79,7 @@ function noteMissing(sessionId, file, why) {
  * untouched.
  */
 function withStreamToken(playlist, token) {
-    if (!token) return playlist;
+    if (!token || typeof token !== 'string') return playlist;
     const q = `token=${encodeURIComponent(token)}`;
     const appendToUri = (uri) => `${uri}${uri.includes('?') ? '&' : '?'}${q}`;
 
@@ -196,7 +202,7 @@ router.delete('/:sessionId', async (req, res) => {
  * List all active sessions (for debugging)
  * GET /api/transcode/sessions
  */
-router.get('/sessions', (req, res) => {
+router.get('/sessions', requireAdmin, (req, res) => {
     // Everything holding an ffmpeg process and a provider connection. Since 0103
     // that is only HLS sessions: the piped remux is gone.
     const sessions = transcodeSession.getAllSessions().map(s => ({ ...s, type: s.type || 'transcode' }));
@@ -213,7 +219,7 @@ router.get('/sessions', (req, res) => {
  * Stop ALL active transcode sessions and kill their ffmpeg processes.
  * DELETE /api/transcode/sessions/all
  */
-router.delete('/sessions/all', async (req, res) => {
+router.delete('/sessions/all', requireAdmin, async (req, res) => {
     try {
         await relay.closeAll(); // 0189: so no relay restarts what is being stopped
         const sessions = transcodeSession.getAllSessions();

@@ -275,7 +275,11 @@ test('GET /conflict shows a viewer only the prompts for the provider it is watch
     const ask = async (t) => (await fetch(`${base}/api/playback/conflict`, { headers: t ? { Authorization: `Bearer ${t}` } : {} })).json();
     assert.equal((await ask(token('tv'))).scheduleId, 94);
     assert.equal(await ask(token('ipad')), null);
-    assert.equal((await ask(null)).scheduleId, 94, 'an unidentified poller: as before');
+    // A browser's sign-in names no device: it sees every prompt, as before.
+    const web = jwt.sign({ id: userId, username: 'owner', role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    assert.equal((await ask(web)).scheduleId, 94, 'a poller with no device: as before');
+    // R01: and without signing in, nothing.
+    assert.equal((await fetch(`${base}/api/playback/conflict`)).status, 401);
 });
 
 // ---------------------------------------------------------------- plumbing --

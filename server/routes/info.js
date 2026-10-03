@@ -84,8 +84,8 @@ async function sendInfo(req, res) {
             // Absent when PIGTV_CHANNEL_NUMBERS=0 (the rollback).
             ...safely(() => (require('../services/channelNumbers').numbersEnabled() ? { channelNumbers: true } : {})),
             // 0119 (C-D): a `direct` resolve's url is /api/proxy/stream?h=<opaque handle>.
-            // Absent when PIGTV_PLAYBACK_HANDLES=0 (the rollback).
-            ...safely(() => (require('../services/playbackHandles').handlesEnabled() ? { playbackHandles: true } : {})),
+            // Always on since R01 (the PIGTV_PLAYBACK_HANDLES=0 rollback is gone); the flag stays for clients that read it.
+            playbackHandles: true,
             // 0127 (C-E): recordings are taken from tuners and may be played as HLS
             // (GET /api/recordings/:id/playback answers container "hls", also while
             // recording). Only with PIGTV_TUNER=1.

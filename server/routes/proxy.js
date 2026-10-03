@@ -1,7 +1,8 @@
 /**
  * /api/proxy - the one route left here: /stream.
  *
- * It carries a `direct` resolve's stream (by opaque handle, 0119) and rewrites
+ * It carries a `direct` resolve's stream (by opaque handle only, 0119; R01 removed
+ * the `?url=` form, which made it an open proxy to loopback and the LAN) and rewrites
  * an HLS manifest so every URI it names comes back through it. The rest of this
  * file was the fork's Xtream-provider emulation (/xtream/...), the whole-EPG
  * dump (/epg/:sourceId), /m3u/:sourceId, the file cache (/cache/:sourceId, with
@@ -27,16 +28,19 @@ router.get('/stream', async (req, res) => {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            // 0119 (C-D): `h` is an opaque handle from a direct resolve. `url` is
-            // only what resolve hands out under the PIGTV_PLAYBACK_HANDLES=0
-            // rollback; since 0121 the web itself never sends one.
-            const viaHandle = req.query.h !== undefined;
-            let url = viaHandle ? playbackHandles.resolveHandle(req.query.h) : req.query.url;
-            if (viaHandle && !url) {
-                return res.status(404).json({ error: 'Unknown or expired playback handle' });
+            // 0119 (C-D): `h` is an opaque handle from a direct resolve, the only
+            // way to name a target. A caller-supplied `url` is refused outright
+            // (R01): accepting one made this an open proxy, able to fetch the
+            // server's own loopback API or anything on the LAN.
+            if (req.query.url !== undefined) {
+                return res.status(400).json({ error: 'The proxy takes a playback handle (h), not a URL' });
             }
-            if (!url || typeof url !== 'string') {
-                return res.status(400).json({ error: 'URL required' });
+            if (typeof req.query.h !== 'string' || req.query.h === '') {
+                return res.status(400).json({ error: 'Playback handle required' });
+            }
+            const url = playbackHandles.resolveHandle(req.query.h);
+            if (!url) {
+                return res.status(404).json({ error: 'Unknown or expired playback handle' });
             }
 
             // Forward some headers to be more "transparent" back to the origin
@@ -142,16 +146,16 @@ router.get('/stream', async (req, res) => {
 
                 // A relative URI does not inherit the query string of the
                 // manifest's own URL, so every segment and key the player fetches
-                // next arrives without the ?token= this request carried. With
-                // requireStreamAuth on, that meant the manifest loaded and then
-                // every segment was refused with a 401. Carry the token onto each
+                // next arrives without the ?token= this request carried. Stream
+                // auth is always on, so the manifest would load and then every
+                // segment would be refused with a 401. Carry the token onto each
                 // rewritten URI, as withStreamToken() does for HLS sessions.
                 const streamToken = typeof req.query.token === 'string' ? req.query.token : '';
-                // A manifest reached through a handle hands out handles for what it
-                // references too, so the provider's addresses stay off the client.
+                // A manifest hands out handles for what it references, so the
+                // provider's addresses stay off the client.
                 const proxiedUrl = (absoluteUrl) =>
                     `${req.protocol}://${req.get('host')}${req.baseUrl}/stream?` +
-                    (viaHandle ? `h=${playbackHandles.createHandle(absoluteUrl)}` : `url=${encodeURIComponent(absoluteUrl)}`) +
+                    `h=${playbackHandles.createHandle(absoluteUrl)}` +
                     (streamToken ? `&token=${encodeURIComponent(streamToken)}` : '');
 
                 manifest = manifest.split('\n').map(line => {

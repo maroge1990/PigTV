@@ -192,13 +192,10 @@ function supersededError() {
 
 function directDecision(url, info, probeNote, note = '') {
     console.log(`[Playback] resolve timing: direct, probe ${probeNote}${note}`);
-    // 0119 (C-D): an opaque handle, not the provider's URL (PIGTV_PLAYBACK_HANDLES=0
-    // goes back to ?url=).
+    // 0119 (C-D): an opaque handle, not the provider's URL.
     return {
         strategy: 'direct',
-        url: playbackHandles.handlesEnabled()
-            ? `/api/proxy/stream?h=${playbackHandles.createHandle(url)}`
-            : `/api/proxy/stream?url=${encodeURIComponent(url)}`,
+        url: `/api/proxy/stream?h=${playbackHandles.createHandle(url)}`,
         container: info.container,
         info,
         reason: 'Client can play the source directly'
