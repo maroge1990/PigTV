@@ -27,3 +27,12 @@ services:
       # (e.g. TZ=Australia/Sydney); it falls back to UTC, which is what you had
       # before.
       - TZ=${TZ:-UTC}
+      # The server runs as this user, not root. Optional; the defaults are
+      # Unraid's nobody:users. The recordings folder must be writable by it.
+      # PUID=0 runs as root (escape hatch).
+      - PUID=${PUID:-99}
+      - PGID=${PGID:-100}
+    # The image's own HEALTHCHECK (GET /api/health) applies; no override needed.
+    # VAAPI: pass the GPU through (the entrypoint joins the device's group).
+    # devices:
+    #   - /dev/dri:/dev/dri

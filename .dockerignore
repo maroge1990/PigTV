@@ -1,0 +1,12 @@
+# Keep the build context to source: a host node_modules would be copied over
+# the image's compiled one, and data/ and .git have no business in an image.
+node_modules
+.git
+.github
+data
+recordings
+transcode-cache
+audit
+*.db
+*.db-wal
+*.db-shm

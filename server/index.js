@@ -167,6 +167,25 @@ app.get('/api/version', (req, res) => {
     res.json(require('./version'));
 });
 
+// Readiness for the container HEALTHCHECK (R17) and anything else that wants to
+// know whether PigTV is up. Unauthenticated, so it says only yes/no: no paths,
+// versions or counts. `recordingsFolder` is the engine's last periodic check
+// held in memory; reading it never touches the (possibly SMB) share, so a hung
+// mount cannot make the health check hang. A bad recordings folder is reported
+// but does not fail the response: the app still serves TV, and restarting the
+// container would not fix a share, so only a dead database returns 503.
+app.get('/api/health', (req, res) => {
+    let db = false;
+    try { db = require('./db/sqlite').getDb().prepare('SELECT 1').get() !== undefined; } catch { /* reported below */ }
+    let recordingsFolder = null; // null: not checked yet
+    try {
+        const h = require('./services/recordingEngine').getFolderHealth();
+        if (h && h.checkedAt) recordingsFolder = !!h.ok;
+    } catch { /* leave it null */ }
+    res.set('Cache-Control', 'no-store');
+    res.status(db ? 200 : 503).json({ ok: db, db, recordingsFolder });
+});
+
 // An unknown /api path is an error, not the web app. Without this, a mistyped or
 // missing endpoint fell through to the SPA fallback below and answered 200 with
 // index.html, which a client can only report as a baffling JSON decode failure.
