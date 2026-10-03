@@ -1,0 +1,64 @@
+name: Container smoke test
+
+# Builds the image WITHOUT publishing it and starts it once, so a Dockerfile or
+# entrypoint change can be proven on a branch before it reaches main (where
+# docker-publish.yml builds and pushes :latest). R17: the image runs as
+# PUID/PGID through docker/entrypoint.sh, and nothing else exercises that.
+on:
+  pull_request:
+    paths: ['Dockerfile', 'docker/**', '.dockerignore', 'package*.json', '.github/workflows/docker-smoke.yml']
+  push:
+    branches-ignore: [main]
+    paths: ['Dockerfile', 'docker/**', '.dockerignore', 'package*.json', '.github/workflows/docker-smoke.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build (not pushed)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: pigtv:smoke
+          build-args: |
+            PIGTV_COMMIT=smoke
+      - name: Start it as Unraid would (PUID/PGID 99:100), with fresh folders
+        run: |
+          mkdir -p "$RUNNER_TEMP/data" "$RUNNER_TEMP/recordings"
+          sudo chown 99:100 "$RUNNER_TEMP/recordings"
+          docker run -d --name pigtv -p 3000:3000 \
+            -v "$RUNNER_TEMP/data:/app/data" -v "$RUNNER_TEMP/recordings:/app/recordings" \
+            pigtv:smoke
+      - name: Healthy within 90 s
+        run: |
+          for i in $(seq 1 45); do
+            if curl -fsS http://localhost:3000/api/health; then echo; break; fi
+            sleep 2
+          done
+          curl -fsS http://localhost:3000/api/health | grep -q '"ok":true'
+          curl -fsS http://localhost:3000/api/version | grep -q '"commit":"smoke"'
+      - name: Runs as 99:100, owns its data, can write recordings
+        run: |
+          docker exec pigtv sh -c "awk '/^Uid:/{u=\$2} /^Gid:/{g=\$2} END{print u\":\"g}' /proc/1/status" | tee /dev/stderr | grep -qx '99:100'
+          test "$(stat -c %u:%g "$RUNNER_TEMP/data")" = "99:100"
+          docker logs pigtv 2>&1 | grep -qi 'writable'
+      - name: Tools present
+        run: |
+          docker exec pigtv ffmpeg -hide_banner -version | head -1
+          docker exec pigtv sh -c 'command -v comskip && ! ldd "$(command -v comskip)" | grep -q "not found"' || echo "::warning::Comskip missing or a library is not found"
+      - name: Stops cleanly on SIGTERM
+        run: |
+          docker stop -t 15 pigtv
+          test "$(docker inspect -f '{{.State.ExitCode}}' pigtv)" -le 0 || { docker logs pigtv | tail -40; exit 1; }
+      - name: Logs
+        if: always()
+        run: docker logs pigtv 2>&1 | tail -80 || true
