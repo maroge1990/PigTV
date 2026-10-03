@@ -66,18 +66,18 @@ Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "\[Relay|failover|Coor
 
 **M. Reconnect loop and blank pictures (0191)**
 Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "Timestamps looping|Blank picture|blank picture|Relay|lost .* mid-play"`
-- [ ] M1 Deploy, `/api/version` says **0191**.
-- [ ] M2 Play 7mate Melbourne for 30 s: log `Blank picture: … kbps … at 1080p`, then `Strong8K is sending a blank picture for "7 Mate Melbourne"`. Status → Least reliable shows it with **Blank picture**. Playback itself carries on.
-- [ ] M3 Play a few normal channels (a sport channel, a 7 channel, an SD one) for a minute each: **no** `Blank picture` line for any of them. If one appears for a real picture, note the channel and the kbps.
+- [x] M1 Deploy, `/api/version` says **0191**.
+- [x] M2 Play 7mate Melbourne for 30 s: log `Blank picture: … kbps … at 1080p`, then `Strong8K is sending a blank picture for "7 Mate Melbourne"`. Status → Least reliable shows it with **Blank picture**. Playback itself carries on.
+- [x] M3 Play a few normal channels (a sport channel, a 7 channel, an SD one) for a minute each: **no** `Blank picture` line for any of them. If one appears for a real picture, note the channel and the kbps.
 - [ ] M4 Fox Footy for an hour or so (relay on, see L): when Strong8K drops it, either nothing happens beyond a short freeze or the log shows `Timestamps looping … ending the session so it restarts cleanly` followed by the relay's `now on Strong8K after N s`. The picture must **not** wander back and forth for minutes any more. Status → Interruptions shows "Timestamps broke after a reconnect" for such a row.
 - [ ] M5 The 7 channels' ~38 s cut still plays through as before (a short repeat, no restart, no `Timestamps looping`).
 - [ ] M6 `docker exec PigTV node scripts/stream-doctor.js capture pos_1178 300` (nothing playing): says `the connection held` or when the provider closed it, and lists `jumps` per stream plus `PICTURE : has picture data`. On `pos_1157` (7mate) it says `PICTURE : BLANK`.
 
 **N. The audit build (server 0192–0196 · app 37, 4 Oct). Deploy server and app together: 0196 refuses media requests without a token, so an app older than these builds may fail to play.**
-- [ ] N1 `/api/version` says **0196**; Settings → About on the Apple TV says build **37**.
+- [x] N1 `/api/version` says **0196**; Settings → About on the Apple TV says build **37**.
 - [ ] N2 Live TV, the Guide, Sport and a recording all play on the Apple TV (0196: every stream URL needs the token the app sends). Seek within a recording.
-- [ ] N3 Status page loads (admin), Live sessions listed; nothing in the log about 401s from your own devices.
-- [ ] N4 Sport tab: switch Home → Guide → Sport and back a few times; Sport is selectable at once (was 1–3 s). Scroll Replays to the end and back; open and close Event details: focus returns to the same card.
+- [x] N3 Status page loads (admin), Live sessions listed; nothing in the log about 401s from your own devices.
+- [x] N4 Sport tab: switch Home → Guide → Sport and back a few times; Sport is selectable at once (was 1–3 s). Scroll Replays to the end and back; open and close Event details: focus returns to the same card.
 - [ ] N5 Log after the deploy: `earlier recording(s) queued to be prepared for the Apple client`, then one `#N is now <name>.mp4; the .mkv it was made from is deleted` per recording, one at a time. Recordings show "Preparing for playback…" until theirs is done. Free space drops briefly while each is prepared, then rises (the .mkv is gone).
 - [ ] N6 Record something short (10 min). When it finishes, wait for its `is now … .mp4` line, then press Play: it starts within a couple of seconds (was about a minute for a fresh recording).
 - [ ] N7 A recording with ad breaks: playback starts without waiting; the skip prompt still appears at a break.
