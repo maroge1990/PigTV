@@ -2144,6 +2144,12 @@ check public/js/pages/StatusPage.js "Blank picture" "Status shows it"
 check scripts/stream-doctor.js "function rawFetch(" "capture keeps the provider's raw bytes"
 check test/reconnect-recovery.test.js "a single rebase after a reconnect" "with tests"
 
+echo "=== 0192: recording codec probe reads ffprobe JSON (audit R02) ==="
+check server/services/recordingEngine.js "'-of', 'json', filePath" "codecs are probed as JSON"
+check_absent server/services/recordingEngine.js "const \[type, name\] = line.split(',');" "never by CSV column position"
+check test/recording-codec-probe.test.js "hvc1" "with real-ffmpeg tests"
+check .github/workflows/test.yml "apt-get install -y --no-install-recommends ffmpeg" "CI has ffmpeg, so those tests run"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

@@ -22,7 +22,10 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-      # The tests need SQLite, not downloaded FFmpeg/ffprobe executables.
+      # The tests need SQLite, not downloaded FFmpeg/ffprobe executables. The
+      # system ffmpeg is for the tests that probe and remux real files (0192),
+      # which skip without it.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - run: npm ci --ignore-scripts
       - run: npm rebuild better-sqlite3
       - run: npm test

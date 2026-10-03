@@ -692,28 +692,59 @@ async function processCompressionQueue() {
 // every completed recording would mean processing files nobody asks for.
 // ---------------------------------------------------------------------------
 
+// A probe that never returns would stall the native-playback request behind it,
+// and a hostile or corrupt file could make ffprobe emit without bound; both
+// limits end in the same "unknown codecs" answer the caller already handles.
+const PROBE_CODECS_TIMEOUT_MS = 30000;
+const PROBE_CODECS_MAX_OUTPUT = 1024 * 1024;
+
+// JSON, read by field name. The earlier `-of csv=p=0` parse assumed the columns
+// came out in the order they were requested, but ffprobe prints them in its own
+// order (codec_name,codec_type) and does not promise otherwise, so the swapped
+// fields meant neither codec was ever recognised and the HEVC tag and MP2->AAC
+// re-encode in buildNativeRemuxArgs never applied. Resolves nulls on any failure.
 function probeCodecs(filePath) {
     return new Promise((resolve) => {
+        const none = { video: null, audio: null };
         let out = '';
         let proc;
+        let timer;
+        let settled = false;
+        const finish = (result) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            resolve(result);
+        };
+        const kill = () => { try { proc.kill('SIGKILL'); } catch (e) { /* already gone */ } };
         try {
             proc = spawn(ffprobePath, [
                 '-v', 'error', '-show_entries', 'stream=codec_type,codec_name',
-                '-of', 'csv=p=0', filePath
+                '-of', 'json', filePath
             ]);
         } catch (e) {
-            return resolve({ video: null, audio: null });
+            return finish(none);
         }
-        proc.stdout.on('data', d => { out += d; });
-        proc.on('error', () => resolve({ video: null, audio: null }));
+        timer = setTimeout(() => { kill(); finish(none); }, PROBE_CODECS_TIMEOUT_MS);
+        proc.stdout.on('data', d => {
+            if (settled) return;
+            out += d;
+            if (out.length > PROBE_CODECS_MAX_OUTPUT) { kill(); finish(none); }
+        });
+        proc.on('error', () => finish(none));
         proc.on('close', () => {
             const result = { video: null, audio: null };
-            for (const line of out.trim().split('\n')) {
-                const [type, name] = line.split(',');
-                if (type === 'video' && !result.video) result.video = name;
-                if (type === 'audio' && !result.audio) result.audio = name;
+            try {
+                const streams = JSON.parse(out).streams;
+                for (const s of Array.isArray(streams) ? streams : []) {
+                    if (!s || typeof s.codec_name !== 'string') continue;
+                    if (s.codec_type === 'video' && !result.video) result.video = s.codec_name;
+                    if (s.codec_type === 'audio' && !result.audio) result.audio = s.codec_name;
+                }
+            } catch (e) {
+                return finish(none);
             }
-            resolve(result);
+            finish(result);
         });
     });
 }
@@ -2075,6 +2106,7 @@ module.exports = {
     startNativePlayback,
     startNativePlaybackAndWait,
     buildNativeRemuxArgs,
+    probeCodecs,
     buildCompressArgs,
     tunedRecordingProgress,
     waitForFirstTunedSegment,
