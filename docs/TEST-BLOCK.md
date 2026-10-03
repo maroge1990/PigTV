@@ -1,6 +1,6 @@
 # Test block: everything built on 23 September – 2 October 2026
 
-## Outstanding as of 2 October 2026 (server 0186 · app 36)
+## Outstanding as of 4 October 2026 (server 0196 · app 37)
 
 Mark's results of 2 Oct are ticked. Still open: A1 (re-check on 0187), D5–D10, G2–G4, G6, G7, H (the tuner), K (captures), **L (in-stream recovery and the standby, 0189)**, **M (0191)**. Round 7 below was written for 0179 and the old
 Sources/Providers tabs; **R7.1–R7.5 and R7.14 are replaced by the steps here** (0182 moved providers onto cards and removed
@@ -72,6 +72,17 @@ Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "Timestamps looping|Bl
 - [ ] M4 Fox Footy for an hour or so (relay on, see L): when Strong8K drops it, either nothing happens beyond a short freeze or the log shows `Timestamps looping … ending the session so it restarts cleanly` followed by the relay's `now on Strong8K after N s`. The picture must **not** wander back and forth for minutes any more. Status → Interruptions shows "Timestamps broke after a reconnect" for such a row.
 - [ ] M5 The 7 channels' ~38 s cut still plays through as before (a short repeat, no restart, no `Timestamps looping`).
 - [ ] M6 `docker exec PigTV node scripts/stream-doctor.js capture pos_1178 300` (nothing playing): says `the connection held` or when the provider closed it, and lists `jumps` per stream plus `PICTURE : has picture data`. On `pos_1157` (7mate) it says `PICTURE : BLANK`.
+
+**N. The audit build (server 0192–0196 · app 37, 4 Oct). Deploy server and app together: 0196 refuses media requests without a token, so an app older than these builds may fail to play.**
+- [ ] N1 `/api/version` says **0196**; Settings → About on the Apple TV says build **37**.
+- [ ] N2 Live TV, the Guide, Sport and a recording all play on the Apple TV (0196: every stream URL needs the token the app sends). Seek within a recording.
+- [ ] N3 Status page loads (admin), Live sessions listed; nothing in the log about 401s from your own devices.
+- [ ] N4 Sport tab: switch Home → Guide → Sport and back a few times; Sport is selectable at once (was 1–3 s). Scroll Replays to the end and back; open and close Event details: focus returns to the same card.
+- [ ] N5 Log after the deploy: `earlier recording(s) queued to be prepared for the Apple client`, then one `#N is now <name>.mp4; the .mkv it was made from is deleted` per recording, one at a time. Recordings show "Preparing for playback…" until theirs is done. Free space drops briefly while each is prepared, then rises (the .mkv is gone).
+- [ ] N6 Record something short (10 min). When it finishes, wait for its `is now … .mp4` line, then press Play: it starts within a couple of seconds (was about a minute for a fresh recording).
+- [ ] N7 A recording with ad breaks: playback starts without waiting; the skip prompt still appears at a break.
+- [ ] N8 An HEVC channel recorded and played (0192: the prepared MP4 is tagged `hvc1`).
+- [ ] N9 Optional: Instruments baseline on the Apple TV (app `TESTING.md` → "Measuring on the Apple TV").
 
 **G. Still open from earlier rounds**
 - [x] G1 R6.3 again: recordings folder set back to `/app/recordings/SERVER01_Video/Recordings`; a bad path is refused.

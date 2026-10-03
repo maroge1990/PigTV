@@ -734,8 +734,8 @@ same stream instead of the player's error-and-restart. Not checked on the Apple 
 
 **0192 (3 Oct): recording codec probe reads ffprobe JSON (audit R02).** `probeCodecs` asked for
 `stream=codec_type,codec_name` as CSV and read each line as `[type, name]`, but ffprobe prints `codec_name,codec_type`, so
-both codecs were always null: an HEVC recording's MP4 was never tagged `hvc1` (AVPlayer refuses it, which is likely why the
-old "0062 an HEVC recording plays on the Apple TV" check was never passed) and MP2 audio was copied into the MP4 instead of
+both codecs were always null: an HEVC recording's MP4 was never tagged `hvc1` (AVPlayer refuses it; the 0062 check passed on 2 Oct,
+presumably on a recording that never went through this remux, e.g. a compressed one, which is tagged by the encoder) and MP2 audio was copied into the MP4 instead of
 re-encoded. Now `-of json`, read by field name, with a 30 s deadline and a 1 MB output cap. `test/recording-codec-probe.test.js`
 generates real H.264/AAC, HEVC and MP2 files and remuxes one; CI now installs ffmpeg so these run there too.
 
@@ -788,7 +788,7 @@ at once. Tests `test/stream-auth-enforced.test.js`.
 
 ### Next
 
-**With the next Swift build (app 37):** remove the Siri / App Shortcuts feature from the code (Mark, 2 Oct: it failed on tvOS and he does not want it). Also reword the provider reminder in `PigTV-Swift/PigTV/ProviderReminders.swift`. It still says "update the dates in PigTV's web settings"; since 0182 there are no dates to type (the web banner already says PigTV reads the new date from the provider). Update its test too.
+**Done in app 37 (4 Oct):** Siri / App Shortcuts removed; the provider reminder reworded. **Next performance target:** the first Home → TV Guide switch on the Apple TV (the Guide grid; app 37's blueprint). **Server:** each `/api/sports/events` request filters/sorts the cached events on the main thread (0195 note).
 
 1. **Before anything else on the server:** Settings → Recording → set the recordings folder back to
    `/app/recordings/SERVER01_Video/Recordings` (R6.3 left `fake` saved; 0167 now refuses such a path but doesn't fix a saved one).
