@@ -29,7 +29,8 @@ router.use(requireAuth);
 router.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 
 // Logos as the library hands them out: the EPG's icon when the playlist has none,
-// then our cached /api/logo/<key> path. Run once per build of the event list.
+// then our cached /api/logo/<key> path. Run once per build of the event list, on the main
+// thread (it writes the logo cache) and over the channels the events name, in slices.
 function decorateChannels(channels) {
     try {
         require('./library').fillMissingLogos(channels);
@@ -39,20 +40,20 @@ function decorateChannels(channels) {
     }
 }
 
-router.get('/events', (req, res) => {
+router.get('/events', async (req, res) => {
     try {
         channelNumbers.ensureChannelNumbers(); // as /api/library (0117)
         const include = req.query.include === 'all' ? 'all' : undefined;
-        res.json(sportsEvents.eventsFor({ hours: req.query.hours, userId: req.user.id, include, decorateChannels }));
+        res.json(await sportsEvents.eventsFor({ hours: req.query.hours, userId: req.user.id, include, decorateChannels }));
     } catch (err) {
         console.error('[Sports] events failed:', err.message);
         res.status(500).json({ error: 'Could not list the sport events' });
     }
 });
 
-router.get('/preview', requireAdmin, (req, res) => {
+router.get('/preview', requireAdmin, async (req, res) => {
     try {
-        res.json(sportsEvents.eventsFor({ hours: sportsEvents.MAX_HOURS, userId: req.user.id, withRule: true, include: 'all', decorateChannels }));
+        res.json(await sportsEvents.eventsFor({ hours: sportsEvents.MAX_HOURS, userId: req.user.id, withRule: true, include: 'all', decorateChannels }));
     } catch (err) {
         console.error('[Sports] preview failed:', err.message);
         res.status(500).json({ error: 'Could not list the sport events' });

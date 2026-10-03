@@ -28,8 +28,16 @@
  * follow-list version, 5 minutes; 0153, a minute before) for the next 72 hours (0153: a whole
  * weekend; 24 before); each request then only
  * filters by its `hours`, marks `live` and orders channels for its user.
+ *
+ * R09: the build (0.3-1.1 s on 1,000 channels) runs on a worker thread, never on the event loop
+ * that serves live HLS; a request is answered from the last result (stale-while-revalidate) and
+ * only the very first one, with nothing cached, waits for a build. See "the cache and the
+ * request" below.
  */
 const crypto = require('crypto');
+const path = require('path');
+const { Worker } = require('worker_threads');
+const { monitorEventLoopDelay } = require('perf_hooks');
 const { getDb } = require('../db/sqlite');
 const { currentGuideVersion } = require('./libraryRev');
 const { NUMBER_JOIN, VISIBLE_SQL, CHANNEL_KEY_SQL } = require('./channelNumbers');
@@ -282,9 +290,8 @@ function setFollow(keywords) {
     })();
     followCache = null;
     followVersion++;
-    // 0159: rebuild in the background rather than leaving it for the next request to
-    // pay for synchronously (still just as correct if a request beats it to it: see
-    // cachedEvents() above).
+    // 0159: rebuild in the background (R09: on the worker) rather than leaving it for the
+    // next request to wait on (see cachedEvents() below).
     scheduleRebuild();
     return getFollow();
 }
@@ -346,10 +353,15 @@ function programmesFor(db, tvgIds, from, to) {
 
 const RULE_RANK = { keyword: 0, category: 1, sportChannel: 2 };
 
-/** Every sport event in [from, from + 72 h): the cached part of a request. */
-function buildEvents({ from, decorateChannels } = {}) {
+/**
+ * Every sport event in [from, from + 72 h): the cached part of a request. Synchronous and
+ * heavy: it runs on the build worker (sportsEventsWorker.js), not on the serving loop, unless
+ * the worker is unavailable. `follow` is the keyword list (the worker has no follow cache of
+ * its own to trust); `decorateChannels`, if given, is applied here (the worker has none).
+ */
+function buildEvents({ from, follow: keywords, decorateChannels } = {}) {
     const db = getDb();
-    const follow = compileFollow(getFollow());
+    const follow = compileFollow(keywords || getFollow());
     const channels = visibleChannels(db);
     if (decorateChannels) decorateChannels(channels);
     channelHealth.applyHealth(channels);
@@ -463,76 +475,245 @@ function finishEvent(item, keywordOrder) {
     };
 }
 
-// ---- the cache and the request (0159: stale-while-revalidate) -------------------
+// ---- the cache and the request (0159: stale-while-revalidate; R09: off the event loop) ---------
 //
 // buildEvents() is measured at ~0.3-1.1 s on 1,000 channels (module comment above),
 // synchronous - and the event loop it would block also serves live HLS segments, so
-// a request that finds the cache stale used to be able to cause a playback stall.
-// Requests are now always served the last built result; the rebuild for a new key
-// happens on setImmediate (never inline in a request), triggered explicitly by
-// scheduleRebuild() - after an EPG sync, when the follow list changes, and from a
-// timer aligned to the 5-minute bucket (below) - so the fresh result is normally
-// already sitting in `cache` by the time a request asks for it. The one case a
-// request still builds synchronously is the very first one: with nothing cached at
-// all there is nothing else to serve, exactly as before 0159.
+// a build on it is a playback stall. Two steps took it off:
+//   0159  requests are always served the last built result; a rebuild for a new key is
+//         triggered by scheduleRebuild() - after an EPG sync, when the follow list changes,
+//         and from a timer aligned to the 5-minute bucket (below) - so the fresh result is
+//         normally already in `cache` by the time a request asks for it.
+//   R09   setImmediate did not help: it still ran on the same loop. The build now runs on a
+//         long-lived worker thread (sportsEventsWorker.js) with its own read-only database
+//         connection, so the serving loop only pays for receiving the result (a structured
+//         clone) and decorating its channels, in slices (below).
+// Once any result is cached a request NEVER builds: it gets the last result and, if that is
+// stale, a rebuild is scheduled. Only the very first request (nothing cached at all, so
+// nothing else to serve) waits - asynchronously - for a build. At most one build runs and one
+// waits behind it; a newer key replaces the waiting one (the latest key wins).
+//
+// If the worker cannot be used (PIGTV_SPORT_WORKER=0, or it will not start or dies) the build
+// runs inline as it did before R09 - correct, but it blocks the loop - and a warning says so.
 
-let cache = null; // { key, built }
-let buildInFlight = null; // the key a background rebuild is currently working on, or null
+let cache = null; // { key, built }, replaced whole: a reader sees the old result or the new, never a mix
+let running = null; // the job being built
+let queued = null; // the job waiting for it: only the latest key is kept
+let generation = 0; // bumped by reset(): a result from before it is not published
 let lastDecorateChannels = null; // the most recent request's channel-decorator, reused by triggers that have none of their own
-const stats = { builds: 0, lastBuildMs: 0 };
+let staleSince = 0; // when a request or trigger first found `cache` out of date; 0 when it is current
+let wantedKey = null; // the key the latest request or trigger asked for
+const stats = {
+    builds: 0, lastBuildMs: 0, // lastBuildMs: the build itself (on the worker)
+    lastTotalMs: 0, // ... plus the hand-over and decorating on the main thread
+    lastMaxLoopDelayMs: 0, // the worst event-loop stall seen on the main thread during the last build
+    revision: 0, // +1 each time a result is published
+    inlineBuilds: 0 // builds that had to run on the main thread (no worker)
+};
 
 function buildKeyFor(now) {
     const bucket = Math.floor(now / BUILD_EVERY_MS) * BUILD_EVERY_MS;
     return { bucket, key: `${currentGuideVersion()}|${followVersion}|${bucket}` };
 }
 
-function runBuild(bucket, key, decorateChannels) {
-    const t0 = process.hrtime.bigint();
-    const built = buildEvents({ from: bucket, decorateChannels });
-    stats.builds++;
-    stats.lastBuildMs = Number(process.hrtime.bigint() - t0) / 1e6;
-    cache = { key, built };
-    return built;
+/** The numbers for the Status page: stats, plus how long the served result has been out of date. */
+function status() {
+    return { ...stats, staleSinceMs: staleSince ? Date.now() - staleSince : 0, building: Boolean(running), cached: Boolean(cache) };
 }
 
+// ---- the worker ----
+
+const LOOP_RESOLUTION_MS = 10;
+const loopDelay = monitorEventLoopDelay({ resolution: LOOP_RESOLUTION_MS });
+const workerEnabled = () => process.env.PIGTV_SPORT_WORKER !== '0';
+
+let worker = null;
+let nextMessageId = 1;
+const waiting = new Map(); // message id -> { resolve, reject, channels: Map(key -> channel), events: [] }
+
+function failWaiting(err) {
+    for (const w of waiting.values()) w.reject(err);
+    waiting.clear();
+}
+
+function startWorker() {
+    const w = new Worker(path.join(__dirname, 'sportsEventsWorker.js'), { workerData: { pigtvReadOnlyDb: true } });
+    w.on('message', ({ id, channels, events, done, error }) => {
+        const pending = waiting.get(id);
+        if (!pending) return;
+        if (channels) { for (const ch of channels) pending.channels.set(ch.key, ch); return; }
+        if (events) { pending.events.push(...events); return; }
+        waiting.delete(id);
+        if (!waiting.size) w.unref(); // idle: never keeps the process (or a test) alive
+        if (error) return pending.reject(new Error(error));
+        // the events name their channels by key: put the shared objects back
+        for (const ev of pending.events) ev.channels = ev.channels.map(key => pending.channels.get(key));
+        pending.resolve({
+            built: { from: done.from, events: pending.events, channelCount: done.channelCount, programmeCount: done.programmeCount },
+            buildMs: done.buildMs
+        });
+    });
+    w.on('error', (err) => {
+        if (worker === w) worker = null;
+        failWaiting(err);
+    });
+    w.on('exit', () => {
+        if (worker === w) worker = null;
+        failWaiting(new Error('the sport event worker stopped'));
+    });
+    w.unref();
+    return w;
+}
+
+function buildInWorker(from, follow) {
+    if (!worker) worker = startWorker();
+    return new Promise((resolve, reject) => {
+        const id = nextMessageId++;
+        waiting.set(id, { resolve, reject, channels: new Map(), events: [] });
+        worker.ref(); // a build is pending: the process stays up for it
+        worker.postMessage({ id, from, follow });
+    });
+}
+
+/** Stop the worker (server shutdown; tests). A later build starts a new one. */
+function stopWorker() {
+    const w = worker;
+    worker = null;
+    if (w) w.terminate().catch(() => {});
+}
+
+/** Stop everything this module runs in the background. */
+function shutdown() {
+    stopBackgroundRebuilds();
+    stopWorker();
+}
+
+let warnedInline = false;
+async function computeBuild(from, follow) {
+    if (workerEnabled()) {
+        try {
+            return await buildInWorker(from, follow);
+        } catch (err) {
+            console.warn('[Sport] The build worker failed, building on the main thread this once:', err.message);
+        }
+    } else if (!warnedInline) {
+        warnedInline = true;
+        console.warn('[Sport] PIGTV_SPORT_WORKER=0: events are built on the main thread (blocks it while building)');
+    }
+    stats.inlineBuilds++;
+    const t0 = process.hrtime.bigint();
+    const built = buildEvents({ from, follow });
+    return { built, buildMs: Number(process.hrtime.bigint() - t0) / 1e6 };
+}
+
+const yieldToLoop = () => new Promise(resolve => setImmediate(resolve));
+const DECORATE_SLICE = 100; // channels per slice: ~1 ms of logo lookups each, then back to the loop
+
+/**
+ * Run the route's decorateChannels (logos: it writes the logo cache, so it can only run here) over
+ * the channels the events name - each once, they are shared between events - a slice at a time.
+ */
+async function decorateBuilt(built, decorateChannels) {
+    if (!decorateChannels) return;
+    const channels = new Set();
+    for (const ev of built.events) for (const ch of ev.channels) channels.add(ch);
+    const all = [...channels];
+    for (let i = 0; i < all.length; i += DECORATE_SLICE) {
+        decorateChannels(all.slice(i, i + DECORATE_SLICE));
+        if (i + DECORATE_SLICE < all.length) await yieldToLoop();
+    }
+}
+
+async function runJob(job) {
+    const t0 = process.hrtime.bigint();
+    loopDelay.reset();
+    loopDelay.enable();
+    try {
+        const { built, buildMs } = await computeBuild(job.bucket, getFollow().slice());
+        await decorateBuilt(built, lastDecorateChannels);
+        if (job.generation === generation) { // not reset() meanwhile
+            cache = { key: job.key, built }; // atomically replaces the previous result
+            stats.builds++;
+            stats.revision++;
+            stats.lastBuildMs = buildMs;
+            stats.lastTotalMs = Number(process.hrtime.bigint() - t0) / 1e6;
+            if (job.key === wantedKey) staleSince = 0;
+        }
+        job.resolve(built);
+    } catch (err) {
+        job.reject(err);
+    } finally {
+        // the timer's resolution is part of what it measures
+        if (job.generation === generation) stats.lastMaxLoopDelayMs = Math.max(0, loopDelay.max / 1e6 - LOOP_RESOLUTION_MS);
+        loopDelay.disable();
+        // free the slot before whoever awaited the result continues, so a trigger it makes
+        // starts at once rather than queueing behind a build that has already finished
+        if (running === job) running = null;
+    }
+}
+
+function pump() {
+    if (running || !queued) return;
+    const job = queued;
+    queued = null;
+    running = job;
+    runJob(job).then(() => {}, () => {}).finally(pump);
+}
+
+/**
+ * The promise of a build for `now`'s key: the cached result if current, else the running or
+ * waiting job's, else a new job queued behind the running one (replacing any waiting job: the
+ * latest key wins, and whoever waited on the replaced one gets the newer result).
+ */
+function buildFor(now) {
+    const { bucket, key } = buildKeyFor(now);
+    wantedKey = key;
+    if (cache && cache.key === key) return Promise.resolve(cache.built);
+    if (running && running.key === key && running.generation === generation) return running.promise;
+    if (queued && queued.key === key) return queued.promise;
+    const job = { key, bucket, generation };
+    job.promise = new Promise((resolve, reject) => { job.resolve = resolve; job.reject = reject; });
+    if (queued) queued.resolve(job.promise);
+    queued = job;
+    pump();
+    return job.promise;
+}
+
+/**
+ * The events for a request. Current: straight from the cache. Stale: the last result,
+ * immediately, and a rebuild is scheduled. Nothing cached at all: wait for the first build
+ * (on the worker, so the loop keeps serving meanwhile).
+ */
 function cachedEvents(now, decorateChannels) {
     if (decorateChannels) lastDecorateChannels = decorateChannels;
-    const { bucket, key } = buildKeyFor(now);
-    if (cache && cache.key === key) return cache.built;
-    // A background rebuild for exactly this key is already under way (scheduleRebuild,
-    // below): serve the previous result rather than racing it with a second, blocking
-    // build - the point of moving the build off the request path in the first place.
-    if (cache && buildInFlight === key) return cache.built;
-    // Nothing usable yet at all (a fresh start, or reset() in a test), or stale with
-    // no rebuild already in flight for it: there is nothing else to serve, so build
-    // now, synchronously, exactly as every version of this cache always has.
-    return runBuild(bucket, key, decorateChannels);
+    const { key } = buildKeyFor(now);
+    if (cache && cache.key === key) return Promise.resolve(cache.built);
+    if (cache) {
+        scheduleRebuild(now);
+        return Promise.resolve(cache.built);
+    }
+    return buildFor(now);
 }
 
 /**
  * Rebuild in the background for `now` (default: this minute) without blocking the
- * caller. An EPG sync landing, an admin saving the follow list, and the 5-minute
- * timer (below) all call this instead of waiting on a synchronous build inline -
- * each of those call sites runs on the same single-threaded event loop that also
- * serves live HLS segments. A request that lands while this is running is answered
- * by cachedEvents() above from the previous result; once this finishes, the next
- * request sees the fresh one. A no-op when the key is already current or already
- * being rebuilt, so it never overlaps itself.
+ * caller or the loop. An EPG sync landing, an admin saving the follow list, and the 5-minute
+ * timer (below) all call this. A request that lands while this is running is answered by
+ * cachedEvents() above from the previous result; once this finishes, the next request sees
+ * the fresh one. A no-op when the key is already current or already being built, so it never
+ * overlaps itself. Returns the promise of the build (never rejects), for a test to await.
  */
 function scheduleRebuild(now = Date.now(), decorateChannels = lastDecorateChannels) {
-    const { bucket, key } = buildKeyFor(now);
-    if (cache && cache.key === key) return;
-    if (buildInFlight === key) return;
-    buildInFlight = key;
-    setImmediate(() => {
-        try {
-            runBuild(bucket, key, decorateChannels);
-        } catch (err) {
-            console.error('[Sport] Background rebuild failed:', err.message);
-        } finally {
-            if (buildInFlight === key) buildInFlight = null;
-        }
+    if (decorateChannels) lastDecorateChannels = decorateChannels;
+    if (cache && cache.key !== buildKeyFor(now).key && !staleSince) staleSince = Date.now();
+    return buildFor(now).then(() => {}, (err) => {
+        console.error('[Sport] Background rebuild failed:', err.message);
     });
+}
+
+/** Resolves once no build is running or waiting (tests; a clean shutdown). */
+async function idle() {
+    while (running || queued) await (running || queued).promise.then(() => {}, () => {});
 }
 
 // A timer aligned to the 5-minute bucket, so the background rebuild for the next
@@ -590,9 +771,9 @@ const KIND_ORDER = { event: 0, replay: 1, show: 2, placeholder: 3 };
  * adds `rule` and `match` (how it was recognised) and `kindRule` (why it is that kind;
  * the admin preview).
  */
-function eventsFor({ hours, userId, now = Date.now(), withRule = false, include, decorateChannels } = {}) {
+async function eventsFor({ hours, userId, now = Date.now(), withRule = false, include, decorateChannels } = {}) {
     const span = clampHours(hours) * HOUR_MS;
-    const built = cachedEvents(now, decorateChannels);
+    const built = await cachedEvents(now, decorateChannels);
     const favs = favouriteKeys(userId);
     const isFav = (ch) => favs.has(`${ch.sourceId}:${ch.stableId || ch.id}`) || favs.has(`${ch.sourceId}:${ch.id}`);
 
@@ -666,7 +847,11 @@ function reset() {
     categoryCache = null;
     cache = null;
     followCache = null;
-    buildInFlight = null;
+    generation++; // a build still under way will not publish into the fresh state
+    running = null;
+    queued = null;
+    staleSince = 0;
+    wantedKey = null;
 }
 
 module.exports = {
@@ -680,5 +865,7 @@ module.exports = {
     DEFAULT_HOURS, MAX_HOURS, MAX_KEYWORDS,
     reset,
     // 0159: builds run in the background instead of blocking a request
-    scheduleRebuild, startBackgroundRebuilds, stopBackgroundRebuilds
+    scheduleRebuild, startBackgroundRebuilds, stopBackgroundRebuilds,
+    // R09: builds run on a worker thread
+    status, idle, shutdown, stopWorker
 };

@@ -2,6 +2,7 @@ const Database = require('better-sqlite3');
 const { bareChannelId, COMPOSITE } = require('../services/channelIds');
 const path = require('path');
 const fs = require('fs');
+const { isMainThread, workerData } = require('worker_threads');
 
 const dataDir = path.join(__dirname, '..', '..', 'data');
 const dbPath = path.join(dataDir, 'content.db');
@@ -13,7 +14,19 @@ if (!fs.existsSync(dataDir)) {
 
 let db;
 
+// R09: a worker thread that only reads (services/sportsEventsWorker.js builds the sport event
+// list there, so the build cannot block the event loop that serves live HLS) opens its OWN
+// read-only connection to the same file. WAL lets it read while the main thread writes. It never
+// runs the schema or migrations (the main thread owns those) and never changes a pragma that
+// writes to the file.
+const READ_ONLY = !isMainThread && Boolean(workerData && workerData.pigtvReadOnlyDb);
+
 function getDb() {
+    if (!db && READ_ONLY) {
+        db = new Database(dbPath, { readonly: true, fileMustExist: true });
+        db.pragma('busy_timeout = 5000');
+        return db;
+    }
     if (!db) {
         console.log('[SQLite] Opening database at', dbPath);
         db = new Database(dbPath);

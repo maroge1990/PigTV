@@ -5,13 +5,14 @@ const os = require('node:os');
 const path = require('node:path');
 
 // 0159 (D): sportsEvents' event list is built off the request path. buildEvents()
-// is measured at ~0.3-1.1 s on 1,000 channels and runs synchronously, blocking the
-// event loop that also serves live HLS segments - a request whose cache key had
-// gone stale used to pay for that build inline. Requests are now always served the
-// last built result; a rebuild for a new key runs in the background (setImmediate),
-// triggered by an EPG sync landing, a follow-list change, and a timer aligned to
-// the 5-minute bucket. The one case that still builds synchronously is the very
-// first request ever (nothing cached at all yet).
+// is measured at ~0.3-1.1 s on 1,000 channels and is synchronous, so a request whose
+// cache key had gone stale used to pay for that build inline, blocking the event loop
+// that also serves live HLS segments. Requests are now always served the last built
+// result; a rebuild for a new key runs in the background, triggered by an EPG sync
+// landing, a follow-list change, and a timer aligned to the 5-minute bucket.
+// R09: that background build used setImmediate, which is the same event loop; it now
+// runs on a worker thread, and the very first request (nothing cached at all) awaits
+// a build instead of running one inline. eventsFor() is therefore async.
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-sports-bg-'));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
 fs.cpSync(path.join(__dirname, '../package.json'), path.join(sandbox, 'package.json'));
@@ -24,31 +25,26 @@ const epgParser = load('services/epgParser');
 const sync = load('services/syncService');
 
 after(() => {
-    sportsEvents.stopBackgroundRebuilds();
+    sportsEvents.shutdown();
     process.chdir(os.tmpdir());
     try { fs.rmdirSync(path.join(sandbox, 'node_modules')); } catch { /* junction already gone */ }
     try { fs.rmSync(sandbox, { recursive: true, force: true }); } catch { /* leave it to the OS temp cleaner */ }
 });
 
-// A background rebuild is one setImmediate away; draining twice also lets whatever
-// its own `finally` does (clearing buildInFlight) settle before the next test's
-// assertions, so tests never see another test's still-pending rebuild land mid-way.
-async function settle() {
-    await new Promise(resolve => setImmediate(resolve));
-    await new Promise(resolve => setImmediate(resolve));
-}
+// A background rebuild runs on the worker thread: idle() resolves once none is running or
+// waiting, so tests never see another test's still-pending rebuild land mid-way.
+const settle = () => sportsEvents.idle();
 
 test('a request during a background rebuild is served the previous result, not a blocking rebuild', async () => {
     sportsEvents.reset();
     const now = Date.now();
-    const first = sportsEvents.eventsFor({ hours: 72, now });
+    const first = await sportsEvents.eventsFor({ hours: 72, now });
     const builds = sportsEvents.stats.builds;
 
     // Exactly what setFollow() does: bumps the cache key and starts a background
-    // rebuild (setImmediate) - which, before the next `await`, has definitely not
-    // run yet.
+    // rebuild - on the worker, so it cannot have been published yet.
     sportsEvents.setFollow(['Chiefs']);
-    const duringRebuild = sportsEvents.eventsFor({ hours: 72, now });
+    const duringRebuild = await sportsEvents.eventsFor({ hours: 72, now });
 
     assert.deepEqual(duringRebuild, first, 'the previous result, not a fresh (blocking) build');
     assert.equal(sportsEvents.stats.builds, builds, 'no synchronous rebuild for this request');
@@ -61,14 +57,14 @@ test('a request during a background rebuild is served the previous result, not a
 test('once the background rebuild finishes, the next request sees the fresh result', async () => {
     sportsEvents.reset();
     const now = Date.now();
-    sportsEvents.eventsFor({ hours: 72, now });
+    await sportsEvents.eventsFor({ hours: 72, now });
     const builds = sportsEvents.stats.builds;
 
     sportsEvents.setFollow(['Chiefs']);
     await settle();
     assert.equal(sportsEvents.stats.builds, builds + 1, 'the background build ran exactly once');
 
-    sportsEvents.eventsFor({ hours: 72, now });
+    await sportsEvents.eventsFor({ hours: 72, now });
     assert.equal(sportsEvents.stats.builds, builds + 1, 'the request found it already fresh; no second build');
 
     sportsEvents.setFollow([]);
@@ -78,7 +74,7 @@ test('once the background rebuild finishes, the next request sees the fresh resu
 test('scheduleRebuild never overlaps itself for the same key', async () => {
     sportsEvents.reset();
     const now = Date.now();
-    sportsEvents.eventsFor({ hours: 72, now }); // caches `now`'s bucket
+    await sportsEvents.eventsFor({ hours: 72, now }); // caches `now`'s bucket
     const builds = sportsEvents.stats.builds;
 
     // A different 5-minute bucket, so the key really is stale and scheduleRebuild
@@ -94,7 +90,7 @@ test('scheduleRebuild never overlaps itself for the same key', async () => {
 
 test('an EPG sync landing schedules a background rebuild of the sport event list', async () => {
     sportsEvents.reset();
-    sportsEvents.eventsFor({ hours: 72 }); // seed a cached result
+    await sportsEvents.eventsFor({ hours: 72 }); // seed a cached result
     const builds = sportsEvents.stats.builds;
 
     epgParser.fetchAndParseStreaming = async function* () {
@@ -118,14 +114,28 @@ test('startBackgroundRebuilds/stopBackgroundRebuilds: the timer can be armed and
 
 test('reset() still clears everything, including any in-flight background rebuild marker', async () => {
     sportsEvents.reset();
-    sportsEvents.eventsFor({ hours: 72 });
+    await sportsEvents.eventsFor({ hours: 72 });
     sportsEvents.setFollow(['Chiefs']);
     sportsEvents.reset(); // right on top of the still-in-flight rebuild above
     const builds = sportsEvents.stats.builds;
-    sportsEvents.eventsFor({ hours: 72 }); // nothing cached after reset(): builds synchronously, as always
-    assert.equal(sportsEvents.stats.builds, builds + 1);
+    await sportsEvents.eventsFor({ hours: 72 }); // nothing cached after reset(): waits for a build
+    assert.equal(sportsEvents.stats.builds, builds + 1, 'the orphaned rebuild did not publish into the fresh state');
 
     await settle(); // let the earlier, now-orphaned 'Chiefs' rebuild land and get out of the way
     sportsEvents.setFollow([]);
     await settle();
+});
+
+test('many triggers while a build runs coalesce: one running, the latest key waits', async () => {
+    sportsEvents.reset();
+    await sportsEvents.eventsFor({ hours: 72 });
+    const builds = sportsEvents.stats.builds;
+    sportsEvents.setFollow(['A']);
+    sportsEvents.setFollow(['A', 'B']);
+    sportsEvents.setFollow(['A', 'B', 'C']);
+    sportsEvents.setFollow(['A', 'B', 'C', 'D']);
+    await sportsEvents.idle();
+    assert.equal(sportsEvents.stats.builds, builds + 2, 'the first (already running) and the latest only');
+    sportsEvents.setFollow([]);
+    await sportsEvents.idle();
 });

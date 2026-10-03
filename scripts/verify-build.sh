@@ -1843,7 +1843,7 @@ PY2
 
 echo "=== 0148: sport events and the follow list (C-I) ==="
 check server/routes/info.js "sportsEvents: true" "/api/info advertises sportsEvents"
-check server/routes/sports.js "router.get('/events', (req, res)" "GET /api/sports/events for any signed-in user"
+check server/routes/sports.js "router.get('/events', async (req, res)" "GET /api/sports/events for any signed-in user"
 check server/routes/sports.js "router.get('/preview', requireAdmin," "admin preview"
 check server/routes/sports.js "router.put('/follow', requireAdmin," "admin follow list"
 check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS sports_follow" "the follow list has its own table"
@@ -1961,11 +1961,11 @@ check public/index.html "dvr-setting-prompt-timeout" "and a web Settings field"
 check test/recording-prompt-timeout.test.js "it waits, however long" "with a test"
 
 echo "=== 0159: sport events are built off the request path (stale-while-revalidate) ==="
-check server/services/sportsEvents.js "if (cache \&\& buildInFlight === key) return cache.built;" "a request is served the previous result while a background rebuild runs"
+check server/services/sportsEvents.js "        scheduleRebuild(now);" "a request is served the previous result while a background rebuild runs"
 check server/services/sportsEvents.js "function scheduleRebuild(now = Date.now(), decorateChannels = lastDecorateChannels) {" "the rebuild itself runs off the request path (setImmediate)"
 check server/services/sportsEvents.js "function armRebuildTimer()" "a timer aligned to the 5-minute bucket"
 check server/services/syncService.js "require('./sportsEvents').scheduleRebuild();" "triggered after an EPG sync"
-check server/services/sportsEvents.js "rebuild in the background rather than leaving it for the next request" "and when the follow list changes"
+check server/services/sportsEvents.js "rebuild in the background (R09: on the worker) rather than leaving it for the" "and when the follow list changes"
 check server/index.js "require('./services/sportsEvents').startBackgroundRebuilds();" "started at server startup"
 check test/sports-background-rebuild.test.js "served the previous result, not a blocking rebuild" "with a test"
 
@@ -2166,6 +2166,13 @@ check_absent server/routes/recordings.js "fs.statSync(" "no synchronous stat in 
 check_absent server/routes/recordings.js "fs.existsSync(" "no synchronous existence check in a recordings request"
 check_absent server/routes/recordings.js "fs.readFileSync(" "no synchronous read in a recordings request"
 check server/routes/recordings.js "async function sendFileRange(" "files are piped with error handling"
+
+echo "=== 0195: sport events built on a worker thread (audit R09) ==="
+check server/services/sportsEventsWorker.js "parentPort" "the build runs on a worker thread"
+check server/db/sqlite.js "new Database(dbPath, { readonly: true, fileMustExist: true })" "with its own read-only connection"
+check_absent server/services/sportsEvents.js "runBuild(bucket, key, decorateChannels);" "no synchronous rebuild on the serving loop"
+check server/index.js "sportsEvents').shutdown()" "the worker is stopped at shutdown"
+check test/sports-worker.test.js "never blocks" "with tests"
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1

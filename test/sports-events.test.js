@@ -18,6 +18,11 @@ fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { rec
 fs.cpSync(path.join(__dirname, '../package.json'), path.join(sandbox, 'package.json'));
 fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'node_modules'), 'junction');
 process.env.JWT_SECRET = 'test-only-signing-key-not-used-outside-fixtures-12345';
+// R09: builds normally run on a worker thread, which has its own copy of the modules. This file
+// neutralises sportsClassify.LIVE_HOURS in THIS thread (below), which a worker would not see, so
+// it builds inline; the worker path is covered by sports-background-rebuild.test.js and
+// sports-worker.test.js.
+process.env.PIGTV_SPORT_WORKER = '0';
 process.chdir(sandbox);
 
 const load = p => require(path.join(sandbox, 'server', p));
@@ -140,6 +145,7 @@ before(async () => {
 });
 
 after(() => {
+    try { load('services/sportsEvents').shutdown(); } catch { /* never loaded */ }
     server?.closeAllConnections?.();
     server?.close();
     try { sqlite.getDb().close(); } catch { /* already closed */ }
@@ -492,7 +498,7 @@ test('a sync logs how far ahead the guide reaches, and says when it is less than
     assert.equal(epgCoverageLine(0, now), '[Sync] EPG coverage: no programme has an end time');
 });
 
-test('0153: one build serves 5 minutes, and still covers the full 72 h at the end of them', () => {
+test('0153: one build serves 5 minutes, and still covers the full 72 h at the end of them', async () => {
     const svc = load('services/sportsEvents');
     const bucket = Math.floor(NOW / (5 * M)) * 5 * M + 10 * 5 * M; // a bucket boundary in the future
     const late = bucket + 5 * M - 1000;
@@ -502,13 +508,16 @@ test('0153: one build serves 5 minutes, and still covers the full 72 h at the en
         .run('sky', late + 72 * H - 2 * M, late + 73 * H, 'Bowls: World Final', '["Bowls"]');
     try {
         svc.reset();
-        assert.equal(svc.eventsFor({ now: bucket, hours: 72 }).events.filter(e => e.aliases.includes('Bowls: World Final')).length, 0,
+        assert.equal((await svc.eventsFor({ now: bucket, hours: 72 })).events.filter(e => e.aliases.includes('Bowls: World Final')).length, 0,
             'the first request: beyond its 72 h');
         const builds = svc.stats.builds;
-        const { events: list } = svc.eventsFor({ now: late, hours: 72 });
+        const { events: list } = await svc.eventsFor({ now: late, hours: 72 });
         assert.equal(svc.stats.builds, builds, 'no rebuild within the 5 minutes');
         assert.equal(list.filter(e => e.aliases.includes('Bowls: World Final')).length, 1, 'the late request still sees its whole 72 h');
-        svc.eventsFor({ now: bucket + 5 * M, hours: 72 });
+        // R09: the next bucket is stale when asked: the request is served the old result at once
+        // and the rebuild runs on the worker
+        await svc.eventsFor({ now: bucket + 5 * M, hours: 72 });
+        await svc.idle();
         assert.equal(svc.stats.builds, builds + 1, 'the next bucket rebuilds');
     } finally {
         d.prepare(`DELETE FROM epg_programs WHERE title = 'Bowls: World Final'`).run();

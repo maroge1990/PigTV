@@ -110,6 +110,7 @@ app.locals.ffprobePath = findFFprobe();
 // share this handler, and the services map it was handed, went in 0122.)
 process.on('SIGTERM', async () => {
     console.log('SIGTERM received, stopping active recordings...');
+    try { require('./services/sportsEvents').shutdown(); } catch (err) { /* best-effort */ }
     try {
         const recordingEngine = require('./services/recordingEngine');
         await recordingEngine.stopAllActive();
@@ -228,6 +229,8 @@ app.listen(PORT, async (err) => {
     // a follow-list change, and this 5-minute-aligned timer), never inline on a
     // request - a synchronous build on 1,000 channels can take over a second, and
     // the event loop it would block also serves live HLS segments.
+    // R09: the build itself runs on a worker thread (services/sportsEventsWorker.js), so
+    // it no longer blocks that loop at all.
     try {
         require('./services/sportsEvents').startBackgroundRebuilds();
     } catch (err) {

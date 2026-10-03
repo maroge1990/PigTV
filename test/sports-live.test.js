@@ -56,6 +56,7 @@ const MORNING = NY('2026-09-26T07:00:00');   // the same game again at 7 am
 const YANKEES = 'MLB: New York Yankees v Boston Red Sox';
 
 after(() => {
+    try { load('services/sportsEvents').shutdown(); } catch { /* never loaded */ }
     try { sqlite.getDb().close(); } catch { /* already closed */ }
     process.chdir(os.tmpdir());
     try { fs.rmdirSync(path.join(sandbox, 'node_modules')); } catch { /* junction already gone */ }
@@ -263,7 +264,7 @@ test('an XMLTV source sync and an Xtream sync (xmltv.php) store the flags', asyn
     assert.equal(raw.flags, null, 'no flags is NULL');
 });
 
-test('a build reads the 36 h before now, so a re-air inside MLB hours is told from last night\'s game', () => {
+test('a build reads the 36 h before now, so a re-air inside MLB hours is told from last night\'s game', async () => {
     const d = sqlite.getDb();
     d.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, sort_order, stable_id, tvg_id, is_hidden)
                VALUES (?, 600, ?, 'live', ?, 'Sport', ?, ?, ?, 0)`).run('600:a', 'a', 'MLB Network', 1, 'sa', 'live.a');
@@ -272,7 +273,7 @@ test('a build reads the 36 h before now, so a re-air inside MLB hours is told fr
     ins.run('live.a', EVENING, EVENING + 3 * H, YANKEES, '["Baseball"]');       // ended 15 h before
     ins.run('live.a', afternoon, afternoon + 3 * H, YANKEES, '["Baseball"]');   // inside MLB hours
     sportsEvents.reset();
-    const { events } = sportsEvents.eventsFor({ now: afternoon + 10 * M, hours: 6, withRule: true, include: 'all' });
+    const { events } = await sportsEvents.eventsFor({ now: afternoon + 10 * M, hours: 6, withRule: true, include: 'all' });
     const game = events.filter(e => e.title === 'New York Yankees v Boston Red Sox');
     assert.deepEqual(game.map(e => [e.kind, e.kindRule, e.live]),
         [['replay', 'replay: aired first 17 h 55 min earlier (MLB Network)', true]], 'last night\'s game is not listed, but counted');

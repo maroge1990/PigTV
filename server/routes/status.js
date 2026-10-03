@@ -297,6 +297,9 @@ router.get('/', async (req, res) => {
             // 0161 (C-I): ESPN fixture coverage, per league - last successful fetch, fixture
             // count, last error. Never a URL (sportsFixtures.statusSummary never puts one in).
             sportFixtures: sportsFixtures.statusSummary(),
+            // R09: the sport event list's builds (on a worker thread): count, last build time, the
+            // worst event-loop stall seen during it, and how long the served list has been stale.
+            sportEvents: require('../services/sportsEvents').status(),
             sync: await syncStatus(),
             disk: {
                 transcodeCache: diskAt(transcodeSession.CACHE_DIR),
