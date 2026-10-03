@@ -1,6 +1,6 @@
 # Test block: everything built on 23 September – 2 October 2026
 
-## Outstanding as of 4 October 2026 (server 0196 · app 37)
+## Outstanding as of 4 October 2026 (server 0202 · app 38)
 
 Mark's results of 2 Oct are ticked. Still open: A1 (re-check on 0187), D5–D10, G2–G4, G6, G7, H (the tuner), K (captures), **L (in-stream recovery and the standby, 0189)**, **M (0191)**. Round 7 below was written for 0179 and the old
 Sources/Providers tabs; **R7.1–R7.5 and R7.14 are replaced by the steps here** (0182 moved providers onto cards and removed
@@ -83,6 +83,19 @@ Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "Timestamps looping|Bl
 - [ ] N7 A recording with ad breaks: playback starts without waiting; the skip prompt still appears at a break.
 - [ ] N8 An HEVC channel recorded and played (0192: the prepared MP4 is tagged `hvc1`).
 - [ ] N9 Optional: Instruments baseline on the Apple TV (app `TESTING.md` → "Measuring on the Apple TV").
+
+**O. Phase 3 (server 0197–0202 · app 38, 4 Oct). Before deploying: back up the data folder (`docs/OPERATIONS.md`). The image now runs as PUID/PGID 99:100.**
+Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "entrypoint|Relay|Coordinator|warm|Recordings"`
+- [ ] O1 Deploy (Force Update). The first lines are `[entrypoint] …`: ownership fixed for `/app/data` (first start only), `recordings folder … is writable by 99:100`, `starting as 99:100`. If it says the recordings folder is **not** writable: see `docs/OPERATIONS.md` (or set `PUID`=`0` on the template to run as root as before). `/api/version` says **0202**; the Docker tab shows the container **healthy** after a minute.
+- [ ] O2 VAAPI still works: play a channel that is transcoded (or check Settings → Transcoding hardware status / the log for `vaapi`). If it fell back to CPU, note it.
+- [ ] O3 A recording still records and plays (any short one), and compression (if you use it) still runs.
+- [ ] O4 Settings → Transcoding → **Stream recovery (experimental)**: three switches, all **off**. Hot standby is greyed out until In-stream recovery is on. (Then run section **L** with these switches.)
+- [ ] O5 Status page: **Server load and background work** shows loop delay, the preparation queue and sport builds; Providers shows **In use for** (viewer / recording / standby). Leave the Status tab in the background a minute: it doesn't keep polling (no flicker on return).
+- [ ] O6 Two devices start the same single-connection provider at the same moment: one plays, the other gets the usual "another device is watching" question — never both briefly playing and then one failing.
+- [ ] O7 **Warm the next channel** on. On the Apple TV: watch a channel for 10 s, then channel-up: it should start noticeably faster than with warming off. Focus a live Sport card for 2 s, then select it: fast start. Status → Providers shows a `warm` connection while one is warm; it disappears within ~90 s of moving on. A recording due, or another device, takes the warm connection with **no prompt**.
+- [ ] O8 With In-stream recovery + Hot standby + warming all on and only one spare connection: the standby wins (log `Releasing … (warm) for a standby`).
+- [ ] O9 App 38: TV Guide opens without the first-visit pause (the grid fills in over a few frames); Home/Guide/Sport/Recordings switch quickly; signing out and in again shows your own guide straight away (no stale one).
+- [ ] O10 Roll back if needed: Unraid → PigTV → Edit → Repository tag of the previous image, or `PUID`=`0` for the permissions part only.
 
 **G. Still open from earlier rounds**
 - [x] G1 R6.3 again: recordings folder set back to `/app/recordings/SERVER01_Video/Recordings`; a bad path is refused.

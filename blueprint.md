@@ -848,7 +848,7 @@ the standby's probe starts, so the provider never sees both. The relay tries a f
 
 ### Next
 
-**Done in app 37 (4 Oct):** Siri / App Shortcuts removed; the provider reminder reworded. **Next performance target:** the first Home → TV Guide switch on the Apple TV (the Guide grid; app 37's blueprint). **Server:** each `/api/sports/events` request filters/sorts the cached events on the main thread (0195 note).
+**Done in app 37 (4 Oct):** Siri / App Shortcuts removed; the provider reminder reworded. **Phase 3 (4 Oct, server 0197–0202 · app 38):** the audit's R05, R11, R12, R14, R16, R17, the Guide's first-visit stall and the sport-request cost (0201) are done; R13 (segmented recordings) was skipped by Mark. Device checks: TEST-BLOCK **O** (and **L** with the new switches). Still open from the audit: an Instruments baseline on the Apple TV (app `TESTING.md`).
 
 1. **Before anything else on the server:** Settings → Recording → set the recordings folder back to
    `/app/recordings/SERVER01_Video/Recordings` (R6.3 left `fake` saved; 0167 now refuses such a path but doesn't fix a saved one).
