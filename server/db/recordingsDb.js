@@ -394,6 +394,25 @@ const recordings = {
         `).run(status, error, attempt ? 1 : 0, id);
     },
 
+    /**
+     * R16: the preparation queue at a glance - rows per native_status, and the most recent
+     * error among the failed ones. Read-only; never a path (the error text is trimmed).
+     */
+    nativeQueueSummary() {
+        const db = getDb();
+        initSchema();
+        const counts = { pending: 0, preparing: 0, ready: 0, failed: 0 };
+        for (const r of db.prepare(`SELECT native_status AS s, COUNT(*) AS n FROM recordings WHERE native_status IS NOT NULL GROUP BY native_status`).all()) {
+            if (r.s in counts) counts[r.s] = r.n;
+        }
+        const failed = db.prepare(`
+            SELECT id, title, native_error AS error FROM recordings
+            WHERE native_status = 'failed' AND native_error IS NOT NULL
+            ORDER BY COALESCE(ended_at, 0) DESC LIMIT 1
+        `).get();
+        return { counts, lastError: failed ? { id: failed.id, title: failed.title, error: String(failed.error).slice(0, 300) } : null };
+    },
+
     /** Waiting to be prepared, the most recently finished first: the likeliest to be watched next. */
     findPendingNative() {
         const db = getDb();

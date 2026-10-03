@@ -178,9 +178,34 @@ test('0176: the status document lists providers with state, connections and expi
     assert.deepEqual(Object.keys(p.connections).sort(), ['limit', 'used']);
     assert.equal(p.accountOk, null, 'never read: neither OK nor an error');
     assert.deepEqual(Object.keys(p).sort(), ['accountCheckedAt', 'accountOk', 'connections', 'downUntil', 'enabled', 'expired',
-        'expiresAt', 'expirySource', 'id', 'name', 'role', 'state'], 'whitelisted fields only');
+        'expiresAt', 'expirySource', 'id', 'name', 'role', 'state', 'uses'], 'whitelisted fields only');
     assert.ok(!text.includes(SECRET));
     assert.ok('provider' in body.sessions[0], 'sessions carry a provider name field');
+});
+
+test('R16: the status document carries the preparation queue, loop delay, sport builds and connection use', async () => {
+    const { body, text, status } = await get('/api/status', adminToken);
+    assert.equal(status, 200);
+    assert.deepEqual(Object.keys(body.preparation.counts).sort(), ['failed', 'pending', 'preparing', 'ready']);
+    assert.ok('current' in body.preparation && 'lastError' in body.preparation);
+    for (const w of ['sinceStart', 'lastMinute']) assert.deepEqual(Object.keys(body.loopDelay[w]).sort(), ['max', 'p50', 'p99']);
+    assert.ok('lastBuildMs' in body.sportEvents && 'lastMaxLoopDelayMs' in body.sportEvents && 'staleSinceMs' in body.sportEvents);
+    const p = body.providers.find(x => x.id === source.id);
+    assert.ok(Array.isArray(p.uses));
+    for (const u of p.uses) assert.deepEqual(Object.keys(u).sort(), ['ageSec', 'channel', 'purpose']);
+    assert.ok(!text.includes(SECRET));
+    assert.equal((await get('/api/status', viewerToken)).status, 403, 'a viewer sees none of it');
+});
+
+test('R16: the preparation summary counts by native_status and reports the last failure', () => {
+    const rdb = load('db/recordingsDb').recordings;
+    const d = sqlite.getDb();
+    const ins = d.prepare(`INSERT INTO recordings (title, status, file_path, native_status, native_error, ended_at) VALUES (?, 'completed', ?, ?, ?, ?)`);
+    ins.run('A', '/x/a.mp4', 'pending', null, 1);
+    ins.run('B', '/x/b.mp4', 'failed', 'remux failed', 2);
+    const s = rdb.nativeQueueSummary();
+    assert.ok(s.counts.pending >= 1 && s.counts.failed >= 1);
+    assert.equal(s.lastError.error, 'remux failed');
 });
 
 test('the recent-plays buffer keeps the last 50, newest first', () => {

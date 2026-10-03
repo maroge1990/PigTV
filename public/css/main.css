@@ -4420,6 +4420,12 @@ kbd {
   outline: 2px solid var(--color-accent); outline-offset: 3px;
 }
 .nav-link.active, .sport-toggle.active, .content-type-toggle .btn.active { position: relative; }
+/* R16: keyboard focus on the navbar is always visible: inside the box so no overflow clips it. */
+.nav-link:focus-visible, .mobile-menu-toggle:focus-visible {
+  outline: 2px solid var(--color-accent); outline-offset: -2px; border-radius: var(--radius-sm);
+  background: var(--color-accent-dim);
+}
+.nav-link[aria-current="page"] { color: var(--color-accent-text); }
 .nav-link.active::after, .sport-toggle.active::after, .content-type-toggle .btn.active::after {
   content: ''; position: absolute; width: 24px; height: 3px; border-radius: 2px;
   bottom: 2px; left: 50%; transform: translateX(-50%); background: currentColor; pointer-events: none;
@@ -4461,3 +4467,13 @@ kbd {
 }
 .settings-section input::placeholder { color: var(--color-text-muted); }
 .record-options input[type="number"] { border-color: var(--color-control-border); }
+
+/* R16: Status page - compact connection list, queue and loop-delay lines. */
+.status-uses { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+.status-use { display: inline-block; padding: 1px var(--space-sm); border-radius: var(--radius-full);
+  border: 1px solid var(--color-border-light); font-size: 0.8rem; color: var(--color-text-secondary); }
+.status-use-recording { border-color: var(--color-error); }
+.status-use-standby, .status-use-warm { border-style: dashed; }
+.status-metrics { display: flex; flex-wrap: wrap; gap: var(--space-md); margin: 0 0 var(--space-sm); }
+.status-metric { color: var(--color-text-secondary); font-size: 0.9rem; }
+.status-metric b { color: var(--color-text-primary); font-weight: 600; }

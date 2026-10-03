@@ -12,6 +12,14 @@ class StatusPage {
         this.app = app;
         this.timer = null;
         this.refreshMs = 5000;
+        this.shown = false;
+        this.rendered = new Map(); // R16: section key -> the html last drawn, so an unchanged section is left alone
+        // R16: nothing is polled while the tab is hidden; on return it refreshes at once.
+        document.addEventListener?.('visibilitychange', () => {
+            if (!this.shown) return;
+            if (document.hidden) this.stopTimer();
+            else this.start();
+        });
         // 0182: stopping a stuck stream moved here from Settings -> Debug. The table is rebuilt
         // every 5 s, so the buttons are handled where they bubble to.
         document.getElementById('status-content')?.addEventListener('click', (e) => {
@@ -36,15 +44,61 @@ class StatusPage {
     }
 
     show() {
-        this.refresh();
+        this.shown = true;
         this.loadEpgCategories();
-        clearInterval(this.timer);
+        if (document.hidden) return; // refreshed when the tab is next visible
+        this.start();
+    }
+
+    start() {
+        this.refresh();
+        this.stopTimer();
         this.timer = setInterval(() => this.refresh(), this.refreshMs);
     }
 
-    hide() {
+    stopTimer() {
         clearInterval(this.timer);
         this.timer = null;
+    }
+
+    hide() {
+        this.shown = false;
+        this.stopTimer();
+    }
+
+    /**
+     * R16: draw only the sections whose html changed. Falls back to one full draw when the set of
+     * sections changed or a section's element is missing. An open <details> inside a redrawn
+     * section stays open, and the scroll position is put back.
+     */
+    paint(content, status) {
+        const parts = this.parts(status);
+        const keys = parts.map(p => p[0]).join('|');
+        const sameShape = this.rendered.size === parts.length && [...this.rendered.keys()].join('|') === keys;
+        const scroller = content.closest?.('.page') || content.parentElement || null;
+        const top = scroller ? scroller.scrollTop : 0;
+        const open = [...(content.querySelectorAll?.('details') || [])].map(d => !!d.open);
+        let changed = 0;
+        const wrap = (k, html) => `<div class="status-part" data-status-section="${k}">${html}</div>`;
+        if (!sameShape) {
+            content.innerHTML = parts.map(([k, html]) => wrap(k, html)).join('');
+            changed = parts.length;
+        } else {
+            for (const [k, html] of parts) {
+                if (this.rendered.get(k) === html) continue;
+                const el = content.querySelector?.(`[data-status-section="${k}"]`);
+                if (!el) { content.innerHTML = parts.map(([kk, h]) => wrap(kk, h)).join(''); changed = parts.length; break; }
+                el.innerHTML = html;
+                changed++;
+            }
+        }
+        this.rendered = new Map(parts);
+        if (changed) {
+            const now = content.querySelectorAll?.('details') || [];
+            [...now].forEach((d, i) => { if (open[i]) d.open = true; });
+            if (scroller && scroller.scrollTop !== top) scroller.scrollTop = top;
+        }
+        return changed;
     }
 
     async refresh() {
@@ -52,11 +106,12 @@ class StatusPage {
         const updated = document.getElementById('status-updated');
         try {
             const status = await API.status.get();
-            if (content) content.innerHTML = this.render(status);
+            if (content) this.paint(content, status);
             if (updated) updated.textContent = `Updated ${new Date(status.generatedAt || Date.now()).toLocaleTimeString()} · every 5 s`;
         } catch (err) {
             if (updated) updated.textContent = `Could not refresh: ${err.message}`;
             if (content && !content.querySelector('.status-section')) {
+                this.rendered = new Map();
                 content.innerHTML = `<p class="hint">Could not load the server status: ${this.escape(err.message)}</p>`;
             }
         }
@@ -186,6 +241,42 @@ class StatusPage {
             'Nothing fetched yet (no followed league ESPN covers, or the first refresh has not run)'));
     }
 
+    /** R16: what each connection is for. The purpose is shown as the server sent it, so a new one (warm) just appears. */
+    renderUses(uses) {
+        if (!Array.isArray(uses) || !uses.length) return '<span class="setting-hint">idle</span>';
+        const e = (v) => this.escape(v);
+        const cls = (v) => String(v).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        return `<span class="status-uses">${uses.map(u =>
+            `<span class="status-use status-use-${e(cls(u.purpose))}" title="${e(u.channel || '')}">${e(u.purpose)}${u.channel ? ` · ${e(u.channel)}` : ''}</span>`).join('')}</span>`;
+    }
+
+    /** R16: preparation queue (0193), sport event builds (0195) and the server's event-loop lateness. */
+    renderHealth(status) {
+        const e = (v) => this.escape(v);
+        const ms = (v) => (v === null || v === undefined || !Number.isFinite(Number(v)) ? '–' : `${Math.round(Number(v) * 10) / 10} ms`);
+        const metric = (label, value) => `<span class="status-metric">${e(label)} <b>${value}</b></span>`;
+        const html = [];
+        const ld = status.loopDelay;
+        if (ld) {
+            const row = (name, h) => h ? metric(name, `p50 ${ms(h.p50)} · p99 ${ms(h.p99)} · max ${ms(h.max)}`) : '';
+            html.push(`<h4>Server event loop (lateness)</h4><div class="status-metrics">${row('Last minute', ld.lastMinute)}${row('Since start', ld.sinceStart)}</div>`);
+        }
+        const prep = status.preparation;
+        if (prep && prep.counts) {
+            const c = prep.counts;
+            const cur = prep.current ? `Preparing now: ${e(prep.current.title || `recording ${prep.current.id}`)}.` : 'Nothing being prepared.';
+            html.push(`<h4>Recording preparation</h4><div class="status-metrics">${metric('Waiting', e(c.pending))}${metric('Preparing', e(c.preparing))}${metric('Ready', e(c.ready))}${metric('Failed', e(c.failed))}</div>`
+                + `<p class="setting-hint">${prep.enabled === false ? 'Preparation is switched off. ' : ''}${cur}</p>`
+                + (prep.lastError ? `<p class="setting-hint"><span class="status-event status-failure">Last error</span> ${e(prep.lastError.title || '')}: ${e(prep.lastError.error)}</p>` : ''));
+        }
+        const se = status.sportEvents;
+        if (se) {
+            const stale = se.staleSinceMs ? this.duration(se.staleSinceMs / 1000) : 'fresh';
+            html.push(`<h4>Sport event builds</h4><div class="status-metrics">${metric('Builds', e(se.builds ?? 0))}${metric('Last build', ms(se.lastBuildMs))}${metric('Worst loop delay in it', ms(se.lastMaxLoopDelayMs))}${metric('Served list', e(stale))}${se.building ? metric('Building', 'now') : ''}</div>`);
+        }
+        return html.length ? this.section('Server load and background work', html.join('')) : '';
+    }
+
     renderProviders(providers) {
         const e = (v) => this.escape(v);
         if (!providers || !providers.length) {
@@ -204,12 +295,13 @@ class StatusPage {
             return `${d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} (${days}d)`;
         };
         return this.section('Providers', this.table(
-            ['Name', 'Role', 'State', 'Connections', 'Expires', 'Account'],
+            ['Name', 'Role', 'State', 'Connections', 'In use for', 'Expires', 'Account'],
             providers.map(p => [
                 e(p.name),
                 e(p.role || 'primary'),
                 `<span class="status-event ${stateClass(p.state)}">${e(p.state || 'up')}${p.downUntil ? ` until ${this.time(p.downUntil)}` : ''}</span>`,
                 `${p.connections.used}/${p.connections.limit}`,
+                this.renderUses(p.uses),
                 expiryText(p),
                 p.accountOk === null || p.accountOk === undefined ? 'not checked yet'
                     : p.accountOk ? '<span class="status-event status-success">OK</span>' : '<span class="status-event status-failure">Error</span>'
@@ -218,17 +310,23 @@ class StatusPage {
     }
 
     render(status) {
+        return this.parts(status).map(([k, html]) => `<div class="status-part" data-status-section="${k}">${html}</div>`).join('');
+    }
+
+    /** R16: the page as [key, html] pairs, one per section, so an unchanged one is not redrawn. */
+    parts(status) {
         const e = (v) => this.escape(v);
         const out = [];
+        const add = (key, html) => out.push([key, html]);
 
-        out.push(this.renderRecordingsFolderWarning(status.recordingsFolder));
+        add('folder', this.renderRecordingsFolderWarning(status.recordingsFolder));
 
         // Providers (P8, 0175)
-        out.push(this.renderProviders(status.providers));
+        add('providers', this.renderProviders(status.providers));
 
         // Live sessions
         const sessions = status.sessions || [];
-        out.push(this.section('Live sessions', this.table(
+        add('sessions', this.section('Live sessions', this.table(
             ['Channel', 'Owner', 'Video / audio', 'Segments', 'Up', 'Idle', 'ffmpeg', ''],
             sessions.map(s => [
                 `${e(s.channel)}${s.provider ? ` <span class="setting-hint">(${e(s.provider)})</span>` : ''}`, e(s.owner || '–'), `${e(s.video)} / ${e(s.audio)}`, e(s.segmentType || '–'),
@@ -249,7 +347,7 @@ class StatusPage {
                 : `${e(ix.count)} lost mid-play in the last ${ix.days} days over ${e(ix.watchedHours)} h watched`
                     + `${ix.perHour === null ? '' : ` (${e(ix.perHour)} per hour)`}; ${e(ix.recovered)} came back, `
                     + `typically in ${secs(ix.medianRecoverSec)}, at worst ${secs(ix.worstRecoverSec)}.`;
-            out.push(this.section('Interruptions', `<p class="setting-hint">${line}</p>` + this.table(
+            add('interruptions', this.section('Interruptions', `<p class="setting-hint">${line}</p>` + this.table(
                 ['When', 'Channel', 'Provider', 'What happened', 'After playing', 'Back in'],
                 (ix.recent || []).map(r => [
                     this.when(r.at), e(r.channel || '–'), e(r.provider || '–'),
@@ -264,13 +362,13 @@ class StatusPage {
         // Recordings
         const rec = status.recordings || { active: [], upcoming: [] };
         const recRow = (r) => [e(r.title), `${e(r.channel || '–')}${r.provider ? ` <span class="setting-hint">(${e(r.provider)})</span>` : ''}`, e(r.status), `${this.when(r.programStart)} – ${this.time(r.programEnd).slice(0, 5)}`];
-        out.push(this.section('Recordings',
+        add('recordings', this.section('Recordings',
             `<h4>Recording now</h4>${this.table(['Programme', 'Channel', 'Status', 'Time'], (rec.active || []).map(recRow), 'Nothing is recording')}` +
             `<h4>Next scheduled</h4>${this.table(['Programme', 'Channel', 'Status', 'Time'], (rec.upcoming || []).map(recRow), 'Nothing scheduled')}`));
 
         // Recent problems (0156): missed/failed schedules from the last 7 days, so a
         // silent overnight failure shows up here instead of only in docker logs.
-        out.push(this.section('Recent problems', this.table(
+        add('problems', this.section('Recent problems', this.table(
             ['Programme', 'Channel', 'Status', 'Time', 'Reason'],
             (status.recentProblems || []).map(r => [
                 e(r.title), e(r.channel || '–'),
@@ -282,7 +380,7 @@ class StatusPage {
 
         // Recent plays
         const label = { 'play-start': 'Started', 'play-end': 'Ended', failure: 'Failed', relay: 'Recovery' };
-        out.push(this.section('Recent plays', this.table(
+        add('plays', this.section('Recent plays', this.table(
             ['Time', 'Event', 'Channel', 'Owner', 'Start', 'First picture', 'Detail'],
             (status.events || []).map(ev => [
                 this.time(ev.at),
@@ -296,10 +394,10 @@ class StatusPage {
             'No plays since the server started')));
 
         // Sport fixtures (0161, C-I): ESPN's real kickoff/session times, per league.
-        out.push(this.renderSportFixtures(status.sportFixtures));
+        add('fixtures', this.renderSportFixtures(status.sportFixtures));
 
         // Least reliable channels (0133, C-G): failed starts and (0142) stalls over the last 7 days
-        out.push(this.section('Least reliable channels', this.table(
+        add('reliable', this.section('Least reliable channels', this.table(
             ['Channel', 'Attempts', 'Failures', 'Stalls', 'Watched', 'Median first picture', 'Health'],
             (status.leastReliable || []).map(ch => [
                 e(ch.name), e(ch.attempts), e(ch.failures),
@@ -312,7 +410,9 @@ class StatusPage {
             'No failed starts or stalls in the last 7 days')));
 
         // Sync
-        out.push(this.section('Sync', this.table(
+        add('health', this.renderHealth(status));
+
+        add('sync', this.section('Sync', this.table(
             ['Source', 'Type', 'Feed', 'Status', 'Last sync', 'Error'],
             (status.sync || []).flatMap(src => (src.feeds && src.feeds.length ? src.feeds : [{ type: '–', status: 'never synced' }]).map(f => [
                 `${e(src.name)}${src.enabled ? '' : ' <span class="setting-hint">(disabled)</span>'}`, e(src.type), e(f.type), e(f.status || '–'),
@@ -323,14 +423,14 @@ class StatusPage {
         // Disk
         const disk = status.disk || {};
         const diskRow = (name, d) => [e(name), d && d.available ? this.bytes(d.freeBytes) : 'unavailable', d && d.available ? this.bytes(d.totalBytes) : '–'];
-        out.push(this.section('Disk', this.table(['Volume', 'Free', 'Size'],
+        add('disk', this.section('Disk', this.table(['Volume', 'Free', 'Size'],
             [diskRow('Transcode cache', disk.transcodeCache), diskRow('Recordings', disk.recordings)], '')));
 
         // Build
         const b = status.build || {};
-        out.push(this.section('Build', `<p class="setting-hint">${e(b.display || '')}${b.builtAt ? ` · built ${e(new Date(b.builtAt).toLocaleString())}` : ''}</p>`));
+        add('build', this.section('Build', `<p class="setting-hint">${e(b.display || '')}${b.builtAt ? ` · built ${e(new Date(b.builtAt).toLocaleString())}` : ''}</p>`));
 
-        return out.join('');
+        return out;
     }
 }
 

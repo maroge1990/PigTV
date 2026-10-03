@@ -8,6 +8,8 @@ const syncService = require('./services/syncService');
 // Initialize database
 require('./db');
 
+require('./services/loopDelay').start(); // R16: event-loop lateness for the Status page
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 

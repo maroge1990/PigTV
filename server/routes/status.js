@@ -276,13 +276,37 @@ function providersStatus(settings = {}) {
     }
 }
 
+/** R16: each provider's connections with what each is for. A new purpose string (e.g. 'warm') just flows through. */
+function connectionUse(providers) {
+    const out = {};
+    try {
+        const sessions = streamCoordinator.activeStreams();
+        for (const s of sessions) {
+            const id = s.providerId;
+            if (id === null || id === undefined) continue;
+            const purpose = String(transcodeSession.peekSession(s.id)?.purpose || (s.warm ? 'warm' : s.standby ? 'standby' : 'viewer')).slice(0, 24);
+            (out[id] ||= []).push({ purpose, channel: transcodeSession.peekSession(s.id)?.options?.channelName || null, ageSec: Math.round((Date.now() - s.startTime) / 1000) });
+        }
+        for (const r of recordingEngine.listActive()) {
+            const id = r.providerId !== undefined ? r.providerId : (r.source_id ?? null);
+            if (id === null || id === undefined) continue;
+            (out[Number(id)] ||= []).push({ purpose: 'recording', channel: r.channel_name || null, ageSec: null });
+        }
+    } catch (e) { /* the table just stays empty */ }
+    return providers.map(p => ({ ...p, uses: out[p.id] || [] }));
+}
+
+function preparationQueue() {
+    try { return recordingEngine.nativeQueueStatus(); } catch (e) { return null; }
+}
+
 router.get('/', async (req, res) => {
     try {
         const settings = await db.settings.get();
         const status = {
             generatedAt: Date.now(),
             build: require('../version'),
-            providers: providersStatus(settings),
+            providers: connectionUse(providersStatus(settings)),
             sessions: liveSessions(),
             recordings: recordings(),
             recentProblems: recentProblems(),
@@ -302,6 +326,9 @@ router.get('/', async (req, res) => {
             // R09: the sport event list's builds (on a worker thread): count, last build time, the
             // worst event-loop stall seen during it, and how long the served list has been stale.
             sportEvents: require('../services/sportsEvents').status(),
+            // R16: the recording preparation queue (0193), and the server's own event-loop lateness.
+            preparation: preparationQueue(),
+            loopDelay: require('../services/loopDelay').summary(),
             sync: await syncStatus(),
             disk: {
                 transcodeCache: diskAt(transcodeSession.CACHE_DIR),

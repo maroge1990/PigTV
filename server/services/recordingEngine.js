@@ -1183,6 +1183,17 @@ async function processNativeQueue(now = Date.now()) {
     }
 }
 
+/** R16: the preparation queue for the Status page: counts by state and the recording being prepared now. */
+function nativeQueueStatus() {
+    const summary = recordingsDb.nativeQueueSummary();
+    let current = null;
+    if (preparingNativeId !== null) {
+        const rec = recordingsDb.getById(preparingNativeId);
+        current = { id: preparingNativeId, title: rec?.title || null };
+    }
+    return { ...summary, current, enabled: nativePrepareEnabled() };
+}
+
 function listActive() {
     // 0173: each with the provider whose connection it holds, for the coordinator's
     // pools - the one it was started on, else its schedule's source.
@@ -2364,6 +2375,7 @@ module.exports = {
     processCompressionQueue,
     processAdDetectionQueue,
     processNativeQueue,
+    nativeQueueStatus,
     listRecordings,
     cancelScheduled,
     deleteRecording,
