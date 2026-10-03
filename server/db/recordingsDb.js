@@ -86,6 +86,12 @@ function initSchema() {
         // mid-recording. NULL on recordings made before, and on the tuner's.
         'provider_id INTEGER',
         'part INTEGER',
+        // 0192 (audit R06): preparing a finished recording for the Apple client
+        // ahead of the first Play. null (never queued) | pending | preparing |
+        // ready | failed; the error and the number of attempts made so far.
+        'native_status TEXT',
+        'native_error TEXT',
+        'native_attempts INTEGER DEFAULT 0',
         // 0127, the tuner model: 'hls' for a recording taken from a tuner's segments
         // (its folder, hls_dir, holds index.m3u8 and the segments; file_path is that
         // playlist until the joined MP4 exists). NULL for the .mkv recordings. Added
@@ -371,6 +377,61 @@ const recordings = {
             extra.filePath ?? null,
             id
         );
+    },
+
+    /**
+     * 0192 (audit R06). `attempt` counts a fresh try; `error` is replaced, not kept,
+     * so a recording that succeeds on its second attempt stops showing the first's.
+     */
+    setNativeStatus(id, status, { error = null, attempt = false } = {}) {
+        const db = getDb();
+        initSchema();
+        db.prepare(`
+            UPDATE recordings
+            SET native_status = ?, native_error = ?,
+                native_attempts = COALESCE(native_attempts, 0) + ?
+            WHERE id = ?
+        `).run(status, error, attempt ? 1 : 0, id);
+    },
+
+    /** Waiting to be prepared, the most recently finished first: the likeliest to be watched next. */
+    findPendingNative() {
+        const db = getDb();
+        initSchema();
+        return db.prepare(`
+            SELECT * FROM recordings
+            WHERE status = 'completed' AND native_status = 'pending'
+              AND file_path NOT LIKE '%.m3u8'
+            ORDER BY ended_at DESC
+        `).all();
+    },
+
+    /**
+     * Queue every finished recording that has never been through preparation -
+     * the library recorded before 0192. Returns how many were queued.
+     */
+    queueNativeBackfill() {
+        const db = getDb();
+        initSchema();
+        return db.prepare(`
+            UPDATE recordings SET native_status = 'pending'
+            WHERE status = 'completed' AND native_status IS NULL
+              AND file_path NOT LIKE '%.m3u8'
+        `).run().changes;
+    },
+
+    /**
+     * After a restart nothing is preparing or compressing any more: put what was
+     * mid-way back in the queue. Returns the rows whose compression was cut short,
+     * so the caller can clear away what that encode left behind.
+     */
+    requeueInterrupted() {
+        const db = getDb();
+        initSchema();
+        const compressing = db.prepare(`SELECT * FROM recordings WHERE compress_status = 'running'`).all();
+        db.prepare(`UPDATE recordings SET compress_status = 'pending' WHERE compress_status = 'running'`).run();
+        db.prepare(`UPDATE recordings SET native_status = 'pending' WHERE native_status = 'preparing'`).run();
+        return compressing;
     },
 
     findPendingCompression() {

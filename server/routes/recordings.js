@@ -132,7 +132,9 @@ router.get('/:id/stream', (req, res) => {
         if (!rec || !rec.file_path || !fs.existsSync(rec.file_path)) {
             return res.status(404).json({ error: 'Recording file not found' });
         }
-        serveWithRangeSupport(req, res, rec.file_path, rec.format === 'hls' ? 'video/mp4' : 'video/x-matroska');
+        // 0192: once prepared (audit R06) the recording itself is an MP4.
+        const isMp4 = rec.format === 'hls' || path.extname(rec.file_path).toLowerCase() === '.mp4';
+        serveWithRangeSupport(req, res, rec.file_path, isMp4 ? 'video/mp4' : 'video/x-matroska');
     } catch (err) {
         console.error('[Recordings] Stream error:', err);
         if (!res.headersSent) res.status(500).json({ error: err.message });

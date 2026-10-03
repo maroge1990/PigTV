@@ -41,7 +41,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | CI | Both repos are **public** since 30 Sept (free Actions minutes; history checked for secrets). `gh` is signed in on the MacBook: `gh run view <id> --log-failed`. On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings (fixed 28 Sept):** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (so an SMB share that mounts late or reconnects appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs (schedule #3 failed with "0.0 GB free"). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
 | Shipped through | **0177** (pushed, 30 Sept–1 Oct: multi-provider failover 0168–0177, §6) and app **36**. Round 7 (`docs/TEST-BLOCK.md`) not yet run. Before that: **0167** and app **35**. Rounds 1–4 passed on 0151 + app 31; round 5 (0152–0154 + app 32) passed on 28 Sept apart from the five bugs that started the 28–29 Sept fix run (§6 "Fix run"); round 6 (0166 + app 34, `docs/TEST-BLOCK.md`) passed apart from R6.3 (fixed in 0167) and R6.14 (fixed in app 35), with R6.4–R6.6 and R6.16 still to run. Whether a build is *running* is whatever `/api/version` says. |
-| Next build number | **0193** |
+| Next build number | **0194** |
 | Tests | `npm test`: **790 tests, all pass** (1 Oct, after 0178, on CI; timing tests can fail locally when the Mac is loaded - check `uptime`, rerun, or trust CI; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
@@ -739,6 +739,22 @@ old "0062 an HEVC recording plays on the Apple TV" check was never passed) and M
 re-encoded. Now `-of json`, read by field name, with a 30 s deadline and a 1 MB output cap. `test/recording-codec-probe.test.js`
 generates real H.264/AAC, HEVC and MP2 files and remuxes one; CI now installs ffmpeg so these run there too.
 
+**0193 (3 Oct): recordings are prepared before the first Play, the MP4 replaces the .mkv, and compression can no
+longer delete an original it could not verify (audit R06, R08).** Every finished recording is queued (`native_status`:
+pending → preparing → ready | failed, with `native_error` and `native_attempts`, max 3) and remuxed for the Apple client
+in the background, one at a time, newest first; while a recording is capturing only ones finished in the last day are
+prepared. Play still prepares on demand and shares the same remux. Once the MP4 checks out against the original (length
+within 5 %, a video track, audio if the original had it) it is renamed to `<name>.mp4`, the row moves to it, and the
+`.mkv` is deleted. An original whose length cannot be read (an interrupted capture) is kept; the recording still plays.
+At startup the library recorded before 0193 is queued the same way, interrupted jobs are requeued, and an interrupted
+compression's output is removed. Capture is unchanged (MKV: it survives being cut off). Compression now encodes to
+`.compressed.mp4.partial`, publishes only a verified result (both lengths must be known; an unreadable length used to
+pass and, with "keep original" off, deleted the original), moves the row before deleting the original, and playback
+only serves a compressed file once compression says `done`. ffmpeg remuxes and encodes are killed if their output stops
+growing for 10 min. `PIGTV_NATIVE_PREPARE=0` turns the queue off; `PIGTV_KEEP_MKV=1` prepares but keeps originals.
+**Disk:** each recording briefly needs room for a second copy while it is prepared; preparation waits when there isn't.
+Tests `test/recording-prepare.test.js`.
+
 ### Next
 
 **With the next Swift build (app 37):** remove the Siri / App Shortcuts feature from the code (Mark, 2 Oct: it failed on tvOS and he does not want it). Also reword the provider reminder in `PigTV-Swift/PigTV/ProviderReminders.swift`. It still says "update the dates in PigTV's web settings"; since 0182 there are no dates to type (the web banner already says PigTV reads the new date from the provider). Update its test too.
@@ -901,6 +917,8 @@ env vars: they live in SQLite and are edited in the web app's Settings (sources,
 | `PIGTV_TIMESHIFT_DIR` | `<recordings>/.timeshift` | With the tuner: where timeshift segments live. **Recommended `/app/data/timeshift`** (local appdata instead of the recordings share, 0132). Recordings then copy segments instead of hard-linking them. |
 | `PIGTV_TIMESHIFT_MIN_FREE_GB` | `20` | With the tuner: below this much free space the oldest timeshift segments are dropped (never below 90 per tuner). |
 | `PIGTV_LIVE_IDLE_TIMEOUT_SEC` | `300` | A live session nobody has fetched from for this long is removed by the idle sweep (seekable sessions: 30 min, fixed). |
+| `PIGTV_NATIVE_PREPARE` | on | `0`: finished recordings are not prepared in the background; Play prepares on demand, as before 0193. |
+| `PIGTV_KEEP_MKV` | off | `1`: preparation keeps the original `.mkv` beside the prepared MP4 instead of deleting it (0193). |
 | `PIGTV_BLANK_KBPS` | 500 / 250 | A live play whose segments carry less than this (kbps, audio included; 500 from 720p up, 250 below) over its first 20 s is marked **blank** (0191): logged, quarantined on that provider for the next play, health reason `blank`. `0` switches it off. |
 | `PIGTV_STALL_TIMEOUT_MS` | `20000` | The stall watchdog kills an ffmpeg that has written no file for this long (grace before the first output: the larger of this and 30 s). |
 | `PIGTV_TERMINAL_STATUS_TTL_SEC` | `900` | How long a "taken over" record is kept for `GET /api/playback/:id/terminal-status`. |

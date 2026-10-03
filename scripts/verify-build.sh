@@ -969,7 +969,7 @@ fi
 check server/services/recordingEngine.js "const nativeRemuxes = new Map()" "concurrent remuxes of one recording are shared"
 check server/services/recordingEngine.js "fs.renameSync(partial, output)" "output is renamed into place, never written in place"
 check server/services/recordingEngine.js "async function nativeFileIsComplete" "pre-existing truncated files are detected"
-check server/services/recordingEngine.js "compressionTargetPath(rec.file_path)\]" "deleting a recording removes its derived files"
+check server/services/recordingEngine.js "const compressed = compressionTargetPath(rec.file_path);" "deleting a recording removes its derived files"
 check test/native-playback.test.js "share one remux" "native playback has tests"
 
 echo "=== 0063: Body cap + rate limits (P2-7, partial) ==="
@@ -2149,6 +2149,17 @@ check server/services/recordingEngine.js "'-of', 'json', filePath" "codecs are p
 check_absent server/services/recordingEngine.js "const \[type, name\] = line.split(',');" "never by CSV column position"
 check test/recording-codec-probe.test.js "hvc1" "with real-ffmpeg tests"
 check .github/workflows/test.yml "apt-get install -y --no-install-recommends ffmpeg" "CI has ffmpeg, so those tests run"
+
+echo "=== 0193: recordings prepared ahead of Play; verified compression (audit R06, R08) ==="
+check server/services/recordingEngine.js "recordingsDb.setNativeStatus(recordingId, 'pending');" "a finished recording is queued for preparation"
+check server/services/recordingEngine.js "processNativeQueue().catch(" "the tick runs the preparation queue"
+check server/services/recordingEngine.js "const queued = recordingsDb.queueNativeBackfill();" "earlier recordings are queued at startup"
+check server/services/recordingEngine.js "if (check.keepOriginal || keepOriginalCapture())" "an unverifiable original is kept"
+check server/services/recordingEngine.js "const verified = sourceDuration > 0 && newDuration > 0" "compression needs both lengths before trusting a result"
+check_absent server/services/recordingEngine.js "const durationOk = !sourceDuration || !newDuration" "an unreadable length no longer passes verification"
+check server/services/recordingEngine.js "if (rec.compress_status === 'done' && fs.existsSync(compressed)) return compressed;" "playback serves only finished compression"
+check server/db/recordingsDb.js "'native_status TEXT'," "the preparation state is a migrated column"
+check test/recording-prepare.test.js "never deletes the original when the original" "with tests"
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1

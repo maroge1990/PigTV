@@ -407,6 +407,7 @@ function setScheduleStatus(schedule, status, extra = {}) {
 // ---------------------------------------------------------------------------
 
 let compressing = false;
+let compressingId = null; // the recording being compressed, so preparation leaves its files alone
 
 function compressionTargetPath(originalPath) {
     const dir = path.dirname(originalPath);
@@ -478,7 +479,8 @@ function buildCompressArgs(input, output, settings, { forceCqp = false } = {}) {
 
     // Audio is already small; re-encode only to guarantee a browser-safe track.
     args.push('-c:a', 'aac', '-profile:a', 'aac_low', '-b:a', '128k', '-ac', '2');
-    args.push('-movflags', '+faststart', output);
+    // -f is explicit because the output is written under a temporary name.
+    args.push('-movflags', '+faststart', '-f', 'mp4', output);
     return args;
 }
 
@@ -506,51 +508,39 @@ function probeDuration(filePath) {
 async function compressRecording(rec, settings) {
     const input = rec.file_path;
     const output = compressionTargetPath(input);
+    // 0192 (audit R08): encoded under a temporary name and renamed into place only
+    // once verified. The final name is served to the Apple client as soon as it
+    // exists (readyNativePlaybackPath), and ffmpeg used to write it in place, so a
+    // Play during a long encode could be handed a half-written MP4.
+    const partial = `${output}.partial`;
 
     if (!fs.existsSync(input)) {
         recordingsDb.setCompressStatus(rec.id, 'failed', { error: 'Original file is missing' });
         return;
     }
+    try { fs.unlinkSync(partial); } catch (e) { /* none left by an earlier run */ }
 
     const originalSize = fs.statSync(input).size;
-    const sourceDuration = await probeDuration(input);
+    const sourceDuration = await nativeTools.duration(input);
 
     recordingsDb.setCompressStatus(rec.id, 'running', { originalSize });
     console.log(`[Recordings] Compressing #${rec.id} (${(originalSize / 1e9).toFixed(2)} GB)`);
 
-    const runEncode = (opts) => new Promise((resolve) => {
-        const args = buildCompressArgs(input, output, settings, opts);
-        let proc;
-        try {
-            proc = spawn(ffmpegPath, args);
-        } catch (err) {
-            return resolve({ code: -1, tail: [err.message] });
-        }
-        const tail = [];
-        proc.stderr.on('data', d => {
-            for (const line of d.toString().split('\n')) {
-                if (line.trim()) { tail.push(line.trim()); if (tail.length > 20) tail.shift(); }
-            }
-        });
-        proc.on('error', (err) => resolve({ code: -1, tail: [err.message] }));
-        proc.on('close', (c) => resolve({ code: c, tail }));
-    });
-
-    let result = await runEncode({});
+    let result = await nativeTools.ffmpeg(buildCompressArgs(input, partial, settings), { watchFile: partial });
 
     // Some VAAPI drivers implement constant-quantiser rate control only and
     // reject a bitrate target outright. Retry once in CQP rather than leaving
     // the recording uncompressed.
     if (result.code !== 0 && result.tail.some(l => l.includes('RC mode'))) {
         console.log(`[Recordings] Encoder wants constant quality; retrying #${rec.id} in CQP`);
-        try { fs.unlinkSync(output); } catch (e) { /* nothing to clean */ }
-        result = await runEncode({ forceCqp: true });
+        try { fs.unlinkSync(partial); } catch (e) { /* nothing to clean */ }
+        result = await nativeTools.ffmpeg(buildCompressArgs(input, partial, settings, { forceCqp: true }), { watchFile: partial });
     }
 
     const code = result.code;
-    if (code !== 0 || !fs.existsSync(output)) {
+    if (code !== 0 || !fs.existsSync(partial)) {
         console.error(`[Recordings] Compression of #${rec.id} failed:\n  ${result.tail.join('\n  ')}`);
-        try { fs.unlinkSync(output); } catch (e) { /* nothing to clean */ }
+        try { fs.unlinkSync(partial); } catch (e) { /* nothing to clean */ }
         recordingsDb.setCompressStatus(rec.id, 'failed', {
             error: result.tail.slice(-3).join(' | ') || `ffmpeg exited with code ${code}`
         });
@@ -559,14 +549,20 @@ async function compressRecording(rec, settings) {
 
     // Verify before trusting it. A truncated encode is worse than a large file,
     // so the original is only replaced when the result covers the same span.
-    const newDuration = await probeDuration(output);
-    const newSize = fs.statSync(output).size;
-    const durationOk = !sourceDuration || !newDuration || (newDuration >= sourceDuration * 0.95);
+    // 0192 (audit R08): both lengths must actually be known. An unreadable length
+    // used to count as a pass, and with "keep original" off that deleted the
+    // original on the strength of a check that never ran.
+    const newDuration = await nativeTools.duration(partial);
+    const newSize = fs.statSync(partial).size;
+    const verified = sourceDuration > 0 && newDuration > 0 && newDuration >= sourceDuration * 0.95;
 
-    if (!durationOk || newSize < 1024) {
-        try { fs.unlinkSync(output); } catch (e) { /* ignore */ }
+    if (!verified || newSize < 1024) {
+        try { fs.unlinkSync(partial); } catch (e) { /* ignore */ }
+        const unreadable = !(sourceDuration > 0) || !(newDuration > 0);
         recordingsDb.setCompressStatus(rec.id, 'failed', {
-            error: `Result failed verification (${Math.round(newDuration || 0)}s vs ${Math.round(sourceDuration || 0)}s)`
+            error: unreadable
+                ? 'Result could not be verified (a length could not be read); the original is kept'
+                : `Result failed verification (${Math.round(newDuration || 0)}s vs ${Math.round(sourceDuration || 0)}s)`
         });
         return;
     }
@@ -574,11 +570,13 @@ async function compressRecording(rec, settings) {
     if (newSize >= originalSize) {
         // Re-encoding made it bigger, which happens on already-efficient
         // sources. Keep the original and say so.
-        try { fs.unlinkSync(output); } catch (e) { /* ignore */ }
+        try { fs.unlinkSync(partial); } catch (e) { /* ignore */ }
         recordingsDb.setCompressStatus(rec.id, 'skipped', { error: 'Compressed file was no smaller' });
         console.log(`[Recordings] #${rec.id} left as-is; compression saved nothing`);
         return;
     }
+
+    fs.renameSync(partial, output);
 
     if (settings.postRecordKeepOriginal === true) {
         recordingsDb.setCompressStatus(rec.id, 'done', { fileSize: originalSize });
@@ -586,14 +584,15 @@ async function compressRecording(rec, settings) {
         return;
     }
 
+    // The row moves to the new file before the old one goes: a crash in between
+    // leaves a spare original on disk, never a row pointing at nothing.
+    recordingsDb.setCompressStatus(rec.id, 'done', { fileSize: newSize, filePath: output });
     try {
         fs.unlinkSync(input);
     } catch (err) {
-        recordingsDb.setCompressStatus(rec.id, 'failed', { error: `Could not remove original: ${err.message}` });
-        return;
+        console.warn(`[Recordings] #${rec.id} compressed, but the original could not be removed: ${err.message}`);
     }
-
-    recordingsDb.setCompressStatus(rec.id, 'done', { fileSize: newSize, filePath: output });
+    verifiedNativeFiles.delete(input);
     const saved = ((1 - newSize / originalSize) * 100).toFixed(0);
     console.log(`[Recordings] #${rec.id} compressed: ${(originalSize / 1e9).toFixed(2)} GB -> ${(newSize / 1e9).toFixed(2)} GB (${saved}% smaller)`);
 }
@@ -608,6 +607,7 @@ async function compressRecording(rec, settings) {
 // ---------------------------------------------------------------------------
 
 let detecting = false;
+let detectingId = null; // the recording being analysed, so preparation leaves its files alone
 
 async function detectAdsFor(rec, settings) {
     const adDetect = require('./adDetect');
@@ -642,10 +642,12 @@ async function processAdDetectionQueue({ manual = false } = {}) {
     const settings = await getSettings();
     if (!manual && settings.adDetectionEnabled !== true) return;
 
-    const pending = recordingsDb.findPendingAdDetection();
+    // 0192: not the one being prepared - its .mkv is about to be replaced.
+    const pending = recordingsDb.findPendingAdDetection().filter(r => r.id !== preparingNativeId);
     if (pending.length === 0) return;
 
     detecting = true;
+    detectingId = pending[0].id;
     try {
         await detectAdsFor(pending[0], settings);
     } catch (err) {
@@ -653,6 +655,7 @@ async function processAdDetectionQueue({ manual = false } = {}) {
         recordingsDb.setAdDetectStatus(pending[0].id, 'failed', err.message);
     } finally {
         detecting = false;
+        detectingId = null;
     }
 }
 
@@ -663,10 +666,12 @@ async function processCompressionQueue() {
 
     const settings = await getSettings();
 
-    const pending = recordingsDb.findPendingCompression();
+    // 0192: not the one being prepared - its .mkv is about to be replaced.
+    const pending = recordingsDb.findPendingCompression().filter(r => r.id !== preparingNativeId);
     if (pending.length === 0) return;
 
     compressing = true;
+    compressingId = pending[0].id;
     try {
         await compressRecording(pending[0], settings);
     } catch (err) {
@@ -674,6 +679,7 @@ async function processCompressionQueue() {
         recordingsDb.setCompressStatus(pending[0].id, 'failed', { error: err.message });
     } finally {
         compressing = false;
+        compressingId = null;
     }
 }
 
@@ -687,9 +693,9 @@ async function processCompressionQueue() {
 // MP4-family file the way the live pipeline does for the same problem: copy
 // both streams, no re-encode, container change only.
 //
-// On demand rather than a background queue like compression/ad-detection:
-// most recordings are only ever watched once or never, so eagerly remuxing
-// every completed recording would mean processing files nobody asks for.
+// Done ahead of time since 0192 (see "Preparation ahead of the first Play"
+// below): it used to wait for the first Play, which then paid for converting the
+// whole file. Play still prepares on demand when the queue has not got there.
 // ---------------------------------------------------------------------------
 
 // A probe that never returns would stall the native-playback request behind it,
@@ -768,8 +774,11 @@ function readyNativePlaybackPath(rec) {
     const original = rec.file_path;
     if (path.extname(original).toLowerCase() === '.mp4') return original;
 
+    // 0192 (audit R08): only once compression has finished and verified it. The
+    // encode now writes under a temporary name, but a file left in place by an
+    // older version's interrupted encode must not be served either.
     const compressed = compressionTargetPath(original);
-    if (fs.existsSync(compressed)) return compressed;
+    if (rec.compress_status === 'done' && fs.existsSync(compressed)) return compressed;
 
     return null;
 }
@@ -808,7 +817,17 @@ function buildNativeRemuxArgs(input, output, codecs = {}) {
     return args;
 }
 
-function runFfmpegCollectingTail(args) {
+// 0192 (audit R08): how long an ffmpeg writing a file may go without that file
+// growing before it is presumed stuck (a hung SMB read, a wedged decoder) and
+// killed. Generous: +faststart's final pass rewrites the file without growing it.
+const FFMPEG_STALL_MS = 10 * 60 * 1000;
+
+/**
+ * Run ffmpeg, resolving { code, tail } once it exits. With `watchFile`, it is also
+ * killed if that file stops growing for `stallMs`, so one stuck job cannot hold
+ * its queue (and the recording it belongs to) forever.
+ */
+function runFfmpegCollectingTail(args, { watchFile = null, stallMs = FFMPEG_STALL_MS } = {}) {
     return new Promise((resolve) => {
         let proc;
         try {
@@ -817,13 +836,28 @@ function runFfmpegCollectingTail(args) {
             return resolve({ code: -1, tail: [err.message] });
         }
         const tail = [];
+        let watchdog = null;
+        if (watchFile) {
+            let lastSize = -1;
+            let lastGrowth = Date.now();
+            watchdog = setInterval(() => {
+                const size = fileSizeOf(watchFile);
+                if (size > lastSize) { lastSize = size; lastGrowth = Date.now(); return; }
+                if (Date.now() - lastGrowth < stallMs) return;
+                tail.push(`Stopped: ${path.basename(watchFile)} did not grow for ${Math.round(stallMs / 1000)}s`);
+                clearInterval(watchdog);
+                try { proc.kill('SIGKILL'); } catch (e) { /* already gone */ }
+            }, Math.min(30 * 1000, stallMs));
+            if (watchdog.unref) watchdog.unref();
+        }
         proc.stderr.on('data', d => {
             for (const line of d.toString().split('\n')) {
                 if (line.trim()) { tail.push(line.trim()); if (tail.length > 20) tail.shift(); }
             }
         });
-        proc.on('error', (err) => resolve({ code: -1, tail: [err.message] }));
-        proc.on('close', (c) => resolve({ code: c, tail }));
+        const done = (code) => { if (watchdog) clearInterval(watchdog); resolve({ code, tail }); };
+        proc.on('error', (err) => { tail.push(err.message); done(-1); });
+        proc.on('close', (c) => done(c));
     });
 }
 
@@ -960,7 +994,7 @@ async function remuxForNativePlayback(rec, input, output) {
     const args = buildNativeRemuxArgs(input, partial, codecs);
 
     console.log(`[Recordings] Remuxing #${rec.id} for native playback -> ${output}`);
-    const result = await nativeTools.ffmpeg(args);
+    const result = await nativeTools.ffmpeg(args, { watchFile: partial });
 
     if (result.code !== 0 || !fs.existsSync(partial)) {
         try { fs.unlinkSync(partial); } catch (e) { /* nothing to clean */ }
@@ -972,6 +1006,178 @@ async function remuxForNativePlayback(rec, input, output) {
     verifiedNativeFiles.add(output);
     console.log(`[Recordings] #${rec.id} ready for native playback`);
     return output;
+}
+
+// ---------------------------------------------------------------------------
+// Preparation ahead of the first Play (0192, audit R06)
+//
+// The remux above used to wait for someone to press Play, so the first viewing of
+// a fresh recording paid for converting the whole file (a minute or more over
+// SMB). Every finished recording is now queued for it as soon as it completes, and
+// the library recorded before this version is worked through behind it.
+//
+// Once the MP4 is checked against the original (same length, a video track, an
+// audio track if the original had one) it becomes the recording: renamed to
+// "<name>.mp4" beside the .mkv, the row pointed at it, and the .mkv deleted. The
+// MKV capture itself is unchanged - it is what survives a capture being cut off -
+// and an original whose length cannot be read (an interrupted capture has no
+// duration in its header) is kept rather than deleted on an unverifiable check.
+//
+// One at a time. A running recording outranks it: while one is capturing, only
+// recordings finished in the last day are prepared (they are the ones about to be
+// watched), and the backlog waits. Play still prepares on demand at once, sharing
+// the same remux (nativeRemuxes) if the queue already started it.
+//
+// PIGTV_NATIVE_PREPARE=0 turns the queue off (Play prepares on demand, as before);
+// PIGTV_KEEP_MKV=1 prepares but never deletes an original.
+// ---------------------------------------------------------------------------
+
+const NATIVE_MAX_ATTEMPTS = 3;
+const NATIVE_FRESH_MS = 24 * 60 * 60 * 1000;
+let preparingNative = false;
+let preparingNativeId = null; // compression and detection leave this one alone until it is done
+
+function nativePrepareEnabled() {
+    return process.env.PIGTV_NATIVE_PREPARE !== '0';
+}
+
+function keepOriginalCapture() {
+    return /^(1|true|yes|on)$/i.test(String(process.env.PIGTV_KEEP_MKV || '').trim());
+}
+
+/** Where a recording's MP4 lives once it has replaced the .mkv: "<name>.mp4" beside it. */
+function preparedTargetPath(originalPath) {
+    const dir = path.dirname(originalPath);
+    const base = path.basename(originalPath, path.extname(originalPath));
+    return path.join(dir, `${base}.mp4`);
+}
+
+/**
+ * Does `prepared` stand in for `original`? Same length (within 5%), a video track,
+ * and audio if the original has audio. { ok, keepOriginal, reason }: keepOriginal
+ * means it plays but could not be checked against the original, so the original
+ * stays.
+ */
+async function checkPrepared(original, prepared) {
+    const [srcDuration, outDuration, srcCodecs, outCodecs] = await Promise.all([
+        nativeTools.duration(original), nativeTools.duration(prepared),
+        nativeTools.codecs(original), nativeTools.codecs(prepared)
+    ]);
+    if (!(outDuration > 0)) return { ok: false, reason: 'the prepared file has no readable length' };
+    if (!outCodecs.video) return { ok: false, reason: 'the prepared file has no video' };
+    if (srcCodecs.audio && !outCodecs.audio) return { ok: false, reason: 'the prepared file lost the audio' };
+    if (!(srcDuration > 0)) return { ok: true, keepOriginal: true, reason: "the original's length could not be read" };
+    if (outDuration < srcDuration * 0.95) {
+        return { ok: false, reason: `the prepared file is short (${Math.round(outDuration)}s of ${Math.round(srcDuration)}s)` };
+    }
+    return { ok: true, keepOriginal: false };
+}
+
+/**
+ * Make `prepared` the recording: rename it to "<name>.mp4", point the row at it,
+ * then delete the original. The row moves before the original goes, so a crash in
+ * between leaves a spare .mkv, never a row pointing at nothing; a restart finds
+ * "<name>.mp4" already there and finishes the job.
+ */
+function adoptPrepared(rec, prepared) {
+    const original = rec.file_path;
+    let target = preparedTargetPath(original);
+    if (prepared !== target) {
+        if (fs.existsSync(target)) {
+            // Not ours (a stray file of the same name): leave it, keep the .native.mp4 name.
+            target = prepared;
+        } else {
+            fs.renameSync(prepared, target);
+            verifiedNativeFiles.delete(prepared);
+        }
+    }
+    verifiedNativeFiles.add(target);
+    const size = fileSizeOf(target);
+    getDb().prepare('UPDATE recordings SET file_path = ?, file_size_bytes = ? WHERE id = ?').run(target, size || null, rec.id);
+    recordingsDb.setNativeStatus(rec.id, 'ready');
+    try {
+        fs.unlinkSync(original);
+        console.log(`[Recordings] #${rec.id} is now ${path.basename(target)}; the .mkv it was made from is deleted`);
+    } catch (err) {
+        console.warn(`[Recordings] #${rec.id} is now ${path.basename(target)}, but ${path.basename(original)} could not be deleted: ${err.message}`);
+    }
+    verifiedNativeFiles.delete(original);
+}
+
+/** One recording through preparation. Never throws: the outcome is in its row. */
+async function prepareRecording(rec) {
+    const original = rec.file_path;
+    if (!original || !fs.existsSync(original)) {
+        // Possibly a crash after the rename and the row update but before the delete.
+        recordingsDb.setNativeStatus(rec.id, 'failed', { error: 'Recording file is missing' });
+        return;
+    }
+    // Already playable as it is (compressed, or recorded before as MP4): nothing to make.
+    if (path.extname(original).toLowerCase() === '.mp4') {
+        recordingsDb.setNativeStatus(rec.id, 'ready');
+        return;
+    }
+
+    recordingsDb.setNativeStatus(rec.id, 'preparing', { attempt: true });
+    try {
+        // A restart between the rename and the row update leaves "<name>.mp4" made
+        // already; anything else at that name is checked like any other result.
+        const leftover = preparedTargetPath(original);
+        let prepared = fs.existsSync(leftover) && await nativeFileIsComplete(leftover) ? leftover : null;
+        if (!prepared) {
+            const free = getFreeSpaceGB(path.dirname(original));
+            const needGB = fileSizeOf(original) / (1024 ** 3) * 1.05;
+            if (free !== null && free < needGB + 1) {
+                throw new Error(`Not enough free space to prepare it (${free.toFixed(1)} GB free, ${needGB.toFixed(1)} GB needed)`);
+            }
+            prepared = await ensureNativePlayback(rec);
+        }
+        // Compression already made a playable MP4 beside it ("keep original"): it is
+        // served from there and the original is compression's to keep.
+        if (prepared !== nativePlaybackTargetPath(original) && prepared !== leftover) {
+            recordingsDb.setNativeStatus(rec.id, 'ready');
+            return;
+        }
+
+        const check = await checkPrepared(original, prepared);
+        if (!check.ok) {
+            // Not served as if it were the recording: a later Play remuxes afresh.
+            try { fs.unlinkSync(prepared); } catch (e) { /* already gone */ }
+            verifiedNativeFiles.delete(prepared);
+            throw new Error(`Prepared file failed its check: ${check.reason}`);
+        }
+        if (check.keepOriginal || keepOriginalCapture()) {
+            if (check.keepOriginal) console.warn(`[Recordings] #${rec.id} is ready, but its original is kept: ${check.reason}`);
+            recordingsDb.setNativeStatus(rec.id, 'ready', { error: check.keepOriginal ? `Original kept: ${check.reason}` : null });
+            return;
+        }
+        adoptPrepared(recordingsDb.getById(rec.id) || rec, prepared);
+    } catch (err) {
+        const attempts = (recordingsDb.getById(rec.id)?.native_attempts) || 0;
+        const giveUp = attempts >= NATIVE_MAX_ATTEMPTS || err.message === 'Recording file is missing';
+        console.error(`[Recordings] Could not prepare #${rec.id} (attempt ${attempts}): ${err.message}`);
+        recordingsDb.setNativeStatus(rec.id, giveUp ? 'failed' : 'pending', { error: err.message });
+    }
+}
+
+/** The next waiting recording, if any may be prepared now; see the section comment. */
+async function processNativeQueue(now = Date.now()) {
+    if (preparingNative || !nativePrepareEnabled()) return;
+    const pending = recordingsDb.findPendingNative()
+        // Never touch files another job is reading; it is picked up afterwards.
+        .filter(r => r.id !== compressingId && r.id !== detectingId)
+        // Capture first: with a recording running only fresh ones go ahead.
+        .filter(r => active.size === 0 || (r.ended_at && now - r.ended_at < NATIVE_FRESH_MS));
+    if (pending.length === 0) return;
+
+    preparingNative = true;
+    preparingNativeId = pending[0].id;
+    try {
+        await prepareRecording(pending[0]);
+    } finally {
+        preparingNative = false;
+        preparingNativeId = null;
+    }
 }
 
 function listActive() {
@@ -1072,8 +1278,12 @@ async function deleteRecording(id) {
         // remux and, when "keep original" is on, the compressed copy sit beside
         // the .mkv under names built from it; deleting only the .mkv used to
         // orphan them on disk, unlisted and uncounted.
+        // 0192: and, once preparation has replaced the .mkv with "<name>.mp4", an
+        // original it kept, plus any job's temporary output.
         const native = nativePlaybackTargetPath(rec.file_path);
-        for (const file of [rec.file_path, native, `${native}.partial`, compressionTargetPath(rec.file_path)]) {
+        const base = path.join(path.dirname(rec.file_path), path.basename(rec.file_path, path.extname(rec.file_path)));
+        const compressed = compressionTargetPath(rec.file_path);
+        for (const file of new Set([rec.file_path, native, `${native}.partial`, compressed, `${compressed}.partial`, `${base}.mkv`, `${base}.mp4`])) {
             if (!fs.existsSync(file)) continue;
             try { fs.unlinkSync(file); } catch (e) {
                 console.warn('[Recordings] Failed to delete file:', e.message);
@@ -1443,6 +1653,8 @@ function finalizeRecording(scheduledId, recordingId, outputPath, exitCode, stder
             // judgement made after watching, so it waits to be asked for.
             recordingsDb.setAdDetectStatus(recordingId, 'pending');
         } catch (e) { /* columns may be missing on a very old database */ }
+        // 0192 (audit R06): and prepared for the Apple client before anyone asks.
+        recordingsDb.setNativeStatus(recordingId, 'pending');
     }
 }
 
@@ -1561,6 +1773,26 @@ function reconcileOnStartup() {
     const missed = scheduledDb.findMissed(Date.now());
     for (const schedule of missed) {
         setScheduleStatus(schedule.id, 'missed', { error: 'Server was not running when this recording was due.' });
+    }
+}
+
+/**
+ * 0192: jobs cut short by the last stop go back in their queues. An interrupted
+ * encode's output is removed (older versions wrote it in place, so the final name
+ * may hold a truncated file), and the library recorded before preparation existed
+ * is queued for it.
+ */
+function reconcileJobsOnStartup() {
+    for (const rec of recordingsDb.requeueInterrupted()) {
+        if (!rec.file_path) continue;
+        const target = compressionTargetPath(rec.file_path);
+        for (const file of [target, `${target}.partial`]) {
+            try { fs.unlinkSync(file); console.warn(`[Recordings] Removed ${path.basename(file)}, left by an interrupted compression`); } catch (e) { /* none */ }
+        }
+    }
+    if (nativePrepareEnabled()) {
+        const queued = recordingsDb.queueNativeBackfill();
+        if (queued) console.log(`[Recordings] ${queued} earlier recording(s) queued to be prepared for the Apple client`);
     }
 }
 
@@ -1995,6 +2227,8 @@ async function tick() {
             console.error('[Recordings] Break detection queue error:', err.message));
         processCompressionQueue().catch(err =>
             console.error('[Recordings] Compression queue error:', err.message));
+        processNativeQueue().catch(err =>
+            console.error('[Recordings] Preparation queue error:', err.message));
     } catch (err) {
         console.error('[Recordings] Scheduler tick failed:', err);
     } finally {
@@ -2049,6 +2283,7 @@ function init({ ffmpegPath: fp, ffprobePath: pp } = {}) {
     initSchema();
 
     reconcileOnStartup();
+    reconcileJobsOnStartup();
 
     if (tickTimer) clearInterval(tickTimer);
     tickTimer = setInterval(tick, TICK_INTERVAL_MS);
@@ -2097,6 +2332,7 @@ module.exports = {
     stopForViewer,
     processCompressionQueue,
     processAdDetectionQueue,
+    processNativeQueue,
     listRecordings,
     cancelScheduled,
     deleteRecording,
@@ -2117,6 +2353,10 @@ module.exports = {
     getRecordingsRoot,
     // Test seam: stand-ins for the ffmpeg/ffprobe calls behind native playback.
     _nativeTools: nativeTools,
+    // Test seams (0192): one job each, without the queues' timing and settings.
+    _compressRecording: compressRecording,
+    _prepareRecording: prepareRecording,
+    _reconcileJobsOnStartup: reconcileJobsOnStartup,
     // Test seam (0177): the failover timings, so a test need not wait them out.
     _failoverTuning: failoverTuning
 };
