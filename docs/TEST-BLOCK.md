@@ -52,17 +52,17 @@ the hand-typed dates). R7.6–R7.13 and R7.15 are unchanged and repeated here in
 - [x] F5 Midweek re-airings of last weekend's grand prix show as replays, not in Live sport.
 
 **L. In-stream recovery and the hot standby (0189; experimental, `docs/STANDBY-BRIEF.md`)**
-Turn on: Unraid → Docker → PigTV → Edit → add `PIGTV_RELAY` = `1` (and for L4–L7 also `PIGTV_STANDBY` = `1`) → Apply.
+Turn on: Settings → Transcoding → Stream recovery → **In-stream recovery** (and for L4–L7 also **Hot standby**). A switch applies to channels played after it is changed; start the channel again after turning it on.
 Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "\[Relay|failover|Coordinator"`
 - [ ] L0 Before turning anything on, note Status → Interruptions after a few normal days: the baseline.
-- [ ] L1 Relay on, normal viewing for an evening on the Apple TV and the web: nothing is different. Status → Live sessions says "In-stream recovery is on".
+- [ ] L1 Turn on **In-stream recovery** in Settings → Transcoding, then normal viewing for an evening on the Apple TV and the web: nothing is different. Status → Live sessions says "In-stream recovery is on" and lists each followed stream (state `playing`).
 - [ ] L2 **Cold switch**: play a linked channel, then break Strong8K's playlist address on its card (as D3/D4). The picture freezes ~20–30 s and carries on **without** the player restarting or an error; log: `[Relay …] Strong8K … switching` then `now on <backup> after N s`. Interruptions shows the row with "Back in N s (on <backup>)".
 - [ ] L3 The same on the **iPad** and the **web**. If any player shows an error or restarts instead, note which.
-- [ ] L4 **Standby**: with `PIGTV_STANDBY=1`, play a linked channel for a minute. Status: "standby on <backup> (ready)", and Providers shows that backup's connection in use.
+- [ ] L4 **Standby**: turn on **Hot standby** in Settings → Transcoding (it is greyed out until In-stream recovery is on), then play a linked channel for a minute. Status: the stream's state is `standby-ready` and Standby shows <backup> (ready), and Providers shows that backup's connection in use.
 - [ ] L5 Break Strong8K again: the picture carries on after ~10 s, with a jump or a few seconds repeated. Log: `wrote nothing for 10 s; switching`, `now on <backup> after 0.0 s`.
 - [ ] L6 **Giving way**: with a standby running, play another channel on a second device, or let a recording start: it gets the backup's connection with **no prompt**; log `standby on … gone: its connection was needed`. The first device keeps playing.
 - [ ] L7 Change channel a few times quickly with the standby on: each old relay ends (`[Relay …] ended`), no stray streams left on Status after a minute.
-- [ ] L8 Roll back: remove both variables → Apply. Everything as before.
+- [ ] L8 Roll back: turn **Hot standby** and **In-stream recovery** off in Settings → Transcoding. New plays are as before; a stream already playing finishes as it was.
 
 **M. Reconnect loop and blank pictures (0191)**
 Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "Timestamps looping|Blank picture|blank picture|Relay|lost .* mid-play"`

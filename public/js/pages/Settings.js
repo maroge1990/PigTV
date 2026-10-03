@@ -63,6 +63,12 @@ class SettingsPage {
         };
         bind('setting-vaapi-hw-decode', 'vaapiHwDecode');
         bind('setting-vaapi-cpu-scale', 'vaapiCpuScale');
+        // R12: the standby only works while recovery is on, so its switch is greyed out otherwise.
+        const relay = document.getElementById('setting-relay-enabled');
+        const standby = document.getElementById('setting-standby-enabled');
+        bind('setting-relay-enabled', 'relayEnabled');
+        bind('setting-standby-enabled', 'standbyEnabled');
+        relay?.addEventListener('change', () => { if (standby) standby.disabled = !relay.checked; });
     }
 
     async loadHwDecodeSettings() {
@@ -73,6 +79,13 @@ class SettingsPage {
             hw.checked = s.vaapiHwDecode !== false;
             const cpu = document.getElementById('setting-vaapi-cpu-scale');
             if (cpu) cpu.checked = s.vaapiCpuScale !== false;
+            const relay = document.getElementById('setting-relay-enabled');
+            const standby = document.getElementById('setting-standby-enabled');
+            if (relay) relay.checked = s.relayEnabled === true;
+            if (standby) {
+                standby.checked = s.standbyEnabled === true;
+                standby.disabled = s.relayEnabled !== true;
+            }
         } catch (err) {
             console.error('Failed to load hardware decode settings:', err);
         }

@@ -42,6 +42,10 @@ function table() {
             );
             CREATE INDEX IF NOT EXISTS idx_playback_interruptions_at ON playback_interruptions(at);
         `);
+        // R12: why the relay switched (lost | stalled | timestamps ...); rows from before have none.
+        if (!db.prepare('PRAGMA table_info(playback_interruptions)').all().some(c => c.name === 'reason')) {
+            db.exec('ALTER TABLE playback_interruptions ADD COLUMN reason TEXT');
+        }
         ready = true;
     }
     return db;
@@ -50,14 +54,14 @@ function table() {
 const text = (v, max) => (v === null || v === undefined ? null : String(v).replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, '[url removed]').slice(0, max));
 
 /** A playing session was lost. Never throws: this is observation only. */
-function noteLost({ owner = null, channel = null, provider = null, how = 'exit', providerReason = false, playedSec = null } = {}, now = Date.now()) {
+function noteLost({ owner = null, channel = null, provider = null, how = 'exit', providerReason = false, playedSec = null, reason = null } = {}, now = Date.now()) {
     try {
         const db = table();
         db.prepare('DELETE FROM playback_interruptions WHERE at < ?').run(now - KEEP_MS);
-        db.prepare(`INSERT INTO playback_interruptions (at, owner, channel, provider, how, provider_reason, played_sec)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)`)
+        db.prepare(`INSERT INTO playback_interruptions (at, owner, channel, provider, how, provider_reason, played_sec, reason)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
             .run(now, text(owner, 60), text(channel, 120), text(provider, 60), how === 'stall' || how === 'timestamps' ? how : 'exit',
-                providerReason ? 1 : 0, Number.isFinite(playedSec) ? playedSec : null);
+                providerReason ? 1 : 0, Number.isFinite(playedSec) ? playedSec : null, text(reason, 40));
     } catch (err) {
         console.warn('[Interruptions] could not record a lost stream:', err.message);
     }
@@ -87,7 +91,7 @@ const median = (list) => {
 /** The last 7 days, for the Status page. */
 function summary(now = Date.now()) {
     const db = table();
-    const rows = db.prepare(`SELECT at, channel, provider, how, provider_reason, played_sec, recovered_at, recovered_provider
+    const rows = db.prepare(`SELECT at, channel, provider, how, provider_reason, played_sec, reason, recovered_at, recovered_provider
                              FROM playback_interruptions WHERE at >= ? ORDER BY at DESC`).all(now - WINDOW_MS);
     const recoverSecs = rows.filter(r => r.recovered_at).map(r => (r.recovered_at - r.at) / 1000);
     let watchedSec = 0;
@@ -106,7 +110,7 @@ function summary(now = Date.now()) {
         perHour: hours >= 1 ? Math.round((rows.length / hours) * 100) / 100 : null,
         recent: rows.slice(0, 15).map(r => ({
             at: r.at, channel: r.channel, provider: r.provider, how: r.how, providerReason: r.provider_reason === 1,
-            playedSec: r.played_sec,
+            playedSec: r.played_sec, reason: r.reason || null,
             recoverSec: r.recovered_at ? Math.round((r.recovered_at - r.at) / 100) / 10 : null,
             recoveredProvider: r.recovered_provider
         }))

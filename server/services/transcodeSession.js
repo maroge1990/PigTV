@@ -69,7 +69,7 @@ const DTS_DELTA_THRESHOLD_SEC = (() => {
 // bench clean on it, so the loop comes from the reconnect, not the feed or the flags.
 // So: within TS_LOOP_AFTER_RECONNECT_MS of a reconnect, TS_LOOP_LINES timestamp
 // warnings inside TS_LOOP_WINDOW_MS end the session as lost (how 'timestamps').
-// The relay (PIGTV_RELAY) then starts a fresh ffmpeg behind an EXT-X-DISCONTINUITY;
+// The relay (relayEnabled) then starts a fresh ffmpeg behind an EXT-X-DISCONTINUITY;
 // without it the player re-resolves - either way a clean timeline, seconds instead
 // of minutes of drift. A single rebase logs a handful of lines and is left alone.
 const TS_LOOP_WINDOW_MS = 10000;

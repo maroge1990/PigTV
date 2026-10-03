@@ -30,7 +30,7 @@ transcodeSession.startCleanupInterval();
 const tuner = require('../services/tuner');
 if (tuner.enabled()) tuner.startSweep();
 
-// In-stream recovery (PIGTV_RELAY=1, 0189): a relay answers for the id of the session it
+// In-stream recovery (relayEnabled, 0189): a relay answers for the id of the session it
 // started with, across every ffmpeg that has carried the stream since.
 const relay = require('../services/streamRelay');
 

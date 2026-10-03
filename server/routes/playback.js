@@ -306,12 +306,13 @@ router.post('/resolve', requireToken, async (req, res) => {
             if (played && typeof played.once === 'function') {
                 played.once('lost', ({ how, providerReason } = {}) => interruptions.noteLost({
                     owner, channel: channelLabel, provider: providerLabel, how, providerReason,
+                    reason: how === 'stall' ? 'stalled' : how === 'timestamps' ? 'timestamps' : 'lost',
                     playedSec: played.startTime ? (Date.now() - played.startTime) / 1000 : null
                 }));
                 // 0191: a blank or placeholder picture marks this attempt's health row
                 // (providerRouting.watchSession quarantines the channel on the provider).
                 played.once('blank', () => channelHealth.sessionBlank(owner));
-                // 0189 (PIGTV_RELAY=1): keep this stream going across a lost provider. A
+                // 0189 (relayEnabled): keep this stream going across a lost provider. A
                 // channel play only; off, adopt() does nothing.
                 if (routing && live) {
                     require('../services/streamRelay').adopt(played, {

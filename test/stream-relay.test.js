@@ -69,15 +69,14 @@ function write(s, first, last, { ended = false, duration = 4 } = {}) {
 }
 const A = { providerId: 1, providerName: 'Strong8K', role: 'primary', via: 'primary', url: 'http://a.invalid/1.ts', channelKey: 'k' };
 const B = { providerId: 2, providerName: 'Dream4K', role: 'backup', via: 'backup', url: 'http://b.invalid/9.ts', channelKey: '9' };
-const ctx = (extra = {}) => ({ sourceId: 1, channelId: 'pos_1', capabilities: { fmp4: true }, settings: { maxProviderStreams: 5 }, ffprobePath: 'ffprobe',
+const withStandby = { maxProviderStreams: 5, relayEnabled: true, standbyEnabled: true };
+const ctx = (extra = {}) => ({ sourceId: 1, channelId: 'pos_1', capabilities: { fmp4: true }, settings: { maxProviderStreams: 5, relayEnabled: true }, ffprobePath: 'ffprobe',
     owner: 'device:tv', channelName: 'Fox Footy', primaryKey: 'k', candidate: A, ...extra });
 const silently = async (fn) => { const log = console.log, warn = console.warn; console.log = console.warn = () => {}; try { return await fn(); } finally { console.log = log; console.warn = warn; } };
 const segs = (text) => text.split('\n').filter(l => l && !l.startsWith('#'));
 
 beforeEach(async () => {
     await silently(() => relay.closeAll());
-    process.env.PIGTV_RELAY = '1';
-    delete process.env.PIGTV_STANDBY;
     registry.clear();
     quarantined = []; started = [];
     interruptions.reset();
@@ -98,14 +97,130 @@ beforeEach(async () => {
 });
 
 test('off by default: nothing is adopted, and the session routes see no relay', () => {
-    delete process.env.PIGTV_RELAY;
+    const db = fs.readFileSync(path.join(sandbox, 'server/db.js'), 'utf8');
+    assert.match(db, /relayEnabled: false,/);
+    assert.match(db, /standbyEnabled: false,/);
     const s = fakeSession();
-    assert.equal(relay.adopt(s, ctx()), null);
+    for (const settings of [{}, undefined, { relayEnabled: false }, { standbyEnabled: true }]) {
+        assert.equal(relay.adopt(s, ctx({ settings })), null);
+    }
     assert.equal(relay.get(s.id), null);
     assert.equal(s.retainDir, undefined, 'the session is untouched');
-    process.env.PIGTV_STANDBY = '1';
-    assert.equal(relay.standbyEnabled(), false, 'the standby needs the relay');
+    assert.equal(relay.standbyEnabled({ relayEnabled: false, standbyEnabled: true }), false, 'the standby needs the relay');
+    assert.deepEqual(relay.modeOf({ relayEnabled: true, standbyEnabled: true }), { enabled: true, standby: true });
     assert.equal(relay.adopt(s, { ...ctx(), sourceId: undefined }), null, 'a bare-url play is never adopted');
+});
+
+test('turning recovery on in Settings applies to the next play; turning it off leaves a running relay alone', async () => {
+    const settings = { maxProviderStreams: 5, relayEnabled: false };
+    const s1 = fakeSession();
+    write(s1, 0, 1);
+    assert.equal(relay.adopt(s1, ctx({ settings })), null, 'off: the play is not followed');
+    registry.delete(s1.id); // that play is over
+    const on = { ...settings, relayEnabled: true };
+    const s2 = fakeSession();
+    write(s2, 0, 1);
+    const r = await silently(() => relay.adopt(s2, ctx({ settings: on })));
+    assert.ok(r, 'on: the next play is followed, no restart');
+    // The admin turns it off; the settings object the next play sees has no relay, this one carries on.
+    const s3 = fakeSession();
+    assert.equal(relay.adopt(s3, ctx({ settings: { ...on, relayEnabled: false } })), null);
+    registry.delete(s3.id); // not a stream of this viewer's for the relay to find
+    quarantined.push('Strong8K');
+    s2.emit('lost', { how: 'exit', providerReason: true });
+    await silently(() => r.tick());
+    assert.equal(r.closed, false, 'the running relay still recovered');
+    assert.equal(r.switches, 1);
+    assert.equal(r.state, 'playing');
+});
+
+test('the standby switch is ignored while recovery is off, and a relay keeps the standby mode it began with', async () => {
+    assert.equal(relay.standbyEnabled({ relayEnabled: false, standbyEnabled: true }), false);
+    assert.equal(relay.adopt(fakeSession(), ctx({ settings: { standbyEnabled: true } })), null);
+    const s = fakeSession();
+    write(s, 0, 1);
+    const plain = await silently(() => relay.adopt(s, ctx()));
+    assert.equal(plain.standbyOn, false, 'recovery on, standby off');
+    plain.standbyAt = 0;
+    await silently(() => plain.tick());
+    assert.equal(plain.startingStandby, false);
+    assert.deepEqual(started, []);
+    const s2 = fakeSession();
+    write(s2, 0, 1);
+    const both = await silently(() => relay.adopt(s2, ctx({ settings: withStandby })));
+    assert.equal(both.standbyOn, true);
+});
+
+test('joinable: another codec, size, frame rate, audio codec or channel count is refused; unknown fields are not', async () => {
+    const front = fakeSession();
+    Object.assign(front.options, { videoCodec: 'h264', audioCodec: 'aac', audioChannels: 2 });
+    write(front, 0, 1);
+    const r = await silently(() => relay.adopt(front, ctx()));
+    const same = (extra) => { const x = fakeSession(); Object.assign(x.options, { videoCodec: 'h264', audioCodec: 'aac', audioChannels: 2 }, extra); return x; };
+    assert.equal(r.joinable(same({})), true);
+    assert.equal(r.joinable(same({ fps: '24000/1001' })), false, '23.976 against 25 fps');
+    assert.equal(r.joinable(same({ fps: '2500/100' })), true, 'the same rate written another way');
+    assert.equal(r.joinable(same({ fps: '24.9' })), true, 'within 1%');
+    assert.equal(r.joinable(same({ videoCodec: 'hevc' })), false);
+    assert.equal(r.joinable(same({ width: 1920, height: 1080 })), false);
+    assert.equal(r.joinable(same({ audioCodec: 'ac3' })), false);
+    assert.equal(r.joinable(same({ audioChannels: 6 })), false);
+    assert.equal(r.joinable(same({ videoCodec: undefined, width: 0, height: 0, fps: undefined, audioCodec: undefined, audioChannels: undefined })), true, 'unknown counts as compatible');
+});
+
+test('a standby that cannot join is refused as standby-incompatible, its provider marked unusable, and Status says so', async () => {
+    const samePool = coordinator.samePool, free = coordinator.hasFreeConnection;
+    coordinator.samePool = (a, b) => a === b;
+    coordinator.hasFreeConnection = () => true;
+    const resolve = strategy.resolve;
+    try {
+        const s = fakeSession();
+        write(s, 0, 2);
+        const r = await silently(() => relay.adopt(s, ctx({ settings: withStandby })));
+        strategy.resolve = async (opts) => { const x = fakeSession({ providerId: opts.providerId, owner: opts.owner, standby: true });
+            x.options.height = 1080; x.options.width = 1920; write(x, 0, 1); return { strategy: 'transcode', sessionId: x.id }; };
+        r.standbyAt = 0;
+        await silently(() => r.tick());
+        await new Promise(res => setTimeout(res, 30));
+        assert.equal(r.standby, null);
+        assert.ok(r.unusable.has(2));
+        assert.equal(r.lastReason.code, 'standby-incompatible');
+        assert.match(r.lastReason.detail, /1920x1080/);
+        assert.equal(registry.size, 1, 'the refused feed is stopped');
+        const shown = relay.list().find(x => x.id === s.id);
+        assert.equal(shown.lastReason.code, 'standby-incompatible');
+        assert.equal(shown.standbyMode, true);
+        const ev = load('services/playbackEvents').recent().find(e => e.type === 'relay');
+        assert.match(ev.reason, /^standby-incompatible:/);
+    } finally {
+        strategy.resolve = resolve;
+        coordinator.samePool = samePool; coordinator.hasFreeConnection = free;
+    }
+});
+
+test('status shows each stream\'s state and the reason code, in Status and in Interruptions', async () => {
+    const s = fakeSession();
+    write(s, 0, 2);
+    const r = await silently(() => relay.adopt(s, ctx()));
+    assert.equal(relay.list()[0].state, 'starting');
+    await silently(() => r.tick());
+    assert.equal(relay.list()[0].state, 'playing');
+    assert.equal(relay.list()[0].lastReason, null);
+    quarantined.push('Strong8K');
+    s.emit('lost', { how: 'stall', providerReason: true });
+    await silently(() => r.tick());
+    const shown = relay.list()[0];
+    assert.deepEqual([shown.state, shown.switches, shown.provider, shown.lastReason.code], ['playing', 1, 'Dream4K', 'stalled']);
+    assert.ok(shown.lastReason.at > 0);
+    // Nothing left to take over: the stream ends and stays on the page as failed.
+    strategy.resolve = async () => { throw new Error('nope'); };
+    r.active.session.emit('lost', { how: 'exit', providerReason: true });
+    await silently(() => r.tick());
+    assert.equal(r.closed, true);
+    const failed = relay.list().find(x => x.id === s.id);
+    assert.deepEqual([failed.state, failed.lastReason.code], ['failed', 'no-candidate']);
+    // Leg 0's loss is the resolve route's row; this later leg's is the relay's, with the reason.
+    assert.equal(interruptions.summary().recent[0].reason, 'lost');
 });
 
 test('before anything goes wrong the playlist is ffmpeg\'s own file, less an ENDLIST', async () => {
@@ -177,7 +292,7 @@ test('the window slides: media sequence continues, a join that leaves the list i
     assert.match(text, /#EXT-X-DISCONTINUITY-SEQUENCE:1\n/);
     assert.ok(!text.includes('#EXT-X-DISCONTINUITY\n'), 'the join itself is no longer in the list');
     assert.equal(segs(text)[0], 'L1-seg0006.m4s');
-    await new Promise(res => setTimeout(res, 50));
+    for (let i = 0; i < 40 && fs.existsSync(s.dir); i++) await new Promise(res => setTimeout(res, 50)); // removed in the background
     assert.equal(fs.existsSync(s.dir), false, 'leg 0 has nothing listed: its folder is removed');
     assert.equal(await r.getSegment('seg0001.m4s'), null);
 });
@@ -226,7 +341,6 @@ test('the play ends with its stream: stopped on request, DELETE, or the viewer w
 });
 
 test('standby: started on another provider with a free connection, joined on at once when the playing leg goes quiet', async () => {
-    process.env.PIGTV_STANDBY = '1';
     process.env.PIGTV_RELAY_SWITCH_MS = '3000';
     const samePool = coordinator.samePool, free = coordinator.hasFreeConnection;
     coordinator.samePool = (a, b) => a === b;
@@ -234,7 +348,7 @@ test('standby: started on another provider with a free connection, joined on at 
     try {
         const s = fakeSession();
         write(s, 0, 5);
-        const r = await silently(() => relay.adopt(s, ctx()));
+        const r = await silently(() => relay.adopt(s, ctx({ settings: withStandby })));
         await silently(() => r.tick());
         assert.equal(r.standby, null, 'not in the first 20 s of a play');
         r.standbyAt = 0;
@@ -269,14 +383,13 @@ test('standby: started on another provider with a free connection, joined on at 
 });
 
 test('standby: when its connection is taken the relay carries on without it', async () => {
-    process.env.PIGTV_STANDBY = '1';
     const samePool = coordinator.samePool, free = coordinator.hasFreeConnection;
     coordinator.samePool = (a, b) => a === b;
     coordinator.hasFreeConnection = () => true;
     try {
         const s = fakeSession();
         write(s, 0, 2);
-        const r = await silently(() => relay.adopt(s, ctx()));
+        const r = await silently(() => relay.adopt(s, ctx({ settings: withStandby })));
         r.standbyAt = 0;
         await silently(() => r.tick());
         await new Promise(res => setTimeout(res, 20));

@@ -14,8 +14,10 @@ answers 404, the client re-resolves and starts cold (5–10 s). The same path is
 
 | Switch | What it does |
 |---|---|
-| `PIGTV_RELAY=1` | **In-stream recovery.** When the playing stream is lost, the server starts the channel again (the next provider that has it, or the same one) and continues the *same* HLS stream after an `EXT-X-DISCONTINUITY`. The player keeps its URL and never re-resolves. |
-| `PIGTV_STANDBY=1` (needs the relay) | **Hot standby.** While a linked channel plays, a second copy of it runs on a backup provider, unseen. When the playing one stops producing for `PIGTV_RELAY_SWITCH_MS` (10 s), the standby is spliced in at once. |
+| Settings → Transcoding → **In-stream recovery** (`relayEnabled`, off) | **In-stream recovery.** When the playing stream is lost, the server starts the channel again (the next provider that has it, or the same one) and continues the *same* HLS stream after an `EXT-X-DISCONTINUITY`. The player keeps its URL and never re-resolves. |
+| Settings → Transcoding → **Hot standby** (`standbyEnabled`, off; needs In-stream recovery, greyed out otherwise) | **Hot standby.** While a linked channel plays, a second copy of it runs on a backup provider, unseen. When the playing one stops producing for `PIGTV_RELAY_SWITCH_MS` (10 s), the standby is spliced in at once. |
+
+A switch applies to plays started after it is changed: a stream already running keeps the mode it began with, so turning recovery off never breaks a running relay. `PIGTV_RELAY_SWITCH_MS` stays an environment variable (tuning, not a switch). Status shows each followed stream's state (`starting`, `playing`, `switching`, `standby-starting`, `standby-ready`, `promoted`, `reclaimed`, `failed`) and the last reason code (`lost`, `stalled`, `timestamps`, `blank`, `standby-incompatible`, `standby-reclaimed`, `no-candidate`); the reasons also appear in Interruptions and Recent plays. A feed joins a stream only if segment type, video range, video codec, frame size, frame rate (within 1%) and audio codec and channels match; a field unknown on either side counts as matching.
 
 Neither applies with the tuner on (`PIGTV_TUNER=1`), to a bare-URL play, or to a direct play.
 
@@ -66,4 +68,4 @@ counted toward its breaker exactly as a lost session is today.
 
 ## Rollback
 
-Remove `PIGTV_RELAY` (and `PIGTV_STANDBY`) and restart. Nothing is stored.
+Turn both switches off in Settings → Transcoding. New plays are no longer followed; running ones finish as they were. Nothing else is stored.

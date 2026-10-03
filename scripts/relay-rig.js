@@ -21,8 +21,6 @@ fsSync.cpSync(pathMod.join(repo, 'server'), pathMod.join(sandbox, 'server'), { r
 fsSync.cpSync(pathMod.join(repo, 'package.json'), pathMod.join(sandbox, 'package.json'));
 fsSync.symlinkSync(pathMod.join(repo, 'node_modules'), pathMod.join(sandbox, 'node_modules'), 'junction');
 process.on('exit', () => { try { fsSync.rmSync(sandbox, { recursive: true, force: true }); } catch (e) { /* left to the OS */ } });
-process.env.PIGTV_RELAY = '1';
-if (process.argv.includes('standby')) process.env.PIGTV_STANDBY = '1';
 process.env.JWT_SECRET = 'x'.repeat(40);
 const http = require('http');
 const { spawn } = require('child_process');
@@ -61,7 +59,8 @@ const provider = http.createServer((req, res) => {
     const server = app.listen(0, '127.0.0.1');
     await new Promise(r => server.once('listening', r));
     const base = `http://127.0.0.1:${server.address().port}`;
-    const settings = { ffmpegPath: 'ffmpeg', hwEncoder: 'software' };
+    // R12: the Settings switches, not environment variables.
+    const settings = { ffmpegPath: 'ffmpeg', hwEncoder: 'software', relayEnabled: true, standbyEnabled: process.argv.includes('standby') };
     const caps = { hls: true, fmp4: process.argv.includes('ts') ? false : true };
     const decision = await strategy.resolve({ url: A.url, capabilities: caps, settings, ffprobePath: 'ffprobe', owner: 'device:tv', live: true, providerId: 1 });
     console.log('DECISION', decision.strategy, decision.url, decision.videoMode);

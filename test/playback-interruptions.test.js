@@ -36,7 +36,7 @@ test('a loss is closed by the same viewer\'s next resolve of the same channel, w
     assert.equal(s.count, 1); assert.equal(s.recovered, 1);
     assert.equal(s.medianRecoverSec, 31); assert.equal(s.worstRecoverSec, 31);
     assert.deepEqual(s.recent[0], { at: NOW, channel: 'Fox Footy', provider: 'Strong8K', how: 'stall', providerReason: true,
-        playedSec: 1800, recoverSec: 31, recoveredProvider: 'Dream4K' });
+        playedSec: 1800, reason: null, recoverSec: 31, recoveredProvider: 'Dream4K' });
     // A later resolve does not move a recovery that is already recorded.
     ix.noteResolved({ owner: 'device:tv', channel: 'Fox Footy', provider: 'Trex' }, NOW + 90000);
     assert.equal(ix.summary(NOW + 2 * MIN).recent[0].recoveredProvider, 'Dream4K');

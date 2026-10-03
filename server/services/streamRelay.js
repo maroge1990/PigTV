@@ -1,6 +1,9 @@
 /**
  * In-stream recovery and the hot standby (0189; docs/STANDBY-BRIEF.md). Experimental, off
- * unless PIGTV_RELAY=1 (and PIGTV_STANDBY=1 for the standby).
+ * unless the admin Settings switch `relayEnabled` is on (and `standbyEnabled` for the standby,
+ * which only counts while recovery is on). R12: a switch applies to plays that START after
+ * it is changed; a relay keeps the mode it began with, so turning recovery off never breaks
+ * a stream that is already being followed.
  *
  * A relay keeps one HLS stream going across more than one ffmpeg. It is created for a channel
  * play that produced an HLS session, under that session's id - the id the client holds - and
@@ -25,11 +28,12 @@
 const fs = require('fs').promises;
 const path = require('path');
 const { redact } = require('../redact');
+const { parseFrameRate } = require('./streamProbe');
 const { parseMediaPlaylist, renderMediaPlaylist } = require('./hlsPlaylist');
 
-const on = (name) => /^(1|true|yes)$/i.test(process.env[name] || '');
-const enabled = () => on('PIGTV_RELAY');
-const standbyEnabled = () => enabled() && on('PIGTV_STANDBY');
+// `settings` is the settings object the resolve already holds (db.settings.get()).
+const enabled = (settings) => !!settings && settings.relayEnabled === true;
+const standbyEnabled = (settings) => enabled(settings) && settings.standbyEnabled === true;
 
 const msFromEnv = (name, fallback, min) => {
     const n = Number.parseInt(process.env[name], 10);
@@ -44,9 +48,12 @@ const STANDBY_DELAY_MS = 20000;    // into a play, before a standby is started
 const STANDBY_RETRY_MS = 60000;    // between attempts while there is none
 const STANDBY_TAIL = 2;            // segments of the standby joined on at a switch
 const START_DEADLINE_MS = 20000;   // a leg's probe and first segment
+const FLASH_MS = 60000;            // how long "promoted" / "reclaimed" / a failed standby stay the shown state
+const ENDED_KEEP_MS = 10 * 60 * 1000; // a relay that failed stays on the Status page this long
 const SEGMENT_NAME = /^(seg\d{4,}\.(ts|m4s)|init\.mp4)$/;
 
 const relays = new Map();          // relay id -> Relay
+const failedRelays = [];           // { snapshot, at }: relays that ended because nothing could take over
 const aliases = new Map();         // relay id -> { legId, at }: the last playing leg, kept after the relay ends
 const ALIAS_TTL_MS = 15 * 60 * 1000;
 
@@ -56,6 +63,7 @@ const coordinator = () => require('./streamCoordinator');
 const routing = () => require('./providerRouting');
 const strategy = () => require('./playbackStrategy');
 const interruptions = () => require('./playbackInterruptions');
+const playbackEvents = () => require('./playbackEvents');
 const activeRecordings = () => { try { return require('./recordingEngine').listActive(); } catch (e) { return []; } };
 
 class Relay {
@@ -70,6 +78,8 @@ class Relay {
         this.ctx = ctx;
         this.segmentType = front.options.segmentType;
         this.videoRange = front.options.videoRange || null;
+        this.fingerprint = { videoCodec: front.options.videoCodec, width: front.options.width, height: front.options.height,
+            fps: front.options.fps, audioCodec: front.options.audioCodec, audioChannels: front.options.audioChannels };
         this.master = this.videoRange ? sessionsModule().buildMasterPlaylist(front.options) : null;
         this.legs = [];
         this.entries = [];             // { leg, name, duration, abs, discontinuity }
@@ -83,6 +93,13 @@ class Relay {
         this.standby = null;
         this.startingStandby = false;
         this.unusable = new Set();     // providers whose feed cannot join this stream
+        // R12: decided when the play began and kept for its life (a Settings change is for the next play).
+        this.standbyOn = standbyEnabled(ctx.settings);
+        this.switches = 0;
+        this.failed = false;
+        this.lastReason = null;        // { code, detail, at }
+        this.flash = null;             // { state, until }: a short-lived "promoted" / "reclaimed" / "failed"
+        this.warnedUnknown = new Set();
         const now = Date.now();
         this.lastProgressAt = now;
         this.standbyAt = now + STANDBY_DELAY_MS;
@@ -91,12 +108,51 @@ class Relay {
             this.tick().catch(err => console.warn(`[Relay ${this.id}] tick failed: ${redact(err && err.message)}`));
         }, TICK_MS);
         if (typeof this.timer.unref === 'function') this.timer.unref();
-        this.log(`following "${ctx.channelName || 'channel'}" on ${this.providerOf(this.active)}${standbyEnabled() ? ' (standby on)' : ''}`);
+        this.log(`following "${ctx.channelName || 'channel'}" on ${this.providerOf(this.active)}${this.standbyOn ? ' (standby on)' : ''}`);
+    }
+
+    describe() {
+        return {
+            id: this.id,
+            channel: this.ctx.channelName || null,
+            provider: this.providerOf(this.active),
+            state: this.state,
+            switches: this.switches,
+            standbyMode: this.standbyOn,
+            standby: this.standby ? this.providerOf(this.standby) : null,
+            standbyReady: this.standbyReady(),
+            lastReason: this.lastReason
+        };
     }
 
     log(text) { console.log(`[Relay ${this.id}] ${text}`); }
     providerOf(leg) { return (leg && leg.candidate && leg.candidate.providerName) || 'the provider'; }
     get status() { return this.active.session.status; }
+
+    /** R12: the shown state, one word. A switch or a failure outranks the standby's own progress. */
+    get state() {
+        if (this.failed) return 'failed';
+        if (this.switching) return 'switching';
+        if (!this.active.joined && !this.switches) return 'starting';
+        if (this.flash && Date.now() < this.flash.until) return this.flash.state;
+        if (this.standbyOn && this.standby) return this.standbyReady() ? 'standby-ready' : 'standby-starting';
+        if (this.standbyOn && this.startingStandby) return 'standby-starting';
+        return 'playing';
+    }
+
+    /**
+     * R12: remember why the relay did something (a short code the Status page shows) and add it
+     * to the recent plays. Observation only: it never throws.
+     */
+    note(code, detail, { state = null, provider = null } = {}) {
+        const now = Date.now();
+        this.lastReason = { code, detail: detail || null, at: now };
+        if (state) this.flash = { state, until: now + FLASH_MS };
+        try {
+            playbackEvents().record({ type: 'relay', owner: this.ctx.owner, channel: this.ctx.channelName,
+                provider: provider || this.providerOf(this.active), reason: detail ? `${code}: ${detail}` : code });
+        } catch (e) { /* observation only */ }
+    }
 
     addLeg(session, candidate) {
         const leg = { n: this.legs.length, session, candidate: candidate || {}, dir: session.dir, lastSeq: -1,
@@ -104,6 +160,9 @@ class Relay {
         // Its segments stay listed after its ffmpeg has gone: the relay removes the folder.
         session.retainDir = true;
         session.once('lost', (info) => { leg.lost = info || { how: 'exit', providerReason: false }; });
+        // A blank picture is the provider's problem the stall watchdog does not see: say so (it is
+        // quarantined by providerRouting.watchSession), without acting on it here.
+        session.once('blank', () => { if (leg === this.active) this.note('blank', 'the picture went blank', { provider: this.providerOf(leg) }); });
         this.legs.push(leg);
         return leg;
     }
@@ -240,16 +299,19 @@ class Relay {
         if (this.closed || this.switching) return;
 
         const quietMs = Date.now() - this.lastProgressAt;
-        if (leg.lost) return this.switchOver(leg.lost.how === 'stall' ? 'stopped sending'
-            : leg.lost.how === 'timestamps' ? 'broke its timestamps after a reconnect' : 'ended');
+        if (leg.lost) {
+            return leg.lost.how === 'stall' ? this.switchOver('stopped sending', 'stalled')
+                : leg.lost.how === 'timestamps' ? this.switchOver('broke its timestamps after a reconnect', 'timestamps')
+                    : this.switchOver('ended', 'lost');
+        }
         if (this.standbyReady() && leg.joined && quietMs > switchAfterMs()) {
-            return this.switchOver(`wrote nothing for ${Math.round(quietMs / 1000)} s`);
+            return this.switchOver(`wrote nothing for ${Math.round(quietMs / 1000)} s`, 'stalled');
         }
     }
 
     // ---- switching -----------------------------------------------------------------------
 
-    async switchOver(why) {
+    async switchOver(why, code = 'lost') {
         if (this.switching || this.closed) return;
         this.switching = true;
         const old = this.active;
@@ -257,6 +319,7 @@ class Relay {
         const lostAt = Date.now();
         try {
             this.log(`${this.providerOf(old)} ${why}; switching`);
+            this.note(code, `${this.providerOf(old)} ${why}`, { provider: this.providerOf(old) });
             // What it wrote last (a short final segment) belongs to the stream too.
             await this.ingest();
             // Leg 0's loss is recorded by the resolve route, which listens to its session; a
@@ -264,7 +327,7 @@ class Relay {
             if (!old.lost || old.n > 0) {
                 interruptions().noteLost({ owner: ctx.owner, channel: ctx.channelName, provider: this.providerOf(old),
                     how: old.lost ? old.lost.how : 'stall', providerReason: old.lost ? old.lost.providerReason === true : true,
-                    playedSec: (lostAt - old.startedAt) / 1000 });
+                    playedSec: (lostAt - old.startedAt) / 1000, reason: code });
             }
             // A lost session is quarantined by providerRouting.watchSession; a leg the relay
             // gave up on itself is quarantined here, the same way.
@@ -275,22 +338,27 @@ class Relay {
             if (this.standbyReady()) {
                 // The standby is already running: join it on first, then let the old leg go.
                 next = this.promoteStandby();
+                this.note('promoted', `standby on ${this.providerOf(next)} took over`, { state: 'promoted', provider: this.providerOf(next) });
                 this.retire(old).catch(() => { /* logged in retire */ });
             } else {
                 // Free the lost leg's connection first: the next start may need that very one.
                 // Its folder stays for the segments still listed.
                 await this.retire(old);
                 if (this.closed) return;
-                if (this.standby) await this.dropStandby('not ready when it was needed');
+                if (this.standby) await this.dropStandby('not ready when it was needed', 'stalled');
                 next = await this.startCold();
             }
             if (this.closed) {
                 if (next) await this.retire(next, true);
                 return;
             }
-            if (!next) return this.close('nothing could take over');
+            if (!next) {
+                this.note('no-candidate', 'no provider could take over', { provider: this.providerOf(old) });
+                return this.close('nothing could take over', true);
+            }
 
             this.active = next;
+            this.switches++;
             this.switched = true;
             this.lastProgressAt = Date.now();
             this.standbyAt = Date.now() + STANDBY_DELAY_MS;
@@ -313,9 +381,48 @@ class Relay {
         if (files) this.removeLegFiles(leg);
     }
 
-    /** Can this session's output join the stream the player already has? */
+    /**
+     * Can this session's output join the stream the player already has? Returns '' when it can,
+     * else what differs. Beyond the segment type and the video range (what the player was
+     * told in the master playlist), a player carrying on after an EXT-X-DISCONTINUITY still
+     * needs the same codec, frame size, frame rate and audio layout: a different one stalls
+     * or garbles it. The values are the resolve probe's, kept in session.options; one that is
+     * unknown on either side counts as the same (logged once per field).
+     */
+    incompatibility(session) {
+        const o = session.options;
+        const f = this.fingerprint;
+        const differs = [];
+        if (o.segmentType !== this.segmentType) differs.push(`segments ${o.segmentType}`);
+        if ((o.videoRange || null) !== this.videoRange) differs.push(`range ${o.videoRange || 'SDR'}`);
+        const known = (field, a, b) => {
+            if (a === null || a === undefined || a === '' || b === null || b === undefined || b === '') {
+                if (!this.warnedUnknown.has(field)) {
+                    this.warnedUnknown.add(field);
+                    this.log(`${field} unknown on one side; treated as compatible`);
+                }
+                return false;
+            }
+            return true;
+        };
+        const norm = (v) => String(v).toLowerCase();
+        const alias = (v) => ({ avc: 'h264', hevc: 'h265' })[norm(v)] || norm(v);
+        if (known('video codec', f.videoCodec, o.videoCodec) && alias(f.videoCodec) !== alias(o.videoCodec)) differs.push(`video ${o.videoCodec}`);
+        // 0 is "not recorded" (an encode may scale): only a stream-copy states its size.
+        const size = (w, h) => (w > 0 && h > 0 ? `${w}x${h}` : null);
+        const mine = size(f.width, f.height);
+        const theirs = size(o.width, o.height);
+        if (known('resolution', mine, theirs) && mine !== theirs) differs.push(`size ${theirs}`);
+        const rateA = parseFrameRate(f.fps);
+        const rateB = parseFrameRate(o.fps);
+        if (known('frame rate', rateA, rateB) && Math.abs(rateA - rateB) / Math.max(rateA, rateB) > 0.01) differs.push(`${rateB} fps`);
+        if (known('audio codec', f.audioCodec, o.audioCodec) && norm(f.audioCodec) !== norm(o.audioCodec)) differs.push(`audio ${o.audioCodec}`);
+        if (known('audio channels', f.audioChannels, o.audioChannels) && Number(f.audioChannels) !== Number(o.audioChannels)) differs.push(`${o.audioChannels} audio channels`);
+        return differs.join(', ');
+    }
+
     joinable(session) {
-        return session.options.segmentType === this.segmentType && (session.options.videoRange || null) === this.videoRange;
+        return this.incompatibility(session) === '';
     }
 
     /** Start one candidate as a leg: probe, session, first segment. Null when it cannot be used. */
@@ -347,9 +454,12 @@ class Relay {
         }
         const session = decision && decision.sessionId ? sessionsModule().getSession(decision.sessionId) : null;
         if (!session) return null; // a direct play has no segments to join
-        if (!this.joinable(session)) {
+        const mismatch = this.incompatibility(session);
+        if (mismatch) {
             this.unusable.add(candidate.providerId);
-            this.log(`${candidate.providerName}'s feed cannot join this stream (${session.options.segmentType}${session.options.videoRange ? `, ${session.options.videoRange}` : ''}); not used`);
+            this.log(`${candidate.providerName}'s feed cannot join this stream (${mismatch}); not used`);
+            this.note(standby ? 'standby-incompatible' : 'incompatible', `${candidate.providerName}: ${mismatch}`,
+                standby ? { state: 'failed', provider: candidate.providerName } : { provider: candidate.providerName });
             await sessionsModule().removeSession(session.id);
             return null;
         }
@@ -397,8 +507,8 @@ class Relay {
     async tendStandby() {
         const s = this.standby;
         if (s) {
-            if (s.lost) return this.dropStandby(s.lost.how === 'stall' ? 'it stopped sending' : 'it ended');
-            if (s.session.stopRequested) return this.dropStandby('its connection was needed');
+            if (s.lost) return this.dropStandby(s.lost.how === 'stall' ? 'it stopped sending' : 'it ended', s.lost.how === 'stall' ? 'stalled' : 'lost');
+            if (s.session.stopRequested) return this.dropStandby('its connection was needed', 'standby-reclaimed');
             const parsed = await this.readPlaylist(s);
             if (parsed && parsed.segments.length) {
                 const newest = parsed.segments[parsed.segments.length - 1].seq;
@@ -408,7 +518,7 @@ class Relay {
             }
             return;
         }
-        if (!standbyEnabled() || this.startingStandby || Date.now() < this.standbyAt) return;
+        if (!this.standbyOn || this.startingStandby || Date.now() < this.standbyAt) return;
         this.startingStandby = true;
         // In the background: the playing leg is still followed while this probes and starts.
         this.startStandby()
@@ -440,10 +550,12 @@ class Relay {
         this.log(`standby running on ${candidate.providerName}`);
     }
 
-    async dropStandby(why) {
+    async dropStandby(why, code = 'lost') {
         const s = this.standby;
         if (!s) return;
         this.standby = null;
+        this.note(code, `standby on ${this.providerOf(s)} gone: ${why}`,
+            { state: code === 'standby-reclaimed' ? 'reclaimed' : 'failed', provider: this.providerOf(s) });
         this.standbyAt = Date.now() + STANDBY_RETRY_MS;
         this.log(`standby on ${this.providerOf(s)} gone: ${why}`);
         await this.retire(s, true);
@@ -463,9 +575,14 @@ class Relay {
 
     // ---- ending ----------------------------------------------------------------------------
 
-    async close(why) {
+    async close(why, failed = false) {
         if (this.closed) return;
         this.closed = true;
+        if (failed) {
+            this.failed = true;
+            failedRelays.push({ snapshot: this.describe(), at: Date.now() });
+            if (failedRelays.length > 10) failedRelays.shift();
+        }
         clearInterval(this.timer);
         relays.delete(this.id);
         aliases.set(this.id, { legId: this.active.session.id, at: Date.now() });
@@ -480,9 +597,9 @@ function pruneAliases(now = Date.now()) {
     for (const [id, a] of aliases) if (now - a.at > ALIAS_TTL_MS) aliases.delete(id);
 }
 
-/** Follow a session the resolve just started. Null (and nothing changes) when the relay is off. */
+/** Follow a session the resolve just started. Null (and nothing changes) when the relay is off in ctx.settings. */
 function adopt(session, ctx) {
-    if (!enabled() || !session || !ctx || ctx.sourceId === undefined || ctx.channelId === undefined) return null;
+    if (!ctx || !enabled(ctx.settings) || !session || !ctx || ctx.sourceId === undefined || ctx.channelId === undefined) return null;
     if (relays.has(session.id)) return relays.get(session.id);
     const relay = new Relay(session, ctx);
     relays.set(relay.id, relay);
@@ -522,16 +639,22 @@ function playingSessionId(id) {
     return alias ? alias.legId : String(id);
 }
 
-/** For the Status page: [{ id, channel, provider, legs, standby }]. */
+/**
+ * For the Status page and GET /api/status: one entry per followed stream, plus (for ten
+ * minutes) the ones that ended because nothing could take over. `state` is one of starting |
+ * playing | switching | standby-starting | standby-ready | promoted | reclaimed | failed;
+ * `lastReason` is { code, detail, at } with code lost | stalled | timestamps | blank |
+ * incompatible | standby-incompatible | standby-reclaimed | promoted | no-candidate. Names only.
+ */
 function list() {
-    return [...relays.values()].map(r => ({
-        id: r.id,
-        channel: r.ctx.channelName || null,
-        provider: r.providerOf(r.active),
-        switches: r.active.n,
-        standby: r.standby ? r.providerOf(r.standby) : null,
-        standbyReady: r.standbyReady()
-    }));
+    const now = Date.now();
+    while (failedRelays.length && now - failedRelays[0].at > ENDED_KEEP_MS) failedRelays.shift();
+    return [...relays.values()].map(r => r.describe()).concat(failedRelays.map(f => f.snapshot));
 }
 
-module.exports = { enabled, standbyEnabled, adopt, get, close, closeForOwner, closeAll, playingSessionId, list, Relay, STANDBY_TAIL };
+/** The switches as they stand: { enabled, standby } for a settings object. */
+function modeOf(settings) {
+    return { enabled: enabled(settings), standby: standbyEnabled(settings) };
+}
+
+module.exports = { enabled, standbyEnabled, modeOf, adopt, get, close, closeForOwner, closeAll, playingSessionId, list, Relay, STANDBY_TAIL };

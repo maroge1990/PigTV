@@ -515,6 +515,34 @@
               </div>
             </div>
 
+            <div class="settings-section">
+              <h3>Stream recovery (experimental)</h3>
+              <div class="setting-item">
+                <label class="setting-toggle">
+                  <input type="checkbox" id="setting-relay-enabled">
+                  <span class="toggle-slider"></span>
+                </label>
+                <div class="setting-info">
+                  <span class="setting-label">In-stream recovery</span>
+                  <span class="setting-hint">When a channel's stream is lost, carry on from another provider inside
+                    the same stream instead of the player restarting. Experimental. Applies to channels played
+                    from now on; streams already playing are not changed.</span>
+                </div>
+              </div>
+              <div class="setting-item">
+                <label class="setting-toggle">
+                  <input type="checkbox" id="setting-standby-enabled" disabled>
+                  <span class="toggle-slider"></span>
+                </label>
+                <div class="setting-info">
+                  <span class="setting-label">Hot standby</span>
+                  <span class="setting-hint">Keep a second copy of the playing channel running on a spare backup
+                    connection, so a switch is almost instant. Uses an extra provider connection; any viewer or
+                    recording takes it back. Needs In-stream recovery. Applies to channels played from now on.</span>
+                </div>
+              </div>
+            </div>
+
             <details class="settings-section settings-advanced">
               <summary>Advanced: hardware decoding and how the provider is contacted</summary>
               <h3>Hardware Decoding</h3>

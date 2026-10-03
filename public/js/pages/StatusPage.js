@@ -124,6 +124,25 @@ class StatusPage {
         return gb >= 1 ? `${gb.toFixed(gb >= 100 ? 0 : 1)} GB` : `${Math.round(n / (1024 ** 2))} MB`;
     }
 
+    /** R12: what in-stream recovery and the hot standby are doing, and each followed stream. */
+    renderRelay(relay) {
+        const e = (v) => this.escape(v);
+        if (!relay) return '';
+        const mode = `In-stream recovery is ${relay.enabled ? 'on' : 'off'}; hot standby is ${relay.enabled && relay.standby ? 'on' : 'off'}. `
+            + '<span class="setting-hint">(Settings, Transcoding. A change applies to plays started afterwards.)</span>';
+        const streams = relay.streams || [];
+        if (!streams.length) return `<p class="setting-hint">${mode}${relay.enabled ? 'No stream is being followed.' : ''}</p>`;
+        return `<p class="setting-hint">${mode}</p>` + this.table(
+            ['Channel', 'Provider', 'State', 'Switches', 'Standby', 'Last reason'],
+            streams.map(r => [
+                e(r.channel || 'A channel'), e(r.provider || '–'),
+                `<span class="status-event ${r.state === 'failed' ? 'status-failure' : ''}">${e(r.state)}</span>`,
+                e(r.switches),
+                r.standby ? `${e(r.standby)} (${r.standbyReady ? 'ready' : 'starting'})` : (r.standbyMode ? 'none' : 'off'),
+                r.lastReason ? `${e(r.lastReason.code)} <span class="setting-hint">${this.when(r.lastReason.at)}</span>` : '–'
+            ]), 'Nothing followed');
+    }
+
     section(title, body) {
         return `<div class="settings-section status-section"><h3>${this.escape(title)}</h3>${body}</div>`;
     }
@@ -218,10 +237,7 @@ class StatusPage {
                 `<button type="button" class="btn btn-sm btn-danger" data-kill-session="${e(s.id)}" title="Stop this stream and free its provider connection">Stop</button>`
             ]),
             'Nothing is playing')
-            // 0189: what in-stream recovery is doing (PIGTV_RELAY=1), one line per stream.
-            + ((status.relay && status.relay.enabled) ? `<p class="setting-hint">In-stream recovery is on${status.relay.standby ? ', with a hot standby' : ''}. `
-                + ((status.relay.streams || []).map(r => `${e(r.channel || 'A channel')}: on ${e(r.provider)}${r.switches ? ` after ${e(r.switches)} switch${r.switches === 1 ? '' : 'es'}` : ''}`
-                    + `${r.standby ? `, standby on ${e(r.standby)} (${r.standbyReady ? 'ready' : 'starting'})` : (status.relay.standby ? ', no standby' : '')}`).join('; ') || 'Nothing followed.') + '</p>' : '')
+            + this.renderRelay(status.relay)
             + (sessions.length > 1 ? '<p><button type="button" class="btn btn-sm btn-danger" data-kill-all>Stop all streams</button></p>' : '')));
 
         // Interruptions (0188): the measure any recovery change is judged against.
@@ -237,7 +253,7 @@ class StatusPage {
                 ['When', 'Channel', 'Provider', 'What happened', 'After playing', 'Back in'],
                 (ix.recent || []).map(r => [
                     this.when(r.at), e(r.channel || '–'), e(r.provider || '–'),
-                    e(r.how === 'stall' ? 'Stopped sending' : r.how === 'timestamps' ? 'Timestamps broke after a reconnect' : (r.providerReason ? 'Provider dropped it' : 'Stream ended')),
+                    (r.reason ? `<span class="setting-hint">${e(r.reason)}</span> ` : '') + e(r.how === 'stall' ? 'Stopped sending' : r.how === 'timestamps' ? 'Timestamps broke after a reconnect' : (r.providerReason ? 'Provider dropped it' : 'Stream ended')),
                     this.duration(r.playedSec),
                     r.recoverSec === null ? '<span class="status-event status-failure">Not recovered</span>'
                         : `${e(r.recoverSec)} s${r.recoveredProvider && r.recoveredProvider !== r.provider ? ` <span class="setting-hint">(on ${e(r.recoveredProvider)})</span>` : ''}`
@@ -265,7 +281,7 @@ class StatusPage {
             'No missed or failed recordings in the last 7 days')));
 
         // Recent plays
-        const label = { 'play-start': 'Started', 'play-end': 'Ended', failure: 'Failed' };
+        const label = { 'play-start': 'Started', 'play-end': 'Ended', failure: 'Failed', relay: 'Recovery' };
         out.push(this.section('Recent plays', this.table(
             ['Time', 'Event', 'Channel', 'Owner', 'Start', 'First picture', 'Detail'],
             (status.events || []).map(ev => [
@@ -273,7 +289,7 @@ class StatusPage {
                 `<span class="status-event status-${e(ev.type)}">${e(label[ev.type] || ev.type)}</span>`,
                 e(ev.channel || 'unknown'), e(ev.owner || '–'), e(ev.start || '–'),
                 ev.firstPictureSec !== null && ev.firstPictureSec !== undefined ? `${ev.firstPictureSec.toFixed(1)}s` : '–',
-                ev.type === 'failure' ? e(ev.reason || '')
+                ev.type === 'failure' || ev.type === 'relay' ? e(ev.reason || '')
                     : ev.type === 'play-end' ? `watched ${this.duration(ev.watchedSec)}, ${ev.stalls ?? 0} stall${ev.stalls === 1 ? '' : 's'}`
                         : e([ev.strategy, ev.videoMode].filter(Boolean).join(', '))
             ]),
