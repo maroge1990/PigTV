@@ -298,3 +298,16 @@ test('a warm lease is reclaimed by a viewer mid-probe, calling onReclaim', async
     assert.equal(coordinator.leaseAlive(lease), false);
     coordinator.releaseLease(verdict.lease);
 });
+
+test('a standby takes the only spare connection from a warm channel; nothing else does', async () => {
+    let reclaimed = 0;
+    const warm = coordinator.takeLease(null, 'warm', { owner: 'device:tv', onReclaim: () => { reclaimed++; } });
+    assert.equal(coordinator.tryReserveFree(null, 'standby', S, []), null, 'no free connection while the warm one holds it');
+    assert.equal(coordinator.tryReserveFree(null, 'warm', S, []), null, 'a second warm takes nothing');
+    const standby = await coordinator.reserveTakingWarm(null, 'standby', S, []);
+    assert.ok(standby, 'the standby gets the connection');
+    assert.equal(coordinator.leaseAlive(warm), false, 'the warm channel gave it up');
+    assert.equal(reclaimed, 1);
+    assert.equal(await coordinator.reserveTakingWarm(null, 'standby', S, []), null, 'with no warm channel left, nothing more is taken');
+    coordinator.releaseLease(standby);
+});

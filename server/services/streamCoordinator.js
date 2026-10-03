@@ -387,6 +387,29 @@ function tryReserveFree(providerId, purpose, settings = {}, activeRecordings = [
     return takeLease(providerId, purpose, extra);
 }
 
+/**
+ * Continuity before speculation: a standby keeps what is being WATCHED going, a warm channel is
+ * only a guess at what might be. So when a provider's only spare connection holds a warm channel,
+ * a standby takes it (anything else still needs a free one: tryReserveFree). The lease is taken in
+ * the same synchronous step as the decision, and the warm stream is released before this returns,
+ * so the caller's probe starts only once the provider has one connection fewer.
+ */
+async function reserveTakingWarm(providerId, purpose, settings = {}, activeRecordings = [], extra = {}) {
+    const free = tryReserveFree(providerId, purpose, settings, activeRecordings, extra);
+    if (free) return free;
+    const dir = providerDirectory();
+    const pool = poolKey(providerId, dir);
+    const streams = streamsInPool(pool, dir);
+    const warm = streams.find(s => s.warm);
+    if (!warm) return null;
+    // Room once the warm one is gone, and only then.
+    if (streams.length - 1 + recordingsInPool(activeRecordings, pool, dir).length >= providerLimit(providerId, settings, dir)) return null;
+    const lease = takeLease(providerId, purpose, extra);
+    console.log(`[Coordinator] Releasing ${warm.id} (warm) for a ${purpose}: keeping the playing channel going comes first`);
+    await releaseStream(warm);
+    return lease;
+}
+
 /** 0189: do two providers share a connection pool (the same provider, or the same account)? */
 function samePool(a, b) {
     const dir = providerDirectory();
@@ -1161,6 +1184,7 @@ module.exports = {
     // Leases (R11)
     takeLease,
     tryReserveFree,
+    reserveTakingWarm,
     bindLease,
     bindLeaseToRecording,
     releaseLease,

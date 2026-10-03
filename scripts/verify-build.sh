@@ -2236,6 +2236,11 @@ if bad:
 print("  ✓ the runtime stage installs no compilers or -dev packages")
 PY
 
+echo "=== 0202: a standby comes before a warm guess ==="
+check server/services/streamCoordinator.js "async function reserveTakingWarm(" "a standby can take a warm channel's connection"
+check server/services/streamRelay.js "coordinator().reserveTakingWarm(c.providerId, 'standby'" "and the relay uses it after looking for a free one"
+check test/connection-leases.test.js "a standby takes the only spare connection from a warm channel" "with tests"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

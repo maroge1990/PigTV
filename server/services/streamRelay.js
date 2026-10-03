@@ -540,11 +540,18 @@ class Relay {
         const playingOn = this.active.candidate.providerId;
         // R11: the connection is leased in the same step it is found free, so a viewer or recording
         // arriving while the standby probes counts it (and, as it is only a standby, takes it).
+        // A free connection anywhere first; failing that, one a warm channel holds (continuity of the
+        // channel being watched comes before a guess at the next one: coordinator.reserveTakingWarm).
         let lease = null;
-        const candidate = candidates.find(c => c.providerId !== null && c.providerId !== undefined
+        const usable = candidates.filter(c => c.providerId !== null && c.providerId !== undefined
             && !this.unusable.has(c.providerId)
-            && !coordinator().samePool(c.providerId, playingOn)
-            && (lease = coordinator().tryReserveFree(c.providerId, 'standby', ctx.settings, activeRecordings(), { owner: `standby:${this.id}` })));
+            && !coordinator().samePool(c.providerId, playingOn));
+        const opts = { owner: `standby:${this.id}` };
+        let candidate = usable.find(c => (lease = coordinator().tryReserveFree(c.providerId, 'standby', ctx.settings, activeRecordings(), opts)));
+        for (const c of candidate ? [] : usable) {
+            if (this.closed || this.standby) return;
+            if ((lease = await coordinator().reserveTakingWarm(c.providerId, 'standby', ctx.settings, activeRecordings(), opts))) { candidate = c; break; }
+        }
         if (!candidate) return;
         let leg;
         try { leg = await this.startLeg(candidate, { owner: `standby:${this.id}`, standby: true, lease }); } finally { coordinator().releaseUnbound(lease); }
