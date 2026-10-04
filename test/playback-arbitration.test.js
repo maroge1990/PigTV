@@ -239,12 +239,13 @@ test('the answer is the same however many times it is asked, until it expires', 
         assert.deepEqual((await terminalStatus(tvToken(), tv.id)).body, { status: 'taken-over' }, `read ${i + 1}`);
     }
 
-    process.env.PIGTV_TERMINAL_STATUS_TTL_SEC = '0.05';
+    // 1 s, not 50 ms: under load the "before expiry" read alone could take longer than 50 ms.
+    process.env.PIGTV_TERMINAL_STATUS_TTL_SEC = '1';
     try {
         const other = await holding('device:apple-tv', 5);
         await resolve(ipadToken(), { force: true });
         assert.deepEqual((await terminalStatus(tvToken(), other.id)).body, { status: 'taken-over' }, 'before expiry');
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise(r => setTimeout(r, 1500));
         assert.deepEqual((await terminalStatus(tvToken(), other.id)).body, { status: 'none' }, 'after expiry');
     } finally {
         delete process.env.PIGTV_TERMINAL_STATUS_TTL_SEC;

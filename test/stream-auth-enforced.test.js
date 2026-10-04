@@ -3,8 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const net = require('node:net');
-const { spawn } = require('node:child_process');
+const { startServer, stopServer } = require('./helpers/server');
 const { once } = require('node:events');
 const express = require('express');
 
@@ -31,13 +30,6 @@ const rm = (dir) => {
     try { fs.rmdirSync(path.join(dir, 'node_modules')); } catch { /* link already gone */ }
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* left to the OS temp cleaner */ }
 };
-const freePort = () => new Promise((resolve, reject) => {
-    const probe = net.createServer().listen(0, '127.0.0.1', () => {
-        const { port } = probe.address();
-        probe.close(() => resolve(port));
-    });
-    probe.on('error', reject);
-});
 const json = (token, body) => ({
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) })
@@ -47,29 +39,12 @@ const json = (token, body) => ({
 // A. the real server
 // ---------------------------------------------------------------------------------------------
 const serverSandbox = sandboxCopy('pigtv-streamauth-srv-');
-let child, base, adminToken, viewerToken, deletedToken, deletedId;
+let server, base, adminToken, viewerToken, deletedToken, deletedId;
 const HANDLE = '0'.repeat(32);
 
 before(async () => {
-    const port = await freePort();
-    base = `http://127.0.0.1:${port}`;
-    child = spawn(process.execPath, ['server/index.js'], {
-        cwd: serverSandbox, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, PORT: String(port), JWT_SECRET: SECRET }
-    });
-    // Its output, kept (the last part) so a server that never comes up says why.
-    let output = '';
-    const keep = (d) => { output = (output + d).slice(-4000); };
-    child.stdout.on('data', keep);
-    child.stderr.on('data', keep);
-    // Up to 60 s: a shared CI runner once took over 10 s to start it, and every test here then
-    // failed with "fetch failed" and no reason.
-    let up = false;
-    for (let i = 0; i < 600 && !up; i++) {
-        try { up = (await fetch(`${base}/api/version`)).ok; } catch { /* not up yet */ }
-        if (!up) await new Promise(r => setTimeout(r, 100));
-        if (child.exitCode !== null) break;
-    }
-    assert.ok(up, `the server never answered on ${base} (exit ${child.exitCode}):\n${output}`);
+    server = await startServer({ cwd: serverSandbox, env: { JWT_SECRET: SECRET } });
+    base = server.base;
     const setup = await fetch(`${base}/api/auth/setup`, { method: 'POST', ...json(null, { username: 'owner', password: 'owner-password' }) });
     adminToken = (await setup.json()).token;
     assert.ok(adminToken, 'first-run admin');
@@ -84,10 +59,7 @@ before(async () => {
 });
 
 after(async () => {
-    if (child) {
-        child.kill();
-        await new Promise(r => { child.once('exit', r); setTimeout(r, 3000); });
-    }
+    await stopServer(server);
     rm(serverSandbox);
 });
 

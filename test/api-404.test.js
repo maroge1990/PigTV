@@ -1,10 +1,9 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
+const { startServer, stopServer } = require('./helpers/server');
 
 // The real server (server/index.js), started as a child process in a copy with its own data/
 // folder, so what is tested is exactly what the fallback ordering in index.js does.
@@ -14,35 +13,15 @@ fs.cpSync(path.join(__dirname, '../public'), path.join(sandbox, 'public'), { rec
 fs.copyFileSync(path.join(__dirname, '../package.json'), path.join(sandbox, 'package.json'));
 fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'node_modules'), 'junction');
 
-let child, base;
-
-const freePort = () => new Promise((resolve, reject) => {
-    const probe = net.createServer().listen(0, '127.0.0.1', () => {
-        const { port } = probe.address();
-        probe.close(() => resolve(port));
-    });
-    probe.on('error', reject);
-});
+let server, base;
 
 before(async () => {
-    const port = await freePort();
-    base = `http://127.0.0.1:${port}`;
-    child = spawn(process.execPath, ['server/index.js'], {
-        cwd: sandbox, stdio: 'ignore',
-        env: { ...process.env, PORT: String(port), JWT_SECRET: 'test-only-signing-key-not-used-outside-fixtures-12345' }
-    });
-    for (let i = 0; i < 100; i++) {
-        try { if ((await fetch(`${base}/api/version`)).ok) return; } catch { /* not up yet */ }
-        await new Promise(r => setTimeout(r, 150));
-    }
-    throw new Error('the server did not start');
+    server = await startServer({ cwd: sandbox, env: { JWT_SECRET: 'test-only-signing-key-not-used-outside-fixtures-12345' } });
+    base = server.base;
 });
 
 after(async () => {
-    if (child) {
-        child.kill();
-        await new Promise(r => { child.once('exit', r); setTimeout(r, 3000); });
-    }
+    await stopServer(server);
     try { fs.rmdirSync(path.join(sandbox, 'node_modules')); } catch { /* junction already gone */ }
     try { fs.rmSync(sandbox, { recursive: true, force: true }); } catch { /* leave it to the OS temp cleaner */ }
 });
