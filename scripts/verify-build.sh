@@ -24,11 +24,19 @@
 # declared before it is used", "compression is not queued automatically" - there
 # is a small Python block instead.
 #
+# What belongs here (simplification build, 4 Oct)
+# ------------------------------------------------
+# Only what a test cannot say: something that must NOT come back (check_absent),
+# placement and structure (the Python blocks), the image and CI (Dockerfile,
+# workflows, package files), the web app's markup, and the blueprint's numbering.
+# Behaviour belongs in a test under test/. This file used to assert ~780 strings
+# of server code and test names as well; they broke on every rewording and said
+# nothing the tests did not, so they went.
+#
 # Adding checks
 # -------------
-# When you fix a bug, add the check that would have caught it, and prove it
-# works by reintroducing the bug and watching it fail. A check that has never
-# failed has not been tested.
+# When you fix a bug of that kind, add the check that would have caught it, and
+# prove it works by reintroducing the bug and watching it fail.
 
 set -e
 cd "$1"
@@ -59,39 +67,14 @@ check_absent() {
 echo "=== Checking version ==="
 check package.json '"version"' "version field exists"
 
-echo "=== 0002: VAAPI fix ==="
-check server/services/transcodeSession.js "init_hw_device" "CPU decode path"
-check server/services/transcodeSession.js "vaapiCpuScale" "setting check"
-check server/services/playbackStrategy.js "vaapiCpuScale" "setting passthrough (0122: resolve is the only session entry)"
-check server/db.js "vaapiCpuScale" "default setting"
-
-echo "=== 0003: Remux AAC ==="
-
-echo "=== 0004: DVR fixes ==="
-check server/routes/recordings.js "router.use(requireAuth)" "auth middleware"
-check server/services/recordingEngine.js "0:v?" "optional stream mapping"
-
-echo "=== 0006: Free space ==="
-check server/services/recordingEngine.js "getFreeSpaceGB\|statfsSync" "free space check"
-check server/db.js "minFreeSpaceGB" "free space setting"
-
 echo "=== 0007: Recording banner ==="
 check public/js/app.js "updateRecordingBanner" "banner polling"
 check public/index.html "recording-conflict-banner" "banner markup"
 
 echo "=== 0008+0014: M3U sort order + ID fix ==="
-check server/db/sqlite.js "sort_order" "schema column"
-check server/db/sqlite.js "ALTER TABLE.*sort_order" "migration"
-check server/services/m3uParser.js "position" "parser position"
-check server/services/syncService.js "sort_order" "sync writes sort_order"
-check server/services/syncService.js "pos_" "position-based ID"
-check server/services/syncService.js "syncIfStale" "startup stale check"
-check server/index.js "syncIfStale" "startup calls syncIfStale"
-check server/routes/transcode.js "sessions/all" "kill-all endpoint"
 # 0182: stopping a stream moved from Settings -> Debug to the Status page.
 check public/js/pages/StatusPage.js "data-kill-all" "stop-all button (Status page)"
 check public/js/pages/StatusPage.js "killAllSessions" "stop button handler (Status page)"
-check server/services/syncService.js "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" "14-param INSERT"
 
 echo "=== 0009: Movies/Series toggle (removed with Movies/Series in 0122) ==="
 check public/js/pages/Settings.js "loadUiSettings" "UI load handler (theme)"
@@ -104,12 +87,6 @@ check public/js/components/EpgGuide.js "channelId.*sourceId" "ID-based lookup"
 
 echo "=== 0011: EPG visible filter (0122: the whole-EPG route is gone; /api/library/guide lists visible channels) ==="
 check_absent server/routes/proxy.js "router.get('/epg/:sourceId'" "no whole-EPG dump"
-
-echo "=== 0017: category order + flags on real endpoint ==="
-check server/db/sqlite.js "ALTER TABLE categories ADD COLUMN sort_order" "categories migration"
-check server/services/syncService.js "sort_order: idx + 1" "M3U category order captured"
-check server/services/syncService.js "sort_order = excluded.sort_order" "categories upsert keeps order"
-check server/routes/library.js "c.sort_order ASC, c.name ASC" "real endpoint ordering (0122: /api/library/categories)"
 
 echo "=== 0017: settings reorganisation ==="
 check public/index.html "data-tab=\"recording\"" "Recording tab"
@@ -124,26 +101,12 @@ check public/js/api.js "killAllSessions" "transcode api group"
 echo "=== 0017: guide cell + transcode + uncategorized ==="
 check public/js/components/EpgGuide.js "resize-handle" "whole-cell click guard"
 check public/css/main.css "epg-channel-info {" "whole-cell cursor"
-check server/services/transcodeSession.js "fps_mode" "fps passthrough"
-check server/services/transcodeSession.js "min(ih," "scale clamp"
-check server/services/channelNumbers.js "c.category_id = p.category_id AND c.is_hidden = 1" "hidden-category exclusion (0122; one rule, channelNumbers.VISIBLE_SQL)"
-check server/routes/library.js "const where = \\[channelNumbers.VISIBLE_SQL\\];" "and /api/library uses that rule"
 check public/js/components/ChannelList.js "categoryNames.get(\`\${row.sourceId}:\${row.category}\`) || row.category" "group name fallback (0121: from /api/library/categories, else the category id)"
 
 echo "=== 0018: transcode strategy ==="
-check server/services/streamProbe.js "clientCaps" "probe takes client caps"
-check server/services/streamProbe.js "videoIsHevc" "probe reports hevc"
-check server/services/streamProbe.js "clientCaps" "caps reach the probe (0122: /api/probe removed)"
 check public/js/components/VideoPlayer.js "getCodecCapabilities" "client caps detection"
 # (0102: the live player no longer probes or picks a segment type itself - the server does.
 #  0122: the movie/series page that still did went with VOD.)
-check server/services/transcodeSession.js "hls_fmp4_init_filename" "fmp4 output"
-check server/services/transcodeSession.js "tag:v" "hvc1 tagging"
-check server/services/transcodeSession.js "vaapiHwDecode" "hw decode option"
-check server/services/transcodeSession.js "_triedSwDecode" "sw decode fallback"
-check server/services/transcodeSession.js "force_key_frames" "segment-aligned keyframes"
-check server/routes/transcode.js "m4s" "segment route serves fmp4"
-check server/db.js "vaapiHwDecode" "hw decode default"
 check public/index.html "setting-vaapi-hw-decode" "hw decode toggle"
 
 echo "=== 0019: category order preserved client-side ==="
@@ -169,10 +132,7 @@ check public/js/components/VideoPlayer.js "goToLive" "go-live implementation"
 check public/js/components/VideoPlayer.js "updateLiveButton" "live indicator"
 check public/css/main.css "btn-go-live" "live button styles"
 
-echo "=== 0020: kill all covers remux ==="
-
 echo "=== 0021: PigTV rebrand + recording fix ==="
-check server/services/recordingEngine.js "m3u|xtream" "channel id normalisation"
 check package.json "pigtv" "package renamed"
 check public/index.html "pigtv-logo.png" "logo in navbar"
 check public/login.html "pigtv-logo.png" "logo on login"
@@ -187,21 +147,12 @@ else
 fi
 
 echo "=== 0022: HE-AAC, categories, themes, compression ==="
-check server/services/streamProbe.js "isHeAac" "probe detects HE-AAC"
-check server/services/streamProbe.js "audioProfile" "probe reads profile"
-check server/services/transcodeSession.js "isHeAac" "session forces AAC-LC"
-check server/services/transcodeSession.js "aac_low" "AAC-LC profile set"
 check public/js/components/SourceManager.js "groupItemType()" "group type helper"
 check public/js/components/ChannelList.js "Choose what to show under Settings" "empty state wording (0121: points at Manage Content when a source exists)"
-check server/routes/channels.js "cascadeCategory" "single hide/show cascades"
 check public/js/theme.js "prefers-color-scheme" "theme follows system"
 check public/css/main.css "data-theme=.light" "light tokens"
 check public/index.html "js/theme.js" "theme loaded early"
 check public/index.html "setting-theme" "theme selector"
-check server/db.js "postRecordCodec" "compression tuning settings"
-check server/services/recordingEngine.js "compressRecording" "compression implementation"
-check server/services/recordingEngine.js "processCompressionQueue" "compression queue"
-check server/db/recordingsDb.js "compress_status" "compression columns"
 check public/index.html "dvr-setting-bitrate" "compression tuning UI"
 
 echo "=== 0023: light theme fix + manual compress ==="
@@ -215,8 +166,6 @@ print('  \u2713 light block outside :root' if light > root_end else '  \u2717 MI
 sys.exit(0 if light > root_end else 1)
 PYCHK
 [ $? -eq 0 ] || FAIL=1
-check server/routes/recordings.js "compress" "manual compress endpoint"
-check server/services/recordingPost.js "manual = false" "manual bypasses setting"
 check public/js/api.js "compress:" "compress api method"
 check public/js/pages/RecordingsPage.js "startCompressionWatch" "compression polling"
 check public/js/pages/RecordingsPage.js "this.recordings = items" "recordings list stored"
@@ -231,7 +180,6 @@ print('  \u2713 compress helpers on recordings object' if ok else '  \u2717 MISS
 sys.exit(0 if ok else 1)
 PYCHK
 [ $? -eq 0 ] || FAIL=1
-check server/services/syncService.js "FROM sync_status" "staleness uses sync_status"
 if grep -q "cache.get('epg'" server/services/syncService.js; then
     echo "  \u2717 MISSING: still reads the phantom epg cache"; FAIL=1
 else
@@ -249,35 +197,10 @@ PYCHK2
 [ $? -eq 0 ] || FAIL=1
 
 echo "=== 0025: CQP fallback + status ==="
-check server/services/recordingPost.js "forceCqp" "CQP option"
-check server/services/recordingPost.js "bitrateToQp" "bitrate to quantiser mapping"
-check server/services/recordingPost.js "RC mode" "detects driver rejection"
-check server/services/recordingMedia.js "result.tail.slice" "real error stored"
 check public/js/pages/RecordingsPage.js "resumeCompressionWatchIfNeeded" "resumes watching"
 check public/js/pages/RecordingsPage.js "recordingsList.offsetParent" "pauses when off screen"
 
-echo "=== 0026: playback API ==="
-check server/services/streamProbe.js "analyzeProbeResult" "probe logic extracted"
-check server/services/streamProbe.js "module.exports" "probe service exports"
-check server/services/playbackStrategy.js "probeStream" "resolve uses the probe service"
-check server/services/playbackStrategy.js "strategy: 'direct'" "direct play path"
-check server/services/playbackStrategy.js "strategy: 'transcode'" "transcode path"
-check server/routes/playback.js "resolve" "resolve endpoint"
-check server/index.js "api/playback" "playback route mounted"
-
 echo "=== 0027: devices, library, history ==="
-check server/services/deviceAuth.js "startPairing" "pairing start"
-check server/services/deviceAuth.js "isDeviceValid" "revocation check"
-check server/services/deviceAuth.js "token = NULL" "token is single use"
-check server/auth.js "payload.deviceId" "auth honours device tokens"
-check server/auth.js "isDeviceValid" "auth enforces revocation"
-check server/routes/devices.js "pair/approve" "approve endpoint"
-check server/routes/library.js "nowNextFor" "now/next resolution"
-check server/services/channelNumbers.js "is_hidden = 1" "hidden categories excluded"
-check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS devices" "devices table"
-check server/db/sqlite.js "watch_history" "watch history table"
-check server/index.js "api/devices" "devices mounted"
-check server/index.js "api/library" "library mounted"
 check public/js/components/VideoPlayer.js "resolvePlayback" "client uses resolve"
 check public/index.html "pair-code" "pairing UI"
 
@@ -322,29 +245,13 @@ print('  \u2713 no duplicate CREATE TABLE names (%d tables)' % len(names))
 sys.exit(0)
 PYCHK
 [ $? -eq 0 ] || FAIL=1
-check server/db/sqlite.js "channel_history" "channel history table"
-check server/routes/library.js "channel_history" "recent reads channel_history"
-check server/routes/playback.js "channel_history" "history writes channel_history"
 
 echo "=== 0030: guide, stream auth, info ==="
-check server/routes/library.js "api/library/guide" "guide endpoint documented"
-check server/routes/library.js "24 \* 60 \* 60 \* 1000" "guide window capped"
-check server/routes/library.js "isNow" "current programme flagged"
-check server/auth.js "streamAuth" "stream auth middleware"
-check server/auth.js "req.query.token" "token accepted in query"
-check server/auth.js "userFromToken(token)" "stream auth validates like the bearer path (user looked up, role from the store)"
 check_absent server/auth.js "{ enforce" "stream auth has no opt-out (R01: always enforced)"
 check_absent server/auth.js "streamAuthFromSettings" "no settings-driven enforcement"
 check_absent server/db.js "requireStreamAuth" "the stream auth setting is gone from the defaults"
-check server/index.js "Referrer-Policy" "tokens ride in media URLs: no Referer leaks"
-check server/routes/transcode.js "router.get('/sessions', requireAdmin" "session list is admin only"
-check server/routes/transcode.js "router.delete('/sessions/all', requireAdmin" "kill-all is admin only"
 check_absent server/routes/proxy.js "req.query.url;" "the proxy no longer reads a caller-supplied URL"
 check_absent server/services/playbackHandles.js "handlesEnabled" "playback handles are always on"
-check test/stream-auth-enforced.test.js "?url= is a 400" "always-on stream auth has tests"
-check server/routes/info.js "apiVersion" "api version reported"
-check server/routes/info.js "features" "feature flags"
-check server/index.js "api/info" "info mounted"
 python3 - <<'PYCHK'
 import re, sys
 s = open('server/index.js').read()
@@ -359,32 +266,12 @@ PYCHK
 [ $? -eq 0 ] || FAIL=1
 
 echo "=== 0031: coordinator + favourites ==="
-check server/services/streamCoordinator.js "requestForRecording" "recording arbitration"
-check server/services/streamCoordinator.js "requestForViewer" "viewer arbitration"
-check server/services/streamCoordinator.js "staleStreams" "idle reclaim"
-check server/services/streamCoordinator.js "recordings.length + 1" "requesting viewer is counted"
-check server/db/recordingsDb.js "markPartial" "partial recordings tracked"
-check server/db/recordingsDb.js "'scheduled', 'waiting'" "waiting schedules retried"
-check server/services/recordingEngine.js "stopForViewer" "recording yields to viewer"
-check server/routes/playback.js "409" "conflict reported to client"
-check server/routes/playback.js "conflict/decline" "decline endpoint"
-check server/routes/library.js "library/favourites" "favourites endpoint"
-check server/routes/library.js "ch.favourite" "favourite flag on channels"
-check server/db.js "maxProviderStreams" "provider limit setting"
 check public/js/components/VideoPlayer.js "startConflictWatch" "client watches for conflicts"
 
 echo "=== 0032: ad detection ==="
-check server/services/adDetect.js "parseEdl" "EDL parsing"
-check server/services/adDetect.js "isAvailable" "graceful when comskip absent"
 check Dockerfile "Comskip" "comskip built into image"
 check Dockerfile "comskip.ini" "tuning shipped"
 check docker/comskip.ini "detect_method" "tuning has detection methods"
-check server/db/recordingsDb.js "recording_markers" "markers table"
-check server/db/recordingsDb.js "replaceMarkers" "atomic marker replacement"
-check server/services/recordingEngine.js "processAdDetectionQueue" "detection queue"
-check server/services/recordingPost.js "if (detecting) return" "compression waits for detection"
-check server/routes/recordings.js "detect-ads" "manual detection endpoint"
-check server/routes/info.js "comskipAvailable" "availability reported"
 check public/js/pages/RecordingsPage.js "attachAdSkipping" "player skip support"
 check public/css/main.css "skip-ad-btn" "skip button styles"
 check public/index.html "dvr-setting-addetect" "detection setting"
@@ -418,8 +305,6 @@ check public/js/components/VideoPlayer.js "API.withStreamToken(decision.url)" "r
 # (0122: the movie/series page, with its own session POST, is gone.)
 
 echo "=== 0034: native HLS delivery for segmented clients ==="
-check server/services/playbackStrategy.js "segmentedDelivery" "capability flag exists"
-check server/services/transcodeSession.js "audioMode === 'copy'" "explicit audio-copy override"
 python3 - <<'PYCHK'
 import re, sys
 src = open('server/services/transcodeSession.js').read()
@@ -458,11 +343,8 @@ else:
 sys.exit(0 if ok else 1)
 PYCHK
 [ $? -eq 0 ] || FAIL=1
-check server/services/transcodeSession.js "logTimeoutDiagnostics" "timeout diagnostics logged"
 
 echo "=== 0036: media-auth token propagation to HLS children ==="
-check server/routes/transcode.js "withStreamToken" "playlist rewrite exists"
-check server/routes/transcode.js "res.send(withStreamToken(playlist" "playlist route actually rewrites before sending"
 python3 - <<'PYCHK'
 import re, sys
 # Run the real function against a real fMP4 playlist shape, rather than
@@ -500,7 +382,6 @@ PYCHK
 [ $? -eq 0 ] || FAIL=1
 
 echo "=== 0041: AAC copy into fMP4 needs aac_adtstoasc ==="
-check server/services/transcodeSession.js "aac_adtstoasc" "bitstream filter present"
 python3 - <<'PYCHK'
 import re, sys
 # Run buildFFmpegArgs() directly for the three cases that matter, rather
@@ -547,8 +428,6 @@ PYCHK
 [ $? -eq 0 ] || FAIL=1
 
 echo "=== 0042: live-source timestamp handling ==="
-check server/services/transcodeSession.js "avoid_negative_ts" "flag present"
-check server/services/transcodeSession.js "max_interleave_delta" "flag present"
 python3 - <<'PYCHK'
 import subprocess, sys
 # Both are output-side muxer options - they only take effect placed before
@@ -658,11 +537,6 @@ PYCHK
 [ $? -eq 0 ] || FAIL=1
 
 echo "=== 0045: native recording playback contract ==="
-check server/index.js "app.use('/api/recordings', streamAuth" "recordings router wrapped in streamAuth"
-check server/routes/recordings.js "router.get('/:id/playback'" "playback resolve endpoint exists"
-check server/routes/recordings.js "router.get('/:id/media.mp4'" "native media endpoint exists"
-check server/services/recordingEngine.js "ensureNativePlayback" "remux function exists"
-check server/services/recordingMedia.js "'-c:a', 'aac', '-profile:a', 'aac_low', '-ar', '48000'" "AAC in a recording is re-encoded for the MP4 (0203; replaces copying it with aac_adtstoasc)"
 check public/js/api.js "streamUrl: (id) => API.withStreamToken" "web client sends token on recording stream URL"
 check public/js/api.js "downloadUrl: (id) => API.withStreamToken" "web client sends token on recording download URL"
 python3 - <<'PYCHK'
@@ -686,9 +560,6 @@ PYCHK
 [ $? -eq 0 ] || FAIL=1
 
 echo "=== 0046: bound HLS session disk usage (review P0-1) ==="
-check server/services/transcodeSession.js "delete_segments" "segment rotation enabled"
-check server/services/transcodeSession.js "sweepOrphanedCache" "startup sweep exists"
-check server/index.js "sweepOrphanedCache" "startup sweep is actually called"
 check docker-compose.yml "transcode-cache" "cache directory taken off the writable layer"
 python3 - <<'PYCHK'
 import subprocess, sys
@@ -715,10 +586,8 @@ else:
     sys.exit(1)
 PYCHK
 [ $? -eq 0 ] || FAIL=1
-check server/services/transcodeSession.js "clearSegments" "retry path clears stale segments instead of relying on append_list"
 
 echo "=== 0047: EPG streaming parser data loss and hangs (review P0-2) ==="
-check server/services/epgParser.js "batchQueue" "real queue replaces the single-slot mailbox"
 python3 - <<'PYCHK'
 import subprocess, sys
 # Runs the actual bug reproduction: many small batches plus a deliberately
@@ -791,16 +660,11 @@ else:
     sys.exit(1)
 PYCHK
 [ $? -eq 0 ] || FAIL=1
-check server/services/epgParser.js "input.on('end', finishParsing)" "final batch triggered by the input stream's own end, not sax's"
 
 echo "=== 0048: Build identity surfaced ==="
 # The whole point is that a running server (and any client) can say which
 # build it is. Each check asserts the number reaches the surface it is read
 # from, not just that version.js exists.
-check server/version.js "const BUILD =" "version.js carries a committed build number"
-check server/version.js "module.exports = { version, build, commit, builtAt, display }" "version.js exports the full identity"
-check server/index.js "require('./version')" "/api/version serves version.js (not a bare package.json read)"
-check server/routes/info.js "require('../version')" "/api/info includes build identity"
 check public/js/app.js "data.display" "webapp badge renders the server's display string"
 check public/index.html "version-badge" "badge markup present in the header"
 check Dockerfile "PIGTV_COMMIT" "Dockerfile can stamp commit/builtAt at build time"
@@ -808,19 +672,12 @@ check Dockerfile "PIGTV_COMMIT" "Dockerfile can stamp commit/builtAt at build ti
 echo "=== 0049: Live HLS stability ==="
 # temp_file must be in the actual flag string, not just mentioned in a comment,
 # or the playlist is still rewritten in place under a live client.
-check server/services/transcodeSession.js "independent_segments+delete_segments+temp_file" "playlist written atomically (temp_file in hls_flags)"
-check server/services/transcodeSession.js "'-hls_delete_threshold'" "delete threshold passed to ffmpeg"
-check server/services/transcodeSession.js "const HLS_DELETE_THRESHOLD" "delete threshold has a named constant"
 
 echo "=== 0050: Auth gate on state-changing routes (P0-3) ==="
 # The gate has to be on the mount, and the webapp callers have to actually
 # send a token, or turning the gate on breaks the web player.
-check server/index.js "app.use('/api/channels', requireAuth" "channels requires auth"
 # (0122: /api/probe and /api/subtitle were removed; resolve and the session delete keep
 #  their own always-on token middleware, checked next.)
-check server/routes/playback.js "const requireToken = streamAuth;" "always-on token middleware"
-check server/routes/playback.js "router.post('/resolve', requireToken" "resolve requires a token"
-check server/routes/playback.js "router.delete('/:sessionId', requireToken" "session delete requires a token"
 # (0122: /api/probe and /api/subtitle, and the movie/series page that called them, are gone.)
 check_absent server/index.js "app.use('/api/probe'" "no /api/probe"
 check_absent server/index.js "app.use('/api/subtitle'" "no /api/subtitle"
@@ -828,14 +685,8 @@ check_absent server/index.js "app.use('/api/subtitle'" "no /api/subtitle"
 echo "=== 0051: Drop the dead ffmpeg-static require ==="
 check_absent server/routes/proxy.js "require('ffmpeg-static')" "proxy.js no longer requires ffmpeg-static at load (would crash startup if the optional dep failed)"
 # index.js keeps its own guarded fallback require - that one is inside try/catch.
-check server/index.js "require('ffmpeg-static')" "index.js keeps its guarded ffmpeg-static fallback"
 
 echo "=== 0052: Provider credential redaction (P1-4) ==="
-check server/redact.js "function redact" "redact helper exists"
-check server/routes/transcode.js "url: redact(x.url)" "/sessions response redacts upstream URLs"
-check server/routes/playback.js "const safe = clientSafe(redact(err.message))" "resolve error body is redacted"
-check server/services/streamProbe.js "redact(stderr)" "ffprobe stderr redacted before leaving probeStream"
-check server/services/transcodeSession.js "redact(args.join" "session ffmpeg command line redacted in logs"
 if node -e '
   const { redact } = require("./server/redact");
   const q = redact("http://p/get.php?username=u&password=pw&token=tk");
@@ -849,29 +700,18 @@ fi
 
 echo "=== 0053: db.json cache + session leak (P1-7) ==="
 # Superseded by 0135 (db.json moved into SQLite): the settings cache is checked there.
-check server/db.js "let settingsCache = null;" "settings are served from an in-memory cache"
 check_absent server/index.js "express-session" "no session store at all (0077 removed it; the MemoryStore leak cannot come back)"
 
 echo "=== 0054: ffmpeg output-inactivity watchdog ==="
-check server/services/stallWatchdog.js "function createStallWatchdog" "shared watchdog exists"
-check server/services/stallWatchdog.js "PIGTV_STALL_TIMEOUT_MS" "stall limit is tunable without a patch"
 # Both delivery paths read the same live input with the same reconnect flags,
 # so both need the watchdog, and it has to be started on the real process.
-check server/services/transcodeSession.js "createStallWatchdog(" "HLS session path runs the watchdog"
-check server/services/transcodeSession.js "this.startWatchdog()" "HLS watchdog started once ffmpeg is spawned"
-check server/services/transcodeSession.js "this.stopWatchdog()" "HLS watchdog stopped when ffmpeg exits / session stops"
 # Silence with the client not reading (paused tab, full pipe) is the client's
 # doing, not ffmpeg's. Without this guard a paused viewer gets killed.
 # Remux idle accounting: idleMs must mean 'time since media last flowed', and
 # the coordinator must use it instead of pretending every remux is busy.
 check_absent server/services/streamCoordinator.js "idleMs: 0," "coordinator no longer hard-codes remux idleMs to 0"
-check test/stall-watchdog.test.js "createStallWatchdog" "watchdog has unit tests"
 
 echo "=== 0055: Viewer-vs-viewer arbitration + live idle timeout (A3) ==="
-check server/services/streamCoordinator.js "function admitViewer" "admitViewer exists"
-check server/services/streamCoordinator.js "function ownerKey" "stream owners are identified"
-check server/services/streamCoordinator.js "type: 'viewer-in-progress'" "another viewer is reported as a conflict"
-check server/services/streamCoordinator.js "    admitViewer," "admitViewer is exported (an edit that missed the export block once shipped a crash)"
 # The old gate returned 'allowed' whenever no recording was active, which is
 # exactly the hole: with no recording, viewer-vs-viewer was never considered.
 check_absent server/services/streamCoordinator.js "if (activeRecordings.length === 0) return { allowed: true }" "viewer arbitration no longer skipped when no recording is active"
@@ -882,25 +722,11 @@ if [ "$(grep -c '^function requestForViewer' server/services/streamCoordinator.j
 else
   echo "  ✗ MISSING: coordinator has duplicated definitions or export blocks"; FAIL=1
 fi
-check server/routes/playback.js "coordinator.admitViewer(" "resolve arbitrates and releases before starting"
-check server/routes/playback.js "coordinator.ownerKey(req.user)" "resolve knows who is asking"
-check server/routes/playback.js "viewer-in-progress" "resolve tells the client how to proceed on a viewer conflict"
-check server/services/playbackStrategy.js "        owner," "sessions created by resolve record their owner"
 check_absent server/services/streamCoordinator.js "soft" "no soft mode (0122: it existed only for the removed POST /api/transcode/session)"
-check server/services/transcodeSession.js "LIVE_SESSION_TIMEOUT_MS" "live sessions have their own idle timeout"
-check server/services/transcodeSession.js "session.options.live === true" "sweep honours the live flag"
-check server/services/transcodeSession.js "const CLEANUP_INTERVAL_MS = 60 \* 1000" "sweep runs every minute so the live timeout is honoured"
 check public/js/components/VideoPlayer.js "viewer-in-progress" "web player words the prompt for another viewer"
 # (0102: the live player has no fallback sessions any more; resolve creates live sessions server-side.)
-check test/stream-coordinator.test.js "viewer-in-progress" "arbitration has unit tests"
-check test/playback-arbitration.test.js "viewer-in-progress" "resolve's 409 is tested through the real route with real device tokens"
 
 echo "=== 0056: Atomic EPG swap (P1-5) ==="
-check server/db/sqlite.js "CREATE VIEW IF NOT EXISTS epg_live" "readers have a live-generation view"
-check server/db/sqlite.js "ADD COLUMN gen INTEGER" "programmes carry a generation (migrated for existing databases)"
-check server/db/sqlite.js "COALESCE(s.active_gen, 0)" "a source with no state row is live at generation 0 (legacy rows, direct inserts)"
-check server/services/syncService.js "ON CONFLICT(source_id) DO UPDATE SET active_gen" "the swap is a single upsert"
-check server/services/syncService.js "async purgeEpgRows" "old generations are purged in slices"
 # The bug being fixed: the live guide was deleted before the new feed loaded.
 check_absent server/services/syncService.js "DELETE FROM epg_programs WHERE source_id = ?').run(sourceId)" "sync no longer empties the live guide up front"
 check_absent server/services/syncService.js "JSON.stringify(p)" "full programme JSON is no longer stored"
@@ -908,21 +734,13 @@ check_absent server/services/syncService.js "JSON.stringify(p)" "full programme 
 for f in server/routes/library.js server/routes/proxy.js; do
   check_absent "$f" "FROM epg_programs" "$f reads epg_live, not the raw table"
 done
-check server/routes/sources.js "DELETE FROM epg_state" "deleting a source clears its generation state"
-check test/epg-swap.test.js "never empty while a new feed loads" "the swap has tests (incl. a mid-sync read and a legacy upgrade)"
 
 echo "=== 0057: HLS segment route hardening (P2-4) ==="
 # Whitelist the exact names ffmpeg writes; a suffix check let an encoded-slash
 # path through, since Express decodes params after routing.
-check server/routes/transcode.js "seg.d{4,}" "segment route accepts only the names ffmpeg writes (seg<digits>.ts|m4s, init.mp4)"
 check_absent server/routes/transcode.js "(ts|m4s|mp4)\$/" "old suffix-only check is gone"
-check server/services/transcodeSession.js "path.dirname(segmentPath) !== path.resolve(this.dir)" "getSegment refuses to leave the session directory"
-check test/transcode-segments.test.js "encoded slash cannot walk out" "traversal has tests"
 
 echo "=== 0058: ?token= through the HLS proxy rewriter (P2-5) ==="
-check server/routes/proxy.js "const proxiedUrl = " "rewriter builds URIs in one place"
-check server/routes/proxy.js "URI=\"\${proxiedUrl(absoluteUrl)}\"" "key/init/map URI attributes carry the token"
-check server/routes/proxy.js "return proxiedUrl(absoluteUrl);" "segment lines carry the token"
 # Both rewrite sites must go through proxiedUrl; a third hand-built URL would
 # silently drop the token again. (Count the "/stream?" prefix, which only it writes.)
 if [ "$(grep -c '/stream?' server/routes/proxy.js)" = "1" ]; then
@@ -930,12 +748,8 @@ if [ "$(grep -c '/stream?' server/routes/proxy.js)" = "1" ]; then
 else
   echo "  ✗ MISSING: a rewriter URL is built outside proxiedUrl (would drop the token)"; FAIL=1
 fi
-check test/proxy-hls-token.test.js "carries it" "the rewriter has tests"
 
 echo "=== 0059: Favourites id normalisation (P1-3 server half) ==="
-check server/services/channelIds.js "function bareChannelId" "one place defines the bare/composite id forms"
-check server/db/sqlite.js "function normalizeFavoriteIds" "existing prefixed favourites are migrated"
-check server/db/sqlite.js "    normalizeFavoriteIds();" "the migration actually runs at schema init"
 # The bug: web and native wrote different spellings, so favourites never crossed.
 # Each of add/remove/isFavorite must normalise, or one of them silently misses.
 if [ "$(grep -c "if (itemType === 'channel') itemId = bareChannelId(itemId);" server/db/sqlite.js)" = "3" ]; then
@@ -943,55 +757,31 @@ if [ "$(grep -c "if (itemType === 'channel') itemId = bareChannelId(itemId);" se
 else
   echo "  ✗ MISSING: favorites add/remove/isFavorite must each normalise channel ids"; FAIL=1
 fi
-check server/routes/favorites.js "compositeChannelId(" "the web-facing list keeps the composite form the web matches on"
-check test/favourites-ids.test.js "native client adds shows up in the web app" "cross-client favourites have tests"
 
 echo "=== 0060: Guide query bounds + item index (P2-3) ==="
-check server/routes/library.js "const MAX_PROGRAMME_MS" "the programme-length bound has a name and a reason"
 # Both EPG queries in this file need the lower bound, or one of them still walks the feed.
 if [ "$(grep -c 'start_time > ? AND end_time > ? AND start_time < ?' server/routes/library.js)" = "2" ]; then
   echo "  ✓ both EPG queries (guide, now/next) bound start_time from below"
 else
   echo "  ✗ MISSING: every EPG query in library.js must bound start_time from below"; FAIL=1
 fi
-check server/db/sqlite.js "idx_items_source_item" "channel lookups by item id are indexed"
-check test/guide-bounds.test.js "long programme that began well before" "the bound has tests"
 
 echo "=== 0061: Recording time zone + User-Agent (P2-6) ==="
 check docker-compose.yml "TZ=\${TZ:-UTC}" "compose passes TZ through (UTC fallback = unchanged behaviour)"
-check server/services/recordingNames.js "function formatLocalStamp" "file-name timestamp is testable on its own"
-check server/services/recordingEngine.js "formatLocalStamp(schedule.program_start)" "recordings use it"
-check server/services/recordingEngine.js "getUserAgent(settings)" "recording ffmpeg honours the userAgentPreset setting"
 check_absent server/services/recordingEngine.js "Chrome/123.0.0.0" "no hard-coded Chrome UA left in the recording engine"
-check test/recording-names.test.js "Australia/Sydney" "time-zone handling has tests"
 
 echo "=== 0062: Recording native playback (P1-2 server half) ==="
-check server/services/recordingMedia.js "function buildNativeRemuxArgs" "remux flags are built in one testable place"
-check server/services/recordingMedia.js "'-tag:v', 'hvc1'" "HEVC is tagged hvc1"
 # Both the remux and the HEVC compression output need the tag.
 if [ "$(cat server/services/recordingMedia.js server/services/recordingPost.js | grep -c "'-tag:v', 'hvc1'")" = "2" ]; then
   echo "  ✓ hvc1 is applied to both the native remux and HEVC compression"
 else
   echo "  ✗ MISSING: hvc1 must be applied in both buildNativeRemuxArgs and buildCompressArgs"; FAIL=1
 fi
-check server/services/recordingMedia.js "const nativeRemuxes = new Map()" "concurrent remuxes of one recording are shared"
-check server/services/recordingMedia.js "fs.renameSync(partial, output)" "output is renamed into place, never written in place"
-check server/services/recordingMedia.js "async function nativeFileIsComplete" "pre-existing truncated files are detected"
-check server/services/recordingEngine.js "const compressed = compressionTargetPath(rec.file_path);" "deleting a recording removes its derived files"
-check test/native-playback.test.js "share one remux" "native playback has tests"
 
 echo "=== 0063: Body cap + rate limits (P2-7, partial) ==="
-check server/index.js "express.json({ limit: '2mb' })" "request bodies are capped at 2 MB"
 check_absent server/index.js "50mb" "the 50 MB body limit is gone"
-check server/services/rateLimit.js "function createLimiter" "limiter exists"
-check server/routes/auth.js "loginFailures.record(key)" "failed logins are counted"
-check server/routes/auth.js "loginFailures.clear(key)" "a successful login forgets them"
 # The key must not come from X-Forwarded-For (client-controlled under 'trust proxy: true').
-check server/routes/auth.js "req.socket?.remoteAddress" "login limit is keyed on the socket address"
 check_absent server/routes/auth.js "req.ip" "login limit never uses req.ip (spoofable via X-Forwarded-For)"
-check server/routes/devices.js "limitRequests(pairStartLimiter" "pair/start is limited"
-check server/routes/devices.js "limitRequests(pairingLimiter" "pair/poll is limited"
-check test/rate-limit.test.js "ten wrong passwords lock" "the limits have tests"
 
 echo "=== 0064: Remux codec identification ==="
 # The bug: with unknown codecs the remux started anyway and died on its first
@@ -1005,18 +795,8 @@ check public/js/components/VideoPlayer.js "new URL(video.currentSrc, 'http://loc
 check public/js/components/VideoPlayer.js "this.currentStrategy = decision.strategy" "the server's chosen strategy is recorded for the report"
 check public/js/components/VideoPlayer.js "if (this.isSourceCleared(video)) return;" "clearing the source (channel change) is not reported as a failure"
 check public/css/main.css ".transcode-status.error" "the error badge has a style"
-check server/routes/playback.js "router.post('/client-event', requireToken" "the report endpoint needs a token"
-check server/routes/playback.js "body.event !== 'media-error'" "only the known event is accepted"
-check server/routes/playback.js "redact(text(body.message, 200))" "the message is redacted before it reaches the log"
-check server/routes/playback.js "clientEventLimiter" "the endpoint is rate limited"
-check test/client-events.test.js "forge a log line" "the endpoint has tests"
-check test/player-media-error.test.js "never throws into playback" "the player side has tests"
-
-echo "=== 0066: AC-3 / E-AC-3 through the remux ==="
 
 echo "=== 0067: EPG icon fallback in the library API ==="
-check server/routes/library.js "function fillMissingLogos" "missing channel logos are filled from the EPG"
-check server/routes/library.js "function getEpgIconIndex" "the EPG icon index exists (built once, not per page)"
 # Both places that build channel rows must apply it, or the guide and the channel
 # list disagree about what a channel looks like.
 if [ "$(grep -c 'fillMissingLogos(' server/routes/library.js)" = "3" ]; then
@@ -1024,23 +804,15 @@ if [ "$(grep -c 'fillMissingLogos(' server/routes/library.js)" = "3" ]; then
 else
   echo "  ✗ MISSING: fillMissingLogos must be defined once and called from decorate() and the guide"; FAIL=1
 fi
-check server/routes/library.js "if (ch.logo) continue;" "a playlist-supplied logo is never replaced"
-check test/library-logos.test.js "never replaced" "the fallback has tests"
 
 echo "=== 0068: Audio re-encode self-heal (remux path) ==="
 # The output of the re-encode is raw AAC: the ADTS->ASC filter would refuse it, and
 # delay_moov is only for AC-3/E-AC-3, which the re-encode replaces.
-check server/services/playbackStrategy.js "audioEncode ? 'encode'" "resolve can ask for it on an HLS session"
-check server/routes/playback.js "audioEncode: audioEncode === true" "the resolve route passes only a real boolean through"
 # 'encode' must beat the smart-copy shortcuts or a stereo AAC source is copied again.
-check server/services/transcodeSession.js "const forceEncode = this.options.audioMode === 'encode'" "an explicit encode request exists in the session builder"
-check server/services/transcodeSession.js "isStereoAac && !forceEncode" "smart copy no longer overrides an explicit encode"
 check public/js/components/VideoPlayer.js "shouldRetryWithAudioEncode(details)" "the player retries a failed remux"
 check public/js/components/VideoPlayer.js "if (this._audioEncodeActive) return false;" "it never retries a play that was already re-encoding (no loop)"
 check public/js/components/VideoPlayer.js "            this._audioRetryKey = null;" "each fresh selection gets one retry, the retry itself does not"
 check public/js/components/VideoPlayer.js "this.rememberAudioEncode(this.currentChannel, false)" "a flag that did not help is forgotten"
-check test/player-audio-retry.test.js "can never loop" "the retry logic has tests"
-check test/audio-encode.test.js "smart copy" "the server side has tests"
 
 echo "=== 0069: cleared-source errors are not playback failures ==="
 check public/js/components/VideoPlayer.js "isSourceCleared(video)" "the handler asks whether the source was just cleared"
@@ -1048,17 +820,12 @@ check public/js/components/VideoPlayer.js "video.getAttribute('src')" "by the sr
 check public/js/components/VideoPlayer.js "empty src attribute" "with the browser's own message as a second check"
 # The bug: gating on currentSrc alone. It must not be the only guard again.
 check_absent public/js/components/VideoPlayer.js "if (!video || !video.currentSrc || !video.error) return;" "no currentSrc-only guard left (Chrome keeps the old URL there)"
-check test/player-media-error.test.js "with the old URL still in currentSrc" "the real Chrome sequence is tested"
 
 echo "=== 0070: diagnostics for silent 'nothing plays' failures ==="
 check public/js/components/VideoPlayer.js "addEventListener('loadstart', () => this.armStartWatch())" "the player watches for a load that never starts"
 check public/js/components/VideoPlayer.js "addEventListener('playing', () => { this.clearStartWatch();" "and stops watching once it plays"
 check public/js/components/VideoPlayer.js "event: 'start-timeout'" "and reports it"
 check public/js/components/VideoPlayer.js "if (video.paused || video.currentTime > 0) return;" "but not when paused or already moving"
-check server/routes/playback.js "body.event !== 'start-timeout'" "the server accepts the new event (and still only the known ones)"
-check test/player-start-watch.test.js "innocent explanations" "the start watch has tests"
-
-echo "=== 0071: probe-phase decoder chatter is summarised, not logged ==="
 
 echo "=== 0072: Hide All / Show All update the group checkboxes ==="
 check public/js/components/SourceManager.js "const groupKey = \`\${groupItemType}:\${group.categoryId}\`;" "setAllVisibility updates the group key that the checkbox is drawn from"
@@ -1068,33 +835,20 @@ if [ "$(grep -c 'groupItemType}:${group.categoryId}' public/js/components/Source
 else
   echo "  ✗ MISSING: getGroupHtml, saveContentChanges and setAllVisibility must all use the same group key"; FAIL=1
 fi
-check test/source-manager-hide-all.test.js "straight away, not only after a reload" "the visible checkbox state is tested"
 
 echo "=== 0073: HLS sessions tolerate audio/video start-time skew ==="
-check server/services/transcodeSession.js "'-dts_delta_threshold', String(DTS_DELTA_THRESHOLD_SEC)," "the session raises ffmpeg's timestamp-jump threshold"
-check server/services/transcodeSession.js "PIGTV_DTS_DELTA_THRESHOLD_SEC" "and it is tunable"
 # It is an input option: it must sit before -i or it would apply to the output.
 if awk '/-dts_delta_threshold/{d=NR} /args.push\(.-i., this.url\)/{i=NR} END{exit !(d && i && d<i)}' server/services/transcodeSession.js; then
   echo "  ✓ it comes before -i (an input option)"
 else
   echo "  ✗ MISSING: -dts_delta_threshold must come before -i in the session arguments"; FAIL=1
 fi
-check test/hls-timestamp-skew.test.js "the old arguments do reproduce it" "the test also proves the fault reproduces without the flag"
-
-echo "=== 0074: housekeeping ==="
-check test/access.test.js "process.platform === 'win32' ? 'junction' : 'dir'" "the access test links node_modules with a junction on Windows (no admin needed)"
 
 echo "=== 0075: HLS delivery (beta) for the web player, and play-start / play-end measurement ==="
 # (0102: the opt-in became the only path - see the 0102 section.)
 check public/js/components/VideoPlayer.js "this.notePlaying(); });" "the first picture is measured on the element's 'playing' event"
 check public/js/components/VideoPlayer.js "this.reportPlayEnd();" "and the play is closed out when it stops"
 check public/js/components/VideoPlayer.js "handleHlsFatal(data)" "a fatal hls.js error is no longer swallowed"
-check server/routes/playback.js "const measurementLimiter" "measurement has its own rate limit, so it cannot starve fault reports"
-check server/routes/playback.js "play-start via" "the server logs play-start"
-check server/routes/playback.js "play-end via" "and play-end"
-check server/services/playbackStrategy.js "resolve timing: HLS session" "resolve logs where a channel change's seconds go"
-check test/player-hls-delivery.test.js "the first picture is reported once per play" "the player changes have tests"
-check test/resolve-timing.test.js "resolve timing" "the timing lines have tests"
 
 echo "=== 0076: inert files removed (review P2-1, batch a) ==="
 for f in server/routes/users.js server/services/m3uXtreamAdapter.js server/plugins/hello.js; do
@@ -1122,89 +876,48 @@ check_absent package-lock.json "node_modules/express-session" "and the lockfile 
 echo "=== 0078: JSON-file hiddenItems / favorites removed from db.js (review P2-1) ==="
 check_absent server/db.js "hiddenItems" "no JSON-file hidden items (they live in SQLite, routes/channels.js)"
 check_absent server/db.js "db.favorites" "no JSON-file favourites (they live in SQLite, routes/favorites.js)"
-check test/db-legacy-keys.test.js "the migration into SQLite carries the used collections, not the two unread arrays" "an older db.json is tested to load and to lose only those two arrays"
 
 echo "=== 0079: unknown /api paths return a JSON 404 ==="
-check server/index.js "No such API endpoint" "an unknown /api path is an error, not the web app"
 # It must come after every router and before the SPA fallback, or it swallows real routes / never runs.
 if awk '/app.use\(.\/api\/recordings/{r=NR} /No such API endpoint/{e=NR} /SPA fallback - serve index.html/{s=NR} END{exit !(r && e && s && r<e && e<s)}' server/index.js; then
   echo "  ✓ it sits after the last router and before the SPA fallback"
 else
   echo "  ✗ MISSING: the API 404 must come after all /api routers and before the SPA fallback"; FAIL=1
 fi
-check test/api-404.test.js "every route the Apple client calls still reaches its real handler" "a test boots the real server and asserts none of the Apple client's routes is swallowed"
 
 echo "=== 0080: a failed db.json write is reported, not swallowed (review §2.14) ==="
 # 0135 moved the store into SQLite: a write is one transaction, rolled back whole on failure.
-check server/db.js "return db.transaction(() => fn(db))();" "every write is one transaction"
-check server/db.js "The server could not save its data (is the disk full or read-only?)" "and a failure reaches the caller as a plain sentence"
 check_absent server/db.js "Database write failed" "the old catch-and-continue that reported success is gone"
-check test/db-write-failure.test.js "two updates in flight together both land" "and two writes in flight together both land (0135: transactions, no whole-store rewrite)"
 
 echo "=== 0081: playback report script for the HLS trial ==="
 check scripts/playback-report.js "play-start via" "the report reads the play-start line the server writes"
 check scripts/playback-report.js "resolve timing" "and the resolve timing line, to tell cold plays from warm ones"
 # The script parses log lines by their exact wording, so the server must still write them that way.
-check server/routes/playback.js "play-start via" "the server still writes play-start"
-check server/routes/playback.js "play-end via" "and play-end"
-check server/services/playbackStrategy.js "resolve timing: " "and resolve timing"
-check test/playback-report.test.js "the real lines are understood" "the report has tests built from real log lines"
 
 echo "=== 0082: a recording waiting for a viewer is listed, cancellable and not duplicated ==="
-check server/db/recordingsDb.js "status IN ('scheduled', 'recording', 'waiting')" "the upcoming list and the duplicate check include waiting"
-check server/services/recordingEngine.js "schedule.status === 'scheduled' || schedule.status === 'waiting'" "a waiting recording can be cancelled"
-check server/services/recordingEngine.js "coordinator.clearPrompt(id);" "and cancelling withdraws its viewer prompt"
 check public/js/pages/RecordingsPage.js "waiting: 'Waiting for viewer'" "the web page labels it instead of showing the raw status"
-check test/recordings-waiting.test.js "a waiting recording can be cancelled" "with tests"
-
-echo "=== 0083: recording playback can be polled (202 preparing), and /api/info advertises what a client can rely on ==="
-check server/routes/recordings.js "req.query.async === '1'" "the polling flavour is opt-in, so existing clients are unchanged"
-check server/routes/recordings.js "status: 'preparing', retryAfterSec: 3" "a remux still running answers 202 preparing"
-check server/routes/recordings.js "The server could not prepare this recording for playback" "a failure gives a plain message, not paths or ffmpeg output"
-check server/services/recordingMedia.js "function pollNativePlayback" "the engine can say where preparation stands"
-check server/services/recordingMedia.js "nativeFailures.delete(rec.id);" "and a failure is reported once, then forgotten"
-check server/routes/info.js "recordingPlaybackPolling: true" "/api/info says polling exists"
-check server/routes/info.js "scheduledWaiting: true" "and the other client-relevant behaviours"
-check test/recording-playback-polling.test.js "two clients asking at once share one remux" "with route-level tests"
 
 echo "=== 0084: the playback report keeps Apple-device plays apart from the web trial ==="
 check scripts/playback-report.js "DEVICE_SUFFIX" "device plays get their own rows"
-check test/playback-report.test.js "device plays get their own rows, apart from the web player" "and are tested to stay apart from the web player's rows (0113: the trial they were kept out of is retired)"
 
 echo "=== 0085: stream-copy HLS sessions can rebuild DTS from PTS order (SUPERSEDED by 0088: only feeds that need it) ==="
-check server/services/transcodeSession.js "+genpts+discardcorrupt+igndts" "the rebuild is still what an uneven feed gets"
-check server/services/transcodeSession.js "videoMode === 'copy' &&" "and still only copy-video ones: a re-encode makes its own timestamps"
-check test/hls-copy-dts.test.js "no video packets are lost either way" "with a real-ffmpeg test that the old arguments reproduce the uneven timing"
 check docs/SWIFT-CLIENT-HANDOFF.md "0085" "and the Apple hand-off doc records it"
 
 echo "=== 0086: a source that ends is read at real time, so the HLS window cannot slide past the player ==="
-check server/services/streamProbe.js "const finite = " "the probe says whether a source ends (a size or a duration)"
-check server/services/playbackStrategy.js "paceInput: info.finite === true" "the strategy paces only those sessions"
-check server/services/transcodeSession.js "this.options.paceInput === true" "the session reads such an input with -re"
-check server/routes/transcode.js "function noteMissing" "and a playlist or segment 404 now leaves a line in the log"
-check test/hls-finite-source.test.js "unpaced, ffmpeg outruns the playlist window" "with a real-ffmpeg test that reproduces the 404 without pacing"
 check docs/SWIFT-CLIENT-HANDOFF.md "0086" "and the Apple hand-off doc records it"
 
 echo "=== 0087: cancelling the takeover prompt stops the play instead of taking the stream anyway ==="
 check public/js/components/VideoPlayer.js "VideoPlayer.CANCELLED = Symbol" "a declined takeover has its own answer, distinct from null"
 check public/js/components/VideoPlayer.js "decision === VideoPlayer.CANCELLED" "and play() stops there rather than falling through to the local strategy"
 check public/js/components/VideoPlayer.js "abandonPlay()" "the screen goes back to how it was, with no play-start reported"
-check test/player-conflict-cancel.test.js "the local fallback - which would take the stream anyway - never runs" "with a test that fails on the old code"
 
 echo "=== 0088: igndts is decided per feed, because it helps one kind of source and harms the other ==="
-check server/services/streamProbe.js "function classifyTimestamps" "the probe says whether a feed timing is even"
-check server/services/streamProbe.js "read_intervals" "read from the SAME probe call, bounded so a live feed cannot hang it"
-check server/services/playbackStrategy.js "dtsUneven: info.dtsUneven === true" "the strategy passes the verdict to the session"
-check server/services/transcodeSession.js "const useIgnDts = videoMode" "and only an uneven feed has its DTS rebuilt"
-check test/dts-classify.test.js "separated by a wide margin, not a fine threshold" "with tests for the classification"
-check test/hls-copy-dts.test.js "an even source must be left alone" "and a real-ffmpeg test of BOTH directions"
 check docs/SWIFT-CLIENT-HANDOFF.md "0088" "and the Apple hand-off doc records it"
 
 echo "=== 0090: the timestamp diagnostics become a supported tool ==="
 check scripts/stream-doctor.js "capture <pos_N>" "one tool with the five subcommands, replacing four throwaway scripts"
 check scripts/stream-doctor.js "classifyTimestamps" "its verdict is the server function, not a second copy of the rule"
 check scripts/stream-doctor.js "uses the provider slot" "and it says which subcommands take the provider connection"
-check test/stream-doctor.test.js "not a second opinion" "with a test that the tool and the server agree"
 check blueprint.md "reach for this first on any playback fault" "and the blueprint points at it"
 
 echo "=== 0091 (docs): troubleshooting starts from a capture of the real channel ==="
@@ -1220,17 +933,9 @@ check docs/SWIFT-CLIENT-HANDOFF.md "docker logs PigTV" "including the ones the A
 
 echo "=== 0093: captured samples survive a deploy ==="
 check scripts/stream-doctor.js "path.join(DATA, .samples.)" "they are written under the data bind mount, not the writable layer"
-check test/stream-doctor.test.js "not the writable layer" "with a test that pins it to the mount docker-compose declares"
 check blueprint.md "has to outlive the build it was taken on" "and the blueprint says why it matters"
 
 echo "=== 0094: a displaced client can tell takeover from an ordinary failure ==="
-check server/services/streamCoordinator.js "function terminalStatus" "the coordinator remembers, briefly, that a session was replaced"
-check server/services/streamCoordinator.js "noteReplaced(stream)" "written by admitViewer only, so DELETE and the sweeps leave nothing"
-check server/services/streamCoordinator.js "forced-takeover" "releases carry why they happened, into the log"
-check server/routes/playback.js "terminal-status" "the route exists, behind bearer auth"
-check server/routes/info.js "playbackTerminalStatus" "and /api/info advertises it so an older server keeps the old client path"
-check test/playback-arbitration.test.js "two password logins share one owner key" "with the case owner equality cannot solve"
-check test/api-404.test.js "terminal-status" "and the Apple-client route guard covers it"
 check docs/SWIFT-CLIENT-HANDOFF.md "0094" "and the Apple hand-off doc records it"
 
 echo "=== 0095: the image says which source it was built from ==="
@@ -1239,34 +944,7 @@ check .github/workflows/docker-publish.yml "id: stamp" "computed in a step, so r
 check blueprint.md "builds \`ghcr.io/maroge1990/pigtv\` \*\*only if the tests pass" "and the mechanism is written down rather than assumed"
 check .github/workflows/docker-publish.yml "needs: test" "and the image build waits for the regression tests"
 
-echo "=== 0096: a channel identity that a provider reorder cannot move (P1-3, part 1) ==="
-check server/services/stableIds.js "function stableChannelId" "identity derived from the provider stream id in the URL"
-check server/services/stableIds.js "is not the credentials, which rotate" "and not from the credentials, which rotate"
-check server/db/sqlite.js "ADD COLUMN stable_id" "stored alongside the row, additive to the schema"
-check server/db/sqlite.js "function backfillStableIds" "backfilled for rows that predate it, idempotently"
-check server/services/syncService.js "stable_id = excluded.stable_id" "and rewritten by every sync, so a moved row cannot keep a stale one"
-check server/services/syncService.js "Channel identity:" "the sync reports how the whole playlist derived"
-check test/stable-id-migration.test.js "survives the reorder that started all this" "with a test of the real reorder"
-
-echo "=== 0097: favourites follow the channel, not the playlist position (P1-3, part 2a) ==="
-check server/db/sqlite.js "function identityOf" "a caller id is resolved to the channel it names"
-check server/db/sqlite.js "function backfillFavoriteIdentities" "existing favourites are migrated at startup"
-check server/db/sqlite.js "stable_id IS NULL AND item_id" "and a stale position is ignored once a row has an identity"
-check server/routes/library.js "GROUP BY COALESCE" "a channel listed twice appears once in the favourites list"
-check test/favourites-stable.test.js "this is the bug being fixed" "with a test of the real reorder"
-
-echo "=== 0098: recordings and history follow the channel too (P1-3, part 2b) ==="
-check server/db/recordingsDb.js "channel_stable_id" "a schedule records which channel it is for"
-check server/db/recordingsDb.js "status IN ..scheduled., .waiting.." "backfilled for pending schedules only"
-check server/services/recordingEngine.js "function channelIdentity" "resolved when the schedule is made, while the playlist still says where it is"
-check server/db/sqlite.js "function backfillHistoryIdentities" "watch history gets the same treatment"
-check test/recording-stable-channel.test.js "full of the wrong programme" "with a test of a reorder between scheduling and recording"
-
 echo "=== 0099: strip the small-caps LIVE badge at ingest (SR-2) ==="
-check server/services/textCleanup.js "function stripBadgeSuffix" "shared stripper exists"
-check server/services/epgParser.js "stripBadgeSuffix" "EPG parser strips titles/names"
-check server/services/m3uParser.js "stripBadgeSuffix" "M3U parser strips channel names"
-check test/badge-strip.test.js "NFL Football - Giants at Rams" "with a test on the real reported title"
 python3 - <<'PYCHK'
 import subprocess, sys
 # Run the stripper against the two reported strings and a middle-of-title
@@ -1299,21 +977,11 @@ else:
 PYCHK
 [ $? -eq 0 ] || FAIL=1
 
-echo "=== 0100: HDR sessions carry VIDEO-RANGE in a master playlist (SR-1) ==="
-check server/services/streamProbe.js "function classifyVideoRange" "the probe classifies PQ / HLG from color_transfer"
-check server/services/playbackStrategy.js "if (hdrCopy && segmentType === 'fmp4') videoRange = info.videoRange" "only a copied fMP4 session is called HDR (0115: expression reworded)"
-check server/services/transcodeSession.js "VIDEO-RANGE=" "the master playlist states the range"
-check server/routes/transcode.js "master.m3u8" "and is served, with the stream token on its variant"
-check test/api-404.test.js "/api/transcode/abc/master.m3u8" "the Apple-client route guard knows it"
-check test/hdr-master-playlist.test.js "smpte2084" "with a test built on the real capture's fields"
-
 echo "=== 0102: the web player is on the one path (Phase 3) ==="
 check public/js/components/VideoPlayer.js "                segmentedDelivery: true" "every browser asks for HLS segments, as the Apple client does"
 check public/js/components/VideoPlayer.js "recoverPlayback(reason" "recovery is a fresh resolve, once per selection"
 check public/js/components/VideoPlayer.js "hls.recoverMediaError();" "a fatal media error is first recovered in place"
 check public/js/components/VideoPlayer.js "this.stopConflictWatch();" "stop() also ends the recording-conflict poll"
-check test/player-hls-delivery.test.js "no second retry: it can never loop" "with tests of the recovery"
-check test/player-conflict-cancel.test.js "never a local strategy" "and of a play the server could not start"
 python3 - <<'PYCHK'
 import sys
 # Grep can prove something is present, not that something is gone. The whole point of
@@ -1333,10 +1001,6 @@ PYCHK
 echo "=== 0103: remux retired - one delivery path (Phase 4) ==="
 # The checks that pinned the remux route, its registry, watchdog wiring, codec probe,
 # argument builder and diagnostics were retired with it; their history is in git.
-check server/services/playbackStrategy.js "It was retired in 0103" "resolve documents why there is no remux strategy"
-check server/services/playbackStrategy.js "2. Everything else is an HLS session" "codecs-fine streams are HLS sessions with both streams copied"
-check test/audio-encode.test.js "never a remux any more" "with a test that a request without segmentedDelivery still gets HLS"
-check test/api-404.test.js "one delivery path (0103)" "and that /api/remux and the legacy pipe answer 404"
 python3 - <<'PYCHK'
 import os, re, sys
 # Presence can be grepped; absence has to be checked. Any of these back means a
@@ -1368,24 +1032,9 @@ PYCHK
 [ $? -eq 0 ] || FAIL=1
 
 echo "=== 0104: session hardening ==="
-check server/services/transcodeSession.js "const requested = this.status === 'stopped';" "an exit nobody asked for is an error, whatever the code (255 used to leave 'running')"
-check server/services/transcodeSession.js "this._usedVaapiDecode === true && !this.timings.playlistReady" "the software-decode retry is only for a GPU-decoding encode that never produced a playlist"
-check server/services/streamUrl.js "function isStreamUrl" "only network URLs are opened"
-check server/services/transcodeSession.js "if (!isStreamUrl(this.url))" "a session will not hand ffmpeg a local file"
-check server/services/streamProbe.js "if (!isStreamUrl(url)) return Promise.reject" "nor will the probe"
-check server/routes/playback.js "NOT_A_STREAM_URL" "resolve refuses one with a 400"
 # (0122: the session route, /api/probe and /api/subtitle - the other entries that took a URL - are gone.)
-check server/routes/proxy.js "await pipeline(Readable.from(body()), res);" "/api/proxy/stream streams binary content instead of buffering it"
-check server/routes/proxy.js "upstreamAbort.abort()" "and lets go of the upstream when the client leaves"
 check_absent server/services/transcodeSession.js "async persist()" "no session.json with the provider URL in it"
 check_absent server/services/transcodeSession.js "async function getOrCreateSession" "no unused getOrCreateSession"
-check test/session-hardening.test.js "it used to stay" "with tests"
-check test/proxy-stream-binary.test.js "releases the upstream connection" "and for the proxy"
-
-echo "=== 0106: stableId on guide and favourites rows ==="
-check server/routes/library.js "SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id" "favourites selects p.stable_id, not just /channels"
-check server/routes/library.js "stableId: row.stable_id || null," "guide rows carry stableId too"
-check test/guide-favourites-stableid.test.js "carries stableId" "with a test"
 
 echo "=== 0107: dead duplicate proxy routes removed ==="
 # Express runs only the FIRST matching layer; a second registration of the same
@@ -1398,19 +1047,10 @@ if [ "$(grep -c "^router\.\(get\|post\|put\|delete\)(" server/routes/proxy.js)" 
 else
     echo "  ✗ MISMATCH: proxy.js should register only GET /stream"; FAIL=1
 fi
-check test/proxy-no-duplicate-routes.test.js "registers GET /stream, exactly once, and nothing else" "with a test on router.stack"
 
 echo "=== 0108: gzip JSON responses, never media ==="
 check package.json '"compression"' "compression package is a dependency"
-check server/index.js "require('compression')" "wired into the server"
-check server/index.js "filter: shouldCompress" "using the project's own allow-list filter, not the library default"
-check server/services/compressionFilter.js "req.headers.range" "the filter refuses any ranged request"
-check server/services/compressionFilter.js "/api/transcode" "and anything under /api/transcode"
-check server/services/compressionFilter.js "/api/proxy/stream" "and /api/proxy/stream"
-check server/services/compressionFilter.js "media\\\\.mp4|stream|download" "and recording media routes"
 check_absent server/services/compressionFilter.js "'video/" "and never allow-lists a video type"
-check test/compression-filter.test.js "content-encoding'), 'gzip'" "with a test that JSON is gzip-encoded"
-check test/compression-filter.test.js "never compressed" "and that media/ranged responses are not"
 
 echo "=== 0109: supported runtime and a reproducible image ==="
 check Dockerfile "setup_24.x" "nodesource points at Node 24, not the EOL Node 20"
@@ -1421,152 +1061,37 @@ check Dockerfile "git fetch --depth 1 https://github.com/erikkaashoek/Comskip a1
 check_absent Dockerfile "git clone --depth 1 https://github.com/erikkaashoek/Comskip" "no unpinned clone of Comskip master left behind"
 check .github/workflows/test.yml "node: \[22, 24\]" "CI matrix is Node 22 and 24, not the EOL Node 20"
 
-echo "=== 0110: /api/favorites follows the channel's current identity ==="
-check server/routes/favorites.js "function expandToCurrentItemIds" "GET /favorites resolves stored favourites to current playlist rows"
-check server/routes/favorites.js "WHERE source_id = ? AND stable_id = ? AND type" "the resolution joins on stable_id, current listings only"
-check server/routes/favorites.js "expandToCurrentItemIds(favorites.getAll" "the GET / handler actually calls it"
-check test/favorites-current-item-id.test.js "not the stale pos_A" "with a test that fails on the old code"
-check test/favorites-current-item-id.test.js "shows a star in both current listings" "and a cross-listed channel"
-
-echo "=== 0111: guide API for scale (cursor paging, tvg_id column, guide version) ==="
-check server/routes/info.js "guideCursor: true" "features flag for cursor paging"
-check server/routes/info.js "guideVersion: true" "features flag for the version endpoint"
-check server/routes/library.js "clamp(req.query.limit, 1, 500, 25)" "guide limit goes up to 500"
-check server/routes/library.js "router.get('/guide/version'" "GET /library/guide/version exists"
-check server/routes/library.js "currentGuideVersion" "and it uses the shared revision helper"
-check server/routes/library.js "decodeGuideCursor" "keyset cursor decoding"
-check server/routes/library.js "row.tvg_id || null" "guide rows read the indexed column first"
-check server/routes/library.js "JSON.parse(row.data || '{}');" "with the JSON parse kept only as a fallback for rows the column has not reached"
-check server/db/sqlite.js "ALTER TABLE playlist_items ADD COLUMN tvg_id TEXT" "tvg_id column migration"
-check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS meta" "meta table for the revision counter"
-check server/services/libraryRev.js "function bumpLibraryRev" "revision-bump helper exists"
-check server/services/libraryRev.js "epg_state" "and folds in the EPG generations"
-check server/services/syncService.js "bumpLibraryRev()" "a completed sync bumps the guide version"
-check server/routes/channels.js "bumpLibraryRev()" "hide/show bumps the guide version"
-check server/services/syncService.js "item.tvgId || item.epg_channel_id || null" "tvg_id is filled at ingest, not only backfilled"
-check test/guide-scale.test.js "same order as the offset page" "with a cursor-vs-offset equivalence test"
-check test/guide-scale.test.js "hiding a channel must change the guide version" "and a version-change test"
-check test/tvg-id-column.test.js "tvg_id must be set by the sync itself" "and an ingest-time tvg_id test"
-
-echo "=== 0112: logo cache ==="
-check server/routes/logo.js "router.get('/:key'" "GET /api/logo/:key exists"
-check server/routes/logo.js "isSafeKey" "keys are validated before touching the filesystem or the database"
-check server/routes/logo.js "Cache-Control', 'public, max-age=604800'" "a week-long cache lifetime"
-check server/routes/logo.js "req.headers\['if-none-match'\]" "conditional requests answer 304"
-check server/routes/logo.js "req.app.locals.ffmpegPath" "downscaling uses the shared ffmpeg path, not a hardcoded one"
-check server/routes/logo.js "Unauthenticated on purpose" "with the reasoning for being unauthenticated recorded in the file"
-check server/index.js "app.use('/api/logo', require('./routes/logo'))" "the route is actually mounted"
-check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS logo_cache" "the lookup table exists"
-check server/services/logoCache.js "function registerLogo" "the registration helper exists"
-check server/routes/library.js "applyLogoCache(parsed)" "channels/favourites/recent hand out cached logo paths"
-check server/routes/library.js "applyLogoCache(channels)" "and so does the guide"
-check server/routes/info.js "logoCache: true" "features flag"
-check test/logo-cache.test.js "an unknown key must never reach the network" "with a test that an unregistered key never fetches"
-check test/logo-cache.test.js "served from disk, not fetched again" "and that a known key is fetched only once"
-check test/library-logos.test.js "0112: every library response now hands out" "and the library tests updated for the new logo shape"
-
 echo "=== 0113: a failed start fails fast, says why, and a refused first connection is retried once ==="
-check server/services/transcodeSession.js "if (this.hasFailed())" "waitForPlaylist stops polling once ffmpeg has ended without a playlist"
-check server/services/transcodeSession.js "function classifyInputFailure" "ffmpeg's input failure is turned into a client-safe reason"
-check server/services/transcodeSession.js "Provider refused the connection; retry" "a retry for a refusal right after the probe, with its log line (two since 0143)"
-check server/services/transcodeSession.js "REFUSED_RETRY_WINDOW_MS = 3000" "only within ffmpeg's first ~3 s"
-check server/services/transcodeSession.js "status === '404'" "a 404 is never retried"
-check server/services/transcodeSession.js "!requested && refused && refused.retryable" "and never for a session we stopped ourselves"
-check server/services/playbackStrategy.js "new Error(failure || (ended ? FAILURE_TEXT.couldNotOpen() : FAILURE_TEXT.timeout()))" "resolve's error carries the reason, else a fixed C-B sentence (was the old text until 0118)"
-check server/services/playbackStrategy.js "NOT produced - ffmpeg ended after" "the resolve timing line says ffmpeg ended, rather than timed out"
 check scripts/playback-report.js "NOT produced - ffmpeg ended" "the playback report counts those"
 check_absent scripts/playback-report.js "opt-in" "the report no longer speaks of the opt-in HLS trial"
 check_absent scripts/playback-report.js "Against the trial criteria" "nor its criteria block"
 check_absent scripts/playback-report.js "HLS Delivery (beta)" "nor the retired toggle"
-check test/start-failure.test.js "the old code polled the full 15 s" "with a test that fails on the old code"
-check test/start-failure.test.js "two retries, no more" "and a test that the retries stop (twice since 0143)"
 
 echo "=== 0114: channel profiles - a repeat play skips ffprobe ==="
-check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS channel_profiles" "the profile table exists"
-check server/services/channelProfiles.js "PIGTV_PROFILE_MAX_AGE_DAYS" "and a configurable age limit"
-check server/services/channelProfiles.js "createHash('sha256')" "the key is stored hashed (the URL carries credentials)"
-check server/services/playbackStrategy.js "channelProfiles.get(cacheKey)" "resolve looks a profile up under the probe cache's own key"
-check server/services/playbackStrategy.js 'probeNote: `profile (age ' "and says so in the resolve timing line (probe profile (age Nd))"
-check server/services/playbackStrategy.js "channelProfiles.remove(cacheKey)" "a failed start from a profile drops it"
-check server/services/playbackStrategy.js "else channelProfiles.save(cacheKey, info, probedAt)" "a profile is written only once a session has played from it"
-check server/services/transcodeSession.js "'-probesize', '5000000'" "ffmpeg's own probe is unchanged (long GOPs need it)"
-check server/services/transcodeSession.js "'-analyzeduration', '5000000'" "likewise its analyzeduration"
 check scripts/playback-report.js "profile \\\\(age" "the playback report counts a profiled play as warm"
-check test/channel-profiles.test.js "the old code probed again once the 5-min cache expired" "with a test that fails on the old code"
 
 echo "=== 0115: frame-rate-aware master playlist for every session ==="
-check server/services/streamProbe.js "function frameRateOf" "the probe picks a usable frame rate"
-check server/services/streamProbe.js "videoStream?.avg_frame_rate, videoStream?.r_frame_rate" "avg_frame_rate first, then r_frame_rate"
-check server/services/streamProbe.js "const MAX_FPS = 240" "and ignores absurd values (the TS clock, 0/0)"
-check server/services/playbackStrategy.js "else if (!hdrCopy && frameRate !== null) videoRange = 'SDR'" "every non-HDR session with a usable rate gets an SDR master playlist"
-check server/services/playbackStrategy.js "if (hdrCopy && segmentType === 'fmp4') videoRange = info.videoRange" "HDR copy sessions keep PQ/HLG"
-check server/services/playbackStrategy.js "width: videoMode === 'copy' ? info.width : 0" "RESOLUTION only when the output is the source's size"
-check server/services/transcodeSession.js "const rate = parseFrameRate(fps)" "FRAME-RATE uses the same bounds as the probe"
 check_absent server/services/transcodeSession.js "CODECS=" "the master playlist still carries no CODECS"
-check server/routes/transcode.js "the session has no master playlist" "the route's 404 no longer assumes HDR"
 check_absent public/js/components/VideoPlayer.js "stream.m3u8" "the web player does not assume the media playlist name"
-check test/frame-rate-master.test.js "the old code handed out stream.m3u8" "with a test that fails on the old code"
 
 echo "=== 0116: HE-AAC passthrough for clients that can decode it ==="
-check server/services/playbackStrategy.js "heaac: false," "heaac is a capability, off by default"
-check server/services/playbackStrategy.js "heaacCopy: caps.heaac === true" "resolve tells the session only on an explicit true"
-check server/services/streamProbe.js "(!isHeAac || clientCaps.heaac === true)" "the probe counts HE-AAC as decodable only for such a client"
-check server/services/transcodeSession.js "const heAacBlocked = isHeAac && this.options.heaacCopy !== true" "the session copies HE-AAC only when told it may"
-check server/services/transcodeSession.js "heAacBlocked || (isHeAac && forceEncode)" "and still re-encodes it to AAC-LC otherwise, or when asked to"
-check server/services/transcodeSession.js "'-profile:a', 'aac_low'" "the AAC-LC re-encode itself is unchanged"
 check_absent public/js/components/VideoPlayer.js "heaac" "the web player never sends heaac (Chrome cannot decode HE-AAC)"
-check test/heaac-passthrough.test.js "the old code re-encoded to AAC-LC for every client" "with a test that fails on the old code"
 
 echo "=== 0117: channel numbers (C-A) ==="
-check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS channel_numbers" "the numbering table exists"
-check server/db/sqlite.js "number INTEGER NOT NULL UNIQUE" "a number is unique across the server"
-check server/services/channelNumbers.js "COALESCE(p.stable_id, p.item_id)" "numbers are keyed on the channel's identity, not its position"
-check server/services/channelNumbers.js "RESERVE_MS = 30 \\* 24" "a vanished channel's number is reserved for 30 days"
-check server/services/syncService.js "refreshChannelNumbers()" "a completed sync numbers new channels"
-check server/routes/channels.js "refreshChannelNumbers()" "and so does a hide/show"
-check server/routes/library.js "channelNumbers.ensureChannelNumbers()" "the first library request numbers an empty table"
 check_absent server/routes/library.js "GUIDE_NUMBER_KEY" "dead number-keyed cursor code removed in 0164 (numbers are labels only since 0139)"
-check server/routes/library.js "number: row.channel_number ?? null" "library rows carry number"
-check server/routes/lineup.js "router.use(requireAuth, requireAdmin)" "the lineup API is admin only"
-check server/routes/lineup.js "bumpLibraryRev()" "a renumber changes the guide version"
-check server/index.js "app.use('/api/lineup', require('./routes/lineup'))" "the lineup route is mounted"
-check server/routes/info.js "channelNumbers: true" "features flag"
-check test/channel-numbers.test.js "cursor pages give the same rows in the same order as the offset listing" "with a cursor-exactness test"
-check test/channel-numbers.test.js "the reorder really moved the position ids" "and a provider-reorder stability test"
 
 echo "=== 0118: resolve errors use the client's allowed wording (C-B) ==="
-check server/services/playbackErrors.js "'The provider refused this channel'" "the allow-list is recorded next to the texts"
-check server/services/transcodeSession.js "message: FAILURE_TEXT.notFound()" "ffmpeg's 404 uses the shared text"
 check_absent server/services/transcodeSession.js "could not find this channel" "the old 404 wording is gone"
 check_absent server/services/transcodeSession.js "had a problem serving this channel" "the old 5xx wording is gone"
 check_absent server/services/playbackStrategy.js "Transcode failed to produce a playlist in time" "the old timeout wording is gone"
-check server/services/playbackStrategy.js "throw Object.assign(new Error(probeFailureMessage(err))" "a failed probe never hands its stderr (with the URL) to the client"
-check server/services/providerRouting.js "FAILURE_TEXT.notInPlaylist()" "a channel not in the playlist says 'This channel is not available' (streamUrlForChannel moved in 0174)"
-check server/routes/playback.js "const safe = clientSafe(redact(err.message))" "the resolve route strips any URL from what it returns"
-check test/resolve-errors.test.js "no URL anywhere in the response" "with a route-level no-URL test"
 
 echo "=== 0119: opaque playback handles (C-D) and redacted logs ==="
-check server/services/playbackHandles.js "crypto.randomBytes(16).toString('hex')" "a handle is 32 random hex characters"
-check server/services/playbackHandles.js "TTL_MS = 12 \\* 60 \\* 60 \\* 1000" "with a 12 h lifetime"
-check server/services/playbackHandles.js "MAX_HANDLES = " "and a bounded registry"
-check server/services/playbackStrategy.js "/api/proxy/stream?h=\${playbackHandles.createHandle(url)}" "a direct resolve hands out a handle"
 check_absent server/services/playbackStrategy.js "const encoded = encodeURIComponent(url)" "not the provider URL (except under the rollback switch)"
-check server/routes/proxy.js "playbackHandles.resolveHandle(req.query.h)" "the proxy accepts ?h="
-check server/routes/proxy.js "Unknown or expired playback handle" "an unknown handle is a 404"
-check server/routes/proxy.js "h=\${playbackHandles.createHandle(absoluteUrl)}" "a manifest reached by handle hands out handles"
-check server/routes/proxy.js "Upstream error for \${redact(url)" "the proxy's upstream-error log is redacted"
-check server/routes/proxy.js "HLS manifest from: \${redact(finalUrl)" "and its manifest log"
-check server/services/recordingEngine.js "redact((stderrTail || \[\]).slice(-10)" "a failed recording's stored stderr is redacted"
-check server/routes/info.js "playbackHandles: true" "features flag"
-check test/playback-handles.test.js "the resolve JSON must not contain" "with a no-provider-URL resolve test"
 
 echo "=== 0120: source catalogue for the Sources picker ==="
-check server/routes/sources.js "router.get('/:id/catalogue'" "GET /api/sources/:id/catalogue exists"
-check server/routes/sources.js "is not supported" "movie/series are refused"
 awk '/^router.use\(requireAdmin\);/{a=NR} /router.get\(.\/:id\/catalogue./{c=NR} END{exit !(a && c && a < c)}' server/routes/sources.js \
   && echo "  ✓ the catalogue is declared after router.use(requireAdmin) (admin only)" \
   || { echo "  ✗ MISSING: the catalogue route must come after router.use(requireAdmin)"; FAIL=1; }
-check test/source-catalogue.test.js "hidden ones included, in provider order" "with a test"
 
 echo "=== 0121: the web reads /api/library (W2.1) ==="
 check public/js/api.js "API.request('GET', '/library/categories')" "api.js has the library helpers"
@@ -1582,7 +1107,6 @@ for f in public/js/components/ChannelList.js public/js/components/EpgGuide.js pu
 done
 check_absent public/index.html "content-type-movies" "the picker's movie/series tabs are gone"
 check_absent public/js/components/VideoPlayer.js "!this.currentStreamUrl" "recovery replays a channel by identity, without a stream URL"
-check test/web-library.test.js "no live-TV script still calls the Xtream-emulation or whole-EPG proxy routes" "with a test"
 
 echo "=== 0122: the fork's leftovers removed (W2.1) ==="
 for f in public/js/pages/MoviesPage.js public/js/pages/SeriesPage.js public/js/pages/WatchPage.js \
@@ -1607,8 +1131,6 @@ check_absent public/index.html 'data-page="series"' "no Series nav entry"
 check_absent public/index.html 'id="page-watch"' "no VOD watch page markup"
 check_absent public/css/main.css ".movie-card" "no movie/series CSS"
 check_absent public/js/api.js "proxy: {" "api.js has no proxy helpers"
-check test/api-404.test.js "the removed fork routes answer the generic 404, even with a token" "with a test that they 404"
-check test/api-404.test.js "nothing in the web app still calls a removed route" "and that nothing in public/ calls them"
 
 echo "=== 0123: channel-number editor (Settings -> Channel numbers) ==="
 check public/index.html 'data-subtab="lineup"' "the Settings view exists (under Channels, 0182)"
@@ -1617,177 +1139,57 @@ check public/js/api.js "API.request('PUT', '/lineup/numbers', { numbers })" "api
 check public/js/pages/Settings.js "API.lineup.get()" "the panel reads GET /api/lineup"
 check public/js/pages/Settings.js "if (panel === 'lineup') this.loadLineup();" "and loads when the panel opens"
 check public/js/pages/Settings.js "this.setLineupStatus(err.message" "the server's validation error is shown"
-check test/lineup-editor.test.js "validation error as it comes" "with a test"
 
 echo "=== 0124: admin status page (W2.2) ==="
-check server/index.js "app.use('/api/status', require('./routes/status'))" "GET /api/status is mounted"
-check server/routes/status.js "router.use(requireAuth, requireAdmin)" "and is admin only"
-check server/routes/status.js "res.json(scrubUrls(status))" "the whole document is scrubbed of anything URL-shaped"
 check_absent server/routes/status.js "url: summary.url" "a session's URL is never passed through"
-check server/services/playbackEvents.js "const MAX_EVENTS = 50" "the recent-plays buffer is bounded"
-check server/routes/playback.js "playbackEvents.record({ type: 'play-start'" "play-start feeds it"
-check server/routes/playback.js "playbackEvents.record({ type: 'failure', owner: eventOwner, channel: eventChannel, reason: safe, provider })" "a failed resolve feeds it with the client-safe text (and, 0174, the provider's name)"
-check server/services/playbackStrategy.js "playbackEvents.noteResolve(owner, { start:" "resolve notes cold/warm/profile"
 check public/js/pages/StatusPage.js "setInterval(() => this.refresh(), this.refreshMs)" "the page refreshes while shown"
 check public/index.html 'data-page="status"' "with an admin nav entry"
-check test/status.test.js "never a provider URL" "with a no-URL test"
-check test/status.test.js "keeps the last 50" "and a buffer-bound test"
-
-echo "=== 0125: HTML is revalidated after a redeploy ==="
-check server/index.js "setHeaders: noCacheHtml" "static HTML is served no-cache"
-check test/html-no-cache.test.js "no-cache" "with a test"
 
 echo "=== 0126: the tuner model, T1 (PIGTV_TUNER=1, off by default) ==="
-check server/services/transcodeSession.js "return \[...this.buildSourceArgs(), ...this.buildHlsOutputArgs()\];" "sessions build source + HLS output arguments"
 check_absent server/services/tuner.js "'independent_segments+delete_segments" "a tuner's ffmpeg never deletes segments (the server keeps the window)"
-check server/services/hlsPlaylist.js "#EXT-X-PROGRAM-DATE-TIME:" "the server's playlist carries a date per segment"
-
-echo "=== 0127: the tuner model, T2 - recordings take segments from a tuner ==="
-check test/api-404.test.js "\['GET', '/api/recordings/1/index.m3u8'\]" "the new Apple routes are in APPLE_CLIENT_ROUTES"
 
 echo "=== 0128: the tuner model, T3 - timeshift ==="
-check server/services/hlsPlaylist.js "#EXT-X-SKIP:SKIPPED-SEGMENTS=" "delta updates answer _HLS_skip=YES"
 check_absent server/services/compressionFilter.js "'video/mp2t'" "never for segments"
-
-echo "=== 0129: the tuner model, T4 - watch while recording ==="
-check server/services/hlsPlaylist.js "#EXT-X-START:TIME-OFFSET=" "a playlist can say where to start"
 
 echo "=== 0130: a recording's own tuner uses the Apple TV's default capabilities ==="
 check_absent server/services/playbackStrategy.js "ac3: true, eac3: true, flac: false, heaac: true" "no heaac in RECORDING_CAPABILITIES"
 
-echo "=== 0131: a recording lets go of a tuner that died ==="
-
-echo "=== 0132: timeshift can live on a local disk ==="
-
 echo "=== 0133: channel health (C-G) ==="
-check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS channel_health" "one row per start attempt"
-check server/services/channelHealth.js "const KEEP_MS = 30 \* DAY_MS;" "kept 30 days"
-check server/services/channelHealth.js "const WINDOW_MS = 7 \* DAY_MS;" "health over the last 7 days"
-check server/index.js "require('./services/channelHealth').startPruneTimer();" "pruned at startup and daily"
-check server/routes/playback.js "channelHealth.recordResolve({ sourceId: req.body?.sourceId" "a failed resolve is a failed start"
-check server/routes/playback.js "channelHealth.clientFailed(eventOwner);" "a player error before play-start is a failed start"
-check server/routes/playback.js "channelHealth.clientStarted(owner, sec(body.totalMs));" "play-start gives the first-picture time"
-check server/routes/library.js "channelHealth.applyHealth(channels);" "health on guide and channels rows"
-check server/routes/info.js "channelHealth: true" "flag channelHealth"
-check server/routes/status.js "leastReliable: leastReliable()," "the status document lists the least reliable channels"
 check public/js/pages/StatusPage.js "Least reliable channels" "and the web Status page shows them"
-check test/channel-health.test.js "the thresholds: flaky at 2 failed starts" "with a threshold test"
 echo "=== 0134: EPG matching (S4.2) ==="
-check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS epg_mappings" "mappings in their own table, which no sync writes"
 check_absent server/services/syncService.js "epg_mappings" "the sync never touches the mappings"
-check server/routes/library.js "tvgId = epgMapping.effectiveTvgId(row.source_id, row.stable_id, row.item_id, tvgId);" "the guide uses the mapped tvg-id"
-check server/routes/library.js "const tvgId = epgMapping.effectiveTvgId(row.source_id, row.stable_id, row.item_id," "and so do now/next and the logo fallback"
-check server/services/epgMapping.js "bumpLibraryRev();" "a mapping moves the guide version"
-check server/index.js "app.use('/api/epg', require('./routes/epg'));" "the EPG admin routes are mounted"
-check server/routes/epg.js "router.use(requireAuth, requireAdmin);" "admin only"
-check server/routes/epg.js "router.put('/mapping'" "PUT /api/epg/mapping"
-check server/routes/epg.js "router.get('/unmatched'" "GET /api/epg/unmatched"
 check public/index.html 'data-subtab="epg">EPG matching' "Settings has an EPG matching view (under Channels, 0182)"
 check public/js/pages/Settings.js "async loadEpgMatching()" "which loads the unmatched list"
-check test/epg-matching.test.js "the mapping survives a playlist sync" "with a sync-survival test"
 
 echo "=== 0135: sources, settings and users in SQLite (S4.3a) ==="
-check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS app_settings" "settings table"
-check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS app_sources" "sources table"
-check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS app_users" "users table"
-check server/db.js "fs.renameSync(legacyPath, migratedPath);" "db.json is migrated once and kept as db.json.migrated"
-check server/db.js "if (metaGet(db, 'app_data_migrated'))" "and never merged in twice"
 check_absent server/db.js "structuredClone" "no clone of the store on reads"
-check server/db.js "if (!settingsCache) settingsCache = deepFreeze(" "settings.get() hands out one frozen object"
-check server/routes/playback.js "const settings = { ...(await db.settings.get()), ffmpegPath:" "the resolve route copies before adding to it"
 check scripts/stream-doctor.js "SELECT value FROM app_settings WHERE key = ?" "stream-doctor reads the user agent from SQLite"
-check test/db-sqlite-store.test.js "the hot path: settings.get() hands out one frozen object and never clones it" "with a hot-path test"
-check test/db-sqlite-store.test.js "the first start migrates a sample db.json" "and a migration test"
 
 echo "=== 0136: auth without passport (S4.3b) ==="
 check_absent package.json '"passport' "no passport packages in package.json"
 check_absent package-lock.json '"node_modules/passport' "nor in the lockfile"
 check_absent server/index.js "passport" "no passport middleware"
 check_absent server/routes/playback.js "require('passport')" "the playback route's optional auth is ours"
-check server/auth.js "payload = jwt.verify(token, JWT_SECRET);" "bearer tokens are verified with jsonwebtoken directly"
-check server/auth.js "const user = await lookupById(payload.id);" "the user (and role) comes from the store"
-check server/auth.js "if (!deviceAuth.isDeviceValid(payload.deviceId)) return null;" "revoked devices are refused"
-check server/routes/auth.js "auth.authenticateCredentials(req.body)" "sign-in checks the password itself (bcrypt)"
-check test/auth-direct-jwt.test.js "passport is gone: not a dependency, not exported" "with a test"
 
 echo "=== 0137: Express 5 (S4.3c) ==="
 check package.json '"express": "^5.' "express 5"
-check server/index.js "app.get('/{\*splat}'" "the SPA fallback uses Express 5 wildcard syntax"
 check_absent server/index.js "app.get('\*'" "not the Express 4 '*'"
-check server/index.js "if (req.body === undefined) req.body = {};" "a request without a JSON body still has req.body"
-check server/index.js "app.set('query parser', 'extended');" "query strings parsed as under Express 4"
-check server/index.js "app.listen(PORT, async (err) => {" "a listen failure is handled (Express 5 passes it to the callback)"
-check server/routes/transcode.js "res.sendFile(segmentPath, { dotfiles: 'allow' });" "segments under .timeshift are served"
-check test/express5.test.js "a port already in use stops the server" "with a test against the real server"
-
-echo "=== 0138: carried-over small items ==="
-check server/routes/info.js "await sendInfo(req, res);" "/api/info answers even when something inside fails"
-check server/db/sqlite.js "function stripStoredBadges()" "stored badges are stripped once"
-check server/db/sqlite.js "SELECT 1 FROM meta WHERE key = 'badge_cleanup'" "and only once"
-check server/services/syncService.js "name = stripBadgeSuffix(item.name)" "the Xtream ingest path strips the badge"
-check server/routes/recordings.js "const suffix = parseInt(parts\[1\], 10);" "a suffix Range is served"
-check test/carried-over-0138.test.js "the EPG parser loses nothing under bursty input" "P2-8: EPG parser under bursty input"
-check test/carried-over-0138.test.js "carries the token onto init.mp4 and every .m4s" "P2-8: the token on fMP4 segments"
-check test/carried-over-0138.test.js "a recording answers Range requests" "P2-8: recordings Range"
-check test/playback-arbitration.test.js "a device changing channel replaces its own old stream without a prompt" "P2-8: the slot holder re-resolving (existing test)"
 
 echo "=== 0139: channel numbers are labels; the guide keeps the provider's order ==="
 check_absent server/routes/library.js "const numbered = false" "dead numbered variable removed in 0164 (kept guide in provider order per 0139)"
-check test/channel-numbers.test.js "numbers never reorder the guide" "with a test"
-
-echo "=== 0140: a deploy refreshes cached guides once ==="
-check server/services/libraryRev.js "build}:\${rev}" "the guide version includes the build"
-
-echo "=== 0141: logos keep their transparency ==="
-check server/routes/logo.js "format=rgba,scale='min(\${maxWidth},iw)':-1,format=rgba" "the downscale converts through rgba (a palette PNG lost its transparency)"
-check server/routes/logo.js "'-pix_fmt', 'rgba'" "and writes an rgba PNG"
-check server/routes/logo.js "if (width !== null && width <= maxWidth) return original;" "a small logo is stored as it came"
-check server/routes/logo.js "function ensureCacheVersion()" "stored logos from an older version are dropped once"
-check server/services/logoCache.js "update(\`v\${LOGO_CACHE_VERSION}|\${url}\`)" "the cache version is in the key (new paths for clients)"
-check test/logo-alpha.test.js "PNG is downscaled with its transparency intact" "with a test per image kind"
 
 echo "=== 0142: stalls count towards channel health ==="
-check server/routes/playback.js "channelHealth.clientEnded(owner, body.watchedSec, body.stalls);" "play-end feeds its stalls into channel health"
-check server/db/sqlite.js "ALTER TABLE channel_health ADD COLUMN" "attempts carry stalls and watched time"
-check server/services/channelHealth.js "stalls / (watchedSec / 3600) >= FLAKY_STALLS_PER_HOUR" "stalls can make a channel flaky"
-check server/services/channelHealth.js "e.stalls / (Math.max(e.watched, RANK_MIN_WATCH_SEC) / 3600)" "the list ranks by failed starts + stalls per hour"
 check public/js/pages/StatusPage.js "'Stalls', 'Watched'" "the Status page shows stalls and minutes watched"
-check test/channel-health.test.js "a channel that only stalls is listed" "with a test"
-
-echo "=== 0143: a refused reconnect gets two retries ==="
-check server/services/transcodeSession.js "REFUSED_RETRY_DELAYS_MS = \[1500, 3000\]" "two retries, 1.5 s then 3 s"
-check server/services/transcodeSession.js "this.retryAllowanceMs = (this.retryAllowanceMs || 0) + sinceSpawn + delay;" "the resolve's wait is extended by exactly the retries"
-check test/start-failure.test.js "gets a second retry after 3 s more" "with a test"
-
-echo "=== 0144: a finite source starts with an 8 s burst, then real time ==="
-check server/services/transcodeSession.js "\['-readrate', '1', '-readrate_initial_burst', String(burst)\] : \['-re'\]" "-readrate 1 -readrate_initial_burst N (ffmpeg 6.1+), PIGTV_READRATE_BURST=0 is -re"
-check server/services/transcodeSession.js "if (this.options.paceInput === true) args.push(...paceArgs());" "only for a source that ends"
-check server/services/playbackStrategy.js "after an initial \${b}s burst" "the resolve timing line says so"
-check test/hls-finite-source.test.js "PIGTV_READRATE_BURST=0 goes back to -re" "with a test for the rollback"
 
 echo "=== 0145: the playback report shows the client wait ==="
 check scripts/playback-report.js "clientWaitSec: wait !== null && wait >= 0" "client wait = first picture minus resolve, per play"
 check scripts/playback-report.js "Where the time goes" "a per-path median / p90 table"
-check test/playback-report.test.js "0145: the client wait (first picture minus resolve) per path" "with a test"
 
 echo "=== 0146: sport categories (C-H) ==="
-check server/routes/info.js "sportCategories: true" "/api/info advertises sportCategories"
-check server/routes/library.js "sport: sportCategories.isSport(r.source_id, r.category_id)" "library/categories rows carry sport"
-check server/routes/library.js "router.put('/categories/sport', requireAdmin," "admins mark a category"
-check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS sport_categories" "stored in a table no sync writes"
-check server/services/sportCategories.js "if (changed) bumpLibraryRev();" "a change moves the guide version"
 check public/js/components/SourceManager.js "sportToggleHtml(group)" "the web Sources picker has a Sport toggle"
-check test/sport-categories.test.js "a playlist sync keeps the marks" "with a test"
 
 echo "=== 0147: EPG programme categories stored (C-I) ==="
-check server/db/sqlite.js "ALTER TABLE epg_programs ADD COLUMN categories TEXT" "epg_programs has a categories column"
-check server/db/sqlite.js "p.description, p.data, p.categories" "epg_live exposes it"
-check server/db/sqlite.js "db.exec('DROP VIEW epg_live')" "an older epg_live view is made again"
-check server/services/syncService.js "categoriesJson(p.category)" "the sync stores what the parser collected"
-check server/index.js "app.use('/api/sports', require('./routes/sports'))" "the sports routes are mounted"
-check server/routes/sports.js "router.get('/categories', requireAdmin," "admin GET /api/sports/categories"
 check public/js/pages/StatusPage.js "this.loadEpgCategories();" "the Status page shows the EPG categories"
-check test/epg-categories.test.js "the Xtream path (xmltv.php) stores them too" "with a test"
 python3 - <<'PY2' || FAIL=1
 import sys
 s = open('server/db/sqlite.js').read()
@@ -1797,18 +1199,7 @@ print("  ✓ the column is added, and a stale view dropped, before epg_live is c
 PY2
 
 echo "=== 0148: sport events and the follow list (C-I) ==="
-check server/routes/info.js "sportsEvents: true" "/api/info advertises sportsEvents"
-check server/routes/sports.js "router.get('/events', async (req, res)" "GET /api/sports/events for any signed-in user"
-check server/routes/sports.js "router.get('/preview', requireAdmin," "admin preview"
-check server/routes/sports.js "router.put('/follow', requireAdmin," "admin follow list"
-check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS sports_follow" "the follow list has its own table"
-check server/services/sportsEvents.js "WHERE \${VISIBLE_SQL}" "only visible channels"
-check server/services/sportsEvents.js "sportCategories.isSport(r.source_id, r.category_id)" "the C-H mark is one signal"
-check server/services/sportsEvents.js "return { bucket, key: \`\${currentGuideVersion()}|\${followVersion}|\${bucket}\` };" "built once per guide version, follow list and minute"
-check server/services/sportsEvents.js "FROM epg_live" "reads the live generation"
 check_absent server/services/sportsEvents.js "FROM epg_programs" "never the raw table"
-check test/api-404.test.js "\['GET', '/api/sports/events'\]" "the Apple client's new route is guarded"
-check test/sports-events.test.js "the same game on three channels is one event" "with a test"
 
 echo "=== 0149: web Settings -> Sports (C-I) ==="
 check public/index.html 'data-tab="sports">Sports</button>' "a Sports tab"
@@ -1817,38 +1208,16 @@ check public/js/pages/Settings.js "if (panel === 'sports') this.loadSports();" "
 check public/js/pages/Settings.js "await this.loadSportsPreview();" "the preview reloads after a save"
 check public/js/api.js "setFollow: (keywords) => API.request('PUT', '/sports/follow', { keywords })" "saves the follow list"
 check_absent public/js/components/SourceManager.js "Sport on now row" "the Sport toggle no longer promises the old Home row"
-check test/sports-settings.test.js "the preview reloads after a save" "with a test"
 
 echo "=== 0150: sport programme kinds and merging by meaning (C-I) ==="
-check server/services/sportsClassify.js "function classifyKind(" "each programme has a kind"
-check server/services/sportsClassify.js "\['F1', \['f1', 'formula 1', 'formula one'" "F1 and Formula 1 are one league"
-check server/services/sportsClassify.js "\['AFLW', \['aflw', 'womens afl'" "AFLW is its own league, looked for before AFL"
-check server/services/sportsClassify.js "function loopedProgrammes(" "loop channels are detected"
-check server/services/sportsClassify.js "function mergeAirings(" "listings merge by meaning"
-check server/services/sportsEvents.js "const looped = sportsClassify.loopedProgrammes(progs);" "loop detection runs once per build"
-check server/services/sportsEvents.js "const DEFAULT_KINDS = new Set(\['event', 'replay'\]);" "events and replays by default"
-check server/routes/sports.js "req.query.include === 'all'" "include=all for every kind"
-check server/routes/sports.js "withRule: true, include: 'all'," "the preview shows every kind"
 check_absent server/services/sportsEvents.js "if (EXCLUDE_RE.test(text) || categories.some" "non-events are classified, not dropped"
-check test/fixtures/sports-export.json "NO EVENT STREAMING" "Mark's export is a fixture"
-check test/sports-classify.test.js "after merging, one event per game" "with a test"
 
 echo "=== 0151: web Settings -> Sports preview grouped by kind ==="
 check public/js/pages/Settings.js "this.sportsOpenKinds = new Set(\['event', 'replay'\]);" "events and replays open, the rest collapsed"
 check public/js/pages/Settings.js "\['placeholder', 'Placeholders'\]" "grouped by kind"
 check public/js/pages/Settings.js "guide title" "the merged guide titles are listed"
-check test/sports-settings.test.js "the preview groups by kind" "with a test"
 
 echo "=== 0152: live or replay from flags, the first airing and league hours (C-I) ==="
-check server/services/epgParser.js "const PROGRAMME_FLAGS = { 'previously-shown': 1, premiere: 2, new: 4, live: 8 };" "the parser collects previously-shown, premiere, new and live"
-check server/services/syncService.js "p.flags || null" "the sync stores them"
-check server/db/sqlite.js "ALTER TABLE epg_programs ADD COLUMN flags INTEGER" "epg_programs has a flags column"
-check server/db/sqlite.js "p.categories, p.flags" "epg_live exposes it (an older view is made again)"
-check server/services/sportsClassify.js "function resolveLive(airings, fixturesByLeague, now" "live or replay across a game's airings"
-check server/services/sportsClassify.js "MLB: US_EVENING," "a per-league table of live hours"
-check server/services/sportsEvents.js "all(...chunk, from - LOOKBACK_MS, to)" "a build reads the 36 h before now"
-check server/services/sportsEvents.js "sportsClassify.resolveLive(airings, fixturesByLeague);" "and decides live or replay before merging"
-check test/sports-live.test.js "MLB 7 am case" "with a test"
 python3 - <<'PY3' || FAIL=1
 import sys
 s = open('server/db/sqlite.js').read()
@@ -1858,108 +1227,29 @@ print("  ✓ the flags column is added, and a stale view dropped, before epg_liv
 PY3
 
 echo "=== 0153: the sport horizon is a whole weekend (C-I) ==="
-check server/services/sportsEvents.js "const MAX_HOURS = 72;" "hours up to 72"
-check server/services/sportsEvents.js "const DEFAULT_HOURS = 6;" "the default stays 6 for older clients"
-check server/services/sportsEvents.js "const WINDOW_MS = 72 \* HOUR_MS + BUILD_EVERY_MS;" "a build covers 72 h plus its 5 minutes"
-check server/services/sportsEvents.js "Math.floor(now / BUILD_EVERY_MS) \* BUILD_EVERY_MS" "and is kept 5 minutes"
-check server/routes/sports.js "hours: sportsEvents.MAX_HOURS" "the preview covers the same 72 h"
-check server/services/syncService.js "console.log(epgCoverageLine(lastStop));" "the sync logs how far ahead the guide reaches"
 check public/index.html "Recognised in the next 72 hours" "the web preview says so"
-check test/sports-events.test.js "1,000 channels x 108 hours" "with a test"
-
-echo "=== 0154: full-resolution logos for the Top Shelf ==="
-check server/routes/logo.js "const SIZES = { full: '.orig', 640: '.640' };" "?size=full and ?size=640 beside the default copy"
-check server/routes/logo.js "fs.writeFileSync(logoFile(row.key, SIZES.full), fetched);" "the original is kept at fetch"
-check server/routes/logo.js "return res.status(400).json({ error: 'size must be full or 640' });" "any other size is refused"
-check server/routes/logo.js "original_type = NULL, original_bytes = NULL" "a cache-version change clears the originals too"
-check server/db/sqlite.js "'original_type TEXT', 'original_bytes INTEGER'" "logo_cache records the original"
-check test/logo-sizes.test.js "answers the original bytes" "with a test"
 
 echo "=== 0155: a viewer joins a running tuner whose output it can play ==="
 check_absent server/services/playbackStrategy.js "ac3: true, eac3: true, flac: false, heaac: true" "RECORDING_CAPABILITIES still without heaac"
 
 echo "=== 0156: schedule observability and recent problems ==="
-check server/services/recordingEngine.js "function setScheduleStatus(schedule, status, extra = {})" "one log line per actual status change, centralised"
 check_absent server/services/recordingEngine.js "scheduledDb.setStatus(schedule.id, 'missed'" "the missed paths go through it too, not straight to the db"
-check server/db/recordingsDb.js "findRecentProblems(sinceMs)" "missed/failed schedules stay queryable"
-check server/routes/recordings.js "const includeRecent = req.query.include === 'recent';" "?include=recent on the existing route, not a new path"
-check server/routes/info.js "scheduleHistory: true" "advertised as a feature flag"
 check public/js/pages/RecordingsPage.js "renderRecentProblems(items)" "the web Recordings page has a Recent problems section"
-check server/routes/status.js "recentProblems: recentProblems()" "and so does the Status document"
-check test/recordings-observability.test.js "scheduled -> missed (was silent)" "with a test"
 
 echo "=== 0157: the recordings folder is checked for real (missing, not writable, an unmounted share, low space) ==="
-check server/services/recordingsFolder.js "function checkRecordingsFolder(dir, minFreeGB = 10)" "a pure(ish) checker, freeBytes/totalBytes and a problem code"
-check server/services/recordingsFolder.js "const TINY_FS_BYTES = 1 \* GB;" "an unmounted share reads as a filesystem too small to be real"
-check server/services/recordingEngine.js "checkFolderHealthNow().catch" "checked at startup"
-check server/services/recordingEngine.js "const FOLDER_HEALTH_INTERVAL_MS = 15 \* 60 \* 1000;" "and every 15 minutes"
-check server/services/recordingEngine.js "if (!fs.existsSync(parent)) {" "getRecordingsRoot only creates the final folder when its parent exists"
-check server/routes/status.js "recordingsFolder: recordingsFolderHealth()" "exposed on /api/status"
 check public/js/pages/StatusPage.js "renderRecordingsFolderWarning(folder)" "and shown as a warning banner on the web Status page"
-check server/routes/settings.js "validateRecordingsPathSetting(updates.recordingsPath.trim());" "a bad recordingsPath is refused with 400, not saved silently"
-check test/recordings-folder.test.js "unmounted network share" "with a test"
 
 echo "=== 0158: an unanswered recording prompt no longer blocks a recording forever ==="
-check server/services/streamCoordinator.js "const DEFAULT_PROMPT_TIMEOUT_MIN = 3;" "a default timeout, 3 minutes"
-check server/services/streamCoordinator.js "if (now - existing.dueSince >= timeoutMs) {" "counted from dueSince, not the early announceUpcoming notice"
-check server/services/streamCoordinator.js "dueSince: null, declinedAt: null, schedule" "announceUpcoming leaves dueSince unset"
-check server/services/streamCoordinator.js "No answer from the viewer in \${Math.round(timeoutMs / 60000)} min; recording #\${schedule.id} takes the stream" "logged, classic path"
-check server/db.js "recordingPromptTimeoutMin: 3" "a settings default"
 check public/index.html "dvr-setting-prompt-timeout" "and a web Settings field"
-check test/recording-prompt-timeout.test.js "it waits, however long" "with a test"
-
-echo "=== 0159: sport events are built off the request path (stale-while-revalidate) ==="
-check server/services/sportsEvents.js "        scheduleRebuild(now);" "a request is served the previous result while a background rebuild runs"
-check server/services/sportsEvents.js "function scheduleRebuild(now = Date.now(), decorateChannels = lastDecorateChannels) {" "the rebuild itself runs off the request path (setImmediate)"
-check server/services/sportsEvents.js "function armRebuildTimer()" "a timer aligned to the 5-minute bucket"
-check server/services/syncService.js "require('./sportsEvents').scheduleRebuild();" "triggered after an EPG sync"
-check server/services/sportsEvents.js "rebuild in the background (R09: on the worker) rather than leaving it for the" "and when the follow list changes"
-check server/index.js "require('./services/sportsEvents').startBackgroundRebuilds();" "started at server startup"
-check test/sports-background-rebuild.test.js "served the previous result, not a blocking rebuild" "with a test"
 
 echo "=== 0161: cricket league recognition, ESPN fixtures, the ESPN live/replay rule (C-I) ==="
-check server/services/sportsClassify.js "\['IPL', \['ipl', 'indian premier league'\]\]" "IPL is its own league"
-check server/services/sportsClassify.js "\['Cricket', \['test cricket'" "international cricket (Test/ODI/T20I) has a catch-all league"
-check server/services/sportsFixturesEspn.js "const BASE = 'https://site.api.espn.com/apis/site/v2/sports';" "the ESPN provider, fetch only"
-check server/services/sportsFixturesEspn.js "async function discoverCricketSeries(" "international cricket series are discovered from the scorepanel"
-check server/services/sportsFixtures.js "process.env.PIGTV_SPORT_FIXTURES !== '0'" "PIGTV_SPORT_FIXTURES=0 turns it off"
-check server/services/sportsFixtures.js "function neededLeagues(" "only the leagues that matter are fetched"
-check server/services/sportsFixtures.js "const REFRESH_EVERY_MS" "refreshed every 30 minutes"
-check server/services/syncService.js "require('./sportsFixtures').scheduleRefresh();" "and after an EPG sync"
-check server/index.js "require('./services/sportsFixtures').startBackgroundRefresh();" "started at server startup"
-check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS sport_fixtures (" "fixtures survive a restart (SQLite, not just memory)"
-check server/services/sportsClassify.js "function fixtureVerdict(a, leagueData, now" "the ESPN rule: matched, or both teams known but no such game"
-check server/services/sportsClassify.js "if (fixturesByLeague) {" "checked first in resolveLive, ahead of the guide's own flags"
-check server/routes/status.js "sportFixtures: sportsFixtures.statusSummary()," "the Status document carries fixture coverage per league"
 check public/js/pages/StatusPage.js "renderSportFixtures(fx)" "and the web Status page shows it"
-check test/fixtures/espn/nfl-20260927.json "Buffalo Bills" "real recorded ESPN responses, not fabricated"
-check test/sports-fixtures.test.js "ESPN: the game started" "with a test"
 
 echo "=== 0162: stale/out-of-window ESPN data must never manufacture a replay (C-I) ==="
-check server/db/sqlite.js "covered_from INTEGER" "the last successful fetch's own covered window is stored"
-check server/services/sportsFixtures.js "covered_from: now - LOOKBACK_MS, covered_to: now + WINDOW_MS" "a success records exactly the window it fetched"
-check server/services/sportsFixtures.js "coverage: { from: status.covered_from, to: status.covered_to, at: status.last_success_at }" "the snapshot carries coverage, not just fixtures"
 check_absent server/services/sportsFixtures.js "function mergeFixtures(" "cricket is a full replace too, so a postponed game does not linger"
-check server/services/sportsClassify.js "const NO_GAME_MAX_AGE_MS" "\"no such game\" is only trusted while the fetch is recent"
-check server/services/sportsClassify.js "const NO_GAME_HALF_WINDOW_MS" "...and only when the window reaches well past the airing on both sides"
-check server/services/sportsClassify.js "if (!leagueData || !leagueData.coverage) return null;" "no coverage at all -> straight through to the heuristics"
-check server/services/sportsClassify.js "a.start < from || a.start > to) return null;" "outside the covered window -> straight through, matched or not"
-check test/sports-fixtures.test.js "must never manufacture a replay for a real, unlisted game" "with a test"
 
 echo "=== 0171: the channel linker (multi-provider P3) ==="
-check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS channel_links (" "links live in their own table"
-check server/db/sqlite.js "UNIQUE (primary_source_id, primary_key, backup_source_id, rank)" "one row per rank per channel and provider"
-check server/services/channelLinks.js "function candidatesFor(primary, backup)" "the matcher is a pure function"
-check server/services/channelLinks.js "function indexBackup(rows)" "a backup is bucketed by tvg key, name key and Fox number (no N x M scan)"
-check server/services/channelLinks.js "if (p.event) return \[\];" "event/PPV slots never link"
-check server/services/channelLinks.js "if (!backups.some(b => b.enabled)" "with no backup provider nothing is linked"
-check server/services/channelLinks.js "const USABLE = new Set(\['auto', 'approved', 'manual'\]);" "only auto/approved/manual links are used"
-check server/services/syncService.js "await this.relinkAfterPrimarySync(source);" "a primary sync relinks"
-check server/index.js "app.use('/api/links', require('./routes/links'));" "the admin link API is mounted"
-check server/routes/links.js "router.use(requireAuth, requireAdmin);" "and is admin only"
 check_absent server/services/channelLinks.js "url_data," "the linker never reads a backup's stream URL"
-check test/channel-links.test.js "the wrong country never links" "with fixture tests"
-check test/channel-links-perf.test.js "relink in under 10 s" "and a performance test (a nested scan takes minutes)"
 
 echo "=== 0172: the provider admin pages (multi-provider P4) ==="
 check public/index.html 'id="tab-providers"' "the Providers tab has its section"
@@ -1969,79 +1259,20 @@ check public/js/pages/Settings.js "this.providers = new ProvidersSettings();" "S
 check public/js/pages/Settings.js "this.backupLinks = new BackupLinksSettings();" "and the Backup links panel"
 check public/js/pages/ProvidersSettings.js "for (const k of \['epgUrl', 'idOverlayUrl'\]) if (v(k) !== String(saved\[k\] ?? '')) body\[k\] = v(k);" "0182: an emptied guide or overlay address is removed, an unchanged one is not sent"
 check_absent public/js/pages/ProvidersSettings.js "p.idOverlayUrl" "the page never reads the stored overlay address"
-check server/routes/sources.js "const settingsOnly = keys.length > 0 && keys.every(k => k === 'priority');" "an order-only edit does not start a backup sync"
-check test/providers-page.test.js "no address, login or password" "with tests"
-
-echo "=== 0173: per-provider connection pools (multi-provider P5) ==="
-check server/services/streamCoordinator.js "function providerLimit" "each provider has its own connection limit"
-check server/services/streamCoordinator.js "if (!dir.multi) return legacy;" "with no backup the limit is maxProviderStreams, as before"
-check server/services/streamCoordinator.js "const streams = streamsInPool(pool, dir).filter(s => !adopt" "a viewer is counted within its provider's pool"
-check server/services/streamCoordinator.js "function canAdmitWithoutDisturbing" "admission can be asked without acting (P6 walks candidates)"
-check server/services/streamCoordinator.js "function canRecordFreely" "and so can a recording's (P7)"
-check server/services/streamCoordinator.js "function releaseOwnerElsewhere" "a device watches one thing across providers"
-check server/services/streamCoordinator.js "if (typeof sqlite.isOpen !== 'function' || !sqlite.isOpen()) return LEGACY_DIRECTORY;" "the coordinator never opens the database itself"
-check server/services/transcodeSession.js "providerId: s.options.providerId ?? null" "sessions carry their provider"
-check server/routes/playback.js "const ask = { force: false, activeRecordings, settings, owner, providerId: candidate.providerId };" "resolve admits the viewer on the provider it plays on (0174: the candidate's)"
-check server/services/recordingEngine.js "coordinator.requestForRecording(schedule, settings, schedule.source_id)" "a recording asks its own provider's pool"
-check test/provider-pools.test.js "with no backup configured every scenario has today" "with tests"
 
 echo "=== 0174: resolve failover, breaker, quarantine, C-J (multi-provider P6) ==="
-check server/services/providerRouting.js "async function plan(sourceId, channelId, now = Date.now())" "the candidate list: primary, sibling, backups"
-check server/services/providerRouting.js "if (primaryDown || primaryExpired || isQuarantined(id, streamId, now)) continue;" "a sibling only when the primary is not down (D5)"
-check server/services/providerRouting.js "if (distinct >= BREAKER_CHANNELS) trip(" "the breaker counts distinct channels"
-check server/services/providerRouting.js "// Nowhere else to go: the primary, as it always was." "with nothing else configured the primary is always tried"
-check server/routes/playback.js "if (err.superseded || !routing || !providerRouting.isProviderFailure(err)) throw err;" "only a provider-reason failure fails over"
-check server/routes/playback.js "refusedRetryDelaysMs: isLast ? undefined : providerRouting.EARLY_RETRY_DELAYS_MS," "0143's two retries only on the last candidate"
-check server/routes/playback.js "return sendConflict(res, verdict, { everyProvider: !!routing && routing.providerCount > 1 });" "all full: the 409 for the first candidate"
-check server/services/transcodeSession.js "if (!requested && this.timings.playlistReady) this.noteLost('exit');" "an unrequested end after playing is reported (quarantine)"
-check server/services/transcodeSession.js "if (this.timings.playlistReady) this.noteLost('stall');" "and so is a stall"
-check server/services/transcodeSession.js "const delays = Array.isArray(this.options.refusedRetryDelaysMs) ? this.options.refusedRetryDelaysMs : REFUSED_RETRY_DELAYS_MS;" "retries are an option, 0143's by default"
-check server/db/sqlite.js "ALTER TABLE channel_health ADD COLUMN provider_id INTEGER" "health rows carry the provider"
-check server/routes/info.js "providers: true" "the C-J flag"
 check docs/ROADMAP-CONTRACTS.md "## C-J. Provider on resolve" "C-J is written down"
-check test/provider-failover.test.js "with no backup configured: today" "with tests"
 
 echo "=== 0177: recordings choose a free provider, fail over, continue in parts (multi-provider P7) ==="
-check server/services/recordingEngine.js "providerId, settings, recordings)) return i;" "a recording takes the first provider with a free connection"
-check server/services/recordingEngine.js "return { route, index: 0, verdict: await coordinator.requestForRecording(schedule, settings, route.candidates" "all busy: today's prompt on the first candidate"
-check server/services/recordingEngine.js "if (!entry.route.multi || !unrequested || !providerReason) {" "only an unrequested provider-reason exit fails over, and only with a backup"
-check server/services/recordingEngine.js "entry.stopRequested = true;" "a requested stop is never a provider failure"
-check server/services/recordingEngine.js "const last = entry.part >= failoverTuning.maxParts;" "at most 3 parts"
-check server/db/recordingsDb.js "'provider_id INTEGER'," "recordings carry their provider"
-check server/db/recordingsDb.js "'part INTEGER'," "and their part"
 check docs/SWIFT-CLIENT-HANDOFF.md "| 0177 |" "the additive list fields are in the client handoff"
-check test/recording-failover.test.js "no backup configured: a 502 at start fails the recording exactly as before" "with tests"
-
-echo "=== 0178: raw-list bridge for the linker (multi-provider P9) ==="
-check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS provider_raw_channels (" "every provider's raw rows have a table"
-check server/services/rawChannels.js "async function fetchFor(source)" "fetched with the derived login, never throwing"
-check server/services/syncService.js "await require('./rawChannels').fetchFor(source);" "a primary sync reads its raw rows only when a backup exists"
-check server/services/syncService.js "await rawChannels.fetchMissing(await sources.getAll(), source.id);" "and the first backup fetches the others'"
-check server/routes/sources.js "require('../services/rawChannels').removeFor(sourceId);" "deleting a source removes its raw rows"
-check server/services/channelLinks.js "const METHOD_ORDER = { 'raw-name': 0, 'raw-epg': 1," "raw-name and raw-epg rank above the name rules"
-check server/services/channelLinks.js "function rawNameKey(name) {" "the raw name is normalised minimally"
-check test/raw-bridge.test.js "both ways: Dream4K as the primary" "with a both-ways test"
-check test/raw-bridge.test.js "no code path names a provider" "and a provider-neutrality test"
 
 echo "=== 0180: a start stopped on request is not a provider failure (P10) ==="
-check server/services/transcodeSession.js "this.stopRequested = true;" "stop() records that it was asked"
-check server/services/playbackStrategy.js "if (session.stopRequested) {" "a stopped start throws superseded, not a failure"
-check server/routes/playback.js "if (err.superseded || !routing || !providerRouting.isProviderFailure(err)) throw err;" "a superseded start is never failed over"
-check server/routes/playback.js "if (isSuperseded(owner, generation)) throw playbackStrategy.supersededError();" "an overtaken walk starts no further candidate"
 check public/js/components/VideoPlayer.js "if (res.status === 499) return VideoPlayer.SUPERSEDED;" "the web player ignores a superseded resolve"
-check test/provider-failover.test.js "0180: a start replaced by the same viewer" "with a replacement test"
 
 echo "=== 0181: the same account is one connection pool (P10) ==="
-check server/services/accountKey.js "createHash('sha256')" "the account key is a hash, never the login"
-check server/services/streamCoordinator.js "const lowestShared = (own) => {" "a shared pool's limit is the lowest among its sources"
-check server/services/streamCoordinator.js "return dir.poolOf && dir.poolOf.has(id) ? dir.poolOf.get(id) : id;" "poolKey folds a twin into its pool"
-check server/routes/sources.js "sharesAccountWith: sharing(s) })));" "the admin list names the twins by id"
 check public/js/pages/ProvidersSettings.js "these count as one connection. Check this provider's settings." "Settings -> Providers warns"
-check test/provider-pools.test.js "0181: two sources with the same server and login are one pool" "with a pool test"
-check test/providers-page.test.js "0181: a provider that is the same account" "and a warning test"
 
 echo "=== 0182-0187: one Providers section, six tabs, sport lists, the build number ==="
-check server/routes/sources.js "router.put('/order', async" "the card order is saved in one call"
 python3 - <<'PY' || FAIL=1
 import sys
 s = open('server/routes/sources.js').read()
@@ -2049,17 +1280,10 @@ if s.index("router.put('/order'") > s.index("router.put('/:id'"):
     print("  ✗ PUT /order is registered after PUT /:id, which would swallow it"); sys.exit(1)
 print("  ✓ PUT /order is registered before PUT /:id")
 PY
-check server/services/syncService.js "async syncProviderGuide(source, ownUrl = null)" "the primary's guide comes from its own card"
-check server/services/syncService.js "await this.dropGuide(source.id); // 0182" "a backup keeps no guide"
-check server/index.js "require('./services/providerMigration').run()" "the one-time provider move runs at startup"
-check server/services/syncService.js "rawList = await this.addUnlistedChannels(source, rows);" "0183: an M3U backup gets the provider's whole list"
 check public/index.html 'data-tab="channels">Channels' "six tabs: Channels"
 check public/index.html 'id="subtabs-channels"' "with its three views on a strip"
 check_absent public/index.html 'data-tab="sources"' "the Sources tab is gone"
 check_absent public/index.html 'id="tab-debug"' "the Debug tab is gone"
-check server/routes/sports.js "router.get('/teams', requireAdmin" "0185: a league's teams for the Sports tab"
-check server/services/sportsClassify.js "function teamFollow(keyword)" "a team is followed as League: Team"
-check server/services/sportsFixtures.js "EPL: 'soccer/eng.1'" "EPL has ESPN fixtures"
 python3 - <<'PY' || FAIL=1
 import re, sys, subprocess
 build = re.search(r"const BUILD = '(\d{4})';", open('server/version.js').read()).group(1)
@@ -2070,82 +1294,33 @@ print(f"  ✓ version.js ({build}) is one behind the blueprint's next build numb
 PY
 
 echo "=== 0188-0189: interruptions, in-stream recovery and the standby (off by default) ==="
-check server/routes/status.js "interruptions: require('../services/playbackInterruptions').summary()," "Status reports streams lost mid-play"
-check server/services/streamRelay.js "const enabled = (settings) => !!settings && settings.relayEnabled === true;" "the relay is behind the relayEnabled setting"
-check server/services/streamRelay.js "const standbyEnabled = (settings) => enabled(settings) && settings.standbyEnabled === true;" "the standby needs the relay"
-check server/db.js "relayEnabled: false," "in-stream recovery is off by default"
-check server/db.js "standbyEnabled: false," "the hot standby is off by default"
 check public/index.html 'id="setting-relay-enabled"' "Settings has the In-stream recovery switch"
 check public/index.html 'id="setting-standby-enabled"' "Settings has the Hot standby switch"
-check server/services/streamRelay.js "incompatibility(session) {" "a standby must match codec, size, frame rate and audio to join"
-check server/services/streamRelay.js "text.replace(/^#EXT-X-ENDLIST" "a relay never passes ffmpeg's ENDLIST on"
-check server/routes/transcode.js "return relay.get(sessionId) || transcodeSession.getSession(sessionId);" "a relay answers for its id"
-check server/services/transcodeSession.js "if (this.retainDir) return;" "a relay leg's folder outlives its ffmpeg"
-check server/services/transcodeSession.js "if (session.options.standby === true) continue;" "the idle sweep leaves a standby to its relay"
-check server/services/streamCoordinator.js "take(streams.filter(s => s.standby), 'standby');" "a viewer takes a standby's connection first"
-check server/services/streamCoordinator.js "Releasing standby" "a recording takes a standby's connection unasked"
-check test/stream-relay.test.js "the coordinator treats a standby as abandoned" "with tests"
-
-echo "=== R11: provider connections are leased before the probe ==="
-check server/services/streamCoordinator.js "function tryReserveFree(" "a standby or warm start reserves a free connection atomically"
-check server/services/streamCoordinator.js "if (!opts.adopt) verdict.lease = takeLease(opts.providerId, 'viewer'" "admitting a viewer takes its lease before anything is awaited"
-check server/services/playbackStrategy.js "onRegistered: (s) => { leaseLost = !coordinator.bindLease(lease, s.id); }" "the lease is bound in the tick the session is registered"
-check server/routes/playback.js "coordinator.releaseUnbound(lease);" "a failed start releases its lease"
-check test/connection-leases.test.js "two concurrent resolves for a one-connection provider" "with tests"
 
 echo "=== R12: channel warming (off by default) ==="
-check server/db.js "warmNextChannel: false" "warming is off by default"
-check server/routes/playback.js "router.post('/warm', requireToken" "warm requires a signed-in user"
-check server/services/channelWarming.js "tryReserveFree(c.providerId, 'warm'" "a warm start only takes a free connection"
-check server/services/streamCoordinator.js "take(streams.filter(s => s.warm), 'warm');" "a warm session is reclaimed first"
-check test/playback-warm.test.js "a recording that falls due takes the warm session first" "with tests"
 check scripts/relay-rig.js "relay-rig.js standby stall" "and a real-ffmpeg rig"
 
 echo "=== 0191: reconnect timestamp loop, blank pictures, raw captures ==="
-check server/services/transcodeSession.js "this.handleTimestampLoop(" "a timestamp loop after a reconnect ends the session"
-check server/services/transcodeSession.js "this.noteLost('timestamps');" "as lost, so the relay or the player restarts it"
-check server/services/transcodeSession.js "this.emit('blank', { kbps, seconds });" "a near-empty picture is marked blank"
-check server/services/providerRouting.js "session.once('blank'" "a blank channel is quarantined on its provider"
-check server/routes/playback.js "channelHealth.sessionBlank(owner)" "and its health row failed"
 check public/js/pages/StatusPage.js "Blank picture" "Status shows it"
 check scripts/stream-doctor.js "function rawFetch(" "capture keeps the provider's raw bytes"
-check test/reconnect-recovery.test.js "a single rebase after a reconnect" "with tests"
 
 echo "=== 0192: recording codec probe reads ffprobe JSON (audit R02) ==="
-check server/services/recordingMedia.js "'-of', 'json', filePath" "codecs are probed as JSON"
 check_absent server/services/recordingEngine.js "const \[type, name\] = line.split(',');" "never by CSV column position"
-check test/recording-codec-probe.test.js "hvc1" "with real-ffmpeg tests"
 check .github/workflows/test.yml "apt-get install -y --no-install-recommends ffmpeg" "CI has ffmpeg, so those tests run"
 
 echo "=== 0193: recordings prepared ahead of Play; verified compression (audit R06, R08) ==="
-check server/services/recordingEngine.js "recordingsDb.setNativeStatus(recordingId, 'pending');" "a finished recording is queued for preparation"
-check server/services/recordingEngine.js "processNativeQueue().catch(" "the tick runs the preparation queue"
-check server/services/recordingEngine.js "const queued = recordingsDb.queueNativeBackfill();" "earlier recordings are queued at startup"
-check server/services/recordingPost.js "const verified = sourceDuration > 0 && newDuration > 0" "compression needs both lengths before trusting a result"
 check_absent server/services/recordingEngine.js "const durationOk = !sourceDuration || !newDuration" "an unreadable length no longer passes verification"
-check server/services/recordingMedia.js "if (rec.compress_status === 'done' && fs.existsSync(compressed)) return compressed;" "playback serves only finished compression"
-check server/db/recordingsDb.js "'native_status TEXT'," "the preparation state is a migrated column"
-check test/recording-prepare.test.js "never deletes the original when the original" "with tests"
 
 echo "=== 0194: recordings routes read files asynchronously (audit R09) ==="
 check_absent server/routes/recordings.js "fs.statSync(" "no synchronous stat in a recordings request"
 check_absent server/routes/recordings.js "fs.existsSync(" "no synchronous existence check in a recordings request"
 check_absent server/routes/recordings.js "fs.readFileSync(" "no synchronous read in a recordings request"
-check server/routes/recordings.js "async function sendFileRange(" "files are piped with error handling"
 
 echo "=== 0195: sport events built on a worker thread (audit R09) ==="
-check server/services/sportsEventsWorker.js "parentPort" "the build runs on a worker thread"
-check server/db/sqlite.js "new Database(dbPath, { readonly: true, fileMustExist: true })" "with its own read-only connection"
 check_absent server/services/sportsEvents.js "runBuild(bucket, key, decorateChannels);" "no synchronous rebuild on the serving loop"
-check server/index.js "sportsEvents').shutdown()" "the worker is stopped at shutdown"
-check test/sports-worker.test.js "never blocks" "with tests"
 
 echo "=== 0196: media always needs a signed-in user; handles only (audit R01) ==="
-check server/auth.js "if (!token) return res.status(401).json({ error: 'Authentication required' });" "stream auth is always enforced"
 check_absent server/auth.js "streamAuthFromSettings" "no setting turns it off"
-check server/routes/proxy.js "The proxy takes a playback handle (h), not a URL" "the proxy refuses a caller's URL"
-check server/routes/playback.js "router.post('/conflict/decline', requireToken," "the recording prompt needs a token"
-check test/stream-auth-enforced.test.js "Referrer-Policy" "with tests"
 
 echo "=== R11: the warming switch is in Settings ==="
 check public/index.html 'id="setting-warm-next-channel"' "Settings has a Warm the next channel switch"
@@ -2162,7 +1337,6 @@ check docker/entrypoint.sh 'PGID="${PGID:-100}"' "PGID defaults to 100"
 check docker/entrypoint.sh "setpriv" "privileges dropped with setpriv"
 check docker/entrypoint.sh 'exec setpriv' "node is exec'd so SIGTERM reaches it"
 check_absent docker/entrypoint.sh 'chown -R .*recordings' "the recordings share is never chowned"
-check server/index.js "/api/health" "health endpoint exists"
 check package.json '"node": ">=22' "engines matches the Node versions CI tests"
 check scripts/backup-db.js "db.backup" "database backup uses SQLite's online backup"
 check docs/OPERATIONS.md "Restore" "restore procedure documented"
@@ -2176,31 +1350,13 @@ if bad:
 print("  ✓ the runtime stage installs no compilers or -dev packages")
 PY
 
-echo "=== 0202: a standby comes before a warm guess ==="
-check server/services/streamCoordinator.js "async function reserveTakingWarm(" "a standby can take a warm channel's connection"
-check server/services/streamRelay.js "coordinator().reserveTakingWarm(c.providerId, 'standby'" "and the relay uses it after looking for a free one"
-check test/connection-leases.test.js "a standby takes the only spare connection from a warm channel" "with tests"
-
 echo "=== 0203: TS captures; audio re-encoded and decode-checked ==="
-check server/services/recordingEngine.js "'-f', 'mpegts'," "captures are MPEG-TS (one audio header per frame)"
 check_absent server/services/recordingEngine.js "'-f', 'matroska'," "not Matroska (one audio config per file)"
-check server/services/recordingMedia.js "if (audio && audio !== 'ac3' && audio !== 'eac3') {" "only AC-3/E-AC-3 audio is copied into the MP4"
-check server/services/recordingMedia.js "the prepared file's audio does not decode" "a prepared file must decode before the original goes"
-check test/recording-codec-probe.test.js "audio that changes mid-programme survives a TS capture" "with a real-ffmpeg reproduction"
 check public/js/pages/Settings.js "standby.checked = s.standbyEnabled === true && s.relayEnabled === true;" "Hot standby never shows ticked while recovery is off"
 
 echo "=== simplification build ==="
-check server/services/recordingMedia.js "if (check.keepOriginal) {" "an original whose length or audio cannot be checked is kept"
 check_absent server/routes/info.js "safely(" "no switchable feature flags left to guard"
-check test/helpers/server.js "the server never answered on" "tests that start the real server say why it did not start"
-check test/helpers/perf.js "PIGTV_SKIP_PERF" "speed budgets can be left out of the CI gate"
 check .github/workflows/test.yml "continue-on-error: true" "and run in their own non-blocking job"
-
-echo "=== simplification build: linked backup feeds are not listed ==="
-check server/services/channelNumbers.js ") AND NOT \${LINKED_SIBLING_SQL}\`;" "a linked (Backup) sibling is not a visible channel"
-check server/db/sqlite.js "idx_channel_links_stream" "with an index for that lookup"
-check server/services/channelLinks.js "if (linkedSiblingsKey() !== siblingsBefore)" "a change in which siblings are hidden is a new guide version"
-check test/channel-links.test.js "a linked \"(Backup)\" sibling is not listed" "with tests"
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
