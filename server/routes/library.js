@@ -177,7 +177,8 @@ router.get('/categories', (req, res) => {
             SELECT c.source_id, c.category_id, c.name,
                    (SELECT COUNT(*) FROM playlist_items p
                      WHERE p.source_id = c.source_id AND p.type = 'live'
-                       AND p.category_id = c.category_id AND p.is_hidden = 0) AS channel_count
+                       AND p.category_id = c.category_id AND p.is_hidden = 0
+                       AND NOT ${channelNumbers.LINKED_SIBLING_SQL}) AS channel_count
             FROM categories c
             WHERE c.type = 'live' AND c.is_hidden = 0
             ORDER BY CASE WHEN c.sort_order IS NULL THEN 1 ELSE 0 END, c.sort_order ASC, c.name ASC
@@ -230,11 +231,8 @@ router.get('/channels', (req, res) => {
         const offset = clamp(req.query.offset, 0, 1e7, 0);
         const { category, search } = req.query;
 
-        const where = [`p.type = 'live'`, `p.is_hidden = 0`, `NOT EXISTS (
-            SELECT 1 FROM categories c
-            WHERE c.source_id = p.source_id AND c.type = p.type
-              AND c.category_id = p.category_id AND c.is_hidden = 1
-        )`];
+        // The one rule for a visible channel (channelNumbers.VISIBLE_SQL), linked siblings excluded.
+        const where = [channelNumbers.VISIBLE_SQL];
         const params = [];
 
         if (category) { where.push('p.category_id = ?'); params.push(category); }
@@ -379,11 +377,8 @@ router.get('/guide', (req, res) => {
         const requestedEnd = parseInt(req.query.end, 10) || (start + 3 * 60 * 60 * 1000);
         const end = Math.min(requestedEnd, start + 24 * 60 * 60 * 1000);
 
-        const where = [`p.type = 'live'`, `p.is_hidden = 0`, `NOT EXISTS (
-            SELECT 1 FROM categories c
-            WHERE c.source_id = p.source_id AND c.type = p.type
-              AND c.category_id = p.category_id AND c.is_hidden = 1
-        )`];
+        // The one rule for a visible channel (channelNumbers.VISIBLE_SQL), linked siblings excluded.
+        const where = [channelNumbers.VISIBLE_SQL];
         const params = [];
         if (category) { where.push('p.category_id = ?'); params.push(category); }
         const clause = where.join(' AND ');

@@ -310,6 +310,8 @@ function initSchema() {
             UNIQUE (primary_source_id, primary_key, backup_source_id, rank)
         );
         CREATE INDEX IF NOT EXISTS idx_channel_links_backup ON channel_links(backup_source_id, status);
+        -- Simplification build: the guide's "is this a linked sibling" lookup (channelNumbers.js).
+        CREATE INDEX IF NOT EXISTS idx_channel_links_stream ON channel_links(backup_source_id, backup_stream_id);
     `);
 
     // Channel health (0133, roadmap S4.1, contract C-G): one row per start

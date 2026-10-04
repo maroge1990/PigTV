@@ -612,8 +612,15 @@ function serial(fn) {
     return run;
 }
 
+/** The siblings that are hidden from the guide right now (channelNumbers.LINKED_SIBLING_SQL), as one string. */
+function linkedSiblingsKey() {
+    return getDb().prepare(`SELECT backup_source_id || ':' || backup_stream_id AS k FROM channel_links
+        WHERE method = 'sibling' AND status IN ('auto', 'approved', 'manual') ORDER BY k`).all().map(r => r.k).join(',');
+}
+
 async function relink(onlyBackupId) {
     const started = Date.now();
+    const siblingsBefore = linkedSiblingsKey();
     const { all, primaries, backups } = providers();
     dropStale(all);
     // With no backup provider nothing is linked: everything behaves as before (brief rule 4).
@@ -630,6 +637,9 @@ async function relink(onlyBackupId) {
     result.ms = Date.now() - started;
     const summary = Object.entries(result.backups).map(([id, c]) => `${id}: ${c.auto} auto, ${c.pending} pending`).join('; ');
     console.log(`[Links] Relinked ${channels.length} channels (${summary || 'siblings only'}) in ${result.ms} ms`);
+    // A sibling linked or unlinked shows or hides a channel in the guide (channelNumbers'
+    // VISIBLE_SQL): only then a new revision, so the clients and the sport build look again.
+    if (linkedSiblingsKey() !== siblingsBefore) require('./libraryRev').bumpLibraryRev();
     return result;
 }
 

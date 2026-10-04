@@ -95,6 +95,7 @@ before(async () => {
     app.use('/api/auth', load('routes/auth')); // configures the jwt strategy
     app.use('/api/links', load('routes/links'));
     app.use('/api/sources', load('routes/sources'));
+    app.use('/api/library', load('routes/library'));
     server = app.listen(0, '127.0.0.1');
     await once(server, 'listening');
     base = `http://127.0.0.1:${server.address().port}`;
@@ -305,6 +306,39 @@ test('a relink links the visible channels to each backup, fills region/quality/i
     assert.deepEqual(links.usableLinks(primary.id, 's604331'), [{ backupSourceId: primary.id, streamId: 's1568686', method: 'sibling' }]);
     assert.deepEqual(links.usableLinks(primary.id, 's2006097').map(l => l.backupSourceId), [trex.id, dream.id], 'backups by priority');
     assert.deepEqual(links.usableLinks(primary.id, 's441304').map(l => l.backupSourceId), [], 'pending links are not used');
+});
+
+test('a linked "(Backup)" sibling is not listed: guide, channels and counts (simplification build)', async () => {
+    // From the relink above: NHL Network (s604331) has NHL Network (Backup) (s1568686) as its sibling.
+    const { VISIBLE_SQL } = load('services/channelNumbers');
+    const visible = new Set(sqlite.getDb().prepare(`SELECT COALESCE(p.stable_id, p.item_id) AS k FROM playlist_items p WHERE ${VISIBLE_SQL}`).all().map(r => r.k));
+    assert.ok(visible.has('s604331'), 'the main channel is listed');
+    assert.ok(!visible.has('s1568686'), 'its linked backup feed is not');
+    const ids = new Set();
+    for (let cursor = null, page; ; cursor = page.nextCursor) {
+        page = (await call('GET', `/api/library/guide?limit=500${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)).body;
+        for (const c of page.channels) ids.add(c.stableId || c.id);
+        if (!page.nextCursor) break;
+    }
+    assert.ok(ids.has('s604331') && !ids.has('s1568686'), 'the guide the clients page through agrees');
+    const search = (await call('GET', '/api/library/channels?search=NHL%20Network&limit=200')).body;
+    assert.ok(!search.channels.some(c => /\(backup\)/i.test(c.name)), 'and so does the channel list');
+});
+
+test('a sibling whose link is rejected is listed again, and the guide version moves only when that set changes', async () => {
+    const { currentGuideVersion } = load('services/libraryRev');
+    const { VISIBLE_SQL } = load('services/channelNumbers');
+    const listed = (key) => sqlite.getDb().prepare(`SELECT 1 FROM playlist_items p WHERE ${VISIBLE_SQL} AND COALESCE(p.stable_id, p.item_id) = ?`).get(key) !== undefined;
+    // The first relink after siblings were hidden may settle a few picks among identical feeds
+    // (four "TSN 3 (BK) RAW"s); after that, a relink with nothing new changes nothing.
+    await quiet(() => links.relinkAll());
+    const before = currentGuideVersion();
+    await quiet(() => links.relinkAll());
+    assert.equal(currentGuideVersion(), before, 'nothing changed: no new version');
+    sqlite.getDb().prepare("UPDATE channel_links SET status = 'rejected' WHERE primary_source_id = ? AND primary_key = 's604331' AND method = 'sibling'").run(primary.id);
+    assert.ok(listed('s1568686'), 'unlinked, the backup feed is the only way to reach it: listed');
+    sqlite.getDb().prepare("UPDATE channel_links SET status = 'auto' WHERE primary_source_id = ? AND primary_key = 's604331' AND method = 'sibling'").run(primary.id);
+    assert.ok(!listed('s1568686'));
 });
 
 test('decisions are kept across relinks; a vanished stream breaks a kept link and comes back', async () => {

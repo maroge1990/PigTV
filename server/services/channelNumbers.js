@@ -35,12 +35,23 @@ const CHANNEL_KEY_SQL = 'COALESCE(p.stable_id, p.item_id)';
 const NUMBER_JOIN = `LEFT JOIN channel_numbers n
     ON n.source_id = p.source_id AND n.channel_key = ${CHANNEL_KEY_SQL}`;
 
-// A visible live channel: not hidden itself, nor in a hidden category.
+// A provider's own "(Backup)" feed that is linked to the channel it backs up (a *sibling*,
+// channelLinks.js): failover plays it when the main one fails, so listing it as well only
+// doubles the channel - and channel warming would warm the backup instead of the next
+// channel. One without a usable link stays visible (it is the only way to reach it).
+const LINKED_SIBLING_SQL = `EXISTS (
+    SELECT 1 FROM channel_links l
+    WHERE l.backup_source_id = p.source_id AND l.primary_source_id = p.source_id
+      AND l.backup_stream_id = ${CHANNEL_KEY_SQL} AND l.method = 'sibling'
+      AND l.status IN ('auto', 'approved', 'manual')
+)`;
+
+// A visible live channel: not hidden itself, nor in a hidden category, nor a linked sibling.
 const VISIBLE_SQL = `p.type = 'live' AND p.is_hidden = 0 AND NOT EXISTS (
     SELECT 1 FROM categories c
     WHERE c.source_id = p.source_id AND c.type = p.type
       AND c.category_id = p.category_id AND c.is_hidden = 1
-)`;
+) AND NOT ${LINKED_SIBLING_SQL}`;
 
 // The guide's order before numbers (library.js GUIDE_ORDER_BY).
 const GUIDE_ORDER_SQL = 'ORDER BY COALESCE(p.sort_order, 999999999) ASC, p.name ASC, p.id ASC';
@@ -115,6 +126,7 @@ module.exports = {
     CHANNEL_KEY_SQL,
     NUMBER_JOIN,
     VISIBLE_SQL,
+    LINKED_SIBLING_SQL,
     assignChannelNumbers,
     ensureChannelNumbers,
     refreshChannelNumbers

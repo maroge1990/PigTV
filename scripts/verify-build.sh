@@ -126,7 +126,8 @@ check public/js/components/EpgGuide.js "resize-handle" "whole-cell click guard"
 check public/css/main.css "epg-channel-info {" "whole-cell cursor"
 check server/services/transcodeSession.js "fps_mode" "fps passthrough"
 check server/services/transcodeSession.js "min(ih," "scale clamp"
-check server/routes/library.js "c.category_id = p.category_id AND c.is_hidden = 1" "hidden-category exclusion (0122: in /api/library)"
+check server/services/channelNumbers.js "c.category_id = p.category_id AND c.is_hidden = 1" "hidden-category exclusion (0122; one rule, channelNumbers.VISIBLE_SQL)"
+check server/routes/library.js "const where = \\[channelNumbers.VISIBLE_SQL\\];" "and /api/library uses that rule"
 check public/js/components/ChannelList.js "categoryNames.get(\`\${row.sourceId}:\${row.category}\`) || row.category" "group name fallback (0121: from /api/library/categories, else the category id)"
 
 echo "=== 0018: transcode strategy ==="
@@ -272,7 +273,7 @@ check server/auth.js "payload.deviceId" "auth honours device tokens"
 check server/auth.js "isDeviceValid" "auth enforces revocation"
 check server/routes/devices.js "pair/approve" "approve endpoint"
 check server/routes/library.js "nowNextFor" "now/next resolution"
-check server/routes/library.js "is_hidden = 1" "hidden categories excluded"
+check server/services/channelNumbers.js "is_hidden = 1" "hidden categories excluded"
 check server/db/sqlite.js "CREATE TABLE IF NOT EXISTS devices" "devices table"
 check server/db/sqlite.js "watch_history" "watch history table"
 check server/index.js "api/devices" "devices mounted"
@@ -2194,6 +2195,12 @@ check_absent server/routes/info.js "safely(" "no switchable feature flags left t
 check test/helpers/server.js "the server never answered on" "tests that start the real server say why it did not start"
 check test/helpers/perf.js "PIGTV_SKIP_PERF" "speed budgets can be left out of the CI gate"
 check .github/workflows/test.yml "continue-on-error: true" "and run in their own non-blocking job"
+
+echo "=== simplification build: linked backup feeds are not listed ==="
+check server/services/channelNumbers.js ") AND NOT \${LINKED_SIBLING_SQL}\`;" "a linked (Backup) sibling is not a visible channel"
+check server/db/sqlite.js "idx_channel_links_stream" "with an index for that lookup"
+check server/services/channelLinks.js "if (linkedSiblingsKey() !== siblingsBefore)" "a change in which siblings are hidden is a new guide version"
+check test/channel-links.test.js "a linked \"(Backup)\" sibling is not listed" "with tests"
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
