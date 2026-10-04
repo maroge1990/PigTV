@@ -29,10 +29,10 @@ missing flag as "off". Since 0138 `/api/info` still answers if a switchable chec
 | `guideCursor` | 0111 | Cursor paging, `limit` up to 500 on `library/guide` | Pages 500 at a time by cursor (else 50 by offset) |
 | `guideVersion` | 0111 | `GET /api/library/guide/version` | Skips a guide reload when the version matches (a deploy changes it once, 0140) |
 | `logoCache` | 0112 | `logo` fields are `/api/logo/<key>` | Not read (the paths are used as given); the Top Shelf asks `/api/logo/…?size=full` for such paths (0154; an older server ignores the query) |
-| `channelNumbers` | 0117 | Rows carry `number` (labels; the provider's order is kept since 0139) | Shows the number as muted text after the name; iOS "Go to number". Absent with `PIGTV_CHANNEL_NUMBERS=0` |
-| `playbackHandles` | 0119 | `direct` resolves use `/api/proxy/stream?h=<handle>` | Not read (same path, already allowed); a 404 on it leads to a re-resolve. Absent with `PIGTV_PLAYBACK_HANDLES=0` |
-| `recordingHls` | 0127 | Recordings may be HLS (`container: "hls"`, `inProgress`) | Plays HLS recordings directly; offers "Watch from start (still recording)". **Only with `PIGTV_TUNER=1`** |
-| `timeshift` | 0128 | Hours-long live window with `PROGRAM-DATE-TIME` | Start over, the whole-window scrub bar and ±15 s. **Only with `PIGTV_TUNER=1`** and `PIGTV_TIMESHIFT_HOURS` > 0 |
+| `channelNumbers` | 0117 | Rows carry `number` (labels; the provider's order is kept since 0139) | Shows the number as muted text after the name; iOS "Go to number". Always sent since 0204 |
+| `playbackHandles` | 0119 | `direct` resolves use `/api/proxy/stream?h=<handle>` | Not read (same path, already allowed); a 404 on it leads to a re-resolve. Always sent since 0196 |
+| `recordingHls` | 0127 | Recordings may be HLS (`container: "hls"`, `inProgress`) | Plays HLS recordings directly; offers "Watch from start (still recording)". **Never sent since 0204** (tuner removed) |
+| `timeshift` | 0128 | Hours-long live window with `PROGRAM-DATE-TIME` | Start over, the whole-window scrub bar and ±15 s. **Never sent since 0204** (tuner removed) |
 | `channelHealth` | 0133 | Rows carry `health` (`ok`/`flaky`/null) | Amber dot on a flaky channel's tile |
 | `sportCategories` | 0146 | `library/categories` rows carry `sport` | Not read any more (C-I replaced the C-H Home row); `sport` still decodes |
 | `sportsEvents` | 0148 | `GET /api/sports/events` | The Sport tab and Home's "Sport now & next"; asks `hours=72` (0153) |

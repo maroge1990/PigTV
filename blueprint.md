@@ -40,9 +40,9 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Development is on Mark's MacBook only (from 23 Sept). |
 | CI | Both repos are **public** since 30 Sept (free Actions minutes; history checked for secrets). `gh` is signed in on the MacBook: `gh run view <id> --log-failed`. On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings (fixed 28 Sept):** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (so an SMB share that mounts late or reconnects appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs (schedule #3 failed with "0.0 GB free"). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
-| Shipped through | **0177** (pushed, 30 Sept–1 Oct: multi-provider failover 0168–0177, §6) and app **36**. Round 7 (`docs/TEST-BLOCK.md`) not yet run. Before that: **0167** and app **35**. Rounds 1–4 passed on 0151 + app 31; round 5 (0152–0154 + app 32) passed on 28 Sept apart from the five bugs that started the 28–29 Sept fix run (§6 "Fix run"); round 6 (0166 + app 34, `docs/TEST-BLOCK.md`) passed apart from R6.3 (fixed in 0167) and R6.14 (fixed in app 35), with R6.4–R6.6 and R6.16 still to run. Whether a build is *running* is whatever `/api/version` says. |
-| Next build number | **0204** |
-| Tests | `npm test`: **790 tests, all pass** (1 Oct, after 0178, on CI; timing tests can fail locally when the Mac is loaded - check `uptime`, rerun, or trust CI; Node 24.21, Homebrew ffmpeg 9.0; tests that need ffmpeg skip without one). `bash scripts/verify-build.sh .` passes. |
+| Shipped through | **0204** and app **39** (4 Oct; §6). Whether a build is *running* is whatever `/api/version` says. |
+| Next build number | **0205** |
+| Tests | `npm test`: **878 tests, all pass** (4 Oct, Node 24.21, Homebrew ffmpeg; tests that need ffmpeg skip without one; speed budgets run locally, and in CI's non-blocking `perf` job). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -59,7 +59,9 @@ change per commit.
    export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
    npm ci && npm test && bash scripts/verify-build.sh .
    ```
-   Both must pass. If either can't be run, say so and don't push.
+   Both must pass, and a push happens only after both have passed. If either can't be run, say so and don't push.
+   `verify-build.sh` is for what a test cannot check (things that must not come back, placement, the image and CI,
+   web markup, the build numbering); behaviour is proved by a test under `test/`.
 4. A functional commit bumps `build` in `server/version.js` in the same commit, and its subject starts with the number
    (`0106: Guide rows carry stableId`). Docs-only and test-only commits don't bump it and have no number.
 5. `git push origin main`. Never force-push. If CI goes red, fix it or `git revert` it straight away.
@@ -77,8 +79,8 @@ container at the last good tag, then `git revert` the bad commit.
 **Build identity.** `server/version.js` `build` = the last functional commit's number (continuing the old patch sequence).
 `/api/version` and `/api/info` return it with `commit`/`builtAt` (CI stamps them), and the web badge shows `display`.
 
-**How work is organised (from 23 Sept).** The lead Claude session plans, delegates implementation to sub-agents (one per
-repo at a time, so commits don't interleave), then **reviews every diff** against this file's rules before it's pushed. Any
+**How work is organised.** The lead Claude session plans and either does the work itself or delegates parts to sub-agents
+(as Mark asks per build; never Haiku), and **reviews every diff** against this file's rules before it's pushed. Any
 item that needs real channels or a device ends with numbered test steps for Mark, and is only marked *Verified* after he
 reports back.
 
@@ -196,49 +198,7 @@ it cannot. There is no remux, no legacy pipe and no browser-side strategy any mo
   "The provider did not respond" or "This channel is not available" (texts in `playbackErrors.js`); a failed ffprobe is
   classified like ffmpeg's stderr and never returned raw; the route strips any `scheme://` from whatever else it returns.
 
-**Tuner model (`PIGTV_TUNER=1`, 0126–0132; contract C-E; off by default)**. Mark's decision (24–25 Sept): the tuner **stays,
-off by default**. It passes its tests (a fake ffmpeg) and a local manual run against a captured sample (`pos_1165`), but has **never run against the real feed or a
-device** (TEST-BLOCK Part 3 deferred; Mark wants to test pause/rewind, start over and instant recordings later).
-- Off, every line above is exactly how it works (`test/tuner-off.test.js`). On, `services/tuner.js` puts a **tuner** under the
-  sessions: one provider connection + one ffmpeg writing HLS into its own directory. A `TunerSession` *is* a `TranscodeSession`
-  (same start, 0113 refused retry, software-decode retry, stall watchdog, stop). Its arguments are `buildSourceArgs()` (identical
-  to a session's: `test/tuner-args.test.js` checks 133 option sets against the 0125 golden file) plus its own HLS muxer part:
-  `-hls_list_size 30`, `independent_segments+temp_file`, **no `delete_segments`** (the server keeps the window).
-- **Key** = sha256 of those exact arguments (its directory masked) + the master-playlist attributes. Same key → the viewer
-  joins the running tuner (no slot, no probe: a missing analysis is re-read from the tuner's own with
-  `streamProbe.reanalyzeForCaps`). **Compatible joining (0155):** no tuner with the viewer's own key, but one on the same URL
-  whose output it can play (`tuner.output`, read from the tuner's arguments: video codec copied or H.264 encoded, fMP4/MPEG-TS,
-  audio copied incl. HE-AAC or AAC-LC encoded, range) → the viewer joins that one (`playbackStrategy.canPlayTunerOutput`: HEVC
-  needs `hevc` and never from MPEG-TS for an fMP4 client, AV1 `av1`, fMP4 `fmp4`, copied HE-AAC `heaac`, AC-3/E-AC-3/FLAC
-  `ac3`/`eac3`/`flac`; H.264 and AAC-LC always; never for an upscale, nor for `audioEncode` on copied audio). An exact key
-  still wins over a compatible tuner (then the one with the most segments). The resolve answer (`segmentType`, `videoMode`,
-  `master.m3u8` vs `stream.m3u8`, FRAME-RATE/VIDEO-RANGE) describes the **joined** tuner; the log says `joined compatible
-  tuner <id> (viewer wanted …)`. Only a viewer that can't play any running tuner (e.g. web without HEVC on a copied-HEVC
-  tuner, or without fMP4) → another tuner, another slot (or the 409).
-- **Viewers** `{id, tunerId, owner, live, lastAccess}`: the `sessionId` resolve returns; DELETE, terminal-status and the idle
-  rules (5 min live / 30 min) are per viewer; a tuner stops with its last viewer **and** recording hold (`rec:<scheduleId>`).
-  The **coordinator counts tuners** (`requestForTuner`/`admitTuner`): dead → idle (all viewers ≥60 s) → only this owner's,
-  silently; else the same 409 bodies (`streamId` = another viewer's id); `force` stops recordings (kept, partial) and viewers.
-- **The playlist is the server's** (`hlsPlaylist.js`): ffmpeg's `ffmpeg.m3u8` is only parsed (every 1 s and per request).
-  `#EXT-X-PROGRAM-DATE-TIME` on every segment = anchor (time first seen − listed durations) + accumulated EXTINF: monotonic,
-  consistent with durations; drifts by the provider's ~19 s resend (mtimes were rejected: jitter, can step back). Token handling
-  is `withStreamToken`; master playlists (0100/0115) unchanged on top.
-- **Timeshift** (default on with the tuner; `PIGTV_TIMESHIFT_HOURS`, default 3, `0` = the 90-segment window on the tmpfs): tuner
-  directories are `<recordings>/.timeshift/<id>`; trimmed by time and, every 15 s, below `PIGTV_TIMESHIFT_MIN_FREE_GB` (20) the
-  oldest go at once (never below 90 segments); removed on stop and at startup. `CAN-SKIP-UNTIL` = 6 × target duration;
-  `_HLS_skip=YES` → `EXT-X-SKIP` delta (version 9). Only these playlists (and recordings' `index.m3u8`) may be gzipped.
-- **Recordings** hold the channel's tuner (any tuner on that URL; else one planned with `RECORDING_CAPABILITIES`,
-  the Apple TV's before app 27: no `heaac`, 0130) and an `HlsRecorder` hard-links (same volume) or copies the segments overlapping [start − pre, end + post]
-  into `<root>/<channel>/<title - date>/`: `index.m3u8` EVENT while recording, VOD + ENDLIST after, `EXT-X-START:TIME-OFFSET=0`
-  (plays from its start, also while recording, 0129). Then joined (stream copy, the native-remux arguments) into
-  `<title - date>.mp4`, which becomes `file_path` (comskip, compression, download, `media.mp4`). **Both are kept** (2× disk).
-  Rows: `format='hls'`, `hls_dir` (columns only added once the tuner is used). A tuner that dies is released and re-tuned
-  next tick (new `init-N.mp4` + discontinuity, 0131). Delete removes the folder (only a `<root>/<channel>/<rec>` one).
-  **HE-AAC channels (resolved in 0155):** since app build 27 the Apple client always sends `heaac: true`, so on an HE-AAC channel
-  (the 7 channels) its own arguments (HE-AAC copied into fMP4) differ from a recording's (planned without `heaac`: AAC-LC in
-  MPEG-TS, which also plays in a browser). A recording that finds a TV's tuner joins it (`findByUrl`); a TV tuning to a channel
-  already being recorded joins the recording's tuner by compatible joining (above) instead of the 409 `recording-in-progress`.
-  `RECORDING_CAPABILITIES` stays without `heaac`.
+The tuner model (0126–0155: shared tuners, timeshift, HLS recordings) was removed in 0204; see §6 and git history.
 
 ---
 
@@ -429,15 +389,10 @@ Admin: `GET /api/lineup`, `PUT /api/lineup/numbers` (a reserved number yields to
 - Auth is `jsonwebtoken` + `bcryptjs` directly (0136; passport removed): `requireAuth` (bearer, 401 "Unauthorized"),
   `optionalAuth`, `streamAuth` (bearer or `?token=`), role always from the user store, revoked devices refused.
 - Express 5 (0137): wildcards are `/{*splat}`; `req.body` is forced to `{}` when absent; query parser `extended`;
-  `res.sendFile` needs `dotfiles: 'allow'` for anything under a dot-folder (the tuner's `.timeshift`).
+  `res.sendFile` needs `dotfiles: 'allow'` for anything under a dot-folder.
 
-**Tuner model (on with `PIGTV_TUNER=1`).** Log lines: `[Tuner <id>] Starting (key …)` / `Stopping (<why>)`; `resolve timing …,
-tuner <id>` (new) or `…, shared tuner <id> (N viewers)` (joined, `first segment after 0.0s`); `Releasing stalled session (tuner)`;
-`Only X GB free for timeshift … dropped the oldest N segments`; `[Recordings] #N shares|started tuner <id>`, `lost its tuner; taking
-the channel up again`, `finished (…) N segments, Ns, … (N linked, N copied)`, `Joining #N`, `#N joined`. Rollback: unset the env var
-(HLS recordings made meanwhile keep playing). Tests use a fake ffmpeg (`test/helpers/fakeHls.js`) and stub free space.
-
-**Recordings** (`recordingEngine.js`)
+**Recordings** (`recordingEngine.js`: capture, scheduling, failover; `recordingMedia.js`: probes, MP4 remux, native playback,
+preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js`: which recording each job is on)
 - `scheduled → waiting → recording → …`, where `waiting` = due but held back by a viewer (listed, cancellable, duplicate-checked).
 - File names use the server's local time, so **`TZ` must be set** (verified).
 - Native playback is a `.native.mp4` remux of the file: `hvc1`, MP2→AAC, shared across concurrent requests, written atomically,
@@ -457,10 +412,10 @@ the channel up again`, `finished (…) N segments, Ns, … (N linked, N copied)`
   saving it silently (`services/recordingsFolder.js` `validateRecordingsPathSetting()`).
 - **An unanswered "give up the stream" prompt no longer blocks a recording forever** (0158): if a due recording finds a
   live viewer on the provider's only stream, it still asks once (`streamCoordinator.js` `requestForRecording` /
-  `requestForRecordingTuned`, `pendingPrompt`), but takes the stream if nobody answers within `recordingPromptTimeoutMin`
+  `pendingPrompt`), but takes the stream if nobody answers within `recordingPromptTimeoutMin`
   minutes (setting, default 3) of the recording actually becoming due - tracked as `dueSince` on the prompt entry,
   deliberately not from the earlier `announceUpcoming` lead-time notice. An explicit "Keep watching" (`declinePrompt`)
-  still waits, however long. Same behaviour on the classic and tuner paths; no new terminal-status value (a client sees an
+  still waits, however long. No new terminal-status value (a client sees an
   ordinary reclaim: a 404, its one-time re-resolve, then the existing `recording-in-progress` 409).
 
 **Dev environment (macOS, from 23 Sept).**
@@ -477,8 +432,7 @@ the channel up again`, `finished (…) N segments, Ns, … (N linked, N copied)`
 - `/api/library/guide` rows: `id`, `sourceId`, `name`, `logo`, `category`, `tvgId`, `programmes[]` (`startTime`/`endTime` in **ms**).
 - `/api/recordings/{id}/markers`: `startMs`/`endMs`. `/api/recordings/{id}/playback` (bearer):
   `{url:"/api/recordings/{id}/media.mp4", container:"mp4", durationSec}`; `media.mp4` takes `?token=`, supports ranges and
-  `+faststart`; `?async=1` is additive. With the tuner (`recordingHls`): `{url:"…/index.m3u8", container:"hls", durationSec,
-  inProgress}`.
+  `+faststart`; `?async=1` is additive.
 - Favourites: `POST/DELETE /api/favorites` (bare id), listed via `/api/library/favourites`.
 - Playback: `POST /api/playback/resolve` → `strategy` `direct` | `transcode`, with `playbackURL` under `/api/proxy/stream`
   (`?h=<opaque handle>`, 0119: never a provider URL), `/api/transcode/…` (`master.m3u8` for every session with a usable frame
@@ -491,374 +445,28 @@ the channel up again`, `finished (…) N segments, Ns, … (N linked, N copied)`
 
 ---
 
-## 6. Roadmap and status (from the 23 Sept independent review)
+## 6. Status (4 Oct 2026)
 
-IDs: **S** server · **W** web · **A** Apple · **X** both. Every item on the 23 Sept roadmap is built. Status words, used
-exactly:
-- **Verified**: Mark checked it on the TV, iPad/iPhone or web and it passed (test numbers from `docs/TEST-BLOCK.md`).
-- **Shipped, awaiting a check**: pushed (and, for the server, deployable), not yet checked by Mark.
-- **Deferred**: shipped but its check is postponed, with the reason.
-- **Done**: needs no device check of its own (a clean-up covered by tests, in daily use since it was deployed).
+**Shipped through 0204 and app 39.** Every item of the 23 Sept review is built; the 3 Oct independent audit
+(`audit/ROADMAP.md`) is done: Phase 1-2 in 0192-0196 + app 37, Phase 3 in 0197-0202 + app 38, recording audio in 0203,
+and the simplification build in 0204 + app 39 (R13, segmented recordings, was skipped by Mark). The build-by-build
+record 0106-0203 is in `docs/archive/blueprint-history-0106-0203.md`; §8 keeps one line per build.
 
-**How it was tested (24–26 Sept).** Mark waived the per-phase gates (24 Sept): everything was built, then tested in four
-rounds (`docs/TEST-BLOCK.md`: round 1 = server 0138 + app 22; round 2 = 0146 + 28; round 3 = 0149 + 30; round 4 = 0151 + 31).
-**Rounds 1–4 passed on the TV and the web**, apart from the deferred items listed in §10 and at the top of TEST-BLOCK.md.
-Round 5 (0152–0154 + app 32): Mark tested everything except the tuner on 28 Sept and reported five bugs, which became the
-fix run below; everything else in it passed. Round 6 (0166 + app 34) covered the fix run.
+Status words, used exactly: **Verified** (Mark checked it on a device; test ids from `docs/TEST-BLOCK.md`), **Shipped,
+awaiting a check**, **Deferred** (with the reason), **Done** (needs no device check). What is still to check is at the top
+of `docs/TEST-BLOCK.md`.
 
-### Phase 0: clean-up and correctness
-
-| ID | Item | Status |
-|---|---|---|
-| X0.1 | Push-to-main workflow; CI publishes only after the tests pass; Node 24 locally | **Done** (0e68c03) |
-| S0.1 | `stableId` on `/library/guide` and `/library/favourites` rows | **Verified** (0106; favourites agree on TV and web, 1.5) |
-| S0.2 | Remove the dead second `GET /api/proxy/epg/:sourceId` handler | **Done** (0107; the route family went in 0122) |
-| S0.3 | Gzip JSON responses, never media, HLS or ranged responses | **Done** (0108) |
-| S0.4 | Image on Node 24 LTS; Comskip pinned; `npm ci --omit=dev`; CI matrix Node 22/24 | **Done** (0109, ac3f69d) |
-| A0.1 | Delete unused Swift views and model code; drop `remux` from the allow-list | **Done** (app 17) |
-| A0.2 | SwiftUI "Environment accessed outside a View" runtime warning | Parked: not reproducible outside an accessibility-heavy UI test; reopen if the guide misbehaves |
-| A0.3 | Swift CI (GitHub Actions macOS: iOS build, tvOS tests) | **Done** (`78c7376`, pushed; the old token-scope block is gone) |
-
-### Phase 1: faster
-
-**Baseline before 0113–0116** (Mark's log, 23 Sept, builds ≤0112): 16 plays; first picture median **8.1 s**, p90 8.7, max 10.1;
-cold 8.2 s (n=14), warm 4.8 s (n=2). After round 2 the report's client wait was checked (R2.1, passed).
-
-| ID | Item | Status |
-|---|---|---|
-| S1.1 | Channel profiles: a repeat play skips ffprobe (keyed like the probe cache, not `stable_id`; ffmpeg's own probe unchanged on purpose) | **Verified** (0114; 1.9) |
-| S1.2 | Frame-rate-aware master playlist for every session (`FRAME-RATE`, `VIDEO-RANGE`, no `CODECS`) | **Verified** (0115; 50 Hz 1.12, HDR 1.13) |
-| S1.5 | Fail fast, say why, retry a refused connection (two retries since 0143) | **Verified** (0113, 0143; 1.14, R2.3) |
-| S1.6 | HE-AAC passthrough (capability `heaac`) | **Verified** (0116; 2.9, R2.9); the Apple client always sends it |
-| S1.3 | Guide API for scale: cursor paging, 500 a page, `guide/version` (not HTTP ETag; one category per request) | **Verified** (0111, 0140; 1.6) |
-| S1.4 | Logo cache `/api/logo/{key}`; transparency kept (0141); full-size and 640 px variants (0154) | **Verified** through 0141 (1.4, R2.2); **0154 shipped, awaiting a check** (via the Top Shelf cards) |
-| A1.1 | Guide refreshes cheaply (cursor paging, version check) | **Verified** (app 18; 1.6) |
-| A1.2 | Channel card while tuning; Last channel | **Verified** (app 18–19; 1.8, 1.10) |
-| A1.3 | Show the server's C-B resolve-failure messages; send `heaac` | **Verified** (0118 + app 19; 1.14; `heaac` always on since app 27) |
-| — | Finite sources paced with an 8 s read burst (`-readrate_initial_burst`) | **Deferred** (0144; R2.5/R3.11: the file-based channel could not be found again; ffmpeg 6.1 behaviour unmeasured in production) |
-
-### Phase 2: one lineup, one contract, a steady guide
-
-| ID | Item | Status |
-|---|---|---|
-| X2.1 | Channel numbers as **labels** (the provider's order kept), admin renumbering in the web, shown muted after the name on Apple | **Verified** (0117, 0123, 0139; 1.4, 1.20, R3.10) |
-| A2.1 | tvOS guide on UIKit (`UICollectionView`), then delete the SwiftUI grid | **Verified** (app 20–22; 2.1–2.7). The only guide since app 27 (Mark), iPad too since app 29 |
-| W2.1 | Web onto `/api/library`; catalogue for the Sources picker; remove Xtream emulation, whole-EPG proxy, `cache.js`, Movies, Series, Pluto, plugins | **Verified** (0120–0122; 1.18, 1.19, 1.21) |
-| W2.2 | Web Status page | **Verified** (0124; 1.23) |
-| S2.1 | Opaque playback handle instead of the credentialed `?url=` (C-D) | **Done** (0119; same path, no client change; direct plays are rare on this provider) |
-
-### Phase 3: the tuner model (behind `PIGTV_TUNER=1`, off by default)
-
-| ID | Item | Status |
-|---|---|---|
-| T1 | A tuner layer; viewers of one channel share it | **Deferred** (0126): TEST-BLOCK Part 3 not run. Mark wants to test it later |
-| T2 | Recordings take their segments from a tuner (HLS VOD and a joined MP4) | **Deferred** (0127, 0130, 0131, 0155): Part 3. The HE-AAC caveat is resolved (0155, §3) |
-| T3 | Timeshift (3 h per tuner; `PIGTV_TIMESHIFT_DIR` for a local disk, 0132); start over (client side) | **Deferred** (0128, 0132): Part 3 (pause/rewind, start over) |
-| T4 | Watch a recording while it records | **Deferred** (0129): Part 3 (instant recordings) |
-
-### Phase 4: capabilities and polish
-
-| ID | Item | Status |
-|---|---|---|
-| A4.1 | Top Shelf: favourites on now with a deep link to play | **Verified** on the TV in round 4 (R4.4, app 31). App **32**'s rendered 16:9 cards from 0154's full-size logos: **Verified** (round 5, 28 Sept) |
-| A4.2 | Stream info overlay (Labs) and the same numbers in `play-end` | **Verified** (app 22; 2.8) |
-| A4.3 | One player on the TV: recordings in the custom player | **Verified** (app 21; 1.15, 1.17). Skip break / Auto-skip on a recording with breaks: **Deferred** (1.16, no suitable recording yet) |
-| A4.4 | iPhone On now list; iPad/iPhone player and guide; custom touch controls instead of AVKit's (app 31) | Shipped (apps 22, 29, 31), **awaiting a check**: R4.7 (Mark: "testing tomorrow") |
-| A4.5 | Siri / App Intents; Swift 6 language mode | Swift 6: **Verified** (app 28; R2.15, Mark's decision: on). Siri on iPad/iPhone: **awaiting a check** (R4.8, app 31). Siri on Apple TV: **Deferred/parked** (tvOS Siri may not offer third-party App Shortcuts) |
-| S4.1 | Channel health: failed starts and stalls; `health` on rows; Status page list; Apple amber dot | **Verified** (0133, 0142; 1.7, R2.6) |
-| S4.4 | Sport categories (C-H) | **Done** (0146) as a signal for sport recognition; its Home row was superseded by C-I (R2.12 dropped) |
-| S4.2 | EPG matching tool (web) | **Verified** (0134; 1.22) |
-| S4.3 | `db.json` into SQLite; Express 5; `jsonwebtoken` without passport; split `routes/proxy.js` | **Verified** (0135–0137; 1.1–1.3). Splitting `routes/proxy.js`: not done (238 lines, one route; not needed) |
-
-### Sport events (contract C-I, added 25 Sept)
-
-| ID | Item | Status |
-|---|---|---|
-| S5.1 | EPG programme categories stored; admin `GET /api/sports/categories`; Status page panel | **Verified** (0147; R3.1) |
-| S5.2 | Sport recognised per programme, grouped into events, best channel first; follow list; `GET /api/sports/events` | **Verified** (0148; R3.2–R3.7) |
-| S5.3 | Web Settings → Sports: follow list and preview | **Verified** (0149; R3.2) |
-| S5.4 | Kinds (event / replay / show / placeholder), league aliases, merging by meaning | **Verified** (0150; R4.1, R4.2) |
-| S5.5 | Web preview grouped by kind | **Verified** (0151; R4.1) |
-| S5.6 | Live or replay from XMLTV flags, the first airing within 36 h and per-league live hours | **Verified** as the fallback (round 5); replays still leaked into On now, which S5.8 fixes |
-| S5.7 | Sport horizon 72 h (`hours` up to 72) | **Verified** (0153 + app 32; round 5) |
-| S5.8 | ESPN fixtures as a first rule ahead of the heuristics (NFL, AFL, NBA, F1, MLB, IPL/BBL, international cricket via the scorepanel); coverage-gated so stale/out-of-window data never decides (0162); Status page "Sport fixtures" panel; `PIGTV_SPORT_FIXTURES` | **Verified** (0161–0162; R6.7, R6.8; AFLW on the heuristics, R6.9) |
-| A5.1 | Apple Sport tab, Home "Sport now & next", Replays section | **Verified** (app 30–31; R3.3–R3.7, R4.2, R4.3). Empty state (R3.8): **Deferred** (needs a quiet sport day) |
-| A5.2 | Sport tab over 72 h: Tomorrow and weekday sections | **Verified** (app 32; round 5) |
-| A5.3 | Apple tab switching: no reloads (app 31); no white flash between tabs (app 32) | Reloads: **Verified** (R4.6). Flash fix: **Verified** (round 5) |
-
-### Fix run (28–29 Sept: Mark's round 5 bugs, then a review of both repos)
-
-Planned as work packages W1–W11 (sized for Sonnet 5 / Haiku 4.5 agents; the lead reviewed every diff before pushing).
-
-| ID | Item | Status |
-|---|---|---|
-| W1 | Sport: an upcoming event's channels offer Record on / Watch when it starts, not an immediate tune (app 33) | **Verified** (R6.10–R6.12) |
-| W2 | Every schedule status change logged; missed/failed schedules kept 7 days (`?include=recent`, `scheduleHistory`); web Recent problems; Status list (0156) | **Verified** (R6.2). The overnight log check R6.4: **to run** |
-| W2b | Recordings folder health check, no folder created on an unmounted share, Settings refuses an unusable path (0157, 0160, 0167) | **Verified** R6.1. R6.3 failed on 0166 (a relative path saved) → fixed in **0167**, re-check pending |
-| W3 | Apple Recordings: Recent problems section (app 34) | **Verified** (R6.2) |
-| W4 | An unanswered recording prompt hands the stream to the recording after `recordingPromptTimeoutMin` (default 3) (0158) | **Shipped, awaiting a check** (R6.5, R6.6) |
-| W5 | Guide extends forward in merged 24 h slices; failed pages retry; far jumps never blank (app 33) | **Verified** (R6.13, R6.15) |
-| W5b | Jump to… and Search are full-screen pages on tvOS (app 35; R6.14 failed on app 34) | **Shipped** (Mark, 29 Sept: "looking good") |
-| W6 | Some pages need Back before anything can be selected (tvOS focus) | **Parked** until Mark names a screen (likely stacked full-screen covers; Apple blueprint §8) |
-| W7 | ESPN fixtures for live/replay (0161–0162) | **Verified** (S5.8 above) |
-| W8 | Sport events built in the background, not on a request (0159) | **Done** (the build itself still runs on the event loop, at most once per 5 min; §10) |
-| W9 | Apple sport refresh: off-main decode, no republish when unchanged, cached sections (app 34) | **Done** |
-| W10 | Dead code: `xml2js`, `nodecast.patch`, number-ordering branches, Movies/Series player/settings leftovers, dead CSS (0163–0166) | **Shipped, awaiting a check** (R6.16) |
-| W11 | Branding "Spotlight": layered tvOS icon, iOS icons, Top Shelf, launch screen, animated splash; the pig logo unchanged, optically centred (app 35) | **Shipped** (Mark, 29 Sept: "looking good"). The wordmark uses the system rounded font (Fredoka was not downloaded) |
-
-### Multi-provider failover (30 Sept–1 Oct; `docs/MULTI-PROVIDER-BRIEF.md`, contracts C-J/C-K)
-
-Backups are **list only** (`backup_channels`, never the guide), linked to the primary's visible channels
-(`channel_links`: exact id → auto; channel number / same-region name → pending review). Failover order: the primary, its own
-"(Backup)" sibling (single-channel failures only), then backups in **Settings → Providers order** (Mark, 30 Sept). Per-provider
-connection pools; a breaker (2 channels / 5 min → down, 3→15 min cooldown, half-open); 10-min channel quarantine after a
-mid-play death. Tuner path unchanged (primary only).
-
-| WP | Item | Status |
-|---|---|---|
-| P1 | Provider fields, `player_api` account info (expiry, connections), reminders C-K (0168, 0169 EPGenius `dns` key) | **Shipped** |
-| P2 | Backup sync into `backup_channels`, EPGenius id overlay by stream id (0170) | **Shipped** |
-| P3 | Linker + `/api/links` (0171) | **Shipped** |
-| P4 | Web Settings → Providers, Backup links (0172) | **Shipped** |
-| P5 | Per-provider connection pools (0173) | **Shipped** |
-| P6 | Resolve failover, breaker, quarantine, C-J (0174) | **Shipped** |
-| P8 | Status Providers panel, admin renewal banner (0175, lead fixes 0176) | **Shipped** |
-| P7 | Recordings: free provider at start, start failover, parts on a mid-recording death (0177) | **Shipped** |
-| P9 | Raw-list bridge: every provider's raw Xtream rows (`provider_raw_channels`); linker rules `raw-name`/`raw-epg` above the name rules, symmetric in either role (0178) | **Shipped** |
-| A1 | Apple build 36: provider in stream info, reminder banner, renewed recovery after 2 min | **Shipped** |
-| — | Swift CI: tests signed ad hoc so the App Group exists (red since build 31) | **Fixed** (green 30 Sept) |
-
-Everything above is tested against fakes only: **round 7** is the live check.
-
-### Settings consolidation (2 Oct; 0182, pushed; not yet deployed)
-
-Settings went from 14 tabs to 6: **Providers** (admin), **Channels** (Manage content, Channel numbers, EPG matching on a
-strip under the tab), **Playback** (Player + Transcoding, the VAAPI workarounds and User-Agent under "Advanced"),
-**Recording**, **Sports**, **System** (theme, devices, users). Debug is gone: the Status page's Live sessions has a Stop
-button per stream.
-
-- **Providers is the one place for content input.** One card per provider, every card the same form (name, Xtream login
-  or M3U address, guide (EPG) address, channel ID list). The card order is the roles: first = primary (its channels and
-  guide are shown), the rest = backups in failover order. `PUT /api/sources/order { ids }` saves it in one go and syncs the
-  providers whose role changed; moving a card to the top asks first. A provider added after the first is a backup at the
-  end; deleting the primary promotes the first backup. Backup links opens from a backup's card ("Review links").
-- **The guide belongs to the provider** (`epgUrl` on the source). Only the primary's is synced, stored under the
-  provider's own id (`syncProviderGuide`; an Xtream login with no address uses its own XMLTV); a provider that becomes a
-  backup has its guide rows dropped. The guide's sync state is the provider's `epg` row in `sync_status`.
-- **Nothing is typed by hand that the account reports.** The manual connection limit and the purchase/term/end dates are
-  removed: expiry and limit come from `player_api.php` alone (`providerAccounts`).
-- **One-time move at startup** (`services/providerMigration.js`, meta `providers_consolidated`): strips the hand-typed
-  fields, makes exactly one primary and numbers the backups, and turns the first enabled standalone EPG source into the
-  primary's guide address (its programmes are moved, not re-downloaded). Other standalone EPG sources keep working and
-  are listed under the cards until deleted.
-- Removed settings: Stream Output Format (never read by the server) and the unused defaults `forceProxy`,
-  `autoPlayNextEpisode`, `probeCacheTTL`, `seriesProbeCacheDays`. **Not done:** "Max concurrent recordings" is still a
-  setting (deriving it from the provider pools needs a change in the recording engine); the Apple TV reminder text still
-  says "update the dates in PigTV's web settings".
-
-**0183 (2 Oct, pushed): an M3U backup covers the provider's whole list.** A backup added as an
-EPGenius M3U used to offer only the channels EPGenius kept (Dream4K and Trex: no AU free-to-air), so those could never be
-linked. `syncService.addUnlistedChannels` now reads the provider's own Xtream list with the login the playlist names and
-appends the channels the playlist leaves out (raw name, category and guide id; address built from the login). The
-playlist's rows are unchanged. No login, or the provider not answering: the playlist alone, as before.
-
-**0184 (2 Oct, pushed): provider cards say more.** An M3U card shows whether a login was found in its playlist; a
-backup card shows "Covers N of M primary channels" beside Review links; the overlay field is now "EPGenius playlist
-(optional)" and only on Xtream cards (an M3U playlist is its own id list).
-
-**0185 (2 Oct, pushed): more sport fixtures, "Premier League" is EPL, old grand prix no longer live.**
-- ESPN fixtures (real kickoff times) now also for EPL, Championship, FA Cup, UEFA (Champions + Europa League, merged),
-  La Liga, Bundesliga, Serie A, Ligue 1, MLS, A-League, NHL, WNBA, NBL, NRL and Super Rugby
-  (`sportsFixtures.ESPN_LEAGUE_PATHS`; a league is fetched only when followed or named by a sport category).
-  Not added: UFC, IndyCar, NASCAR, golf, tennis (ESPN lists them as events without two teams: needs its own matching);
-  MotoGP, Supercars, netball (no ESPN feed).
-- A title saying plain "Premier League" is EPL, unless it is another country's or another sport's (Indian, Scottish,
-  Women's, darts...). One "EPL" keyword now covers both spellings.
-- F1: an airing naming a grand prix ESPN has no session for, with no F1 session within 12 h either side, is a replay
-  ("ESPN has no F1 session at this time"). Before, last weekend's race shown again midweek fell through to
-  "first airing = live" (Mark: Azerbaijan GP in Live sport all week).
-- Settings → Sports: leagues are picked from a list ("Add a league...", those with real fixture times first; `GET /api/sports/follow`
-  now also returns `leagues`). The text box stays for other keywords.
-- Teams can be followed: pick a league, then a team (`GET /api/sports/teams?league=`, ESPN's roster). Stored as the keyword
-  `"NFL: Arizona Cardinals"`. It matches the full name anywhere, or the nickname/place ("Cardinals", "Arizona") only in a
-  programme of that league; the team's league gets its fixtures fetched.
-
-**0186 (2 Oct, pushed): only the English Premier League is EPL.** 0185 excluded a fixed list of other Premier Leagues,
-so "Canadian Premier League Soccer" still came up as EPL. Now any word straight before "Premier League" that is not on a
-short allow list (English, Live, Sky, Soccer...) makes it someone else's.
-
-**0187 (2 Oct, pushed): the build badge is right again; the PigTV name shows on the light theme.** `server/version.js` was
-not bumped in 0182–0186, so every one of them reported 0181 (test A1 failed on that). **Rule: every build bumps `BUILD` in
-`server/version.js` in its own commit.** The navbar's "PigTV" text was hard-coded white.
-
-**0188 (2 Oct, pushed): interruptions are counted.** `services/playbackInterruptions.js`: every stream lost mid-play
-(ffmpeg exit or stall watchdog) is a row, closed by the same viewer's next successful resolve of that channel within 3 min
-(time to recover, and on which provider). Status → **Interruptions** shows the last 7 days: count, per hour watched, typical
-and worst recovery. This is the baseline for the in-stream recovery / standby work (`docs/STANDBY-BRIEF.md`).
-
-**0189 (2 Oct, pushed; OFF by default): in-stream recovery and the hot standby** (`docs/STANDBY-BRIEF.md`,
-`services/streamRelay.js`). `PIGTV_RELAY=1`: a relay keeps one HLS stream going across more than one ffmpeg ("legs"); when
-the playing leg is lost the next provider is started and joined on after an `EXT-X-DISCONTINUITY`. `PIGTV_STANDBY=1` adds a
-second copy of the channel on another provider's free connection, joined on after 10 s of silence. The coordinator treats a
-standby as abandoned (a viewer or recording takes its connection unasked). With both unset nothing changes.
-Checked with real ffmpeg on the MacBook (`node scripts/relay-rig.js [standby] [stall]`): cold switch ~10 s after the loss,
-standby switch at once after the 10 s; an ffmpeg HLS reader and hls.js both read across the join without an error.
-**Not checked: AVPlayer on the Apple TV / iPad, and real providers.** Found on the way: when a provider closes a stream
-cleanly ffmpeg exits 0 and writes `#EXT-X-ENDLIST`, which without the relay tells the player the stream has ended.
-
-**0190 (2 Oct, pushed): the Status page no longer keeps streams alive, and names them.** Status read each session with
-`getSession()`, which counts as a client's access: with the page open (it refreshes every 5 s) no stream ever looked idle,
-so an abandoned one was never reclaimed for another viewer or recording, nor swept. It now uses `peekSession()`. Live
-sessions shows the channel name the resolve knew (a play on a backup read "unknown") and the provider beside it.
-
-**0191 (3 Oct): reconnect timestamp loop, blank pictures, raw captures** (from Mark's channel diagnosis of Fox Footy 504
-and 7 Mate Melbourne on Strong8K). Fox Footy: a raw capture (no ffmpeg) of 20 min had no timestamp jumps and a 2 ms A/V
-start skew, and the server's arguments bench clean on it; but Strong8K drops connections at random **even with one idle
-connection** (ETIMEDOUT 1045 s into a raw capture; PigTV plays lost it at ~2.5 and ~18 min). ffmpeg's in-place
-`-reconnect` then got a response starting ~3.8 s back, and instead of rebasing once (the 7 channels' 38 s cut, §3) its
-audio went into a loop: `timestamp discontinuity … -140478` on every packet, each moving the one per-input offset, 227 s
-of drift in two minutes (the picture "moving back and forth in time"), then exit, cleanup and 404s.
-`transcodeSession.noteStderrLine`: within 120 s of a `Will reconnect`, 25 timestamp warnings in 10 s end a live session
-that has played as lost (`how: 'timestamps'`, a provider reason), like a stall: the relay restarts it behind a
-discontinuity, otherwise the player re-resolves. A single rebase (checked with real ffmpeg: a cut plus a 3.8 s resend logs
-2 lines) is left alone. 7mate: the provider sends black (`blackdetect` 0–120 s, 193 kbps at 1080p with audio; the probe
-also sees a finite ~10 min file). `checkPicture`: once a live session has 20 s of segments, under 500 kbps (250 below 720p,
-`PIGTV_BLANK_KBPS`) it is **blank**: logged, the channel quarantined on that provider without counting toward its breaker
-(the next play tries another provider first), the play's health row failed with reason `blank`, Status → Least reliable
-shows "Blank picture". The play goes on. `Stream ends prematurely` now counts as a provider reason for a lost session.
-`stream-doctor capture` saves the provider's **raw bytes** (the ffmpeg capture smoothed the jumps away, which is why every
-capture "classified EVEN") and says whether the connection held; `classify` adds per-stream jumps (a 33-bit wrap named as
-normal), the A/V start skew and a blank-picture verdict.
-**Recommended:** turn on `PIGTV_RELAY=1` (TEST-BLOCK L): with it a drop or a timestamp loop is a short freeze inside the
-same stream instead of the player's error-and-restart. Not checked on the Apple TV yet.
-
-**0192 (3 Oct): recording codec probe reads ffprobe JSON (audit R02).** `probeCodecs` asked for
-`stream=codec_type,codec_name` as CSV and read each line as `[type, name]`, but ffprobe prints `codec_name,codec_type`, so
-both codecs were always null: an HEVC recording's MP4 was never tagged `hvc1` (AVPlayer refuses it; the 0062 check passed on 2 Oct,
-presumably on a recording that never went through this remux, e.g. a compressed one, which is tagged by the encoder) and MP2 audio was copied into the MP4 instead of
-re-encoded. Now `-of json`, read by field name, with a 30 s deadline and a 1 MB output cap. `test/recording-codec-probe.test.js`
-generates real H.264/AAC, HEVC and MP2 files and remuxes one; CI now installs ffmpeg so these run there too.
-
-**0193 (3 Oct): recordings are prepared before the first Play, the MP4 replaces the .mkv, and compression can no
-longer delete an original it could not verify (audit R06, R08).** Every finished recording is queued (`native_status`:
-pending → preparing → ready | failed, with `native_error` and `native_attempts`, max 3) and remuxed for the Apple client
-in the background, one at a time, newest first; while a recording is capturing only ones finished in the last day are
-prepared. Play still prepares on demand and shares the same remux. Once the MP4 checks out against the original (length
-within 5 %, a video track, audio if the original had it) it is renamed to `<name>.mp4`, the row moves to it, and the
-`.mkv` is deleted. An original whose length cannot be read (an interrupted capture) is kept; the recording still plays.
-At startup the library recorded before 0193 is queued the same way, interrupted jobs are requeued, and an interrupted
-compression's output is removed. Capture is unchanged (MKV: it survives being cut off). Compression now encodes to
-`.compressed.mp4.partial`, publishes only a verified result (both lengths must be known; an unreadable length used to
-pass and, with "keep original" off, deleted the original), moves the row before deleting the original, and playback
-only serves a compressed file once compression says `done`. ffmpeg remuxes and encodes are killed if their output stops
-growing for 10 min. `PIGTV_NATIVE_PREPARE=0` turns the queue off; `PIGTV_KEEP_MKV=1` prepares but keeps originals.
-**Disk:** each recording briefly needs room for a second copy while it is prepared; preparation waits when there isn't.
-Tests `test/recording-prepare.test.js`.
-
-**0194 (3 Oct): the recordings routes read files asynchronously (audit R09, part).** Recordings live on the SMB share,
-and `routes/recordings.js` stat'ed, checked and read them synchronously inside requests, so a slow share stalled the
-whole event loop, live segments for other viewers included. Now `fs.promises` throughout; files are piped with
-`stream/promises` `pipeline`, so a read error reaches the route's error answer and the file is always closed. A player
-abandoning a range request (every seek) is not logged. Tests `test/recordings-async-io.test.js`.
-
-**0195 (3 Oct): sport events are built on a worker thread (audit R09).** `buildEvents()` (0.3–1.1 s on 1,000
-channels) ran on `setImmediate` since 0159, which is still the event loop that serves live segments, so every 5-minute
-rebuild, EPG sync and follow change stalled playback. It now runs on one long-lived `worker_threads` worker
-(`services/sportsEventsWorker.js`) with its own **read-only** SQLite connection (WAL; `db/sqlite.js` opens read-only for
-it, no schema or pragma writes); results come back in slices of 250 so no single receive is a large clone.
-`decorateChannels` (it writes the logo cache) stays on the main thread, 100 channels per slice. Once anything is
-cached a request never builds; only the very first awaits one. At most one build runs and one waits (latest key wins).
-`PIGTV_SPORT_WORKER=0`, or a worker that will not start, builds inline as before, with a warning. Status reports
-`sportEvents` (build ms, worst loop delay during the build, revision, stale age). Measured max loop delay during a
-1,000-channel build: ~35 ms (was the whole build). **Not changed:** each `/events` request still filters and sorts
-the cached events on the main thread (~100–200 ms measured under heavy load) — a candidate for next time.
-Tests `test/sports-worker.test.js`.
-
-**0196 (4 Oct): media and session control always need a signed-in user; the proxy takes handles only (audit R01).**
-An audit fetched a recording and proxied the server's own loopback `/api/version` with no token: `requireStreamAuth`
-was off by default, a settings read failure also meant "off", and `/api/proxy/stream?url=` (the 0119 rollback) fetched
-anything. Mark (3 Oct): nothing but PigTV's own players uses these streams. Now: `streamAuth` is always enforced on
-`/api/proxy`, `/api/transcode`, the recordings' media routes and `/api/playback` (resolve, release, and the recording
-prompt's `/conflict` and `/conflict/decline`), and validates like the bearer path (`userFromToken`: JWT, user still
-exists, role from the store, device not revoked); the setting is gone. `?url=` → 400 and `PIGTV_PLAYBACK_HANDLES` is
-removed. `GET /api/transcode/sessions` and `DELETE /api/transcode/sessions/all` (it kills every stream and tuner) are
-admin-only. Every response carries `Referrer-Policy: no-referrer`. Both clients already put `?token=` on every media
-URL. **Rollout:** an old client build or a script without a token now gets 401; deleting a user cuts off their devices
-at once. Tests `test/stream-auth-enforced.test.js`.
-
-**0197 (4 Oct): in-stream recovery and the hot standby are Settings switches; Status shows what they do (audit R12).**
-Settings → Transcoding → "Stream recovery (experimental)": **In-stream recovery** (`relayEnabled`) and **Hot standby**
-(`standbyEnabled`, greyed out until recovery is on), both off by default; a change applies to plays started afterwards, a
-running relay keeps its mode. `PIGTV_RELAY` / `PIGTV_STANDBY` are gone (Mark never set them); `PIGTV_RELAY_SWITCH_MS`
-stays. Status → Live sessions has a relay table: per stream its state (`starting`, `playing`, `switching`,
-`standby-starting`, `standby-ready`, `promoted`, `reclaimed`, `failed`), switches and last reason (`lost`, `stalled`,
-`timestamps`, `blank`, `standby-incompatible`, `standby-reclaimed`, `no-candidate`, `incompatible`); reasons also go to
-Recent plays and the Interruptions rows (`reason` column). `joinable()` now also requires the same video codec, frame
-size, frame rate (1 %), audio codec and channel count (an unknown field counts as compatible, logged once).
-
-**0198 (4 Oct): provider connections are leased before the probe; the likely next channel can be warmed (audit R11).**
-Admission used to count only sessions that already existed, so two contenders deciding during each other's probe could
-both be admitted (one connection too many; the standby's `hasFreeConnection()` + await had the same race). Now every
-admission takes a **lease** synchronously with its decision (`streamCoordinator`: purpose viewer / recording / standby /
-warm), counted in the pool until its session or recording exists (then that is counted instead), released on every
-failure path, expiring after 60 s unbound with a warning. Recordings bind theirs to the recording and give it up when
-ffmpeg exits; a viewer that forces past an unstarted recording takes its lease and that start waits for the next tick.
-`tryReserveFree()` is how a standby or warm start takes a connection only when one is free. **Warming** (Settings →
-Transcoding → **Warm the next channel**, `warmNextChannel`, off by default): `POST /api/playback/warm` (same body as
-resolve; 200 `{ warm, ttlSec: 90, refreshed }` or 204 when off / nothing free / tuner) starts the channel on a spare
-connection, never reclaiming or prompting; the same owner's resolve of that channel adopts it (`warm: true` in the
-decision). A warm session is the first thing any viewer or recording reclaims, silently; 90 s TTL. `/api/info`
-`features.warming` + `warmingEnabled`; Status `warming { enabled, active, hits, misses, expired, reclaimed }`.
-
-**0199 (4 Oct): the image runs as PUID/PGID (99:100 by default), is built in stages, and reports its health (audit R17).**
-`docker/entrypoint.sh` (as root only long enough to): own the container's own folders (`/app/data`, `/app/transcode-cache`,
-`/app/config`) as PUID:PGID when they aren't already, add the user to the `/dev/dri` render/card groups so VAAPI keeps
-working, check — never chown — that the recordings folder is writable (one clear WARNING naming the fix if not), then
-`exec setpriv` to drop to that user, so SIGTERM still reaches node. `PUID=0` runs as root (escape hatch, logged).
-Builder stage compiles better-sqlite3 and Comskip; the runtime stage has no compilers. `chmod 777` gone; `.dockerignore`
-(no host `node_modules`, data, `.env`). `GET /api/health` (unauthenticated: `{ ok, db, recordingsFolder }` from the cached
-folder state, never touching the share) + `HEALTHCHECK`. `engines` `>=22`. `scripts/backup-db.sh` (online SQLite backup,
-newest 7 kept) and restore in **`docs/OPERATIONS.md`**, with the first-deploy checklist. CI: `docker-smoke.yml` builds
-and starts the image on branches without publishing (checked: 99:100, own folders owned, recordings writable, ffmpeg,
-Comskip's libraries, clean SIGTERM).
-
-**0200 (4 Oct): the web nav is labelled for everyone; Status pauses when hidden and shows the background work (audit R16).**
-Nav links have `aria-label`/`title`, `aria-current="page"` on the active one, a `:focus-visible` ring, and the mobile
-menu toggle `aria-expanded`; icon-only buttons (search clear, modal close, sidebar, player controls) are named. Status
-stops polling while the tab is hidden (refreshes on return), redraws only the sections whose data changed, and keeps an
-open `<details>` and the scroll position. New: **Server load and background work** — event-loop delay (p50/p99/max, since
-start and last minute, `services/loopDelay.js`), the recording preparation queue (0193: counts by `native_status`, the
-one being prepared, last error) and the sport builds (0195); Providers gains **In use for** (viewer / recording /
-standby / warm, with channel and age). `/api/status` adds `preparation`, `loopDelay`, `providers[].uses`.
-
-**0201 (4 Oct): sport event requests are served from a per-minute cache.** After 0195 the build was off the loop, but each
-`/api/sports/events` still filtered, ordered and serialised everything on it (~20 ms on 1,000 channels, more under
-load). Now each event's JSON is written once per build (in slices that yield), a request joins the window's strings
-(user favourites re-sort only the events that contain them), and the finished buffer is cached per (build revision,
-hours, include, favourites, minute) with a weak ETag (304 on `If-None-Match`) and a ready gzip. Same bytes as before;
-~0.05 ms for a repeat in the same minute, ~7 ms for the first. `now` in the answer is the start of the minute (the app
-floors to the minute too). At most 12 entries / 48 MB. `.gitignore`: `node_modules` without the slash, so a symlink of
-that name can't be committed.
-
-**0202 (4 Oct): a hot standby may take a warm channel's connection.** With both switched on, warming (0198) and the
-standby (0197) want the same spare backup connection; the standby only ever took a free one, so a warm guess at the next
-channel could stop the playing channel from being protected. Continuity comes first: `reserveTakingWarm()` lets a
-standby (only) take a connection a warm channel holds — lease taken in the same step, the warm stream released before
-the standby's probe starts, so the provider never sees both. The relay tries a free connection anywhere first.
-
-**0203 (4 Oct): recordings are captured as MPEG-TS, their audio is re-encoded when prepared, and a prepared file must
-decode before its original is deleted.** Mark's recording #5 (Nick Toons, HE-AAC): after preparation the MP4 played to
-~3:00 on the Apple TV with no sound (the web, more tolerant, had sound), Comskip failed at 41 %, and the .mkv had been
-deleted — the 0193 check (length, tracks) never decoded anything. Cause, reproduced: the channel changes its audio
-mid-programme (around an ad break); **Matroska keeps one audio config for the whole file**, from the first frame, so
-everything after the change decodes wrongly (298 errors and silence in a 12 s reproduction), and the copied MP4 inherits
-it. **MPEG-TS keeps each ADTS frame's own header**: captures are now `.ts` (`-f mpegts`; just as safe when cut off).
-Preparation copies AC-3/E-AC-3 only and re-encodes every other audio (all AAC flavours, MP2) to AAC-LC 48 kHz, channels
-kept up to 5.1, with `aresample=async=1`. Before an original is deleted the prepared file's audio is fully decoded and
-must have no more than 5 errors beyond the original's (`native_version` 2; unknown → original kept). Preparations made
-before 0203 whose `.mkv` still exists are made again at startup. Older `.mkv` captures keep working (their damage, if
-any, is in the file). Tests: a real-ffmpeg reproduction (changing audio survives TS + preparation; the Matroska control
-loses it). Also: turning In-stream recovery off now unticks and saves Hot standby off.
+**0204, the simplification build (4 Oct).** No behaviour change except the guide (below). The tuner model
+(`PIGTV_TUNER`: shared tuners, timeshift, HLS recordings) is removed: never run on a device, off by default; it is in git
+history. Rollback flags retired: `PIGTV_NATIVE_PREPARE`, `PIGTV_KEEP_MKV` (an original is deleted only once its MP4
+decodes cleanly), `PIGTV_SPORT_WORKER` (the automatic inline fallback stays), `PIGTV_PROBE_PROFILES`, `PIGTV_DTS_AUTO`,
+`PIGTV_CHANNEL_NUMBERS`. `recordingEngine.js` is split: capture and scheduling stay; `recordingMedia.js` (ffmpeg/ffprobe
+tooling, MP4 remux, native playback, preparation queue), `recordingPost.js` (compression, break detection),
+`recordingJobs.js` (what each job is busy with; capture outranks them). `verify-build.sh` keeps only what tests cannot
+check (297 checks, was 1,077). Tests: one way to start the real server (`test/helpers/server.js`); speed budgets are
+skipped by CI's gate (`PIGTV_SKIP_PERF=1`) and run in a non-blocking `perf` job. **Guide:** a provider's own "(Backup)"
+feed linked as a sibling of the channel it backs up is no longer listed anywhere (`channelNumbers.LINKED_SIBLING_SQL`
+in `VISIBLE_SQL`), so warming warms the real next channel; an unlinked one stays.
 
 ### Next
 
@@ -870,8 +478,6 @@ loses it). Also: turning In-stream recovery off now unticks and saves Hot standb
    pages after the cleanup).
 3. **Mark's minor bugs from build 35 / 0167** (noted by him on 29 Sept for the next build; not yet reported in detail).
 4. W6 (a screen that needs Back first) when Mark finds one.
-5. The tuner test (TEST-BLOCK Part 3) when Mark is ready: pause/rewind, start over, instant recordings; include a TV tuning to
-   an HE-AAC channel (a 7 channel) that is being recorded: it should join (log `joined compatible tuner`), no 409 (0155).
 6. The deferred checks: 1.16 (a recording with breaks), R3.8 (sport empty state), R2.5/R3.11 (a file-based channel).
 7. Anything from §10 Mark wants fixed. **Kept on purpose:** the non-VAAPI encoders. **Not planned:** AV1, more users, reviving
    VOD, access from outside the VPN, AirPlay/PiP, a session keep-alive.
@@ -1003,6 +609,20 @@ lines (the classifier has seen one uneven feed in five) · the 20 s stall timeou
 | 0179 | A raw-epg link is automatic only when the loose raw names agree too (one id on two channels at Dream4K) |
 | 0180 | A start stopped on request (the viewer's next play, a DELETE, a force) ends its resolve with 499 `{error, superseded}` - no failover, breaker, quarantine or failed-start row; an owner's newer resolve stops the older walk |
 | 0181 | Providers that are the same account (same server origin + login, hashed in `accountKey.js`) share one connection pool (lowest limit); `GET /api/sources/providers` adds `sharesAccountWith` (ids), Settings -> Providers warns in red |
+| 0182–0191 | Settings consolidation (provider cards), backups and links, sport teams, Status rework, in-stream recovery and hot standby (env-switched then), interruptions, reconnect timestamp loop and blank-picture detection (details: `docs/archive/blueprint-history-0106-0203.md`) |
+| 0192 | Recording codec probe reads ffprobe JSON by field name (audit R02) |
+| 0193 | Recordings prepared for the Apple client before the first Play; compression verifies before it deletes (R06, R08) |
+| 0194 | Recordings routes read files asynchronously (R09) |
+| 0195 | Sport events built on a worker thread (R09) |
+| 0196 | Media and session control always need a signed-in user; the proxy takes handles only (R01) |
+| 0197 | In-stream recovery and hot standby are Settings switches; Status shows relay state and reasons; stricter standby compatibility (R12) |
+| 0198 | Provider connections leased before the probe; warming the likely next channel (Settings, off by default) (R11) |
+| 0199 | Image runs as PUID/PGID 99:100, multi-stage, `/api/health` + HEALTHCHECK, database backup script (R17) |
+| 0200 | Web nav accessibility; Status pauses when hidden and shows loop delay, preparation queue, sport builds, connection use (R16) |
+| 0201 | Sport event requests served from a per-minute cache with ETag |
+| 0202 | A hot standby may take a warm channel's connection |
+| 0203 | Captures are MPEG-TS; preparation re-encodes audio to AAC-LC and decode-checks before deleting an original |
+| 0204 | Simplification: tuner model and six rollback flags removed, recording engine split, verify-build slimmed, test helpers; linked "(Backup)" siblings not listed |
 
 ---
 
@@ -1014,25 +634,15 @@ env vars: they live in SQLite and are edited in the web app's Settings (sources,
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `PIGTV_TUNER` | off | `1`/`true`/`yes`/`on` turns on the tuner model (§3, C-E): shared tuners, timeshift, HLS recordings; adds the `timeshift` and `recordingHls` flags. Untested live (§10). Unset it to roll back; HLS recordings made meanwhile keep playing. |
 | `PIGTV_RELAY_SWITCH_MS` | `10000` | With a standby ready: how long the playing stream may write nothing before the standby takes over (min 3000). |
-| `PIGTV_TIMESHIFT_HOURS` | `3` | With the tuner: hours of segments each tuner keeps. `0` = no timeshift (the 90-segment window on the tmpfs; no `timeshift` flag). |
-| `PIGTV_TIMESHIFT_DIR` | `<recordings>/.timeshift` | With the tuner: where timeshift segments live. **Recommended `/app/data/timeshift`** (local appdata instead of the recordings share, 0132). Recordings then copy segments instead of hard-linking them. |
-| `PIGTV_TIMESHIFT_MIN_FREE_GB` | `20` | With the tuner: below this much free space the oldest timeshift segments are dropped (never below 90 per tuner). |
 | `PIGTV_LIVE_IDLE_TIMEOUT_SEC` | `300` | A live session nobody has fetched from for this long is removed by the idle sweep (seekable sessions: 30 min, fixed). |
-| `PIGTV_SPORT_WORKER` | on | `0`: sport events are built on the main thread, as before 0195 (blocks it while building). |
 | `PUID` / `PGID` | 99 / 100 | The user the container runs as (0199; Unraid's nobody:users). `PUID=0` runs as root. See `docs/OPERATIONS.md`. |
-| `PIGTV_NATIVE_PREPARE` | on | `0`: finished recordings are not prepared in the background; Play prepares on demand, as before 0193. |
-| `PIGTV_KEEP_MKV` | off | `1`: preparation keeps the original `.mkv` beside the prepared MP4 instead of deleting it (0193). |
 | `PIGTV_BLANK_KBPS` | 500 / 250 | A live play whose segments carry less than this (kbps, audio included; 500 from 720p up, 250 below) over its first 20 s is marked **blank** (0191): logged, quarantined on that provider for the next play, health reason `blank`. `0` switches it off. |
 | `PIGTV_STALL_TIMEOUT_MS` | `20000` | The stall watchdog kills an ffmpeg that has written no file for this long (grace before the first output: the larger of this and 30 s). |
 | `PIGTV_TERMINAL_STATUS_TTL_SEC` | `900` | How long a "taken over" record is kept for `GET /api/playback/:id/terminal-status`. |
-| `PIGTV_PROBE_PROFILES` | on | `0`/`false`/`no`/`off` turns channel profiles off (every play runs ffprobe, as before 0114). |
 | `PIGTV_PROFILE_MAX_AGE_DAYS` | `7` | A channel profile older than this is probed again. |
-| `PIGTV_DTS_AUTO` | on | `0`/`false`/`no` applies `-fflags +igndts` to every copy session (the 0085 behaviour: **don't**, it breaks even feeds); on = decided per feed from the probe. |
 | `PIGTV_DTS_DELTA_THRESHOLD_SEC` | `60` | ffmpeg's `-dts_delta_threshold` for sessions. |
 | `PIGTV_READRATE_BURST` | `8` | Seconds read at full speed before a finite source is paced to real time (0144; 0–60). `0` = plain `-re` (the rollback). |
-| `PIGTV_CHANNEL_NUMBERS` | on | `0` removes the `channelNumbers` flag (clients then show no numbers); numbers are still stored. |
 | `PIGTV_SPORT_FIXTURES` | on | `0` turns off ESPN fixtures completely (0161, §4 "Sport events"): no fetch ever runs, and `resolveLive`'s ESPN rule never applies - every league is exactly on the guide-only heuristics, as before 0161. |
 | `PIGTV_BUILD` | `server/version.js` | Overrides the build number reported by `/api/version` and `/api/info`. Not normally set. |
 | `PIGTV_COMMIT` | `dev` | The commit shown in the version display; CI sets it as a Docker build arg. |
@@ -1057,16 +667,7 @@ The live-session tmpfs is `/app/transcode-cache` (2 GB in `docker-compose.yml`).
   channel can still fail to start during a provider outage; the viewer sees the C-B message and a Retry button.
 - The 8 s read burst for finite sources (0144) is measured on ffmpeg 9.0 only; production runs Ubuntu's 6.x (6.1+ needed) and
   the file-based channel to check it on (R2.5/R3.11) has not been found again.
-- HEVC recording playback on an Apple TV has never been checked (0062). Old `.native.mp4` sidecars may be `hev1`.
-
-**Tuner model (`PIGTV_TUNER=1`)**
-- **Untested live**: never run against the real feed or on a device (TEST-BLOCK Part 3 deferred).
-- ~~On an HE-AAC channel, a TV tuning to a channel whose recording started first gets a 409~~ **Resolved in 0155** (compatible
-  joining, §3): the TV joins the recording's tuner and plays its AAC-LC. A TV that joins that way gets AAC-LC in MPEG-TS, not
-  the HE-AAC-in-fMP4 it would have had alone (the same audio the web gets).
-- **Timeshift disk use**: 3 h per tuner of the source's bitrate (several GB for an HD channel, more for UHD). By default it sits
-  on the recordings share; set `PIGTV_TIMESHIFT_DIR=/app/data/timeshift` (§9) and make sure appdata has room. HLS recordings
-  also keep both the segments and the joined MP4 (2× disk).
+- HEVC recording playback: checked on 2 Oct (0062 passed); since 0192 a prepared HEVC MP4 is tagged `hvc1`.
 
 **Sport (C-I)**
 - Recognition and live/replay are **heuristics** over guide titles, categories and flags (`sportsClassify.js`; rules in §4 and
@@ -1101,8 +702,6 @@ The live-session tmpfs is `/app/transcode-cache` (2 GB in `docker-compose.yml`).
   thread.
 
 **Web**
-- An **in-progress HLS recording** (tuner on) can't be played in the browser: the web recordings page offers Play only on
-  completed recordings (a `<video>` of the file; the Apple client can watch while recording).
 - `routes/proxy.js` has not been split (S4.3; one route, 238 lines, not needed so far).
 
 **Health and diagnostics**

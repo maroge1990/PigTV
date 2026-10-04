@@ -17,7 +17,7 @@ during testing.
 | C-B Resolve errors the client may show | 0113, 0118 | 19 | Implemented; verified (1.14) |
 | C-C HE-AAC passthrough | 0116 | 19 (Labs), 27 (always on) | Implemented; verified (2.9, R2.9) |
 | C-D Opaque playback handle | 0119 | none needed | Implemented |
-| C-E Tuner model | 0126–0132 (`PIGTV_TUNER=1`) | 21 (Start over, HLS recordings) | Implemented; **not yet tested live** (TEST-BLOCK Part 3 deferred) |
+| C-E Tuner model | 0126–0132 | 21 (Start over, HLS recordings) | **Removed in 0204** (never tested live); the flags `timeshift` and `recordingHls` are never sent |
 | C-F Labs | none | 19; 27 (only Stream info left) | Implemented; verified (2.1–2.10) |
 | C-G Channel health | 0133, 0142 (stalls) | 19 | Implemented; verified (1.7, R2.6) |
 | C-H Sport categories | 0146 | 28 (row), removed in 30 | Implemented; its Home row superseded by C-I; now one sport signal |
@@ -66,7 +66,7 @@ gone, and a `'fmt?'` decode failure falls back once to `audioEncode: true` for t
   redact()). `/api/proxy/stream?url=` is still accepted, but since W2.1 (0121/0122) nothing hands it out except the
   `PIGTV_PLAYBACK_HANDLES=0` rollback.
 
-## C-E. Tuner model (roadmap Phase 3). Server env `PIGTV_TUNER=1` (default off). Flags: `timeshift`, `recordingHls`
+## C-E. Tuner model (roadmap Phase 3). **Removed in 0204**; kept below as the record of what the flags meant. Flags: `timeshift`, `recordingHls`
 
 With the env var off, nothing below changes and the flags are absent. `PIGTV_TIMESHIFT_DIR` (0132) moves the timeshift
 segments off the recordings share (recommended: `/app/data/timeshift`).

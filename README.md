@@ -27,8 +27,6 @@ This repository is the **server and the web app**. The Apple client is
 - **Sport:** events recognised per programme across every channel, with a follow list, replays and a 72-hour horizon.
 - **Web app:** Home, Live TV, Guide, Recordings, a Status page for the admin, and Settings (sources, channel numbers, EPG
   matching, sports, devices, users).
-- **An optional tuner model** (`PIGTV_TUNER=1`, off by default and not yet tested live): shared tuners, hours of
-  timeshift, watching a recording while it records.
 
 ## Running it
 

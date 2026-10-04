@@ -19,7 +19,7 @@ answers 404, the client re-resolves and starts cold (5–10 s). The same path is
 
 A switch applies to plays started after it is changed: a stream already running keeps the mode it began with, so turning recovery off never breaks a running relay. `PIGTV_RELAY_SWITCH_MS` stays an environment variable (tuning, not a switch). Status shows each followed stream's state (`starting`, `playing`, `switching`, `standby-starting`, `standby-ready`, `promoted`, `reclaimed`, `failed`) and the last reason code (`lost`, `stalled`, `timestamps`, `blank`, `standby-incompatible`, `standby-reclaimed`, `no-candidate`); the reasons also appear in Interruptions and Recent plays. A feed joins a stream only if segment type, video range, video codec, frame size, frame rate (within 1%) and audio codec and channels match; a field unknown on either side counts as matching.
 
-Neither applies with the tuner on (`PIGTV_TUNER=1`), to a bare-URL play, or to a direct play.
+Neither applies to a bare-URL play or to a direct play.
 
 ## How it works (`server/services/streamRelay.js`)
 

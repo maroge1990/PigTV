@@ -1,6 +1,6 @@
 # Test block: everything built on 23 September – 2 October 2026
 
-## Outstanding as of 4 October 2026 (server 0203 · app 38)
+## Outstanding as of 4 October 2026 (server 0204 · app 39)
 
 Mark's results of 2 Oct are ticked. Still open: A1 (re-check on 0187), D5–D10, G2–G4, G6, G7, H (the tuner), K (captures), **L (in-stream recovery and the standby, 0189)**, **M (0191)**. Round 7 below was written for 0179 and the old
 Sources/Providers tabs; **R7.1–R7.5 and R7.14 are replaced by the steps here** (0182 moved providers onto cards and removed
@@ -97,12 +97,19 @@ Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "entrypoint|Relay|Coor
 - [x] O9 App 38: TV Guide opens without the first-visit pause (the grid fills in over a few frames); Home/Guide/Sport/Recordings switch quickly; signing out and in again shows your own guide straight away (no stale one).
 - [x] O10 Roll back if needed: Unraid → PigTV → Edit → Repository tag of the previous image, or `PUID`=`0` for the permissions part only.
 
-**P. Recording audio (0203, 4 Oct). Keep `PIGTV_KEEP_MKV=1` set until P1–P4 pass, then remove it if you want originals deleted again.**
-- [ ] P1 `/api/version` says **0203**. Record ~15 min of Nick Toons (or any channel with ad breaks). The new file in the share ends in **`.ts`**, not `.mkv`.
+**P. Recording audio (0203, 4 Oct).** (`PIGTV_KEEP_MKV` is ignored from 0204: an original is deleted only once its MP4 decodes cleanly. Remove the variable from the template.)
+- [x] P1 `/api/version` says **0203**. Record ~15 min of Nick Toons (or any channel with ad breaks). The new file in the share ends in **`.ts`**, not `.mkv`.
 - [ ] P2 When it finishes, the log shows `#N ready for native playback` then `#N is now … .mp4` (with the variable set, the `.ts` is kept beside it). Play it on the Apple TV **past the first ad break**: picture and sound all the way to the end.
 - [ ] P3 Break detection finishes for it (`#N: K break(s) marked`, not `Break detection failed`).
 - [ ] P4 Run the audio check from 4 Oct on the new `.mp4`: `0 errors` (or only a handful).
 - [ ] P5 Settings → Transcoding: tick In-stream recovery and Hot standby, then untick In-stream recovery: Hot standby unticks too and stays unticked after a page reload.
+
+**Q. The simplification build (server 0204 · app 39, 4 Oct). Behaviour should be unchanged apart from Q2.**
+- [ ] Q1 `/api/version` says **0204**; Settings → About on the Apple TV says build **39**. Remove `PIGTV_KEEP_MKV` from the Unraid template (it is ignored now).
+- [ ] Q2 TV Guide: ESPN, NFL RedZone and Sky Sports Main Event each appear **once** (no "(Backup)" copy beside them). Play one, then (if you can) break Strong8K's address as in D3: it still fails over to its backup feed.
+- [ ] Q3 With Warm the next channel on: watching ESPN, channel up warms the real next channel (Status → Providers shows `warm` on that channel, not on "ESPN (Backup)").
+- [ ] Q4 Everyday checks still pass: a live channel, the Guide, Sport, a recording (record, play, delete), Settings switches, Status page.
+- [ ] Q5 The app: Home, Guide, Sport, Recordings and Settings behave as in app 38 (this build only reorganised code and tests).
 
 **G. Still open from earlier rounds**
 - [x] G1 R6.3 again: recordings folder set back to `/app/recordings/SERVER01_Video/Recordings`; a bad path is refused.
@@ -115,7 +122,7 @@ Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "entrypoint|Relay|Coor
 - [x] G8 R2.5 / R3.11 A file-based channel starts quickly (needs that channel found again).
 - [x] G9 Mark's minor bugs from app 35 / 0167 (29 Sept): not yet reported in detail.
 
-**H. The tuner (Part 3, `PIGTV_TUNER=1`): never run** - 3.1 to 3.9 below, including an HE-AAC channel being recorded while a TV tunes to it.
+**H. The tuner: removed in 0204** (never run; Mark, 4 Oct). Part 3 below is kept only as history.
 
 **I. Closed (2 Oct)** - 4.2 Siri on Apple TV: failed, and Mark does not want the feature; it is removed in the next Swift build (blueprint §6 Next). W6 dropped with it.
 
@@ -149,7 +156,7 @@ bugs saved for the next build.
 | 1.16 Skip break / Auto-skip on a recording with breaks | No recording with detected breaks to test on yet |
 | R3.8 Sport tab empty state | Needs a moment with no followed sport in the next hours |
 | R2.5 / R3.11 File-based channel starts quickly (0144) | The channel could not be identified again |
-| **Part 3** The tuner (`PIGTV_TUNER=1`) | Not yet tested. Mark wants to test it later: pause/rewind, start over and instant recordings (3.3–3.7). Read `blueprint.md` §10 (the HE-AAC recording caveat) first |
+| **Part 3** The tuner | Removed in 0204 (never tested) |
 | 4.2 Siri on Apple TV | Parked: tvOS Siri may not support third-party App Shortcuts |
 | W6 | Parked until Mark names a screen that needs Back before anything can be selected |
 
@@ -247,7 +254,7 @@ Anything that fails: send the step number, what you saw and roughly when.
 - [ ] R6.16 Web: Live TV plays, the Guide pages, Recordings plays a finished recording, every Settings tab opens and saves,
       Status loads. (Removed: the unused "Force Backend Proxy" toggle.)
 
-**Still open from earlier rounds:** the tuner (Part 3, `PIGTV_TUNER=1`: pause/rewind, start over, instant recordings), R4.7/R4.8
+**Still open from earlier rounds:** R4.7/R4.8
 (iPad/iPhone), 1.16, R3.8, R2.5/R3.11. **Parked:** W6, the screens that need Back before anything can be selected (send the
 screen when you find it).
 
@@ -377,7 +384,7 @@ step number, what you saw, and roughly when; step 0.7 has a log command.
 
 ---
 
-## Part 3: the tuner (server switch), about 30 minutes plus a recording
+## Part 3: the tuner (removed in 0204; history only)
 
 **Turn it on:** Unraid → Docker → PigTV → Edit → add the variables below → Apply, which recreates the container.
 - `PIGTV_TUNER` = `1`
