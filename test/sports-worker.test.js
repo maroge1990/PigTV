@@ -18,6 +18,7 @@ fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'n
 process.chdir(sandbox);
 
 const load = p => require(path.join(sandbox, 'server', p));
+const perf = require('./helpers/perf'); // a speed budget: see helpers/perf.js
 const sqlite = load('db/sqlite');
 const svc = load('services/sportsEvents');
 
@@ -270,7 +271,7 @@ test('the response cache is bounded, and keeps only the current minute and build
     assert.equal(svc.responseCacheSize().entries, 0);
 });
 
-test('benchmark: the Apple client\'s request (hours=72) on 1,000 channels', async () => {
+test('benchmark: the Apple client\'s request (hours=72) on 1,000 channels', perf, async () => {
     svc.reset();
     insertFavourites('apple', ['Weekend 3 HD', 'Weekend 401', 'Weekend 21 HD', 'Weekend 404', 'Weekend 99 HD', 'Weekend 407']);
     try {

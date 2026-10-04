@@ -28,4 +28,23 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - run: npm ci --ignore-scripts
       - run: npm rebuild better-sqlite3
+      # Speed budgets are not part of the gate: a slow shared runner must not block an image
+      # (test/helpers/perf.js). The perf job below runs them and reports.
       - run: npm test
+        env:
+          PIGTV_SKIP_PERF: '1'
+
+  perf:
+    # Reports, never blocks: continue-on-error keeps a slow runner from failing the workflow
+    # that docker-publish.yml waits on.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm rebuild better-sqlite3
+      - run: node --test test/channel-links-perf.test.js test/sports-fixtures.test.js test/sports-events.test.js test/sports-worker.test.js

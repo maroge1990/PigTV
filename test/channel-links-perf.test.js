@@ -17,6 +17,7 @@ process.env.JWT_SECRET = 'test-only-signing-key-not-used-outside-fixtures-12345'
 process.chdir(sandbox);
 
 const load = p => require(path.join(sandbox, 'server', p));
+const perf = require('./helpers/perf'); // a speed budget: see helpers/perf.js
 const db = load('db');
 const sqlite = load('db/sqlite');
 const backupChannels = load('services/backupChannels');
@@ -39,7 +40,7 @@ const quiet = async fn => {
     try { return await fn(); } finally { console.log = saved; }
 };
 
-test('1,000 visible channels against a 55,000-row backup relink in under 10 s', async (ctx) => {
+test('1,000 visible channels against a 55,000-row backup relink in under 10 s', perf, async (ctx) => {
     const primary = await db.sources.create({ type: 'm3u', name: 'Primary', url: 'http://primary.invalid/list.m3u' });
     const backup = await db.sources.create({ type: 'xtream', name: 'Big', url: 'http://big.invalid', username: 'u', password: 'p', role: 'backup', priority: 1 });
     const d = sqlite.getDb();

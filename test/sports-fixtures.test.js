@@ -24,6 +24,7 @@ fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'n
 process.chdir(sandbox);
 
 const load = p => require(path.join(sandbox, 'server', p));
+const perf = require('./helpers/perf'); // a speed budget: see helpers/perf.js
 const sqlite = load('db/sqlite');
 const classify = load('services/sportsClassify');
 const espn = load('services/sportsFixturesEspn');
@@ -428,7 +429,7 @@ test('a multi-day cricket Test: day 3 of a still-running match is live, not a re
 
 // ---- performance: the fixture rule must not add noticeable time to the sport build -----------
 
-test('performance: matching against a full league of fixtures does not slow resolveLive down', async () => {
+test('performance: matching against a full league of fixtures does not slow resolveLive down', perf, async () => {
     const refreshedAt = Date.parse('2026-09-27T12:00Z');
     await withEspn({ 'football/nfl/scoreboard': readFx('nfl-20260927'), 'football/nfl/teams': readFx('teams-nfl') }, () =>
         fixtures.refreshLeague('NFL', { now: refreshedAt }));
