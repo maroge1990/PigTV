@@ -6,8 +6,9 @@ const path = require('node:path');
 
 // 0171 (multi-provider P3): a relink is bucketed, not N x M. About 1,000 visible primary
 // channels against a 55,000-row backup (the size of a raw Xtream list) must relink well inside
-// the budget. The budget is generous (3 s) so a loaded CI machine does not make it flaky; a
-// nested scan would take minutes.
+// the budget. The budget is generous so a loaded CI machine does not make it flaky; a
+// nested scan would take minutes. 0203: 10 s (was 3 s; a GitHub runner measured 3.3 s and
+// blocked an image publish - still an order of magnitude below what this guards against).
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-channel-links-perf-'));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
 fs.cpSync(path.join(__dirname, '../package.json'), path.join(sandbox, 'package.json'));
@@ -38,7 +39,7 @@ const quiet = async fn => {
     try { return await fn(); } finally { console.log = saved; }
 };
 
-test('1,000 visible channels against a 55,000-row backup relink in under 3 s', async (ctx) => {
+test('1,000 visible channels against a 55,000-row backup relink in under 10 s', async (ctx) => {
     const primary = await db.sources.create({ type: 'm3u', name: 'Primary', url: 'http://primary.invalid/list.m3u' });
     const backup = await db.sources.create({ type: 'xtream', name: 'Big', url: 'http://big.invalid', username: 'u', password: 'p', role: 'backup', priority: 1 });
     const d = sqlite.getDb();
@@ -89,11 +90,11 @@ test('1,000 visible channels against a 55,000-row backup relink in under 3 s', a
     assert.ok(first.backups[backup.id].auto > 0, 'it links something');
     const byMethod = d.prepare("SELECT method, COUNT(*) AS n FROM channel_links WHERE backup_source_id = ? GROUP BY method").all(backup.id);
     assert.ok(byMethod.some(m => m.method === 'raw-name' && m.n > 100), `the raw bridge is exercised: ${JSON.stringify(byMethod)}`);
-    assert.ok(firstMs < 3000, `the first relink (which also fills region/quality/is_event) took ${firstMs} ms`);
+    assert.ok(firstMs < 10000, `the first relink (which also fills region/quality/is_event) took ${firstMs} ms`);
 
     t = Date.now();
     await quiet(() => links.relinkSource(backup.id));
     const secondMs = Date.now() - t;
-    assert.ok(secondMs < 3000, `a second relink took ${secondMs} ms`);
+    assert.ok(secondMs < 10000, `a second relink took ${secondMs} ms`);
     ctx.diagnostic(`relink: 1,000 x 55,000 in ${firstMs} ms, again in ${secondMs} ms`);
 });
