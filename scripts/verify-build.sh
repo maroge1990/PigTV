@@ -661,7 +661,7 @@ check server/index.js "app.use('/api/recordings', streamAuth" "recordings router
 check server/routes/recordings.js "router.get('/:id/playback'" "playback resolve endpoint exists"
 check server/routes/recordings.js "router.get('/:id/media.mp4'" "native media endpoint exists"
 check server/services/recordingEngine.js "ensureNativePlayback" "remux function exists"
-check server/services/recordingEngine.js "aac_adtstoasc" "ADTS-to-ASC fix applied here too"
+check server/services/recordingEngine.js "'-c:a', 'aac', '-profile:a', 'aac_low', '-ar', '48000'" "AAC in a recording is re-encoded for the MP4 (0203; replaces copying it with aac_adtstoasc)"
 check public/js/api.js "streamUrl: (id) => API.withStreamToken" "web client sends token on recording stream URL"
 check public/js/api.js "downloadUrl: (id) => API.withStreamToken" "web client sends token on recording download URL"
 python3 - <<'PYCHK'
@@ -2240,6 +2240,14 @@ echo "=== 0202: a standby comes before a warm guess ==="
 check server/services/streamCoordinator.js "async function reserveTakingWarm(" "a standby can take a warm channel's connection"
 check server/services/streamRelay.js "coordinator().reserveTakingWarm(c.providerId, 'standby'" "and the relay uses it after looking for a free one"
 check test/connection-leases.test.js "a standby takes the only spare connection from a warm channel" "with tests"
+
+echo "=== 0203: TS captures; audio re-encoded and decode-checked ==="
+check server/services/recordingEngine.js "'-f', 'mpegts'," "captures are MPEG-TS (one audio header per frame)"
+check_absent server/services/recordingEngine.js "'-f', 'matroska'," "not Matroska (one audio config per file)"
+check server/services/recordingEngine.js "if (audio && audio !== 'ac3' && audio !== 'eac3') {" "only AC-3/E-AC-3 audio is copied into the MP4"
+check server/services/recordingEngine.js "the prepared file's audio does not decode" "a prepared file must decode before the original goes"
+check test/recording-codec-probe.test.js "audio that changes mid-programme survives a TS capture" "with a real-ffmpeg reproduction"
+check public/js/pages/Settings.js "standby.checked = s.standbyEnabled === true && s.relayEnabled === true;" "Hot standby never shows ticked while recovery is off"
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1

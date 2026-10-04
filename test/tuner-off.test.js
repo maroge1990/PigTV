@@ -106,7 +106,7 @@ test('off: /api/info carries none of the tuner flags', async () => {
     for (const flag of ['timeshift', 'recordingHls']) assert.ok(!(flag in info.features), `${flag} is absent`);
 });
 
-test('off: a scheduled recording is today\'s .mkv ffmpeg, and its rows have no new columns',
+test('off: a scheduled recording is today\'s .ts ffmpeg, and its rows have no new columns',
     { skip: process.platform === 'win32' && 'uses a shell script as ffmpeg' }, async () => {
         recordingEngine.listActive = realListActive;
         // "ffmpeg": writes 2 KB to the output (its last argument) and exits on the "q" a stop sends.
@@ -130,7 +130,7 @@ test('off: a scheduled recording is today\'s .mkv ffmpeg, and its rows have no n
         assert.equal(scheduled.getById(s.id).status, 'recording');
         assert.equal(tuner.list().length, 0, 'no tuner');
         const rec = recordings.getById(scheduled.getById(s.id).recording_id);
-        assert.match(rec.file_path, /\.mkv$/);
+        assert.match(rec.file_path, /\.ts$/); // 0203: MPEG-TS captures
         assert.ok(!('format' in rec) && !('hls_dir' in rec), 'the recordings table is as it was');
         await recordingEngine.cancelScheduled(s.id);
         assert.equal(recordings.getById(rec.id).status, 'completed');

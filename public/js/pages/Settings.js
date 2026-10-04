@@ -69,7 +69,16 @@ class SettingsPage {
         bind('setting-relay-enabled', 'relayEnabled');
         bind('setting-standby-enabled', 'standbyEnabled');
         bind('setting-warm-next-channel', 'warmNextChannel'); // R11
-        relay?.addEventListener('change', () => { if (standby) standby.disabled = !relay.checked; });
+        // 0203: turning recovery off also turns the standby off (it cannot run without it), and
+        // says so: a ticked-but-greyed switch read as "still on".
+        relay?.addEventListener('change', async () => {
+            if (!standby) return;
+            standby.disabled = !relay.checked;
+            if (!relay.checked && standby.checked) {
+                standby.checked = false;
+                try { await API.settings.update({ standbyEnabled: false }); } catch (err) { console.error('Failed to save standbyEnabled:', err); }
+            }
+        });
     }
 
     async loadHwDecodeSettings() {
@@ -84,7 +93,8 @@ class SettingsPage {
             const standby = document.getElementById('setting-standby-enabled');
             if (relay) relay.checked = s.relayEnabled === true;
             if (standby) {
-                standby.checked = s.standbyEnabled === true;
+                // Never shown ticked while recovery is off: the server treats it as off then.
+                standby.checked = s.standbyEnabled === true && s.relayEnabled === true;
                 standby.disabled = s.relayEnabled !== true;
             }
             const warm = document.getElementById('setting-warm-next-channel');

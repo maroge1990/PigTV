@@ -92,6 +92,8 @@ function initSchema() {
         'native_status TEXT',
         'native_error TEXT',
         'native_attempts INTEGER DEFAULT 0',
+        // 0203: how it was prepared (2: audio re-encoded and decode-checked); NULL before.
+        'native_version INTEGER',
         // 0127, the tuner model: 'hls' for a recording taken from a tuner's segments
         // (its folder, hls_dir, holds index.m3u8 and the segments; file_path is that
         // playlist until the joined MP4 exists). NULL for the .mkv recordings. Added
@@ -429,6 +431,24 @@ const recordings = {
      * Queue every finished recording that has never been through preparation -
      * the library recorded before 0192. Returns how many were queued.
      */
+    /** 0203: this recording was prepared the current way. */
+    setNativeVersion(id, version) {
+        const db = getDb();
+        initSchema();
+        db.prepare('UPDATE recordings SET native_version = ? WHERE id = ?').run(version, id);
+    },
+
+    /** 0203: prepared before 0203 and still in its original .mkv: the MP4 beside it has copied audio. */
+    findOldPreparedWithOriginal() {
+        const db = getDb();
+        initSchema();
+        return db.prepare(`
+            SELECT * FROM recordings
+            WHERE status = 'completed' AND native_status = 'ready' AND native_version IS NULL
+              AND lower(file_path) LIKE '%.mkv'
+        `).all();
+    },
+
     queueNativeBackfill() {
         const db = getDb();
         initSchema();

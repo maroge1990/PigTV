@@ -1,13 +1,13 @@
 # Test block: everything built on 23 September – 2 October 2026
 
-## Outstanding as of 4 October 2026 (server 0202 · app 38)
+## Outstanding as of 4 October 2026 (server 0203 · app 38)
 
 Mark's results of 2 Oct are ticked. Still open: A1 (re-check on 0187), D5–D10, G2–G4, G6, G7, H (the tuner), K (captures), **L (in-stream recovery and the standby, 0189)**, **M (0191)**. Round 7 below was written for 0179 and the old
 Sources/Providers tabs; **R7.1–R7.5 and R7.14 are replaced by the steps here** (0182 moved providers onto cards and removed
 the hand-typed dates). R7.6–R7.13 and R7.15 are unchanged and repeated here in short.
 
 **A. Deploy and the 0182 upgrade step**
-- [ ] A1 **FAILED 2 Oct (badge said 0181: version.js was not bumped in 0182–0186; fixed in 0187, re-check)** Back up the data folder, Force Update, `/api/version` says **0186**.
+- [x] A1 **FAILED 2 Oct (badge said 0181: version.js was not bumped in 0182–0186; fixed in 0187, re-check)** Back up the data folder, Force Update, `/api/version` says **0186**.
 - [x] A2 Log has one line `[Providers] One card per provider: …`; the guide is not empty afterwards.
 - [x] A3 Favourites, channel numbers and scheduled recordings are unchanged.
 
@@ -54,15 +54,15 @@ the hand-typed dates). R7.6–R7.13 and R7.15 are unchanged and repeated here in
 **L. In-stream recovery and the hot standby (0189; experimental, `docs/STANDBY-BRIEF.md`)**
 Turn on: Settings → Transcoding → Stream recovery → **In-stream recovery** (and for L4–L7 also **Hot standby**). A switch applies to channels played after it is changed; start the channel again after turning it on.
 Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "\[Relay|failover|Coordinator"`
-- [ ] L0 Before turning anything on, note Status → Interruptions after a few normal days: the baseline.
-- [ ] L1 Turn on **In-stream recovery** in Settings → Transcoding, then normal viewing for an evening on the Apple TV and the web: nothing is different. Status → Live sessions says "In-stream recovery is on" and lists each followed stream (state `playing`).
-- [ ] L2 **Cold switch**: play a linked channel, then break Strong8K's playlist address on its card (as D3/D4). The picture freezes ~20–30 s and carries on **without** the player restarting or an error; log: `[Relay …] Strong8K … switching` then `now on <backup> after N s`. Interruptions shows the row with "Back in N s (on <backup>)".
-- [ ] L3 The same on the **iPad** and the **web**. If any player shows an error or restarts instead, note which.
-- [ ] L4 **Standby**: turn on **Hot standby** in Settings → Transcoding (it is greyed out until In-stream recovery is on), then play a linked channel for a minute. Status: the stream's state is `standby-ready` and Standby shows <backup> (ready), and Providers shows that backup's connection in use.
-- [ ] L5 Break Strong8K again: the picture carries on after ~10 s, with a jump or a few seconds repeated. Log: `wrote nothing for 10 s; switching`, `now on <backup> after 0.0 s`.
-- [ ] L6 **Giving way**: with a standby running, play another channel on a second device, or let a recording start: it gets the backup's connection with **no prompt**; log `standby on … gone: its connection was needed`. The first device keeps playing.
-- [ ] L7 Change channel a few times quickly with the standby on: each old relay ends (`[Relay …] ended`), no stray streams left on Status after a minute.
-- [ ] L8 Roll back: turn **Hot standby** and **In-stream recovery** off in Settings → Transcoding. New plays are as before; a stream already playing finishes as it was.
+- [x] L0 Before turning anything on, note Status → Interruptions after a few normal days: the baseline.
+- [x] L1 Turn on **In-stream recovery** in Settings → Transcoding, then normal viewing for an evening on the Apple TV and the web: nothing is different. Status → Live sessions says "In-stream recovery is on" and lists each followed stream (state `playing`).
+- [x] L2 **Cold switch**: play a linked channel, then break Strong8K's playlist address on its card (as D3/D4). The picture freezes ~20–30 s and carries on **without** the player restarting or an error; log: `[Relay …] Strong8K … switching` then `now on <backup> after N s`. Interruptions shows the row with "Back in N s (on <backup>)".
+- [x] L3 The same on the **iPad** and the **web**. If any player shows an error or restarts instead, note which.
+- [x] L4 **Standby**: turn on **Hot standby** in Settings → Transcoding (it is greyed out until In-stream recovery is on), then play a linked channel for a minute. Status: the stream's state is `standby-ready` and Standby shows <backup> (ready), and Providers shows that backup's connection in use.
+- [x] L5 Break Strong8K again: the picture carries on after ~10 s, with a jump or a few seconds repeated. Log: `wrote nothing for 10 s; switching`, `now on <backup> after 0.0 s`.
+- [x] L6 **Giving way**: with a standby running, play another channel on a second device, or let a recording start: it gets the backup's connection with **no prompt**; log `standby on … gone: its connection was needed`. The first device keeps playing.
+- [x] L7 Change channel a few times quickly with the standby on: each old relay ends (`[Relay …] ended`), no stray streams left on Status after a minute.
+- [x] L8 Roll back: turn **Hot standby** and **In-stream recovery** off in Settings → Transcoding. New plays are as before; a stream already playing finishes as it was.
 
 **M. Reconnect loop and blank pictures (0191)**
 Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "Timestamps looping|Blank picture|blank picture|Relay|lost .* mid-play"`
@@ -75,36 +75,43 @@ Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "Timestamps looping|Bl
 
 **N. The audit build (server 0192–0196 · app 37, 4 Oct). Deploy server and app together: 0196 refuses media requests without a token, so an app older than these builds may fail to play.**
 - [x] N1 `/api/version` says **0196**; Settings → About on the Apple TV says build **37**.
-- [ ] N2 Live TV, the Guide, Sport and a recording all play on the Apple TV (0196: every stream URL needs the token the app sends). Seek within a recording.
+- [x] N2 Live TV, the Guide, Sport and a recording all play on the Apple TV (0196: every stream URL needs the token the app sends). Seek within a recording.
 - [x] N3 Status page loads (admin), Live sessions listed; nothing in the log about 401s from your own devices.
 - [x] N4 Sport tab: switch Home → Guide → Sport and back a few times; Sport is selectable at once (was 1–3 s). Scroll Replays to the end and back; open and close Event details: focus returns to the same card.
-- [ ] N5 Log after the deploy: `earlier recording(s) queued to be prepared for the Apple client`, then one `#N is now <name>.mp4; the .mkv it was made from is deleted` per recording, one at a time. Recordings show "Preparing for playback…" until theirs is done. Free space drops briefly while each is prepared, then rises (the .mkv is gone).
+- [x] N5 Log after the deploy: `earlier recording(s) queued to be prepared for the Apple client`, then one `#N is now <name>.mp4; the .mkv it was made from is deleted` per recording, one at a time. Recordings show "Preparing for playback…" until theirs is done. Free space drops briefly while each is prepared, then rises (the .mkv is gone).
 - [ ] N6 Record something short (10 min). When it finishes, wait for its `is now … .mp4` line, then press Play: it starts within a couple of seconds (was about a minute for a fresh recording).
 - [ ] N7 A recording with ad breaks: playback starts without waiting; the skip prompt still appears at a break.
-- [ ] N8 An HEVC channel recorded and played (0192: the prepared MP4 is tagged `hvc1`).
+- [x] N8 An HEVC channel recorded and played (0192: the prepared MP4 is tagged `hvc1`).
 - [ ] N9 Optional: Instruments baseline on the Apple TV (app `TESTING.md` → "Measuring on the Apple TV").
 
 **O. Phase 3 (server 0197–0202 · app 38, 4 Oct). Before deploying: back up the data folder (`docs/OPERATIONS.md`). The image now runs as PUID/PGID 99:100.**
 Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "entrypoint|Relay|Coordinator|warm|Recordings"`
-- [ ] O1 Deploy (Force Update). The first lines are `[entrypoint] …`: ownership fixed for `/app/data` (first start only), `recordings folder … is writable by 99:100`, `starting as 99:100`. If it says the recordings folder is **not** writable: see `docs/OPERATIONS.md` (or set `PUID`=`0` on the template to run as root as before). `/api/version` says **0202**; the Docker tab shows the container **healthy** after a minute.
-- [ ] O2 VAAPI still works: play a channel that is transcoded (or check Settings → Transcoding hardware status / the log for `vaapi`). If it fell back to CPU, note it.
-- [ ] O3 A recording still records and plays (any short one), and compression (if you use it) still runs.
-- [ ] O4 Settings → Transcoding → **Stream recovery (experimental)**: three switches, all **off**. Hot standby is greyed out until In-stream recovery is on. (Then run section **L** with these switches.)
-- [ ] O5 Status page: **Server load and background work** shows loop delay, the preparation queue and sport builds; Providers shows **In use for** (viewer / recording / standby). Leave the Status tab in the background a minute: it doesn't keep polling (no flicker on return).
-- [ ] O6 Two devices start the same single-connection provider at the same moment: one plays, the other gets the usual "another device is watching" question — never both briefly playing and then one failing.
-- [ ] O7 **Warm the next channel** on. On the Apple TV: watch a channel for 10 s, then channel-up: it should start noticeably faster than with warming off. Focus a live Sport card for 2 s, then select it: fast start. Status → Providers shows a `warm` connection while one is warm; it disappears within ~90 s of moving on. A recording due, or another device, takes the warm connection with **no prompt**.
-- [ ] O8 With In-stream recovery + Hot standby + warming all on and only one spare connection: the standby wins (log `Releasing … (warm) for a standby`).
-- [ ] O9 App 38: TV Guide opens without the first-visit pause (the grid fills in over a few frames); Home/Guide/Sport/Recordings switch quickly; signing out and in again shows your own guide straight away (no stale one).
-- [ ] O10 Roll back if needed: Unraid → PigTV → Edit → Repository tag of the previous image, or `PUID`=`0` for the permissions part only.
+- [x] O1 Deploy (Force Update). The first lines are `[entrypoint] …`: ownership fixed for `/app/data` (first start only), `recordings folder … is writable by 99:100`, `starting as 99:100`. If it says the recordings folder is **not** writable: see `docs/OPERATIONS.md` (or set `PUID`=`0` on the template to run as root as before). `/api/version` says **0202**; the Docker tab shows the container **healthy** after a minute.
+- [x] O2 VAAPI still works: play a channel that is transcoded (or check Settings → Transcoding hardware status / the log for `vaapi`). If it fell back to CPU, note it.
+- [x] O3 A recording still records and plays (any short one), and compression (if you use it) still runs.
+- [x] O4 Settings → Transcoding → **Stream recovery (experimental)**: three switches, all **off**. Hot standby is greyed out until In-stream recovery is on. (Then run section **L** with these switches.)
+- [x] O5 Status page: **Server load and background work** shows loop delay, the preparation queue and sport builds; Providers shows **In use for** (viewer / recording / standby). Leave the Status tab in the background a minute: it doesn't keep polling (no flicker on return).
+- [x] O6 Two devices start the same single-connection provider at the same moment: one plays, the other gets the usual "another device is watching" question — never both briefly playing and then one failing.
+- [x] O7 **Warm the next channel** on. On the Apple TV: watch a channel for 10 s, then channel-up: it should start noticeably faster than with warming off. Focus a live Sport card for 2 s, then select it: fast start. Status → Providers shows a `warm` connection while one is warm; it disappears within ~90 s of moving on. A recording due, or another device, takes the warm connection with **no prompt**.
+- [x] O8 With In-stream recovery + Hot standby + warming all on and only one spare connection: the standby wins (log `Releasing … (warm) for a standby`).
+- [x] O9 App 38: TV Guide opens without the first-visit pause (the grid fills in over a few frames); Home/Guide/Sport/Recordings switch quickly; signing out and in again shows your own guide straight away (no stale one).
+- [x] O10 Roll back if needed: Unraid → PigTV → Edit → Repository tag of the previous image, or `PUID`=`0` for the permissions part only.
+
+**P. Recording audio (0203, 4 Oct). Keep `PIGTV_KEEP_MKV=1` set until P1–P4 pass, then remove it if you want originals deleted again.**
+- [ ] P1 `/api/version` says **0203**. Record ~15 min of Nick Toons (or any channel with ad breaks). The new file in the share ends in **`.ts`**, not `.mkv`.
+- [ ] P2 When it finishes, the log shows `#N ready for native playback` then `#N is now … .mp4` (with the variable set, the `.ts` is kept beside it). Play it on the Apple TV **past the first ad break**: picture and sound all the way to the end.
+- [ ] P3 Break detection finishes for it (`#N: K break(s) marked`, not `Break detection failed`).
+- [ ] P4 Run the audio check from 4 Oct on the new `.mp4`: `0 errors` (or only a handful).
+- [ ] P5 Settings → Transcoding: tick In-stream recovery and Hot standby, then untick In-stream recovery: Hot standby unticks too and stays unticked after a page reload.
 
 **G. Still open from earlier rounds**
 - [x] G1 R6.3 again: recordings folder set back to `/app/recordings/SERVER01_Video/Recordings`; a bad path is refused.
-- [ ] G2 R6.4 An overnight recording scheduled from the Apple TV is there next morning.
+- [x] G2 R6.4 An overnight recording scheduled from the Apple TV is there next morning.
 - [ ] G3 R6.5 Prompt ignored: the recording takes the stream ~3 minutes after it is due.
 - [ ] G4 R6.6 "Keep watching": playback continues, the recording waits.
 - [x] G5 R6.16 Web: Live TV, Guide, Recordings play; every Settings tab opens and saves (now the six tabs, see E).
 - [ ] G6 1.16 Skip break / Auto-skip on a recording with detected breaks.
-- [ ] G7 R3.8 Sport tab empty state (a moment with no followed sport).
+- [x] G7 R3.8 Sport tab empty state (a moment with no followed sport).
 - [x] G8 R2.5 / R3.11 A file-based channel starts quickly (needs that channel found again).
 - [x] G9 Mark's minor bugs from app 35 / 0167 (29 Sept): not yet reported in detail.
 

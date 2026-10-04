@@ -75,20 +75,22 @@ after(() => {
 });
 
 test('probeCodecs reads H.264 + AAC', { skip: skipReason }, async () => {
-    assert.deepEqual(await engine.probeCodecs(files.h264aac), { video: 'h264', audio: 'aac' });
+    const c = await engine.probeCodecs(files.h264aac);
+    assert.deepEqual({ video: c.video, audio: c.audio }, { video: 'h264', audio: 'aac' });
+    assert.ok(c.audioChannels >= 1, '0203: the channel count, for the AAC re-encode');
 });
 
 test('probeCodecs reads HEVC + AAC, and the remux args tag it hvc1', { skip: skipReason }, async (t) => {
     if (!files.hevcaac) return t.skip('the libx265 encoder is not available');
     const codecs = await engine.probeCodecs(files.hevcaac);
-    assert.deepEqual(codecs, { video: 'hevc', audio: 'aac' });
+    assert.deepEqual({ video: codecs.video, audio: codecs.audio }, { video: 'hevc', audio: 'aac' });
     const args = engine.buildNativeRemuxArgs('in.mkv', 'out.mp4', codecs);
     assert.equal(args[args.indexOf('-tag:v') + 1], 'hvc1');
 });
 
 test('probeCodecs reads H.264 + MP2, and the remux args re-encode the audio to AAC', { skip: skipReason }, async () => {
     const codecs = await engine.probeCodecs(files.h264mp2);
-    assert.deepEqual(codecs, { video: 'h264', audio: 'mp2' });
+    assert.deepEqual({ video: codecs.video, audio: codecs.audio }, { video: 'h264', audio: 'mp2' });
     const args = engine.buildNativeRemuxArgs('in.mkv', 'out.mp4', codecs);
     assert.equal(args[args.indexOf('-c:a') + 1], 'aac');
     assert.ok(!args.includes('-tag:v'));
@@ -106,5 +108,55 @@ test('a real remux of an MP2 recording leaves AAC audio in the MP4', { skip: ski
     const codecs = await engine.probeCodecs(files.h264mp2);
     const result = await engine._nativeTools.ffmpeg(engine.buildNativeRemuxArgs(files.h264mp2, out, codecs));
     assert.equal(result.code, 0, result.tail.join('\n'));
-    assert.deepEqual(await engine.probeCodecs(out), { video: 'h264', audio: 'aac' });
+    const outCodecs = await engine.probeCodecs(out);
+    assert.deepEqual({ video: outCodecs.video, audio: outCodecs.audio }, { video: 'h264', audio: 'aac' });
+});
+
+// ---- 0203: a channel that changes its audio mid-programme (recording #5, 4 Oct) ----
+// Two halves with different AAC configs (48 kHz stereo, then 24 kHz mono), joined as the
+// provider's MPEG-TS would carry them across an ad break.
+function ff(args) {
+    const r = spawnSync('ffmpeg', ['-y', '-nostdin', '-v', 'error', ...args], { encoding: 'utf8', timeout: 60000 });
+    assert.equal(r.status, 0, r.stderr);
+}
+function audioDecodeErrors(file) {
+    const r = spawnSync('ffmpeg', ['-nostdin', '-v', 'error', '-i', file, '-map', '0:a:0', '-f', 'null', '-'], { encoding: 'utf8', timeout: 60000 });
+    return (r.stderr || '').split('\n').filter(l => l.trim()).length;
+}
+function meanVolume(file, from, secs) {
+    const r = spawnSync('ffmpeg', ['-nostdin', '-ss', String(from), '-t', String(secs), '-i', file, '-map', '0:a:0', '-af', 'volumedetect', '-f', 'null', '-'], { encoding: 'utf8', timeout: 60000 });
+    const m = /mean_volume: (-?[\d.]+) dB/.exec(r.stderr || '');
+    return m ? parseFloat(m[1]) : -Infinity;
+}
+function changingAudioTs() {
+    const a = path.join(dir, 'half-a.ts');
+    const b = path.join(dir, 'half-b.ts');
+    ff(['-f', 'lavfi', '-i', 'testsrc=d=6:s=160x120:r=25', '-f', 'lavfi', '-i', 'sine=f=440:d=6:sample_rate=48000',
+        '-c:v', 'libx264', '-g', '25', '-c:a', 'aac', '-ac', '2', '-b:a', '128k', '-f', 'mpegts', a]);
+    ff(['-f', 'lavfi', '-i', 'testsrc=d=6:s=160x120:r=25', '-f', 'lavfi', '-i', 'sine=f=660:d=6:sample_rate=24000',
+        '-c:v', 'libx264', '-g', '25', '-c:a', 'aac', '-ac', '1', '-b:a', '64k', '-output_ts_offset', '6', '-f', 'mpegts', b]);
+    const joined = path.join(dir, 'joined.ts');
+    fs.writeFileSync(joined, Buffer.concat([fs.readFileSync(a), fs.readFileSync(b)]));
+    return joined;
+}
+
+test('audio that changes mid-programme survives a TS capture and the real preparation (0203)', { skip: skipReason }, async () => {
+    const provider = changingAudioTs();
+    // The capture, as spawnPart records it now: MPEG-TS, stream copy.
+    const capture = path.join(dir, 'capture.ts');
+    ff(['-i', provider, '-map', '0:v?', '-map', '0:a?', '-c', 'copy', '-avoid_negative_ts', 'make_zero', '-f', 'mpegts', capture]);
+    assert.equal(audioDecodeErrors(capture), 0, 'the TS capture keeps each frame\'s own audio header');
+    const out = path.join(dir, 'changing.native.mp4');
+    const codecs = await engine.probeCodecs(capture);
+    const result = await engine._nativeTools.ffmpeg(engine.buildNativeRemuxArgs(capture, out, codecs));
+    assert.equal(result.code, 0, result.tail.join('\n'));
+    assert.equal(audioDecodeErrors(out), 0, 'the prepared MP4 decodes cleanly');
+    assert.ok(meanVolume(out, 7, 4) > -30, 'and the second half still has its sound, not silence');
+});
+
+test('control: the old Matroska capture loses that audio, which is why captures are TS now', { skip: skipReason }, () => {
+    const provider = changingAudioTs();
+    const mkv = path.join(dir, 'capture.mkv');
+    ff(['-i', provider, '-map', '0:v?', '-map', '0:a?', '-c', 'copy', '-f', 'matroska', mkv]);
+    assert.ok(audioDecodeErrors(mkv) > 50, 'one audio config for the whole file: the second half does not decode');
 });

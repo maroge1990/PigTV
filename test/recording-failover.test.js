@@ -242,7 +242,7 @@ test('provider dies mid-recording: part 2 on the next provider, part 1 kept and 
     assert.equal(two.provider_id, B.id);
     assert.equal(two.is_partial, 1, 'it is missing what went by between the parts');
     assert.equal(path.dirname(two.file_path), path.dirname(one.file_path), 'same folder');
-    assert.equal(path.basename(two.file_path), path.basename(one.file_path, '.mkv') + ' (part 2).mkv');
+    assert.equal(path.basename(two.file_path), path.basename(one.file_path, '.ts') + ' (part 2).ts'); // 0203: captures are MPEG-TS
     assert.equal(scheduled.getById(s.id).status, 'recording', 'the schedule carries on');
     assert.equal(scheduled.getById(s.id).recording_id, two.id);
 

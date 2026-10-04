@@ -29,6 +29,7 @@ function resetTools() {
     engine._nativeTools.codecs = async (file) => { calls.codecs.push(file); return behaviour.codecs; };
     // A file listed as null is one ffprobe cannot read; anything unlisted is a healthy 60 s.
     engine._nativeTools.duration = async (file) => { calls.duration.push(file); return file in behaviour.durations ? behaviour.durations[file] : 60; };
+    engine._nativeTools.audioErrors = async () => 0;
     engine._nativeTools.ffmpeg = async (args) => {
         calls.ffmpeg.push(args);
         const out = args[args.length - 1];
@@ -67,13 +68,22 @@ test('HEVC is tagged hvc1 so AVPlayer will open it; H.264 is left alone', () => 
     assert.ok(!engine.buildNativeRemuxArgs('in.mkv', 'out.mp4', { video: 'h264', audio: 'ac3' }).includes('-tag:v'));
 });
 
-test('audio: AAC gets its bitstream filter, MP2 is re-encoded, AC-3 is copied', () => {
-    const aac = engine.buildNativeRemuxArgs('i', 'o', { video: 'h264', audio: 'aac' });
-    assert.ok(aac.includes('aac_adtstoasc'));
+test('audio: AAC (any flavour) and MP2 are re-encoded to AAC-LC, AC-3 is copied (0203)', () => {
+    // A copied AAC track keeps its first frame's config for the whole file; broadcast HE-AAC
+    // that changes at an ad break then fails to decode (recording #5, 4 Oct).
+    const aac = engine.buildNativeRemuxArgs('i', 'o', { video: 'h264', audio: 'aac', audioChannels: 2 });
+    assert.ok(!aac.includes('aac_adtstoasc'), 'no longer copied');
+    assert.deepEqual(aac.slice(aac.indexOf('-c:a'), aac.indexOf('-c:a') + 4), ['-c:a', 'aac', '-profile:a', 'aac_low']);
+    assert.ok(aac.includes('aresample=async=1:first_pts=0'), 'gaps from a reconnect are absorbed');
+    assert.deepEqual(aac.slice(aac.indexOf('-ac'), aac.indexOf('-ac') + 2), ['-ac', '2']);
+    const surround = engine.buildNativeRemuxArgs('i', 'o', { video: 'h264', audio: 'aac', audioChannels: 6 });
+    assert.deepEqual(surround.slice(surround.indexOf('-ac'), surround.indexOf('-ac') + 4), ['-ac', '6', '-b:a', '384k'], '5.1 stays 5.1');
     const mp2 = engine.buildNativeRemuxArgs('i', 'o', { video: 'h264', audio: 'mp2' });
     assert.deepEqual(mp2.slice(mp2.indexOf('-c:a'), mp2.indexOf('-c:a') + 2), ['-c:a', 'aac'], 'MP2 cannot be played from MP4 by AVPlayer');
     const ac3 = engine.buildNativeRemuxArgs('i', 'o', { video: 'h264', audio: 'ac3' });
     assert.ok(!ac3.includes('-bsf:a') && !ac3.includes('aac'), 'AC-3 is valid in MP4 and stays a stream copy');
+    const eac3 = engine.buildNativeRemuxArgs('i', 'o', { video: 'h264', audio: 'eac3' });
+    assert.ok(!eac3.includes('-c:a'), 'so does E-AC-3');
 });
 
 test('the remux is written to the given path in mp4 format, with the index up front', () => {

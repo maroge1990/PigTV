@@ -27,7 +27,8 @@ beforeEach(() => {
     delete process.env.PIGTV_KEEP_MKV;
     calls.ffmpeg = [];
     // durations/codecs: by file; a file listed as null is one ffprobe cannot read.
-    behaviour = { exitCode: 0, durations: {}, codecs: {} };
+    behaviour = { exitCode: 0, durations: {}, codecs: {}, audioErrors: {} };
+    engine._nativeTools.audioErrors = async (file) => (file in behaviour.audioErrors ? behaviour.audioErrors[file] : 0);
     engine._nativeTools.duration = async (file) => (file in behaviour.durations ? behaviour.durations[file] : 60);
     engine._nativeTools.codecs = async (file) => behaviour.codecs[file] || { video: 'h264', audio: 'aac' };
     engine._nativeTools.ffmpeg = async (args) => {
@@ -213,4 +214,57 @@ test('on startup, interrupted jobs are requeued, a cut-short encode is cleared, 
     assert.equal(row(preparing.id).native_status, 'pending');
     assert.equal(row(never.id).native_status, 'pending', 'earlier recordings are queued');
     assert.ok(recordings.findPendingNative().some(x => x.id === never.id));
+});
+
+// ---- 0203: decode-checked, and old preparations redone ---------------------------
+
+test('a prepared file whose audio does not decode is refused and the .mkv survives (recording #5, 4 Oct)', async () => {
+    const r = makeRecording();
+    behaviour.audioErrors[r.file] = 2;          // a broadcast glitch or two in the original
+    behaviour.audioErrors[r.native] = 400;      // the copied HE-AAC after an ad break
+    await engine._prepareRecording(row(r.id));
+    assert.equal(row(r.id).native_status, 'pending');
+    assert.match(row(r.id).native_error, /does not decode/);
+    assert.ok(fs.existsSync(r.file), '.mkv kept');
+    assert.ok(!fs.existsSync(r.native) && !fs.existsSync(r.mp4), 'nothing broken left to be served');
+});
+
+test('a few audio errors that the original has too are not a reason to refuse', async () => {
+    const r = makeRecording();
+    behaviour.audioErrors[r.file] = 3;
+    behaviour.audioErrors[r.native] = 5;
+    await engine._prepareRecording(row(r.id));
+    assert.equal(row(r.id).native_status, 'ready');
+    assert.equal(row(r.id).native_version, 2);
+});
+
+test('if the audio cannot be decode-checked at all, the original is kept', async () => {
+    const r = makeRecording();
+    behaviour.audioErrors[r.native] = null;
+    await engine._prepareRecording(row(r.id));
+    assert.equal(row(r.id).native_status, 'ready');
+    assert.ok(fs.existsSync(r.file));
+    assert.match(row(r.id).native_error, /decode-checked/);
+});
+
+test('on startup, an old preparation beside a surviving .mkv is made again; an adopted one is left', () => {
+    const kept = makeRecording();
+    fs.writeFileSync(kept.native, 'copied audio');
+    recordings.setNativeStatus(kept.id, 'ready');
+    const adopted = makeRecording();
+    fs.renameSync(adopted.file, adopted.mp4);
+    getDb().prepare('UPDATE recordings SET file_path = ? WHERE id = ?').run(adopted.mp4, adopted.id);
+    recordings.setNativeStatus(adopted.id, 'ready');
+    const current = makeRecording();
+    fs.writeFileSync(current.native, 'new way');
+    recordings.setNativeStatus(current.id, 'ready');
+    recordings.setNativeVersion(current.id, 2);
+
+    engine._reconcileJobsOnStartup();
+
+    assert.equal(row(kept.id).native_status, 'pending');
+    assert.ok(!fs.existsSync(kept.native), 'the copied-audio MP4 is removed');
+    assert.equal(row(adopted.id).native_status, 'ready', 'no .mkv left to redo it from');
+    assert.equal(row(current.id).native_status, 'ready');
+    assert.ok(fs.existsSync(current.native));
 });

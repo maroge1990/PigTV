@@ -163,7 +163,8 @@ router.get('/:id/stream', async (req, res) => {
         }
         // 0192: once prepared (audit R06) the recording itself is an MP4.
         const isMp4 = rec.format === 'hls' || path.extname(rec.file_path).toLowerCase() === '.mp4';
-        await serveWithRangeSupport(req, res, rec.file_path, isMp4 ? 'video/mp4' : 'video/x-matroska');
+        const ext = path.extname(rec.file_path).toLowerCase();
+        await serveWithRangeSupport(req, res, rec.file_path, isMp4 ? 'video/mp4' : ext === '.ts' ? 'video/mp2t' : 'video/x-matroska');
     } catch (err) {
         console.error('[Recordings] Stream error:', err);
         if (!res.headersSent) res.status(500).json({ error: err.message });

@@ -728,7 +728,7 @@ function probeCodecs(filePath) {
         const kill = () => { try { proc.kill('SIGKILL'); } catch (e) { /* already gone */ } };
         try {
             proc = spawn(ffprobePath, [
-                '-v', 'error', '-show_entries', 'stream=codec_type,codec_name',
+                '-v', 'error', '-show_entries', 'stream=codec_type,codec_name,channels',
                 '-of', 'json', filePath
             ]);
         } catch (e) {
@@ -748,7 +748,10 @@ function probeCodecs(filePath) {
                 for (const s of Array.isArray(streams) ? streams : []) {
                     if (!s || typeof s.codec_name !== 'string') continue;
                     if (s.codec_type === 'video' && !result.video) result.video = s.codec_name;
-                    if (s.codec_type === 'audio' && !result.audio) result.audio = s.codec_name;
+                    if (s.codec_type === 'audio' && !result.audio) {
+                        result.audio = s.codec_name;
+                        if (Number.isFinite(s.channels)) result.audioChannels = s.channels;
+                    }
                 }
             } catch (e) {
                 return finish(none);
@@ -803,16 +806,19 @@ function buildNativeRemuxArgs(input, output, codecs = {}) {
     // default for a stream copy is hev1. Both live pipelines already tag it.
     if (video === 'hevc' || video === 'h265') args.push('-tag:v', 'hvc1');
 
-    if (audio.includes('aac')) {
-        // Same lesson as the live pipeline: raw ADTS AAC - the framing a
-        // stream-copied MPEG-TS source keeps - has no Audio Specific
-        // Config, which MP4-family containers require instead. Without
-        // this the muxer rejects every audio packet outright.
-        args.push('-bsf:a', 'aac_adtstoasc');
-    } else if (audio.startsWith('mp2')) {
-        // MPEG-1 Layer II is common in DVB-sourced TS and cannot be played from
-        // an MP4 by AVPlayer. Audio is small, so re-encode just that track.
-        args.push('-c:a', 'aac', '-b:a', '192k');
+    // 0203: only AC-3 / E-AC-3 are copied. Everything else - every AAC flavour, MP2 - is
+    // re-encoded to AAC-LC. A copied AAC track gets ONE Audio Specific Config for the whole
+    // MP4, taken from its first frame, but broadcast audio changes mid-programme (HE-AAC
+    // around the ad breaks, a different rate or channel count): every frame after the
+    // change was then decoded with the wrong config - silent on the Apple TV, playback
+    // stopping, Comskip failing (recording #5, 4 Oct). In the .mkv each ADTS frame carries
+    // its own header, so decoding from it and encoding once is right whatever changes.
+    // aresample=async absorbs the gaps and jumps a reconnect leaves. Audio is small: this
+    // costs seconds per hour of recording. MP2 (DVB) was already re-encoded for AVPlayer.
+    if (audio && audio !== 'ac3' && audio !== 'eac3') {
+        const channels = Math.min(Math.max(parseInt(codecs.audioChannels, 10) || 2, 1), 6);
+        args.push('-c:a', 'aac', '-profile:a', 'aac_low', '-ar', '48000', '-ac', String(channels),
+            '-b:a', channels > 2 ? '384k' : '192k', '-af', 'aresample=async=1:first_pts=0');
     }
 
     // -f is explicit because the output is written under a temporary name.
@@ -866,7 +872,32 @@ function runFfmpegCollectingTail(args, { watchFile = null, stallMs = FFMPEG_STAL
 
 // The external processes behind native playback, behind one object so tests can
 // stand in for ffmpeg/ffprobe.
-const nativeTools = { ffmpeg: runFfmpegCollectingTail, codecs: probeCodecs, duration: probeDuration, startGraceMs: null };
+/**
+ * 0203: how many errors decoding a file's first audio track produces (ffmpeg -v error, one
+ * line each), or null when it could not be run. Reads the whole file, so it runs once per
+ * preparation; audio only, which is cheap to decode.
+ */
+function countAudioDecodeErrors(file) {
+    return new Promise((resolve) => {
+        let proc;
+        try {
+            proc = spawn(ffmpegPath, ['-nostdin', '-v', 'error', '-i', file, '-map', '0:a:0', '-f', 'null', '-']);
+        } catch (e) {
+            return resolve(null);
+        }
+        let lines = 0;
+        let rest = '';
+        proc.stderr.on('data', d => {
+            const parts = (rest + d).split('\n');
+            rest = parts.pop();
+            lines += parts.filter(l => l.trim()).length;
+        });
+        proc.on('error', () => resolve(null));
+        proc.on('close', (code) => resolve(code === 0 || lines > 0 ? lines + (rest.trim() ? 1 : 0) : null));
+    });
+}
+
+const nativeTools = { ffmpeg: runFfmpegCollectingTail, codecs: probeCodecs, duration: probeDuration, audioErrors: countAudioDecodeErrors, startGraceMs: null };
 
 // recordingId -> Promise<path> of a remux in progress. Two requests for the
 // same recording (the client's /playback and then /media.mp4, or two devices)
@@ -1021,8 +1052,8 @@ async function remuxForNativePlayback(rec, input, output) {
 //
 // Once the MP4 is checked against the original (same length, a video track, an
 // audio track if the original had one) it becomes the recording: renamed to
-// "<name>.mp4" beside the .mkv, the row pointed at it, and the .mkv deleted. The
-// MKV capture itself is unchanged - it is what survives a capture being cut off -
+// "<name>.mp4" beside the capture, the row pointed at it, and the capture (.ts since 0203,
+// .mkv before) deleted. The capture itself is what survives being cut off -
 // and an original whose length cannot be read (an interrupted capture has no
 // duration in its header) is kept rather than deleted on an unverifiable check.
 //
@@ -1036,6 +1067,8 @@ async function remuxForNativePlayback(rec, input, output) {
 // ---------------------------------------------------------------------------
 
 const NATIVE_MAX_ATTEMPTS = 3;
+// 0203: preparations made before this (copied audio, no decode check) are redone where the .mkv is still there.
+const NATIVE_VERSION = 2;
 const NATIVE_FRESH_MS = 24 * 60 * 60 * 1000;
 let preparingNative = false;
 let preparingNativeId = null; // compression and detection leave this one alone until it is done
@@ -1073,6 +1106,18 @@ async function checkPrepared(original, prepared) {
     if (outDuration < srcDuration * 0.95) {
         return { ok: false, reason: `the prepared file is short (${Math.round(outDuration)}s of ${Math.round(srcDuration)}s)` };
     }
+    // 0203: and it must actually DECODE as well as the original. Length and track checks
+    // passed recording #5 (4 Oct) whose copied HE-AAC audio failed from ~3 minutes on, and
+    // its .mkv was deleted. Relative, because broadcast audio has the odd glitch of its own.
+    if (outCodecs.audio) {
+        const [srcErrors, outErrors] = await Promise.all([nativeTools.audioErrors(original), nativeTools.audioErrors(prepared)]);
+        if (outErrors === null || srcErrors === null) {
+            return { ok: true, keepOriginal: true, reason: 'the audio could not be decode-checked' };
+        }
+        if (outErrors > srcErrors + 5) {
+            return { ok: false, reason: `the prepared file's audio does not decode (${outErrors} errors, the original ${srcErrors})` };
+        }
+    }
     return { ok: true, keepOriginal: false };
 }
 
@@ -1098,6 +1143,7 @@ function adoptPrepared(rec, prepared) {
     const size = fileSizeOf(target);
     getDb().prepare('UPDATE recordings SET file_path = ?, file_size_bytes = ? WHERE id = ?').run(target, size || null, rec.id);
     recordingsDb.setNativeStatus(rec.id, 'ready');
+    recordingsDb.setNativeVersion(rec.id, NATIVE_VERSION);
     try {
         fs.unlinkSync(original);
         console.log(`[Recordings] #${rec.id} is now ${path.basename(target)}; the .mkv it was made from is deleted`);
@@ -1118,6 +1164,7 @@ async function prepareRecording(rec) {
     // Already playable as it is (compressed, or recorded before as MP4): nothing to make.
     if (path.extname(original).toLowerCase() === '.mp4') {
         recordingsDb.setNativeStatus(rec.id, 'ready');
+        recordingsDb.setNativeVersion(rec.id, NATIVE_VERSION);
         return;
     }
 
@@ -1139,6 +1186,7 @@ async function prepareRecording(rec) {
         // served from there and the original is compression's to keep.
         if (prepared !== nativePlaybackTargetPath(original) && prepared !== leftover) {
             recordingsDb.setNativeStatus(rec.id, 'ready');
+            recordingsDb.setNativeVersion(rec.id, NATIVE_VERSION);
             return;
         }
 
@@ -1152,6 +1200,7 @@ async function prepareRecording(rec) {
         if (check.keepOriginal || keepOriginalCapture()) {
             if (check.keepOriginal) console.warn(`[Recordings] #${rec.id} is ready, but its original is kept: ${check.reason}`);
             recordingsDb.setNativeStatus(rec.id, 'ready', { error: check.keepOriginal ? `Original kept: ${check.reason}` : null });
+            recordingsDb.setNativeVersion(rec.id, NATIVE_VERSION);
             return;
         }
         adoptPrepared(recordingsDb.getById(rec.id) || rec, prepared);
@@ -1297,7 +1346,7 @@ async function deleteRecording(id) {
         const native = nativePlaybackTargetPath(rec.file_path);
         const base = path.join(path.dirname(rec.file_path), path.basename(rec.file_path, path.extname(rec.file_path)));
         const compressed = compressionTargetPath(rec.file_path);
-        for (const file of new Set([rec.file_path, native, `${native}.partial`, compressed, `${compressed}.partial`, `${base}.mkv`, `${base}.mp4`])) {
+        for (const file of new Set([rec.file_path, native, `${native}.partial`, compressed, `${compressed}.partial`, `${base}.mkv`, `${base}.ts`, `${base}.mp4`])) {
             if (!fs.existsSync(file)) continue;
             try { fs.unlinkSync(file); } catch (e) {
                 console.warn('[Recordings] Failed to delete file:', e.message);
@@ -1389,7 +1438,7 @@ async function startPartLeased(schedule, route, index, part, { gapMs = 0, refuse
     // "Local" is the process's TZ, which docker-compose.yml passes through.
     const dateStr = formatLocalStamp(schedule.program_start);
     const baseName = `${sanitizeForFs(schedule.title)} - ${dateStr}${part > 1 ? ` (part ${part})` : ''}`;
-    const outputPath = uniqueFilePath(channelDir, baseName, '.mkv');
+    const outputPath = uniqueFilePath(channelDir, baseName, '.ts'); // 0203: was .mkv
     const candidate = route.candidates[index];
 
     const recording = recordingsDb.create({
@@ -1443,17 +1492,21 @@ function spawnPart(schedule, settings, { recordingId, outputPath, route, index, 
         '-reconnect_streamed', '1',
         '-reconnect_delay_max', '5',
         '-i', candidate.url,
-        // Map video and audio only. An IPTV MPEG-TS multiplex often carries
-        // teletext, SCTE-35 and other private data streams that the matroska
-        // muxer refuses, which would fail the whole recording. -ignore_unknown
-        // covers anything ffmpeg cannot classify at all.
+        // Map video and audio only (teletext, SCTE-35 and other private data
+        // streams are not wanted in a recording). -ignore_unknown covers
+        // anything ffmpeg cannot classify at all.
         '-map', '0:v?',
         '-map', '0:a?',
         '-ignore_unknown',
         '-sn', '-dn',
         '-c', 'copy',
         '-avoid_negative_ts', 'make_zero',
-        '-f', 'matroska',
+        // 0203: MPEG-TS, the provider's own framing, not Matroska. Matroska keeps ONE audio
+        // config for the whole file (from the first frame), so a channel that changes its
+        // audio at an ad break (HE-AAC <-> LC, rate, channels) recorded garbage audio from
+        // then on - recording #5, 4 Oct; reproduced: 298 decode errors and silence. In TS each
+        // ADTS frame carries its own header. TS survives being cut off just as well.
+        '-f', 'mpegts',
         outputPath
     ];
 
@@ -1754,7 +1807,7 @@ async function stopRecording(scheduledId, reasonStatus = 'completed') {
 
         try {
             // Graceful stop: ffmpeg treats "q" on stdin as a request to finish
-            // the output file cleanly (writes a valid mkv trailer).
+            // the output file cleanly (flushes the last packets; an older .mkv got its trailer).
             entry.proc.stdin?.write('q');
         } catch (e) {
             try { entry.proc.kill('SIGINT'); } catch (e2) { /* ignore */ }
@@ -1831,6 +1884,15 @@ function reconcileJobsOnStartup() {
         for (const file of [target, `${target}.partial`]) {
             try { fs.unlinkSync(file); console.warn(`[Recordings] Removed ${path.basename(file)}, left by an interrupted compression`); } catch (e) { /* none */ }
         }
+    }
+    // 0203: an MP4 made the old way (audio copied, never decode-checked) beside an .mkv that
+    // still exists is made again; one whose .mkv is already gone can only be left as it is.
+    for (const rec of recordingsDb.findOldPreparedWithOriginal()) {
+        const native = nativePlaybackTargetPath(rec.file_path);
+        try { fs.unlinkSync(native); } catch (e) { /* not there: prepared from compression, or never made */ }
+        verifiedNativeFiles.delete(native);
+        recordingsDb.setNativeStatus(rec.id, 'pending');
+        console.log(`[Recordings] #${rec.id} will be prepared again (its audio is re-encoded since 0203)`);
     }
     if (nativePrepareEnabled()) {
         const queued = recordingsDb.queueNativeBackfill();
