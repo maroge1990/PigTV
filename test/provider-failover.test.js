@@ -22,7 +22,6 @@ fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { rec
 fs.cpSync(path.join(__dirname, '../package.json'), path.join(sandbox, 'package.json'));
 fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'node_modules'), 'junction');
 process.env.JWT_SECRET = 'test-only-signing-key-not-used-outside-fixtures-12345';
-delete process.env.PIGTV_TUNER;
 process.chdir(sandbox);
 
 const load = p => require(path.join(sandbox, 'server', p));

@@ -60,7 +60,6 @@ const requireToken = streamAuth;
 // Resolving a channel to its stream (and, from 0174, to the providers that carry
 // it) lives in services/providerRouting.js.
 const providerRouting = require('../services/providerRouting');
-const { streamUrlForChannel } = providerRouting;
 
 /**
  * POST /api/playback/resolve
@@ -79,22 +78,17 @@ router.post('/resolve', requireToken, async (req, res) => {
     let lastTried = null;
     try {
         const { sourceId, channelId, url: directUrl, capabilities, upscale, force, audioEncode } = req.body || {};
-        const tunerOn = require('../services/tuner').enabled();
 
         let url = directUrl;
         // 0174: a channel play has an ordered list of providers to try (primary,
-        // sibling, backups). The tuner path is primary-only (D9), as before.
+        // sibling, backups).
         let routing = null;
         if (!url) {
             if (sourceId === undefined || channelId === undefined) {
                 return res.status(400).json({ error: 'Provide either url, or sourceId and channelId' });
             }
-            if (tunerOn) {
-                url = await streamUrlForChannel(parseInt(sourceId), channelId);
-            } else {
-                routing = await providerRouting.plan(parseInt(sourceId), channelId);
-                url = routing.candidates[0].url;
-            }
+            routing = await providerRouting.plan(parseInt(sourceId), channelId);
+            url = routing.candidates[0].url;
         }
         if (url && !isStreamUrl(url)) {
             return res.status(400).json({ error: NOT_A_STREAM_URL });
@@ -109,33 +103,6 @@ router.post('/resolve', requireToken, async (req, res) => {
         const recordingEngine = require('../services/recordingEngine');
         const coordinator = require('../services/streamCoordinator');
         const activeRecordings = recordingEngine.listActive();
-
-        // The tuner model (PIGTV_TUNER=1, 0126): admission is decided per tuner,
-        // inside resolveTuned, because a viewer joining a running tuner needs no
-        // provider slot at all. Same 409 shapes, same history and logging.
-        if (tunerOn) {
-            const owner = coordinator.ownerKey(req.user);
-            const outcome = await playbackStrategy.resolveTuned({
-                url,
-                capabilities: capabilities || {},
-                settings,
-                ffprobePath: req.app.locals.ffprobePath,
-                upscale: upscale === true,
-                audioEncode: audioEncode === true,
-                owner,
-                live: sourceId !== undefined && channelId !== undefined,
-                force: force === true,
-                activeRecordings,
-                onSacrifice: (scheduleId) => recordingEngine.stopForViewer(scheduleId)
-            });
-            if (outcome.verdict) return sendConflict(res, outcome.verdict);
-            recordHistory(req, sourceId, channelId);
-            channelHealth.recordResolve({ sourceId, channelId, ok: true, owner });
-            const decision = outcome.decision;
-            console.log(`[Playback] ${decision.strategy} — ${decision.reason}`);
-            playbackEvents.noteResolve(owner, { channel: eventChannel, strategy: decision.strategy, videoMode: decision.videoMode || null });
-            return res.json(decision);
-        }
 
         // Who is asking decides what counts as "somebody else": this device's
         // own earlier stream is simply replaced, an abandoned one is reclaimed,
@@ -198,7 +165,7 @@ router.post('/resolve', requireToken, async (req, res) => {
 
         // R12: this owner warmed this very channel earlier and the session is still running (and
         // is not needed by anybody else): it becomes the viewer's session, with no new start.
-        // Otherwise a warm session for something else ends first. Never on the tuner path (above).
+        // Otherwise a warm session for something else ends first.
         const warming = require('../services/channelWarming');
         const warmKey = routing && live ? warming.keyFor({ sourceId, channelId, capabilities, upscale, audioEncode }) : null;
         if (warmKey) {
@@ -404,7 +371,7 @@ router.post('/resolve', requireToken, async (req, res) => {
  * so a following resolve finds the session already running (R12; services/channelWarming.js).
  * Only ever on a provider connection nobody is using: nothing is reclaimed and nobody is asked.
  *
- *   204  nothing was warmed (the warmNextChannel setting is off, the tuner is in use, the
+ *   204  nothing was warmed (the warmNextChannel setting is off, the
  *        owner is already watching that channel, no connection is free, or the start failed)
  *   200  { warm: true, ttlSec, refreshed }: a warm session for this channel exists and
  *        lives ttlSec more seconds (refreshed: it was already warm and its time was extended)
@@ -418,7 +385,7 @@ router.post('/warm', requireToken, async (req, res) => {
         }
         const settings = { ...(await db.settings.get()), ffmpegPath: req.app.locals.ffmpegPath || 'ffmpeg' };
         const warming = require('../services/channelWarming');
-        if (!warming.enabled(settings) || require('../services/tuner').enabled()) return res.status(204).end();
+        if (!warming.enabled(settings)) return res.status(204).end();
         const owner = require('../services/streamCoordinator').ownerKey(req.user);
         const result = await warming.warm({
             owner, sourceId, channelId, capabilities: capabilities || {}, upscale: upscale === true, audioEncode: audioEncode === true,
@@ -433,7 +400,7 @@ router.post('/warm', requireToken, async (req, res) => {
     }
 });
 
-/** The 409 a client repeats with force (the same body for sessions and tuners). */
+/** The 409 a client repeats with force. */
 function sendConflict(res, verdict, { everyProvider = false } = {}) {
     const isViewer = verdict.conflict && verdict.conflict.type === 'viewer-in-progress';
     // 0174: when more than one provider carries the channel and all were full, the
@@ -650,10 +617,6 @@ router.post('/client-event', requireToken, (req, res) => {
 router.delete('/:sessionId', requireToken, async (req, res) => {
     const { sessionId } = req.params;
     try {
-        // A tuner viewer (PIGTV_TUNER=1): only this viewer leaves; the tuner
-        // stops with its last viewer and recording.
-        const tuner = require('../services/tuner');
-        if (tuner.enabled() && await tuner.releaseViewer(sessionId)) return res.json({ success: true });
         const transcodeSession = require('../services/transcodeSession');
         // 0189: a relay ends with every leg it has; else the one session.
         if (!(await require('../services/streamRelay').close(sessionId))) await transcodeSession.removeSession(sessionId);

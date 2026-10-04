@@ -22,10 +22,11 @@ process.env.JWT_SECRET = 'test-only-signing-key-not-used-outside-fixtures-12345'
 // neutralises sportsClassify.LIVE_HOURS in THIS thread (below), which a worker would not see, so
 // it builds inline; the worker path is covered by sports-background-rebuild.test.js and
 // sports-worker.test.js.
-process.env.PIGTV_SPORT_WORKER = '0';
+
 process.chdir(sandbox);
 
 const load = p => require(path.join(sandbox, 'server', p));
+load('services/sportsEvents')._buildInline(true); // see the R09 note above
 const perf = require('./helpers/perf'); // a speed budget: see helpers/perf.js
 const db = load('db');
 const auth = load('auth');

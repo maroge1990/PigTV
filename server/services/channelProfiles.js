@@ -22,8 +22,7 @@
  * client can decode. The key is stored hashed: the URL carries the provider
  * credentials, and nothing here needs to read it back.
  *
- * PIGTV_PROBE_PROFILES=0 turns it off (every play probes, as before 0114), without a
- * rebuild. Nothing in here may fail a play: a database error is logged and treated as
+ * Nothing in here may fail a play: a database error is logged and treated as
  * "no profile".
  */
 
@@ -31,10 +30,6 @@ const crypto = require('crypto');
 const { getDb } = require('../db/sqlite');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-function enabled() {
-    return !/^(0|false|no|off)$/i.test(process.env.PIGTV_PROBE_PROFILES || '');
-}
 
 function maxAgeMs() {
     const days = Number.parseFloat(process.env.PIGTV_PROFILE_MAX_AGE_DAYS);
@@ -51,7 +46,6 @@ function hashKey(key) {
  * @returns {{info: object, probedAt: number, ageDays: number}|null}
  */
 function get(key, now = Date.now()) {
-    if (!enabled()) return null;
     try {
         const row = getDb().prepare('SELECT info, probed_at FROM channel_profiles WHERE key = ?').get(hashKey(key));
         if (!row) return null;
@@ -65,7 +59,6 @@ function get(key, now = Date.now()) {
 
 /** A session played from this freshly probed analysis: keep it. */
 function save(key, info, probedAt, now = Date.now()) {
-    if (!enabled()) return;
     try {
         getDb().prepare(`
             INSERT INTO channel_profiles (key, info, probed_at, last_ok_at) VALUES (?, ?, ?, ?)
@@ -78,7 +71,6 @@ function save(key, info, probedAt, now = Date.now()) {
 
 /** A session played from this profile again. */
 function markOk(key, now = Date.now()) {
-    if (!enabled()) return;
     try {
         getDb().prepare('UPDATE channel_profiles SET last_ok_at = ? WHERE key = ?').run(now, hashKey(key));
     } catch (err) {
@@ -95,4 +87,4 @@ function remove(key) {
     }
 }
 
-module.exports = { enabled, maxAgeMs, get, save, markOk, remove, hashKey };
+module.exports = { maxAgeMs, get, save, markOk, remove, hashKey };

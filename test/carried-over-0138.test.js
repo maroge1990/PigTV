@@ -7,17 +7,17 @@ const { once } = require('node:events');
 const { Readable } = require('node:stream');
 const express = require('express');
 
-// 0138: the items carried over from the old blueprint.
-//   (a) /api/info answers even when a feature check behind it throws.
+// 0138: the items carried over from the old blueprint ((a), /api/info surviving a throwing
+// feature check, went with the last switchable flag that had one).
 //   (b) the small-caps badge is stripped from names and titles stored before 0099, once,
 //       and from channel names on the Xtream ingest path (the M3U parser already did).
 //   (c) P2-8 tests not covered elsewhere: the EPG parser under bursty input; the token
 //       carried onto the fMP4 init segment and .m4s segments of an ffmpeg-written
-//       playlist (the tuner's own playlist is covered in tuner.test.js); Range requests
+//       playlist; Range requests
 //       on a recording. "A viewer that already holds the slot re-resolves" is covered by
 //       playback-arbitration.test.js ("a device changing channel replaces its own old
 //       stream without a prompt") and stream-coordinator.test.js, so is not repeated.
-// On the old code: /api/info is a 500 when a check throws, stored badges stay, an Xtream
+// On the old code: stored badges stay, an Xtream
 // channel keeps its badge, and a suffix or over-long Range is a 416.
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-0138-'));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
@@ -77,28 +77,6 @@ after(async () => {
     process.chdir(os.tmpdir());
     try { fs.rmdirSync(path.join(sandbox, 'node_modules')); } catch { /* junction already gone */ }
     try { fs.rmSync(sandbox, { recursive: true, force: true }); } catch { /* leave it to the OS temp cleaner */ }
-});
-
-// ---------------------------------------------------------------- (a) --
-
-test('(a) /api/info still answers when a feature check throws, without that flag', async () => {
-    const tuner = load('services/tuner');
-    const real = tuner.timeshiftEnabled;
-    tuner.timeshiftEnabled = () => { throw new Error('settings unavailable'); };
-    const warn = console.warn;
-    console.warn = () => {};
-    try {
-        const r = await fetch(`${base}/api/info`);
-        assert.equal(r.status, 200);
-        const body = await r.json();
-        assert.equal(body.name, 'PigTV');
-        assert.equal(body.features.timeshift, undefined, 'the flag whose check failed is left out');
-        assert.equal(body.features.playbackResolve, true, 'the rest are there');
-        assert.equal(body.features.channelHealth, true);
-    } finally {
-        tuner.timeshiftEnabled = real;
-        console.warn = warn;
-    }
 });
 
 // ---------------------------------------------------------------- (b) --

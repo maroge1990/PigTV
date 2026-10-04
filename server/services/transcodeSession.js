@@ -92,13 +92,6 @@ const blankKbps = (height) => {
     return height && height < 720 ? 250 : 500;
 };
 
-// Whether igndts is decided per feed from the probe (the default, see
-// buildFFmpegArgs) or applied to every copy session the way 0085 did it.
-// PIGTV_DTS_AUTO=0 restores the old behaviour with a container restart rather
-// than a rebuild - the rollback for this change, since a redeploy ends every
-// session and is expensive to do twice.
-const DTS_AUTO = !/^(0|false|no)$/i.test(process.env.PIGTV_DTS_AUTO || '');
-
 // How many segments a live session keeps on disk before rotating the
 // oldest ones out. Unbounded (the old 0) means the whole session gets
 // written to the Docker image's writable layer for as long as someone
@@ -484,10 +477,8 @@ class TranscodeSession extends EventEmitter {
     /**
      * Everything before the HLS muxer: input, timestamps, pacing, mapping, the
      * video copy/encode and the audio decision, and the two muxer-side
-     * timestamp options. Split out of buildFFmpegArgs in 0126 so a tuner
-     * (services/tuner.js) runs exactly these arguments and differs only in how
-     * the HLS muxer keeps its window; test/tuner-args.test.js proves
-     * buildFFmpegArgs still produces the 0125 arguments token for token.
+     * timestamp options. Split out of buildFFmpegArgs in 0126 so the source and
+     * muxer halves of the command can be read (and tested) apart.
      */
     buildSourceArgs() {
         const videoMode = this.options.videoMode || 'encode';
@@ -528,7 +519,8 @@ class TranscodeSession extends EventEmitter {
         // which lands on the even branch - the majority case.
         //
         // A re-encode makes its own timestamps, so it is left alone either way.
-        const useIgnDts = videoMode === 'copy' && (DTS_AUTO ? this.options.dtsUneven === true : true);
+        // igndts only for a feed the probe found uneven (0085 applied it to every copy session).
+        const useIgnDts = videoMode === 'copy' && this.options.dtsUneven === true;
         const inputFlags = useIgnDts ? '+genpts+discardcorrupt+igndts' : '+genpts+discardcorrupt';
 
         // Input options (common)
@@ -1704,7 +1696,6 @@ module.exports = {
     CACHE_DIR,
     SEGMENT_DURATION,
     DTS_DELTA_THRESHOLD_SEC,
-    // For the tuner (0126), which keeps the same window and idle rules.
     HLS_LIST_SIZE,
     HLS_DELETE_THRESHOLD,
     HLS_STALL_MS,

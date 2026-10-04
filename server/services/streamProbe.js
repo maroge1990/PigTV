@@ -320,37 +320,9 @@ function analyzeProbeResult(probeResult, url, clientCaps = {}) {
     };
 }
 
-/**
- * The same analysis for another client's capabilities, from an earlier analysis
- * instead of a fresh probe (the tuner model, 0126: a second device on a channel a
- * tuner is already playing must not open a second provider connection just to be
- * told what the first probe already said). Rebuilds the probe fields the analysis
- * reads and runs analyzeProbeResult again; the timing class is carried over, and
- * subtitle tracks (unused for live) are not.
- */
-function reanalyzeForCaps(info, url, clientCaps = {}) {
-    if (!info) return null;
-    const transfer = info.videoRange === 'PQ' ? 'smpte2084' : (info.videoRange === 'HLG' ? 'arib-std-b67' : undefined);
-    const streams = [];
-    if (info.video && info.video !== 'unknown') {
-        streams.push({ codec_type: 'video', codec_name: info.video, width: info.width, height: info.height,
-            avg_frame_rate: info.fps || undefined, color_transfer: transfer });
-    }
-    if (info.audio && info.audio !== 'unknown') {
-        streams.push({ codec_type: 'audio', codec_name: info.audio, profile: info.audioProfile || undefined, channels: info.audioChannels });
-    }
-    const format = { format_name: info.container };
-    if (info.durationSec) format.duration = String(info.durationSec);
-    else if (info.finite) format.size = '1';
-    const result = analyzeProbeResult({ streams, format }, url, clientCaps);
-    result.dtsUneven = info.dtsUneven;
-    return result;
-}
-
 module.exports = {
     probeStream,
     analyzeProbeResult,
-    reanalyzeForCaps,
     classifyTimestamps,
     classifyVideoRange,
     frameRateOf,

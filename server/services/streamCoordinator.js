@@ -25,8 +25,7 @@
  *     thing), and an abandoned stream is reclaimed silently, so the question
  *     is only ever put when a person really is on the other end.
  *
- * Provider pools (0173, multi-provider P5; default path only - the tuner functions
- * further down are unchanged and keep one global pool). With backup providers
+ * Provider pools (0173, multi-provider P5). With backup providers
  * configured, every provider has its own connections, so every rule above is
  * applied per provider: a viewer or recording asking for provider B counts,
  * reclaims and asks about B's streams and B's recordings only. A stream or
@@ -94,7 +93,7 @@ const DEFAULT_PROMPT_TIMEOUT_MIN = 3;
 //            lead-time notice, up to recordingPromptLeadMin minutes before the
 //            recording is actually due. Informational only.
 // dueSince   when the recording FIRST became due and still found a live viewer in
-//            its way (set inside requestForRecording/requestForRecordingTuned, never
+//            its way (set inside requestForRecording, never
 //            by announceUpcoming). This, not issuedAt, is what the timeout counts
 //            from: a viewer who has had the early notice on screen for four minutes
 //            has not been asked to give up their stream for four minutes, only warned
@@ -960,220 +959,7 @@ async function admitViewer(opts = {}) {
     return verdict;
 }
 
-// ---------------------------------------------------------------------------
-// The tuner model (PIGTV_TUNER=1, 0126). The provider slot is a TUNER, not a
-// viewer session: every viewer of one tuner, and every recording holding it,
-// shares its one connection. The same policy as above, applied per tuner:
-//   - a tuner ffmpeg has already left (dead) goes first, silently;
-//   - then one whose viewers have all been idle >= 60 s (and no recording);
-//   - then one only this owner is watching (and no recording);
-//   - anything else is a 409: recording-in-progress if a recording holds it,
-//     else viewer-in-progress; force stops the recordings (kept, partial) and
-//     the viewers. A viewer displaced here gets its terminal-status note.
-// A viewer whose arguments match a running tuner joins it: no slot is needed.
-// ---------------------------------------------------------------------------
-
-function tunerModule() {
-    return require('./tuner');
-}
-
-function tunerSlots(now = Date.now()) {
-    return tunerModule().list().map(t => ({
-        tuner: t,
-        id: t.id,
-        dead: t.dead === true || t.hasFailed(),
-        recordings: t.recordingIds(),
-        owners: t.viewerOwners(),
-        idleMs: t.viewerIdleMs(now)
-    }));
-}
-
-/**
- * requestForViewer for the tuner model. `key` is the tuner the caller wants, when
- * known: a running tuner with that key is joined, and nothing is released.
- */
-function requestForTuner({ force = false, settings = {}, owner = null, key = null, activeRecordings = [] } = {}) {
-    const limit = Number.isFinite(settings.maxProviderStreams) ? settings.maxProviderStreams : 1;
-    const idleMs = (Number.isFinite(settings.viewerIdleTimeoutSec)
-        ? settings.viewerIdleTimeoutSec : DEFAULT_IDLE_TIMEOUT_SEC) * 1000;
-
-    if (key && tunerModule().findByKey(key)) return { allowed: true, release: [], join: true };
-
-    const slots = tunerSlots().sort((a, b) => b.idleMs - a.idleMs); // most idle first
-    let need = slots.length + 1 - limit;
-    if (need <= 0) return { allowed: true, release: [] };
-
-    const release = [];
-    const held = new Set();
-    const take = (candidates, cause) => {
-        for (const s of candidates) {
-            if (need <= 0) break;
-            if (held.has(s)) continue;
-            held.add(s);
-            release.push({ stream: s, cause });
-            need--;
-        }
-    };
-    const free = slots.filter(s => s.recordings.length === 0);
-    // A tuner whose ffmpeg has ended serves nobody, even one a recording has not
-    // let go of yet (it takes the channel up again on its next tick).
-    take(slots.filter(s => s.dead), 'ended');
-    take(free.filter(s => s.idleMs >= idleMs), 'idle');
-    take(free.filter(s => owner && s.owners.length > 0 && s.owners.every(o => o === owner)), 'replacement');
-    if (need <= 0) return { allowed: true, release };
-
-    const others = slots.filter(s => !held.has(s));
-    const recordingSlots = others.filter(s => s.recordings.length > 0);
-
-    if (!force) {
-        if (recordingSlots.length > 0) {
-            const scheduleId = recordingSlots[0].recordings[0];
-            const rec = activeRecordings.find(r => Number(r.id) === scheduleId)
-                || (() => { try { return require('../db/recordingsDb').scheduled.getById(scheduleId); } catch (e) { return null; } })()
-                || { id: scheduleId, title: 'A recording', channel_name: 'this channel', program_end: Date.now(), post_buffer_min: 0 };
-            return {
-                allowed: false,
-                release,
-                conflict: {
-                    type: 'recording-in-progress',
-                    scheduleId: rec.id,
-                    title: rec.title,
-                    channelName: rec.channel_name,
-                    endsAt: rec.program_end + (rec.post_buffer_min || 0) * 60000,
-                    message: `"${rec.title}" is recording on ${rec.channel_name}. Your provider allows one stream at a time, so watching now will stop that recording. What has been recorded so far is kept.`
-                }
-            };
-        }
-        const other = others[0];
-        const viewerId = other.tuner.viewers.values().next().value || other.id;
-        return {
-            allowed: false,
-            release,
-            conflict: {
-                type: 'viewer-in-progress',
-                streamId: viewerId,
-                lastActiveSec: Number.isFinite(other.idleMs) ? Math.round(other.idleMs / 1000) : 0,
-                message: `Another device is watching. Your provider allows ${limit === 1 ? 'one stream' : limit + ' streams'} at a time, so watching here will stop it.`
-            }
-        };
-    }
-
-    // Forced: recordings' tuners first (what was captured is kept), then viewers'.
-    const sacrificed = [];
-    for (const s of recordingSlots) {
-        if (need <= 0) break;
-        held.add(s);
-        sacrificed.push(...s.recordings);
-        release.push({ stream: s, cause: 'forced-takeover' });
-        need--;
-    }
-    take(others, 'forced-takeover');
-    return { allowed: true, release, sacrificed };
-}
-
-/**
- * requestForTuner, plus stopping whatever it says must go. `onSacrifice(scheduleId)`
- * finalises a recording (recordingEngine.stopForViewer) before its tuner stops.
- */
-async function admitTuner(opts = {}) {
-    const verdict = requestForTuner(opts);
-    if (!verdict.allowed) return verdict;
-    const tuner = tunerModule();
-    for (const { stream, cause } of verdict.release || []) {
-        const t = stream.tuner;
-        console.log(`[Coordinator] Releasing tuner ${t.id} (${cause}, ${Number.isFinite(stream.idleMs) ? Math.round(stream.idleMs / 1000) + 's idle' : 'no viewers'}) to admit a new viewer`);
-        for (const scheduleId of stream.recordings) {
-            if (typeof opts.onSacrifice === 'function') {
-                try { await opts.onSacrifice(scheduleId); } catch (err) {
-                    console.error('[Coordinator] Could not stop recording for viewer:', err.message);
-                }
-            }
-        }
-        // As admitViewer: every viewer displaced to admit somebody else may learn
-        // so - except from a tuner whose ffmpeg had already ended, which nobody took.
-        if (cause !== 'ended') {
-            for (const id of t.viewers) {
-                const v = tuner.getViewer(id);
-                if (v) noteReplaced({ id: v.id, owner: v.owner });
-            }
-        }
-        await tuner.destroyTuner(t, `released: ${cause}`);
-    }
-    return verdict;
-}
-
-/**
- * requestForRecording for the tuner model: a tuner already on the channel is
- * shared (no slot, no question); otherwise the viewers' tuners are what a
- * recording may have to wait for, exactly as viewer sessions were. Tuners held
- * by other recordings are not counted, as recordings were not before.
- */
-async function requestForRecordingTuned(schedule, settings, url) {
-    const tuner = tunerModule();
-    if (url && tuner.findByUrl(url)) {
-        prompts.delete(schedule.id);
-        return { allowed: true, shared: true, reason: 'Sharing the tuner already on this channel' };
-    }
-    const idleTimeout = Number.isFinite(settings.viewerIdleTimeoutSec)
-        ? settings.viewerIdleTimeoutSec : DEFAULT_IDLE_TIMEOUT_SEC;
-    const limit = Number.isFinite(settings.maxProviderStreams) ? settings.maxProviderStreams : 1;
-    const viewerSlots = tunerSlots().filter(s => s.recordings.length === 0);
-    if (viewerSlots.length < limit) return { allowed: true, reason: 'A provider connection is free' };
-
-    const cutoff = idleTimeout * 1000;
-    const stale = viewerSlots.filter(s => s.dead || s.idleMs >= cutoff);
-    const live = viewerSlots.filter(s => !(s.dead || s.idleMs >= cutoff));
-    if (live.length === 0 && stale.length > 0) {
-        for (const s of stale) {
-            console.log(`[Coordinator] Reclaiming idle tuner ${s.id} for recording #${schedule.id}`);
-            await tuner.destroyTuner(s.tuner, 'reclaimed for a recording');
-        }
-        prompts.delete(schedule.id);
-        return { allowed: true, reason: 'Reclaimed an abandoned stream' };
-    }
-    if (live.length === 0) return { allowed: true, reason: 'Nothing is using the provider' };
-
-    // As requestForRecording (0158): ask once, then take the stream if nobody has
-    // answered within recordingPromptTimeoutMin minutes of the recording becoming
-    // due (dueSince), unless the viewer explicitly declined (keeps waiting).
-    const now = Date.now();
-    const existing = prompts.get(schedule.id);
-    if (!existing) {
-        prompts.set(schedule.id, { issuedAt: now, dueSince: now, declinedAt: null, schedule });
-        console.log(`[Coordinator] Recording #${schedule.id} is waiting for the stream; asking the viewer`);
-        return { allowed: false, prompted: true, reason: 'Waiting for the viewer to stop playback' };
-    }
-    if (!existing.dueSince) existing.dueSince = now;
-
-    if (!existing.declinedAt) {
-        const timeoutMs = (Number.isFinite(settings.recordingPromptTimeoutMin)
-            ? settings.recordingPromptTimeoutMin : DEFAULT_PROMPT_TIMEOUT_MIN) * 60000;
-        if (now - existing.dueSince >= timeoutMs) {
-            console.log(`[Coordinator] No answer from the viewer in ${Math.round(timeoutMs / 60000)} min; recording #${schedule.id} takes the stream`);
-            for (const s of live) await tuner.destroyTuner(s.tuner, 'no answer from the viewer; a recording needs the stream');
-            prompts.delete(schedule.id);
-            return { allowed: true, reason: 'No answer from the viewer; took the stream' };
-        }
-    }
-    return { allowed: false, prompted: false, reason: 'Viewer declined; waiting for playback to stop' };
-}
-
-/** announceUpcoming for the tuner model: no warning when the recording will share a tuner. */
-function announceUpcomingTuned(schedule, settings = {}, url = null) {
-    const tuner = tunerModule();
-    if (url && tuner.findByUrl(url)) return;
-    const limit = Number.isFinite(settings.maxProviderStreams) ? settings.maxProviderStreams : 1;
-    if (tunerSlots().filter(s => s.recordings.length === 0).length < limit) return;
-    if (prompts.has(schedule.id)) return;
-    // dueSince stays null here too: see the `prompts` comment near the top of this file.
-    prompts.set(schedule.id, { issuedAt: Date.now(), dueSince: null, declinedAt: null, schedule });
-}
-
 module.exports = {
-    requestForTuner,
-    admitTuner,
-    requestForRecordingTuned,
-    announceUpcomingTuned,
     activeStreams,
     liveViewers,
     staleStreams,

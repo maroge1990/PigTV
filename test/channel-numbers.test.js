@@ -74,7 +74,6 @@ before(async () => {
 });
 
 after(() => {
-    delete process.env.PIGTV_CHANNEL_NUMBERS;
     server?.closeAllConnections?.();
     server?.close();
     try { sqlite.getDb().close(); } catch { /* already closed */ }
@@ -83,14 +82,8 @@ after(() => {
     try { fs.rmSync(sandbox, { recursive: true, force: true }); } catch { /* leave it to the OS temp cleaner */ }
 });
 
-test('/api/info advertises channelNumbers, and not when PIGTV_CHANNEL_NUMBERS=0', async () => {
+test('/api/info advertises channelNumbers', async () => {
     assert.equal((await get('/api/info')).features.channelNumbers, true);
-    process.env.PIGTV_CHANNEL_NUMBERS = '0';
-    try {
-        assert.equal((await get('/api/info')).features.channelNumbers, undefined);
-    } finally {
-        delete process.env.PIGTV_CHANNEL_NUMBERS;
-    }
 });
 
 test('a completed sync numbers the visible channels in guide order, once per identity', async () => {
@@ -262,18 +255,4 @@ test('0139: numbers never reorder the guide; cursor paging stays exact in provid
     }
     assert.deepEqual(paged.map(c => c.id), all.map(c => c.id), 'cursor pages give the same rows in the same order as the offset listing');
 
-});
-
-test('PIGTV_CHANNEL_NUMBERS=0 puts the guide back in its old order (numbers still present)', async () => {
-    process.env.PIGTV_CHANNEL_NUMBERS = '0';
-    try {
-        const guide = (await get('/api/library/guide?limit=500')).channels;
-        const sortOrders = sqlite.getDb().prepare(`SELECT item_id, COALESCE(sort_order, 999999999) AS so FROM playlist_items`).all();
-        const so = Object.fromEntries(sortOrders.map(r => [r.item_id, r.so]));
-        const keys = guide.map(c => so[c.id]);
-        assert.deepEqual([...keys].sort((a, b) => a - b), keys);
-        assert.ok(guide.some(c => c.number !== null));
-    } finally {
-        delete process.env.PIGTV_CHANNEL_NUMBERS;
-    }
 });

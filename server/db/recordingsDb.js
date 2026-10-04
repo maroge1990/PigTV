@@ -83,7 +83,7 @@ function initSchema() {
         // 0177 (multi-provider P7): the provider (a source id) this recording's
         // connection was on, and which part of its schedule it is - 1 for the first
         // (or only) one, 2 and 3 for the continuations made when a provider died
-        // mid-recording. NULL on recordings made before, and on the tuner's.
+        // mid-recording. NULL on recordings made before.
         'provider_id INTEGER',
         'part INTEGER',
         // 0192 (audit R06): preparing a finished recording for the Apple client
@@ -94,12 +94,6 @@ function initSchema() {
         'native_attempts INTEGER DEFAULT 0',
         // 0203: how it was prepared (2: audio re-encoded and decode-checked); NULL before.
         'native_version INTEGER',
-        // 0127, the tuner model: 'hls' for a recording taken from a tuner's segments
-        // (its folder, hls_dir, holds index.m3u8 and the segments; file_path is that
-        // playlist until the joined MP4 exists). NULL for the .mkv recordings. Added
-        // only once PIGTV_TUNER=1 has been used, so with the tuner never on, the
-        // recordings API's rows are exactly as before.
-        ...(require('../services/tuner').enabled() ? ['format TEXT', 'hls_dir TEXT'] : [])
     ]) {
         try {
             db.exec(`ALTER TABLE recordings ADD COLUMN ${col}`);
@@ -273,20 +267,11 @@ const recordings = {
     findPendingAdDetection() {
         const db = getDb();
         initSchema();
-        // An HLS recording (0127) is analysed once it has been joined into an MP4.
         return db.prepare(`
             SELECT * FROM recordings
             WHERE status = 'completed' AND ad_detect_status = 'pending'
-              AND file_path NOT LIKE '%.m3u8'
             ORDER BY ended_at ASC
         `).all();
-    },
-
-    /** 0127: this recording is taken from a tuner, into this folder. */
-    setHls(id, dir) {
-        const db = getDb();
-        initSchema();
-        db.prepare("UPDATE recordings SET format = 'hls', hls_dir = ? WHERE id = ?").run(dir, id);
     },
 
     setFilePath(id, filePath) {
@@ -424,7 +409,6 @@ const recordings = {
         return db.prepare(`
             SELECT * FROM recordings
             WHERE status = 'completed' AND native_status = 'pending'
-              AND file_path NOT LIKE '%.m3u8'
             ORDER BY ended_at DESC
         `).all();
     },
@@ -457,7 +441,6 @@ const recordings = {
         return db.prepare(`
             UPDATE recordings SET native_status = 'pending'
             WHERE status = 'completed' AND native_status IS NULL
-              AND file_path NOT LIKE '%.m3u8'
         `).run().changes;
     },
 
@@ -481,7 +464,6 @@ const recordings = {
         return db.prepare(`
             SELECT * FROM recordings
             WHERE status = 'completed' AND compress_status = 'pending'
-              AND file_path NOT LIKE '%.m3u8'
             ORDER BY ended_at ASC
         `).all();
     },
@@ -496,7 +478,6 @@ const recordings = {
             VALUES (@scheduled_id, @title, @channel_name, @channel_logo, @source_id, @channel_item_id,
                     @file_path, @started_at, 'recording', @provider_id, @part)
         `);
-        // provider_id/part (0177) are the default path's; the tuner's recordings leave them NULL.
         const info = stmt.run({ provider_id: null, part: null, ...data });
         return this.getById(info.lastInsertRowid);
     },

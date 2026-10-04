@@ -9,9 +9,7 @@ const path = require('node:path');
 // nobody answers within recordingPromptTimeoutMin minutes of the recording
 // actually becoming due (not the earlier announceUpcoming lead-time notice),
 // the recording takes the stream. An explicit "Keep watching" (decline) keeps
-// today's behaviour: wait for playback to stop. Both the classic path
-// (requestForRecording) and the tuner path (requestForRecordingTuned) must
-// behave the same way. Sessions write under <cwd>/transcode-cache; keep that
+// today's behaviour: wait for playback to stop. Sessions write under <cwd>/transcode-cache; keep that
 // out of the repo, same approach as stream-coordinator.test.js.
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-prompt-timeout-'));
 process.chdir(scratch);
@@ -120,58 +118,4 @@ test('default recordingPromptTimeoutMin is 3 when a setting is not supplied', as
 
     backdateDueSince(s.id, 3.1);
     assert.equal((await coordinator.requestForRecording(s, {})).allowed, true, 'just over 3 minutes: takes the stream');
-});
-
-// ---- the tuner path (PIGTV_TUNER=1) must behave the same way ---------------
-
-test('tuner path: no answer within the timeout releases the tuner and lets the recording through', async () => {
-    const tuner = require('../server/services/tuner');
-    const fakeTuner = { id: 'fake-tuner', dead: false, hasFailed: () => false, recordingIds: () => [], viewerOwners: () => ['device:tv'], viewerIdleMs: () => 0, viewers: new Set(['v1']) };
-    const realList = tuner.list;
-    const realDestroy = tuner.destroyTuner;
-    const destroyed = [];
-    tuner.list = () => [fakeTuner];
-    tuner.destroyTuner = async (t, why) => { destroyed.push({ id: t.id, why }); };
-    tuner.findByUrl = () => null;
-
-    try {
-        const s = schedule();
-        const first = await coordinator.requestForRecordingTuned(s, SETTINGS, null);
-        assert.equal(first.allowed, false);
-        assert.equal(first.prompted, true);
-
-        backdateDueSince(s.id, 4);
-        const verdict = await coordinator.requestForRecordingTuned(s, SETTINGS, null);
-        assert.equal(verdict.allowed, true);
-        assert.match(verdict.reason, /No answer/);
-        assert.deepEqual(destroyed.map(d => d.id), ['fake-tuner']);
-        assert.match(destroyed[0].why, /no answer/i);
-    } finally {
-        tuner.list = realList;
-        tuner.destroyTuner = realDestroy;
-    }
-});
-
-test('tuner path: "Keep watching" also keeps waiting, however long', async () => {
-    const tuner = require('../server/services/tuner');
-    const fakeTuner = { id: 'fake-tuner-2', dead: false, hasFailed: () => false, recordingIds: () => [], viewerOwners: () => ['device:tv'], viewerIdleMs: () => 0, viewers: new Set(['v1']) };
-    const realList = tuner.list;
-    const realDestroy = tuner.destroyTuner;
-    const destroyed = [];
-    tuner.list = () => [fakeTuner];
-    tuner.destroyTuner = async (t, why) => { destroyed.push(t.id); };
-    tuner.findByUrl = () => null;
-
-    try {
-        const s = schedule();
-        await coordinator.requestForRecordingTuned(s, SETTINGS, null);
-        coordinator.declinePrompt(s.id);
-        backdateDueSince(s.id, 10);
-        const verdict = await coordinator.requestForRecordingTuned(s, SETTINGS, null);
-        assert.equal(verdict.allowed, false);
-        assert.deepEqual(destroyed, []);
-    } finally {
-        tuner.list = realList;
-        tuner.destroyTuner = realDestroy;
-    }
 });

@@ -18,10 +18,7 @@
  * Assignment runs when a sync completes, after a hide/show, and lazily on the
  * first library request when the table is still empty (an upgraded server
  * whose sources are fresh does not sync on startup).
- *
- * `PIGTV_CHANNEL_NUMBERS=0` is the rollback: the `channelNumbers` flag is not
- * advertised and the guide keeps its old order. Numbers are still kept (and
- * still returned in `number`), so turning it back on reshuffles nothing.
+
  */
 const { getDb } = require('../db/sqlite');
 const { bumpLibraryRev } = require('./libraryRev');
@@ -47,10 +44,6 @@ const VISIBLE_SQL = `p.type = 'live' AND p.is_hidden = 0 AND NOT EXISTS (
 
 // The guide's order before numbers (library.js GUIDE_ORDER_BY).
 const GUIDE_ORDER_SQL = 'ORDER BY COALESCE(p.sort_order, 999999999) ASC, p.name ASC, p.id ASC';
-
-function numbersEnabled() {
-    return process.env.PIGTV_CHANNEL_NUMBERS !== '0';
-}
 
 /**
  * Bring the table up to date with what is visible now. Returns counts; bumps
@@ -122,7 +115,6 @@ module.exports = {
     CHANNEL_KEY_SQL,
     NUMBER_JOIN,
     VISIBLE_SQL,
-    numbersEnabled,
     assignChannelNumbers,
     ensureChannelNumbers,
     refreshChannelNumbers

@@ -24,7 +24,6 @@ fs.mkdirSync(dir, { recursive: true });
 const calls = { ffmpeg: [] };
 let behaviour;
 beforeEach(() => {
-    delete process.env.PIGTV_KEEP_MKV;
     calls.ffmpeg = [];
     // durations/codecs: by file; a file listed as null is one ffprobe cannot read.
     behaviour = { exitCode: 0, durations: {}, codecs: {}, audioErrors: {} };
@@ -157,15 +156,6 @@ test('a result that lost the audio is not accepted', async () => {
     assert.ok(fs.existsSync(r.file));
 });
 
-test('PIGTV_KEEP_MKV=1 prepares but keeps the original', async () => {
-    process.env.PIGTV_KEEP_MKV = '1';
-    const r = makeRecording();
-    await engine._prepareRecording(row(r.id));
-    assert.equal(row(r.id).native_status, 'ready');
-    assert.ok(fs.existsSync(r.file) && fs.existsSync(r.native));
-    assert.equal(row(r.id).file_path, r.file);
-});
-
 test('a restart after the rename finishes the job without remuxing again', async () => {
     const r = makeRecording();
     fs.writeFileSync(r.mp4, 'prepared before the restart');
@@ -185,10 +175,10 @@ test('a recording that is already an MP4 is simply marked ready', async () => {
 });
 
 test('deleting a prepared recording removes the MP4 and any original that was kept', async () => {
-    process.env.PIGTV_KEEP_MKV = '1';
     const r = makeRecording();
+    behaviour.durations[r.file] = null; // an unreadable length: the original is kept beside the MP4
     await engine._prepareRecording(row(r.id));
-    delete process.env.PIGTV_KEEP_MKV;
+    assert.ok(fs.existsSync(r.file) && fs.existsSync(r.native));
     fs.renameSync(r.native, r.mp4);
     getDb().prepare('UPDATE recordings SET file_path = ? WHERE id = ?').run(r.mp4, r.id);
     await engine.deleteRecording(r.id);

@@ -1,13 +1,8 @@
 /**
- * HLS media playlists the server writes itself (the tuner model, 0126-0129).
- *
- * With PIGTV_TUNER=1 a tuner's ffmpeg still writes an HLS playlist, but only the
- * server reads it (parseMediaPlaylist): the segment list it learns from it is kept
- * in memory, and every playlist a client or a recording sees is rendered here
- * (renderMediaPlaylist). That is what lets the server add
- * #EXT-X-PROGRAM-DATE-TIME, keep a window of hours rather than ffmpeg's rolling
- * 90 segments, answer delta updates (_HLS_skip=YES), and write a recording's own
- * EVENT/VOD playlist - none of which ffmpeg's playlist can do for us.
+ * HLS media playlists the server reads and writes itself (0126-0129). A session's
+ * ffmpeg writes its playlist; parseMediaPlaylist reads the segment list from it, and
+ * renderMediaPlaylist writes one the server controls - in-stream recovery (0189)
+ * joins several ffmpegs' segments into one stream with it.
  *
  * Pure functions, no I/O: test/hls-playlist.test.js drives them directly.
  */

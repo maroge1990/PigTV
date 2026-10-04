@@ -493,7 +493,7 @@ function finishEvent(item, keywordOrder) {
 // nothing else to serve) waits - asynchronously - for a build. At most one build runs and one
 // waits behind it; a newer key replaces the waiting one (the latest key wins).
 //
-// If the worker cannot be used (PIGTV_SPORT_WORKER=0, or it will not start or dies) the build
+// If the worker cannot be used (it will not start or dies) the build
 // runs inline as it did before R09 - correct, but it blocks the loop - and a warning says so.
 
 let cache = null; // { key, built }, replaced whole: a reader sees the old result or the new, never a mix
@@ -525,7 +525,10 @@ function status() {
 
 const LOOP_RESOLUTION_MS = 10;
 const loopDelay = monitorEventLoopDelay({ resolution: LOOP_RESOLUTION_MS });
-const workerEnabled = () => process.env.PIGTV_SPORT_WORKER !== '0';
+// Test seam only: a test that edits classification constants in-process builds inline.
+let useWorker = true;
+function _buildInline(on) { useWorker = on === false; }
+const workerEnabled = () => useWorker;
 
 let worker = null;
 let nextMessageId = 1;
@@ -598,7 +601,7 @@ async function computeBuild(from, follow) {
         }
     } else if (!warnedInline) {
         warnedInline = true;
-        console.warn('[Sport] PIGTV_SPORT_WORKER=0: events are built on the main thread (blocks it while building)');
+        console.warn('[Sport] Building events on the main thread (tests only)');
     }
     stats.inlineBuilds++;
     const t0 = process.hrtime.bigint();
@@ -1043,5 +1046,5 @@ module.exports = {
     // 0159: builds run in the background instead of blocking a request
     scheduleRebuild, startBackgroundRebuilds, stopBackgroundRebuilds,
     // R09: builds run on a worker thread
-    status, idle, shutdown, stopWorker
+    status, idle, shutdown, stopWorker, _buildInline
 };

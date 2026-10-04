@@ -17,7 +17,7 @@
  *     even a relay's standby).
  *   - It lives 90 s from the last request that asked for it, then ends. One per owner: warming
  *     something else ends the previous one.
- *   - Never on the tuner path, never for the channel the owner is already watching.
+ *   - Never for the channel the owner is already watching.
  *
  * Counted in memory only (the Status page shows them): hits (a resolve adopted a warm
  * session), misses (a resolve with warming on that found none it could use), expired and
@@ -41,7 +41,7 @@ const stats = { hits: 0, misses: 0, expired: 0, reclaimed: 0 };
 const coordinator = () => require('./streamCoordinator');
 const strategy = () => require('./playbackStrategy');
 
-/** Is warming switched on? The setting, nothing else (the tuner path is excluded by the callers). */
+/** Is warming switched on? The setting, nothing else. */
 const enabled = (settings) => !!settings && settings.warmNextChannel === true;
 
 /** A warm session is reusable by a resolve with the same channel and the same needs. */

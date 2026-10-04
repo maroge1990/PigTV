@@ -47,7 +47,6 @@ transcodeSession.removeSession = async () => {};
 after(() => { transcodeSession.createSession = realCreate; transcodeSession.removeSession = realRemove; });
 
 beforeEach(() => {
-    delete process.env.PIGTV_PROBE_PROFILES;
     delete process.env.PIGTV_PROFILE_MAX_AGE_DAYS;
     sessionReady = true;
     probeCalls = 0;
@@ -143,17 +142,6 @@ test('a profile older than the limit (7 days, or PIGTV_PROFILE_MAX_AGE_DAYS) is 
     laterOn();
     await play(url);
     assert.equal(probeCalls, 3, 'the limit is configurable');
-});
-
-test('PIGTV_PROBE_PROFILES=0 turns it off: every play probes and nothing is stored', async () => {
-    process.env.PIGTV_PROBE_PROFILES = '0';
-    const url = 'http://provider.invalid/live/u/p/441376.ts';
-    await play(url);
-    laterOn();
-    const second = await play(url);
-    assert.equal(probeCalls, 2);
-    assert.equal(rows().length, 0, 'nothing written');
-    assert.match(second.timing, /probe [\d.]+s,/);
 });
 
 test('the capability key separates profiles: a client that decodes HEVC gets its own', async () => {

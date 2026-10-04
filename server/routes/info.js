@@ -18,20 +18,6 @@ const router = express.Router();
 // different rates.
 const API_VERSION = 1;
 
-/**
- * A switchable flag's `{name: true}` or `{}`. A check that throws (a settings
- * or database failure behind it) leaves that flag out and is logged, so
- * /api/info still answers (0138); a client then does not use that feature.
- */
-function safely(flag) {
-    try {
-        return flag();
-    } catch (err) {
-        console.warn('[Info] A feature check failed:', err.message);
-        return {};
-    }
-}
-
 async function sendInfo(req, res) {
     const pkg = require('../../package.json');
     const build = require('../version');
@@ -81,19 +67,10 @@ async function sendInfo(req, res) {
             guideVersion: true,              // GET /api/library/guide/version — cheap "did anything change?" check
             logoCache: true,                 // library `logo` fields are /api/logo/<key>, fetched and cached server-side
             // 0117 (C-A): library rows carry `number` (labels only; 0139 disabled number ordering).
-            // Absent when PIGTV_CHANNEL_NUMBERS=0 (the rollback).
-            ...safely(() => (require('../services/channelNumbers').numbersEnabled() ? { channelNumbers: true } : {})),
+            channelNumbers: true,
             // 0119 (C-D): a `direct` resolve's url is /api/proxy/stream?h=<opaque handle>.
             // Always on since R01 (the PIGTV_PLAYBACK_HANDLES=0 rollback is gone); the flag stays for clients that read it.
             playbackHandles: true,
-            // 0127 (C-E): recordings are taken from tuners and may be played as HLS
-            // (GET /api/recordings/:id/playback answers container "hls", also while
-            // recording). Only with PIGTV_TUNER=1.
-            ...safely(() => (require('../services/tuner').enabled() ? { recordingHls: true } : {})),
-            // 0128 (C-E): a live playlist may be hours long (timeshift), with
-            // PROGRAM-DATE-TIME, delta updates and gzip. Only with PIGTV_TUNER=1 and
-            // PIGTV_TIMESHIFT_HOURS above 0 (default 3).
-            ...safely(() => (require('../services/tuner').timeshiftEnabled() ? { timeshift: true } : {})),
             // 0133 (C-G): library/guide and library/channels rows carry `health`
             // ("ok" | "flaky" | null) from the last 7 days' starts.
             channelHealth: true,

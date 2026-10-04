@@ -341,7 +341,7 @@ function initSchema() {
         }
     }
     // 0174 (multi-provider failover): the provider that served the attempt (or the
-    // last one tried, for a failure). NULL for rows before 0174 and for the tuner path.
+    // last one tried, for a failure). NULL for rows before 0174.
     try {
         db.exec('ALTER TABLE channel_health ADD COLUMN provider_id INTEGER');
     } catch (e) {

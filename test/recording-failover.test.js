@@ -13,11 +13,6 @@ const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-rec-failover-'));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
 fs.cpSync(path.join(__dirname, '../package.json'), path.join(sandbox, 'package.json'));
 fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'node_modules'), 'junction');
-delete process.env.PIGTV_TUNER;
-// 0193: the fake ffmpeg below counts every start; background preparation of the
-// recordings earlier tests finished would run it too and be counted. Preparation has
-// its own tests (recording-prepare.test.js).
-process.env.PIGTV_NATIVE_PREPARE = '0';
 process.chdir(sandbox);
 
 const load = p => require(path.join(sandbox, 'server', p));
@@ -26,6 +21,9 @@ const sqlite = load('db/sqlite');
 const transcodeSession = load('services/transcodeSession');
 const coordinator = load('services/streamCoordinator');
 const engine = load('services/recordingEngine');
+// 0193: the fake ffmpeg below counts every start; background preparation of the recordings
+// earlier tests finished would run it too and be counted (preparation: recording-prepare.test.js).
+engine._setPrepareQueue(false);
 const routing = load('services/providerRouting');
 const { scheduled, recordings } = load('db/recordingsDb');
 

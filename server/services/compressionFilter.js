@@ -46,30 +46,10 @@ function isExcludedPath(path) {
     return EXCLUDED_PATH_PREFIXES.some(p => path.startsWith(p)) || EXCLUDED_RECORDING_PATH.test(path);
 }
 
-// The tuner model (PIGTV_TUNER=1, 0128): a timeshift playlist is hours of
-// segments (a few hundred KB) polled every few seconds, and a recording's grows
-// as long, so those two PLAYLISTS may be gzipped - by exact path and only as
-// application/vnd.apple.mpegurl. Segments, init segments and every other HLS or
-// media response stay excluded exactly as above. With the tuner off this never
-// matches, so nothing changes.
-const TUNER_PLAYLIST_PATH = /^\/api\/(?:transcode\/[^/]+\/(?:stream|master)\.m3u8|recordings\/\d+\/index\.m3u8)$/;
-const PLAYLIST_TYPE = 'application/vnd.apple.mpegurl';
-
-function isTunerPlaylist(path) {
-    return TUNER_PLAYLIST_PATH.test(path) && require('./tuner').enabled();
-}
-
 function shouldCompress(req, res) {
     if (req.headers.range) return false;
 
     const path = req.path || req.originalUrl || '';
-    // The full path: inside a mounted router req.path has lost its mount point
-    // by the time the response is written.
-    const fullPath = String(req.originalUrl || path).split('?')[0];
-    if (isTunerPlaylist(fullPath)) {
-        const type = String(res.getHeader('Content-Type') || '').split(';')[0].trim().toLowerCase();
-        return type === PLAYLIST_TYPE;
-    }
     if (isExcludedPath(path)) return false;
 
     const contentType = res.getHeader('Content-Type');
@@ -78,4 +58,4 @@ function shouldCompress(req, res) {
     return COMPRESSIBLE_TYPES.has(type);
 }
 
-module.exports = { shouldCompress, isExcludedPath, isTunerPlaylist, COMPRESSIBLE_TYPES, EXCLUDED_PATH_PREFIXES };
+module.exports = { shouldCompress, isExcludedPath, COMPRESSIBLE_TYPES, EXCLUDED_PATH_PREFIXES };

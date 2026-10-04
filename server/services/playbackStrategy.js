@@ -24,7 +24,7 @@
  * stream that would have played untouched.
  */
 
-const { probeStream, analyzeProbeResult, reanalyzeForCaps, probeCache, CACHE_TTL, parseFrameRate } = require('./streamProbe');
+const { probeStream, analyzeProbeResult, probeCache, CACHE_TTL, parseFrameRate } = require('./streamProbe');
 const transcodeSession = require('./transcodeSession');
 const channelProfiles = require('./channelProfiles');
 const { MESSAGES: FAILURE_TEXT } = require('./playbackErrors');
@@ -159,7 +159,7 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     // 2. Everything else is an HLS session.
     const plan = sessionPlan({ info, caps, settings, userAgent, owner, live, upscale, audioEncode });
     // Which provider's connection the session holds (0173): the coordinator counts it in that
-    // provider's pool. Set here, not in sessionPlan, so a tuner's key never depends on it.
+    // provider's pool. Set here, not in sessionPlan, which plans the ffmpeg only.
     // R11: the connection lease the caller took when it admitted this start. It is checked just
     // before the session exists (it may have been reclaimed while the probe ran: a viewer
     // arrived and took the connection a standby or warm start was holding) and bound to the
@@ -217,7 +217,7 @@ function directDecision(url, info, probeNote, note = '') {
 }
 
 /**
- * How an HLS session (or a tuner) is run for this analysis and client: copy what
+ * How an HLS session is run for this analysis and client: copy what
  * the client can decode, re-encode only what it cannot. Returns the session
  * options plus the decisions the log and the response report.
  */
@@ -297,7 +297,7 @@ function sessionPlan({ info, caps, settings, userAgent, owner, live, upscale, au
 /**
  * The first segment is there or it is not: log the start (`resolve timing`), keep
  * or drop the channel profile, and on a failure remove the session and throw the
- * client's sentence. `note` is appended to the timing line (the tuner's).
+ * client's sentence. `note` is appended to the timing line.
  */
 async function afterStart({ session, ready, info, plan, probeNote, fromProfile, probedAt, cacheKey, sessionStartedAt, remove, note = '' }) {
     const { videoMode, videoRange, frameRate } = plan;
@@ -367,256 +367,6 @@ function sessionDecision(sessionId, plan, info) {
     };
 }
 
-// ---------------------------------------------------------------------------
-// The tuner model (PIGTV_TUNER=1, 0126; contract C-E). The same analysis, the
-// same plan and the same ffmpeg arguments as resolve() above; what differs is
-// who owns the ffmpeg. A viewer attaches to a tuner, and a second viewer whose
-// plan produces the same arguments joins the running one - or, from 0155, one on
-// the same stream whose output it can play (canPlayTunerOutput). Admission (the
-// coordinator) is part of this, not the route's first step, because whether a
-// provider slot is needed at all depends on the plan.
-// ---------------------------------------------------------------------------
-
-/**
- * @returns {Promise<{decision?: object, verdict?: object}>} `verdict` (not allowed,
- *          with the 409's conflict) or the resolve decision.
- */
-async function resolveTuned({ url, capabilities = {}, settings, ffprobePath, upscale = false, owner = null, live = false,
-    audioEncode = false, force = false, activeRecordings = [], onSacrifice = null }) {
-    const tuner = require('./tuner');
-    const coordinator = require('./streamCoordinator');
-    const caps = { ...DEFAULT_CAPABILITIES, ...capabilities };
-    const userAgent = db.getUserAgent(settings);
-    const cacheKey = analysisKey(url, userAgent, caps);
-
-    let admitted = null;
-    const admit = async (key = null) => {
-        const verdict = await coordinator.admitTuner({ force, settings, owner, key, activeRecordings, onSacrifice });
-        if (!verdict.allowed) return verdict;
-        admitted = verdict;
-        return null;
-    };
-
-    // The analysis, never by opening a second connection to a stream a tuner is
-    // already reading: cache, profile, then the running tuner's own analysis
-    // re-read for this client's capabilities, and only then a probe - after the
-    // coordinator has made room for it, as before.
-    let analysis = storedAnalysis(cacheKey);
-    if (!analysis) {
-        const running = tuner.findByUrl(url);
-        if (running && running.info) {
-            const info = reanalyzeForCaps(running.info, url, caps);
-            analysis = { info, probeNote: 'cached', fromProfile: false, probedAt: Date.now() };
-            probeCache.set(cacheKey, { result: info, timestamp: Date.now(), probedAt: analysis.probedAt });
-        }
-    }
-    if (!analysis) {
-        const refused = await admit();
-        if (refused) return { verdict: refused };
-        analysis = await probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey });
-    }
-    const { info, probeNote, fromProfile, probedAt } = analysis;
-    noteStart(owner, analysis);
-
-    if (info.compatible && !upscale) {
-        if (!admitted) {
-            const refused = await admit();
-            if (refused) return { verdict: refused };
-        }
-        return { decision: directDecision(url, info, probeNote) };
-    }
-
-    let plan = sessionPlan({ info, caps, settings, userAgent, owner, live, upscale, audioEncode });
-    const ideal = tuner.prepare(url, { ...plan.options, info, ...tuner.placement(settings) });
-    let { tuner: t, joined } = ideal;
-    // 0155: no tuner with this viewer's own arguments, but one on the same stream
-    // whose output this viewer can play (e.g. a recording's AAC-LC tuner and an
-    // Apple TV that would have copied HE-AAC): join that, rather than ask for a
-    // second provider slot. An exact match always wins; then a compatible one.
-    let compatible = joined ? null : findCompatibleTuner(tuner, url, caps, { upscale, audioEncode });
-    if (compatible) {
-        t = compatible;
-        joined = true;
-    }
-    if (!joined && !admitted) {
-        const refused = await admit(t.key);
-        if (refused) return { verdict: refused };
-    }
-    // Admission may have waited on a release: someone else may have started the
-    // very same tuner (or a compatible one) meanwhile. Checked and registered with
-    // no await in between.
-    const again = compatible ? null : tuner.findByKey(t.key);
-    if (again) {
-        t = again;
-        joined = true;
-    } else if (!joined) {
-        compatible = findCompatibleTuner(tuner, url, caps, { upscale, audioEncode });
-        if (compatible) {
-            t = compatible;
-            joined = true;
-        } else {
-            tuner.register(t);
-        }
-    }
-    if (compatible) {
-        // The response describes what the joined tuner writes, not this viewer's ideal.
-        console.log(`[Playback] joined compatible tuner ${t.id} (viewer wanted ${outputDiff(ideal.tuner.output, t.output)})`);
-        plan = tunerPlan(t);
-    }
-
-    const viewer = tuner.addViewer(t, { owner, live });
-    const startedAt = Date.now();
-    if (!joined) {
-        try {
-            await tuner.start(t);
-        } catch (err) {
-            await tuner.destroyTuner(t, 'failed to start');
-            throw err;
-        }
-    }
-    const ready = await t.waitForPlaylist(15000);
-    await afterStart({
-        session: t, ready, info, plan, probeNote, fromProfile, probedAt, cacheKey, sessionStartedAt: startedAt,
-        note: joined ? `, shared tuner ${t.id} (${t.viewers.size} viewers)` : `, tuner ${t.id}`,
-        remove: async () => {
-            await tuner.releaseViewer(viewer.id);
-            // A tuner that never produced a segment is no use to anyone else either.
-            if (t.window.length === 0) await tuner.destroyTuner(t, 'no first segment');
-        }
-    });
-    return { decision: sessionDecision(viewer.id, plan, info) };
-}
-
-/**
- * Whether a client with these capabilities can play what a running tuner writes
- * (0155), whatever arguments its own plan would have produced:
- *   video   H.264 always; HEVC with caps.hevc (and never out of MPEG-TS for a
- *           client that takes fMP4: hls.js cannot demux it); AV1 with caps.av1
- *   segments fMP4 with caps.fmp4; MPEG-TS always
- *   audio   AAC-LC (copied or encoded), MP3, Opus, Vorbis always; copied HE-AAC
- *           with caps.heaac; AC-3/E-AC-3/FLAC with caps.ac3/eac3/flac
- * A viewer asking for an upscale joins only its exact key; one asking for its audio
- * re-encoded (audioEncode: its decoder choked on the source's frames) joins no tuner
- * that copies the audio.
- */
-function canPlayTunerOutput(out, caps, { upscale = false, audioEncode = false } = {}) {
-    if (!out || upscale) return false;
-    if (out.video === 'hevc') {
-        if (caps.hevc !== true) return false;
-        if (out.segmentType === 'mpegts' && caps.fmp4 === true) return false;
-    } else if (out.video === 'av1') {
-        if (caps.av1 !== true) return false;
-    } else if (out.video !== 'h264') {
-        return false;
-    }
-    if (out.segmentType === 'fmp4' && caps.fmp4 !== true) return false;
-    if (out.audioCopied && audioEncode) return false;
-    switch (out.audio) {
-    case 'none': case 'aac': case 'mp3': case 'opus': case 'vorbis': return true;
-    case 'heaac': return caps.heaac === true;
-    case 'ac3': return caps.ac3 === true;
-    case 'eac3': return caps.eac3 === true;
-    case 'flac': return caps.flac === true;
-    default: return false;
-    }
-}
-
-/** The running tuner on this stream this client can play, most segments first; null if none. */
-function findCompatibleTuner(tuner, url, caps, opts) {
-    return tuner.listByUrl(url).find(t => canPlayTunerOutput(t.output, caps, opts)) || null;
-}
-
-/** What the viewer's own plan would have written that the joined tuner does not, for the log. */
-function outputDiff(wanted, got) {
-    if (!wanted || !got) return 'other arguments';
-    const say = (o, k) => {
-        if (k === 'video') return `video ${o.video} ${o.videoCopied ? 'copied' : 'encoded'}`;
-        if (k === 'audio') return `audio ${o.audio === 'heaac' ? 'HE-AAC' : (o.audio === 'aac' ? 'AAC-LC' : o.audio)} ${o.audioCopied ? 'copied' : 'encoded'}`;
-        if (k === 'segmentType') return `${o.segmentType} segments`;
-        return `range ${o.videoRange || 'none'}`;
-    };
-    const parts = [];
-    for (const k of ['video', 'segmentType', 'audio', 'videoRange']) {
-        const differs = k === 'video' ? (wanted.video !== got.video || wanted.videoCopied !== got.videoCopied)
-            : (k === 'audio' ? (wanted.audio !== got.audio || wanted.audioCopied !== got.audioCopied) : wanted[k] !== got[k]);
-        if (differs) parts.push(`${say(wanted, k)}, tuner has ${say(got, k)}`);
-    }
-    return parts.length ? parts.join('; ') : 'other ffmpeg arguments, same output';
-}
-
-/** A plan (for the log and the response) describing a running tuner's own output. */
-function tunerPlan(t) {
-    const out = t.output || {};
-    const videoRange = t.options.videoRange || null;
-    return {
-        options: t.options,
-        videoMode: out.videoCopied ? 'copy' : 'encode',
-        segmentType: t.options.segmentType === 'fmp4' ? 'fmp4' : 'mpegts',
-        videoRange,
-        frameRate: parseFrameRate(t.options.fps),
-        codecsOk: !!(out.videoCopied && out.audioCopied),
-        canCopyVideo: !!out.videoCopied,
-        upscale: false
-    };
-}
-
-/**
- * The capabilities a recording's own tuner is planned with (0127): exactly what
- * the Apple TV reported by default before app build 27, so a recording and an
- * Apple TV on the same channel produce the same arguments and share one tuner
- * whichever started first (for H.264/HEVC + AAC-LC the web's arguments are the
- * same too). No `heaac` (0130): HE-AAC (the provider's 7 channels) is re-encoded
- * to AAC-LC in a recording, which also plays in a browser. Since app build 27 the
- * Apple client always sends `heaac: true`, so on those channels its own arguments
- * (HE-AAC copied into fMP4) differ from the recording's (AAC-LC in MPEG-TS); what
- * lets the TV share the recording's tuner anyway, with no 409 "recording in
- * progress", is compatible joining (0155, findCompatibleTuner): it can play
- * AAC-LC in MPEG-TS, so it joins the running tuner instead of needing a slot.
- */
-const RECORDING_CAPABILITIES = { hls: true, segmentedDelivery: true, fmp4: true, hevc: true, av1: false,
-    ac3: true, eac3: true, flac: false };
-
-/**
- * A tuner for a recording: the one already on this stream (whatever its
- * arguments), or a new one started with RECORDING_CAPABILITIES. The caller holds
- * it. Throws the client-style sentence when it cannot start.
- */
-async function acquireTunerForRecording({ url, settings, ffprobePath }) {
-    const tuner = require('./tuner');
-    const running = tuner.findByUrl(url);
-    if (running) return { tuner: running, shared: true };
-
-    const caps = { ...DEFAULT_CAPABILITIES, ...RECORDING_CAPABILITIES };
-    const userAgent = db.getUserAgent(settings);
-    const cacheKey = analysisKey(url, userAgent, caps);
-    const analysis = storedAnalysis(cacheKey) || await probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, deadlineAt });
-    const { info, probeNote, fromProfile, probedAt } = analysis;
-    // Never `direct` for a recording: it always needs segments on disk.
-    const plan = sessionPlan({ info, caps, settings, userAgent, owner: null, live: true, upscale: false, audioEncode: false });
-    const { tuner: t } = tuner.prepare(url, { ...plan.options, info, ...tuner.placement(settings) });
-    const again = tuner.findByKey(t.key) || tuner.findByUrl(url);
-    if (again) return { tuner: again, shared: true };
-    tuner.register(t);
-    // Held from the start, so no sweep or release can take it while it starts.
-    tuner.hold(t, 'starting');
-    const startedAt = Date.now();
-    try {
-        await tuner.start(t);
-        const ready = await t.waitForPlaylist(15000);
-        await afterStart({
-            session: t, ready, info, plan, probeNote, fromProfile, probedAt, cacheKey, sessionStartedAt: startedAt,
-            note: `, tuner ${t.id} for a recording`,
-            remove: () => tuner.destroyTuner(t, 'no first segment')
-        });
-    } catch (err) {
-        await tuner.destroyTuner(t, 'failed to start');
-        throw err;
-    } finally {
-        t.holds.delete('starting');
-    }
-    return { tuner: t, shared: false };
-}
-
 /**
  * The client's text for a failed probe (0118, C-B): ffprobe reports the same
  * "Server returned ..." / "Connection refused" lines ffmpeg does, so the same
@@ -638,4 +388,4 @@ function probeFailureMessage(err) {
     return reason ? reason.message : FAILURE_TEXT.couldNotRead();
 }
 
-module.exports = { supersededError, SUPERSEDED_MESSAGE, resolve, resolveTuned, acquireTunerForRecording, RECORDING_CAPABILITIES, DEFAULT_CAPABILITIES, probeFailureMessage, canPlayTunerOutput };
+module.exports = { supersededError, SUPERSEDED_MESSAGE, resolve, DEFAULT_CAPABILITIES, probeFailureMessage };
