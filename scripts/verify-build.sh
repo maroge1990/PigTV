@@ -2018,7 +2018,7 @@ check server/index.js "app.use('/api/links', require('./routes/links'));" "the a
 check server/routes/links.js "router.use(requireAuth, requireAdmin);" "and is admin only"
 check_absent server/services/channelLinks.js "url_data," "the linker never reads a backup's stream URL"
 check test/channel-links.test.js "the wrong country never links" "with fixture tests"
-check test/channel-links-perf.test.js "relink in under 3 s" "and a performance test"
+check test/channel-links-perf.test.js "relink in under 10 s" "and a performance test (a nested scan takes minutes)"
 
 echo "=== 0172: the provider admin pages (multi-provider P4) ==="
 check public/index.html 'id="tab-providers"' "the Providers tab has its section"

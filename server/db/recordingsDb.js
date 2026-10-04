@@ -161,6 +161,7 @@ const scheduled = {
 
     getById(id) {
         const db = getDb();
+        initSchema(); // a fresh database has no table until this has run once
         return row(db.prepare('SELECT * FROM scheduled_recordings WHERE id = ?').get(id));
     },
 
@@ -179,6 +180,7 @@ const scheduled = {
 
     listAll() {
         const db = getDb();
+        initSchema(); // a fresh database has no table until this has run once
         return db.prepare(`SELECT * FROM scheduled_recordings ORDER BY program_start DESC LIMIT 500`).all();
     },
 
@@ -501,16 +503,19 @@ const recordings = {
 
     getById(id) {
         const db = getDb();
+        initSchema(); // a fresh database has no table until this has run once
         return row(db.prepare('SELECT * FROM recordings WHERE id = ?').get(id));
     },
 
     listAll() {
         const db = getDb();
+        initSchema(); // a fresh database has no table until this has run once
         return db.prepare(`SELECT * FROM recordings ORDER BY started_at DESC LIMIT 500`).all();
     },
 
     finish(id, { status, ended_at, file_size_bytes, duration_sec, error }) {
         const db = getDb();
+        initSchema(); // a fresh database has no table until this has run once
         db.prepare(`
             UPDATE recordings
             SET status = @status, ended_at = @ended_at, file_size_bytes = @file_size_bytes,
@@ -522,11 +527,13 @@ const recordings = {
 
     findInProgress() {
         const db = getDb();
+        initSchema(); // a fresh database has no table until this has run once
         return db.prepare(`SELECT * FROM recordings WHERE status = 'recording'`).all();
     },
 
     delete(id) {
         const db = getDb();
+        initSchema(); // a fresh database has no table until this has run once
         db.prepare('DELETE FROM recordings WHERE id = ?').run(id);
     }
 };

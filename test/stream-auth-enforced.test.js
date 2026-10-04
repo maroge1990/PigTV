@@ -21,6 +21,9 @@ process.env.JWT_SECRET = SECRET;
 function sandboxCopy(prefix) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
     fs.cpSync(path.join(__dirname, '../server'), path.join(dir, 'server'), { recursive: true });
+    // version.js reads ../package.json: without it the spawned server dies at once (it used to
+    // pass only when something else happened to leave one where Node looked).
+    fs.cpSync(path.join(__dirname, '../package.json'), path.join(dir, 'package.json'));
     fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(dir, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
     return dir;
 }
@@ -51,12 +54,22 @@ before(async () => {
     const port = await freePort();
     base = `http://127.0.0.1:${port}`;
     child = spawn(process.execPath, ['server/index.js'], {
-        cwd: serverSandbox, stdio: 'ignore', env: { ...process.env, PORT: String(port), JWT_SECRET: SECRET }
+        cwd: serverSandbox, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, PORT: String(port), JWT_SECRET: SECRET }
     });
-    for (let i = 0; i < 100; i++) {
-        try { if ((await fetch(`${base}/api/version`)).ok) break; } catch { /* not up yet */ }
-        await new Promise(r => setTimeout(r, 100));
+    // Its output, kept (the last part) so a server that never comes up says why.
+    let output = '';
+    const keep = (d) => { output = (output + d).slice(-4000); };
+    child.stdout.on('data', keep);
+    child.stderr.on('data', keep);
+    // Up to 60 s: a shared CI runner once took over 10 s to start it, and every test here then
+    // failed with "fetch failed" and no reason.
+    let up = false;
+    for (let i = 0; i < 600 && !up; i++) {
+        try { up = (await fetch(`${base}/api/version`)).ok; } catch { /* not up yet */ }
+        if (!up) await new Promise(r => setTimeout(r, 100));
+        if (child.exitCode !== null) break;
     }
+    assert.ok(up, `the server never answered on ${base} (exit ${child.exitCode}):\n${output}`);
     const setup = await fetch(`${base}/api/auth/setup`, { method: 'POST', ...json(null, { username: 'owner', password: 'owner-password' }) });
     adminToken = (await setup.json()).token;
     assert.ok(adminToken, 'first-run admin');
