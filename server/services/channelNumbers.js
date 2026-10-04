@@ -46,12 +46,17 @@ const LINKED_SIBLING_SQL = `EXISTS (
       AND l.status IN ('auto', 'approved', 'manual')
 )`;
 
-// A visible live channel: not hidden itself, nor in a hidden category, nor a linked sibling.
-const VISIBLE_SQL = `p.type = 'live' AND p.is_hidden = 0 AND NOT EXISTS (
+// A listed live channel: not hidden itself, nor in a hidden category. What the linker
+// (channelLinks.js) works from: it must see a sibling it has linked, or the next relink
+// would drop that link (0205).
+const LISTED_SQL = `p.type = 'live' AND p.is_hidden = 0 AND NOT EXISTS (
     SELECT 1 FROM categories c
     WHERE c.source_id = p.source_id AND c.type = p.type
       AND c.category_id = p.category_id AND c.is_hidden = 1
-) AND NOT ${LINKED_SIBLING_SQL}`;
+)`;
+
+// A visible live channel (guide, channel list, numbers, sport): listed, and not a linked sibling.
+const VISIBLE_SQL = `${LISTED_SQL} AND NOT ${LINKED_SIBLING_SQL}`;
 
 // The guide's order before numbers (library.js GUIDE_ORDER_BY).
 const GUIDE_ORDER_SQL = 'ORDER BY COALESCE(p.sort_order, 999999999) ASC, p.name ASC, p.id ASC';
@@ -125,6 +130,7 @@ module.exports = {
     NUMBER_SENTINEL,
     CHANNEL_KEY_SQL,
     NUMBER_JOIN,
+    LISTED_SQL,
     VISIBLE_SQL,
     LINKED_SIBLING_SQL,
     assignChannelNumbers,

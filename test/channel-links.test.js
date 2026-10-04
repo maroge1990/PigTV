@@ -329,11 +329,20 @@ test('a sibling whose link is rejected is listed again, and the guide version mo
     const { currentGuideVersion } = load('services/libraryRev');
     const { VISIBLE_SQL } = load('services/channelNumbers');
     const listed = (key) => sqlite.getDb().prepare(`SELECT 1 FROM playlist_items p WHERE ${VISIBLE_SQL} AND COALESCE(p.stable_id, p.item_id) = ?`).get(key) !== undefined;
-    // The first relink after siblings were hidden may settle a few picks among identical feeds
-    // (four "TSN 3 (BK) RAW"s); after that, a relink with nothing new changes nothing.
-    await quiet(() => links.relinkAll());
+    // Hiding a linked sibling must not hide it from the linker: every relink sees the same
+    // channels and keeps the same links (0205: the linker listed only the guide's channels, so
+    // each relink dropped the sibling links the one before had made, and failover, recovery
+    // and the standby lost the provider's own backup feeds every other sync).
+    const siblingLinks = () => sqlite.getDb().prepare(`SELECT primary_key || '>' || backup_stream_id || ':' || status AS k FROM channel_links
+        WHERE method = 'sibling' ORDER BY k`).all().map(r => r.k).join(',');
+    const linksBefore = siblingLinks();
     const before = currentGuideVersion();
-    await quiet(() => links.relinkAll());
+    for (let i = 0; i < 3; i++) {
+        await quiet(() => links.relinkAll());
+        assert.equal(siblingLinks(), linksBefore, `relink ${i + 1} kept every sibling link`);
+        assert.deepEqual(links.usableLinks(primary.id, 's604331'), [{ backupSourceId: primary.id, streamId: 's1568686', method: 'sibling' }],
+            `relink ${i + 1}: NHL Network still fails over to its backup feed`);
+    }
     assert.equal(currentGuideVersion(), before, 'nothing changed: no new version');
     sqlite.getDb().prepare("UPDATE channel_links SET status = 'rejected' WHERE primary_source_id = ? AND primary_key = 's604331' AND method = 'sibling'").run(primary.id);
     assert.ok(listed('s1568686'), 'unlinked, the backup feed is the only way to reach it: listed');

@@ -104,12 +104,13 @@ Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "entrypoint|Relay|Coor
 - [ ] P4 Run the audio check from 4 Oct on the new `.mp4`: `0 errors` (or only a handful).
 - [ ] P5 Settings → Transcoding: tick In-stream recovery and Hot standby, then untick In-stream recovery: Hot standby unticks too and stays unticked after a page reload.
 
-**Q. The simplification build (server 0204 · app 39, 4 Oct). Behaviour should be unchanged apart from Q2.**
+**Q. The simplification build (server 0204–0205 · app 39, 4 Oct). Behaviour should be unchanged apart from Q2.**
 - [ ] Q1 `/api/version` says **0204**; Settings → About on the Apple TV says build **39**. Remove `PIGTV_KEEP_MKV` from the Unraid template (it is ignored now).
 - [ ] Q2 TV Guide: ESPN, NFL RedZone and Sky Sports Main Event each appear **once** (no "(Backup)" copy beside them). Play one, then (if you can) break Strong8K's address as in D3: it still fails over to its backup feed.
 - [ ] Q3 With Warm the next channel on: watching ESPN, channel up warms the real next channel (Status → Providers shows `warm` on that channel, not on "ESPN (Backup)").
 - [ ] Q4 Everyday checks still pass: a live channel, the Guide, Sport, a recording (record, play, delete), Settings switches, Status page.
 - [ ] Q5 The app: Home, Guide, Sport, Recordings and Settings behave as in app 38 (this build only reorganised code and tests).
+- [ ] Q6 (0205) Settings → Transcoding: In-stream recovery and Hot standby on. Play ESPN for a minute: Status shows the stream `standby-ready` with a backup named, as in L4. Then rerun L2/L3 (provider lost mid-play: the picture carries on). Settings → **Backup links** still lists the "(Backup)" siblings after a sync.
 
 **G. Still open from earlier rounds**
 - [x] G1 R6.3 again: recordings folder set back to `/app/recordings/SERVER01_Video/Recordings`; a bad path is refused.

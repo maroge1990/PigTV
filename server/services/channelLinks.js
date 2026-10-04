@@ -31,7 +31,7 @@
  * Nothing here returns a stream URL or a login: `url_data` is never read.
  */
 const { getDb } = require('../db/sqlite');
-const { VISIBLE_SQL, NUMBER_JOIN } = require('./channelNumbers');
+const { LISTED_SQL, NUMBER_JOIN } = require('./channelNumbers');
 const providerFields = require('./providerFields');
 
 const MAX_RANK = 3;
@@ -440,7 +440,7 @@ function providers() {
 /** The provider's stream id in a stable id (`s1562537` -> `1562537`), else null. */
 const streamIdOf = stableId => { const m = /^s(\d+)$/.exec(String(stableId || '')); return m ? m[1] : null; };
 
-/** The visible live channels of a primary source, one per identity, describe()'d. */
+/** The listed live channels of a primary source (linked siblings included), one per identity, describe()'d. */
 function visibleChannels(sourceId) {
     const epgMapping = require('./epgMapping');
     const rows = getDb().prepare(`
@@ -449,7 +449,7 @@ function visibleChannels(sourceId) {
         FROM playlist_items p
         LEFT JOIN categories c ON c.source_id = p.source_id AND c.type = p.type AND c.category_id = p.category_id
         ${NUMBER_JOIN}
-        WHERE ${VISIBLE_SQL} AND p.source_id = ?
+        WHERE ${LISTED_SQL} AND p.source_id = ?
         ORDER BY COALESCE(p.sort_order, 999999999), p.name, p.id
     `).all(sourceId);
     const rawMap = require('./rawChannels').loadMap(sourceId);
