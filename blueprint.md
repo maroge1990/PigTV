@@ -40,9 +40,9 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Development is on Mark's MacBook only (from 23 Sept). |
 | CI | Both repos are **public** since 30 Sept (free Actions minutes; history checked for secrets). `gh` is signed in on the MacBook: `gh run view <id> --log-failed`. On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings (fixed 28 Sept):** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (so an SMB share that mounts late or reconnects appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs (schedule #3 failed with "0.0 GB free"). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
-| Shipped through | **0204** and app **39** (4 Oct; §6). Whether a build is *running* is whatever `/api/version` says. |
-| Next build number | **0206** |
-| Tests | `npm test`: **878 tests, all pass** (4 Oct, Node 24.21, Homebrew ffmpeg; tests that need ffmpeg skip without one; speed budgets run locally, and in CI's non-blocking `perf` job). `bash scripts/verify-build.sh .` passes. |
+| Shipped through | **0206** and app **40** (10 Oct; §6). Whether a build is *running* is whatever `/api/version` says. |
+| Next build number | **0207** |
+| Tests | `npm test`: **882 tests, all pass** (10 Oct, Node 24.21, Homebrew ffmpeg; tests that need ffmpeg skip without one; speed budgets run locally, and in CI's non-blocking `perf` job). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -447,7 +447,7 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 
 ## 6. Status (4 Oct 2026)
 
-**Shipped through 0205 and app 39.** Every item of the 23 Sept review is built; the 3 Oct independent audit
+**Shipped through 0206 and app 40.** Every item of the 23 Sept review is built; the 3 Oct independent audit
 (`audit/ROADMAP.md`) is done: Phase 1-2 in 0192-0196 + app 37, Phase 3 in 0197-0202 + app 38, recording audio in 0203,
 and the simplification build in 0204 + app 39 (R13, segmented recordings, was skipped by Mark). The build-by-build
 record 0106-0203 is in `docs/archive/blueprint-history-0106-0203.md`; §8 keeps one line per build.
@@ -631,6 +631,7 @@ lines (the classifier has seen one uneven feed in five) · the 20 s stall timeou
 | 0203 | Captures are MPEG-TS; preparation re-encodes audio to AAC-LC and decode-checks before deleting an original |
 | 0204 | Simplification: tuner model and six rollback flags removed, recording engine split, verify-build slimmed, test helpers; linked "(Backup)" siblings not listed |
 | 0205 | The linker sees linked siblings again (0204 dropped and remade their links on alternate relinks) |
+| 0206 | Pig family brand 1.6.0: PigTV product pig and lockups, favicons and manifest, corner bloom, loading splash, glass navbar, rounded numerals |
 
 ---
 
