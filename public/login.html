@@ -5,14 +5,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign in — PigTV</title>
-    <link rel="icon" type="image/png" href="/img/pigtv-logo.png">
+    <link rel="icon" type="image/svg+xml" href="/img/brand/web-small-light.svg" media="(prefers-color-scheme: light)">
+    <link rel="icon" type="image/svg+xml" href="/img/brand/web-small-dark.svg" media="(prefers-color-scheme: dark)">
+    <link rel="icon" href="/img/brand/favicon-light.ico" sizes="any" media="(prefers-color-scheme: light)">
+    <link rel="icon" href="/img/brand/favicon-dark.ico" sizes="any" media="(prefers-color-scheme: dark)">
+    <link rel="apple-touch-icon" href="/img/brand/web-light-180.png">
+    <link rel="manifest" href="/site.webmanifest">
     <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/pig-radiance.css">
+    <link rel="stylesheet" href="css/pig-glass.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             margin: 0;
             padding: 0;
-            background: radial-gradient(ellipse 650px 550px at 50% 38%, rgba(239,122,174,.18), transparent 78%), var(--color-bg-primary);
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         }
 
@@ -40,27 +46,52 @@
             margin-bottom: var(--space-2xl);
         }
 
-        .login-logo .logo-icon {
-            width: 64px;
-            height: 64px;
-            margin: 0 auto var(--space-md);
-            color: var(--color-accent);
-            object-fit: contain; display: block; transform: translateY(7.544%);
+        /* Stacked lockup (473 x 436), theme-switched. The halo sits behind the pig only, above the form:
+           the pig's optical centre is at 49.9% / 38.7% of the lockup (measured from the ink), the visible
+           pig is 256/473 = 54.1% of its width, and the halo radius is 1.35x that = 73.1% of the width. */
+        .login-lockup-wrap {
+            position: relative;
+            width: 240px;
+            max-width: 100%;
+            margin: 0 auto var(--space-sm);
+            font-size: 0; /* the h1 holds only the lockup image */
         }
 
-        .login-logo h1 {
-            font-family: 'Arial Rounded MT Bold', system-ui, sans-serif;
-            font-size: 28px;
-            font-weight: 500;
-            color: var(--color-text-primary);
-            margin: 0;
+        .login-lockup-wrap::before {
+            content: "";
+            position: absolute;
+            left: 49.9%;
+            top: 38.7%;
+            width: 146.2%;
+            aspect-ratio: 1;
+            transform: translate(-50%, -50%);
+            background: radial-gradient(circle closest-side, var(--pig-halo-core) 0%, var(--pig-halo-inner) 35%, var(--pig-halo-outer) 70%, transparent 100%);
+            pointer-events: none;
         }
 
-        .login-logo .brand-accent {
-            color: var(--color-accent);
+        @media (prefers-reduced-transparency: reduce) {
+            .login-lockup-wrap::before { display: none; }
+        }
+
+        .login-lockup {
+            position: relative;
+            display: block;
+            width: 100%;
+            aspect-ratio: 473 / 436;
+            background: url('/img/brand/lockup-stacked-dark.svg') center / contain no-repeat;
+        }
+
+        [data-theme="light"] .login-lockup { background-image: url('/img/brand/lockup-stacked-light.svg'); }
+
+        /* Everything under the logo paints above the halo. */
+        .login-box > :not(.login-logo) {
+            position: relative;
+            z-index: 1;
         }
 
         .login-logo p {
+            position: relative;
+            z-index: 1;
             color: var(--color-text-secondary);
             margin: var(--space-sm) 0 0 0;
             font-size: 14px;
@@ -161,18 +192,15 @@
         .setup-message.show {
             display: block;
         }
-        .login-logo h1 { color: transparent; background: url('/img/pigtv-wordmark-dark.png') center / auto 28px no-repeat; }
-        [data-theme="light"] .login-logo h1 { background-image: url('/img/pigtv-wordmark-light.png'); }
     </style>
   <script src="/js/theme.js?v=1"></script>
 </head>
 
-<body>
+<body class="pig-canvas-bloom">
     <div class="login-container">
         <div class="login-box">
             <div class="login-logo">
-                <img class="logo-icon" src="/img/pigtv-logo.png" alt="">
-                <h1>PigTV</h1>
+                <h1 class="login-lockup-wrap"><span class="login-lockup" role="img" aria-label="PigTV"></span></h1>
                 <p id="login-subtitle">Sign in to continue</p>
             </div>
 

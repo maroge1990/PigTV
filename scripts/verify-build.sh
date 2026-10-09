@@ -134,12 +134,44 @@ check public/css/main.css "btn-go-live" "live button styles"
 
 echo "=== 0021: PigTV rebrand + recording fix ==="
 check package.json "pigtv" "package renamed"
-check public/index.html "pigtv-logo.png" "logo in navbar"
-check public/login.html "pigtv-logo.png" "logo on login"
+check public/index.html "brand-lockup" "product lockup in navbar"
+check public/css/main.css "lockup-horizontal-light.svg" "navbar lockup, light theme"
+check public/css/main.css "lockup-horizontal-dark.svg" "navbar lockup, dark theme"
+check public/login.html "lockup-stacked-light.svg" "stacked lockup on login, light theme"
+check public/login.html "lockup-stacked-dark.svg" "stacked lockup on login, dark theme"
 check .github/workflows/docker-publish.yml "/pigtv" "CI image renamed"
 check README.md "PigTV" "README rebranded"
 check public/css/main.css "EF7AAE" "accent retuned (the 3 Oct brand refresh)"
-if [ -f public/img/pigtv-logo.png ]; then echo "  \u2713 logo file present"; else echo "  \u2717 MISSING: logo file"; FAIL=1; fi
+for f in mark.svg wordmark-light.svg wordmark-dark.svg lockup-horizontal-light.svg lockup-horizontal-dark.svg \
+         lockup-stacked-light.svg lockup-stacked-dark.svg favicon-light.ico favicon-dark.ico \
+         web-small-light.svg web-small-dark.svg web-light-180.png web-light-192.png web-light-512.png \
+         web-dark-180.png web-dark-192.png web-dark-512.png; do
+    if [ -f "public/img/brand/$f" ]; then :; else echo "  \u2717 MISSING: public/img/brand/$f"; FAIL=1; fi
+done
+echo "  \u2713 brand assets checked (public/img/brand)"
+for f in pigtv-logo.png pigtv-logo-master.png logo-banner.png pigtv-wordmark-dark.png pigtv-wordmark-light.png; do
+    if [ -f "public/img/$f" ]; then echo "  \u2717 STALE: public/img/$f (pre-1.6 family pig) should be gone"; FAIL=1; fi
+done
+if [ -f public/favicon.svg ]; then echo "  \u2717 STALE: public/favicon.svg should be gone"; FAIL=1; fi
+check public/index.html "pig-canvas-bloom" "corner bloom on the app canvas"
+check public/login.html "pig-canvas-bloom" "corner bloom on login"
+check public/index.html "pig-glass" "glass navbar"
+check public/index.html "pig-splash" "loading splash"
+check public/index.html "css/pig-radiance.css" "vendored radiance CSS linked (app)"
+check public/index.html "css/pig-glass.css" "vendored glass CSS linked (app)"
+check public/login.html "css/pig-radiance.css" "vendored radiance CSS linked (login)"
+check public/index.html "site.webmanifest" "web manifest linked (app)"
+check public/login.html "site.webmanifest" "web manifest linked (login)"
+check public/index.html "web-light-180.png" "apple-touch-icon (app)"
+check public/login.html "web-light-180.png" "apple-touch-icon (login)"
+check public/index.html "favicon-dark.ico" "dark favicon fallback"
+check public/css/main.css "pig-canvas: var(--color-bg-primary)" "--pig-* aliases bridge the vendored CSS"
+check public/site.webmanifest '"scope": "/"' "manifest scope"
+check public/js/pages/StatusPage.js "pig-amount" "rounded numerals on Status figures"
+check docs/brand-tokens.json '1\.6\.0' "brand tokens are 1.6.0"
+for f in pig-radiance.css pig-glass.css; do
+    if [ -f "public/css/$f" ]; then :; else echo "  \u2717 MISSING: public/css/$f"; FAIL=1; fi
+done
 if grep -rqi "nodecast" package.json public/index.html public/login.html .github/workflows/docker-publish.yml docker-compose.yml Dockerfile; then
     echo "  \u2717 MISSING: nodecast references remain"; FAIL=1
 else

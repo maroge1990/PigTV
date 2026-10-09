@@ -133,7 +133,7 @@ test('R16: the new status fields render, and an unknown connection purpose just 
     });
     assert.ok(html.includes('status-use-warm') && html.includes('>warm<'), 'a new purpose appears as sent');
     assert.ok(html.includes('viewer · BBC &lt;One&gt;'));
-    assert.ok(html.includes('Preparing now: Match') && html.includes('remux failed') && html.includes('<b>3</b>'));
+    assert.ok(html.includes('Preparing now: Match') && html.includes('remux failed') && html.includes('<b class="pig-amount">3</b>'));
     assert.ok(html.includes('120.4 ms') && html.includes('33 ms') && html.includes('1m 30s'));
     assert.ok(html.includes('p99 12 ms') && html.includes('max 80 ms'));
 });

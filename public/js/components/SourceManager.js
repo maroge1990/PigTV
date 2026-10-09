@@ -213,7 +213,7 @@ class SourceManager {
                                data-id="${item.id}" 
                                data-source-id="${this.treeData.sourceId}" 
                                ${!itemHidden ? 'checked' : ''}>
-                        <span class="channel-name">${item.number !== null && item.number !== undefined ? `<span class="channel-number">${this.escapeHtml(item.number)}</span> ` : ''}${this.escapeHtml(item.name)}</span>
+                        <span class="channel-name">${item.number !== null && item.number !== undefined ? `<span class="channel-number pig-amount">${this.escapeHtml(item.number)}</span> ` : ''}${this.escapeHtml(item.name)}</span>
                     </label>`;
             }).join('')}
             </div>`;

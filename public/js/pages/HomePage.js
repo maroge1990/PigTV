@@ -168,7 +168,7 @@ class HomePage {
         const logoUrl = channel.logo || '/img/placeholder.png';
         const name = this.escapeHtml(channel.name || 'Unknown');
         const number = channel.number !== null && channel.number !== undefined
-            ? `<span class="tile-number">${this.escapeHtml(channel.number)}</span> ` : '';
+            ? `<span class="tile-number pig-amount">${this.escapeHtml(channel.number)}</span> ` : '';
 
         return `
             <div class="channel-tile" data-channel-id="${this.escapeHtml(channel.id)}" data-source-id="${this.escapeHtml(channel.sourceId)}">

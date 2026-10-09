@@ -151,32 +151,46 @@ class StatusPage {
         })[ch]);
     }
 
+    /** Rounded tabular numerals for a figure (guide section 5). `html` must already be escaped. */
+    amt(html) {
+        return `<span class="pig-amount">${html}</span>`;
+    }
+
     duration(sec) {
         if (sec === null || sec === undefined || !Number.isFinite(sec)) return '–';
         const s = Math.max(0, Math.round(sec));
-        if (s < 60) return `${s}s`;
+        if (s < 60) return this.amt(`${s}s`);
         const m = Math.floor(s / 60);
-        if (m < 60) return `${m}m ${s % 60}s`;
-        return `${Math.floor(m / 60)}h ${m % 60}m`;
+        if (m < 60) return this.amt(`${m}m ${s % 60}s`);
+        return this.amt(`${Math.floor(m / 60)}h ${m % 60}m`);
     }
 
     time(ms) {
-        return ms ? new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '–';
+        return ms ? this.amt(this.timeText(ms)) : '–';
+    }
+
+    timeText(ms) {
+        return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    /** HH:MM of a programme end, as figures. */
+    timeShort(ms) {
+        return ms ? this.amt(this.timeText(ms).slice(0, 5)) : '–';
     }
 
     when(ms) {
         if (!ms) return 'never';
         const d = new Date(ms);
         const today = new Date();
-        return d.toDateString() === today.toDateString()
+        return this.amt(d.toDateString() === today.toDateString()
             ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            : d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            : d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }));
     }
 
     bytes(n) {
         if (!Number.isFinite(n)) return '–';
         const gb = n / (1024 ** 3);
-        return gb >= 1 ? `${gb.toFixed(gb >= 100 ? 0 : 1)} GB` : `${Math.round(n / (1024 ** 2))} MB`;
+        return this.amt(gb >= 1 ? `${gb.toFixed(gb >= 100 ? 0 : 1)} GB` : `${Math.round(n / (1024 ** 2))} MB`);
     }
 
     /** R12: what in-stream recovery and the hot standby are doing, and each followed stream. */
@@ -192,7 +206,7 @@ class StatusPage {
             streams.map(r => [
                 e(r.channel || 'A channel'), e(r.provider || '–'),
                 `<span class="status-event ${r.state === 'failed' ? 'status-failure' : ''}">${e(r.state)}</span>`,
-                e(r.switches),
+                this.amt(e(r.switches)),
                 r.standby ? `${e(r.standby)} (${r.standbyReady ? 'ready' : 'starting'})` : (r.standbyMode ? 'none' : 'off'),
                 r.lastReason ? `${e(r.lastReason.code)} <span class="setting-hint">${this.when(r.lastReason.at)}</span>` : '–'
             ]), 'Nothing followed');
@@ -237,7 +251,7 @@ class StatusPage {
         }
         return this.section('Sport fixtures', this.table(
             ['League', 'Last fetched', 'Fixtures', 'Last error'],
-            (fx.leagues || []).map(l => [e(l.league), this.when(l.lastSuccessAt), e(l.fixtureCount ?? '–'), e(l.lastError || '')]),
+            (fx.leagues || []).map(l => [e(l.league), this.when(l.lastSuccessAt), this.amt(e(l.fixtureCount ?? '–')), e(l.lastError || '')]),
             'Nothing fetched yet (no followed league ESPN covers, or the first refresh has not run)'));
     }
 
@@ -254,7 +268,7 @@ class StatusPage {
     renderHealth(status) {
         const e = (v) => this.escape(v);
         const ms = (v) => (v === null || v === undefined || !Number.isFinite(Number(v)) ? '–' : `${Math.round(Number(v) * 10) / 10} ms`);
-        const metric = (label, value) => `<span class="status-metric">${e(label)} <b>${value}</b></span>`;
+        const metric = (label, value) => `<span class="status-metric">${e(label)} <b class="pig-amount">${value}</b></span>`;
         const html = [];
         const ld = status.loopDelay;
         if (ld) {
@@ -300,7 +314,7 @@ class StatusPage {
                 e(p.name),
                 e(p.role || 'primary'),
                 `<span class="status-event ${stateClass(p.state)}">${e(p.state || 'up')}${p.downUntil ? ` until ${this.time(p.downUntil)}` : ''}</span>`,
-                `${p.connections.used}/${p.connections.limit}`,
+                this.amt(`${p.connections.used}/${p.connections.limit}`),
                 this.renderUses(p.uses),
                 expiryText(p),
                 p.accountOk === null || p.accountOk === undefined ? 'not checked yet'
@@ -354,14 +368,14 @@ class StatusPage {
                     (r.reason ? `<span class="setting-hint">${e(r.reason)}</span> ` : '') + e(r.how === 'stall' ? 'Stopped sending' : r.how === 'timestamps' ? 'Timestamps broke after a reconnect' : (r.providerReason ? 'Provider dropped it' : 'Stream ended')),
                     this.duration(r.playedSec),
                     r.recoverSec === null ? '<span class="status-event status-failure">Not recovered</span>'
-                        : `${e(r.recoverSec)} s${r.recoveredProvider && r.recoveredProvider !== r.provider ? ` <span class="setting-hint">(on ${e(r.recoveredProvider)})</span>` : ''}`
+                        : `${this.amt(`${e(r.recoverSec)} s`)}${r.recoveredProvider && r.recoveredProvider !== r.provider ? ` <span class="setting-hint">(on ${e(r.recoveredProvider)})</span>` : ''}`
                 ]),
                 'None')));
         }
 
         // Recordings
         const rec = status.recordings || { active: [], upcoming: [] };
-        const recRow = (r) => [e(r.title), `${e(r.channel || '–')}${r.provider ? ` <span class="setting-hint">(${e(r.provider)})</span>` : ''}`, e(r.status), `${this.when(r.programStart)} – ${this.time(r.programEnd).slice(0, 5)}`];
+        const recRow = (r) => [e(r.title), `${e(r.channel || '–')}${r.provider ? ` <span class="setting-hint">(${e(r.provider)})</span>` : ''}`, e(r.status), `${this.when(r.programStart)} – ${this.timeShort(r.programEnd)}`];
         add('recordings', this.section('Recordings',
             `<h4>Recording now</h4>${this.table(['Programme', 'Channel', 'Status', 'Time'], (rec.active || []).map(recRow), 'Nothing is recording')}` +
             `<h4>Next scheduled</h4>${this.table(['Programme', 'Channel', 'Status', 'Time'], (rec.upcoming || []).map(recRow), 'Nothing scheduled')}`));
@@ -373,7 +387,7 @@ class StatusPage {
             (status.recentProblems || []).map(r => [
                 e(r.title), e(r.channel || '–'),
                 `<span class="status-event status-failure">${e(r.status === 'missed' ? 'Missed' : 'Failed')}</span>`,
-                `${this.when(r.programStart)} – ${this.time(r.programEnd).slice(0, 5)}`,
+                `${this.when(r.programStart)} – ${this.timeShort(r.programEnd)}`,
                 e(r.error || '')
             ]),
             'No missed or failed recordings in the last 7 days')));
@@ -386,7 +400,7 @@ class StatusPage {
                 this.time(ev.at),
                 `<span class="status-event status-${e(ev.type)}">${e(label[ev.type] || ev.type)}</span>`,
                 e(ev.channel || 'unknown'), e(ev.owner || '–'), e(ev.start || '–'),
-                ev.firstPictureSec !== null && ev.firstPictureSec !== undefined ? `${ev.firstPictureSec.toFixed(1)}s` : '–',
+                ev.firstPictureSec !== null && ev.firstPictureSec !== undefined ? this.amt(`${ev.firstPictureSec.toFixed(1)}s`) : '–',
                 ev.type === 'failure' || ev.type === 'relay' ? e(ev.reason || '')
                     : ev.type === 'play-end' ? `watched ${this.duration(ev.watchedSec)}, ${ev.stalls ?? 0} stall${ev.stalls === 1 ? '' : 's'}`
                         : e([ev.strategy, ev.videoMode].filter(Boolean).join(', '))
@@ -400,9 +414,9 @@ class StatusPage {
         add('reliable', this.section('Least reliable channels', this.table(
             ['Channel', 'Attempts', 'Failures', 'Stalls', 'Watched', 'Median first picture', 'Health'],
             (status.leastReliable || []).map(ch => [
-                e(ch.name), e(ch.attempts), e(ch.failures),
+                e(ch.name), this.amt(e(ch.attempts)), this.amt(e(ch.failures)),
                 ch.stallsPerHour !== null && ch.stallsPerHour !== undefined ? `${e(ch.stalls)} (${Number(ch.stallsPerHour).toFixed(1)}/h)` : e(ch.stalls ?? 0),
-                ch.watchedMin !== null && ch.watchedMin !== undefined ? `${Math.round(ch.watchedMin)} min` : '–',
+                ch.watchedMin !== null && ch.watchedMin !== undefined ? this.amt(`${Math.round(ch.watchedMin)} min`) : '–',
                 ch.medianFirstPictureSec !== null && ch.medianFirstPictureSec !== undefined ? `${Number(ch.medianFirstPictureSec).toFixed(1)}s` : '–',
                 (ch.health === 'flaky' ? '<span class="status-event status-failure">Flaky</span>' : e(ch.health || '–'))
                     + (ch.blank ? ' <span class="status-event status-failure">Blank picture</span>' : '')

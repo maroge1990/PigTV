@@ -79,7 +79,7 @@ class RecordingsPage {
                      onerror="this.onerror=null;this.src='/img/placeholder.png'">
                 <div class="recording-info">
                     <div class="recording-title">${this.escape(item.title)}</div>
-                    <div class="recording-meta">${this.escape(item.channel_name || '')} &middot; ${this.formatRange(item.program_start, item.program_end)}</div>
+                    <div class="recording-meta">${this.escape(item.channel_name || '')} &middot; <span class="pig-amount">${this.formatRange(item.program_start, item.program_end)}</span></div>
                     <div class="recording-status status-${item.status}">${this.statusLabel(item.status)}</div>
                 </div>
                 <div class="recording-actions">
@@ -111,7 +111,7 @@ class RecordingsPage {
                      onerror="this.onerror=null;this.src='/img/placeholder.png'">
                 <div class="recording-info">
                     <div class="recording-title">${this.escape(item.title)}</div>
-                    <div class="recording-meta">${this.escape(item.channel_name || '')} &middot; ${this.formatRange(item.program_start, item.program_end)}</div>
+                    <div class="recording-meta">${this.escape(item.channel_name || '')} &middot; <span class="pig-amount">${this.formatRange(item.program_start, item.program_end)}</span></div>
                     <div class="recording-status status-${item.status}">${this.statusLabel(item.status)}</div>
                     ${item.error ? `<div class="recording-error">${this.escape(item.error)}</div>` : ''}
                 </div>
@@ -134,8 +134,8 @@ class RecordingsPage {
                     <div class="recording-meta">
                         ${this.escape(item.channel_name || '')} &middot;
                         ${item.part > 1 ? `Part ${Number(item.part)}${item.provider_name ? ` (${this.escape(item.provider_name)})` : ''} &middot;` : ''}
-                        ${item.started_at ? new Date(item.started_at).toLocaleString() : ''} &middot;
-                        ${this.formatSize(item.file_size_bytes)}
+                        ${item.started_at ? `<span class="pig-amount">${new Date(item.started_at).toLocaleString()}</span>` : ''} &middot;
+                        <span class="pig-amount">${this.formatSize(item.file_size_bytes)}</span>
                     </div>
                     <div class="recording-status status-${item.status}">${this.statusLabel(item.status)}</div>
                     ${item.status === 'failed' && item.error ? `<div class="recording-error">${this.escape(item.error)}</div>` : ''}

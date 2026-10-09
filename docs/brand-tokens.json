@@ -1,7 +1,7 @@
 {
-  "status": "approved-2026-10-02",
-  "version": "1.0",
-  "date": "2026-10-02",
+  "status": "final-1.6-seven-products-layered-2026-10-09",
+  "version": "1.6.0",
+  "date": "2026-10-09",
   "logo": {
     "pink": "#F6B7D4",
     "rose": "#EF7AAE",
@@ -61,10 +61,11 @@
     "solidPanel": "#15111A",
     "translucentPanel": {
       "source": "#000000",
-      "alpha": 0.55
+      "alpha": 0.82
     },
     "accent": "#EF7AAE",
-    "onAccent": "#442A19"
+    "onAccent": "#442A19",
+    "note": "Minimum starting opacity for dark panels; validate on actual moving content. Stronger transport gradient and opaque fallback may be required."
   },
   "provenance": "Logo values sampled from opaque pixels of PigLogo.png. Light roles and dark neutrals/status colours already exist in web CSS. Dark accent and onAccent are sampled logo colours. No new base hex values; opacity composites are derived. Palette assignments approved by user on 2 October 2026.",
   "paletteStatus": "approved-by-user-2026-10-02",
@@ -74,7 +75,17 @@
       "y": 0.40536030991995403
     },
     "rule": "Align optical anchor with intended visual centre; preserve aspect ratio.",
-    "master": "assets/pig-master-transparent.png"
+    "master": "assets/shared/pig-master-transparent.png",
+    "productIcons": "Product icons are centred on their measured optical centre and normalised to a shared optical size; do not apply the original pig anchor to these different silhouettes.",
+    "lockups": {
+      "unit": "C = wordmark cap height (top of P to baseline)",
+      "gap": "0.5C from visible pig edge to first letter",
+      "markOpticalSize": "2.05C horizontal; 4.4C stacked",
+      "stackedGap": "0.55C from visible pig bottom to cap top",
+      "verticalAlignment": "Pig ink centre on the cap-height centre; descenders ignored",
+      "centring": "Centre visible ink, never file or crop boxes; exported files carry equal clear space so centring the file centres the logo",
+      "opticalSize": "0.5 x ink height + 0.5 x (square root of ink area / 0.93), so sparse and wide silhouettes match compact ones"
+    }
   },
   "selection": {
     "fillAlpha": 0.14,
@@ -83,18 +94,191 @@
     "focus": "separate outer ring"
   },
   "radiatingLight": {
-    "status": "approved-excluding-rays",
+    "status": "final-2026-10-07",
     "colours": [
       "#EF7AAE",
       "#F6B7D4"
     ],
-    "directions": [
-      "soft halo",
-      "bloom"
-    ],
-    "motion": "static",
-    "constraints": "Decorative identity contexts only; behind opaque form surfaces; never encode focus or selection.",
-    "default": "soft halo",
-    "excluded": "rays"
+    "halo": {
+      "use": "Default. App icons, icon backgrounds, welcome, Top Shelf and splash surfaces; centred on the pig optical centre.",
+      "strength": {
+        "light": [
+          0.7,
+          0.18
+        ],
+        "dark": [
+          0.16,
+          0.42
+        ]
+      },
+      "splashBoost": {
+        "light": 1.45,
+        "dark": 1.0
+      }
+    },
+    "bloom": {
+      "use": "Splash motion peak only.",
+      "strength": {
+        "light": [
+          0.55,
+          0.3
+        ],
+        "dark": [
+          0.18,
+          0.46
+        ]
+      }
+    },
+    "splashMotion": {
+      "cycleSeconds": 8,
+      "easing": "ease-in-out",
+      "haloOpacity": [
+        1,
+        0.25
+      ],
+      "bloomOpacity": [
+        0,
+        1
+      ],
+      "bloomScale": [
+        0.9,
+        1.12
+      ],
+      "reducedMotion": "static halo, no animation",
+      "scope": "splash and launch surfaces only, while already visible; never adds delay"
+    },
+    "cornerBloom": {
+      "use": "In-app canvas backgrounds: a quiet rose bloom from the top leading corner only (top left in left-to-right layouts), in both appearances. Opaque cards, bars and controls sit above it.",
+      "colour": "#EF7AAE",
+      "peakOpacity": {
+        "light": 0.16,
+        "dark": 0.13
+      },
+      "radius": "0.62 of the canvas diagonal",
+      "minimumTextContrast": {
+        "light": 5.39,
+        "dark": 5.91
+      }
+    },
+    "constraints": "Decorative only: never behind forms or reading content, never a focus, selection or progress signal. Honour reduced motion (static halo) and reduced transparency (solid canvas).",
+    "excluded": "Rays, removed from the system on 7 October 2026."
+  },
+  "family": "Pig family of apps",
+  "products": {
+    "pigtv": {
+      "name": "PigTV",
+      "scope": "Existing television app; retained while naming is undecided."
+    },
+    "pig-video": {
+      "name": "PigVideo",
+      "scope": "Live TV, movies and TV shows."
+    },
+    "pig-music": {
+      "name": "PigMusic",
+      "scope": "Music streaming."
+    },
+    "pig-reader": {
+      "name": "PigReader",
+      "scope": "Ebooks."
+    },
+    "pig-domain": {
+      "name": "PigDomain",
+      "scope": "Household chore management."
+    },
+    "pig-board": {
+      "name": "PigBoard",
+      "scope": "Household dashboard."
+    },
+    "pig-finance": {
+      "name": "PigFinance",
+      "scope": "Personal finance and net worth."
+    }
+  },
+  "identity": {
+    "default": "Distinct fused-pig product icons with established Arial Rounded MT Bold wordmarks.",
+    "options": "Earlier badge, frame and crop studies are historical; the refined fused set is the base identity.",
+    "naming": "Pig + a short descriptive noun for new products. PigTV is a retained legacy spelling.",
+    "font": "ArialRoundedMTBold; distribute outlined wordmarks, not the font.",
+    "approval": "User approved the outlined four-icon original-nose preview as final on 6 October 2026. Use the exact approved raster source; no redraws. Optical lockup and icon placement approved 7 October 2026. PigDomain (bucket pig), PigBoard (wall board), halo icons, splash motion and top-left corner bloom approved as final 7 October 2026. Vector masters for all seven pigs (the original four traced from the approved raster at 99.8% silhouette agreement), layered Icon Composer sources, mono layers, glyphs, PigFinance (classic piggy bank) and Liquid Glass rules approved as final 9 October 2026.",
+    "nose": "Every pig uses the canonical nose (sources/approved/pig-nose.svg, traced from the approved PigTV artwork), placed by translation (PigVideo\u2019s is turned 6\u00b0 to match its original pose). Never resize, redraw or restyle it in pig artwork. Glyphs use the same path uniformly scaled to the 24-point glyph grid."
+  },
+  "spacing": [
+    4,
+    8,
+    12,
+    16,
+    24,
+    32,
+    48
+  ],
+  "radii": {
+    "web": {
+      "compact": 6,
+      "control": 10,
+      "card": 16
+    },
+    "touch": {
+      "card": 16,
+      "hero": 22
+    },
+    "tv": {
+      "compact": 10,
+      "card": 18,
+      "hero": 32
+    }
+  },
+  "appleTV": {
+    "wideIdentity": "Product icon to the left of the existing rounded application wordmark.",
+    "launcher": "Supplied wide icon + name image stack, with icon-only alternative.",
+    "topShelf": "1920x720 and 2320x720, with 2x exports; keep content-led dynamic shelves in app projects."
+  },
+  "glass": {
+    "status": "final-2026-10-09",
+    "use": "Liquid Glass only on the floating control layer: tab bars, toolbars, floating buttons, sheets and menus. Never on cards, lists or content.",
+    "tint": "Rose on one primary action per screen (full-strength accent fill for AA label contrast) plus the selected tab; everything else clear.",
+    "never": "Wordmark, full-colour pig (except a small toolbar avatar), body text.",
+    "behind": "The canvas with the top-left corner bloom gives the glass its faint pink.",
+    "fallbacks": {
+      "reduceTransparency": "Solid surface + border tokens",
+      "increaseContrast": "Add the control border"
+    },
+    "web": {
+      "light": {
+        "background": "rgba(255,255,255,.40)",
+        "border": "1px solid rgba(255,255,255,.75)",
+        "shadow": "inset 0 1px 1px rgba(255,255,255,.95), inset 0 -1px 1px rgba(28,22,32,.05), 0 6px 20px rgba(28,22,32,.12)"
+      },
+      "dark": {
+        "background": "rgba(52,42,62,.38)",
+        "border": "1px solid rgba(255,255,255,.16)",
+        "shadow": "inset 0 1px 1px rgba(255,255,255,.22), 0 6px 20px rgba(0,0,0,.40)"
+      },
+      "backdropFilter": "blur(10px) saturate(190%)",
+      "primary": {
+        "background": "var(--pig-accent)",
+        "color": "var(--pig-on-accent)",
+        "border": "1px solid rgba(255,255,255,.45)"
+      },
+      "selected": {
+        "color": "var(--pig-text-accent)",
+        "background": "color-mix(in srgb, var(--pig-accent) 13%, transparent)"
+      },
+      "fallback": {
+        "background": "var(--pig-surface)",
+        "border": "1px solid var(--pig-border)",
+        "shadow": "0 2px 8px rgba(28,22,32,.08)"
+      },
+      "increaseContrastBorder": "var(--pig-control-border)"
+    },
+    "native": "SwiftUI: system glass (.glassEffect / .buttonStyle(.glass)); primary action .buttonStyle(.glassProminent) tinted with PigAccent. UIKit: UIGlassEffect."
+  },
+  "ios": {
+    "appearances": "Default, dark, clear and tinted. Pig layers: body, optional coin, face on top; the halo is the background fill. Dedicated mono layers (white fills, #6B6B6B outline and features) for tinted and clear modes.",
+    "glyphs": "One glyph per product plus the family nose glyph, 24-pt grid, outline and fill. Used for tab items, widgets, Lock Screen, Live Activities, Control Centre, never the full-colour pig at those sizes.",
+    "shape": "Concentric corners: inner radius = container radius minus inset (minimum 6 pt); 16 pt fixed card radius only as the fallback.",
+    "numerals": "SF Pro Rounded with tabular (monospaced) digits for amounts and figures (.fontDesign(.rounded).monospacedDigit()).",
+    "launch": "Static launch screen = canvas colour + pig with a static halo, identical to the first frame of the in-app splash; no text or motion.",
+    "scrollEdge": "Use the system scroll edge effect under bars; no hard divider lines.",
+    "widgets": "Full-colour widgets use the brand canvas and a rose glyph; accented and vibrant modes let the system tint the glyph and figures."
   }
 }

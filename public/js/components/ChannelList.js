@@ -294,7 +294,7 @@ class ChannelList {
     channelItemHtml(channel, { isActive = false, isNavActive = false, renderId = '', renderGroup = '' } = {}) {
         const isFavorite = this.favoriteKeys.has(this.favKey(channel));
         const number = channel.number !== null && channel.number !== undefined
-            ? `<span class="channel-number">${this.escapeHtml(channel.number)}</span>` : '';
+            ? `<span class="channel-number pig-amount">${this.escapeHtml(channel.number)}</span>` : '';
         return `
           <div class="channel-item ${isActive ? 'active' : ''} ${isNavActive ? 'nav-active' : ''}"
                data-channel-id="${this.escapeHtml(channel.id)}"

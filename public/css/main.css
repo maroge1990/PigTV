@@ -224,10 +224,14 @@ h4 {
   padding: 0 var(--space-lg);
   padding-left: max(var(--space-lg), var(--safe-area-inset-left));
   padding-right: max(var(--space-lg), var(--safe-area-inset-right));
-  background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--glass-border);
+  /* Glass (background, blur, edge, shadow) comes from .pig-glass in pig-glass.css. */
   z-index: 100;
+}
+
+/* The bar spans the window, so only its bottom edge is drawn (id raises specificity over the vendored
+   .pig-glass border shorthand, which loads after this file). */
+#app .navbar.pig-glass {
+  border-width: 0 0 1px;
 }
 
 .navbar-brand {
@@ -236,30 +240,16 @@ h4 {
   gap: var(--space-sm);
 }
 
-.logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.75rem;
+.brand-lockup {
+  /* Horizontal lockup (570 x 254): intrinsic proportions, theme-switched. The artwork carries its own
+     clear space, so on the shortest navbars the box may overhang by a few transparent px. */
+  display: block;
+  flex-shrink: 0;
+  width: 120px;
+  aspect-ratio: 570 / 254;
+  background: url('/img/brand/lockup-horizontal-dark.svg') center / contain no-repeat;
 }
-
-.logo svg {
-  fill: var(--color-accent);
-}
-
-.brand-text {
-  font-family: 'Arial Rounded MT Bold', system-ui, sans-serif;
-  font-size: 1.5rem;
-  font-weight: 500;
-  letter-spacing: -0.03em;
-  color: var(--color-text-primary); /* was #fff: invisible on the light theme's navbar */
-  /* Visual correction: shift text slightly down to align optically with icon center */
-  padding-top: 2px;
-}
-
-.brand-accent {
-  color: var(--color-accent);
-}
+[data-theme="light"] .brand-lockup { background-image: url('/img/brand/lockup-horizontal-light.svg'); }
 
 .version-badge {
   font-size: 0.65rem;
@@ -2044,11 +2034,6 @@ kbd {
     font-size: 1.4rem;
   }
 
-  /* Brand - Simplify on tablet */
-  .brand-text {
-    font-size: 1.25rem;
-  }
-
   /* Home Layout - Full screen video with drawer */
   .home-layout {
     flex-direction: row;
@@ -2224,14 +2209,6 @@ kbd {
     height: 52px;
   }
 
-  .logo {
-    font-size: 1.5rem;
-  }
-
-  .brand-text {
-    font-size: 1.1rem;
-  }
-
   /* Show mobile menu toggle */
   .mobile-menu-toggle {
     display: flex;
@@ -2244,6 +2221,9 @@ kbd {
     left: 0;
     right: 0;
     flex-direction: column;
+    /* Deliberately not .pig-glass: this dropdown is nested inside the glass navbar, whose backdrop-filter
+       is a backdrop root and the containing block for this fixed box, so glass here could not blur the
+       page behind it. It keeps the more opaque --glass-bg so its labels stay legible over content. */
     background: var(--glass-bg);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--glass-border);
@@ -2278,11 +2258,6 @@ kbd {
 
   .nav-icon {
     font-size: 1.3rem;
-  }
-
-  /* Hide "TV" from brand on very small screens */
-  .brand-accent {
-    display: none;
   }
 
   /* Channel Sidebar - Drawer on mobile */
@@ -2521,10 +2496,6 @@ kbd {
 
   .navbar {
     height: 48px;
-  }
-
-  .brand-text {
-    font-size: 1rem;
   }
 
   .channel-sidebar {
@@ -4055,11 +4026,6 @@ kbd {
   background: var(--color-text-muted);
 }
 
-/* ---- PigTV brand mark ---- */
-.navbar-brand .logo { display: inline-flex; align-items: center; }
-.brand-mark { height: 30px; width: auto; display: block; }
-.login-mark { height: 44px; width: auto; vertical-align: -10px; margin-right: 10px; }
-.brand-text { letter-spacing: -0.02em; font-weight: 650; }
 
 /* ==========================================================================
    Commercial break markers and skipping
@@ -4432,15 +4398,38 @@ kbd {
 }
 .captions-option { position: relative; }
 .captions-option.active { background: var(--color-accent-dim); }
-.brand-mark { transform: translateY(9.464%); }
 @media (forced-colors: active) {
   .nav-link.active::after, .captions-option.active::before { background: Highlight; }
 }
 
-/* Outlined raster wordmark: identical artwork on platforms without the authoring font. */
-.brand-text { background: url('/img/pigtv-wordmark-dark.png') center / contain no-repeat; color: transparent; }
-.brand-text .brand-accent { color: transparent; }
-[data-theme="light"] .brand-text { background-image: url('/img/pigtv-wordmark-light.png'); }
+/* Pig family 1.6.0 bridge: the vendored pig-radiance.css / pig-glass.css read --pig-* roles;
+   map each onto the existing --color-* tokens so both follow the resolved theme. */
+:root {
+  --pig-canvas: var(--color-bg-primary);
+  --pig-surface: var(--color-bg-secondary);
+  --pig-accent: var(--color-accent);
+  --pig-on-accent: var(--color-on-accent);
+  --pig-text-accent: var(--color-accent-text);
+  --pig-border: var(--color-border);
+  --pig-control-border: var(--color-control-border);
+}
+
+/* The canvas behind the bar and content is the body (#app and .main-content are transparent), so
+   .pig-canvas-bloom on <body> paints the corner bloom there. Cards and bars stay opaque above it. */
+
+/* Loading splash for the initial Home render (replaced by HomePage.renderLayout, never delays it).
+   The mark is centred in the splash, so --pig-x/--pig-y are 50%. The visible pig is 65% of the mark
+   box (665/1024); at 160 px that is 104 px, and 1.35 x 104 = 140 px. */
+.pig-splash.page-splash {
+  display: grid; place-items: center; height: 100%; min-height: 100%;
+  --pig-x: 50%; --pig-y: 50%; --pig-r: 140px;
+  background: transparent;
+}
+.page-splash .splash-mark { width: 160px; height: 160px; background: url('/img/brand/mark.svg') center / contain no-repeat; }
+.page-splash .splash-text {
+  position: absolute; left: 0; right: 0; top: calc(50% + 80px + var(--space-md));
+  text-align: center; color: var(--color-text-muted);
+}
 
 /* Playback menus stay on a protected dark surface in either page appearance. */
 .watch-captions-menu,

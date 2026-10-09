@@ -186,7 +186,7 @@ test('the Home favourites row draws /api/library/favourites rows with their numb
 
     assert.deepEqual(requests.map(r => r.url), ['/api/library/favourites']);
     assert.ok(list.innerHTML.indexOf('data-channel-id="pos_3"') < list.innerHTML.indexOf('data-channel-id="pos_12"'), 'in number order');
-    assert.match(list.innerHTML, /<span class="tile-number">12<\/span>/);
+    assert.match(list.innerHTML, /<span class="tile-number pig-amount">12<\/span>/);
     assert.ok(list.innerHTML.includes(`src="${CHANNELS[11].logo}"`), 'the /api/logo/ path, not /api/proxy/image');
     assert.ok(list.innerHTML.includes('Three &lt;b&gt;'), 'names are escaped');
 });

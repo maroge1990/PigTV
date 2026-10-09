@@ -9,9 +9,16 @@
   <meta name="mobile-web-app-capable" content="yes">
   <title>PigTV</title>
   <meta name="description" content="Stream live TV, movies, and series with EPG support">
-  <link rel="icon" type="image/png" href="/img/pigtv-logo.png">
+  <link rel="icon" type="image/svg+xml" href="/img/brand/web-small-light.svg" media="(prefers-color-scheme: light)">
+  <link rel="icon" type="image/svg+xml" href="/img/brand/web-small-dark.svg" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="/img/brand/favicon-light.ico" sizes="any" media="(prefers-color-scheme: light)">
+  <link rel="icon" href="/img/brand/favicon-dark.ico" sizes="any" media="(prefers-color-scheme: dark)">
+  <link rel="apple-touch-icon" href="/img/brand/web-light-180.png">
+  <link rel="manifest" href="/site.webmanifest">
   <script src="/js/theme.js?v=1"></script>
   <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/pig-radiance.css">
+  <link rel="stylesheet" href="css/pig-glass.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@800&display=swap"
@@ -20,13 +27,12 @@
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
 </head>
 
-<body>
+<body class="pig-canvas-bloom">
   <div id="app">
     <!-- Navigation -->
-    <nav class="navbar" aria-label="Main">
+    <nav class="navbar pig-glass" aria-label="Main">
       <div class="navbar-brand">
-        <span class="logo"><img src="/img/pigtv-logo.png" alt="" class="brand-mark"></span>
-        <span class="brand-text">PigTV</span>
+        <span class="brand-lockup" role="img" aria-label="PigTV"></span>
         <span id="version-badge" class="version-badge"></span>
       </div>
       <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Menu" aria-expanded="false" aria-controls="navbar-menu">
@@ -102,7 +108,10 @@
       <!-- Home (Dashboard) Page -->
       <div id="page-home" class="page active">
         <!-- Content will be rendered by HomePage.js -->
-        <div class="loading-state">Loading Dashboard...</div>
+        <div class="pig-splash page-splash">
+          <div class="splash-mark" aria-hidden="true"></div>
+          <div class="splash-text">Loading Dashboard...</div>
+        </div>
       </div>
 
       <!-- Live TV Page (formerly Home) -->
@@ -174,7 +183,7 @@
                   <h2 class="watch-title-overlay" id="player-channel-name"></h2>
                   <div class="player-badges">
                     <div class="transcode-status hidden" id="player-transcode-status">Direct</div>
-                    <div class="quality-badge hidden" id="player-quality-badge"></div>
+                    <div class="quality-badge pig-amount hidden" id="player-quality-badge"></div>
                   </div>
                 </div>
 

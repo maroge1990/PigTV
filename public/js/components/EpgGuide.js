@@ -425,7 +425,7 @@ class EpgGuide {
             <div class="epg-header-corner"></div>
             <div class="epg-time-slots">
               ${timeSlots.map(slot => `
-                <div class="epg-time-slot" style="width: ${30 * this.pixelsPerMinute}px;">
+                <div class="epg-time-slot pig-amount" style="width: ${30 * this.pixelsPerMinute}px;">
                   ${slot.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
               `).join('')}
@@ -560,7 +560,7 @@ class EpgGuide {
         row.style.height = `${this.rowHeight}px`;
 
         const number = channel.number !== null && channel.number !== undefined
-            ? `<span class="epg-channel-number">${this.escapeHtml(channel.number)}</span>` : '';
+            ? `<span class="epg-channel-number pig-amount">${this.escapeHtml(channel.number)}</span>` : '';
 
         row.innerHTML = `
           <div class="epg-channel-info">
@@ -742,7 +742,7 @@ class EpgGuide {
              data-recordable="${isRecordable}"
              ${channelAttrs}>
           <div class="epg-program-title">${this.escapeHtml(prog.title || 'Unknown')}</div>
-          <div class="epg-program-time">
+          <div class="epg-program-time pig-amount">
             ${new Date(prog.startMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </div>
         </div>
@@ -837,7 +837,7 @@ class EpgGuide {
         } catch (e) { /* use defaults */ }
 
         body.innerHTML = `
-      <p><strong>Time:</strong> ${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${stop.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+      <p><strong>Time:</strong> <span class="pig-amount">${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${stop.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></p>
       <p><strong>Description:</strong></p>
       <p>${this.escapeHtml(data.description || 'No description available')}</p>
       ${canRecord ? `

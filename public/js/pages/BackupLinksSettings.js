@@ -174,13 +174,13 @@ class BackupLinksSettings {
             return;
         }
         el.innerHTML = `
-            <p class="setting-hint">${(this.summary.linkable ?? 0).toLocaleString()} of ${(this.summary.channels ?? 0).toLocaleString()} visible channels can be linked (event and pay-per-view slots never are).</p>
+            <p class="setting-hint"><span class="pig-amount">${(this.summary.linkable ?? 0).toLocaleString()}</span> of <span class="pig-amount">${(this.summary.channels ?? 0).toLocaleString()}</span> visible channels can be linked (event and pay-per-view slots never are).</p>
             <div class="user-list-container"><table class="user-table status-table"><thead><tr>
                 <th>Provider</th><th>Auto</th><th>Needs review</th><th>Approved</th><th>Manual</th><th>Rejected</th><th>Broken</th><th>Channels linked</th><th>Without a link</th>
             </tr></thead><tbody>${providers.map(p => `<tr>
                 <td>${e(p.role === 'sibling' ? `${p.name} (its own backup feeds)` : p.name)}${p.enabled === false ? ' <span class="setting-hint inline">disabled</span>' : ''}</td>
-                ${LinkFormat.countsRow(p).map(n => `<td>${n.toLocaleString()}</td>`).join('')}
-                <td>${(p.linked ?? 0).toLocaleString()}</td><td>${(p.unlinked ?? 0).toLocaleString()}</td>
+                ${LinkFormat.countsRow(p).map(n => `<td><span class="pig-amount">${n.toLocaleString()}</span></td>`).join('')}
+                <td><span class="pig-amount">${(p.linked ?? 0).toLocaleString()}</span></td><td><span class="pig-amount">${(p.unlinked ?? 0).toLocaleString()}</span></td>
             </tr>`).join('')}</tbody></table></div>`;
     }
 

@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="public/img/pigtv-logo.png" alt="" height="96" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/img/brand/lockup-horizontal-dark.svg">
+    <img src="public/img/brand/lockup-horizontal-light.svg" alt="" height="96" />
+  </picture>
 </p>
 
 <h1 align="center">PigTV</h1>
