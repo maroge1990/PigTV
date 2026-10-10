@@ -31,7 +31,7 @@ function makeElements() {
         'scheduled-recordings-list': { innerHTML: '', querySelectorAll: () => [] },
         'recordings-list': { innerHTML: '', querySelectorAll: () => [] },
         'recent-problems-section': { hidden: true },
-        'recent-problems-list': { innerHTML: '' }
+        'recent-problems-list': { innerHTML: '', querySelectorAll: () => [] }
     };
 }
 
@@ -88,4 +88,67 @@ test('0156: the "Recent problems" section stays hidden when there is nothing to 
 
     assert.equal(elements['recent-problems-section'].hidden, true);
     assert.equal(elements['recent-problems-list'].innerHTML, '');
+});
+
+// 0207: a failed/missed schedule can be deleted from "Recent problems"; the library shows this
+// login's progress; the player asks before resuming.
+function makeContextWithConfirm(elements, respond, confirmAnswer = true) {
+    const made = makeContext(elements, respond);
+    made.context.confirm = () => confirmAnswer;
+    made.context.alert = () => {};
+    return made;
+}
+const withQuery = (el) => Object.assign(el, { querySelectorAll: () => [] });
+
+test('0207: each Recent problems row has a Delete button, and deleting calls the schedule route then refreshes', async () => {
+    const elements = makeElements();
+    withQuery(elements['recent-problems-list']);
+    const { context, requests } = makeContextWithConfirm(elements, () => jsonResponse([]));
+    const page = new context.RecordingsPage({});
+    page.renderRecentProblems([{ id: 7, title: 'Derby', channel_name: 'Fox', status: 'failed', program_start: 1, program_end: 2 }]);
+    assert.match(elements['recent-problems-list'].innerHTML, /data-action="delete-scheduled" data-id="7"/);
+
+    await page.deleteProblem('7');
+    assert.ok(requests.some(u => u.endsWith('/recordings/scheduled/7')), 'DELETE recordings/scheduled/7');
+    assert.ok(requests.some(u => u.includes('/recordings/scheduled?include=recent')), 'refreshed after');
+});
+
+test('0207: declining the confirm deletes nothing', async () => {
+    const elements = makeElements();
+    const { context, requests } = makeContextWithConfirm(elements, () => jsonResponse([]), false);
+    const page = new context.RecordingsPage({});
+    await page.deleteProblem('7');
+    assert.equal(requests.length, 0);
+});
+
+test('0207: the library shows a progress bar part-way through and "Watched" once watched', () => {
+    const elements = makeElements();
+    const { context } = makeContext(elements, () => jsonResponse([]));
+    const page = new context.RecordingsPage({});
+    const base = { channel_name: 'ABC', status: 'completed', duration_sec: 1000, file_size_bytes: 1 };
+    page.renderRecordings([
+        { ...base, id: 1, title: 'Half', position_sec: 500, watched: false },
+        { ...base, id: 2, title: 'Done', position_sec: 990, watched: true },
+        { ...base, id: 3, title: 'Fresh', position_sec: 0, watched: false }
+    ]);
+    const html = elements['recordings-list'].innerHTML;
+    const rows = html.split('class="recording-item"').slice(1);
+    assert.match(rows[0], /recording-progress[^>]*><span style="width:50%"/);
+    assert.ok(!rows[0].includes('Watched'));
+    assert.match(rows[1], /Watched/);
+    assert.ok(!rows[1].includes('recording-progress'));
+    assert.ok(!rows[2].includes('recording-progress') && !rows[2].includes('Watched'));
+});
+
+test('0207: resume time is shown as H:MM:SS', () => {
+    const { context } = makeContext(makeElements(), () => jsonResponse([]));
+    const page = new context.RecordingsPage({});
+    assert.equal(page.formatClock(3725), '1:02:05');
+    assert.equal(page.formatClock(59.9), '0:00:59');
+    assert.equal(page.formatClock(-5), '0:00:00');
+});
+
+test('0207: the Recordings page scrolls like Home (the .page clip would hide the rest)', () => {
+    const css = fs.readFileSync(path.join(__dirname, '../public/css/main.css'), 'utf8');
+    assert.match(css, /#page-home,\s*#page-recordings\s*\{[^}]*overflow-y:\s*auto/);
 });

@@ -245,7 +245,13 @@ const API = {
         getMarkers: (id) => API.request('GET', `/recordings/${id}/markers`),
         detectAds: (id) => API.request('POST', `/recordings/${id}/detect-ads`),
         clearMarkers: (id) => API.request('DELETE', `/recordings/${id}/markers`),
+        // Cancels an upcoming/running schedule; for a failed or missed one (0207) deletes it
+        // with its failed recordings, answering { deleted: true }.
         cancelScheduled: (id) => API.request('DELETE', `/recordings/scheduled/${id}`),
+        // 0207: where this login stopped watching. position_sec in seconds.
+        getPosition: (id) => API.request('GET', `/recordings/${id}/position`),
+        setPosition: (id, positionSec, watched) => API.request('PUT', `/recordings/${id}/position`,
+            watched === undefined ? { position_sec: positionSec } : { position_sec: positionSec, watched }),
         getAll: () => API.request('GET', '/recordings'),
         delete: (id) => API.request('DELETE', `/recordings/${id}`),
         streamUrl: (id) => API.withStreamToken(`/api/recordings/${id}/stream`),

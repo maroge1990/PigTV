@@ -71,6 +71,21 @@ function initSchema() {
         CREATE INDEX IF NOT EXISTS idx_markers_recording ON recording_markers(recording_id, start_ms);
     `);
 
+    // 0207: where each login stopped watching a recording. One row per (recording, user):
+    // the Apple TV and the phone of one login share it (a paired device's token names the
+    // login's user id), two logins never see each other's. user_id is TEXT, as devices.user_id
+    // is; always written through String(req.user.id).
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS recording_positions (
+            recording_id INTEGER NOT NULL,
+            user_id TEXT NOT NULL,
+            position_sec REAL NOT NULL,
+            watched INTEGER NOT NULL DEFAULT 0,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (recording_id, user_id)
+        );
+    `);
+
     // Migrations for databases created before compression existed.
     for (const col of [
         'compress_status TEXT',      // null|pending|running|done|failed|skipped
@@ -237,6 +252,13 @@ const scheduled = {
 
     cancel(id) {
         return this.setStatus(id, 'cancelled');
+    },
+
+    /** 0207: a failed or missed schedule removed from "Recent problems". */
+    delete(id) {
+        const db = getDb();
+        initSchema();
+        db.prepare('DELETE FROM scheduled_recordings WHERE id = ?').run(id);
     },
 
     // Recordings still marked in-flight from a previous process lifetime
@@ -515,7 +537,47 @@ const recordings = {
     delete(id) {
         const db = getDb();
         initSchema(); // a fresh database has no table until this has run once
-        db.prepare('DELETE FROM recordings WHERE id = ?').run(id);
+        db.transaction(() => {
+            db.prepare('DELETE FROM recordings WHERE id = ?').run(id);
+            // 0207: nobody can resume a recording that is gone.
+            db.prepare('DELETE FROM recording_positions WHERE recording_id = ?').run(id);
+        })();
+    },
+
+    // --- 0207: per-login resume position --------------------------------
+
+    /** The stored position as the API shape, or null when this login has none. */
+    getPosition(recordingId, userId) {
+        const db = getDb();
+        initSchema();
+        const r = db.prepare('SELECT position_sec, watched, updated_at FROM recording_positions WHERE recording_id = ? AND user_id = ?')
+            .get(recordingId, String(userId));
+        return r ? { position_sec: r.position_sec, watched: !!r.watched, updated_at: r.updated_at } : null;
+    },
+
+    /** Last write wins. Returns the stored row in the API shape. */
+    setPosition(recordingId, userId, positionSec, watched) {
+        const db = getDb();
+        initSchema();
+        const now = Date.now();
+        db.prepare(`
+            INSERT INTO recording_positions (recording_id, user_id, position_sec, watched, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(recording_id, user_id) DO UPDATE SET
+                position_sec = excluded.position_sec, watched = excluded.watched, updated_at = excluded.updated_at
+        `).run(recordingId, String(userId), positionSec, watched ? 1 : 0, now);
+        return { position_sec: positionSec, watched: !!watched, updated_at: now };
+    },
+
+    /** Every position this login has, by recording id, for the library list. */
+    positionsFor(userId) {
+        const db = getDb();
+        initSchema();
+        const map = new Map();
+        for (const r of db.prepare('SELECT recording_id, position_sec, watched FROM recording_positions WHERE user_id = ?').all(String(userId))) {
+            map.set(r.recording_id, { position_sec: r.position_sec, watched: !!r.watched });
+        }
+        return map;
     }
 };
 

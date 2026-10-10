@@ -57,6 +57,7 @@ async function sendInfo(req, res) {
             // Behaviours a client may want to switch on, added after the flags above. A client
             // asks for the flag rather than guessing from a version number; an older server
             // simply does not list it.
+            recordingPositions: true,        // 0207: GET/PUT /api/recordings/:id/position; /api/recordings rows carry position_sec + watched
             recordingPlaybackPolling: true,  // GET /api/recordings/:id/playback?async=1 may answer 202 {status:'preparing'}
             scheduledWaiting: true,          // /api/recordings/scheduled includes status 'waiting' and it can be cancelled
             viewerConflict: true,            // POST /api/playback/resolve may answer 409 conflict.type 'viewer-in-progress'

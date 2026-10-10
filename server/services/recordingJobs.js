@@ -6,6 +6,7 @@
 module.exports = {
     compressing: null,  // the recording being compressed
     detecting: null,    // the recording being analysed for breaks
+    liveDetecting: new Set(), // 0207: recordings a live break-detection run is still reading (compression and preparation leave them alone)
     preparing: null,    // the recording being prepared for the Apple client
     // How many captures are running (recordingEngine sets this): capture outranks every job.
     capturing: () => 0

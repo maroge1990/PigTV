@@ -1,7 +1,8 @@
 /**
  * After a recording: compression and commercial-break detection (split out of
  * recordingEngine.js in the simplification build). Both run one at a time, never while a
- * capture is running, and never on the recording preparation is working on.
+ * capture is running, and never on the recording preparation is working on. (0207: detection
+ * can also follow a capture live; see "Live detection" below.)
  */
 const fs = require('fs');
 const { recordings: recordingsDb } = require('../db/recordingsDb');
@@ -212,8 +213,11 @@ async function detectAdsFor(rec, settings) {
     console.log(`[Recordings] Detecting commercial breaks in #${rec.id}`);
 
     const result = await adDetect.detect(rec.file_path, {
-        iniPath: settings.comskipIniPath || undefined
+        iniPath: settings.comskipIniPath || undefined,
+        // 0207: scaled to the recording, not a flat 30 minutes.
+        timeoutMs: adDetect.postTimeoutMs(rec.duration_sec)
     });
+    console.log(`[Recordings] Break detection #${rec.id} (post): ${result.elapsedSec}s elapsed for a ${Math.round(rec.duration_sec || 0)}s recording`);
 
     if (!result.ok) {
         recordingsDb.setAdDetectStatus(rec.id, 'failed', result.error);
@@ -226,6 +230,105 @@ async function detectAdsFor(rec, settings) {
     console.log(`[Recordings] #${rec.id}: ${result.breaks.length} break(s) marked`);
 }
 
+// ---------------------------------------------------------------------------
+// Live detection (0207)
+//
+// Comskip follows a recording while it is still being written, so the markers are
+// ready (almost) when the capture ends instead of an hour later. Started by the
+// recording engine once a part's file has data; a part is its own recordings row, so
+// each gets its own run. Anything that goes wrong simply leaves the recording for the
+// queue above, exactly as before this existed.
+// ---------------------------------------------------------------------------
+
+// More than this many at once and the rest wait for the queue: capture comes first.
+const MAX_LIVE_RUNS = 2;
+// recordingId -> { handle, captureEnded, startedAt }
+const live = new Map();
+
+/** Is a live run following (or finishing) this recording? */
+function isLive(recordingId) {
+    return live.has(recordingId);
+}
+
+/**
+ * Start following a recording that is being captured, if detection is on, Comskip is
+ * there and a run is free. Safe to call every tick for the same recording (returns false
+ * once one is running). `rec` is { id, file_path }; `stillCapturing()` says the capture has
+ * not ended.
+ */
+async function startLiveDetection(rec, { stillCapturing = () => true } = {}) {
+    const id = rec.id;
+    if (live.has(id) || live.size >= MAX_LIVE_RUNS) return false;
+    const settings = await getSettings();
+    if (settings.adDetectionEnabled !== true) return false;
+    const adDetect = require('./adDetect');
+    if (!(await adDetect.isAvailable())) return false;
+    // Raced while awaiting: the capture may have ended meanwhile, and a run started on a
+    // finished file would exit "early" and leave the recording unqueued.
+    if (live.has(id) || live.size >= MAX_LIVE_RUNS || !stillCapturing()) return false;
+
+    const handle = adDetect.detectLive(rec.file_path, { iniPath: settings.comskipIniPath || undefined });
+    const run = { handle, captureEnded: false, startedAt: Date.now() };
+    live.set(id, run);
+    jobs.liveDetecting.add(id);
+    recordingsDb.setAdDetectStatus(id, 'running');
+    console.log(`[Recordings] Following #${id} with live break detection`);
+
+    handle.promise.then((result) => {
+        live.delete(id);
+        jobs.liveDetecting.delete(id);
+        const row = recordingsDb.getById(id);
+        const recorded = Math.round(row?.duration_sec || (Date.now() - run.startedAt) / 1000);
+        console.log(`[Recordings] Break detection #${id} (live): ${result.elapsedSec}s elapsed for a ${recorded}s recording` +
+            `${result.ok ? '' : ` (${result.error})`}`);
+        if (!row) return; // deleted meanwhile
+        if (!run.captureEnded) {
+            // Ended while the capture was still going (the file stalled, Comskip failed): the
+            // markers are partial at best. finalizeRecording queues the recording as usual.
+            console.warn(`[Recordings] Live break detection for #${id} ended before its capture did; it will be analysed afterwards`);
+            recordingsDb.setAdDetectStatus(id, null);
+            return;
+        }
+        if (result.ok) {
+            recordingsDb.replaceMarkers(id, result.breaks);
+            recordingsDb.setAdDetectStatus(id, 'done');
+            console.log(`[Recordings] #${id}: ${result.breaks.length} break(s) marked`);
+        } else {
+            // The capture is over and the live run did not deliver (including a kill after its
+            // grace): the queue analyses the finished file.
+            recordingsDb.setAdDetectStatus(id, 'pending');
+        }
+    }).catch(err => {
+        live.delete(id);
+        jobs.liveDetecting.delete(id);
+        console.error(`[Recordings] Live break detection error for #${id}: ${err.message}`);
+        if (run.captureEnded) recordingsDb.setAdDetectStatus(id, 'pending');
+    });
+    return true;
+}
+
+/**
+ * The capture of this recording is over. Returns true when a live run is finishing it - the
+ * caller then leaves ad_detect_status alone ('running'), and the run writes the markers.
+ * `success` false (nothing usable was recorded) stops the run instead.
+ */
+function liveCaptureEnded(recordingId, success = true) {
+    const run = live.get(recordingId);
+    if (!run) return false;
+    if (!success) { abortLive(recordingId); return false; }
+    run.captureEnded = true;
+    run.handle.captureEnded();
+    return true;
+}
+
+/** Stop following a recording (it was deleted, or its file is about to be replaced). */
+function abortLive(recordingId) {
+    const run = live.get(recordingId);
+    if (!run) return;
+    // Treated as ended before its capture did: no markers, and nothing is queued by it.
+    run.handle.kill();
+}
+
 async function processAdDetectionQueue({ manual = false } = {}) {
     if (detecting) return;
     if (jobs.capturing() > 0) return; // never compete with an active recording
@@ -234,7 +337,7 @@ async function processAdDetectionQueue({ manual = false } = {}) {
     if (!manual && settings.adDetectionEnabled !== true) return;
 
     // 0192: not the one being prepared - its .mkv is about to be replaced.
-    const pending = recordingsDb.findPendingAdDetection().filter(r => r.id !== jobs.preparing);
+    const pending = recordingsDb.findPendingAdDetection().filter(r => r.id !== jobs.preparing && !live.has(r.id));
     if (pending.length === 0) return;
 
     detecting = true;
@@ -258,7 +361,8 @@ async function processCompressionQueue() {
     const settings = await getSettings();
 
     // 0192: not the one being prepared - its .mkv is about to be replaced.
-    const pending = recordingsDb.findPendingCompression().filter(r => r.id !== jobs.preparing);
+    // 0207: nor one a live detection run is still reading.
+    const pending = recordingsDb.findPendingCompression().filter(r => r.id !== jobs.preparing && !jobs.liveDetecting.has(r.id));
     if (pending.length === 0) return;
 
     compressing = true;
@@ -274,4 +378,7 @@ async function processCompressionQueue() {
     }
 }
 
-module.exports = { compressRecording, buildCompressArgs, processCompressionQueue, processAdDetectionQueue };
+module.exports = {
+    compressRecording, buildCompressArgs, processCompressionQueue, processAdDetectionQueue,
+    startLiveDetection, liveCaptureEnded, abortLive, isLive, MAX_LIVE_RUNS
+};

@@ -115,8 +115,15 @@ class RecordingsPage {
                     <div class="recording-status status-${item.status}">${this.statusLabel(item.status)}</div>
                     ${item.error ? `<div class="recording-error">${this.escape(item.error)}</div>` : ''}
                 </div>
+                <div class="recording-actions">
+                    <button class="btn btn-sm btn-danger" data-action="delete-scheduled" data-id="${item.id}">Delete</button>
+                </div>
             </div>
         `).join('');
+
+        this.recentProblemsList.querySelectorAll('[data-action="delete-scheduled"]').forEach(btn => {
+            btn.addEventListener('click', () => this.deleteProblem(btn.dataset.id));
+        });
     }
 
     renderRecordings(items) {
@@ -139,6 +146,7 @@ class RecordingsPage {
                     </div>
                     <div class="recording-status status-${item.status}">${this.statusLabel(item.status)}</div>
                     ${item.status === 'failed' && item.error ? `<div class="recording-error">${this.escape(item.error)}</div>` : ''}
+                    ${this.progressHtml(item)}
                 </div>
                 <div class="recording-actions">
                     ${item.is_partial ? `<span class="small muted" style="margin-right:8px;" title="${
@@ -227,6 +235,39 @@ class RecordingsPage {
         }
     }
 
+    // 0207: a failed or missed schedule from "Recent problems": the server deletes it along
+    // with its failed recordings and their files, so the library is refreshed as well.
+    async deleteProblem(id) {
+        if (!confirm('Delete this failed recording? Any partial file is removed too. This cannot be undone.')) return;
+        try {
+            await API.recordings.cancelScheduled(id);
+            await this.refresh();
+        } catch (err) {
+            alert(`Failed to delete: ${err.message}`);
+        }
+    }
+
+    // 0207: this login's progress through a recording: a thin bar part-way through, a label
+    // once watched. Nothing for one not started.
+    progressHtml(item) {
+        if (item.status !== 'completed') return '';
+        if (item.watched) return '<div class="recording-watched">Watched</div>';
+        const position = Number(item.position_sec) || 0;
+        const duration = Number(item.duration_sec) || 0;
+        if (position <= 0 || duration <= 0) return '';
+        const percent = Math.min(100, Math.max(1, Math.round((position / duration) * 100)));
+        return `<div class="recording-progress" title="${this.formatClock(position)} watched"><span style="width:${percent}%"></span></div>`;
+    }
+
+    // H:MM:SS
+    formatClock(sec) {
+        const total = Math.max(0, Math.floor(Number(sec) || 0));
+        const h = Math.floor(total / 3600);
+        const m = Math.floor((total % 3600) / 60);
+        const s = total % 60;
+        return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
     async deleteRecording(id) {
         if (!confirm('Delete this recording? This cannot be undone.')) return;
         try {
@@ -245,7 +286,7 @@ class RecordingsPage {
         overlay.innerHTML = `
             <div class="recording-player-box">
                 <button class="recording-player-close">&times;</button>
-                <video controls autoplay src="${API.recordings.streamUrl(id)}"></video>
+                <video controls></video>
                 <div class="ad-markers" aria-hidden="true"></div>
                 <button class="skip-ad-btn" hidden>Skip ad</button>
             </div>
@@ -258,7 +299,62 @@ class RecordingsPage {
         document.body.appendChild(overlay);
         this._playerOverlay = overlay;
 
+        // 0207: where this login stopped last time. Asked before anything plays; a failure
+        // to read it just means playing from the start.
+        let resumeAt = 0;
+        try {
+            const pos = await API.recordings.getPosition(id);
+            if (pos && pos.position_sec > 10 && !pos.watched) resumeAt = await this.askResume(overlay, pos.position_sec);
+        } catch (err) { /* play from the start */ }
+        if (resumeAt === null || this._playerOverlay !== overlay) return; // closed while asking
+
+        const video = overlay.querySelector('video');
+        if (resumeAt > 0) {
+            video.addEventListener('loadedmetadata', () => { video.currentTime = resumeAt; }, { once: true });
+        }
+        video.autoplay = true;
+        video.src = API.recordings.streamUrl(id);
+
+        this.trackPosition(overlay, video, id);
         this.attachAdSkipping(overlay, id);
+    }
+
+    /**
+     * Resume or start over. Resolves with the seconds to start at (0 = start over), or null
+     * if the player was closed without choosing.
+     */
+    askResume(overlay, positionSec) {
+        return new Promise((resolve) => {
+            const box = overlay.querySelector('.recording-player-box');
+            const panel = document.createElement('div');
+            panel.className = 'resume-choice';
+            panel.innerHTML = `
+                <p>Continue where you left off?</p>
+                <div class="resume-choice-actions">
+                    <button class="btn btn-primary" data-choice="resume">Resume from ${this.formatClock(positionSec)}</button>
+                    <button class="btn btn-secondary" data-choice="restart">Start over</button>
+                </div>
+            `;
+            box.insertBefore(panel, box.firstChild);
+            const settle = (value) => { panel.remove(); resolve(value); };
+            panel.querySelector('[data-choice="resume"]').addEventListener('click', () => settle(positionSec));
+            panel.querySelector('[data-choice="restart"]').addEventListener('click', () => settle(0));
+            this._resumePrompt = () => settle(null);
+        });
+    }
+
+    /** Save the position every ~10 s while playing, on pause, and on close (failures ignored). */
+    trackPosition(overlay, video, id) {
+        // Closing pauses the video and clears its source; the pause event lands after that,
+        // when currentTime reads 0, so once closed nothing more is saved.
+        let closed = false;
+        const save = () => {
+            if (closed || !Number.isFinite(video.currentTime)) return;
+            API.recordings.setPosition(id, Math.floor(video.currentTime)).catch(() => {});
+        };
+        const timer = setInterval(() => { if (!video.paused && !video.ended) save(); }, 10000);
+        video.addEventListener('pause', save);
+        this._positionTracker = { timer, save, close: () => { closed = true; } };
     }
 
     /**
@@ -329,6 +425,13 @@ class RecordingsPage {
     }
 
     closePlayer() {
+        if (this._resumePrompt) { const settle = this._resumePrompt; this._resumePrompt = null; settle(); }
+        if (this._positionTracker) {
+            clearInterval(this._positionTracker.timer);
+            this._positionTracker.save(); // before the video is torn down
+            this._positionTracker.close();
+            this._positionTracker = null;
+        }
         if (this._playerOverlay) {
             const video = this._playerOverlay.querySelector('video');
             if (video) { video.pause(); video.src = ''; }

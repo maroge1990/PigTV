@@ -589,7 +589,7 @@ async function processNativeQueue(now = Date.now()) {
     if (preparingNative || !prepareQueueOn) return;
     const pending = recordingsDb.findPendingNative()
         // Never touch files another job is reading; it is picked up afterwards.
-        .filter(r => r.id !== jobs.compressing && r.id !== jobs.detecting)
+        .filter(r => r.id !== jobs.compressing && r.id !== jobs.detecting && !jobs.liveDetecting.has(r.id)) // 0207: nor one live detection is still reading
         // Capture first: with a recording running only fresh ones go ahead.
         .filter(r => jobs.capturing() === 0 || (r.ended_at && now - r.ended_at < NATIVE_FRESH_MS));
     if (pending.length === 0) return;

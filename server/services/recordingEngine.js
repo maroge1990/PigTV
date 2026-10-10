@@ -49,6 +49,10 @@ const failoverTuning = {
     maxParts: 3
 };
 
+// 0207: live break detection starts once a part's file holds this much (a few seconds of
+// video), enough for Comskip to find the streams in it.
+const LIVE_DETECT_MIN_BYTES = 4 * 1024 * 1024;
+
 let tickTimer = null;
 let tickRunning = false;
 // scheduledId -> { proc, recordingId, hardStopTimer, stderrTail: [] }
@@ -424,7 +428,7 @@ async function stopForViewer(scheduleId) {
  * continued on another provider is its own item, with `part` and `provider_id`
  * (columns) and `provider_name` - the provider's name only, never its address.
  */
-function listRecordings() {
+function listRecordings(userId = null) {
     const rows = recordingsDb.listAll();
     let names = new Map();
     try {
@@ -434,8 +438,12 @@ function listRecordings() {
             return [Number(r.id), name];
         }));
     } catch (e) { /* no names: null */ }
+    // 0207: this login's resume position and watched flag on every row (0 / false for none).
+    const positions = userId === null || userId === undefined ? new Map() : recordingsDb.positionsFor(userId);
     return rows.map(r => ({
         ...r,
+        position_sec: positions.get(r.id)?.position_sec ?? 0,
+        watched: positions.get(r.id)?.watched ?? false,
         provider_name: r.provider_id === null || r.provider_id === undefined ? null : (names.get(Number(r.provider_id)) ?? null)
     }));
 }
@@ -455,6 +463,17 @@ async function cancelScheduled(id) {
         // withdraw the prompt that asks that viewer to stop watching.
         setScheduleStatus(schedule, 'cancelled');
         coordinator.clearPrompt(id);
+    } else if (schedule.status === 'failed' || schedule.status === 'missed') {
+        // 0207: a problem listed under "Recent problems" is deleted, not cancelled (it has
+        // nothing left to cancel). Its failed recordings - a part that never got going, or a
+        // partial file - go with it, files and all, through deleteRecording so the file family
+        // is cleared the same way; a part that completed (an earlier one of a failover) is a
+        // real recording and stays.
+        for (const rec of recordingsDb.listBySchedule(id)) {
+            if (rec.status === 'failed') await deleteRecording(rec.id);
+        }
+        scheduledDb.delete(id);
+        return { deleted: true };
     }
     return scheduledDb.getById(id);
 }
@@ -462,6 +481,9 @@ async function cancelScheduled(id) {
 async function deleteRecording(id) {
     const rec = recordingsDb.getById(id);
     if (!rec) throw new Error('Recording not found');
+
+    // 0207: nor may a live break-detection run go on reading a file about to go.
+    post.abortLive(id);
 
     // If it's still actively recording, stop it first
     for (const [scheduledId, entry] of active.entries()) {
@@ -731,6 +753,7 @@ async function onPartExit(schedule, entry, exitCode) {
             const nextCandidate = entry.route.candidates[next];
             console.warn(`[Recordings] #${entry.recordingId} ${how} on ${candidate.providerName} as it started; ` +
                 `starting again on ${nextCandidate.providerName}`);
+            post.abortLive(entry.recordingId); // 0207: it followed a file that is being rewritten
             try { fs.unlinkSync(entry.outputPath); } catch (e) { /* nothing was written */ }
             recordingsDb.setProvider(entry.recordingId, nextCandidate.providerId);
             spawnPart(schedule, settings, {
@@ -868,6 +891,10 @@ function finalizeRecording(scheduledId, recordingId, outputPath, exitCode, stder
 
     console.log(`[Recordings] Recording #${recordingId} finished (${success ? 'completed' : 'failed'}), ${fileSize} bytes`);
 
+    // 0207: a live detection run that followed this capture goes on to finish the file and
+    // writes the markers itself (the status stays 'running'); otherwise it is queued as ever.
+    const followedLive = post.liveCaptureEnded(recordingId, success);
+
     if (success) {
         // Marked pending regardless of the setting; the queue checks whether
         // compression is enabled, so turning it on later picks these up.
@@ -876,7 +903,7 @@ function finalizeRecording(scheduledId, recordingId, outputPath, exitCode, stder
             // before you sit down to watch. Compression is not: it is only
             // worth doing for a recording you have decided to keep, which is a
             // judgement made after watching, so it waits to be asked for.
-            recordingsDb.setAdDetectStatus(recordingId, 'pending');
+            if (!followedLive) recordingsDb.setAdDetectStatus(recordingId, 'pending');
         } catch (e) { /* columns may be missing on a very old database */ }
         // 0192 (audit R06): and prepared for the Apple client before anyone asks.
         recordingsDb.setNativeStatus(recordingId, 'pending');
@@ -911,6 +938,23 @@ function checkRecordingStalls(now = Date.now()) {
         const proc = entry.proc;
         // A stalled ffmpeg may be blocked reading the input and never see the "q".
         setTimeout(() => { if (proc.exitCode === null && proc.signalCode === null) { try { proc.kill('SIGKILL'); } catch (e) { /* gone */ } } }, 5000).unref?.();
+    }
+}
+
+/**
+ * 0207: follow each capture with Comskip once its file has data (see recordingPost.js). Each
+ * part is its own run; a part is tried again on the next tick until a run has been started
+ * (detection off, Comskip missing and the cap all just mean "not now"), and never again
+ * after, so a run that ended early is not restarted over a stalled file.
+ */
+function startLiveDetections() {
+    for (const entry of active.values()) {
+        if (entry.liveStarted || entry.stopRequested) continue;
+        if (fileSizeOf(entry.outputPath) < LIVE_DETECT_MIN_BYTES) continue;
+        post.startLiveDetection({ id: entry.recordingId, file_path: entry.outputPath },
+            { stillCapturing: () => active.get(entry.schedule.id) === entry })
+            .then(started => { if (started) entry.liveStarted = true; })
+            .catch(err => console.error(`[Recordings] Live break detection could not start for #${entry.recordingId}:`, err.message));
     }
 }
 
@@ -987,6 +1031,13 @@ function reconcileOnStartup() {
     for (const schedule of missed) {
         setScheduleStatus(schedule.id, 'missed', { error: 'Server was not running when this recording was due.' });
     }
+
+    // 0207: a live detection run did not survive the restart. A recording it was following
+    // goes through the queue like any other; one that never completed has nothing to analyse.
+    try {
+        getDb().prepare(`UPDATE recordings SET ad_detect_status = CASE WHEN status = 'completed' THEN 'pending' ELSE NULL END,
+            ad_detect_error = NULL WHERE ad_detect_status = 'running'`).run();
+    } catch (e) { /* columns may be missing on a very old database */ }
 }
 
 /**
@@ -1100,6 +1151,7 @@ async function tick() {
         // recordings whose file has stopped growing (default path, with backups).
         for (const scheduleId of [...continuations.keys()]) await continuePart(scheduleId, now);
         checkRecordingStalls(now);
+        startLiveDetections();
 
         // Give a viewer notice before a recording is actually due, rather than
         // at the moment it needs the stream.

@@ -3538,7 +3538,8 @@ kbd {
    Home Dashboard Styles
    ===================================================== */
 
-#page-home {
+#page-home,
+#page-recordings {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -3921,6 +3922,45 @@ kbd {
   font-size: 2rem;
   line-height: 1;
   cursor: pointer;
+}
+
+/* 0207: resume position. A thin bar under the title of a recording part-way watched, and the
+   choice shown before playback starts. */
+.recording-progress {
+  height: 3px;
+  margin-top: var(--space-xs);
+  background: var(--color-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.recording-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+}
+
+.recording-watched {
+  margin-top: var(--space-xs);
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.resume-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-xl, 32px) var(--space-lg);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.resume-choice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-sm);
 }
 
 /* ==========================================================================

@@ -204,7 +204,9 @@ router.get('/scheduled', (req, res) => {
     }
 });
 
-// Cancel (or stop, if currently recording) a scheduled recording
+// Cancel (or stop, if currently recording) a scheduled recording. 0207: for a failed or
+// missed one (the "Recent problems" list) this deletes it instead, with its failed
+// recordings and their files, and answers { deleted: true }.
 router.delete('/scheduled/:id', async (req, res) => {
     try {
         const result = await recordingEngine.cancelScheduled(parseInt(req.params.id));
@@ -219,7 +221,48 @@ router.delete('/scheduled/:id', async (req, res) => {
 // List all recordings (completed / recording / failed)
 router.get('/', (req, res) => {
     try {
-        res.json(recordingEngine.listRecordings());
+        res.json(recordingEngine.listRecordings(req.user?.id));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- Resume position (0207), per login ------------------------------------
+// req.user.id is the login's user id for a browser token and for a paired device's token
+// alike (a device token names the user who approved the pairing), so a TV and a phone on one
+// login share a position.
+
+const NOT_STARTED = { position_sec: 0, watched: false, updated_at: null };
+
+router.get('/:id/position', (req, res) => {
+    try {
+        const rec = recordingsDb.getById(parseInt(req.params.id));
+        if (!rec) return res.status(404).json({ error: 'Recording not found' });
+        res.json(recordingsDb.getPosition(rec.id, req.user.id) || NOT_STARTED);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Last write wins. `watched` is worked out here unless the client forces it: finished means
+// within the last 10 minutes or 5% of the recording, whichever is less (a 4 h film is done
+// with 10 minutes left, a 30 min programme only inside the last 90 s).
+router.put('/:id/position', (req, res) => {
+    try {
+        const rec = recordingsDb.getById(parseInt(req.params.id));
+        if (!rec) return res.status(404).json({ error: 'Recording not found' });
+        const { position_sec: position, watched: forced } = req.body || {};
+        if (typeof position !== 'number' || !Number.isFinite(position) || position < 0) {
+            return res.status(400).json({ error: 'position_sec must be a number, 0 or more' });
+        }
+        if (forced !== undefined && typeof forced !== 'boolean') {
+            return res.status(400).json({ error: 'watched must be true or false' });
+        }
+        const duration = Number(rec.duration_sec) || 0;
+        const watched = forced !== undefined
+            ? forced
+            : duration > 0 && (duration - position) <= Math.min(600, 0.05 * duration);
+        res.json(recordingsDb.setPosition(rec.id, req.user.id, position, watched));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
