@@ -31,12 +31,12 @@ the hand-typed dates). R7.6–R7.13 and R7.15 are unchanged and repeated here in
 - [x] D2 (R7.7) Second device plays a different linked channel on a backup with no "another device" prompt.
 - [x] D3 (R7.8) Primary down (break Strong8K's playlist address on its card): a linked channel plays on a backup within ~20 s; after two failures Status shows Strong8K down; restored after the cooldown.
 - [x] D4 (R7.9) Mid-play break: rebuffers ~5–20 s, carries on on the backup.
-- [ ] D5 (R7.10) An unlinked channel fails with "The provider refused this channel".
-- [ ] D6 (R7.11, Mark testing 2 Oct) A due recording starts on a backup without a prompt while the TV watches.
-- [ ] D7 (R7.12) Everything busy: the recording prompts as before.
-- [ ] D8 (R7.13, optional) Break the primary during a recording: a "(part 2)" appears on a backup.
-- [ ] D9 (R7.15) Both backups disabled: everything behaves as before.
-- [ ] D10 (replaces R7.14) The expiry banner appears for a provider within 7 days of its account's end (web and Apple TV), and can be dismissed for the day. Nothing to type: it can only be checked when one is actually close.
+- [x] D5 (R7.10) An unlinked channel fails with "The provider refused this channel".
+- [x] D6 (R7.11, Mark testing 2 Oct) A due recording starts on a backup without a prompt while the TV watches.
+- [x] D7 (R7.12) Everything busy: the recording prompts as before.
+- [x] D8 (R7.13, optional) Break the primary during a recording: a "(part 2)" appears on a backup.
+- [x] D9 (R7.15) Both backups disabled: everything behaves as before.
+- [x] D10 (replaces R7.14) The expiry banner appears for a provider within 7 days of its account's end (web and Apple TV), and can be dismissed for the day. Nothing to type: it can only be checked when one is actually close.
 
 **E. Settings layout and Status (0182)**
 - [x] E1 Six tabs; Channels has Manage content / Channel numbers / EPG matching; each opens and saves.
@@ -79,8 +79,8 @@ Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "Timestamps looping|Bl
 - [x] N3 Status page loads (admin), Live sessions listed; nothing in the log about 401s from your own devices.
 - [x] N4 Sport tab: switch Home → Guide → Sport and back a few times; Sport is selectable at once (was 1–3 s). Scroll Replays to the end and back; open and close Event details: focus returns to the same card.
 - [x] N5 Log after the deploy: `earlier recording(s) queued to be prepared for the Apple client`, then one `#N is now <name>.mp4; the .mkv it was made from is deleted` per recording, one at a time. Recordings show "Preparing for playback…" until theirs is done. Free space drops briefly while each is prepared, then rises (the .mkv is gone).
-- [ ] N6 Record something short (10 min). When it finishes, wait for its `is now … .mp4` line, then press Play: it starts within a couple of seconds (was about a minute for a fresh recording).
-- [ ] N7 A recording with ad breaks: playback starts without waiting; the skip prompt still appears at a break.
+- [x] N6 Record something short (10 min). When it finishes, wait for its `is now … .mp4` line, then press Play: it starts within a couple of seconds (was about a minute for a fresh recording).
+- [x] N7 A recording with ad breaks: playback starts without waiting; the skip prompt still appears at a break.
 - [x] N8 An HEVC channel recorded and played (0192: the prepared MP4 is tagged `hvc1`).
 - [ ] N9 Optional: Instruments baseline on the Apple TV (app `TESTING.md` → "Measuring on the Apple TV").
 
@@ -99,26 +99,26 @@ Log filter: `docker logs PigTV --since 30m 2>&1 | grep -E "entrypoint|Relay|Coor
 
 **P. Recording audio (0203, 4 Oct).** (`PIGTV_KEEP_MKV` is ignored from 0204: an original is deleted only once its MP4 decodes cleanly. Remove the variable from the template.)
 - [x] P1 `/api/version` says **0203**. Record ~15 min of Nick Toons (or any channel with ad breaks). The new file in the share ends in **`.ts`**, not `.mkv`.
-- [ ] P2 When it finishes, the log shows `#N ready for native playback` then `#N is now … .mp4` (with the variable set, the `.ts` is kept beside it). Play it on the Apple TV **past the first ad break**: picture and sound all the way to the end.
-- [ ] P3 Break detection finishes for it (`#N: K break(s) marked`, not `Break detection failed`).
-- [ ] P4 Run the audio check from 4 Oct on the new `.mp4`: `0 errors` (or only a handful).
-- [ ] P5 Settings → Transcoding: tick In-stream recovery and Hot standby, then untick In-stream recovery: Hot standby unticks too and stays unticked after a page reload.
+- [x] P2 When it finishes, the log shows `#N ready for native playback` then `#N is now … .mp4` (with the variable set, the `.ts` is kept beside it). Play it on the Apple TV **past the first ad break**: picture and sound all the way to the end.
+- [x] P3 Break detection finishes for it (`#N: K break(s) marked`, not `Break detection failed`).
+- [x] P4 Run the audio check from 4 Oct on the new `.mp4`: `0 errors` (or only a handful).
+- [x] P5 Settings → Transcoding: tick In-stream recovery and Hot standby, then untick In-stream recovery: Hot standby unticks too and stays unticked after a page reload.
 
 **Q. The simplification build (server 0204–0205 · app 39, 4 Oct). Behaviour should be unchanged apart from Q2.**
-- [ ] Q1 `/api/version` says **0204**; Settings → About on the Apple TV says build **39**. Remove `PIGTV_KEEP_MKV` from the Unraid template (it is ignored now).
-- [ ] Q2 TV Guide: ESPN, NFL RedZone and Sky Sports Main Event each appear **once** (no "(Backup)" copy beside them). Play one, then (if you can) break Strong8K's address as in D3: it still fails over to its backup feed.
-- [ ] Q3 With Warm the next channel on: watching ESPN, channel up warms the real next channel (Status → Providers shows `warm` on that channel, not on "ESPN (Backup)").
-- [ ] Q4 Everyday checks still pass: a live channel, the Guide, Sport, a recording (record, play, delete), Settings switches, Status page.
-- [ ] Q5 The app: Home, Guide, Sport, Recordings and Settings behave as in app 38 (this build only reorganised code and tests).
-- [ ] Q6 (0205) Settings → Transcoding: In-stream recovery and Hot standby on. Play ESPN for a minute: Status shows the stream `standby-ready` with a backup named, as in L4. Then rerun L2/L3 (provider lost mid-play: the picture carries on). Settings → **Backup links** still lists the "(Backup)" siblings after a sync.
+- [x] Q1 `/api/version` says **0204**; Settings → About on the Apple TV says build **39**. Remove `PIGTV_KEEP_MKV` from the Unraid template (it is ignored now).
+- [x] Q2 TV Guide: ESPN, NFL RedZone and Sky Sports Main Event each appear **once** (no "(Backup)" copy beside them). Play one, then (if you can) break Strong8K's address as in D3: it still fails over to its backup feed.
+- [x] Q3 With Warm the next channel on: watching ESPN, channel up warms the real next channel (Status → Providers shows `warm` on that channel, not on "ESPN (Backup)").
+- [x] Q4 Everyday checks still pass: a live channel, the Guide, Sport, a recording (record, play, delete), Settings switches, Status page.
+- [x] Q5 The app: Home, Guide, Sport, Recordings and Settings behave as in app 38 (this build only reorganised code and tests).
+- [x] Q6 (0205) Settings → Transcoding: In-stream recovery and Hot standby on. Play ESPN for a minute: Status shows the stream `standby-ready` with a backup named, as in L4. Then rerun L2/L3 (provider lost mid-play: the picture carries on). Settings → **Backup links** still lists the "(Backup)" siblings after a sync.
 
 **G. Still open from earlier rounds**
 - [x] G1 R6.3 again: recordings folder set back to `/app/recordings/SERVER01_Video/Recordings`; a bad path is refused.
 - [x] G2 R6.4 An overnight recording scheduled from the Apple TV is there next morning.
-- [ ] G3 R6.5 Prompt ignored: the recording takes the stream ~3 minutes after it is due.
-- [ ] G4 R6.6 "Keep watching": playback continues, the recording waits.
+- [x] G3 R6.5 Prompt ignored: the recording takes the stream ~3 minutes after it is due.
+- [x] G4 R6.6 "Keep watching": playback continues, the recording waits.
 - [x] G5 R6.16 Web: Live TV, Guide, Recordings play; every Settings tab opens and saves (now the six tabs, see E).
-- [ ] G6 1.16 Skip break / Auto-skip on a recording with detected breaks.
+- [x] G6 1.16 Skip break / Auto-skip on a recording with detected breaks.
 - [x] G7 R3.8 Sport tab empty state (a moment with no followed sport).
 - [x] G8 R2.5 / R3.11 A file-based channel starts quickly (needs that channel found again).
 - [x] G9 Mark's minor bugs from app 35 / 0167 (29 Sept): not yet reported in detail.
