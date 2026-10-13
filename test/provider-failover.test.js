@@ -34,7 +34,12 @@ const routing = load('services/providerRouting');
 const playbackEvents = load('services/playbackEvents');
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-const DEFAULTS = { DEADLINE_MS: routing.DEADLINE_MS, NEXT_RESERVE_MS: routing.NEXT_RESERVE_MS, MIN_START_MS: routing.MIN_START_MS };
+// The refused-connection retry waits are scaled down tenfold (1 s for an earlier candidate,
+// 1.5 s + 3 s for the last): these tests count attempts, not seconds. The real waits are
+// pinned in start-failure.test.js.
+const LAST_RETRY_DELAYS_MS = [150, 300];
+const DEFAULTS = { DEADLINE_MS: routing.DEADLINE_MS, NEXT_RESERVE_MS: routing.NEXT_RESERVE_MS, MIN_START_MS: routing.MIN_START_MS, EARLY_RETRY_DELAYS_MS: [100] };
+Object.assign(routing, DEFAULTS);
 
 // ---- fake ffmpeg: what each stream URL does -------------------------------------
 const stderr = (lines) => lines.map(l => `process.stderr.write(${JSON.stringify(l + '\n')});`).join(' ');
@@ -128,7 +133,7 @@ before(async () => {
     transcodeSession.createSession = async (u, o = {}) => {
         const kind = behaviour.get(u) || 'ok';
         const extra = kind === 'stalls' ? { stallMs: 800, startupMs: 5000, watchdogIntervalMs: 100 } : { stallMs: 60000, startupMs: 60000 };
-        const s = await realCreate(u, { ...o, ffmpegPath: process.execPath, ...extra });
+        const s = await realCreate(u, { refusedRetryDelaysMs: LAST_RETRY_DELAYS_MS, ...o, ffmpegPath: process.execPath, ...extra });
         s.buildFFmpegArgs = () => { starts.set(u, startsOf(u) + 1); return ['-e', SCRIPTS[kind]]; };
         return s;
     };
@@ -265,7 +270,7 @@ test('retries: one (after 1 s) on every candidate but the last, which keeps 0143
 });
 
 test('deadline: a candidate that hangs is cut so the next has time, and none starts with too little left', async () => {
-    Object.assign(routing, { DEADLINE_MS: 6000, NEXT_RESERVE_MS: 3000, MIN_START_MS: 2000 });
+    Object.assign(routing, { DEADLINE_MS: 4000, NEXT_RESERVE_MS: 2000, MIN_START_MS: 1000 });
     behaviour.set(url.A(104), 'hang');
     behaviour.set(url.B(5004), 'hang');
     const t0 = Date.now();
@@ -276,7 +281,7 @@ test('deadline: a candidate that hangs is cut so the next has time, and none sta
     assert.equal(startsOf(url.A(104)), 1);
     assert.equal(startsOf(url.B(5004)), 1, 'the second started with more than MIN_START left');
     assert.equal(startsOf(url.C(7004)), 0, 'the third would have had less than MIN_START left');
-    assert.ok(took < 6500, `resolve took ${took} ms, past its 6 s deadline`);
+    assert.ok(took < 4500, `resolve took ${took} ms, past its 4 s deadline`);
     assert.ok(logLines.some(l => l.includes('[Playback] failover: stopped after Trex')));
 
     // With room, the hanging primary is cut NEXT_RESERVE before the deadline and the backup plays.
@@ -406,7 +411,7 @@ test('with no backup configured: today\'s retries, timing line, errors and 409s'
     await db.sources.update(C.id, { enabled: false });
     const start = logLines.length;
 
-    // A 502: 0143's two retries (1.5 s + 3 s), today's sentence, nothing else tried.
+    // A 502: 0143's two retries, today's sentence, nothing else tried.
     behaviour.set(url.A(102), '502');
     const failed = await play('pos_2');
     assert.equal(failed.status, 500);

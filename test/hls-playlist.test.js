@@ -1,8 +1,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-// 0126: the tuner's playlists are the server's (services/hlsPlaylist.js). ffmpeg's
-// own playlist is only parsed.
+// services/hlsPlaylist.js parses ffmpeg's playlist and renders the relay's own (0126, used by
+// streamRelay.js since 0189).
 const hls = require('../server/services/hlsPlaylist');
 
 const FFMPEG_FMP4 = [

@@ -63,8 +63,11 @@ function refusesThenPlays(what, times, afterMs = 0) {
         `if (n < ${times}) { setTimeout(() => { ${refusal(what)} process.exitCode = 1; }, ${afterMs}); } else { ${PRODUCES} }`;
 }
 
+// The refusal retries wait 1.5 s and 3 s (pinned below); the other tests use a tenth of that,
+// since what they check is how many attempts happen and when they stop, not the seconds.
+const FAST_RETRIES = [150, 300];
 async function fakeSession(script, options = {}) {
-    const s = await transcodeSession.createSession(URL_, { ffmpegPath: process.execPath, live: true, videoMode: 'copy', stallMs: 60000, startupMs: 60000, ...options });
+    const s = await transcodeSession.createSession(URL_, { ffmpegPath: process.execPath, live: true, videoMode: 'copy', stallMs: 60000, startupMs: 60000, refusedRetryDelaysMs: FAST_RETRIES, ...options });
     s.buildFFmpegArgs = () => ['-e', script];
     return s;
 }
@@ -91,8 +94,8 @@ test('waitForPlaylist gives up as soon as ffmpeg has exited without a playlist, 
     const { result: ready } = await captureLogs(() => s.waitForPlaylist(15000));
     const waited = Date.now() - t0;
     assert.equal(ready, false);
-    // A 403 now gets two retries (1.5 s + 3 s waits, 0143) before the session fails for good.
-    assert.ok(waited < 8000, `answered after ${waited} ms; the old code polled the full 15 s`);
+    // A 403 gets two retries (0143) before the session fails for good.
+    assert.ok(waited < 5000, `answered after ${waited} ms; the old code polled the full 15 s`);
     await transcodeSession.removeSession(s.id);
 });
 
@@ -158,7 +161,7 @@ test('resolve answers a refused channel quickly, with that reason, in the same {
 
 // ---- (c) one retry when the provider refused the first connection ----
 
-test('a 4xx right after the probe is retried after 1.5 s, in a cleared folder', async () => {
+test('a 4xx right after the probe is retried after the first wait, in a cleared folder', async () => {
     const s = await fakeSession(refusesOnceThenPlays(OTHER_4XX));
     const count = countStarts(s);
     // A leftover from the failed attempt must not survive into the retry.
@@ -170,7 +173,7 @@ test('a 4xx right after the probe is retried after 1.5 s, in a cleared folder', 
     });
     assert.equal(ready, true, 'the retry produced the playlist');
     assert.equal(count(), 2, 'started twice');
-    assert.ok(lines.some(l => new RegExp(`\\[TranscodeSession ${s.id}\\] Provider refused the connection; retry 1 of 2 in 1\\.5s`).test(l)));
+    assert.ok(lines.some(l => new RegExp(`\\[TranscodeSession ${s.id}\\] Provider refused the connection; retry 1 of 2 in 0\\.15s`).test(l)));
     assert.equal(fs.existsSync(path.join(s.dir, 'seg0099.ts')), false, 'the folder was cleared before the retry');
     await transcodeSession.removeSession(s.id);
 });
@@ -190,7 +193,7 @@ test('at most twice: a provider that keeps refusing fails with the reason after 
     const { result: ready } = await captureLogs(async () => { await s.start(); return s.waitForPlaylist(15000); });
     assert.equal(ready, false);
     assert.equal(count(), 3, 'two retries, no more');
-    await sleep(3500);
+    await sleep(1300);
     assert.equal(count(), 3, 'and nothing restarts it later');
     assert.equal(s.status, 'error');
     assert.match(s.failureReason(), /refused this channel \(HTTP 403\)/);
@@ -202,7 +205,7 @@ test('a 404 is not retried: the channel is not there, and asking again will not 
     const count = countStarts(s);
     const { result: ready } = await captureLogs(async () => { await s.start(); return s.waitForPlaylist(15000); });
     assert.equal(ready, false);
-    await sleep(2000);
+    await sleep(1200);
     assert.equal(count(), 1);
     await transcodeSession.removeSession(s.id);
 });
@@ -211,21 +214,21 @@ test('a refusal later than the first ~3 s is not retried (that is a feed droppin
     const s = await fakeSession(`setTimeout(() => { ${refusal(FORBIDDEN)} process.exitCode = 1; }, 3500);`);
     const count = countStarts(s);
     await captureLogs(async () => { await s.start(); return s.waitForPlaylist(15000); });
-    await sleep(2000);
+    await sleep(1200);
     assert.equal(count(), 1);
     await transcodeSession.removeSession(s.id);
 });
 
-test('a session removed during the 1.5 s wait is not started again', async () => {
-    const s = await fakeSession(`${refusal(FORBIDDEN)} process.exitCode = 1;`);
+test('a session removed during the wait is not started again', async () => {
+    const s = await fakeSession(`${refusal(FORBIDDEN)} process.exitCode = 1;`, { refusedRetryDelaysMs: [1000, 2000] });
     const count = countStarts(s);
     await captureLogs(async () => {
         await s.start();
         const end = Date.now() + 5000;
         while (s.process !== null && Date.now() < end) await sleep(20);
-        await sleep(300);
+        await sleep(200);
         await transcodeSession.removeSession(s.id);
-        await sleep(2000);
+        await sleep(1300);
     });
     assert.equal(count(), 1, 'the retry noticed the session had gone');
     assert.equal(s.process, null);
@@ -235,23 +238,24 @@ test('a session removed during the 1.5 s wait is not started again', async () =>
 // the provider refused the new connection even after the 1.5 s retry: it was most likely still
 // counting the old connection. A second retry, after 3 s more, gives it time to let go.
 test('a provider still refusing after 1.5 s gets a second retry after 3 s more', async () => {
+    assert.deepEqual(transcodeSession.REFUSED_RETRY_DELAYS_MS, [1500, 3000], 'the waits a real session uses');
     const s = await fakeSession(refusesThenPlays(OTHER_4XX, 2));
     const count = countStarts(s);
     const t0 = Date.now();
     const { result: ready, lines } = await captureLogs(async () => { await s.start(); return s.waitForPlaylist(15000); });
     assert.equal(ready, true, 'the third attempt produced the playlist');
     assert.equal(count(), 3);
-    assert.ok(Date.now() - t0 >= 4500, 'waited 1.5 s, then 3 s');
-    assert.ok(lines.some(l => l.includes(`[TranscodeSession ${s.id}] Provider refused the connection; retry 1 of 2 in 1.5s`)));
-    assert.ok(lines.some(l => l.includes(`[TranscodeSession ${s.id}] Provider refused the connection; retry 2 of 2 in 3s`)));
+    assert.ok(Date.now() - t0 >= 450, 'waited the first delay, then the second');
+    assert.ok(lines.some(l => l.includes(`[TranscodeSession ${s.id}] Provider refused the connection; retry 1 of 2 in 0.15s`)));
+    assert.ok(lines.some(l => l.includes(`[TranscodeSession ${s.id}] Provider refused the connection; retry 2 of 2 in 0.3s`)));
     await transcodeSession.removeSession(s.id);
 });
 
 test('waitForPlaylist\'s timeout is extended by exactly the retries, so the last attempt still gets its time', async () => {
-    // Each refusal comes 2 s in (inside the 3 s window): 2 + 1.5 + 2 + 3 = 8.5 s before the
-    // attempt that plays - longer than the 6 s this caller waits for, without the extension.
-    const s = await fakeSession(refusesThenPlays(OTHER_4XX, 2, 2000));
-    const { result: ready } = await captureLogs(async () => { await s.start(); return s.waitForPlaylist(6000); });
+    // Each refusal comes 1 s in (inside the 3 s window): 1 + 0.15 + 1 + 0.3 = 2.45 s before the
+    // attempt that plays - longer than the 1.5 s this caller waits for, without the extension.
+    const s = await fakeSession(refusesThenPlays(OTHER_4XX, 2, 1000));
+    const { result: ready } = await captureLogs(async () => { await s.start(); return s.waitForPlaylist(1500); });
     assert.equal(ready, true);
     await transcodeSession.removeSession(s.id);
 

@@ -11,8 +11,7 @@ const { spawn } = require('node:child_process');
 // the SPA fallback's wildcard ('*' is not valid Express 5 path syntax), a POST with no JSON
 // body (Express 5 leaves req.body undefined), and a port
 // already in use (Express 5 hands the error to the listen callback instead of crashing).
-// Segments under the dotted timeshift folder (send 1.x refuses dot-folders by default) are
-// covered by tuner-timeshift.test.js. On the old code express is 4.x.
+// On the old code express is 4.x.
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-express5-'));
 for (const d of ['server', 'public']) fs.cpSync(path.join(__dirname, '..', d), path.join(sandbox, d), { recursive: true });
 fs.cpSync(path.join(__dirname, '../package.json'), path.join(sandbox, 'package.json'));
