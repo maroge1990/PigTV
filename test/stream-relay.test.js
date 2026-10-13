@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { EventEmitter } = require('node:events');
 
-// 0189: in-stream recovery and the hot standby (docs/STANDBY-BRIEF.md), with stand-in sessions:
+// 0189: in-stream recovery and the hot standby (blueprint.md §3; history in docs/archive/STANDBY-BRIEF-2026-10-02.md), with stand-in sessions:
 // folders of files instead of ffmpeg. The real thing is exercised by scripts/relay-rig.js.
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-relay-'));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });

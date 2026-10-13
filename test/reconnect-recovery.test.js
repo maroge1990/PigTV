@@ -82,7 +82,7 @@ test('the other warnings ffmpeg prints in the loop count too', async () => {
 test('a single rebase after a reconnect (the 7 channels\' ~38 s cut) is left alone', async () => {
     const { s, lost } = playing();
     s.noteStderrLine(RECONNECT, 0);
-    // What blueprint §3 recorded: one discontinuity and a few non-monotonic lines.
+    // What blueprint §2 recorded: one discontinuity and a few non-monotonic lines.
     s.noteStderrLine('[vist#0:0/h264 @ 0x5] timestamp discontinuity (stream id=256): -19040000, new offset= 1', 400);
     for (let i = 0; i < 4; i++) s.noteStderrLine('[hls @ 0x3] Non-monotonic DTS in output stream 0:1; previous: 1, current: 0; changing to 2.', 500 + i);
     await settle();

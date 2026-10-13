@@ -1,0 +1,26 @@
+Source: https://github.com/maroge1990/PigTV-Swift/actions/runs/37099900888
+Commit: 96825f860a9f8c20d45b3cec36da7be65d7667b6
+2026-10-03T05:31:55.1249890Z Test Case '-[PigTVTests.ProviderFailoverTests testRecoveryAllowanceRenewsAfterTwoMinutesOfGoodPlayback]' passed (1.554 seconds).
+2026-10-03T05:32:01.9404420Z 	 Executed 133 tests, with 0 failures (0 unexpected) in 14.682 (15.363) seconds
+2026-10-03T05:32:01.9406220Z 	 Executed 133 tests, with 0 failures (0 unexpected) in 14.682 (15.364) seconds
+2026-10-03T05:33:06.5096650Z /Users/runner/work/PigTV-Swift/PigTV-Swift/PigTVUITests/BrandDepthUITests.swift:114: error: -[PigTVUITests.BrandDepthUITests testScheduledRecordingCancellationAndSettingsFooter] : XCTAssertTrue failed - Attributes: Application, 0x1066274a0, pid: 10153, label: 'PigTV'
+2026-10-03T05:33:09.3252040Z /Users/runner/work/PigTV-Swift/PigTV-Swift/PigTVUITests/BrandDepthUITests.swift:116: error: -[PigTVUITests.BrandDepthUITests testScheduledRecordingCancellationAndSettingsFooter] : Failed to get matching snapshot: No matches found for first query match sequence: `Descendants matching type Button` -> `Elements matching predicate 'label == "Cancel schedule"'`, given input App element pid: 10153
+2026-10-03T05:39:15.3703690Z TABSWITCH Home→TV Guide longest stall 598 ms, lost 1036 ms
+2026-10-03T05:39:18.7489990Z TABSWITCH TV Guide→Sport longest stall 195 ms, lost 452 ms
+2026-10-03T05:39:21.1324360Z TABSWITCH Sport→Recordings longest stall 238 ms, lost 532 ms
+2026-10-03T05:39:23.4075420Z TABSWITCH Recordings→Settings longest stall 84 ms, lost 134 ms
+2026-10-03T05:39:25.7993640Z TABSWITCH Settings→Recordings longest stall 129 ms, lost 251 ms
+2026-10-03T05:39:29.1745880Z TABSWITCH Recordings→Sport longest stall 132 ms, lost 282 ms
+2026-10-03T05:39:32.6795930Z TABSWITCH Sport→TV Guide longest stall 120 ms, lost 392 ms
+2026-10-03T05:39:35.0260000Z TABSWITCH TV Guide→Home longest stall 147 ms, lost 348 ms
+2026-10-03T05:39:38.4483230Z TABSWITCH Home→TV Guide longest stall 152 ms, lost 451 ms
+2026-10-03T05:39:41.9308860Z TABSWITCH TV Guide→Sport longest stall 119 ms, lost 328 ms
+2026-10-03T05:39:44.3052260Z TABSWITCH Sport→Recordings longest stall 89 ms, lost 278 ms
+2026-10-03T05:39:46.6637670Z TABSWITCH Recordings→Settings longest stall 75 ms, lost 119 ms
+2026-10-03T05:39:49.0887690Z TABSWITCH Settings→Recordings longest stall 75 ms, lost 242 ms
+2026-10-03T05:39:52.4878530Z TABSWITCH Recordings→Sport longest stall 112 ms, lost 306 ms
+2026-10-03T05:39:56.8982770Z TABSWITCH Sport→TV Guide longest stall 115 ms, lost 380 ms
+2026-10-03T05:40:00.3125590Z TABSWITCH TV Guide→Home longest stall 112 ms, lost 311 ms
+2026-10-03T05:40:00.3139250Z TABSWITCH worst stall 598 ms, mean 156 ms
+2026-10-03T05:40:17.1346300Z 	 Executed 23 tests, with 3 tests skipped and 2 failures (0 unexpected) in 490.721 (490.751) seconds
+2026-10-03T05:40:17.1680470Z 	 Executed 23 tests, with 3 tests skipped and 2 failures (0 unexpected) in 490.721 (490.752) seconds

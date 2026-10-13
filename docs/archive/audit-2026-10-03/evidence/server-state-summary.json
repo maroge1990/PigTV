@@ -1,0 +1,74 @@
+{
+  "server_build": {
+    "version": "3.7.0",
+    "build": "0191",
+    "commit": "3699628",
+    "builtAt": "2026-10-03T05:29:50Z",
+    "display": "v3.7.0 \u00b7 build 0191 (3699628)"
+  },
+  "active_sessions_after_tests": 0,
+  "relay": {
+    "enabled": false,
+    "standby": false,
+    "streams": []
+  },
+  "recordings_folder": {
+    "ok": true,
+    "problem": null,
+    "root": "/app/recordings/SERVER01_Video/Recordings",
+    "freeBytes": 2794370699264,
+    "totalBytes": 11892862238720,
+    "checkedAt": 1791016619954
+  },
+  "interruptions": {
+    "days": 7,
+    "count": 4,
+    "recovered": 1,
+    "medianRecoverSec": 10.282,
+    "worstRecoverSec": 10.282,
+    "watchedHours": 10.4,
+    "perHour": 0.38,
+    "recent": [
+      {
+        "at": 1790992833123,
+        "channel": "Fox Footy 504",
+        "provider": "Strong8K",
+        "how": "exit",
+        "providerReason": false,
+        "playedSec": 1170.895,
+        "recoverSec": null,
+        "recoveredProvider": null
+      },
+      {
+        "at": 1790985644888,
+        "channel": "Fox Footy 504",
+        "provider": "Strong8K",
+        "how": "exit",
+        "providerReason": false,
+        "playedSec": 9.336,
+        "recoverSec": null,
+        "recoveredProvider": null
+      },
+      {
+        "at": 1790985632493,
+        "channel": "Fox Footy 504",
+        "provider": "Strong8K",
+        "how": "exit",
+        "providerReason": false,
+        "playedSec": 123.486,
+        "recoverSec": 10.3,
+        "recoveredProvider": "Strong8K"
+      },
+      {
+        "at": 1790980089885,
+        "channel": "7 Mate Melbourne",
+        "provider": "Strong8K",
+        "how": "exit",
+        "providerReason": false,
+        "playedSec": 598.363,
+        "recoverSec": null,
+        "recoveredProvider": null
+      }
+    ]
+  }
+}

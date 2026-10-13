@@ -1,5 +1,5 @@
 /**
- * Lineup admin API (0117, roadmap X2.1, docs/ROADMAP-CONTRACTS.md C-A).
+ * Lineup admin API (0117, roadmap X2.1, docs/CLIENT-CONTRACT.md C-A).
  *
  * Web only, admin only:
  *   GET /api/lineup           -> [{sourceId, id, stableId, name, number, category}]

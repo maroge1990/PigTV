@@ -1,5 +1,5 @@
 /**
- * In-stream recovery and the hot standby (0189; docs/STANDBY-BRIEF.md). Experimental, off
+ * In-stream recovery and the hot standby (0189; blueprint.md §3; history in docs/archive/STANDBY-BRIEF-2026-10-02.md). Experimental, off
  * unless the admin Settings switch `relayEnabled` is on (and `standbyEnabled` for the standby,
  * which only counts while recovery is on). R12: a switch applies to plays that START after
  * it is changed; a relay keeps the mode it began with, so turning recovery off never breaks

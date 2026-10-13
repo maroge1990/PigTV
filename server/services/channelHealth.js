@@ -1,5 +1,5 @@
 /**
- * Channel health (0133, roadmap S4.1, docs/ROADMAP-CONTRACTS.md C-G).
+ * Channel health (0133, roadmap S4.1, docs/CLIENT-CONTRACT.md C-G).
  *
  * One row per start attempt in `channel_health`, keyed by the channel's
  * identity (source + stable_id, else item_id - the favourites' and channel

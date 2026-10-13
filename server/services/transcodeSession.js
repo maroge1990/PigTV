@@ -60,7 +60,7 @@ const DTS_DELTA_THRESHOLD_SEC = (() => {
 // 0191: a live session whose timestamps go into a loop after ffmpeg reconnects in
 // place. -reconnect reopens the provider's stream mid-play, and the new response
 // starts a few seconds back (the provider resends its buffer). Usually ffmpeg
-// rebases once and carries on (the 7 channels' ~38 s cut, blueprint §3). On Fox
+// rebases once and carries on (the 7 channels' ~38 s cut, blueprint §2). On Fox
 // Footy (3 Oct, Strong8K) it did not: every audio packet after the reconnect was
 // "timestamp discontinuity ... -140478" (~47 a second), each correction moved the
 // one per-input offset and dragged the video with it, the output timeline drifted

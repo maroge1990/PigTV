@@ -66,7 +66,7 @@ sync each one with its refresh button (⟳, "Refresh Data"; the docs call it **S
   `/app/recordings/SERVER01_Video/Recordings`). A plain bind of the share's own folder goes stale when the share mounts late
   or reconnects. The Status page warns when the recordings folder isn't reachable.
 - Give the container 15 s or more to stop, so recordings close cleanly.
-- Every `PIGTV_*` environment variable, with its default, is in [`blueprint.md`](blueprint.md) §9.
+- Every environment variable, with its default, is in [`.env.example`](.env.example).
 
 ## Developing
 
@@ -86,10 +86,11 @@ Needs Node 22 or 24 (CI tests both; the image runs 24) and ffmpeg. Pushing to `m
 
 | Document | For |
 |---|---|
-| [`blueprint.md`](blueprint.md) | Start here: how everything works, how changes ship and deploy, the roadmap and its status, the configuration reference, and the known limitations |
-| [`docs/SWIFT-CLIENT-HANDOFF.md`](docs/SWIFT-CLIENT-HANDOFF.md) | The contract with the Apple client, the `/api/info` flags, and every client-visible server change |
-| [`docs/ROADMAP-CONTRACTS.md`](docs/ROADMAP-CONTRACTS.md) | The server ↔ client contracts C-A…C-I |
-| [`docs/TEST-BLOCK.md`](docs/TEST-BLOCK.md) | The device and live test rounds and their results |
+| [`AGENTS.md`](AGENTS.md) | Start here when working on the code: commands, how changes ship, the rules |
+| [`blueprint.md`](blueprint.md) | How everything works, the decisions, the roadmap and the known limitations |
+| [`docs/CLIENT-CONTRACT.md`](docs/CLIENT-CONTRACT.md) | What the Apple client relies on: the `/api/info` flags, the frozen shapes, contracts C-A…C-K |
+| [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | Running the container: PUID/PGID, health check, backup and restore |
+| [`docs/DISPATCHARR-REVIEW.md`](docs/DISPATCHARR-REVIEW.md) | The analysis behind the current roadmap |
 | [`docs/archive/`](docs/archive/README.md) | Frozen history |
 
 ## Licence and credits

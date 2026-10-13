@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The relay rig (0189, docs/STANDBY-BRIEF.md): in-stream recovery and the hot standby against
+ * The relay rig (0189, blueprint.md §3; history in docs/archive/STANDBY-BRIEF-2026-10-02.md): in-stream recovery and the hot standby against
  * REAL ffmpeg, with two made-up providers on this machine (test patterns, no network).
  *
  *   node scripts/relay-rig.js                 a cold switch: provider A closes after 16 s

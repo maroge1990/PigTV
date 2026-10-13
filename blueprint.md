@@ -1,34 +1,21 @@
-# PigTV: blueprint (single source of truth)
+# PigTV: blueprint
 
-**Last updated:** 1 October 2026 · server build **0178** (built, not pushed) · Apple client build **36** (pushed) · **multi-provider failover built, awaiting round 7**
-(`../PigTV-Swift/blueprint.md`)
+**State:** server build **0207** shipped, Apple client build **40** (13 Oct 2026). Every feature built so far is verified on
+devices and there are no open bugs. Next: the Dispatcharr gap plan (§4).
 
-Read this at the start of every session. It covers **the server, the web app and the joint roadmap**; the Apple client's own
-architecture notes live in `../PigTV-Swift/blueprint.md`, which points back here for the roadmap. This file replaced the
-earlier blueprint on 23 September 2026, after an independent review of both products. Everything older is frozen in
-`docs/archive/` (see its README) and is history, not instructions.
+How to work in this repo (commands, shipping, rules) is in [`AGENTS.md`](AGENTS.md). This file holds **durable facts and the
+roadmap** for the server, the web app and the joint plan; the Apple client's own architecture is in
+`../PigTV-Swift/blueprint.md`, which points back here for the roadmap.
 
-Keep it **short**: current state, durable facts and the roadmap. When an item ships, mark it in §6, add one line to §8, and
-put any long story in the commit message.
-
-**Sections:** 1 Orientation · 2 How changes ship · 3 How playback works · 4 Each area · 5 Frozen Apple contract · 6 Roadmap
-and status · 7 Rules and decisions · 8 Shipped log · 9 Configuration reference (every `PIGTV_*` variable) · 10 Known
-limitations and open issues.
-
-| Document | Use it for |
-|---|---|
-| `blueprint.md` (this) | How things work, the rules, the roadmap and its status |
-| `README.md` | The short entry point: what PigTV is, how to run it |
-| `docs/SWIFT-CLIENT-HANDOFF.md` | The Apple-client contract, the current `/api/info` flags, and the log of server changes the client must know about (its §5) |
-| `docs/ROADMAP-CONTRACTS.md` | The server ↔ client contracts C-A…C-K (all implemented) |
-| `docs/TEST-BLOCK.md` | Mark's device and live test rounds 1–7, with a status summary at the top |
-| `docs/MULTI-PROVIDER-BRIEF.md` | Multi-provider failover (30 Sept): decisions, design, work packages P1–P8/A1 |
-| `../PigTV-Swift/blueprint.md` | The Apple client: architecture, device-verification state, client rules |
-| `docs/archive/` | Frozen: the old blueprint, per-build write-ups (0048–0104) and the 16 Sept code review (P1-x/P2-x reasoning) |
+**One home per fact.** How to work → `AGENTS.md`. What the client may rely on → `docs/CLIENT-CONTRACT.md`. Environment
+variables → `.env.example`. Running the container → `docs/OPERATIONS.md`. What shipped and why → the commit messages
+(`git log --grep "^[0-9]\{4\}:"`). Everything older is frozen in `docs/archive/` (see its README): history, not instructions.
 
 **Core requirements.** An IPTV server with a web app (this repo) and Swift clients (Apple TV first, then iPad and iPhone).
 **Picture quality and stream stability come first**, then less overhead and complexity. **Stability and quality outrank
 channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image should be the priority").
+
+**Sections:** 1 Orientation · 2 How playback works · 3 Each area · 4 Roadmap · 5 Decisions · 6 Known limitations.
 
 ---
 
@@ -36,59 +23,17 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 
 | | |
 |---|---|
-| What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Sources, Player, Transcoding, Manage Content, Channel numbers, EPG matching, Sports, Recording, UI, Devices, Debug, Users). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
-| Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Development is on Mark's MacBook only (from 23 Sept). |
-| CI | Both repos are **public** since 30 Sept (free Actions minutes; history checked for secrets). `gh` is signed in on the MacBook: `gh run view <id> --log-failed`. On a push to `main`, `docker-publish.yml` runs `test.yml` (Ubuntu, Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass** |
-| Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings (fixed 28 Sept):** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (so an SMB share that mounts late or reconnects appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs (schedule #3 failed with "0.0 GB free"). Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page (§9). |
-| Shipped through | **0206** and app **40** (10 Oct; §6). Whether a build is *running* is whatever `/api/version` says. |
+| What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
+| Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
+| Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
 | Next build number | **0208** |
-| Tests | `npm test`: **882 tests, all pass** (10 Oct, Node 24.21, Homebrew ffmpeg; tests that need ffmpeg skip without one; speed budgets run locally, and in CI's non-blocking `perf` job). `bash scripts/verify-build.sh .` passes. |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
 
-## 2. How changes ship
+## 2. How playback works (one path)
 
-**Claude commits and pushes straight to `origin/main`** (Mark, 23 Sept). No patch files and no feature branches. One logical
-change per commit.
-
-1. Start clean: `git status`, then `git pull --rebase origin main`.
-2. Make the change with its test (§7 rules: capture before touching playback; a test that fails on the old code).
-3. Run locally with **Node 24** (Homebrew `node@24`; the default `node` is 26, which `better-sqlite3` 12 can't build against):
-   ```bash
-   export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
-   npm ci && npm test && bash scripts/verify-build.sh .
-   ```
-   Both must pass, and a push happens only after both have passed. If either can't be run, say so and don't push.
-   `verify-build.sh` is for what a test cannot check (things that must not come back, placement, the image and CI,
-   web markup, the build numbering); behaviour is proved by a test under `test/`.
-4. A functional commit bumps `build` in `server/version.js` in the same commit, and its subject starts with the number
-   (`0106: Guide rows carry stableId`). Docs-only and test-only commits don't bump it and have no number.
-5. `git push origin main`. Never force-push. If CI goes red, fix it or `git revert` it straight away.
-6. Tell Mark what shipped, the build number, and **live test steps** for anything that needs the real feed or a device.
-
-**Deploy (Mark):**
-```bash
-docker pull ghcr.io/maroge1990/pigtv:latest
-docker compose up -d --force-recreate pigtv     # recreate, not restart (or Force Update on the Unraid Docker tab)
-curl -s http://192.168.1.235:3000/api/version
-```
-A redeploy ends every session. **Rollback:** each push also publishes `ghcr.io/maroge1990/pigtv:sha-<short>`; point the
-container at the last good tag, then `git revert` the bad commit.
-
-**Build identity.** `server/version.js` `build` = the last functional commit's number (continuing the old patch sequence).
-`/api/version` and `/api/info` return it with `commit`/`builtAt` (CI stamps them), and the web badge shows `display`.
-
-**How work is organised.** The lead Claude session plans and either does the work itself or delegates parts to sub-agents
-(as Mark asks per build; never Haiku), and **reviews every diff** against this file's rules before it's pushed. Any
-item that needs real channels or a device ends with numbered test steps for Mark, and is only marked *Verified* after he
-reports back.
-
----
-
-## 3. How playback works now (one path)
-
-**Every client, every live channel: `POST /api/playback/resolve` → an HLS session** (§C Phases 3–4, 0102–0103). The server probes
+**Every client, every live channel: `POST /api/playback/resolve` → an HLS session** (0102–0103). The server probes
 the channel once (ffprobe, cached 5 min in memory per URL + caps; since 0114 also kept in SQLite as a **channel profile** for 7 days, so a
 repeat play skips ffprobe - see below), then returns either `direct` (a source that is already browser-ready,
 through `/api/proxy/stream?h=<opaque handle>` since 0119, never the provider URL) or `transcode`: an HLS session that **copies** whatever the client can decode and re-encodes only what
@@ -120,13 +65,13 @@ it cannot. There is no remux, no legacy pipe and no browser-side strategy any mo
 - **Channel profiles** (0114, `channelProfiles.js`, table `channel_profiles`, key = sha256 of the probe-cache key). Written only after a
   session produced its playlist from a fresh probe; a failed start from a profile deletes it (and its in-memory copy); re-probed after
   `PIGTV_PROFILE_MAX_AGE_DAYS` (7). **`dtsUneven` and `videoRange` ride in the profile**, so a feed whose timing or range changes is
-  re-classified within 7 days or on its first failed start. ffmpeg's own probe is **not** reduced. `PIGTV_PROBE_PROFILES=0` = off.
+  re-classified within 7 days or on its first failed start. ffmpeg's own probe is **not** reduced. Always on (the off switch went in 0204).
 - **Timestamps: two kinds of feed** (0088). *Uneven* feeds have about a third of their DTS steps as ~1-tick-then-double, left by
   an upstream muxer (Fox Sports 505), and need `-fflags +igndts`. *Even* feeds (TSN, Sky UHD, Sportsnet 4K) are **broken by**
   `igndts`. `streamProbe.classifyTimestamps()` decides per feed: steps below ¼ of the mean frame period >5% ⇒ uneven (measured
   33.8% vs 0.0%). It runs on the resolve probe's **own** ffprobe call (`-show_packets -read_intervals %+#300`), because a second
   ffprobe would collide on the one provider connection; without `-read_intervals` a live probe never returns. Also always
-  `-dts_delta_threshold 60`. `PIGTV_DTS_AUTO=0` forces `igndts` everywhere (the 0085 behaviour — don't).
+  `-dts_delta_threshold 60`. Never apply `igndts` everywhere: that was the 0085 regression (the switch for it went in 0204).
 - **Pacing:** only when the probe says the source ends (`format.size` or `duration` present). A finite file read at full
   speed outruns the window, and hls.js never retries the resulting 404. Blanket `-re` cost ~8 s at start-up. Since 0144 it is
   `-readrate 1 -readrate_initial_burst 8` (ffmpeg 6.1+): 8 s at full speed so the first segment is written at once, then real
@@ -198,11 +143,11 @@ it cannot. There is no remux, no legacy pipe and no browser-side strategy any mo
   "The provider did not respond" or "This channel is not available" (texts in `playbackErrors.js`); a failed ffprobe is
   classified like ffmpeg's stderr and never returned raw; the route strips any `scheme://` from whatever else it returns.
 
-The tuner model (0126–0155: shared tuners, timeshift, HLS recordings) was removed in 0204; see §6 and git history.
+The tuner model (0126–0155: shared tuners, timeshift, HLS recordings) was removed in 0204; it is in git history.
 
 ---
 
-## 4. What to know before touching each area
+## 3. What to know before touching each area
 
 **Diagnosing playback: `scripts/stream-doctor.js` — reach for this first on any playback fault.** Run it as `docker exec PigTV node scripts/stream-doctor.js …`:
 - `list <search>` → `pos_N`
@@ -282,7 +227,7 @@ whole 36 h + 72 h, where every programme is a match-up); a request filters and o
 items). The sync logs `[Sync] EPG covers until …, N h ahead` and says when that is less than 72 h. `GET /api/sports/events?hours=[&include=all]` (any user,
 default 6, 1–72 since 0153; Apple route; events + replays, all kinds with `include=all`), admin `GET/PUT /api/sports/follow` (≤100) and
 `GET /api/sports/preview` (next 72 h since 0153, every kind, with the rule and `kindRule`); web Settings → **Sports** (0149; grouped by
-kind since 0151). **Built off the request path (0159):** a request is always served the last built result; a stale cache key
+kind since 0151). **Built off the request path (0159), on a worker thread since 0195 (`sportsEventsWorker.js`, with an automatic inline fallback):** a request is always served the last built result; a stale cache key
 triggers a background rebuild (`scheduleRebuild()`, `setImmediate`, never inline in a request) after an EPG sync, on a
 follow-list change, and from a timer aligned to the 5-minute bucket (`startBackgroundRebuilds()`, started once at server
 startup); a request that lands mid-rebuild gets the previous result rather than racing it. Only the very first request ever
@@ -319,7 +264,7 @@ re-fetches every active series from scratch), so a postponed or removed game nev
 International cricket (Tests/ODIs/T20Is) has no fixed ESPN league id, so its series are found each refresh from ESPN's
 cricket "scorepanel" and merged under the canonical league `Cricket` (`sportsClassify.LEAGUES`: IPL and BBL stay their own
 leagues). AFLW has no ESPN feed and stays on the heuristics above. `PIGTV_SPORT_FIXTURES=0` turns fixtures off completely
-(§9); the web Status page's "Sport fixtures" panel shows per-league last fetch, fixture count and last error.
+(`.env.example`); the web Status page's "Sport fixtures" panel shows per-league last fetch, fixture count and last error.
 
 **Logo cache** (0112, fixed 0141): `/api/logo/<key>`, key = hash of the cache version + URL. Downscaled through `format=rgba`
 to an RGBA PNG only when wider than 320 px (a palette PNG with transparency otherwise came out opaque: ABC, 7mate, 7two);
@@ -360,7 +305,7 @@ hide/show, and lazily by the first `/api/library` request when the table is empt
 number 30 days. **Numbers are labels only (0139, Mark's test 1.4):** `/library/guide` and `/channels` keep the provider's
 order, which groups channels under the provider's placeholder channels; dead code for number ordering was removed in 0164.
 Admin: `GET /api/lineup`, `PUT /api/lineup/numbers` (a reserved number yields to the admin; a visible holder is a 400).
-`PIGTV_CHANNEL_NUMBERS=0` removes the `channelNumbers` flag (the Apple client then shows no numbers; numbers are still kept).
+The `channelNumbers` flag is always sent (its off switch went in 0204).
 
 **Guide and library.**
 - Query **`epg_live`**, never `epg_programs`. A sync loads generation active+1, flips it in one statement, then deletes the old
@@ -391,6 +336,46 @@ Admin: `GET /api/lineup`, `PUT /api/lineup/numbers` (a reserved number yields to
 - Express 5 (0137): wildcards are `/{*splat}`; `req.body` is forced to `{}` when absent; query parser `extended`;
   `res.sendFile` needs `dotfiles: 'allow'` for anything under a dot-folder.
 
+**Providers, backup links and failover** (0168–0181, 0198; `providerAccounts.js`, `channelLinks.js`, `providerRouting.js`,
+`streamCoordinator.js`; the original design and its decisions D1–D9 are in `docs/archive/MULTI-PROVIDER-BRIEF-2026-09-30.md`)
+- A provider is a source with `role` `primary` (exactly one with streams) or `backup` (ordered by `priority`), shown as
+  cards in Settings → Providers. Account info (`player_api.php`: expiry, connection limit) is read at startup, every 6 h,
+  after a sync and on "Check now"; **a failed read keeps the last good values** and never makes a provider look expired.
+  Effective limit = the card's override, else the account's `max_connections`, else 1. Providers that are the same account
+  (same origin + login, `accountKey.js`) share one pool at the lowest limit (0181).
+- **Backups never write `playlist_items` or `categories`**, so the library, guide, numbers, sport and favourites can't see
+  them. They sync into `backup_channels` (plus `provider_raw_channels`, 0178), and the linker maps each listed primary
+  channel to up to 3 ranked backup streams in `channel_links`: raw-name/raw-epg, exact tvg-id, the Fox 50x number,
+  same-region name, and the primary's own "(Backup)" **siblings**; quality pairs with quality and event/PPV slots are never
+  linked. A relink keeps `approved`/`rejected`/`manual` rows. **Only `auto`, `approved` and `manual` links are used.** The
+  linker reads `LISTED_SQL` (it must see linked siblings); the guide reads `VISIBLE_SQL`, which hides them (0204/0205).
+- **Resolve** walks candidates: the primary (unless down, expired or this channel is quarantined there), its sibling, then
+  each backup in order. Admission is per provider (free, idle reclaim, own replacement); with none admitted the 409 is the
+  first candidate's. A start that fails for a provider reason goes to the next candidate; anything else is returned. The
+  0143 refusal retries (1.5 s + 3 s) apply only to the last candidate, earlier ones get one after 1 s; the whole resolve
+  stays under 30 s and no candidate starts with less than 8 s left. **Breaker:** provider-reason failures on ≥2 channels in
+  5 min → down; half-open after 3 min (doubling to 15). **Quarantine:** 10 min per provider + channel, also set when a
+  session ends unrequested, so a player's single re-resolve lands elsewhere. Connections are **leased before the probe**
+  (0198), so two starts can't double-book one.
+- **Recordings** take the first candidate with a free connection (else the prompt flow on the first), fail over at start,
+  and continue as part N+1 on a mid-recording death or a 30 s stall (at most 3 parts).
+
+**In-stream recovery and the hot standby** (0189, switches since 0197: Settings → Playback, both off by default;
+`streamRelay.js`; the brief is `docs/archive/STANDBY-BRIEF-2026-10-02.md`)
+- A **relay** follows a channel play's HLS session. Its id is the first session's, so the client's URL never changes. Each
+  **leg** is an ordinary session (own ffmpeg, folder and connection, counted by the pools). Until the first switch the
+  playlist is ffmpeg's own file; from then the relay renders it (`hlsPlaylist.renderMediaPlaylist`), later legs' segments
+  named `L<n>-seg…`, with an `EXT-X-DISCONTINUITY` at each join.
+- A leg joins only if segment type, video range, codec, frame size, frame rate (±1%) and audio match; the master playlist the
+  player holds cannot change.
+- **Cold switch** (recovery only): the lost leg is quarantined, candidates are planned again, and the first that starts
+  becomes the next leg; if none does, the relay ends (404, the client re-resolves: the old behaviour).
+- **Standby**: 20 s into a play, a second copy on the first other provider with a *free* connection, owned by
+  `standby:<relay id>`; a viewer or recording that needs that connection takes it without a prompt, and a standby may take a warmed channel's connection (0202).
+  When the playing leg writes nothing for `PIGTV_RELAY_SWITCH_MS` (10 s) the standby is spliced in.
+- Known limits: the feeds aren't in step (a jump or repeat at a switch); a cold switch still waits for the 20 s stall
+  watchdog; the provider in Stream info is the one the play started on. A switch applies to plays started after it changes.
+
 **Recordings** (`recordingEngine.js`: capture, scheduling, failover; `recordingMedia.js`: probes, MP4 remux, native playback,
 preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js`: which recording each job is on)
 - `scheduled → waiting → recording → …`, where `waiting` = due but held back by a viewer (listed, cancellable, duplicate-checked).
@@ -418,312 +403,98 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   still waits, however long. No new terminal-status value (a client sees an
   ordinary reclaim: a 404, its one-time re-resolve, then the existing `recording-in-progress` 409).
 
-**Dev environment (macOS, from 23 Sept).**
-- Node 24 from Homebrew (`/opt/homebrew/opt/node@24/bin`; see §2). `npm test`: 654 tests (29 Sept, after 0167), all pass locally with
-  Homebrew ffmpeg 9.0 installed (tests that need ffmpeg skip without one).
-- `bash scripts/verify-build.sh .` uses the system `python3`.
-- The tree is LF. There is no local Docker; the image is only built by CI.
-- **CI runs every test file at once on 2 vCPUs: keep timing margins ≥1 s, or poll** (0101).
 
 ---
 
-## 5. Frozen Apple-client contract (change only together with a client change)
+## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
 
-- `/api/library/guide` rows: `id`, `sourceId`, `name`, `logo`, `category`, `tvgId`, `programmes[]` (`startTime`/`endTime` in **ms**).
-- `/api/recordings/{id}/markers`: `startMs`/`endMs`. `/api/recordings/{id}/playback` (bearer):
-  `{url:"/api/recordings/{id}/media.mp4", container:"mp4", durationSec}`; `media.mp4` takes `?token=`, supports ranges and
-  `+faststart`; `?async=1` is additive.
-- Favourites: `POST/DELETE /api/favorites` (bare id), listed via `/api/library/favourites`.
-- Playback: `POST /api/playback/resolve` → `strategy` `direct` | `transcode`, with `playbackURL` under `/api/proxy/stream`
-  (`?h=<opaque handle>`, 0119: never a provider URL), `/api/transcode/…` (`master.m3u8` for every session with a usable frame
-  rate and for an HDR copy, else `stream.m3u8`) or `/api/recordings/…`; token as `?token=`; bearer on
-  `DELETE /api/playback/{id}`; `GET /api/playback/{id}/terminal-status`. The client's allow-list is exactly those three
-  prefixes (`/api/remux` is gone since 0103).
-- Resolve failure texts start with one of the three C-B prefixes (§3), which the client shows.
-- Additive and safe: `/api/version` and `/api/info` fields (the current flags are tabled in the hand-off doc); `waiting` rows;
-  `finite`/`durationSec`/`videoRange`/`fps` in resolve `info`; the optional `heaac` capability (0116; the Apple client always sends it).
+**Decided 13 Oct 2026 (Mark):** PigTV stays standalone and does **not** run Dispatcharr. It adopts the core ideas it is
+missing. The analysis, with file references into Dispatcharr's source, is [`docs/DISPATCHARR-REVIEW.md`](docs/DISPATCHARR-REVIEW.md):
+§11 is this plan, §9 lists what PigTV already does better and must keep (K1–K15), and §5 has each recommendation (R1–R12) in
+detail. Plan A (R1, the Dispatcharr spike) is not pursued.
 
----
+Status words, used exactly: **Done**, **Shipped, awaiting a check** (needs Mark on a device or the real feed), **Verified**,
+**Deferred** (with the reason).
 
-## 6. Status (4 Oct 2026)
+| Step | What | Size | Status |
+|---|---|---|---|
+| **B1** quick wins (any order; none touches live playback) | **R12** nightly SQLite backup, plus one at startup when the build changes (0199 has the backup script) · **R4** a recording's end follows the guide · **R11** one webhook URL (provider down, recording failed, licence expiring) and live ffmpeg speed/fps on Status · check whether any provider sets `tv_archive` (keep the flag at sync) · check the reference samples for extra audio tracks (E3) | S each | Not started |
+| **B2** recordings | **R3** segmented recordings: an HLS event playlist that appends across restarts and failover (replacing parts), remuxed at the end, MP4 preparation (K12) from the segments. **Mark skipped this as R13 on 4 Oct: confirm before building.** · **R5** follow-list and series recording rules, de-duplicated by episode/event · **R6** EPG artwork | M + M | Not started |
+| **B3** shared ingest (behind a Settings switch, capture-first) | **R2** one reader per (provider, channel) into an in-memory ring buffer with subscribers, in its own process group. Consumers in order: recordings → the HLS session reads `pipe:0` (rerun `stream-doctor bench` on all five samples) → **R7** failover inside the ingest (speed-based stall detection, reconnect or switch by `providerRouting`'s order). The coordinator counts ingests: the same channel takes no new connection | L | Not started |
+| **B4** retire (after B3 has run a week) | `streamRelay.js` leg-stitching and standby, the 0143 refusal retries, per-session warm leases (warming becomes "start an ingest early"): about 800–1,000 lines | M | Not started |
+| **B5** provider and guide data (when convenient) | **R8** ingest filters · **R9** event-channel guide · **R10** EPG matching tune-ups · catch-up/start-over if B1 finds archives · E2 ffmpeg version parity | S–M each | Not started |
 
-**Shipped through 0206 and app 40.** Every item of the 23 Sept review is built; the 3 Oct independent audit
-(`audit/ROADMAP.md`) is done: Phase 1-2 in 0192-0196 + app 37, Phase 3 in 0197-0202 + app 38, recording audio in 0203,
-and the simplification build in 0204 + app 39 (R13, segmented recordings, was skipped by Mark). The build-by-build
-record 0106-0203 is in `docs/archive/blueprint-history-0106-0203.md`; §8 keeps one line per build.
+Rough total: 6–8 weeks of part-time sessions. B3 is the largest change to the playback path since 0102/0103: it needs the
+full capture/bench pass (§3 "Diagnosing playback") before and after.
 
-Status words, used exactly: **Verified** (Mark checked it on a device; test ids from `docs/TEST-BLOCK.md`), **Shipped,
-awaiting a check**, **Deferred** (with the reason), **Done** (needs no device check). What is still to check is at the top
-of `docs/TEST-BLOCK.md`.
-
-**0204, the simplification build (4 Oct).** No behaviour change except the guide (below). The tuner model
-(`PIGTV_TUNER`: shared tuners, timeshift, HLS recordings) is removed: never run on a device, off by default; it is in git
-history. Rollback flags retired: `PIGTV_NATIVE_PREPARE`, `PIGTV_KEEP_MKV` (an original is deleted only once its MP4
-decodes cleanly), `PIGTV_SPORT_WORKER` (the automatic inline fallback stays), `PIGTV_PROBE_PROFILES`, `PIGTV_DTS_AUTO`,
-`PIGTV_CHANNEL_NUMBERS`. `recordingEngine.js` is split: capture and scheduling stay; `recordingMedia.js` (ffmpeg/ffprobe
-tooling, MP4 remux, native playback, preparation queue), `recordingPost.js` (compression, break detection),
-`recordingJobs.js` (what each job is busy with; capture outranks them). `verify-build.sh` keeps only what tests cannot
-check (297 checks, was 1,077). Tests: one way to start the real server (`test/helpers/server.js`); speed budgets are
-skipped by CI's gate (`PIGTV_SKIP_PERF=1`) and run in a non-blocking `perf` job. **Guide:** a provider's own "(Backup)"
-feed linked as a sibling of the channel it backs up is no longer listed anywhere (`channelNumbers.LINKED_SIBLING_SQL`
-in `VISIBLE_SQL`), so warming warms the real next channel; an unlinked one stays.
-
-**0205, linked siblings kept linked (4 Oct).** 0204 hid a linked sibling by adding it to `VISIBLE_SQL`, which the linker
-(`channelLinks.visibleChannels`) also used: a relink no longer saw the feeds it had linked, dropped those links, and the
-next one made them again. Failover, in-stream recovery and the standby lost a provider's own backup feeds every other sync
-(Mark: recovery and the standby "don't seem to be working" on 0204). The linker now works from `LISTED_SQL` (hidden
-channels and categories only); `VISIBLE_SQL` is `LISTED_SQL` minus linked siblings, for the guide, channel list, numbers
-and sport. Test: three relinks in a row keep every sibling link and NHL Network's failover to its backup feed.
-
-### Next
-
-**Done in app 37 (4 Oct):** Siri / App Shortcuts removed; the provider reminder reworded. **Phase 3 (4 Oct, server 0197–0202 · app 38):** the audit's R05, R11, R12, R14, R16, R17, the Guide's first-visit stall and the sport-request cost (0201) are done; R13 (segmented recordings) was skipped by Mark. Device checks: TEST-BLOCK **O** (and **L** with the new switches). Still open from the audit: an Instruments baseline on the Apple TV (app `TESTING.md`).
-
-1. **Before anything else on the server:** Settings → Recording → set the recordings folder back to
-   `/app/recordings/SERVER01_Video/Recordings` (R6.3 left `fake` saved; 0167 now refuses such a path but doesn't fix a saved one).
-2. The rest of round 6: R6.4 (an overnight recording from the Apple TV), R6.5–R6.6 (the prompt timeout), R6.16 (the web
-   pages after the cleanup).
-3. **Mark's minor bugs from build 35 / 0167** (noted by him on 29 Sept for the next build; not yet reported in detail).
-4. W6 (a screen that needs Back first) when Mark finds one.
-6. The deferred checks: 1.16 (a recording with breaks), R3.8 (sport empty state), R2.5/R3.11 (a file-based channel).
-7. Anything from §10 Mark wants fixed. **Kept on purpose:** the non-VAAPI encoders. **Not planned:** AV1, more users, reviving
-   VOD, access from outside the VPN, AirPlay/PiP, a session keep-alive.
-
-**Watch the logs, no code yet:** `Timestamps looping … after ffmpeg reconnected` and `Blank picture` lines (0191: how often, which channels, any false positive) · the provider's ~38 s cut and 19 s resend (§3, §10) · 7 Flix Sydney's second 0109 failure
-(`Stream ends prematurely … Will reconnect` looping after ~14 MB, nothing produced: 0113 doesn't shorten that case, since ffmpeg
-keeps running) · "Bug 2" (`[mpegts] Invalid timestamps … dts=X+1800`: needs the channel that produces it) · `source timing`
-lines (the classifier has seen one uneven feed in five) · the 20 s stall timeout (tighten only after real stall logs).
-
-**Older checks never done** (low priority, from before the review): 0054 cut the upstream mid-stream (the slot frees) ·
-0062 an HEVC recording plays on the Apple TV · 0073 `timestamp discontinuity` stays about 0 on the E-AC-3 channel ·
-`USER node` in the image (volume ownership first) · the fMP4 segment MIME (`video/MP2T`; devices play it, so low priority).
+**Not planned:** AV1, more users, reviving VOD, access from outside the VPN, AirPlay/PiP, a session keep-alive. **Kept on
+purpose:** the non-VAAPI encoders.
 
 ---
 
-## 7. Rules
+## 5. Decisions on record
 
-- **Capture before changing anything on the playback path** (`stream-doctor`). **No ffmpeg-flag or timestamp patch ships on a
-  hypothesis**: 0085 did, and silently broke every even feed. If a fault can't be captured, say so and treat the fix as provisional.
-- Every functional commit has a test that **fails on the old code** (prove it) and a `verify-build.sh` check, and bumps `build`.
-- **Every change the Apple client can see**, including anything in `transcodeSession.js` / `playbackStrategy.js`, gets a row in
-  `docs/SWIFT-CLIENT-HANDOFF.md` §5 in the same commit. Nothing in §5 changes without a matching client change.
-- Say plainly what couldn't be run, and give Mark live-test steps for anything that needs the real feed or a device.
-- At the end of a session, update this file: the status in §6, one line in §8, facts in §3/§4/§5 (and §9 for a new env var),
-  and stories to the commit message or the archive.
-- `scripts/verify-build.sh` asserts that features live where they should; add the check that would have caught each bug.
-
-**Decisions on record.**
-- *20 Sept:* stability over channel-change speed; VOD/series kept but unsupported (superseded 23 Sept: removed in 0122); `requireStreamAuth` off while VPN-only (superseded 3 Oct: always enforced, 0196); Mark
-  applies and pushes.
-- *21 Sept:* keep the Xtream/upstream proxy and `cache.js`; CI builds the images. (Superseded 23 Sept: removed in 0122.)
-- *23 Sept:* **one delivery path now**: Phases 3 and 4 shipped together without the trial report, and the web's recovery is a fresh
-  HLS session rather than a remux fallback.
-- *23 Sept (later):* development moved to the MacBook. **Claude pushes to `main`** (supersedes "Mark applies and pushes"); the
-  numbered patch files are retired; CI publishes the image only after the tests pass.
-- *23 Sept (review):* new roadmap (§6) adopted. The web app becomes admin plus light viewing; the tuner model is approved after
-  the quick wins; unused Xtream-emulation routes and fork code are to be removed; picture quality first (frame-rate matching
-  in); a generous timeshift; one player on the TV. The old blueprint and hand-overs are archived.
-- *24 Sept:* build everything that's left, then test it all in one block (the per-phase device gates are waived); risky
-  behaviour ships off by default behind a switch.
-- *24–26 Sept (Mark's test rounds):* **channel numbers are labels only** (the provider's order groups channels under its
-  placeholder channels, 0139); **the UIKit guide is the only guide** (the SwiftUI grid deleted); **HE-AAC passthrough is always
-  on** for the Apple client (the Labs switch removed); **the tuner stays, off by default**, to be tested later; **sport is
-  recognised per programme** with a follow list (C-I replaces C-H's category row); replays are wanted, in their own section; a
-  whole weekend (72 h) of sport; **the Home screen is the tab the app opens on**; **Swift 6** language mode is on; the iOS player
-  uses PigTV's own touch controls, not AVKit's.
+- *20 Sept:* stability over channel-change speed.
+- *23 Sept:* **one delivery path**: every play is resolve → HLS session; the web's recovery is a fresh session, not a remux.
+  Development moved to the MacBook and **Claude pushes to `main`**; CI publishes the image only after the tests pass.
+- *23 Sept (review):* the web app is admin plus light viewing; Xtream-emulation routes and fork code removed (0122); picture
+  quality first (frame-rate matching in); one player on the TV.
+- *24 Sept:* build everything, then test in one block; risky behaviour ships off by default behind a switch.
+- *24–26 Sept (Mark's test rounds):* **channel numbers are labels only** (0139); **the UIKit guide is the only guide**;
+  **HE-AAC passthrough is always on** for the Apple client; **sport is recognised per programme** with a follow list (C-I
+  replaces C-H's row); replays in their own section; 72 h of sport; **Home is the tab the app opens on**; **Swift 6** language
+  mode; the iOS player uses PigTV's own touch controls.
+- *30 Sept:* multi-provider failover: one primary with backups, cold standby only by default (D1); links used only when
+  auto, approved or manual.
+- *3 Oct:* stream auth is always on (0196; was off while VPN-only).
+- *4 Oct:* the tuner model (shared tuners, timeshift, HLS recordings) removed, never having run on a device (0204);
+  segmented recordings (audit R13) skipped.
+- *13 Oct:* Plan B (§4): no Dispatcharr; adopt its ideas natively.
 
 ---
 
-## 8. Shipped log (one line each; 0033–0105 are in `docs/archive/blueprint-2026-09-23.md` §4)
-
-| Build | What |
-|---|---|
-| — | 23 Sept: push-to-main workflow; CI gates the image on the tests; docs archived and this blueprint written (no build bump) |
-| 0106 | `stableId` fixed on `/library/guide` and `/library/favourites` rows (0097 said it was already there; it wasn't) |
-| 0107 | Removed the dead, unreachable second `GET /epg/:sourceId` and `DELETE /cache/:sourceId` handlers in `routes/proxy.js` |
-| 0108 | JSON (and the server's own HTML/CSS/JS) responses are gzip-encoded; HLS, recording media and ranged requests never are |
-| 0109 | Image moved to Node 24 (Node 20 is EOL); `npm ci --omit=dev`; Comskip pinned to a commit; CI matrix is Node 22/24 |
-| 0110 | `GET /api/favorites` now follows a channel to its CURRENT position(s) after a provider reorder, instead of the stale stored `pos_N` (Mark's live test: Apple TV and web disagreed on the same favourite) |
-| 0111 | Guide API for scale (S1.3): `tvg_id` column (filled at ingest, backfilled once); cursor paging and `limit` up to 500 on `/library/guide`; `GET /library/guide/version` for a cheap "did anything change?" check |
-| 0112 | Logo cache (S1.4): `GET /api/logo/{key}` fetches a channel/EPG logo once, downscales it with ffmpeg when available, and serves it from disk with a week-long cache lifetime; `library/channels`, `/favourites`, `/guide` and `/recent` hand out that path instead of the provider URL |
-| 0113 | A failed start fails fast (no 15 s wait once ffmpeg has exited) and says why in the resolve error (HTTP 4xx/404/5xx, connection refused); one retry after 1.5 s when the provider refuses ffmpeg in its first 3 s; `playback-report.js` relabelled for one path, with a cold/warm summary |
-| 0114 | Channel profiles (S1.1): the probe's analysis kept in SQLite for 7 days, so a repeat play skips ffprobe; dropped on a failed start; `PIGTV_PROBE_PROFILES=0` turns it off |
-| 0115 | Every session with a usable frame rate is handed out as `master.m3u8` with `FRAME-RATE` and `VIDEO-RANGE=SDR` (HDR copies unchanged), so Match Frame Rate can pick 50 Hz (S1.2) |
-| 0116 | HE-AAC copied instead of re-encoded for a client that sends capability `heaac: true` (none does yet; the web never will) |
-| 0117 | Channel numbers (C-A, X2.1): persisted per identity, assigned on sync/hide/show (lazily if empty), reserved 30 days; `number` on library rows; guide/channels in number order with an exact cursor; admin `GET /api/lineup`, `PUT /api/lineup/numbers`; flag `channelNumbers` |
-| 0118 | Resolve failures all start with a C-B prefix and never carry a URL (404/5xx/refused/timeout reworded; a failed probe no longer returns ffprobe's stderr, which named the stream URL; "channel not found" → "This channel is not available") |
-| 0119 | Opaque playback handles (C-D, S2.1): `direct` resolves answer `/api/proxy/stream?h=<32 hex>`; the proxy takes `h` (and still `url`); flag `playbackHandles`; proxy/probe log lines and a failed recording's stored error now redacted |
-| 0120 | `GET /api/sources/:id/catalogue?type=live` (admin): a source's categories and channels, hidden included, from SQLite, for the Sources picker (W2.1); movie/series → 400 |
-| 0121 | The web reads `/api/library` (W2.1): sidebar, guide (500/page, cursor), favourites and Home tiles; numbers shown; plays by source + bare id; the Sources picker reads the catalogue (movie/series tabs gone) |
-| 0122 | Removed the fork leftovers: Movies/Series/Watch pages and CSS; `/api/proxy/xtream|epg|m3u|cache|image`, `cache.js`, the plugin loader, Pluto headers; `POST /api/transcode/session` + `soft`; `/api/probe`, `/api/subtitle`, `/api/history`, `/api/channels/recent` |
-| 0123 | Settings → Channel numbers: search, inline renumbering, saves changed rows via `PUT /api/lineup/numbers`, shows the server's validation error |
-| 0124 | Admin `GET /api/status` + web Status page (5 s refresh): sessions, recordings, last 50 plays, sync, disk, build; never a URL (W2.2) |
-| 0125 | HTML is revalidated after a redeploy (`no-cache`) |
-| 0126 | Tuner model T1 (`PIGTV_TUNER=1`, off by default): viewers with identical ffmpeg arguments share one tuner; coordinator counts tuners; server-rendered playlist with PROGRAM-DATE-TIME; `buildFFmpegArgs` split, proven identical |
-| 0127 | T2: recordings hold the channel's tuner and keep its segments (EVENT → VOD), joined into an MP4; `/recordings/:id/index.m3u8`, playback `container:"hls"`; flag `recordingHls` |
-| 0128 | T3: timeshift (3 h in `<recordings>/.timeshift`, free-space floor), delta playlists, gzip for tuner playlists; flag `timeshift` |
-| 0129 | T4: recordings play from their start while recording (`EXT-X-START`); Play on a just-started recording waits for its first segment |
-| 0130 | A recording's own tuner uses the Apple TV's default capabilities (no `heaac`), so a TV on an HE-AAC channel being recorded shares it |
-| 0131 | A recording releases a tuner that died and re-tunes; a dead tuner never counts as a slot |
-| 0132 | `PIGTV_TIMESHIFT_DIR` puts the tuners' timeshift on a local disk instead of the recordings share |
-| 0133 | Channel health (C-G, S4.1): start attempts per channel (30 days), `health` on guide/channels rows, flag `channelHealth`, Status page "Least reliable channels" |
-| 0134 | EPG matching (S4.2): `GET /api/epg/unmatched` with name-scored candidates, `PUT /api/epg/mapping` (query-time override that survives syncs), Settings → EPG matching |
-| 0135 | Sources, settings and users moved from `db.json` into SQLite (one-time migration, `db.json.migrated` kept); settings served as one frozen object, no clone per request |
-| 0136 | passport, passport-jwt and passport-local removed; bearer tokens and sign-in done with `jsonwebtoken`/`bcryptjs` directly, same semantics |
-| 0137 | Express 5 (`/{*splat}` fallback, `req.body` default, `extended` query parser, `dotfiles: 'allow'` for `.timeshift`, listen errors exit) |
-| 0138 | `/api/info` survives a failing feature check; stored badges stripped once and on the Xtream ingest path; P2-8 tests; recording Range accepts suffix and past-the-end ranges |
-| 0139 | Channel numbers are labels only: the guide and channel lists keep the provider's order, which groups channels under their placeholder channels (Mark's test 1.4 rejected ordering by number) |
-| 0140 | The guide version includes the server build, so every deploy makes the Apple TV reload its cached guide once |
-| 0141 | Logos keep their transparency: the downscale goes through rgba (a palette PNG with tRNS came out opaque); ≤320 px, SVG and unconvertible logos kept as fetched; cache version 2 in the key, stored logos dropped once |
-| 0142 | Channel health counts stalls: play-end stores watched time and stalls on the owner's last attempt; flaky also at ≥3 stalls/h over ≥20 min; Status list ranked by failed starts + stalls/h, with stalls and minutes watched |
-| 0143 | A refused connection in ffmpeg's first 3 s is retried twice (1.5 s, then 3 s); the resolve's wait extends by exactly what the retries cost |
-| 0144 | A finite source is paced with `-readrate 1 -readrate_initial_burst 8` instead of `-re` (first segment at once); `PIGTV_READRATE_BURST=0` rolls back |
-| 0145 | `playback-report.js` shows the client wait (first picture minus resolve) per path, median and p90 |
-| 0146 | Sport categories (C-H): flag `sportCategories`, `sport` on `library/categories`, admin `PUT /api/library/categories/sport`, Sport button on each category (Settings → Manage Content) |
-| 0147 | EPG programme categories stored (`epg_programs.categories`, JSON; view rebuilt on upgrade); admin `GET /api/sports/categories`; Status page "EPG categories" |
-| 0148 | Sport events (C-I): per-programme recognition, events across channels, best channel first; `GET /api/sports/events`, admin follow list and preview; flag `sportsEvents` |
-| 0149 | Web Settings → Sports: follow-list chips, preview of recognised events; the Sport toggle's tooltip |
-| 0150 | Sport kinds (C-I): event/replay/show/placeholder per programme (loop channels, stale dates, PPV slots), league aliases, merging by teams/session; `kind`, `aliases` on items; events + replays by default, `include=all`; preview with `kindRule` |
-| 0151 | Web Settings → Sports: the preview grouped by kind (Events, Replays open; Shows, Placeholders collapsed), with why and the merged guide titles |
-| 0152 | Sport live or replay (C-I): XMLTV `previously-shown`/`premiere`/`new`/`live` stored (`epg_programs.flags`); the first airing of a game within 36 h wins; per-league live hours in the home time zone; builds read the 36 h before now |
-| 0153 | Sport horizon 72 h (C-I): `GET /api/sports/events?hours=` up to 72 (default 6), the preview 72 h, a build kept 5 min and covering 72 h + 5 min; the sync logs its guide's reach |
-| 0154 | Logos at full resolution for the Top Shelf: `/api/logo/<key>?size=full` (the original as fetched, kept beside the resized copy) and `?size=640`; the default stays ≤320 px |
-| 0155 | Tuner: compatible joining. A viewer joins a running tuner on the same stream whose output it can play (an exact key still first), so an Apple TV (`heaac: true`) shares a recording's tuner on an HE-AAC channel instead of a 409 |
-| 0156 | Schedule observability: every status change of a scheduled recording writes one log line (centralised, including the `missed` paths that used to be silent); `GET /api/recordings/scheduled?include=recent` also lists missed/failed schedules from the last 7 days (flag `scheduleHistory`); shown on the web Recordings page ("Recent problems") and the Status page |
-| 0157 | The recordings folder is checked for real: `checkRecordingsFolder()` catches missing, not writable, and a filesystem too small to be real (an unmounted network share or a stale Docker bind reads back this way, not as "missing") as well as low free space; checked at startup and every 15 minutes, shown on the Status page; `getRecordingsRoot()` no longer creates a folder tree inside an unmounted mount point; Settings → Recording → Storage refuses an unusable `recordingsPath` with a plain error instead of saving it silently |
-| 0158 | A due recording that finds a live viewer on the provider's only stream still asks once, but now takes the stream if nobody answers within `recordingPromptTimeoutMin` minutes (new setting, default 3) of becoming due - not from the earlier lead-time notice. An explicit "Keep watching" still waits, however long. Same behaviour on the tuner path |
-| 0159 | Sport events are built off the request path: a stale cache is now served the previous result while the rebuild runs on `setImmediate` (never inline in a request), triggered after an EPG sync, on a follow-list change, and by a timer aligned to the 5-minute bucket. The build itself is still synchronous (~0.3–1.1 s on the one event loop, now at most once per 5 min and never while a request waits); a worker thread is the follow-up if stalls are ever traced to it |
-| 0160 | The recordings folder is never created inside a disconnected share's mount point (a parent on a filesystem under 1 GB, Unraid's 1 MB `/mnt/remotes` tmpfs), Settings refuses such a path, and the unmounted-share check runs even with a free-space minimum of 0 |
-| 0161 | ESPN fixtures (C-I): a new first rule in `resolveLive` checks ESPN's free scoreboard (real kickoff/session times) before the guide-only heuristics - matched to a fixture by team/session, live near the real kickoff else replay with the real time, or "no such game" when both teams are known but nothing matches; `services/sportsFixtures.js` fetches only the leagues that matter (follow list, sport categories), every 30 min and after an EPG sync, into SQLite (never blocks a request); international cricket (Tests/ODIs/T20Is) is found each refresh from ESPN's cricket scorepanel and merged under a new canonical league `Cricket` (IPL, BBL stay their own); AFLW has no ESPN feed and stays on the heuristics; `PIGTV_SPORT_FIXTURES=0` turns it off; the web Status page gets a "Sport fixtures" panel |
-| 0162 | Lead review of 0161: stale or out-of-window ESPN data could manufacture a replay for a real live game (a day of ESPN being unreachable, with yesterday's fixtures still cached, would tell a genuine unlisted game "no such game", and a fixture outside the fetched window could decide at all). Every league's snapshot now carries the exact window its *last successful* fetch covered and when that was (`sport_fixture_status.covered_from`/`covered_to`, `snapshot()`'s `coverage`); `fixtureVerdict` returns no verdict at all for an airing outside that window, and the "no such game" branch additionally requires the fetch to be recent (≤ 6 h) and the window to reach 12 h either side of the airing. A successful fetch fully replaces a league's stored fixtures (cricket now uses the same full-replace `saveFixtures` as every other league, dropping the `mergeFixtures` merge-by-append it had instead), so a postponed or removed game never lingers |
-| 0163 | Dead-code cleanup W10 (part 1): removed unused `xml2js` dependency (never `require`d) and the 869-line `nodecast.patch` file (Feb 2026 leftover, unreferenced) |
-| 0164 | Dead-code cleanup W10 (part 2): removed dead channel-number ordering branches (`GUIDE_NUMBERED_ORDER_BY`, `numbered` variable, number-keyed cursor handling); cursor rejecting legacy number-keyed cursors still returns 400; stale comment in `info.js` updated to note the behaviour is labels only (0139) |
-| 0165 | Dead-code cleanup W10 (part 3): removed web player / settings leftovers from deleted Movies/Series pages (0122): `autoPlayNextEpisode`, `forceProxy` settings, legacy `loadSettings()` method, `movies` and `series` icons, `forceProxy` toggle from Settings tabs, HTML element for it |
-| 0166 | Dead-code cleanup W10 (part 4): removed dead CSS selectors for the hidden-items list (`.hidden-list`, `.hidden-item`, `.hidden-item-info`, `.hidden-item-type`; 26 lines) that were never used after 0122; CSS file 4087 → 4061 lines |
-| 0167 | Settings refuses a relative recordings path ("fake" passed: its parent is the server's working folder, which exists); R6.3 |
-
-| 0168 | Multi-provider P1: source `role`/`priority`/`maxConnections`/`subscription`/`idOverlayUrl`; `provider_accounts` from `player_api.php` (6 h, after sync, Check now; a failed read keeps the last); `GET /api/providers/reminders` (C-K) |
-| 0169 | EPGenius's `#EXT-X-CREDENTIALS` uses the key `dns` |
-| 0170 | Backup sources sync their live list only into `backup_channels` (never the library); optional EPGenius id overlay by stream id |
-| 0171 | Channel linker (`channelLinks.js`, `channel_links`, admin `/api/links`): exact id, Fox number, same-region name, siblings, quality pairing, event slots never |
-| 0172 | Web Settings → Providers and Backup links; a settings-only source PUT no longer triggers a sync |
-| 0173 | Per-provider connection pools (sessions and recordings carry `providerId`; single provider unchanged) |
-| 0174 | Resolve failover across candidates, breaker, quarantine, retries/30 s deadline, `provider` on resolve (C-J), `channel_health.provider_id` |
-| 0175 | Status Providers panel, provider names on sessions, admin renewal banner |
-| 0176 | Lead fixes to 0175: duplicate reminders route removed, banner uses the local day, `accountOk` null until read, tests |
-| 0177 | Recordings choose a free provider, fail over at start, continue as part N+1 on a mid-recording death or 30 s stall (max 3); `part`, `provider_id`, `provider_name` |
-| 0178 | Raw-list bridge (P9): `provider_raw_channels` for every provider (fetched only when a backup exists); linker methods `raw-name` (auto) and `raw-epg` (auto, pending on the variant guard) rank above exact/number/name; Dream4K prefix styles understood |
-| 0179 | A raw-epg link is automatic only when the loose raw names agree too (one id on two channels at Dream4K) |
-| 0180 | A start stopped on request (the viewer's next play, a DELETE, a force) ends its resolve with 499 `{error, superseded}` - no failover, breaker, quarantine or failed-start row; an owner's newer resolve stops the older walk |
-| 0181 | Providers that are the same account (same server origin + login, hashed in `accountKey.js`) share one connection pool (lowest limit); `GET /api/sources/providers` adds `sharesAccountWith` (ids), Settings -> Providers warns in red |
-| 0182–0191 | Settings consolidation (provider cards), backups and links, sport teams, Status rework, in-stream recovery and hot standby (env-switched then), interruptions, reconnect timestamp loop and blank-picture detection (details: `docs/archive/blueprint-history-0106-0203.md`) |
-| 0192 | Recording codec probe reads ffprobe JSON by field name (audit R02) |
-| 0193 | Recordings prepared for the Apple client before the first Play; compression verifies before it deletes (R06, R08) |
-| 0194 | Recordings routes read files asynchronously (R09) |
-| 0195 | Sport events built on a worker thread (R09) |
-| 0196 | Media and session control always need a signed-in user; the proxy takes handles only (R01) |
-| 0197 | In-stream recovery and hot standby are Settings switches; Status shows relay state and reasons; stricter standby compatibility (R12) |
-| 0198 | Provider connections leased before the probe; warming the likely next channel (Settings, off by default) (R11) |
-| 0199 | Image runs as PUID/PGID 99:100, multi-stage, `/api/health` + HEALTHCHECK, database backup script (R17) |
-| 0200 | Web nav accessibility; Status pauses when hidden and shows loop delay, preparation queue, sport builds, connection use (R16) |
-| 0201 | Sport event requests served from a per-minute cache with ETag |
-| 0202 | A hot standby may take a warm channel's connection |
-| 0203 | Captures are MPEG-TS; preparation re-encodes audio to AAC-LC and decode-checks before deleting an original |
-| 0204 | Simplification: tuner model and six rollback flags removed, recording engine split, verify-build slimmed, test helpers; linked "(Backup)" siblings not listed |
-| 0205 | The linker sees linked siblings again (0204 dropped and remade their links on alternate relinks) |
-| 0206 | Pig family brand 1.6.0: PigTV product pig and lockups, favicons and manifest, corner bloom, loading splash, glass navbar, rounded numerals |
-
----
-
-## 9. Configuration reference
-
-Every `PIGTV_*` variable the server reads (`grep -rn "process.env.PIGTV_" server`, 26 Sept, build 0154). Set them on the
-container (Unraid → Docker → PigTV → Edit, then Apply, which recreates it). Unset = the default. Most settings are **not**
-env vars: they live in SQLite and are edited in the web app's Settings (sources, transcoding, recording, users).
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `PIGTV_RELAY_SWITCH_MS` | `10000` | With a standby ready: how long the playing stream may write nothing before the standby takes over (min 3000). |
-| `PIGTV_LIVE_IDLE_TIMEOUT_SEC` | `300` | A live session nobody has fetched from for this long is removed by the idle sweep (seekable sessions: 30 min, fixed). |
-| `PUID` / `PGID` | 99 / 100 | The user the container runs as (0199; Unraid's nobody:users). `PUID=0` runs as root. See `docs/OPERATIONS.md`. |
-| `PIGTV_BLANK_KBPS` | 500 / 250 | A live play whose segments carry less than this (kbps, audio included; 500 from 720p up, 250 below) over its first 20 s is marked **blank** (0191): logged, quarantined on that provider for the next play, health reason `blank`. `0` switches it off. |
-| `PIGTV_STALL_TIMEOUT_MS` | `20000` | The stall watchdog kills an ffmpeg that has written no file for this long (grace before the first output: the larger of this and 30 s). |
-| `PIGTV_TERMINAL_STATUS_TTL_SEC` | `900` | How long a "taken over" record is kept for `GET /api/playback/:id/terminal-status`. |
-| `PIGTV_PROFILE_MAX_AGE_DAYS` | `7` | A channel profile older than this is probed again. |
-| `PIGTV_DTS_DELTA_THRESHOLD_SEC` | `60` | ffmpeg's `-dts_delta_threshold` for sessions. |
-| `PIGTV_READRATE_BURST` | `8` | Seconds read at full speed before a finite source is paced to real time (0144; 0–60). `0` = plain `-re` (the rollback). |
-| `PIGTV_SPORT_FIXTURES` | on | `0` turns off ESPN fixtures completely (0161, §4 "Sport events"): no fetch ever runs, and `resolveLive`'s ESPN rule never applies - every league is exactly on the guide-only heuristics, as before 0161. |
-| `PIGTV_BUILD` | `server/version.js` | Overrides the build number reported by `/api/version` and `/api/info`. Not normally set. |
-| `PIGTV_COMMIT` | `dev` | The commit shown in the version display; CI sets it as a Docker build arg. |
-| `PIGTV_BUILT_AT` | none | The build time for `/api/version`; CI sets it. |
-
-Other environment the server or image uses: `JWT_SECRET` (optional: at least 32 characters; unset, a random key is created
-once and kept in `data/auth-secret`, so back that file up with the data folder); `PORT` (3000); `TZ` (**must** be set, e.g.
-`Australia/Sydney`: recording file names use local time); `NODE_ENV=production`; `LIBVA_DRIVER_NAME=iHD` for Intel VAAPI.
-The live-session tmpfs is `/app/transcode-cache` (2 GB in `docker-compose.yml`). Stream auth is always on since 0196 (there is no setting).
-
----
-
-## 10. Known limitations and open issues (29 Sept)
+## 6. Known limitations
 
 **Playback and the provider**
-- **The provider cuts the connection about 38 s into a play on some channels and resends ~19 s of old content** (§3). ffmpeg
+- **The provider cuts the connection about 38 s into a play on some channels and resends ~19 s of old content** (§2). ffmpeg
   rebases the timestamps, so the player neither freezes nor rewinds, but the viewer sees a short repeat and the stream sits
-  ~19 s further behind live. No code change made for the repeat itself; `stream-doctor capture` keeps the raw bytes since 0191,
-  so it can now be measured. When the rebase goes wrong instead (a timestamp loop, Fox Footy 3 Oct) the session is ended and
-  restarted cleanly (0191).
-- **Provider refusals are retried** (two retries in ffmpeg's first 3 s, 0143) and the Apple client re-resolves once, but a
-  channel can still fail to start during a provider outage; the viewer sees the C-B message and a Retry button.
-- The 8 s read burst for finite sources (0144) is measured on ffmpeg 9.0 only; production runs Ubuntu's 6.x (6.1+ needed) and
-  the file-based channel to check it on (R2.5/R3.11) has not been found again.
-- HEVC recording playback: checked on 2 Oct (0062 passed); since 0192 a prepared HEVC MP4 is tagged `hvc1`.
+  ~19 s further behind live. When the rebase goes wrong instead (a timestamp loop, Fox Footy 3 Oct) the session is ended and
+  restarted cleanly (0191). B3's ingest is the structural fix.
+- A channel can still fail to start during a provider outage when no backup carries it; the viewer sees the C-B message and
+  a Retry button.
+- The 8 s read burst for finite sources (0144) is measured on ffmpeg 9.0 only; production runs Ubuntu's 6.x (6.1+ needed).
+- In-stream recovery and the standby: the limits in §3.
+
+**Still to watch in the logs** (no code yet): `Timestamps looping … after ffmpeg reconnected` and `Blank picture` lines (0191:
+how often, which channels, any false positive; test-block M4–M6 were not run before it was archived) · 7 Flix Sydney's
+`Stream ends prematurely … Will reconnect` loop (nothing produced; ffmpeg keeps running) · "Bug 2" (`[mpegts] Invalid
+timestamps … dts=X+1800`: needs the channel that produces it) · `source timing` lines (the classifier has seen one uneven
+feed in five) · the 20 s stall timeout (tighten only after real stall logs).
 
 **Sport (C-I)**
-- Recognition and live/replay are **heuristics** over guide titles, categories and flags (`sportsClassify.js`; rules in §4 and
-  C-I), now checked against **ESPN fixtures first** (0161) for the leagues ESPN covers and that Mark follows: NFL, AFL, NBA,
-  F1, MLB, and cricket's IPL/BBL plus whatever international series ESPN's scorepanel currently lists. Where fixtures cover a
-  league and an airing's time, the known misfires below do not apply - that is the point of 0161. Everywhere else (AFLW always;
-  any league outside the seven above; a period ESPN has no data for; ESPN down) the heuristics below are exactly as they were:
-  a live game that the guide doesn't flag and that starts outside its league's live hours reads as a
-  replay; a replay aired inside league hours, not flagged `previously-shown` and not preceded by an earlier airing in the last
-  36 h reads as live; travelling series (F1, without a fixture) have no live hours, so only flags, the first-airing rule and
-  "Live" in the title decide; titles that name neither teams nor a session merge only by normalised title or become shows; the
-  horizon ends where the provider's guide ends (the sync logs how far ahead it reaches). Mark's 25 Sept export is the fixture
-  (`test/fixtures/sports-export.json`); add a misfire there with its expected kind before changing a rule.
-- **ESPN fixture coverage is uneven.** IPL and BBL have fixed league ids and are always fetched when followed; other cricket
-  (Tests, ODIs, T20Is) depends on ESPN's cricket "scorepanel" actually listing the series that day - a series it does not list
-  is invisible to the fixture rule and falls back to the heuristics. ESPN's own `endDate` is trusted for a multi-day match only
-  under the generic `Cricket` league (never IPL/BBL, whose nominal `endDate` is not a real multi-day span). ESPN is unofficial
-  and undocumented: a schema change there degrades to "not matched" (heuristics), never a crash, but was not designed against.
-  A league whose fetches have been failing (or have never run) falls back to the heuristics automatically once its last good
-  data is either too old (over 6 h, for the "no such game" answer) or does not reach the moment in question (0162) - so an
-  ESPN outage degrades gracefully rather than mislabelling a real live game as a replay.
+- Recognition and live/replay are **heuristics** over guide titles, categories and flags (`sportsClassify.js`; rules in §3),
+  checked against **ESPN fixtures first** (0161) where ESPN covers the league and time: NFL, AFL, NBA, F1, MLB, IPL/BBL and
+  whatever international cricket ESPN's scorepanel lists that day. Elsewhere (AFLW always; other leagues; ESPN down or
+  stale) the heuristics decide: an unflagged live game outside its league's hours reads as a replay, an unflagged replay
+  inside them with no earlier airing in 36 h reads as live, travelling series without a fixture rely on flags and the
+  first-airing rule, and the horizon ends where the provider's guide ends. Add a misfire to
+  `test/fixtures/sports-export.json` with its expected kind before changing a rule.
+- ESPN is unofficial and undocumented: a schema change degrades to "not matched" (heuristics), never a crash.
 
 **Recordings**
-- The recordings folder must be on a volume Docker sees live: see §1 Deployment (the `/mnt/remotes` RW/Slave mapping). The
-  server checks the folder at startup and every 15 min and warns on the Status page (0157), but it can't fix a Docker mapping.
-- An unanswered "stop playback?" prompt hands the stream to the recording after 3 minutes (0158); a viewer who chose
-  "Keep watching" still blocks the recording for the whole programme.
-
-**Sport build**
-- Since 0159 the sport event list is rebuilt in the background, but the build itself (~0.3–1.1 s on 1,000 channels) still runs
-  on the server's one event loop, at most once per 5 minutes. If playback stutter is ever traced to it, move it to a worker
-  thread.
-
-**Web**
-- `routes/proxy.js` has not been split (S4.3; one route, 238 lines, not needed so far).
+- The recordings folder must be on a volume Docker sees live (§1 Deployment). The server checks it at startup and every
+  15 min and warns on Status, but it can't fix a Docker mapping.
+- A viewer who chose "Keep watching" blocks a due recording for the whole programme (an unanswered prompt hands over after
+  3 min).
 
 **Health and diagnostics**
-- Channel health's stalls per hour depend on clients sending `play-end` (with `watchedSec` and `stalls`) when a play stops
-  (both clients do, for plays of 10 s or more). A play whose end is never reported (the app killed, a tab closed, a crash)
-  adds no stalls and no watched time, so stalls are under-counted rather than over-counted.
-- The Status page's last-50 plays and the terminal-status records are in memory: a restart empties them.
+- Stalls per hour depend on clients sending `play-end`; a play whose end is never reported adds nothing, so stalls are
+  under-counted rather than over-counted.
+- The Status page's last 50 plays and the terminal-status records are in memory: a restart empties them.
+
+**Web**
+- `routes/proxy.js` has not been split (one route, not needed so far).
 
 **Apple client** (details in `../PigTV-Swift/blueprint.md`)
 - Top Shelf card progress is only as fresh as the app's last refresh (the extension never uses the network).
-- Siri on Apple TV is parked (tvOS Siri may not offer third-party App Shortcuts); on iPad/iPhone awaiting R4.8.
-- The iOS player overlay clashing with AVKit's controls is **resolved** (app 31: PigTV's own touch controls only).
-
-**Docs**
-- The screenshots in `../PigTV-Swift/docs/evidence` are taken on offline **fixture data** (made-up channels, programmes and
-  logos), not the real feed.
+- The screenshots in `../PigTV-Swift/docs/evidence` are taken on offline fixture data, not the real feed.

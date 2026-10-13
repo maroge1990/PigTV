@@ -1,0 +1,193 @@
+{
+  "origin": "http://192.168.1.235:3000",
+  "samples": [
+    {
+      "path": "/api/sports/events?hours=72",
+      "sample": 1,
+      "status": 200,
+      "ms": 48.2,
+      "bytes": 154337
+    },
+    {
+      "path": "/api/sports/events?hours=72",
+      "sample": 2,
+      "status": 200,
+      "ms": 39.38,
+      "bytes": 154337
+    },
+    {
+      "path": "/api/sports/events?hours=72",
+      "sample": 3,
+      "status": 200,
+      "ms": 32.87,
+      "bytes": 154337
+    },
+    {
+      "path": "/api/sports/events?hours=72",
+      "sample": 4,
+      "status": 200,
+      "ms": 30.97,
+      "bytes": 154337
+    },
+    {
+      "path": "/api/sports/events?hours=72",
+      "sample": 5,
+      "status": 200,
+      "ms": 36.88,
+      "bytes": 154337
+    },
+    {
+      "path": "/api/sports/events?hours=72",
+      "sample": 6,
+      "status": 200,
+      "ms": 32.2,
+      "bytes": 154337
+    },
+    {
+      "path": "/api/sports/events?hours=72",
+      "sample": 7,
+      "status": 200,
+      "ms": 32.72,
+      "bytes": 154337
+    },
+    {
+      "path": "/api/sports/events?hours=72",
+      "sample": 8,
+      "status": 200,
+      "ms": 43.7,
+      "bytes": 154337
+    },
+    {
+      "path": "/api/library/guide?limit=500",
+      "sample": 1,
+      "status": 200,
+      "ms": 299.67,
+      "bytes": 744902
+    },
+    {
+      "path": "/api/library/guide?limit=500",
+      "sample": 2,
+      "status": 200,
+      "ms": 323.66,
+      "bytes": 744902
+    },
+    {
+      "path": "/api/library/guide?limit=500",
+      "sample": 3,
+      "status": 200,
+      "ms": 321.81,
+      "bytes": 744902
+    },
+    {
+      "path": "/api/version",
+      "sample": 1,
+      "status": 200,
+      "ms": 10.56,
+      "bytes": 129
+    },
+    {
+      "path": "/api/version",
+      "sample": 2,
+      "status": 200,
+      "ms": 11.68,
+      "bytes": 129
+    },
+    {
+      "path": "/api/version",
+      "sample": 3,
+      "status": 200,
+      "ms": 9.53,
+      "bytes": 129
+    },
+    {
+      "path": "/api/version",
+      "sample": 4,
+      "status": 200,
+      "ms": 10.95,
+      "bytes": 129
+    },
+    {
+      "path": "/api/version",
+      "sample": 5,
+      "status": 200,
+      "ms": 13.77,
+      "bytes": 129
+    }
+  ],
+  "live": [
+    {
+      "channelId": "pos_26",
+      "status": 200,
+      "resolveMs": 4445.92,
+      "strategy": "transcode",
+      "container": "hls",
+      "info": {
+        "video": "h264",
+        "audio": "aac",
+        "width": 1920,
+        "height": 1080,
+        "audioChannels": 2,
+        "container": "mpegts",
+        "compatible": false,
+        "needsRemux": true,
+        "needsTranscode": false,
+        "videoOk": true,
+        "audioOk": true,
+        "audioProfile": "LC",
+        "isHeAac": false,
+        "videoIsHevc": false,
+        "finite": false,
+        "durationSec": null,
+        "dtsUneven": false,
+        "videoRange": null,
+        "fps": "60/1",
+        "subtitles": []
+      },
+      "playlistStatus": 200,
+      "playlistMs": 10.76,
+      "segmentsAvailable": 1,
+      "segmentStatus": 200,
+      "segmentMs": 88.83,
+      "segmentBytes": 2592216,
+      "releaseStatus": 200,
+      "releaseMs": 23.78
+    },
+    {
+      "channelId": "pos_118",
+      "status": 200,
+      "resolveMs": 8827.2,
+      "strategy": "transcode",
+      "container": "hls",
+      "info": {
+        "video": "h264",
+        "audio": "aac",
+        "width": 1920,
+        "height": 1080,
+        "audioChannels": 2,
+        "container": "mpegts",
+        "compatible": false,
+        "needsRemux": true,
+        "needsTranscode": false,
+        "videoOk": true,
+        "audioOk": true,
+        "audioProfile": "LC",
+        "isHeAac": false,
+        "videoIsHevc": false,
+        "finite": false,
+        "durationSec": null,
+        "dtsUneven": false,
+        "videoRange": null,
+        "fps": "30/1",
+        "subtitles": []
+      },
+      "playlistStatus": 200,
+      "playlistMs": 20.48,
+      "segmentsAvailable": 2,
+      "segmentStatus": 200,
+      "segmentMs": 93.17,
+      "segmentBytes": 3344779,
+      "releaseStatus": 200,
+      "releaseMs": 29.68
+    }
+  ]
+}

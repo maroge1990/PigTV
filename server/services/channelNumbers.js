@@ -1,5 +1,5 @@
 /**
- * Channel numbers (0117, roadmap X2.1, docs/ROADMAP-CONTRACTS.md C-A).
+ * Channel numbers (0117, roadmap X2.1, docs/CLIENT-CONTRACT.md C-A).
  *
  * Every visible live channel has a number: a positive integer, unique across
  * the server, persisted in `channel_numbers` and keyed by the channel's

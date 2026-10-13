@@ -1,0 +1,11 @@
+Audit date: 2026-10-03 Australia/Melbourne
+Server npm test: 843 passed, 0 failed, 0 skipped (Node 24; unrestricted local networking).
+Swift synthetic contract checks: 204 passed; standalone runner emitted actor-isolation warnings.
+Unsigned generic tvOS build: BUILD SUCCEEDED.
+Unsigned generic iOS build: BUILD SUCCEEDED.
+No local simulator destinations available; full native tests assessed from current GitHub CI.
+Local source repositories unchanged.
+Security: anonymous raw proxy to server loopback /api/version returned HTTP 200.
+Security: anonymous bytes=0-0 request to existing recording 3 media.mp4 returned HTTP 206, one byte.
+Codec experiment: ffprobe -show_entries stream=codec_type,codec_name -of csv=p=0 returned h264,video and aac,audio. Existing parser expects video,h264 and audio,aac.
+Recording API: #3 playback async HTTP 200 in 214.110 ms; #4 HTTP 200 in 736.099 ms. Prior prepared state was not inspected; no minute-long wait reproduced.

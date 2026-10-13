@@ -9,7 +9,7 @@
  * reused for up to PIGTV_PROFILE_MAX_AGE_DAYS (7) days.
  *
  * What it does NOT change: ffmpeg's own -probesize/-analyzeduration. A channel with a
- * long GOP fails its join with a smaller probe (blueprint §3), so ffmpeg still reads
+ * long GOP fails its join with a smaller probe (blueprint §2), so ffmpeg still reads
  * its usual 5 MB / 5 s; only the separate ffprobe run is skipped.
  *
  * Invalidation: a profile is written only after a session produced its playlist from

@@ -28,7 +28,7 @@
 # ------------------------------------------------
 # Only what a test cannot say: something that must NOT come back (check_absent),
 # placement and structure (the Python blocks), the image and CI (Dockerfile,
-# workflows, package files), the web app's markup, and the blueprint's numbering.
+# workflows, package files), the web app's markup, and the docs' build numbering.
 # Behaviour belongs in a test under test/. This file used to assert ~780 strings
 # of server code and test names as well; they broke on every rewording and said
 # nothing the tests did not, so they went.
@@ -932,19 +932,10 @@ check public/js/pages/RecordingsPage.js "waiting: 'Waiting for viewer'" "the web
 echo "=== 0084: the playback report keeps Apple-device plays apart from the web trial ==="
 check scripts/playback-report.js "DEVICE_SUFFIX" "device plays get their own rows"
 
-echo "=== 0085: stream-copy HLS sessions can rebuild DTS from PTS order (SUPERSEDED by 0088: only feeds that need it) ==="
-check docs/SWIFT-CLIENT-HANDOFF.md "0085" "and the Apple hand-off doc records it"
-
-echo "=== 0086: a source that ends is read at real time, so the HLS window cannot slide past the player ==="
-check docs/SWIFT-CLIENT-HANDOFF.md "0086" "and the Apple hand-off doc records it"
-
 echo "=== 0087: cancelling the takeover prompt stops the play instead of taking the stream anyway ==="
 check public/js/components/VideoPlayer.js "VideoPlayer.CANCELLED = Symbol" "a declined takeover has its own answer, distinct from null"
 check public/js/components/VideoPlayer.js "decision === VideoPlayer.CANCELLED" "and play() stops there rather than falling through to the local strategy"
 check public/js/components/VideoPlayer.js "abandonPlay()" "the screen goes back to how it was, with no play-start reported"
-
-echo "=== 0088: igndts is decided per feed, because it helps one kind of source and harms the other ==="
-check docs/SWIFT-CLIENT-HANDOFF.md "0088" "and the Apple hand-off doc records it"
 
 echo "=== 0090: the timestamp diagnostics become a supported tool ==="
 check scripts/stream-doctor.js "capture <pos_N>" "one tool with the five subcommands, replacing four throwaway scripts"
@@ -954,26 +945,23 @@ check blueprint.md "reach for this first on any playback fault" "and the bluepri
 
 echo "=== 0091 (docs): troubleshooting starts from a capture of the real channel ==="
 check blueprint.md "When a channel misbehaves" "the loop is written down, in order"
-check blueprint.md "No ffmpeg-flag or" "and shipping a timestamp fix on a hypothesis is called out as the 0085 mistake"
+check AGENTS.md "No ffmpeg-flag or" "and shipping a timestamp fix on a hypothesis is called out as the 0085 mistake"
 check blueprint.md "regression corpus" "samples are kept and retested, which 0085 had no way to do"
 check blueprint.md "/Users/markrogers/Documents/GitHub/PigTV" "the orientation table names the current repo folder"
-check blueprint.md "Claude commits and pushes straight to" "and how changes ship is written down"
+check AGENTS.md "Claude commits and pushes straight to" "and how changes ship is written down"
 
 echo "=== 0092 (docs): commands name the container instead of a placeholder ==="
 check blueprint.md "docker exec PigTV node scripts/stream-doctor" "so a command can be pasted as written"
-check docs/SWIFT-CLIENT-HANDOFF.md "docker logs PigTV" "including the ones the Apple client session runs"
+check docs/CLIENT-CONTRACT.md "docker logs PigTV" "including the ones the Apple client session runs"
 
 echo "=== 0093: captured samples survive a deploy ==="
 check scripts/stream-doctor.js "path.join(DATA, .samples.)" "they are written under the data bind mount, not the writable layer"
 check blueprint.md "has to outlive the build it was taken on" "and the blueprint says why it matters"
 
-echo "=== 0094: a displaced client can tell takeover from an ordinary failure ==="
-check docs/SWIFT-CLIENT-HANDOFF.md "0094" "and the Apple hand-off doc records it"
-
 echo "=== 0095: the image says which source it was built from ==="
 check .github/workflows/docker-publish.yml "PIGTV_COMMIT=" "CI passes the commit into the build"
 check .github/workflows/docker-publish.yml "id: stamp" "computed in a step, so release and workflow_dispatch work too"
-check blueprint.md "builds \`ghcr.io/maroge1990/pigtv\` \*\*only if the tests pass" "and the mechanism is written down rather than assumed"
+check AGENTS.md "builds \`ghcr.io/maroge1990/pigtv\` \*\*only if the tests pass" "and the mechanism is written down rather than assumed"
 check .github/workflows/docker-publish.yml "needs: test" "and the image build waits for the regression tests"
 
 echo "=== 0099: strip the small-caps LIVE badge at ingest (SR-2) ==="
@@ -1293,10 +1281,9 @@ check public/js/pages/ProvidersSettings.js "for (const k of \['epgUrl', 'idOverl
 check_absent public/js/pages/ProvidersSettings.js "p.idOverlayUrl" "the page never reads the stored overlay address"
 
 echo "=== 0174: resolve failover, breaker, quarantine, C-J (multi-provider P6) ==="
-check docs/ROADMAP-CONTRACTS.md "## C-J. Provider on resolve" "C-J is written down"
+check docs/CLIENT-CONTRACT.md "### C-J. Provider on resolve" "C-J is written down"
 
 echo "=== 0177: recordings choose a free provider, fail over, continue in parts (multi-provider P7) ==="
-check docs/SWIFT-CLIENT-HANDOFF.md "| 0177 |" "the additive list fields are in the client handoff"
 
 echo "=== 0180: a start stopped on request is not a provider failure (P10) ==="
 check public/js/components/VideoPlayer.js "if (res.status === 499) return VideoPlayer.SUPERSEDED;" "the web player ignores a superseded resolve"
