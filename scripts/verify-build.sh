@@ -700,6 +700,8 @@ echo "=== 0048: Build identity surfaced ==="
 check public/js/app.js "data.display" "webapp badge renders the server's display string"
 check public/index.html "version-badge" "badge markup present in the header"
 check Dockerfile "PIGTV_COMMIT" "Dockerfile can stamp commit/builtAt at build time"
+check Dockerfile "net.unraid.docker.icon=\"https://raw.githubusercontent.com/maroge1990/PigTV/main/public/img/brand/web-dark-512.png\"" "0208: the image carries the Unraid icon label"
+check Dockerfile "net.unraid.docker.webui=" "0208: and the Unraid WebUI label"
 
 echo "=== 0049: Live HLS stability ==="
 # temp_file must be in the actual flag string, not just mentioned in a comment,

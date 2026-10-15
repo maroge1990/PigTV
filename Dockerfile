@@ -124,6 +124,13 @@ ENV PIGTV_COMMIT=${PIGTV_COMMIT} \
 
 EXPOSE 3000
 
+# Unraid shows this icon and opens this WebUI for the container (its Docker page
+# reads these labels; a template's own Icon/WebUI fields still override them).
+LABEL org.opencontainers.image.title="PigTV" \
+      org.opencontainers.image.source="https://github.com/maroge1990/PigTV" \
+      net.unraid.docker.icon="https://raw.githubusercontent.com/maroge1990/PigTV/main/public/img/brand/web-dark-512.png" \
+      net.unraid.docker.webui="http://[IP]:[PORT:3000]/"
+
 # Readiness: /api/health answers 503 only when the database is unusable. Node
 # does the request, so no curl is needed in the image. start-period covers the
 # first-run migrations.

@@ -29,6 +29,10 @@ Add two optional Variables to the `PigTV` container template:
 Nothing else changes: `/mnt/user/appdata/nodecast_tv/data` -> `/app/data`, `/mnt/remotes` -> `/app/recordings`
 (Read/Write - Slave), the transcode tmpfs, and the `/dev/dri` device stay as they are.
 
+**Icon and WebUI:** the image carries `net.unraid.docker.icon` and `net.unraid.docker.webui` labels (0208). If the
+template's own Icon URL field is set it wins; to set it by hand use
+`https://raw.githubusercontent.com/maroge1990/PigTV/main/public/img/brand/web-dark-512.png`.
+
 ## First deploy of the non-root image: checklist
 
 1. Force Update the container. Check the log. Expect, in order:
