@@ -147,6 +147,12 @@ three they show.
 R12 backups → R4 guide-following end (with the timer fix) → R11 webhook and live stats → `tv_archive`/audio checks →
 R8 group filters pilot (moved up from B5, measured).
 
+**Wave 3 progress (16 Oct, committed locally):** **0213** R12 backups (pre-migration + nightly, verified copies, on
+Status), **0214** R4 end follows the guide (with the hard-stop fix), **0215** R11 webhook (JSON or ntfy text), **0216**
+`tv_archive` kept per provider and on Status, **0217** R8 pilot (groups never imported). Deferred: live ffmpeg stats (a
+playback-path flag, capture first) and E3 audio tracks (samples on the server). Swift build 42 passed the regression UI
+tier (14/14) and the iOS build.
+
 ### Wave 4 · recording and guide features (about 2 weeks)
 
 R5 follow/series rules and R6 artwork (one additive contract change, feature-flagged, web + Apple UX), R9 event-channel

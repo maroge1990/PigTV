@@ -1,9 +1,9 @@
 # PigTV: blueprint
 
-**State:** server build **0209** committed locally for Mark to push (0207 is the last deployed); Apple client build **40**
-on devices (13 Oct baseline). Wave 1 of the [16 Oct roadmap](docs/reviews/2026-10-16/ROADMAP.md) is in progress: it fixes
-the [15 Oct review](docs/reviews/2026-10-15/REVIEW.md)'s web and Swift findings and Mark's 16 Oct bug list. The Dispatcharr
-gap plan remains in §4.
+**State:** server builds **0208–0217** committed locally for Mark to push (0207 is the last deployed); Apple client build
+**42** committed (40 is on devices). Waves 1–3 of the [16 Oct roadmap](docs/reviews/2026-10-16/ROADMAP.md) are done in code:
+the [15 Oct review](docs/reviews/2026-10-15/REVIEW.md)'s findings, Mark's 16 Oct bug list (except cricket and the tuning
+hang's server cause, which need his data) and Plan B1. Nothing is *Verified* until Mark's device and feed checks.
 
 How to work in this repo (commands, shipping, rules) is in [`AGENTS.md`](AGENTS.md). This file holds **durable facts and the
 roadmap** for the server, the web app and the joint plan; the Apple client's own architecture is in
@@ -425,11 +425,11 @@ Status words, used exactly: **Done**, **Shipped, awaiting a check** (needs Mark 
 
 | Step | What | Size | Status |
 |---|---|---|---|
-| **B1** quick wins (any order; none touches live playback) | **R12** nightly SQLite backup, plus one at startup when the build changes (0199 has the backup script) · **R4** a recording's end follows the guide · **R11** one webhook URL (provider down, recording failed, licence expiring) and live ffmpeg speed/fps on Status · check whether any provider sets `tv_archive` (keep the flag at sync) · check the reference samples for extra audio tracks (E3) | S each | Not started |
+| **B1** quick wins (any order; none touches live playback) | **R12** nightly SQLite backup, plus one at startup when the build changes (0199 has the backup script) · **R4** a recording's end follows the guide · **R11** one webhook URL (provider down, recording failed, licence expiring) and live ffmpeg speed/fps on Status · check whether any provider sets `tv_archive` (keep the flag at sync) · check the reference samples for extra audio tracks (E3) | S each | **Done**, committed 16 Oct, not yet pushed: R12 (0213), R4 (0214), R11 webhook (0215), `tv_archive` kept and on Status (0216; the answer comes with the next sync). **Deferred:** live ffmpeg speed/fps (needs a `-progress` flag on the playback ffmpeg, so a capture first) and E3 (the samples are on the server; needs Mark) |
 | **B2** recordings | **R3** segmented recordings: an HLS event playlist that appends across restarts and failover (replacing parts), remuxed at the end, MP4 preparation (K12) from the segments. **Mark skipped this as R13 on 4 Oct: confirm before building.** · **R5** follow-list and series recording rules, de-duplicated by episode/event · **R6** EPG artwork | M + M | Not started |
 | **B3** shared ingest (behind a Settings switch, capture-first) | **R2** one reader per (provider, channel) into an in-memory ring buffer with subscribers, in its own process group. Consumers in order: recordings → the HLS session reads `pipe:0` (rerun `stream-doctor bench` on all five samples) → **R7** failover inside the ingest (speed-based stall detection, reconnect or switch by `providerRouting`'s order). The coordinator counts ingests: the same channel takes no new connection | L | Not started |
 | **B4** retire (after B3 has run a week) | `streamRelay.js` leg-stitching and standby, the 0143 refusal retries, per-session warm leases (warming becomes "start an ingest early"): about 800–1,000 lines | M | Not started |
-| **B5** provider and guide data (when convenient) | **R8** ingest filters · **R9** event-channel guide · **R10** EPG matching tune-ups · catch-up/start-over if B1 finds archives · E2 ffmpeg version parity | S–M each | Not started |
+| **B5** provider and guide data (when convenient) | **R8** ingest filters · **R9** event-channel guide · **R10** EPG matching tune-ups · catch-up/start-over if B1 finds archives · E2 ffmpeg version parity | S–M each | R8 pilot **Done** (0217, committed): whole groups never imported, guarded and reversible; Mark's before/after sync time and DB size decide its future. The rest not started |
 
 Rough total: 6–8 weeks of part-time sessions. B3 is the largest change to the playback path since 0102/0103: it needs the
 full capture/bench pass (§3 "Diagnosing playback") before and after.
