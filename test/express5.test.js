@@ -1,10 +1,10 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const helper = require('./helpers/server');
 
 // 0137 (roadmap S4.3c): Express 5. The real server (server/index.js) in a sandbox, checked
 // where Express 5 differs from 4 and the server was adjusted to keep answering as before:
@@ -19,10 +19,6 @@ fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'n
 
 let child, base, port;
 
-const freePort = () => new Promise((resolve) => {
-    const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); });
-});
-
 function startServer(p) {
     const proc = spawn(process.execPath, ['server/index.js'], { cwd: sandbox, env: { ...process.env, PORT: String(p), JWT_SECRET: 'test-only-signing-key-not-used-outside-fixtures-12345' } });
     let out = '';
@@ -33,13 +29,11 @@ function startServer(p) {
 }
 
 before(async () => {
-    port = await freePort();
-    base = `http://127.0.0.1:${port}`;
-    child = startServer(port);
-    for (let i = 0; i < 100; i++) {
-        try { await fetch(`${base}/api/version`); return; } catch { await new Promise(r => setTimeout(r, 100)); }
-    }
-    throw new Error(`server did not start: ${child.output()}`);
+    // The shared helper: retries a port another test grabbed first, and only trusts an answer
+    // from this child.
+    const server = await helper.startServer({ cwd: sandbox, env: { JWT_SECRET: 'test-only-signing-key-not-used-outside-fixtures-12345' } });
+    ({ base, child } = server);
+    port = Number(new URL(base).port);
 });
 
 after(() => {
