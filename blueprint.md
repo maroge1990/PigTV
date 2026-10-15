@@ -426,7 +426,7 @@ Status words, used exactly: **Done**, **Shipped, awaiting a check** (needs Mark 
 | Step | What | Size | Status |
 |---|---|---|---|
 | **B1** quick wins (any order; none touches live playback) | **R12** nightly SQLite backup, plus one at startup when the build changes (0199 has the backup script) · **R4** a recording's end follows the guide · **R11** one webhook URL (provider down, recording failed, licence expiring) and live ffmpeg speed/fps on Status · check whether any provider sets `tv_archive` (keep the flag at sync) · check the reference samples for extra audio tracks (E3) | S each | **Done**, committed 16 Oct, not yet pushed: R12 (0213), R4 (0214), R11 webhook (0215), `tv_archive` kept and on Status (0216; the answer comes with the next sync). **Deferred:** live ffmpeg speed/fps (needs a `-progress` flag on the playback ffmpeg, so a capture first) and E3 (the samples are on the server; needs Mark) |
-| **B2** recordings | **R3** segmented recordings: an HLS event playlist that appends across restarts and failover (replacing parts), remuxed at the end, MP4 preparation (K12) from the segments. **Mark skipped this as R13 on 4 Oct: confirm before building.** · **R5** follow-list and series recording rules, de-duplicated by episode/event · **R6** EPG artwork | M + M | Not started |
+| **B2** recordings | **R3** segmented recordings: an HLS event playlist that appends across restarts and failover (replacing parts), remuxed at the end, MP4 preparation (K12) from the segments. **Approved by Mark on 16 Oct** (replaces the 4 Oct skip): with watch-while-recording on Apple TV, segments in appdata, a Settings switch off by default; see the roadmap's Wave 4. · **R5** follow-list and series recording rules, de-duplicated by episode/event · **R6** EPG artwork | M + M | Not started |
 | **B3** shared ingest (behind a Settings switch, capture-first) | **R2** one reader per (provider, channel) into an in-memory ring buffer with subscribers, in its own process group. Consumers in order: recordings → the HLS session reads `pipe:0` (rerun `stream-doctor bench` on all five samples) → **R7** failover inside the ingest (speed-based stall detection, reconnect or switch by `providerRouting`'s order). The coordinator counts ingests: the same channel takes no new connection | L | Not started |
 | **B4** retire (after B3 has run a week) | `streamRelay.js` leg-stitching and standby, the 0143 refusal retries, per-session warm leases (warming becomes "start an ingest early"): about 800–1,000 lines | M | Not started |
 | **B5** provider and guide data (when convenient) | **R8** ingest filters · **R9** event-channel guide · **R10** EPG matching tune-ups · catch-up/start-over if B1 finds archives · E2 ffmpeg version parity | S–M each | R8 pilot **Done** (0217, committed): whole groups never imported, guarded and reversible; Mark's before/after sync time and DB size decide its future. The rest not started |
@@ -457,6 +457,9 @@ purpose:** the non-VAAPI encoders.
 - *4 Oct:* the tuner model (shared tuners, timeshift, HLS recordings) removed, never having run on a device (0204);
   segmented recordings (audit R13) skipped.
 - *13 Oct:* Plan B (§4): no Dispatcharr; adopt its ideas natively.
+- *16 Oct:* **R3 segmented recordings approved** (reverses 4 Oct's R13 skip): watch from the start while recording (sport
+  that starts early), segments in appdata then the MP4 to the share, behind a switch off by default; provider use and a
+  restart/takeover test day agreed. **tvOS icon option B** (kit 1.7.1).
 - *16 Oct:* **Claude commits but never pushes**; Mark reviews and pushes (replaces 23 Sept's push-to-main). Work order:
   [`docs/reviews/2026-10-16/ROADMAP.md`](docs/reviews/2026-10-16/ROADMAP.md).
 

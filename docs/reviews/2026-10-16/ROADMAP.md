@@ -94,7 +94,8 @@ Nothing is *Verified* until he reports back. Build numbers continue from server 
 - Mark: send the AUS v SA guide titles (bug 5) and, when it next happens, the server log for the iPhone tuning hang (bug 8).
 - Docs commit: the 15 Oct review, this roadmap, the blueprint state line, and the "superseded" note in
   `DISPATCHARR-REVIEW.md` §1.
-- Decisions for Mark: web break markers (bug 1); R3 yes/no; backup retention 7 vs 14.
+- Decisions for Mark: web break markers (bug 1); backup retention 7 vs 14. (R3: approved 16 Oct; tvOS icon: option B,
+  done in kit 1.7.1 / Swift build 43.)
 
 ### Wave 1 · reported bugs and the test gate (about 1 week)
 
@@ -153,10 +154,39 @@ Status), **0214** R4 end follows the guide (with the hard-stop fix), **0215** R1
 playback-path flag, capture first) and E3 audio tracks (samples on the server). Swift build 42 passed the regression UI
 tier (14/14) and the iOS build.
 
-### Wave 4 · recording and guide features (about 2 weeks)
+### Wave 4 · segmented recordings first, then recording and guide features (about 3–4 weeks)
 
-R5 follow/series rules and R6 artwork (one additive contract change, feature-flagged, web + Apple UX), R9 event-channel
-guide, R10 EPG review list. R3 only if Mark approved it in Wave 0.
+**R3 segmented recordings: approved by Mark, 16 Oct.** His answers:
+1. Build it (the recommendation stands on the latest evidence; the 4 Oct skip is reversed).
+2. **Watch while recording on Apple TV is wanted:** sport that starts early and is missed is played from the start
+   while it is still recording.
+3. Segments go to **appdata** (room confirmed), and only the finished MP4 goes to the SMB share
+   (`/app/recordings`), which has a history of going stale.
+4. Using the provider connection for test recordings of the reference channels (HDR, 50 Hz, HE-AAC) is approved.
+5. Mark will give a test day: restart the container mid-recording, force a takeover from another device, watch on TV.
+6. Behind a Settings switch, off by default; existing recordings keep the parts model; only new ones are segmented.
+
+Shape (from DISPATCHARR-REVIEW §5 R3; native code, never copied: AGPL):
+- Recording ffmpeg writes an HLS **event** playlist (`-f hls -hls_time 4 -hls_playlist_type event`,
+  `append_list+omit_endlist+independent_segments`, `-avoid_negative_ts make_zero`) to
+  `/app/data/recordings-work/<schedule id>/`. A restart or a provider failover starts a new ffmpeg that appends
+  (`-start_number` after the highest segment) with a discontinuity, instead of a new part (today max 3).
+- At the end: remux the playlist to the same MP4 the K12 preparation makes today, verify its duration, move it to the
+  share's recordings folder atomically, then delete the work folder. A failed move keeps the work folder and says so on
+  Status. Free-space checks cover appdata as well as the share.
+- **Watch while recording:** a new authenticated route serves the in-progress event playlist and its segments (allow-listed
+  names, token like live HLS, never a path). Contract: an additive flag in `/api/info` (e.g. `recordingLive`) and an
+  additive field on an in-progress recording/schedule; CLIENT-CONTRACT and `APPLE_CLIENT_ROUTES` in the same commit.
+  Apple: a "Watch from start" action on a recording in progress (Recordings, and Sport/Guide where the programme is being
+  recorded) that plays the event playlist in the recording player, with seeking, and switches to the finished MP4 later.
+- Live Comskip can then read segments (today it follows a growing file, 0207); keep the current path until proven.
+- Tests first (they must fail on the old code): append across a forced ffmpeg exit, failover append, remux duration,
+  atomic move and the failure path, the route's auth and allow-list, the switch off = today's behaviour byte for byte.
+- Capture/bench before shipping (AGENTS.md rule): record the five reference samples through the new path and compare
+  with today's output (A/V sync, HDR flags, 50 Hz, HE-AAC). Then Mark's test day.
+
+Then: R5 follow/series rules and R6 artwork (one additive contract change, feature-flagged, web + Apple UX), R9
+event-channel guide, R10 EPG review list.
 
 ### Wave 5 · shared ingest (about 3 weeks, separate project)
 
