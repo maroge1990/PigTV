@@ -69,7 +69,7 @@ class RecordingsPage {
 
     renderScheduled(items) {
         if (!items || items.length === 0) {
-            this.scheduledList.innerHTML = `<div class="empty-state"><p>No upcoming recordings</p><p class="hint">Click a program in the TV Guide and choose Record</p></div>`;
+            this.scheduledList.innerHTML = `<div class="empty-state"><p>No upcoming recordings</p><p class="hint">Click a programme in the TV Guide and choose Record</p></div>`;
             return;
         }
 

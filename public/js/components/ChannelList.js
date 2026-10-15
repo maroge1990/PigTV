@@ -310,7 +310,7 @@ class ChannelList {
               <div class="channel-name">${this.escapeHtml(channel.name)}</div>
               <div class="channel-program">${this.escapeHtml(this.getProgramInfo(channel) || '')}</div>
             </div>
-            <button class="favorite-btn ${isFavorite ? 'active' : ''}" title="${isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}"
+            <button class="favorite-btn ${isFavorite ? 'active' : ''}" title="${isFavorite ? 'Remove from favourites' : 'Add to favourites'}"
                     aria-label="Favourite ${this.escapeHtml(channel.name)}" aria-pressed="${isFavorite}">
               ${isFavorite ? Icons.favorite : Icons.favoriteOutline}
             </button>
@@ -493,7 +493,7 @@ class ChannelList {
           <div class="group-header ${this.collapsedGroups.has(groupName) ? 'collapsed' : ''} ${isFavoritesGroup ? 'favorites-group' : ''}" data-group="${this.escapeHtml(groupName)}"
                role="button" tabindex="0" data-key-activate aria-expanded="${!this.collapsedGroups.has(groupName)}">
             <span class="group-toggle">${Icons.chevronDown}</span>
-            <span class="group-name">${this.escapeHtml(groupName)}</span>
+            <span class="group-name">${this.escapeHtml(groupName === 'Favorites' ? 'Favourites' : groupName)}</span>
             <span class="group-count">${channels.length}</span>
           </div>
           <div class="group-channels">
@@ -713,7 +713,7 @@ class ChannelList {
             this.favoriteRows = Array.isArray(rows) ? rows : [];
             this.favoriteKeys = new Set(this.favoriteRows.map(r => `${r.sourceId}:${r.stableId || r.id}`));
         } catch (err) {
-            console.error('Error loading favorites:', err);
+            console.error('Error loading favourites:', err);
         }
     }
 
@@ -731,7 +731,7 @@ class ChannelList {
         document.querySelectorAll(`.channel-item[data-fav-key="${safe}"] .favorite-btn`).forEach(btn => {
             btn.classList.toggle('active', isFavorite);
             btn.innerHTML = isFavorite ? Icons.favorite : Icons.favoriteOutline;
-            btn.title = isFavorite ? 'Remove from Favorites' : 'Add to Favorites';
+            btn.title = isFavorite ? 'Remove from favourites' : 'Add to favourites';
             btn.setAttribute('aria-pressed', String(isFavorite));
         });
     }

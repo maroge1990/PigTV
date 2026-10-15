@@ -439,7 +439,7 @@ class EpgGuide {
             let optionsHtml = '';
 
             if (hasFavorites) {
-                optionsHtml += `<option value="Favorites" ${currentValue === 'Favorites' ? 'selected' : ''}>Favorites</option>`;
+                optionsHtml += `<option value="Favorites" ${currentValue === 'Favorites' ? 'selected' : ''}>Favourites</option>`;
             }
 
             optionsHtml += `<option value="" ${currentValue === '' ? 'selected' : ''}>All Groups</option>`;
@@ -622,7 +622,7 @@ class EpgGuide {
 
         row.innerHTML = `
           <div class="epg-channel-info">
-            <button class="favorite-btn ${isFavorite ? 'active' : ''}" title="${isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}"
+            <button class="favorite-btn ${isFavorite ? 'active' : ''}" title="${isFavorite ? 'Remove from favourites' : 'Add to favourites'}"
                     aria-label="Favourite ${this.escapeHtml(channel.name)}" aria-pressed="${isFavorite}">
               ${isFavorite ? Icons.favorite : Icons.favoriteOutline}
             </button>
@@ -685,7 +685,7 @@ class EpgGuide {
         this.container.querySelectorAll(`.epg-channel-row[data-fav-key="${safe}"] .favorite-btn`).forEach(btn => {
             btn.classList.toggle('active', isFavorite);
             btn.innerHTML = isFavorite ? Icons.favorite : Icons.favoriteOutline;
-            btn.title = isFavorite ? 'Remove from Favorites' : 'Add to Favorites';
+            btn.title = isFavorite ? 'Remove from favourites' : 'Add to favourites';
             btn.setAttribute('aria-pressed', String(isFavorite));
         });
     }
@@ -885,7 +885,7 @@ class EpgGuide {
         const body = document.getElementById('modal-body');
         const footer = document.getElementById('modal-footer');
 
-        title.textContent = data.title || 'Program Details';
+        title.textContent = data.title || 'Programme details';
 
         const start = new Date(data.start);
         const stop = new Date(data.stop);

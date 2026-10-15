@@ -36,7 +36,7 @@ class HomePage {
             <div class="dashboard-content" id="home-content">
                 <section class="dashboard-section" id="favorite-channels-section">
                     <div class="section-header">
-                        <h2>Favorite Channels</h2>
+                        <h2>Favourite channels</h2>
                     </div>
                     <div class="scroll-wrapper">
                         <button class="scroll-arrow scroll-left" aria-label="Scroll left">
@@ -45,7 +45,7 @@ class HomePage {
                         <div class="horizontal-scroll channel-tiles" id="favorite-channels-list">
                             <div class="loading-state">
                                 <div class="loading"></div>
-                                <span>Loading favorites...</span>
+                                <span>Loading favourites…</span>
                             </div>
                         </div>
                         <button class="scroll-arrow scroll-right" aria-label="Scroll right">
@@ -113,7 +113,7 @@ class HomePage {
      * Fill the favourites row of the Home that is showing now. A quick Home -> elsewhere ->
      * Home while the first request is still out used to skip the second load (a busy flag)
      * and let the first response write into the replaced, detached list, leaving the new
-     * Home on "Loading favorites..." for good. Now the request is shared and its answer is
+     * Home on "Loading favourites…" for good. Now the request is shared and its answer is
      * rendered by the latest show() only, into the list that exists when it arrives.
      */
     async loadDashboardData() {
@@ -134,9 +134,9 @@ class HomePage {
         const list = document.getElementById('favorite-channels-list');
         if (!list) return;
         if (failed) {
-            list.innerHTML = '<div class="empty-state hint">Error loading favorites <button type="button" class="btn btn-sm btn-secondary home-retry">Retry</button></div>';
+            list.innerHTML = '<div class="empty-state hint">Error loading favourites <button type="button" class="btn btn-sm btn-secondary home-retry">Retry</button></div>';
             list.querySelector('.home-retry')?.addEventListener('click', () => {
-                list.innerHTML = '<div class="loading-state"><div class="loading"></div><span>Loading favorites...</span></div>';
+                list.innerHTML = '<div class="loading-state"><div class="loading"></div><span>Loading favourites…</span></div>';
                 this.loadDashboardData();
             });
             return;
@@ -153,7 +153,7 @@ class HomePage {
             .sort((a, b) => numberOf(a) - numberOf(b) || String(a.name).localeCompare(String(b.name)));
 
         if (channels.length === 0) {
-            list.innerHTML = '<div class="empty-state hint">Add channels to favorites from Live TV</div>';
+            list.innerHTML = '<div class="empty-state hint">Add channels to your favourites from Live TV</div>';
             return;
         }
 

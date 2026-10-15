@@ -6,7 +6,7 @@ const vm = require('node:vm');
 
 // 0209: the web app's three navigation/refresh races from the 15 Oct review (F1-F3), run on the
 // real page scripts. On 0208 each test fails: an older guide response replaced the newer window,
-// a quick Home revisit stayed on "Loading favorites..." for good, and Back pushed a new entry.
+// a quick Home revisit stayed on "Loading favourites…" for good, and Back pushed a new entry.
 
 const js = (file) => fs.readFileSync(path.join(__dirname, '../public/js', file), 'utf8');
 
@@ -101,7 +101,7 @@ test('F2: Home -> elsewhere -> Home while favourites load: the Home on screen se
     await Promise.all([first, second]);
 
     assert.equal(requests, 1, 'one request, shared');
-    assert.match(fresh.innerHTML, /Add channels to favorites/);
+    assert.match(fresh.innerHTML, /Add channels to your favourites/);
     assert.equal(old.innerHTML, 'loading', 'nothing written into the detached list');
 });
 
@@ -118,12 +118,12 @@ test('F2: a failed favourites load offers Retry, and Retry loads again', async (
     home.updateScrollArrows = () => {};
 
     await home.loadDashboardData();
-    assert.match(list.innerHTML, /Error loading favorites/);
+    assert.match(list.innerHTML, /Error loading favourites/);
     assert.match(list.innerHTML, /Retry/);
     fail = false;
     listener();
     await tick(); await tick();
-    assert.match(list.innerHTML, /Add channels to favorites/);
+    assert.match(list.innerHTML, /Add channels to your favourites/);
 });
 
 test('F3: Back/Forward (popstate) changes page without writing history; clicks push; start-up replaces', () => {
@@ -242,4 +242,18 @@ test('F7: start-up does not download the whole guide; Live TV and the Guide load
     assert.match(live.slice(live.indexOf('async show()')), /epgGuide\.ensureLoaded\(\)/);
     const guide = js('components/EpgGuide.js');
     assert.equal((guide.match(/setInterval\(\(\) => this\.updateNowIndicator\(\)/g) || []).length, 1, 'one minute timer');
+});
+
+// F8: one meaning for a favourite on every client: the accent, never the error red; Australian-English copy.
+test('F8: an active favourite uses the accent text colour, and the visible copy says favourites and programme', () => {
+    const css = fs.readFileSync(path.join(__dirname, '../public/css/main.css'), 'utf8');
+    const colours = [...css.matchAll(/([^{}]*\.favorite-btn(?::hover|\.active)[^{}]*)\{([^}]*)\}/g)]
+        .map(m => (m[2].match(/(?:^|;|\s)color:\s*([^;]+);/) || [])[1]).filter(Boolean);
+    assert.ok(colours.length >= 1);
+    for (const c of colours) assert.equal(c.trim(), 'var(--color-accent-text)');
+
+    const shown = ['pages/HomePage.js', 'components/EpgGuide.js', 'components/ChannelList.js', 'pages/RecordingsPage.js']
+        .map(js).join('\n');
+    for (const us of ["'Add to Favorites'", "'Remove from Favorites'", 'Favorite Channels', 'Loading favorites', '>Favorites</option>', "'Program Details'", 'Click a program '])
+        assert.ok(!shown.includes(us), `still shows ${us}`);
 });

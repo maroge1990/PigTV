@@ -789,7 +789,7 @@ h4 {
 
 .favorite-btn:hover,
 .favorite-btn.active {
-  color: var(--color-error);
+  color: var(--color-accent-text);
   transform: scale(1.1);
 }
 
@@ -2620,7 +2620,9 @@ kbd {
 }
 
 .favorite-btn.active {
-  color: #ef4444;
+  /* Review F8: a favourite is the accent role, as on the Apple client; red (danger) is for errors.
+     The text accent: readable on the light theme's surfaces as well as the dark. */
+  color: var(--color-accent-text);
 }
 
 /* Filter Button Active State */
