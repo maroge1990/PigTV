@@ -149,6 +149,8 @@ const API = {
             pages.push(...await Promise.all(rest));
             return pages.flatMap(p => p.channels || []);
         },
+        // 0111: changes when the guide's data (or the build) does; F7 checks it before reloading.
+        guideVersion: () => API.request('GET', '/library/guide/version'),
         guide: ({ start, end, limit = 500, cursor = null, category = null } = {}) => {
             const params = [`start=${start}`, `end=${end}`, `limit=${limit}`];
             if (cursor) params.push(`cursor=${encodeURIComponent(cursor)}`);

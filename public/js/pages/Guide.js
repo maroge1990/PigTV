@@ -18,8 +18,10 @@ class GuidePage {
         if (!this.app.epgGuide.loaded) {
             await this.app.epgGuide.loadEpg();
         } else {
-            // Just re-render with existing data (updates time position)
+            // The cached guide at once (updates time position), then a version check if one
+            // is due (F7): a return after a while does not show stale data for 5 minutes.
             this.app.epgGuide.render();
+            this.app.epgGuide.refreshTick();
         }
     }
 

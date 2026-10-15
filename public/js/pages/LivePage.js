@@ -98,6 +98,15 @@ class LivePage {
             await this.app.channelList.loadSources();
             await this.app.channelList.loadChannels();
         }
+        // Now/next in the list (F7: loaded here, not at start-up), then a refresh check if one is due.
+        try {
+            const first = !this.app.epgGuide.loaded;
+            await this.app.epgGuide.ensureLoaded();
+            if (first) { this.app.channelList.clearProgramInfoCache(); this.updateProgramInfo(); }
+            else this.app.epgGuide.refreshTick();
+        } catch (err) {
+            console.warn('EPG load failed:', err);
+        }
     }
 
     hide() {

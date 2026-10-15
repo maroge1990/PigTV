@@ -78,9 +78,6 @@ class EpgGuide {
             }, 300));
         }
 
-        // Update current time indicator every minute
-        setInterval(() => this.updateNowIndicator(), 60000);
-
         this.initResizer();
     }
 
@@ -150,38 +147,70 @@ class EpgGuide {
     }
 
     /**
-     * Start background EPG display refresh timer
-     * This only refreshes the UI from the server's data.
-     * The actual sync runs on the server independently.
+     * Keep the loaded guide current while somebody is looking at it (review F7). Every five
+     * minutes, only when the browser tab is visible and the page on screen shows guide data
+     * (Guide, or Live TV's now/next): ask /api/library/guide/version first, and download the
+     * guide again only when that changed or the hour (the window) moved. Elsewhere nothing
+     * runs; coming back to the tab or the page catches up at once if a check is due.
      */
     startBackgroundRefresh() {
-        this.stopBackgroundRefresh();
-
-        const refreshIntervalMs = 5 * 60 * 1000; // 5 minutes
-
-        this._backgroundRefreshTimer = setInterval(async () => {
-            try {
-                await this.fetchEpgData();
-
-                // Update channel list program info if visible
-                if (window.app?.channelList) {
-                    window.app.channelList.clearProgramInfoCache();
-                    window.app.channelList.updateVisibleEpgInfo?.();
-                }
-            } catch (err) {
-                console.error('[EPG] Display refresh failed:', err);
-            }
-        }, refreshIntervalMs);
+        if (this._backgroundRefreshTimer) return;
+        this._backgroundRefreshTimer = setInterval(() => this.refreshTick(), EpgGuide.REFRESH_MS);
+        this._onVisibility = () => { if (document.visibilityState === 'visible') this.refreshTick(); };
+        document.addEventListener?.('visibilitychange', this._onVisibility);
     }
 
-    /**
-     * Stop background EPG refresh timer
-     */
     stopBackgroundRefresh() {
         if (this._backgroundRefreshTimer) {
             clearInterval(this._backgroundRefreshTimer);
             this._backgroundRefreshTimer = null;
         }
+        if (this._onVisibility) document.removeEventListener?.('visibilitychange', this._onVisibility);
+        this._onVisibility = null;
+    }
+
+    /** Whether guide data is on screen now (a hidden tab or another page needs none). */
+    guideOnScreen() {
+        if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') return false;
+        const page = window.app?.currentPage;
+        return page === 'guide' || page === 'live';
+    }
+
+    /** One refresh check, if one is due and the guide is on screen. Resolves true when new data was drawn. */
+    async refreshTick({ now = Date.now() } = {}) {
+        if (!this.loaded || !this.guideOnScreen()) return false;
+        if (this._lastCheck && now - this._lastCheck < EpgGuide.REFRESH_MS - 1000) return false;
+        try {
+            const changed = await this.refreshIfChanged();
+            if (!changed) return false;
+            if (window.app?.channelList) {
+                window.app.channelList.clearProgramInfoCache();
+                window.app.channelList.updateVisibleEpgInfo?.();
+            }
+            if (window.app?.currentPage === 'guide') this.render();
+            return true;
+        } catch (err) {
+            console.error('[EPG] Display refresh failed:', err);
+            return false;
+        }
+    }
+
+    /**
+     * Reload the guide when the server's guide version or the window changed (or `force`).
+     * Resolves true when this call published new data.
+     */
+    async refreshIfChanged({ force = false } = {}) {
+        this._lastCheck = Date.now();
+        let version = null;
+        try { version = (await API.library.guideVersion())?.version || null; } catch { /* reload as before */ }
+        const { start } = this.renderWindow();
+        if (!force && version && version === this.loadedVersion && this.window && this.window.start === start) return false;
+        const published = await this.fetchEpgData();
+        if (published) {
+            this.loadedVersion = version;
+            this.lastRefreshTime = new Date();
+        }
+        return published;
     }
 
     /**
@@ -197,8 +226,7 @@ class EpgGuide {
     async loadEpg() {
         try {
             this.container.innerHTML = '<div class="loading"></div>';
-            await this.fetchEpgData();
-            this.lastRefreshTime = new Date();
+            await this.refreshIfChanged({ force: true });
             this.render();
 
             // The channel list's "now" line can use the loaded window from here on
@@ -218,6 +246,15 @@ class EpgGuide {
         </div>
       `;
         }
+    }
+
+    /**
+     * The data without the grid (Live TV's now/next): loaded once, then kept current by the
+     * background refresh while a page that shows it is on screen.
+     */
+    async ensureLoaded() {
+        if (!this.loaded) await this.refreshIfChanged({ force: true });
+        this.startBackgroundRefresh();
     }
 
     /** A programme as the grid and its callers use it (ISO times, like the old feed). */
@@ -959,4 +996,6 @@ class EpgGuide {
 }
 
 // Export
+EpgGuide.REFRESH_MS = 5 * 60 * 1000;
+
 window.EpgGuide = EpgGuide;

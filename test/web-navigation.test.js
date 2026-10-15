@@ -191,3 +191,55 @@ test('F4: Enter and Space click a keyboard button; other keys and other targets 
     assert.equal(press('Enter', { hasAttribute: () => false, click: () => clicks++ }), false);
     assert.deepEqual([clicks, prevented], [2, 2]);
 });
+
+// F7: guide data is refreshed only while it is on screen, and only downloaded again when it changed.
+function guideWithServer({ page = 'guide', visibility = 'visible', version = 'v1' } = {}) {
+    const calls = [];
+    const c = load(['components/EpgGuide.js'], {
+        document: { addEventListener() {}, removeEventListener() {}, querySelectorAll: () => [], getElementById: () => null, visibilityState: visibility }
+    });
+    const server = { version };
+    c.API = { library: {
+        categories: async () => [], favourites: async () => [],
+        guideVersion: async () => { calls.push('version'); return { version: server.version }; },
+        guide: async () => { calls.push('guide'); return { channels: [], nextCursor: null }; }
+    } };
+    c.window.app = { currentPage: page };
+    const epg = Object.create(c.window.EpgGuide.prototype);
+    epg.renderWindow = () => ({ start: 1000, end: 1000 + 86400000 });
+    epg.render = () => calls.push('render');
+    return { epg, calls, server, c };
+}
+
+test('F7: an unchanged guide is not downloaded again; a changed one is, and the Guide redraws', async () => {
+    const { epg, calls, server, c } = guideWithServer();
+    await epg.refreshIfChanged({ force: true });
+    assert.deepEqual(calls, ['version', 'guide']);
+
+    calls.length = 0;
+    assert.equal(await epg.refreshTick({ now: Date.now() + c.window.EpgGuide.REFRESH_MS }), false);
+    assert.deepEqual(calls, ['version'], 'only the cheap version check');
+
+    calls.length = 0;
+    server.version = 'v2';
+    assert.equal(await epg.refreshTick({ now: Date.now() + 2 * c.window.EpgGuide.REFRESH_MS }), true);
+    assert.deepEqual(calls, ['version', 'guide', 'render']);
+});
+
+test('F7: nothing runs while another page is showing or the browser tab is hidden', async () => {
+    for (const setup of [{ page: 'home' }, { page: 'settings' }, { page: 'guide', visibility: 'hidden' }]) {
+        const { epg, calls, c } = guideWithServer(setup);
+        epg.loaded = true;
+        assert.equal(await epg.refreshTick({ now: Date.now() + c.window.EpgGuide.REFRESH_MS }), false);
+        assert.deepEqual(calls, [], JSON.stringify(setup));
+    }
+});
+
+test('F7: start-up does not download the whole guide; Live TV and the Guide load it when shown', () => {
+    const app = js('app.js'), live = js('pages/LivePage.js');
+    const init = app.slice(app.indexOf('async init()'), app.indexOf('navigateTo(initialPage'));
+    assert.ok(!/epgGuide\.(loadEpg|fetchEpgData|ensureLoaded)\(/.test(init), 'no guide download in App.init');
+    assert.match(live.slice(live.indexOf('async show()')), /epgGuide\.ensureLoaded\(\)/);
+    const guide = js('components/EpgGuide.js');
+    assert.equal((guide.match(/setInterval\(\(\) => this\.updateNowIndicator\(\)/g) || []).length, 1, 'one minute timer');
+});
