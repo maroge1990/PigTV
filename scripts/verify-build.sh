@@ -948,7 +948,7 @@ check blueprint.md "When a channel misbehaves" "the loop is written down, in ord
 check AGENTS.md "No ffmpeg-flag or" "and shipping a timestamp fix on a hypothesis is called out as the 0085 mistake"
 check blueprint.md "regression corpus" "samples are kept and retested, which 0085 had no way to do"
 check blueprint.md "/Users/markrogers/Documents/GitHub/PigTV" "the orientation table names the current repo folder"
-check AGENTS.md "Claude commits and pushes straight to" "and how changes ship is written down"
+check AGENTS.md "but never pushes" "and how changes ship is written down (commit, Mark pushes)"
 
 echo "=== 0092 (docs): commands name the container instead of a placeholder ==="
 check blueprint.md "docker exec PigTV node scripts/stream-doctor" "so a command can be pasted as written"

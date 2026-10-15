@@ -1,7 +1,8 @@
 # PigTV: blueprint
 
-**State:** server build **0207** shipped, Apple client build **40** (13 Oct 2026). Every feature built so far is verified on
-devices and there are no open bugs. Next: the Dispatcharr gap plan (§4).
+**State:** server build **0207** shipped, Apple client build **40** (13 Oct 2026 device baseline). The 15 Oct
+[consistency and responsiveness review](docs/reviews/2026-10-15/REVIEW.md) records open usability findings and a prioritised
+action plan; no fixes have shipped from that review. The Dispatcharr gap plan remains in §4.
 
 How to work in this repo (commands, shipping, rules) is in [`AGENTS.md`](AGENTS.md). This file holds **durable facts and the
 roadmap** for the server, the web app and the joint plan; the Apple client's own architecture is in
@@ -408,6 +409,11 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
 
+**15 Oct review:** B1–B5 implementation status is unchanged. The
+[review action plan](docs/reviews/2026-10-15/REVIEW.md) recommends a bounded UI/freshness pass first and identifies
+acceptance criteria for guide-following recording timers, pre-migration backups and shared ingest. R3 still requires
+Mark's decision; review recommendations are not implementation approval.
+
 **Decided 13 Oct 2026 (Mark):** PigTV stays standalone and does **not** run Dispatcharr. It adopts the core ideas it is
 missing. The analysis, with file references into Dispatcharr's source, is [`docs/DISPATCHARR-REVIEW.md`](docs/DISPATCHARR-REVIEW.md):
 §11 is this plan, §9 lists what PigTV already does better and must keep (K1–K15), and §5 has each recommendation (R1–R12) in
@@ -450,6 +456,8 @@ purpose:** the non-VAAPI encoders.
 - *4 Oct:* the tuner model (shared tuners, timeshift, HLS recordings) removed, never having run on a device (0204);
   segmented recordings (audit R13) skipped.
 - *13 Oct:* Plan B (§4): no Dispatcharr; adopt its ideas natively.
+- *16 Oct:* **Claude commits but never pushes**; Mark reviews and pushes (replaces 23 Sept's push-to-main). Work order:
+  [`docs/reviews/2026-10-16/ROADMAP.md`](docs/reviews/2026-10-16/ROADMAP.md).
 
 ---
 

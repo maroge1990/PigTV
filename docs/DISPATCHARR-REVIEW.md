@@ -9,6 +9,9 @@ references. Anything marked *to verify* needs a spike before we rely on it.
 
 ## 1. Bottom line
 
+> **Superseded on 13 Oct 2026:** Mark chose Plan B (§11, blueprint §4): PigTV stays standalone and the R1 spike below is
+> not pursued. The recommendation is kept as the record of what was considered.
+
 Dispatcharr and PigTV overlap heavily in the **provider layer**: ingesting M3U/Xtream, connection limits, multiple
 providers, failover, EPG matching, and a DVR with Comskip. They don't overlap in the **viewer layer**: Apple-ready HLS,
 the master playlist with HDR and frame rate, the Apple client contract, Sport, the guide UX, and the

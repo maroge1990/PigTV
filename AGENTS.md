@@ -21,16 +21,18 @@ Tests that need ffmpeg skip without one (Homebrew `ffmpeg` is installed). Speed 
 
 ## How changes ship
 
-**Claude commits and pushes straight to `origin/main`** (Mark, 23 Sept). No feature branches; one logical change per commit.
+**Claude commits to `main` but never pushes** (Mark, 16 Oct; replaces the 23 Sept push-to-main rule). No feature branches;
+one logical change per commit. Mark reviews and pushes.
 
-1. `git status`, then `git pull --rebase origin main`.
-2. Make the change with its test. `npm test` and `verify-build.sh` must both pass before a push; if either can't run, say
-   so and don't push.
+1. `git status`, then `git pull --rebase origin main` (fetching is fine; pushing is not).
+2. Make the change with its test. `npm test` and `verify-build.sh` must both pass before a commit; if either can't run, say
+   so in the commit message and to Mark.
 3. A functional commit bumps `build` in `server/version.js` **and** "Next build number" in `blueprint.md` §1, and its
    subject starts with the number (`0208: what changed`). Docs-only and test-only commits have no number.
-4. `git push origin main`; never force-push. CI runs the tests (Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass**.
-   If CI goes red, fix it or `git revert` at once (`gh run view <id> --log-failed`).
-5. Tell Mark what shipped, the build number, and numbered live-test steps for anything that needs the real feed or a
+4. **Don't `git push`.** Leave the commits local and tell Mark which commits are waiting (`git log origin/main..main`).
+   When Mark pushes, CI runs the tests (Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass**.
+   If CI goes red, fix it or `git revert` at once (`gh run view <id> --log-failed`), again as a local commit.
+5. Tell Mark what is committed, the build number, and numbered live-test steps for anything that needs the real feed or a
    device. Nothing is *Verified* until he reports back.
 
 **Deploy (Mark):** Unraid → Docker → PigTV → Force Update, then `curl -s http://192.168.1.235:3000/api/version`. A redeploy
@@ -47,7 +49,7 @@ ends every session. Rollback: point the container at `ghcr.io/maroge1990/pigtv:s
   `APPLE_CLIENT_ROUTES` in `test/api-404.test.js`.
 - Never return or log a provider URL, password or token (`redact()`, opaque handles, C-B error texts).
 - Ask Mark before contacting the deployed server or running anything that takes the provider connection.
-- The lead session may delegate to sub-agents (never Haiku) and reviews every diff before pushing.
+- The lead session may delegate to sub-agents (never Haiku) and reviews every diff before committing.
 - At the end of a session update `blueprint.md`: the state line, the §4 roadmap status, and any durable fact in §2/§3. The
   story goes in the commit message, not the docs.
 

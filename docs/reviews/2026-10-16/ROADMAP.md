@@ -1,0 +1,139 @@
+# PigTV development roadmap: review findings, reported bugs and Plan B
+
+16 October 2026. Server/web `3449719` (0207), Swift `63f9a43`, Pig-Branding `b40c958`. Planning only: no code changed,
+nothing committed, the deployed server was not contacted.
+
+Inputs: the [15 Oct review](../2026-10-15/REVIEW.md) (F1–F8 and its Dispatcharr validation), Mark's eight bug reports of
+16 Oct, and [`DISPATCHARR-REVIEW.md`](../../DISPATCHARR-REVIEW.md) with blueprint §4 (Plan B).
+
+---
+
+## 1. Assessment of the 15 Oct review
+
+**It is accurate.** I re-checked it against the code instead of taking it on trust:
+
+| Claim | Check | Result |
+|---|---|---|
+| F1 guide out-of-order, F2 Home stuck loading, F3 Back pushes history | `node docs/reviews/2026-10-15/web-reproductions.cjs` | All three reproduce |
+| F5 Swift guide watches only `favourites.count` | `GuideView.swift:245` | Confirmed |
+| F6 tvOS Recordings refreshes only on appearance | `RecordingsView.swift:103–110` | Confirmed |
+| R4 needs the hard-stop timer moved, not just `program_end` | `recordingEngine.js:702–708` (one-shot `setTimeout` from the original end) | Confirmed |
+| R12 should extend the existing backup | `scripts/backup-db.js` already uses SQLite online backup, keeps 7 | Confirmed |
+| Test-port race | `test/helpers/server.js` opens and closes a socket, then starts the server on that port | Confirmed |
+
+**What it got right:** the priorities (navigation and freshness before architecture), "one owner per request/timer/derived
+list" as the simplification, and the six corrections to Plan B (§3 below adopts all of them).
+
+**What it missed**, because it checked artwork *provenance* (hashes match the kit) rather than *appearance*:
+
+- **Bug 3:** the tvOS icon matches the kit exactly, and the kit's own asset is too small (§2). Byte equality can't catch a
+  bad master.
+- **Bug 4:** "branding is consistent" applies to artwork and colours; the page *headers* are built five different ways.
+- **Bug 2:** a second invalidation gap in the same file as F5 (`GuideView.swift`), and a worse one: the iPhone category
+  filter never refreshes at all.
+
+**Housekeeping:** `blueprint.md` has an uncommitted state-line edit pointing at the review, and `docs/reviews/` is
+untracked. Commit them together as a docs-only commit (with this file) so the links work on GitHub.
+
+---
+
+## 2. The eight reported bugs
+
+Confidence: **Found** = root cause seen in code · **Likely** = strong hypothesis, needs one confirmation · **Needs data** =
+can't fix without a capture or sample from Mark.
+
+| # | Bug | Platform | Root cause | Confidence | Fix | Size |
+|---|---|---|---|---|---|---|
+| 1 | Commercial break times shown on the recording page | all | Swift `RecordingDetails` has a "Commercial breaks" section listing every break's times (`RecordingsView.swift:595–608`, `BreakList`). The web shows status chips ("Breaks marked", "Finding breaks…") in the row (`RecordingsPage.js:157–159`) | Found | Remove the section and the list from the details page; keep "Find breaks", the player's Skip button, auto-skip and the scrub-bar markers. Web: keep only the failure chip. *Decision for Mark: keep the web scrub-bar markers (they're how you judge detection)?* | S |
+| 2 | iPhone guide doesn't refresh on category change | iPhone | `.onChange(of: filter)` is attached to `gridView()` only (`GuideView.swift:351`). iPhone (compact width) shows `onNowList` instead, so the change is never observed; returning from Recordings runs `onAppear → refreshRows()`, which is why that "works" | Found | Move the `filter` observer to the shared body so both layouts use it. Fix F5 in the same change (observe the favourite identity set, not the count) | S |
+| 3 | tvOS app icon logo and text very small | tvOS | The front layer (`App Icon.imagestack/Front`, 400×240 @1x) puts the pig + "PigTV" lockup in about 36 % of the width and 17 % of the height. It's the kit's asset (`Pig-Branding/tools/finish-platform-assets.py`), copied unchanged | Found | Fix in **Pig-Branding**: scale the lockup to roughly 75–80 % of the width within Apple's safe area (or mark only, larger); regenerate front layers for App Icon and App Store sizes; check parallax and the Top Shelf images; then copy into Swift. Bump kit version | S |
+| 4 | Header logo differs between menus | iPhone, tvOS | Five header implementations: Home/Guide/Sport use pig 58×48 + `GuideTypography.title`; tvOS Settings uses pig + `.system(34, bold)`; Recordings and iOS Settings use a system `navigationTitle` with no pig; the iPhone guide has a 36×30 pig or none (slim bar); detail pages use `DetailType.pageTitle` | Found | One `PigPageHeader(title:, subtitle:, trailing:)` with a tvOS size and an iOS size, used by every tab and `DetailPage`. Add a contract test that no tab root uses `navigationTitle` alone | S–M |
+| 5 | Cricket sometimes not linked (AUS v SA Test) | all | Two gaps in code, unproven for this match: (a) Sport groups airings by the **exact** normalised title (`sportsEvents.normaliseTitle`), so "Australia v South Africa – 1st Test Day 2" and "Live Test Cricket: Aus v SA" become separate events; (b) international series come only from ESPN's `scorepanel`, which lists *today's active* series, so a Test on a rest day or starting later in the 72 h window may get no fixture | Needs data | Mark: the guide titles and channels for that Test (Settings → Sports export, or the programme names). Add them to `test/fixtures/sports-export.json` with the expected grouping first (blueprint §6 rule), then fix grouping (team-pair + day aware) and/or series discovery | S–M |
+| 6 | Un-closable "(i) cancelled" alert on every screen | tvOS | `AppModel.error` takes raw `error.localizedDescription` in several catches (`loadCategories`, `restore`, `logout`); a cancelled request's `URLError.cancelled` text is literally "cancelled". The root `.alert` sits on `ContentView` beneath the full-screen player/detail covers, so on tvOS focus can't reach its OK button | Likely | One `userMessage(for:)` that returns nil for `CancellationError` and `URLError.cancelled` (the guide and Sport already special-case `CancellationError`); use it in every catch. Present app-level errors as a dismissible banner, not an alert under a cover. Unit-test the filter | S |
+| 7 | No Docker app icon | server | No icon anywhere: no Unraid template `<Icon>`, no `net.unraid.docker.icon` label in the `Dockerfile` | Found | **Now:** Unraid → Docker → PigTV → Edit → Icon URL: `https://raw.githubusercontent.com/maroge1990/PigTV/main/public/img/brand/web-dark-512.png` (checked: HTTP 200, 512×512 pig on the dark tile). **Next build:** `LABEL net.unraid.docker.icon=` and `net.unraid.docker.webui=http://[IP]:[PORT:3000]/` in the `Dockerfile` | XS |
+| 8 | iPhone hangs on "Tuning" when a recording holds the provider | iPhone | The client handles a 409 `recording-in-progress` correctly on every platform (`APIClient.swift:175`, `PlayerScreen`). So the server most likely **admitted** the viewer: `recordingsInPool` counts a recording only when its provider's pool key matches (`streamCoordinator.js:497`). If the recording runs on a backup provider, after failover, or its provider is recorded differently, the check misses it, the provider refuses the second connection, and resolve waits for the probe timeout | Likely | **Capture first:** Mark reproduces (record on provider X, tune the same provider from the iPhone) and sends the server log lines `[Coordinator]`/`[Playback]` from that minute. Fix the pool attribution with a test that fails today. Safety net in Swift regardless: a tuning card that, after ~20 s, says why it's waiting and offers Back | S–M |
+
+---
+
+## 3. Dispatcharr scope (Plan B)
+
+**The decision stands:** standalone, adopt the ideas natively (13 Oct). `DISPATCHARR-REVIEW.md` §1 still recommends the
+Plan A spike; add a "Superseded by Plan B, 13 Oct" line at its top so it can't be followed by mistake.
+
+**Scope assessment, per item:**
+
+| Item | Value to Mark | Risk | Verdict |
+|---|---|---|---|
+| R12 backups | High (protects schedules, links, mappings) | Very low | **Do first.** Extend `backup-db.js`: nightly + before migrations when the build changes; keep 7 (or decide 14); atomic completion; restore test. Not a disk-loss backup: say so on Status |
+| R4 end follows the guide | High for sport | Low–medium | **Do early**, with the review's correction: reschedule the hard-stop timer, cap the extension (+3 h), handle restart/manual stop/adjacent programmes, keep manual padding |
+| R11 webhook + live ffmpeg stats | Medium | Low | Do in the same wave. Telemetry only; it must not drive recovery |
+| `tv_archive` and audio-track checks | Unknown until checked | None | Use existing fixtures/samples first; new captures need Mark's approval |
+| R8 ingest filters | Medium (1,000 of 18,000 channels) | Medium (identity, links) | Pilot whole-group "never import", reversible; measure sync time and DB size before and after |
+| R5 recording rules | High ("record my teams") | Medium | After R4. Built on Sport's event identity, de-duplicated; one-offs unchanged; feature flag + contract |
+| R6 artwork | Low–medium | Low | With R5 (same contract change) |
+| R9 event-channel guide | Medium–high for Sport | Medium (time zones, DST) | After the cricket fix; fixtures for timezone/DST and real-EPG precedence |
+| R10 EPG tune-ups | Low–medium | Low | Preview, review list and undo; never overwrite manual mappings |
+| R3 segmented recordings | Medium | Medium–high | **Needs Mark's decision** (skipped as R13 on 4 Oct). Not scheduled until he says so |
+| R2 shared ingest (B3) | Highest structural value: watch + record on one connection, fixes the root of bug 8 and the 38 s provider cut | High (largest playback change since 0102) | Last. Needs a written design (identity, byte-capped buffers, slow consumers, late joins, failover compatibility) and the full capture/bench pass on all five samples |
+| R7 speed-based recovery | Medium | Medium | Inside B3 only, after reading real `speed=` values from logs |
+| B4 retire old paths | Removes ~800–1,000 lines | High if premature | Gate each deletion on evidence (no slot leaks, arbitration, HDR/50 Hz/HE-AAC, rollback switch), not on "a week elapsed" |
+
+**Overall:** B1 is safe and independent of everything in §2, B5's R8 can move earlier, B2 hinges on one decision, and
+B3/B4 are a separate project that shouldn't start until the usability waves are verified on devices.
+
+---
+
+## 4. The roadmap
+
+Each wave ends with the repo gates (`npm test`, `verify-build.sh`; Swift `Tools/test.sh` tiers) and Mark's device checks.
+Nothing is *Verified* until he reports back. Build numbers continue from server **0208**.
+
+### Wave 0 · today, no build
+
+- Mark: set the Unraid icon URL (bug 7, link above).
+- Mark: send the AUS v SA guide titles (bug 5) and, when it next happens, the server log for the iPhone tuning hang (bug 8).
+- Docs commit: the 15 Oct review, this roadmap, the blueprint state line, and the "superseded" note in
+  `DISPATCHARR-REVIEW.md` §1.
+- Decisions for Mark: web break markers (bug 1); R3 yes/no; backup retention 7 vs 14.
+
+### Wave 1 · reported bugs and the test gate (about 1 week)
+
+| Repo | Work | Bugs/findings |
+|---|---|---|
+| server | Test-harness port reliability first (flaky gates block every push) | review §"test harness" |
+| server | Docker labels; recording-pool attribution fix once the log confirms it (+ test that fails today) | 7, 8 |
+| server/web | F3 history modes (`push`/`replace`/`none`); F1 guide load coordinator; F2 Home render generation; web break chips | F1–F3, 1 |
+| Swift | Guide: shared `filter` observer + favourite identity revision | 2, F5 |
+| Swift | `PigPageHeader` everywhere; remove the recording-details break list; `userMessage(for:)` + banner for app errors; tuning-card "still waiting" state | 4, 1, 6, 8 |
+| Swift | tvOS Recordings visible-only refresh (faster while a recording is pending/active) | F6 |
+| Pig-Branding → Swift | Larger tvOS icon front layer, regenerated and copied; kit version bump | 3 |
+
+Exit: each fix has a test that fails on the old code; Mark checks on iPhone (category switching, headers, tuning while
+recording), tvOS (icon on the Home screen, headers, Recordings left open across a schedule change) and the web.
+
+### Wave 2 · cricket, keyboard access, less idle work (about 1 week)
+
+- Cricket grouping and series discovery from Mark's sample (bug 5), sample first in `sports-export.json`.
+- F4 web keyboard semantics (native buttons, `aria-expanded`, focus kept through refresh).
+- F7 one visibility-aware guide owner using the guide-version endpoint; drop the duplicate minute timer.
+- F8 favourites colour (accent, not danger), Australian-English copy on the web, semantic kit-token test.
+- Baseline measurements before any further optimisation (review's list: tvOS tab-switch p50/p95, first usable guide,
+  web request counts, server event-loop delay during sync).
+
+### Wave 3 · Plan B1 quick wins (about 1 week)
+
+R12 backups → R4 guide-following end (with the timer fix) → R11 webhook and live stats → `tv_archive`/audio checks →
+R8 group filters pilot (moved up from B5, measured).
+
+### Wave 4 · recording and guide features (about 2 weeks)
+
+R5 follow/series rules and R6 artwork (one additive contract change, feature-flagged, web + Apple UX), R9 event-channel
+guide, R10 EPG review list. R3 only if Mark approved it in Wave 0.
+
+### Wave 5 · shared ingest (about 3 weeks, separate project)
+
+Design note first (the review's corrections 3–5), capture/bench before and after, behind a Settings switch: recordings as
+the first consumer, then HLS sessions, then R7 failover inside the ingest. B4 retirement only on the evidence list.
+
+**Rough total:** Waves 1–4 about 5 weeks of part-time sessions; Wave 5 about 3 more. The order puts everything Mark can
+see and feel first, and the playback-path rewrite last, behind evidence.
