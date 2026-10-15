@@ -123,6 +123,12 @@ function initSchema() {
         db.exec('ALTER TABLE scheduled_recordings ADD COLUMN channel_stable_id TEXT');
     } catch (e) { /* already present */ }
 
+    // R4 (0214): the end a schedule was made with, set the first time the guide moves its
+    // program_end (services/recordingGuideEnd.js); NULL means it never moved.
+    try {
+        db.exec('ALTER TABLE scheduled_recordings ADD COLUMN program_end_original INTEGER');
+    } catch (e) { /* already present */ }
+
     // Pending schedules only: a completed or cancelled one never resolves again,
     // and rewriting history would be dishonest about what was recorded.
     try {

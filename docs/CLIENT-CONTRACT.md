@@ -66,6 +66,9 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
   `videoRange`) and, on AVFoundation -11868 (a non-HDR TV), plays the same session's `stream.m3u8`.
 - Resolve failure `error` texts start with a C-B prefix and never contain a URL; the client shows only those.
 - A start stopped on request answers **499** `{error, superseded: true}` (0180); the client ignores it.
+- `recordings/scheduled` rows: `program_end` can **move later** after scheduling (0214, R4: it follows the guide after a
+  sync, never earlier than first scheduled, at most +3 h); a client re-reads it rather than caching it. The additive
+  `program_end_original` is the end it was made with (null until it moves).
 - Additive and safe: `/api/version` and `/api/info` fields; `waiting` rows; `finite`/`durationSec`/`videoRange`/`fps` in
   resolve `info`; unknown `/api/*` answers `404 {"error":"No such API endpoint"}`.
 

@@ -700,12 +700,32 @@ function spawnPart(schedule, settings, { recordingId, outputPath, route, index, 
     });
 
     // Hard stop at program end + post-buffer, in case something upstream never closes the connection
-    const msUntilStop = Math.max(0, stopTimeOf(schedule) - Date.now());
+    armHardStop(schedule.id, entry);
+}
+
+/**
+ * The one-shot stop at the schedule's end (+ post-buffer). R4: the end can move after the
+ * recording started (the guide said the game ran over), so the deadline is read from the
+ * database when the timer is armed and again when it fires; a later end re-arms it instead of
+ * stopping. followGuide() re-arms it at once when it moves an end.
+ */
+function armHardStop(scheduleId, entry) {
+    if (entry.hardStopTimer) clearTimeout(entry.hardStopTimer);
+    const msUntilStop = Math.max(0, currentStopTime(scheduleId) - Date.now());
     entry.hardStopTimer = setTimeout(() => {
-        console.log(`[Recordings] Scheduled stop time reached for schedule ${schedule.id}`);
-        stopRecording(schedule.id, 'completed').catch(err =>
+        entry.hardStopTimer = null;
+        if (currentStopTime(scheduleId) > Date.now() + 1000) { armHardStop(scheduleId, entry); return; }
+        console.log(`[Recordings] Scheduled stop time reached for schedule ${scheduleId}`);
+        stopRecording(scheduleId, 'completed').catch(err =>
             console.error('[Recordings] Error stopping recording:', err.message));
     }, msUntilStop);
+}
+
+/** The stop time as the database has it now (R4: it can move while recording). */
+function currentStopTime(scheduleOrId) {
+    const id = typeof scheduleOrId === 'object' ? scheduleOrId.id : scheduleOrId;
+    const fresh = scheduledDb.getById(id);
+    return stopTimeOf(fresh || (typeof scheduleOrId === 'object' ? scheduleOrId : { program_end: 0 }));
 }
 
 /**
@@ -728,7 +748,7 @@ async function onPartExit(schedule, entry, exitCode) {
     coordinator.releaseLease(entry.lease);
     const now = Date.now();
     const size = fileSizeOf(entry.outputPath);
-    const unrequested = !entry.stopRequested && now < stopTimeOf(schedule) - failoverTuning.endGraceMs;
+    const unrequested = !entry.stopRequested && now < currentStopTime(schedule) - failoverTuning.endGraceMs;
     const providerReason = entry.stalled || providerFailureIn(entry.stderrTail);
     const candidate = entry.route.candidates[entry.index];
 
@@ -809,7 +829,7 @@ async function continuePart(scheduleId, now = Date.now()) {
     const cont = continuations.get(scheduleId);
     if (!cont || cont.starting) return;
     const schedule = cont.schedule;
-    if (now >= stopTimeOf(schedule)) {
+    if (now >= currentStopTime(schedule)) {
         continuations.delete(scheduleId);
         finishSchedule(scheduleId);
         return;
@@ -1238,6 +1258,26 @@ function getFolderHealth() {
     return folderHealth;
 }
 
+/**
+ * R4: after an EPG sync, move each pending or running schedule's end to where the guide now
+ * says its programme ends (services/recordingGuideEnd.js has the rules), and re-arm the
+ * hard stop of any running one whose end moved. Never throws.
+ */
+function followGuide({ now = Date.now() } = {}) {
+    let changes = [];
+    try {
+        changes = require('./recordingGuideEnd').apply({ now });
+    } catch (err) {
+        console.warn('[Recordings] Following the guide failed:', err.message);
+        return [];
+    }
+    for (const change of changes) {
+        const entry = active.get(change.id);
+        if (entry) armHardStop(change.id, entry);
+    }
+    return changes;
+}
+
 function init({ ffmpegPath, ffprobePath } = {}) {
     media.setToolPaths({ ffmpegPath, ffprobePath });
 
@@ -1250,6 +1290,7 @@ function init({ ffmpegPath, ffprobePath } = {}) {
     if (tickTimer) clearInterval(tickTimer);
     tickTimer = setInterval(tick, TICK_INTERVAL_MS);
     tick(); // run once immediately
+    followGuide(); // R4: a guide synced while the server was down
 
     checkFolderHealthNow().catch(err => console.warn('[Recordings] Folder health check failed:', err.message));
     if (folderHealthTimer) clearInterval(folderHealthTimer);
@@ -1286,6 +1327,7 @@ async function stopAllActive(timeoutMs = 6000) {
 
 module.exports = {
     init,
+    followGuide,
     shutdown,
     stopAllActive,
     scheduleFromProgram,
