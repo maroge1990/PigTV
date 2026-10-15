@@ -111,6 +111,13 @@ Nothing is *Verified* until he reports back. Build numbers continue from server 
 Exit: each fix has a test that fails on the old code; Mark checks on iPhone (category switching, headers, tuning while
 recording), tvOS (icon on the Home screen, headers, Recordings left open across a schedule change) and the web.
 
+**Wave 1 progress (16 Oct, committed locally, not pushed):** server `3ed3254` test-port retry, **0208** Unraid icon/WebUI
+labels, **0209** web F1–F3; Swift: iPhone category refresh + F5, one `PigPageHeader` on every tab (tvOS Home included,
+hero 320 → 270 pt), break list removed from recording details, cancellations never shown as errors (and the app alert
+waits while the player is up), a "taking longer than usual" line on the tuning card after 20 s, F6 visible-only Recordings
+refresh. Icon: a size study in `Pig-Branding/tmp/tvos-icon-study/sheet.png` waits for Mark's pick. Still open: bug 8's
+server fix (needs the log), bug 5 (needs the titles). Web break chips were left as they are: they show status, not times.
+
 ### Wave 2 · cricket, keyboard access, less idle work (about 1 week)
 
 - Cricket grouping and series discovery from Mark's sample (bug 5), sample first in `sports-export.json`.

@@ -1,8 +1,9 @@
 # PigTV: blueprint
 
-**State:** server build **0207** shipped, Apple client build **40** (13 Oct 2026 device baseline). The 15 Oct
-[consistency and responsiveness review](docs/reviews/2026-10-15/REVIEW.md) records open usability findings and a prioritised
-action plan; no fixes have shipped from that review. The Dispatcharr gap plan remains in §4.
+**State:** server build **0209** committed locally for Mark to push (0207 is the last deployed); Apple client build **40**
+on devices (13 Oct baseline). Wave 1 of the [16 Oct roadmap](docs/reviews/2026-10-16/ROADMAP.md) is in progress: it fixes
+the [15 Oct review](docs/reviews/2026-10-15/REVIEW.md)'s web and Swift findings and Mark's 16 Oct bug list. The Dispatcharr
+gap plan remains in §4.
 
 How to work in this repo (commands, shipping, rules) is in [`AGENTS.md`](AGENTS.md). This file holds **durable facts and the
 roadmap** for the server, the web app and the joint plan; the Apple client's own architecture is in
