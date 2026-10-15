@@ -384,6 +384,9 @@ function setScheduleStatus(schedule, status, extra = {}) {
         const channel = updated.channel_name || before?.channel_name || 'Unknown channel';
         const reason = extra.error ? `: ${extra.error}` : '';
         console.log(`[Recordings] Schedule #${id} "${title}" (${channel}): ${prevStatus} -> ${status}${reason}`);
+        if (status === 'failed') {
+            try { require('./notify').recordingFailed(updated || before, extra.error); } catch (e) { /* best-effort (R11) */ }
+        }
     }
     return updated;
 }

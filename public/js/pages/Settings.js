@@ -178,6 +178,35 @@ class SettingsPage {
     initRecordingSettings() {
         const saveBtn = document.getElementById('dvr-settings-save');
         if (saveBtn) saveBtn.addEventListener('click', () => this.saveRecordingSettings());
+        document.getElementById('notify-save')?.addEventListener('click', () => this.saveNotifySettings());
+        document.getElementById('notify-test')?.addEventListener('click', () => this.testNotify());
+    }
+
+    /** R11: the notification webhook (admins only see and save it). */
+    async saveNotifySettings() {
+        const status = document.getElementById('notify-status');
+        try {
+            await API.settings.update({
+                notifyWebhookUrl: document.getElementById('notify-url').value.trim(),
+                notifyWebhookFormat: document.getElementById('notify-format').value
+            });
+            if (status) status.textContent = 'Saved';
+        } catch (err) {
+            if (status) status.textContent = 'Failed: ' + err.message;
+        }
+    }
+
+    async testNotify() {
+        const status = document.getElementById('notify-status');
+        if (status) status.textContent = 'Sending…';
+        try {
+            const r = await API.request('POST', '/settings/notify-test');
+            const why = r.skipped === 'no webhook' ? 'save an address first'
+                : r.status ? `the address answered HTTP ${r.status}` : r.error === 'timeout' ? 'no answer in 10 s' : 'could not reach the address';
+            if (status) status.textContent = r.sent ? 'Sent' : `Not sent: ${why}`;
+        } catch (err) {
+            if (status) status.textContent = 'Failed: ' + err.message;
+        }
     }
 
     async loadRecordingSettings() {
@@ -196,6 +225,10 @@ class SettingsPage {
             document.getElementById('dvr-setting-keep-original').checked = s.postRecordKeepOriginal === true;
             document.getElementById('dvr-setting-addetect').checked = s.adDetectionEnabled === true;
             document.getElementById('dvr-setting-adautoskip').checked = s.adAutoSkip === true;
+            const notifyUrl = document.getElementById('notify-url');
+            if (notifyUrl) notifyUrl.value = s.notifyWebhookUrl || '';
+            const notifyFormat = document.getElementById('notify-format');
+            if (notifyFormat) notifyFormat.value = s.notifyWebhookFormat === 'text' ? 'text' : 'json';
         } catch (err) {
             console.error('Failed to load recording settings:', err);
         }

@@ -211,6 +211,8 @@ async function refreshAll() {
             try { await refresh(s.id); } catch (err) { console.warn('[Providers] Account refresh failed:', redact(err.message)); }
         }
     }
+    // R11: a licence ending within 7 days (or ended) is worth a notification, once per day count.
+    try { require('./notify').licencesExpiring(reminders(await sources.getAll())); } catch (e) { /* best-effort */ }
 }
 
 /** Startup +30 s, then every 6 h. Returns a function that stops both. */

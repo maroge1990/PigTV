@@ -977,6 +977,27 @@
               <button id="dvr-settings-save" class="btn btn-primary">Save Recording Settings</button>
               <span id="dvr-settings-status" style="margin-left: 8px; font-size: 0.85rem;"></span>
             </div>
+
+            <div class="settings-section">
+              <h3>Notifications</h3>
+              <p class="setting-hint">A message to this address when a provider goes down, a recording fails or a
+                subscription is about to end (at most once an hour each). For ntfy use the topic address and Text; for
+                Home Assistant a webhook address and JSON. Leave empty for none.</p>
+              <div class="form-group">
+                <label for="notify-url">Webhook address</label>
+                <input type="url" id="notify-url" placeholder="https://ntfy.sh/your-topic" autocomplete="off" spellcheck="false">
+              </div>
+              <div class="form-group">
+                <label for="notify-format">Format</label>
+                <select id="notify-format">
+                  <option value="json">JSON (Home Assistant, most tools)</option>
+                  <option value="text">Text with a title (ntfy)</option>
+                </select>
+              </div>
+              <button id="notify-save" class="btn btn-primary">Save</button>
+              <button id="notify-test" class="btn btn-secondary">Send a test</button>
+              <span id="notify-status" role="status" style="margin-left: 8px; font-size: 0.85rem;"></span>
+            </div>
           </div>
 
           <div id="tab-ui" class="tab-content">

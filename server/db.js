@@ -87,7 +87,10 @@ function getDefaultSettings() {
     // worth the GPU time only for something being kept.
     postRecordCodec: 'h264',       // 'h264' (compatible) or 'hevc' (smaller)
     postRecordBitrateKbps: 3000,   // Target video bitrate
-    postRecordKeepOriginal: false  // Keep the untouched original alongside the result
+    postRecordKeepOriginal: false, // Keep the untouched original alongside the result
+    // R11 (0215): notifications (services/notify.js); empty = off. Shown to admins only.
+    notifyWebhookUrl: '',
+    notifyWebhookFormat: 'json'    // 'json' (Home Assistant and most tools) or 'text' (ntfy)
   };
 }
 

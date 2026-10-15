@@ -111,6 +111,7 @@ function trip(id, b, cooldownMs, why, now) {
     b.cooldownMs = cooldownMs;
     b.until = now + cooldownMs;
     console.warn(`[Providers] ${providerName(id)} is down (${why}); skipped for ${Math.round(cooldownMs / MINUTE)} min`);
+    try { require('./notify').providerDown(providerName(id), why); } catch (e) { /* best-effort (R11) */ }
 }
 
 /**

@@ -14,6 +14,11 @@ router.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); }
 router.get('/', async (req, res) => {
     try {
         const currentSettings = await settings.get();
+        // R11: the webhook URL is often a secret (an ntfy topic, a Home Assistant id): admins only.
+        if (req.user?.role !== 'admin') {
+            const { notifyWebhookUrl, ...rest } = currentSettings;
+            return res.json({ ...rest, notifyWebhookSet: Boolean(notifyWebhookUrl) });
+        }
         res.json(currentSettings);
     } catch (err) {
         console.error('Error getting settings:', err);
@@ -33,7 +38,15 @@ router.get('/', async (req, res) => {
  */
 router.put('/', requireAdmin, async (req, res) => {
     try {
-        const updates = req.body;
+        const updates = { ...req.body };
+        if ('notifyWebhookUrl' in updates) {
+            const clean = require('../services/notify').cleanUrl(updates.notifyWebhookUrl);
+            if (clean === null) return res.status(400).json({ error: 'The notification webhook must be an http or https address.' });
+            updates.notifyWebhookUrl = clean;
+        }
+        if ('notifyWebhookFormat' in updates && !['json', 'text'].includes(updates.notifyWebhookFormat)) {
+            return res.status(400).json({ error: 'The notification format must be json or text.' });
+        }
         if (typeof updates.recordingsPath === 'string' && updates.recordingsPath.trim()) {
             const { validateRecordingsPathSetting } = require('../services/recordingsFolder');
             const check = validateRecordingsPathSetting(updates.recordingsPath.trim());
@@ -111,6 +124,17 @@ router.get('/hw-info', requireAdmin, async (req, res) => {
  * Refresh hardware detection (re-probe GPUs)
  * POST /api/settings/hw-info/refresh
  */
+/**
+ * R11: send a test notification to the saved webhook.
+ * POST /api/settings/notify-test -> { sent, status?, error?, skipped? }
+ */
+router.post('/notify-test', requireAdmin, async (req, res) => {
+    const result = await require('../services/notify').send('test', {
+        title: 'PigTV test notification', message: 'Notifications from PigTV reach this address.', force: true
+    });
+    res.json(result);
+});
+
 router.post('/hw-info/refresh', requireAdmin, async (req, res) => {
     try {
         const hwDetect = require('../services/hwDetect');
