@@ -1,0 +1,151 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+// 0209: the web app's three navigation/refresh races from the 15 Oct review (F1-F3), run on the
+// real page scripts. On 0208 each test fails: an older guide response replaced the newer window,
+// a quick Home revisit stayed on "Loading favorites..." for good, and Back pushed a new entry.
+
+const js = (file) => fs.readFileSync(path.join(__dirname, '../public/js', file), 'utf8');
+
+function load(files, globals = {}) {
+    const context = vm.createContext({
+        console: { ...console, log() {}, warn() {}, error() {} },
+        window: {}, setTimeout, clearTimeout, setInterval: () => 0, clearInterval() {},
+        document: { addEventListener() {}, querySelectorAll: () => [], getElementById: () => null },
+        ...globals
+    });
+    for (const f of files) vm.runInContext(js(f), context);
+    return context;
+}
+
+const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
+const tick = () => new Promise(setImmediate);
+
+test('F1: an older guide response arriving last does not replace the newer window', async () => {
+    const c = load(['components/EpgGuide.js']);
+    const slow = deferred();
+    const requested = [];
+    c.API = { library: {
+        categories: async () => [], favourites: async () => [],
+        guide: ({ start }) => { requested.push(start); return start === 1000 ? slow.promise : Promise.resolve({ channels: [{ id: 'b', sourceId: 1, name: 'B' }], nextCursor: null }); }
+    } };
+    const epg = Object.create(c.window.EpgGuide.prototype);
+    let start = 1000;
+    epg.renderWindow = () => ({ start, end: start + 86400000 });
+
+    const first = epg.fetchEpgData();
+    await tick();
+    start = 2000;
+    assert.equal(await epg.fetchEpgData(), true);
+    assert.equal(epg.window.start, 2000);
+
+    slow.resolve({ channels: [{ id: 'a', sourceId: 1, name: 'A' }], nextCursor: null });
+    assert.equal(await first, false, 'the superseded load says so');
+    assert.equal(epg.window.start, 2000);
+    assert.deepEqual([...epg.rows.map(r => r.id)], ['b']);
+    assert.deepEqual(requested, [1000, 2000]);
+});
+
+test('F1: a refresh for the window already loading shares that request', async () => {
+    const c = load(['components/EpgGuide.js']);
+    const gate = deferred();
+    let calls = 0;
+    c.API = { library: { categories: async () => [], favourites: async () => [],
+        guide: () => { calls++; return gate.promise; } } };
+    const epg = Object.create(c.window.EpgGuide.prototype);
+    epg.renderWindow = () => ({ start: 5000, end: 5000 + 86400000 });
+
+    const a = epg.fetchEpgData();
+    const b = epg.fetchEpgData();
+    gate.resolve({ channels: [], nextCursor: null });
+    assert.deepEqual([await a, await b], [true, true]);
+    assert.equal(calls, 1);
+});
+
+test('F1: a failed load keeps the guide that was already showing', async () => {
+    const c = load(['components/EpgGuide.js']);
+    let fail = false;
+    c.API = { library: { categories: async () => [], favourites: async () => [],
+        guide: async () => { if (fail) throw new Error('offline'); return { channels: [{ id: 'kept', sourceId: 1, name: 'K' }], nextCursor: null }; } } };
+    const epg = Object.create(c.window.EpgGuide.prototype);
+    let start = 1000;
+    epg.renderWindow = () => ({ start, end: start + 86400000 });
+    await epg.fetchEpgData();
+    fail = true; start = 2000;
+    await assert.rejects(epg.fetchEpgData(), /offline/);
+    assert.equal(epg.window.start, 1000);
+    assert.deepEqual([...epg.rows.map(r => r.id)], ['kept']);
+});
+
+test('F2: Home -> elsewhere -> Home while favourites load: the Home on screen settles', async () => {
+    const lists = { current: null };
+    const c = load(['pages/HomePage.js'], {
+        document: { addEventListener() {}, querySelectorAll: () => [], getElementById: (id) => (id === 'favorite-channels-list' ? lists.current : null) }
+    });
+    const pending = deferred();
+    let requests = 0;
+    c.window.API = { library: { favourites: () => { requests++; return pending.promise; } } };
+    const home = new c.window.HomePage({});
+    home.updateScrollArrows = () => {};
+
+    const old = { innerHTML: 'loading', querySelectorAll: () => [] };
+    const fresh = { innerHTML: 'loading', querySelectorAll: () => [] };
+    lists.current = old;
+    const first = home.loadDashboardData();
+    lists.current = fresh; // show() replaced the page
+    const second = home.loadDashboardData();
+    pending.resolve([]);
+    await Promise.all([first, second]);
+
+    assert.equal(requests, 1, 'one request, shared');
+    assert.match(fresh.innerHTML, /Add channels to favorites/);
+    assert.equal(old.innerHTML, 'loading', 'nothing written into the detached list');
+});
+
+test('F2: a failed favourites load offers Retry, and Retry loads again', async () => {
+    let listener;
+    const retry = { addEventListener: (_, fn) => { listener = fn; } };
+    const list = { innerHTML: '', querySelectorAll: () => [], querySelector: (sel) => (sel === '.home-retry' ? retry : null) };
+    const c = load(['pages/HomePage.js'], {
+        document: { addEventListener() {}, querySelectorAll: () => [], getElementById: (id) => (id === 'favorite-channels-list' ? list : null) }
+    });
+    let fail = true;
+    c.window.API = { library: { favourites: async () => { if (fail) throw new Error('down'); return []; } } };
+    const home = new c.window.HomePage({});
+    home.updateScrollArrows = () => {};
+
+    await home.loadDashboardData();
+    assert.match(list.innerHTML, /Error loading favorites/);
+    assert.match(list.innerHTML, /Retry/);
+    fail = false;
+    listener();
+    await tick(); await tick();
+    assert.match(list.innerHTML, /Add channels to favorites/);
+});
+
+test('F3: Back/Forward (popstate) changes page without writing history; clicks push; start-up replaces', () => {
+    const calls = [];
+    const c = load(['app.js'], {
+        history: { pushState: (s) => calls.push(['push', s.page]), replaceState: (s) => calls.push(['replace', s.page]) }
+    });
+    const app = vm.runInContext('Object.create(App.prototype)', c);
+    Object.assign(app, { currentPage: 'home', currentUser: { role: 'admin' }, pages: {} });
+
+    app.navigateTo('guide');
+    app.navigateTo('settings');
+    app.navigateTo('guide', 'none'); // Back
+    app.navigateTo('home', 'none');  // Back
+    app.navigateTo('guide', 'none'); // Forward
+    app.navigateTo('home', 'replace');
+    assert.deepEqual(calls, [['push', 'guide'], ['push', 'settings'], ['replace', 'home']]);
+    assert.equal(app.currentPage, 'home');
+
+    // A non-admin sent to Settings is redirected by replacing, never by adding an entry.
+    calls.length = 0;
+    Object.assign(app, { currentPage: 'guide', currentUser: { role: 'viewer' } });
+    app.navigateTo('settings', 'none');
+    assert.deepEqual(calls, [['replace', 'home']]);
+});

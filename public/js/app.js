@@ -141,7 +141,7 @@ class App {
         // Handle browser back/forward buttons
         window.addEventListener('popstate', (e) => {
             const page = e.state?.page || 'home';
-            this.navigateTo(page, false); // false = don't add to history
+            this.navigateTo(page, 'none'); // the browser already moved through history
         });
 
         // Initialize home page first (it's needed for channel list)
@@ -156,7 +156,7 @@ class App {
         // Navigate to the page from URL hash, or default to home
         const hash = window.location.hash.slice(1); // Remove #
         const initialPage = hash && this.pages[hash] ? hash : 'home';
-        this.navigateTo(initialPage, true); // true = replace history (don't add)
+        this.navigateTo(initialPage, 'replace');
 
         // Keep an eye on in-progress recordings so the user knows why live
         // playback might misbehave while one is running.
@@ -317,22 +317,25 @@ class App {
         navbar.appendChild(logoutLink);
     }
 
-    navigateTo(pageName, replaceHistory = false) {
+    /**
+     * Show a page. `historyMode` says what happens to the browser's history:
+     * 'push' (a click: a new entry), 'replace' (start-up, a redirect: rewrite this
+     * entry), 'none' (Back/Forward: the browser has already moved, so writing an
+     * entry here would cut off the forward history it is traversing).
+     */
+    navigateTo(pageName, historyMode = 'push') {
         if ((pageName === 'settings' || pageName === 'status') && this.currentUser?.role !== 'admin') {
             pageName = 'home';
-            replaceHistory = true;
+            historyMode = 'replace';
         }
         // Don't navigate if already on this page
-        if (this.currentPage === pageName && !replaceHistory) {
+        if (this.currentPage === pageName && historyMode !== 'replace') {
             return;
         }
 
-        // Update browser history
-        if (replaceHistory) {
-            // Replace current history entry (used on initial load)
+        if (historyMode === 'replace') {
             history.replaceState({ page: pageName }, '', `#${pageName}`);
-        } else {
-            // Add new history entry
+        } else if (historyMode === 'push') {
             history.pushState({ page: pageName }, '', `#${pageName}`);
         }
 

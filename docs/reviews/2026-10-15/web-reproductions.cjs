@@ -1,3 +1,5 @@
+// Evidence for the 15 Oct review: asserts the 0207/0208 behaviour, so it fails from 0209 on, where
+// test/web-navigation.test.js holds the regression tests for F1-F3 instead.
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
 const path=require('path');
 const root=path.resolve(__dirname, '../../../public/js') + path.sep;

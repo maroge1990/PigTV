@@ -180,9 +180,9 @@ test('the Home favourites row draws /api/library/favourites rows with their numb
         'GET /api/library/favourites': () => [row(12, 'pos_12', 'Twelve', 'News'), row(3, 'pos_3', 'Three <b>', 'News')]
     }, { document: { getElementById: (id) => (id === 'favorite-channels-list' ? list : id === 'favorite-channels-section' ? {} : null) } });
     const home = Object.create(context.HomePage.prototype);
-    Object.assign(home, { app: {}, container: null });
+    Object.assign(home, { app: {}, container: null, renderGeneration: 0, favouritesRequest: null });
 
-    await home.renderFavoriteChannels();
+    await home.loadDashboardData();
 
     assert.deepEqual(requests.map(r => r.url), ['/api/library/favourites']);
     assert.ok(list.innerHTML.indexOf('data-channel-id="pos_3"') < list.innerHTML.indexOf('data-channel-id="pos_12"'), 'in number order');

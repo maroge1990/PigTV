@@ -131,7 +131,9 @@ class EpgGuide {
         const { start } = this.renderWindow();
         if (!this.window || this.window.start !== start) {
             try {
-                await this.fetchEpgData();
+                // A newer move (or a refresh for another window) superseded this one:
+                // the newer request draws, this one must not.
+                if (!(await this.fetchEpgData())) return;
             } catch (err) {
                 console.error('Error loading EPG:', err);
             }
@@ -248,9 +250,25 @@ class EpgGuide {
     /**
      * Fetch the guide for the window on screen: every visible channel, 500 rows a
      * request, following the cursor. Also the category names and favourites.
+     *
+     * One load per window: a second call for the window already being fetched shares that
+     * request, and only the latest window's answer is published. Clicking Later twice, or a
+     * five-minute refresh overlapping a move, used to let the slower, older response replace
+     * the newer window. Resolves true when this call's data is what the guide now holds,
+     * false when a newer load superseded it. A failure throws and keeps the previous data.
      */
-    async fetchEpgData() {
+    fetchEpgData() {
         const { start, end } = this.renderWindow();
+        if (this._guideLoad && this._guideLoad.start === start) return this._guideLoad.promise;
+        const generation = (this._guideGeneration || 0) + 1;
+        this._guideGeneration = generation;
+        const promise = this.loadGuideWindow(start, end, generation)
+            .finally(() => { if (this._guideLoad?.promise === promise) this._guideLoad = null; });
+        this._guideLoad = { start, promise };
+        return promise;
+    }
+
+    async loadGuideWindow(start, end, generation) {
         const [categories, favourites] = await Promise.all([
             API.library.categories(),
             API.library.favourites()
@@ -263,7 +281,9 @@ class EpgGuide {
             rows.push(...(result.channels || []));
             cursor = result.nextCursor;
             if (!cursor) break;
+            if (generation !== this._guideGeneration) return false; // stop paging a superseded window
         }
+        if (generation !== this._guideGeneration) return false;
 
         this.categories = categories || [];
         const categoryNames = new Map(this.categories.map(c => [`${c.sourceId}:${c.id}`, c.name]));
@@ -285,6 +305,7 @@ class EpgGuide {
 
         this.favorites = new Set((favourites || []).map(f => this.favKey(f)));
         this.loaded = true;
+        return true;
     }
 
     /** The programmes loaded for a channel: its own row, else one with the same tvg-id or name. */

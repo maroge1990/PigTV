@@ -6,7 +6,10 @@ class HomePage {
     constructor(app) {
         this.app = app;
         this.container = null; // Will be set in renderLayout
-        this.isLoading = false;
+        // Each show() is a new generation; a response renders only into the newest one.
+        this.renderGeneration = 0;
+        // One favourites request in flight, shared by every show() that wants it.
+        this.favouritesRequest = null;
     }
 
     async init() {
@@ -106,55 +109,61 @@ class HomePage {
     }
 
 
+    /**
+     * Fill the favourites row of the Home that is showing now. A quick Home -> elsewhere ->
+     * Home while the first request is still out used to skip the second load (a busy flag)
+     * and let the first response write into the replaced, detached list, leaving the new
+     * Home on "Loading favorites..." for good. Now the request is shared and its answer is
+     * rendered by the latest show() only, into the list that exists when it arrives.
+     */
     async loadDashboardData() {
-        if (this.isLoading) return;
-        this.isLoading = true;
-
-        try {
-            await this.renderFavoriteChannels();
-        } catch (err) {
-            console.error('[Dashboard] Error loading data:', err);
-        } finally {
-            this.isLoading = false;
+        const generation = ++this.renderGeneration;
+        if (!this.favouritesRequest) {
+            this.favouritesRequest = Promise.resolve()
+                .then(() => window.API.library.favourites())
+                .finally(() => { this.favouritesRequest = null; });
         }
-    }
-
-    async renderFavoriteChannels() {
-        const list = document.getElementById('favorite-channels-list');
-        const section = document.getElementById('favorite-channels-section');
-        if (!list || !section) return;
-
+        let favourites, failed = false;
         try {
-            // 0121 (W2.1): the favourites as library rows - name, number, logo and
-            // the bare id - one per channel, in one request.
-            const favourites = await window.API.library.favourites();
-            const numberOf = (c) => (c.number === null || c.number === undefined ? Infinity : c.number);
-            const channels = (Array.isArray(favourites) ? favourites : [])
-                .slice()
-                .sort((a, b) => numberOf(a) - numberOf(b) || String(a.name).localeCompare(String(b.name)));
-
-            if (channels.length === 0) {
-                list.innerHTML = '<div class="empty-state hint">Add channels to favorites from Live TV</div>';
-                return;
-            }
-
-            // Render channel tiles
-            list.innerHTML = channels.map(ch => this.createChannelTile(ch)).join('');
-
-            // Attach click handlers
-            list.querySelectorAll('.channel-tile').forEach(tile => {
-                tile.addEventListener('click', () => {
-                    this.playChannel(tile.dataset.channelId, tile.dataset.sourceId);
-                });
-            });
-
-            // Update scroll arrows after content renders
-            this.updateScrollArrows();
-
+            favourites = await this.favouritesRequest;
         } catch (err) {
             console.error('[Dashboard] Error loading favorite channels:', err);
-            list.innerHTML = '<div class="empty-state hint">Error loading favorites</div>';
+            failed = true;
         }
+        if (generation !== this.renderGeneration) return; // a newer show() owns the page
+        const list = document.getElementById('favorite-channels-list');
+        if (!list) return;
+        if (failed) {
+            list.innerHTML = '<div class="empty-state hint">Error loading favorites <button type="button" class="btn btn-sm btn-secondary home-retry">Retry</button></div>';
+            list.querySelector('.home-retry')?.addEventListener('click', () => {
+                list.innerHTML = '<div class="loading-state"><div class="loading"></div><span>Loading favorites...</span></div>';
+                this.loadDashboardData();
+            });
+            return;
+        }
+        this.renderFavoriteChannels(list, favourites);
+    }
+
+    renderFavoriteChannels(list, favourites) {
+        // 0121 (W2.1): the favourites as library rows - name, number, logo and
+        // the bare id - one per channel, in one request.
+        const numberOf = (c) => (c.number === null || c.number === undefined ? Infinity : c.number);
+        const channels = (Array.isArray(favourites) ? favourites : [])
+            .slice()
+            .sort((a, b) => numberOf(a) - numberOf(b) || String(a.name).localeCompare(String(b.name)));
+
+        if (channels.length === 0) {
+            list.innerHTML = '<div class="empty-state hint">Add channels to favorites from Live TV</div>';
+            return;
+        }
+
+        list.innerHTML = channels.map(ch => this.createChannelTile(ch)).join('');
+        list.querySelectorAll('.channel-tile').forEach(tile => {
+            tile.addEventListener('click', () => {
+                this.playChannel(tile.dataset.channelId, tile.dataset.sourceId);
+            });
+        });
+        this.updateScrollArrows();
     }
 
     escapeHtml(text) {
