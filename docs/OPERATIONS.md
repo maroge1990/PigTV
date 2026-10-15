@@ -64,13 +64,20 @@ docker exec PigTV sh scripts/backup-db.sh
 ```
 
 Writes an application-consistent copy (SQLite online backup, safe while the server runs) to
-`/app/data/backups/content-<timestamp>.db` and keeps the newest 7. On Unraid that is
-`/mnt/user/appdata/nodecast_tv/data/backups/`. Schedule it with the User Scripts plugin.
+`/app/data/backups/content-<timestamp>-<reason>.db` and keeps the newest 7. On Unraid that is
+`/mnt/user/appdata/nodecast_tv/data/backups/`.
+
+**Automatic (0213, R12):** the server takes the same copy itself, `pre-migration` before a new build opens the database
+(so a failed migration can be undone) and `nightly` once a day; the Status page lists them. Each copy is checked
+(`quick_check`) before it counts. `PIGTV_DB_BACKUPS=0` turns both off. The copies are only `content.db`: keep
+`data/auth-secret` and the container settings too, and copy `backups/` off the box (a same-disk copy does not survive
+the disk).
 
 ## Restore
 
 1. Stop the container.
 2. In the data folder, remove `content.db-wal` and `content.db-shm` if present, then copy the backup over:
-   `cp backups/content-<timestamp>.db content.db`
+   `cp backups/content-<timestamp>-<reason>.db content.db` (after a bad deploy: the newest `pre-migration` one, with the
+   container pointed back at the previous image)
 3. Make sure the owner matches (`chown 99:100 content.db`; the entrypoint also corrects this at start).
 4. Start the container and check the log and Status page.

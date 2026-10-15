@@ -1359,7 +1359,7 @@ check docker/entrypoint.sh "setpriv" "privileges dropped with setpriv"
 check docker/entrypoint.sh 'exec setpriv' "node is exec'd so SIGTERM reaches it"
 check_absent docker/entrypoint.sh 'chown -R .*recordings' "the recordings share is never chowned"
 check package.json '"node": ">=22' "engines matches the Node versions CI tests"
-check scripts/backup-db.js "db.backup" "database backup uses SQLite's online backup"
+check server/services/dbBackup.js "src.backup(" "database backup uses SQLite's online backup (R12: the service the script and the server share)"
 check docs/OPERATIONS.md "Restore" "restore procedure documented"
 python3 - <<'PY' || FAIL=1
 import re, sys

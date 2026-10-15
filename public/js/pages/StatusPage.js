@@ -435,6 +435,11 @@ class StatusPage {
             'No sources')));
 
         // Disk
+        // R12: database copies (newest first). Same disk as the database: not protection against losing it.
+        const backups = Array.isArray(status.backups) ? status.backups : [];
+        add('backups', this.section('Database backups', this.table(['Copy', 'Why', 'When', 'Size'],
+            backups.map(b => [e(b.file), e(b.reason), e(new Date(b.at).toLocaleString()), b.bytes == null ? '–' : this.bytes(b.bytes)]),
+            'No backups yet. One is taken before a new build\'s migrations and once a day.')));
         const disk = status.disk || {};
         const diskRow = (name, d) => [e(name), d && d.available ? this.bytes(d.freeBytes) : 'unavailable', d && d.available ? this.bytes(d.totalBytes) : '–'];
         add('disk', this.section('Disk', this.table(['Volume', 'Free', 'Size'],

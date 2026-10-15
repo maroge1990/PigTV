@@ -282,6 +282,13 @@ app.listen(PORT, async (err) => {
         }
     }, 2000);
 
+    // R12: a database copy once a day (the first check 5 min after start).
+    try {
+        require('./services/dbBackup').startNightly(require('./db/sqlite').databasePath());
+    } catch (err) {
+        console.warn('Nightly database backups failed to start:', err.message);
+    }
+
     // 0168: provider account info (expiry, connection limit) 30 s after startup, then every 6 h.
     try {
         require('./services/providerAccounts').startTimers();

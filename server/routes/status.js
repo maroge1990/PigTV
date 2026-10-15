@@ -295,6 +295,14 @@ router.get('/', async (req, res) => {
             preparation: preparationQueue(),
             loopDelay: require('../services/loopDelay').summary(),
             sync: await syncStatus(),
+            // R12: the database copies in data/backups (file name, why, when, size; never a path).
+            backups: (() => {
+                try {
+                    const dbBackup = require('../services/dbBackup');
+                    return dbBackup.list(require('../db/sqlite').databasePath())
+                        .map(({ file, reason, at, bytes }) => ({ file, reason, at, bytes }));
+                } catch (e) { return []; }
+            })(),
             disk: {
                 transcodeCache: diskAt(transcodeSession.CACHE_DIR),
                 recordings: diskAt(settings.recordingsPath || '/app/recordings')

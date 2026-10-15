@@ -28,12 +28,23 @@ function getDb() {
         return db;
     }
     if (!db) {
+        // R12: a copy before this build's migrations touch a database another build left.
+        // Best effort: nothing here may stop the database opening.
+        let dbBackup = null, build = null;
+        try {
+            dbBackup = require('../services/dbBackup');
+            build = require('../version').build;
+            if (process.env.PIGTV_DB_BACKUPS !== '0') dbBackup.beforeMigrations(dbPath, build);
+        } catch (err) {
+            console.warn('[Backup] Skipped the pre-migration check:', err.message);
+        }
         console.log('[SQLite] Opening database at', dbPath);
         db = new Database(dbPath);
         // Optimize performance
         db.pragma('journal_mode = WAL');
         db.pragma('synchronous = NORMAL');
         initSchema();
+        if (dbBackup && build) { try { dbBackup.recordBuild(db, build); } catch (err) { console.warn('[Backup] Could not record the build:', err.message); } }
     }
     return db;
 }
@@ -43,6 +54,11 @@ function getDb() {
  * the one to open it: the stream coordinator reads the providers only from an open database, so
  * a unit test that never touches one keeps today's single-provider behaviour (0173).
  */
+/** Where the database file is (backups live beside it, in backups/). */
+function databasePath() {
+    return dbPath;
+}
+
 function isOpen() {
     return !!db && db.open === true;
 }
@@ -907,6 +923,7 @@ const favorites = {
 module.exports = {
     getDb,
     isOpen,
+    databasePath,
     initSchema,
     // Exported so the migrations can be exercised directly; initSchema calls them.
     backfillStableIds,
