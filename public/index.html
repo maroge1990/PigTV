@@ -709,6 +709,20 @@
                 </div>
               </div>
             </div>
+
+            <div class="settings-section" id="import-exclusions-section">
+              <h3>Groups never imported (pilot)</h3>
+              <p class="setting-hint">A ticked group is skipped by the next sync: its channels are not stored at all, which
+                hiding does not do. Untick it and the next sync brings it back unchanged. A group with a favourite or a
+                scheduled recording can't be ticked.</p>
+              <div class="form-group">
+                <label for="import-exclusions-provider">Provider</label>
+                <select id="import-exclusions-provider"></select>
+              </div>
+              <div id="import-exclusions-list" class="import-exclusions-list"><p class="hint">Choose a provider.</p></div>
+              <button id="import-exclusions-save" class="btn btn-primary">Save</button>
+              <span id="import-exclusions-status" role="status" style="margin-left: 8px; font-size: 0.85rem;"></span>
+            </div>
           </div>
 
           <!-- Backup links (0172): GET /api/links, /api/links/summary, PUT /api/links/:id.

@@ -98,6 +98,9 @@ const API = {
         catalogue: (id) => API.request('GET', `/sources/${id}/catalogue?type=live`), // Sources picker (0120)
         // Providers (0172; admin): settings, account info and a backup's channels for the manual pick
         providers: () => API.request('GET', '/sources/providers'),
+        // R8 (pilot): live groups never imported
+        importExclusions: (id) => API.request('GET', `/sources/${id}/import-exclusions`),
+        setImportExclusions: (id, categoryIds) => API.request('PUT', `/sources/${id}/import-exclusions`, { categoryIds }),
         setOrder: (ids) => API.request('PUT', '/sources/order', { ids }), // 0182: the card order is the roles
         account: (id) => API.request('GET', `/sources/${id}/account`),
         checkAccount: (id) => API.request('POST', `/sources/${id}/account/check`),

@@ -90,7 +90,10 @@ function getDefaultSettings() {
     postRecordKeepOriginal: false, // Keep the untouched original alongside the result
     // R11 (0215): notifications (services/notify.js); empty = off. Shown to admins only.
     notifyWebhookUrl: '',
-    notifyWebhookFormat: 'json'    // 'json' (Home Assistant and most tools) or 'text' (ntfy)
+    notifyWebhookFormat: 'json',   // 'json' (Home Assistant and most tools) or 'text' (ntfy)
+    // R8 (0217, pilot): { "<sourceId>": [live category ids never imported] }; edited via the
+    // guarded /api/sources/:id/import-exclusions only.
+    importExclusions: {}
   };
 }
 

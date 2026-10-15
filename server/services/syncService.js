@@ -301,10 +301,14 @@ class SyncService {
         const liveCats = await api.getLiveCategories();
         await this.saveCategories(source.id, 'live', liveCats);
 
-        // 2. Live Streams
+        // 2. Live Streams (R8: minus any group the admin never imports)
         console.log(`[Sync] Fetching Live Streams for ${source.name}`);
         const liveStreams = await api.getLiveStreams();
-        await this.saveStreams(source.id, 'live', liveStreams);
+        const importFilters = require('./importFilters');
+        const excluded = await importFilters.excludedFor(source.id);
+        const skipped = new Map();
+        await this.saveStreams(source.id, 'live', importFilters.filterItems(liveStreams || [], excluded, skipped));
+        importFilters.recordSkipped(source.id, excluded, skipped);
 
         // 3. VOD Categories
         console.log(`[Sync] Fetching VOD Categories for ${source.name}`);
@@ -960,6 +964,11 @@ class SyncService {
         const allSyncedIds = new Set(); // Collect IDs across all batches
         let totalChannels = 0;
         let batchCount = 0;
+        // R8: groups never imported. Filtered after the positions are given out, so every
+        // other line keeps its pos_N id whatever is excluded.
+        const importFilters = require('./importFilters');
+        const excluded = await importFilters.excludedFor(source.id);
+        const skipped = new Map();
 
         // Stream and process in batches (default 500 channels per batch)
         let credentialsLine = null; // 0168: the playlist's #EXT-X-CREDENTIALS header, if any
@@ -987,9 +996,10 @@ class SyncService {
 
             // Save this batch immediately (skip purge - we'll do it at the end)
             if (playlistItems.length > 0) {
-                const batchIds = await this.saveStreams(source.id, 'live', playlistItems, { skipPurge: true });
+                const imported = importFilters.filterItems(playlistItems, excluded, skipped);
+                const batchIds = await this.saveStreams(source.id, 'live', imported, { skipPurge: true });
                 batchIds.forEach(id => allSyncedIds.add(id));
-                totalChannels += playlistItems.length;
+                totalChannels += playlistItems.length; // every line counts towards the positions
             }
 
             // Collect groups for category creation at the end
@@ -1005,6 +1015,7 @@ class SyncService {
         if (credentialsLine) {
             try { require('./providerAccounts').noteM3uHeader(source.id, credentialsLine); } catch (e) { /* the stream URLs are the fallback */ }
         }
+        importFilters.recordSkipped(source.id, excluded, skipped);
 
         console.log(`[Sync] M3U Parsed: ${totalChannels} channels, ${allGroups.size} groups`);
         // Evidence that the identity derivation suits this provider, before anything

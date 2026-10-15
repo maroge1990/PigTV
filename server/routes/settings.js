@@ -39,6 +39,8 @@ router.get('/', async (req, res) => {
 router.put('/', requireAdmin, async (req, res) => {
     try {
         const updates = { ...req.body };
+        // R8: only through PUT /api/sources/:id/import-exclusions, which guards favourites and schedules.
+        delete updates.importExclusions;
         if ('notifyWebhookUrl' in updates) {
             const clean = require('../services/notify').cleanUrl(updates.notifyWebhookUrl);
             if (clean === null) return res.status(400).json({ error: 'The notification webhook must be an http or https address.' });

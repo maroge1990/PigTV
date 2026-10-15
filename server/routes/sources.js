@@ -172,6 +172,32 @@ router.get('/:id/catalogue', async (req, res) => {
     }
 });
 
+/**
+ * R8 (pilot): live groups this source's sync never imports.
+ * GET  /api/sources/:id/import-exclusions -> { groups: [{ id, name, imported, excluded, skippedAtLastSync }] }
+ * PUT  /api/sources/:id/import-exclusions { categoryIds: [...] } -> { ok } | 409 { blocked: [{ id, reason }] }
+ * Takes effect at the next sync. A group with a favourite or a scheduled recording's channel is refused.
+ */
+router.get('/:id/import-exclusions', requireAdmin, async (req, res) => {
+    const sourceId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(sourceId) || !(await sources.getById(sourceId))) return res.status(404).json({ error: 'Source not found' });
+    res.json({ groups: await require('../services/importFilters').overview(sourceId) });
+});
+
+router.put('/:id/import-exclusions', requireAdmin, async (req, res) => {
+    const sourceId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(sourceId) || !(await sources.getById(sourceId))) return res.status(404).json({ error: 'Source not found' });
+    if (!Array.isArray(req.body?.categoryIds)) return res.status(400).json({ error: 'categoryIds must be a list' });
+    const filters = require('../services/importFilters');
+    const result = await filters.setExcluded(sourceId, req.body.categoryIds);
+    if (!result.ok) {
+        const names = new Map((await filters.overview(sourceId)).map(g => [g.id, g.name]));
+        const why = result.blocked.map(b => `${names.get(b.id) || b.id} (${b.reason})`).join('; ');
+        return res.status(409).json({ error: `Not changed. These groups can't be excluded: ${why}`, blocked: result.blocked });
+    }
+    res.json({ ok: true });
+});
+
 router.post('/', async (req, res) => {
     try {
         const { type, name, url, username, password } = req.body;

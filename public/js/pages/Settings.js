@@ -1258,6 +1258,59 @@ class SettingsPage {
         return this.app.currentUser?.role === 'admin';
     }
 
+    /** R8 (pilot): the provider picker and its groups, with what each holds or skipped. */
+    async loadImportExclusions() {
+        const select = document.getElementById('import-exclusions-provider');
+        if (!select) return;
+        if (!this._importExclusionsWired) {
+            this._importExclusionsWired = true;
+            select.addEventListener('change', () => this.renderImportExclusions(select.value));
+            document.getElementById('import-exclusions-save')?.addEventListener('click', () => this.saveImportExclusions());
+        }
+        try {
+            const providers = await API.sources.providers();
+            const current = select.value;
+            select.innerHTML = providers.map(p => `<option value="${p.id}">${this.escapeLineup(p.name)}</option>`).join('');
+            if (current && providers.some(p => String(p.id) === current)) select.value = current;
+            if (select.value) await this.renderImportExclusions(select.value);
+        } catch (err) {
+            console.error('Failed to load import exclusions:', err);
+        }
+    }
+
+    async renderImportExclusions(sourceId) {
+        const list = document.getElementById('import-exclusions-list');
+        if (!list || !sourceId) return;
+        list.innerHTML = '<p class="hint">Loading...</p>';
+        try {
+            const { groups } = await API.sources.importExclusions(sourceId);
+            if (!groups.length) { list.innerHTML = '<p class="hint">No live groups yet: sync this provider first.</p>'; return; }
+            list.innerHTML = groups.map(g => {
+                const size = g.excluded
+                    ? (g.skippedAtLastSync == null ? 'excluded from the next sync' : `${g.skippedAtLastSync} skipped at the last sync`)
+                    : `${g.imported} channels`;
+                return `<label class="setting-item import-exclusion">
+                    <input type="checkbox" value="${this.escapeLineup(g.id)}" ${g.excluded ? 'checked' : ''}>
+                    <span>${this.escapeLineup(g.name)}</span> <span class="hint">${this.escapeLineup(size)}</span>
+                </label>`;
+            }).join('');
+        } catch (err) {
+            list.innerHTML = `<p class="hint">Could not load the groups: ${this.escapeLineup(err.message)}</p>`;
+        }
+    }
+
+    async saveImportExclusions() {
+        const select = document.getElementById('import-exclusions-provider');
+        const status = document.getElementById('import-exclusions-status');
+        const ids = [...document.querySelectorAll('#import-exclusions-list input[type="checkbox"]:checked')].map(i => i.value);
+        try {
+            await API.sources.setImportExclusions(select.value, ids);
+            if (status) status.textContent = 'Saved. It applies at the next sync.';
+        } catch (err) {
+            if (status) status.textContent = err.message;
+        }
+    }
+
     /** What a panel needs fetched when it comes into view. */
     loadPanel(panel) {
         if (panel === 'transcode') { this.loadHwDecodeSettings(); this.loadHardwareInfo(); }
@@ -1267,7 +1320,7 @@ class SettingsPage {
         if (panel === 'lineup') this.loadLineup();
         if (panel === 'epg') this.loadEpgMatching();
         if (panel === 'sports') this.loadSports();
-        if (panel === 'providers') this.providers.load();
+        if (panel === 'providers') { this.providers.load(); if (this.isAdmin()) this.loadImportExclusions(); }
         if (panel === 'backuplinks') { if (this.backupLinks.stale) this.backupLinks.load(); else this.backupLinks.reload(); }
         if (panel === 'content') this.app.sourceManager.loadContentSources();
         if (panel === 'users') this.loadUsers();
