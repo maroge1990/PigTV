@@ -127,6 +127,21 @@ server fix (needs the log), bug 5 (needs the titles). Web break chips were left 
 - Baseline measurements before any further optimisation (review's list: tvOS tab-switch p50/p95, first usable guide,
   web request counts, server event-loop delay during sync).
 
+**Wave 2 progress (16 Oct, committed locally):** **0210** F4 keyboard access (focus restoration after a redraw still
+open), **0211** F7 visible-only, version-checked guide refresh, **0212** F8 accent favourites and Australian-English copy
+(kit-token equivalence test still open). Swift build **42** carries Wave 1.
+
+Cricket (bug 5), probed with synthetic titles in `sportsEvents.eventsFromProgrammes` (not yet Mark's real ones):
+grouping is **not** the problem: team-merge links "1st Test, Day 1", "Live Test Cricket: …" and "AUS v SA" across
+channels. Three real gaps instead, any of which reads as "not linked":
+1. **Day 2+ of a Test is classed a replay** of Day 1 when ESPN has no fixture for the series (the multi-day rule only
+   applies with a fixture, and `scorepanel` lists only today's active series).
+2. **An airing with no Cricket category on a non-sport channel is not recognised at all** (bare "1st Test" is
+   deliberately not a keyword), so that channel is missing from the event.
+3. **"Proteas" is not merged with "South Africa"** (no nickname alias).
+Next step: Mark's real titles into `test/fixtures/sports-export.json` with the expected kinds, then fix whichever of the
+three they show.
+
 ### Wave 3 · Plan B1 quick wins (about 1 week)
 
 R12 backups → R4 guide-following end (with the timer fix) → R11 webhook and live stats → `tv_archive`/audio checks →
