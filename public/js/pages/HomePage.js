@@ -180,7 +180,8 @@ class HomePage {
             ? `<span class="tile-number pig-amount">${this.escapeHtml(channel.number)}</span> ` : '';
 
         return `
-            <div class="channel-tile" data-channel-id="${this.escapeHtml(channel.id)}" data-source-id="${this.escapeHtml(channel.sourceId)}">
+            <div class="channel-tile" data-channel-id="${this.escapeHtml(channel.id)}" data-source-id="${this.escapeHtml(channel.sourceId)}"
+                 role="button" tabindex="0" data-key-activate aria-label="Play ${name}">
                 <div class="tile-logo">
                     <img src="${this.escapeHtml(logoUrl)}" alt="${name}" loading="lazy" onerror="this.onerror=null;this.src='/img/placeholder.png'">
                 </div>

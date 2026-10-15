@@ -1517,6 +1517,8 @@ class VideoPlayer {
      */
     handleKeyboard(e) {
         if (document.activeElement.tagName === 'INPUT') return;
+        // Space on a focused control is that control's (F4), not play/pause.
+        if (e.key === ' ' && e.target?.closest?.('button, [data-key-activate], select, textarea')) return;
 
         switch (e.key) {
             case ' ':

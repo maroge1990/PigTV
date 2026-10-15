@@ -149,3 +149,45 @@ test('F3: Back/Forward (popstate) changes page without writing history; clicks p
     app.navigateTo('settings', 'none');
     assert.deepEqual(calls, [['replace', 'home']]);
 });
+
+// F4: the main viewing actions are reachable and usable from the keyboard.
+test('F4: live rows, group headers, guide names and programmes, and Home tiles are keyboard buttons', () => {
+    const c = load(['components/ChannelList.js', 'components/EpgGuide.js', 'pages/HomePage.js'], {
+        Icons: { favorite: '*', favoriteOutline: 'o', chevronDown: 'v' }
+    });
+    const tag = (html, cls) => (html.match(new RegExp(`<[a-z]+ class="${cls}[^"]*"[^>]*>`, 's')) || [''])[0];
+    const isButton = (t) => /role="button"/.test(t) && /tabindex="0"/.test(t) && /data-key-activate/.test(t);
+
+    const list = Object.create(c.window.ChannelList.prototype);
+    Object.assign(list, { favoriteKeys: new Set(['1:s1']), getProgramInfo: () => '' });
+    const item = list.channelItemHtml({ id: 'pos_1', sourceId: 1, stableId: 's1', name: 'One', number: 1 });
+    assert.ok(isButton(tag(item, 'channel-info')), 'the row plays from the keyboard');
+    assert.match(tag(item, 'channel-info'), /aria-label="Play One"/);
+    assert.match(item, /class="favorite-btn active"[^>]*aria-pressed="true"/s, 'favourite state is announced');
+    assert.ok(!/<div class="channel-item[^>]*role="button"/s.test(item), 'no button wrapped around the favourite button');
+
+    const guide = Object.create(c.window.EpgGuide.prototype);
+    Object.assign(guide, { pixelsPerMinute: 2 });
+    const now = Date.now();
+    const cells = guide.renderProgrammes([{ title: 'News', description: '', start: new Date(now).toISOString(), stop: new Date(now + 3600000).toISOString(), startMs: now, stopMs: now + 3600000 }],
+        new Date(now - 60000), new Date(now + 7200000), { id: 'pos_1', sourceId: 1, name: 'One' });
+    assert.ok(isButton(tag(cells, 'epg-program current')), 'a programme opens its details from the keyboard');
+    assert.match(cells, /aria-label="News, [^"]+: details"/);
+
+    const home = Object.create(c.window.HomePage.prototype);
+    const tile = home.createChannelTile({ id: 'pos_1', sourceId: 1, name: 'One' });
+    assert.ok(isButton(tag(tile, 'channel-tile')));
+});
+
+test('F4: Enter and Space click a keyboard button; other keys and other targets are left alone', () => {
+    const c = load(['app.js'], { history: { pushState() {}, replaceState() {} } });
+    const app = vm.runInContext('Object.create(App.prototype)', c);
+    let clicks = 0, prevented = 0;
+    const el = { hasAttribute: (a) => a === 'data-key-activate', click: () => clicks++ };
+    const press = (key, target = el) => app.activateFromKeyboard({ key, target, preventDefault: () => prevented++ });
+    assert.equal(press('Enter'), true);
+    assert.equal(press(' '), true);
+    assert.equal(press('a'), false);
+    assert.equal(press('Enter', { hasAttribute: () => false, click: () => clicks++ }), false);
+    assert.deepEqual([clicks, prevented], [2, 2]);
+});

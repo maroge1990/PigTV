@@ -585,13 +585,15 @@ class EpgGuide {
 
         row.innerHTML = `
           <div class="epg-channel-info">
-            <button class="favorite-btn ${isFavorite ? 'active' : ''}" title="${isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}">
+            <button class="favorite-btn ${isFavorite ? 'active' : ''}" title="${isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}"
+                    aria-label="Favourite ${this.escapeHtml(channel.name)}" aria-pressed="${isFavorite}">
               ${isFavorite ? Icons.favorite : Icons.favoriteOutline}
             </button>
             ${number}
             <img class="epg-channel-logo" src="${this.escapeHtml(this.logoUrl(channel.tvgLogo))}"
                  alt="" onerror="this.onerror=null;this.src='/img/placeholder.png'">
-            <span class="epg-channel-name">${this.escapeHtml(channel.name)}</span>
+            <span class="epg-channel-name" role="button" tabindex="0" data-key-activate
+                  aria-label="Play ${this.escapeHtml(channel.name)}">${this.escapeHtml(channel.name)}</span>
             <div class="resize-handle"></div>
           </div>
           <div class="epg-programs">
@@ -647,6 +649,7 @@ class EpgGuide {
             btn.classList.toggle('active', isFavorite);
             btn.innerHTML = isFavorite ? Icons.favorite : Icons.favoriteOutline;
             btn.title = isFavorite ? 'Remove from Favorites' : 'Add to Favorites';
+            btn.setAttribute('aria-pressed', String(isFavorite));
         });
     }
 
@@ -755,6 +758,8 @@ class EpgGuide {
 
             html += `
         <div class="epg-program ${isCurrent ? 'current' : ''}"
+             role="button" tabindex="0" data-key-activate
+             aria-label="${this.escapeHtml(prog.title || 'Unknown')}, ${new Date(prog.startMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}: details"
              style="width: ${width}px;"
              data-title="${this.escapeHtml(prog.title || '')}"
              data-description="${this.escapeHtml(prog.description || '')}"

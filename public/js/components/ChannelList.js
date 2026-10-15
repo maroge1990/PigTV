@@ -305,11 +305,13 @@ class ChannelList {
             ${number}
             <img class="channel-logo" src="${this.escapeHtml(this.logoUrl(channel.tvgLogo))}"
                  alt="" onerror="this.onerror=null;this.src='/img/placeholder.png'">
-            <div class="channel-info">
+            <div class="channel-info" role="button" tabindex="0" data-key-activate
+                 aria-label="Play ${this.escapeHtml(channel.name)}">
               <div class="channel-name">${this.escapeHtml(channel.name)}</div>
               <div class="channel-program">${this.escapeHtml(this.getProgramInfo(channel) || '')}</div>
             </div>
-            <button class="favorite-btn ${isFavorite ? 'active' : ''}" title="${isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}">
+            <button class="favorite-btn ${isFavorite ? 'active' : ''}" title="${isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}"
+                    aria-label="Favourite ${this.escapeHtml(channel.name)}" aria-pressed="${isFavorite}">
               ${isFavorite ? Icons.favorite : Icons.favoriteOutline}
             </button>
           </div>
@@ -488,7 +490,8 @@ class ChannelList {
 
             html += `
         <div class="channel-group">
-          <div class="group-header ${this.collapsedGroups.has(groupName) ? 'collapsed' : ''} ${isFavoritesGroup ? 'favorites-group' : ''}" data-group="${this.escapeHtml(groupName)}">
+          <div class="group-header ${this.collapsedGroups.has(groupName) ? 'collapsed' : ''} ${isFavoritesGroup ? 'favorites-group' : ''}" data-group="${this.escapeHtml(groupName)}"
+               role="button" tabindex="0" data-key-activate aria-expanded="${!this.collapsedGroups.has(groupName)}">
             <span class="group-toggle">${Icons.chevronDown}</span>
             <span class="group-name">${this.escapeHtml(groupName)}</span>
             <span class="group-count">${channels.length}</span>
@@ -567,6 +570,7 @@ class ChannelList {
                 const isCollapsed = header.classList.contains('collapsed');
 
                 header.classList.toggle('collapsed');
+                header.setAttribute('aria-expanded', String(isCollapsed));
                 this.toggleGroup(groupName);
 
                 // If expanding, render channels if they weren't rendered initially
@@ -728,6 +732,7 @@ class ChannelList {
             btn.classList.toggle('active', isFavorite);
             btn.innerHTML = isFavorite ? Icons.favorite : Icons.favoriteOutline;
             btn.title = isFavorite ? 'Remove from Favorites' : 'Add to Favorites';
+            btn.setAttribute('aria-pressed', String(isFavorite));
         });
     }
 

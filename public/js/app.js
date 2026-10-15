@@ -138,6 +138,12 @@ class App {
             });
         });
 
+        // Keyboard (review F4): an element marked data-key-activate (role="button",
+        // tabindex="0") acts on Enter and Space like a native button, through its
+        // existing click handler. Only when it is itself the target, so a button
+        // inside it (a favourite star) keeps its own keys.
+        document.addEventListener('keydown', (e) => this.activateFromKeyboard(e));
+
         // Handle browser back/forward buttons
         window.addEventListener('popstate', (e) => {
             const page = e.state?.page || 'home';
@@ -315,6 +321,16 @@ class App {
         });
 
         navbar.appendChild(logoutLink);
+    }
+
+    /** Enter or Space on a [data-key-activate] element clicks it (see init). */
+    activateFromKeyboard(e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return false;
+        const el = e.target;
+        if (!el || !el.hasAttribute || !el.hasAttribute('data-key-activate')) return false;
+        e.preventDefault();
+        el.click();
+        return true;
     }
 
     /**
