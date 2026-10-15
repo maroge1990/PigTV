@@ -17,6 +17,13 @@
 const { getDb } = require('../db/sqlite');
 const { redact } = require('../redact');
 
+/** Xtream's catch-up flag as days (tv_archive 1 + tv_archive_duration; 1 when no duration is given), else 0. */
+function archiveDaysOf(s) {
+    if (Number(s.tv_archive) !== 1) return 0;
+    const days = Math.floor(Number(s.tv_archive_duration));
+    return Number.isFinite(days) && days > 0 ? Math.min(days, 365) : 1;
+}
+
 function toRows(cats, streams) {
     const names = new Map((Array.isArray(cats) ? cats : []).map(c => [String(c.category_id), c.category_name]));
     const rows = [];
@@ -26,7 +33,8 @@ function toRows(cats, streams) {
             streamId: String(s.stream_id),
             name: s.name == null ? null : String(s.name),
             epg: s.epg_channel_id ? String(s.epg_channel_id) : null,
-            category: names.get(String(s.category_id)) || null
+            category: names.get(String(s.category_id)) || null,
+            archiveDays: archiveDaysOf(s)
         });
     }
     return rows;
@@ -37,10 +45,10 @@ function replaceAll(sourceId, rows) {
     const db = getDb();
     const now = Date.now();
     const insert = db.prepare(`INSERT OR REPLACE INTO provider_raw_channels
-        (source_id, stream_id, name, epg_channel_id, category_name, updated_at) VALUES (?, ?, ?, ?, ?, ?)`);
+        (source_id, stream_id, name, epg_channel_id, category_name, updated_at, archive_days) VALUES (?, ?, ?, ?, ?, ?, ?)`);
     db.transaction(() => {
         db.prepare('DELETE FROM provider_raw_channels WHERE source_id = ?').run(sourceId);
-        for (const r of rows) insert.run(sourceId, r.streamId, r.name, r.epg, r.category, now);
+        for (const r of rows) insert.run(sourceId, r.streamId, r.name, r.epg, r.category, now, r.archiveDays || 0);
     })();
 }
 
@@ -92,4 +100,18 @@ async function fetchMissing(sources, exceptId = null) {
     }
 }
 
-module.exports = { toRows, replaceAll, removeFor, count, loadMap, fetchFor, fetchMissing };
+/**
+ * For the Status page: per provider with raw rows, how many streams it lists and how many the
+ * provider flags for catch-up (and the longest archive). Answers "does any provider offer
+ * catch-up?" from data the sync already fetches.
+ */
+function archiveSummary() {
+    return getDb().prepare(`
+        SELECT source_id AS sourceId, COUNT(*) AS streams,
+               SUM(CASE WHEN archive_days > 0 THEN 1 ELSE 0 END) AS withArchive,
+               MAX(archive_days) AS maxDays, MAX(updated_at) AS checkedAt
+        FROM provider_raw_channels GROUP BY source_id ORDER BY source_id
+    `).all();
+}
+
+module.exports = { toRows, replaceAll, removeFor, count, loadMap, fetchFor, fetchMissing, archiveSummary, archiveDaysOf };

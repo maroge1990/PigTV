@@ -304,6 +304,9 @@ function initSchema() {
             PRIMARY KEY (source_id, stream_id)
         );
     `);
+    // Plan B1 (0216): the provider's own catch-up flag per stream (Xtream tv_archive, in days;
+    // 0 = none), kept so it is known whether any provider offers catch-up/start-over at all.
+    try { db.exec('ALTER TABLE provider_raw_channels ADD COLUMN archive_days INTEGER NOT NULL DEFAULT 0'); } catch (e) { /* present */ }
 
     // Links from a primary channel to the same channel elsewhere (0171, multi-provider brief 2.4,
     // services/channelLinks.js). `primary_key` is the channel's identity (COALESCE(stable_id,

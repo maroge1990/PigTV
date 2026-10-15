@@ -435,6 +435,11 @@ class StatusPage {
             'No sources')));
 
         // Disk
+        // Plan B1: does any provider offer catch-up (Xtream tv_archive)?
+        const catchup = Array.isArray(status.catchup) ? status.catchup : [];
+        add('catchup', this.section('Catch-up (provider archive)', this.table(['Provider', 'Streams', 'With archive', 'Longest'],
+            catchup.map(c => [e(c.provider || `#${c.sourceId}`), e(c.streams), e(c.withArchive || 0), c.maxDays ? `${e(c.maxDays)} days` : '–']),
+            'Not known yet: a provider\'s raw list is read after a sync once a backup provider exists.')));
         // R12: database copies (newest first). Same disk as the database: not protection against losing it.
         const backups = Array.isArray(status.backups) ? status.backups : [];
         add('backups', this.section('Database backups', this.table(['Copy', 'Why', 'When', 'Size'],

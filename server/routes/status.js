@@ -295,6 +295,13 @@ router.get('/', async (req, res) => {
             preparation: preparationQueue(),
             loopDelay: require('../services/loopDelay').summary(),
             sync: await syncStatus(),
+            // Plan B1 (0216): catch-up as each provider flags it (tv_archive), from the last raw fetch.
+            catchup: (() => {
+                try {
+                    return require('../services/rawChannels').archiveSummary()
+                        .map(r => ({ ...r, provider: providerName(r.sourceId) }));
+                } catch (e) { return []; }
+            })(),
             // R12: the database copies in data/backups (file name, why, when, size; never a path).
             backups: (() => {
                 try {
