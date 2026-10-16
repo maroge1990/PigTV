@@ -71,6 +71,7 @@ function getDefaultSettings() {
     defaultPostBufferMin: 5,       // Minutes to keep recording after the scheduled program end
     maxConcurrentRecordings: 1,    // Safety cap on simultaneous recordings
     minFreeSpaceGB: 10,            // Refuse to start (and stop) recordings below this much free space
+    segmentedRecordings: false,    // R3: record as segments in appdata (watch from the start), MP4 to the share at the end
     // Provider stream coordination
     maxProviderStreams: 1,         // How many simultaneous connections the provider allows
     viewerIdleTimeoutSec: 60,      // Silence after which a stream is treated as abandoned

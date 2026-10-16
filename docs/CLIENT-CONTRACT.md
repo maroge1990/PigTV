@@ -41,6 +41,7 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 | `providers` | 0174 | Resolve carries `provider` (C-J) | Shown in Stream info |
 | `warming` | R12 (0198) | `POST /api/playback/warm`; `warmingEnabled` beside `features` says whether the admin switched it on | Warms the likely next channel when both are true |
 | `recordingPositions` | 0207 | `GET/PUT /api/recordings/:id/position`; recording rows carry `position_sec`, `watched` | Per-login resume |
+| `recordingWatchLive` | 0218 | `GET /api/recordings/:id/watch`; recording rows carry `watch_live` (C-L) | "Watch from start" on a recording in progress |
 
 Never sent since 0204 (the tuner model was removed): `timeshift`, `recordingHls`. The client still decodes them as absent.
 
@@ -89,8 +90,10 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 | C-I Sport events | `sportsEvents` | 0147–0153, 0161 | 30–32 |
 | C-J Provider on resolve | `providers` | 0174 | 36 |
 | C-K Licence reminders | `providerReminders` | 0168 | 36 |
+| C-L Watch a recording from the start while it records | `recordingWatchLive` | 0218 (R3) | 44 |
 
-All are implemented on both sides and verified on devices (results in `docs/archive/TEST-BLOCK-2026-10-13.md`).
+C-A to C-K are implemented on both sides and verified on devices (results in `docs/archive/TEST-BLOCK-2026-10-13.md`). C-L
+is not verified yet.
 
 ### C-A. Channel numbers. Flag: `channelNumbers`
 
@@ -186,6 +189,26 @@ A channel resolve (`sourceId` + `channelId`) carries
   account check keeps the last good values.
 - Apple: on launch and foreground, at most once per local day per device, a popup naming the provider and date, closing after
   15 s or on any button. Never during playback.
+
+### C-L. Watch a recording from the start while it records. Flag: `recordingWatchLive`
+
+Only for recordings made with Settings → Recording → **Segmented recordings** on (off by default; R3). Everything else is
+unchanged, including every recording made before or with the switch off.
+- `/api/recordings` rows carry `watch_live: Bool` (always present): true while the recording is still in progress
+  (`status` `"recording"`) and can be played from its start. A segmented recording stays `"recording"` for a few minutes
+  after its programme ends, while its MP4 is made; it is still watchable then. It becomes `"completed"` with the MP4, and
+  plays through `/:id/playback` as before.
+- `GET /api/recordings/:id/watch` (bearer) →
+  - 200 `{url: "/api/recordings/{id}/live/master.m3u8", container: "hls", recording: Bool, videoRange: "SDR"|"PQ"|"HLG", fps: String|null, durationSec}`
+    (`recording` false = the programme has ended and the MP4 is being made; `durationSec` = recorded so far);
+  - 202 `{status: "preparing", retryAfterSec: 2}` while the first piece is made (ask again);
+  - 409 `{error, finished: Bool}`: not watchable this way (`finished: true` = play it with `/:id/playback` instead).
+- `url` is a one-variant master playlist like a live session's (`FRAME-RATE`, `VIDEO-RANGE`, no `CODECS`); its media
+  playlist is an **EVENT** playlist of fMP4 pieces with `#EXT-X-START:TIME-OFFSET=0` (a player starts at the beginning),
+  growing while recording; `#EXT-X-ENDLIST` once the programme has ended. A provider failover or a server restart during
+  the recording appears as `#EXT-X-DISCONTINUITY` with a new `EXT-X-MAP`. Every URI carries `?token=`.
+- Once the recording is finished its playlists answer 404: the client then plays the finished recording (`/:id/playback`),
+  at the same position.
 
 ---
 

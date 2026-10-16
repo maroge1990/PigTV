@@ -109,6 +109,16 @@ function initSchema() {
         'native_attempts INTEGER DEFAULT 0',
         // 0203: how it was prepared (2: audio re-encoded and decode-checked); NULL before.
         'native_version INTEGER',
+        // R3 (Wave 4): a segmented recording - HLS segments in appdata, one MP4 on the share at
+        // the end (services/recordingSegments.js). work_dir is its folder in appdata;
+        // segment_state capturing | finishing | moving | done | failed; segment_name and
+        // segment_folder are the file and channel-folder names the MP4 gets on the share.
+        // All NULL for a recording made the usual way.
+        'work_dir TEXT',
+        'segment_state TEXT',
+        'segment_name TEXT',
+        'segment_folder TEXT',
+        'segment_attempts INTEGER DEFAULT 0',
     ]) {
         try {
             db.exec(`ALTER TABLE recordings ADD COLUMN ${col}`);
@@ -514,6 +524,29 @@ const recordings = {
         const db = getDb();
         initSchema(); // a fresh database has no table until this has run once
         return row(db.prepare('SELECT * FROM recordings WHERE id = ?').get(id));
+    },
+
+    /** R3: set any of a segmented recording's columns (names from a fixed list, never the caller's). */
+    setSegmentFields(id, fields) {
+        const allowed = ['file_path', 'work_dir', 'segment_state', 'segment_name', 'segment_folder', 'segment_attempts',
+            'status', 'ended_at', 'file_size_bytes', 'duration_sec', 'error'];
+        const keys = Object.keys(fields).filter(k => allowed.includes(k));
+        if (keys.length === 0) return;
+        getDb().prepare(`UPDATE recordings SET ${keys.map(k => `${k} = @${k}`).join(', ')} WHERE id = @id`)
+            .run({ ...Object.fromEntries(keys.map(k => [k, fields[k] === undefined ? null : fields[k]])), id });
+    },
+
+    /** R3: segmented recordings that still have work in appdata to finish or move, oldest first. */
+    findSegmentWork() {
+        initSchema();
+        return getDb().prepare(`SELECT * FROM recordings WHERE work_dir IS NOT NULL AND segment_state IN ('finishing', 'moving')
+            ORDER BY ended_at ASC, id ASC`).all();
+    },
+
+    /** R3: every recording that still has a folder in appdata (for Status and the startup check). */
+    findWithWorkDir() {
+        initSchema();
+        return getDb().prepare('SELECT * FROM recordings WHERE work_dir IS NOT NULL ORDER BY id ASC').all();
     },
 
     listAll() {

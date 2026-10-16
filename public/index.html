@@ -905,6 +905,20 @@
                 <input type="number" id="dvr-setting-minfree" min="0" max="10000">
                 <span class="setting-hint">Recordings are refused below this, and stopped below half of it.</span>
               </div>
+              <div class="setting-item">
+                <label class="setting-toggle">
+                  <input type="checkbox" id="dvr-setting-segmented">
+                  <span class="toggle-slider"></span>
+                </label>
+                <div class="setting-info">
+                  <span class="setting-label">Segmented recordings (watch from the start while recording)</span>
+                  <span class="setting-hint">New recordings are written in short pieces to the app's data folder, can be
+                    watched from the start on the Apple TV while they are still recording, and carry on in the same
+                    recording after a provider failover or a server restart. When a recording ends it becomes one MP4 in
+                    the recordings folder above (it waits in the data folder if that folder is unavailable). Needs room in
+                    the data folder for the longest recording. Recordings already made are not changed.</span>
+                </div>
+              </div>
             </div>
 
             <div class="settings-section">

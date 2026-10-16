@@ -92,7 +92,10 @@ async function sendInfo(req, res) {
             // failover }` - which provider it plays on, and whether it failed over.
             providers: true,
             // R12: POST /api/playback/warm exists (it does nothing unless `warmingEnabled`).
-            warming: true
+            warming: true,
+            // R3: GET /api/recordings/:id/watch exists, and /api/recordings rows carry `watch_live`
+            // (true while a segmented recording in progress can be played from the start).
+            recordingWatchLive: true
         },
 
         // R12: whether the admin has switched channel warming on (the warmNextChannel setting).

@@ -283,6 +283,14 @@ class StatusPage {
                 + `<p class="setting-hint">${prep.enabled === false ? 'Preparation is switched off. ' : ''}${cur}</p>`
                 + (prep.lastError ? `<p class="setting-hint"><span class="status-event status-failure">Last error</span> ${e(prep.lastError.title || '')}: ${e(prep.lastError.error)}</p>` : ''));
         }
+        const seg = status.segmentedRecordings;
+        if (seg && (seg.enabled || seg.capturing.length || seg.finishing.length || seg.waitingToMove.length || seg.failed.length)) {
+            const names = (rows) => rows.map(r => e(r.title || `recording ${r.id}`)).join(', ');
+            const free = Number.isFinite(seg.freeBytes) ? `${(seg.freeBytes / 1024 ** 3).toFixed(1)} GB` : '–';
+            html.push(`<h4>Segmented recordings (appdata)</h4><div class="status-metrics">${metric('Recording', e(seg.capturing.length))}${metric('Being finished', e(seg.finishing.length))}${metric('Waiting for the recordings folder', e(seg.waitingToMove.length))}${metric('Failed', e(seg.failed.length))}${metric('Free in appdata', e(free))}</div>`
+                + (seg.waitingToMove.length ? `<p class="setting-hint"><span class="status-event status-failure">Waiting</span> ${names(seg.waitingToMove)}: finished, but the recordings folder was not usable; kept in appdata and moved when it is (checked every 15 minutes).</p>` : '')
+                + (seg.failed.length ? `<p class="setting-hint"><span class="status-event status-failure">Failed</span> ${names(seg.failed)}: could not be finished; the segments are kept in appdata until the recording is deleted.</p>` : ''));
+        }
         const se = status.sportEvents;
         if (se) {
             const stale = se.staleSinceMs ? this.duration(se.staleSinceMs / 1000) : 'fresh';

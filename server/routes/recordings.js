@@ -7,6 +7,9 @@ const { pipeline } = require('stream/promises');
 const { requireAuth } = require('../auth');
 const recordingEngine = require('../services/recordingEngine');
 const { recordings: recordingsDb } = require('../db/recordingsDb');
+const segments = require('../services/recordingSegments');
+const { buildMasterPlaylist } = require('../services/transcodeSession');
+const { withStreamToken } = require('./transcode');
 
 // NOTE: /:id/stream, /:id/media.mp4 and /:id/download are deliberately
 // registered BEFORE the requireAuth middleware. requireAuth reads only a
@@ -86,6 +89,10 @@ router.get('/:id/stream', async (req, res) => {
         if (!rec || !rec.file_path) {
             return res.status(404).json({ error: 'Recording file not found' });
         }
+        // R3: a segmented recording has no single file until its MP4 is made (watch it from the start instead).
+        if (rec.status === 'recording' && rec.work_dir) {
+            return res.status(409).json({ error: 'Recording is not finished yet' });
+        }
         try {
             await fsp.access(rec.file_path, fs.constants.F_OK);
         } catch (e) {
@@ -121,6 +128,51 @@ router.get('/:id/media.mp4', async (req, res) => {
         console.error('[Recordings] Native media error:', err.message);
         if (!res.headersSent) res.status(500).json({ error: err.message });
     }
+});
+
+// --- Watch from the start while recording (R3) -------------------------
+// A segmented recording in progress, as HLS: a one-variant master playlist (VIDEO-RANGE and
+// FRAME-RATE, so the Apple TV switches to HDR and 50 Hz), the media playlist of its fMP4 watch
+// copy, and that copy's files. Token on every URI (withStreamToken), names allow-listed, never a
+// path. 404 once the recording is finished: the client plays its MP4 from then on.
+
+function watchableRecording(req) {
+    const rec = recordingsDb.getById(parseInt(req.params.id));
+    return segments.isWatchable(rec) ? rec : null;
+}
+
+router.get('/:id/live/master.m3u8', async (req, res) => {
+    const rec = watchableRecording(req);
+    if (!rec) return res.status(404).json({ error: 'Not being recorded' });
+    const info = (await segments.probeVideoInfo(rec)) || { videoRange: 'SDR', fps: null, width: null, height: null };
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.send(withStreamToken(buildMasterPlaylist(info), req.query.token));
+});
+
+router.get('/:id/live/stream.m3u8', async (req, res) => {
+    const rec = watchableRecording(req);
+    if (!rec) return res.status(404).json({ error: 'Not being recorded' });
+    await segments.ensureView(rec); // after a restart the watch copy starts again here
+    const { text } = segments.viewPlaylist(rec.work_dir, { captureOver: rec.segment_state !== 'capturing' });
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.send(withStreamToken(text, req.query.token));
+});
+
+router.get('/:id/live/:epoch/:file', async (req, res) => {
+    const { epoch, file } = req.params;
+    if (!/^e\d{1,4}$/.test(epoch) || !/^(init\.mp4|v\d{6,}\.m4s)$/.test(file)) {
+        return res.status(404).json({ error: 'Invalid segment' });
+    }
+    const rec = watchableRecording(req);
+    if (!rec) return res.status(404).json({ error: 'Not being recorded' });
+    const filePath = path.join(rec.work_dir, epoch, file);
+    try { await fsp.access(filePath, fs.constants.F_OK); } catch (e) { return res.status(404).json({ error: 'Segment not found' }); }
+    // As the live routes serve them (proven on the Apple TV); see blueprint §3 "HLS file names".
+    res.setHeader('Content-Type', 'video/MP2T');
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // a written segment never changes
+    res.sendFile(filePath, { dotfiles: 'allow' });
 });
 
 // Download a recording
@@ -317,6 +369,46 @@ router.get('/:id/playback', async (req, res) => {
     } catch (err) {
         console.error('[Recordings] Playback resolve error:', err.message);
         res.status(500).json({ error: err.message });
+    }
+});
+
+// R3: how to watch a recording from the start while it is still being recorded. 200 with the
+// master playlist's URL once the first piece of the watch copy exists; 202 while it is being
+// made (ask again); 409 when this recording cannot be watched this way (not segmented, or
+// finished: play it with /:id/playback).
+router.get('/:id/watch', async (req, res) => {
+    try {
+        const rec = recordingsDb.getById(parseInt(req.params.id));
+        if (!rec) return res.status(404).json({ error: 'Recording not found' });
+        if (!segments.isWatchable(rec)) {
+            return res.status(409).json({
+                error: rec.status === 'completed' ? 'Recording is finished: play it instead' : 'This recording cannot be watched while it records',
+                finished: rec.status === 'completed'
+            });
+        }
+        await segments.ensureView(rec);
+        const deadline = Date.now() + 4000;
+        let view = segments.viewPlaylist(rec.work_dir);
+        while (view.segments === 0 && Date.now() < deadline) {
+            await new Promise(r => setTimeout(r, 250));
+            view = segments.viewPlaylist(rec.work_dir);
+        }
+        if (view.segments === 0) {
+            res.set('Retry-After', '2');
+            return res.status(202).json({ status: 'preparing', retryAfterSec: 2 });
+        }
+        const info = (await segments.probeVideoInfo(rec)) || {};
+        res.json({
+            url: `/api/recordings/${rec.id}/live/master.m3u8`,
+            container: 'hls',
+            recording: rec.segment_state === 'capturing',
+            videoRange: info.videoRange || 'SDR',
+            fps: info.fps || null,
+            durationSec: Math.round(segments.recordedSeconds(rec.work_dir))
+        });
+    } catch (err) {
+        console.error('[Recordings] Watch error:', err.message);
+        res.status(500).json({ error: 'Could not start watching this recording' });
     }
 });
 

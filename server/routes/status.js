@@ -293,6 +293,9 @@ router.get('/', async (req, res) => {
             sportEvents: require('../services/sportsEvents').status(),
             // R16: the recording preparation queue (0193), and the server's own event-loop lateness.
             preparation: preparationQueue(),
+            // R3: segmented recordings' appdata folder and what is still in it (being recorded, being
+            // finished, waiting for the recordings folder, or failed with its segments kept).
+            segmentedRecordings: (() => { try { return { enabled: settings.segmentedRecordings === true, ...require('../services/recordingSegments').status() }; } catch (e) { return null; } })(),
             loopDelay: require('../services/loopDelay').summary(),
             sync: await syncStatus(),
             // Plan B1 (0216): catch-up as each provider flags it (tv_archive), from the last raw fetch.

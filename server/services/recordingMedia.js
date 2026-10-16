@@ -620,6 +620,6 @@ module.exports = {
     fileSizeOf, getFreeSpaceGB, compressionTargetPath, nativePlaybackTargetPath, preparedTargetPath,
     probeCodecs, probeDuration, buildNativeRemuxArgs, runFfmpegCollectingTail, nativeTools, verifiedNativeFiles,
     ensureNativePlayback, pollNativePlayback, startNativePlayback, startNativePlaybackAndWait,
-    prepareRecording, processNativeQueue, nativeQueueStatus,
+    prepareRecording, processNativeQueue, nativeQueueStatus, checkPrepared,
     NATIVE_VERSION, _setPrepareQueue, isPrepareQueueOn: () => prepareQueueOn
 };

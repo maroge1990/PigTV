@@ -16,4 +16,26 @@ function formatLocalStamp(date) {
         `${pad(d.getHours())}-${pad(d.getMinutes())}`;
 }
 
-module.exports = { formatLocalStamp };
+/** A title or channel name made safe as one path segment. */
+function sanitizeForFs(str) {
+    return String(str || 'Untitled')
+        .replace(/[\\/:*?"<>|]/g, '_')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 150) || 'Untitled';
+}
+
+/** `dir/baseName.ext`, or `dir/baseName (2).ext` and so on when that is taken. */
+function uniqueFilePath(dir, baseName, ext) {
+    const fs = require('fs');
+    const path = require('path');
+    let candidate = path.join(dir, `${baseName}${ext}`);
+    let n = 2;
+    while (fs.existsSync(candidate)) {
+        candidate = path.join(dir, `${baseName} (${n})${ext}`);
+        n++;
+    }
+    return candidate;
+}
+
+module.exports = { formatLocalStamp, sanitizeForFs, uniqueFilePath };

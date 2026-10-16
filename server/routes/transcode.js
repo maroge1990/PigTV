@@ -223,3 +223,5 @@ router.withStreamToken = withStreamToken;
 
 module.exports = router;
 
+
+module.exports.withStreamToken = withStreamToken; // R3: the recordings watch routes carry the token the same way
