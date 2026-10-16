@@ -42,6 +42,7 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 | `warming` | R12 (0198) | `POST /api/playback/warm`; `warmingEnabled` beside `features` says whether the admin switched it on | Warms the likely next channel when both are true |
 | `recordingPositions` | 0207 | `GET/PUT /api/recordings/:id/position`; recording rows carry `position_sec`, `watched` | Per-login resume |
 | `recordingWatchLive` | 0218 | `GET /api/recordings/:id/watch`; recording rows carry `watch_live` (C-L) | "Watch from start" on a recording in progress |
+| `recordingRules` | 0219 | `/api/recordings/rules` (C-M); `recordings/scheduled` rows carry `rule_id` | "Record every game" / "Record series", rules in Recordings |
 
 Never sent since 0204 (the tuner model was removed): `timeshift`, `recordingHls`. The client still decodes them as absent.
 
@@ -91,9 +92,10 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 | C-J Provider on resolve | `providers` | 0174 | 36 |
 | C-K Licence reminders | `providerReminders` | 0168 | 36 |
 | C-L Watch a recording from the start while it records | `recordingWatchLive` | 0218 (R3) | 44 |
+| C-M Recording rules | `recordingRules` | 0219 (R5) | 45 |
 
 C-A to C-K are implemented on both sides and verified on devices (results in `docs/archive/TEST-BLOCK-2026-10-13.md`). C-L
-is not verified yet.
+onwards are not verified yet.
 
 ### C-A. Channel numbers. Flag: `channelNumbers`
 
@@ -209,6 +211,26 @@ unchanged, including every recording made before or with the switch off.
   the recording appears as `#EXT-X-DISCONTINUITY` with a new `EXT-X-MAP`. Every URI carries `?token=`.
 - Once the recording is finished its playlists answer 404: the client then plays the finished recording (`/:id/playback`),
   at the same position.
+
+### C-M. Recording rules. Flag: `recordingRules`
+
+A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in user or paired device.
+- `GET /api/recordings/rules` → `[ {id, kind: "sport"|"series", match, sourceId, channelId, stableId, channelName,
+  preBufferMin, postBufferMin, newOnly, enabled, createdAt, upcoming} ]` (`upcoming`: its schedules not yet finished;
+  null buffers = the server's defaults).
+- `POST /api/recordings/rules` `{kind, match, sourceId?, channelId?, channelName?, preBufferMin?, postBufferMin?, newOnly?}`
+  → 201 the rule plus `scheduled` (how many it scheduled at once); 200 with the existing rule when the same one exists;
+  400 `{error}` when invalid.
+  - `sport`: `match` is a follow keyword (a team, `"NFL: Kansas City Chiefs"`; a league, `"AFL"`; any word). Every Sport
+    event (C-I) it follows in the next 72 h, never a replay, on the event's best channel.
+  - `series`: `match` is the programme title, on the channel `sourceId` + `channelId` (bare or composite id). Every airing
+    in the guide (7 days); `newOnly` skips airings the guide flags as previously shown. Episodes are told apart by the
+    guide's episode number or subtitle.
+- `PUT /api/recordings/rules/:id` `{enabled?, newOnly?, preBufferMin?, postBufferMin?}` → the rule; 404 unknown.
+- `DELETE /api/recordings/rules/:id` → `{success, cancelled}`: its schedules that have not started are cancelled; one
+  recording now, and everything recorded, stays.
+- `recordings/scheduled` rows carry `rule_id` (null for a one-off). A schedule the viewer cancels is never made again by a
+  rule, even when the guide moves its time. Two rules never record the same programme twice.
 
 ---
 

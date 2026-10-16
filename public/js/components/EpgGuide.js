@@ -913,6 +913,7 @@ class EpgGuide {
 
         footer.innerHTML = `
       ${canRecord ? '<button class="btn btn-primary" id="modal-record">Record</button>' : ''}
+      ${canRecord ? '<button class="btn btn-secondary" id="modal-record-series">Record series</button>' : ''}
       <button class="btn btn-secondary" id="modal-close">Close</button>
     `;
 
@@ -926,6 +927,20 @@ class EpgGuide {
                 const preBufferMin = parseInt(document.getElementById('record-pre-buffer').value, 10) || 0;
                 const postBufferMin = parseInt(document.getElementById('record-post-buffer').value, 10) || 0;
                 await this.scheduleRecording({ ...data, preBufferMin, postBufferMin });
+                close();
+            };
+            // R5: every airing of this title on this channel.
+            document.getElementById('modal-record-series').onclick = async () => {
+                const preBufferMin = parseInt(document.getElementById('record-pre-buffer').value, 10) || 0;
+                const postBufferMin = parseInt(document.getElementById('record-post-buffer').value, 10) || 0;
+                try {
+                    const rule = await API.recordings.addRule({ kind: 'series', match: data.title, sourceId: parseInt(data.sourceId, 10),
+                        channelId: data.channelId, channelName: data.channelName, preBufferMin, postBufferMin });
+                    const msg = `Series rule added: ${data.title} (${rule.scheduled || 0} scheduled)`;
+                    if (window.app?.showToast) window.app.showToast(msg); else alert(msg);
+                } catch (err) {
+                    alert(`Could not add the series rule: ${err.message}`);
+                }
                 close();
             };
         }

@@ -348,6 +348,19 @@
             <div class="loading-state">Loading...</div>
           </div>
         </div>
+        <!-- R5: recording rules -->
+        <div class="recordings-section">
+          <h3>Recording rules</h3>
+          <form id="rule-add-form" class="rule-add-form">
+            <label for="rule-add-match">Record every game of a team or league</label>
+            <input type="text" id="rule-add-match" maxlength="120" placeholder="Collingwood, AFL, NFL: Kansas City Chiefs">
+            <button type="submit" class="btn btn-sm btn-primary">Add rule</button>
+            <span id="rule-add-status" class="setting-hint" role="status"></span>
+          </form>
+          <p class="setting-hint">Live games only, never replays, on the best channel showing them. To record a series, open a
+            programme in the TV Guide and choose Record series.</p>
+          <div id="recording-rules-list" class="scheduled-recordings-list"></div>
+        </div>
         <!-- 0156: missed/failed schedules from the last 7 days, only shown when there are any -->
         <div id="recent-problems-section" class="recordings-section" hidden>
           <h3>Recent problems</h3>

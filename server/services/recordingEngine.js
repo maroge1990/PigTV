@@ -1427,6 +1427,8 @@ async function tick() {
         // R3: segmented recordings whose capture is over get their MP4 (and wait for the share).
         segments.processQueue().catch(err =>
             console.error('[Recordings] Finishing queue error:', err.message));
+        // R5: recording rules, every 15 minutes (and after each guide sync).
+        try { require('./recordingRules').evaluateIfDue()?.catch(() => {}); } catch (e) { /* best-effort */ }
     } catch (err) {
         console.error('[Recordings] Scheduler tick failed:', err);
     } finally {

@@ -1034,7 +1034,9 @@ module.exports = {
     // 0147
     categoryCounts, epgGenerations, CATEGORY_LIMIT,
     // 0148
-    classify, compileFollow, normaliseTitle, qualityFromName, leagueFromCategories,
+    classify, compileFollow, followedKeyword, normaliseTitle, qualityFromName, leagueFromCategories,
+    // R5: recording rules match events the way the follow list does, and find a series' channel
+    visibleChannels,
     getFollow, setFollow, cleanFollow, eventsFor, buildEvents, clampHours, stats, eventsResponse,
     // for tests: what the response cache holds, and an empty one
     responseCacheSize: () => ({ entries: responses.size, bytes: responseBytes }),

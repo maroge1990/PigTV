@@ -16,6 +16,19 @@ const activeSyncs = new Set(); // sourceId
 // 0147: a programme's XMLTV <category> values as stored in epg_programs.categories:
 // a JSON array of the provider's strings, trimmed and de-duplicated (case aside),
 // at most 12 of up to 100 characters; NULL when there are none.
+/**
+ * R5: what else the guide says about a programme, kept in epg_programs.data as JSON - `sub` (its
+ * <sub-title>) and `ep` (its <episode-num>) - for series rules to tell episodes apart. NULL when
+ * it has neither, so a guide without them costs nothing.
+ */
+function programmeData(p) {
+    const clip = (v) => (typeof v === 'string' && v.trim() ? v.replace(/\s+/g, ' ').trim().slice(0, 200) : null);
+    const out = {};
+    if (clip(p.subtitle)) out.sub = clip(p.subtitle);
+    if (clip(p.episodeNum)) out.ep = clip(p.episodeNum);
+    return Object.keys(out).length ? JSON.stringify(out) : null;
+}
+
 function categoriesJson(list) {
     if (!Array.isArray(list) || !list.length) return null;
     const seen = new Set();
@@ -813,8 +826,8 @@ class SyncService {
         await this.purgeEpgRows(sourceId, '<>', activeGen);
 
         const programmeStmt = db.prepare(`
-            INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, description, gen, categories, flags)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, description, gen, categories, flags, data)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         const insertProgrammes = db.transaction((progs) => {
@@ -828,7 +841,8 @@ class SyncService {
                     p.description || p.desc,
                     newGen,
                     categoriesJson(p.category),
-                    p.flags || null // 0152: <previously-shown/>, <premiere/>, <new/>, <live/> (epgParser.PROGRAMME_FLAGS)
+                    p.flags || null, // 0152: <previously-shown/>, <premiere/>, <new/>, <live/> (epgParser.PROGRAMME_FLAGS)
+                    programmeData(p) // R5: subtitle and episode number
                 );
             }
         });
@@ -889,6 +903,8 @@ class SyncService {
             try { require('./sportsEvents').scheduleRebuild(); } catch (e) { /* best-effort */ }
             // R4: a recording's end follows the guide that just landed.
             try { require('./recordingEngine').followGuide(); } catch (e) { /* best-effort */ }
+            // R5: recording rules act on the guide that just landed.
+            try { require('./recordingRules').evaluate().catch(() => {}); } catch (e) { /* best-effort */ }
             // 0161: an EPG sync landing is also one of the three fixture-refresh triggers
             // (services/sportsFixtures.js) - a newly-synced guide may sport-recognise a league
             // for the first time, and its fixtures should not wait up to 30 minutes for it.
@@ -1060,3 +1076,4 @@ class SyncService {
 
 module.exports = new SyncService();
 module.exports.epgCoverageLine = epgCoverageLine; // 0153, for tests
+module.exports.programmeData = programmeData; // R5, for tests

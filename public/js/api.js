@@ -258,6 +258,11 @@ const API = {
         setPosition: (id, positionSec, watched) => API.request('PUT', `/recordings/${id}/position`,
             watched === undefined ? { position_sec: positionSec } : { position_sec: positionSec, watched }),
         getAll: () => API.request('GET', '/recordings'),
+        // R5: recording rules ("record my team", "record this series").
+        getRules: () => API.request('GET', '/recordings/rules'),
+        addRule: (rule) => API.request('POST', '/recordings/rules', rule),
+        updateRule: (id, patch) => API.request('PUT', `/recordings/rules/${id}`, patch),
+        deleteRule: (id) => API.request('DELETE', `/recordings/rules/${id}`),
         delete: (id) => API.request('DELETE', `/recordings/${id}`),
         streamUrl: (id) => API.withStreamToken(`/api/recordings/${id}/stream`),
         downloadUrl: (id) => API.withStreamToken(`/api/recordings/${id}/download`)

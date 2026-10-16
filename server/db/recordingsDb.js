@@ -139,6 +139,37 @@ function initSchema() {
         db.exec('ALTER TABLE scheduled_recordings ADD COLUMN program_end_original INTEGER');
     } catch (e) { /* already present */ }
 
+    // R5: recording rules. A rule makes schedules (scheduled_recordings.rule_id says which); each
+    // airing or event it has acted on is a hit, kept even when its schedule is cancelled, so a
+    // cancelled one is never made again. services/recordingRules.js.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS recording_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kind TEXT NOT NULL,            -- 'sport' (a team, league or word, as the follow list) | 'series' (a title on one channel)
+            match TEXT NOT NULL,
+            source_id INTEGER,             -- series: the channel
+            channel_item_id TEXT,
+            channel_stable_id TEXT,
+            channel_name TEXT,
+            pre_buffer_min INTEGER,        -- NULL: the Settings default
+            post_buffer_min INTEGER,
+            new_only INTEGER NOT NULL DEFAULT 0,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            created_by INTEGER,
+            created_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS recording_rule_hits (
+            rule_id INTEGER NOT NULL,
+            identity TEXT NOT NULL,
+            schedule_id INTEGER,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY (rule_id, identity)
+        );
+    `);
+    try {
+        db.exec('ALTER TABLE scheduled_recordings ADD COLUMN rule_id INTEGER');
+    } catch (e) { /* already present */ }
+
     // Pending schedules only: a completed or cancelled one never resolves again,
     // and rewriting history would be dishonest about what was recorded.
     try {

@@ -493,6 +493,60 @@ router.post('/:id/compress', async (req, res) => {
     }
 });
 
+// --- Recording rules (R5) ------------------------------------------------
+// Any signed-in user, as scheduling is. A rule makes ordinary schedules (rule_id on the row).
+
+router.get('/rules', (req, res) => {
+    try {
+        res.json(require('../services/recordingRules').list());
+    } catch (err) {
+        console.error('[Rules] list failed:', err.message);
+        res.status(500).json({ error: 'Could not list the recording rules' });
+    }
+});
+
+router.post('/rules', async (req, res) => {
+    try {
+        const rules = require('../services/recordingRules');
+        const result = rules.create(req.body || {}, req.user?.id ?? null);
+        if (result.error) return res.status(400).json({ error: result.error });
+        // Acted on at once, so the answer can say what it scheduled.
+        const made = await rules.evaluate();
+        res.status(result.existing ? 200 : 201).json({
+            ...rules.get(result.rule.id),
+            scheduled: made.filter(m => m.ruleId === result.rule.id).length
+        });
+    } catch (err) {
+        console.error('[Rules] create failed:', err.message);
+        res.status(500).json({ error: 'Could not add the recording rule' });
+    }
+});
+
+router.put('/rules/:ruleId', async (req, res) => {
+    try {
+        const rules = require('../services/recordingRules');
+        const result = rules.update(parseInt(req.params.ruleId, 10), req.body || {});
+        if (!result) return res.status(404).json({ error: 'Rule not found' });
+        if (result.error) return res.status(400).json({ error: result.error });
+        if (result.rule.enabled) await rules.evaluate();
+        res.json(rules.get(result.rule.id));
+    } catch (err) {
+        console.error('[Rules] update failed:', err.message);
+        res.status(500).json({ error: 'Could not change the recording rule' });
+    }
+});
+
+router.delete('/rules/:ruleId', (req, res) => {
+    try {
+        const result = require('../services/recordingRules').remove(parseInt(req.params.ruleId, 10));
+        if (!result) return res.status(404).json({ error: 'Rule not found' });
+        res.json({ success: true, cancelled: result.cancelled });
+    } catch (err) {
+        console.error('[Rules] delete failed:', err.message);
+        res.status(500).json({ error: 'Could not delete the recording rule' });
+    }
+});
+
 // Delete a recording (stops it first if still in progress) and its file
 router.delete('/:id', async (req, res) => {
     try {

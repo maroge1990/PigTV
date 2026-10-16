@@ -95,7 +95,10 @@ async function sendInfo(req, res) {
             warming: true,
             // R3: GET /api/recordings/:id/watch exists, and /api/recordings rows carry `watch_live`
             // (true while a segmented recording in progress can be played from the start).
-            recordingWatchLive: true
+            recordingWatchLive: true,
+            // R5: GET/POST/PUT/DELETE /api/recordings/rules ("record my team", "record this series");
+            // scheduled rows carry `rule_id`.
+            recordingRules: true
         },
 
         // R12: whether the admin has switched channel warming on (the warmNextChannel setting).

@@ -4508,3 +4508,14 @@ kbd {
 .status-metrics { display: flex; flex-wrap: wrap; gap: var(--space-md); margin: 0 0 var(--space-sm); }
 .status-metric { color: var(--color-text-secondary); font-size: 0.9rem; }
 .status-metric b { color: var(--color-text-primary); font-weight: 600; }
+
+/* R5: the "record a team or league" box on the Recordings page */
+.rule-add-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin-bottom: 8px;
+}
+.rule-add-form label { width: 100%; }
+.rule-add-form input { flex: 1 1 260px; min-width: 0; }

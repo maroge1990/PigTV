@@ -152,3 +152,40 @@ test('0207: the Recordings page scrolls like Home (the .page clip would hide the
     const css = fs.readFileSync(path.join(__dirname, '../public/css/main.css'), 'utf8');
     assert.match(css, /#page-home,\s*#page-recordings\s*\{[^}]*overflow-y:\s*auto/);
 });
+
+// R5: the Recording rules section: listed with on/off and delete, and a sport rule added from the box.
+test('R5: rules are listed with their state, and the box adds a sport rule then refreshes', async () => {
+    const elements = makeElements();
+    elements['recording-rules-list'] = { innerHTML: '', querySelectorAll: () => [] };
+    elements['rule-add-match'] = { value: '  Collingwood ' };
+    elements['rule-add-status'] = { textContent: '' };
+    const bodies = [];
+    const context = vm.createContext({
+        console, localStorage: { getItem: () => 'tok' },
+        document: { getElementById: (id) => elements[id] || null, createElement: fakeElement },
+        fetch: async (url, opts = {}) => {
+            if (opts.method === 'POST') bodies.push(JSON.parse(opts.body));
+            if (String(url).endsWith('/recordings/rules') && opts.method === 'POST') return jsonResponse({ id: 3, scheduled: 2 });
+            return jsonResponse([]);
+        }
+    });
+    context.window = context;
+    vm.runInContext(js('api.js'), context);
+    vm.runInContext(js('pages/RecordingsPage.js'), context);
+    const page = new context.RecordingsPage({});
+    page.renderRules([
+        { id: 1, kind: 'sport', match: 'AFL', enabled: true, upcoming: 2 },
+        { id: 2, kind: 'series', match: 'Gardening <Australia>', channelName: 'ABC', newOnly: true, enabled: false, upcoming: 0 }
+    ]);
+    const html = elements['recording-rules-list'].innerHTML;
+    assert.match(html, /Every game: AFL/);
+    assert.match(html, /2 recordings scheduled/);
+    assert.match(html, /Series: Gardening &lt;Australia&gt; on ABC \(new episodes only\)/, 'escaped');
+    assert.match(html, /data-action="toggle-rule" data-id="2" data-enabled="false"[^>]*>Turn on/);
+    assert.match(html, /data-action="delete-rule" data-id="1"/);
+
+    await page.addSportRule();
+    assert.deepEqual(bodies[0], { kind: 'sport', match: 'Collingwood' });
+    assert.equal(elements['rule-add-match'].value, '');
+    assert.equal(elements['rule-add-status'].textContent, 'Added: 2 games scheduled');
+});

@@ -10,11 +10,14 @@ class RecordingsPage {
         this.recordingsList = document.getElementById('recordings-list');
         this.recentProblemsSection = document.getElementById('recent-problems-section');
         this.recentProblemsList = document.getElementById('recent-problems-list');
+        this.rulesList = document.getElementById('recording-rules-list'); // R5
         this._refreshTimer = null;
         this.init();
     }
 
     init() {
+        const form = document.getElementById('rule-add-form');
+        if (form) form.addEventListener('submit', (e) => { e.preventDefault(); this.addSportRule(); });
     }
 
     async show() {
@@ -32,7 +35,85 @@ class RecordingsPage {
     }
 
     async refresh() {
-        await Promise.all([this.loadScheduled(), this.loadRecordings()]);
+        await Promise.all([this.loadScheduled(), this.loadRecordings(), this.loadRules()]);
+    }
+
+    // ---- R5: recording rules -------------------------------------------------
+
+    async loadRules() {
+        if (!this.rulesList) return;
+        try {
+            this.renderRules(await API.recordings.getRules());
+        } catch (err) {
+            console.error('Failed to load recording rules:', err);
+            this.rulesList.innerHTML = '<div class="empty-state"><p>Failed to load the recording rules</p></div>';
+        }
+    }
+
+    renderRules(rules) {
+        if (!rules || rules.length === 0) {
+            this.rulesList.innerHTML = '<p class="setting-hint">No rules yet.</p>';
+            return;
+        }
+        this.rulesList.innerHTML = rules.map(rule => {
+            const what = rule.kind === 'series'
+                ? `Series: ${this.escape(rule.match)} on ${this.escape(rule.channelName || 'its channel')}${rule.newOnly ? ' (new episodes only)' : ''}`
+                : `Every game: ${this.escape(rule.match)}`;
+            const upcoming = rule.upcoming === 1 ? '1 recording scheduled' : `${rule.upcoming} recordings scheduled`;
+            return `
+            <div class="recording-item" data-rule-id="${rule.id}">
+                <div class="recording-info">
+                    <div class="recording-title">${what}</div>
+                    <div class="recording-meta">${rule.enabled ? upcoming : 'Off'}</div>
+                </div>
+                <div class="recording-actions">
+                    <button class="btn btn-sm btn-secondary" data-action="toggle-rule" data-id="${rule.id}" data-enabled="${rule.enabled}"
+                        aria-pressed="${rule.enabled}">${rule.enabled ? 'Turn off' : 'Turn on'}</button>
+                    <button class="btn btn-sm btn-secondary" data-action="delete-rule" data-id="${rule.id}">Delete</button>
+                </div>
+            </div>`;
+        }).join('');
+        this.rulesList.querySelectorAll('[data-action="toggle-rule"]').forEach(btn => {
+            btn.addEventListener('click', () => this.toggleRule(btn.dataset.id, btn.dataset.enabled !== 'true'));
+        });
+        this.rulesList.querySelectorAll('[data-action="delete-rule"]').forEach(btn => {
+            btn.addEventListener('click', () => this.deleteRule(btn.dataset.id));
+        });
+    }
+
+    async addSportRule() {
+        const input = document.getElementById('rule-add-match');
+        const status = document.getElementById('rule-add-status');
+        const match = (input?.value || '').trim();
+        if (!match) return;
+        if (status) status.textContent = 'Adding…';
+        try {
+            const rule = await API.recordings.addRule({ kind: 'sport', match });
+            if (input) input.value = '';
+            if (status) status.textContent = rule.scheduled === 1 ? 'Added: 1 game scheduled' : `Added: ${rule.scheduled || 0} games scheduled`;
+            await this.refresh();
+        } catch (err) {
+            if (status) status.textContent = 'Not added: ' + err.message;
+        }
+    }
+
+    async toggleRule(id, enabled) {
+        try {
+            await API.recordings.updateRule(id, { enabled });
+            await this.refresh();
+        } catch (err) {
+            alert('Could not change the rule: ' + err.message);
+        }
+    }
+
+    async deleteRule(id) {
+        if (!confirm('Delete this rule? Its recordings that have not started are cancelled; anything recorded is kept.')) return;
+        try {
+            await API.recordings.deleteRule(id);
+            await this.refresh();
+        } catch (err) {
+            alert('Could not delete the rule: ' + err.message);
+        }
     }
 
     async loadScheduled() {
