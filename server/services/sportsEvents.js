@@ -368,6 +368,8 @@ function buildEvents({ from, follow: keywords, decorateChannels } = {}) {
 
     const tvgIds = [...new Set(channels.map(ch => ch.tvgId).filter(Boolean))];
     const progs = programmesFor(db, tvgIds, from, from + WINDOW_MS);
+    // R9: an event slot whose name announces a game its guide does not show (eventChannels.js).
+    progs.push(...require('./eventChannels').syntheticProgrammes(channels, progs, from - LOOKBACK_MS, from + WINDOW_MS, from));
     // 0161: ESPN's real kickoff/session times, for whichever leagues currently matter
     // (sportsFixtures.neededLeagues() - the follow list, or a marked sport category's own name;
     // never a scan of this build's own programmes, so this stays cheap even before any of them

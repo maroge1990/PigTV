@@ -167,6 +167,8 @@ work is in `blueprint.md` §3 "Sport events"; the shape the client relies on:
   - `channels`: best first (quality, health ok, favourite, guide order). `channels[0]` plays through the ordinary resolve.
   - `title` is the cleanest form ("Carlton Blues v Richmond Tigers", "Azerbaijan GP · Practice 3"); `aliases` are the raw
     guide titles merged into it.
+  - Since 0221 (R9) an event can also come from an event slot's own **name** ("NHL: Pittsburgh vs Philadelphia @ Sep 30
+    7:30 PM :Sportsnet+ 12") where the slot's guide shows nothing real; same shape, nothing for the client to change.
 - Admin (web only): `GET/PUT /api/sports/follow` (`{keywords}`, ≤100), `GET /api/sports/preview` (72 h, every kind, with
   the rule and `kindRule`), `GET /api/sports/categories`.
 - Apple: a Sport tab (On now, Starting soon, Later today, Tomorrow, one section per later weekday, Replays) with league
