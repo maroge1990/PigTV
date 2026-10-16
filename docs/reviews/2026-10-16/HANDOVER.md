@@ -6,14 +6,14 @@ For the next agent session. Read `AGENTS.md`, then `blueprint.md` (state line, �
 ## Workflow (changed today)
 
 **Commit to `main`, never push.** Mark reviews and pushes. This is in both repos' `AGENTS.md`. Every functional server
-commit bumps `server/version.js` and blueprint §1 "Next build number" (now **0223**); every Swift app change runs
+commit bumps `server/version.js` and blueprint §1 "Next build number" (now **0226**); every Swift app change runs
 `sh Tools/bump-build.sh` (now **46**). Tests that fail on the old code come with each change.
 
 ## What is committed and waiting for Mark to push
 
 | Repo | Commits | Contents |
 |---|---|---|
-| PigTV | `bf6bd6a`…`HEAD` (`git log origin/main..main`) | 0208–0217 (Waves 1–3, see ROADMAP) · **Wave 4:** 0218 R3 segmented recordings (off by default) · 0219 R5 recording rules · 0220 R6 artwork · 0221 R9 events from event-slot names · 0222 R10 EPG auto-map · test and docs commits |
+| PigTV | `bf6bd6a`…`HEAD` (`git log origin/main..main`) | 0208–0217 (Waves 1–3, see ROADMAP) · **Wave 4:** 0218 R3 segmented recordings (off by default) · 0219 R5 recording rules · 0220 R6 artwork · 0221 R9 events from event-slot names · 0222 R10 EPG auto-map · **Wave 5:** design note, 0223–0225 shared ingest phases 5a/5b (off by default) · test and docs commits |
 | PigTV-Swift | `3eff8cd`…`f8b98e4` | build 42 (Wave 1) · 43 (tvOS icon) · **44** watch from start (C-L) · **45** rules and artwork (C-M, C-N) |
 | Pig-Branding | `f84d8cd` | kit 1.7.1: PigTV Apple TV icon option B |
 
@@ -32,15 +32,20 @@ Nothing is device-verified.
 - **iPhone tuning hang (bug 8):** the server log from when it happens (`streamCoordinator.js` `recordingsInPool`).
 - Open decisions: web break markers on the scrub bar (keep?), backup retention 7 vs 14.
 
-## Next: Wave 5, shared ingest (a separate project)
+## Next: Wave 5 continues
 
-Wave 4 is done in code. Wave 5 (R2 shared ingest, then R7 inside it, then B4 retirements on evidence) starts with a
-**written design note** (the 15 Oct review's corrections 3–5: identity, byte-capped buffers, slow consumers, late joins,
-failover) and the full capture/bench pass on all five samples, which needs server access. Don't start it before Mark has
-pushed and checked Waves 1–4 on devices.
+Phases 5a/5b are in (design: `docs/SHARED-INGEST.md`, §8 has the status). Next, in order and only on evidence:
+1. Mark runs `stream-doctor bench --via-ingest` on the five reference samples on the server (ROADMAP "Wave 5 checks"); any
+   DIFFERENT result is investigated before anything else.
+2. Mark's device test with the switch on (same checklist).
+3. **5c (R7):** health from the ingest's byte rate and reconnect-or-switch inside it, with the relay's compatibility check
+   kept. Its thresholds come from the real rates the Status page and logs now show; don't guess them.
+4. Relay legs, standbys and warm channels onto the ingest; then **B4** retirements one per commit, after a week on.
 
 ## Gotchas met today
 
+- The server suite's timing tests and speed budgets fail when the Mac is busy with other work (load 40–70 on 17 Oct):
+  rerun the failures alone, and use `PIGTV_SKIP_PERF=1` (CI's gate) for the full run.
 - Don't run the server suite and the Swift UI tier at the same time: under that load the guide-grid UI tests fail and a
   real-ffmpeg test once hung (fixed in `bee5ff4`). Run them one after the other.
 

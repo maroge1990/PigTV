@@ -1,6 +1,6 @@
 # Shared ingest (Wave 5, Plan B3: R2 then R7): design
 
-16 October 2026. The design note the [16 Oct roadmap](reviews/2026-10-16/ROADMAP.md) asks for before Wave 5 code, answering
+16 October 2026 (status updated 17 October). The design note the [16 Oct roadmap](reviews/2026-10-16/ROADMAP.md) asks for before Wave 5 code, answering
 the [15 Oct review](reviews/2026-10-15/REVIEW.md)'s corrections 3–5. Native implementation of the idea in
 [`DISPATCHARR-REVIEW.md`](DISPATCHARR-REVIEW.md) §5 R2/R7 (Dispatcharr is AGPL: read, never copied).
 
@@ -105,3 +105,15 @@ ingest's buffer bytes, subscribers, byte rate and reconnects.
 - **The 38 s cut** still happens; the ingest only makes one reconnect serve everyone. The resend of old content remains
   ffmpeg's to rebase, as today.
 - **Production's ffmpeg 6.x vs 9.0**: the bench must run on the server.
+
+## 8. Status
+
+| Phase | Build | State |
+|---|---|---|
+| 5a ingest core, recordings | 0223, 0224 | Done, off by default. `stream-doctor bench --via-ingest` added (0224); its first run found two faults, fixed there. |
+| 5b sessions and the probe | 0225 | Done, off by default. Bench SAME on synthetic HEVC HDR10/50 fps/HE-AAC and H.264/AAC (ffmpeg 9.0). **Before Mark turns it on:** the bench on the five reference samples on the server (`docker exec PigTV node scripts/stream-doctor.js bench --via-ingest /app/data/samples/<sample>.ts`, each must say SAME), then his device test. |
+| 5c R7 inside the ingest | | Not started: waits for real byte rates (Status → Shared provider connections shows each ingest's kb/s and reconnects). |
+| B4 retirements | | Not started: a week with the switch on and the §6 evidence first. |
+
+Not on the ingest yet: relay legs and standbys, warm channels, direct plays (`/api/proxy/stream`). They keep their own
+connections, counted as today.

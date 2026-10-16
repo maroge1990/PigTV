@@ -228,5 +228,27 @@ Ingest changes (episode data, programme images) appear after the next EPG sync.
 Design note first (the review's corrections 3–5), capture/bench before and after, behind a Settings switch: recordings as
 the first consumer, then HLS sessions, then R7 failover inside the ingest. B4 retirement only on the evidence list.
 
+**Wave 5 progress (17 Oct, committed locally, not pushed):** the design note is
+[`docs/SHARED-INGEST.md`](../../SHARED-INGEST.md). **0223** phase 5a: the ingest (plain HTTP reader, MPEG-TS only, byte-
+and time-capped buffer, PAT join, eviction, reconnect then give up, linger) with recordings as its first consumer.
+**0224** `stream-doctor bench --via-ingest` (it found two faults on its first run, fixed). **0225** phase 5b: live plays
+and their probe read the ingest; the coordinator counts one connection per ingest, so watch + record and two devices on
+one channel share a connection. All behind Settings → Playback "Shared provider connection", off. Not started: 5c (R7,
+waits for real byte rates) and B4 (a week of evidence).
+
+### Wave 5 checks for Mark (after Wave 4's)
+
+1. With nothing playing, on the server: `docker exec PigTV node scripts/stream-doctor.js bench --via-ingest
+   /app/data/samples/<sample>.ts` for each of the five reference samples. Every one must end "the same output as reading
+   the URL". If any says DIFFERENT, stop and send the output.
+2. Settings → Playback → turn on **Shared provider connection**.
+3. Play an HDR channel on the Apple TV: Stream info, HDR and 50 Hz as before; the log's `resolve timing` line shows one
+   probe and the session on `pipe:0` (`[Ingest n] reading …`).
+4. Play the same channel on the iPhone at the same time: it plays, no "another device" question. Status → Shared provider
+   connections shows one ingest with two readers.
+5. While it plays, record it (Guide → Record): no "give up the stream" prompt; still one ingest (three readers).
+6. On the iPhone, try a different channel: the usual "another device is watching" question (one connection).
+7. Stop everything: within ~10 s Status shows no ingest. Then turn the switch off again until the test day is reviewed.
+
 **Rough total:** Waves 1–4 about 5 weeks of part-time sessions; Wave 5 about 3 more. The order puts everything Mark can
 see and feel first, and the playback-path rewrite last, behind evidence.
