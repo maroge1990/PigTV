@@ -43,6 +43,7 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 | `recordingPositions` | 0207 | `GET/PUT /api/recordings/:id/position`; recording rows carry `position_sec`, `watched` | Per-login resume |
 | `recordingWatchLive` | 0218 | `GET /api/recordings/:id/watch`; recording rows carry `watch_live` (C-L) | "Watch from start" on a recording in progress |
 | `recordingRules` | 0219 | `/api/recordings/rules` (C-M); `recordings/scheduled` rows carry `rule_id` | "Record every game" / "Record series", rules in Recordings |
+| `recordingArtwork` | 0220 | `recordings` and `recordings/scheduled` rows carry `image` (C-N) | Programme artwork on recording tiles |
 
 Never sent since 0204 (the tuner model was removed): `timeshift`, `recordingHls`. The client still decodes them as absent.
 
@@ -93,6 +94,7 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 | C-K Licence reminders | `providerReminders` | 0168 | 36 |
 | C-L Watch a recording from the start while it records | `recordingWatchLive` | 0218 (R3) | 44 |
 | C-M Recording rules | `recordingRules` | 0219 (R5) | 45 |
+| C-N Recording artwork | `recordingArtwork` | 0220 (R6) | 45 |
 
 C-A to C-K are implemented on both sides and verified on devices (results in `docs/archive/TEST-BLOCK-2026-10-13.md`). C-L
 onwards are not verified yet.
@@ -231,6 +233,14 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   recording now, and everything recorded, stays.
 - `recordings/scheduled` rows carry `rule_id` (null for a one-off). A schedule the viewer cancels is never made again by a
   rule, even when the guide moves its time. Two rules never record the same programme twice.
+
+### C-N. Recording artwork. Flag: `recordingArtwork`
+
+`/api/recordings` and `/api/recordings/scheduled` rows carry `image`: the programme's own image from the guide
+(XMLTV `<icon>`), as a logo-cache path `/api/logo/<key>` (fetch it like a `logo`, `?size=640` or `?size=full` for a
+larger copy), or null when the guide has none. Found when the schedule is made, so it appears for schedules made after
+a guide sync on 0220 or later. The image's own address is never listed. Apple: shown on recording tiles in place of
+the channel logo, filling the tile; the channel logo stays the fallback.
 
 ---
 

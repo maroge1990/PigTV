@@ -292,6 +292,39 @@ async function announceProviderFor(schedule, settings) {
     return freeCandidate(route, settings) >= 0 ? undefined : route.candidates[0].providerId;
 }
 
+/**
+ * R6: the programme's image as the guide gives it (epg_programs.data.img, kept since 0220's
+ * sync), found by the channel's guide id and the programme's start. Null when there is none.
+ */
+function programmeImage(sourceId, channelItemId, programStart) {
+    try {
+        const db = getDb();
+        const raw = String(channelItemId).replace(/^(?:m3u|xtream)_\d+_/, '');
+        const row = db.prepare(`SELECT item_id, stable_id, tvg_id, data FROM playlist_items
+            WHERE source_id = ? AND type = 'live' AND (item_id = ? OR stable_id = ?) LIMIT 1`).get(sourceId, raw, raw);
+        if (!row) return null;
+        let tvgId = row.tvg_id || null;
+        if (!tvgId) { try { const d = JSON.parse(row.data || '{}'); tvgId = d.tvgId || d.epg_channel_id || null; } catch (e) { tvgId = null; } }
+        tvgId = require('./epgMapping').effectiveTvgId(sourceId, row.stable_id, row.item_id, tvgId);
+        if (!tvgId) return null;
+        const prog = db.prepare(`SELECT data FROM epg_live WHERE channel_id = ? AND start_time BETWEEN ? AND ?
+            ORDER BY ABS(start_time - ?) LIMIT 1`).get(tvgId, programStart - 60000, programStart + 60000, programStart);
+        const img = prog && prog.data ? JSON.parse(prog.data).img : null;
+        return typeof img === 'string' && /^https?:\/\//i.test(img) ? img : null;
+    } catch (e) {
+        return null; // artwork never stops a schedule
+    }
+}
+
+/** R6: a row as the API lists it: `image` is /api/logo/<key> (never the URL itself), or null. */
+function withImage(row) {
+    if (!row) return row;
+    const { image_url: url, ...rest } = row;
+    let image = null;
+    try { image = url ? require('./logoCache').registerLogo(url) : null; } catch (e) { image = null; }
+    return { ...rest, image };
+}
+
 async function scheduleFromProgram({
     sourceId, channelItemId, channelName, channelLogo,
     title, description, programStart, programEnd,
@@ -311,7 +344,7 @@ async function scheduleFromProgram({
     const existing = scheduledDb.findByProgram(sourceId, String(channelItemId), programStart);
     if (existing) return existing;
 
-    return scheduledDb.create({
+    const created = scheduledDb.create({
         title: title || 'Untitled Program',
         description: description || null,
         source_id: sourceId,
@@ -328,6 +361,13 @@ async function scheduleFromProgram({
         created_by: createdBy || null,
         created_at: Date.now()
     });
+    // R6: the programme's artwork, when the guide has it.
+    const image = programmeImage(sourceId, channelItemId, programStart);
+    if (image) {
+        getDb().prepare('UPDATE scheduled_recordings SET image_url = ? WHERE id = ?').run(image, created.id);
+        return scheduledDb.getById(created.id);
+    }
+    return created;
 }
 
 const RECENT_PROBLEMS_MS = 7 * 24 * 60 * 60 * 1000; // how long a missed/failed schedule stays visible (0156)
@@ -339,9 +379,10 @@ const RECENT_PROBLEMS_MS = 7 * 24 * 60 * 60 * 1000; // how long a missed/failed 
  * route stays byte-for-byte compatible with what the Apple client already decodes.
  */
 function listScheduled({ includeRecent = false } = {}) {
-    const upcoming = scheduledDb.listUpcoming();
+    // R6 (additive): `image` in place of image_url, the only change to these rows.
+    const upcoming = scheduledDb.listUpcoming().map(withImage);
     if (!includeRecent) return upcoming;
-    const recent = scheduledDb.findRecentProblems(Date.now() - RECENT_PROBLEMS_MS);
+    const recent = scheduledDb.findRecentProblems(Date.now() - RECENT_PROBLEMS_MS).map(withImage);
     return [...upcoming, ...recent];
 }
 
@@ -426,7 +467,7 @@ function listRecordings(userId = null) {
     } catch (e) { /* no names: null */ }
     // 0207: this login's resume position and watched flag on every row (0 / false for none).
     const positions = userId === null || userId === undefined ? new Map() : recordingsDb.positionsFor(userId);
-    return rows.map(r => ({
+    return rows.map(withImage).map(r => ({
         ...r,
         // R3: an in-progress segmented recording can be played from the start (GET /:id/watch).
         watch_live: segments.isWatchable(r),
@@ -613,6 +654,7 @@ async function startPartLeased(schedule, route, index, part, { gapMs = 0, refuse
         provider_id: candidate.providerId ?? null,
         part
     });
+    if (schedule.image_url) recordingsDb.setSegmentFields(recording.id, { image_url: schedule.image_url }); // R6
 
     if (part === 1) {
         // A recording held back by a viewer starts late. Record how much of the
@@ -686,6 +728,7 @@ async function startSegmented(schedule, settings, route, index, { refuse, lease,
     });
     const workDir = segments.workDirFor(recording.id);
     recordingsDb.setSegmentFields(recording.id, {
+        image_url: schedule.image_url || null, // R6
         work_dir: workDir,
         file_path: path.join(workDir, 'recording.m3u8'),
         segment_state: 'capturing',

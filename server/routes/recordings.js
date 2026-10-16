@@ -237,7 +237,8 @@ router.post('/schedule', async (req, res) => {
 // contention, so it is deliberately cheap.
 router.get('/active', (req, res) => {
     try {
-        res.json(recordingEngine.listActive());
+        // R6: the artwork's address stays on the server (the other lists give /api/logo/<key>).
+        res.json(recordingEngine.listActive().map(({ image_url, ...row }) => row));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

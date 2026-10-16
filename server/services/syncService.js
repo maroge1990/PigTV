@@ -18,14 +18,16 @@ const activeSyncs = new Set(); // sourceId
 // at most 12 of up to 100 characters; NULL when there are none.
 /**
  * R5: what else the guide says about a programme, kept in epg_programs.data as JSON - `sub` (its
- * <sub-title>) and `ep` (its <episode-num>) - for series rules to tell episodes apart. NULL when
- * it has neither, so a guide without them costs nothing.
+ * <sub-title>) and `ep` (its <episode-num>) - for series rules to tell episodes apart, and (R6)
+ * `img`, its <icon>, for a recording's artwork. NULL when it has none of them.
  */
 function programmeData(p) {
     const clip = (v) => (typeof v === 'string' && v.trim() ? v.replace(/\s+/g, ' ').trim().slice(0, 200) : null);
     const out = {};
     if (clip(p.subtitle)) out.sub = clip(p.subtitle);
     if (clip(p.episodeNum)) out.ep = clip(p.episodeNum);
+    // R6: the programme's image (<icon src>), http(s) only; served through the logo cache, never as is.
+    if (typeof p.icon === 'string' && /^https?:\/\//i.test(p.icon.trim()) && p.icon.trim().length <= 500) out.img = p.icon.trim();
     return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 

@@ -156,7 +156,7 @@ class RecordingsPage {
 
         this.scheduledList.innerHTML = items.map(item => `
             <div class="recording-item" data-id="${item.id}">
-                <img class="recording-thumb" src="${this.proxiedLogo(item.channel_logo)}" alt=""
+                <img class="recording-thumb" src="${this.proxiedLogo(item.image || item.channel_logo)}" alt=""
                      onerror="this.onerror=null;this.src='/img/placeholder.png'">
                 <div class="recording-info">
                     <div class="recording-title">${this.escape(item.title)}</div>
@@ -188,7 +188,7 @@ class RecordingsPage {
         this.recentProblemsSection.hidden = false;
         this.recentProblemsList.innerHTML = items.map(item => `
             <div class="recording-item" data-id="${item.id}">
-                <img class="recording-thumb" src="${this.proxiedLogo(item.channel_logo)}" alt=""
+                <img class="recording-thumb" src="${this.proxiedLogo(item.image || item.channel_logo)}" alt=""
                      onerror="this.onerror=null;this.src='/img/placeholder.png'">
                 <div class="recording-info">
                     <div class="recording-title">${this.escape(item.title)}</div>
@@ -215,7 +215,7 @@ class RecordingsPage {
 
         this.recordingsList.innerHTML = items.map(item => `
             <div class="recording-item" data-id="${item.id}">
-                <img class="recording-thumb" src="${this.proxiedLogo(item.channel_logo)}" alt=""
+                <img class="recording-thumb" src="${this.proxiedLogo(item.image || item.channel_logo)}" alt=""
                      onerror="this.onerror=null;this.src='/img/placeholder.png'">
                 <div class="recording-info">
                     <div class="recording-title">${this.escape(item.title)}</div>

@@ -119,6 +119,8 @@ function initSchema() {
         'segment_name TEXT',
         'segment_folder TEXT',
         'segment_attempts INTEGER DEFAULT 0',
+        // R6: the programme's image from the guide (a URL; listed only as /api/logo/<key>).
+        'image_url TEXT',
     ]) {
         try {
             db.exec(`ALTER TABLE recordings ADD COLUMN ${col}`);
@@ -168,6 +170,10 @@ function initSchema() {
     `);
     try {
         db.exec('ALTER TABLE scheduled_recordings ADD COLUMN rule_id INTEGER');
+    } catch (e) { /* already present */ }
+    // R6: the programme's image from the guide, found when the schedule is made.
+    try {
+        db.exec('ALTER TABLE scheduled_recordings ADD COLUMN image_url TEXT');
     } catch (e) { /* already present */ }
 
     // Pending schedules only: a completed or cancelled one never resolves again,
@@ -559,7 +565,7 @@ const recordings = {
 
     /** R3: set any of a segmented recording's columns (names from a fixed list, never the caller's). */
     setSegmentFields(id, fields) {
-        const allowed = ['file_path', 'work_dir', 'segment_state', 'segment_name', 'segment_folder', 'segment_attempts',
+        const allowed = ['image_url', 'file_path', 'work_dir', 'segment_state', 'segment_name', 'segment_folder', 'segment_attempts',
             'status', 'ended_at', 'file_size_bytes', 'duration_sec', 'error'];
         const keys = Object.keys(fields).filter(k => allowed.includes(k));
         if (keys.length === 0) return;

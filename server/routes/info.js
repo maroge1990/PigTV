@@ -98,7 +98,10 @@ async function sendInfo(req, res) {
             recordingWatchLive: true,
             // R5: GET/POST/PUT/DELETE /api/recordings/rules ("record my team", "record this series");
             // scheduled rows carry `rule_id`.
-            recordingRules: true
+            recordingRules: true,
+            // R6: /api/recordings and /api/recordings/scheduled rows carry `image` (the programme's
+            // artwork from the guide, /api/logo/<key>, or null).
+            recordingArtwork: true
         },
 
         // R12: whether the admin has switched channel warming on (the warmNextChannel setting).
