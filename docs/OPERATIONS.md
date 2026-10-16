@@ -73,6 +73,12 @@ Writes an application-consistent copy (SQLite online backup, safe while the serv
 `data/auth-secret` and the container settings too, and copy `backups/` off the box (a same-disk copy does not survive
 the disk).
 
+**Segmented recordings (0218, R3, off by default):** while on, recordings in progress live in
+`/app/data/recordings-work/` (on Unraid `/mnt/user/appdata/nodecast_tv/data/recordings-work/`) until their MP4 is on the
+share. Leave room in appdata for the longest recording (twice that while an HEVC one is watched from the start), and
+exclude `recordings-work/` from any appdata backup: it is large, short-lived, and remade by the next recording. Status →
+"Segmented recordings (appdata)" says what is still there (recording, being finished, waiting for the share, failed).
+
 ## Restore
 
 1. Stop the container.

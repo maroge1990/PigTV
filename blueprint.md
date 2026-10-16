@@ -1,9 +1,11 @@
 # PigTV: blueprint
 
-**State:** server builds **0208–0217** committed locally for Mark to push (0207 is the last deployed); Apple client build
-**42** committed (40 is on devices). Waves 1–3 of the [16 Oct roadmap](docs/reviews/2026-10-16/ROADMAP.md) are done in code:
-the [15 Oct review](docs/reviews/2026-10-15/REVIEW.md)'s findings, Mark's 16 Oct bug list (except cricket and the tuning
-hang's server cause, which need his data) and Plan B1. Nothing is *Verified* until Mark's device and feed checks.
+**State:** server builds **0208–0222** committed locally for Mark to push (0207 is the last deployed); Apple client builds
+**42–45** committed (40 is on devices). Waves 1–4 of the [16 Oct roadmap](docs/reviews/2026-10-16/ROADMAP.md) are done in
+code: the 15 Oct review's findings, Mark's 16 Oct bug list (except cricket and the tuning hang's server cause, which need his
+data), Plan B1, and Wave 4 (R3 segmented recordings behind a switch, R5 rules, R6 artwork, R9 event-slot names, R10 EPG
+auto-map). Nothing is *Verified* until Mark's device and feed checks; R3 also awaits its reference-feed capture and his
+test day.
 
 How to work in this repo (commands, shipping, rules) is in [`AGENTS.md`](AGENTS.md). This file holds **durable facts and the
 roadmap** for the server, the web app and the joint plan; the Apple client's own architecture is in
@@ -280,7 +282,18 @@ before 0154 is fetched again on its first `size=full`/`640` request.
 **EPG matching** (0134, `epgMapping.js`, table `epg_mappings`, Settings → EPG matching): an admin's tvg-id per identity,
 applied **at query time** over `playlist_items.tvg_id` (guide programmes, now/next, logo fallback), because every sync
 rewrites that column. `GET /api/epg/unmatched` = visible channels with no programmes in the next 24 h + 5 name-scored
-candidates that do have programmes.
+candidates that do have programmes. **R10 (0222):** a candidate whose id's country suffix (`.au`, `.uk`, …) matches the
+channel's country (name prefix, else its own id, else its category) scores +0.15, another country −0.15. **Auto-map**
+(`GET/POST /api/epg/auto-map`, `DELETE /api/epg/auto-map/:batch`) maps every unmapped channel whose best candidate is
+≥ 0.90 and 0.05 ahead of the next, as one undoable batch (`epg_mappings.batch`); a hand mapping is never touched, and one
+changed by hand later leaves the batch.
+
+**Event-slot names** (R9, 0221, `eventChannels.js`, pure): a slot whose guide shows nothing real at the time (only
+placeholders, or no guide id) gets a guide row from its **name**, in the four forms the providers use (`NEXT | TITLE | Sun 04
+Oct 01:50 EDT (US) | …`, `TITLE @ Sep 30 7:30 PM :Sportsnet+ 12`, `CA (TSN+ 019) | TITLE (2026-10-01 21:00:00)`,
+`… start:… stop:…`). A named zone is used as given; an unnamed one is North American Eastern (America/Toronto, DST worked
+out per date). 3 h unless the name gives an end. Names with a time but no date are left alone. Sport lists them like any
+event.
 
 **Client diagnostics.** `POST /api/playback/client-event` (token; whitelisted, bounded fields; path only, never a query string):
 `media-error`, `start-timeout`, `play-start`, `play-end`. Log lines end `from=user:<id>` / `from=device:<id>`.
@@ -404,6 +417,27 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   deliberately not from the earlier `announceUpcoming` lead-time notice. An explicit "Keep watching" (`declinePrompt`)
   still waits, however long. No new terminal-status value (a client sees an
   ordinary reclaim: a 404, its one-time re-resolve, then the existing `recording-in-progress` 409).
+- **Segmented recordings** (R3, 0218, `recordingSegments.js`; Settings → Recording, `segmentedRecordings`, **off by
+  default**; contract C-L). With it on, a new recording is captured into `/app/data/recordings-work/rec-<id>/e<n>/` as
+  4 s MPEG-TS HLS segments, one folder per ffmpeg run ("epoch"); the arguments are the usual capture's with `-f hls`,
+  `make_non_negative` and `-output_ts_offset <seconds so far>` (make_zero would undo the offset), so the timeline runs on.
+  A failover or a restart continues the **same row** in a new epoch (no part 2; ≤ 20 resumes; gaps noted in `error`); a
+  restart after the window finishes it. Not `append_list`: each run's playlist is ffmpeg's own and the server joins them.
+  The Apple TV's watch copy (fMP4, `hvc1`) is made by a **local follower ffmpeg** per epoch, only when someone asks
+  (`GET /:id/watch`); it never touches the provider. At the end the joined playlist is remuxed with preparation's own
+  arguments straight onto the share under `.partial`, checked (`checkPrepared`), renamed, `native_status` ready; then the
+  work folder goes. Share down: the MP4 waits in the work folder (`segment_state` `moving`, playable) and moves every
+  15 min; three failed remuxes deliver the joined `.ts` instead. Appdata gets the health and free-space checks; the share is
+  not needed to start. Measured on ffmpeg 9.0 with synthetic HEVC HDR10 / 50 fps / HE-AAC; **not yet on the reference
+  feeds or production's 6.x**.
+- **Rules** (R5, 0219, `recordingRules.js`, tables `recording_rules`, `recording_rule_hits`; C-M): `sport` = a follow
+  keyword over Sport's events (never replays) on the best channel; `series` = a title on one channel (7 days, optionally new
+  episodes only). De-duplicated by identity (event id; episode number/subtitle, kept at ingest in `epg_programs.data` as
+  `{sub, ep}`; else channel + quarter hour), by any schedule of the same programme within 15 min (any channel for sport),
+  and by hits: a schedule the viewer cancels never comes back, even when the guide moves it. Evaluated after each EPG sync
+  and every 15 min. Deleting a rule cancels its schedules that have not started.
+- **Artwork** (R6, 0220; C-N): the programme's `<icon>` is kept as `epg_programs.data.img`; a schedule takes it when made
+  (`image_url`), the recording copies it; lists give only `/api/logo/<key>` (logo cache), never the address.
 
 
 ---
@@ -426,10 +460,10 @@ Status words, used exactly: **Done**, **Shipped, awaiting a check** (needs Mark 
 | Step | What | Size | Status |
 |---|---|---|---|
 | **B1** quick wins (any order; none touches live playback) | **R12** nightly SQLite backup, plus one at startup when the build changes (0199 has the backup script) · **R4** a recording's end follows the guide · **R11** one webhook URL (provider down, recording failed, licence expiring) and live ffmpeg speed/fps on Status · check whether any provider sets `tv_archive` (keep the flag at sync) · check the reference samples for extra audio tracks (E3) | S each | **Done**, committed 16 Oct, not yet pushed: R12 (0213), R4 (0214), R11 webhook (0215), `tv_archive` kept and on Status (0216; the answer comes with the next sync). **Deferred:** live ffmpeg speed/fps (needs a `-progress` flag on the playback ffmpeg, so a capture first) and E3 (the samples are on the server; needs Mark) |
-| **B2** recordings | **R3** segmented recordings: an HLS event playlist that appends across restarts and failover (replacing parts), remuxed at the end, MP4 preparation (K12) from the segments. **Approved by Mark on 16 Oct** (replaces the 4 Oct skip): with watch-while-recording on Apple TV, segments in appdata, a Settings switch off by default; see the roadmap's Wave 4. · **R5** follow-list and series recording rules, de-duplicated by episode/event · **R6** EPG artwork | M + M | Not started |
+| **B2** recordings | **R3** segmented recordings: an HLS event playlist that appends across restarts and failover (replacing parts), remuxed at the end, MP4 preparation (K12) from the segments. **Approved by Mark on 16 Oct** (replaces the 4 Oct skip): with watch-while-recording on Apple TV, segments in appdata, a Settings switch off by default; see the roadmap's Wave 4. · **R5** follow-list and series recording rules, de-duplicated by episode/event · **R6** EPG artwork | M + M | **Done**, committed, not pushed: R3 (0218, Apple 44; off by default), R5 (0219, Apple 45), R6 (0220, Apple 45). R3's reference-feed capture and Mark's test day still to come |
 | **B3** shared ingest (behind a Settings switch, capture-first) | **R2** one reader per (provider, channel) into an in-memory ring buffer with subscribers, in its own process group. Consumers in order: recordings → the HLS session reads `pipe:0` (rerun `stream-doctor bench` on all five samples) → **R7** failover inside the ingest (speed-based stall detection, reconnect or switch by `providerRouting`'s order). The coordinator counts ingests: the same channel takes no new connection | L | Not started |
 | **B4** retire (after B3 has run a week) | `streamRelay.js` leg-stitching and standby, the 0143 refusal retries, per-session warm leases (warming becomes "start an ingest early"): about 800–1,000 lines | M | Not started |
-| **B5** provider and guide data (when convenient) | **R8** ingest filters · **R9** event-channel guide · **R10** EPG matching tune-ups · catch-up/start-over if B1 finds archives · E2 ffmpeg version parity | S–M each | R8 pilot **Done** (0217, committed): whole groups never imported, guarded and reversible; Mark's before/after sync time and DB size decide its future. The rest not started |
+| **B5** provider and guide data (when convenient) | **R8** ingest filters · **R9** event-channel guide · **R10** EPG matching tune-ups · catch-up/start-over if B1 finds archives · E2 ffmpeg version parity | S–M each | R8 pilot **Done** (0217, committed): whole groups never imported, guarded and reversible; Mark's before/after sync time and DB size decide its future. **R9 Done** (0221: events from event-slot names). **R10 Done** (0222: region weighting, auto-map with undo). Catch-up waits for the 0216 answer; E2 not started |
 
 Rough total: 6–8 weeks of part-time sessions. B3 is the largest change to the playback path since 0102/0103: it needs the
 full capture/bench pass (§3 "Diagnosing playback") before and after.
@@ -460,6 +494,9 @@ purpose:** the non-VAAPI encoders.
 - *16 Oct:* **R3 segmented recordings approved** (reverses 4 Oct's R13 skip): watch from the start while recording (sport
   that starts early), segments in appdata then the MP4 to the share, behind a switch off by default; provider use and a
   restart/takeover test day agreed. **tvOS icon option B** (kit 1.7.1).
+- *16 Oct (Wave 4 build):* R3 joins **one folder per ffmpeg run** instead of `append_list`, and makes the Apple TV's fMP4
+  copy with a local follower only on request (the archive stays MPEG-TS, 0203). R6 uses the guide's own image only (no
+  TMDB-style lookups). R9 reads unnamed slot times as North American Eastern.
 - *16 Oct:* **Claude commits but never pushes**; Mark reviews and pushes (replaces 23 Sept's push-to-main). Work order:
   [`docs/reviews/2026-10-16/ROADMAP.md`](docs/reviews/2026-10-16/ROADMAP.md).
 
@@ -494,6 +531,9 @@ feed in five) · the 20 s stall timeout (tighten only after real stall logs).
 - ESPN is unofficial and undocumented: a schema change degrades to "not matched" (heuristics), never a crash.
 
 **Recordings**
+- Segmented recordings (R3) need room in appdata for the longest recording (twice that while someone watches an HEVC one
+  from the start). Live break detection does not follow them; they are analysed from the MP4.
+- Rules (R5) see as far as the guide does (sport 72 h, series 7 days); a series rule is per channel.
 - The recordings folder must be on a volume Docker sees live (§1 Deployment). The server checks it at startup and every
   15 min and warns on Status, but it can't fix a Docker mapping.
 - A viewer who chose "Keep watching" blocks a due recording for the whole programme (an unanswered prompt hands over after

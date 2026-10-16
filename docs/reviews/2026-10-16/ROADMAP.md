@@ -188,6 +188,41 @@ Shape (from DISPATCHARR-REVIEW §5 R3; native code, never copied: AGPL):
 Then: R5 follow/series rules and R6 artwork (one additive contract change, feature-flagged, web + Apple UX), R9
 event-channel guide, R10 EPG review list.
 
+**Wave 4 progress (16 Oct, committed locally, not pushed):**
+- **0218 R3 segmented recordings** (Apple **44**: "Watch from start" on Recordings and the programme page). Off by default.
+  Differences from the shape above: one folder per ffmpeg run, joined by the server, instead of `append_list` (each run
+  starts clean; `-output_ts_offset` keeps one timeline); the Apple TV's fMP4 copy is made by a local follower ffmpeg only
+  when someone presses Watch. Tests: real ffmpeg 9 (a capture killed mid-way, a second run, the watch copy, the MP4 with
+  HDR10/50 fps/HE-AAC kept) and the engine with a fake ffmpeg (switch off = today's arguments; failover and restart
+  resume; share down; delete; routes). **Not done:** the reference-feed capture (SSH to the server was refused for this
+  session) and production's ffmpeg 6.x; Mark's test day.
+- **0219 R5 rules**: "record every game of" (Sport follow keyword) and "record series" (title + channel); web (Recordings →
+  Recording rules; the guide's Record series) and Apple **45** (Record every game on a Sport event, Record series on a
+  programme, Recordings → Scheduled → Recording rules).
+- **0220 R6 artwork**: the guide's programme image on recordings and schedules (`image`, via the logo cache); web
+  thumbnails and Apple 45 tiles.
+- **0221 R9**: Sport events from event-slot names (four provider forms, time zones and DST), only where the guide has
+  nothing real.
+- **0222 R10**: country-weighted EPG suggestions and an undoable "Auto-map" (≥ 90 %, clearly ahead, never over a hand
+  mapping), web only.
+Ingest changes (episode data, programme images) appear after the next EPG sync.
+
+### Wave 4 device and feed checks for Mark
+
+1. Push both repos; deploy; Settings → Sources → ⟳ Sync now (episode data and images come with the sync).
+2. R3: Settings → Recording → turn on Segmented recordings. Record a programme on the HDR channel that is on now; after
+   5 min, on the Apple TV: Recordings → it → **Watch from start**: plays from the beginning, HDR and 50 Hz.
+3. R3: during a recording, Force Update the container; the log says "continues in the same recording"; at the end one MP4
+   with a gap noted. Then take over the stream from another device mid-recording: it ends early with an MP4.
+4. R3: watch from start past the programme's end: carries on into the finished MP4. Status → "Segmented recordings
+   (appdata)" is empty afterwards; one `.mp4` per recording on the share.
+5. R5: on a Sport event, **Record every game** → a team; Recordings → Scheduled shows its games "From a rule"; cancel one,
+   sync again: it stays cancelled. On a programme, **Record series**; check episodes are not doubled.
+6. R6: a recording made after the sync shows the programme's picture on its tile (web and Apple TV).
+7. R9: Sport lists games from event slots whose guide is empty (e.g. Sportsnet+ / TSN+ / Apple TV F1 PPV) at the right
+   local time.
+8. R10: Settings → EPG matching → **Auto-map…**: check the preview, Map these, then Undo.
+
 ### Wave 5 · shared ingest (about 3 weeks, separate project)
 
 Design note first (the review's corrections 3–5), capture/bench before and after, behind a Settings switch: recordings as
