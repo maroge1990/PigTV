@@ -69,6 +69,7 @@ class SettingsPage {
         bind('setting-relay-enabled', 'relayEnabled');
         bind('setting-standby-enabled', 'standbyEnabled');
         bind('setting-warm-next-channel', 'warmNextChannel'); // R11
+        bind('setting-shared-ingest', 'sharedIngestEnabled'); // Wave 5
         // 0203: turning recovery off also turns the standby off (it cannot run without it), and
         // says so: a ticked-but-greyed switch read as "still on".
         relay?.addEventListener('change', async () => {
@@ -99,6 +100,8 @@ class SettingsPage {
             }
             const warm = document.getElementById('setting-warm-next-channel');
             if (warm) warm.checked = s.warmNextChannel === true;
+            const shared = document.getElementById('setting-shared-ingest');
+            if (shared) shared.checked = s.sharedIngestEnabled === true;
         } catch (err) {
             console.error('Failed to load hardware decode settings:', err);
         }

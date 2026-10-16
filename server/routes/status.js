@@ -285,6 +285,8 @@ router.get('/', async (req, res) => {
             warming: require('../services/channelWarming').status(settings),
             // 0189: streams a relay is keeping going (Settings: In-stream recovery), and their standbys.
             relay: (() => { const r = require('../services/streamRelay'); return { ...r.modeOf(settings), streams: r.list() }; })(),
+            // Wave 5: shared ingests (one provider connection each), their subscribers, buffer and rate.
+            ingest: (() => { try { return { enabled: settings.sharedIngestEnabled === true, ...require('../services/ingest').status() }; } catch (e) { return null; } })(),
             // 0161 (C-I): ESPN fixture coverage, per league - last successful fetch, fixture
             // count, last error. Never a URL (sportsFixtures.statusSummary never puts one in).
             sportFixtures: sportsFixtures.statusSummary(),

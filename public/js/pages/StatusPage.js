@@ -283,6 +283,12 @@ class StatusPage {
                 + `<p class="setting-hint">${prep.enabled === false ? 'Preparation is switched off. ' : ''}${cur}</p>`
                 + (prep.lastError ? `<p class="setting-hint"><span class="status-event status-failure">Last error</span> ${e(prep.lastError.title || '')}: ${e(prep.lastError.error)}</p>` : ''));
         }
+        const ing = status.ingest;
+        if (ing && (ing.enabled || ing.ingests.length)) {
+            const rows = ing.ingests.map(i => `<li>Ingest ${e(i.id)} · ${e(i.state)} · ${e(i.subscribers.length)} reading (${i.subscribers.map(s => e(s.purpose || '?')).join(', ')}) · ${e(i.kbps)} kb/s · buffer ${e(Math.round(i.bufferBytes / 1048576))} MB · ${e(i.reconnects)} reconnects</li>`).join('');
+            html.push(`<h4>Shared provider connections</h4>${rows ? `<ul>${rows}</ul>` : '<p class="setting-hint">None open.</p>'}`
+                + (ing.recent.length ? `<p class="setting-hint">Last closed: ${ing.recent.map(r => `ingest ${e(r.id)} (${e(r.why)})`).join(', ')}</p>` : ''));
+        }
         const seg = status.segmentedRecordings;
         if (seg && (seg.enabled || seg.capturing.length || seg.finishing.length || seg.waitingToMove.length || seg.failed.length)) {
             const names = (rows) => rows.map(r => e(r.title || `recording ${r.id}`)).join(', ');

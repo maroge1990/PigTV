@@ -470,6 +470,11 @@ function providerDirectory() {
 }
 
 /** The pool a providerId counts in: a backup's own id, else the primary's pool. */
+/** Wave 5: the pool (provider account) a provider's connections count in, as the ingest keys them. */
+function poolOf(providerId) {
+    return poolKey(providerId, providerDirectory());
+}
+
 function poolKey(providerId, dir) {
     if (!dir.multi || providerId === null || providerId === undefined) return PRIMARY_POOL;
     const id = Number(providerId);
@@ -494,7 +499,14 @@ function streamsInPool(pool, dir) {
 // The recordings in a pool: the running ones, plus recordings that have been admitted but whose
 // row is not yet 'recording' (a lease already listed in `recordings` is not counted twice).
 function recordingsInPool(recordings, pool, dir) {
-    const running = (recordings || []).filter(r => poolKey(recordingProvider(r), dir) === pool);
+    // Wave 5: recordings reading one shared ingest hold ONE connection between them.
+    const seenIngest = new Set();
+    const running = (recordings || []).filter(r => poolKey(recordingProvider(r), dir) === pool).filter(r => {
+        if (!r.ingestKey) return true;
+        if (seenIngest.has(r.ingestKey)) return false;
+        seenIngest.add(r.ingestKey);
+        return true;
+    });
     const known = new Set((recordings || []).map(r => Number(r.id)));
     const pending = unboundLeasesInPool(pool, dir)
         .filter(l => l.purpose === 'recording' && !known.has(l.scheduleId)).map(leaseAsRecording);
@@ -960,6 +972,7 @@ async function admitViewer(opts = {}) {
 }
 
 module.exports = {
+    poolOf,
     activeStreams,
     liveViewers,
     staleStreams,

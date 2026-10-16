@@ -27,6 +27,7 @@ const media = require('./recordingMedia');
 const post = require('./recordingPost');
 const jobs = require('./recordingJobs');
 const segments = require('./recordingSegments'); // R3: segmented recordings
+const ingest = require('./ingest'); // Wave 5: shared ingest (docs/SHARED-INGEST.md)
 const { fileSizeOf, getFreeSpaceGB, compressionTargetPath, nativePlaybackTargetPath, verifiedNativeFiles } = media;
 const { processCompressionQueue, processAdDetectionQueue } = post;
 
@@ -241,9 +242,58 @@ async function routeFor(schedule) {
 function freeCandidate(route, settings, from = 0) {
     const recordings = listActive();
     for (let i = from; i < route.candidates.length; i++) {
+        // Wave 5: a stream already being read by a shared ingest costs no connection to join.
+        if (ingest.enabled(settings) && liveIngestFor(route.candidates[i])) return i;
         if (coordinator.canRecordFreely(route.candidates[i].providerId, settings, recordings)) return i;
     }
     return -1;
+}
+
+function liveIngestFor(candidate) {
+    try { return ingest.liveFor(coordinator.poolOf(candidate.providerId), candidate.url); } catch (e) { return null; }
+}
+
+/**
+ * Wave 5 (phase 5a, behind `sharedIngestEnabled`): a subscription to the shared ingest of this
+ * candidate's stream, or null for today's path (the switch is off, or the ingest was refused:
+ * not MPEG-TS, or the first connection failed - the usual path then meets the same answer).
+ */
+async function feedFor(settings, candidate) {
+    if (!ingest.enabled(settings) || !candidate || !/^https?:/i.test(String(candidate.url || ''))) return null;
+    try {
+        return await ingest.subscribe({ pool: coordinator.poolOf(candidate.providerId), url: candidate.url,
+            userAgent: getUserAgent(settings), providerId: candidate.providerId ?? null, purpose: 'recording' });
+    } catch (err) {
+        console.warn(`[Recordings] Shared ingest not used for this recording: ${redact(err.message)}`);
+        return null;
+    }
+}
+
+/**
+ * The capture arguments reading the shared feed on stdin: the provider-facing input options
+ * (user agent, reconnect: the ingest does both) go, and the input is pipe:0. Every output
+ * argument is unchanged.
+ */
+function onFeed(args, url) {
+    const out = [];
+    for (let i = 0; i < args.length; i++) {
+        const a = args[i];
+        if (a === '-user_agent' || a === '-reconnect' || a === '-reconnect_streamed' || a === '-reconnect_delay_max') { i++; continue; }
+        if (a === '-i' && args[i + 1] === url) { out.push('-i', 'pipe:0'); i++; continue; }
+        out.push(a);
+    }
+    return out;
+}
+
+/** End a capture gracefully: "q" on stdin, or (on a shared feed, where stdin is the data) end of input. */
+function askToStop(entry) {
+    if (entry.feed) {
+        try { entry.feed.unpipe(entry.proc.stdin); } catch (e) { /* already */ }
+        try { entry.proc.stdin?.end(); } catch (e) { /* gone */ }
+        entry.feed.leave();
+        return;
+    }
+    entry.proc.stdin?.write('q');
 }
 
 /**
@@ -422,7 +472,8 @@ function listActive() {
     // holds no connection, so it is not listed.
     return scheduledDb.findActive().filter(row => !continuations.has(row.id)).map(row => {
         const entry = active.get(row.id);
-        return { ...row, providerId: entry && entry.providerId !== undefined ? entry.providerId : (row.source_id ?? null) };
+        return { ...row, providerId: entry && entry.providerId !== undefined ? entry.providerId : (row.source_id ?? null),
+            ...(entry && entry.ingestKey ? { ingestKey: entry.ingestKey } : {}) }; // Wave 5: one connection per shared ingest
     });
 }
 
@@ -634,6 +685,7 @@ async function startPartLeased(schedule, route, index, part, { gapMs = 0, refuse
 
     const channelDir = path.join(root, sanitizeForFs(schedule.channel_name || 'Unknown Channel'));
     if (!fs.existsSync(channelDir)) fs.mkdirSync(channelDir, { recursive: true });
+    const feed = await feedFor(settings, route.candidates[index]); // Wave 5
 
     // Local time, not UTC - a 7:30pm program should read 19-30 in the filename.
     // "Local" is the process's TZ, which docker-compose.yml passes through.
@@ -677,7 +729,7 @@ async function startPartLeased(schedule, route, index, part, { gapMs = 0, refuse
     // counting (it would be counted twice) and is released when the ffmpeg exits (onPartExit).
     if (lease) coordinator.bindLeaseToRecording(lease, recording.id);
 
-    spawnPart(schedule, settings, { recordingId: recording.id, outputPath, route, index, part, lostAt: part > 1 ? Date.now() - gapMs : null, lease });
+    spawnPart(schedule, settings, { recordingId: recording.id, outputPath, route, index, part, lostAt: part > 1 ? Date.now() - gapMs : null, lease, feed });
     return true;
 }
 
@@ -714,6 +766,7 @@ async function startSegmented(schedule, settings, route, index, { refuse, lease,
     }
 
     const candidate = route.candidates[index];
+    const feed = await feedFor(settings, candidate); // Wave 5
     const recording = recordingsDb.create({
         scheduled_id: schedule.id,
         title: schedule.title,
@@ -740,15 +793,15 @@ async function startSegmented(schedule, settings, route, index, { refuse, lease,
     coordinator.clearPrompt(schedule.id);
     setScheduleStatus(schedule.id, 'recording', { recording_id: recording.id });
     if (lease) coordinator.bindLeaseToRecording(lease, recording.id);
-    spawnSegment(schedule, settings, { recordingId: recording.id, workDir, route, index, lease, resumes: 0 });
+    spawnSegment(schedule, settings, { recordingId: recording.id, workDir, route, index, lease, resumes: 0, feed });
     return true;
 }
 
 /** R3: one epoch of a segmented recording (its first run, or a run after a failover or restart). */
-function spawnSegment(schedule, settings, { recordingId, workDir, route, index, lease = null, resumes = 0 }) {
+function spawnSegment(schedule, settings, { recordingId, workDir, route, index, lease = null, resumes = 0, feed = null }) {
     const epoch = segments.nextEpoch(workDir);
     spawnPart(schedule, settings, {
-        recordingId, outputPath: epoch.dir, route, index, part: 1, lease,
+        recordingId, outputPath: epoch.dir, route, index, part: 1, lease, feed,
         segmented: { workDir, epoch: epoch.n, offsetSec: epoch.offsetSec, resumes }
     });
 }
@@ -759,9 +812,9 @@ function captureSize(entry) {
 }
 
 /** Run ffmpeg for one part on its candidate. Its exit decides what happens next (onPartExit). */
-function spawnPart(schedule, settings, { recordingId, outputPath, route, index, part, lostAt = null, lease = null, segmented = null }) {
+function spawnPart(schedule, settings, { recordingId, outputPath, route, index, part, lostAt = null, lease = null, segmented = null, feed = null }) {
     const candidate = route.candidates[index];
-    const args = segmented ? segments.captureArgs({
+    const ownArgs = segmented ? segments.captureArgs({
         userAgent: getUserAgent(settings), url: candidate.url, epochDir: outputPath, offsetSec: segmented.offsetSec
     }) : [
         '-y',
@@ -790,11 +843,12 @@ function spawnPart(schedule, settings, { recordingId, outputPath, route, index, 
         '-f', 'mpegts',
         outputPath
     ];
+    const args = feed ? onFeed(ownArgs, candidate.url) : ownArgs;
 
     // The provider is named only when there is more than one to choose from (never its URL).
     const on = route.multi ? ` on ${candidate.providerName}` : '';
     const into = segmented ? `segments in appdata (part ${segmented.epoch})` : outputPath;
-    console.log(`[Recordings] Starting recording #${recordingId} for schedule #${schedule.id}: "${schedule.title}"${on} -> ${into}`);
+    console.log(`[Recordings] Starting recording #${recordingId} for schedule #${schedule.id}: "${schedule.title}"${on}${feed ? ' (shared ingest)' : ''} -> ${into}`);
 
     const proc = spawn(media.tools.ffmpegPath, args, { stdio: ['pipe', 'ignore', 'pipe'] });
     // providerId (0173): the pool this recording's connection counts in - the
@@ -804,9 +858,20 @@ function spawnPart(schedule, settings, { recordingId, outputPath, route, index, 
         proc, recordingId, stderrTail: [], hardStopTimer: null, providerId: candidate.providerId ?? null,
         schedule, route, index, part, outputPath, lostAt, lease, segmented,
         spawnedAt: now, lastSize: 0, lastGrowthAt: now, played: false,
-        stopRequested: false, stalled: false
+        stopRequested: false, stalled: false,
+        // Wave 5: the shared feed it reads (null: its own connection), and why that feed ended.
+        feed, ingestKey: feed ? ingest.keyOf(feed.ingest.pool, candidate.url) : null, feedLost: null
     };
     active.set(schedule.id, entry);
+    if (feed) {
+        proc.stdin.on('error', () => { /* ffmpeg exited first */ });
+        feed.on('ingest-end', (why) => {
+            entry.feedLost = why;
+            try { proc.stdin.end(); } catch (e) { /* gone */ }
+        });
+        feed.pipe(proc.stdin);
+        proc.on('close', () => feed.leave());
+    }
 
     proc.stderr?.on('data', (chunk) => {
         const lines = chunk.toString().split('\n').filter(Boolean);
@@ -876,7 +941,7 @@ async function onPartExit(schedule, entry, exitCode) {
     const now = Date.now();
     const size = fileSizeOf(entry.outputPath);
     const unrequested = !entry.stopRequested && now < currentStopTime(schedule) - failoverTuning.endGraceMs;
-    const providerReason = entry.stalled || providerFailureIn(entry.stderrTail);
+    const providerReason = entry.stalled || providerFailureIn(entry.stderrTail) || entry.feedLost?.providerReason === true;
     const candidate = entry.route.candidates[entry.index];
 
     if (!entry.route.multi || !unrequested || !providerReason) {
@@ -903,9 +968,10 @@ async function onPartExit(schedule, entry, exitCode) {
             post.abortLive(entry.recordingId); // 0207: it followed a file that is being rewritten
             try { fs.unlinkSync(entry.outputPath); } catch (e) { /* nothing was written */ }
             recordingsDb.setProvider(entry.recordingId, nextCandidate.providerId);
+            const feed = await feedFor(settings, nextCandidate); // Wave 5
             spawnPart(schedule, settings, {
                 recordingId: entry.recordingId, outputPath: entry.outputPath,
-                route: entry.route, index: next, part: entry.part, lostAt: entry.lostAt
+                route: entry.route, index: next, part: entry.part, lostAt: entry.lostAt, feed
             });
             return;
         }
@@ -954,7 +1020,7 @@ async function onSegmentExit(schedule, entry, exitCode) {
     if (active.get(schedule.id) === entry) active.delete(schedule.id);
     const now = Date.now();
     const unrequested = !entry.stopRequested && now < currentStopTime(schedule) - failoverTuning.endGraceMs;
-    const providerReason = entry.stalled || providerFailureIn(entry.stderrTail);
+    const providerReason = entry.stalled || providerFailureIn(entry.stderrTail) || entry.feedLost?.providerReason === true;
     if (entry.route.multi && unrequested && providerReason && entry.segmented.resumes < MAX_SEGMENT_RESUMES) {
         const candidate = entry.route.candidates[entry.index];
         providerRouting.noteFailure(candidate, entry.route.primaryKey);
@@ -1056,7 +1122,8 @@ async function continuePart(scheduleId, now = Date.now()) {
             if (route.candidates[index].providerId !== rec.provider_id) recordingsDb.setProvider(rec.id, route.candidates[index].providerId ?? null);
             console.log(`[Recordings] #${rec.id} continues after ${Math.round((Date.now() - cont.lostAt) / 1000)}s` +
                 (route.multi ? ` on ${route.candidates[index].providerName}` : ''));
-            spawnSegment(schedule, settings, { recordingId: rec.id, workDir: rec.work_dir, route, index, resumes: cont.resume.resumes });
+            const feed = await feedFor(settings, route.candidates[index]); // Wave 5
+            spawnSegment(schedule, settings, { recordingId: rec.id, workDir: rec.work_dir, route, index, resumes: cont.resume.resumes, feed });
             return;
         }
         await startPart(schedule, route, index, cont.nextPart, {
@@ -1163,7 +1230,7 @@ function checkRecordingStalls(now = Date.now()) {
         entry.stalled = true;
         console.warn(`[Recordings] #${entry.recordingId} has had no data for ${Math.round((now - entry.lastGrowthAt) / 1000)}s ` +
             `from ${entry.route.candidates[entry.index].providerName}; ending this part`);
-        try { entry.proc.stdin?.write('q'); } catch (e) { /* killed below */ }
+        try { askToStop(entry); } catch (e) { /* killed below */ }
         const proc = entry.proc;
         // A stalled ffmpeg may be blocked reading the input and never see the "q".
         setTimeout(() => { if (proc.exitCode === null && proc.signalCode === null) { try { proc.kill('SIGKILL'); } catch (e) { /* gone */ } } }, 5000).unref?.();
@@ -1204,7 +1271,7 @@ async function stopRecording(scheduledId, reasonStatus = 'completed') {
         try {
             // Graceful stop: ffmpeg treats "q" on stdin as a request to finish
             // the output file cleanly (flushes the last packets; an older .mkv got its trailer).
-            entry.proc.stdin?.write('q');
+            askToStop(entry);
         } catch (e) {
             try { entry.proc.kill('SIGINT'); } catch (e2) { /* ignore */ }
         }

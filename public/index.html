@@ -565,6 +565,18 @@
               </div>
               <div class="setting-item">
                 <label class="setting-toggle">
+                  <input type="checkbox" id="setting-shared-ingest">
+                  <span class="toggle-slider"></span>
+                </label>
+                <div class="setting-info">
+                  <span class="setting-label">Shared provider connection (experimental)</span>
+                  <span class="setting-hint">Read each channel from the provider once and share it: a recording of a channel
+                    that is already being recorded uses no extra connection. In development (Wave 5): recordings only so
+                    far. Applies to recordings started from now on.</span>
+                </div>
+              </div>
+              <div class="setting-item">
+                <label class="setting-toggle">
                   <input type="checkbox" id="setting-warm-next-channel">
                   <span class="toggle-slider"></span>
                 </label>

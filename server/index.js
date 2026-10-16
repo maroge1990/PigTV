@@ -122,6 +122,7 @@ process.on('SIGTERM', async () => {
     } catch (err) {
         console.error('Error stopping active recordings:', err.message);
     }
+    try { require('./services/ingest').closeAll('shutdown'); } catch (err) { /* best-effort (Wave 5) */ }
     process.exit(0);
 });
 
