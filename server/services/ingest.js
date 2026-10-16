@@ -174,6 +174,13 @@ class Ingest extends EventEmitter {
                 res.resume();
                 return lost(`HTTP ${res.statusCode}`);
             }
+            // A length means a file, not live TV: it must be paced and is seekable, which a pipe
+            // cannot give (docs/SHARED-INGEST.md: finite sources never use an ingest).
+            if (this.state === 'connecting' && res.headers['content-length'] !== undefined) {
+                gone = true;
+                res.destroy();
+                return this.refuse('a file with a length, not a live stream');
+            }
             req.setTimeout(0);
             res.on('data', (chunk) => {
                 if (this.closed || gone) return;
@@ -344,6 +351,7 @@ async function subscribe({ pool, url, userAgent, providerId = null, purpose = nu
     let ingest = registry.get(key);
     let opened = false;
     if (!ingest || ingest.closed) {
+        closeIdleInPool(pool, key); // a lingering connection in this pool would make this one a second
         ingest = new Ingest({ key, pool, url, userAgent, providerId });
         registry.set(key, ingest);
         ingest.start();
@@ -360,8 +368,24 @@ function liveFor(pool, url) {
     return ingest && !ingest.closed && ingest.state !== 'connecting' ? ingest : null;
 }
 
+/** Ingests in `pool` with nobody reading them (lingering): connections nobody needs. */
+function idleInPool(pool) {
+    return [...registry.values()].filter(i => !i.closed && i.pool === pool && i.subs.size === 0);
+}
+
+/** Close the idle ingests of a pool (another connection is about to be opened there), except `keepKey`. */
+function closeIdleInPool(pool, keepKey = null) {
+    for (const i of idleInPool(pool)) if (i.key !== keepKey) i.close('its connection is needed');
+}
+
+/** Close one ingest by key, now (no linger). */
+function closeKey(key, why = 'released') {
+    const i = registry.get(key);
+    if (i) i.close(why);
+}
+
 function list() { return [...registry.values()].filter(i => !i.closed).map(i => i.describe()); }
 function status() { return { ingests: list(), recent: history.slice(0, 5) }; }
 function closeAll(why = 'shutdown') { for (const i of [...registry.values()]) i.close(why); }
 
-module.exports = { enabled, subscribe, liveFor, list, status, closeAll, keyOf, looksLikeTs, firstPatOffset, lastPatOffset, tuning, _registry: registry };
+module.exports = { enabled, subscribe, liveFor, idleInPool, closeIdleInPool, closeKey, list, status, closeAll, keyOf, looksLikeTs, firstPatOffset, lastPatOffset, tuning, _registry: registry };

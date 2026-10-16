@@ -96,14 +96,28 @@ function storedAnalysis(cacheKey) {
     return null;
 }
 
-/** ffprobe the stream (one provider connection) and cache the analysis. */
-async function probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, deadlineAt = null }) {
+/**
+ * ffprobe the stream (one provider connection - or, Wave 5, none: through the shared ingest the
+ * session will read, when `ingestSource` is given and the ingest takes the stream) and cache it.
+ */
+async function probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, deadlineAt = null, ingestSource = null }) {
     const probeStartedAt = Date.now();
     // 0174: a failover resolve bounds the probe by its deadline (never above the usual 15 s).
     const timeout = deadlineAt ? Math.max(1000, Math.min(15000, deadlineAt - probeStartedAt)) : undefined;
+    let feed = null;
+    if (ingestSource) {
+        try {
+            feed = await require('./ingest').subscribe({ ...ingestSource, purpose: 'probe' });
+        } catch (err) {
+            // Not MPEG-TS, a file, or refused: today's probe (which meets a refusal itself, with
+            // today's C-B text and failover), and the session reads the URL too.
+            console.log(`[Playback] shared ingest not used: ${redact(err.message)}`);
+            ingestSource.refused = true;
+        }
+    }
     let raw;
     try {
-        raw = await probeStream(url, ffprobePath, userAgent, timeout);
+        raw = await probeStream(url, ffprobePath, userAgent, timeout, { feed });
     } catch (err) {
         // 0118 (C-B): ffprobe's error carries its stderr, and with it the stream's
         // (redacted) URL. The log keeps it; the client gets a fixed sentence.
@@ -132,7 +146,7 @@ function noteStart(owner, analysis) {
  * network to it) is what failed, which is what makes the route try the next one.
  */
 async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale = false, owner = null, live = false, audioEncode = false, providerId = null,
-    refusedRetryDelaysMs = undefined, deadlineAt = null, timingNote = '', sessionOptions = null, lease = null }) {
+    refusedRetryDelaysMs = undefined, deadlineAt = null, timingNote = '', sessionOptions = null, lease = null, ingestSource = null }) {
     const caps = { ...DEFAULT_CAPABILITIES, ...capabilities };
     const userAgent = db.getUserAgent(settings);
 
@@ -144,7 +158,9 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     // Where the analysis comes from, cheapest first: the 5-minute in-memory cache, then
     // the channel's stored profile (0114: no ffprobe at all), then a probe. `fromProfile`
     // follows a profile through the in-memory cache, so a failed start can drop both.
-    const analysis = storedAnalysis(cacheKey) || await probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, deadlineAt });
+    // Wave 5 (phase 5b): a live channel play with the shared ingest on (`ingestSource`, from the
+    // route) probes through it and its session reads it; one provider connection for both.
+    const analysis = storedAnalysis(cacheKey) || await probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, deadlineAt, ingestSource });
     const { info, probeNote, fromProfile, probedAt } = analysis;
 
     // 0124: how this start was served, for the admin status page's recent plays.
@@ -170,6 +186,8 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     let leaseLost = false;
     const session = await transcodeSession.createSession(url, {
         ...plan.options, providerId, ...(Array.isArray(refusedRetryDelaysMs) ? { refusedRetryDelaysMs } : {}),
+        // Wave 5: not for a source that ends (paced, seekable), nor once the ingest refused the stream.
+        ...(ingestSource && !ingestSource.refused && info.finite !== true ? { ingestSource: { pool: ingestSource.pool, url: ingestSource.url, userAgent: ingestSource.userAgent, providerId: ingestSource.providerId } } : {}),
         // 0189: extra session options from the relay (a standby is marked as one).
         ...(sessionOptions || {}),
         ...(coordinator ? { onRegistered: (s) => { leaseLost = !coordinator.bindLease(lease, s.id); } } : {})

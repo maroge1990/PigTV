@@ -311,6 +311,12 @@ async function chooseProvider(schedule, settings) {
         // the recording then fails in startRecording, where the resolve is tried again.
         return { route: null, index: 0, verdict: await coordinator.requestForRecording(schedule, settings, schedule.source_id) };
     }
+    // Wave 5: a channel already being read by a shared ingest (somebody is watching it, or it
+    // is recording already) is recorded from it: no connection, so nobody is asked anything.
+    if (ingest.enabled(settings)) {
+        const joinAt = route.candidates.findIndex(c => liveIngestFor(c));
+        if (joinAt >= 0) return { route, index: joinAt, verdict: { allowed: true, reason: 'It joins a shared connection already open', lease: null } };
+    }
     if (!route.multi) {
         return { route, index: 0, verdict: await coordinator.requestForRecording(schedule, settings, schedule.source_id) };
     }

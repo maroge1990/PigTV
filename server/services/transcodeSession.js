@@ -235,6 +235,24 @@ class TranscodeSession extends EventEmitter {
             throw err;
         }
 
+        // Wave 5 (phase 5b, `ingestSource`): read the shared ingest of this stream. A start (and the
+        // software-decode retry) takes a fresh subscription; a refused one is today's direct read.
+        this.feed = null;
+        this.ingestKey = null;
+        if (this.options.ingestSource) {
+            const ingest = require('./ingest');
+            const src = this.options.ingestSource;
+            try {
+                this.feed = await ingest.subscribe({ ...src, purpose: this.options.standby ? 'standby' : this.options.warm ? 'warm' : 'viewer', owner: this.owner || null });
+                this.ingestKey = ingest.keyOf(src.pool, src.url);
+                this.feedLost = null;
+                this.feed.on('ingest-end', (why) => { this.feedLost = why; });
+            } catch (err) {
+                console.warn(`[TranscodeSession ${this.id}] Shared ingest not used: ${redact(err.message)}`);
+                this.options.ingestSource = null;
+            }
+        }
+
         // Build FFmpeg arguments for HLS output
         const args = this.buildFFmpegArgs();
 
@@ -249,6 +267,10 @@ class TranscodeSession extends EventEmitter {
             this.status = 'running';
             this.timings.spawned = Date.now();
             this.startWatchdog();
+            if (this.feed) {
+                this.process.stdin.on('error', () => { /* ffmpeg exited first */ });
+                this.feed.pipe(this.process.stdin); // closes stdin once the feed has ended and drained
+            }
 
             // Handle stdout (should be empty for file output)
             this.process.stdout.on('data', (data) => {
@@ -333,6 +355,7 @@ class TranscodeSession extends EventEmitter {
      */
     handleExit(code, signal) {
         this.stopWatchdog();
+        if (this.feed) { this.feed.leave(); this.feed = null; } // Wave 5
         // stop() marks the session 'stopped' before it signals ffmpeg, so
         // this tells "we ended it" apart from "it ended".
         const requested = this.status === 'stopped';
@@ -444,7 +467,7 @@ class TranscodeSession extends EventEmitter {
     noteLost(how) {
         if (this._lostNoted) return;
         this._lostNoted = true;
-        const providerReason = how === 'stall' || how === 'timestamps' || !!providerFailureIn(this.stderrTail);
+        const providerReason = how === 'stall' || how === 'timestamps' || !!providerFailureIn(this.stderrTail) || this.feedLost?.providerReason === true;
         try {
             this.emit('lost', { how, providerReason });
         } catch (err) {
@@ -495,7 +518,8 @@ class TranscodeSession extends EventEmitter {
         const args = [
             '-hide_banner',
             '-loglevel', 'warning',
-            '-user_agent', this.options.userAgent,
+            // Wave 5: the provider-facing options (user agent, reconnect) are the ingest's when fed.
+            ...(this.feed ? [] : ['-user_agent', this.options.userAgent]),
         ];
 
         // Add hardware acceleration input options based on encoder (only if encoding)
@@ -530,9 +554,7 @@ class TranscodeSession extends EventEmitter {
             '-fflags', inputFlags,
             '-err_detect', 'ignore_err',
             '-dts_delta_threshold', String(DTS_DELTA_THRESHOLD_SEC),
-            '-reconnect', '1',
-            '-reconnect_streamed', '1',
-            '-reconnect_delay_max', '3'
+            ...(this.feed ? [] : ['-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '3'])
         );
 
         // Pacing: read the input no faster than it plays. Only for a source that ends (see
@@ -544,7 +566,8 @@ class TranscodeSession extends EventEmitter {
         // the old -re.
         if (this.options.paceInput === true) args.push(...paceArgs());
 
-        args.push('-i', this.url);
+        // Wave 5 (phase 5b): fed by the shared ingest, ffmpeg reads the provider's bytes on stdin.
+        args.push('-i', this.feed ? 'pipe:0' : this.url);
 
         // Add seek offset if specified (as output option to avoid Range requests)
         if (this.options.seekOffset > 0) {

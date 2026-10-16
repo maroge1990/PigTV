@@ -103,13 +103,15 @@ function classifyTimestamps(packets) {
 /**
  * Probe stream with ffprobe
  */
-function probeStream(url, ffprobePath, userAgent = null, timeout = 15000) {
+function probeStream(url, ffprobePath, userAgent = null, timeout = 15000, { feed = null } = {}) {
     // Backstop behind the routes' own check (see streamUrl.js).
     if (!isStreamUrl(url)) return Promise.reject(new Error(NOT_A_STREAM_URL));
     return new Promise((resolve, reject) => {
         const args = [
             '-v', 'error',
-            '-user_agent', userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+            // Wave 5 (phase 5b): with a `feed` (a shared-ingest subscription) the probe reads the
+            // provider's bytes on stdin, taking no connection of its own.
+            ...(feed ? [] : ['-user_agent', userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36']),
             '-print_format', 'json',
             '-show_streams',
             '-show_format',
@@ -125,10 +127,15 @@ function probeStream(url, ffprobePath, userAgent = null, timeout = 15000) {
             '-read_intervals', `%+#${DTS_PROBE_PACKETS}`,
             '-probesize', '5000000',
             '-analyzeduration', '5000000',
-            url
+            feed ? 'pipe:0' : url
         ];
 
         const proc = spawn(ffprobePath, args);
+        if (feed) {
+            proc.stdin.on('error', () => { /* ffprobe has read what it needs and gone */ });
+            feed.pipe(proc.stdin);
+            proc.on('close', () => feed.leave());
+        }
         let stdout = '';
         let stderr = '';
 

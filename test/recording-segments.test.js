@@ -251,7 +251,8 @@ test('switch on: segments in appdata under one row; watchable while recording; a
     assert.match(done.segment_name, /^Match \d+ - \d{4}-\d\d-\d\d \d\d-\d\d$/);
     assert.ok(fs.existsSync(done.file_path), 'the MP4 is on the share');
     assert.equal(fs.readdirSync(path.dirname(done.file_path)).filter(f => f.endsWith('.partial')).length, 0, 'renamed into place');
-    assert.equal(fs.existsSync(rec.work_dir), false, 'the work folder is deleted');
+    // The row points at the MP4 first, then the folder goes (a crash between leaves a spare folder, never a row pointing at nothing).
+    await until(() => !fs.existsSync(rec.work_dir), 'the work folder is deleted');
     assert.equal(done.native_status, 'ready', 'no second preparation');
     assert.equal(done.ad_detect_status, 'pending');
     assert.ok(done.duration_sec > 0);
@@ -301,7 +302,7 @@ test('an MP4 that fails its check three times: the segments go to the share as o
         assert.equal(path.extname(done.file_path), '.ts');
         assert.ok(fs.statSync(done.file_path).size >= 3000 * 2, 'every segment joined');
         assert.equal(done.native_status, 'pending', 'preparation takes it from here');
-        assert.equal(fs.existsSync(rec.work_dir), false);
+        await until(() => !fs.existsSync(rec.work_dir), "the work folder is deleted");
     } finally {
         engine._nativeTools.duration = real;
     }

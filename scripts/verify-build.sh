@@ -872,7 +872,7 @@ fi
 
 echo "=== 0073: HLS sessions tolerate audio/video start-time skew ==="
 # It is an input option: it must sit before -i or it would apply to the output.
-if awk '/-dts_delta_threshold/{d=NR} /args.push\(.-i., this.url\)/{i=NR} END{exit !(d && i && d<i)}' server/services/transcodeSession.js; then
+if awk '/-dts_delta_threshold/{d=NR} /args.push\(.-i., this\.(url|feed)/{i=NR} END{exit !(d && i && d<i)}' server/services/transcodeSession.js; then
   echo "  ✓ it comes before -i (an input option)"
 else
   echo "  ✗ MISSING: -dts_delta_threshold must come before -i in the session arguments"; FAIL=1

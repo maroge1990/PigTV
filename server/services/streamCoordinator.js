@@ -194,7 +194,9 @@ function activeStreams() {
         standby: s.standby === true,
         // R12: a session started ahead for the channel its owner may play next. Nobody
         // watches it either, and it is reclaimed before even a standby.
-        warm: s.warm === true
+        warm: s.warm === true,
+        // Wave 5: the shared ingest it reads (sessions on one ingest hold one connection).
+        ...(s.ingestKey ? { ingestKey: s.ingestKey } : {})
     }));
 }
 
@@ -372,7 +374,7 @@ function listLeases() {
 function hasFreeConnection(providerId, settings = {}, activeRecordings = []) {
     const dir = providerDirectory();
     const pool = poolKey(providerId, dir);
-    return streamsInPool(pool, dir).length + recordingsInPool(activeRecordings, pool, dir).length < providerLimit(providerId, settings, dir);
+    return streamsInPool(pool, dir, activeRecordings).length + recordingsInPool(activeRecordings, pool, dir).length < providerLimit(providerId, settings, dir);
 }
 
 /**
@@ -398,7 +400,7 @@ async function reserveTakingWarm(providerId, purpose, settings = {}, activeRecor
     if (free) return free;
     const dir = providerDirectory();
     const pool = poolKey(providerId, dir);
-    const streams = streamsInPool(pool, dir);
+    const streams = streamsInPool(pool, dir, activeRecordings);
     const warm = streams.find(s => s.warm);
     if (!warm) return null;
     // Room once the warm one is gone, and only then.
@@ -490,10 +492,53 @@ function recordingProvider(rec) {
 
 // R11: the sessions in a pool plus the leases that will become sessions. A bound lease is not
 // listed (its session is), so nothing is counted twice.
-function streamsInPool(pool, dir) {
+// Wave 5 (shared ingest, docs/SHARED-INGEST.md §3): one entry per CONNECTION. Sessions reading
+// one ingest are one entry (`type: 'ingest'`, its `members`); an ingest a recording also reads is
+// that recording's connection already (recordingsInPool counts it), so its sessions add nothing;
+// an ingest nobody reads (its linger) is an abandoned connection, reclaimed like an idle stream.
+// With the switch off nothing has an ingestKey and this is exactly today's list.
+function streamsInPool(pool, dir, recordings = undefined) {
     const sessions = activeStreams().filter(s => poolKey(s.providerId, dir) === pool);
     const pending = unboundLeasesInPool(pool, dir).filter(l => l.purpose !== 'recording').map(leaseAsStream);
-    return [...sessions, ...pending];
+    const ingest = require('./ingest');
+    const idle = ingest.idleInPool(pool);
+    if (!sessions.some(s => s.ingestKey) && idle.length === 0) return [...sessions, ...pending];
+
+    let recs = recordings;
+    if (recs === undefined) { try { recs = require('./recordingEngine').listActive(); } catch (e) { recs = []; } }
+    const recKeys = new Set((recs || []).filter(r => r.ingestKey && poolKey(recordingProvider(r), dir) === pool).map(r => r.ingestKey));
+    const out = [];
+    const groups = new Map();
+    for (const s of sessions) {
+        if (!s.ingestKey) { out.push(s); continue; }
+        if (recKeys.has(s.ingestKey)) continue; // rides a recording's connection
+        let g = groups.get(s.ingestKey);
+        if (!g) {
+            g = { id: s.id, type: 'ingest', ingestKey: s.ingestKey, members: [], idleMs: Infinity, startTime: s.startTime,
+                owner: s.owner, providerId: s.providerId, standby: true, warm: true };
+            groups.set(s.ingestKey, g);
+            out.push(g);
+        }
+        g.members.push(s);
+        g.idleMs = Math.min(g.idleMs, s.idleMs);
+        if (g.owner !== s.owner) g.owner = null;
+        g.standby = g.standby && s.standby;
+        g.warm = g.warm && s.warm;
+    }
+    for (const i of idle) {
+        if (groups.has(i.key) || recKeys.has(i.key)) continue;
+        out.push({ id: `ingest-${i.id}`, type: 'ingest', ingestKey: i.key, members: [], idleMs: Infinity, startTime: i.startedAt,
+            owner: null, providerId: i.providerId, standby: false, warm: false, lingering: true });
+    }
+    return [...out, ...pending];
+}
+
+/** Wave 5: is this ingest key already holding a connection in the pool (a session, a recording, or lingering)? */
+function ingestInPool(key, pool, dir, recordings) {
+    if (!key) return false;
+    if ((recordings || []).some(r => r.ingestKey === key && poolKey(recordingProvider(r), dir) === pool)) return true;
+    const live = require('./ingest');
+    return [...live._registry.values()].some(i => !i.closed && i.key === key && i.pool === pool && i.state !== 'connecting');
 }
 
 // The recordings in a pool: the running ones, plus recordings that have been admitted but whose
@@ -597,6 +642,12 @@ function staleStreams(idleTimeoutSec = DEFAULT_IDLE_TIMEOUT_SEC) {
 }
 
 async function releaseStream(stream) {
+    // Wave 5: one connection shared by sessions: end them all, and the ingest at once (no linger).
+    if (stream.type === 'ingest') {
+        for (const m of stream.members || []) await releaseStream(m);
+        try { require('./ingest').closeKey(stream.ingestKey, 'its connection was needed'); } catch (e) { /* gone */ }
+        return true;
+    }
     // R11: an unbound lease has no session to remove: giving the lease up is the release, and its
     // owner (a probe in progress) is told so it stops instead of starting a session nobody counts.
     if (stream.lease) {
@@ -739,7 +790,7 @@ function canRecordFreely(providerId, settings = {}, activeRecordings = undefined
     const held = recordingsInPool(recordings, pool, dir).length;
     const cutoff = (Number.isFinite(settings.viewerIdleTimeoutSec)
         ? settings.viewerIdleTimeoutSec : DEFAULT_IDLE_TIMEOUT_SEC) * 1000;
-    const live = streamsInPool(pool, dir).filter(s => !isStale(s, cutoff)).length;
+    const live = streamsInPool(pool, dir, recordings).filter(s => !isStale(s, cutoff)).length;
     return live + held < limit;
 }
 
@@ -833,7 +884,7 @@ function ownerKey(user) {
  * abandoned ones, then this owner's own earlier stream, and only then
  * something somebody else may be watching.
  */
-function requestForViewer({ force = false, activeRecordings = [], settings = {}, owner = null, providerId = undefined, adopt = null } = {}) {
+function requestForViewer({ force = false, activeRecordings = [], settings = {}, owner = null, providerId = undefined, adopt = null, joinIngest = null } = {}) {
     // Everything below is within the pool of the provider asked for (0173): its
     // streams, its recordings, its limit. No providerId is the primary's pool,
     // which with no backup configured is every stream, as before.
@@ -853,10 +904,15 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
     // Most idle first; a standby (0189) before any of them, and a warm session (R12) before that.
     // `adopt` (R12) is a warm session this very request is about to turn into its viewer
     // session: it already holds the connection the +1 below asks for, so it is not counted.
-    const streams = streamsInPool(pool, dir).filter(s => !adopt || s.id !== adopt)
+    // Wave 5: joining an ingest that already holds a connection here asks for no new one, and
+    // that ingest is never released to make room for joining it.
+    const joining = ingestInPool(joinIngest, pool, dir, activeRecordings);
+    const streams = streamsInPool(pool, dir, activeRecordings).filter(s => !adopt || s.id !== adopt)
+        .filter(s => !(joining && s.ingestKey === joinIngest))
         .sort((a, b) => (b.warm === true) - (a.warm === true) || (b.standby === true) - (a.standby === true) || b.idleMs - a.idleMs);
-    let need = streams.length + recordings.length + 1 - limit;
-    if (need <= 0) return { allowed: true, release: elsewhere() };
+    let need = streams.length + recordings.length + (joining ? 0 : 1) - limit;
+    if (joining && need > 0) need = 0; // it costs nothing: nobody need go for it
+    if (need <= 0) return { allowed: true, release: elsewhere(), ...(joining ? { joining: true } : {}) };
 
     // Entries are { stream, cause }. The cause does not change what happens to
     // the stream - everything released here is released because somebody else
@@ -930,8 +986,8 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
  * replaced - with no 409 and no force? Non-mutating: for walking a channel's
  * providers in order (P6) before admitViewer is called on the one chosen.
  */
-function canAdmitWithoutDisturbing({ providerId = undefined, owner = null, settings = {}, activeRecordings = [] } = {}) {
-    return requestForViewer({ force: false, providerId, owner, settings, activeRecordings }).allowed === true;
+function canAdmitWithoutDisturbing({ providerId = undefined, owner = null, settings = {}, activeRecordings = [], joinIngest = null } = {}) {
+    return requestForViewer({ force: false, providerId, owner, settings, activeRecordings, joinIngest }).allowed === true;
 }
 
 /**
@@ -945,7 +1001,8 @@ async function admitViewer(opts = {}) {
         // R11: the lease on the connection is taken here, in the tick of the decision and before
         // the first release is awaited, so a contender arriving while those finish (or while the
         // caller probes) counts it. Not for an adopted warm session: it holds its own lease.
-        if (!opts.adopt) verdict.lease = takeLease(opts.providerId, 'viewer', { owner: opts.owner });
+        // Wave 5: joining a shared ingest takes no connection, so no lease.
+        if (!opts.adopt && !verdict.joining) verdict.lease = takeLease(opts.providerId, 'viewer', { owner: opts.owner });
         // A recording that was admitted but has not started yet, and is forced out: it must not
         // start after all (its engine checks the lease), and its count goes with it.
         for (const id of verdict.sacrificed || []) {
@@ -964,7 +1021,8 @@ async function admitViewer(opts = {}) {
             // sweep and the stall watchdog end sessions on their own, and a
             // recording reclaims streams via requestForRecording.
             // A warm session or a lease is not a stream anybody could be told was taken over.
-            if (!stream.warm && !stream.lease) noteReplaced(stream);
+            if (stream.type === 'ingest') { for (const m of stream.members || []) if (!m.warm) noteReplaced(m); }
+            else if (!stream.warm && !stream.lease) noteReplaced(stream);
             await releaseStream(stream);
         }
     }

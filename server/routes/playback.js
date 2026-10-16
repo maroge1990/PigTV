@@ -121,6 +121,16 @@ router.post('/resolve', requireToken, async (req, res) => {
         const showProvider = !!routing && (routing.backupsConfigured || failoverPossible);
         const live = sourceId !== undefined && channelId !== undefined;
 
+        // Wave 5 (phase 5b, `sharedIngestEnabled`): a live channel's candidate is read through the
+        // shared ingest of its stream; joining one that is already open takes no connection.
+        const ingest = require('../services/ingest');
+        const ingestFor = (candidate) => {
+            if (!live || !ingest.enabled(settings) || !/^https?:/i.test(String(candidate.url || ''))) return null;
+            const pool = coordinator.poolOf(candidate.providerId);
+            return { pool, url: candidate.url, userAgent: db.getUserAgent(settings), providerId: candidate.providerId ?? null,
+                key: ingest.keyOf(pool, candidate.url) };
+        };
+
         // Start one candidate: probe, session, first segment. Throws what resolve throws.
         const start = (candidate, index, lease) => {
             const isLast = index === candidates.length - 1;
@@ -139,6 +149,7 @@ router.post('/resolve', requireToken, async (req, res) => {
                 providerId: candidate.providerId,
                 // R11: the connection lease taken when this candidate was admitted.
                 lease,
+                ingestSource: ingestFor(candidate),
                 // 0174: only the last candidate gets 0143's two refused-connection
                 // retries; an earlier one gets one, after 1 s, then the next provider.
                 ...(failoverPossible ? {
@@ -191,7 +202,7 @@ router.post('/resolve', requireToken, async (req, res) => {
                 console.warn(`[Playback] failover: stopped after ${lastTried.providerName}: less than ${providerRouting.MIN_START_MS / 1000}s left of the resolve`);
                 break;
             }
-            const ask = { force: false, activeRecordings, settings, owner, providerId: candidate.providerId };
+            const ask = { force: false, activeRecordings, settings, owner, providerId: candidate.providerId, joinIngest: ingestFor(candidate)?.key || null };
             if (!coordinator.canAdmitWithoutDisturbing(ask)) continue;
             const verdict = await coordinator.admitViewer(ask);
             if (!verdict.allowed) continue;
@@ -232,7 +243,8 @@ router.post('/resolve', requireToken, async (req, res) => {
                 activeRecordings,
                 settings,
                 owner,
-                providerId: first.providerId
+                providerId: first.providerId,
+                joinIngest: ingestFor(first)?.key || null
             });
             if (!verdict.allowed) {
                 return sendConflict(res, verdict, { everyProvider: !!routing && routing.providerCount > 1 });
@@ -265,6 +277,7 @@ router.post('/resolve', requireToken, async (req, res) => {
                     live,
                     providerId: first.providerId,
                     lease: verdict.lease,
+                    ingestSource: ingestFor(first),
                     ...(failoverPossible ? { deadlineAt } : {}),
                     ...(showProvider ? { timingNote: `, provider ${first.providerName} (${first.via})` } : {})
                 });
