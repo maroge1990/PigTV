@@ -108,9 +108,10 @@ test('a capture killed mid-way, then a second run: one timeline, a watch copy of
     assert.equal(e2.n, 2);
     assert.ok(Math.abs(e2.offsetSec - e1Seconds) < 0.001);
     const p2 = spawn('ffmpeg', segments.captureArgs({ userAgent: 'test', url: base, epochDir: e2.dir, offsetSec: e2.offsetSec }), { stdio: ['pipe', 'ignore', 'ignore'] });
+    const p2closed = new Promise(resolve => p2.on('close', resolve)); // watched from the start: it may end before we look
     assert.ok(await until(() => segments.archiveSegmentCount(workDir) > open.segments.length), 'epoch 2 wrote a segment');
     await segments.ensureView(rec);
-    const r2 = await new Promise(resolve => p2.on('close', resolve));
+    const r2 = await p2closed;
     assert.equal(r2, 0, 'epoch 2 ran to the end of the input');
 
     const firstOf = (dir) => path.join(dir, parseMediaPlaylist(fs.readFileSync(path.join(dir, 'archive.m3u8'), 'utf8')).segments[0].name);
