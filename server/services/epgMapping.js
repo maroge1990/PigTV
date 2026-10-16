@@ -145,8 +145,47 @@ function epgChannels(withProgrammes) {
     return out;
 }
 
+// ---- region (R10) -------------------------------------------------------------
+
+const REGIONS = new Set(['au', 'nz', 'uk', 'us', 'ca', 'ie', 'za', 'in', 'de', 'fr', 'es', 'it', 'nl']);
+const REGION_ALIAS = { gb: 'uk' };
+const REGION_WEIGHT = 0.15;
+
+const regionCode = (code) => {
+    const c = String(code || '').toLowerCase();
+    const r = REGION_ALIAS[c] || c;
+    return REGIONS.has(r) ? r : null;
+};
+
+/** An EPG channel id's country: its last dotted part ("SevenSydney.au" -> au), else null. */
+function regionOfTvgId(tvgId) {
+    const m = /\.([a-z]{2})$/i.exec(String(tvgId || '').trim());
+    return m ? regionCode(m[1]) : null;
+}
+
+/** A playlist channel's country: its name's prefix ("AU: Seven", "UK | BBC One"), else its own EPG id's, else its category's. */
+function regionOfChannel({ name, tvgId, category } = {}) {
+    const prefixOf = (text) => {
+        const m = /^\s*([a-z]{2})\s*[:|\-]/i.exec(String(text || ''));
+        return m ? regionCode(m[1]) : null;
+    };
+    return prefixOf(name) || regionOfTvgId(tvgId) || prefixOf(category);
+}
+
+/**
+ * R10: the name score moved by the region, as Dispatcharr's matcher does: +0.15 when the EPG id
+ * is the channel's country, -0.15 when it is another country; unchanged when either is unknown.
+ * An exact name stays 1 only in the right (or an unknown) country.
+ */
+function regionAdjusted(score, region, tvgId) {
+    const theirs = regionOfTvgId(tvgId);
+    if (!region || !theirs) return score;
+    const moved = theirs === region ? Math.min(1, score + REGION_WEIGHT) : Math.max(0, score - REGION_WEIGHT);
+    return Math.round(moved * 100) / 100;
+}
+
 /** Candidates sharing at least one token (or, failing that, all of them), best first. */
-function rankCandidates(name, pool, index, limit = 5) {
+function rankCandidates(name, pool, index, limit = 5, region = null) {
     const target = prepare(name);
     if (!target.norm) return [];
     let pickFrom = pool;
@@ -156,7 +195,7 @@ function rankCandidates(name, pool, index, limit = 5) {
         pickFrom = hit.size ? [...hit].map(i => pool[i]) : pool;
     }
     return pickFrom
-        .map(c => ({ tvgId: c.tvgId, name: c.name, score: similarity(target, c) }))
+        .map(c => ({ tvgId: c.tvgId, name: c.name, score: regionAdjusted(similarity(target, c), region, c.tvgId) }))
         .filter(c => c.score > 0)
         .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
         .slice(0, limit);
@@ -211,7 +250,7 @@ function unmatched({ now = Date.now(), limit = 500, search = '' } = {}) {
             category: r.category_id,
             tvgId,
             mapped: !!mapped,
-            candidates: rankCandidates(r.name, pool, index)
+            candidates: rankCandidates(r.name, pool, index, 5, regionOfChannel({ name: r.name, tvgId: r.tvg_id, category: r.category_id }))
         });
     }
     return { total, channels: out };
@@ -265,7 +304,7 @@ function setMapping(sourceId, channelId, tvgId) {
     if (value) {
         db.prepare(`
             INSERT INTO epg_mappings (source_id, channel_key, tvg_id, updated_at) VALUES (?, ?, ?, ?)
-            ON CONFLICT(source_id, channel_key) DO UPDATE SET tvg_id = excluded.tvg_id, updated_at = excluded.updated_at
+            ON CONFLICT(source_id, channel_key) DO UPDATE SET tvg_id = excluded.tvg_id, updated_at = excluded.updated_at, batch = NULL
         `).run(sourceId, row.channel_key, value, Date.now());
     } else {
         db.prepare('DELETE FROM epg_mappings WHERE source_id = ? AND channel_key = ?').run(sourceId, row.channel_key);
@@ -275,9 +314,63 @@ function setMapping(sourceId, channelId, tvgId) {
     return { tvgId: value || null };
 }
 
+// ---- auto-map (R10) -----------------------------------------------------------
+
+const AUTO_THRESHOLD = 0.9;
+const AUTO_MARGIN = 0.05;
+
+/**
+ * What "Auto-map" would do: every unmatched channel with NO mapping of its own whose best
+ * suggestion scores at least `threshold` and is clearly ahead of the next one (by 0.05), as
+ * [{ sourceId, id, name, tvgId, epgName, score }]. Nothing is stored.
+ */
+function autoMapPreview({ threshold = AUTO_THRESHOLD, now = Date.now() } = {}) {
+    const { channels } = unmatched({ now, limit: 100000 });
+    const out = [];
+    for (const ch of channels) {
+        if (ch.mapped) continue; // never over the admin's own choice
+        const [best, next] = ch.candidates;
+        if (!best || best.score < threshold) continue;
+        if (next && best.score - next.score < AUTO_MARGIN) continue; // two look alike: a person decides
+        out.push({ sourceId: ch.sourceId, id: ch.id, name: ch.name, tvgId: best.tvgId, epgName: best.name, score: best.score });
+    }
+    return out;
+}
+
+/** Apply the preview as one batch. -> { batch, mapped }. */
+function autoMapApply({ threshold = AUTO_THRESHOLD, now = Date.now() } = {}) {
+    const plan = autoMapPreview({ threshold, now });
+    const db = getDb();
+    const batch = `auto-${now}`;
+    const insert = db.prepare(`INSERT INTO epg_mappings (source_id, channel_key, tvg_id, updated_at, batch)
+        SELECT ?, COALESCE(stable_id, item_id), ?, ?, ? FROM playlist_items WHERE source_id = ? AND type = 'live' AND item_id = ? LIMIT 1
+        ON CONFLICT(source_id, channel_key) DO NOTHING`);
+    let mapped = 0;
+    db.transaction(() => { for (const p of plan) mapped += insert.run(p.sourceId, p.tvgId, now, batch, p.sourceId, p.id).changes; })();
+    cache = null;
+    if (mapped) bumpLibraryRev();
+    return { batch, mapped, channels: plan };
+}
+
+/** Undo a batch: its mappings that still say what the batch set (one changed since is the admin's). */
+function autoMapUndo(batch) {
+    const removed = getDb().prepare('DELETE FROM epg_mappings WHERE batch = ?').run(String(batch)).changes;
+    cache = null;
+    if (removed) bumpLibraryRev();
+    return { removed };
+}
+
+/** The batches still in force, newest first: [{ batch, count, at }]. */
+function autoMapBatches() {
+    return getDb().prepare(`SELECT batch, COUNT(*) AS count, MAX(updated_at) AS at FROM epg_mappings
+        WHERE batch IS NOT NULL GROUP BY batch ORDER BY at DESC`).all();
+}
+
 function reset() { cache = null; }
 
 module.exports = {
     effectiveTvgId, overrideFor, unmatched, searchEpgChannels, listMappings, setMapping,
-    normaliseName, similarity, reset, MAX_TVG_ID
+    normaliseName, similarity, reset, MAX_TVG_ID,
+    // R10
+    regionOfTvgId, regionOfChannel, regionAdjusted, autoMapPreview, autoMapApply, autoMapUndo, autoMapBatches, AUTO_THRESHOLD
 };

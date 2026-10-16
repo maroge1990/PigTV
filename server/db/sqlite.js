@@ -382,6 +382,9 @@ function initSchema() {
             PRIMARY KEY (source_id, channel_key)
         );
     `);
+    // R10: a mapping made by "Auto-map" carries its batch (null = the admin's own), so a batch can
+    // be undone without touching anything chosen by hand.
+    try { db.exec('ALTER TABLE epg_mappings ADD COLUMN batch TEXT'); } catch (e) { /* already present */ }
 
     // Sport categories (0146, contract C-H): the live categories an admin marked
     // as sport, for the Apple Home screen's "Sport on now" row. A row present =

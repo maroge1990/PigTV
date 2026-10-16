@@ -823,6 +823,15 @@
                   <input type="text" id="epg-match-filter" placeholder="Filter channels..." class="search-input">
                 </div>
                 <span id="epg-match-status" class="lineup-status"></span>
+                <button type="button" class="btn btn-sm btn-secondary" id="epg-automap-preview">Auto-map…</button>
+              </div>
+              <!-- R10: preview, apply as one batch, undo -->
+              <div id="epg-automap-panel" class="epg-search-panel hidden">
+                <p class="setting-hint">Maps every channel whose best suggestion scores 90% or more and is clearly ahead of
+                  the next one. Channels you mapped yourself are never changed. Each run can be undone.</p>
+                <div id="epg-automap-list" class="epg-candidates"></div>
+                <button type="button" class="btn btn-sm btn-primary" id="epg-automap-apply">Map these</button>
+                <div id="epg-automap-batches"></div>
               </div>
               <div id="epg-match-search-panel" class="epg-search-panel hidden">
                 <p class="setting-hint" id="epg-match-search-for"></p>

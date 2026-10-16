@@ -188,7 +188,11 @@ const API = {
         unmatched: () => API.request('GET', '/epg/unmatched'),
         searchChannels: (search) => API.request('GET', `/epg/channels?search=${encodeURIComponent(search)}`),
         mappings: () => API.request('GET', '/epg/mappings'),
-        setMapping: (sourceId, channelId, tvgId) => API.request('PUT', '/epg/mapping', { sourceId, channelId, tvgId })
+        setMapping: (sourceId, channelId, tvgId) => API.request('PUT', '/epg/mapping', { sourceId, channelId, tvgId }),
+        // R10: map every clearly-matched channel at once (preview, apply as a batch, undo a batch).
+        autoMapPreview: () => API.request('GET', '/epg/auto-map'),
+        autoMapApply: () => API.request('POST', '/epg/auto-map', {}),
+        autoMapUndo: (batch) => API.request('DELETE', `/epg/auto-map/${encodeURIComponent(batch)}`)
     },
 
     // Channels (hidden items)

@@ -462,6 +462,13 @@ class SettingsPage {
             searchTimer = setTimeout(() => this.searchEpgChannels(search.value), 300);
         });
 
+        document.getElementById('epg-automap-preview')?.addEventListener('click', () => this.previewAutoMap());
+        document.getElementById('epg-automap-apply')?.addEventListener('click', () => this.applyAutoMap());
+        document.getElementById('epg-automap-batches')?.addEventListener('click', (e) => {
+            const button = e.target?.closest?.('button[data-batch]');
+            if (button) this.undoAutoMap(button.dataset.batch);
+        });
+
         document.getElementById('tab-epg')?.addEventListener('click', (e) => {
             const button = e.target?.closest?.('button[data-epg-action]');
             if (!button) return;
@@ -481,6 +488,60 @@ class SettingsPage {
         if (!status) return;
         status.textContent = text;
         status.classList.toggle('error', isError);
+    }
+
+    // ---- R10: auto-map --------------------------------------------------
+
+    async previewAutoMap() {
+        const panel = document.getElementById('epg-automap-panel');
+        const list = document.getElementById('epg-automap-list');
+        const apply = document.getElementById('epg-automap-apply');
+        if (!panel || !list) return;
+        panel.classList.remove('hidden');
+        list.textContent = 'Loading…';
+        try {
+            const preview = await API.epg.autoMapPreview();
+            const rows = preview.channels || [];
+            list.innerHTML = rows.length
+                ? `<p class="setting-hint">${rows.length} channel${rows.length === 1 ? '' : 's'} would be mapped:</p><ul>${rows.map(r =>
+                    `<li>${this.escapeLineup(r.name)} → ${this.escapeLineup(r.epgName)} <span class="pig-amount">${Math.round(r.score * 100)}%</span></li>`).join('')}</ul>`
+                : '<p class="setting-hint">Nothing is a clear enough match to map automatically.</p>';
+            if (apply) apply.hidden = rows.length === 0;
+            this.renderAutoMapBatches(preview.batches || []);
+        } catch (err) {
+            list.textContent = 'Could not preview: ' + err.message;
+        }
+    }
+
+    renderAutoMapBatches(batches) {
+        const el = document.getElementById('epg-automap-batches');
+        if (!el) return;
+        el.innerHTML = batches.length ? `<h4>Automatic mappings in force</h4>${batches.map(b =>
+            `<p>${new Date(b.at).toLocaleString()}: ${b.count} channel${b.count === 1 ? '' : 's'}
+             <button type="button" class="btn btn-sm btn-secondary" data-batch="${this.escapeLineup(b.batch)}">Undo</button></p>`).join('')}` : '';
+    }
+
+    async applyAutoMap() {
+        try {
+            const result = await API.epg.autoMapApply();
+            this.setEpgStatus(`${result.mapped} channel${result.mapped === 1 ? '' : 's'} mapped automatically`);
+            await this.loadEpgMatching();
+            await this.previewAutoMap();
+        } catch (err) {
+            this.setEpgStatus('Auto-map failed: ' + err.message, true);
+        }
+    }
+
+    async undoAutoMap(batch) {
+        if (!confirm('Undo these automatic mappings? Any you have changed since are kept.')) return;
+        try {
+            const result = await API.epg.autoMapUndo(batch);
+            this.setEpgStatus(`${result.removed} automatic mapping${result.removed === 1 ? '' : 's'} undone`);
+            await this.loadEpgMatching();
+            await this.previewAutoMap();
+        } catch (err) {
+            this.setEpgStatus('Undo failed: ' + err.message, true);
+        }
     }
 
     async loadEpgMatching() {

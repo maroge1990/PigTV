@@ -57,6 +57,44 @@ router.get('/mappings', (req, res) => {
     }
 });
 
+// R10: map every clearly-matched channel at once. ?dryRun or {dryRun:true} previews; the answer of
+// an apply names its batch, which DELETE /auto-map/:batch undoes. Never touches a mapping made by hand.
+const thresholdOf = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0.8 && n <= 1 ? n : epgMapping.AUTO_THRESHOLD;
+};
+
+router.get('/auto-map', (req, res) => {
+    try {
+        res.json({ threshold: thresholdOf(req.query.threshold), channels: epgMapping.autoMapPreview({ threshold: thresholdOf(req.query.threshold) }),
+            batches: epgMapping.autoMapBatches() });
+    } catch (err) {
+        console.error('[EPG] auto-map preview failed:', err.message);
+        res.status(500).json({ error: 'Could not preview the automatic mappings' });
+    }
+});
+
+router.post('/auto-map', (req, res) => {
+    try {
+        const result = epgMapping.autoMapApply({ threshold: thresholdOf(req.body?.threshold) });
+        console.log(`[EPG] Auto-map ${result.batch}: ${result.mapped} channel(s) mapped`);
+        res.json(result);
+    } catch (err) {
+        console.error('[EPG] auto-map failed:', err.message);
+        res.status(500).json({ error: 'Could not map the channels' });
+    }
+});
+
+router.delete('/auto-map/:batch', (req, res) => {
+    if (!/^auto-\d{10,16}$/.test(req.params.batch)) return res.status(400).json({ error: 'Unknown batch' });
+    try {
+        res.json(epgMapping.autoMapUndo(req.params.batch));
+    } catch (err) {
+        console.error('[EPG] auto-map undo failed:', err.message);
+        res.status(500).json({ error: 'Could not undo the automatic mappings' });
+    }
+});
+
 router.put('/mapping', (req, res) => {
     const { sourceId, channelId, tvgId } = req.body || {};
     const source = parseInt(sourceId, 10);
