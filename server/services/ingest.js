@@ -56,6 +56,17 @@ function looksLikeTs(buf) {
     return false;
 }
 
+/** Offset of the first PAT packet start (PID 0, payload start) in `buf`, or -1. */
+function firstPatOffset(buf) {
+    for (let i = 0; i + TS_PACKET <= buf.length; i++) {
+        if (buf[i] !== SYNC) continue;
+        const pid = ((buf[i + 1] & 0x1f) << 8) | buf[i + 2];
+        if (pid !== 0 || !(buf[i + 1] & 0x40)) continue;
+        if (i + TS_PACKET === buf.length || buf[i + TS_PACKET] === SYNC) return i;
+    }
+    return -1;
+}
+
 /** Offset of the last PAT packet start (PID 0, payload start) in `buf`, or -1. */
 function lastPatOffset(buf) {
     for (let i = buf.length - TS_PACKET; i >= 0; i--) {
@@ -262,17 +273,22 @@ class Ingest extends EventEmitter {
         this.close(why, { providerReason: true, reason: 'upstream-lost' });
     }
 
-    /** A new subscriber, starting at the join point. */
-    subscribe(info = {}) {
+    /**
+     * A new subscriber, starting at the join point: the last PAT in the buffer's final 2 s, or -
+     * for the subscriber that opened this ingest (`fromStart`) - the first PAT the connection
+     * brought, so it gets what a connection of its own would have (nothing has been dropped yet).
+     */
+    subscribe(info = {}, { fromStart = false } = {}) {
         const sub = new Subscription(this, info);
         clearTimeout(this.lingerTimer);
         this.lingerTimer = null;
         this.subs.add(sub);
+        const opener = fromStart && this.bytes === this.bytesIn;
         const tailFrom = Date.now() - tuning.joinWindowMs;
-        const tail = this.chunks.filter(c => c.at >= tailFrom).map(c => c.buf);
+        const tail = this.chunks.filter(c => opener || c.at >= tailFrom).map(c => c.buf);
         if (tail.length) {
             const joined = Buffer.concat(tail);
-            const at = lastPatOffset(joined);
+            const at = opener ? firstPatOffset(joined) : lastPatOffset(joined);
             if (at >= 0) sub.deliver(joined.subarray(at));
         }
         return sub;
@@ -326,14 +342,16 @@ class Ingest extends EventEmitter {
 async function subscribe({ pool, url, userAgent, providerId = null, purpose = null, owner = null }) {
     const key = keyOf(pool, url);
     let ingest = registry.get(key);
+    let opened = false;
     if (!ingest || ingest.closed) {
         ingest = new Ingest({ key, pool, url, userAgent, providerId });
         registry.set(key, ingest);
         ingest.start();
+        opened = true;
     }
     await ingest.ready;
     if (ingest.closed) throw Object.assign(new Error('Shared ingest not used: it closed'), { ingestRefused: true, providerReason: true });
-    return ingest.subscribe({ purpose, owner });
+    return ingest.subscribe({ purpose, owner }, { fromStart: opened });
 }
 
 /** A live ingest for (pool, url), or null - joining one needs no new provider connection. */
@@ -346,4 +364,4 @@ function list() { return [...registry.values()].filter(i => !i.closed).map(i => 
 function status() { return { ingests: list(), recent: history.slice(0, 5) }; }
 function closeAll(why = 'shutdown') { for (const i of [...registry.values()]) i.close(why); }
 
-module.exports = { enabled, subscribe, liveFor, list, status, closeAll, keyOf, looksLikeTs, lastPatOffset, tuning, _registry: registry };
+module.exports = { enabled, subscribe, liveFor, list, status, closeAll, keyOf, looksLikeTs, firstPatOffset, lastPatOffset, tuning, _registry: registry };

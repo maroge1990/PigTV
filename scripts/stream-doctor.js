@@ -35,7 +35,7 @@
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const { redact } = require(path.join(ROOT, 'server/redact'));
@@ -421,6 +421,113 @@ async function cmdBench(file) {
     try { fs.rmSync(work, { recursive: true, force: true }); } catch { /* temp cleaner gets it */ }
 }
 
+// ------------------------------------------------- bench --via-ingest (Wave 5) --
+
+/** HLS output in `dir`: segment count, total EXTINF, and what joined segments look like. */
+function hlsSummary(dir) {
+    const playlist = path.join(dir, 'stream.m3u8');
+    const text = fs.existsSync(playlist) ? fs.readFileSync(playlist, 'utf8') : '';
+    const durations = [...text.matchAll(/#EXTINF:([0-9.]+)/g)].map(m => Number(m[1]));
+    const joined = joinSegments(dir);
+    const start = joined ? Number((ffprobeJson(['-v', 'error', '-show_entries', 'format=start_time', '-of', 'json', joined]).json.format || {}).start_time) : null;
+    return { segments: durations.length, seconds: durations.reduce((t, d) => t + d, 0), start, steps: joined && evenness(joined) };
+}
+
+/**
+ * Wave 5 phase 5b's evidence (docs/SHARED-INGEST.md §6): the server's own session arguments run
+ * twice on a sample served over local HTTP - once reading the URL (as a session does today), once
+ * fed through the shared ingest into pipe:0 (as 5b would) - and the output compared. Touches no
+ * provider. Same verdict expected: the ingest hands ffmpeg the same bytes.
+ */
+async function cmdBenchViaIngest(file) {
+    if (!fs.existsSync(file)) die(`No such file: ${file}`);
+    const sample = path.resolve(file);
+    const http = require('http');
+    const transcodeSession = require(path.join(ROOT, 'server/services/transcodeSession'));
+    const ingest = require(path.join(ROOT, 'server/services/ingest'));
+    ingest.tuning.reconnectMs = 1000; // the sample ends: give up quickly, as the URL run does
+    ingest.tuning.slowBytes = 1024 * 1024 * 1024; // a file arrives faster than real time; a live feed does not
+
+    const { json } = ffprobeJson(['-v', 'error', '-print_format', 'json', '-show_streams', sample]);
+    const v = (json.streams || []).find((s) => s.codec_type === 'video') || {};
+    const a = (json.streams || []).find((s) => s.codec_type === 'audio') || {};
+    const codecs = { videoCodec: v.codec_name || 'h264', audioCodec: a.codec_name || 'aac', audioChannels: a.channels || 2 };
+    const dtsUneven = classifyTimestamps(packetsOf(sample)) === true;
+
+    // The sample, served once per path; a second connection to a path is refused (the feed ended).
+    const served = new Map();
+    const server = http.createServer((req, res) => {
+        if (served.get(req.url)) { res.writeHead(404); return res.end(); }
+        served.set(req.url, true);
+        res.writeHead(200, { 'Content-Type': 'video/mp2t' });
+        fs.createReadStream(sample).pipe(res);
+    });
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const work = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-doctor-ingest-'));
+
+    console.log(`sample: ${sample}  (${(fs.statSync(sample).size / 1e6).toFixed(1)} MB)`);
+    console.log(`codecs: ${codecs.videoCodec}/${codecs.audioCodec}, classified ${dtsUneven ? 'UNEVEN' : 'even'}`);
+    console.log(`ffmpeg: ${(spawnSync('ffmpeg', ['-version'], { encoding: 'utf8' }).stdout || '').split('\n')[0]}\n`);
+    let same = true;
+    let n = 0;
+    for (const [name, segExt, opts] of [
+        ['HLS fmp4 (copy A/V)', 'm4s', { segmentType: 'fmp4', videoMode: 'copy', audioMode: 'copy', ...codecs, dtsUneven }],
+        ['HLS mpegts (copy V, encode A)', 'ts', { segmentType: 'mpegts', videoMode: 'copy', ...codecs, dtsUneven }]
+    ]) {
+        const results = {};
+        for (const via of ['url', 'ingest']) {
+            const url = `${base}/${++n}.ts`;
+            const session = await transcodeSession.createSession(url, opts);
+            const outDir = fs.mkdtempSync(path.join(work, `${via}-`));
+            let args = session.buildFFmpegArgs();
+            const segI = args.indexOf('-hls_segment_filename');
+            if (segI >= 0) args[segI + 1] = path.join(outDir, 'seg%04d.' + segExt);
+            args[args.length - 1] = path.join(outDir, 'stream.m3u8');
+            let feed = null;
+            if (via === 'ingest') {
+                feed = await ingest.subscribe({ pool: 'bench', url, userAgent: 'stream-doctor', purpose: 'bench' });
+                const out = [];
+                for (let i = 0; i < args.length; i++) {
+                    if (['-user_agent', '-reconnect', '-reconnect_streamed', '-reconnect_delay_max'].includes(args[i])) { i++; continue; }
+                    if (args[i] === '-i') { out.push('-i', 'pipe:0'); i++; continue; }
+                    out.push(args[i]);
+                }
+                args = out;
+            }
+            const stderr = await new Promise((resolve) => {
+                const proc = spawn('ffmpeg', args, { cwd: outDir, stdio: ['pipe', 'ignore', 'pipe'] });
+                let err = '';
+                proc.stderr.on('data', d => { err += d; });
+                proc.stdin.on('error', () => { /* exited first */ });
+                if (feed) {
+                    feed.pipe(proc.stdin); // ends stdin once the feed has ended and drained
+                } else {
+                    proc.stdin.end();
+                }
+                proc.on('close', () => { if (feed) feed.leave(); resolve(err); });
+            });
+            results[via] = { ...hlsSummary(outDir), warnings: classifyStderr(stderr) };
+        }
+        const line = (label, r) => console.log('  ' + label.padEnd(8) + ` ${r.segments} segments, ${r.seconds.toFixed(2)}s, start ${r.start}` +
+            (r.steps ? `, ${r.steps.packets}pkt mean ${r.steps.meanMs}ms, ${r.steps.outliers} outliers, ${r.steps.backwards} backwards` : ', NO OUTPUT') +
+            `, warnings ${Object.entries(r.warnings.counts).map(([k, c]) => `${k}=${c}`).join(' ') || 'none'}`);
+        console.log(`=== ${name} ===`);
+        line('url', results.url);
+        line('ingest', results.ingest);
+        const u = results.url, i = results.ingest;
+        const match = u.segments === i.segments && Math.abs(u.seconds - i.seconds) < 0.1 && u.start === i.start
+            && JSON.stringify(u.steps) === JSON.stringify(i.steps) && JSON.stringify(u.warnings.counts) === JSON.stringify(i.warnings.counts);
+        console.log(`  verdict  ${match ? 'SAME' : 'DIFFERENT'}\n`);
+        same = same && match;
+    }
+    ingest.closeAll('bench over');
+    server.close();
+    try { fs.rmSync(work, { recursive: true, force: true }); } catch { /* temp cleaner gets it */ }
+    console.log(same ? 'Through the ingest: the same output as reading the URL.' : 'Through the ingest: DIFFERENT output - do not enable phase 5b.');
+    return same;
+}
+
 function cmdProbeCost(search) {
     const { row, url } = oneChannel(search);
     const COMMON = ['-v', 'error', '-user_agent', userAgent(), '-print_format', 'json',
@@ -462,6 +569,9 @@ const USAGE = `stream-doctor - what a feed sends, and what the server's ffmpeg d
   capture <pos_N> [sec]  grab the raw bytes + classify them (uses the provider slot)
   classify <sample.ts>   timestamps, jumps, A/V skew, blank picture
   bench <sample.ts>      score candidate ffmpeg flags against it
+  bench --via-ingest <sample.ts>
+                         the session's arguments reading the URL vs fed by the
+                         shared ingest (Wave 5): same output expected
   probecost <pos_N>      time the resolve probe             (uses the provider slot)
 
 capture and probecost connect to the provider, which allows one stream: nothing
@@ -473,7 +583,9 @@ async function main(argv) {
         case 'list': if (!arg1) die(USAGE); return cmdList(arg1);
         case 'capture': if (!arg1) die(USAGE); return cmdCapture(arg1, arg2);
         case 'classify': if (!arg1) die(USAGE); return cmdClassify(arg1);
-        case 'bench': if (!arg1) die(USAGE); return cmdBench(arg1);
+        case 'bench':
+            if (arg1 === '--via-ingest') { if (!arg2) die(USAGE); const same = await cmdBenchViaIngest(arg2); process.exitCode = same ? 0 : 1; return; }
+            if (!arg1) die(USAGE); return cmdBench(arg1);
         case 'probecost': if (!arg1) die(USAGE); return cmdProbeCost(arg1);
         default: console.log(USAGE); process.exit(cmd ? 2 : 0);
     }
@@ -483,5 +595,5 @@ async function main(argv) {
 module.exports = { SAMPLE_DIR: OUT, DATA_DIR: DATA, main, timeline, rawFetch };
 
 if (require.main === module) {
-    main(process.argv).then(() => process.exit(0), (err) => die(redact(err && err.stack || String(err))));
+    main(process.argv).then(() => process.exit(process.exitCode || 0), (err) => die(redact(err && err.stack || String(err))));
 }

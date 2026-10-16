@@ -865,10 +865,8 @@ function spawnPart(schedule, settings, { recordingId, outputPath, route, index, 
     active.set(schedule.id, entry);
     if (feed) {
         proc.stdin.on('error', () => { /* ffmpeg exited first */ });
-        feed.on('ingest-end', (why) => {
-            entry.feedLost = why;
-            try { proc.stdin.end(); } catch (e) { /* gone */ }
-        });
+        // Why the feed ended; its queued bytes still drain, and pipe() then ends stdin.
+        feed.on('ingest-end', (why) => { entry.feedLost = why; });
         feed.pipe(proc.stdin);
         proc.on('close', () => feed.leave());
     }

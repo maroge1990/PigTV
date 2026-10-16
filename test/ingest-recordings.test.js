@@ -209,3 +209,16 @@ test('a provider that dies for good: the ingest gives up and the recording ends 
         ingest.tuning.reconnectMs = 10000;
     }
 });
+
+test('a feed that ends hands ffmpeg every byte it had queued before stdin closes', async () => {
+    const s = due();
+    await until(() => engine.listActive().some(r => r.id === s.id && r.ingestKey), 'on the ingest');
+    await until(() => fs.existsSync(fileOf(s) || '') && fs.statSync(fileOf(s)).size > 50000, 'some data');
+    const [live] = ingest.list();
+    const sub = ingest._registry.values().next().value;
+    sub.close('test: upstream gone', { providerReason: true, reason: 'upstream-lost' });
+    await until(() => recordings.listBySchedule(s.id)[0]?.status === 'completed', 'ended');
+    const file = fs.readFileSync(fileOf(s));
+    assert.equal(file.length % 188, 0, 'whole packets: nothing cut mid-stream');
+    assert.ok(live.subscribers.length >= 1);
+});

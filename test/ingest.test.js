@@ -156,3 +156,14 @@ test('a redirect is followed; the buffer stays under its byte cap', async () => 
     assert.ok(state.kbps > 0);
     sub.leave();
 });
+
+test('the subscriber that opened the ingest gets everything its connection brought, from the first PAT', async () => {
+    const sub = await ingest.subscribe({ pool: 'p', url: `${base}/ts` });
+    const got = collect(sub);
+    await until(() => got().length > 188 * 200, 'data');
+    const first = got();
+    assert.equal(((first[1] & 0x1f) << 8) | first[2], 0, 'a PAT');
+    // The provider's first PAT on this connection is within its first 20 packets.
+    assert.ok(first.readUInt32BE(4) % 20 === 0);
+    sub.leave();
+});
