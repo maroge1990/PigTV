@@ -111,7 +111,7 @@ ingest's buffer bytes, subscribers, byte rate and reconnects.
 | Phase | Build | State |
 |---|---|---|
 | 5a ingest core, recordings | 0223, 0224 | Done, off by default. `stream-doctor bench --via-ingest` added (0224); its first run found two faults, fixed there. |
-| 5b sessions and the probe | 0225 | Done, off by default. Bench SAME on synthetic HEVC HDR10/50 fps/HE-AAC and H.264/AAC (ffmpeg 9.0). **Before Mark turns it on:** the bench on the five reference samples on the server (`docker exec PigTV node scripts/stream-doctor.js bench --via-ingest /app/data/samples/<sample>.ts`, each must say SAME), then his device test. |
+| 5b sessions and the probe | 0225 | Done, off by default. Bench SAME on synthetic HEVC HDR10/50 fps/HE-AAC and H.264/AAC (ffmpeg 9.0), and **on the server (18 Oct, build 0225, production ffmpeg) on six real samples, both session shapes, every metric equal**: `pos_31` (Sky Sports UHD, HDR10, 50 fps), `pos_1164`/`pos_1165` (HE-AAC), `pos_1157` (30 fps; the same two "packet duration out of range" warnings either way), `pos_29430`, `pos_31148` (50 fps). Not benched: an uneven-timestamp feed (`pos_1187`, the `igndts` path; not in the samples folder) and the three ~700 MB `pos_1178` captures (too big for the bench's temporary folder). **Next:** Mark's device test with the switch on. |
 | 5c R7 inside the ingest | | Not started: waits for real byte rates (Status → Shared provider connections shows each ingest's kb/s and reconnects). |
 | B4 retirements | | Not started: a week with the switch on and the §6 evidence first. |
 

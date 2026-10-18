@@ -235,6 +235,9 @@ and time-capped buffer, PAT join, eviction, reconnect then give up, linger) with
 and their probe read the ingest; the coordinator counts one connection per ingest, so watch + record and two devices on
 one channel share a connection. All behind Settings → Playback "Shared provider connection", off. Not started: 5c (R7,
 waits for real byte rates) and B4 (a week of evidence).
+**18 Oct, step 1 done:** `bench --via-ingest` on the server (build 0225, production ffmpeg): SAME on all six samples there
+(`pos_31` HDR 50 fps, `pos_1164`/`pos_1165` HE-AAC, `pos_1157`, `pos_29430`, `pos_31148`), both session shapes. Not
+covered: an uneven-timestamp feed (`pos_1187` is not in the samples folder; a fresh capture would cover the `igndts` path).
 
 ### Wave 5 checks for Mark (after Wave 4's)
 
