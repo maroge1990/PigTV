@@ -241,7 +241,7 @@ covered: an uneven-timestamp feed - none exists now: a fresh capture of Fox Spor
 and `pos_1187` is beIN Sports 3 now (even; benched SAME). The `igndts` path is covered by the unit tests only.
 **18 Oct, device test (steps 2–5):** passed. Several devices on one Strong8K connection for the HDR channel; recording it
 while watched joined the same ingest with no prompt; a different channel went to Dream 4K. No problem lines in an hour of
-`[Ingest]` logs. **Bug 9 (open, display only):** Status → Providers counts a viewer and a recording sharing one ingest as
+`[Ingest]` logs. Step 6 passed too: with everything stopped both ingests closed after their linger. **Bug 9 (open, display only):** Status → Providers counts a viewer and a recording sharing one ingest as
 2/1, and the recording banner still says live playback may fail; `routes/status.js` (`providersStatus`, `connectionUse`)
 and `public/js/app.js` should count and label per ingest as the coordinator does.
 
