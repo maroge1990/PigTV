@@ -237,7 +237,8 @@ one channel share a connection. All behind Settings → Playback "Shared provide
 waits for real byte rates) and B4 (a week of evidence).
 **18 Oct, step 1 done:** `bench --via-ingest` on the server (build 0225, production ffmpeg): SAME on all six samples there
 (`pos_31` HDR 50 fps, `pos_1164`/`pos_1165` HE-AAC, `pos_1157`, `pos_29430`, `pos_31148`), both session shapes. Not
-covered: an uneven-timestamp feed (`pos_1187` is not in the samples folder; a fresh capture would cover the `igndts` path).
+covered: an uneven-timestamp feed - none exists now: a fresh capture of Fox Sports 505 (moved to `pos_1182`) measured even,
+and `pos_1187` is beIN Sports 3 now (even; benched SAME). The `igndts` path is covered by the unit tests only.
 
 ### Wave 5 checks for Mark (after Wave 4's)
 

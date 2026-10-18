@@ -162,8 +162,16 @@ The tuner model (0126–0155: shared tuners, timeshift, HLS recordings) was remo
 `capture` and `probecost` take the provider connection, so **nothing may be playing**. Samples live in `/app/data/samples` (the bind
 mount; they survive deploys) and are the regression corpus. A sample is evidence: it has to outlive the build it was taken on:
 - `pos_31` Sky Sports Main Event UHD (HDR10, even)
-- `pos_1187` Fox Sports 505 (**uneven**)
-- `pos_463` TSN, `pos_328` Sky Sports UHD (HEVC), `pos_468` Sportsnet 4K: even
+- `pos_1187` Fox Sports 505 (**uneven**) as captured in September; `pos_463` TSN, `pos_328` Sky Sports UHD (HEVC),
+  `pos_468` Sportsnet 4K: even
+
+**`pos_N` is a playlist position, not an identity: the provider reorders.** By 18 Oct `pos_1187` was beIN Sports 3 and Fox
+Sports 505 was `pos_1182`, and **Fox Sports 505 measured even** (0 % near-zero steps, from 33.8 %): no current sample
+exercises the uneven (`igndts`) path, which is covered by the unit tests only. Find a channel with `list <name>` before a
+capture, and name the channel next to the file. The samples folder on 18 Oct: `pos_31.ts` (Sky Sports UHD, HDR10 50 fps),
+`pos_1164.ts`/`pos_1165.ts` (7 channels, HE-AAC), `pos_1157.ts` (30 fps), `pos_29430.ts`, `pos_31148.ts` (50 fps),
+`pos_1187.ts` (beIN Sports 3, 1080p, even), `pos_1182.ts` (Fox Sports 505, 720p, even), and three ~700 MB `pos_1178`
+captures.
 
 A 60 s capture turns a playback bug into a repeatable local experiment. It found the 0085 regression in an afternoon, after weeks
 of spot fixes.
@@ -471,7 +479,7 @@ Status words, used exactly: **Done**, **Shipped, awaiting a check** (needs Mark 
 |---|---|---|---|
 | **B1** quick wins (any order; none touches live playback) | **R12** nightly SQLite backup, plus one at startup when the build changes (0199 has the backup script) · **R4** a recording's end follows the guide · **R11** one webhook URL (provider down, recording failed, licence expiring) and live ffmpeg speed/fps on Status · check whether any provider sets `tv_archive` (keep the flag at sync) · check the reference samples for extra audio tracks (E3) | S each | **Done**, committed 16 Oct, not yet pushed: R12 (0213), R4 (0214), R11 webhook (0215), `tv_archive` kept and on Status (0216; the answer comes with the next sync). **Deferred:** live ffmpeg speed/fps (needs a `-progress` flag on the playback ffmpeg, so a capture first) and E3 (the samples are on the server; needs Mark) |
 | **B2** recordings | **R3** segmented recordings: an HLS event playlist that appends across restarts and failover (replacing parts), remuxed at the end, MP4 preparation (K12) from the segments. **Approved by Mark on 16 Oct** (replaces the 4 Oct skip): with watch-while-recording on Apple TV, segments in appdata, a Settings switch off by default; see the roadmap's Wave 4. · **R5** follow-list and series recording rules, de-duplicated by episode/event · **R6** EPG artwork | M + M | **Done**, committed, not pushed: R3 (0218, Apple 44; off by default), R5 (0219, Apple 45), R6 (0220, Apple 45). R3's reference-feed capture and Mark's test day still to come |
-| **B3** shared ingest (behind a Settings switch, capture-first) | **R2** one reader per (provider, channel) into an in-memory ring buffer with subscribers, in its own process group. Consumers in order: recordings → the HLS session reads `pipe:0` (rerun `stream-doctor bench` on all five samples) → **R7** failover inside the ingest (speed-based stall detection, reconnect or switch by `providerRouting`'s order). The coordinator counts ingests: the same channel takes no new connection | L | **R2 phases 5a/5b done** (0223–0225, off by default; design in `docs/SHARED-INGEST.md`): recordings, live plays and their probe share one connection per stream. Bench **SAME on the server's six samples** (18 Oct, production ffmpeg; HDR, 50 Hz, HE-AAC); an uneven-timestamp feed is not yet benched. Next: Mark's device test with the switch on. **R7** (5c) waits for real byte rates |
+| **B3** shared ingest (behind a Settings switch, capture-first) | **R2** one reader per (provider, channel) into an in-memory ring buffer with subscribers, in its own process group. Consumers in order: recordings → the HLS session reads `pipe:0` (rerun `stream-doctor bench` on all five samples) → **R7** failover inside the ingest (speed-based stall detection, reconnect or switch by `providerRouting`'s order). The coordinator counts ingests: the same channel takes no new connection | L | **R2 phases 5a/5b done** (0223–0225, off by default; design in `docs/SHARED-INGEST.md`): recordings, live plays and their probe share one connection per stream. Bench **SAME on seven real samples on the server** (18 Oct, production ffmpeg; HDR, 50 Hz, HE-AAC); no uneven-timestamp feed exists to bench any more. Next: Mark's device test with the switch on. **R7** (5c) waits for real byte rates |
 | **B4** retire (after B3 has run a week) | `streamRelay.js` leg-stitching and standby, the 0143 refusal retries, per-session warm leases (warming becomes "start an ingest early"): about 800–1,000 lines | M | Not started |
 | **B5** provider and guide data (when convenient) | **R8** ingest filters · **R9** event-channel guide · **R10** EPG matching tune-ups · catch-up/start-over if B1 finds archives · E2 ffmpeg version parity | S–M each | R8 pilot **Done** (0217, committed): whole groups never imported, guarded and reversible; Mark's before/after sync time and DB size decide its future. **R9 Done** (0221: events from event-slot names). **R10 Done** (0222: region weighting, auto-map with undo). Catch-up waits for the 0216 answer; E2 not started |
 
@@ -553,7 +561,8 @@ feed in five) · the 20 s stall timeout (tighten only after real stall logs).
 
 **Shared ingest (Wave 5, off by default)**
 - Not yet used by relay legs, standbys, warm channels or direct plays: those still open their own connections.
-- Benched SAME on the server's six samples with production ffmpeg (18 Oct); an uneven-timestamp feed (`igndts`) is not yet.
+- Benched SAME on seven real samples with production ffmpeg (18 Oct); no current feed is uneven, so the `igndts` path is
+  covered by unit tests only.
 
 **Health and diagnostics**
 - Stalls per hour depend on clients sending `play-end`; a play whose end is never reported adds nothing, so stalls are
