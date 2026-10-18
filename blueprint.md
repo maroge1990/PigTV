@@ -1,10 +1,10 @@
 # PigTV: blueprint
 
-**State:** server builds **0208–0225** committed locally for Mark to push (0207 is the last deployed); Apple client builds
-**42–45** committed (40 is on devices). Waves 1–4 of the [16 Oct roadmap](docs/reviews/2026-10-16/ROADMAP.md) are done in
-code (Mark testing Wave 4, 17 Oct). **Wave 5 has started:** the shared-ingest design
-([`docs/SHARED-INGEST.md`](docs/SHARED-INGEST.md)) and phases 5a/5b (0223–0225), off by default; R7 and B4 wait for data.
-Wave 5 phase 5b passed Mark's server bench and device test on 18 Oct. Next steps: [`docs/reviews/2026-10-18/HANDOVER.md`](docs/reviews/2026-10-18/HANDOVER.md).
+**State:** server **0225** is deployed; **0226** (bug 9: Status and the banner count a shared connection once) is
+committed locally for Mark to push. Apple client builds **42–45** are pushed and **46** (the test team's 18 Oct list) is
+committed locally. Waves 1–4 of the [16 Oct roadmap](docs/reviews/2026-10-16/ROADMAP.md) are done in code (Wave 4 device
+results not reported yet). **Wave 5:** the shared-ingest design ([`docs/SHARED-INGEST.md`](docs/SHARED-INGEST.md)) and
+phases 5a/5b (0223–0225), off by default, passed Mark's bench and device test on 18 Oct; R7 and B4 wait for data. Next steps: [`docs/reviews/2026-10-18/HANDOVER.md`](docs/reviews/2026-10-18/HANDOVER.md).
 
 How to work in this repo (commands, shipping, rules) is in [`AGENTS.md`](AGENTS.md). This file holds **durable facts and the
 roadmap** for the server, the web app and the joint plan; the Apple client's own architecture is in
@@ -29,7 +29,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0226** |
+| Next build number | **0227** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---

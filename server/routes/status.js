@@ -193,6 +193,23 @@ function leastReliable() {
     }
 }
 
+/** A recording's provider: the one it was started on, else its schedule's source. */
+const recordingProviderId = (r) => (r.providerId !== undefined ? r.providerId : (r.source_id ?? null));
+
+/**
+ * Bug 9 (0226): the provider connections in use on `id`. Sessions and recordings that read one shared
+ * ingest (Wave 5, the same `ingestKey`) hold one connection between them, as the coordinator's pools
+ * count them; everything else holds its own.
+ */
+function connectionsUsed(id, sessions, recordings) {
+    const ingests = new Set();
+    let own = 0;
+    const count = (x) => { if (x.ingestKey) ingests.add(x.ingestKey); else own++; };
+    for (const s of sessions) if (s.providerId === id) count(s);
+    for (const r of recordings) if (recordingProviderId(r) === id) count(r);
+    return own + ingests.size;
+}
+
 /** P8: Provider status for the Status page and admin reminder banner. */
 function providersStatus(settings = {}) {
     try {
@@ -202,13 +219,7 @@ function providersStatus(settings = {}) {
 
         return (snapshot.providers || []).map(prov => {
             const id = Number(prov.id);
-            // Count active sessions and recordings for this provider
-            const streamCount = activeStreams.filter(s => s.providerId === id).length;
-            const recCount = activeRecordings.filter(r => {
-                const recProvider = r.providerId !== undefined ? r.providerId : (r.source_id ?? null);
-                return recProvider === id;
-            }).length;
-            const used = streamCount + recCount;
+            const used = connectionsUsed(id, activeStreams, activeRecordings);
 
             const account = providerAccounts.getAccount(id);
             const sourceRow = getDb().prepare('SELECT data FROM app_sources WHERE id = ?').get(id);
@@ -250,12 +261,14 @@ function connectionUse(providers) {
             const id = s.providerId;
             if (id === null || id === undefined) continue;
             const purpose = String(transcodeSession.peekSession(s.id)?.purpose || (s.warm ? 'warm' : s.standby ? 'standby' : 'viewer')).slice(0, 24);
-            (out[id] ||= []).push({ purpose, channel: transcodeSession.peekSession(s.id)?.options?.channelName || null, ageSec: Math.round((Date.now() - s.startTime) / 1000) });
+            (out[id] ||= []).push({ purpose, channel: transcodeSession.peekSession(s.id)?.options?.channelName || null, ageSec: Math.round((Date.now() - s.startTime) / 1000),
+                ...(s.ingestKey ? { shared: true } : {}) }); // bug 9: on a shared connection (Wave 5)
         }
         for (const r of recordingEngine.listActive()) {
-            const id = r.providerId !== undefined ? r.providerId : (r.source_id ?? null);
+            const id = recordingProviderId(r);
             if (id === null || id === undefined) continue;
-            (out[Number(id)] ||= []).push({ purpose: 'recording', channel: r.channel_name || null, ageSec: null });
+            (out[Number(id)] ||= []).push({ purpose: 'recording', channel: r.channel_name || null, ageSec: null,
+                ...(r.ingestKey ? { shared: true } : {}) });
         }
     } catch (e) { /* the table just stays empty */ }
     return providers.map(p => ({ ...p, uses: out[p.id] || [] }));

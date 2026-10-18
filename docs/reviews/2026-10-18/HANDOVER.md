@@ -26,6 +26,9 @@ the playback path is captured/benched first (`scripts/stream-doctor.js`). Give M
 
 ### 1. Bug 9: Status page and banner count a shared connection twice (server/web, display only)
 
+**Done in 0226** (committed 18 Oct, not pushed): `connectionsUsed()` in `routes/status.js`, "· shared" on Status, and the
+banner's warning only for a recording on its own connection. Tests in `status.test.js` and `status-page.test.js`.
+
 - **Seen:** 18 Oct, 0225, switch on. The TV watched Sky Sports Main Event on Strong8K and a recording of it joined the
   same ingest. Status → Providers showed Strong8K at **2/1** with "viewer" and "recording" as separate connections. The
   top banner said "Live playback may fail while this runs if your provider allows only one stream."

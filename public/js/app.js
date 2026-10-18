@@ -203,9 +203,12 @@ class App {
         const untilStr = until.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const extra = activeRecordings.length > 1 ? ` (+${activeRecordings.length - 1} more)` : '';
 
+        // Bug 9 (0226): a recording on a shared provider connection (Wave 5) leaves room for watching,
+        // so the one-stream warning is only for recordings that hold a connection of their own.
+        const warn = activeRecordings.some(r => !r.ingestKey)
+            ? ` Live playback may fail while this runs if your provider allows only one stream.` : '';
         text.textContent =
-            `Recording "${first.title}" on ${first.channel_name || 'unknown channel'} until ${untilStr}${extra}. ` +
-            `Live playback may fail while this runs if your provider allows only one stream.`;
+            `Recording "${first.title}" on ${first.channel_name || 'unknown channel'} until ${untilStr}${extra}.${warn}`;
         banner.style.display = 'flex';
     }
 

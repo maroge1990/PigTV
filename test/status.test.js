@@ -197,6 +197,34 @@ test('R16: the status document carries the preparation queue, loop delay, sport 
     assert.equal((await get('/api/status', viewerToken)).status, 403, 'a viewer sees none of it');
 });
 
+test('bug 9: a viewer and a recording reading one shared ingest count as one connection, each marked shared', async () => {
+    // 18 Oct, 0225 with the shared connection on: the TV and a recording of the same channel joined one ingest,
+    // and Status showed Strong8K at 2/1. Grouped by ingestKey as the coordinator's pools count them.
+    const coordinator = load('services/streamCoordinator');
+    const engine = load('services/recordingEngine');
+    const realStreams = coordinator.activeStreams, realRecordings = engine.listActive;
+    const key = `pool-${source.id}|abc123`;
+    coordinator.activeStreams = () => [{ id: session.id, providerId: source.id, startTime: Date.now() - 5000, ingestKey: key }];
+    engine.listActive = () => [{ id: 1, providerId: source.id, channel_name: 'Fox Sports 505', ingestKey: key }];
+    try {
+        let p = (await get('/api/status', adminToken)).body.providers.find(x => x.id === source.id);
+        assert.equal(p.connections.used, 1, 'one provider connection, not two');
+        assert.deepEqual(p.uses.map(u => [u.purpose, u.shared]), [['viewer', true], ['recording', true]]);
+
+        // A second channel opens its own connection; a recording without an ingest holds one too.
+        coordinator.activeStreams = () => [{ id: session.id, providerId: source.id, startTime: Date.now(), ingestKey: key },
+                                           { id: 'other', providerId: source.id, startTime: Date.now() }];
+        engine.listActive = () => [{ id: 1, providerId: source.id, ingestKey: key }, { id: 2, source_id: source.id }];
+        p = (await get('/api/status', adminToken)).body.providers.find(x => x.id === source.id);
+        assert.equal(p.connections.used, 3, 'the shared ingest, the second session and the unshared recording');
+        assert.equal(p.uses.filter(u => u.shared).length, 2);
+        assert.ok(p.uses.filter(u => !u.shared).every(u => !('shared' in u)), 'unshared uses keep the old fields');
+    } finally {
+        coordinator.activeStreams = realStreams;
+        engine.listActive = realRecordings;
+    }
+});
+
 test('R16: the preparation summary counts by native_status and reports the last failure', () => {
     const rdb = load('db/recordingsDb').recordings;
     const d = sqlite.getDb();

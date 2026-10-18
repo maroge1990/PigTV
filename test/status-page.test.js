@@ -138,6 +138,30 @@ test('R16: the new status fields render, and an unknown connection purpose just 
     assert.ok(html.includes('p99 12 ms') && html.includes('max 80 ms'));
 });
 
+test('bug 9: a shared use reads "· shared"; the recording banner drops its one-stream warning on a shared connection', async () => {
+    const h = pageHarness();
+    const html = h.page.render({ providers: [{ name: 'Strong8K', role: 'primary', state: 'up', connections: { used: 1, limit: 1 }, uses: [
+        { purpose: 'viewer', channel: 'Sky Sports', shared: true }, { purpose: 'recording', channel: 'Sky Sports', shared: true }] }] });
+    assert.ok(html.includes('viewer · Sky Sports · shared') && html.includes('recording · Sky Sports · shared'));
+    assert.ok(html.includes('1/1'), 'one connection');
+
+    const banner = (active) => {
+        const el = { banner: { style: {} }, text: { textContent: '' } };
+        const context = vm.createContext({ console, document: { getElementById: (id) => id === 'recording-conflict-banner' ? el.banner
+            : id === 'recording-banner-text' ? el.text : null, addEventListener: () => {} }, API: { recordings: { getActive: async () => active } } });
+        context.window = context;
+        vm.runInContext(js('app.js') + '\nglobalThis.App = App;', context);
+        return context.App.prototype.updateRecordingBanner.call({}).then(() => el);
+    };
+    const row = { title: 'The Game', channel_name: 'Sky Sports', program_end: Date.now() + 3600000 };
+    const shared = await banner([{ ...row, ingestKey: 'pool|abc' }]);
+    assert.equal(shared.banner.style.display, 'flex');
+    assert.ok(shared.text.textContent.startsWith('Recording "The Game" on Sky Sports'));
+    assert.ok(!shared.text.textContent.includes('may fail'), shared.text.textContent);
+    const own = await banner([row]);
+    assert.ok(own.text.textContent.includes('Live playback may fail'), 'a recording on its own connection still warns');
+});
+
 test('R16: every nav link has a name and a tooltip, aria-current moves with the active page, the menu button reports expanded', () => {
     const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
     const links = [...html.matchAll(/<a [^>]*class="nav-link[^"]*"[^>]*>/g)].map(m => m[0]);

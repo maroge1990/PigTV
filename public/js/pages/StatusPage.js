@@ -261,7 +261,7 @@ class StatusPage {
         const e = (v) => this.escape(v);
         const cls = (v) => String(v).toLowerCase().replace(/[^a-z0-9]+/g, '-');
         return `<span class="status-uses">${uses.map(u =>
-            `<span class="status-use status-use-${e(cls(u.purpose))}" title="${e(u.channel || '')}">${e(u.purpose)}${u.channel ? ` · ${e(u.channel)}` : ''}</span>`).join('')}</span>`;
+            `<span class="status-use status-use-${e(cls(u.purpose))}" title="${e(u.channel || '')}">${e(u.purpose)}${u.channel ? ` · ${e(u.channel)}` : ''}${u.shared ? ' · shared' : ''}</span>`).join('')}</span>`;
     }
 
     /** R16: preparation queue (0193), sport event builds (0195) and the server's event-loop lateness. */
