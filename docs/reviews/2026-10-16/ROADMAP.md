@@ -239,6 +239,11 @@ waits for real byte rates) and B4 (a week of evidence).
 (`pos_31` HDR 50 fps, `pos_1164`/`pos_1165` HE-AAC, `pos_1157`, `pos_29430`, `pos_31148`), both session shapes. Not
 covered: an uneven-timestamp feed - none exists now: a fresh capture of Fox Sports 505 (moved to `pos_1182`) measured even,
 and `pos_1187` is beIN Sports 3 now (even; benched SAME). The `igndts` path is covered by the unit tests only.
+**18 Oct, device test (steps 2–5):** passed. Several devices on one Strong8K connection for the HDR channel; recording it
+while watched joined the same ingest with no prompt; a different channel went to Dream 4K. No problem lines in an hour of
+`[Ingest]` logs. **Bug 9 (open, display only):** Status → Providers counts a viewer and a recording sharing one ingest as
+2/1, and the recording banner still says live playback may fail; `routes/status.js` (`providersStatus`, `connectionUse`)
+and `public/js/app.js` should count and label per ingest as the coordinator does.
 
 ### Wave 5 checks for Mark (after Wave 4's)
 
