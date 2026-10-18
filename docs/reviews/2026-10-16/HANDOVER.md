@@ -1,5 +1,7 @@
 # Handover, 16 October 2026
 
+> **Superseded by [the 18 Oct handover](../2026-10-18/HANDOVER.md).** Kept for its history.
+
 For the next agent session. Read `AGENTS.md`, then `blueprint.md` (state line, §4, §5), then
 [`ROADMAP.md`](ROADMAP.md) in this folder; it holds the plan, every finding and the progress notes.
 

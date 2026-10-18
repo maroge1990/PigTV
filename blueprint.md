@@ -4,7 +4,7 @@
 **42–45** committed (40 is on devices). Waves 1–4 of the [16 Oct roadmap](docs/reviews/2026-10-16/ROADMAP.md) are done in
 code (Mark testing Wave 4, 17 Oct). **Wave 5 has started:** the shared-ingest design
 ([`docs/SHARED-INGEST.md`](docs/SHARED-INGEST.md)) and phases 5a/5b (0223–0225), off by default; R7 and B4 wait for data.
-Nothing is *Verified* until Mark's device and feed checks; R3 and Wave 5 also await the reference-sample runs on the server.
+Wave 5 phase 5b passed Mark's server bench and device test on 18 Oct. Next steps: [`docs/reviews/2026-10-18/HANDOVER.md`](docs/reviews/2026-10-18/HANDOVER.md).
 
 How to work in this repo (commands, shipping, rules) is in [`AGENTS.md`](AGENTS.md). This file holds **durable facts and the
 roadmap** for the server, the web app and the joint plan; the Apple client's own architecture is in
