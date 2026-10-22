@@ -234,7 +234,8 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
 - `DELETE /api/recordings/rules/:id` → `{success, cancelled}`: its schedules that have not started are cancelled; one
   recording now, and everything recorded, stays.
 - `recordings/scheduled` rows carry `rule_id` (null for a one-off). A schedule the viewer cancels is never made again by a
-  rule, even when the guide moves its time. Two rules never record the same programme twice.
+  rule, even when the guide moves its time (a Sport event: by up to 6 hours, 0237; the same title further away is
+  another match and is recorded). Two rules never record the same programme twice.
 
 ### C-N. Recording artwork. Flag: `recordingArtwork`
 

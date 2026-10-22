@@ -24,6 +24,10 @@ const KINDS = ['sport', 'series'];
 const SPORT_HOURS = 72;
 const SERIES_DAYS = 7;
 const NEAR_MS = 15 * 60 * 1000;
+// DVR-3 (0237): how far the guide may move a Sport event and it is still the same event. Its id
+// changes with its time, so a cancel (or a schedule) of it is found by title within this window;
+// the same title further away is another match (the next round, a replay) and is not suppressed.
+const RESCHEDULED_MS = 6 * 60 * 60 * 1000;
 const EVALUATE_EVERY_MS = 15 * 60 * 1000;
 const MAX_MATCH = 120;
 const MAX_RULES = 100;
@@ -180,8 +184,11 @@ function seriesCandidates(rule, now) {
 function alreadyScheduled(c) {
     // A cancelled one that a rule made counts too: a guide that nudges the time gives an event a
     // new identity, and what the viewer cancelled must not come back under it - from any rule.
+    // DVR-3: a Sport event (`anyChannel`) is looked for over RESCHEDULED_MS, not 15 minutes - a
+    // correction of 20 minutes or two hours is still that event, cancelled or already scheduled.
+    const window = c.anyChannel ? RESCHEDULED_MS : NEAR_MS;
     const near = db().prepare(`SELECT id, source_id, channel_item_id, title FROM scheduled_recordings
-        WHERE (status <> 'cancelled' OR rule_id IS NOT NULL) AND program_start BETWEEN ? AND ?`).all(c.start - NEAR_MS, c.start + NEAR_MS);
+        WHERE (status <> 'cancelled' OR rule_id IS NOT NULL) AND program_start BETWEEN ? AND ?`).all(c.start - window, c.start + window);
     const titles = new Set((c.titles || [c.title]).map(fold));
     return near.find(s => titles.has(fold(s.title)) &&
         (c.anyChannel || (s.source_id === c.sourceId && String(s.channel_item_id) === c.channelId))) || null;

@@ -148,6 +148,28 @@ test('a schedule the viewer cancels is never made again, even after the guide mo
     assert.equal(active().filter(r => /Collingwood/.test(r.title)).length, 0);
 });
 
+test('DVR-3: a cancelled Sport recording stays cancelled when the guide moves the game by more than 15 minutes', async () => {
+    // The Collingwood game was cancelled above and nudged 10 minutes; now the guide moves it 20
+    // minutes more, then 2 hours more (another new Sport event id each time).
+    for (const shift of [20 * M, 2 * H]) {
+        sqlite.getDb().prepare(`UPDATE epg_programs SET start_time = start_time + ?, end_time = end_time + ? WHERE title = 'AFL: Collingwood v Carlton' AND start_time < ?`)
+            .run(shift, shift, NOW + 24 * H);
+        sportsEvents.reset();
+        assert.deepEqual((await rules.evaluate()).filter(m => /Collingwood/.test(m.title)), [], `still cancelled after a further ${shift / M} min`);
+    }
+    assert.equal(active().filter(r => /Collingwood/.test(r.title)).length, 0);
+});
+
+test('DVR-3: the same teams\' next match (a later day) is still recorded - only the moved event is suppressed', async () => {
+    const d = sqlite.getDb();
+    d.prepare(`INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, categories, flags, data)
+               VALUES ('ff', ?, ?, ?, 'AFL: Collingwood v Carlton', '["Sport","AFL"]', 8, null)`).run(source.id, NOW + 60 * H, NOW + 63 * H);
+    sportsEvents.reset();
+    const made = (await rules.evaluate()).filter(m => /Collingwood/.test(m.title));
+    assert.equal(made.length, 1, 'the rematch two and a half days later is a new game');
+    assert.equal(made[0].start, NOW + 60 * H);
+});
+
 test('"record this series": each episode once (the repeat of one is skipped by its episode), only on its channel, only that title', async () => {
     const res = await call('POST', '/api/recordings/rules', { kind: 'series', match: 'gardening australia', sourceId: source.id, channelId: 'pos_3' });
     assert.equal(res.status, 201, JSON.stringify(res.body));
