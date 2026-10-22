@@ -417,6 +417,9 @@ class EpgGuide {
      */
     render() {
         const allChannels = this.rows || [];
+        // W2 (0239): the markup is rebuilt; keyboard focus goes back to the same channel or
+        // programme (by identity, not by node), or the nearest row if that one has gone.
+        const focus = this.focusIdentity();
 
         if (allChannels.length === 0) {
             this.container.innerHTML = `
@@ -529,6 +532,7 @@ class EpgGuide {
 
         // Initial render of visible rows
         this.updateVisibleRows();
+        this.restoreFocus(focus);
 
         // Sync header corner width with actual sidebar width (handles CSS overrides)
         this.syncHeaderCornerWidth();
@@ -539,6 +543,45 @@ class EpgGuide {
             clearInterval(this._nowIndicatorInterval);
         }
         this._nowIndicatorInterval = setInterval(() => this.updateNowIndicator(), 60000);
+    }
+
+    /** W2: what has keyboard focus in the grid, by identity: it survives a redraw. Null when none. */
+    focusIdentity(el = typeof document !== 'undefined' ? document.activeElement : null) {
+        if (!el || !this.container || !this.container.contains(el)) return null;
+        const row = el.closest('.epg-channel-row');
+        if (!row) return null;
+        const prog = el.closest('.epg-program');
+        return {
+            sourceId: row.dataset.sourceId, channelId: row.dataset.channelId, index: Number(row.dataset.index) || 0,
+            part: prog ? 'programme' : el.closest('.favorite-btn') ? 'favourite' : 'channel',
+            start: prog ? prog.dataset.start || null : null, title: prog ? prog.dataset.title || null : null
+        };
+    }
+
+    /** W2: focus what `id` named, scrolling its row into the rendered range; the row at its old place if it has gone. */
+    restoreFocus(id) {
+        if (!id || !this.filteredChannels || this.filteredChannels.length === 0) return;
+        let index = this.filteredChannels.findIndex(ch => String(ch.sourceId) === id.sourceId && String(ch.id) === id.channelId);
+        const same = index >= 0;
+        if (!same) index = Math.min(Math.max(id.index, 0), this.filteredChannels.length - 1);
+        if (!this.visibleRows.has(index) && this.scrollContainer) {
+            this.scrollContainer.scrollTop = Math.max(0, (index - 1) * this.rowHeight);
+            this.updateVisibleRows();
+        }
+        const row = this.visibleRows.get(index);
+        if (!row) return;
+        let target = null;
+        if (same && id.part === 'favourite') target = row.querySelector('.favorite-btn');
+        if (same && id.part === 'programme' && id.start) {
+            const at = Date.parse(id.start);
+            const progs = [...row.querySelectorAll('.epg-program[data-start]')];
+            // The same airing; else the same title near it (a corrected time); else whatever is on then.
+            target = progs.find(p => p.dataset.start === id.start)
+                || progs.find(p => p.dataset.title === id.title && Math.abs(Date.parse(p.dataset.start) - at) < 3 * 3600000)
+                || progs.find(p => Date.parse(p.dataset.start) <= at && at < Date.parse(p.dataset.stop)) || null;
+        }
+        target = target || row.querySelector('.epg-channel-name');
+        if (target && typeof target.focus === 'function') target.focus({ preventScroll: true });
     }
 
     /**
@@ -889,6 +932,8 @@ class EpgGuide {
      * Show program details modal
      */
     async showProgramDetails(data) {
+        // W2: where keyboard focus goes back to when the details close (the programme, by identity).
+        const origin = this.focusIdentity();
         const modal = document.getElementById('modal');
         const title = document.getElementById('modal-title');
         const body = document.getElementById('modal-body');
@@ -927,7 +972,7 @@ class EpgGuide {
     `;
 
         modal.classList.add('active');
-        const close = () => modal.classList.remove('active');
+        const close = () => { modal.classList.remove('active'); this.restoreFocus(origin); };
         document.getElementById('modal-close').onclick = close;
         modal.querySelector('.modal-close').onclick = close;
 

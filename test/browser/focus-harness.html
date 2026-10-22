@@ -1,0 +1,64 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>W2 focus harness</title></head>
+<body>
+<div id="guide-date"></div><button id="guide-prev">prev</button><button id="guide-next">next</button>
+<select id="epg-group-select"></select><input id="epg-search">
+<div id="epg-grid" style="height:500px"></div>
+<input id="channel-search"><select id="source-select"></select><button id="toggle-groups"></button><div id="context-menu"></div>
+<div id="channel-list" style="height:400px;overflow:auto"></div>
+<div id="modal"><button class="modal-close">x</button><div id="modal-title"></div><div id="modal-body"></div><div id="modal-footer"></div></div>
+<pre id="out"></pre>
+<script>
+const base = '/js';
+window.API = { settings: { get: async () => ({}) }, library: {}, recordings: {} };
+for (const f of ['icons.js', 'components/EpgGuide.js', 'components/ChannelList.js']) document.write(`<script src="${base}/${f}"><\/script>`);
+</script>
+<script>
+(async () => {
+  const results = {};
+  const H = 3600000, now = Date.now() - (Date.now() % H);
+  const prog = (title, s, e) => ({ title, description: '', start: new Date(s).toISOString(), stop: new Date(e).toISOString(), startMs: s, stopMs: e });
+  const channels = (skip = null, shift = 0) => Array.from({ length: 30 }, (_, i) => i + 1).filter(n => n !== skip).map(n => ({
+    id: `c${n}`, sourceId: 1, name: `Channel ${n}`, groupTitle: 'Sport', programmes: [
+      prog(`A${n}`, now - H, now + shift), prog(`B${n}`, now + shift, now + 2 * H), prog(`C${n}`, now + 2 * H, now + 3 * H)] }));
+  const guide = new EpgGuide();
+  guide.categories = []; guide.selectedGroup = '';
+  const active = () => { const el = document.activeElement; const row = el && el.closest && el.closest('.epg-channel-row');
+    return row ? `${row.dataset.channelId}/${el.classList.contains('epg-program') ? 'prog:' + el.dataset.title : el.className}` : `none(${el && el.tagName})`; };
+  const progIn = (cid, title) => guide.container.querySelector(`.epg-channel-row[data-channel-id="${cid}"] .epg-program[data-title="${title}"]`);
+
+  guide.rows = channels(); guide.render();
+  progIn('c5', 'B5').focus();
+  results.before = active();
+  guide.render();
+  results.afterRedraw = active();
+
+  progIn('c5', 'B5').focus();
+  guide.rows = channels(null, 5 * 60000); guide.render(); // a refresh moves programme starts by 5 minutes
+  results.afterCorrection = active();
+
+  progIn('c5', 'B5')?.focus();
+  guide.rows = channels(5); guide.render(); // channel 5 disappears
+  results.afterChannelGone = active();
+
+  progIn('c7', 'B7').focus();
+  await guide.showProgramDetails(progIn('c7', 'B7').dataset);
+  document.getElementById('modal-close').focus();
+  guide.render(); // a refresh while the details are open
+  document.getElementById('modal-close').click();
+  results.afterDetailsClose = active();
+
+  const list = new ChannelList();
+  Object.assign(list, { channels: channels().map(c => ({ ...c })), categories: [], favoriteRows: [], favoriteKeys: new Set(), sources: [] });
+  list.collapsedGroups = new Set(); list._hasCollapsedState = true; list._userExpandedGroups = new Set(['Sport']);
+  list.render();
+  const info = list.container.querySelector('.channel-item[data-channel-id="c9"] .channel-info');
+  info.focus();
+  list.render();
+  const el = document.activeElement, item = el && el.closest && el.closest('.channel-item');
+  results.listAfterRebuild = item ? `${item.dataset.channelId}/${el.className}` : `none(${el && el.tagName})`;
+  window.results = results;
+  document.getElementById('out').textContent = JSON.stringify(results, null, 1);
+})().catch(e => { window.results = { error: String(e && e.stack || e) }; document.getElementById('out').textContent = window.results.error; });
+</script>
+</body></html>

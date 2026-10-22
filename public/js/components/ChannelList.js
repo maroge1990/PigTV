@@ -342,6 +342,8 @@ class ChannelList {
      */
     render() {
         const searchTerm = this.searchInput.value.toLowerCase();
+        // W2 (0239): the list is rebuilt; keyboard focus returns to the same channel (or group header).
+        const focus = this.focusIdentity();
 
         // Reset batching
         this.currentBatch = 0;
@@ -458,6 +460,32 @@ class ChannelList {
 
         // Start observing loader for additional batches
         this.observer.observe(this.loader);
+        this.restoreFocus(focus);
+    }
+
+    /** W2: what has keyboard focus in the list, by identity. Null when none. */
+    focusIdentity(el = typeof document !== 'undefined' ? document.activeElement : null) {
+        if (!el || !this.container || !this.container.contains(el)) return null;
+        const header = el.closest('.group-header');
+        if (header) return { group: header.dataset.group };
+        const item = el.closest('.channel-item');
+        if (!item) return null;
+        return { sourceId: item.dataset.sourceId, channelId: item.dataset.channelId, group: item.dataset.renderGroup,
+            part: el.closest('.favorite-btn') ? 'favourite' : 'channel' };
+    }
+
+    /** W2: focus the same channel in the same group (else in any group), else its group's header. */
+    restoreFocus(id) {
+        if (!id || !this.container) return;
+        const q = (v) => String(v).replace(/["\\]/g, '\\$&');
+        let target = null;
+        if (id.channelId !== undefined) {
+            const base = `.channel-item[data-source-id="${q(id.sourceId)}"][data-channel-id="${q(id.channelId)}"]`;
+            const item = this.container.querySelector(`${base}[data-render-group="${q(id.group)}"]`) || this.container.querySelector(base);
+            if (item) target = item.querySelector(id.part === 'favourite' ? '.favorite-btn' : '.channel-info');
+        }
+        if (!target && id.group !== undefined) target = this.container.querySelector(`.group-header[data-group="${q(id.group)}"]`);
+        if (target && typeof target.focus === 'function') target.focus({ preventScroll: true });
     }
 
     /**
