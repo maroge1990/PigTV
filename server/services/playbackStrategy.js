@@ -109,6 +109,9 @@ async function probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, dea
         try {
             feed = await require('./ingest').subscribe({ ...ingestSource, purpose: 'probe' });
         } catch (err) {
+            // I1/PB1 (0230): the ingest was closed while it connected (a takeover released it,
+            // shutdown): a cancellation - no probe of our own, no provider failure.
+            if (err.ingestCancelled) throw supersededError();
             // Not MPEG-TS, a file, or refused: today's probe (which meets a refusal itself, with
             // today's C-B text and failover), and the session reads the URL too.
             console.log(`[Playback] shared ingest not used: ${redact(err.message)}`);

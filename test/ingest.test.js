@@ -37,12 +37,16 @@ before(async () => {
         if (path === '/redirect') { res.writeHead(302, { Location: '/ts' }); return res.end(); }
         if (path === '/html') { res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end('<html>' + 'x'.repeat(2000) + '</html>'); }
         if (path === '/dead' && connections[path] > 1) { req.socket.destroy(); return; }
+        // I1: answers 200 and then nothing (or less than three packets); '/reheaders' streams on its
+        // first connection, cuts, and every reconnect is headers only.
+        if (path === '/headers' || (path === '/reheaders' && connections[path] > 1)) { res.writeHead(200, { 'Content-Type': 'video/mp2t' }); res.flushHeaders(); return; }
+        if (path === '/partial') { res.writeHead(200, { 'Content-Type': 'video/mp2t' }); res.write(nextPackets(2)); return; }
         res.writeHead(200, { 'Content-Type': 'video/mp2t' });
         const timer = setInterval(() => {
             if (res.destroyed) return clearInterval(timer);
             res.write(nextPackets(40));
         }, 10);
-        if ((path === '/drop' && !dropDone) || path === '/dead') {
+        if ((path === '/drop' && !dropDone) || path === '/dead' || path === '/reheaders') {
             setTimeout(() => { dropDone = true; clearInterval(timer); req.socket.destroy(); }, 150);
         }
         res.on('close', () => clearInterval(timer));
@@ -166,4 +170,61 @@ test('the subscriber that opened the ingest gets everything its connection broug
     // The provider's first PAT on this connection is within its first 20 packets.
     assert.ok(first.readUInt32BE(4) % 20 === 0);
     sub.leave();
+});
+
+// ---- I1 (0230): every wait has an absolute end ---------------------------------------------
+
+const settles = (promise) => promise.then(() => ({ ok: true }), (err) => ({ ok: false, err }));
+
+for (const [label, path] of [['headers and then nothing', '/headers'], ['two packets and then nothing', '/partial']]) {
+    test(`I1: ${label} - the caller settles at the first-bytes deadline, refused for the provider, nothing left open`, async () => {
+        T.firstBytesMs = 1000;
+        const started = Date.now();
+        const result = await settles(ingest.subscribe({ pool: 'p', url: `${base}${path}`, purpose: 'probe' }));
+        assert.equal(result.ok, false);
+        assert.equal(result.err.ingestRefused, true);
+        assert.equal(result.err.providerReason, true);
+        assert.ok(Date.now() - started < 4000, 'bounded');
+        assert.equal(ingest.list().length, 0);
+        assert.match(ingest.status().recent[0].state, /closed/);
+    });
+}
+
+test('I1: a reconnect that gets headers but no MPEG-TS gives up at the reconnect bound; subscribers end upstream-lost', async () => {
+    T.reconnectMs = 1500;
+    const sub = await ingest.subscribe({ pool: 'p', url: `${base}/reheaders` });
+    collect(sub);
+    const started = Date.now();
+    const [end] = await once(sub, 'ingest-end');
+    assert.deepEqual(end, { reason: 'upstream-lost', providerReason: true });
+    assert.ok(Date.now() - started < 5000, 'bounded');
+    assert.ok(connections['/reheaders'] >= 2, 'it did reconnect');
+    assert.equal(ingest.list().length, 0);
+});
+
+test('I1: closing an ingest that is still connecting settles every waiter as a cancellation, not a provider failure', async () => {
+    const a = settles(ingest.subscribe({ pool: 'p', url: `${base}/headers`, purpose: 'viewer' }));
+    const b = settles(ingest.subscribe({ pool: 'p', url: `${base}/headers`, purpose: 'recording' }));
+    await until(() => connections['/headers'] === 1, 'connecting');
+    ingest.closeKey(ingest.keyOf('p', `${base}/headers`), 'released');
+    for (const r of await Promise.all([a, b])) {
+        assert.equal(r.ok, false);
+        assert.equal(r.err.ingestCancelled, true);
+        assert.equal(r.err.providerReason, false);
+        assert.notEqual(r.err.ingestRefused, true, 'not a refusal: a caller must not open its own connection instead');
+    }
+    const c = settles(ingest.subscribe({ pool: 'p', url: `${base}/headers` }));
+    await until(() => connections['/headers'] === 2, 'connecting again');
+    ingest.closeAll('shutdown');
+    assert.equal((await c).err.ingestCancelled, true, 'shutdown too');
+});
+
+test('I1: a connecting ingest is not idle - another stream in the pool does not close it from under its caller', async () => {
+    const waiting = settles(ingest.subscribe({ pool: 'p', url: `${base}/headers` }));
+    await until(() => connections['/headers'] === 1, 'connecting');
+    const other = await ingest.subscribe({ pool: 'p', url: `${base}/ts` });
+    assert.equal(ingest.list().filter(i => i.state === 'connecting').length, 1, 'still connecting for its caller');
+    other.leave();
+    ingest.closeAll('test over');
+    assert.equal((await waiting).ok, false);
 });

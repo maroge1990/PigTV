@@ -35,6 +35,10 @@ const tuning = {
     lingerMs: num('PIGTV_INGEST_LINGER_MS', 10000, 0),
     stallMs: num('PIGTV_INGEST_STALL_MS', 15000, 2000),
     connectTimeoutMs: 10000,
+    // I1 (0230): from the start of an ingest to its first usable MPEG-TS, whatever arrives
+    // (headers alone, a trickle of fewer than three packets, redirects). A reconnect has the
+    // same absolute bound in reconnectMs, counted from the loss.
+    firstBytesMs: num('PIGTV_INGEST_FIRST_BYTES_MS', 10000, 1000),
     joinWindowMs: 2000,
     backoffMs: [500, 1000, 2000, 4000]
 };
@@ -131,6 +135,7 @@ class Ingest extends EventEmitter {
         this.request = null;
         this.lingerTimer = null;
         this.lostSince = null;
+        this.waiters = 0; // callers awaiting `ready`: a connecting ingest is never idle
         this.ready = new Promise((resolve, reject) => { this._resolveReady = resolve; this._rejectReady = reject; });
         this.ready.catch(() => { /* a caller that never awaited it */ });
         this.stallTimer = setInterval(() => this.checkStall(), 1000);
@@ -265,6 +270,22 @@ class Ingest extends EventEmitter {
     }
 
     checkStall() {
+        const now = Date.now();
+        // I1 (0230): the timeout on the request ends when its headers arrive, so these deadlines
+        // are absolute. Not ready in time: refused, and every caller waiting for it settles.
+        if (this.state === 'connecting') {
+            if (now - this.startedAt < tuning.firstBytesMs) return;
+            this.dropRequest();
+            return this.refuse(`no MPEG-TS within ${Math.round(tuning.firstBytesMs / 1000)}s`, true);
+        }
+        // A reconnect that has headers but no MPEG-TS gives up at the same bound as one refused.
+        if (this.state === 'reconnecting') {
+            if (this.lostSince && now - this.lostSince >= tuning.reconnectMs) {
+                this.dropRequest();
+                this.fail(`no MPEG-TS again within ${Math.round(tuning.reconnectMs / 1000)}s`);
+            }
+            return;
+        }
         if (this.state !== 'live' || !this.lastByteAt) return;
         if (Date.now() - this.lastByteAt > tuning.stallMs) {
             const req = this.request;
@@ -272,6 +293,12 @@ class Ingest extends EventEmitter {
             try { req && req.destroy(); } catch (e) { /* gone */ }
             this.onUpstreamGone(`no data for ${Math.round(tuning.stallMs / 1000)}s`);
         }
+    }
+
+    dropRequest() {
+        const req = this.request;
+        this.request = null; // its late events are ignored
+        try { req && req.destroy(); } catch (e) { /* gone */ }
     }
 
     /** Upstream could not be had back: every subscriber ends, with the provider to blame. */
@@ -313,6 +340,13 @@ class Ingest extends EventEmitter {
     /** Close the reader; subscribers still on it end with `reason`. */
     close(why, { providerReason = false, reason = 'closed' } = {}) {
         if (this.closed) return;
+        // I1 (0230): callers still waiting for the first bytes settle now. Closed for the provider's
+        // sake it is a refusal; otherwise (released, shutdown) it is a cancellation, which a caller
+        // must not answer with a connection of its own.
+        if (this.state === 'connecting') {
+            this._rejectReady(Object.assign(new Error(`Shared ingest closed before it started: ${why}`),
+                providerReason ? { ingestRefused: true, providerReason: true } : { ingestCancelled: true, providerReason: false }));
+        }
         this.closed = true;
         this.state = 'closed';
         clearInterval(this.stallTimer);
@@ -357,7 +391,8 @@ async function subscribe({ pool, url, userAgent, providerId = null, purpose = nu
         ingest.start();
         opened = true;
     }
-    await ingest.ready;
+    ingest.waiters++;
+    try { await ingest.ready; } finally { ingest.waiters--; }
     if (ingest.closed) throw Object.assign(new Error('Shared ingest not used: it closed'), { ingestRefused: true, providerReason: true });
     return ingest.subscribe({ purpose, owner }, { fromStart: opened });
 }
@@ -370,7 +405,7 @@ function liveFor(pool, url) {
 
 /** Ingests in `pool` with nobody reading them (lingering): connections nobody needs. */
 function idleInPool(pool) {
-    return [...registry.values()].filter(i => !i.closed && i.pool === pool && i.subs.size === 0);
+    return [...registry.values()].filter(i => !i.closed && i.pool === pool && i.subs.size === 0 && i.waiters === 0);
 }
 
 /** Close the idle ingests of a pool (another connection is about to be opened there), except `keepKey`. */
