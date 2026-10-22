@@ -96,10 +96,10 @@ function tokenFor(deviceId) {
         .run(deviceId, String(userId), deviceId, 'test', Date.now(), Date.now());
     return jwt.sign({ id: userId, username: 'owner', role: 'admin', deviceId }, process.env.JWT_SECRET, { expiresIn: '1h' });
 }
-async function play(channelId, device) {
+async function play(channelId, device, { force = false } = {}) {
     const response = await fetch(`${routeBase}/api/playback/resolve`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenFor(device)}` },
-        body: JSON.stringify({ sourceId: A.id, channelId, capabilities: { segmentedDelivery: true } })
+        body: JSON.stringify({ sourceId: A.id, channelId, capabilities: { segmentedDelivery: true }, ...(force ? { force: true } : {}) })
     });
     return { status: response.status, body: await response.json() };
 }
@@ -237,4 +237,57 @@ test('PB1: the same device asks twice while the first start is still waiting - o
     assert.equal(sessionsNow().length, 1, 'only the newer play has a session');
     assert.equal(tools().filter(t => t.tool === 'ffmpeg').length, 1, 'one ffmpeg started');
     assert.equal(open['/slow.ts'], 1, 'one provider connection open');
+});
+
+// ---- PB2 (0233): a takeover of a shared connection releases every one of its readers ----------
+
+let recN = 0;
+async function recordNow(item = 'pos_1', stable = 's1') {
+    const now = Date.now();
+    const s = scheduled.create({ title: `Rec ${++recN}`, description: null, source_id: A.id, channel_item_id: item, channel_stable_id: stable,
+        channel_name: item, channel_logo: null, program_start: now - 1000, program_end: now + 60000,
+        pre_buffer_min: 0, post_buffer_min: 0, created_by: 1, created_at: now + recN });
+    await engine.tick();
+    await until(() => recordings.listBySchedule(s.id)[0]?.status === 'recording', `recording ${s.title}`);
+    return s;
+}
+const openNow = (p) => open[p] || 0;
+
+test('PB2: forced onto another channel - a recording and the viewer sharing its connection both go, and that connection closes', async () => {
+    assert.equal((await play('pos_1', 'tv')).status, 200);
+    const rec = await recordNow();
+    assert.equal(openNow('/1.ts'), 1, 'one connection for both');
+    const asked = await play('pos_2', 'phone');
+    assert.equal(asked.status, 409, 'asked first');
+    assert.equal(openNow('/1.ts'), 1, 'declining releases nothing');
+    assert.equal(recordings.listBySchedule(rec.id)[0].status, 'recording');
+    const forced = await play('pos_2', 'phone', { force: true });
+    assert.equal(forced.status, 200, JSON.stringify(forced.body));
+    await until(() => openNow('/1.ts') === 0, 'the shared connection is closed');
+    assert.equal(openNow('/2.ts'), 1);
+    assert.equal(scheduled.getById(rec.id).status, 'completed', 'the recording stopped, keeping what it captured');
+    assert.deepEqual(sessionsNow().map(x => x.id), [forced.body.sessionId], 'the TV\'s session went too');
+    assert.equal(ingest.list().length, 1, 'only the new channel\'s ingest');
+});
+
+test('PB2: two recordings on one connection - forcing another channel stops both, not one', async () => {
+    const one = await recordNow();
+    const two = await recordNow();
+    assert.equal(openNow('/1.ts'), 1);
+    const forced = await play('pos_2', 'phone', { force: true });
+    assert.equal(forced.status, 200, JSON.stringify(forced.body));
+    await until(() => openNow('/1.ts') === 0, 'the shared connection is closed');
+    assert.equal(scheduled.getById(one.id).status, 'completed');
+    assert.equal(scheduled.getById(two.id).status, 'completed');
+    assert.equal(engine.listActive().length, 0);
+    assert.equal(openNow('/2.ts'), 1, 'one connection in all, at a limit of 1');
+});
+
+test('PB2: two viewers on one connection - forcing another channel ends both and closes it', async () => {
+    assert.equal((await play('pos_1', 'tv')).status, 200);
+    assert.equal((await play('pos_1', 'ipad')).status, 200);
+    const forced = await play('pos_2', 'phone', { force: true });
+    assert.equal(forced.status, 200, JSON.stringify(forced.body));
+    await until(() => openNow('/1.ts') === 0, 'closed');
+    assert.equal(sessionsNow().length, 1);
 });

@@ -261,6 +261,11 @@ router.post('/resolve', requireToken, async (req, res) => {
                     }
                 }
             }
+            // PB2 (0233): the shared connection those recordings (and any viewer on it) read is
+            // closed now, not left to linger beside the one this play opens.
+            for (const key of verdict.closeIngests || []) {
+                try { require('../services/ingest').closeKey(key, 'its connection was taken over'); } catch (e) { /* gone */ }
+            }
             // Forced onto the first candidate: nothing else to fall to, so it is
             // started as the last one (the full retries).
             lastTried = first;

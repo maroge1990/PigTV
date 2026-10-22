@@ -544,14 +544,17 @@ function ingestInPool(key, pool, dir, recordings) {
 // The recordings in a pool: the running ones, plus recordings that have been admitted but whose
 // row is not yet 'recording' (a lease already listed in `recordings` is not counted twice).
 function recordingsInPool(recordings, pool, dir) {
-    // Wave 5: recordings reading one shared ingest hold ONE connection between them.
-    const seenIngest = new Set();
-    const running = (recordings || []).filter(r => poolKey(recordingProvider(r), dir) === pool).filter(r => {
-        if (!r.ingestKey) return true;
-        if (seenIngest.has(r.ingestKey)) return false;
-        seenIngest.add(r.ingestKey);
-        return true;
-    });
+    // Wave 5: recordings reading one shared ingest hold ONE connection between them: one entry,
+    // the first of them, with every one's id in `memberIds` (PB2, 0233: a takeover of that
+    // connection must stop them all, not just the one counted).
+    const groups = new Map();
+    const running = [];
+    for (const r of (recordings || []).filter(r => poolKey(recordingProvider(r), dir) === pool)) {
+        if (!r.ingestKey) { running.push(r); continue; }
+        let g = groups.get(r.ingestKey);
+        if (!g) { g = { ...r, memberIds: [] }; groups.set(r.ingestKey, g); running.push(g); }
+        g.memberIds.push(r.id);
+    }
     const known = new Set((recordings || []).map(r => Number(r.id)));
     const pending = unboundLeasesInPool(pool, dir)
         .filter(l => l.purpose === 'recording' && !known.has(l.scheduleId)).map(leaseAsRecording);
@@ -970,14 +973,25 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
     }
 
     // Forced: take recordings first (what was captured is kept), then viewers.
+    // PB2 (0233): a recording's connection may be shared - by other recordings (memberIds) and
+    // by viewer sessions riding its ingest (not listed in `streams`, as they cost nothing). Taking
+    // that connection stops every one of them and closes the ingest at once (no linger), or the
+    // connection would stay open beside the one this viewer is about to make.
     const sacrificed = [];
+    const closeIngests = [];
     for (const r of recordings) {
         if (need <= 0) break;
-        sacrificed.push(r.id);
+        sacrificed.push(...(r.memberIds || [r.id]));
+        if (r.ingestKey) {
+            closeIngests.push(r.ingestKey);
+            for (const s of activeStreams().filter(x => x.ingestKey === r.ingestKey && poolKey(x.providerId, dir) === pool)) {
+                release.push({ stream: s, cause: 'forced-takeover' });
+            }
+        }
         need--;
     }
     take(others, 'forced-takeover');
-    return { allowed: true, release: [...release, ...elsewhere()], sacrificed };
+    return { allowed: true, release: [...release, ...elsewhere()], sacrificed, ...(closeIngests.length ? { closeIngests } : {}) };
 }
 
 /**
