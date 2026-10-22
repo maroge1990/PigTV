@@ -39,9 +39,11 @@ function expandToCurrentItemIds(items) {
         ).all(f.source_id, f.stable_id);
         if (!current.length) {
             // The channel has vanished from the playlist entirely (dropped by
-            // the provider). Nothing current to point at - keep the stored
-            // value rather than silently dropping the favourite.
-            out.push(f);
+            // the provider). It stays listed (so it can be removed, and comes
+            // back if the provider restores it), but never under its stored
+            // position, which may name another channel now: item_id is null
+            // and available false. 0228 (review: vanished favourite identity).
+            out.push({ ...f, item_id: null, available: false });
             continue;
         }
         for (const row of current) out.push({ ...f, item_id: row.item_id });
@@ -61,7 +63,7 @@ router.get('/', async (req, res) => {
         // for the stored form with ?format=bare.
         if (format === 'bare') return res.json(items);
         const types = new Map((await db.sources.getAll()).map(s => [Number(s.id), s.type]));
-        res.json(items.map(f => f.item_type === 'channel'
+        res.json(items.map(f => f.item_type === 'channel' && f.item_id !== null
             ? { ...f, item_id: compositeChannelId(types.get(Number(f.source_id)), f.source_id, f.item_id) }
             : f));
     } catch (err) {
@@ -87,7 +89,13 @@ router.post('/', async (req, res) => {
 // Remove favorite for current user
 router.delete('/', async (req, res) => {
     try {
-        const { sourceId, itemId, itemType = 'channel' } = req.body;
+        const { sourceId, itemId, itemType = 'channel', stableId } = req.body;
+        // A favourite whose channel has vanished has no current id (GET lists it with
+        // item_id null): it is removed by the identity it was starred with.
+        if (sourceId && !itemId && stableId) {
+            favorites.removeByIdentity(req.user.id, sourceId, String(stableId), itemType);
+            return res.json({ success: true });
+        }
         if (!sourceId || !itemId) {
             return res.status(400).json({ error: 'Source ID and Item ID are required' });
         }

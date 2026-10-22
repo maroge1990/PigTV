@@ -895,6 +895,12 @@ const favorites = {
         return result.changes > 0;
     },
 
+    /** A favourite by the identity it was starred with (its channel may have no current row). */
+    removeByIdentity(userId, sourceId, stableId, itemType = 'channel') {
+        return getDb().prepare('DELETE FROM favorites WHERE user_id = ? AND source_id = ? AND item_type = ? AND stable_id = ?')
+            .run(userId, sourceId, itemType, stableId).changes > 0;
+    },
+
     isFavorite(userId, sourceId, itemId, itemType = 'channel') {
         const db = getDb();
         if (itemType === 'channel') itemId = bareChannelId(itemId);

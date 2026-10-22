@@ -128,3 +128,37 @@ test('a favourite without a stable_id keeps its stored item_id (no identity to f
     assert.equal(bare.length, 1);
     assert.equal(bare[0].item_id, 'pos_orphan');
 });
+
+test('a favourite whose channel has vanished is listed without a playable position, even when that position is reused', async () => {
+    sqlite.getDb().prepare('DELETE FROM favorites').run();
+    sqlite.getDb().prepare('DELETE FROM playlist_items').run();
+    channel('pos_V', 'Fox Footy 502', 'http://provider.invalid/live/u/p/504504.ts', 'sVanished', source.id);
+    await fetch(`${base}/api/favorites`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceId: source.id, itemId: 'pos_V', itemType: 'channel' })
+    });
+    // The provider drops the channel; another channel takes its position.
+    sqlite.getDb().prepare('DELETE FROM playlist_items').run();
+    channel('pos_V', 'Shopping Channel', 'http://provider.invalid/live/u/p/999999.ts', 'sReplacement', source.id);
+
+    for (const route of ['/api/favorites?format=bare', '/api/favorites']) {
+        const list = await get(route);
+        assert.equal(list.length, 1, 'still listed: it can be removed, and returns if the provider restores it');
+        assert.equal(list[0].item_id, null, `${route}: never the reused position`);
+        assert.equal(list[0].available, false);
+        assert.equal(list[0].stable_id, 'sVanished');
+    }
+    const check = await get(`/api/favorites/check?sourceId=${source.id}&itemId=pos_V&itemType=channel`);
+    assert.equal(check.isFavorite, false, 'the replacement channel is not starred');
+    const library = await get('/api/library/favourites');
+    assert.equal((library.channels || library).length, 0, 'library/favourites (the Apple list) shows nothing for it');
+
+    const removed = await fetch(`${base}/api/favorites`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceId: source.id, stableId: 'sVanished', itemType: 'channel' })
+    });
+    assert.equal(removed.status, 200);
+    assert.deepEqual(await get('/api/favorites?format=bare'), []);
+});
