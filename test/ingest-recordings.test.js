@@ -222,3 +222,92 @@ test('a feed that ends hands ffmpeg every byte it had queued before stdin closes
     assert.equal(file.length % 188, 0, 'whole packets: nothing cut mid-stream');
     assert.ok(live.subscribers.length >= 1);
 });
+
+// ---- DVR-4 (0232): a start that awaits its feed can be overtaken, and must then start nothing ----
+
+/** ingest.subscribe held until the test settles it; the start is then waiting inside tick(). */
+function holdSubscribe() {
+    const real = ingest.subscribe;
+    const held = {};
+    ingest.subscribe = () => new Promise((resolve, reject) => { Object.assign(held, { resolve, reject, asked: true }); });
+    held.restore = () => { ingest.subscribe = real; };
+    return held;
+}
+function fakeFeed() {
+    const { PassThrough } = require('node:stream');
+    const feed = new PassThrough();
+    feed.left = 0;
+    feed.leave = () => { feed.left++; feed.destroy(); };
+    return feed;
+}
+async function startsWaiting(s, held) {
+    const ticking = engine.tick();
+    for (let i = 0; i < 200 && !held.asked; i++) await sleep(5);
+    assert.ok(held.asked, 'the start is waiting for its feed');
+    return { ticking };
+}
+
+for (const segmented of [false, true]) {
+    const kind = segmented ? 'segmented' : 'ordinary';
+    test(`DVR-4 (${kind}): cancelled while its feed is awaited - no ffmpeg, the feed is given back, the cancel stands`, async () => {
+        await db.settings.update({ segmentedRecordings: segmented });
+        const held = holdSubscribe();
+        try {
+            const s = due();
+            const { ticking } = await startsWaiting(s, held);
+            await engine.cancelScheduled(s.id);
+            assert.equal(scheduled.getById(s.id).status, 'cancelled');
+            const feed = fakeFeed();
+            held.resolve(feed);
+            await ticking;
+            await sleep(200);
+            assert.equal(captures().length, 0, 'no capture started');
+            assert.equal(feed.left, 1, 'the late subscription is released');
+            assert.equal(scheduled.getById(s.id).status, 'cancelled', 'not overwritten with recording');
+            assert.equal(recordings.listBySchedule(s.id).length, 0, 'no recording row');
+            assert.ok(!engine.listActive().some(r => r.id === s.id));
+            assert.equal([...coordinator._leases.values()].filter(l => l.scheduleId === s.id).length, 0, 'its lease is released');
+        } finally {
+            held.restore();
+            await db.settings.update({ segmentedRecordings: false });
+        }
+    });
+}
+
+test('DVR-4: a viewer takes the connection while the feed is awaited - the recording waits, it does not start', async () => {
+    const held = holdSubscribe();
+    try {
+        const s = due();
+        const { ticking } = await startsWaiting(s, held);
+        // A forced viewer took the lease (admitViewer releases an unbound recording lease it sacrifices).
+        for (const l of coordinator._leases.values()) if (l.scheduleId === s.id) coordinator.releaseLease(l);
+        const feed = fakeFeed();
+        held.resolve(feed);
+        await ticking;
+        await sleep(200);
+        assert.equal(captures().length, 0);
+        assert.equal(feed.left, 1);
+        assert.notEqual(scheduled.getById(s.id).status, 'recording');
+        assert.equal(recordings.listBySchedule(s.id).length, 0);
+    } finally {
+        held.restore();
+    }
+});
+
+test('DVR-4: shutdown while the feed is awaited - nothing starts after stopAllActive', async () => {
+    const held = holdSubscribe();
+    try {
+        const s = due();
+        const { ticking } = await startsWaiting(s, held);
+        await engine.stopAllActive(1000);
+        const feed = fakeFeed();
+        held.resolve(feed);
+        await ticking;
+        await sleep(200);
+        assert.equal(captures().length, 0);
+        assert.equal(feed.left, 1);
+        assert.notEqual(scheduled.getById(s.id).status, 'recording');
+    } finally {
+        held.restore();
+    }
+});

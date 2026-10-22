@@ -517,6 +517,39 @@ test('server restart mid-recording: the same recording continues in a new epoch,
     assert.equal(scheduled.getById(s.id).status, 'cancelled');
 });
 
+test('DVR-4: cancelled while a resumed segmented recording awaits its shared feed - no new epoch, the feed is given back', async () => {
+    const ingest = load('services/ingest');
+    const real = ingest.subscribe;
+    const held = {};
+    ingest.subscribe = () => new Promise((resolve) => Object.assign(held, { resolve, asked: true }));
+    await db.settings.update({ sharedIngestEnabled: true });
+    try {
+        tuning.endGraceMs = 0;
+        const { s, rec, workDir } = leftByACrash({ windowMs: 20000 });
+        engine._reconcileOnStartup();
+        const ticking = engine.tick();
+        for (let i = 0; i < 200 && !held.asked; i++) await sleep(5);
+        assert.ok(held.asked, 'the continuation is waiting for its feed');
+        await engine.cancelScheduled(s.id);
+        assert.equal(scheduled.getById(s.id).status, 'cancelled');
+        const { PassThrough } = require('node:stream');
+        const feed = new PassThrough();
+        let left = 0;
+        feed.leave = () => { left++; feed.destroy(); };
+        held.resolve(feed);
+        await ticking;
+        await sleep(200);
+        assert.equal(captures().length, 0, 'no new epoch');
+        assert.equal(left, 1);
+        assert.equal(fs.existsSync(path.join(workDir, 'e2')), false);
+        assert.equal(scheduled.getById(s.id).status, 'cancelled');
+        assert.notEqual(recordings.getById(rec.id).segment_state, 'capturing');
+    } finally {
+        ingest.subscribe = real;
+        await db.settings.update({ sharedIngestEnabled: false });
+    }
+});
+
 test('server restart after the recording\'s time: what it recorded becomes its MP4', async () => {
     const { s, rec } = leftByACrash({ windowMs: -100 });
     engine._reconcileOnStartup();

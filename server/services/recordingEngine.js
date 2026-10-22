@@ -536,6 +536,9 @@ function listRecordings(userId = null) {
     }));
 }
 
+// DVR-4 (0232): bumped by stopAllActive (shutdown); a start that began before it does not spawn.
+let stopAllGeneration = 0;
+
 async function cancelScheduled(id) {
     const schedule = scheduledDb.getById(id);
     if (!schedule) throw new Error('Scheduled recording not found');
@@ -652,19 +655,41 @@ async function startPart(schedule, route, index, part, opts = {}) {
     }
 }
 
-async function startPartLeased(schedule, route, index, part, { gapMs = 0, refuse, lease = null } = {}) {
-    const settings = await getSettings();
-    // A viewer that forced the stream while this start was getting ready took the lease with it:
-    // the connection is theirs, so this recording waits for the next tick instead.
+/**
+ * DVR-4 (0232): is a start that has been awaiting (settings, the folder, the shared feed) still
+ * wanted? Not after the schedule was cancelled or deleted, its connection taken by a viewer, or
+ * stopAllActive (shutdown) - and never for a schedule that is already running.
+ */
+function startStillWanted(schedule, { lease, generation, stillWanted }) {
+    if (generation !== stopAllGeneration) return false;
     if (lease && !coordinator.leaseAlive(lease)) {
         console.log(`[Recordings] Schedule #${schedule.id}: its connection was taken before it started; waiting`);
         return false;
     }
+    if (active.has(schedule.id)) return false;
+    if (stillWanted) return stillWanted();
+    const now = scheduledDb.getById(schedule.id);
+    return !!now && (now.status === 'scheduled' || now.status === 'waiting');
+}
+
+/** DVR-4: an abandoned start gives back the feed it was handed (the caller releases its lease). */
+function abandonStart(schedule, feed) {
+    if (feed) { try { feed.leave(); } catch (e) { /* gone */ } }
+    console.log(`[Recordings] Schedule #${schedule.id}: not started (cancelled, taken or shutting down while it got ready)`);
+    return false;
+}
+
+async function startPartLeased(schedule, route, index, part, { gapMs = 0, refuse, lease = null, stillWanted = null } = {}) {
+    const owner = { lease, generation: stopAllGeneration, stillWanted };
+    const settings = await getSettings();
+    // A viewer that forced the stream while this start was getting ready took the lease with it:
+    // the connection is theirs, so this recording waits for the next tick instead.
+    if (!startStillWanted(schedule, owner)) return false;
     const minFreeGB = Number.isFinite(settings.minFreeSpaceGB) ? settings.minFreeSpaceGB : 10;
     // R3: a new recording is segmented when the switch is on as it starts (a later part of an
     // older one never is; a segmented one is resumed, never given a part 2).
     if (part === 1 && settings.segmentedRecordings === true) {
-        return startSegmented(schedule, settings, route, index, { refuse, lease, minFreeGB });
+        return startSegmented(schedule, settings, route, index, { refuse, lease, minFreeGB, owner });
     }
     let root;
     try {
@@ -674,6 +699,7 @@ async function startPartLeased(schedule, route, index, part, { gapMs = 0, refuse
         refuse(err.message);
         return false;
     }
+    if (!startStillWanted(schedule, owner)) return false;
 
     // Pre-flight storage check (0157: also catches an unmounted network share,
     // which reads back as a tiny filesystem rather than as missing - the case
@@ -694,6 +720,7 @@ async function startPartLeased(schedule, route, index, part, { gapMs = 0, refuse
     const channelDir = path.join(root, sanitizeForFs(schedule.channel_name || 'Unknown Channel'));
     if (!fs.existsSync(channelDir)) fs.mkdirSync(channelDir, { recursive: true });
     const feed = await feedFor(settings, route.candidates[index]); // Wave 5
+    if (!startStillWanted(schedule, owner)) return abandonStart(schedule, feed);
 
     // Local time, not UTC - a 7:30pm program should read 19-30 in the filename.
     // "Local" is the process's TZ, which docker-compose.yml passes through.
@@ -756,7 +783,7 @@ function noteLateStart(schedule, recordingId) {
  * be usable and have room; the share is only needed at the end (a share that is down now is
  * logged, and the MP4 waits for it). One recordings row for the whole recording.
  */
-async function startSegmented(schedule, settings, route, index, { refuse, lease, minFreeGB }) {
+async function startSegmented(schedule, settings, route, index, { refuse, lease, minFreeGB, owner }) {
     try { fs.mkdirSync(segments.workRoot(), { recursive: true }); } catch (e) { /* reported by the check */ }
     const check = checkRecordingsFolder(segments.workRoot(), minFreeGB);
     if (!check.ok) {
@@ -774,7 +801,9 @@ async function startSegmented(schedule, settings, route, index, { refuse, lease,
     }
 
     const candidate = route.candidates[index];
+    if (!startStillWanted(schedule, owner)) return false;
     const feed = await feedFor(settings, candidate); // Wave 5
+    if (!startStillWanted(schedule, owner)) return abandonStart(schedule, feed);
     const recording = recordingsDb.create({
         scheduled_id: schedule.id,
         title: schedule.title,
@@ -1119,23 +1148,30 @@ async function continuePart(scheduleId, now = Date.now()) {
             return;
         }
         if (continuations.get(scheduleId) !== cont) return; // cancelled meanwhile
-        continuations.delete(scheduleId);
+        // DVR-4 (0232): the continuation stays queued until its capture runs, so a cancel while the
+        // feed is awaited finds it (and ends the recording), and this start then gives up.
+        const generation = stopAllGeneration;
+        const ours = () => continuations.get(scheduleId) === cont && generation === stopAllGeneration && !active.has(scheduleId);
         if (cont.resume) {
             // R3: the same recording, a new epoch.
             const rec = recordingsDb.getById(cont.resume.recordingId);
-            if (!rec || rec.segment_state !== 'capturing') { finishSchedule(scheduleId); return; }
+            if (!rec || rec.segment_state !== 'capturing') { continuations.delete(scheduleId); finishSchedule(scheduleId); return; }
             noteSegmentGap(rec.id, Date.now() - cont.lostAt, cont.resume.why || 'the provider dropped out');
             if (route.candidates[index].providerId !== rec.provider_id) recordingsDb.setProvider(rec.id, route.candidates[index].providerId ?? null);
             console.log(`[Recordings] #${rec.id} continues after ${Math.round((Date.now() - cont.lostAt) / 1000)}s` +
                 (route.multi ? ` on ${route.candidates[index].providerName}` : ''));
             const feed = await feedFor(settings, route.candidates[index]); // Wave 5
+            if (!ours()) return abandonStart(schedule, feed);
+            continuations.delete(scheduleId);
             spawnSegment(schedule, settings, { recordingId: rec.id, workDir: rec.work_dir, route, index, resumes: cont.resume.resumes, feed });
             return;
         }
         await startPart(schedule, route, index, cont.nextPart, {
             gapMs: Date.now() - cont.lostAt,
-            refuse: (msg) => finishSchedule(scheduleId, msg)
+            refuse: (msg) => { if (continuations.get(scheduleId) === cont) continuations.delete(scheduleId); finishSchedule(scheduleId, msg); },
+            stillWanted: ours
         });
+        if (continuations.get(scheduleId) === cont && active.has(scheduleId)) continuations.delete(scheduleId);
     } finally {
         cont.starting = false;
     }
@@ -1653,6 +1689,7 @@ function shutdown() {
  * stopRecording() call.
  */
 async function stopAllActive(timeoutMs = 6000) {
+    stopAllGeneration++; // DVR-4: a start awaiting its feed now does not start
     const scheduledIds = [...active.keys()];
     await Promise.all(scheduledIds.map(id =>
         Promise.race([
