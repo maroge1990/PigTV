@@ -349,6 +349,13 @@ router.post('/resolve', requireToken, async (req, res) => {
             }
         }
 
+        // PB5 (0235): the client hung up (a browser's stop aborts its resolve) while the start ran:
+        // nobody will play this session, so it is given back now rather than left to the idle sweep.
+        if (clientGone()) {
+            if (decision.sessionId) { try { await require('../services/transcodeSession').removeSession(decision.sessionId); } catch (e) { /* gone */ } }
+            return;
+        }
+
         // R12: what this owner is watching now, so a warm request for it is ignored.
         if (warmKey && decision.sessionId) warming.noteWatching(owner, warmKey, decision.sessionId);
 

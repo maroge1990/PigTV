@@ -291,3 +291,16 @@ test('PB2: two viewers on one connection - forcing another channel ends both and
     await until(() => openNow('/1.ts') === 0, 'closed');
     assert.equal(sessionsNow().length, 1);
 });
+
+test('PB5: a browser that aborts its resolve (stop) leaves no session behind once the start finishes', async () => {
+    const abort = new AbortController();
+    const asked = fetch(`${routeBase}/api/playback/resolve`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenFor('browser')}` },
+        body: JSON.stringify({ sourceId: A.id, channelId: 'pos_3', capabilities: { segmentedDelivery: true } }), signal: abort.signal
+    }).catch(err => err);
+    await until(() => connections['/slow.ts'] === 1, 'the start is under way');
+    abort.abort();
+    assert.equal((await asked).name, 'AbortError');
+    await sleep(1500); // the slow provider's first bytes come at 600 ms; the start completes after the client left
+    assert.deepEqual(sessionsNow(), [], 'nobody will play it: given back, not left to the idle sweep');
+});

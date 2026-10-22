@@ -739,7 +739,11 @@ class VideoPlayer {
      * client does: there is one delivery path for every device. Returns null when
      * the server could not start the channel; play() then asks once more.
      */
-    async resolvePlayback(channel, streamUrl, { force = false, audioEncode = false } = {}) {
+    async resolvePlayback(channel, streamUrl, { force = false, audioEncode = false, generation = this._playGeneration, signal = null } = {}) {
+        // PB5 (0235): this resolve belongs to one play() (its generation). A stop() or a newer
+        // play() moves the generation on: the answer is then nobody's - no prompt, no forced
+        // retry, and a session the server started for it is given straight back.
+        const stale = () => generation !== this._playGeneration;
         const caps = this.getCodecCapabilities();
         const body = {
             force,
@@ -771,8 +775,16 @@ class VideoPlayer {
                     'Content-Type': 'application/json',
                     ...(localStorage.getItem('authToken') ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` } : {})
                 },
-                body: JSON.stringify(body)
+                body: JSON.stringify(body),
+                ...(signal ? { signal } : {})
             });
+            if (stale()) {
+                if (res.ok) {
+                    const late = await res.json().catch(() => null);
+                    if (late && late.sessionId) this.releaseSession(late.sessionId);
+                }
+                return VideoPlayer.SUPERSEDED;
+            }
             if (res.status === 409) {
                 // Something else is using the provider's only stream: a
                 // recording, or another device that is really watching. Ask
@@ -781,6 +793,9 @@ class VideoPlayer {
                 const conflict = (await res.json()).conflict;
                 const otherViewer = conflict.type === 'viewer-in-progress';
                 const proceed = confirm(`${conflict.message}\n\n${otherViewer ? 'Stop the other stream and watch here?' : 'Stop the recording and watch now?'}`);
+                // Stopped, or another channel picked, while the question was up: the answer
+                // is about a play that no longer exists, so nothing is taken over.
+                if (stale()) return VideoPlayer.SUPERSEDED;
                 if (!proceed) {
                     this.updateTranscodeStatus('idle', otherViewer ? 'Another device is watching' : 'Recording in progress');
                     // Not null: null means "the server could not start it", which play()
@@ -789,20 +804,36 @@ class VideoPlayer {
                     // exists to prevent.
                     return VideoPlayer.CANCELLED;
                 }
-                return this.resolvePlayback(channel, streamUrl, { force: true, audioEncode });
+                return this.resolvePlayback(channel, streamUrl, { force: true, audioEncode, generation, signal });
             }
             // 0180: the server stopped this start because a newer play from this viewer took
             // over. Not a failure: the newer play owns the screen, so this one says nothing.
             if (res.status === 499) return VideoPlayer.SUPERSEDED;
             if (!res.ok) return null;
             const decision = await res.json();
+            if (stale()) {
+                if (decision && decision.sessionId) this.releaseSession(decision.sessionId);
+                return VideoPlayer.SUPERSEDED;
+            }
             if (!decision || !decision.url) return null;
             console.log(`[Player] Server chose ${decision.strategy}: ${decision.reason}`);
             return decision;
         } catch (err) {
+            if (stale() || (err && err.name === 'AbortError')) return VideoPlayer.SUPERSEDED;
             console.warn('[Player] Playback resolve failed:', err.message);
             return null;
         }
+    }
+
+    /** PB5: give back a session started for a play that was stopped or replaced meanwhile. */
+    releaseSession(sessionId) {
+        try {
+            fetch(`/api/transcode/${sessionId}`, {
+                method: 'DELETE',
+                headers: localStorage.getItem('authToken')
+                    ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` } : {}
+            });
+        } catch (err) { /* best effort, as stopTranscodeSession */ }
     }
 
     /**
@@ -988,8 +1019,12 @@ class VideoPlayer {
         this._audioEncodeActive = options.audioEncode === true || this.needsAudioEncode(channel);
 
         try {
-            // Stop current playback (this also closes out the previous play's measurement)
+            // Stop current playback (this also closes out the previous play's measurement, and
+            // moves the generation on: anything the previous play still awaits is now stale)
             this.stop();
+            const generation = this._playGeneration;
+            this._resolveAbort = typeof AbortController === 'function' ? new AbortController() : null;
+            const signal = this._resolveAbort ? this._resolveAbort.signal : null;
             this.updateTranscodeStatus('hidden');
             this.beginPlayMeasurement();
 
@@ -1006,7 +1041,9 @@ class VideoPlayer {
             // an HLS session (or, for a source that is already browser-ready, a proxied
             // direct stream). The browser-side strategies that used to live here - its
             // own probe, the piped remux, the force-* settings - are gone (0102).
-            const decision = await this.resolvePlayback(channel, streamUrl, { audioEncode: options.audioEncode === true });
+            const decision = await this.resolvePlayback(channel, streamUrl, { audioEncode: options.audioEncode === true, generation, signal });
+            // PB5: stopped or replaced while it resolved - the newer state owns the screen.
+            if (generation !== this._playGeneration) return;
             if (decision === VideoPlayer.CANCELLED) {
                 this.abandonPlay();
                 return;
@@ -1443,6 +1480,9 @@ class VideoPlayer {
      * Stop playback
      */
     stop() {
+        // PB5 (0235): whatever an earlier play() still awaits is no longer wanted.
+        this._playGeneration = (this._playGeneration || 0) + 1;
+        if (this._resolveAbort) { try { this._resolveAbort.abort(); } catch (e) { /* done */ } this._resolveAbort = null; }
         this.clearStartWatch();
         this.reportPlayEnd();
         this._playT0 = null; // nothing is being timed until the next play() begins
