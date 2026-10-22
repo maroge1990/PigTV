@@ -55,7 +55,9 @@ const SCRIPTS = {
     // Plays, then goes silent (the stall watchdog releases it).
     stalls: `${PLAYLIST} setInterval(() => {}, 1000);`,
     // Connects and never writes anything.
-    hang: `setInterval(() => {}, 1000);`
+    hang: `setInterval(() => {}, 1000);`,
+    // PB3: the 502, but only after a while (a start that takes time to fail).
+    slow502: `setTimeout(() => { ${stderr(['[in#0 @ 0x1] Error opening input: Server returned 5XX Server Error reply'])} process.exit(1); }, 600);`
 };
 const behaviour = new Map(); // url -> key of SCRIPTS (default ok)
 const starts = new Map();    // url -> ffmpeg starts (retries included)
@@ -554,4 +556,46 @@ test('no line this feature logs carries a URL', () => {
     const ours = logLines.filter(l => /\[Playback\] failover|\[Providers\]|mid-play|\[Playback\] resolve timing/.test(l));
     assert.ok(ours.length > 0);
     for (const line of ours) noUrl(line, 'log');
+});
+
+// ---- PB3 (0234): admission reads the recordings running NOW, not those at the request's start ----
+
+const onB = { id: 990, title: 'Recording on Trex', channel_name: 'Trex 5003', program_end: Date.now() + 3600e3, providerId: null };
+
+test('PB3: a recording that starts on the backup while the primary is starting is counted when the play falls back to it', async () => {
+    onB.providerId = B.id;
+    await sessionOn(C.id, 'device:lounge'); // the second backup is full
+    behaviour.set(url.A(102), 'slow502');
+    let running = [];
+    recordingEngine.listActive = () => running;
+    try {
+        const pending = play('pos_2');
+        await sleep(250); // the primary is starting (it fails at 600 ms)
+        running = [onB];  // ...when a recording starts on Trex and binds its lease
+        const r = await pending;
+        assert.notEqual(r.status, 200, `fell back onto a full provider: ${r.text}`);
+        assert.equal(startsOf(url.B(5002)), 0, 'nothing started on Trex');
+        assert.ok(!coordinator.activeStreams().some(x => x.providerId === B.id), 'no session on Trex beside its recording');
+    } finally {
+        recordingEngine.listActive = () => [];
+    }
+});
+
+test('PB3: a recording on the backup that ends while the primary is starting no longer blocks the fallback', async () => {
+    onB.providerId = B.id;
+    await sessionOn(C.id, 'device:lounge');
+    behaviour.set(url.A(102), 'slow502');
+    let running = [onB];
+    recordingEngine.listActive = () => running;
+    try {
+        const pending = play('pos_2');
+        await sleep(250);
+        running = []; // it finished
+        const r = await pending;
+        assert.equal(r.status, 200, r.text);
+        assert.equal(r.body.provider.id, B.id);
+        assert.equal(r.body.provider.failover, true);
+    } finally {
+        recordingEngine.listActive = () => [];
+    }
 });
