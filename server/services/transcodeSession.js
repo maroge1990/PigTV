@@ -214,6 +214,9 @@ class TranscodeSession extends EventEmitter {
         if (this.status === 'running' || this.status === 'starting') {
             return;
         }
+        // PB1 (0230): a session stopped or cleaned up (a newer play, a DELETE, a takeover,
+        // shutdown) never starts again - not from a caller, a retry, or a late await below.
+        if (this.ended()) throw stoppedError();
 
         // Backstop behind the routes' own check (see streamUrl.js): never hand
         // ffmpeg a local file, concat: list or pipe as its input.
@@ -230,10 +233,12 @@ class TranscodeSession extends EventEmitter {
         try {
             await fs.mkdir(this.dir, { recursive: true });
         } catch (err) {
+            if (this.ended()) throw stoppedError();
             this.status = 'error';
             this.error = err.message;
             throw err;
         }
+        if (this.ended()) return this.abandonStart(null);
 
         // Wave 5 (phase 5b, `ingestSource`): read the shared ingest of this stream. A start (and the
         // software-decode retry) takes a fresh subscription; a refused one is today's direct read.
@@ -242,14 +247,23 @@ class TranscodeSession extends EventEmitter {
         if (this.options.ingestSource) {
             const ingest = require('./ingest');
             const src = this.options.ingestSource;
+            let feed = null;
             try {
-                this.feed = await ingest.subscribe({ ...src, purpose: this.options.standby ? 'standby' : this.options.warm ? 'warm' : 'viewer', owner: this.owner || null });
+                feed = await ingest.subscribe({ ...src, purpose: this.options.standby ? 'standby' : this.options.warm ? 'warm' : 'viewer', owner: this.owner || null });
+            } catch (err) {
+                // PB1: stopped meanwhile, or the ingest was closed under us (released, shutdown): a
+                // cancellation, never a reason to open a connection of our own.
+                if (this.ended() || err.ingestCancelled) return this.abandonStart(null);
+                console.warn(`[TranscodeSession ${this.id}] Shared ingest not used: ${redact(err.message)}`);
+                this.options.ingestSource = null;
+            }
+            // PB1: the subscription arrived after a stop or cleanup: give it straight back.
+            if (this.ended()) return this.abandonStart(feed);
+            if (feed) {
+                this.feed = feed;
                 this.ingestKey = ingest.keyOf(src.pool, src.url);
                 this.feedLost = null;
                 this.feed.on('ingest-end', (why) => { this.feedLost = why; });
-            } catch (err) {
-                console.warn(`[TranscodeSession ${this.id}] Shared ingest not used: ${redact(err.message)}`);
-                this.options.ingestSource = null;
             }
         }
 
@@ -400,6 +414,7 @@ class TranscodeSession extends EventEmitter {
                 this.clearSegments()
                     .catch(err => console.warn(`[TranscodeSession ${this.id}] Could not clear stale segments before retry:`, err.message))
                     .finally(() => {
+                        if (this.ended()) return; // stopped while the folder was cleared
                         this.start().catch(err => {
                             console.error(`[TranscodeSession ${this.id}] Software decode retry failed:`, err.message);
                         });
@@ -438,7 +453,7 @@ class TranscodeSession extends EventEmitter {
                     .then(() => new Promise(resolve => setTimeout(resolve, delay)))
                     .then(() => {
                         // Stopped or removed while we waited: nothing to retry for.
-                        if (this.status !== 'pending' || this._cleanedUp) return;
+                        if (this.status !== 'pending' || this.ended()) return;
                         return this.start();
                     })
                     .catch(err => {
@@ -1448,6 +1463,25 @@ class TranscodeSession extends EventEmitter {
         }
     }
 
+    /** PB1: stopped on request or cleaned up; nothing may start it again. */
+    ended() { return this.stopRequested === true || this._cleanedUp === true; }
+
+    /**
+     * PB1: a start overtaken by stop()/cleanup() while it awaited: release what it got (a late
+     * subscription), remove a folder cleanup() may already have deleted before our mkdir landed,
+     * spawn nothing, and say so the way a stopped start does.
+     */
+    async abandonStart(feed) {
+        if (feed) { try { feed.leave(); } catch (e) { /* gone */ } }
+        this.feed = null;
+        this.status = 'stopped';
+        if (this._cleanedUp && !this.retainDir) {
+            try { await fs.rm(this.dir, { recursive: true, force: true }); } catch (e) { /* already gone */ }
+        }
+        console.log(`[TranscodeSession ${this.id}] Start abandoned: the session was stopped while it started`);
+        throw stoppedError();
+    }
+
     /**
      * Delete session directory and all segments
      */
@@ -1528,6 +1562,11 @@ async function removeSession(sessionId) {
         await session.cleanup();
         sessions.delete(sessionId);
     }
+}
+
+/** PB1: a start that was stopped on request; the same shape as playbackStrategy.supersededError (0180). */
+function stoppedError() {
+    return Object.assign(new Error('Playback was replaced by a newer request'), { superseded: true, status: 499 });
 }
 
 /**

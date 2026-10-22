@@ -42,6 +42,7 @@ async function until(cond, label, ms = 10000) {
 
 // ---- the provider -------------------------------------------------------------------------
 let connections = {};
+let open = {}; // provider connections open now, per path
 let seq = 0;
 function packet(pid, n) {
     const p = Buffer.alloc(188, 0xff);
@@ -107,8 +108,13 @@ const sessionsNow = () => transcodeSession.getAllSessions();
 before(async () => {
     provider = http.createServer((req, res) => {
         connections[req.url] = (connections[req.url] || 0) + 1;
+        open[req.url] = (open[req.url] || 0) + 1;
+        res.on('close', () => { open[req.url]--; });
         res.writeHead(200, { 'Content-Type': 'video/mp2t' });
-        const timer = setInterval(() => res.write(Buffer.concat(Array.from({ length: 30 }, () => { const n = seq++; return packet(n % 20 === 0 ? 0 : 256, n); }))), 20);
+        // '/slow.ts': headers at once, the first bytes after 600 ms (a start that takes a while).
+        if (req.url === '/slow.ts') res.flushHeaders();
+        const startAt = Date.now() + (req.url === '/slow.ts' ? 600 : 0);
+        const timer = setInterval(() => { if (Date.now() >= startAt) res.write(Buffer.concat(Array.from({ length: 30 }, () => { const n = seq++; return packet(n % 20 === 0 ? 0 : 256, n); }))); }, 20);
         res.on('close', () => clearInterval(timer));
     });
     provider.listen(0, '127.0.0.1');
@@ -121,6 +127,7 @@ before(async () => {
                                          VALUES (?, ?, ?, 'live', ?, 'Sport', 0, ?, ?, ?)`);
     item.run(`${A.id}:pos_1`, A.id, 'pos_1', 'Fox Footy', 1, 's1', `${base}/1.ts`);
     item.run(`${A.id}:pos_2`, A.id, 'pos_2', 'Fox League', 2, 's2', `${base}/2.ts`);
+    item.run(`${A.id}:pos_3`, A.id, 'pos_3', 'Slow Starter', 3, 's3', `${base}/slow.ts`);
     await db.settings.update({ maxProviderStreams: 1, sharedIngestEnabled: true, recordingsPath: path.join(sandbox, 'recordings'),
         minFreeSpaceGB: 0, maxConcurrentRecordings: 3 });
 
@@ -217,4 +224,17 @@ test('switch off: today\'s session reads the URL itself', async () => {
     assert.equal(ff.args[ff.args.indexOf('-i') + 1], `${base}/1.ts`);
     assert.ok(ff.args.includes('-user_agent'));
     assert.deepEqual(ingest.list(), []);
+});
+
+test('PB1: the same device asks twice while the first start is still waiting - one session, one ffmpeg, the first answered 499', async () => {
+    const first = play('pos_3', 'tv');
+    await until(() => connections['/slow.ts'] === 1, 'the first start is connecting');
+    const second = play('pos_3', 'tv');
+    const [a, b] = await Promise.all([first, second]);
+    assert.equal(b.status, 200, JSON.stringify(b.body));
+    assert.equal(a.status, 499, JSON.stringify(a.body));
+    await sleep(300);
+    assert.equal(sessionsNow().length, 1, 'only the newer play has a session');
+    assert.equal(tools().filter(t => t.tool === 'ffmpeg').length, 1, 'one ffmpeg started');
+    assert.equal(open['/slow.ts'], 1, 'one provider connection open');
 });
