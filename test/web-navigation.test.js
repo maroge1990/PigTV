@@ -80,6 +80,50 @@ test('F1: a failed load keeps the guide that was already showing', async () => {
     assert.deepEqual([...epg.rows.map(r => r.id)], ['kept']);
 });
 
+test('W1: Later, then Back to the window already loaded - the later answer arriving last is not published', async () => {
+    const c = load(['components/EpgGuide.js']);
+    const later = deferred();
+    c.API = { library: { categories: async () => [], favourites: async () => [], guide: () => later.promise } };
+    const g = Object.create(c.window.EpgGuide.prototype);
+    g.timeOffset = 0;
+    g.window = { start: 0, end: 86400000 };
+    g.rows = [{ id: 'current' }];
+    g.renderWindow = () => ({ start: g.timeOffset * 3600000, end: g.timeOffset * 3600000 + 86400000 });
+    let renders = 0;
+    g.render = () => { renders++; };
+    const forward = g.navigate(3);
+    await tick();
+    await g.navigate(-3); // back to the loaded window: no fetch needed
+    later.resolve({ channels: [{ id: 'future', sourceId: 1, name: 'Future' }], nextCursor: null });
+    await forward;
+    assert.equal(g.timeOffset, 0);
+    assert.equal(g.window.start, 0, 'the window on screen is the one shown');
+    assert.deepEqual([...g.rows.map(r => r.id)], ['current'], 'the later window\'s rows never replace it');
+    assert.equal(renders, 1, 'only the Back move drew');
+});
+
+test('W1: Later twice then Back once - only the window landed on is published', async () => {
+    const c = load(['components/EpgGuide.js']);
+    const answers = new Map();
+    c.API = { library: { categories: async () => [], favourites: async () => [],
+        guide: ({ start }) => { const d = deferred(); answers.set(start, [...(answers.get(start) || []), d]); return d.promise; } } };
+    const g = Object.create(c.window.EpgGuide.prototype);
+    g.timeOffset = 0;
+    g.window = { start: 0, end: 86400000 };
+    g.rows = [{ id: 'now' }];
+    g.renderWindow = () => ({ start: g.timeOffset * 3600000, end: g.timeOffset * 3600000 + 86400000 });
+    g.render = () => {};
+    const one = g.navigate(3); await tick();
+    const two = g.navigate(3); await tick();
+    const back = g.navigate(-3); await tick();
+    for (const d of answers.get(6 * 3600000)) d.resolve({ channels: [{ id: 'six', sourceId: 1, name: '6' }], nextCursor: null });
+    for (const d of answers.get(3 * 3600000)) d.resolve({ channels: [{ id: 'three', sourceId: 1, name: '3' }], nextCursor: null });
+    await Promise.all([one, two, back]);
+    assert.equal(g.timeOffset, 3);
+    assert.equal(g.window.start, 3 * 3600000);
+    assert.deepEqual([...g.rows.map(r => r.id)], ['three']);
+});
+
 test('F2: Home -> elsewhere -> Home while favourites load: the Home on screen settles', async () => {
     const lists = { current: null };
     const c = load(['pages/HomePage.js'], {

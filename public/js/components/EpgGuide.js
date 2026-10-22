@@ -126,6 +126,9 @@ class EpgGuide {
         this.timeOffset += hours;
         // The guide is fetched for the window it shows: moving it fetches again.
         const { start } = this.renderWindow();
+        // W1 (0238): every move is the newest intent, also one back to the window already
+        // loaded: a load still running for the window just left must not publish over it.
+        if (this._guideLoad && this._guideLoad.start !== start) this.supersedeGuideLoad();
         if (!this.window || this.window.start !== start) {
             try {
                 // A newer move (or a refresh for another window) superseded this one:
@@ -303,6 +306,12 @@ class EpgGuide {
             .finally(() => { if (this._guideLoad?.promise === promise) this._guideLoad = null; });
         this._guideLoad = { start, promise };
         return promise;
+    }
+
+    /** W1: the load in flight is no longer wanted (its answer is dropped, its paging stops). */
+    supersedeGuideLoad() {
+        this._guideGeneration = (this._guideGeneration || 0) + 1;
+        this._guideLoad = null;
     }
 
     async loadGuideWindow(start, end, generation) {
