@@ -47,13 +47,23 @@ function guideEndFor(schedule, programmes) {
     return end === schedule.program_end ? null : { end, original, guideEnd: match.end_time, title: match.title };
 }
 
-/** The tvg-id a schedule's channel reads its guide from (an admin's mapping first). */
+/**
+ * The tvg-id a schedule's channel reads its guide from (an admin's mapping first). DVR-2 (0228): a
+ * schedule with a channel identity reads only that channel; when it has gone from the playlist
+ * there is no guide to follow (its old position may be another channel's now). The position is
+ * for schedules that never had an identity.
+ */
 function tvgIdFor(db, schedule) {
-    const row = db.prepare(`
-        SELECT item_id, stable_id, tvg_id, data FROM playlist_items
-        WHERE source_id = ? AND (item_id = ? OR (? IS NOT NULL AND stable_id = ?))
-        ORDER BY (stable_id = ?) DESC LIMIT 1
-    `).get(schedule.source_id, schedule.channel_item_id, schedule.channel_stable_id, schedule.channel_stable_id, schedule.channel_stable_id);
+    const row = schedule.channel_stable_id
+        ? db.prepare(`
+            SELECT item_id, stable_id, tvg_id, data FROM playlist_items
+            WHERE source_id = ? AND type = 'live' AND stable_id = ?
+            ORDER BY CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END, sort_order ASC LIMIT 1
+        `).get(schedule.source_id, schedule.channel_stable_id)
+        : db.prepare(`
+            SELECT item_id, stable_id, tvg_id, data FROM playlist_items
+            WHERE source_id = ? AND type = 'live' AND item_id = ? LIMIT 1
+        `).get(schedule.source_id, schedule.channel_item_id);
     if (!row) return null;
     let tvg = row.tvg_id || null;
     if (!tvg) { try { const d = JSON.parse(row.data || '{}'); tvg = d.tvgId || d.epg_channel_id || null; } catch { tvg = null; } }

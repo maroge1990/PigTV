@@ -155,16 +155,17 @@ async function resolveStreamUrl(sourceId, channelItemId, stableId = null) {
     const raw = String(channelItemId);
     const stripped = raw.replace(/^(?:m3u|xtream)_\d+_/, '');
 
-    // The identity first when the schedule carries one: it is what the schedule is
-    // FOR, and unlike the position it still means the same channel after a reorder.
-    // Ordered by position so a channel listed in several categories resolves to the
-    // same row every time.
-    const item = (stableId && db.prepare(`
+    // The identity when the schedule carries one: it is what the schedule is FOR, and unlike the
+    // position it still means the same channel after a reorder. DVR-2 (0228): ONLY the identity -
+    // when that channel has gone, its old position may now be another channel's, and recording
+    // that instead is worse than failing. The position is for schedules that never had an identity.
+    // Ordered by position so a channel listed in several categories resolves to the same row every time.
+    const item = stableId ? db.prepare(`
         SELECT stream_url, data FROM playlist_items
         WHERE source_id = ? AND type = 'live' AND stable_id = ?
         ORDER BY CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END, sort_order ASC
         LIMIT 1
-    `).get(sourceId, stableId)) || db.prepare(`
+    `).get(sourceId, stableId) : db.prepare(`
         SELECT stream_url, data FROM playlist_items
         WHERE source_id = ? AND type = 'live'
           AND (item_id = ? OR item_id = ? OR id = ?)
@@ -196,20 +197,19 @@ async function resolveStreamUrl(sourceId, channelItemId, stableId = null) {
 // decision below is exactly the one made before.
 // ---------------------------------------------------------------------------
 
-/** The item_id the schedule's channel has now (its identity first, as resolveStreamUrl finds it). */
+/**
+ * The item_id the schedule's channel has now (by its identity, as resolveStreamUrl finds it), or
+ * null when the identity is no longer in the playlist (DVR-2: never its old, possibly reused, position).
+ */
 function currentItemId(source, schedule) {
     if (!source || source.type === 'xtream' || !schedule.channel_stable_id) return schedule.channel_item_id;
-    try {
-        const row = getDb().prepare(`
-            SELECT item_id FROM playlist_items
-            WHERE source_id = ? AND type = 'live' AND stable_id = ?
-            ORDER BY CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END, sort_order ASC
-            LIMIT 1
-        `).get(schedule.source_id, schedule.channel_stable_id);
-        return row ? row.item_id : schedule.channel_item_id;
-    } catch (e) {
-        return schedule.channel_item_id;
-    }
+    const row = getDb().prepare(`
+        SELECT item_id FROM playlist_items
+        WHERE source_id = ? AND type = 'live' AND stable_id = ?
+        ORDER BY CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END, sort_order ASC
+        LIMIT 1
+    `).get(schedule.source_id, schedule.channel_stable_id);
+    return row ? row.item_id : null;
 }
 
 /**
@@ -226,7 +226,9 @@ async function routeFor(schedule) {
     let plan;
     try {
         const source = await sourcesDb.getById(schedule.source_id);
-        plan = await providerRouting.plan(schedule.source_id, currentItemId(source, schedule));
+        const itemId = currentItemId(source, schedule);
+        if (itemId === null) return single; // its channel has gone: resolveStreamUrl has refused it already
+        plan = await providerRouting.plan(schedule.source_id, itemId);
     } catch (e) {
         return single; // nothing to fail over to that plan can name: as before
     }

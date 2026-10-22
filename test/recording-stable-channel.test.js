@@ -78,6 +78,14 @@ test('a channel listed in several categories resolves to the same row every time
     assert.equal(again, first, 'both listings give one stream, deterministically');
 });
 
+test('DVR-2: a channel whose identity has gone is never recorded from whatever now sits at its old position', async () => {
+    // The schedule was for s777777 at pos_2000; the provider dropped it and pos_2000 now carries another channel.
+    channel('pos_2000', 'Shopping Channel', URL_SHOP, 's999999', 2000);
+    const engine = require(path.join(sandbox, 'server/services/recordingEngine'));
+    await assert.rejects(engine.resolveStreamUrl(2, 'pos_2000', 's777777'), /not found/);
+    await assert.rejects(engine.resolveStreamUrl(2, 'm3u_2_pos_2000', 's777777'), /not found/, 'in the composite spelling too');
+});
+
 test('a schedule made before identities existed still resolves, the old way', async () => {
     const db = sqlite.getDb();
     db.prepare(`

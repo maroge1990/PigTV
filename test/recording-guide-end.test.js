@@ -107,6 +107,30 @@ test('after a sync, a pending schedule takes the guide end and keeps its origina
     scheduled.setStatus(s.id, 'cancelled');
 });
 
+test('DVR-2: a schedule whose channel identity has gone follows no guide, not the channel now at its old position', () => {
+    const t = Date.now() + 2 * H;
+    // pos_1 is Fox Cricket 501 (s501) now; this schedule was for a channel that has since gone.
+    const s = scheduled.create({ title: 'Original Show', description: null, source_id: A.id, channel_item_id: 'pos_1', channel_stable_id: 'gone',
+        channel_name: 'Gone Channel', channel_logo: null, program_start: t, program_end: t + H,
+        pre_buffer_min: 0, post_buffer_min: 0, created_by: 1, created_at: Date.now() + n++ });
+    guide([{ title: 'Unrelated replacement show', start: t, end: t + 2 * H }]); // same start: the renamed-slot rule would take it
+    assert.deepEqual(engine.followGuide().filter(c => c.id === s.id), []);
+    assert.equal(scheduled.getById(s.id).program_end, t + H);
+    scheduled.setStatus(s.id, 'cancelled');
+});
+
+test('DVR-2: a due schedule whose channel identity has gone fails safely and records nothing', async () => {
+    const now = Date.now();
+    const s = scheduled.create({ title: 'Gone Show', description: null, source_id: A.id, channel_item_id: 'pos_1', channel_stable_id: 'gone',
+        channel_name: 'Gone Channel', channel_logo: null, program_start: now - 1000, program_end: now + 60000,
+        pre_buffer_min: 0, post_buffer_min: 0, created_by: 1, created_at: Date.now() + n++ });
+    for (let i = 0; i < 20 && scheduled.getById(s.id).status === 'scheduled'; i++) { await engine.tick(); await sleep(20); }
+    const row = scheduled.getById(s.id);
+    assert.equal(row.status, 'failed');
+    assert.match(row.error, /not found/);
+    assert.ok(!engine.listActive().some(r => r.id === s.id), 'nothing captured from the channel now at pos_1');
+});
+
 test('a running recording outlives its old end when the guide extends it, and stops at the new one', async () => {
     const now = Date.now();
     const s = schedule({ start: now - 1000, end: now + 1200, title: 'Rain delay special' });
