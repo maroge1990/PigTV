@@ -78,3 +78,29 @@ test('the server opens the database through the pre-migration copy and records i
     assert.ok(open.indexOf('recordBuild(') > open.indexOf('initSchema()'));
     assert.match(fs.readFileSync(path.join(__dirname, '../server/index.js'), 'utf8'), /dbBackup'\)\.startNightly\(/);
 });
+
+test('S3: two copies at once (same second, same reason) both complete under their own names', async () => {
+    const { dbPath } = fixture({ rows: 4 });
+    const now = Date.UTC(2026, 9, 21);
+    const results = await Promise.allSettled([dbBackup.backup(dbPath, { reason: 'manual', now }), dbBackup.backup(dbPath, { reason: 'manual', now })]);
+    assert.deepEqual(results.map(r => r.status), ['fulfilled', 'fulfilled']);
+    assert.notEqual(results[0].value, results[1].value);
+    for (const r of results) assert.equal(rowsIn(r.value), 4);
+    assert.ok(fs.readdirSync(path.dirname(results[0].value)).every(n => !n.endsWith('.partial')));
+});
+
+test('S3: pruning leaves another copy\'s recent partial alone and removes only a stale one', () => {
+    const { dbPath } = fixture();
+    const first = dbBackup.backupSync(dbPath, { reason: 'manual', now: Date.UTC(2026, 9, 1) });
+    const dir = path.dirname(first);
+    const live = path.join(dir, 'content-2026-10-21T00-00-00Z-manual.db.999-abcd.partial');
+    const stale = path.join(dir, 'content-2026-10-01T00-00-00Z-manual.db.998-dcba.partial');
+    fs.writeFileSync(live, 'in progress elsewhere');
+    fs.writeFileSync(stale, 'left by a crash');
+    const old = (Date.now() - 7 * 60 * 60 * 1000) / 1000;
+    fs.utimesSync(stale, old, old);
+    const removed = dbBackup.prune(dir);
+    assert.ok(fs.existsSync(live), 'another process\'s copy in progress is kept');
+    assert.ok(!fs.existsSync(stale));
+    assert.deepEqual(removed, [path.basename(stale)]);
+});

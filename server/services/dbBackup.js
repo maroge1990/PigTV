@@ -10,7 +10,7 @@
  *   - nightly: startNightly() checks every hour and takes one when the newest backup of any kind
  *     is more than a day old. Asynchronous (better-sqlite3's online backup), safe while serving.
  *
- * Every copy is written to `<name>.partial`, checked (`PRAGMA quick_check` on the copy: a backup
+ * Every copy is written to a partial of its own (`<name>.db.<pid>-<random>.partial`, S3), checked (`PRAGMA quick_check` on the copy: a backup
  * that can't be opened is not a backup) and only then renamed into place, so a crash or a full
  * disk never leaves a file that looks complete. The newest KEEP complete copies are kept; stale
  * `.partial` files are removed. Names sort by time: content-<UTC stamp>-<reason>.db.
@@ -21,6 +21,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const Database = require('better-sqlite3');
 
 const KEEP = 7;
@@ -29,6 +30,10 @@ const CHECK_EVERY_MS = 60 * 60 * 1000;
 const NAME = /^content-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)(?:-([a-z]+(?:-[a-z]+)*)(?:-\d+)?)?\.db$/;
 
 const backupsDir = (dbPath) => path.join(path.dirname(dbPath), 'backups');
+// S3 (0241): a partial older than this belongs to nobody (a backup that crashed or was killed);
+// a younger one may be another process's copy in progress (scripts/backup-db.js beside the server).
+const STALE_PARTIAL_MS = 6 * 60 * 60 * 1000;
+const ours = new Set(); // partials this process is writing now
 const stamp = (now) => new Date(now).toISOString().replace(/[:.]/g, '-').replace(/-\d{3}Z$/, 'Z');
 
 /** Complete backups, newest first: [{ file, path, reason, at, bytes }]. */
@@ -45,38 +50,63 @@ function list(dbPath) {
     });
 }
 
+/**
+ * S3 (0241): every copy writes to a partial of its own, created exclusively ('wx') under a unique
+ * name, so two copies at once - in this process or another - never share or delete each other's
+ * file. Its final name is chosen when it is published (publish()), not here.
+ */
 function prepare(dbPath, reason, now) {
     const dir = backupsDir(dbPath);
     fs.mkdirSync(dir, { recursive: true });
-    let dest = path.join(dir, `content-${stamp(now)}-${reason}.db`);
-    // Two in the same second (a manual run beside a nightly one): the second gets -2, -3...
-    for (let n = 2; fs.existsSync(dest); n++) dest = path.join(dir, `content-${stamp(now)}-${reason}-${n}.db`);
-    const partial = `${dest}.partial`;
-    try { fs.unlinkSync(partial); } catch { /* none */ }
-    return { dir, dest, partial };
+    const base = `content-${stamp(now)}-${reason}`;
+    const partial = path.join(dir, `${base}.db.${process.pid}-${crypto.randomBytes(4).toString('hex')}.partial`);
+    fs.closeSync(fs.openSync(partial, 'wx')); // empty: VACUUM INTO and backup() both accept it
+    ours.add(partial);
+    return { dir, base, partial };
 }
 
-/** The copy opens and passes quick_check, else throws (and the partial is removed). */
-function verifyAndCommit({ dest, partial }) {
+/** Publish the partial under the first free name (link() never replaces a file). Returns the path. */
+function publish({ dir, base, partial }) {
+    for (let n = 1; ; n++) {
+        // Two in the same second (a manual run beside a nightly one): the second gets -2, -3...
+        const dest = path.join(dir, n === 1 ? `${base}.db` : `${base}-${n}.db`);
+        try { fs.linkSync(partial, dest); } catch (err) { if (err.code === 'EEXIST') continue; throw err; }
+        try { fs.unlinkSync(partial); } catch { /* removed already */ }
+        return dest;
+    }
+}
+
+/** The copy opens and passes quick_check, then is published; else throws (and the partial is removed). */
+function verifyAndCommit(target) {
+    const { partial } = target;
     try {
         const copy = new Database(partial, { readonly: true, fileMustExist: true });
         try {
             const result = copy.pragma('quick_check', { simple: true });
             if (result !== 'ok') throw new Error(`the copy failed its integrity check (${result})`);
         } finally { copy.close(); }
-        fs.renameSync(partial, dest);
+        return publish(target);
     } catch (err) {
         try { fs.unlinkSync(partial); } catch { /* already gone */ }
         throw err;
+    } finally {
+        ours.delete(partial);
     }
 }
 
-function prune(dir, keep = KEEP) {
+function prune(dir, keep = KEEP, now = Date.now()) {
     const removed = [];
     let names = [];
     try { names = fs.readdirSync(dir); } catch { return removed; }
-    for (const n of names.filter(f => f.endsWith('.db.partial'))) {
-        try { fs.unlinkSync(path.join(dir, n)); removed.push(n); } catch { /* in use or gone */ }
+    // S3: only partials nobody is writing: never this process's own, never a recent one (another
+    // process's copy in progress), only those left behind long enough ago.
+    for (const n of names.filter(f => f.endsWith('.partial'))) {
+        const file = path.join(dir, n);
+        if (ours.has(file)) continue;
+        try {
+            if (now - fs.statSync(file).mtimeMs < STALE_PARTIAL_MS) continue;
+            fs.unlinkSync(file); removed.push(n);
+        } catch { /* in use or gone */ }
     }
     for (const n of names.filter(f => NAME.test(f)).sort().slice(0, -keep)) {
         try { fs.unlinkSync(path.join(dir, n)); removed.push(n); } catch { /* gone */ }
@@ -87,21 +117,33 @@ function prune(dir, keep = KEEP) {
 /** Synchronous copy (VACUUM INTO on a read-only connection). Returns the backup's path. */
 function backupSync(dbPath, { reason = 'manual', now = Date.now(), keep = KEEP } = {}) {
     const target = prepare(dbPath, reason, now);
-    const src = new Database(dbPath, { readonly: true, fileMustExist: true });
-    try { src.prepare('VACUUM INTO ?').run(target.partial); } finally { src.close(); }
-    verifyAndCommit(target);
+    try {
+        const src = new Database(dbPath, { readonly: true, fileMustExist: true });
+        try { src.prepare('VACUUM INTO ?').run(target.partial); } finally { src.close(); }
+    } catch (err) {
+        ours.delete(target.partial);
+        try { fs.unlinkSync(target.partial); } catch { /* none */ }
+        throw err;
+    }
+    const dest = verifyAndCommit(target);
     prune(target.dir, keep);
-    return target.dest;
+    return dest;
 }
 
 /** Asynchronous online backup (safe while the server writes). Resolves the backup's path. */
 async function backup(dbPath, { reason = 'manual', now = Date.now(), keep = KEEP } = {}) {
     const target = prepare(dbPath, reason, now);
-    const src = new Database(dbPath, { readonly: true, fileMustExist: true });
-    try { await src.backup(target.partial); } finally { src.close(); }
-    verifyAndCommit(target);
+    try {
+        const src = new Database(dbPath, { readonly: true, fileMustExist: true });
+        try { await src.backup(target.partial); } finally { src.close(); }
+    } catch (err) {
+        ours.delete(target.partial);
+        try { fs.unlinkSync(target.partial); } catch { /* none */ }
+        throw err;
+    }
+    const dest = verifyAndCommit(target);
     prune(target.dir, keep);
-    return target.dest;
+    return dest;
 }
 
 /**
