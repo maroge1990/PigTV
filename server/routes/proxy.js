@@ -11,6 +11,7 @@
  */
 
 const express = require('express');
+const { STATUS_CODES } = require('http');
 const router = express.Router();
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
@@ -75,12 +76,13 @@ router.get('/stream', async (req, res) => {
             }
 
             if (!response.ok) {
-                console.error(`Upstream error for ${redact(url).substring(0, 80)}...: ${response.status} ${response.statusText}`);
-                if (response.status === 403) {
-                    const errorBody = await response.text().catch(() => 'N/A');
-                    console.error(`403 Response body: ${errorBody.substring(0, 200)}`);
-                }
-                return res.status(response.status).send(`Failed to fetch stream: ${response.statusText}`);
+                // PB4 (0236): the provider's reason phrase and body are its own text and can carry
+                // the stream address with its credentials: neither is logged nor sent. The status
+                // code says what happened; the reason is the standard one for it.
+                const reason = STATUS_CODES[response.status] || 'Error';
+                console.error(`Upstream error for ${redact(url).substring(0, 80)}...: ${response.status} ${reason}`);
+                try { await response.body?.cancel(); } catch (e) { /* already gone */ }
+                return res.status(response.status).send(`Failed to fetch stream: ${reason}`);
             }
 
             const contentType = response.headers.get('content-type') || '';
@@ -217,14 +219,14 @@ router.get('/stream', async (req, res) => {
                 // The headers are sent, so there is nothing to retry and no error to
                 // send: a client that left mid-stream is the usual reason.
                 if (err.code !== 'ERR_STREAM_PREMATURE_CLOSE' && err.name !== 'AbortError') {
-                    console.warn(`[Proxy] Stream ended early: ${err.message}`);
+                    console.warn(`[Proxy] Stream ended early: ${redact(err.message)}`);
                 }
             }
             return; // Success - exit the retry loop
 
         } catch (err) {
             lastError = err;
-            console.error(`Stream proxy error (attempt ${attempt}/${maxRetries}):`, err.message);
+            console.error(`Stream proxy error (attempt ${attempt}/${maxRetries}):`, redact(err.code || err.cause?.code || err.message));
             if (attempt < maxRetries) {
                 console.log('[Proxy] Retrying after error...');
                 await new Promise(r => setTimeout(r, 500));
@@ -235,7 +237,8 @@ router.get('/stream', async (req, res) => {
 
     // All retries failed
     if (!res.headersSent) {
-        res.status(500).json({ error: lastError?.message || 'Stream proxy failed after retries' });
+        // PB4: a fixed sentence (C-B), never the error's own text, which can quote the address.
+        res.status(500).json({ error: 'Stream proxy failed after retries' });
     }
 });
 
