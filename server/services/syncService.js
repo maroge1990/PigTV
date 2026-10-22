@@ -320,9 +320,14 @@ class SyncService {
         console.log(`[Sync] Fetching Live Streams for ${source.name}`);
         const liveStreams = await api.getLiveStreams();
         const importFilters = require('./importFilters');
-        const excluded = await importFilters.excludedFor(source.id);
+        const { excluded } = importFilters.applicable(source.id, await importFilters.excludedFor(source.id));
         const skipped = new Map();
-        await this.saveStreams(source.id, 'live', importFilters.filterItems(liveStreams || [], excluded, skipped));
+        const keptLive = importFilters.filterItems(liveStreams || [], excluded, skipped);
+        const liveIds = await this.saveStreams(source.id, 'live', keptLive, { skipPurge: true });
+        // S1 (0240): the provider answered with channels and every one is in an excluded group:
+        // that is a deliberate empty import, so the old rows go. An empty answer (no channels at
+        // all) still keeps them - it is more likely a provider fault than an empty lineup.
+        if ((liveStreams || []).length > 0) await this.purgeStaleItems(source.id, 'live', this.keepBlocked(source.id, excluded, liveIds), { allowEmpty: true });
         importFilters.recordSkipped(source.id, excluded, skipped);
 
         // 3. VOD Categories
@@ -745,13 +750,28 @@ class SyncService {
     }
 
     /**
+     * S2 (0240): the purge is where an excluded group's rows are deleted. A group that became
+     * protected while this sync ran (a favourite or a schedule added since it filtered) keeps the
+     * rows it has: they are added to the ids kept. Returns the set to keep.
+     */
+    keepBlocked(sourceId, excluded, syncedIds) {
+        const importFilters = require('./importFilters');
+        const { blocked } = importFilters.applicable(sourceId, excluded);
+        if (blocked.length === 0) return syncedIds;
+        const keep = new Set(syncedIds);
+        const rows = getDb().prepare(`SELECT id FROM playlist_items WHERE source_id = ? AND type = 'live' AND category_id = ?`);
+        for (const b of blocked) for (const r of rows.all(sourceId, b.id)) keep.add(r.id);
+        return keep;
+    }
+
+    /**
      * Purge stale items that are no longer in the source
      * @param {number} sourceId - Source ID
      * @param {string} type - Type of items (live, movie, series)
      * @param {Set} syncedIds - Set of IDs that should be kept
      */
-    async purgeStaleItems(sourceId, type, syncedIds) {
-        if (!syncedIds || syncedIds.size === 0) return;
+    async purgeStaleItems(sourceId, type, syncedIds, { allowEmpty = false } = {}) {
+        if (!syncedIds || (syncedIds.size === 0 && !allowEmpty)) return;
 
         const db = getDb();
         db.exec('CREATE TEMP TABLE IF NOT EXISTS synced_ids (id TEXT PRIMARY KEY)');
@@ -985,7 +1005,7 @@ class SyncService {
         // R8: groups never imported. Filtered after the positions are given out, so every
         // other line keeps its pos_N id whatever is excluded.
         const importFilters = require('./importFilters');
-        const excluded = await importFilters.excludedFor(source.id);
+        const { excluded } = importFilters.applicable(source.id, await importFilters.excludedFor(source.id));
         const skipped = new Map();
 
         // Stream and process in batches (default 500 channels per batch)
@@ -1046,9 +1066,11 @@ class SyncService {
             + `${c.none} with no URL; ${c.distinct} distinct, ${c.shared} listed more than once`);
         logMemory();
 
-        // Purge stale items after all batches are complete
-        if (allSyncedIds.size > 0) {
-            await this.purgeStaleItems(source.id, 'live', allSyncedIds);
+        // Purge stale items after all batches are complete. S1 (0240): also when every line was in
+        // an excluded group (a parsed playlist with channels, none imported); never when the
+        // playlist itself had no channels.
+        if (totalChannels > 0) {
+            await this.purgeStaleItems(source.id, 'live', this.keepBlocked(source.id, excluded, allSyncedIds), { allowEmpty: true });
         }
 
         // Save Categories (Groups) at the end

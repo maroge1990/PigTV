@@ -76,7 +76,7 @@ function blockers(sourceId, categoryIds) {
     for (const id of categoryIds.map(String)) {
         const fav = db.prepare(`
             SELECT 1 FROM playlist_items p JOIN favorites f ON f.source_id = p.source_id AND f.item_type = 'channel'
-              AND (f.item_id = p.item_id OR (p.stable_id IS NOT NULL AND f.stable_id = p.stable_id))
+              AND ((f.stable_id IS NULL AND f.item_id = p.item_id) OR (f.stable_id IS NOT NULL AND f.stable_id = p.stable_id))
             WHERE p.source_id = ? AND p.type = 'live' AND p.category_id = ? LIMIT 1
         `).get(sourceId, id);
         if (fav) { out.push({ id, reason: 'it has a favourite channel' }); continue; }
@@ -84,13 +84,28 @@ function blockers(sourceId, categoryIds) {
         try {
             sched = db.prepare(`
                 SELECT 1 FROM scheduled_recordings s JOIN playlist_items p ON p.source_id = s.source_id
-                  AND (p.item_id = s.channel_item_id OR (s.channel_stable_id IS NOT NULL AND p.stable_id = s.channel_stable_id))
+                  AND ((s.channel_stable_id IS NULL AND p.item_id = s.channel_item_id) OR (s.channel_stable_id IS NOT NULL AND p.stable_id = s.channel_stable_id))
                 WHERE s.source_id = ? AND s.status IN ('scheduled', 'waiting', 'recording') AND p.category_id = ? LIMIT 1
             `).get(sourceId, id);
         } catch { sched = null; } // no recordings table yet
         if (sched) out.push({ id, reason: 'a recording is scheduled on one of its channels' });
     }
     return out;
+}
+
+/**
+ * S2 (0240): the exclusions a sync may apply NOW. The guard in setExcluded() ran when the list
+ * was saved; a favourite or a schedule added since then (from the guide, a rule, another device)
+ * protects its group again, so a blocked group is imported as usual this sync and logged. Called
+ * when the sync filters and again right before it purges, so one added mid-sync counts too.
+ */
+function applicable(sourceId, excluded) {
+    if (!excluded || excluded.size === 0) return { excluded, blocked: [] };
+    const blocked = blockers(sourceId, [...excluded]);
+    if (blocked.length === 0) return { excluded, blocked };
+    for (const b of blocked) console.warn(`[Sync] Source ${sourceId}: group "${b.id}" stays imported this sync: ${b.reason}`);
+    const ids = new Set(blocked.map(b => b.id));
+    return { excluded: new Set([...excluded].filter(id => !ids.has(id))), blocked };
 }
 
 /** For the settings UI: every live group of a source with its size and exclusion state. */
@@ -126,4 +141,4 @@ async function setExcluded(sourceId, categoryIds) {
     return { ok: true };
 }
 
-module.exports = { excludedFor, filterItems, recordSkipped, blockers, overview, setExcluded, ensureTable };
+module.exports = { excludedFor, applicable, filterItems, recordSkipped, blockers, overview, setExcluded, ensureTable };
