@@ -25,11 +25,15 @@
  * same way (recordingMedia.checkPrepared), written straight onto the share under a temporary name
  * and renamed into place; then the work folder is deleted. A share that is down at that moment
  * gets the MP4 in the work folder instead (playable from there) and it moves when the share is
- * back. Native code: Dispatcharr (AGPL) was read for the idea, nothing was copied.
+ * back. An MP4 that plays but could not be compared with the segments (checkPrepared's
+ * keepOriginal) keeps them: they go beside it on the share as "<name>.ts" before the work folder
+ * is deleted (DVR-1, 0227). Native code: Dispatcharr (AGPL) was read for the idea, nothing was copied.
  */
 const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
+const { Readable } = require('stream');
+const { pipeline } = require('stream/promises');
 const { spawn } = require('child_process');
 const media = require('./recordingMedia');
 const { parseMediaPlaylist, renderMediaPlaylist } = require('./hlsPlaylist');
@@ -363,6 +367,34 @@ function completed(rec, file, extra = {}) {
 }
 
 /**
+ * Every epoch's segments, in order, joined into one MPEG-TS file at `target` (via `<target>.partial`,
+ * renamed into place). DVR-5 (0227): one pipeline owns both ends, so a share that fails to open,
+ * fills or drops mid-write rejects here (the partial is removed) instead of raising an unhandled
+ * stream error, and the writer's backpressure paces the reads. `opts.exclusive` refuses to replace
+ * a file already at `target`.
+ */
+async function joinSegments(rec, target, { exclusive = false } = {}) {
+    if (exclusive && fs.existsSync(target)) throw new Error(`${path.basename(target)} already exists`);
+    const partial = `${target}.partial`;
+    async function* pieces() {
+        for (const e of epochs(rec.work_dir)) {
+            for (const s of archiveOf(e.dir).segments) yield* fs.createReadStream(path.join(e.dir, s.name));
+        }
+    }
+    try {
+        await pipeline(Readable.from(pieces(), { objectMode: false }), fs.createWriteStream(partial, { flags: 'w' }));
+        await fsp.rename(partial, target);
+    } catch (err) {
+        try { fs.unlinkSync(partial); } catch (e) { /* none */ }
+        throw err;
+    }
+}
+
+/** DVR-1: where the segments of a recording whose MP4 is `mp4` are kept on the share. Deleting the
+ *  recording deletes "<name>.ts" beside its file (recordingEngine.deleteRecording). */
+const keptOriginalPath = (mp4) => path.join(path.dirname(mp4), `${path.basename(mp4, path.extname(mp4))}.ts`);
+
+/**
  * Last resort when the MP4 cannot be made: the segments joined into one .ts, which is what a
  * recording has always been before preparation, and preparation then takes it from there.
  */
@@ -370,26 +402,7 @@ async function deliverTs(rec, stitched) {
     const dir = await shareFolder(rec);
     if (!dir) throw new Error('the recordings folder is not usable');
     const target = uniqueFilePath(dir, rec.segment_name || `Recording ${rec.id}`, '.ts');
-    const partial = `${target}.partial`;
-    const out = fs.createWriteStream(partial);
-    try {
-        for (const e of epochs(rec.work_dir)) {
-            for (const s of archiveOf(e.dir).segments) {
-                await new Promise((resolve, reject) => {
-                    const input = fs.createReadStream(path.join(e.dir, s.name));
-                    input.on('error', reject);
-                    input.on('end', resolve);
-                    input.pipe(out, { end: false });
-                });
-            }
-        }
-        await new Promise((resolve, reject) => out.end(err => (err ? reject(err) : resolve())));
-        await fsp.rename(partial, target);
-    } catch (err) {
-        out.destroy();
-        try { fs.unlinkSync(partial); } catch (e) { /* none */ }
-        throw err;
-    }
+    await joinSegments(rec, target);
     completed(rec, target, { duration_sec: Math.round(stitched.durationSec), segment_state: 'done' });
     recordingsDb.setNativeStatus(rec.id, 'pending');
     await removeWork(rec);
@@ -416,11 +429,15 @@ async function finishOne(rec) {
     console.log(`[Recordings] Making the MP4 of #${rec.id} from ${stitched.segments} segments -> ${dir ? target : 'the work folder (the share is not usable now)'}`);
     const result = await media.nativeTools.ffmpeg(media.buildNativeRemuxArgs(stitched.file, partial, codecs), { watchFile: partial });
     let problem = null;
+    let keep = null;
     if (result.code !== 0 || !fs.existsSync(partial)) {
         problem = result.tail.slice(-3).join(' | ') || `ffmpeg exited with code ${result.code}`;
     } else {
         const check = await media.checkPrepared(stitched.file, partial);
         if (!check.ok) problem = `the MP4 failed its check: ${check.reason}`;
+        // DVR-1 (0227): it plays, but could not be compared with the segments (their length or the
+        // audio could not be read): the segments are its original and are kept, as preparation keeps one.
+        else if (check.keepOriginal) keep = check.reason;
     }
     if (!recordingsDb.getById(rec.id)) { // deleted meanwhile
         try { fs.unlinkSync(partial); } catch (e) { /* none */ }
@@ -441,10 +458,21 @@ async function finishOne(rec) {
 
     fs.renameSync(partial, target);
     media.verifiedNativeFiles.add(target);
-    completed(rec, target, { duration_sec: Math.round(stitched.durationSec), segment_state: dir ? 'done' : 'moving' });
-    recordingsDb.setNativeStatus(rec.id, 'ready');
+    completed(rec, target, { duration_sec: Math.round(stitched.durationSec), segment_state: dir ? 'done' : 'moving', segment_keep: keep });
+    recordingsDb.setNativeStatus(rec.id, 'ready', keep ? { error: `Original kept: ${keep}` } : undefined);
     recordingsDb.setNativeVersion(rec.id, media.NATIVE_VERSION);
-    if (dir) {
+    if (dir && keep) {
+        // The work folder goes only once its segments are safely beside the MP4; until then the
+        // recording waits like one whose share is down, and the move retries the copy.
+        if (await keepOriginal(recordingsDb.getById(rec.id), dir)) {
+            recordingsDb.setSegmentFields(rec.id, { segment_state: 'done' });
+            await removeWork(rec);
+        } else {
+            recordingsDb.setSegmentFields(rec.id, { segment_state: 'moving' });
+            lastMoveTry.set(rec.id, Date.now());
+        }
+        console.warn(`[Recordings] #${rec.id} is finished: ${target}, but its original is kept: ${keep}`);
+    } else if (dir) {
         await removeWork(rec);
         console.log(`[Recordings] #${rec.id} is finished: ${target}`);
     } else {
@@ -453,28 +481,59 @@ async function finishOne(rec) {
     }
 }
 
-/** An MP4 left in appdata while the share was down goes to the share. */
+/** DVR-1: the kept segments onto the share beside the MP4; true when they are there (or already were). */
+async function keepOriginal(rec, dir) {
+    const target = keptOriginalPath(path.join(dir, path.basename(rec.file_path)));
+    try {
+        // Already there from a run that stopped before its row was updated: every segment's bytes.
+        if (fs.existsSync(target) && fs.statSync(target).size === segmentBytes(rec)) return true;
+        await joinSegments(rec, target, { exclusive: true });
+        return true;
+    } catch (err) {
+        console.warn(`[Recordings] #${rec.id}: its original could not be put on the share yet (${err.message}); its segments stay in appdata`);
+        return false;
+    }
+}
+
+function segmentBytes(rec) {
+    let total = 0;
+    for (const e of epochs(rec.work_dir)) {
+        for (const seg of archiveOf(e.dir).segments) total += fs.statSync(path.join(e.dir, seg.name)).size;
+    }
+    return total;
+}
+
+const inWork = (rec) => Boolean(rec.work_dir && rec.file_path && rec.file_path.startsWith(rec.work_dir + path.sep));
+
+/** An MP4 left in appdata while the share was down goes to the share (and, DVR-1, a kept original with it). */
 async function moveOne(rec) {
     lastMoveTry.set(rec.id, Date.now());
     const dir = await shareFolder(rec);
     if (!dir) return;
-    const source = rec.file_path;
-    const target = uniqueFilePath(dir, rec.segment_name || `Recording ${rec.id}`, '.mp4');
-    const partial = `${target}.partial`;
-    try {
-        await fsp.copyFile(source, partial);
-        if (fs.statSync(partial).size !== fs.statSync(source).size) throw new Error('the copy is not the same size');
-        await fsp.rename(partial, target);
-    } catch (err) {
-        try { fs.unlinkSync(partial); } catch (e) { /* none */ }
-        console.warn(`[Recordings] #${rec.id} could not move to the recordings folder yet: ${err.message}`);
-        return;
+    if (inWork(rec)) {
+        const source = rec.file_path;
+        const target = uniqueFilePath(dir, rec.segment_name || `Recording ${rec.id}`, '.mp4');
+        const partial = `${target}.partial`;
+        try {
+            await fsp.copyFile(source, partial);
+            if (fs.statSync(partial).size !== fs.statSync(source).size) throw new Error('the copy is not the same size');
+            await fsp.rename(partial, target);
+        } catch (err) {
+            try { fs.unlinkSync(partial); } catch (e) { /* none */ }
+            console.warn(`[Recordings] #${rec.id} could not move to the recordings folder yet: ${err.message}`);
+            return;
+        }
+        media.verifiedNativeFiles.delete(source);
+        media.verifiedNativeFiles.add(target);
+        recordingsDb.setSegmentFields(rec.id, { file_path: target });
+        rec = recordingsDb.getById(rec.id);
     }
-    media.verifiedNativeFiles.delete(source);
-    media.verifiedNativeFiles.add(target);
-    recordingsDb.setSegmentFields(rec.id, { file_path: target, segment_state: 'done' });
+    // Never delete the segments of a recording whose MP4 could not be fully checked until they
+    // are on the share; otherwise it stays 'moving' and is retried.
+    if (rec.segment_keep && !(await keepOriginal(rec, path.dirname(rec.file_path)))) return;
+    recordingsDb.setSegmentFields(rec.id, { segment_state: 'done' });
     await removeWork(rec);
-    console.log(`[Recordings] #${rec.id} moved to the recordings folder: ${target}`);
+    console.log(`[Recordings] #${rec.id} moved to the recordings folder: ${rec.file_path}`);
 }
 
 /** One step of the queue: finish the oldest capture that has ended, else retry one waiting move. */
@@ -514,6 +573,6 @@ module.exports = {
     SEGMENT_SEC, workRoot, workDirFor, isWorkDir, epochs, nextEpoch, captureArgs, captureBytes,
     sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount,
     viewArgs, ensureView, stopFollowers, viewPlaylist, probeVideoInfo, isWatchable,
-    configure, processQueue, finishOne, moveOne, removeWork, status,
+    configure, processQueue, finishOne, moveOne, removeWork, status, keptOriginalPath,
     _setWorkRoot, _followers: followers
 };

@@ -308,6 +308,145 @@ test('an MP4 that fails its check three times: the segments go to the share as o
     }
 });
 
+// --------------------------------------------- DVR-1/DVR-5: the original is never lost --
+
+/** A segmented recording whose capture has ended (two segments of known bytes), ready for finishOne. */
+function finishingRow() {
+    const s = due({ windowMs: -100 });
+    const rec = recordings.create({ scheduled_id: s.id, title: s.title, channel_name: s.channel_name, channel_logo: null,
+        source_id: A.id, channel_item_id: 'pos_1', file_path: '', started_at: Date.now() - 60000, part: 1 });
+    const workDir = segments.workDirFor(rec.id);
+    fs.mkdirSync(path.join(workDir, 'e1'), { recursive: true });
+    fs.writeFileSync(path.join(workDir, 'e1', 'a000000.ts'), Buffer.alloc(3000, 1));
+    fs.writeFileSync(path.join(workDir, 'e1', 'a000001.ts'), Buffer.alloc(2000, 2));
+    fs.writeFileSync(path.join(workDir, 'e1', 'archive.m3u8'), '#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:0\n'
+        + '#EXT-X-PLAYLIST-TYPE:EVENT\n#EXTINF:4.000000,\na000000.ts\n#EXTINF:4.000000,\na000001.ts\n#EXT-X-ENDLIST\n');
+    const name = `Kept ${rec.id} - 2026-10-22 19-30`;
+    recordings.setSegmentFields(rec.id, { work_dir: workDir, file_path: path.join(workDir, 'recording.m3u8'), segment_state: 'finishing',
+        segment_name: name, segment_folder: 'Fox Sports 505' });
+    scheduled.setStatus(s.id, 'completed', { recording_id: rec.id });
+    return { rec: recordings.getById(rec.id), workDir, mp4: path.join(share, 'Fox Sports 505', `${name}.mp4`) };
+}
+const joined = Buffer.concat([Buffer.alloc(3000, 1), Buffer.alloc(2000, 2)]);
+
+async function withTools(overrides, fn) {
+    const saved = { ...engine._nativeTools };
+    Object.assign(engine._nativeTools, overrides);
+    try { return await fn(); } finally { Object.assign(engine._nativeTools, saved); }
+}
+
+for (const [label, tools] of [
+    ["the segments' length cannot be read", { duration: async (f) => (f.endsWith('recording.m3u8') ? null : 120) }],
+    ['the audio cannot be decode-checked', { audioErrors: async (f) => (f.endsWith('.partial') ? null : 0) }]
+]) {
+    test(`DVR-1: ${label} - the MP4 is published and the segments are kept beside it before the work folder goes`, async () => {
+        await withTools(tools, async () => {
+            const { rec, workDir, mp4 } = finishingRow();
+            await segments.finishOne(rec);
+            const done = recordings.getById(rec.id);
+            assert.equal(done.status, 'completed');
+            assert.equal(done.file_path, mp4);
+            assert.equal(done.segment_state, 'done');
+            assert.match(done.native_error, /^Original kept: /, 'the kept state is visible');
+            assert.ok(done.segment_keep);
+            assert.deepEqual(fs.readFileSync(segments.keptOriginalPath(mp4)), joined, 'every segment, in order, beside the MP4');
+            assert.equal(fs.existsSync(workDir), false);
+            await engine.deleteRecording(rec.id);
+            assert.equal(fs.existsSync(segments.keptOriginalPath(mp4)), false, 'deleting the recording deletes its kept original');
+        });
+    });
+
+    test(`DVR-1: ${label} with the share down - the segments stay in appdata until they are on the share with the MP4`, async () => {
+        await withTools(tools, async () => {
+            const { rec, workDir, mp4 } = finishingRow();
+            const away = `${mount}-away`;
+            fs.renameSync(mount, away);
+            try {
+                await segments.finishOne(rec);
+                const waiting = recordings.getById(rec.id);
+                assert.equal(waiting.segment_state, 'moving');
+                assert.equal(waiting.file_path, path.join(workDir, 'final.mp4'));
+                assert.ok(fs.existsSync(path.join(workDir, 'e1', 'a000000.ts')), 'segments kept');
+            } finally {
+                fs.renameSync(away, mount);
+            }
+            await segments.moveOne(recordings.getById(rec.id));
+            const moved = recordings.getById(rec.id);
+            assert.equal(moved.segment_state, 'done');
+            assert.equal(moved.file_path, mp4);
+            assert.deepEqual(fs.readFileSync(segments.keptOriginalPath(mp4)), joined);
+            assert.equal(fs.existsSync(workDir), false);
+        });
+    });
+}
+
+test('DVR-1: a kept original that cannot be written keeps the segments in appdata and retries, never deleting them', async () => {
+    await withTools({ duration: async (f) => (f.endsWith('recording.m3u8') ? null : 120) }, async () => {
+        const { rec, workDir, mp4 } = finishingRow();
+        fs.mkdirSync(path.dirname(mp4), { recursive: true });
+        fs.writeFileSync(segments.keptOriginalPath(mp4), 'somebody else\'s file');
+        await segments.finishOne(rec);
+        let now = recordings.getById(rec.id);
+        assert.equal(now.status, 'completed', 'the MP4 plays meanwhile');
+        assert.equal(now.file_path, mp4);
+        assert.equal(now.segment_state, 'moving');
+        assert.ok(fs.existsSync(workDir), 'segments kept');
+        assert.equal(fs.readFileSync(segments.keptOriginalPath(mp4), 'utf8'), "somebody else's file", 'not overwritten');
+        fs.unlinkSync(segments.keptOriginalPath(mp4));
+        await segments.processQueue(Date.now() + 16 * 60 * 1000);
+        now = recordings.getById(rec.id);
+        assert.equal(now.segment_state, 'done');
+        assert.deepEqual(fs.readFileSync(segments.keptOriginalPath(mp4)), joined);
+        assert.equal(fs.existsSync(workDir), false);
+    });
+});
+
+test('DVR-1: a fully checked MP4 keeps nothing beside it', async () => {
+    const { rec, workDir, mp4 } = finishingRow();
+    await segments.finishOne(rec);
+    const done = recordings.getById(rec.id);
+    assert.equal(done.segment_keep, null);
+    assert.equal(done.native_error, null);
+    assert.equal(fs.existsSync(segments.keptOriginalPath(mp4)), false);
+    assert.equal(fs.existsSync(workDir), false);
+});
+
+test('DVR-5: the last-resort .ts cannot be opened on the share - no uncaught error, no completed row, segments kept', async () => {
+    const uncaught = [];
+    const onUncaught = (err) => uncaught.push(err);
+    process.on('uncaughtException', onUncaught);
+    try {
+        await withTools({ duration: async (f) => (f.endsWith('.partial') ? 10 : 120) }, async () => { // the MP4 comes out short
+            const { rec, workDir } = finishingRow();
+            // Where the .ts would be written is a folder: opening it for writing fails (EISDIR), as a share gone read-only does.
+            fs.mkdirSync(path.join(share, 'Fox Sports 505', `${rec.segment_name}.ts.partial`), { recursive: true });
+            for (let i = 0; i < 3; i++) await segments.finishOne(recordings.getById(rec.id));
+            await sleep(50);
+            const now = recordings.getById(rec.id);
+            assert.equal(now.status, 'failed');
+            assert.match(now.error, /segments are kept in appdata/);
+            assert.ok(fs.existsSync(path.join(workDir, 'e1', 'a000001.ts')), 'segments kept');
+            fs.rmSync(path.join(share, 'Fox Sports 505', `${rec.segment_name}.ts.partial`), { recursive: true });
+        });
+    } finally {
+        process.off('uncaughtException', onUncaught);
+    }
+    assert.deepEqual(uncaught, []);
+});
+
+test('DVR-5: a write that fails part-way removes the partial file and keeps the segments', async () => {
+    await withTools({ duration: async (f) => (f.endsWith('.partial') ? 10 : 120) }, async () => {
+        const { rec, workDir } = finishingRow();
+        // A segment listed in the playlist that cannot be read mid-join (the appdata disk failing).
+        fs.unlinkSync(path.join(workDir, 'e1', 'a000001.ts'));
+        for (let i = 0; i < 3; i++) await segments.finishOne(recordings.getById(rec.id));
+        const now = recordings.getById(rec.id);
+        assert.equal(now.status, 'failed');
+        assert.ok(fs.existsSync(path.join(workDir, 'e1', 'a000000.ts')));
+        assert.deepEqual(fs.readdirSync(path.join(share, 'Fox Sports 505')).filter(f => f.startsWith(rec.segment_name)), [], 'no partial left');
+    });
+});
+
 // ------------------------------------------------------------ failover and restart --
 
 test('provider dies mid-recording with a backup: the same recording continues in a second epoch (no part 2)', async () => {
