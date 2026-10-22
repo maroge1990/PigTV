@@ -6,6 +6,8 @@ committed locally. Waves 1–4 of the [16 Oct roadmap](docs/reviews/2026-10-16/R
 results not reported yet). **Wave 5:** the shared-ingest design ([`docs/SHARED-INGEST.md`](docs/SHARED-INGEST.md)) and
 phases 5a/5b (0223–0225), off by default, passed Mark's bench and device test on 18 Oct; R7 and B4 wait for data. Next steps: [`docs/reviews/2026-10-18/HANDOVER.md`](docs/reviews/2026-10-18/HANDOVER.md).
 
+**22 Oct review:** source/history review at server 0226 and Apple 46 is recorded in the [review](docs/reviews/2026-10-21/REVIEW.md) and [repair handoff](docs/reviews/2026-10-21/HANDOFF-PROMPT.md). Remote main matched both reviewed HEADs; the unpushed wording above is historical. Installed versions remain unconfirmed. Recording retention/identity and startup/admission defects need repair; no application or deployment change was made.
+
 How to work in this repo (commands, shipping, rules) is in [`AGENTS.md`](AGENTS.md). This file holds **durable facts and the
 roadmap** for the server, the web app and the joint plan; the Apple client's own architecture is in
 `../PigTV-Swift/blueprint.md`, which points back here for the roadmap.
@@ -462,6 +464,8 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
 
+**22 Oct follow-up:** repair recording-original retention and stable identity, then bounded/cancellable startup and shared-resource takeover/admission. Client isolation, refresh, backup, import and sport defects follow in the [complete repair register](docs/reviews/2026-10-21/REVIEW.md). Optimizations need measurements; device acceptance remains open. Earlier roadmap completion notes describe implementations, not proof of all acceptance criteria.
+
 **15 Oct review:** B1–B5 implementation status is unchanged. The
 [review action plan](docs/reviews/2026-10-15/REVIEW.md) recommends a bounded UI/freshness pass first and identifies
 acceptance criteria for guide-following recording timers, pre-migration backups and shared ingest. R3 still requires
@@ -560,6 +564,7 @@ feed in five) · the 20 s stall timeout (tighten only after real stall logs).
   3 min).
 
 **Shared ingest (Wave 5, off by default)**
+- **21 Oct source/synthetic finding:** HTTP 200 headers disable the socket timeout before usable TS arrives; the stall check skips connecting/reconnecting states. A headers-only stream can leave subscription readiness pending, even after close. Requires bounded readiness and close rejection; see the review reproduction.
 - Not yet used by relay legs, standbys, warm channels or direct plays: those still open their own connections.
 - Benched SAME on seven real samples with production ffmpeg (18 Oct); no current feed is uneven, so the `igndts` path is
   covered by unit tests only.
