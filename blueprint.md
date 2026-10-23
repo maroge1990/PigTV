@@ -8,6 +8,8 @@ phases 5a/5b (0223–0225), off by default, passed Mark's bench and device test 
 
 **22 Oct review:** source/history review at server 0226 and Apple 46 is recorded in the [review](docs/reviews/2026-10-21/REVIEW.md) and [repair handoff](docs/reviews/2026-10-21/HANDOFF-PROMPT.md). Remote main matched both reviewed HEADs; the unpushed wording above is historical. Installed versions remain unconfirmed. Recording retention/identity and startup/admission defects need repair; no application or deployment change was made.
 
+**23 Oct fix review:** local server 0241 / Apple47: 13 original findings addressed in reviewed code, four partial and eight untouched. Remaining recording-original collision, restart recovery, immediate-failover cancellation, sport-event identity and large-list focus defects are documented in the [fix review](docs/reviews/2026-10-23/FIX-REVIEW.md). No deployment or device acceptance established.
+
 How to work in this repo (commands, shipping, rules) is in [`AGENTS.md`](AGENTS.md). This file holds **durable facts and the
 roadmap** for the server, the web app and the joint plan; the Apple client's own architecture is in
 `../PigTV-Swift/blueprint.md`, which points back here for the roadmap.
@@ -463,6 +465,8 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 ---
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
+
+**23 Oct repair status:** keep DVR-1, DVR-3, DVR-4 and W2 open; complete untouched A2–A5 and S4–S7. See the [fix-review handoff](docs/reviews/2026-10-23/FIX-REVIEW.md).
 
 **22 Oct follow-up:** repair recording-original retention and stable identity, then bounded/cancellable startup and shared-resource takeover/admission. Client isolation, refresh, backup, import and sport defects follow in the [complete repair register](docs/reviews/2026-10-21/REVIEW.md). Optimizations need measurements; device acceptance remains open. Earlier roadmap completion notes describe implementations, not proof of all acceptance criteria.
 
