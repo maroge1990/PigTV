@@ -538,6 +538,11 @@ function listRecordings(userId = null) {
 
 // DVR-4 (0232): bumped by stopAllActive (shutdown); a start that began before it does not spawn.
 let stopAllGeneration = 0;
+// F3 (0244): a part whose provider failed as it started and that is moving to the next provider
+// (onPartExit). Between its ffmpeg exiting and the next one spawning it is neither `active` nor a
+// continuation, so this is what a cancel or shutdown in that wait finds: schedule id ->
+// { recordingId, outputPath, generation, cancelled }.
+const failingOver = new Map();
 
 async function cancelScheduled(id) {
     const schedule = scheduledDb.getById(id);
@@ -545,6 +550,14 @@ async function cancelScheduled(id) {
 
     if (schedule.status === 'recording' && active.has(id)) {
         await stopRecording(id, 'cancelled');
+    } else if (schedule.status === 'recording' && failingOver.has(id)) {
+        // F3: cancelled while its start moves to another provider: the move starts nothing, and
+        // the part (its file was deleted for the new attempt) ends here.
+        const owner = failingOver.get(id);
+        owner.cancelled = true;
+        failingOver.delete(id);
+        finalizeRecording(id, owner.recordingId, owner.outputPath, null, [], { scheduleStatus: false });
+        setScheduleStatus(scheduledDb.getById(id) || schedule, 'cancelled');
     } else if (schedule.status === 'recording' && continuations.has(id)) {
         // 0177: between parts (waiting for a free provider): nothing is running.
         const cont = continuations.get(id);
@@ -1002,8 +1015,22 @@ async function onPartExit(schedule, entry, exitCode) {
         // nothing), and a second writer appending to a Matroska file does not make one
         // playable file, so it is deleted and the next attempt writes the path afresh -
         // the list keeps one recording, not a stub plus the real one.
+        // F3 (0244): from here to the spawn this move owns the schedule (failingOver), so a cancel
+        // or shutdown during its awaits is seen, and it then starts nothing.
+        const owner = { recordingId: entry.recordingId, outputPath: entry.outputPath, generation: stopAllGeneration, cancelled: false };
+        failingOver.set(schedule.id, owner);
+        const stillOurs = () => failingOver.get(schedule.id) === owner && !owner.cancelled && owner.generation === stopAllGeneration;
+        const giveUp = (feed) => {
+            if (feed) { try { feed.leave(); } catch (e) { /* gone */ } }
+            if (failingOver.get(schedule.id) === owner) failingOver.delete(schedule.id);
+            // Shutdown (not a cancel, which has finalised it): the part ends with what it has.
+            if (!owner.cancelled) finalizeRecording(schedule.id, entry.recordingId, entry.outputPath, exitCode, entry.stderrTail);
+            console.log(`[Recordings] #${entry.recordingId}: not started on the next provider (cancelled or shutting down meanwhile)`);
+        };
         const settings = await getSettings();
+        if (!stillOurs()) return giveUp(null);
         const next = freeCandidate(entry.route, settings, entry.index + 1);
+        if (next < 0 && failingOver.get(schedule.id) === owner) failingOver.delete(schedule.id);
         if (next >= 0) {
             const nextCandidate = entry.route.candidates[next];
             console.warn(`[Recordings] #${entry.recordingId} ${how} on ${candidate.providerName} as it started; ` +
@@ -1012,6 +1039,8 @@ async function onPartExit(schedule, entry, exitCode) {
             try { fs.unlinkSync(entry.outputPath); } catch (e) { /* nothing was written */ }
             recordingsDb.setProvider(entry.recordingId, nextCandidate.providerId);
             const feed = await feedFor(settings, nextCandidate); // Wave 5
+            if (!stillOurs()) return giveUp(feed);
+            failingOver.delete(schedule.id);
             spawnPart(schedule, settings, {
                 recordingId: entry.recordingId, outputPath: entry.outputPath,
                 route: entry.route, index: next, part: entry.part, lostAt: entry.lostAt, feed

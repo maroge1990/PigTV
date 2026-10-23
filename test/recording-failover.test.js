@@ -417,6 +417,84 @@ test('a restart mid-part finishes that part and keeps the earlier ones', async (
     assert.equal(recordings.getById(three.id).error, 'Stopped early: x');
 });
 
+// ---- F3 (0244): the immediate move to the next provider is owned, and a cancel or shutdown stops it ----
+
+/** The backup's shared feed held until the test settles it; the primary is not shared (its 502 fails as ever). */
+async function holdBackupFeed() {
+    const ingest = load('services/ingest');
+    const real = ingest.subscribe;
+    const held = {};
+    ingest.subscribe = async ({ url: target }) => {
+        if (target === url.B(5001)) return new Promise(resolve => Object.assign(held, { resolve, asked: true }));
+        throw Object.assign(new Error('fixture: not shared'), { ingestRefused: true });
+    };
+    await db.settings.update({ sharedIngestEnabled: true });
+    held.restore = async () => { ingest.subscribe = real; await db.settings.update({ sharedIngestEnabled: false }); };
+    return held;
+}
+function lateFeed() {
+    const { PassThrough } = require('node:stream');
+    const feed = new PassThrough();
+    feed.left = 0;
+    feed.leave = () => { feed.left++; feed.destroy(); };
+    return feed;
+}
+
+for (const how of ['cancel', 'shutdown']) {
+    test(`F3: ${how} while the start moves to the backup - no backup ffmpeg, the late feed is released, the schedule is settled`, async () => {
+        const held = await holdBackupFeed();
+        try {
+            setBehaviour(url.A(101), '502');
+            const s = due();
+            await until(() => held.asked, 'the backup feed is awaited');
+            if (how === 'cancel') {
+                await engine.cancelScheduled(s.id);
+                assert.equal(scheduled.getById(s.id).status, 'cancelled', 'the cancel is seen at once');
+            } else {
+                await engine.stopAllActive(200);
+            }
+            const feed = lateFeed();
+            held.resolve(feed);
+            await sleep(400);
+            assert.deepEqual(startsOf(), [url.A(101)], 'nothing started on the backup');
+            assert.equal(feed.left, 1, 'the late subscription is given back');
+            assert.ok(!engine.listActive().some(r => r.id === s.id));
+            const [part] = partsOf(s.id);
+            assert.notEqual(part.status, 'recording', 'the part is not left recording');
+            assert.notEqual(scheduled.getById(s.id).status, 'recording');
+            if (how === 'cancel') assert.equal(scheduled.getById(s.id).status, 'cancelled', 'not overwritten later');
+        } finally {
+            await held.restore();
+        }
+    });
+}
+
+test('F3: cancel while the move reads its settings - it starts nothing', async () => {
+    const real = db.settings.get;
+    let release = null;
+    setBehaviour(url.A(101), '502');
+    const s = due();
+    try {
+        // Hold the settings read that onPartExit makes once the primary has failed.
+        db.settings.get = function (...a) {
+            if (!release && new Error().stack.includes('onPartExit')) {
+                return new Promise(resolve => { release = () => resolve(real.apply(this, a)); });
+            }
+            return real.apply(this, a);
+        };
+        await engine.tick();
+        for (let i = 0; i < 200 && !release; i++) await sleep(20);
+        assert.ok(release, 'the move is reading its settings');
+        await engine.cancelScheduled(s.id);
+        release();
+        await sleep(400);
+        assert.deepEqual(startsOf(), [url.A(101)]);
+        assert.equal(scheduled.getById(s.id).status, 'cancelled');
+    } finally {
+        db.settings.get = real;
+    }
+});
+
 test('nothing this feature logged or stored carries a URL', () => {
     for (const line of logLines.filter(l => l.startsWith('[Recordings]') || l.startsWith('[Providers]'))) noUrl(line, 'log');
     for (const r of engine.listRecordings()) noUrl(r.error || '', `recording #${r.id}`);
