@@ -10,6 +10,11 @@ phases 5a/5b (0223–0225), off by default, passed Mark's bench and device test 
 
 **23 Oct fix review:** local server 0241 / Apple47: 13 original findings addressed in reviewed code, four partial and eight untouched. Remaining recording-original collision, restart recovery, immediate-failover cancellation, sport-event identity and large-list focus defects are documented in the [fix review](docs/reviews/2026-10-23/FIX-REVIEW.md). No deployment or device acceptance established.
 
+**24 Oct:** server **0227–0250** and Apple **47–51** are committed locally (not pushed, not deployed). Every finding of the
+22 Oct register and the 23 Oct fix review now has a local fix with a failing-before regression; status, the F4 policy that
+needs Mark's yes, what stays open (device/feed acceptance, bugs 5 and 8, efficiency work) and the device steps are in
+[`docs/reviews/2026-10-23/REPAIR-STATUS.md`](docs/reviews/2026-10-23/REPAIR-STATUS.md).
+
 How to work in this repo (commands, shipping, rules) is in [`AGENTS.md`](AGENTS.md). This file holds **durable facts and the
 roadmap** for the server, the web app and the joint plan; the Apple client's own architecture is in
 `../PigTV-Swift/blueprint.md`, which points back here for the roadmap.
@@ -464,9 +469,23 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 
 ---
 
+**Repair facts (0227–0250, durable):**
+- A segmented recording whose MP4 could not be fully checked keeps its segments as its own published "<name>.ts" (or
+  "<name> (original N).ts"), recorded in `recordings.segment_original`; the row stays `moving` until that copy is
+  published (0242/0243). Share files are published with `link()`, never by rename over an existing name.
+- A schedule with a stable channel identity never falls back to its stored position (resolve, guide-follow, blockers) (0228).
+- Starts that await (ingest, settings, feeds, failover) re-check ownership after each await and release late feeds
+  (0231, 0232, 0244); a forced takeover stops every reader of a shared connection (0233).
+- A Sport rule's schedule is matched to an event by instance (present within 15 min / moved while its slot is gone / new),
+  not by a time window (0245). A name-derived event-slot programme belongs to its slot only (0247).
+- ESPN coverage is renewed only by a complete refresh (0248). Logo downloads have one deadline to the last byte (0249).
+- A sibling-link decision that changes what is listed bumps the guide version (0250).
+
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
 
-**23 Oct repair status:** keep DVR-1, DVR-3, DVR-4 and W2 open; complete untouched A2–A5 and S4–S7. See the [fix-review handoff](docs/reviews/2026-10-23/FIX-REVIEW.md).
+**24 Oct repair status:** DVR-1 (0242/0243), DVR-4 (0244), W2 (0246), S4–S7 (0247–0250) and A2–A5 (Apple 48–51) fixed
+locally; DVR-3 fixed by instance identity (0245) pending Mark's acceptance of its policy. Efficiency items of the 22 Oct
+register are not started. Device acceptance: [`REPAIR-STATUS.md`](docs/reviews/2026-10-23/REPAIR-STATUS.md).
 
 **22 Oct follow-up:** repair recording-original retention and stable identity, then bounded/cancellable startup and shared-resource takeover/admission. Client isolation, refresh, backup, import and sport defects follow in the [complete repair register](docs/reviews/2026-10-21/REVIEW.md). Optimizations need measurements; device acceptance remains open. Earlier roadmap completion notes describe implementations, not proof of all acceptance criteria.
 
@@ -568,7 +587,8 @@ feed in five) · the 20 s stall timeout (tighten only after real stall logs).
   3 min).
 
 **Shared ingest (Wave 5, off by default)**
-- **21 Oct source/synthetic finding:** HTTP 200 headers disable the socket timeout before usable TS arrives; the stall check skips connecting/reconnecting states. A headers-only stream can leave subscription readiness pending, even after close. Requires bounded readiness and close rejection; see the review reproduction.
+- First usable bytes and a reconnect each have an absolute deadline (`firstBytesMs`, `reconnectMs`); closing a connecting
+  ingest rejects its waiters as a cancellation (`ingestCancelled`, never answered with a direct connection) (0230).
 - Not yet used by relay legs, standbys, warm channels or direct plays: those still open their own connections.
 - Benched SAME on seven real samples with production ffmpeg (18 Oct); no current feed is uneven, so the `igndts` path is
   covered by unit tests only.
