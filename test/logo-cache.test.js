@@ -119,3 +119,63 @@ test('a non-image response is refused rather than cached', async () => {
 
     textServer.close();
 });
+
+// ---- S6 (0249): the download's deadline covers the body; the conversion is bounded too ----------
+
+const logoRoute = () => load('routes/logo');
+for (const [label, write] of [['headers, then nothing', () => {}], ['headers and a few bytes, then nothing', (res) => res.write(PNG_BYTES)]]) {
+    test(`S6: ${label} - the request answers by the deadline and the upstream connection is closed`, async () => {
+        const timeouts = logoRoute().timeouts || {}; // (absent before 0249: the old code then simply never answers)
+        const saved = { ...timeouts };
+        timeouts.fetchMs = 500;
+        let upstreamClosed = false;
+        const stall = http.createServer((req, res) => {
+            res.writeHead(200, { 'content-type': 'image/png' });
+            res.flushHeaders();
+            write(res);
+            res.on('close', () => { upstreamClosed = true; });
+        });
+        stall.listen(0, '127.0.0.1');
+        await once(stall, 'listening');
+        try {
+            const p = registerLogo(`http://127.0.0.1:${stall.address().port}/stalls-${label.length}.png`);
+            const started = Date.now();
+            const res = await fetch(`${base}${p}`);
+            assert.equal(res.status, 502);
+            assert.ok(Date.now() - started < 3000, `bounded (${Date.now() - started} ms)`);
+            for (let i = 0; i < 50 && !upstreamClosed; i++) await new Promise(r => setTimeout(r, 20));
+            assert.ok(upstreamClosed, 'nothing is left reading the body');
+        } finally {
+            Object.assign(timeouts, saved);
+            stall.closeAllConnections?.(); stall.close();
+        }
+    });
+}
+
+test('S6: a conversion whose ffmpeg never exits is killed at its deadline and the original is kept', async () => {
+    const { storableLogo } = logoRoute();
+    const timeouts = logoRoute().timeouts || {};
+    const saved = { ...timeouts };
+    timeouts.convertMs = 1500; // long enough for the script to start and say who it is
+    const pidFile = path.join(sandbox, 'hung-ffmpeg.pid');
+    const hung = path.join(sandbox, 'hung-ffmpeg');
+    fs.writeFileSync(hung, `#!${process.execPath}\nrequire('fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));\nprocess.stdin.resume();\nsetInterval(() => {}, 1000);\n`);
+    fs.chmodSync(hung, 0o755);
+    // Wider than 320 px (a PNG header saying 1000 px), so a conversion is attempted.
+    const wide = Buffer.alloc(64);
+    PNG_BYTES.copy(wide);
+    wide.write('IHDR', 12, 'latin1');
+    wide.writeUInt32BE(1000, 16);
+    wide.writeUInt32BE(500, 20);
+    try {
+        const started = Date.now();
+        const out = await storableLogo(hung, wide, 'image/png');
+        assert.ok(Date.now() - started < 4000, `bounded (${Date.now() - started} ms)`);
+        assert.equal(out.buffer, wide, 'the original is kept');
+        const pid = Number(fs.readFileSync(pidFile, 'utf8'));
+        await new Promise(r => setTimeout(r, 100));
+        assert.throws(() => process.kill(pid, 0), /ESRCH/, 'the ffmpeg is gone');
+    } finally {
+        Object.assign(timeouts, saved);
+    }
+});

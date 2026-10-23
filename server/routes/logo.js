@@ -33,7 +33,10 @@ const { LOGO_CACHE_VERSION } = require('../services/logoCache');
 const LOGOS_DIR = path.join(__dirname, '..', '..', 'data', 'logos');
 if (!fs.existsSync(LOGOS_DIR)) fs.mkdirSync(LOGOS_DIR, { recursive: true });
 
-const FETCH_TIMEOUT_MS = 10000;
+// S6 (0249): one deadline for the whole download, headers AND body (it used to end at the headers,
+// so a body that stalled held the request for ever), and one for the conversion's ffmpeg. Settable
+// for tests through the module's `timeouts`.
+const timeouts = { fetchMs: 10000, convertMs: 10000 };
 const MAX_BYTES = 2 * 1024 * 1024;
 const MAX_WIDTH = 320;
 const SIZES = { full: '.orig', 640: '.640' }; // 0154: ?size= -> the file beside the default copy
@@ -136,6 +139,15 @@ function downscale(ffmpegPath, buffer, maxWidth = MAX_WIDTH) {
         const proc = spawn(ffmpegPath, args);
         const out = [];
         let settled = false;
+        // S6: an ffmpeg that never finishes is killed; the caller keeps the original.
+        const killer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            try { proc.kill('SIGKILL'); } catch (e) { /* gone */ }
+            reject(new Error('conversion timed out'));
+        }, timeouts.convertMs);
+        killer.unref?.();
+        proc.on('close', () => clearTimeout(killer));
         proc.stdout.on('data', d => out.push(d));
         proc.stderr.on('data', () => { /* discarded - not an error signal on its own */ });
         proc.on('error', err => { if (!settled) { settled = true; reject(err); } });
@@ -173,34 +185,54 @@ async function storableLogo(ffmpegPath, buffer, contentType, maxWidth = MAX_WIDT
 
 /** Fetch the logo's URL, store it on disk, and update its logo_cache row. */
 async function fetchAndStore(req, row) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    let response;
-    try {
-        response = await fetch(row.url, { signal: controller.signal });
-    } finally {
-        clearTimeout(timer);
-    }
-    if (!response.ok) throw new Error(`upstream responded ${response.status}`);
-    const contentType = (response.headers.get('content-type') || '').split(';')[0].trim();
-    if (!contentType.startsWith('image/')) throw new Error(`not an image (${contentType || 'no content-type'})`);
-
-    const chunks = [];
-    let total = 0;
-    for await (const chunk of response.body) {
-        total += chunk.length;
-        if (total > MAX_BYTES) throw new Error('logo exceeds the 2 MB limit');
-        chunks.push(chunk);
-    }
-    const fetched = Buffer.concat(chunks);
-    const { buffer, type: finalType } = await storableLogo(req.app.locals.ffmpegPath, fetched, contentType);
+    const fetched = await download(row.url);
+    const contentType = fetched.contentType;
+    const { buffer, type: finalType } = await storableLogo(req.app.locals.ffmpegPath, fetched.bytes, contentType);
 
     // 0154: the original beside the resized copy (?size=full); a stale ?size=640 goes.
-    fs.writeFileSync(logoFile(row.key, SIZES.full), fetched);
+    fs.writeFileSync(logoFile(row.key, SIZES.full), fetched.bytes);
     fs.rmSync(logoFile(row.key, SIZES[640]), { force: true });
     fs.writeFileSync(logoFile(row.key), buffer);
     getDb().prepare('UPDATE logo_cache SET content_type = ?, fetched_at = ?, bytes = ?, original_type = ?, original_bytes = ? WHERE key = ?')
-        .run(finalType, Date.now(), buffer.length, contentType, fetched.length, row.key);
+        .run(finalType, Date.now(), buffer.length, contentType, fetched.bytes.length, row.key);
+}
+
+/**
+ * S6 (0249): the logo's bytes, within one absolute deadline from request to last byte. On the
+ * deadline, an error response, a wrong type or too many bytes the request is aborted and its body
+ * cancelled - nothing is left reading. -> { bytes, contentType }.
+ */
+async function download(url) {
+    const controller = new AbortController();
+    let timer;
+    const deadline = new Promise((_, reject) => {
+        timer = setTimeout(() => { controller.abort(); reject(new Error('logo download timed out')); }, timeouts.fetchMs);
+    });
+    let response = null;
+    const read = (async () => {
+        response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) throw new Error(`upstream responded ${response.status}`);
+        const contentType = (response.headers.get('content-type') || '').split(';')[0].trim();
+        if (!contentType.startsWith('image/')) throw new Error(`not an image (${contentType || 'no content-type'})`);
+        const chunks = [];
+        let total = 0;
+        for await (const chunk of response.body) {
+            total += chunk.length;
+            if (total > MAX_BYTES) throw new Error('logo exceeds the 2 MB limit');
+            chunks.push(chunk);
+        }
+        return { bytes: Buffer.concat(chunks), contentType };
+    })();
+    read.catch(() => { /* settled by the race below */ });
+    try {
+        return await Promise.race([read, deadline]);
+    } catch (err) {
+        controller.abort();
+        try { await response?.body?.cancel?.(); } catch (e) { /* already closed */ }
+        throw err;
+    } finally {
+        clearTimeout(timer);
+    }
 }
 
 /**
@@ -270,4 +302,5 @@ router.get('/:key', async (req, res) => {
 module.exports = router;
 // For tests (0141).
 module.exports.storableLogo = storableLogo;
+module.exports.timeouts = timeouts;
 module.exports.imageWidth = imageWidth;
