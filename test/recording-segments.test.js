@@ -413,6 +413,37 @@ test('DVR-1: a kept original that cannot be written keeps the segments in appdat
     });
 });
 
+test('F2: while the kept original is being copied the row waits as moving, so a restart finds and finishes it', async () => {
+    await withTools({ duration: async (f) => (f.endsWith('recording.m3u8') ? null : 120) }, async () => {
+        const { rec, workDir, mp4 } = finishingRow();
+        const real = fs.createWriteStream;
+        let seen = null;
+        fs.createWriteStream = function (file, ...rest) {
+            if (/\.ts\.\d+-[0-9a-f]+\.partial$/.test(String(file)) && !seen) {
+                // The copy opens: this is what a restart now would find in the database.
+                seen = { state: recordings.getById(rec.id).segment_state, queued: recordings.findSegmentWork().some(r => r.id === rec.id) };
+                // ...and the server dies here: the copy never finishes.
+                const { Writable } = require('node:stream');
+                const w = new Writable({ write(c, e, cb) { cb(); } });
+                process.nextTick(() => w.destroy(new Error('killed')));
+                return w;
+            }
+            return real.call(this, file, ...rest);
+        };
+        try { await segments.finishOne(rec); } finally { fs.createWriteStream = real; }
+        assert.deepEqual(seen, { state: 'moving', queued: true }, 'durably pending, not done');
+        assert.ok(fs.existsSync(workDir));
+        // After the restart the queue retries the move and only then is it done.
+        await segments.processQueue(Date.now() + 16 * 60 * 1000);
+        const done = recordings.getById(rec.id);
+        assert.equal(done.segment_state, 'done');
+        assert.deepEqual(fs.readFileSync(done.segment_original), joined);
+        assert.equal(fs.existsSync(workDir), false);
+        assert.equal(fs.readdirSync(path.dirname(mp4)).filter(f => f.endsWith('.partial')).length, 0, 'no partial left behind');
+        await engine.deleteRecording(rec.id);
+    });
+});
+
 test('F1: a file of the same name AND size that is not this recording\'s segments is never taken for its original', async () => {
     await withTools({ duration: async (f) => (f.endsWith('recording.m3u8') ? null : 120) }, async () => {
         const { rec, workDir, mp4 } = finishingRow();

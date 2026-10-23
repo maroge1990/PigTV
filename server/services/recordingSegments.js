@@ -498,7 +498,9 @@ async function finishOne(rec) {
     const mp4Name = path.basename(target, '.mp4');
     target = publishNoReplace(partial, path.dirname(target), `${mp4Name}.mp4`, n => `${mp4Name} (${n}).mp4`);
     media.verifiedNativeFiles.add(target);
-    completed(rec, target, { duration_sec: Math.round(stitched.durationSec), segment_state: dir ? 'done' : 'moving', segment_keep: keep });
+    // F2 (0243): with an original to keep the row says 'moving' until that original is published,
+    // so a restart mid-copy finds it in findSegmentWork() and finishes the move.
+    completed(rec, target, { duration_sec: Math.round(stitched.durationSec), segment_state: dir && !keep ? 'done' : 'moving', segment_keep: keep });
     recordingsDb.setNativeStatus(rec.id, 'ready', keep ? { error: `Original kept: ${keep}` } : undefined);
     recordingsDb.setNativeVersion(rec.id, media.NATIVE_VERSION);
     if (dir && keep) {
@@ -508,7 +510,6 @@ async function finishOne(rec) {
             recordingsDb.setSegmentFields(rec.id, { segment_state: 'done' });
             await removeWork(rec);
         } else {
-            recordingsDb.setSegmentFields(rec.id, { segment_state: 'moving' });
             lastMoveTry.set(rec.id, Date.now());
         }
         console.warn(`[Recordings] #${rec.id} is finished: ${target}, but its original is kept: ${keep}`);
