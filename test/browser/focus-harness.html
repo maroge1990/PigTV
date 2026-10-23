@@ -57,6 +57,20 @@ for (const f of ['icons.js', 'components/EpgGuide.js', 'components/ChannelList.j
   list.render();
   const el = document.activeElement, item = el && el.closest && el.closest('.channel-item');
   results.listAfterRebuild = item ? `${item.dataset.channelId}/${el.className}` : `none(${el && el.tagName})`;
+  // F5 (0246): a channel in a group past the first batches (205 groups; 100 a batch).
+  const many = Array.from({ length: 205 }, (_, i) => ({ id: `late${i}`, sourceId: 1, name: `Channel ${i}`, groupTitle: `Group${i}` }));
+  Object.assign(list, { channels: many, categories: [], favoriteRows: [], favoriteKeys: new Set(), sources: [] });
+  list.collapsedGroups = new Set(); list._hasCollapsedState = true; list._userExpandedGroups = new Set(many.map(c => c.groupTitle));
+  list.render(); list.renderNextBatch();
+  list.container.querySelector('.channel-item[data-channel-id="late204"] .channel-info').focus();
+  list.render();
+  const lateEl = document.activeElement;
+  results.lateGroupAfterRebuild = lateEl.closest('.channel-item')?.dataset.channelId || lateEl.tagName;
+  // ...and that channel and its group disappear: the header now at its place.
+  list.channels = many.filter(c => c.id !== 'late204'); list._userExpandedGroups = new Set(list.channels.map(c => c.groupTitle));
+  list.render();
+  const goneEl = document.activeElement;
+  results.lateGroupGone = goneEl.classList.contains('group-header') ? `header:${goneEl.dataset.group}` : goneEl.tagName;
   window.results = results;
   document.getElementById('out').textContent = JSON.stringify(results, null, 1);
 })().catch(e => { window.results = { error: String(e && e.stack || e) }; document.getElementById('out').textContent = window.results.error; });

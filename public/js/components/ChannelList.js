@@ -466,25 +466,59 @@ class ChannelList {
     /** W2: what has keyboard focus in the list, by identity. Null when none. */
     focusIdentity(el = typeof document !== 'undefined' ? document.activeElement : null) {
         if (!el || !this.container || !this.container.contains(el)) return null;
+        const groupIndex = (g) => (this.sortedGroups || []).indexOf(g);
         const header = el.closest('.group-header');
-        if (header) return { group: header.dataset.group };
+        if (header) return { group: header.dataset.group, groupIndex: groupIndex(header.dataset.group) };
         const item = el.closest('.channel-item');
         if (!item) return null;
         return { sourceId: item.dataset.sourceId, channelId: item.dataset.channelId, group: item.dataset.renderGroup,
-            part: el.closest('.favorite-btn') ? 'favourite' : 'channel' };
+            groupIndex: groupIndex(item.dataset.renderGroup), part: el.closest('.favorite-btn') ? 'favourite' : 'channel' };
     }
 
-    /** W2: focus the same channel in the same group (else in any group), else its group's header. */
+    /**
+     * F5 (0246): groups are drawn in batches (renderNextBatch, as the list scrolls). The group the
+     * focus belongs to may be past the first ones, so its batch is drawn now - or nothing could
+     * take the focus back.
+     */
+    renderThroughGroup(groupName) {
+        const index = (this.sortedGroups || []).indexOf(groupName);
+        if (index < 0) return false;
+        while (this.currentBatch * this.batchSize <= index && this.currentBatch * this.batchSize < this.sortedGroups.length) {
+            this.renderNextBatch();
+        }
+        return true;
+    }
+
+    /**
+     * W2: focus the same channel in the same group (else in any group it is now in), else its
+     * group's header; F5: else (that group gone too) the header now at its old place.
+     */
     restoreFocus(id) {
         if (!id || !this.container) return;
         const q = (v) => String(v).replace(/["\\]/g, '\\$&');
         let target = null;
         if (id.channelId !== undefined) {
             const base = `.channel-item[data-source-id="${q(id.sourceId)}"][data-channel-id="${q(id.channelId)}"]`;
-            const item = this.container.querySelector(`${base}[data-render-group="${q(id.group)}"]`) || this.container.querySelector(base);
+            const find = () => this.container.querySelector(`${base}[data-render-group="${q(id.group)}"]`) || this.container.querySelector(base);
+            let item = find();
+            if (!item) {
+                // Its group (or, if it moved, the first group listing it now) has not been drawn yet.
+                const home = (this.groupedChannels && this.groupedChannels[id.group]
+                    && this.groupedChannels[id.group].some(c => String(c.sourceId) === id.sourceId && String(c.id) === id.channelId)) ? id.group
+                    : (this.sortedGroups || []).find(g => (this.groupedChannels[g] || []).some(c => String(c.sourceId) === id.sourceId && String(c.id) === id.channelId));
+                if (home && this.renderThroughGroup(home)) item = find();
+            }
             if (item) target = item.querySelector(id.part === 'favourite' ? '.favorite-btn' : '.channel-info');
         }
-        if (!target && id.group !== undefined) target = this.container.querySelector(`.group-header[data-group="${q(id.group)}"]`);
+        if (!target && id.group !== undefined) {
+            this.renderThroughGroup(id.group);
+            target = this.container.querySelector(`.group-header[data-group="${q(id.group)}"]`);
+        }
+        if (!target && Number.isInteger(id.groupIndex) && id.groupIndex >= 0 && (this.sortedGroups || []).length) {
+            const fallback = this.sortedGroups[Math.min(id.groupIndex, this.sortedGroups.length - 1)];
+            this.renderThroughGroup(fallback);
+            target = this.container.querySelector(`.group-header[data-group="${q(fallback)}"]`);
+        }
         if (target && typeof target.focus === 'function') target.focus({ preventScroll: true });
     }
 
