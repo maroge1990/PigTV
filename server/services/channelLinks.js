@@ -618,6 +618,22 @@ function linkedSiblingsKey() {
         WHERE method = 'sibling' AND status IN ('auto', 'approved', 'manual') ORDER BY k`).all().map(r => r.k).join(',');
 }
 
+/**
+ * S7 (0250): run a link mutation and, when it changed which siblings are linked (and so which
+ * channels the guide lists, VISIBLE_SQL), bump the library revision - the guide version clients
+ * poll - and give a channel that became visible its number. Relinks did this since cb8e339; an
+ * admin's approve/reject/undo, a manual link and a bulk approval did not.
+ */
+function guardMembership(fn) {
+    const before = linkedSiblingsKey();
+    const result = fn();
+    if (linkedSiblingsKey() !== before) {
+        require('./libraryRev').bumpLibraryRev();
+        try { require('./channelNumbers').assignChannelNumbers(); } catch (e) { /* numbers catch up at the next sync */ }
+    }
+    return result;
+}
+
 async function relink(onlyBackupId) {
     const started = Date.now();
     const siblingsBefore = linkedSiblingsKey();
@@ -705,7 +721,11 @@ function linkById(id) {
  * The admin's decision on one link: 'approved', 'rejected', or 'pending' (undo: a manual link is
  * removed, anything else waits for the next relink to be recomputed). Returns the row or null.
  */
-function setStatus(id, status, now = Date.now()) {
+function setStatus(...args) {
+    return guardMembership(() => setStatusUnguarded(...args));
+}
+
+function setStatusUnguarded(id, status, now = Date.now()) {
     const row = linkById(id);
     if (!row) return null;
     const db = getDb();
@@ -728,7 +748,11 @@ function primaryChannel(primarySourceId, primaryKey) {
  * The admin's own pick: this backup stream for this primary channel, ranked first. Returns
  * { row } or { error, status } (404 for a channel or stream that does not exist).
  */
-function addManual({ primarySourceId, primaryKey, backupSourceId, streamId }, now = Date.now()) {
+function addManual(...args) {
+    return guardMembership(() => addManualUnguarded(...args));
+}
+
+function addManualUnguarded({ primarySourceId, primaryKey, backupSourceId, streamId }, now = Date.now()) {
     const { primaries, backups } = providers();
     const pid = Number(primarySourceId), bid = Number(backupSourceId);
     if (!primaries.some(s => s.id === pid)) return { status: 400, error: 'primarySourceId is not a primary provider' };
@@ -756,7 +780,11 @@ function addManual({ primarySourceId, primaryKey, backupSourceId, streamId }, no
 }
 
 /** Approve every rank-1 pending link of the visible channels in a category (optionally one backup). */
-function approvePending({ categoryId, backupSourceId = null }, now = Date.now()) {
+function approvePending(...args) {
+    return guardMembership(() => approvePendingUnguarded(...args));
+}
+
+function approvePendingUnguarded({ categoryId, backupSourceId = null }, now = Date.now()) {
     const { primaries } = providers();
     const channels = allVisible(primaries).filter(c => c.categoryIds.has(String(categoryId)) || c.categoryIds.has(categoryId));
     const db = getDb();

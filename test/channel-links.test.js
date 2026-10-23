@@ -350,6 +350,29 @@ test('a sibling whose link is rejected is listed again, and the guide version mo
     assert.ok(!listed('s1568686'));
 });
 
+test('S7: rejecting or approving a sibling link through the API moves the guide version; other decisions do not', async () => {
+    const { currentGuideVersion } = load('services/libraryRev');
+    const { VISIBLE_SQL } = load('services/channelNumbers');
+    const listed = (key) => sqlite.getDb().prepare(`SELECT 1 FROM playlist_items p WHERE ${VISIBLE_SQL} AND COALESCE(p.stable_id, p.item_id) = ?`).get(key) !== undefined;
+    const number = (key) => sqlite.getDb().prepare('SELECT number FROM channel_numbers WHERE channel_key = ?').get(key)?.number ?? null;
+    const sibling = sqlite.getDb().prepare("SELECT id FROM channel_links WHERE primary_source_id = ? AND primary_key = 's604331' AND method = 'sibling'").get(primary.id);
+    assert.ok(!listed('s1568686'));
+    let v = currentGuideVersion();
+    assert.equal((await call('PUT', `/api/links/${sibling.id}`, { body: { status: 'rejected' } })).status, 200);
+    assert.ok(listed('s1568686'), 'the backup feed is listed again');
+    assert.notEqual(currentGuideVersion(), v, 'and the guide version says so');
+    assert.notEqual(number('s1568686'), null, 'with a channel number');
+    v = currentGuideVersion();
+    assert.equal((await call('PUT', `/api/links/${sibling.id}`, { body: { status: 'approved' } })).status, 200);
+    assert.ok(!listed('s1568686'));
+    assert.notEqual(currentGuideVersion(), v, 'hidden again: a new version');
+    v = currentGuideVersion();
+    const other = sqlite.getDb().prepare("SELECT id, status FROM channel_links WHERE method <> 'sibling' LIMIT 1").get();
+    assert.equal((await call('PUT', `/api/links/${other.id}`, { body: { status: other.status === 'rejected' ? 'approved' : 'rejected' } })).status, 200);
+    assert.equal(currentGuideVersion(), v, 'a backup-provider link does not change what is listed: no new version');
+    await call('PUT', `/api/links/${other.id}`, { body: { status: other.status === 'auto' ? 'approved' : other.status } });
+});
+
 test('decisions are kept across relinks; a vanished stream breaks a kept link and comes back', async () => {
     const footy = rowsFor('s441304', dream.id)[0];
     let r = await call('PUT', `/api/links/${footy.id}`, { body: { status: 'approved' } });
