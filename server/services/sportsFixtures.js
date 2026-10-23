@@ -199,20 +199,41 @@ async function rosterFor(league, { db = getDb() } = {}) {
 
 // ---- refreshing one league --------------------------------------------------------------------
 
-/** One league's ESPN path(s), fetched and merged: { ok, records, teams, error } (ok when any path answered). */
+/**
+ * One league's ESPN path(s), fetched and merged: { ok, complete, records, teams, error } (ok when
+ * any path answered; S5: complete only when every path answered every day).
+ */
 async function fetchPaths(paths, now) {
     const records = [];
     const teams = [];
     let anyOk = false;
+    let complete = true;
     let error = null;
     for (const path of paths) {
         const r = await espn.fetchScoreboard(path, now - LOOKBACK_MS, now + WINDOW_MS);
-        if (!r.ok) { error = r.error; continue; }
+        if (!r.ok) { error = r.error; complete = false; continue; }
         anyOk = true;
+        if (r.complete === false) { complete = false; error = r.error || 'part of the window failed'; }
         records.push(...r.records);
         teams.push(...r.teams);
     }
-    return anyOk ? { ok: true, records, teams } : { ok: false, error };
+    return anyOk ? { ok: true, complete, records, teams, error } : { ok: false, error };
+}
+
+/**
+ * S5 (0248): a refresh that answered only in part. What it got is added to the last snapshot (a
+ * failed day keeps the games it had), and coverage is NOT renewed: covered_from/to and
+ * last_success_at stay those of the last complete refresh, so once that is older than
+ * fixtureVerdict's freshness limit a game's absence is no longer taken as "no such game". Only a
+ * complete refresh replaces the set (so a removed game disappears then).
+ */
+function savePartial(db, league, records, now, error) {
+    const existing = new Map(db.prepare('SELECT fixture_id, data FROM sport_fixtures WHERE league = ?').all(league)
+        .map(r => { try { return [r.fixture_id, JSON.parse(r.data)]; } catch { return null; } }).filter(Boolean));
+    for (const rec of records) existing.set(rec.sessionAbbr ? `${rec.id}#${rec.sessionAbbr}` : rec.id, rec);
+    saveFixtures(db, league, [...existing.values()]);
+    saveStatus(db, league, { last_error: `partial: ${error || 'some requests failed'}`, last_error_at: now, fixture_count: existing.size });
+    console.warn(`[Fixtures] ${league}: refresh incomplete (${error || 'some requests failed'}); kept the last complete coverage`);
 }
 
 /** A league with fixed ESPN path(s): everything in ESPN_LEAGUE_PATHS. */
@@ -227,11 +248,15 @@ async function refreshLeague(league, { now = Date.now(), db = getDb() } = {}) {
         return;
     }
     logStateChange(league, true);
-    saveFixtures(db, league, result.records); // a full replace: a postponed/removed game does not linger
-    saveStatus(db, league, {
-        last_success_at: now, last_error: null, fixture_count: result.records.length,
-        covered_from: now - LOOKBACK_MS, covered_to: now + WINDOW_MS
-    });
+    if (!result.complete) {
+        savePartial(db, league, result.records, now, result.error);
+    } else {
+        saveFixtures(db, league, result.records); // a full replace: a postponed/removed game does not linger
+        saveStatus(db, league, {
+            last_success_at: now, last_error: null, fixture_count: result.records.length,
+            covered_from: now - LOOKBACK_MS, covered_to: now + WINDOW_MS
+        });
+    }
 
     const cachedTeams = loadTeams(db, league);
     if (!cachedTeams || now - cachedTeams.updatedAt >= TEAMS_MAX_AGE_MS) {
@@ -258,11 +283,13 @@ async function refreshCricket({ now = Date.now(), db = getDb() } = {}) {
     const records = [];
     const teams = new Map();
     let anyOk = false;
+    let complete = true; // S5
     let lastError = null;
     for (const s of series) {
         const result = await espn.fetchScoreboard(`cricket/${s.id}`, now - LOOKBACK_MS, now + WINDOW_MS);
-        if (!result.ok) { lastError = result.error; continue; }
+        if (!result.ok) { lastError = result.error; complete = false; continue; }
         anyOk = true;
+        if (result.complete === false) { complete = false; lastError = result.error || lastError; }
         records.push(...result.records);
         for (const t of result.teams) teams.set((t.displayName || t.abbreviation || '').toLowerCase(), t);
     }
@@ -273,6 +300,11 @@ async function refreshCricket({ now = Date.now(), db = getDb() } = {}) {
         return;
     }
     logStateChange('Cricket', true);
+    if (!complete) {
+        savePartial(db, 'Cricket', records, now, lastError);
+        if (teams.size) saveTeams(db, 'Cricket', [...teams.values()]);
+        return;
+    }
     // Every refresh re-discovers and re-fetches every currently active series from scratch, so
     // this is already the WHOLE league's fixture set for this cycle - a full replace (like any
     // other league) rather than a merge, so a series that finished or was postponed drops out.

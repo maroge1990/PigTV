@@ -124,24 +124,29 @@ function teamsFromScoreboard(json) {
 
 /**
  * Every competition ESPN reports for `leaguePath` over [fromMs, toMs] (one request per UTC day
- * touched - the API's own unit). -> { ok, records, teams, error }; `error` is set only when every
- * day failed. A day that fails is just skipped, so one bad day never loses the others.
+ * touched - the API's own unit). -> { ok, complete, records, teams, error }; `error` is set only
+ * when every day failed. A day that fails is just skipped, so one bad day never loses the others,
+ * but S5 (0248): `complete` is false then - what it has is not the whole window, so the caller
+ * must not treat a game's absence from it as ESPN's answer. A day whose answer has no `events`
+ * list (a malformed success) counts as failed.
  */
 async function fetchScoreboard(leaguePath, fromMs, toMs, { timeoutMs = TIMEOUT_MS } = {}) {
     const days = datesFor(fromMs, toMs);
     const records = new Map(); // id + session -> record
     const teams = new Map();
     let anyOk = false;
+    let failed = 0;
     let lastError = 'no dates to fetch';
     for (const day of days) {
         const { ok, json, error } = await getJson(`${BASE}/${leaguePath}/scoreboard?dates=${day}`, timeoutMs);
-        if (!ok) { lastError = error; continue; }
+        if (!ok) { lastError = error; failed++; continue; }
+        if (!json || !Array.isArray(json.events)) { lastError = 'not a scoreboard'; failed++; continue; }
         anyOk = true;
         for (const rec of recordsFromScoreboard(json)) records.set(`${rec.id}\u0001${rec.sessionAbbr || ''}`, rec);
         for (const t of teamsFromScoreboard(json)) teams.set((t.displayName || t.abbreviation || '').toLowerCase(), t);
     }
     if (!anyOk) return { ok: false, error: lastError };
-    return { ok: true, records: [...records.values()], teams: [...teams.values()] };
+    return { ok: true, complete: failed === 0, records: [...records.values()], teams: [...teams.values()], ...(failed ? { error: lastError } : {}) };
 }
 
 /** A league's roster from its dedicated /teams endpoint (cricket league ids 404 here - see fetchScoreboard's own fallback). */

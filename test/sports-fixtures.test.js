@@ -390,9 +390,12 @@ test('0185: more leagues have ESPN fixtures; a league with two feeds (UEFA) merg
     }, () => fixtures.refreshLeague('UEFA', { now }));
     const uefa = fixtures.snapshot(new Set(['UEFA'])).get('UEFA');
     assert.equal(uefa.fixtures.length, 2, 'both competitions');
-    // One feed down: the other still counts as a good fetch.
-    await withEspn({ 'soccer/uefa.champions/scoreboard': game('1', 'Arsenal', 'Lens'), 'soccer/uefa.europa/scoreboard': null }, () => fixtures.refreshLeague('UEFA', { now }));
-    assert.equal(fixtures.snapshot(new Set(['UEFA'])).get('UEFA').fixtures.length, 1);
+    // One feed down: the other's answer is used, and (S5, 0248) the down feed's games are kept, not
+    // dropped as if ESPN had said there were none.
+    await withEspn({ 'soccer/uefa.champions/scoreboard': game('1', 'Arsenal', 'Lens'), 'soccer/uefa.europa/scoreboard': null }, () => fixtures.refreshLeague('UEFA', { now: now + H }));
+    const after = fixtures.snapshot(new Set(['UEFA'])).get('UEFA');
+    assert.equal(after.fixtures.length, 2);
+    assert.equal(after.coverage.at, now, 'coverage still dates from the last complete refresh');
 });
 
 test('a multi-day cricket Test: day 3 of a still-running match is live, not a replay', async () => {
@@ -451,4 +454,51 @@ test('performance: matching against a full league of fixtures does not slow reso
     const withMs = performance.now() - t0;
     console.log(`# resolveLive, 2000 NFL airings against a ${snap.get('NFL').fixtures.length}-fixture/${snap.get('NFL').teamsAliases.length}-team league: without ESPN ${withoutMs.toFixed(1)} ms, with ${withMs.toFixed(1)} ms`);
     assert.ok(withMs < 200, `resolveLive with fixtures took ${withMs} ms`);
+});
+
+// ---- S5 (0248): a partial refresh never becomes complete coverage --------------------------------
+
+const lacBuf = () => ({ league: 'NFL', start: Date.parse('2026-09-27T17:00Z'), end: Date.parse('2026-09-27T20:00Z'), parsed: classify.parseTitle('NFL: Chargers v Bills') });
+async function nflKnown(now) {
+    await withEspn({ 'football/nfl/scoreboard': readFx('nfl-20260927'), 'football/nfl/teams': readFx('teams-nfl') }, () => fixtures.refreshLeague('NFL', { now }));
+    assert.equal(classify.fixtureVerdict(lacBuf(), fixtures.snapshot(new Set(['NFL'])).get('NFL'), now).live, true);
+}
+
+for (const [label, gameDay] of [['the game\'s day fails (503)', null], ['the game\'s day answers without an events list', { nope: true }]]) {
+    test(`S5: ${label}, the other days answer empty - the game is kept and is not called a replay`, async () => {
+        const now = Date.parse('2026-09-27T12:00Z');
+        await nflKnown(now);
+        await withEspn({ 'dates=20260927': gameDay, 'football/nfl/scoreboard': { events: [] }, 'football/nfl/teams': readFx('teams-nfl') },
+            () => fixtures.refreshLeague('NFL', { now: now + 1000 }));
+        const nfl = fixtures.snapshot(new Set(['NFL'])).get('NFL');
+        assert.ok(nfl.fixtures.some(f => f.start === Date.parse('2026-09-27T17:00Z')), 'the game from the last complete answer stays');
+        const verdict = classify.fixtureVerdict(lacBuf(), nfl, now + 1000);
+        assert.notEqual(verdict && verdict.why, 'ESPN has no such game at this time');
+        assert.equal(nfl.coverage.at, now, 'coverage was not renewed by the partial answer');
+        assert.match(fixtures.statusSummary().leagues.find(l => l.league === 'NFL').lastError, /partial/);
+    });
+}
+
+test('S5: a complete answer that no longer lists the game does remove it (a real postponement)', async () => {
+    const now = Date.parse('2026-09-27T12:00Z');
+    await nflKnown(now);
+    await withEspn({ 'football/nfl/scoreboard': { events: [] }, 'football/nfl/teams': readFx('teams-nfl') }, () => fixtures.refreshLeague('NFL', { now: now + 1000 }));
+    const nfl = fixtures.snapshot(new Set(['NFL'])).get('NFL');
+    assert.equal(nfl.fixtures.length, 0);
+    assert.equal(classify.fixtureVerdict(lacBuf(), nfl, now + 1000).why, 'ESPN has no such game at this time');
+});
+
+test('S5: a cricket series that fails keeps its games; the league\'s coverage is not renewed', async () => {
+    const at = Date.parse('2026-09-27T12:00Z');
+    const handlers = {
+        scorepanel: readFx('cricket-scorepanel'),
+        'cricket/24377/scoreboard': readFx('cricket-24377-20260927'),
+        'cricket/22547/scoreboard': { events: [] }, 'cricket/18479/scoreboard': { events: [] }, 'cricket/8656/scoreboard': { events: [] }
+    };
+    await withEspn(handlers, () => fixtures.refreshCricket({ now: at }));
+    assert.equal(fixtures.snapshot(new Set(['Cricket'])).get('Cricket').fixtures.length, 1);
+    await withEspn({ ...handlers, 'cricket/24377/scoreboard': null }, () => fixtures.refreshCricket({ now: at + 1000 }));
+    const cricket = fixtures.snapshot(new Set(['Cricket'])).get('Cricket');
+    assert.equal(cricket.fixtures.length, 1, 'the failed series\' match is kept');
+    assert.equal(cricket.coverage.at, at);
 });
