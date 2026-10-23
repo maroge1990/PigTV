@@ -32,6 +32,7 @@
 const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
+const crypto = require('crypto');
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
 const { spawn } = require('child_process');
@@ -367,31 +368,68 @@ function completed(rec, file, extra = {}) {
 }
 
 /**
- * Every epoch's segments, in order, joined into one MPEG-TS file at `target` (via `<target>.partial`,
- * renamed into place). DVR-5 (0227): one pipeline owns both ends, so a share that fails to open,
- * fills or drops mid-write rejects here (the partial is removed) instead of raising an unhandled
- * stream error, and the writer's backpressure paces the reads. `opts.exclusive` refuses to replace
- * a file already at `target`.
+ * F1 (0242): put a finished file in place without ever replacing one that is there. link() fails
+ * with EEXIST if the name is taken (atomic, unlike a check before rename), and then the next name
+ * `alt(n)` is tried. Returns the path it was published at; the partial is gone.
  */
-async function joinSegments(rec, target, { exclusive = false } = {}) {
-    if (exclusive && fs.existsSync(target)) throw new Error(`${path.basename(target)} already exists`);
-    const partial = `${target}.partial`;
+function publishNoReplace(partial, dir, first, alt) {
+    for (let n = 1; ; n++) {
+        const dest = path.join(dir, n === 1 ? first : alt(n));
+        try { fs.linkSync(partial, dest); } catch (err) { if (err.code === 'EEXIST') continue; throw err; }
+        try { fs.unlinkSync(partial); } catch (e) { /* already gone */ }
+        return dest;
+    }
+}
+
+const segmentFiles = (rec) => epochs(rec.work_dir).flatMap(e => archiveOf(e.dir).segments.map(s => path.join(e.dir, s.name)));
+
+/**
+ * Every epoch's segments, in order, joined into one MPEG-TS file published in `dir` as `first`
+ * (else `alt(n)`), never over an existing file. DVR-5 (0227): one pipeline owns both ends, so a
+ * share that fails to open, fills or drops mid-write rejects here (the partial is removed) instead
+ * of raising an unhandled stream error, and the writer's backpressure paces the reads. F1: the
+ * partial is this call's own (created exclusively under a unique name). Returns the published path.
+ */
+async function joinSegments(rec, dir, first, alt) {
+    const partial = path.join(dir, `${first}.${process.pid}-${crypto.randomBytes(4).toString('hex')}.partial`);
     async function* pieces() {
-        for (const e of epochs(rec.work_dir)) {
-            for (const s of archiveOf(e.dir).segments) yield* fs.createReadStream(path.join(e.dir, s.name));
-        }
+        for (const file of segmentFiles(rec)) yield* fs.createReadStream(file);
     }
     try {
-        await pipeline(Readable.from(pieces(), { objectMode: false }), fs.createWriteStream(partial, { flags: 'w' }));
-        await fsp.rename(partial, target);
+        await pipeline(Readable.from(pieces(), { objectMode: false }), fs.createWriteStream(partial, { flags: 'wx' }));
+        return publishNoReplace(partial, dir, first, alt);
     } catch (err) {
         try { fs.unlinkSync(partial); } catch (e) { /* none */ }
         throw err;
     }
 }
 
-/** DVR-1: where the segments of a recording whose MP4 is `mp4` are kept on the share. Deleting the
- *  recording deletes "<name>.ts" beside its file (recordingEngine.deleteRecording). */
+/** F1: is `file` byte for byte this recording's segments, joined? (The only proof a file found on the share is its original.) */
+async function sameBytesAsSegments(file, rec) {
+    const files = segmentFiles(rec);
+    let total = 0;
+    for (const f of files) total += fs.statSync(f).size;
+    if (fs.statSync(file).size !== total) return false;
+    const fh = await fsp.open(file, 'r');
+    try {
+        let at = 0;
+        for (const f of files) {
+            for await (const chunk of fs.createReadStream(f)) {
+                const theirs = Buffer.alloc(chunk.length);
+                const { bytesRead } = await fh.read(theirs, 0, chunk.length, at);
+                if (bytesRead !== chunk.length || !theirs.equals(chunk)) return false;
+                at += chunk.length;
+            }
+        }
+        return true;
+    } finally {
+        await fh.close();
+    }
+}
+
+/** DVR-1: where the segments of a recording whose MP4 is `mp4` are kept on the share, if that name is
+ *  free (F1: else "<name> (original N).ts"; the path used is in segment_original, which
+ *  recordingEngine.deleteRecording removes with the recording). */
 const keptOriginalPath = (mp4) => path.join(path.dirname(mp4), `${path.basename(mp4, path.extname(mp4))}.ts`);
 
 /**
@@ -401,8 +439,8 @@ const keptOriginalPath = (mp4) => path.join(path.dirname(mp4), `${path.basename(
 async function deliverTs(rec, stitched) {
     const dir = await shareFolder(rec);
     if (!dir) throw new Error('the recordings folder is not usable');
-    const target = uniqueFilePath(dir, rec.segment_name || `Recording ${rec.id}`, '.ts');
-    await joinSegments(rec, target);
+    const name = rec.segment_name || `Recording ${rec.id}`;
+    const target = await joinSegments(rec, dir, `${name}.ts`, n => `${name} (${n}).ts`);
     completed(rec, target, { duration_sec: Math.round(stitched.durationSec), segment_state: 'done' });
     recordingsDb.setNativeStatus(rec.id, 'pending');
     await removeWork(rec);
@@ -421,7 +459,7 @@ async function finishOne(rec) {
     recordingsDb.setSegmentFields(rec.id, { segment_attempts: attempts });
 
     const dir = await shareFolder(rec);
-    const target = dir ? uniqueFilePath(dir, rec.segment_name || `Recording ${rec.id}`, '.mp4') : path.join(rec.work_dir, 'final.mp4');
+    let target = dir ? uniqueFilePath(dir, rec.segment_name || `Recording ${rec.id}`, '.mp4') : path.join(rec.work_dir, 'final.mp4');
     const partial = `${target}.partial`;
     try { fs.unlinkSync(partial); } catch (e) { /* none */ }
 
@@ -456,7 +494,9 @@ async function finishOne(rec) {
         return;
     }
 
-    fs.renameSync(partial, target);
+    // F1: published without replacing a file that appeared at its name meanwhile.
+    const mp4Name = path.basename(target, '.mp4');
+    target = publishNoReplace(partial, path.dirname(target), `${mp4Name}.mp4`, n => `${mp4Name} (${n}).mp4`);
     media.verifiedNativeFiles.add(target);
     completed(rec, target, { duration_sec: Math.round(stitched.durationSec), segment_state: dir ? 'done' : 'moving', segment_keep: keep });
     recordingsDb.setNativeStatus(rec.id, 'ready', keep ? { error: `Original kept: ${keep}` } : undefined);
@@ -481,26 +521,29 @@ async function finishOne(rec) {
     }
 }
 
-/** DVR-1: the kept segments onto the share beside the MP4; true when they are there (or already were). */
+/**
+ * DVR-1: the kept segments onto the share beside the MP4; true when they are there. F1 (0242): a
+ * file is accepted as the original only when it is the one this recording published
+ * (segment_original) or is byte for byte its segments - a file of the same name and size is not
+ * proof. Otherwise the segments are written to a file of their own, published without replacing
+ * anything (an occupied name gets "<name> (original N).ts"), and its path is recorded.
+ */
 async function keepOriginal(rec, dir) {
-    const target = keptOriginalPath(path.join(dir, path.basename(rec.file_path)));
+    const base = path.basename(rec.file_path, path.extname(rec.file_path));
     try {
-        // Already there from a run that stopped before its row was updated: every segment's bytes.
-        if (fs.existsSync(target) && fs.statSync(target).size === segmentBytes(rec)) return true;
-        await joinSegments(rec, target, { exclusive: true });
+        for (const known of [rec.segment_original, keptOriginalPath(path.join(dir, path.basename(rec.file_path)))]) {
+            if (known && fs.existsSync(known) && await sameBytesAsSegments(known, rec)) {
+                recordingsDb.setSegmentFields(rec.id, { segment_original: known });
+                return true;
+            }
+        }
+        const published = await joinSegments(rec, dir, `${base}.ts`, n => `${base} (original${n > 2 ? ` ${n - 1}` : ''}).ts`);
+        recordingsDb.setSegmentFields(rec.id, { segment_original: published });
         return true;
     } catch (err) {
         console.warn(`[Recordings] #${rec.id}: its original could not be put on the share yet (${err.message}); its segments stay in appdata`);
         return false;
     }
-}
-
-function segmentBytes(rec) {
-    let total = 0;
-    for (const e of epochs(rec.work_dir)) {
-        for (const seg of archiveOf(e.dir).segments) total += fs.statSync(path.join(e.dir, seg.name)).size;
-    }
-    return total;
 }
 
 const inWork = (rec) => Boolean(rec.work_dir && rec.file_path && rec.file_path.startsWith(rec.work_dir + path.sep));
@@ -512,12 +555,13 @@ async function moveOne(rec) {
     if (!dir) return;
     if (inWork(rec)) {
         const source = rec.file_path;
-        const target = uniqueFilePath(dir, rec.segment_name || `Recording ${rec.id}`, '.mp4');
-        const partial = `${target}.partial`;
+        const name = rec.segment_name || `Recording ${rec.id}`;
+        const partial = path.join(dir, `${name}.mp4.${process.pid}-${crypto.randomBytes(4).toString('hex')}.partial`);
+        let target;
         try {
-            await fsp.copyFile(source, partial);
+            await fsp.copyFile(source, partial, fs.constants.COPYFILE_EXCL);
             if (fs.statSync(partial).size !== fs.statSync(source).size) throw new Error('the copy is not the same size');
-            await fsp.rename(partial, target);
+            target = publishNoReplace(partial, dir, `${name}.mp4`, n => `${name} (${n}).mp4`); // F1
         } catch (err) {
             try { fs.unlinkSync(partial); } catch (e) { /* none */ }
             console.warn(`[Recordings] #${rec.id} could not move to the recordings folder yet: ${err.message}`);

@@ -594,6 +594,10 @@ async function deleteRecording(id) {
         }
     }
     if (rec.work_dir) await segments.removeWork(rec);
+    // F1 (0242): a segmented recording's kept original, wherever it was published.
+    if (rec.segment_original) {
+        try { fs.unlinkSync(rec.segment_original); } catch (e) { /* already gone */ }
+    }
 
     if (rec.file_path) {
         // The recording and everything derived from it. The native-playback
@@ -605,7 +609,11 @@ async function deleteRecording(id) {
         const native = nativePlaybackTargetPath(rec.file_path);
         const base = path.join(path.dirname(rec.file_path), path.basename(rec.file_path, path.extname(rec.file_path)));
         const compressed = compressionTargetPath(rec.file_path);
-        for (const file of new Set([rec.file_path, native, `${native}.partial`, compressed, `${compressed}.partial`, `${base}.mkv`, `${base}.ts`, `${base}.mp4`])) {
+        // F1 (0242): a segmented recording's "<name>.ts" is its kept original only when 0227 put it
+        // there (segment_keep without segment_original); otherwise that name may be another file.
+        const segmented = Boolean(rec.segment_name);
+        const ownTs = !segmented || (rec.segment_keep && !rec.segment_original);
+        for (const file of new Set([rec.file_path, native, `${native}.partial`, compressed, `${compressed}.partial`, `${base}.mkv`, ...(ownTs ? [`${base}.ts`] : []), `${base}.mp4`])) {
             if (!fs.existsSync(file)) continue;
             try { fs.unlinkSync(file); } catch (e) {
                 console.warn('[Recordings] Failed to delete file:', e.message);

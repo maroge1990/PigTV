@@ -123,6 +123,8 @@ function initSchema() {
         // them); NULL when the MP4 was fully checked. While set, the work folder is only deleted once
         // the segments are on the share as "<name>.ts" beside the MP4.
         'segment_keep TEXT',
+        // F1 (0242): where that kept original was published (its own file, never one found there).
+        'segment_original TEXT',
         // R6: the programme's image from the guide (a URL; listed only as /api/logo/<key>).
         'image_url TEXT',
     ]) {
@@ -570,7 +572,7 @@ const recordings = {
     /** R3: set any of a segmented recording's columns (names from a fixed list, never the caller's). */
     setSegmentFields(id, fields) {
         const allowed = ['image_url', 'file_path', 'work_dir', 'segment_state', 'segment_name', 'segment_folder', 'segment_attempts',
-            'segment_keep', 'status', 'ended_at', 'file_size_bytes', 'duration_sec', 'error'];
+            'segment_keep', 'segment_original', 'status', 'ended_at', 'file_size_bytes', 'duration_sec', 'error'];
         const keys = Object.keys(fields).filter(k => allowed.includes(k));
         if (keys.length === 0) return;
         getDb().prepare(`UPDATE recordings SET ${keys.map(k => `${k} = @${k}`).join(', ')} WHERE id = @id`)
