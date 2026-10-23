@@ -24,10 +24,7 @@ const KINDS = ['sport', 'series'];
 const SPORT_HOURS = 72;
 const SERIES_DAYS = 7;
 const NEAR_MS = 15 * 60 * 1000;
-// DVR-3 (0237): how far the guide may move a Sport event and it is still the same event. Its id
-// changes with its time, so a cancel (or a schedule) of it is found by title within this window;
-// the same title further away is another match (the next round, a replay) and is not suppressed.
-const RESCHEDULED_MS = 6 * 60 * 60 * 1000;
+// F4 (0245) replaces 0237's six-hour window: see pairEvents().
 const EVALUATE_EVERY_MS = 15 * 60 * 1000;
 const MAX_MATCH = 120;
 const MAX_RULES = 100;
@@ -176,22 +173,67 @@ function seriesCandidates(rule, now) {
     return out;
 }
 
+// Schedules a candidate may already be: not cancelled, or cancelled but made by a rule (what the
+// viewer cancelled must not come back - from any rule).
+const SCHEDULE_COLUMNS = 'id, source_id, channel_item_id, title, program_start, program_end, status, rule_id';
+const LIVE_OR_RULE = `(status <> 'cancelled' OR rule_id IS NOT NULL)`;
+
 /**
- * A schedule (not cancelled, unless a rule made it) of the same programme within 15 minutes: on the same
- * channel, or (a Sport event, `anyChannel`) on any channel under the event's title or one of the
- * guide titles merged into it - a one-off made from the guide on another channel counts.
+ * A schedule (not cancelled, unless a rule made it) of the same programme within 15 minutes on the
+ * same channel. Series candidates; Sport events go through pairEvents().
  */
 function alreadyScheduled(c) {
-    // A cancelled one that a rule made counts too: a guide that nudges the time gives an event a
-    // new identity, and what the viewer cancelled must not come back under it - from any rule.
-    // DVR-3: a Sport event (`anyChannel`) is looked for over RESCHEDULED_MS, not 15 minutes - a
-    // correction of 20 minutes or two hours is still that event, cancelled or already scheduled.
-    const window = c.anyChannel ? RESCHEDULED_MS : NEAR_MS;
-    const near = db().prepare(`SELECT id, source_id, channel_item_id, title FROM scheduled_recordings
-        WHERE (status <> 'cancelled' OR rule_id IS NOT NULL) AND program_start BETWEEN ? AND ?`).all(c.start - window, c.start + window);
+    const near = db().prepare(`SELECT ${SCHEDULE_COLUMNS} FROM scheduled_recordings
+        WHERE ${LIVE_OR_RULE} AND program_start BETWEEN ? AND ?`).all(c.start - NEAR_MS, c.start + NEAR_MS);
     const titles = new Set((c.titles || [c.title]).map(fold));
     return near.find(s => titles.has(fold(s.title)) &&
         (c.anyChannel || (s.source_id === c.sourceId && String(s.channel_item_id) === c.channelId))) || null;
+}
+
+/**
+ * F4 (0245; DVR-3): which existing schedule, if any, each Sport event of this evaluation is. A
+ * Sport event's id changes with its time, so identity is decided by the instances themselves:
+ *
+ *   1. Present: a schedule of the same title (the event's or a merged guide title, any channel)
+ *      within 15 minutes of an event is that event - it is still in the guide where it was.
+ *   2. Moved: a schedule still to start, inside the window the guide shows (SPORT_HOURS), whose
+ *      event is NOT in the guide any more (nothing of its title within 15 minutes), is the same
+ *      event as a same-title event that has no schedule - the nearest in time, one to one. That
+ *      is a guide correction of any size: the cancel holds, a pending schedule follows it.
+ *   3. Anything else is a new event: another match of the same teams that sits beside the
+ *      scheduled one (a doubleheader, the next round) is recorded too.
+ *
+ * A schedule whose time has come (started, live, past) never takes a successor: that match
+ * happened. Returns Map(candidate -> schedule).
+ */
+function pairEvents(candidates, now) {
+    const pairs = new Map();
+    if (candidates.length === 0) return pairs;
+    const olds = db().prepare(`SELECT ${SCHEDULE_COLUMNS} FROM scheduled_recordings
+        WHERE ${LIVE_OR_RULE} AND program_end > ?`).all(now - NEAR_MS);
+    const titlesOf = (c) => new Set((c.titles || [c.title]).map(fold));
+    const used = new Set();
+    // 1. Present.
+    for (const c of candidates) {
+        const titles = titlesOf(c);
+        const s = olds.find(o => !used.has(o.id) && titles.has(fold(o.title)) && Math.abs(o.program_start - c.start) <= NEAR_MS);
+        if (s) { pairs.set(c, s); used.add(s.id); }
+    }
+    // 2. Moved: the vanished ones, nearest first.
+    const vanished = olds.filter(o => !used.has(o.id) && o.program_start > now && o.program_start < now + SPORT_HOURS * 3600 * 1000);
+    const options = [];
+    for (const c of candidates) {
+        if (pairs.has(c)) continue;
+        const titles = titlesOf(c);
+        for (const o of vanished) if (titles.has(fold(o.title))) options.push({ c, o, gap: Math.abs(o.program_start - c.start) });
+    }
+    options.sort((a, b) => a.gap - b.gap);
+    for (const { c, o } of options) {
+        if (pairs.has(c) || used.has(o.id)) continue;
+        pairs.set(c, o);
+        used.add(o.id);
+    }
+    return pairs;
 }
 
 let running = null;
@@ -218,10 +260,21 @@ function evaluate({ now = Date.now() } = {}) {
                 console.warn(`[Rules] Rule #${rule.id} could not be evaluated: ${err.message}`);
                 continue;
             }
+            const events = rule.kind === 'sport' ? pairEvents(candidates, now) : null;
             for (const c of candidates) {
                 if (db().prepare('SELECT 1 FROM recording_rule_hits WHERE rule_id = ? AND identity = ?').get(rule.id, c.identity)) continue;
-                const existing = alreadyScheduled(c);
-                if (existing) { hit(rule.id, c.identity, existing.id); continue; }
+                const existing = events ? events.get(c) || null : alreadyScheduled(c);
+                if (existing) {
+                    // F4: a moved event's pending schedule follows it (the viewer's cancel just holds).
+                    if (events && existing.rule_id !== null && ['scheduled', 'waiting'].includes(existing.status)
+                        && Math.abs(existing.program_start - c.start) > NEAR_MS) {
+                        db().prepare(`UPDATE scheduled_recordings SET program_start = ?, program_end = ? WHERE id = ? AND status IN ('scheduled', 'waiting')`)
+                            .run(c.start, c.end, existing.id);
+                        console.log(`[Rules] Rule #${rule.id}: "${c.title}" moved in the guide; schedule #${existing.id} follows it`);
+                    }
+                    hit(rule.id, c.identity, existing.id);
+                    continue;
+                }
                 try {
                     const schedule = await engine.scheduleFromProgram({
                         sourceId: c.sourceId, channelItemId: c.channelId, channelName: c.channelName, channelLogo: c.channelLogo,
