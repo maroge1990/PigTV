@@ -148,7 +148,9 @@ function syntheticProgrammes(channels, progs, from, to, now = from) {
         const own = ch.tvgId ? byTvg.get(ch.tvgId) || [] : [];
         if (own.some(p => p.start_time < ev.end && p.end_time > ev.start && realGuideTitle(p.title))) continue; // the guide comes first
         if (!ch.tvgId) ch.tvgId = `name:${ch.key}`;
-        out.push({ channel_id: ch.tvgId, title: ev.title, start_time: ev.start, end_time: ev.end, categories: '["Sport"]', flags: 0, fromName: true });
+        // S4 (0247): the row is THIS slot's (channel_key): its name is its own, while its guide id may be a
+        // placeholder other slots share - joined by the id, one slot's game was listed on all of them.
+        out.push({ channel_id: ch.tvgId, channel_key: ch.key, title: ev.title, start_time: ev.start, end_time: ev.end, categories: '["Sport"]', flags: 0, fromName: true });
     }
     return out;
 }

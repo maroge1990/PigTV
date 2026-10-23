@@ -393,6 +393,7 @@ function buildEvents({ from, follow: keywords, decorateChannels } = {}) {
 function eventsFromProgrammes(channels, progs, follow, fixturesByLeague) {
     if (Array.isArray(follow)) follow = compileFollow(follow);
     const byTvg = new Map();
+    const byKey = new Map(channels.map(ch => [ch.key, ch]));
     for (const ch of channels) {
         if (!ch.tvgId) continue;
         if (!byTvg.has(ch.tvgId)) byTvg.set(ch.tvgId, []);
@@ -410,7 +411,9 @@ function eventsFromProgrammes(channels, progs, follow, fixturesByLeague) {
         if (!(p.end_time > p.start_time)) continue;
         let categories = [];
         if (p.categories) { try { categories = JSON.parse(p.categories) || []; } catch { categories = []; } }
-        for (const ch of byTvg.get(p.channel_id) || []) {
+        // S4 (0247): a row made from a slot's name belongs to that slot only; guide rows to every channel of the id.
+        const owners = p.channel_key ? (byKey.has(p.channel_key) ? [byKey.get(p.channel_key)] : []) : (byTvg.get(p.channel_id) || []);
+        for (const ch of owners) {
             const vkey = `${p.title}\u0001${p.categories || ''}\u0001${ch.sportChannel ? 1 : 0}`;
             let verdict = verdicts.get(vkey);
             if (verdict === undefined) {

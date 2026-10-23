@@ -84,3 +84,24 @@ test('the guide comes first: a slot\'s name is used only where its guide has not
     assert.equal(nhl.start, Date.parse('2026-09-30T23:30:00Z'));
     assert.ok(events.some(e => /North Texas/.test(e.title)));
 });
+
+test('S4: slots sharing a placeholder guide id each list only their own game; a real shared guide id is still a simulcast', () => {
+    const from = Date.parse('2026-10-01T00:00:00Z');
+    const to = from + 72 * 3600e3;
+    const channels = [
+        { key: '1:a', tvgId: 'shared-placeholder', name: 'NHL: Pittsburgh vs Philadelphia @ Oct 1 7:30 PM :Sportsnet+ 12' },
+        { key: '1:b', tvgId: 'shared-placeholder', name: 'NHL: Boston vs Toronto @ Oct 1 7:30 PM :Sportsnet+ 13' },
+        { key: '1:c', tvgId: null, name: 'NHL: Calgary vs Edmonton @ Oct 1 9:00 PM :Sportsnet+ 14' },
+        { key: '1:d', tvgId: 'fox.real', name: 'Fox League' },
+        { key: '1:e', tvgId: 'fox.real', name: 'Fox League HD' }
+    ];
+    const progs = [{ channel_id: 'fox.real', title: 'NRL: Storm v Panthers', categories: '["Sport","NRL"]', start_time: from + 5 * 3600e3, end_time: from + 7 * 3600e3 }];
+    const rows = syntheticProgrammes(channels, progs, from, to, from);
+    const events = sportsEvents.eventsFromProgrammes(channels.map((c, i) => ({ ...c, order: i, sportChannel: true, sourceId: 1, id: c.key })),
+        [...progs, ...rows], ['NHL', 'NRL']);
+    const on = (re) => events.find(e => re.test(e.title)).channels.map(c => c.key).sort();
+    assert.deepEqual(on(/Pittsburgh/), ['1:a'], 'not also on the Boston slot');
+    assert.deepEqual(on(/Boston/), ['1:b']);
+    assert.deepEqual(on(/Calgary/), ['1:c']);
+    assert.deepEqual(on(/Storm/), ['1:d', '1:e'], 'a real guide listing on two channels is still one event on both');
+});
