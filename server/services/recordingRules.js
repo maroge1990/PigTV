@@ -262,7 +262,9 @@ function evaluate({ now = Date.now() } = {}) {
             }
             const events = rule.kind === 'sport' ? pairEvents(candidates, now) : null;
             for (const c of candidates) {
-                if (db().prepare('SELECT 1 FROM recording_rule_hits WHERE rule_id = ? AND identity = ?').get(rule.id, c.identity)) continue;
+                // D3 (0253): an existing schedule is reconciled first, so a correction back to a time
+                // seen before (A -> B -> A, its identity already a hit) still moves it; the hit only
+                // stops a second schedule being made.
                 const existing = events ? events.get(c) || null : alreadyScheduled(c);
                 if (existing) {
                     // F4: a moved event's pending schedule follows it (the viewer's cancel just holds).
@@ -275,6 +277,7 @@ function evaluate({ now = Date.now() } = {}) {
                     hit(rule.id, c.identity, existing.id);
                     continue;
                 }
+                if (db().prepare('SELECT 1 FROM recording_rule_hits WHERE rule_id = ? AND identity = ?').get(rule.id, c.identity)) continue;
                 try {
                     const schedule = await engine.scheduleFromProgram({
                         sourceId: c.sourceId, channelItemId: c.channelId, channelName: c.channelName, channelLogo: c.channelLogo,

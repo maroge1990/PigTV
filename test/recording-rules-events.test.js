@@ -122,3 +122,33 @@ test('F4: a match that has already happened is not taken for one that moved - th
     assert.equal(next.length, 1, 'the following day\'s game is a new one');
     assert.equal(ofRule(r.id).length, 2);
 });
+
+test('D3: a pending recording follows its match back when the guide corrects it A -> B -> A', async () => {
+    const r = rule();
+    events = [ev(NOW + 2 * H)];
+    await rules.evaluate({ now: NOW });
+    events = [ev(NOW + 5 * H)];
+    await rules.evaluate({ now: NOW });
+    assert.equal(ofRule(r.id)[0].program_start, NOW + 5 * H);
+    events = [ev(NOW + 2 * H)]; // the correction is withdrawn: this identity was seen (hit) before
+    assert.deepEqual(await rules.evaluate({ now: NOW }), []);
+    const all = ofRule(r.id);
+    assert.equal(all.length, 1, 'still one recording');
+    assert.deepEqual([all[0].program_start, all[0].program_end, all[0].status], [NOW + 2 * H, NOW + 5 * H, 'scheduled']);
+    events = [ev(NOW + 5 * H)]; // and once more
+    await rules.evaluate({ now: NOW });
+    assert.deepEqual(ofRule(r.id).map(x => x.program_start), [NOW + 5 * H]);
+});
+
+test('D3: a cancelled match corrected A -> B -> A stays cancelled and is not recorded again', async () => {
+    const r = rule();
+    events = [ev(NOW + 2 * H)];
+    const [made] = await rules.evaluate({ now: NOW });
+    await engine.cancelScheduled(made.scheduleId);
+    for (const at of [NOW + 5 * H, NOW + 2 * H, NOW + 5 * H]) {
+        events = [ev(at)];
+        assert.deepEqual(await rules.evaluate({ now: NOW }), []);
+    }
+    assert.deepEqual(ofRule(r.id).map(x => x.status), ['cancelled']);
+});
+
