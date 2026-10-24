@@ -24,6 +24,7 @@ const KINDS = ['sport', 'series'];
 const SPORT_HOURS = 72;
 const SERIES_DAYS = 7;
 const NEAR_MS = 15 * 60 * 1000;
+const SERIES_MOVE_MS = 3 * 3600 * 1000; // 0259: how far a series airing without episode data may move and stay itself
 // F4 (0245) replaces 0237's six-hour window: see pairEvents().
 const EVALUATE_EVERY_MS = 15 * 60 * 1000;
 const MAX_MATCH = 120;
@@ -167,7 +168,7 @@ function seriesCandidates(rule, now) {
         const identity = episode
             ? `ep:${fold(rule.match)}|${episode}`
             : `air:${channel.sourceId}:${channel.stableId || channel.id}|${Math.round(r.start_time / NEAR_MS)}`;
-        out.push({ identity, title: r.title, start: r.start_time, end: r.end_time, sourceId: channel.sourceId,
+        out.push({ identity, episode: Boolean(episode), title: r.title, start: r.start_time, end: r.end_time, sourceId: channel.sourceId,
             channelId: String(channel.id), channelName: channel.name, channelLogo: channel.logo || null, description: r.description || null });
     }
     return out;
@@ -180,7 +181,7 @@ const LIVE_OR_RULE = `(status <> 'cancelled' OR rule_id IS NOT NULL)`;
 
 /**
  * A schedule (not cancelled, unless a rule made it) of the same programme within 15 minutes on the
- * same channel. Series candidates; Sport events go through pairEvents().
+ * same channel. Series airings with an episode key; Sport events and other airings go through pairInstances().
  */
 function alreadyScheduled(c) {
     const near = db().prepare(`SELECT ${SCHEDULE_COLUMNS} FROM scheduled_recordings
@@ -191,25 +192,27 @@ function alreadyScheduled(c) {
 }
 
 /**
- * F4 (0245; DVR-3): which existing schedule, if any, each Sport event of this evaluation is. A
- * Sport event's id changes with its time, so identity is decided by the instances themselves:
+ * F4 (0245; DVR-3), F4 policy (0259, Mark 25 Oct): which existing schedule, if any, each candidate of
+ * this evaluation is. The guide gives no lasting id (a Sport event's id changes with its time; a
+ * series airing without episode data is known only by its time), so it is decided by the instances:
  *
- *   1. Present: a schedule of the same title (the event's or a merged guide title, any channel)
- *      within 15 minutes of an event is that event - it is still in the guide where it was.
- *   2. Moved: a schedule still to start, inside the window the guide shows (SPORT_HOURS), whose
- *      event is NOT in the guide any more (nothing of its title within 15 minutes), is the same
- *      event as a same-title event that has no schedule - the nearest in time, one to one (a
- *      guess when several pair up). That is a guide correction of any size inside the horizon:
- *      the cancel holds, a pending schedule follows it. Beyond the horizon absence proves nothing.
- *   3. Anything else is a new event: another match of the same teams that sits beside the
- *      scheduled one (a doubleheader, the next round) is recorded too.
+ *   1. Present: a schedule of the same title (and, for series, the same channel) within 15 minutes
+ *      of a candidate is that candidate - it is still in the guide where it was.
+ *   2. Moved: a schedule that has not begun (pending, or cancelled by the viewer), starts within
+ *      `horizonMs` (what the guide shows: absence beyond it proves nothing) and is not present, is
+ *      the same programme as a same-title candidate that has no schedule, at most `maxMoveMs`
+ *      away, nearest first, one to one. A pending one follows it.
+ *      Ambiguity: a CANCELLED schedule holds only when its pairing is unambiguous - one vanished
+ *      schedule and one candidate between them. With several, the candidates it might be are
+ *      recorded instead (a recording too many costs a cancel; one missed cannot be undone).
+ *   3. Anything else is new: another match of the same teams beside a scheduled one is recorded.
  *
- * A schedule whose time has come (started, live, past) or that is already recording (D4) never
- * takes a successor: that match happened. Returns Map(candidate -> schedule).
+ * A schedule whose time has come or that is already recording (D4) never takes a successor.
+ * Returns Map(candidate -> schedule).
  */
 const MOVABLE = ['scheduled', 'waiting', 'cancelled'];
 
-function pairEvents(candidates, now) {
+function pairInstances(candidates, now, { horizonMs, maxMoveMs = Infinity, sameGroup = () => true }) {
     const pairs = new Map();
     if (candidates.length === 0) return pairs;
     const olds = db().prepare(`SELECT ${SCHEDULE_COLUMNS} FROM scheduled_recordings
@@ -219,29 +222,46 @@ function pairEvents(candidates, now) {
     // 1. Present.
     for (const c of candidates) {
         const titles = titlesOf(c);
-        const s = olds.find(o => !used.has(o.id) && titles.has(fold(o.title)) && Math.abs(o.program_start - c.start) <= NEAR_MS);
+        const s = olds.find(o => !used.has(o.id) && sameGroup(c, o) && titles.has(fold(o.title)) && Math.abs(o.program_start - c.start) <= NEAR_MS);
         if (s) { pairs.set(c, s); used.add(s.id); }
     }
-    // 2. Moved: the vanished ones, nearest first.
-    // D4 (0254): only a schedule that has not begun - pending, or cancelled by the viewer - can be
-    // a moved event; one already recording in its pre-buffer (its nominal start still ahead) or over
-    // never takes another.
+    // 2. Moved. D4 (0254): only a schedule that has not begun can be a moved one.
     const vanished = olds.filter(o => !used.has(o.id) && MOVABLE.includes(o.status)
-        && o.program_start > now && o.program_start < now + SPORT_HOURS * 3600 * 1000);
+        && o.program_start > now && o.program_start < now + horizonMs);
     const options = [];
     for (const c of candidates) {
         if (pairs.has(c)) continue;
         const titles = titlesOf(c);
-        for (const o of vanished) if (titles.has(fold(o.title))) options.push({ c, o, gap: Math.abs(o.program_start - c.start) });
+        for (const o of vanished) {
+            const gap = Math.abs(o.program_start - c.start);
+            if (gap <= maxMoveMs && sameGroup(c, o) && titles.has(fold(o.title))) options.push({ c, o, gap });
+        }
     }
+    // Unambiguous: the only option of its candidate and of its schedule.
+    const perC = new Map(), perO = new Map();
+    for (const x of options) {
+        perC.set(x.c, (perC.get(x.c) || 0) + 1);
+        perO.set(x.o.id, (perO.get(x.o.id) || 0) + 1);
+    }
+    const sole = (x) => perC.get(x.c) === 1 && perO.get(x.o.id) === 1;
     options.sort((a, b) => a.gap - b.gap);
-    for (const { c, o } of options) {
-        if (pairs.has(c) || used.has(o.id)) continue;
-        pairs.set(c, o);
-        used.add(o.id);
+    for (const x of options) {
+        if (pairs.has(x.c) || used.has(x.o.id)) continue;
+        if (x.o.status === 'cancelled' && !sole(x)) continue; // 0259: unsure, so it is recorded
+        pairs.set(x.c, x.o);
+        used.add(x.o.id);
     }
     return pairs;
 }
+
+/** Sport: any channel, within the 72 hours the guide shows, a move of any size inside them. */
+const pairEvents = (candidates, now) => pairInstances(candidates, now, { horizonMs: SPORT_HOURS * 3600 * 1000 });
+
+/** 0259: series airings without episode data: on the rule's channel, a move of at most SERIES_MOVE_MS. */
+const pairAirings = (candidates, now) => pairInstances(candidates, now, {
+    horizonMs: SERIES_DAYS * 24 * 3600 * 1000, maxMoveMs: SERIES_MOVE_MS,
+    sameGroup: (c, o) => o.source_id === c.sourceId && String(o.channel_item_id) === c.channelId
+});
 
 let running = null;
 let lastRun = 0;
@@ -267,15 +287,17 @@ function evaluate({ now = Date.now() } = {}) {
                 console.warn(`[Rules] Rule #${rule.id} could not be evaluated: ${err.message}`);
                 continue;
             }
-            const events = rule.kind === 'sport' ? pairEvents(candidates, now) : null;
+            // Episode-keyed series airings are matched as before (alreadyScheduled, and their hit).
+            const events = rule.kind === 'sport' ? pairEvents(candidates, now) : pairAirings(candidates.filter(c => !c.episode), now);
+            const paired = (c) => (rule.kind === 'sport' || !c.episode);
             for (const c of candidates) {
                 // D3 (0253): an existing schedule is reconciled first, so a correction back to a time
                 // seen before (A -> B -> A, its identity already a hit) still moves it; the hit only
                 // stops a second schedule being made.
-                const existing = events ? events.get(c) || null : alreadyScheduled(c);
+                const existing = paired(c) ? events.get(c) || null : alreadyScheduled(c);
                 if (existing) {
                     // F4: a moved event's pending schedule follows it (the viewer's cancel just holds).
-                    if (events && existing.rule_id !== null && ['scheduled', 'waiting'].includes(existing.status)
+                    if (paired(c) && existing.rule_id !== null && ['scheduled', 'waiting'].includes(existing.status)
                         && Math.abs(existing.program_start - c.start) > NEAR_MS) {
                         db().prepare(`UPDATE scheduled_recordings SET program_start = ?, program_end = ? WHERE id = ? AND status IN ('scheduled', 'waiting')`)
                             .run(c.start, c.end, existing.id);

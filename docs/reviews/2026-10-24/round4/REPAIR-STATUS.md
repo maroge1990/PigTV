@@ -91,13 +91,13 @@ identity, and that a policy change is pending. It also documents deletion during
 and that a recording deleted while it is being finished leaves nothing on the share (0257). No route, field or status
 was added.
 
-## Decisions needed from Mark
+## Decisions (Mark, 25 Oct)
 
-1. **The F4 policy proposal** ([24 Oct status, "F4 policy"](../REPAIR-STATUS.md#f4-policy-what-it-is-its-limits-and-a-proposal-for-mark)):
-   (1) an ambiguous pairing records rather than suppresses; (2) keep the 72-hour horizon; (3) metadata-free series pair
-   on their channel up to 3 hours. Not implemented; the current behaviour is pinned by tests and stated in C-M.
-2. **Pre-0243 kept originals that cannot be proven** (R4-D1): left in place on delete and logged. If you would rather have
-   them listed somewhere (Status, or a note on the recording), say so; today there is only the log line.
+1. **F4 policy: accepted as proposed** (ambiguous pairs record; keep the 72-hour horizon; metadata-free series pair on
+   their channel up to 3 hours). Implemented in **0259**. In `recording-rules-events`, the two tests that pinned the
+   old limits are replaced by tests of the policy. The four tests for changed behaviour fail on 0258, and the three
+   kept-behaviour tests (a clear single cancel, the horizon, episode-keyed series) pass on both. C-M states the policy.
+2. **Unprovable pre-0243 originals:** no action. There are no such recordings, so 0256's log line will not fire.
 
 ## Still open
 

@@ -90,7 +90,7 @@ The 23 Oct wording "no time window" was wrong: it has a ±15-minute presence win
   to 15 minutes) and matched within ±15 minutes. A guide correction of 20 minutes or more makes a new airing: a cancel
   does not hold and a pending one is duplicated. Episode-keyed series are unaffected.
 
-**Proposal for Mark's acceptance** (not implemented; the independent fixes did not wait on it):
+**Proposal for Mark's acceptance.** *Accepted by Mark on 25 Oct as written (1, 2, and 3 with 3 hours); implemented in 0259.*
 
 1. *Ambiguous Sport pairs: record rather than suppress.* Keep nearest-time pairing for pending schedules (either way one
    recording per game). But a **cancelled** schedule suppresses a new event only when the pairing is unambiguous (one

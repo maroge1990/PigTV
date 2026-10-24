@@ -164,22 +164,35 @@ test('D4: a recording already running in its pre-buffer never absorbs a later ma
         'the running recording is left as it is');
 });
 
-// ---- The F4 identity policy's limits, as they are (docs/reviews/2026-10-24/REPAIR-STATUS.md, "F4 policy").
-// Not defects: each is what the stated policy does where identity cannot be known. A change to any of
-// these is a policy change for Mark to accept, not a fix.
+// ---- The F4 policy Mark accepted on 25 Oct (0259; docs/reviews/2026-10-24/REPAIR-STATUS.md, "F4 policy"):
+// A2 an unclear pairing records rather than suppresses; B1 the 72-hour Sport horizon stays; C2 a series
+// airing without episode data pairs on its channel up to 3 hours. Not durable identity: the guide has none.
 
-test('F4 limit: two vanished and two new same-title games pair one to one by the nearest time', async () => {
+test('F4 A2: two vanished and two new same-title games - the cancel cannot be placed, so both games are recorded', async () => {
     const r = rule();
     events = [ev(NOW + 2 * H), ev(NOW + 10 * H)];
     const made = await rules.evaluate({ now: NOW });
     await engine.cancelScheduled(made[0].scheduleId); // the 2 h game is cancelled
     events = [ev(NOW + 6 * H), ev(NOW + 11 * H)];     // both slots gone, two new ones
-    assert.equal((await rules.evaluate({ now: NOW })).length, 0);
-    // 10 h -> 11 h (gap 1 h) pairs first, so the cancelled 2 h game takes 6 h: one guess among two.
-    assert.deepEqual(ofRule(r.id).map(s => [s.program_start, s.status]), [[NOW + 2 * H, 'cancelled'], [NOW + 11 * H, 'scheduled']]);
+    const again = await rules.evaluate({ now: NOW });
+    assert.deepEqual(again.map(m => m.start), [NOW + 6 * H], 'the game the cancel may have been is recorded');
+    // The pending 10 h one still follows its nearest (11 h): either way one recording per game.
+    assert.deepEqual(ofRule(r.id).map(s => [s.program_start, s.status]),
+        [[NOW + 2 * H, 'cancelled'], [NOW + 6 * H, 'scheduled'], [NOW + 11 * H, 'scheduled']]);
+    assert.deepEqual(await rules.evaluate({ now: NOW }), [], 'and nothing more on the next evaluation');
 });
 
-test('F4 limit: a schedule past the 72-hour guide horizon is not a move candidate (absence there proves nothing)', async () => {
+test('F4 A2: one vanished cancelled game and one new one is clear - the cancel still holds however far it moved', async () => {
+    const r = rule();
+    events = [ev(NOW + 2 * H), ev(NOW + 30 * H)];
+    const made = await rules.evaluate({ now: NOW });
+    await engine.cancelScheduled(made[0].scheduleId);
+    events = [ev(NOW + 9 * H), ev(NOW + 30 * H)]; // the other game is still where it was
+    assert.deepEqual(await rules.evaluate({ now: NOW }), []);
+    assert.deepEqual(ofRule(r.id).map(s => s.status), ['cancelled', 'scheduled']);
+});
+
+test('F4 B1: a schedule past the 72-hour guide horizon is not a move candidate (absence there proves nothing)', async () => {
     const r = rule();
     events = [ev(NOW + 2 * H)];
     const [made] = await rules.evaluate({ now: NOW });
@@ -190,19 +203,58 @@ test('F4 limit: a schedule past the 72-hour guide horizon is not a move candidat
     assert.equal(ofRule(r.id).length, 2);
 });
 
-test('F4 limit: a series airing without episode data is identified by its time; a cancel does not hold after a 20-minute correction', async () => {
+/** A series rule on Fox Footy and its airings (no episode data unless `data` is given). */
+function seriesFixture(airings) {
     const d = sqlite.getDb();
     d.prepare('UPDATE playlist_items SET tvg_id = ? WHERE source_id = ?').run('ff', source.id);
     d.prepare('DELETE FROM epg_programs').run();
-    d.prepare('INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, flags) VALUES (?, ?, ?, ?, ?, 0)')
-        .run('ff', source.id, NOW + H, NOW + 2 * H, 'Series Example');
-    const r = rules.create({ kind: 'series', match: 'Series Example', sourceId: source.id, channelId: 'pos_1' }).rule;
+    const insert = d.prepare('INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, flags, data) VALUES (?, ?, ?, ?, ?, 0, ?)');
+    for (const a of airings) insert.run('ff', source.id, a.start, a.start + H, 'Series Example', a.data || null);
+    return rules.create({ kind: 'series', match: 'Series Example', sourceId: source.id, channelId: 'pos_1' }).rule;
+}
+const shiftAirings = (ms) => sqlite.getDb().prepare('UPDATE epg_programs SET start_time = start_time + ?, end_time = end_time + ?').run(ms, ms);
+const clearAirings = () => sqlite.getDb().prepare('DELETE FROM epg_programs').run();
+
+test('F4 C2: a cancelled series airing without episode data stays cancelled when the guide moves it 20 minutes or 2 hours', async () => {
+    const r = seriesFixture([{ start: NOW + H }]);
     const [made] = await rules.evaluate({ now: NOW });
     assert.ok(made);
     await engine.cancelScheduled(made.scheduleId);
-    d.prepare('UPDATE epg_programs SET start_time = start_time + ?, end_time = end_time + ?').run(20 * 60000, 20 * 60000);
-    assert.equal((await rules.evaluate({ now: NOW })).length, 1, 'moved 20 minutes: a new airing, recorded again');
-    assert.equal(ofRule(r.id).length, 2);
-    d.prepare('DELETE FROM epg_programs').run();
+    shiftAirings(20 * 60000);
+    assert.deepEqual(await rules.evaluate({ now: NOW }), [], '20 minutes: the same airing');
+    shiftAirings(100 * 60000);
+    assert.deepEqual(await rules.evaluate({ now: NOW }), [], '2 hours from the original: still the same airing');
+    assert.deepEqual(ofRule(r.id).map(s => s.status), ['cancelled']);
+    clearAirings();
 });
 
+test('F4 C2: a pending series airing follows a move of up to 3 hours; further away it is a new airing', async () => {
+    const r = seriesFixture([{ start: NOW + H }]);
+    await rules.evaluate({ now: NOW });
+    shiftAirings(150 * 60000); // 2.5 h
+    assert.deepEqual(await rules.evaluate({ now: NOW }), []);
+    assert.deepEqual(ofRule(r.id).map(s => s.program_start), [NOW + H + 150 * 60000], 'one schedule, moved');
+    shiftAirings(4 * H); // 4 h further
+    assert.equal((await rules.evaluate({ now: NOW })).length, 1, 'beyond 3 hours: a new airing');
+    assert.equal(ofRule(r.id).length, 2);
+    clearAirings();
+});
+
+test('F4 C2: two airings close together both stay recorded when the guide shifts them both', async () => {
+    const r = seriesFixture([{ start: NOW + H }, { start: NOW + H + 30 * 60000 }]);
+    assert.equal((await rules.evaluate({ now: NOW })).length, 2);
+    shiftAirings(20 * 60000);
+    assert.deepEqual(await rules.evaluate({ now: NOW }), []);
+    assert.equal(ofRule(r.id).length, 2, 'still two schedules, one per airing');
+    clearAirings();
+});
+
+test('F4 C2: an airing with episode data is still matched by its episode, never paired by time', async () => {
+    const r = seriesFixture([{ start: NOW + H, data: JSON.stringify({ ep: '1.4' }) }]);
+    const [made] = await rules.evaluate({ now: NOW });
+    await engine.cancelScheduled(made.scheduleId);
+    shiftAirings(2 * H);
+    assert.deepEqual(await rules.evaluate({ now: NOW }), [], 'episode 1.4 was cancelled: not again');
+    assert.equal(ofRule(r.id).length, 1);
+    clearAirings();
+});

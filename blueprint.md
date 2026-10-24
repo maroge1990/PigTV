@@ -24,8 +24,9 @@ identity policy's limits with a proposal for Mark, the efficiency dispositions a
 round-4 findings (R4-D1, R4-D2, R4-S1, A5-R2), each with a failing-before test. The two full-suite failures were
 investigated: one root-caused as a test clock mismatch, the other a measured tight margin, both fixed in tests only.
 After that, three full runs were clean locally. C-M now states what a cancel holds against.
-[`docs/reviews/2026-10-24/round4/REPAIR-STATUS.md`](docs/reviews/2026-10-24/round4/REPAIR-STATUS.md). The F4 policy,
-device/feed acceptance, bugs 5 and 8 and the efficiency register stay open.
+[`docs/reviews/2026-10-24/round4/REPAIR-STATUS.md`](docs/reviews/2026-10-24/round4/REPAIR-STATUS.md). The
+device/feed acceptance, bugs 5 and 8 and the efficiency register stay open. **0259** implements the F4 policy Mark
+accepted on 25 Oct.
 
 How to work in this repo (commands, shipping, rules) is in [`AGENTS.md`](AGENTS.md). This file holds **durable facts and the
 roadmap** for the server, the web app and the joint plan; the Apple client's own architecture is in
@@ -50,7 +51,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0259** |
+| Next build number | **0260** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -495,8 +496,10 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   every reader of a shared connection (0233).
 - A Sport rule's schedule is matched to an event by instance: present within 15 min / moved (a schedule not yet begun,
   inside the 72-hour guide horizon, whose slot is gone; nearest same-title event, one to one) / new (0245, 0254). An
-  existing schedule is reconciled before the rule's hit list is consulted (0253). Series without episode data keep the
-  ±15-minute time identity. The limits and Mark's pending policy decision: `docs/reviews/2026-10-24/REPAIR-STATUS.md`.
+  existing schedule is reconciled before the rule's hit list is consulted (0253). F4 policy (Mark, 25 Oct; 0259): a
+  cancelled schedule holds only when its pairing is unambiguous, otherwise the candidates are recorded; series airings
+  without episode data pair the same way on their channel, up to 3 hours. Not durable identity (the guide has none);
+  stated in C-M.
   A name-derived event-slot programme belongs to its slot only (0247).
 - ESPN coverage is renewed only by a complete refresh (0248). Cricket discovery is a failure unless it is a scores list
   (0255), and partial when an entry cannot name its series (0258) or series exceed the 20-series cap (0255). Logo
@@ -506,8 +509,8 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
 
 **25 Oct repair status:** the round-4 findings are fixed locally (0256–0258, Apple 54). With the earlier passes, every
-finding of the 22 Oct register has a local fix. DVR-3 is fixed only within the stated F4 heuristic, which is not durable
-identity, and its policy proposal needs Mark's decision. C-M is corrected. Efficiency items are deferred and unmeasured;
+finding of the 22 Oct register has a local fix. DVR-3 is fixed within the F4 policy Mark accepted on 25 Oct (0259), which is a
+heuristic, not durable identity. C-M is corrected. Efficiency items are deferred and unmeasured;
 bugs 5 and 8 lack root-cause evidence; device acceptance is outstanding.
 [`round4/REPAIR-STATUS.md`](docs/reviews/2026-10-24/round4/REPAIR-STATUS.md).
 
