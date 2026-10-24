@@ -198,8 +198,9 @@ function alreadyScheduled(c) {
  *      within 15 minutes of an event is that event - it is still in the guide where it was.
  *   2. Moved: a schedule still to start, inside the window the guide shows (SPORT_HOURS), whose
  *      event is NOT in the guide any more (nothing of its title within 15 minutes), is the same
- *      event as a same-title event that has no schedule - the nearest in time, one to one. That
- *      is a guide correction of any size: the cancel holds, a pending schedule follows it.
+ *      event as a same-title event that has no schedule - the nearest in time, one to one (a
+ *      guess when several pair up). That is a guide correction of any size inside the horizon:
+ *      the cancel holds, a pending schedule follows it. Beyond the horizon absence proves nothing.
  *   3. Anything else is a new event: another match of the same teams that sits beside the
  *      scheduled one (a doubleheader, the next round) is recorded too.
  *
