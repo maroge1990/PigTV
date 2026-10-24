@@ -164,3 +164,45 @@ test('D4: a recording already running in its pre-buffer never absorbs a later ma
         'the running recording is left as it is');
 });
 
+// ---- The F4 identity policy's limits, as they are (docs/reviews/2026-10-24/REPAIR-STATUS.md, "F4 policy").
+// Not defects: each is what the stated policy does where identity cannot be known. A change to any of
+// these is a policy change for Mark to accept, not a fix.
+
+test('F4 limit: two vanished and two new same-title games pair one to one by the nearest time', async () => {
+    const r = rule();
+    events = [ev(NOW + 2 * H), ev(NOW + 10 * H)];
+    const made = await rules.evaluate({ now: NOW });
+    await engine.cancelScheduled(made[0].scheduleId); // the 2 h game is cancelled
+    events = [ev(NOW + 6 * H), ev(NOW + 11 * H)];     // both slots gone, two new ones
+    assert.equal((await rules.evaluate({ now: NOW })).length, 0);
+    // 10 h -> 11 h (gap 1 h) pairs first, so the cancelled 2 h game takes 6 h: one guess among two.
+    assert.deepEqual(ofRule(r.id).map(s => [s.program_start, s.status]), [[NOW + 2 * H, 'cancelled'], [NOW + 11 * H, 'scheduled']]);
+});
+
+test('F4 limit: a schedule past the 72-hour guide horizon is not a move candidate (absence there proves nothing)', async () => {
+    const r = rule();
+    events = [ev(NOW + 2 * H)];
+    const [made] = await rules.evaluate({ now: NOW });
+    await engine.cancelScheduled(made.scheduleId);
+    sqlite.getDb().prepare('UPDATE scheduled_recordings SET program_start = ?, program_end = ? WHERE id = ?').run(NOW + 73 * H, NOW + 76 * H, made.scheduleId);
+    events = [ev(NOW + 5 * H)];
+    assert.equal((await rules.evaluate({ now: NOW })).length, 1, 'a new game');
+    assert.equal(ofRule(r.id).length, 2);
+});
+
+test('F4 limit: a series airing without episode data is identified by its time; a cancel does not hold after a 20-minute correction', async () => {
+    const d = sqlite.getDb();
+    d.prepare('UPDATE playlist_items SET tvg_id = ? WHERE source_id = ?').run('ff', source.id);
+    d.prepare('DELETE FROM epg_programs').run();
+    d.prepare('INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, flags) VALUES (?, ?, ?, ?, ?, 0)')
+        .run('ff', source.id, NOW + H, NOW + 2 * H, 'Series Example');
+    const r = rules.create({ kind: 'series', match: 'Series Example', sourceId: source.id, channelId: 'pos_1' }).rule;
+    const [made] = await rules.evaluate({ now: NOW });
+    assert.ok(made);
+    await engine.cancelScheduled(made.scheduleId);
+    d.prepare('UPDATE epg_programs SET start_time = start_time + ?, end_time = end_time + ?').run(20 * 60000, 20 * 60000);
+    assert.equal((await rules.evaluate({ now: NOW })).length, 1, 'moved 20 minutes: a new airing, recorded again');
+    assert.equal(ofRule(r.id).length, 2);
+    d.prepare('DELETE FROM epg_programs').run();
+});
+
