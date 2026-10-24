@@ -124,31 +124,40 @@ test('the worker\'s events are the ones an inline build gives', async () => {
 });
 
 test('a stale cache is served at once while the rebuild runs, then the fresh result is served', async () => {
-    svc.reset();
-    const before = await svc.eventsFor({ hours: 72, now: NOW });
-    const { revision, builds } = svc.stats;
+    // The requests ask for NOW while setFollow rebuilds for Date.now(): a 5-minute build bucket ending
+    // between this file's start and here made those two keys and so two builds (revision +2, seen
+    // in a full run, 25 Oct). The clock is held at NOW, so both ask for one key.
+    const realNow = Date.now;
+    Date.now = () => NOW;
+    try {
+        svc.reset();
+        const before = await svc.eventsFor({ hours: 72, now: NOW });
+        const { revision, builds } = svc.stats;
 
-    svc.setFollow(['Zzyzx Open']); // stale: the follow list is part of the key
-    const t0 = performance.now();
-    const during = await svc.eventsFor({ hours: 72, now: NOW });
-    const waited = performance.now() - t0;
-    assert.deepEqual(during, before, 'the previous result');
-    // answering from the cache is the request's own filter and sort; the rebuild it did not wait for
-    // takes several times that, and was still running afterwards (below)
-    assert.ok(waited < svc.stats.lastBuildMs, `served in ${waited} ms, a build takes ${svc.stats.lastBuildMs} ms: it did not wait for the rebuild`);
-    assert.equal(svc.stats.revision, revision, 'the rebuild had not finished');
-    assert.ok(svc.status().building, 'it is running');
-    assert.ok(svc.status().staleSinceMs >= 0);
+        svc.setFollow(['Zzyzx Open']); // stale: the follow list is part of the key
+        const t0 = performance.now();
+        const during = await svc.eventsFor({ hours: 72, now: NOW });
+        const waited = performance.now() - t0;
+        assert.deepEqual(during, before, 'the previous result');
+        // answering from the cache is the request's own filter and sort; the rebuild it did not wait for
+        // takes several times that, and was still running afterwards (below)
+        assert.ok(waited < svc.stats.lastBuildMs, `served in ${waited} ms, a build takes ${svc.stats.lastBuildMs} ms: it did not wait for the rebuild`);
+        assert.equal(svc.stats.revision, revision, 'the rebuild had not finished');
+        assert.ok(svc.status().building, 'it is running');
+        assert.ok(svc.status().staleSinceMs >= 0);
 
-    await svc.idle();
-    assert.equal(svc.stats.revision, revision + 1);
-    assert.equal(svc.stats.builds, builds + 1);
-    assert.equal(svc.status().staleSinceMs, 0, 'current again');
-    const after = await svc.eventsFor({ hours: 72, now: NOW });
-    assert.ok(after.events.length > 0);
-    assert.equal(svc.stats.revision, revision + 1, 'no further build');
-    svc.setFollow([]);
-    await svc.idle();
+        await svc.idle();
+        assert.equal(svc.stats.revision, revision + 1);
+        assert.equal(svc.stats.builds, builds + 1);
+        assert.equal(svc.status().staleSinceMs, 0, 'current again');
+        const after = await svc.eventsFor({ hours: 72, now: NOW });
+        assert.ok(after.events.length > 0);
+        assert.equal(svc.stats.revision, revision + 1, 'no further build');
+        svc.setFollow([]);
+        await svc.idle();
+    } finally {
+        Date.now = realNow;
+    }
 });
 
 test('decorateChannels runs on the main thread, once per channel the events name, in slices', async () => {

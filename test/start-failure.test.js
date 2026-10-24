@@ -252,11 +252,16 @@ test('a provider still refusing after 1.5 s gets a second retry after 3 s more',
 });
 
 test('waitForPlaylist\'s timeout is extended by exactly the retries, so the last attempt still gets its time', async () => {
-    // Each refusal comes 1 s in (inside the 3 s window): 1 + 0.15 + 1 + 0.3 = 2.45 s before the
-    // attempt that plays - longer than the 1.5 s this caller waits for, without the extension.
-    const s = await fakeSession(refusesThenPlays(OTHER_4XX, 2, 1000));
-    const { result: ready } = await captureLogs(async () => { await s.start(); return s.waitForPlaylist(1500); });
-    assert.equal(ready, true);
+    // Each refusal comes 0.5 s in (inside the 3 s window): 0.5 + 1.5 + 0.5 + 1.5 = 4 s before the
+    // attempt that plays - longer than the 3 s this caller waits for, without the extension.
+    // The extension itself is exact (25 Oct: 3-9 ms between spawns uncounted, idle or loaded); the
+    // 3 s is the last attempt's own budget, which includes starting a fresh Node child - with 1.5 s
+    // that failed once in a full parallel run. Each margin is now at least 1 s (AGENTS.md).
+    const s = await fakeSession(refusesThenPlays(OTHER_4XX, 2, 500), { refusedRetryDelaysMs: [1500, 1500] });
+    const count = countStarts(s);
+    const { result: ready } = await captureLogs(async () => { await s.start(); return s.waitForPlaylist(3000); });
+    assert.equal(count(), 3, 'both refusals were retried');
+    assert.equal(ready, true, 'the last attempt still had its time');
     await transcodeSession.removeSession(s.id);
 
     // No retry, no extension: a session that simply never produces anything times out on time.
