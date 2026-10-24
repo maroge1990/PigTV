@@ -427,6 +427,19 @@ async function sameBytesAsSegments(file, rec) {
     }
 }
 
+// R4-D2 (0257): recordings being deleted. deleteRecording retires one before its first await, so a
+// publication (MP4, kept original, fallback .ts, move) that finishes while the deletion is still
+// running neither records itself nor stays on the share: it removes only what it published itself.
+// Ids are never reused (AUTOINCREMENT).
+const retired = new Set();
+function retire(id) { retired.add(id); }
+const owned = (id) => !retired.has(id) && Boolean(recordingsDb.getById(id));
+/** A file this publication just put on the share, for a recording that is no longer its: removed. */
+function withdraw(file, id, what) {
+    try { fs.unlinkSync(file); } catch (e) { /* already gone */ }
+    console.log(`[Recordings] #${id} was deleted while its ${what} was published; that copy is removed too`);
+}
+
 /** DVR-1: where the segments of a recording whose MP4 is `mp4` are kept on the share, if that name is
  *  free (F1: else "<name> (original N).ts"; the path used is in segment_original, which
  *  recordingEngine.deleteRecording removes with the recording). */
@@ -441,6 +454,7 @@ async function deliverTs(rec, stitched) {
     if (!dir) throw new Error('the recordings folder is not usable');
     const name = rec.segment_name || `Recording ${rec.id}`;
     const target = await joinSegments(rec, dir, `${name}.ts`, n => `${name} (${n}).ts`);
+    if (!owned(rec.id)) return withdraw(target, rec.id, 'recording');
     completed(rec, target, { duration_sec: Math.round(stitched.durationSec), segment_state: 'done' });
     recordingsDb.setNativeStatus(rec.id, 'pending');
     await removeWork(rec);
@@ -477,7 +491,7 @@ async function finishOne(rec) {
         // audio could not be read): the segments are its original and are kept, as preparation keeps one.
         else if (check.keepOriginal) keep = check.reason;
     }
-    if (!recordingsDb.getById(rec.id)) { // deleted meanwhile
+    if (!owned(rec.id)) { // deleted (or being deleted) meanwhile
         try { fs.unlinkSync(partial); } catch (e) { /* none */ }
         return;
     }
@@ -486,6 +500,7 @@ async function finishOne(rec) {
         console.error(`[Recordings] Could not make the MP4 of #${rec.id} (attempt ${attempts}): ${problem}`);
         if (attempts < MAX_FINISH_ATTEMPTS) return;
         try {
+            if (!owned(rec.id)) return;
             await deliverTs(recordingsDb.getById(rec.id), stitched);
         } catch (err) {
             recordingsDb.setSegmentFields(rec.id, { status: 'failed', segment_state: 'failed',
@@ -534,14 +549,15 @@ async function keepOriginal(rec, dir) {
     try {
         for (const known of [rec.segment_original, keptOriginalPath(path.join(dir, path.basename(rec.file_path)))]) {
             if (known && fs.existsSync(known) && await sameBytesAsSegments(known, rec)) {
+                if (!owned(rec.id)) return false; // R4-D2: a file found, not published here: left alone
                 recordingsDb.setSegmentFields(rec.id, { segment_original: known });
                 return true;
             }
         }
         const published = await joinSegments(rec, dir, `${base}.ts`, n => `${base} (original${n > 2 ? ` ${n - 1}` : ''}).ts`);
-        if (!recordingsDb.getById(rec.id)) {
-            // D1 (0251): deleted while it was copied - this copy is its own, so it goes too.
-            try { fs.unlinkSync(published); } catch (e) { /* already gone */ }
+        if (!owned(rec.id)) {
+            // D1 (0251), R4-D2: deleted (or being deleted) while it was copied - this copy is its own, so it goes too.
+            withdraw(published, rec.id, 'kept original');
             return false;
         }
         recordingsDb.setSegmentFields(rec.id, { segment_original: published });
@@ -568,6 +584,7 @@ async function moveOne(rec) {
             await fsp.copyFile(source, partial, fs.constants.COPYFILE_EXCL);
             if (fs.statSync(partial).size !== fs.statSync(source).size) throw new Error('the copy is not the same size');
             target = publishNoReplace(partial, dir, `${name}.mp4`, n => `${name} (${n}).mp4`); // F1
+            if (!owned(rec.id)) return withdraw(target, rec.id, 'MP4');
         } catch (err) {
             try { fs.unlinkSync(partial); } catch (e) { /* none */ }
             console.warn(`[Recordings] #${rec.id} could not move to the recordings folder yet: ${err.message}`);
@@ -658,6 +675,6 @@ module.exports = {
     SEGMENT_SEC, workRoot, workDirFor, isWorkDir, epochs, nextEpoch, captureArgs, captureBytes,
     sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount,
     viewArgs, ensureView, stopFollowers, viewPlaylist, probeVideoInfo, isWatchable,
-    configure, processQueue, finishOne, moveOne, removeWork, status, keptOriginalPath, recoverLegacyOriginals,
+    configure, processQueue, finishOne, moveOne, removeWork, status, keptOriginalPath, recoverLegacyOriginals, retire,
     _setWorkRoot, _followers: followers
 };

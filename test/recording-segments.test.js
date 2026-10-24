@@ -623,6 +623,137 @@ test('R4-D1: reopening the database after 0242 stopped mid-copy, then deleting, 
     fs.unlinkSync(segments.keptOriginalPath(mp4));
 });
 
+// ---- R4-D2 (0257): a publication racing a deletion, in both orders, on every publishing path ----
+
+/** The next .ts copy to the share writes every byte, then waits at its end until released (a barrier). */
+function holdTsCopy() {
+    const real = fs.createWriteStream;
+    let reached, release;
+    const atEnd = new Promise(r => { reached = r; });
+    const gate = new Promise(r => { release = r; });
+    fs.createWriteStream = function (file, ...rest) {
+        if (/\.ts\.\d+-[0-9a-f]+\.partial$/.test(String(file))) {
+            fs.createWriteStream = real;
+            const { Writable } = require('node:stream');
+            const fd = fs.openSync(file, 'wx');
+            return new Writable({
+                write(chunk, enc, cb) { fs.writeSync(fd, chunk); cb(); },
+                final(cb) { reached(); gate.then(() => { fs.closeSync(fd); cb(); }); }
+            });
+        }
+        return real.call(this, file, ...rest);
+    };
+    return { atEnd, release: () => release(), restore: () => { fs.createWriteStream = real; release(); } };
+}
+
+/** deleteRecording's work-folder removal waits until released (the deletion is then still running). */
+function holdRemoveWork() {
+    const real = segments.removeWork;
+    let entered, release;
+    const inside = new Promise(r => { entered = r; });
+    const gate = new Promise(r => { release = r; });
+    segments.removeWork = async (r) => { entered(); await gate; return real(r); };
+    return { inside, release: () => release(), restore: () => { segments.removeWork = real; release(); } };
+}
+
+/** Everything of recording `name` left in `folder` (MP4, .ts, partials). */
+const leftIn = (folder, name) => (fs.existsSync(folder) ? fs.readdirSync(folder).filter(f => f.startsWith(name)) : []);
+
+test('R4-D2: a kept original that finishes while the deletion is still running is removed, not recorded', async () => {
+    await withTools({ duration: async (f) => (f.endsWith('recording.m3u8') ? null : 120) }, async () => {
+        const { rec, workDir, mp4 } = finishingRow();
+        const copy = holdTsCopy();
+        const removal = holdRemoveWork();
+        try {
+            const finishing = segments.finishOne(rec);
+            await copy.atEnd;
+            const deleting = engine.deleteRecording(rec.id);
+            await removal.inside; // the deletion awaits the work folder: the row is still there
+            copy.release();
+            await finishing;
+            assert.equal(recordings.getById(rec.id).segment_original, null, 'the late copy did not record itself');
+            removal.release();
+            await deleting;
+        } finally { copy.restore(); removal.restore(); }
+        assert.equal(recordings.getById(rec.id), null);
+        assert.deepEqual(leftIn(path.dirname(mp4), path.basename(mp4, '.mp4')), [], 'no MP4, original or partial left');
+        assert.equal(fs.existsSync(workDir), false);
+    });
+});
+
+for (const order of ['after', 'during']) {
+    test(`R4-D2: the fallback .ts that finishes ${order} the deletion is removed, not published`, async () => {
+        await withTools({ ffmpeg: async () => ({ code: 1, tail: ['failed'] }) }, async () => {
+            const { rec, workDir, mp4 } = finishingRow();
+            recordings.setSegmentFields(rec.id, { segment_attempts: 2 }); // the last attempt: the .ts fallback
+            const copy = holdTsCopy();
+            const removal = order === 'during' ? holdRemoveWork() : null;
+            try {
+                const finishing = segments.finishOne(recordings.getById(rec.id));
+                await copy.atEnd;
+                const deleting = engine.deleteRecording(rec.id);
+                if (removal) await removal.inside; else await deleting;
+                copy.release();
+                await finishing;
+                if (removal) { removal.release(); await deleting; }
+            } finally { copy.restore(); if (removal) removal.restore(); }
+            assert.equal(recordings.getById(rec.id), null);
+            assert.deepEqual(leftIn(path.dirname(mp4), path.basename(mp4, '.mp4')), [], 'nothing of it on the share');
+            assert.equal(fs.existsSync(workDir), false);
+        });
+    });
+}
+
+test('R4-D2: an MP4 moved to the share while the deletion is still running is removed, not recorded', async () => {
+    const { rec, workDir, mp4 } = finishingRow();
+    const away = `${mount}-away`;
+    fs.renameSync(mount, away);
+    try { await segments.finishOne(rec); } finally { fs.renameSync(away, mount); }
+    assert.equal(recordings.getById(rec.id).segment_state, 'moving', 'waiting in appdata');
+    const realCopy = fs.promises.copyFile;
+    let reached, release;
+    const copying = new Promise(r => { reached = r; });
+    const gate = new Promise(r => { release = r; });
+    fs.promises.copyFile = async (...a) => { reached(); await gate; return realCopy(...a); };
+    const removal = holdRemoveWork();
+    try {
+        const moving = segments.moveOne(recordings.getById(rec.id));
+        await copying;
+        const deleting = engine.deleteRecording(rec.id);
+        await removal.inside;
+        release();
+        await moving;
+        assert.ok(String(recordings.getById(rec.id).file_path).startsWith(workDir), 'the late move did not record itself');
+        removal.release();
+        await deleting;
+    } finally { fs.promises.copyFile = realCopy; release(); removal.restore(); }
+    assert.equal(recordings.getById(rec.id), null);
+    assert.deepEqual(leftIn(path.dirname(mp4), path.basename(mp4, '.mp4')), [], 'no MP4 or partial on the share');
+});
+
+test('R4-D2: an MP4 whose remux ends while the deletion is still running is never published', async () => {
+    const { rec, mp4 } = finishingRow();
+    const realFfmpeg = engine._nativeTools.ffmpeg;
+    let reached, release;
+    const remuxing = new Promise(r => { reached = r; });
+    const gate = new Promise(r => { release = r; });
+    engine._nativeTools.ffmpeg = async (...a) => { reached(); await gate; return realFfmpeg(...a); };
+    const removal = holdRemoveWork();
+    try {
+        const finishing = segments.finishOne(rec);
+        await remuxing;
+        const deleting = engine.deleteRecording(rec.id);
+        await removal.inside;
+        release();
+        await finishing;
+        assert.notEqual(recordings.getById(rec.id).status, 'completed', 'not completed by the late remux');
+        removal.release();
+        await deleting;
+    } finally { engine._nativeTools.ffmpeg = realFfmpeg; release(); removal.restore(); }
+    assert.equal(recordings.getById(rec.id), null);
+    assert.deepEqual(leftIn(path.dirname(mp4), path.basename(mp4, '.mp4')), []);
+});
+
 test('DVR-1: a fully checked MP4 keeps nothing beside it', async () => {
     const { rec, workDir, mp4 } = finishingRow();
     await segments.finishOne(rec);

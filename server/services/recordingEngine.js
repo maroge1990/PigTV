@@ -586,8 +586,10 @@ async function cancelScheduled(id) {
 }
 
 async function deleteRecording(id) {
-    const rec = recordingsDb.getById(id);
+    let rec = recordingsDb.getById(id);
     if (!rec) throw new Error('Recording not found');
+    // R4-D2 (0257): before any await, nothing being published for it may record itself or stay.
+    segments.retire(id);
 
     // 0207: nor may a live break-detection run go on reading a file about to go.
     post.abortLive(id);
@@ -616,6 +618,8 @@ async function deleteRecording(id) {
         }
     }
     if (rec.work_dir) await segments.removeWork(rec);
+    // What the row says now (a publication that finished before the retirement may have moved it on).
+    rec = recordingsDb.getById(id) || rec;
     // F1 (0242): a segmented recording's kept original, wherever it was published.
     if (rec.segment_original) {
         try { fs.unlinkSync(rec.segment_original); } catch (e) { /* already gone */ }
