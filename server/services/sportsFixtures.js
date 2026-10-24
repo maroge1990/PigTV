@@ -285,6 +285,11 @@ async function refreshCricket({ now = Date.now(), db = getDb() } = {}) {
     let anyOk = false;
     let complete = true; // S5
     let lastError = null;
+    if (discovery.complete === false) {
+        // R4-S1 (0258): some entries could not be read: the series they stand for keep their games.
+        complete = false;
+        lastError = discovery.error || 'cricket discovery incomplete';
+    }
     if (discovery.series.length > series.length) {
         // R-S5 (0255): series past the cap were not fetched, so this cannot be the whole league:
         // a partial refresh, which keeps what they had.

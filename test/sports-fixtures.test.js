@@ -548,3 +548,37 @@ test('R-S5: more series than are fetched (the cap) is a partial refresh - a seri
     assert.equal(cricket.coverage.at, at, 'and the league is not claimed complete');
 });
 
+// ---- R4-S1 (0258): an entry of the discovery that cannot say which series it is proves nothing ----
+
+for (const [label, scores] of [
+    ['leagues that is not a list', [{ leagues: 'unavailable' }]],
+    ['an entry that is not an object', [null]],
+    ['a league without an id', [{ leagues: [{ name: 'Australia v South Africa' }] }]]
+]) {
+    test(`R4-S1: a discovery whose only entry is unreadable (${label}) is a failure - the games and their coverage are kept`, async () => {
+        const at = Date.parse('2026-09-27T12:00Z');
+        await withEspn(cricketHandlers(), () => fixtures.refreshCricket({ now: at }));
+        await withEspn({ ...cricketHandlers(), scorepanel: { scores } }, () => fixtures.refreshCricket({ now: at + 1000 }));
+        const cricket = fixtures.snapshot(new Set(['Cricket'])).get('Cricket');
+        assert.equal(cricket.fixtures.length, 1, 'the known match is kept');
+        assert.equal(cricket.coverage.at, at, 'coverage is not renewed');
+        const status = sqlite.getDb().prepare("SELECT last_success_at, last_error FROM sport_fixture_status WHERE league = 'Cricket'").get();
+        assert.equal(status.last_success_at, at);
+        assert.match(status.last_error, /unreadable/);
+    });
+}
+
+test('R4-S1: a discovery with readable and unreadable entries is partial - a series it could not read keeps its games', async () => {
+    const at = Date.parse('2026-09-27T12:00Z');
+    await withEspn(cricketHandlers(), () => fixtures.refreshCricket({ now: at }));
+    // Another series is readable (and empty); the entry that would have been 24377 is not.
+    const handlers = { scorepanel: { scores: [{ leagues: [{ id: 90001, name: 'Other' }] }, { leagues: 'unavailable' }] },
+        'cricket/90001/scoreboard': { events: [] } };
+    await withEspn(handlers, () => fixtures.refreshCricket({ now: at + 1000 }));
+    const cricket = fixtures.snapshot(new Set(['Cricket'])).get('Cricket');
+    assert.equal(cricket.fixtures.length, 1, 'the unread series keeps its match');
+    assert.equal(cricket.coverage.at, at, 'and the league is not claimed complete');
+    const status = sqlite.getDb().prepare("SELECT last_error FROM sport_fixture_status WHERE league = 'Cricket'").get();
+    assert.match(status.last_error, /^partial: .*unreadable/);
+});
+

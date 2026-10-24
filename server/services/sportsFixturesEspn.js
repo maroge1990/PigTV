@@ -175,15 +175,23 @@ async function discoverCricketSeries({ timeoutMs = TIMEOUT_MS } = {}) {
     // R-S5 (0255): only a scorepanel (a list of scores, possibly empty) can say "no active series";
     // anything else is a failed discovery, never an authoritative empty one.
     if (!json || typeof json !== 'object' || !Array.isArray(json.scores)) return { ok: false, error: 'not a cricket scorepanel' };
+    // R4-S1 (0258): and every entry must say which series it is. An entry that cannot (not an
+    // object, leagues not a list, a league without an id) may be a series that exists, so it makes
+    // the discovery partial - all of them, failed - never "no such series".
     const out = [];
     const seen = new Set();
+    let unreadable = 0;
     for (const s of json.scores) {
-        for (const lg of Array.isArray(s && s.leagues) ? s.leagues : []) {
-            const id = lg && lg.id != null ? String(lg.id) : null;
-            if (id && !seen.has(id)) { seen.add(id); out.push({ id, name: (lg && lg.name) || null }); }
+        if (!s || typeof s !== 'object' || !Array.isArray(s.leagues)) { unreadable++; continue; }
+        for (const lg of s.leagues) {
+            const id = lg && typeof lg === 'object' && lg.id != null && String(lg.id) !== '' ? String(lg.id) : null;
+            if (!id) { unreadable++; continue; }
+            if (!seen.has(id)) { seen.add(id); out.push({ id, name: lg.name || null }); }
         }
     }
-    return { ok: true, series: out };
+    if (unreadable && !out.length) return { ok: false, error: `cricket scorepanel unreadable (${unreadable} entries)` };
+    if (unreadable) return { ok: true, series: out, complete: false, error: `${unreadable} cricket scorepanel entries unreadable` };
+    return { ok: true, series: out, complete: true };
 }
 
 module.exports = { name: 'espn', fetchScoreboard, fetchTeams, discoverCricketSeries, datesFor, recordsFromScoreboard, teamsFromScoreboard };
