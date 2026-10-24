@@ -469,6 +469,57 @@ for (const how of ['cancel', 'shutdown']) {
     });
 }
 
+test('D2: the recording is deleted while the start moves to the backup - nothing starts again, the late feed is released, the schedule is settled', async () => {
+    const held = await holdBackupFeed();
+    try {
+        setBehaviour(url.A(101), '502');
+        const s = due();
+        await until(() => held.asked, 'the backup feed is awaited');
+        const [part] = partsOf(s.id);
+        await engine.deleteRecording(part.id);
+        assert.equal(recordings.getById(part.id), null);
+        assert.equal(scheduled.getById(s.id).status, 'cancelled', 'the schedule is settled at once');
+        const feed = lateFeed();
+        held.resolve(feed);
+        // The move's outcome is either a release or a spawn: wait for one, not for a time.
+        await until(() => feed.left > 0 || startsOf().length > 1 || engine.listActive().some(r => r.id === s.id), 'the move settles');
+        assert.deepEqual(startsOf(), [url.A(101)], 'nothing started on the backup');
+        assert.equal(feed.left, 1, 'the late subscription is given back');
+        assert.ok(!engine.listActive().some(r => r.id === s.id));
+        assert.deepEqual(partsOf(s.id), [], 'no row comes back');
+        assert.equal(scheduled.getById(s.id).status, 'cancelled', 'not overwritten later');
+    } finally {
+        await held.restore();
+    }
+});
+
+test('D2: the recording is deleted while the move reads its settings - it starts nothing and is not finalised again', async () => {
+    const real = db.settings.get;
+    let release = null;
+    setBehaviour(url.A(101), '502');
+    const s = due();
+    try {
+        db.settings.get = function (...a) {
+            if (!release && new Error().stack.includes('onPartExit')) {
+                return new Promise(resolve => { release = () => resolve(real.apply(this, a)); });
+            }
+            return real.apply(this, a);
+        };
+        await engine.tick();
+        await until(() => release, 'the move is reading its settings');
+        const [part] = partsOf(s.id);
+        await engine.deleteRecording(part.id);
+        const seen = logLines.length;
+        release();
+        await until(() => logLines.slice(seen).some(l => l.includes(`#${part.id}: not started on the next provider`)) || startsOf().length > 1, 'the move settles');
+        assert.deepEqual(startsOf(), [url.A(101)]);
+        assert.deepEqual(partsOf(s.id), []);
+        assert.equal(scheduled.getById(s.id).status, 'cancelled');
+    } finally {
+        db.settings.get = real;
+    }
+});
+
 test('F3: cancel while the move reads its settings - it starts nothing', async () => {
     const real = db.settings.get;
     let release = null;

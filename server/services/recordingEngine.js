@@ -540,7 +540,7 @@ function listRecordings(userId = null) {
 let stopAllGeneration = 0;
 // F3 (0244): a part whose provider failed as it started and that is moving to the next provider
 // (onPartExit). Between its ffmpeg exiting and the next one spawning it is neither `active` nor a
-// continuation, so this is what a cancel or shutdown in that wait finds: schedule id ->
+// continuation, so this is what a cancel, delete (D2) or shutdown in that wait finds: schedule id ->
 // { recordingId, outputPath, generation, cancelled }.
 const failingOver = new Map();
 
@@ -598,6 +598,15 @@ async function deleteRecording(id) {
             await stopRecording(scheduledId, 'deleted');
             break;
         }
+    }
+    // D2 (0252): a part moving to the next provider as it started is neither active nor a
+    // continuation. Its move is retired (it then starts nothing and gives back a late feed) and the
+    // schedule, whose only part this is, is settled as cancelled.
+    for (const [scheduledId, owner] of failingOver.entries()) {
+        if (owner.recordingId !== id) continue;
+        owner.cancelled = true;
+        failingOver.delete(scheduledId);
+        setScheduleStatus(scheduledId, 'cancelled');
     }
     // R3: a segmented one waiting to continue is not resumed, and its appdata folder goes.
     for (const [scheduledId, cont] of continuations.entries()) {
