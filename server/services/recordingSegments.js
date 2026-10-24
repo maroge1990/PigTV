@@ -586,9 +586,44 @@ async function moveOne(rec) {
     console.log(`[Recordings] #${rec.id} moved to the recordings folder: ${rec.file_path}`);
 }
 
+/**
+ * R4-D1 (0256): rows that 0227-0242 marked 'done' with a kept original but no path for it. Both
+ * builds set 'done' BEFORE copying the original, so the row alone proves nothing:
+ *   - its segments are still in appdata: the copy may never have finished. A "<name>.ts" that is
+ *     byte for byte those segments is its original (claimed); otherwise it goes back to 'moving',
+ *     and the queue publishes an original of its own (keepOriginal) - the file at that name is not
+ *     touched;
+ *   - its segments are gone: 0227-0241 finished the copy, but they also accepted a same-size file
+ *     already at that name, so ownership cannot be shown. Nothing is claimed: the file is left in
+ *     place, also when the recording is deleted, and logged.
+ */
+async function recoverLegacyOriginals() {
+    for (const rec of recordingsDb.findUnprovenOriginals()) {
+        const conventional = keptOriginalPath(rec.file_path);
+        const files = segmentFiles(rec);
+        if (files.length && files.every(f => fs.existsSync(f))) {
+            if (fs.existsSync(conventional) && await sameBytesAsSegments(conventional, rec)) {
+                recordingsDb.setSegmentFields(rec.id, { segment_original: conventional });
+                console.log(`[Recordings] #${rec.id}: its kept original is ${path.basename(conventional)} (the same bytes as its segments)`);
+            } else {
+                recordingsDb.setSegmentFields(rec.id, { segment_state: 'moving' });
+                console.warn(`[Recordings] #${rec.id}: its kept original was never finished; it is copied again under its own name`);
+            }
+        } else if (fs.existsSync(conventional)) {
+            console.warn(`[Recordings] #${rec.id}: ${path.basename(conventional)} beside it may be the original an earlier build kept, ` +
+                'but that cannot be proven; it is left in place, also if the recording is deleted');
+        }
+    }
+}
+let legacyChecked = false;
+
 /** One step of the queue: finish the oldest capture that has ended, else retry one waiting move. */
 async function processQueue(now = Date.now()) {
     if (finishing) return;
+    if (!legacyChecked) {
+        legacyChecked = true;
+        try { await recoverLegacyOriginals(); } catch (err) { console.error('[Recordings] Checking kept originals failed:', err.message); }
+    }
     const pending = recordingsDb.findSegmentWork();
     const next = pending.find(r => r.segment_state === 'finishing')
         || pending.find(r => r.segment_state === 'moving' && now - (lastMoveTry.get(r.id) || 0) >= MOVE_RETRY_MS);
@@ -623,6 +658,6 @@ module.exports = {
     SEGMENT_SEC, workRoot, workDirFor, isWorkDir, epochs, nextEpoch, captureArgs, captureBytes,
     sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount,
     viewArgs, ensureView, stopFollowers, viewPlaylist, probeVideoInfo, isWatchable,
-    configure, processQueue, finishOne, moveOne, removeWork, status, keptOriginalPath,
+    configure, processQueue, finishOne, moveOne, removeWork, status, keptOriginalPath, recoverLegacyOriginals,
     _setWorkRoot, _followers: followers
 };

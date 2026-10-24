@@ -632,7 +632,7 @@ async function deleteRecording(id) {
         const base = path.join(path.dirname(rec.file_path), path.basename(rec.file_path, path.extname(rec.file_path)));
         const compressed = compressionTargetPath(rec.file_path);
         // D1 (0251): a segmented recording's "<name>.ts" may be another file; the original it owns
-        // is only ever segment_original (removed above; 0227's are claimed at startup).
+        // is only ever segment_original (removed above; R4-D1: never inferred from an older row).
         const ownTs = !rec.segment_name;
         for (const file of new Set([rec.file_path, native, `${native}.partial`, compressed, `${compressed}.partial`, `${base}.mkv`, ...(ownTs ? [`${base}.ts`] : []), `${base}.mp4`])) {
             if (!fs.existsSync(file)) continue;

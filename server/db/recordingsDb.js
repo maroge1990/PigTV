@@ -5,25 +5,9 @@
  * its own tables. Kept in a separate module so the recording feature stays
  * self-contained and easy to lift out or disable.
  */
-const path = require('path');
 const { getDb } = require('./sqlite');
 
 let initialized = false;
-
-/**
- * D1 (0251): which kept original a recording owns is recorded, never inferred at delete. 0227-0241
- * published it at "<name>.ts" beside the MP4 and only then set segment_state 'done', recording no
- * path; such a row (kept, done, no segment_original) is claimed here once. Since 0242 a done row with
- * a kept original always has its path, so a pending or failed one ('moving', NULL) owns nothing.
- */
-function claimLegacyOriginals(db) {
-    const rows = db.prepare(`SELECT id, file_path FROM recordings WHERE segment_keep IS NOT NULL AND segment_state = 'done'
-        AND segment_original IS NULL AND file_path IS NOT NULL AND file_path <> ''`).all();
-    const claim = db.prepare('UPDATE recordings SET segment_original = ? WHERE id = ?');
-    for (const r of rows) {
-        claim.run(path.join(path.dirname(r.file_path), `${path.basename(r.file_path, path.extname(r.file_path))}.ts`), r.id);
-    }
-}
 
 function initSchema() {
     if (initialized) return;
@@ -148,7 +132,6 @@ function initSchema() {
             db.exec(`ALTER TABLE recordings ADD COLUMN ${col}`);
         } catch (e) { /* already present */ }
     }
-    claimLegacyOriginals(db);
 
     // Which channel this schedule is FOR. channel_item_id is a playlist position,
     // and the provider moves them - a schedule made before a reorder would resolve
@@ -596,6 +579,13 @@ const recordings = {
             .run({ ...Object.fromEntries(keys.map(k => [k, fields[k] === undefined ? null : fields[k]])), id });
     },
 
+    /** R4-D1 (0256): kept, done, and no published original recorded - left by 0227-0242 (see recordingSegments). */
+    findUnprovenOriginals() {
+        initSchema();
+        return getDb().prepare(`SELECT * FROM recordings WHERE segment_keep IS NOT NULL AND segment_state = 'done'
+            AND segment_original IS NULL AND file_path IS NOT NULL AND file_path <> '' ORDER BY id ASC`).all();
+    },
+
     /** R3: segmented recordings that still have work in appdata to finish or move, oldest first. */
     findSegmentWork() {
         initSchema();
@@ -681,5 +671,5 @@ const recordings = {
 };
 
 module.exports = {
-    __resetInitForTests, claimLegacyOriginals,
+    __resetInitForTests,
     initSchema, initSchema, scheduled, recordings };

@@ -559,24 +559,68 @@ test('D1: deleting a recording while its original is being copied keeps the othe
     });
 });
 
-test('D1: an original kept by 0227-0241 (done, no path recorded) is claimed once at startup and deleted with its recording', async () => {
+// R4-D1 (0256): 0227-0242 set 'done' before copying the kept original, so done + kept + no path proves nothing.
+function legacyRow({ segmentsKept }) {
     const { rec, workDir, mp4 } = finishingRow();
     fs.mkdirSync(path.dirname(mp4), { recursive: true });
     fs.writeFileSync(mp4, 'mp4');
-    fs.writeFileSync(segments.keptOriginalPath(mp4), joined);
-    // As 0227-0241 left it: published at "<name>.ts", done, no segment_original.
-    recordings.setSegmentFields(rec.id, { status: 'completed', file_path: mp4, segment_state: 'done', segment_keep: 'legacy', segment_original: null, work_dir: null });
-    fs.rmSync(workDir, { recursive: true, force: true });
-    // ...and one of today's, still waiting for its copy: it owns nothing yet and is not claimed.
-    const pending = finishingRow();
-    recordings.setSegmentFields(pending.rec.id, { status: 'completed', file_path: pending.mp4, segment_state: 'moving', segment_keep: 'now', segment_original: null });
-    recordingsDbModule.claimLegacyOriginals(sqlite.getDb());
-    assert.equal(recordings.getById(rec.id).segment_original, segments.keptOriginalPath(mp4));
-    assert.equal(recordings.getById(pending.rec.id).segment_original, null);
+    recordings.setSegmentFields(rec.id, { status: 'completed', file_path: mp4, segment_state: 'done', segment_keep: 'duration unavailable', segment_original: null });
+    if (!segmentsKept) fs.rmSync(workDir, { recursive: true, force: true });
+    return { rec: recordings.getById(rec.id), workDir, mp4 };
+}
+
+test('R4-D1: a copy 0242 never finished (segments still in appdata) never claims another file at its name; its own original is published', async () => {
+    const { rec, workDir, mp4 } = legacyRow({ segmentsKept: true });
+    const foreign = Buffer.alloc(joined.length, 99); // the same size, other bytes
+    fs.writeFileSync(segments.keptOriginalPath(mp4), foreign);
+    await segments.recoverLegacyOriginals();
+    let row = recordings.getById(rec.id);
+    assert.equal(row.segment_original, null, 'not claimed');
+    assert.equal(row.segment_state, 'moving', 'waits for its own copy');
+    await segments.moveOne(row);
+    row = recordings.getById(rec.id);
+    assert.equal(row.segment_state, 'done');
+    assert.notEqual(row.segment_original, segments.keptOriginalPath(mp4));
+    assert.deepEqual(fs.readFileSync(row.segment_original), joined, 'its real original, under its own name');
+    assert.equal(fs.existsSync(workDir), false);
     await engine.deleteRecording(rec.id);
-    assert.equal(fs.existsSync(segments.keptOriginalPath(mp4)), false, 'the legacy original goes with its recording');
+    assert.equal(fs.existsSync(row.segment_original), false, 'its own original goes with it');
+    assert.deepEqual(fs.readFileSync(segments.keptOriginalPath(mp4)), foreign, 'the other file stays');
+    fs.unlinkSync(segments.keptOriginalPath(mp4));
+});
+
+test('R4-D1: a copy that finished but was never recorded (the same bytes as its segments) is claimed and deleted with it', async () => {
+    const { rec, mp4 } = legacyRow({ segmentsKept: true });
+    fs.writeFileSync(segments.keptOriginalPath(mp4), joined);
+    await segments.recoverLegacyOriginals();
+    assert.equal(recordings.getById(rec.id).segment_original, segments.keptOriginalPath(mp4));
+    await engine.deleteRecording(rec.id);
+    assert.equal(fs.existsSync(segments.keptOriginalPath(mp4)), false);
+});
+
+test('R4-D1: an original 0227-0241 finished (segments gone) cannot be proven: it is left in place, also on delete', async () => {
+    const { rec, mp4 } = legacyRow({ segmentsKept: false });
+    fs.writeFileSync(segments.keptOriginalPath(mp4), joined);
+    const seen = logLines.length;
+    await segments.recoverLegacyOriginals();
+    assert.equal(recordings.getById(rec.id).segment_original, null);
+    assert.equal(recordings.getById(rec.id).segment_state, 'done');
+    assert.ok(logLines.slice(seen).some(l => l.includes(`#${rec.id}:`) && l.includes('cannot be proven')), 'reported');
+    await engine.deleteRecording(rec.id);
     assert.equal(fs.existsSync(mp4), false);
-    await engine.deleteRecording(pending.rec.id);
+    assert.ok(fs.existsSync(segments.keptOriginalPath(mp4)), 'preserved: it may be another file');
+    fs.unlinkSync(segments.keptOriginalPath(mp4));
+});
+
+test('R4-D1: reopening the database after 0242 stopped mid-copy, then deleting, keeps another file at the original\'s name', async () => {
+    const { rec, mp4 } = legacyRow({ segmentsKept: true });
+    const foreign = Buffer.alloc(joined.length, 99);
+    fs.writeFileSync(segments.keptOriginalPath(mp4), foreign);
+    recordingsDbModule.__resetInitForTests();
+    recordingsDbModule.initSchema(); // what a restart does first (0251-0255 claimed "<name>.ts" here)
+    await engine.deleteRecording(rec.id);
+    assert.deepEqual(fs.readFileSync(segments.keptOriginalPath(mp4)), foreign, 'the other file is never deleted');
+    fs.unlinkSync(segments.keptOriginalPath(mp4));
 });
 
 test('DVR-1: a fully checked MP4 keeps nothing beside it', async () => {
