@@ -1,0 +1,23 @@
+{
+  "current": {
+    "before": "c5/prog:B5",
+    "afterRedraw": "c5/prog:B5",
+    "afterCorrection": "c5/prog:B5",
+    "afterChannelGone": "c6/epg-channel-name",
+    "afterDetailsClose": "c7/prog:B7",
+    "listAfterRebuild": "c9/channel-info",
+    "lateGroupAfterRebuild": "late204",
+    "lateGroupGone": "header:Group203"
+  },
+  "pre_0246": {
+    "before": "c5/prog:B5",
+    "afterRedraw": "c5/prog:B5",
+    "afterCorrection": "c5/prog:B5",
+    "afterChannelGone": "c6/epg-channel-name",
+    "afterDetailsClose": "c7/prog:B7",
+    "listAfterRebuild": "c9/channel-info",
+    "lateGroupAfterRebuild": "BODY",
+    "lateGroupGone": "BODY"
+  },
+  "method": "Real in-app Chromium, current harness with isolated old ChannelList override; no app files changed"
+}

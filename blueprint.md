@@ -10,10 +10,7 @@ phases 5a/5b (0223–0225), off by default, passed Mark's bench and device test 
 
 **23 Oct fix review:** local server 0241 / Apple47: 13 original findings addressed in reviewed code, four partial and eight untouched. Remaining recording-original collision, restart recovery, immediate-failover cancellation, sport-event identity and large-list focus defects are documented in the [fix review](docs/reviews/2026-10-23/FIX-REVIEW.md). No deployment or device acceptance established.
 
-**24 Oct:** server **0227–0250** and Apple **47–51** are committed locally (not pushed, not deployed). Every finding of the
-22 Oct register and the 23 Oct fix review now has a local fix with a failing-before regression; status, the F4 policy that
-needs Mark's yes, what stays open (device/feed acceptance, bugs 5 and 8, efficiency work) and the device steps are in
-[`docs/reviews/2026-10-23/REPAIR-STATUS.md`](docs/reviews/2026-10-23/REPAIR-STATUS.md).
+**24 Oct independent review:** server **0250** / Apple **51** pass required local checks, but six original findings remain partial: DVR-1, DVR-3, DVR-4, S5, A2 and A5. Seven reproduced defects and the identity-policy limits are in [the review](docs/reviews/2026-10-24/REVIEW.md). This supersedes the blanket local-completion claim in the author's [repair status](docs/reviews/2026-10-23/REPAIR-STATUS.md). Device/feed acceptance, bugs 5 and 8 and unstarted efficiency work remain open. No deployment or application changes in this review.
 
 How to work in this repo (commands, shipping, rules) is in [`AGENTS.md`](AGENTS.md). This file holds **durable facts and the
 roadmap** for the server, the web app and the joint plan; the Apple client's own architecture is in
@@ -472,20 +469,18 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 **Repair facts (0227–0250, durable):**
 - A segmented recording whose MP4 could not be fully checked keeps its segments as its own published "<name>.ts" (or
   "<name> (original N).ts"), recorded in `recordings.segment_original`; the row stays `moving` until that copy is
-  published (0242/0243). Share files are published with `link()`, never by rename over an existing name.
+  published (0242/0243). Deletion still has an ownership defect for pending originals (review D1). Share files are published with `link()`, never by rename over an existing name.
 - A schedule with a stable channel identity never falls back to its stored position (resolve, guide-follow, blockers) (0228).
 - Starts that await (ingest, settings, feeds, failover) re-check ownership after each await and release late feeds
-  (0231, 0232, 0244); a forced takeover stops every reader of a shared connection (0233).
+  (0231, 0232, 0244), except deletion during immediate failover remains open (review D2); a forced takeover stops every reader of a shared connection (0233).
 - A Sport rule's schedule is matched to an event by instance (present within 15 min / moved while its slot is gone / new),
-  not by a time window (0245). A name-derived event-slot programme belongs to its slot only (0247).
-- ESPN coverage is renewed only by a complete refresh (0248). Logo downloads have one deadline to the last byte (0249).
+  with a 72-hour move-candidate window (0245). Repeated corrections and active prebuffer candidates remain defective; series retains its 15-minute rule. A name-derived event-slot programme belongs to its slot only (0247).
+- ESPN partial scoreboard refreshes preserve coverage (0248), but malformed cricket discovery still falsely renews it (review R-S5). Logo downloads have one deadline to the last byte (0249).
 - A sibling-link decision that changes what is listed bumps the guide version (0250).
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
 
-**24 Oct repair status:** DVR-1 (0242/0243), DVR-4 (0244), W2 (0246), S4–S7 (0247–0250) and A2–A5 (Apple 48–51) fixed
-locally; DVR-3 fixed by instance identity (0245) pending Mark's acceptance of its policy. Efficiency items of the 22 Oct
-register are not started. Device acceptance: [`REPAIR-STATUS.md`](docs/reviews/2026-10-23/REPAIR-STATUS.md).
+**24 Oct reviewed roadmap:** F2, W2, S4, S6, S7 and A1/A3/A4 pass local review. Repair remaining DVR-1/DVR-3/DVR-4, S5 and A2/A5 defects before claiming closure; see [review and handoff](docs/reviews/2026-10-24/REVIEW.md). F4 ambiguity policy still needs Mark's acceptance. Efficiency items are not started; bugs 5 and 8 lack root-cause evidence. Device acceptance remains outstanding.
 
 **22 Oct follow-up:** repair recording-original retention and stable identity, then bounded/cancellable startup and shared-resource takeover/admission. Client isolation, refresh, backup, import and sport defects follow in the [complete repair register](docs/reviews/2026-10-21/REVIEW.md). Optimizations need measurements; device acceptance remains open. Earlier roadmap completion notes describe implementations, not proof of all acceptance criteria.
 

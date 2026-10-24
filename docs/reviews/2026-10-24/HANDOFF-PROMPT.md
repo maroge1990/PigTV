@@ -1,0 +1,18 @@
+Continue PigTV repairs from server 0250 / Apple51. Read both repositories' AGENTS.md and docs/reviews/2026-10-24/REVIEW.md, DVR-REVIEW.md, SERVICE-REVIEW.md and APPLE-REVIEW.md. The review independently passed required suites but found seven reproducible remaining defects. Treat prior REPAIR-STATUS.md as superseded where it conflicts with this review.
+
+Repair all seven, preserving the intended behavior of earlier fixes:
+1. P1 D1: deleting a segmented recording with pending/failed retained-original publication must never delete unrelated conventional TS bytes. Null segment_original is not evidence of legacy ownership. Cover failed and in-flight publication plus real legacy cases.
+2. D2: deletion during immediate failover must retire the failingOver owner, settle the schedule, release late feeds and never spawn again. Audit all deletion/cancel/shutdown entry points and awaits.
+3. D3: reconcile pending schedules through A→B→A corrections even when the identity already exists in recording_rule_hits.
+4. D4: already-active prebuffer recordings must not absorb a later event merely because nominal program_start is future.
+5. R-S5: malformed cricket discovery is failure, not authoritative empty success. Preserve fixtures and prior success/coverage; test valid empty separately and handle the 20-series truncation without false completeness.
+6. A2-R: make retirement/clear ordering safe against immediate next-session publication, including clear delayed before enqueue, snapshot/cards and lastWritten suppression. A generation gate alone is insufficient if clear and new session share the same generation.
+7. A5-R: make cache replacement/deletion and byte accounting race-safe. Cover prune between size read and replacement, same-key writers, and eventual actual on-disk size, not only the counter.
+
+Use saved reproductions under docs/reviews/2026-10-24/. Some intentionally assert defective behavior: turn them into expected-correct regressions and demonstrate failure on current code before repair. Apple proofs use deterministic scheduling barriers; preserve reproducibility and test production ownership paths. Do not make timing sleeps the proof.
+
+Separately, document and resolve the F4 policy limitations: ambiguous vanished/new same-title games, 72-hour candidate boundary, and metadata-free series cancellation after a >15-minute correction. Propose a concrete policy for Mark's acceptance where durable identity is unknowable; do not silently call the heuristic durable or “no time window.” Continue independent fixes while that decision is pending.
+
+Update both blueprints, CLIENT-CONTRACT where client-visible behavior changes, and repair status accurately. Keep bug5 AUS v SA, bug8 iPhone Tuning, physical-device/feed acceptance and the unstarted efficiency register open unless you acquire direct evidence. Do not attribute either reported bug to these findings without proof. Give an explicit disposition for each efficiency item; make no unmeasured performance claims.
+
+Run Node24 PIGTV_SKIP_PERF=1 npm test and bash scripts/verify-build.sh ., Swift sh Tools/test.sh push and the iOS simulator build. Rerun browser focus harness if affected. Inspect test results, distinguish infrastructure failures, shut simulators down, bound old-code tests and clean up fixture processes. Follow each repository's version/commit rules for repair work, but never push or deploy. Ask Mark before deployed-server/provider access; no speculative playback flag changes. End with each defect's before/after proof, exact tests/results, remaining policy/device steps and local commits for review.

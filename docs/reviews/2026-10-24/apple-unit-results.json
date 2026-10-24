@@ -1,0 +1,52 @@
+{
+  "devicesAndConfigurations" : [
+    {
+      "device" : {
+        "architecture" : "arm64",
+        "deviceId" : "46A0FD09-3E3E-41BF-B249-6CC94EEA2FF5",
+        "deviceName" : "Apple TV 4K (3rd generation)",
+        "modelName" : "Apple TV 4K (3rd generation)",
+        "osBuildNumber" : "24J360",
+        "osVersion" : "27.0",
+        "platform" : "tvOS Simulator"
+      },
+      "expectedFailures" : 0,
+      "failedTests" : 0,
+      "passedTests" : 221,
+      "skippedTests" : 0,
+      "testPlanConfiguration" : {
+        "configurationId" : "1",
+        "configurationName" : "Test Scheme Action"
+      }
+    }
+  ],
+  "environmentDescription" : "PigTV · Built with macOS 27.0.1",
+  "expectedFailures" : 0,
+  "failedTests" : 0,
+  "finishTime" : 1792793849.559,
+  "passedTests" : 221,
+  "result" : "Passed",
+  "runtimeWarnings" : [
+
+  ],
+  "skippedTests" : 0,
+  "startTime" : 1792793785.89,
+  "statistics" : [
+    {
+      "subtitle" : "1 test run",
+      "title" : "1 test collected performance metrics"
+    }
+  ],
+  "testFailures" : [
+
+  ],
+  "title" : "Test - PigTV",
+  "topInsights" : [
+    {
+      "category" : "Longest Test Runs",
+      "impact" : "48% of duration",
+      "text" : "5 longest test runs with outlier durations exceeding 1.43s (three standard deviations)"
+    }
+  ],
+  "totalTestCount" : 221
+}

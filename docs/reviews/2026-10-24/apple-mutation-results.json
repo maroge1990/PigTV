@@ -1,0 +1,92 @@
+{
+  "devicesAndConfigurations" : [
+    {
+      "device" : {
+        "architecture" : "arm64",
+        "deviceId" : "46A0FD09-3E3E-41BF-B249-6CC94EEA2FF5",
+        "deviceName" : "Apple TV 4K (3rd generation)",
+        "modelName" : "Apple TV 4K (3rd generation)",
+        "osBuildNumber" : "24J360",
+        "osVersion" : "27.0",
+        "platform" : "tvOS Simulator"
+      },
+      "expectedFailures" : 0,
+      "failedTests" : 6,
+      "passedTests" : 1,
+      "skippedTests" : 0,
+      "testPlanConfiguration" : {
+        "configurationId" : "1",
+        "configurationName" : "Test Scheme Action"
+      }
+    }
+  ],
+  "environmentDescription" : "PigTV · Built with macOS 27.0.1",
+  "expectedFailures" : 0,
+  "failedTests" : 6,
+  "finishTime" : 1792807845.882,
+  "passedTests" : 1,
+  "result" : "Failed",
+  "runtimeWarnings" : [
+
+  ],
+  "skippedTests" : 0,
+  "startTime" : 1792807714.287,
+  "statistics" : [
+
+  ],
+  "testFailures" : [
+    {
+      "failureText" : "XCTAssertNil failed: \"Rule deleted.\" - no stale success beside it",
+      "targetName" : "PigTVTests",
+      "testIdentifier" : 5,
+      "testIdentifierString" : "RecordingRuleActionTests/testAFailedTurnOffIsShownEvenThoughTheReloadWorks()",
+      "testIdentifierURL" : "test://com.apple.xcode/PigTV/PigTVTests/RecordingRuleActionTests/testAFailedTurnOffIsShownEvenThoughTheReloadWorks",
+      "testName" : "testAFailedTurnOffIsShownEvenThoughTheReloadWorks()"
+    },
+    {
+      "failureText" : "XCTAssertEqual failed: (\"Optional(\"Match Day\")\") is not equal to (\"Optional(\"Match Day - Extra Time\")\") - the visible text is the correction's, at once",
+      "targetName" : "PigTVTests",
+      "testIdentifier" : 2,
+      "testIdentifierString" : "GuideGridCorrectionTests/testASameShapeCorrectionShowsAtOnceInTheSameCell()",
+      "testIdentifierURL" : "test://com.apple.xcode/PigTV/PigTVTests/GuideGridCorrectionTests/testASameShapeCorrectionShowsAtOnceInTheSameCell",
+      "testName" : "testASameShapeCorrectionShowsAtOnceInTheSameCell()"
+    },
+    {
+      "failureText" : "XCTAssertEqual failed: (\"[\"snapshot\"]\") is not equal to (\"[]\")",
+      "targetName" : "PigTVTests",
+      "testIdentifier" : 7,
+      "testIdentifierString" : "TopShelfCardTests/testASaveFromARetiredSessionIsDropped()",
+      "testIdentifierURL" : "test://com.apple.xcode/PigTV/PigTVTests/TopShelfCardTests/testASaveFromARetiredSessionIsDropped",
+      "testName" : "testASaveFromARetiredSessionIsDropped()"
+    },
+    {
+      "failureText" : "XCTAssertNotEqual failed: (\"Optional(\"pigtv.resume.42\")\") is equal to (\"Optional(\"pigtv.resume.42\")\") - recording 42 on another server is another recording",
+      "targetName" : "PigTVTests",
+      "testIdentifier" : 3,
+      "testIdentifierString" : "RecordingResumeTests/testLocalKeysAreScopedToServerAndAccount()",
+      "testIdentifierURL" : "test://com.apple.xcode/PigTV/PigTVTests/RecordingResumeTests/testLocalKeysAreScopedToServerAndAccount",
+      "testName" : "testLocalKeysAreScopedToServerAndAccount()"
+    },
+    {
+      "failureText" : "XCTAssertTrue failed - the sheet's buttons are off while it runs",
+      "targetName" : "PigTVTests",
+      "testIdentifier" : 6,
+      "testIdentifierString" : "RecordingRuleActionTests/testOneChangeAtATime()",
+      "testIdentifierURL" : "test://com.apple.xcode/PigTV/PigTVTests/RecordingRuleActionTests/testOneChangeAtATime",
+      "testName" : "testOneChangeAtATime()"
+    },
+    {
+      "failureText" : "XCTAssertLessThanOrEqual failed: (\"40000\") is greater than (\"10000\") - the cap holds while the app runs",
+      "targetName" : "PigTVTests",
+      "testIdentifier" : 1,
+      "testIdentifierString" : "CacheTests/testWritesPastTheCapArePrunedWithoutANewStoreAndPrunesAreCoalesced()",
+      "testIdentifierURL" : "test://com.apple.xcode/PigTV/PigTVTests/CacheTests/testWritesPastTheCapArePrunedWithoutANewStoreAndPrunesAreCoalesced",
+      "testName" : "testWritesPastTheCapArePrunedWithoutANewStoreAndPrunesAreCoalesced()"
+    }
+  ],
+  "title" : "Test - PigTV",
+  "topInsights" : [
+
+  ],
+  "totalTestCount" : 7
+}

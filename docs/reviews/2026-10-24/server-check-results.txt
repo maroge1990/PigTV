@@ -1,0 +1,18 @@
+Node24, current server bc92dfc (functional0250)
+PIGTV_SKIP_PERF=1 npm test: exit0
+✔ F8: an active favourite uses the accent text colour, and the visible copy says favourites and programme (32.262334ms)
+ℹ tests 1071
+ℹ suites 0
+ℹ pass 1066
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 5
+ℹ todo 0
+ℹ duration_ms 42216.158083
+
+bash scripts/verify-build.sh .: exit0
+  ✓ no switchable feature flags left to guard
+  ✓ and run in their own non-blocking job
+  ✓ every check runs before the summary
+
+=== ALL CHECKS PASSED ===
