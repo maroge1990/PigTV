@@ -539,6 +539,11 @@ async function keepOriginal(rec, dir) {
             }
         }
         const published = await joinSegments(rec, dir, `${base}.ts`, n => `${base} (original${n > 2 ? ` ${n - 1}` : ''}).ts`);
+        if (!recordingsDb.getById(rec.id)) {
+            // D1 (0251): deleted while it was copied - this copy is its own, so it goes too.
+            try { fs.unlinkSync(published); } catch (e) { /* already gone */ }
+            return false;
+        }
         recordingsDb.setSegmentFields(rec.id, { segment_original: published });
         return true;
     } catch (err) {

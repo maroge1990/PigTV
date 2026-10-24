@@ -28,7 +28,8 @@ const engine = load('services/recordingEngine');
 engine._setPrepareQueue(false);
 const routing = load('services/providerRouting');
 const segments = load('services/recordingSegments');
-const { scheduled, recordings } = load('db/recordingsDb');
+const recordingsDbModule = load('db/recordingsDb');
+const { scheduled, recordings } = recordingsDbModule;
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const tuning = engine._failoverTuning;
@@ -493,6 +494,89 @@ test('F1: a file appearing at the original\'s name while it is copied is not rep
         await engine.deleteRecording(rec.id);
         fs.unlinkSync(segments.keptOriginalPath(mp4));
     });
+});
+
+test('D1: deleting a recording whose original could not be published never deletes another file at its name', async () => {
+    await withTools({ duration: async (f) => (f.endsWith('recording.m3u8') ? null : 120) }, async () => {
+        const { rec, workDir, mp4 } = finishingRow();
+        fs.mkdirSync(path.dirname(mp4), { recursive: true });
+        const foreign = Buffer.alloc(joined.length, 99);
+        fs.writeFileSync(segments.keptOriginalPath(mp4), foreign);
+        const restore = failTsWrites();
+        try { await segments.finishOne(rec); } finally { restore(); }
+        const row = recordings.getById(rec.id);
+        assert.equal(row.segment_state, 'moving');
+        assert.equal(row.segment_original, null, 'nothing was published, so nothing is owned');
+        await engine.deleteRecording(rec.id);
+        assert.deepEqual(fs.readFileSync(segments.keptOriginalPath(mp4)), foreign, 'the other file is untouched');
+        assert.equal(fs.existsSync(mp4), false, 'its own MP4 goes');
+        assert.equal(fs.existsSync(workDir), false, 'and its segments');
+        fs.unlinkSync(segments.keptOriginalPath(mp4));
+    });
+});
+
+test('D1: deleting a recording while its original is being copied keeps the other file and leaves no copy behind', async () => {
+    await withTools({ duration: async (f) => (f.endsWith('recording.m3u8') ? null : 120) }, async () => {
+        const { rec, workDir, mp4 } = finishingRow();
+        const folder = path.dirname(mp4);
+        fs.mkdirSync(folder, { recursive: true });
+        const foreign = Buffer.alloc(joined.length, 99);
+        fs.writeFileSync(segments.keptOriginalPath(mp4), foreign);
+        // The copy writes every byte, then waits at its end (a barrier, not a timer) while the
+        // recording is deleted; only then does it close and publish.
+        const real = fs.createWriteStream;
+        let reached;
+        const atEnd = new Promise(r => { reached = r; });
+        let release;
+        const gate = new Promise(r => { release = r; });
+        fs.createWriteStream = function (file, ...rest) {
+            if (/\.ts\.\d+-[0-9a-f]+\.partial$/.test(String(file))) {
+                fs.createWriteStream = real;
+                const { Writable } = require('node:stream');
+                const fd = fs.openSync(file, 'wx');
+                return new Writable({
+                    write(chunk, enc, cb) { fs.writeSync(fd, chunk); cb(); },
+                    final(cb) { reached(); gate.then(() => { fs.closeSync(fd); cb(); }); }
+                });
+            }
+            return real.call(this, file, ...rest);
+        };
+        let finishing;
+        try {
+            finishing = segments.finishOne(rec);
+            await atEnd;
+        } finally { fs.createWriteStream = real; }
+        assert.equal(recordings.getById(rec.id).segment_state, 'moving');
+        await engine.deleteRecording(rec.id);
+        release();
+        await finishing;
+        assert.equal(recordings.getById(rec.id), null);
+        assert.deepEqual(fs.readFileSync(segments.keptOriginalPath(mp4)), foreign, 'the other file is untouched');
+        assert.deepEqual(fs.readdirSync(folder).filter(f => f.startsWith(path.basename(mp4, '.mp4'))),
+            [path.basename(segments.keptOriginalPath(mp4))], 'no MP4, copy or partial of the deleted recording is left');
+        assert.equal(fs.existsSync(workDir), false);
+        fs.unlinkSync(segments.keptOriginalPath(mp4));
+    });
+});
+
+test('D1: an original kept by 0227-0241 (done, no path recorded) is claimed once at startup and deleted with its recording', async () => {
+    const { rec, workDir, mp4 } = finishingRow();
+    fs.mkdirSync(path.dirname(mp4), { recursive: true });
+    fs.writeFileSync(mp4, 'mp4');
+    fs.writeFileSync(segments.keptOriginalPath(mp4), joined);
+    // As 0227-0241 left it: published at "<name>.ts", done, no segment_original.
+    recordings.setSegmentFields(rec.id, { status: 'completed', file_path: mp4, segment_state: 'done', segment_keep: 'legacy', segment_original: null, work_dir: null });
+    fs.rmSync(workDir, { recursive: true, force: true });
+    // ...and one of today's, still waiting for its copy: it owns nothing yet and is not claimed.
+    const pending = finishingRow();
+    recordings.setSegmentFields(pending.rec.id, { status: 'completed', file_path: pending.mp4, segment_state: 'moving', segment_keep: 'now', segment_original: null });
+    recordingsDbModule.claimLegacyOriginals(sqlite.getDb());
+    assert.equal(recordings.getById(rec.id).segment_original, segments.keptOriginalPath(mp4));
+    assert.equal(recordings.getById(pending.rec.id).segment_original, null);
+    await engine.deleteRecording(rec.id);
+    assert.equal(fs.existsSync(segments.keptOriginalPath(mp4)), false, 'the legacy original goes with its recording');
+    assert.equal(fs.existsSync(mp4), false);
+    await engine.deleteRecording(pending.rec.id);
 });
 
 test('DVR-1: a fully checked MP4 keeps nothing beside it', async () => {
