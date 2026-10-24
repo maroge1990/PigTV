@@ -203,9 +203,11 @@ function alreadyScheduled(c) {
  *   3. Anything else is a new event: another match of the same teams that sits beside the
  *      scheduled one (a doubleheader, the next round) is recorded too.
  *
- * A schedule whose time has come (started, live, past) never takes a successor: that match
- * happened. Returns Map(candidate -> schedule).
+ * A schedule whose time has come (started, live, past) or that is already recording (D4) never
+ * takes a successor: that match happened. Returns Map(candidate -> schedule).
  */
+const MOVABLE = ['scheduled', 'waiting', 'cancelled'];
+
 function pairEvents(candidates, now) {
     const pairs = new Map();
     if (candidates.length === 0) return pairs;
@@ -220,7 +222,11 @@ function pairEvents(candidates, now) {
         if (s) { pairs.set(c, s); used.add(s.id); }
     }
     // 2. Moved: the vanished ones, nearest first.
-    const vanished = olds.filter(o => !used.has(o.id) && o.program_start > now && o.program_start < now + SPORT_HOURS * 3600 * 1000);
+    // D4 (0254): only a schedule that has not begun - pending, or cancelled by the viewer - can be
+    // a moved event; one already recording in its pre-buffer (its nominal start still ahead) or over
+    // never takes another.
+    const vanished = olds.filter(o => !used.has(o.id) && MOVABLE.includes(o.status)
+        && o.program_start > now && o.program_start < now + SPORT_HOURS * 3600 * 1000);
     const options = [];
     for (const c of candidates) {
         if (pairs.has(c)) continue;

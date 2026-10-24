@@ -152,3 +152,15 @@ test('D3: a cancelled match corrected A -> B -> A stays cancelled and is not rec
     assert.deepEqual(ofRule(r.id).map(x => x.status), ['cancelled']);
 });
 
+test('D4: a recording already running in its pre-buffer never absorbs a later match of the same teams', async () => {
+    const r = rule();
+    events = [ev(NOW + 2 * 60000)];
+    const [made] = await rules.evaluate({ now: NOW });
+    scheduled.setStatus(made.scheduleId, 'recording'); // the pre-buffer started it; nominal start still ahead
+    events = [ev(NOW + H)]; // its slot gone, a same-title match an hour later
+    const next = await rules.evaluate({ now: NOW });
+    assert.equal(next.length, 1, 'the later match is recorded');
+    assert.deepEqual(ofRule(r.id).map(s => [s.program_start, s.status]), [[NOW + 2 * 60000, 'recording'], [NOW + H, 'scheduled']],
+        'the running recording is left as it is');
+});
+
