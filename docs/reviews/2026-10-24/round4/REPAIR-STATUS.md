@@ -70,6 +70,18 @@ Investigated rather than retried; no product code changed (commit `4e6cb33`).
 - After this, three consecutive full runs passed: **1099 tests, 1094 passed, 5 skipped, 0 failed** each. That is a local
   result on the MacBook. It is not proof for CI's 2 vCPUs, where the start-failure margin was the tight one.
 
+## Checks run
+
+- Server, Node 24, `PIGTV_SKIP_PERF=1 npm test`: **1099 tests, 1094 passed, 5 skipped, 0 failed**. That held on three
+  consecutive runs after the test fixes, and on a fourth run alongside the Xcode push tier. Every commit before those
+  passed the same gate. `bash scripts/verify-build.sh .`: all checks passed, at every commit.
+- Apple, build 54: `sh Tools/test.sh push` exit 0. **243** contract checks; unit tier **227/227** (rerun with a result
+  bundle, because the script's own bundle is not kept); regression UI **16/16** (xcresult). iOS simulator build exit 0.
+  Simulators shut down; no booted device left.
+- Browser focus harness: not rerun; no web code changed in 0256–0258.
+- Timing: no instability seen in these runs. The one timing-sensitive test fixed here (start-failure) has not been
+  observed on CI's 2 vCPUs since; watch its first CI run.
+
 ## Contract
 
 `docs/CLIENT-CONTRACT.md` C-M now states exactly what a cancel holds against, replacing "never made again … however far
