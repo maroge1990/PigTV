@@ -20,6 +20,13 @@ identity policy's limits with a proposal for Mark, the efficiency dispositions a
 
 **25 Oct independent follow-up:** at server **0255** / Apple **53**, D2/D3/D4 and A2-R pass local review; D1, R-S5 and A5 remain partial. Unsafe legacy TS claims, publication during deletion, nested cricket discovery and prune completion need repair. Two full-server runs each had one different failure (isolated reruns pass); no clean full gate is claimed. Apple push/iOS and server build verification pass. [Review and evidence](docs/reviews/2026-10-24/round4/REVIEW.md). No application/deployment changes or device acceptance.
 
+**25 Oct round-4 repairs:** server **0256–0258** and Apple **54** are committed locally (not pushed, not deployed) for the
+round-4 findings (R4-D1, R4-D2, R4-S1, A5-R2), each with a failing-before test. The two full-suite failures were
+investigated: one root-caused as a test clock mismatch, the other a measured tight margin, both fixed in tests only.
+After that, three full runs were clean locally. C-M now states what a cancel holds against.
+[`docs/reviews/2026-10-24/round4/REPAIR-STATUS.md`](docs/reviews/2026-10-24/round4/REPAIR-STATUS.md). The F4 policy,
+device/feed acceptance, bugs 5 and 8 and the efficiency register stay open.
+
 How to work in this repo (commands, shipping, rules) is in [`AGENTS.md`](AGENTS.md). This file holds **durable facts and the
 roadmap** for the server, the web app and the joint plan; the Apple client's own architecture is in
 `../PigTV-Swift/blueprint.md`, which points back here for the roadmap.
@@ -477,8 +484,11 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 **Repair facts (0227–0255, durable):**
 - A segmented recording whose MP4 could not be fully checked keeps its segments as its own published "<name>.ts" (or
   "<name> (original N).ts"), recorded in `recordings.segment_original`; the row stays `moving` until that copy is
-  published (0242/0243). Deletion removes only `segment_original`, never a file found at "<name>.ts"; 0227–0241 rows are
-  claimed at schema init (0251), but interrupted0242 state is ambiguous and can falsely claim a foreign file (25 Oct review). Publication racing deletion also remains open. Share files are published with `link()`, never by rename over an existing name.
+  published (0242/0243). Deletion removes only `segment_original`, never a file found at "<name>.ts" (0251). A pathless
+  kept original from 0227–0242 is claimed only by its bytes (segments still in appdata), else re-published under its
+  own name, or (segments gone) left in place and logged (0256). A deletion retires the recording before it awaits, and
+  every publication (MP4, kept original, fallback .ts, share move) removes its own output if it is no longer owned (0257).
+  Share files are published with `link()`, never by rename over an existing name.
 - A schedule with a stable channel identity never falls back to its stored position (resolve, guide-follow, blockers) (0228).
 - Starts that await (ingest, settings, feeds, failover) re-check ownership after each await and release late feeds
   (0231, 0232, 0244); cancel, delete (0252) and shutdown all retire an immediate failover's owner. A forced takeover stops
@@ -488,12 +498,18 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   existing schedule is reconciled before the rule's hit list is consulted (0253). Series without episode data keep the
   ±15-minute time identity. The limits and Mark's pending policy decision: `docs/reviews/2026-10-24/REPAIR-STATUS.md`.
   A name-derived event-slot programme belongs to its slot only (0247).
-- ESPN coverage checks reject malformed outer discovery and mark series past the20-series cap partial (0255), but malformed nested series lists can still erase fixtures and renew coverage (25 Oct review). Logo downloads have one deadline to the last byte (0249).
+- ESPN coverage is renewed only by a complete refresh (0248). Cricket discovery is a failure unless it is a scores list
+  (0255), and partial when an entry cannot name its series (0258) or series exceed the 20-series cap (0255). Logo
+  downloads have one deadline to the last byte (0249).
 - A sibling-link decision that changes what is listed bumps the guide version (0250).
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
 
-**25 Oct reviewed repair status:** D2/D3/D4 and A2-R are fixed locally; D1/R-S5/A5 remain partial with four actionable findings in the [follow-up review](docs/reviews/2026-10-24/round4/REVIEW.md). F4 policy acceptance and correction of C-M's unconditional cancellation promise remain outstanding. Full-suite instability requires investigation. Efficiency items remain deferred and unmeasured; bugs5/8 lack root-cause evidence and device/feed acceptance remains open.
+**25 Oct repair status:** the round-4 findings are fixed locally (0256–0258, Apple 54). With the earlier passes, every
+finding of the 22 Oct register has a local fix. DVR-3 is fixed only within the stated F4 heuristic, which is not durable
+identity, and its policy proposal needs Mark's decision. C-M is corrected. Efficiency items are deferred and unmeasured;
+bugs 5 and 8 lack root-cause evidence; device acceptance is outstanding.
+[`round4/REPAIR-STATUS.md`](docs/reviews/2026-10-24/round4/REPAIR-STATUS.md).
 
 **22 Oct follow-up:** repair recording-original retention and stable identity, then bounded/cancellable startup and shared-resource takeover/admission. Client isolation, refresh, backup, import and sport defects follow in the [complete repair register](docs/reviews/2026-10-21/REVIEW.md). Optimizations need measurements; device acceptance remains open. Earlier roadmap completion notes describe implementations, not proof of all acceptance criteria.
 

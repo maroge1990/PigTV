@@ -233,11 +233,24 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
 - `PUT /api/recordings/rules/:id` `{enabled?, newOnly?, preBufferMin?, postBufferMin?}` → the rule; 404 unknown.
 - `DELETE /api/recordings/rules/:id` → `{success, cancelled}`: its schedules that have not started are cancelled; one
   recording now, and everything recorded, stays.
-- `recordings/scheduled` rows carry `rule_id` (null for a one-off). A schedule the viewer cancels is never made again by a
-  rule, even when the guide moves its time. A Sport event (0245) is the same event while its old slot is gone from the
-  guide and it has not yet started, however far it moved (a scheduled one moves with it: `program_start`/`program_end`
-  change); another match of the same title beside a scheduled one is recorded too. Two rules never record the same
-  programme twice.
+- `recordings/scheduled` rows carry `rule_id` (null for a one-off). Two rules never record the same programme twice.
+- **What a cancel holds against (0245, 0253, 0254; not durable identity).** The guide gives no event id, so a rule
+  decides per evaluation whether a programme is one it has already scheduled:
+  - *Sport:* a schedule of the same title within 15 minutes of an event is that event. A schedule that has not begun
+    (`scheduled`, `waiting`, or `cancelled` by the viewer), starts in the next **72 h** and has nothing of its title
+    within 15 minutes is the same event as the nearest same-title event that has no schedule, one to one: a cancel
+    holds, and a pending one moves with it (`program_start`/`program_end` change), also back again (A → B → A). Beyond
+    the 72 h horizon nothing is paired. With several vanished and new same-title events at once the nearest-time
+    pairing is a guess, so a cancel can land on the wrong one. A schedule already recording (its pre-buffer started)
+    never takes a later event. Another match of the same title beside a scheduled one is recorded too.
+  - *Series:* an airing with the guide's episode number or subtitle is that episode wherever it moves. One without is
+    identified by channel and time: a correction of 20 minutes or more is a new airing, so a cancelled one is recorded
+    again and a pending one is made twice.
+  A client must not promise more than this. A policy change is pending Mark's decision
+  (`docs/reviews/2026-10-24/REPAIR-STATUS.md`, "F4 policy").
+- Deleting a recording (`DELETE /api/recordings/:id`) while its start is moving to a backup provider (the seconds after
+  the first provider refused it) ends that schedule as `cancelled` (0252); nothing is recorded for it afterwards. A
+  recording deleted while it is being finished leaves nothing of it on the share (0257).
 
 ### C-N. Recording artwork. Flag: `recordingArtwork`
 
