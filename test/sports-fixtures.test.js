@@ -502,3 +502,49 @@ test('S5: a cricket series that fails keeps its games; the league\'s coverage is
     assert.equal(cricket.fixtures.length, 1, 'the failed series\' match is kept');
     assert.equal(cricket.coverage.at, at);
 });
+
+// ---- R-S5 (0255): the discovery step must not turn a bad answer into "no cricket" ----------------
+
+const cricketHandlers = () => ({
+    scorepanel: readFx('cricket-scorepanel'),
+    'cricket/24377/scoreboard': readFx('cricket-24377-20260927'),
+    'cricket/22547/scoreboard': { events: [] }, 'cricket/18479/scoreboard': { events: [] }, 'cricket/8656/scoreboard': { events: [] }
+});
+
+for (const [label, body] of [['an empty object', {}], ['scores that is not a list', { scores: 'none' }], ['a bare list', []]]) {
+    test(`R-S5: a cricket discovery answer of ${label} is a failure - the games and their coverage are kept`, async () => {
+        const at = Date.parse('2026-09-27T12:00Z');
+        await withEspn(cricketHandlers(), () => fixtures.refreshCricket({ now: at }));
+        assert.equal(fixtures.snapshot(new Set(['Cricket'])).get('Cricket').fixtures.length, 1);
+        await withEspn({ ...cricketHandlers(), scorepanel: body }, () => fixtures.refreshCricket({ now: at + 1000 }));
+        const cricket = fixtures.snapshot(new Set(['Cricket'])).get('Cricket');
+        assert.equal(cricket.fixtures.length, 1, 'the known match is kept');
+        assert.equal(cricket.coverage.at, at, 'coverage is not renewed');
+        const status = sqlite.getDb().prepare("SELECT last_success_at, last_error FROM sport_fixture_status WHERE league = 'Cricket'").get();
+        assert.equal(status.last_success_at, at);
+        assert.match(status.last_error, /scorepanel/);
+    });
+}
+
+test('R-S5: a well-formed discovery with no active series is a real, complete answer (the games go)', async () => {
+    const at = Date.parse('2026-09-27T12:00Z');
+    await withEspn(cricketHandlers(), () => fixtures.refreshCricket({ now: at }));
+    await withEspn({ ...cricketHandlers(), scorepanel: { scores: [] } }, () => fixtures.refreshCricket({ now: at + 1000 }));
+    const cricket = fixtures.snapshot(new Set(['Cricket'])).get('Cricket');
+    assert.equal(cricket.fixtures.length, 0);
+    assert.equal(cricket.coverage.at, at + 1000);
+});
+
+test('R-S5: more series than are fetched (the cap) is a partial refresh - a series left out keeps its games', async () => {
+    const at = Date.parse('2026-09-27T12:00Z');
+    await withEspn(cricketHandlers(), () => fixtures.refreshCricket({ now: at }));
+    // 20 other series first, so the one that has the known match is past the cap.
+    const others = Array.from({ length: 20 }, (_, i) => ({ leagues: [{ id: String(90000 + i), name: `Series ${i}` }] }));
+    const handlers = { scorepanel: { scores: [...others, ...readFx('cricket-scorepanel').scores] } };
+    for (let i = 0; i < 20; i++) handlers[`cricket/${90000 + i}/scoreboard`] = { events: [] };
+    await withEspn(handlers, () => fixtures.refreshCricket({ now: at + 1000 }));
+    const cricket = fixtures.snapshot(new Set(['Cricket'])).get('Cricket');
+    assert.equal(cricket.fixtures.length, 1, 'the series that was not fetched keeps its match');
+    assert.equal(cricket.coverage.at, at, 'and the league is not claimed complete');
+});
+

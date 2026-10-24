@@ -285,6 +285,12 @@ async function refreshCricket({ now = Date.now(), db = getDb() } = {}) {
     let anyOk = false;
     let complete = true; // S5
     let lastError = null;
+    if (discovery.series.length > series.length) {
+        // R-S5 (0255): series past the cap were not fetched, so this cannot be the whole league:
+        // a partial refresh, which keeps what they had.
+        complete = false;
+        lastError = `${discovery.series.length - series.length} of ${discovery.series.length} series not fetched (limit ${MAX_CRICKET_SERIES})`;
+    }
     for (const s of series) {
         const result = await espn.fetchScoreboard(`cricket/${s.id}`, now - LOOKBACK_MS, now + WINDOW_MS);
         if (!result.ok) { lastError = result.error; complete = false; continue; }

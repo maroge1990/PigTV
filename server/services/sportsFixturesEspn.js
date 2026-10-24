@@ -172,9 +172,12 @@ async function fetchTeams(leaguePath, { timeoutMs = TIMEOUT_MS } = {}) {
 async function discoverCricketSeries({ timeoutMs = TIMEOUT_MS } = {}) {
     const { ok, json, error } = await getJson(`${BASE}/cricket/scorepanel`, timeoutMs);
     if (!ok) return { ok: false, error };
+    // R-S5 (0255): only a scorepanel (a list of scores, possibly empty) can say "no active series";
+    // anything else is a failed discovery, never an authoritative empty one.
+    if (!json || typeof json !== 'object' || !Array.isArray(json.scores)) return { ok: false, error: 'not a cricket scorepanel' };
     const out = [];
     const seen = new Set();
-    for (const s of Array.isArray(json && json.scores) ? json.scores : []) {
+    for (const s of json.scores) {
         for (const lg of Array.isArray(s && s.leagues) ? s.leagues : []) {
             const id = lg && lg.id != null ? String(lg.id) : null;
             if (id && !seen.has(id)) { seen.add(id); out.push({ id, name: (lg && lg.name) || null }); }
