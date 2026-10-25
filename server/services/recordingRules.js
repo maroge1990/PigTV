@@ -388,8 +388,11 @@ function evaluate({ now = Date.now() } = {}) {
                 // or (Codex review of 0265) a schedule another episode holds now - then c is recorded
                 // and its hit names its own schedule.
                 const prior = priorHit.get(rule.id, c.identity);
-                const another = (id) => (episodes.ownerOf.has(id) && episodes.ownerOf.get(id) !== c.identity)
-                    || [...(episodes.namedBy.get(id) || [])].some(i => i !== c.identity);
+                // Whose a schedule is: its owner in this evaluation if it has one (Codex review of 0269:
+                // that outranks an older shared hit, for the owner's repeats too); else any episode
+                // other than c whose hit names it.
+                const another = (id) => (episodes.ownerOf.has(id) ? episodes.ownerOf.get(id) !== c.identity
+                    : [...(episodes.namedBy.get(id) || [])].some(i => i !== c.identity));
                 const othersNow = c.episode && prior && another(prior.schedule_id);
                 if (prior && !(declined.get(c)?.has(prior.schedule_id)) && !othersNow) continue;
                 // 0269: an episode's new schedule is never the one another episode has in that slot.

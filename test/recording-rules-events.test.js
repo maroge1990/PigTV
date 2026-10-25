@@ -463,3 +463,20 @@ test('F1: an episode whose hit shares a schedule with another episode\'s (an old
     assert.equal((await rules.evaluate({ now: NOW + 3 * H })).length, 1, '2.2 is recorded');
     clearAirings();
 });
+
+// ---- Codex review of 0269 (26 Oct): an owner resolved now outranks an older shared hit, for its repeats too.
+
+for (const status of ['scheduled', 'cancelled']) {
+    test(`G1: a ${status} schedule two episodes' hits share is the present episode's; its repeat is not recorded again`, async () => {
+        const d = sqlite.getDb();
+        const r = seriesFixture([{ start: NOW + 2 * H, data: JSON.stringify({ ep: '3.1' }) }, { start: NOW + 6 * H, data: JSON.stringify({ ep: '3.1' }) }]);
+        await rules.evaluate({ now: NOW });
+        const [s] = ofRule(r.id);
+        assert.equal(ofRule(r.id).length, 1, 'one recording of 3.1, its repeat skipped');
+        if (status === 'cancelled') await engine.cancelScheduled(s.id);
+        d.prepare(`INSERT INTO recording_rule_hits (rule_id, identity, schedule_id, created_at) VALUES (?, 'ep:series example|3.2', ?, ?)`).run(r.id, s.id, NOW); // an older build's shared hit
+        assert.deepEqual(await rules.evaluate({ now: NOW }), [], 'the repeat of 3.1 is still not recorded');
+        assert.equal(d.prepare('SELECT schedule_id FROM recording_rule_hits WHERE rule_id = ? AND identity = ?').get(r.id, 'ep:series example|3.1').schedule_id, s.id);
+        clearAirings();
+    });
+}
