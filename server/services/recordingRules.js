@@ -12,7 +12,8 @@
  * event; the series episode - its episode number or subtitle - else the airing's channel and
  * quarter hour), by an existing schedule of the same title on the same channel within 15 minutes
  * (which also stops two rules recording one event twice), and by hits: each identity a rule has
- * acted on is remembered, so a schedule the viewer cancels is never made again.
+ * acted on is remembered, so a schedule the viewer cancels is not made again - unless this
+ * evaluation finds the cancel unsure (pairInstances: the F4 policy records what it might be).
  *
  * Runs after every guide sync and every 15 minutes (recordingEngine's tick). Native: the idea is
  * Dispatcharr's series rules (AGPL, read, not copied).
@@ -169,15 +170,23 @@ function seriesCandidates(rule, now) {
             ? `ep:${fold(rule.match)}|${episode}`
             : `air:${channel.sourceId}:${channel.stableId || channel.id}|${Math.round(r.start_time / NEAR_MS)}`;
         out.push({ identity, episode: Boolean(episode), title: r.title, start: r.start_time, end: r.end_time, sourceId: channel.sourceId,
-            channelId: String(channel.id), channelName: channel.name, channelLogo: channel.logo || null, description: r.description || null });
+            channelId: String(channel.id), stableId: channel.stableId || null, channelName: channel.name, channelLogo: channel.logo || null, description: r.description || null });
     }
     return out;
 }
 
 // Schedules a candidate may already be: not cancelled, or cancelled but made by a rule (what the
 // viewer cancelled must not come back - from any rule).
-const SCHEDULE_COLUMNS = 'id, source_id, channel_item_id, title, program_start, program_end, status, rule_id';
+const SCHEDULE_COLUMNS = 'id, source_id, channel_item_id, channel_stable_id, title, program_start, program_end, status, rule_id';
 const LIVE_OR_RULE = `(status <> 'cancelled' OR rule_id IS NOT NULL)`;
+
+/**
+ * R5-F3: a schedule is on a candidate's channel by the channel's stable identity when it has one
+ * (a playlist reorder changes the position, not the channel); only a schedule without one falls
+ * back to its stored position.
+ */
+const sameChannel = (c, s) => s.source_id === c.sourceId &&
+    (s.channel_stable_id ? s.channel_stable_id === c.stableId : String(s.channel_item_id) === c.channelId);
 
 /**
  * A schedule (not cancelled, unless a rule made it) of the same programme within 15 minutes on the
@@ -188,7 +197,7 @@ function alreadyScheduled(c) {
         WHERE ${LIVE_OR_RULE} AND program_start BETWEEN ? AND ?`).all(c.start - NEAR_MS, c.start + NEAR_MS);
     const titles = new Set((c.titles || [c.title]).map(fold));
     return near.find(s => titles.has(fold(s.title)) &&
-        (c.anyChannel || (s.source_id === c.sourceId && String(s.channel_item_id) === c.channelId))) || null;
+        (c.anyChannel || sameChannel(c, s))) || null;
 }
 
 /**
@@ -207,16 +216,19 @@ function alreadyScheduled(c) {
  *      recorded instead (a recording too many costs a cancel; one missed cannot be undone).
  *   3. Anything else is new: another match of the same teams beside a scheduled one is recorded.
  *
- * A schedule whose time has come or that is already recording (D4) never takes a successor.
- * Returns Map(candidate -> schedule).
+ * A schedule whose time has come or that is already recording (D4) never takes a successor, and a
+ * `reserved` one (R5-F2: an episode's, while that episode is in the guide) is never anyone else's.
+ * Returns { pairs: Map(candidate -> schedule), declined: Map(candidate -> Set(schedule id)) }, where
+ * declined holds the cancelled schedules a candidate might have been but was not paired with as
+ * unsure (R5-F1: a hit left by an earlier, clear pairing with one of them does not hold it back).
  */
 const MOVABLE = ['scheduled', 'waiting', 'cancelled'];
 
-function pairInstances(candidates, now, { horizonMs, maxMoveMs = Infinity, sameGroup = () => true }) {
-    const pairs = new Map();
-    if (candidates.length === 0) return pairs;
+function pairInstances(candidates, now, { horizonMs, maxMoveMs = Infinity, sameGroup = () => true, reserved = new Set() }) {
+    const pairs = new Map(), declined = new Map();
+    if (candidates.length === 0) return { pairs, declined };
     const olds = db().prepare(`SELECT ${SCHEDULE_COLUMNS} FROM scheduled_recordings
-        WHERE ${LIVE_OR_RULE} AND program_end > ?`).all(now - NEAR_MS);
+        WHERE ${LIVE_OR_RULE} AND program_end > ?`).all(now - NEAR_MS).filter(o => !reserved.has(o.id));
     const titlesOf = (c) => new Set((c.titles || [c.title]).map(fold));
     const used = new Set();
     // 1. Present.
@@ -247,21 +259,38 @@ function pairInstances(candidates, now, { horizonMs, maxMoveMs = Infinity, sameG
     options.sort((a, b) => a.gap - b.gap);
     for (const x of options) {
         if (pairs.has(x.c) || used.has(x.o.id)) continue;
-        if (x.o.status === 'cancelled' && !sole(x)) continue; // 0259: unsure, so it is recorded
+        if (x.o.status === 'cancelled' && !sole(x)) { // 0259: unsure, so it is recorded
+            if (!declined.has(x.c)) declined.set(x.c, new Set());
+            declined.get(x.c).add(x.o.id);
+            continue;
+        }
         pairs.set(x.c, x.o);
         used.add(x.o.id);
     }
-    return pairs;
+    return { pairs, declined };
 }
 
 /** Sport: any channel, within the 72 hours the guide shows, a move of any size inside them. */
 const pairEvents = (candidates, now) => pairInstances(candidates, now, { horizonMs: SPORT_HOURS * 3600 * 1000 });
 
-/** 0259: series airings without episode data: on the rule's channel, a move of at most SERIES_MOVE_MS. */
-const pairAirings = (candidates, now) => pairInstances(candidates, now, {
-    horizonMs: SERIES_DAYS * 24 * 3600 * 1000, maxMoveMs: SERIES_MOVE_MS,
-    sameGroup: (c, o) => o.source_id === c.sourceId && String(o.channel_item_id) === c.channelId
-});
+/**
+ * 0259: series airings without episode data: on the rule's (stable) channel, a move of at most
+ * SERIES_MOVE_MS. R5-F2: the schedules of the episodes in the guide are theirs, never a candidate's
+ * here - the one present beside an episode, and the one its hit names (an episode the guide moved).
+ */
+function pairAirings(candidates, now, ruleId) {
+    const reserved = new Set();
+    const hitOf = db().prepare('SELECT schedule_id FROM recording_rule_hits WHERE rule_id = ? AND identity = ?');
+    for (const c of candidates.filter(x => x.episode)) {
+        const present = alreadyScheduled(c);
+        if (present) reserved.add(present.id);
+        const h = hitOf.get(ruleId, c.identity);
+        if (h && h.schedule_id !== null) reserved.add(h.schedule_id);
+    }
+    return pairInstances(candidates.filter(c => !c.episode), now, {
+        horizonMs: SERIES_DAYS * 24 * 3600 * 1000, maxMoveMs: SERIES_MOVE_MS, sameGroup: sameChannel, reserved
+    });
+}
 
 let running = null;
 let lastRun = 0;
@@ -277,8 +306,21 @@ function evaluate({ now = Date.now() } = {}) {
         let rules = [];
         try { rules = db().prepare('SELECT * FROM recording_rules WHERE enabled = 1 ORDER BY id').all(); } catch (e) { return made; }
         const engine = require('./recordingEngine');
-        const hitStmt = db().prepare(`INSERT OR IGNORE INTO recording_rule_hits (rule_id, identity, schedule_id, created_at) VALUES (?, ?, ?, ?)`);
+        // A hit names the schedule that last acted for its identity (R5-F1: a new one replaces a declined one).
+        const hitStmt = db().prepare(`INSERT INTO recording_rule_hits (rule_id, identity, schedule_id, created_at) VALUES (?, ?, ?, ?)
+            ON CONFLICT (rule_id, identity) DO UPDATE SET schedule_id = excluded.schedule_id`);
         const hit = (ruleId, identity, scheduleId) => hitStmt.run(ruleId, identity, scheduleId, Date.now());
+        const priorHit = db().prepare('SELECT schedule_id FROM recording_rule_hits WHERE rule_id = ? AND identity = ?');
+        // An episode is that episode wherever the guide moves it: the schedule its hit names, while
+        // that has not begun and no airing is still present at it (a repeat never takes the first
+        // airing's). R5: a pending one used to stay at the old time and record the wrong slot.
+        const episodeStmt = db().prepare(`SELECT ${SCHEDULE_COLUMNS} FROM scheduled_recordings
+            WHERE id = ? AND rule_id = ? AND status IN ('scheduled', 'waiting', 'cancelled') AND program_start > ?`);
+        const episodeSchedule = (rule, c, present) => {
+            const h = priorHit.get(rule.id, c.identity);
+            const s = h && h.schedule_id !== null ? episodeStmt.get(h.schedule_id, rule.id, now) : null;
+            return s && !present.has(s.id) ? s : null;
+        };
         for (const rule of rules) {
             let candidates = [];
             try {
@@ -288,25 +330,29 @@ function evaluate({ now = Date.now() } = {}) {
                 continue;
             }
             // Episode-keyed series airings are matched as before (alreadyScheduled, and their hit).
-            const events = rule.kind === 'sport' ? pairEvents(candidates, now) : pairAirings(candidates.filter(c => !c.episode), now);
+            const { pairs: events, declined } = rule.kind === 'sport' ? pairEvents(candidates, now) : pairAirings(candidates, now, rule.id);
             const paired = (c) => (rule.kind === 'sport' || !c.episode);
+            const present = new Set(candidates.filter(c => !paired(c)).map(c => alreadyScheduled(c)?.id).filter(id => id !== undefined));
             for (const c of candidates) {
                 // D3 (0253): an existing schedule is reconciled first, so a correction back to a time
                 // seen before (A -> B -> A, its identity already a hit) still moves it; the hit only
                 // stops a second schedule being made.
-                const existing = paired(c) ? events.get(c) || null : alreadyScheduled(c);
+                const existing = paired(c) ? events.get(c) || null : alreadyScheduled(c) || episodeSchedule(rule, c, present);
                 if (existing) {
-                    // F4: a moved event's pending schedule follows it (the viewer's cancel just holds).
-                    if (paired(c) && existing.rule_id !== null && ['scheduled', 'waiting'].includes(existing.status)
+                    // F4: a moved programme's pending schedule follows it (the viewer's cancel just holds).
+                    if (existing.rule_id !== null && ['scheduled', 'waiting'].includes(existing.status)
                         && Math.abs(existing.program_start - c.start) > NEAR_MS) {
                         db().prepare(`UPDATE scheduled_recordings SET program_start = ?, program_end = ? WHERE id = ? AND status IN ('scheduled', 'waiting')`)
                             .run(c.start, c.end, existing.id);
                         console.log(`[Rules] Rule #${rule.id}: "${c.title}" moved in the guide; schedule #${existing.id} follows it`);
                     }
                     hit(rule.id, c.identity, existing.id);
+                    present.add(existing.id);
                     continue;
                 }
-                if (db().prepare('SELECT 1 FROM recording_rule_hits WHERE rule_id = ? AND identity = ?').get(rule.id, c.identity)) continue;
+                // R5-F1: a hit holds unless it names a cancelled schedule this pairing found unsure for c.
+                const prior = priorHit.get(rule.id, c.identity);
+                if (prior && !(declined.get(c)?.has(prior.schedule_id))) continue;
                 try {
                     const schedule = await engine.scheduleFromProgram({
                         sourceId: c.sourceId, channelItemId: c.channelId, channelName: c.channelName, channelLogo: c.channelLogo,
@@ -316,6 +362,7 @@ function evaluate({ now = Date.now() } = {}) {
                     });
                     db().prepare('UPDATE scheduled_recordings SET rule_id = ? WHERE id = ? AND rule_id IS NULL').run(rule.id, schedule.id);
                     hit(rule.id, c.identity, schedule.id);
+                    present.add(schedule.id);
                     made.push({ ruleId: rule.id, scheduleId: schedule.id, title: c.title, start: c.start });
                     console.log(`[Rules] Rule #${rule.id} scheduled "${c.title}" (${c.channelName}) #${schedule.id}`);
                 } catch (err) {

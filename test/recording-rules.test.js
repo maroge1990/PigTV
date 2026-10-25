@@ -160,14 +160,16 @@ test('DVR-3: a cancelled Sport recording stays cancelled when the guide moves th
     assert.equal(active().filter(r => /Collingwood/.test(r.title)).length, 0);
 });
 
-test('DVR-3: the same teams\' next match (a later day) is still recorded - only the moved event is suppressed', async () => {
+test('DVR-3: the same teams\' next match (a later day) is still recorded', async () => {
     const d = sqlite.getDb();
     d.prepare(`INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, categories, flags, data)
                VALUES ('ff', ?, ?, ?, 'AFL: Collingwood v Carlton', '["Sport","AFL"]', 8, null)`).run(source.id, NOW + 60 * H, NOW + 63 * H);
     sportsEvents.reset();
     const made = (await rules.evaluate()).filter(m => /Collingwood/.test(m.title));
-    assert.equal(made.length, 1, 'the rematch two and a half days later is a new game');
-    assert.equal(made[0].start, NOW + 60 * H);
+    // F4 policy (A2) with R5-F1: the cancel (stored at 2 h) could now be either game inside the 72-hour
+    // horizon, so both are recorded - the earlier, clear pairing with the moved game no longer decides it.
+    assert.deepEqual(made.map(m => m.start), [NOW + 4.5 * H, NOW + 60 * H], 'the rematch is a new game; the unsure one is recorded too');
+    assert.deepEqual((await rules.evaluate()).filter(m => /Collingwood/.test(m.title)), [], 'once');
 });
 
 test('"record this series": each episode once (the repeat of one is skipped by its episode), only on its channel, only that title', async () => {

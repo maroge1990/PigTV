@@ -236,19 +236,25 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
 - `recordings/scheduled` rows carry `rule_id` (null for a one-off). Two rules never record the same programme twice.
 - **What a cancel holds against (0245, 0253, 0254, 0259; not durable identity).** The guide gives no lasting id, so a
   rule decides per evaluation whether a programme is one it has already scheduled (policy accepted by Mark, 25 Oct):
-  - *Present:* a schedule of the same title within 15 minutes is that programme (for a series, on its channel).
+  - *Present:* a schedule of the same title within 15 minutes is that programme (for a series, on its channel: the
+    channel's stable identity when the schedule has one, so a playlist reorder does not change it; 0260).
   - *Moved:* a schedule that has not begun (`scheduled`, `waiting`, or `cancelled` by the viewer) and is no longer
     present is the same programme as the nearest same-title one that has no schedule, one to one. A pending one moves
     with it (`program_start`/`program_end` change), also back again (A → B → A). Sport: any channel, within the next
     **72 h** (nothing beyond is paired), a move of any size. Series airings without the guide's episode number or
     subtitle: on the rule's channel, a move of at most **3 h**; further is a new airing. Airings with episode data are
-    that episode wherever they move.
-  - *Unclear:* a cancel holds only when its pairing is unambiguous (one vanished schedule, one candidate). When several
-    same-title programmes vanish and appear at once, the ones the cancel might be are **recorded** (the viewer can
-    cancel again); pending ones still follow the nearest.
+    that episode wherever they move: a pending one's schedule follows it (0260), unless an airing of it is still at the
+    schedule's time (a repeat is not recorded), and an airing without episode data never takes a schedule of an
+    episode that is still in the guide (0260).
+  - *Unclear:* a cancel holds only when its pairing is unambiguous: the cancelled schedule has exactly one candidate it
+    could be (same title, on its channel for a series, within the move limit and horizon), and that candidate exactly
+    one such schedule. Otherwise the ones the cancel might be are **recorded** (the viewer can cancel again); pending
+    ones still follow the nearest. This is decided again at every evaluation: a programme an earlier evaluation clearly
+    took for the cancelled one is recorded once another same-title programme it might be appears (0260), e.g. a
+    rematch within the 72 h, measured from the cancelled schedule's stored time.
   - A schedule already recording (its pre-buffer started) never takes a later programme. Another match of the same
     title beside a scheduled one is recorded too.
-  A client must not promise more than this.
+  These are heuristics over the guide, not provider identity. A client must not promise more than this.
 - Deleting a recording (`DELETE /api/recordings/:id`) while its start is moving to a backup provider (the seconds after
   the first provider refused it) ends that schedule as `cancelled` (0252); nothing is recorded for it afterwards. A
   recording deleted while it is being finished leaves nothing of it on the share (0257).
