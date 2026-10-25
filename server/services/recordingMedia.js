@@ -14,6 +14,18 @@ const owners = require('./recordingOwners');
 
 // The binaries, set by recordingEngine.init (server/index.js finds them); plain names until then.
 const tools = { ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe' };
+
+/**
+ * 0265: a probe or check run for a recording's writer stops with it (recordingOwners: the recording
+ * is being deleted). Kills `proc` on `signal`; returns the function that detaches it once it has
+ * closed. The caller resolves on 'close', so a stopped one has exited before it answers.
+ */
+function stopWith(signal, proc) {
+    if (!signal) return () => {};
+    const kill = () => { try { proc.kill('SIGKILL'); } catch (e) { /* already gone */ } };
+    signal.addEventListener('abort', kill, { once: true });
+    return () => signal.removeEventListener('abort', kill);
+}
 function setToolPaths({ ffmpegPath, ffprobePath } = {}) {
     if (ffmpegPath) tools.ffmpegPath = ffmpegPath;
     if (ffprobePath) tools.ffprobePath = ffprobePath;
@@ -45,8 +57,9 @@ function compressionTargetPath(originalPath) {
     return path.join(dir, `${base}.compressed.mp4`);
 }
 
-function probeDuration(filePath) {
+function probeDuration(filePath, { signal = null } = {}) {
     return new Promise((resolve) => {
+        if (signal && signal.aborted) return resolve(null);
         let out = '';
         let proc;
         try {
@@ -57,9 +70,12 @@ function probeDuration(filePath) {
         } catch (e) {
             return resolve(null);
         }
+        const detach = stopWith(signal, proc);
         proc.stdout.on('data', d => { out += d; });
         proc.on('error', () => resolve(null));
         proc.on('close', () => {
+            detach();
+            if (signal && signal.aborted) return resolve(null);
             const v = parseFloat(out.trim());
             resolve(Number.isFinite(v) ? v : null);
         });
@@ -92,9 +108,10 @@ const PROBE_CODECS_MAX_OUTPUT = 1024 * 1024;
 // order (codec_name,codec_type) and does not promise otherwise, so the swapped
 // fields meant neither codec was ever recognised and the HEVC tag and MP2->AAC
 // re-encode in buildNativeRemuxArgs never applied. Resolves nulls on any failure.
-function probeCodecs(filePath) {
+function probeCodecs(filePath, { signal = null } = {}) {
     return new Promise((resolve) => {
         const none = { video: null, audio: null };
+        if (signal && signal.aborted) return resolve(none);
         let out = '';
         let proc;
         let timer;
@@ -115,6 +132,7 @@ function probeCodecs(filePath) {
             return finish(none);
         }
         timer = setTimeout(() => { kill(); finish(none); }, PROBE_CODECS_TIMEOUT_MS);
+        const detach = stopWith(signal, proc);
         proc.stdout.on('data', d => {
             if (settled) return;
             out += d;
@@ -122,6 +140,8 @@ function probeCodecs(filePath) {
         });
         proc.on('error', () => finish(none));
         proc.on('close', () => {
+            detach();
+            if (signal && signal.aborted) return finish(none);
             const result = { video: null, audio: null };
             try {
                 const streams = JSON.parse(out).streams;
@@ -269,14 +289,16 @@ function runFfmpegCollectingTail(args, { watchFile = null, stallMs = FFMPEG_STAL
  * line each), or null when it could not be run. Reads the whole file, so it runs once per
  * preparation; audio only, which is cheap to decode.
  */
-function countAudioDecodeErrors(file) {
+function countAudioDecodeErrors(file, { signal = null } = {}) {
     return new Promise((resolve) => {
+        if (signal && signal.aborted) return resolve(null);
         let proc;
         try {
             proc = spawn(tools.ffmpegPath, ['-nostdin', '-v', 'error', '-i', file, '-map', '0:a:0', '-f', 'null', '-']);
         } catch (e) {
             return resolve(null);
         }
+        const detach = stopWith(signal, proc);
         let lines = 0;
         let rest = '';
         proc.stderr.on('data', d => {
@@ -285,7 +307,11 @@ function countAudioDecodeErrors(file) {
             lines += parts.filter(l => l.trim()).length;
         });
         proc.on('error', () => resolve(null));
-        proc.on('close', (code) => resolve(code === 0 || lines > 0 ? lines + (rest.trim() ? 1 : 0) : null));
+        proc.on('close', (code) => {
+            detach();
+            if (signal && signal.aborted) return resolve(null);
+            resolve(code === 0 || lines > 0 ? lines + (rest.trim() ? 1 : 0) : null);
+        });
     });
 }
 
@@ -486,10 +512,12 @@ function preparedTargetPath(originalPath) {
  * means it plays but could not be checked against the original, so the original
  * stays.
  */
-async function checkPrepared(original, prepared) {
+async function checkPrepared(original, prepared, { signal = null } = {}) {
+    // 0265: `signal` (a writer's: the recording is being deleted) stops every probe and the decode check.
+    const opts = { signal };
     const [srcDuration, outDuration, srcCodecs, outCodecs] = await Promise.all([
-        nativeTools.duration(original), nativeTools.duration(prepared),
-        nativeTools.codecs(original), nativeTools.codecs(prepared)
+        nativeTools.duration(original, opts), nativeTools.duration(prepared, opts),
+        nativeTools.codecs(original, opts), nativeTools.codecs(prepared, opts)
     ]);
     if (!(outDuration > 0)) return { ok: false, reason: 'the prepared file has no readable length' };
     if (!outCodecs.video) return { ok: false, reason: 'the prepared file has no video' };
@@ -502,7 +530,7 @@ async function checkPrepared(original, prepared) {
     // passed recording #5 (4 Oct) whose copied HE-AAC audio failed from ~3 minutes on, and
     // its .mkv was deleted. Relative, because broadcast audio has the odd glitch of its own.
     if (outCodecs.audio) {
-        const [srcErrors, outErrors] = await Promise.all([nativeTools.audioErrors(original), nativeTools.audioErrors(prepared)]);
+        const [srcErrors, outErrors] = await Promise.all([nativeTools.audioErrors(original, opts), nativeTools.audioErrors(prepared, opts)]);
         if (outErrors === null || srcErrors === null) {
             return { ok: true, keepOriginal: true, reason: 'the audio could not be decode-checked' };
         }

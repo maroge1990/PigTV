@@ -481,7 +481,7 @@ async function finishOne(rec) {
         if (result.code !== 0 || !fs.existsSync(partial)) {
             problem = result.tail.slice(-3).join(' | ') || `ffmpeg exited with code ${result.code}`;
         } else {
-            const check = await media.checkPrepared(stitched.file, partial);
+            const check = await media.checkPrepared(stitched.file, partial, { signal });
             if (!check.ok) problem = `the MP4 failed its check: ${check.reason}`;
             // DVR-1 (0227): it plays, but could not be compared with the segments (their length or the
             // audio could not be read): the segments are its original and are kept, as preparation keeps one.

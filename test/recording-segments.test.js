@@ -1040,3 +1040,30 @@ test('C2: a deletion during the last-resort .ts copy stops it and returns only o
         assert.deepEqual(leftIn(path.dirname(mp4), path.basename(mp4, '.mp4')), []);
     });
 });
+
+test('D2: a deletion during the MP4\'s audio check stops the check and completes', async () => {
+    const { rec, mp4 } = finishingRow();
+    const realAudio = engine._nativeTools.audioErrors;
+    let reached, release, aborted = false;
+    const checking = new Promise(r => { reached = r; });
+    const gate = new Promise(r => { release = r; });
+    // A decode check that never ends by itself (a share that stopped answering), unless it is stopped.
+    engine._nativeTools.audioErrors = async (file, opts = {}) => {
+        if (!file.endsWith('.partial')) return 0;
+        reached();
+        await Promise.race([gate, new Promise(r => opts.signal && opts.signal.addEventListener('abort', r, { once: true }))]);
+        aborted = Boolean(opts.signal && opts.signal.aborted);
+        return null;
+    };
+    let finishing, deleting;
+    try {
+        finishing = segments.finishOne(rec);
+        await checking;
+        deleting = engine.deleteRecording(rec.id);
+        const outcome = await Promise.race([deleting.then(() => 'deleted'), new Promise(r => setTimeout(() => r('still waiting'), 5000))]);
+        assert.equal(outcome, 'deleted', 'the deletion is not held by a check that cannot finish');
+        assert.equal(aborted, true, 'the check was stopped');
+        assert.equal(recordings.getById(rec.id), null);
+        assert.deepEqual(leftIn(path.dirname(mp4), path.basename(mp4, '.mp4')), []);
+    } finally { release(); await finishing; await deleting; engine._nativeTools.audioErrors = realAudio; }
+});
