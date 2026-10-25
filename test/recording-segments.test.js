@@ -259,7 +259,8 @@ test('switch on: segments in appdata under one row; watchable while recording; a
     assert.ok(done.duration_sec > 0);
     const remuxArgs = remuxed[0];
     assert.equal(remuxArgs[remuxArgs.indexOf('-i') + 1], path.join(rec.work_dir, 'recording.m3u8'), 'remuxed from every epoch\'s segments');
-    assert.equal(remuxArgs[remuxArgs.length - 1], `${done.file_path}.partial`, 'written to the share under a temporary name');
+    const out = remuxArgs[remuxArgs.length - 1];
+    assert.ok(out.startsWith(`${done.file_path}.`) && /\.\d+-[0-9a-f]{8}\.partial$/.test(out), 'written to the share under a temporary name of its own');
     assert.equal(engine.listRecordings().find(r => r.id === rec.id).watch_live, false);
 });
 

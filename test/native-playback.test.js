@@ -115,10 +115,11 @@ test('the final file only appears once the remux has finished', async () => {
     const pending = engine.ensureNativePlayback(r.rec);
     await new Promise(res => setTimeout(res, 60));
     assert.ok(!fs.existsSync(r.native), 'a half-written file must never sit under the final name');
-    assert.ok(fs.existsSync(r.partial), 'work in progress is under the temporary name');
+    const temporary = () => fs.readdirSync(path.dirname(r.native)).filter(f => f.startsWith(`${path.basename(r.native)}.`) && f.endsWith('.partial'));
+    assert.equal(temporary().length, 1, 'work in progress is under a temporary name of its own (0273)');
     await pending;
     assert.ok(fs.existsSync(r.native));
-    assert.ok(!fs.existsSync(r.partial), 'the temporary file was renamed away, not copied');
+    assert.deepEqual(temporary(), [], 'the temporary file was renamed away, not copied');
 });
 
 test('a failed remux leaves nothing behind and reports why', async () => {

@@ -438,9 +438,10 @@ async function remuxForNativePlayback(rec, input, output) {
     // Written under a temporary name and renamed into place, so the final name
     // only ever refers to a finished file. Anything already at the temporary
     // name is debris from a remux that was killed; no other remux of this
-    // recording can be running (see nativeRemuxes).
-    const partial = `${output}.partial`;
-    try { fs.unlinkSync(partial); } catch (e) { /* none */ }
+    // recording can be running (see nativeRemuxes). 0273: the temporary name is
+    // its own (recordingOwners.partialFor, journalled); the old fixed one is cleared.
+    try { fs.unlinkSync(`${output}.partial`); } catch (e) { /* none */ }
+    const partial = owners.partialFor(output);
 
     const codecs = await nativeTools.codecs(input);
     const args = buildNativeRemuxArgs(input, partial, codecs);

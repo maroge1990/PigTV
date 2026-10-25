@@ -41,7 +41,8 @@ const { parseMediaPlaylist, renderMediaPlaylist } = require('./hlsPlaylist');
 const { checkRecordingsFolder } = require('./recordingsFolder');
 const { uniqueFilePath } = require('./recordingNames');
 const { recordings: recordingsDb } = require('../db/recordingsDb');
-const { owned, withdraw, write } = require('./recordingOwners'); // R4-D2, 0264: recordings being deleted
+const owners = require('./recordingOwners');
+const { owned, withdraw, write } = owners; // R4-D2, 0264: recordings being deleted
 
 const SEGMENT_SEC = 4;
 const MAX_FINISH_ATTEMPTS = 3;
@@ -392,7 +393,7 @@ const segmentFiles = (rec) => epochs(rec.work_dir).flatMap(e => archiveOf(e.dir)
  * partial is this call's own (created exclusively under a unique name). Returns the published path.
  */
 async function joinSegments(rec, dir, first, alt, signal = null, made = () => {}) {
-    const partial = path.join(dir, `${first}.${process.pid}-${crypto.randomBytes(4).toString('hex')}.partial`);
+    const partial = owners.partialFor(path.join(dir, first));
     made(partial); // 0270: named to its writer before it exists
     async function* pieces() {
         for (const file of segmentFiles(rec)) yield* fs.createReadStream(file);
@@ -468,8 +469,8 @@ async function finishOne(rec) {
 
     const dir = await shareFolder(rec);
     let target = dir ? uniqueFilePath(dir, rec.segment_name || `Recording ${rec.id}`, '.mp4') : path.join(rec.work_dir, 'final.mp4');
-    const partial = `${target}.partial`;
-    try { fs.unlinkSync(partial); } catch (e) { /* none */ }
+    try { fs.unlinkSync(`${target}.partial`); } catch (e) { /* none (the fixed name before 0273) */ }
+    const partial = owners.partialFor(target); // 0273: its own name, journalled by its writer
 
     const codecs = await media.nativeTools.codecs(stitched.file);
     console.log(`[Recordings] Making the MP4 of #${rec.id} from ${stitched.segments} segments -> ${dir ? target : 'the work folder (the share is not usable now)'}`);
@@ -582,7 +583,7 @@ async function moveOne(rec) {
     if (inWork(rec)) {
         const source = rec.file_path;
         const name = rec.segment_name || `Recording ${rec.id}`;
-        const partial = path.join(dir, `${name}.mp4.${process.pid}-${crypto.randomBytes(4).toString('hex')}.partial`);
+        const partial = owners.partialFor(path.join(dir, `${name}.mp4`));
         let target;
         try {
             // 0264: a writer of the recording; a deletion stops it and waits. 0267 (Codex review of

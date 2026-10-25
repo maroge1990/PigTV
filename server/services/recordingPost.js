@@ -105,14 +105,15 @@ async function compressRecording(rec, settings) {
     // 0192 (audit R08): encoded under a temporary name and renamed into place only
     // once verified. The final name is served to the Apple client as soon as it
     // exists (readyNativePlaybackPath), and ffmpeg used to write it in place, so a
-    // Play during a long encode could be handed a half-written MP4.
-    const partial = `${output}.partial`;
+    // Play during a long encode could be handed a half-written MP4. 0273: the
+    // temporary name is its own (recordingOwners.partialFor, journalled).
+    const partial = owners.partialFor(output);
 
     if (!fs.existsSync(input)) {
         recordingsDb.setCompressStatus(rec.id, 'failed', { error: 'Original file is missing' });
         return;
     }
-    try { fs.unlinkSync(partial); } catch (e) { /* none left by an earlier run */ }
+    try { fs.unlinkSync(`${output}.partial`); } catch (e) { /* none left by an earlier run (the fixed name before 0273) */ }
 
     const originalSize = fs.statSync(input).size;
     const sourceDuration = await nativeTools.duration(input);

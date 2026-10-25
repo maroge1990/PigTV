@@ -60,6 +60,8 @@ function makeRecording({ bytes = 'x'.repeat(4096) } = {}) {
     };
 }
 const row = id => recordings.getById(id);
+/** 0273: a file's temporary name of its own, "<file>.<pid>-<random>.partial". */
+const partialOf = (file) => new RegExp(`^${file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.\\d+-[0-9a-f]{8}\\.partial$`);
 
 // ---- compression (R08) ------------------------------------------------------
 
@@ -68,7 +70,7 @@ test('compression never deletes the original when the original\'s length cannot 
     behaviour.durations[r.file] = null;
     await engine._compressRecording(row(r.id), { postRecordKeepOriginal: false });
     assert.ok(fs.existsSync(r.file), 'original kept');
-    assert.ok(!fs.existsSync(r.compressed) && !fs.existsSync(`${r.compressed}.partial`), 'no result left behind');
+    assert.deepEqual(fs.readdirSync(dir).filter(f => f.startsWith(path.basename(r.compressed))), [], 'no result left behind');
     assert.equal(row(r.id).compress_status, 'failed');
     assert.match(row(r.id).compress_error, /could not be verified/);
     assert.equal(row(r.id).file_path, r.file);
@@ -76,7 +78,7 @@ test('compression never deletes the original when the original\'s length cannot 
 
 test('compression never deletes the original when the result\'s length cannot be read', async () => {
     const r = makeRecording();
-    behaviour.durations[`${r.compressed}.partial`] = null;
+    engine._nativeTools.duration = async (file) => (partialOf(r.compressed).test(file) ? null : 60);
     await engine._compressRecording(row(r.id), { postRecordKeepOriginal: false });
     assert.ok(fs.existsSync(r.file));
     assert.ok(!fs.existsSync(r.compressed));
@@ -88,7 +90,7 @@ test('compression encodes under a temporary name and publishes only a verified r
     let seenFinalDuringEncode = null;
     engine._nativeTools.ffmpeg = async (args) => {
         const out = args[args.length - 1];
-        assert.equal(out, `${r.compressed}.partial`);
+        assert.match(out, partialOf(r.compressed));
         assert.deepEqual(args.slice(-3, -1), ['-f', 'mp4'], 'format is explicit for the temporary name');
         fs.writeFileSync(out, 'y'.repeat(2048)); // over the 1 KB floor, under the original
         seenFinalDuringEncode = fs.existsSync(r.compressed);
@@ -405,3 +407,83 @@ for (const [label, start] of [
         assert.deepEqual(leftovers(r), []);
     });
 }
+
+// ---- Codex review of 0271 (26 Oct): what an abandoned writer leaves is removed safely.
+
+/** ffmpeg that writes its output at once and then never exits, even when killed (stuck on the share). */
+function stuckFfmpeg() {
+    let unstick;
+    const stuck = new Promise(r => { unstick = r; });
+    const outs = [];
+    let reached;
+    const arrived = new Promise(r => { reached = r; });
+    engine._nativeTools.ffmpeg = async (args) => {
+        const out = args.at(-1);
+        outs.push(out);
+        fs.writeFileSync(out, 'first bytes');
+        reached();
+        await stuck;
+        return { code: 255, tail: ['killed'] };
+    };
+    return { arrived, unstick: () => unstick(), outs };
+}
+
+test('I2: an abandoned compression ending later never removes the file of a new recording of the same name', async () => {
+    const r1 = makeRecording();
+    const one = stuckFfmpeg();
+    engine._owners._setStopWaitMs(100);
+    try {
+        const job1 = engine._compressRecording(row(r1.id), { postRecordKeepOriginal: true });
+        await one.arrived;
+        await engine.deleteRecording(r1.id); // gives up on the stuck writer after its wait
+        // A new recording of the same name compresses while the old writer is still stuck.
+        fs.writeFileSync(r1.file, 'x'.repeat(4096));
+        const r2 = recordings.create({ scheduled_id: 9000, title: 'Prep again', channel_name: 'ABC', channel_logo: null,
+            source_id: 1, channel_item_id: 'pos_1', file_path: r1.file, started_at: Date.now() - 3600e3 });
+        recordings.finish(r2.id, { status: 'completed', ended_at: Date.now(), file_size_bytes: 4096, duration_sec: 3600 });
+        let reached2, release2;
+        const arrived2 = new Promise(x => { reached2 = x; });
+        const gate2 = new Promise(x => { release2 = x; });
+        engine._nativeTools.ffmpeg = async (args) => { fs.writeFileSync(args.at(-1), 'second recording'); reached2(args.at(-1)); await gate2; return { code: 1, tail: ['stop'] }; };
+        const job2 = engine._compressRecording(row(r2.id), { postRecordKeepOriginal: true });
+        const out2 = await arrived2;
+        one.unstick(); // the old writer ends and removes what it made
+        await job1;
+        await new Promise(r => setTimeout(r, 50));
+        assert.equal(fs.existsSync(out2), true, 'the new recording\'s file in progress is untouched');
+        assert.equal(fs.readFileSync(out2, 'utf8'), 'second recording');
+        release2();
+        await job2;
+        await engine.deleteRecording(r2.id);
+    } finally { one.unstick(); engine._owners._setStopWaitMs(); }
+});
+
+test('I1: a removal that fails keeps its record, and the next start removes the file', async () => {
+    const sub = path.join(dir, 'locked');
+    fs.mkdirSync(sub, { recursive: true });
+    const base = path.join(sub, 'Locked - 2026-10-26 19-30');
+    const file = `${base}.mkv`;
+    fs.writeFileSync(file, 'x'.repeat(4096));
+    const rec = recordings.create({ scheduled_id: 9100, title: 'Locked', channel_name: 'ABC', channel_logo: null,
+        source_id: 1, channel_item_id: 'pos_1', file_path: file, started_at: Date.now() - 3600e3 });
+    recordings.finish(rec.id, { status: 'completed', ended_at: Date.now(), file_size_bytes: 4096, duration_sec: 3600 });
+    const one = stuckFfmpeg();
+    engine._owners._setStopWaitMs(100);
+    const listed = () => getDb().prepare('SELECT path FROM recording_cleanup WHERE recording_id = ?').all(rec.id).map(x => x.path);
+    try {
+        const job = engine._compressRecording(row(rec.id), { postRecordKeepOriginal: true });
+        await one.arrived;
+        await engine.deleteRecording(rec.id);
+        const left = one.outs[0];
+        fs.chmodSync(sub, 0o555); // the folder cannot be changed: the writer's own removal will fail
+        one.unstick();
+        await job;
+        await new Promise(r => setTimeout(r, 50));
+        assert.equal(fs.existsSync(left), true);
+        assert.deepEqual(listed(), [left], 'still listed: its removal failed');
+        fs.chmodSync(sub, 0o755);
+        await engine._owners.sweepCleanup(); // the next start
+        assert.equal(fs.existsSync(left), false);
+        assert.deepEqual(listed(), []);
+    } finally { fs.chmodSync(sub, 0o755); one.unstick(); engine._owners._setStopWaitMs(); }
+});
