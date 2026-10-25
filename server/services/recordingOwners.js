@@ -40,6 +40,10 @@
  * 0279 (Codex review of the journal): the queues that finish, move, prepare and compress recordings
  * wait for the start-up sweep (whenSwept), so recovery never adopts a file the sweep is removing; and
  * a partial that cannot be inspected stays listed.
+ *
+ * 0280 (Codex review of 0279): they wait at most SWEEP_WAIT_MS - a sweep stuck on a share that stopped
+ * answering must not stall every queue - so recovery itself never adopts a file the sweep may still
+ * remove (adoptable: not listed, and no second name). Inodes are compared exactly (bigint).
  */
 const fs = require('fs');
 const crypto = require('crypto');
@@ -173,8 +177,36 @@ async function stopWriters(id) {
  * One that cannot be removed now stays listed.
  */
 let swept = Promise.resolve(0);
-/** Settles when the last start-up sweep has (never rejects): every queue that changes recordings awaits it first. */
-const whenSwept = () => swept;
+const SWEEP_WAIT_MS = 60 * 1000;
+let sweepWaitMs = SWEEP_WAIT_MS;
+function _setSweepWaitMs(ms) { sweepWaitMs = ms ?? SWEEP_WAIT_MS; } // test seam
+let sweepLate = false;
+/**
+ * Settles when the last start-up sweep has, or after SWEEP_WAIT_MS (never rejects): every queue that
+ * changes recordings awaits it first. Past the wait the sweep may still be running; adoptable() keeps
+ * recovery off what it may remove.
+ */
+function whenSwept() {
+    let timer;
+    const late = new Promise(r => { timer = setTimeout(() => {
+        if (!sweepLate) console.warn(`[Recordings] The clean-up sweep has run ${Math.round(sweepWaitMs / 1000)} s (the share may not be answering); recordings are finished meanwhile`);
+        sweepLate = true;
+        r();
+    }, sweepWaitMs); });
+    return Promise.race([swept, late]).finally(() => clearTimeout(timer));
+}
+/**
+ * May recovery take the file at `p` as a recording's (keepOriginal, recoverLegacyOriginals)? Only one
+ * a recording already points at, or one the journal does not list and that has no second name (a
+ * publication stopped after its link has two): the sweep never removes either.
+ */
+function adoptable(p) {
+    try {
+        if (recorded(p)) return true;
+        if (cleanupDb().prepare('SELECT 1 FROM recording_cleanup WHERE path = ?').get(p)) return false;
+        return fs.statSync(p, { bigint: true }).nlink === 1n;
+    } catch (e) { return false; }
+}
 function sweepCleanup() {
     swept = sweepOnce().catch((err) => { console.warn('[Recordings] The clean-up sweep failed:', err.message); return 0; });
     return swept;
@@ -192,10 +224,10 @@ async function sweepOnce() {
             if (now !== identity) { forget(p); continue; } // another file at that name now: never ours to remove
         } else {
             let st = null;
-            try { st = await fs.promises.stat(p); } catch (e) {
+            try { st = await fs.promises.stat(p, { bigint: true }); } catch (e) {
                 if (e.code !== 'ENOENT') continue; // cannot see whether it has another name: it stays listed
             }
-            if (st && st.nlink > 1) {
+            if (st && st.nlink > 1n) {
                 // A publication stopped right after its link: its other name is this very file.
                 let cleared = true;
                 const names = await fs.promises.readdir(path.dirname(p)).catch(() => null);
@@ -204,7 +236,7 @@ async function sweepOnce() {
                     const other = path.join(path.dirname(p), name);
                     if (other === p) continue;
                     // Only "not there" is not this file; a name that cannot be inspected keeps the partial listed.
-                    const o = await fs.promises.stat(other).catch((e) => { if (e.code !== 'ENOENT') cleared = false; return null; });
+                    const o = await fs.promises.stat(other, { bigint: true }).catch((e) => { if (e.code !== 'ENOENT') cleared = false; return null; });
                     if (!o || o.ino !== st.ino || o.dev !== st.dev || recorded(other)) continue;
                     try { await fs.promises.unlink(other); removed++; } catch (e) { cleared = false; }
                 }
@@ -219,4 +251,4 @@ async function sweepOnce() {
 
 const DELETED = 'Recording was deleted';
 
-module.exports = { retire, owned, withdraw, write, stopWriters, sweepCleanup, whenSwept, partialFor, published, committed, DELETED, STOP_WAIT_MS, _setStopWaitMs };
+module.exports = { retire, owned, withdraw, write, stopWriters, sweepCleanup, whenSwept, adoptable, partialFor, published, committed, DELETED, STOP_WAIT_MS, _setStopWaitMs, _setSweepWaitMs };

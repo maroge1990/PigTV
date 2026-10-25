@@ -1374,3 +1374,65 @@ test('R3: a publication that can neither be journalled nor taken back keeps its 
         recordings.setSegmentFields(rec.id, { status: 'failed', segment_state: 'failed' });
     });
 });
+
+// ---- Codex review of 0279 (26 Oct): exact inode comparison, and a stuck sweep never stalls the queues
+// nor lets recovery adopt a file it may still remove.
+
+test('S1: two files whose inode numbers differ only beyond 2^53 are never taken for one file', async () => {
+    const { rec, mp4 } = finishingRow();
+    const folder = path.dirname(mp4);
+    fs.mkdirSync(folder, { recursive: true });
+    let partial;
+    await engine._owners.write(rec.id, async (signal, made) => {
+        partial = path.join(folder, `${path.basename(mp4)}.123-abcdef05.partial`);
+        made(partial);
+        fs.writeFileSync(partial, 'a partial with a second name somewhere');
+    });
+    const unrelated = path.join(folder, 'Unrelated.mp4');
+    fs.writeFileSync(unrelated, 'not ours');
+    const realStat = fs.promises.stat;
+    const fake = { [partial]: 9007199254740992n, [unrelated]: 9007199254740993n }; // equal as doubles
+    fs.promises.stat = async (p, opts) => {
+        if (!(p in fake)) return realStat(p, opts);
+        const big = { dev: 1n, ino: fake[p], nlink: 2n };
+        return opts && opts.bigint ? big : { dev: 1, ino: Number(big.ino), nlink: 2 };
+    };
+    try { await engine._owners.sweepCleanup(); } finally { fs.promises.stat = realStat; }
+    assert.equal(fs.existsSync(unrelated), true, 'a different file is never removed');
+    fs.unlinkSync(unrelated);
+    await engine._owners.sweepCleanup();
+    recordings.setSegmentFields(rec.id, { status: 'failed', segment_state: 'failed' });
+});
+
+test('S2: a sweep stuck on the share holds the queues for a bounded time only, and recovery never adopts what it may remove', async () => {
+    await withTools({ duration: async (f) => (f.endsWith('recording.m3u8') ? null : 120) }, async () => {
+        const { rec, mp4 } = finishingRow();
+        const away = `${mount}-away`;
+        fs.renameSync(mount, away);
+        try { await segments.finishOne(rec); } finally { fs.renameSync(away, mount); }
+        const ts = segments.keptOriginalPath(mp4);
+        fs.mkdirSync(path.dirname(ts), { recursive: true });
+        fs.writeFileSync(ts, joined); // published by a run that stopped before recording it
+        engine._owners.published(ts, rec.id);
+        const realStat = fs.promises.stat;
+        let unstick;
+        const stuck = new Promise(r => { unstick = r; });
+        fs.promises.stat = async (p, ...a) => { if (p === ts) await stuck; return realStat(p, ...a); };
+        engine._owners._setSweepWaitMs?.(200);
+        let sweeping, moving;
+        try {
+            sweeping = engine._owners.sweepCleanup(); // never ends while the share is stuck
+            moving = segments.moveOne(recordings.getById(rec.id));
+            const outcome = await Promise.race([moving.then(() => 'moved'), new Promise(r => setTimeout(() => r('still waiting'), 5000))]);
+            assert.equal(outcome, 'moved', 'the queue goes on after its bounded wait');
+            const done = recordings.getById(rec.id);
+            assert.notEqual(done.segment_original, ts, 'the file the sweep may still remove is not adopted');
+            assert.ok(done.segment_original && fs.existsSync(done.segment_original));
+        } finally { unstick(); fs.promises.stat = realStat; engine._owners._setSweepWaitMs?.(); }
+        await sweeping;
+        const done = recordings.getById(rec.id);
+        assert.ok(fs.existsSync(done.segment_original), 'its own original survives the late sweep');
+        assert.deepEqual(fs.readFileSync(done.segment_original), joined);
+        await engine.deleteRecording(rec.id);
+    });
+});

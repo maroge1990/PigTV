@@ -562,7 +562,8 @@ async function keepOriginal(rec, dir) {
     const base = path.basename(rec.file_path, path.extname(rec.file_path));
     try {
         for (const known of [rec.segment_original, keptOriginalPath(path.join(dir, path.basename(rec.file_path)))]) {
-            if (known && fs.existsSync(known) && await sameBytesAsSegments(known, rec)) {
+            // 0280: never a file the clean-up sweep may still remove (owners.adoptable).
+            if (known && fs.existsSync(known) && owners.adoptable(known) && await sameBytesAsSegments(known, rec)) {
                 if (!owned(rec.id)) return false; // R4-D2: a file found, not published here: left alone
                 recordingsDb.setSegmentFields(rec.id, { segment_original: known });
                 return true;
@@ -649,7 +650,7 @@ async function recoverLegacyOriginals() {
         const conventional = keptOriginalPath(rec.file_path);
         const files = segmentFiles(rec);
         if (files.length && files.every(f => fs.existsSync(f))) {
-            if (fs.existsSync(conventional) && await sameBytesAsSegments(conventional, rec)) {
+            if (fs.existsSync(conventional) && owners.adoptable(conventional) && await sameBytesAsSegments(conventional, rec)) {
                 recordingsDb.setSegmentFields(rec.id, { segment_original: conventional });
                 console.log(`[Recordings] #${rec.id}: its kept original is ${path.basename(conventional)} (the same bytes as its segments)`);
             } else {
