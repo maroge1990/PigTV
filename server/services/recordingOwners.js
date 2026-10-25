@@ -32,9 +32,9 @@
  * (a stop between the link and that journalling) has that other name checked the same way. The sweep
  * only ever removes a file this code made.
  *
- * 0277 (Codex review of 0276): a 'published' or withdrawn row also holds the file's identity (device
- * and inode); the sweep removes it only while that name is still that very file - one put there since
- * is kept, and unlisted. A partial whose second name cannot be removed stays listed, so the next start
+ * 0277 (Codex review of 0276): a 'published' or withdrawn row also holds the file's identity (0281:
+ * device, inode, size, mtime and birthtime - see identityOfStat); the sweep removes it only while that
+ * name is still that very file - one put there since is kept, and unlisted. A partial whose second name cannot be removed stays listed, so the next start
  * finds that name again through it.
  *
  * 0279 (Codex review of the journal): the queues that finish, move, prepare and compress recordings
@@ -83,12 +83,18 @@ const cleanupDb = () => { initSchema(); return getDb(); };
 const path = require('path');
 /** Does a recording point at `p` (its file, or its kept original)? Then it is the recording's, not debris. */
 const recorded = (p) => Boolean(cleanupDb().prepare('SELECT 1 FROM recordings WHERE file_path = ? OR segment_original = ? LIMIT 1').get(p, p));
-/** "<dev>:<ino>" of the file at `p` now (bigint, as an inode may not fit a double), or null. */
+/**
+ * Which file is at `p`: device, inode, size, modification and creation time (bigint, ns). A filesystem
+ * may give a freed inode number straight to the next new file (Linux does: CI, 26 Oct), so the inode
+ * alone does not tell a replacement from the file journalled; its times and size do. None of these
+ * change when the file's partial name is linked or removed (only ctime does), so publication keeps it.
+ */
+const identityOfStat = (st) => `${st.dev}:${st.ino}:${st.size}:${st.mtimeNs}:${st.birthtimeNs}`;
 function identityOf(p) {
-    try { const st = fs.statSync(p, { bigint: true }); return `${st.dev}:${st.ino}`; } catch (e) { return null; }
+    try { return identityOfStat(fs.statSync(p, { bigint: true })); } catch (e) { return null; }
 }
 async function identityNow(p) {
-    try { const st = await fs.promises.stat(p, { bigint: true }); return `${st.dev}:${st.ino}`; } catch (e) { return e.code === 'ENOENT' ? 'gone' : null; }
+    try { return identityOfStat(await fs.promises.stat(p, { bigint: true })); } catch (e) { return e.code === 'ENOENT' ? 'gone' : null; }
 }
 /** A finished file now under its final name, not yet recorded: journalled, as that very file, until committed(). Throws if it cannot be. */
 function published(p, id) {

@@ -1436,3 +1436,28 @@ test('S2: a sweep stuck on the share holds the queues for a bounded time only, a
         await engine.deleteRecording(rec.id);
     });
 });
+
+test('Q1b: a replacement that reuses the journalled file\'s inode number (as Linux does) is still left alone', async () => {
+    const { rec, mp4 } = finishingRow();
+    const real = recordings.setSegmentFields;
+    recordings.setSegmentFields = (id, fields) => {
+        if (id === rec.id && fields.status === 'completed') throw new Error('database or disk is full');
+        return real.call(recordings, id, fields);
+    };
+    try { await segments.finishOne(rec).catch(() => {}); } finally { recordings.setSegmentFields = real; }
+    const ours = fs.statSync(mp4, { bigint: true });
+    fs.unlinkSync(mp4);
+    fs.writeFileSync(mp4, 'a new file that the filesystem gave the same inode number');
+    const realStat = fs.promises.stat;
+    // The filesystem reuses the freed inode: same device and inode, but a different file.
+    fs.promises.stat = async (p, opts) => {
+        const st = await realStat(p, opts);
+        if (p !== mp4 || !(opts && opts.bigint)) return st;
+        return Object.assign(Object.create(Object.getPrototypeOf(st)), st, { dev: ours.dev, ino: ours.ino });
+    };
+    try { await engine._owners.sweepCleanup(); } finally { fs.promises.stat = realStat; }
+    assert.equal(fs.readFileSync(mp4, 'utf8'), 'a new file that the filesystem gave the same inode number', 'kept');
+    assert.deepEqual(cleanupRows(), []);
+    fs.unlinkSync(mp4);
+    recordings.setSegmentFields(rec.id, { status: 'failed', segment_state: 'failed' });
+});
