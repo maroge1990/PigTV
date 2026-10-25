@@ -1224,3 +1224,47 @@ test('P3: a finished recording\'s MP4 is never removed by the sweep, and leaves 
     await engine._owners.sweepCleanup();
     assert.ok(fs.existsSync(mp4));
 });
+
+// ---- Codex review of 0276 (26 Oct): the sweep removes only the very file it journalled, and keeps its
+// record until every name of that file is gone.
+
+test('Q1: a journalled final file that something else has since replaced at that name is left alone', async () => {
+    const { rec, mp4 } = finishingRow();
+    const real = recordings.setSegmentFields;
+    recordings.setSegmentFields = (id, fields) => {
+        if (id === rec.id && fields.status === 'completed') throw new Error('database or disk is full');
+        return real.call(recordings, id, fields);
+    };
+    try { await segments.finishOne(rec).catch(() => {}); } finally { recordings.setSegmentFields = real; }
+    assert.ok(fs.existsSync(mp4));
+    fs.unlinkSync(mp4);
+    fs.writeFileSync(mp4, 'somebody else\'s file, put there since'); // a different file at the journalled name
+    await engine._owners.sweepCleanup();
+    assert.equal(fs.readFileSync(mp4, 'utf8'), 'somebody else\'s file, put there since', 'not the file it journalled: kept');
+    assert.deepEqual(cleanupRows(), [], 'and no longer listed');
+    fs.unlinkSync(mp4);
+    recordings.setSegmentFields(rec.id, { status: 'failed', segment_state: 'failed' });
+});
+
+test('Q2: a final name the sweep cannot remove keeps its partial listed, and the next start removes both', async () => {
+    const { rec, mp4 } = finishingRow();
+    const folder = path.dirname(mp4);
+    fs.mkdirSync(folder, { recursive: true });
+    let partial;
+    await engine._owners.write(rec.id, async (signal, made) => {
+        partial = path.join(folder, `${path.basename(mp4)}.123-abcdef02.partial`);
+        made(partial);
+        fs.writeFileSync(partial, 'finished MP4');
+        fs.linkSync(partial, mp4); // stopped right after the link
+    });
+    const realUnlink = fs.promises.unlink;
+    fs.promises.unlink = async (p, ...a) => { if (p === mp4) throw Object.assign(new Error('EIO'), { code: 'EIO' }); return realUnlink(p, ...a); };
+    try { await engine._owners.sweepCleanup(); } finally { fs.promises.unlink = realUnlink; }
+    assert.ok(fs.existsSync(mp4), 'its removal failed');
+    assert.ok(fs.existsSync(partial) && cleanupRows().includes(partial), 'so the partial stays listed - the way back to it');
+    await engine._owners.sweepCleanup(); // the next start
+    assert.equal(fs.existsSync(mp4), false);
+    assert.equal(fs.existsSync(partial), false);
+    assert.deepEqual(cleanupRows(), []);
+    recordings.setSegmentFields(rec.id, { status: 'failed', segment_state: 'failed' });
+});

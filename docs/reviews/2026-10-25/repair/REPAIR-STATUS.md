@@ -95,6 +95,8 @@ checked the same way. Nothing else is ever touched. Before (0275): P1 (stop righ
 fails after publication) fail - the MP4 is left untracked; the control P3 (a recorded MP4 is kept, no rows left) passes.
 After: all three pass. Gates: `npm test` twice, each 1145 / 1140 pass / 5 skipped / 0 fail; verify-build passes.
 
+| Server `7507851..a11adb2` (review of 0275-0276) | needs-attention | **Q1** (high): a `published` row held only a path, so a file put at that name since could be removed; **Q2** (medium): a final name the sweep could not remove lost its record with the partial's | Fixed: **0277** - `published`/withdrawn rows hold the file's identity (device:inode); the sweep removes only that very file (another one is kept and unlisted; an unreadable one stays listed), and keeps a partial listed while any of its other names could not be removed. Before (0276): both fail; after: pass. |
+
 Every fix above has a test that fails on the build before it (isolated copies, `old-code.cjs`; logs beside it) and
 passes after, with the full suite and verify-build passing at each commit. The recurring pattern was each fix of the
 episode-identity heuristic and of writer ownership opening a narrower edge; the designs were simplified along the way

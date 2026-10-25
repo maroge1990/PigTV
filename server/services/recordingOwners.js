@@ -31,6 +31,11 @@
  * a 'published' file no recording points at is removed; and a partial still there with another name
  * (a stop between the link and that journalling) has that other name checked the same way. The sweep
  * only ever removes a file this code made.
+ *
+ * 0277 (Codex review of 0276): a 'published' or withdrawn row also holds the file's identity (device
+ * and inode); the sweep removes it only while that name is still that very file - one put there since
+ * is kept, and unlisted. A partial whose second name cannot be removed stays listed, so the next start
+ * finds that name again through it.
  */
 const fs = require('fs');
 const crypto = require('crypto');
@@ -50,9 +55,13 @@ const owned = (id) => !retired.has(id) && Boolean(recordingsDb.getById(id));
  * removed now (not "already gone") is journalled, so the start-up sweep removes it (Codex review of 0274).
  */
 function withdraw(file, id, what) {
+    const identity = identityOf(file);
     try { fs.unlinkSync(file); forget(file); } catch (e) {
         if (e.code !== 'ENOENT') {
-            try { cleanupDb().prepare('INSERT OR IGNORE INTO recording_cleanup (path, recording_id, created_at) VALUES (?, ?, ?)').run(file, id, Date.now()); } catch (err) { /* database closed */ }
+            try {
+                cleanupDb().prepare(`INSERT INTO recording_cleanup (path, recording_id, created_at, kind, identity) VALUES (?, ?, ?, 'published', ?)
+                    ON CONFLICT (path) DO UPDATE SET kind = 'published', identity = excluded.identity`).run(file, id, Date.now(), identity);
+            } catch (err) { /* database closed */ }
             console.warn(`[Recordings] #${id} was deleted while its ${what} was published; that copy could not be removed yet (${e.code}) and is removed at the next start`);
             return;
         }
@@ -66,10 +75,17 @@ const cleanupDb = () => { initSchema(); return getDb(); };
 const path = require('path');
 /** Does a recording point at `p` (its file, or its kept original)? Then it is the recording's, not debris. */
 const recorded = (p) => Boolean(cleanupDb().prepare('SELECT 1 FROM recordings WHERE file_path = ? OR segment_original = ? LIMIT 1').get(p, p));
-/** A finished file now under its final name, not yet recorded: journalled until committed(). Throws if it cannot be. */
+/** "<dev>:<ino>" of the file at `p` now (bigint, as an inode may not fit a double), or null. */
+function identityOf(p) {
+    try { const st = fs.statSync(p, { bigint: true }); return `${st.dev}:${st.ino}`; } catch (e) { return null; }
+}
+async function identityNow(p) {
+    try { const st = await fs.promises.stat(p, { bigint: true }); return `${st.dev}:${st.ino}`; } catch (e) { return e.code === 'ENOENT' ? 'gone' : null; }
+}
+/** A finished file now under its final name, not yet recorded: journalled, as that very file, until committed(). Throws if it cannot be. */
 function published(p, id) {
-    cleanupDb().prepare(`INSERT INTO recording_cleanup (path, recording_id, created_at, kind) VALUES (?, ?, ?, 'published')
-        ON CONFLICT (path) DO UPDATE SET kind = 'published', recording_id = excluded.recording_id`).run(p, id, Date.now());
+    cleanupDb().prepare(`INSERT INTO recording_cleanup (path, recording_id, created_at, kind, identity) VALUES (?, ?, ?, 'published', ?)
+        ON CONFLICT (path) DO UPDATE SET kind = 'published', recording_id = excluded.recording_id, identity = excluded.identity`).run(p, id, Date.now(), identityOf(p));
 }
 /** The database points at `p` now: it is no longer debris. */
 function committed(p) { if (p) forget(p); }
@@ -154,23 +170,31 @@ async function stopWriters(id) {
  */
 async function sweepCleanup() {
     let rows = [];
-    try { rows = cleanupDb().prepare('SELECT path, kind FROM recording_cleanup').all(); } catch (e) { return 0; }
+    try { rows = cleanupDb().prepare('SELECT path, kind, identity FROM recording_cleanup').all(); } catch (e) { return 0; }
     let removed = 0;
-    for (const { path: p, kind } of rows) {
+    for (const { path: p, kind, identity } of rows) {
         if (kind === 'published') {
             if (recorded(p)) { forget(p); continue; }
+            const now = await identityNow(p);
+            if (now === 'gone') { forget(p); continue; }
+            if (now === null || identity === null) continue; // cannot tell which file it is: kept, still listed
+            if (now !== identity) { forget(p); continue; } // another file at that name now: never ours to remove
         } else {
             let st = null;
             try { st = await fs.promises.stat(p); } catch (e) { /* gone, or unreadable: removeListed decides */ }
             if (st && st.nlink > 1) {
-                const dir = path.dirname(p);
-                for (const name of await fs.promises.readdir(dir).catch(() => [])) {
-                    const other = path.join(dir, name);
+                // A publication stopped right after its link: its other name is this very file.
+                let cleared = true;
+                const names = await fs.promises.readdir(path.dirname(p)).catch(() => null);
+                if (names === null) cleared = false;
+                for (const name of names || []) {
+                    const other = path.join(path.dirname(p), name);
                     if (other === p) continue;
                     const o = await fs.promises.stat(other).catch(() => null);
                     if (!o || o.ino !== st.ino || o.dev !== st.dev || recorded(other)) continue;
-                    try { await fs.promises.unlink(other); removed++; } catch (e) { /* the partial stays listed below if it cannot go */ }
+                    try { await fs.promises.unlink(other); removed++; } catch (e) { cleared = false; }
                 }
+                if (!cleared) continue; // the partial stays listed: the way back to that name next time
             }
         }
         if (await removeListed(p)) removed++;

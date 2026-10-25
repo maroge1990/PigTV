@@ -189,6 +189,10 @@ function initSchema() {
     try {
         db.exec("ALTER TABLE recording_cleanup ADD COLUMN kind TEXT NOT NULL DEFAULT 'partial'");
     } catch (e) { /* already present */ }
+    // 0277: which file a 'published' (or withdrawn) row means - "<dev>:<ino>" when it was journalled.
+    try {
+        db.exec('ALTER TABLE recording_cleanup ADD COLUMN identity TEXT');
+    } catch (e) { /* already present */ }
     // R6: the programme's image from the guide, found when the schedule is made.
     try {
         db.exec('ALTER TABLE scheduled_recordings ADD COLUMN image_url TEXT');
