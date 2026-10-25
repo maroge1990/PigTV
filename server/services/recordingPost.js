@@ -122,7 +122,8 @@ async function compressRecording(rec, settings) {
 
     // R5-D1, 0264: a writer of the recording - a deletion stops it and waits; one deleted while it ran
     // (ffmpeg may open its output only after the deletion) removes what it made and publishes nothing.
-    const result = await owners.write(rec.id, async (signal) => {
+    const result = await owners.write(rec.id, async (signal, made) => {
+        made(partial);
         let r = await nativeTools.ffmpeg(buildCompressArgs(input, partial, settings), { watchFile: partial, signal });
         // Some VAAPI drivers implement constant-quantiser rate control only and
         // reject a bitrate target outright. Retry once in CQP rather than leaving

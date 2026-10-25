@@ -166,6 +166,13 @@ function initSchema() {
             created_by INTEGER,
             created_at INTEGER NOT NULL
         );
+        -- 0270: files a deleted recording's writer made and may still hold (recordingOwners):
+        -- removed when that writer ends, or at the next start.
+        CREATE TABLE IF NOT EXISTS recording_cleanup (
+            path TEXT PRIMARY KEY,
+            recording_id INTEGER,
+            created_at INTEGER NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS recording_rule_hits (
             rule_id INTEGER NOT NULL,
             identity TEXT NOT NULL,

@@ -448,7 +448,8 @@ async function remuxForNativePlayback(rec, input, output) {
     console.log(`[Recordings] Remuxing #${rec.id} for native playback -> ${output}`);
     // R5-D1, 0264: a writer of the recording - a deletion stops it and waits; one deleted while it ran
     // (ffmpeg may open its output only after the deletion) removes what it made before it ends.
-    const result = await owners.write(rec.id, async (signal) => {
+    const result = await owners.write(rec.id, async (signal, made) => {
+        made(partial);
         const r = await nativeTools.ffmpeg(args, { watchFile: partial, signal });
         if (!owners.owned(rec.id)) { try { fs.unlinkSync(partial); } catch (e) { /* never made */ } }
         return r;

@@ -1473,6 +1473,8 @@ function resumeSegmentedOnStartup(schedule) {
  * is queued for it.
  */
 function reconcileJobsOnStartup() {
+    // 0270: files writers of deleted recordings left when a deletion stopped waiting for them.
+    owners.sweepCleanup().catch(err => console.warn('[Recordings] Could not remove what deleted recordings left:', err.message));
     for (const rec of recordingsDb.requeueInterrupted()) {
         if (!rec.file_path) continue;
         const target = compressionTargetPath(rec.file_path);
@@ -1791,6 +1793,7 @@ module.exports = {
     _compressRecording: post.compressRecording,
     _prepareRecording: media.prepareRecording,
     _setPrepareQueue: media._setPrepareQueue,
+    _owners: owners, // 0270: the deletion's writer wait and the start-up sweep
     _reconcileJobsOnStartup: reconcileJobsOnStartup,
     _reconcileOnStartup: reconcileOnStartup, // R3: what a restart does to a recording in progress
     _failoverTuning: failoverTuning,

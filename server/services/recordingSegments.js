@@ -391,8 +391,9 @@ const segmentFiles = (rec) => epochs(rec.work_dir).flatMap(e => archiveOf(e.dir)
  * of raising an unhandled stream error, and the writer's backpressure paces the reads. F1: the
  * partial is this call's own (created exclusively under a unique name). Returns the published path.
  */
-async function joinSegments(rec, dir, first, alt, signal = null) {
+async function joinSegments(rec, dir, first, alt, signal = null, made = () => {}) {
     const partial = path.join(dir, `${first}.${process.pid}-${crypto.randomBytes(4).toString('hex')}.partial`);
+    made(partial); // 0270: named to its writer before it exists
     async function* pieces() {
         for (const file of segmentFiles(rec)) yield* fs.createReadStream(file);
     }
@@ -442,8 +443,8 @@ async function deliverTs(rec, stitched) {
     if (!dir) throw new Error('the recordings folder is not usable');
     const name = rec.segment_name || `Recording ${rec.id}`;
     // 0264: a writer of the recording (a deletion stops it and waits); deleted meanwhile, its copy goes.
-    const target = await write(rec.id, async (signal) => {
-        const t = await joinSegments(rec, dir, `${name}.ts`, n => `${name} (${n}).ts`, signal);
+    const target = await write(rec.id, async (signal, made) => {
+        const t = await joinSegments(rec, dir, `${name}.ts`, n => `${name} (${n}).ts`, signal, made);
         if (!owned(rec.id)) { withdraw(t, rec.id, 'recording'); return null; }
         return t;
     });
@@ -474,7 +475,8 @@ async function finishOne(rec) {
     console.log(`[Recordings] Making the MP4 of #${rec.id} from ${stitched.segments} segments -> ${dir ? target : 'the work folder (the share is not usable now)'}`);
     // 0264: the remux and its check are a writer of the recording: a deletion stops it and waits until
     // its partial is gone.
-    const { problem, keep } = await write(rec.id, async (signal) => {
+    const { problem, keep } = await write(rec.id, async (signal, made) => {
+        made(partial);
         const result = await media.nativeTools.ffmpeg(media.buildNativeRemuxArgs(stitched.file, partial, codecs), { watchFile: partial, signal });
         let problem = null;
         let keep = null;
@@ -555,8 +557,8 @@ async function keepOriginal(rec, dir) {
             }
         }
         // 0264: a writer of the recording (a deletion stops it and waits).
-        const published = await write(rec.id, async (signal) => {
-            const p = await joinSegments(rec, dir, `${base}.ts`, n => `${base} (original${n > 2 ? ` ${n - 1}` : ''}).ts`, signal);
+        const published = await write(rec.id, async (signal, made) => {
+            const p = await joinSegments(rec, dir, `${base}.ts`, n => `${base} (original${n > 2 ? ` ${n - 1}` : ''}).ts`, signal, made);
             // D1 (0251), R4-D2: deleted (or being deleted) while it was copied - this copy is its own, so it goes too.
             if (!owned(rec.id)) { withdraw(p, rec.id, 'kept original'); return null; }
             return p;
@@ -584,10 +586,13 @@ async function moveOne(rec) {
         let target;
         try {
             // 0264: a writer of the recording; a deletion stops it and waits. 0267 (Codex review of
-            // 0266): copied as a stream with the writer's signal - copyFile cannot be stopped, so a
-            // share that stopped answering held the deletion for good.
-            target = await write(rec.id, async (signal) => {
+            // 0266): copied as a stream with the writer's signal, so a deletion stops it between
+            // chunks (copyFile runs to the end). A single write stuck in the kernel on a share that
+            // stopped answering cannot be interrupted in-process - nor can the deletion's own
+            // unlinks on that share (see docs/reviews/2026-10-25/repair/REPAIR-STATUS.md).
+            target = await write(rec.id, async (signal, made) => {
                 if (signal.aborted) return null;
+                made(partial);
                 await pipeline(fs.createReadStream(source), fs.createWriteStream(partial, { flags: 'wx' }), { signal });
                 if (fs.statSync(partial).size !== fs.statSync(source).size) throw new Error('the copy is not the same size');
                 const t = publishNoReplace(partial, dir, `${name}.mp4`, n => `${name} (${n}).mp4`); // F1

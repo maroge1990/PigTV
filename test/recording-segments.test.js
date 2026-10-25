@@ -1085,7 +1085,8 @@ test('E2: a deletion during the MP4\'s move to a share that stopped answering st
     fs.renameSync(mount, away);
     try { await segments.finishOne(rec); } finally { fs.renameSync(away, mount); }
     assert.equal(recordings.getById(rec.id).segment_state, 'moving', 'waiting in appdata');
-    // The share takes the first bytes, then stops answering: a write that never completes.
+    // The share takes the first bytes, then the next write's callback never comes and the stream can
+    // be destroyed (a write stuck in the kernel cannot be: see REPAIR-STATUS, E2 / Codex WriteStream).
     const realCopy = fs.promises.copyFile, realStream = fs.createWriteStream;
     let reached;
     const copying = new Promise(r => { reached = r; });
@@ -1113,5 +1114,57 @@ test('E2: a deletion during the MP4\'s move to a share that stopped answering st
     } finally {
         fs.promises.copyFile = realCopy; fs.createWriteStream = realStream;
         await Promise.race([Promise.all([moving, deleting]), new Promise(r => setTimeout(r, 1000))]); // the old copy never settles
+    }
+});
+
+// ---- Codex reviews of 0266/0269 (26 Oct): a copy to the share stuck in a call no stop can interrupt
+// (an fs.WriteStream waits for its pending write before it closes), while the recording's own files are
+// local. The deletion waits a bounded time, records what that writer made, and goes on; the file is
+// removed when the writer ends or at the next start.
+
+test('H: a deletion whose share copy cannot be stopped completes after its wait, and the partial is removed later', async () => {
+    const { rec, workDir, mp4 } = finishingRow();
+    const away = `${mount}-away`;
+    fs.renameSync(mount, away);
+    try { await segments.finishOne(rec); } finally { fs.renameSync(away, mount); }
+    assert.equal(recordings.getById(rec.id).segment_state, 'moving');
+    const realStream = fs.createWriteStream, realCopy = fs.promises.copyFile;
+    let reached, unstick, partial = null;
+    const copying = new Promise(r => { reached = r; });
+    const stuck = new Promise(r => { unstick = r; });
+    const { Writable } = require('node:stream');
+    const hold = (file) => { partial = String(file); fs.writeFileSync(partial, 'first bytes'); reached(); };
+    fs.createWriteStream = function (file, ...rest) {
+        if (!/\.mp4\.\d+-[0-9a-f]+\.partial$/.test(String(file))) return realStream.call(this, file, ...rest);
+        hold(file);
+        // As fs.WriteStream: its write is in flight on a share that stopped answering, and destroying it
+        // waits for that write before the stream closes.
+        return new Writable({ write(chunk, enc, cb) { stuck.then(() => cb()); }, destroy(err, cb) { stuck.then(() => cb(err)); } });
+    };
+    fs.promises.copyFile = async (src, dest, ...a) => { // the 0266 path: a copy that never ends
+        if (!String(dest).includes('.mp4.')) return realCopy(src, dest, ...a);
+        hold(dest); await stuck; return realCopy(src, dest, ...a);
+    };
+    engine._owners?._setStopWaitMs?.(200); // absent before 0270: the old code waits as it always did
+    let moving, deleting;
+    try {
+        moving = segments.moveOne(recordings.getById(rec.id));
+        await copying;
+        deleting = engine.deleteRecording(rec.id);
+        const outcome = await Promise.race([deleting.then(() => 'deleted'), new Promise(r => setTimeout(() => r('still waiting'), 5000))]);
+        assert.equal(outcome, 'deleted', 'the deletion completes after its bounded wait');
+        assert.equal(recordings.getById(rec.id), null);
+        assert.equal(fs.existsSync(workDir), false);
+        const pending = sqlite.getDb().prepare('SELECT path FROM recording_cleanup WHERE recording_id = ?').all(rec.id).map(x => x.path);
+        assert.deepEqual(pending, [partial], 'the stuck writer\'s partial is recorded for removal');
+        assert.equal(await engine._owners.sweepCleanup(), 1, 'a start-up sweep removes it');
+        assert.equal(fs.existsSync(partial), false);
+        unstick(); // the share answers again: the writer ends, and leaves nothing
+        await moving;
+        assert.deepEqual(leftIn(path.dirname(mp4), path.basename(mp4, '.mp4')), []);
+        assert.equal(sqlite.getDb().prepare('SELECT COUNT(*) AS n FROM recording_cleanup').get().n, 0);
+    } finally {
+        unstick(); fs.createWriteStream = realStream; fs.promises.copyFile = realCopy; engine._owners?._setStopWaitMs?.();
+        await Promise.race([Promise.all([moving, deleting]), new Promise(r => setTimeout(r, 1000))]);
     }
 });
