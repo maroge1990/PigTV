@@ -70,9 +70,11 @@ function write(id, work) {
     const controller = new AbortController();
     if (!owned(id)) controller.abort();
     const entry = { controller, paths: new Set(), abandoned: false };
+    // Codex review of 0273: a file that cannot be journalled is not made - the INSERT's error stops the
+    // writer before it creates anything (a full appdata disk must not leave an untracked file).
     const made = (p) => {
+        cleanupDb().prepare('INSERT OR IGNORE INTO recording_cleanup (path, recording_id, created_at) VALUES (?, ?, ?)').run(p, id, Date.now());
         entry.paths.add(p);
-        try { cleanupDb().prepare('INSERT OR IGNORE INTO recording_cleanup (path, recording_id, created_at) VALUES (?, ?, ?)').run(p, id, Date.now()); } catch (e) { /* database closed */ }
     };
     const run = Promise.resolve().then(() => work(controller.signal, made));
     entry.ended = run.then(() => {}, () => {});
@@ -90,7 +92,8 @@ function write(id, work) {
         // Its files are published or removed by now, or soon after (the caller's next step): their rows
         // go once they are gone; one still there stays listed for the sweep.
         setImmediate(() => {
-            for (const p of entry.paths) fs.promises.access(p).then(() => {}, () => forget(p));
+            // Only "not there" lets a row go; any other error (EIO, EACCES) keeps it for the sweep.
+            for (const p of entry.paths) fs.promises.access(p).then(() => {}, (e) => { if (e.code === 'ENOENT') forget(p); });
         });
     });
     return run;

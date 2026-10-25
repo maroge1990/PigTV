@@ -487,3 +487,33 @@ test('I1: a removal that fails keeps its record, and the next start removes the 
         assert.deepEqual(listed(), []);
     } finally { fs.chmodSync(sub, 0o755); one.unstick(); engine._owners._setStopWaitMs(); }
 });
+
+// ---- Codex review of 0273 (26 Oct): the journal never loses track of a file.
+
+test('J1: a file whose existence cannot be checked (I/O error) stays listed for the next start', async () => {
+    const r = makeRecording();
+    const p = `${r.file}.j1.partial`;
+    const listed = () => getDb().prepare('SELECT path FROM recording_cleanup WHERE path = ?').all(p).length;
+    const realAccess = fs.promises.access;
+    fs.promises.access = async (f, ...a) => { if (f === p) throw Object.assign(new Error('EIO'), { code: 'EIO' }); return realAccess(f, ...a); };
+    try {
+        await engine._owners.write(r.id, async (signal, made) => { made(p); fs.writeFileSync(p, 'x'); });
+        await new Promise(res => setTimeout(res, 50)); // its rows are checked just after it ends
+        assert.equal(listed(), 1, 'still listed: whether it is gone could not be told');
+    } finally { fs.promises.access = realAccess; }
+    await engine._owners.sweepCleanup();
+    assert.equal(fs.existsSync(p), false, 'removed at the next start');
+    assert.equal(listed(), 0);
+});
+
+test('J2: a writer whose file cannot be journalled does not create it', async () => {
+    const r = makeRecording();
+    getDb().exec(`CREATE TRIGGER j2_full BEFORE INSERT ON recording_cleanup BEGIN SELECT RAISE(ABORT, 'database or disk is full'); END`);
+    let started = 0;
+    engine._nativeTools.ffmpeg = async (args) => { started++; fs.writeFileSync(args.at(-1), 'y'.repeat(2048)); return { code: 0, tail: [] }; };
+    try {
+        await engine._compressRecording(row(r.id), { postRecordKeepOriginal: true }).catch(() => {});
+        assert.equal(started, 0, 'ffmpeg never started');
+        assert.deepEqual(fs.readdirSync(dir).filter(f => f.startsWith(path.basename(r.compressed))), [], 'no file it could not track');
+    } finally { getDb().exec('DROP TRIGGER IF EXISTS j2_full'); }
+});
