@@ -30,7 +30,8 @@ accepted on 25 Oct.
 
 **25 Oct round-5 repairs:** server **0260–0262** and Apple **55** are committed locally (not pushed, not deployed) for the
 review's five P2 findings (R5-F1–F3, R5-D1, R5-A1), each with a failing-before test; 0262 and an Apple test-only commit
-make two timing tests wait for observable completion. The provider-failover deadline flake was not reproduced and its
+make two timing tests wait for observable completion. A Codex adversarial review then found two more (C1, C2), fixed in **0263–0264**;
+their own re-review is pending (Codex usage limit). The provider-failover deadline flake was not reproduced and its
 cause is not established. [`docs/reviews/2026-10-25/repair/REPAIR-STATUS.md`](docs/reviews/2026-10-25/repair/REPAIR-STATUS.md).
 Device/feed acceptance, bugs 5 and 8 and the efficiency register stay open.
 
