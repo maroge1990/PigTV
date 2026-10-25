@@ -33,7 +33,9 @@ review's five P2 findings (R5-F1–F3, R5-D1, R5-A1), each with a failing-before
 make two timing tests wait for observable completion. A Codex adversarial review then found two more (C1, C2), fixed in **0263–0264**;
 eight more Codex rounds on 26 Oct found 13 more, fixed in **0265–0275** (one answered: a crash between publishing a
 file and recording it); Apple CI's tab-switch failure is load noise (build 46 fails alike), and the gate now ignores a
-one-lap spike (Apple test commit). [Repair status](docs/reviews/2026-10-25/repair/REPAIR-STATUS.md). The provider-failover deadline flake was not reproduced and its
+one-lap spike (Apple test commit). Mark then chose to close the publish-to-record crash window (0276); four more
+rounds hardened the cleanup journal (0277-0280). Codex rounds are now capped at two per batch; open items are in
+[`docs/FINDINGS.md`](docs/FINDINGS.md). [Repair status](docs/reviews/2026-10-25/repair/REPAIR-STATUS.md). The provider-failover deadline flake was not reproduced and its
 cause is not established. [`docs/reviews/2026-10-25/repair/REPAIR-STATUS.md`](docs/reviews/2026-10-25/repair/REPAIR-STATUS.md).
 Device/feed acceptance, bugs 5 and 8 and the efficiency register stay open.
 

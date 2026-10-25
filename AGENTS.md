@@ -58,6 +58,10 @@ ends every session. Rollback: point the container at `ghcr.io/maroge1990/pigtv:s
   Mark's to type, since Claude cannot invoke it). Every finding is fixed (with its own failing-before test) or answered,
   and the handoff lists each with its disposition. If it cannot run, say so and give Mark the exact command and focus
   text. Docs-only and test-only commits are exempt.
+  **Stopping rule (Mark, 26 Oct):** at most two Codex rounds per batch - the first review, and one of the fixes it
+  prompted. After that only **high** findings block the handoff (fixed, or answered with Mark); medium and low ones go
+  into the findings register (`docs/FINDINGS.md` in the server repo) with their reproduction, for Mark to prioritise.
+  Nothing is dropped silently. (12 rounds on 25-26 Oct each found a narrower edge; real-system evidence was worth more.)
 - At the end of a session update `blueprint.md`: the state line, the §4 roadmap status, and any durable fact in §2/§3. The
   story goes in the commit message, not the docs.
 
