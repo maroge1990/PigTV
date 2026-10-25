@@ -184,6 +184,11 @@ function initSchema() {
     try {
         db.exec('ALTER TABLE scheduled_recordings ADD COLUMN rule_id INTEGER');
     } catch (e) { /* already present */ }
+    // 0276: 'partial' (a file being written) or 'published' (a finished file under its final name, not
+    // yet recorded in the database): see recordingOwners.
+    try {
+        db.exec("ALTER TABLE recording_cleanup ADD COLUMN kind TEXT NOT NULL DEFAULT 'partial'");
+    } catch (e) { /* already present */ }
     // R6: the programme's image from the guide, found when the schedule is made.
     try {
         db.exec('ALTER TABLE scheduled_recordings ADD COLUMN image_url TEXT');

@@ -372,12 +372,18 @@ function completed(rec, file, extra = {}) {
 /**
  * F1 (0242): put a finished file in place without ever replacing one that is there. link() fails
  * with EEXIST if the name is taken (atomic, unlike a check before rename), and then the next name
- * `alt(n)` is tried. Returns the path it was published at; the partial is gone.
+ * `alt(n)` is tried. Returns the path it was published at; the partial is gone. 0276: the new name is
+ * journalled as published (for recording `id`) before the partial goes; the caller commits it once
+ * the database points at it (owners.committed). A name that cannot be journalled is taken back.
  */
-function publishNoReplace(partial, dir, first, alt) {
+function publishNoReplace(partial, dir, first, alt, id) {
     for (let n = 1; ; n++) {
         const dest = path.join(dir, n === 1 ? first : alt(n));
         try { fs.linkSync(partial, dest); } catch (err) { if (err.code === 'EEXIST') continue; throw err; }
+        try { owners.published(dest, id); } catch (err) {
+            try { fs.unlinkSync(dest); } catch (e) { /* the partial, still journalled, holds it */ }
+            throw err;
+        }
         try { fs.unlinkSync(partial); } catch (e) { /* already gone */ }
         return dest;
     }
@@ -400,7 +406,7 @@ async function joinSegments(rec, dir, first, alt, signal = null, made = () => {}
     }
     try {
         await pipeline(Readable.from(pieces(), { objectMode: false }), fs.createWriteStream(partial, { flags: 'wx' }), ...(signal ? [{ signal }] : []));
-        return publishNoReplace(partial, dir, first, alt);
+        return publishNoReplace(partial, dir, first, alt, rec.id);
     } catch (err) {
         try { fs.unlinkSync(partial); } catch (e) { /* none */ }
         throw err;
@@ -451,6 +457,7 @@ async function deliverTs(rec, stitched) {
     });
     if (!target) return;
     completed(rec, target, { duration_sec: Math.round(stitched.durationSec), segment_state: 'done' });
+    owners.committed(target);
     recordingsDb.setNativeStatus(rec.id, 'pending');
     await removeWork(rec);
     console.warn(`[Recordings] #${rec.id} is on the share as ${path.basename(target)} (the MP4 could not be made; it will be prepared as usual)`);
@@ -514,11 +521,12 @@ async function finishOne(rec) {
 
     // F1: published without replacing a file that appeared at its name meanwhile.
     const mp4Name = path.basename(target, '.mp4');
-    target = publishNoReplace(partial, path.dirname(target), `${mp4Name}.mp4`, n => `${mp4Name} (${n}).mp4`);
+    target = publishNoReplace(partial, path.dirname(target), `${mp4Name}.mp4`, n => `${mp4Name} (${n}).mp4`, rec.id);
     media.verifiedNativeFiles.add(target);
     // F2 (0243): with an original to keep the row says 'moving' until that original is published,
     // so a restart mid-copy finds it in findSegmentWork() and finishes the move.
     completed(rec, target, { duration_sec: Math.round(stitched.durationSec), segment_state: dir && !keep ? 'done' : 'moving', segment_keep: keep });
+    owners.committed(target);
     recordingsDb.setNativeStatus(rec.id, 'ready', keep ? { error: `Original kept: ${keep}` } : undefined);
     recordingsDb.setNativeVersion(rec.id, media.NATIVE_VERSION);
     if (dir && keep) {
@@ -566,6 +574,7 @@ async function keepOriginal(rec, dir) {
         });
         if (!published) return false;
         recordingsDb.setSegmentFields(rec.id, { segment_original: published });
+        owners.committed(published);
         return true;
     } catch (err) {
         console.warn(`[Recordings] #${rec.id}: its original could not be put on the share yet (${err.message}); its segments stay in appdata`);
@@ -596,7 +605,7 @@ async function moveOne(rec) {
                 made(partial);
                 await pipeline(fs.createReadStream(source), fs.createWriteStream(partial, { flags: 'wx' }), { signal });
                 if (fs.statSync(partial).size !== fs.statSync(source).size) throw new Error('the copy is not the same size');
-                const t = publishNoReplace(partial, dir, `${name}.mp4`, n => `${name} (${n}).mp4`); // F1
+                const t = publishNoReplace(partial, dir, `${name}.mp4`, n => `${name} (${n}).mp4`, rec.id); // F1
                 if (!owned(rec.id)) { withdraw(t, rec.id, 'MP4'); return null; }
                 return t;
             });
@@ -609,6 +618,7 @@ async function moveOne(rec) {
         media.verifiedNativeFiles.delete(source);
         media.verifiedNativeFiles.add(target);
         recordingsDb.setSegmentFields(rec.id, { file_path: target });
+        owners.committed(target);
         rec = recordingsDb.getById(rec.id);
     }
     // Never delete the segments of a recording whose MP4 could not be fully checked until they

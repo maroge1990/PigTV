@@ -1169,3 +1169,58 @@ test('H: a deletion whose share copy cannot be stopped completes after its wait,
         await Promise.race([Promise.all([moving, deleting]), new Promise(r => setTimeout(r, 1000))]);
     }
 });
+
+// ---- Mark, 26 Oct ("fix it, carefully"; Codex review of 0274): a finished file published under its final
+// name and not yet recorded in the database is still accounted for - the start-up sweep removes it unless a
+// recording points at it, and never touches a file this code did not make.
+
+const cleanupRows = () => sqlite.getDb().prepare('SELECT path FROM recording_cleanup').all().map(x => x.path);
+
+test('P1: a server stopped between publishing an MP4 and recording it leaves nothing the next start does not remove', async () => {
+    const { rec, mp4 } = finishingRow();
+    const folder = path.dirname(mp4);
+    fs.mkdirSync(folder, { recursive: true });
+    // The state a crash right after link() leaves: the writer's journalled partial and its new final name, one file.
+    let partial;
+    await engine._owners.write(rec.id, async (signal, made) => {
+        partial = path.join(folder, `${path.basename(mp4)}.123-abcdef01.partial`);
+        made(partial);
+        fs.writeFileSync(partial, 'finished MP4');
+        fs.linkSync(partial, mp4);
+    });
+    const someoneElses = path.join(folder, 'Somebody else.mp4');
+    fs.writeFileSync(someoneElses, 'not ours');
+    await engine._owners.sweepCleanup(); // the next start
+    assert.equal(fs.existsSync(mp4), false, 'the unrecorded MP4 is removed with its partial');
+    assert.equal(fs.existsSync(partial), false);
+    assert.equal(fs.existsSync(someoneElses), true, 'a file this code did not make is never touched');
+    assert.deepEqual(cleanupRows(), []);
+    fs.unlinkSync(someoneElses);
+});
+
+test('P2: an MP4 published when recording it in the database fails is removed at the next start; the recording is made again', async () => {
+    const { rec, mp4 } = finishingRow();
+    const real = recordings.setSegmentFields;
+    recordings.setSegmentFields = (id, fields) => {
+        if (id === rec.id && fields.status === 'completed') throw new Error('database or disk is full');
+        return real.call(recordings, id, fields);
+    };
+    try { await segments.finishOne(rec).catch(() => {}); } finally { recordings.setSegmentFields = real; }
+    assert.equal(recordings.getById(rec.id).segment_state, 'finishing', 'not recorded as finished');
+    assert.ok(fs.existsSync(mp4), 'published before the failure');
+    await engine._owners.sweepCleanup();
+    assert.equal(fs.existsSync(mp4), false, 'an MP4 no recording points at is removed');
+    assert.deepEqual(cleanupRows(), []);
+    await segments.finishOne(recordings.getById(rec.id)); // the queue tries again
+    assert.equal(recordings.getById(rec.id).file_path, mp4, 'made again under its own name');
+});
+
+test('P3: a finished recording\'s MP4 is never removed by the sweep, and leaves no journal rows', async () => {
+    const { rec, mp4 } = finishingRow();
+    await segments.finishOne(rec);
+    assert.equal(recordings.getById(rec.id).file_path, mp4);
+    await new Promise(r => setTimeout(r, 20));
+    assert.deepEqual(cleanupRows(), [], 'nothing left listed once it is recorded');
+    await engine._owners.sweepCleanup();
+    assert.ok(fs.existsSync(mp4));
+});

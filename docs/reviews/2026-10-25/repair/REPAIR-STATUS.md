@@ -83,8 +83,17 @@ Run after Mark's `codex login`, through the plugin's `adversarial-review` (Codex
 | Server `bf048d1..fa8c536` | needs-attention | **G1** (medium): an older shared hit made the owner's repeat be recorded | Fixed: **0271** `9078852` - the owner resolved now decides. |
 | Server `fa8c536..9078852` | needs-attention | **I1** (high): a failed cleanup unlink dropped its durable record; **I2** (high): cleanup paths were reusable fixed names; **I3** (medium): owner precedence lapsed once the schedule had run | I3 fixed: **0272** `c7fa932` (other episodes' hits on an owned schedule are removed). I1 + I2 fixed: **0273** `74c2a4f` (unique partial names, every file journalled in `recording_cleanup` from before it exists until it is gone). |
 | Server `9078852..74c2a4f` | needs-attention | **J1** (medium): a row was dropped on any `access()` error; **J2** (medium): a failed journal INSERT was ignored | Fixed: **0274** `7507851` (only ENOENT drops a row; a failed INSERT stops the writer before it creates anything). |
-| Server `c7fa932..7507851` | needs-attention | **K** (medium): journal ownership ends at publication - a failed `withdraw()` unlink, and a crash between publishing a final file and recording its path, leave it untracked | Failed withdrawal fixed: **0275** `296060a` (journalled for the sweep; before: fails on 0274, after: passes). Crash window **answered, not fixed**: it is synchronous (between a `link` and the next database write), predates this work (0242/0257 publication), and closing it needs a start-up sweep that tells committed recordings from uncommitted files - one that could delete real recordings if it misjudged. Mark's decision. |
+| Server `c7fa932..7507851` | needs-attention | **K** (medium): journal ownership ends at publication - a failed `withdraw()` unlink, and a crash between publishing a final file and recording its path, leave it untracked | Failed withdrawal fixed: **0275** `296060a` (journalled for the sweep; before: fails on 0274, after: passes). Crash window: first answered (a sweep that could misjudge committed recordings is Mark's decision); **Mark chose "fix it, carefully" (26 Oct): fixed in 0276** - see below. |
 | Server `7507851..296060a` | not run | - | The loop was stopped here; the next review command is in the handoff. |
+
+**0276 (Mark's decision, 26 Oct): the publish-to-record crash window.** A finished file published under its final name
+(`publishNoReplace`, a hard link from its journalled partial) is journalled as `published` before the partial name goes,
+and committed (unlisted) once the database points at it - `finishOne`, `deliverTs`, `keepOriginal`, `moveOne`. At start
+the sweep removes a `published` file only if no recording points at it (`file_path` or `segment_original`); a partial
+still there with a second name (a stop right after the link) has that name - the same inode, so this code's file -
+checked the same way. Nothing else is ever touched. Before (0275): P1 (stop right after the link) and P2 (database write
+fails after publication) fail - the MP4 is left untracked; the control P3 (a recorded MP4 is kept, no rows left) passes.
+After: all three pass. Gates: `npm test` twice, each 1145 / 1140 pass / 5 skipped / 0 fail; verify-build passes.
 
 Every fix above has a test that fails on the build before it (isolated copies, `old-code.cjs`; logs beside it) and
 passes after, with the full suite and verify-build passing at each commit. The recurring pattern was each fix of the

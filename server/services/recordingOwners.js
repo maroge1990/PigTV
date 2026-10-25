@@ -24,6 +24,13 @@
  * (published under its final name, or removed); a removal that fails keeps it. sweepCleanup() at
  * start removes whatever is still listed - left by an abandoned writer or a crash, since no writer
  * outlives a restart.
+ *
+ * 0276 (Mark, 26 Oct; Codex review of 0274): a finished file published under its final name
+ * (recordingSegments.publishNoReplace: a hard link from its partial) is journalled as 'published'
+ * before its partial name goes, and released (committed) once the database points at it. At start,
+ * a 'published' file no recording points at is removed; and a partial still there with another name
+ * (a stop between the link and that journalling) has that other name checked the same way. The sweep
+ * only ever removes a file this code made.
  */
 const fs = require('fs');
 const crypto = require('crypto');
@@ -43,7 +50,7 @@ const owned = (id) => !retired.has(id) && Boolean(recordingsDb.getById(id));
  * removed now (not "already gone") is journalled, so the start-up sweep removes it (Codex review of 0274).
  */
 function withdraw(file, id, what) {
-    try { fs.unlinkSync(file); } catch (e) {
+    try { fs.unlinkSync(file); forget(file); } catch (e) {
         if (e.code !== 'ENOENT') {
             try { cleanupDb().prepare('INSERT OR IGNORE INTO recording_cleanup (path, recording_id, created_at) VALUES (?, ?, ?)').run(file, id, Date.now()); } catch (err) { /* database closed */ }
             console.warn(`[Recordings] #${id} was deleted while its ${what} was published; that copy could not be removed yet (${e.code}) and is removed at the next start`);
@@ -56,6 +63,16 @@ function withdraw(file, id, what) {
 const writers = new Map(); // recording id -> Set of { controller, ended, paths, abandoned }
 
 const cleanupDb = () => { initSchema(); return getDb(); };
+const path = require('path');
+/** Does a recording point at `p` (its file, or its kept original)? Then it is the recording's, not debris. */
+const recorded = (p) => Boolean(cleanupDb().prepare('SELECT 1 FROM recordings WHERE file_path = ? OR segment_original = ? LIMIT 1').get(p, p));
+/** A finished file now under its final name, not yet recorded: journalled until committed(). Throws if it cannot be. */
+function published(p, id) {
+    cleanupDb().prepare(`INSERT INTO recording_cleanup (path, recording_id, created_at, kind) VALUES (?, ?, ?, 'published')
+        ON CONFLICT (path) DO UPDATE SET kind = 'published', recording_id = excluded.recording_id`).run(p, id, Date.now());
+}
+/** The database points at `p` now: it is no longer debris. */
+function committed(p) { if (p) forget(p); }
 function forget(p) {
     try { cleanupDb().prepare('DELETE FROM recording_cleanup WHERE path = ?').run(p); } catch (e) { /* database closed */ }
 }
@@ -129,16 +146,39 @@ async function stopWriters(id) {
     return stuck.length;
 }
 
-/** At start: every file still listed was left by an abandoned writer or a crash. One that cannot be removed now stays listed. */
+/**
+ * At start: every file still listed was left by an abandoned writer or a crash. A 'published' one a
+ * recording points at was committed (kept, unlisted); a partial with a second name (its publication
+ * stopped right after the link) has that name - the same file, so this code's - treated as published.
+ * One that cannot be removed now stays listed.
+ */
 async function sweepCleanup() {
     let rows = [];
-    try { rows = cleanupDb().prepare('SELECT path FROM recording_cleanup').all(); } catch (e) { return 0; }
+    try { rows = cleanupDb().prepare('SELECT path, kind FROM recording_cleanup').all(); } catch (e) { return 0; }
     let removed = 0;
-    for (const { path: p } of rows) if (await removeListed(p)) removed++;
+    for (const { path: p, kind } of rows) {
+        if (kind === 'published') {
+            if (recorded(p)) { forget(p); continue; }
+        } else {
+            let st = null;
+            try { st = await fs.promises.stat(p); } catch (e) { /* gone, or unreadable: removeListed decides */ }
+            if (st && st.nlink > 1) {
+                const dir = path.dirname(p);
+                for (const name of await fs.promises.readdir(dir).catch(() => [])) {
+                    const other = path.join(dir, name);
+                    if (other === p) continue;
+                    const o = await fs.promises.stat(other).catch(() => null);
+                    if (!o || o.ino !== st.ino || o.dev !== st.dev || recorded(other)) continue;
+                    try { await fs.promises.unlink(other); removed++; } catch (e) { /* the partial stays listed below if it cannot go */ }
+                }
+            }
+        }
+        if (await removeListed(p)) removed++;
+    }
     if (removed) console.log(`[Recordings] Cleared ${removed} file(s) left by writers that did not finish`);
     return removed;
 }
 
 const DELETED = 'Recording was deleted';
 
-module.exports = { retire, owned, withdraw, write, stopWriters, sweepCleanup, partialFor, DELETED, STOP_WAIT_MS, _setStopWaitMs };
+module.exports = { retire, owned, withdraw, write, stopWriters, sweepCleanup, partialFor, published, committed, DELETED, STOP_WAIT_MS, _setStopWaitMs };
