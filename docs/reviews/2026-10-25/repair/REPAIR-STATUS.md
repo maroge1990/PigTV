@@ -17,10 +17,9 @@ passing. It is not device or real-feed acceptance; nothing here is *Verified*.
 | R5-D1 | server 0261 `2adc84b` | Fixed locally. Retirement moved into `recordingOwners`, shared by segment delivery/move (0257), the native remux (shared by a viewer's playback and preparation), preparation/adoption, compression and post-recording break detection. Each checks after its awaits and before publishing; a retired one removes only its own `.partial` / a `.native.mp4` made during the check. A viewer waiting on the shared remux gets `file-missing`. |
 | R5-A1 | Apple 55 | Fixed locally. `ArtworkDiskStore.size` stats the file (`attributesOfItem`) instead of a listed URL's prefetched `fileSizeKey`; used by the write, the removal and the recount. The listing's size still only decides what to remove. |
 | Validation: stream-relay | server 0262 `6b9f37d` | Fixed in the test, with a small observable seam: the relay keeps its leg-folder removal promise (`filesRemoved()`), and the three tests that slept await it. |
-| C1 (Codex) | server 0263 `f83b3ed` | Fixed locally (see Adversarial review). |
-| C2 (Codex) | server 0264 `ab5a51f` | Fixed locally (see Adversarial review). |
+| C1-K (Codex, 15 findings) | server 0263-0275 | 14 fixed locally, 1 answered (see Adversarial review). |
 | Validation: provider-failover | server 0262 | Not reproduced; cause not established. Budget unchanged; the assertions now print a timestamped timeline so a recurrence names the cause. |
-| Validation: Apple tab-switch | — | Failed in push run 1 (853 ms, load 25+), passed in run 3. Not attributed to build 55; not reliably clean under load. |
+| Validation: Apple tab-switch | Apple test commit `63809e4` | Failed in push run 1 and in CI; build 46 fails equally under load (see CI). The gate now ignores a one-lap spike; a stall on both laps still fails. |
 | Validation: Apple ChannelWarmer | Apple test commit `8d50735` | One unit failure in push run 2: the cancellation check counted 30 yields; the four cancellation tests now wait for the cancellation (bounded at 5 s). |
 
 C-M (`docs/CLIENT-CONTRACT.md`) is updated in 0260 and 0261 to match: stable channel identity, episode schedules
@@ -75,7 +74,36 @@ Run after Mark's `codex login`, through the plugin's `adversarial-review` (Codex
 | Apple `79b67f9..3f0574b` | approve | none ("fresh artwork sizes are read under the file owner's lock, and the bounded cancellation wait preserves the failure assertions") | - |
 | Server `230118c..4d16c4a` | needs-attention | **C1** (medium): an episode and an unidentified airing shifting together leave a stranded third schedule (`resolveEpisodes` reservation by time) | Fixed: **0263** `f83b3ed`. An episode's hit schedule is resolved before any time match; only resolved schedules are reserved. Before: C1 test fails on 0262 (third schedule); after: passes, plus a repeat control that passes both. |
 | | | **C2** (medium): a deletion did not stop or await writers, so a late `.partial` could survive a restart | Fixed: **0264** `ab5a51f`. `recordingOwners.write/stopWriters`: every writer (native remux, compression, segment remux + check, `.ts` joins, share move) runs with an abort signal; deletion aborts and awaits them before removing files and the row. Before (0263): four C2 tests fail, and two runner tests time out at 25 s because the process is never killed; after: all pass. |
-| Server `4d16c4a..ab5a51f` (re-review of 0263-0264) | **not run** | Codex usage limit ("try again at 11:44 PM") | Pending: Mark to rerun (command in the handoff). |
+| Server `4d16c4a..ab5a51f` (26 Oct, after the limit reset) | needs-attention | **D1** (high): a repeat in another episode's slot took that schedule and then the episode's hit | Fixed: **0265** `232c3fe` - one schedule per identity; repeats never matched by time. Before: fails on 0264; after: passes. |
+| | | **D2** (high): a deletion could wait for good on the segment writer's audio/probe check | Fixed: **0266** `b6f1836` - `checkPrepared` passes the writer's signal; ffprobe and the decode check are killed. Before: D2 still waiting after 5 s, three real-process tests time out; after: pass. |
+| Server `d659a48..b6f1836` | needs-attention | **E1** (high): an episode in another's slot took its schedule while that one was out of the guide | Fixed: **0268** `bf048d1` - schedules named by another episode's hit are never matched by time; a hit on a schedule another episode holds does not suppress. |
+| | | **E2** (medium): the MP4 move used `copyFile`, which cannot be stopped | Fixed: **0267** `778bf12` - abortable stream pipeline. |
+| Server `b6f1836..bf048d1` | needs-attention | **F1** (high): `scheduleFromProgram`'s same-slot lookup handed an episode another's schedule | Fixed: **0269** `fa8c536` - `exclude` set; a shared hit no longer holds an episode back. |
+| | | **F2** (high): an `fs.WriteStream` waits for a write stuck on the share, so abort cannot end it | First answered (the deletion's own unlinks on that share would block anyway); Codex showed that is wrong while the recording waits in appdata. Fixed: **0270** `5d321f1` - the deletion waits at most 30 s; a stuck writer is abandoned and its files removed when it ends or at the next start. |
+| Server `bf048d1..fa8c536` | needs-attention | **G1** (medium): an older shared hit made the owner's repeat be recorded | Fixed: **0271** `9078852` - the owner resolved now decides. |
+| Server `fa8c536..9078852` | needs-attention | **I1** (high): a failed cleanup unlink dropped its durable record; **I2** (high): cleanup paths were reusable fixed names; **I3** (medium): owner precedence lapsed once the schedule had run | I3 fixed: **0272** `c7fa932` (other episodes' hits on an owned schedule are removed). I1 + I2 fixed: **0273** `74c2a4f` (unique partial names, every file journalled in `recording_cleanup` from before it exists until it is gone). |
+| Server `9078852..74c2a4f` | needs-attention | **J1** (medium): a row was dropped on any `access()` error; **J2** (medium): a failed journal INSERT was ignored | Fixed: **0274** `7507851` (only ENOENT drops a row; a failed INSERT stops the writer before it creates anything). |
+| Server `c7fa932..7507851` | needs-attention | **K** (medium): journal ownership ends at publication - a failed `withdraw()` unlink, and a crash between publishing a final file and recording its path, leave it untracked | Failed withdrawal fixed: **0275** `296060a` (journalled for the sweep; before: fails on 0274, after: passes). Crash window **answered, not fixed**: it is synchronous (between a `link` and the next database write), predates this work (0242/0257 publication), and closing it needs a start-up sweep that tells committed recordings from uncommitted files - one that could delete real recordings if it misjudged. Mark's decision. |
+| Server `7507851..296060a` | not run | - | The loop was stopped here; the next review command is in the handoff. |
+
+Every fix above has a test that fails on the build before it (isolated copies, `old-code.cjs`; logs beside it) and
+passes after, with the full suite and verify-build passing at each commit. The recurring pattern was each fix of the
+episode-identity heuristic and of writer ownership opening a narrower edge; the designs were simplified along the way
+(one schedule per episode identity with ownership on record; one journal of in-progress files with unique names) rather
+than patched further.
+
+## CI on the 25 Oct push
+
+Server CI (tests and image): passed. Apple CI run 40186551471 failed one test, `TabSwitchUITests`: worst stall 585 ms
+(the first Home->TV Guide; its second lap 285 ms) against 500 ms; 229 unit and the other 15 UI tests passed. Builds 46
+(the last green CI) and 55 were then built side by side and the test alternated between them, three rounds each, with
+test-diagnostics collection off: build 46 worst 1767 / 2284 / 578 ms, build 55 worst 1036 / 873 / 1992 ms (load 8-19
+from other work on this Mac). No regression is shown; both spike on one lap of a switch. Apple test commit `63809e4`
+makes the gate the worst over switches of each switch's lesser lap (a switch slow on both laps still fails at 500 ms);
+push tier afterwards 243 / 229 / 17, exit 0. It is Mark's to accept or revert.
+
+Push run 4's earlier "hang" coincided with Xcode's post-test `simctl diagnose --timeout=600` collection, seen running
+after a later test finished; that is an observation, not a proven cause.
 
 Gates after 0264: `PIGTV_SKIP_PERF=1 npm test` twice, each 1123 tests, 1118 pass, 5 skipped, 0 fail; verify-build passes.
 Fakes changed by 0264: the held R4-D2/R5-D1 ffmpeg fakes now exit when killed (as a real one does), and the move test
