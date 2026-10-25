@@ -351,3 +351,29 @@ test('R5-F2: a pending episode schedule follows its episode when the guide moves
     assert.deepEqual(ofRule(r.id).map(s => [s.program_start, s.program_end, s.status]), [[NOW + 6 * H, NOW + 7 * H, 'scheduled']]);
     clearAirings();
 });
+
+// ---- Codex adversarial review of 0260 (25 Oct): an episode's identity is resolved before any time match.
+
+test('C1: an episode and an unidentified airing that both shift keep exactly their two schedules, moved', async () => {
+    const r = seriesFixture([{ start: NOW + H, data: JSON.stringify({ ep: '1.4' }) }, { start: NOW + 2 * H }]);
+    assert.equal((await rules.evaluate({ now: NOW })).length, 2);
+    const [ep, air] = ofRule(r.id);
+    shiftAirings(H); // 1.4 now at +2 h (the unidentified airing's old slot), that airing at +3 h
+    assert.deepEqual(await rules.evaluate({ now: NOW }), [], 'nothing new: both are the same programmes');
+    assert.deepEqual(ofRule(r.id).map(s => [s.id, s.program_start, s.status]),
+        [[ep.id, NOW + 2 * H, 'scheduled'], [air.id, NOW + 3 * H, 'scheduled']], 'each schedule followed its own programme');
+    const hit = sqlite.getDb().prepare(`SELECT schedule_id FROM recording_rule_hits WHERE rule_id = ? AND identity LIKE 'ep:%'`).get(r.id);
+    assert.equal(hit.schedule_id, ep.id, 'the episode keeps its identity association');
+    clearAirings();
+});
+
+test('C1: a repeat of an episode never takes the episode\'s schedule, whichever comes first in the guide', async () => {
+    const r = seriesFixture([{ start: NOW + 5 * H, data: JSON.stringify({ ep: '2.1' }) }]);
+    await rules.evaluate({ now: NOW });
+    const [ep] = ofRule(r.id);
+    sqlite.getDb().prepare('INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, flags, data) VALUES (?, ?, ?, ?, ?, 0, ?)')
+        .run('ff', source.id, NOW + H, NOW + 2 * H, 'Series Example', JSON.stringify({ ep: '2.1' })); // an earlier airing of 2.1 appears
+    assert.deepEqual(await rules.evaluate({ now: NOW }), []);
+    assert.deepEqual(ofRule(r.id).map(s => [s.id, s.program_start]), [[ep.id, NOW + 5 * H]], 'the schedule stays with the airing at its time');
+    clearAirings();
+});

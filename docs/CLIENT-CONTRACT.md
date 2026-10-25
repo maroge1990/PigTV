@@ -243,9 +243,9 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
     with it (`program_start`/`program_end` change), also back again (A → B → A). Sport: any channel, within the next
     **72 h** (nothing beyond is paired), a move of any size. Series airings without the guide's episode number or
     subtitle: on the rule's channel, a move of at most **3 h**; further is a new airing. Airings with episode data are
-    that episode wherever they move: a pending one's schedule follows it (0260), unless an airing of it is still at the
-    schedule's time (a repeat is not recorded), and an airing without episode data never takes a schedule of an
-    episode that is still in the guide (0260).
+    that episode wherever they move: an episode's schedule is decided by its episode before anything is matched by time
+    (0263), and a pending one follows it (0260), unless an airing of it is still at the schedule's time (a repeat is not
+    recorded); an airing without episode data never takes a schedule of an episode that is still in the guide (0260).
   - *Unclear:* a cancel holds only when its pairing is unambiguous: the cancelled schedule has exactly one candidate it
     could be (same title, on its channel for a series, within the move limit and horizon), and that candidate exactly
     one such schedule. Otherwise the ones the cancel might be are **recorded** (the viewer can cancel again); pending
