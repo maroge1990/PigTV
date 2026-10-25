@@ -28,6 +28,8 @@ After that, three full runs were clean locally. C-M now states what a cancel hol
 device/feed acceptance, bugs 5 and 8 and the efficiency register stay open. **0259** implements the F4 policy Mark
 accepted on 25 Oct.
 
+**25 Oct review of0256–0259 / Apple54:** direct legacy recovery, nested cricket validation and cache-pass completion regressions pass. F4's accepted policy remains partial (historical-hit suppression, mixed episode/no-metadata schedules and stable-channel reorder); native preparation still publishes after delete, and cached file sizes still break artwork accounting. Server full runs: one clean, one with two failures; Apple227unit pass,15/16UIpass; iOS/verify pass. [Independent findings and checks](docs/reviews/2026-10-25/REVIEW.md). No application/deployment changes; bugs5/8, device/feed acceptance and efficiency work remain open.
+
 How to work in this repo (commands, shipping, rules) is in [`AGENTS.md`](AGENTS.md). This file holds **durable facts and the
 roadmap** for the server, the web app and the joint plan; the Apple client's own architecture is in
 `../PigTV-Swift/blueprint.md`, which points back here for the roadmap.
@@ -507,6 +509,8 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 - A sibling-link decision that changes what is listed bumps the guide version (0250).
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
+
+**Latest independent disposition (25 Oct):** repair the fiveP2 findings in [the review](docs/reviews/2026-10-25/REVIEW.md) and obtain repeatable validation. Mark's F4 policy is accepted; its implementation is incomplete. Earlier local-completion notes do not close those findings.
 
 **25 Oct repair status:** the round-4 findings are fixed locally (0256–0258, Apple 54). With the earlier passes, every
 finding of the 22 Oct register has a local fix. DVR-3 is fixed within the F4 policy Mark accepted on 25 Oct (0259), which is a

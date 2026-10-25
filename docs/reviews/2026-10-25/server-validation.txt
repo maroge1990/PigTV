@@ -1,0 +1,71 @@
+full1
+ℹ tests 1103
+ℹ suites 0
+ℹ pass 1098
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 5
+ℹ todo 0
+ℹ duration_ms 46392.302333
+
+full2
+ℹ tests 1103
+ℹ suites 0
+ℹ pass 1096
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 5
+ℹ todo 0
+ℹ duration_ms 87145.224208
+
+✖ failing tests:
+
+test at test/provider-failover.test.js:274:1
+✖ deadline: a candidate that hangs is cut so the next has time, and none starts with too little left (3673.484583ms)
+  AssertionError [ERR_ASSERTION]: the second started with more than MIN_START left
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/provider-failover.test.js:284:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/stream-relay.test.js:300:1
+✖ a feed that cannot join (another segment type or video range) is not used; with nothing left the relay ends (155.527791ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/stream-relay.test.js:312:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+focused-failures
+ℹ tests 40
+ℹ suites 0
+ℹ pass 40
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 26196.874875
+
+verify
+  ✓ every check runs before the summary
+
+=== ALL CHECKS PASSED ===
