@@ -480,3 +480,25 @@ for (const status of ['scheduled', 'cancelled']) {
         clearAirings();
     });
 }
+
+// ---- Codex review of 0271 (26 Oct): once an episode holds a shared schedule, the other episode's stale
+// hit on it is gone - so the owner's repeats stay skipped after that schedule has run.
+
+for (const after of ['completed', 'cancelled and passed']) {
+    test(`I3: an episode that held a shared schedule is not recorded again once it is ${after}`, async () => {
+        const d = sqlite.getDb();
+        const r = seriesFixture([{ start: NOW + 2 * H, data: JSON.stringify({ ep: '4.1' }) }, { start: NOW + 30 * H, data: JSON.stringify({ ep: '4.1' }) }]);
+        await rules.evaluate({ now: NOW });
+        const [s] = ofRule(r.id);
+        if (after.startsWith('cancelled')) await engine.cancelScheduled(s.id);
+        d.prepare(`INSERT INTO recording_rule_hits (rule_id, identity, schedule_id, created_at) VALUES (?, 'ep:series example|4.2', ?, ?)`).run(r.id, s.id, NOW); // an older build's shared hit
+        assert.deepEqual(await rules.evaluate({ now: NOW }), [], '4.1 holds it; its repeat is skipped');
+        if (after === 'completed') scheduled.setStatus(s.id, 'completed');
+        d.prepare('DELETE FROM epg_programs WHERE start_time = ?').run(NOW + 2 * H); // its first airing has gone by
+        assert.deepEqual(await rules.evaluate({ now: NOW + 4 * H }), [], 'the repeat of 4.1 is still skipped');
+        d.prepare('INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, flags, data) VALUES (?, ?, ?, ?, ?, 0, ?)')
+            .run('ff', source.id, NOW + 40 * H, NOW + 41 * H, 'Series Example', JSON.stringify({ ep: '4.2' }));
+        assert.equal((await rules.evaluate({ now: NOW + 4 * H })).length, 1, '4.2, never recorded, is recorded');
+        clearAirings();
+    });
+}

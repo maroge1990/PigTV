@@ -288,8 +288,8 @@ const pairEvents = (candidates, now) => pairInstances(candidates, now, { horizon
  * -> identity), namedBy: Map(schedule id -> Set(identity)) }. ownerOf: whose each resolved schedule
  * is; namedBy: which episodes' hits name each schedule. A hit naming a schedule that another episode
  * holds now, or whose hit names it too (an older build), does not hold its episode back, and a new
- * schedule for an episode is never one of another's (0269). What is taken is never an unidentified
- * airing's (R5-F2).
+ * schedule for an episode is never one of another's (0269); once an episode holds a schedule, the
+ * other hits on it are removed (0272). What is taken is never an unidentified airing's (R5-F2).
  */
 function resolveEpisodes(ruleId, candidates, now) {
     const resolved = new Map(), taken = new Set(), ownerOf = new Map();
@@ -328,6 +328,13 @@ function resolveEpisodes(ruleId, candidates, now) {
         const others = new Set(named.filter(h => h.identity !== c.identity).map(h => h.schedule_id));
         const s = alreadyScheduled(c, new Set([...taken, ...others]));
         if (s) { resolved.set(c, s); taken.add(s.id); ownerOf.set(s.id, c.identity); }
+    }
+    // Codex review of 0271: a schedule an episode holds is that episode's from now on - another
+    // episode's hit on it (left by an older build) goes, so the owner's repeats stay skipped after
+    // the schedule has run or its time has passed, and the other episode is recorded when it airs.
+    const drop = db().prepare(`DELETE FROM recording_rule_hits WHERE rule_id = ? AND schedule_id = ? AND identity LIKE 'ep:%' AND identity <> ?`);
+    for (const [id, identity] of ownerOf) {
+        if (drop.run(ruleId, id, identity).changes) namedBy.set(id, new Set([identity]));
     }
     return { resolved, taken, ownerOf, namedBy };
 }
