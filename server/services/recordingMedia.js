@@ -10,6 +10,7 @@ const { spawn } = require('child_process');
 const { recordings: recordingsDb } = require('../db/recordingsDb');
 const { getDb } = require('../db/sqlite');
 const jobs = require('./recordingJobs');
+const owners = require('./recordingOwners');
 
 // The binaries, set by recordingEngine.init (server/index.js finds them); plain names until then.
 const tools = { ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe' };
@@ -374,7 +375,7 @@ function startNativePlayback(rec) {
             (err) => {
                 // Detail belongs in the log, not in what a client is shown.
                 console.error(`[Recordings] Could not prepare #${rec.id} for native playback: ${err.message}`);
-                nativeFailures.set(rec.id, { reason: err.message === 'Recording file is missing' ? 'file-missing' : 'remux-failed' });
+                nativeFailures.set(rec.id, { reason: err.message === 'Recording file is missing' || err.message === owners.DELETED ? 'file-missing' : 'remux-failed' });
             }
         ).finally(() => nativeStarts.delete(rec.id));
         nativeStarts.set(rec.id, attempt);
@@ -409,6 +410,12 @@ async function remuxForNativePlayback(rec, input, output) {
     console.log(`[Recordings] Remuxing #${rec.id} for native playback -> ${output}`);
     const result = await nativeTools.ffmpeg(args, { watchFile: partial });
 
+    // R5-D1: deleted while ffmpeg ran (which may open its output only after the deletion): what it
+    // made goes and nothing is published - for every caller sharing this remux.
+    if (!owners.owned(rec.id)) {
+        try { fs.unlinkSync(partial); } catch (e) { /* never made */ }
+        throw new Error(owners.DELETED);
+    }
     if (result.code !== 0 || !fs.existsSync(partial)) {
         try { fs.unlinkSync(partial); } catch (e) { /* nothing to clean */ }
         console.error(`[Recordings] Native remux of #${rec.id} failed:\n  ${result.tail.join('\n  ')}`);
@@ -554,6 +561,7 @@ async function prepareRecording(rec) {
             }
             prepared = await ensureNativePlayback(rec);
         }
+        if (!owners.owned(rec.id)) return; // R5-D1: deleted meanwhile (the deletion removed its files)
         // Compression already made a playable MP4 beside it ("keep original"): it is
         // served from there and the original is compression's to keep.
         if (prepared !== nativePlaybackTargetPath(original) && prepared !== leftover) {
@@ -563,6 +571,12 @@ async function prepareRecording(rec) {
         }
 
         const check = await checkPrepared(original, prepared);
+        if (!owners.owned(rec.id)) {
+            // R5-D1: deleted while it was checked: not adopted, and a remux made since goes too.
+            if (prepared === nativePlaybackTargetPath(original) && fs.existsSync(prepared)) owners.withdraw(prepared, rec.id, 'MP4');
+            verifiedNativeFiles.delete(prepared);
+            return;
+        }
         if (!check.ok) {
             // Not served as if it were the recording: a later Play remuxes afresh.
             try { fs.unlinkSync(prepared); } catch (e) { /* already gone */ }
@@ -577,6 +591,7 @@ async function prepareRecording(rec) {
         }
         adoptPrepared(recordingsDb.getById(rec.id) || rec, prepared);
     } catch (err) {
+        if (!owners.owned(rec.id)) return; // R5-D1: deleted meanwhile; nothing to record
         const attempts = (recordingsDb.getById(rec.id)?.native_attempts) || 0;
         const giveUp = attempts >= NATIVE_MAX_ATTEMPTS || err.message === 'Recording file is missing';
         console.error(`[Recordings] Could not prepare #${rec.id} (attempt ${attempts}): ${err.message}`);

@@ -257,7 +257,9 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   These are heuristics over the guide, not provider identity. A client must not promise more than this.
 - Deleting a recording (`DELETE /api/recordings/:id`) while its start is moving to a backup provider (the seconds after
   the first provider refused it) ends that schedule as `cancelled` (0252); nothing is recorded for it afterwards. A
-  recording deleted while it is being finished leaves nothing of it on the share (0257).
+  recording deleted while it is being finished (0257), prepared or remuxed for native playback, or compressed (0261)
+  leaves nothing of it on the share once the deletion has completed. A native-playback request waiting for it then
+  fails (`playback?async=1`: 500 `{status: "failed", reason: "file-missing"}`); the recording is 404 from then on.
 
 ### C-N. Recording artwork. Flag: `recordingArtwork`
 

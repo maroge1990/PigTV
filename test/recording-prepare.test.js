@@ -258,3 +258,101 @@ test('on startup, an old preparation beside a surviving .mkv is made again; an a
     assert.equal(row(current.id).native_status, 'ready');
     assert.ok(fs.existsSync(current.native));
 });
+
+// ---- R5-D1 (25 Oct review, docs/reviews/2026-10-25/DVR.md): a recording deleted while a job makes its
+// MP4 leaves nothing of it on the share. ffmpeg holds its input open across the delete and opens
+// its output only afterwards (a child may do that), or the output exists and its check is running.
+
+/** A completed segmented recording delivered as its fallback .ts (DVR-1), as deliverTs leaves it. */
+function fallbackTs() {
+    const r = makeRecording();
+    const ts = r.file.replace(/\.mkv$/, '.ts');
+    fs.renameSync(r.file, ts);
+    getDb().prepare('UPDATE recordings SET file_path = ?, segment_name = ?, segment_state = ? WHERE id = ?').run(ts, path.basename(ts, '.ts'), 'done', r.id);
+    return { ...r, file: ts };
+}
+
+/** A fake ffmpeg that opens its input, waits for `gate`, then writes its output. */
+function heldFfmpeg() {
+    let reached, release;
+    const arrived = new Promise(x => { reached = x; });
+    const gate = new Promise(x => { release = x; });
+    engine._nativeTools.ffmpeg = async (args) => {
+        const fd = fs.openSync(args[args.indexOf('-i') + 1], 'r');
+        reached();
+        await gate;
+        fs.closeSync(fd);
+        fs.writeFileSync(args.at(-1), 'y'.repeat(2048));
+        return { code: 0, tail: [] };
+    };
+    return { arrived, release };
+}
+
+const leftovers = (r) => fs.readdirSync(dir).filter(f => f.startsWith(path.basename(r.mp4, '.mp4')));
+
+test('R5-D1: native preparation of a fallback .ts deleted before ffmpeg opens its output publishes nothing', async () => {
+    const r = fallbackTs();
+    const { arrived, release } = heldFfmpeg();
+    const job = engine._prepareRecording(row(r.id));
+    await arrived;
+    try { await engine.deleteRecording(r.id); } finally { release(); }
+    await job;
+    assert.equal(row(r.id), null);
+    assert.deepEqual(leftovers(r), [], 'no late MP4, .native.mp4 or .partial');
+});
+
+test('R5-D1: a viewer\'s remux (shared by preparation) of a recording deleted meanwhile publishes nothing', async () => {
+    const r = makeRecording();
+    const { arrived, release } = heldFfmpeg();
+    const play = engine.startNativePlayback(row(r.id));
+    const prep = engine._prepareRecording(row(r.id)); // coalesced onto the same remux
+    await arrived;
+    try { await engine.deleteRecording(r.id); } finally { release(); }
+    await Promise.all([play, prep]);
+    assert.equal(row(r.id), null);
+    assert.deepEqual(leftovers(r), []);
+    assert.deepEqual(engine.pollNativePlayback({ id: r.id, file_path: r.file }), { state: 'failed', reason: 'file-missing' });
+});
+
+test('R5-D1: the remux is still shared by playback and preparation of a recording that is kept', async () => {
+    const r = makeRecording();
+    const { arrived, release } = heldFfmpeg();
+    let runs = 0;
+    const held = engine._nativeTools.ffmpeg;
+    engine._nativeTools.ffmpeg = async (args) => { runs++; return held(args); };
+    const play = engine.startNativePlayback(row(r.id));
+    const prep = engine._prepareRecording(row(r.id));
+    await arrived;
+    release();
+    await Promise.all([play, prep]);
+    assert.equal(runs, 1, 'one ffmpeg for both');
+    assert.equal(row(r.id).file_path, r.mp4);
+    assert.ok(fs.existsSync(r.mp4));
+});
+
+test('R5-D1: a recording deleted while its prepared MP4 is being checked is not adopted and leaves nothing', async () => {
+    const r = fallbackTs();
+    let reached, release;
+    const arrived = new Promise(x => { reached = x; }), gate = new Promise(x => { release = x; });
+    engine._nativeTools.duration = async (file) => {
+        if (file === r.native) { reached(); await gate; }
+        return 60;
+    };
+    const job = engine._prepareRecording(row(r.id));
+    await arrived; // the .native.mp4 is on the share; its check is running
+    try { await engine.deleteRecording(r.id); } finally { release(); }
+    await job;
+    assert.equal(row(r.id), null);
+    assert.deepEqual(leftovers(r), []);
+});
+
+test('R5-D1: compression of a recording deleted before ffmpeg opens its output publishes nothing', async () => {
+    const r = makeRecording();
+    const { arrived, release } = heldFfmpeg();
+    const job = engine._compressRecording(row(r.id), { postRecordKeepOriginal: true });
+    await arrived;
+    try { await engine.deleteRecording(r.id); } finally { release(); }
+    await job;
+    assert.equal(row(r.id), null);
+    assert.deepEqual(leftovers(r), [], 'no late .compressed.mp4 or .partial');
+});

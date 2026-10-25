@@ -7,6 +7,7 @@
 const fs = require('fs');
 const { recordings: recordingsDb } = require('../db/recordingsDb');
 const jobs = require('./recordingJobs');
+const owners = require('./recordingOwners');
 const { tools, nativeTools, verifiedNativeFiles, compressionTargetPath } = require('./recordingMedia');
 
 async function getSettings() {
@@ -130,6 +131,12 @@ async function compressRecording(rec, settings) {
         result = await nativeTools.ffmpeg(buildCompressArgs(input, partial, settings, { forceCqp: true }), { watchFile: partial });
     }
 
+    // R5-D1: deleted while ffmpeg ran (it may open its output only after the deletion): nothing is
+    // published, and what it made goes.
+    if (!owners.owned(rec.id)) {
+        try { fs.unlinkSync(partial); } catch (e) { /* never made */ }
+        return;
+    }
     const code = result.code;
     if (code !== 0 || !fs.existsSync(partial)) {
         console.error(`[Recordings] Compression of #${rec.id} failed:\n  ${result.tail.join('\n  ')}`);
@@ -146,6 +153,10 @@ async function compressRecording(rec, settings) {
     // used to count as a pass, and with "keep original" off that deleted the
     // original on the strength of a check that never ran.
     const newDuration = await nativeTools.duration(partial);
+    if (!owners.owned(rec.id)) {
+        try { fs.unlinkSync(partial); } catch (e) { /* removed with the recording */ }
+        return;
+    }
     const newSize = fs.statSync(partial).size;
     const verified = sourceDuration > 0 && newDuration > 0 && newDuration >= sourceDuration * 0.95;
 
@@ -219,6 +230,7 @@ async function detectAdsFor(rec, settings) {
     });
     console.log(`[Recordings] Break detection #${rec.id} (post): ${result.elapsedSec}s elapsed for a ${Math.round(rec.duration_sec || 0)}s recording`);
 
+    if (!owners.owned(rec.id)) return; // R5-D1: deleted while Comskip ran: no markers for it
     if (!result.ok) {
         recordingsDb.setAdDetectStatus(rec.id, 'failed', result.error);
         console.error(`[Recordings] Break detection failed for #${rec.id}: ${result.error}`);

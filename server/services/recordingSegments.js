@@ -41,6 +41,7 @@ const { parseMediaPlaylist, renderMediaPlaylist } = require('./hlsPlaylist');
 const { checkRecordingsFolder } = require('./recordingsFolder');
 const { uniqueFilePath } = require('./recordingNames');
 const { recordings: recordingsDb } = require('../db/recordingsDb');
+const { owned, withdraw } = require('./recordingOwners'); // R4-D2: recordings being deleted
 
 const SEGMENT_SEC = 4;
 const MAX_FINISH_ATTEMPTS = 3;
@@ -427,19 +428,6 @@ async function sameBytesAsSegments(file, rec) {
     }
 }
 
-// R4-D2 (0257): recordings being deleted. deleteRecording retires one before its first await, so a
-// publication (MP4, kept original, fallback .ts, move) that finishes while the deletion is still
-// running neither records itself nor stays on the share: it removes only what it published itself.
-// Ids are never reused (AUTOINCREMENT).
-const retired = new Set();
-function retire(id) { retired.add(id); }
-const owned = (id) => !retired.has(id) && Boolean(recordingsDb.getById(id));
-/** A file this publication just put on the share, for a recording that is no longer its: removed. */
-function withdraw(file, id, what) {
-    try { fs.unlinkSync(file); } catch (e) { /* already gone */ }
-    console.log(`[Recordings] #${id} was deleted while its ${what} was published; that copy is removed too`);
-}
-
 /** DVR-1: where the segments of a recording whose MP4 is `mp4` are kept on the share, if that name is
  *  free (F1: else "<name> (original N).ts"; the path used is in segment_original, which
  *  recordingEngine.deleteRecording removes with the recording). */
@@ -675,6 +663,6 @@ module.exports = {
     SEGMENT_SEC, workRoot, workDirFor, isWorkDir, epochs, nextEpoch, captureArgs, captureBytes,
     sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount,
     viewArgs, ensureView, stopFollowers, viewPlaylist, probeVideoInfo, isWatchable,
-    configure, processQueue, finishOne, moveOne, removeWork, status, keptOriginalPath, recoverLegacyOriginals, retire,
+    configure, processQueue, finishOne, moveOne, removeWork, status, keptOriginalPath, recoverLegacyOriginals,
     _setWorkRoot, _followers: followers
 };

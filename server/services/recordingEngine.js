@@ -27,6 +27,7 @@ const media = require('./recordingMedia');
 const post = require('./recordingPost');
 const jobs = require('./recordingJobs');
 const segments = require('./recordingSegments'); // R3: segmented recordings
+const owners = require('./recordingOwners'); // R5-D1: recordings being deleted, for every job
 const ingest = require('./ingest'); // Wave 5: shared ingest (docs/SHARED-INGEST.md)
 const { fileSizeOf, getFreeSpaceGB, compressionTargetPath, nativePlaybackTargetPath, verifiedNativeFiles } = media;
 const { processCompressionQueue, processAdDetectionQueue } = post;
@@ -588,8 +589,9 @@ async function cancelScheduled(id) {
 async function deleteRecording(id) {
     let rec = recordingsDb.getById(id);
     if (!rec) throw new Error('Recording not found');
-    // R4-D2 (0257): before any await, nothing being published for it may record itself or stay.
-    segments.retire(id);
+    // R4-D2 (0257), R5-D1: before any await, nothing being published for it - by any job - may
+    // record itself or stay.
+    owners.retire(id);
 
     // 0207: nor may a live break-detection run go on reading a file about to go.
     post.abortLive(id);
