@@ -710,11 +710,22 @@ test('R4-D2: an MP4 moved to the share while the deletion is still running is re
     fs.renameSync(mount, away);
     try { await segments.finishOne(rec); } finally { fs.renameSync(away, mount); }
     assert.equal(recordings.getById(rec.id).segment_state, 'moving', 'waiting in appdata');
-    const realCopy = fs.promises.copyFile;
+    // 0267: the move copies as a stream; this holds its write at the end until released.
+    const realStream = fs.createWriteStream;
     let reached, release;
     const copying = new Promise(r => { reached = r; });
     const gate = new Promise(r => { release = r; });
-    fs.promises.copyFile = async (...a) => { reached(); await gate; return realCopy(...a); };
+    fs.createWriteStream = function (file, ...rest) {
+        if (!/\.mp4\.\d+-[0-9a-f]+\.partial$/.test(String(file))) return realStream.call(this, file, ...rest);
+        fs.createWriteStream = realStream;
+        const { Writable } = require('node:stream');
+        const fd = fs.openSync(file, 'wx');
+        return new Writable({
+            write(chunk, enc, cb) { fs.writeSync(fd, chunk); cb(); },
+            final(cb) { reached(); gate.then(() => { fs.closeSync(fd); cb(); }); }
+        });
+    };
+    const held = { restore: () => { fs.createWriteStream = realStream; } };
     const removal = holdRemoveWork();
     try {
         const moving = segments.moveOne(recordings.getById(rec.id));
@@ -726,7 +737,7 @@ test('R4-D2: an MP4 moved to the share while the deletion is still running is re
         assert.ok(String(recordings.getById(rec.id).file_path).startsWith(workDir), 'the late move did not record itself');
         removal.release();
         await deleting;
-    } finally { fs.promises.copyFile = realCopy; release(); removal.restore(); }
+    } finally { held.restore(); release(); removal.restore(); }
     assert.equal(recordings.getById(rec.id), null);
     assert.deepEqual(leftIn(path.dirname(mp4), path.basename(mp4, '.mp4')), [], 'no MP4 or partial on the share');
 });
@@ -1066,4 +1077,41 @@ test('D2: a deletion during the MP4\'s audio check stops the check and completes
         assert.equal(recordings.getById(rec.id), null);
         assert.deepEqual(leftIn(path.dirname(mp4), path.basename(mp4, '.mp4')), []);
     } finally { release(); await finishing; await deleting; engine._nativeTools.audioErrors = realAudio; }
+});
+
+test('E2: a deletion during the MP4\'s move to a share that stopped answering stops the copy and completes', async () => {
+    const { rec, workDir, mp4 } = finishingRow();
+    const away = `${mount}-away`;
+    fs.renameSync(mount, away);
+    try { await segments.finishOne(rec); } finally { fs.renameSync(away, mount); }
+    assert.equal(recordings.getById(rec.id).segment_state, 'moving', 'waiting in appdata');
+    // The share takes the first bytes, then stops answering: a write that never completes.
+    const realCopy = fs.promises.copyFile, realStream = fs.createWriteStream;
+    let reached;
+    const copying = new Promise(r => { reached = r; });
+    fs.promises.copyFile = async (src, dest, ...a) => { // the old path: a copy that cannot be stopped
+        if (!String(dest).includes('.mp4.')) return realCopy(src, dest, ...a);
+        fs.writeFileSync(dest, 'first bytes'); reached(); return new Promise(() => {});
+    };
+    fs.createWriteStream = function (file, ...rest) {
+        if (!/\.mp4\.\d+-[0-9a-f]+\.partial$/.test(String(file))) return realStream.call(this, file, ...rest);
+        const { Writable } = require('node:stream');
+        fs.writeFileSync(file, 'first bytes');
+        reached();
+        return new Writable({ write() { /* never calls back: the share stopped answering */ } });
+    };
+    let moving, deleting;
+    try {
+        moving = segments.moveOne(recordings.getById(rec.id));
+        await copying;
+        deleting = engine.deleteRecording(rec.id);
+        const outcome = await Promise.race([deleting.then(() => 'deleted'), new Promise(r => setTimeout(() => r('still waiting'), 5000))]);
+        assert.equal(outcome, 'deleted', 'the deletion is not held by a copy that cannot finish');
+        assert.equal(recordings.getById(rec.id), null);
+        assert.deepEqual(leftIn(path.dirname(mp4), path.basename(mp4, '.mp4')), [], 'no MP4 or partial on the share');
+        assert.equal(fs.existsSync(workDir), false);
+    } finally {
+        fs.promises.copyFile = realCopy; fs.createWriteStream = realStream;
+        await Promise.race([Promise.all([moving, deleting]), new Promise(r => setTimeout(r, 1000))]); // the old copy never settles
+    }
 });

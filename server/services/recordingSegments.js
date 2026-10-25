@@ -583,11 +583,12 @@ async function moveOne(rec) {
         const partial = path.join(dir, `${name}.mp4.${process.pid}-${crypto.randomBytes(4).toString('hex')}.partial`);
         let target;
         try {
-            // 0264: a writer of the recording. A copy cannot be stopped; a deletion waits for it, and a
-            // copy whose recording was deleted meanwhile is withdrawn before the deletion goes on.
+            // 0264: a writer of the recording; a deletion stops it and waits. 0267 (Codex review of
+            // 0266): copied as a stream with the writer's signal - copyFile cannot be stopped, so a
+            // share that stopped answering held the deletion for good.
             target = await write(rec.id, async (signal) => {
                 if (signal.aborted) return null;
-                await fsp.copyFile(source, partial, fs.constants.COPYFILE_EXCL);
+                await pipeline(fs.createReadStream(source), fs.createWriteStream(partial, { flags: 'wx' }), { signal });
                 if (fs.statSync(partial).size !== fs.statSync(source).size) throw new Error('the copy is not the same size');
                 const t = publishNoReplace(partial, dir, `${name}.mp4`, n => `${name} (${n}).mp4`); // F1
                 if (!owned(rec.id)) { withdraw(t, rec.id, 'MP4'); return null; }
