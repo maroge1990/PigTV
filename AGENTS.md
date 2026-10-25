@@ -50,6 +50,14 @@ ends every session. Rollback: point the container at `ghcr.io/maroge1990/pigtv:s
 - Never return or log a provider URL, password or token (`redact()`, opaque handles, C-B error texts).
 - Ask Mark before contacting the deployed server or running anything that takes the provider connection.
 - The lead session may delegate to sub-agents (never Haiku) and reviews every diff before committing.
+- **Adversarial review (Mark, 25 Oct).** A batch above this threshold gets a Codex adversarial review before Mark is
+  told it is ready: any functional change to recording/DVR, recording rules, the playback path, provider routing or
+  admission, caches or other shared ownership/accounting, auth/redaction, or anything in `docs/CLIENT-CONTRACT.md`; any
+  fix for a review finding; or more than ~150 changed non-test lines. Run `/codex:adversarial-review --background --base
+  <origin/main or the reviewed baseline> <focus>` in each repo touched (it needs `codex login`; the slash command is
+  Mark's to type, since Claude cannot invoke it). Every finding is fixed (with its own failing-before test) or answered,
+  and the handoff lists each with its disposition. If it cannot run, say so and give Mark the exact command and focus
+  text. Docs-only and test-only commits are exempt.
 - At the end of a session update `blueprint.md`: the state line, the §4 roadmap status, and any durable fact in §2/§3. The
   story goes in the commit message, not the docs.
 

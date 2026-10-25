@@ -28,6 +28,12 @@ After that, three full runs were clean locally. C-M now states what a cancel hol
 device/feed acceptance, bugs 5 and 8 and the efficiency register stay open. **0259** implements the F4 policy Mark
 accepted on 25 Oct.
 
+**25 Oct round-5 repairs:** server **0260–0262** and Apple **55** are committed locally (not pushed, not deployed) for the
+review's five P2 findings (R5-F1–F3, R5-D1, R5-A1), each with a failing-before test; 0262 and an Apple test-only commit
+make two timing tests wait for observable completion. The provider-failover deadline flake was not reproduced and its
+cause is not established. [`docs/reviews/2026-10-25/repair/REPAIR-STATUS.md`](docs/reviews/2026-10-25/repair/REPAIR-STATUS.md).
+Device/feed acceptance, bugs 5 and 8 and the efficiency register stay open.
+
 **25 Oct review of0256–0259 / Apple54:** direct legacy recovery, nested cricket validation and cache-pass completion regressions pass. F4's accepted policy remains partial (historical-hit suppression, mixed episode/no-metadata schedules and stable-channel reorder); native preparation still publishes after delete, and cached file sizes still break artwork accounting. Server full runs: one clean, one with two failures; Apple227unit pass,15/16UIpass; iOS/verify pass. [Independent findings and checks](docs/reviews/2026-10-25/REVIEW.md). No application/deployment changes; bugs5/8, device/feed acceptance and efficiency work remain open.
 
 How to work in this repo (commands, shipping, rules) is in [`AGENTS.md`](AGENTS.md). This file holds **durable facts and the
@@ -490,7 +496,8 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   published (0242/0243). Deletion removes only `segment_original`, never a file found at "<name>.ts" (0251). A pathless
   kept original from 0227–0242 is claimed only by its bytes (segments still in appdata), else re-published under its
   own name, or (segments gone) left in place and logged (0256). A deletion retires the recording before it awaits, and
-  every publication (MP4, kept original, fallback .ts, share move) removes its own output if it is no longer owned (0257).
+  every publication (MP4, kept original, fallback .ts, share move) removes its own output if it is no longer owned (0257);
+  `recordingOwners` holds that retirement for every job, including the native remux, preparation and compression (0261).
   Share files are published with `link()`, never by rename over an existing name.
 - A schedule with a stable channel identity never falls back to its stored position (resolve, guide-follow, blockers) (0228).
 - Starts that await (ingest, settings, feeds, failover) re-check ownership after each await and release late feeds
@@ -501,7 +508,9 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   existing schedule is reconciled before the rule's hit list is consulted (0253). F4 policy (Mark, 25 Oct; 0259): a
   cancelled schedule holds only when its pairing is unambiguous, otherwise the candidates are recorded; series airings
   without episode data pair the same way on their channel, up to 3 hours. Not durable identity (the guide has none);
-  stated in C-M.
+  stated in C-M. 0260: unsure is decided per candidate at every evaluation (an older hit naming a declined cancelled
+  schedule does not suppress); episode schedules are reserved from unidentified airings and follow their episode;
+  series pair by the channel's stable identity.
   A name-derived event-slot programme belongs to its slot only (0247).
 - ESPN coverage is renewed only by a complete refresh (0248). Cricket discovery is a failure unless it is a scores list
   (0255), and partial when an entry cannot name its series (0258) or series exceed the 20-series cap (0255). Logo
@@ -509,6 +518,9 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 - A sibling-link decision that changes what is listed bumps the guide version (0250).
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
+
+**25 Oct round-5 repair status:** the five P2 findings have local fixes (0260–0261, Apple 55); see
+[the repair status](docs/reviews/2026-10-25/repair/REPAIR-STATUS.md). Awaiting independent review and device acceptance.
 
 **Latest independent disposition (25 Oct):** repair the fiveP2 findings in [the review](docs/reviews/2026-10-25/REVIEW.md) and obtain repeatable validation. Mark's F4 policy is accepted; its implementation is incomplete. Earlier local-completion notes do not close those findings.
 
