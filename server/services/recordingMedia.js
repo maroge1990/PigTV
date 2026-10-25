@@ -216,8 +216,11 @@ const FFMPEG_STALL_MS = 10 * 60 * 1000;
  * killed if that file stops growing for `stallMs`, so one stuck job cannot hold
  * its queue (and the recording it belongs to) forever.
  */
-function runFfmpegCollectingTail(args, { watchFile = null, stallMs = FFMPEG_STALL_MS } = {}) {
+function runFfmpegCollectingTail(args, { watchFile = null, stallMs = FFMPEG_STALL_MS, signal = null } = {}) {
     return new Promise((resolve) => {
+        // 0264: `signal` (recordingOwners.write) stops it - the recording is being deleted. Resolves
+        // only once the process has exited, so nothing it writes outlives the deletion.
+        if (signal && signal.aborted) return resolve({ code: -1, tail: ['Stopped: the recording was deleted'] });
         let proc;
         try {
             proc = spawn(tools.ffmpegPath, args);
@@ -225,6 +228,11 @@ function runFfmpegCollectingTail(args, { watchFile = null, stallMs = FFMPEG_STAL
             return resolve({ code: -1, tail: [err.message] });
         }
         const tail = [];
+        const onAbort = () => {
+            tail.push('Stopped: the recording was deleted');
+            try { proc.kill('SIGKILL'); } catch (e) { /* already gone */ }
+        };
+        if (signal) signal.addEventListener('abort', onAbort, { once: true });
         let watchdog = null;
         if (watchFile) {
             let lastSize = -1;
@@ -244,7 +252,11 @@ function runFfmpegCollectingTail(args, { watchFile = null, stallMs = FFMPEG_STAL
                 if (line.trim()) { tail.push(line.trim()); if (tail.length > 20) tail.shift(); }
             }
         });
-        const done = (code) => { if (watchdog) clearInterval(watchdog); resolve({ code, tail }); };
+        const done = (code) => {
+            if (watchdog) clearInterval(watchdog);
+            if (signal) signal.removeEventListener('abort', onAbort);
+            resolve({ code, tail });
+        };
         proc.on('error', (err) => { tail.push(err.message); done(-1); });
         proc.on('close', (c) => done(c));
     });
@@ -408,14 +420,15 @@ async function remuxForNativePlayback(rec, input, output) {
     const args = buildNativeRemuxArgs(input, partial, codecs);
 
     console.log(`[Recordings] Remuxing #${rec.id} for native playback -> ${output}`);
-    const result = await nativeTools.ffmpeg(args, { watchFile: partial });
-
-    // R5-D1: deleted while ffmpeg ran (which may open its output only after the deletion): what it
-    // made goes and nothing is published - for every caller sharing this remux.
-    if (!owners.owned(rec.id)) {
-        try { fs.unlinkSync(partial); } catch (e) { /* never made */ }
-        throw new Error(owners.DELETED);
-    }
+    // R5-D1, 0264: a writer of the recording - a deletion stops it and waits; one deleted while it ran
+    // (ffmpeg may open its output only after the deletion) removes what it made before it ends.
+    const result = await owners.write(rec.id, async (signal) => {
+        const r = await nativeTools.ffmpeg(args, { watchFile: partial, signal });
+        if (!owners.owned(rec.id)) { try { fs.unlinkSync(partial); } catch (e) { /* never made */ } }
+        return r;
+    });
+    // Nothing is published, for every caller sharing this remux.
+    if (!owners.owned(rec.id)) throw new Error(owners.DELETED);
     if (result.code !== 0 || !fs.existsSync(partial)) {
         try { fs.unlinkSync(partial); } catch (e) { /* nothing to clean */ }
         console.error(`[Recordings] Native remux of #${rec.id} failed:\n  ${result.tail.join('\n  ')}`);

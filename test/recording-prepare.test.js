@@ -272,16 +272,20 @@ function fallbackTs() {
     return { ...r, file: ts };
 }
 
-/** A fake ffmpeg that opens its input, waits for `gate`, then writes its output. */
+/** Settles when `signal` aborts (never without one): a killed ffmpeg. */
+const abortOf = (signal) => new Promise(r => { if (!signal) return; if (signal.aborted) r(); else signal.addEventListener('abort', r, { once: true }); });
+
+/** A fake ffmpeg that opens its input, waits for `gate`, then writes its output; killed (0264), it exits without one. */
 function heldFfmpeg() {
     let reached, release;
     const arrived = new Promise(x => { reached = x; });
     const gate = new Promise(x => { release = x; });
-    engine._nativeTools.ffmpeg = async (args) => {
+    engine._nativeTools.ffmpeg = async (args, opts = {}) => {
         const fd = fs.openSync(args[args.indexOf('-i') + 1], 'r');
         reached();
-        await gate;
+        await Promise.race([gate, abortOf(opts.signal)]);
         fs.closeSync(fd);
+        if (opts.signal && opts.signal.aborted) return { code: 255, tail: ['killed'] };
         fs.writeFileSync(args.at(-1), 'y'.repeat(2048));
         return { code: 0, tail: [] };
     };
@@ -356,3 +360,48 @@ test('R5-D1: compression of a recording deleted before ffmpeg opens its output p
     assert.equal(row(r.id), null);
     assert.deepEqual(leftovers(r), [], 'no late .compressed.mp4 or .partial');
 });
+
+// ---- Codex adversarial review of 0261 (25 Oct): the deletion stops its writers and waits for them, so
+// nothing is still being written - or left - once it has returned (a restart then cannot strand a file).
+
+/** ffmpeg that writes its output at once and holds; killed, it writes once more as it dies, then exits. */
+function dyingFfmpeg() {
+    let reached, release;
+    const arrived = new Promise(x => { reached = x; });
+    const gate = new Promise(x => { release = x; });
+    const seen = { killed: false };
+    engine._nativeTools.ffmpeg = async (args, opts = {}) => {
+        const out = args.at(-1);
+        fs.writeFileSync(out, 'first bytes');
+        reached();
+        await Promise.race([gate, abortOf(opts.signal)]);
+        if (opts.signal && opts.signal.aborted) {
+            seen.killed = true;
+            await new Promise(r => setTimeout(r, 30)); // a process does not die instantly
+            fs.appendFileSync(out, 'last bytes');
+            return { code: 255, tail: ['killed'] };
+        }
+        fs.appendFileSync(out, 'y'.repeat(2048));
+        return { code: 0, tail: [] };
+    };
+    return { arrived, release, seen };
+}
+
+for (const [label, start] of [
+    ['native preparation of a fallback .ts', (r) => engine._prepareRecording(row(r.id))],
+    ['compression', (r) => engine._compressRecording(row(r.id), { postRecordKeepOriginal: true })]
+]) {
+    test(`C2: a deletion during ${label} stops ffmpeg and returns only once its partial is gone`, async () => {
+        const r = label.startsWith('native') ? fallbackTs() : makeRecording();
+        const ff = dyingFfmpeg();
+        const job = start(r);
+        await ff.arrived;
+        try {
+            await engine.deleteRecording(r.id);
+            assert.equal(ff.seen.killed, true, 'the deletion stopped the writer');
+            assert.equal(row(r.id), null);
+            assert.deepEqual(leftovers(r), [], 'nothing of it on the share when the deletion returns');
+        } finally { ff.release(); await job; }
+        assert.deepEqual(leftovers(r), []);
+    });
+}

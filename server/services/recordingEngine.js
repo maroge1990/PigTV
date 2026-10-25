@@ -595,6 +595,9 @@ async function deleteRecording(id) {
 
     // 0207: nor may a live break-detection run go on reading a file about to go.
     post.abortLive(id);
+    // 0264: every writer of it is stopped, and has ended and removed what it made, before anything of
+    // it is removed: nothing is written for it once this deletion has completed.
+    await owners.stopWriters(id);
 
     // If it's still actively recording, stop it first
     for (const [scheduledId, entry] of active.entries()) {

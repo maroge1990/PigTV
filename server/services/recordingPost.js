@@ -120,23 +120,22 @@ async function compressRecording(rec, settings) {
     recordingsDb.setCompressStatus(rec.id, 'running', { originalSize });
     console.log(`[Recordings] Compressing #${rec.id} (${(originalSize / 1e9).toFixed(2)} GB)`);
 
-    let result = await nativeTools.ffmpeg(buildCompressArgs(input, partial, settings), { watchFile: partial });
-
-    // Some VAAPI drivers implement constant-quantiser rate control only and
-    // reject a bitrate target outright. Retry once in CQP rather than leaving
-    // the recording uncompressed.
-    if (result.code !== 0 && result.tail.some(l => l.includes('RC mode'))) {
-        console.log(`[Recordings] Encoder wants constant quality; retrying #${rec.id} in CQP`);
-        try { fs.unlinkSync(partial); } catch (e) { /* nothing to clean */ }
-        result = await nativeTools.ffmpeg(buildCompressArgs(input, partial, settings, { forceCqp: true }), { watchFile: partial });
-    }
-
-    // R5-D1: deleted while ffmpeg ran (it may open its output only after the deletion): nothing is
-    // published, and what it made goes.
-    if (!owners.owned(rec.id)) {
-        try { fs.unlinkSync(partial); } catch (e) { /* never made */ }
-        return;
-    }
+    // R5-D1, 0264: a writer of the recording - a deletion stops it and waits; one deleted while it ran
+    // (ffmpeg may open its output only after the deletion) removes what it made and publishes nothing.
+    const result = await owners.write(rec.id, async (signal) => {
+        let r = await nativeTools.ffmpeg(buildCompressArgs(input, partial, settings), { watchFile: partial, signal });
+        // Some VAAPI drivers implement constant-quantiser rate control only and
+        // reject a bitrate target outright. Retry once in CQP rather than leaving
+        // the recording uncompressed.
+        if (r.code !== 0 && r.tail.some(l => l.includes('RC mode')) && !signal.aborted) {
+            console.log(`[Recordings] Encoder wants constant quality; retrying #${rec.id} in CQP`);
+            try { fs.unlinkSync(partial); } catch (e) { /* nothing to clean */ }
+            r = await nativeTools.ffmpeg(buildCompressArgs(input, partial, settings, { forceCqp: true }), { watchFile: partial, signal });
+        }
+        if (!owners.owned(rec.id)) { try { fs.unlinkSync(partial); } catch (e) { /* never made */ } }
+        return r;
+    });
+    if (!owners.owned(rec.id)) return;
     const code = result.code;
     if (code !== 0 || !fs.existsSync(partial)) {
         console.error(`[Recordings] Compression of #${rec.id} failed:\n  ${result.tail.join('\n  ')}`);

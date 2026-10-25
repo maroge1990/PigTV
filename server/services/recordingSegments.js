@@ -41,7 +41,7 @@ const { parseMediaPlaylist, renderMediaPlaylist } = require('./hlsPlaylist');
 const { checkRecordingsFolder } = require('./recordingsFolder');
 const { uniqueFilePath } = require('./recordingNames');
 const { recordings: recordingsDb } = require('../db/recordingsDb');
-const { owned, withdraw } = require('./recordingOwners'); // R4-D2: recordings being deleted
+const { owned, withdraw, write } = require('./recordingOwners'); // R4-D2, 0264: recordings being deleted
 
 const SEGMENT_SEC = 4;
 const MAX_FINISH_ATTEMPTS = 3;
@@ -391,13 +391,13 @@ const segmentFiles = (rec) => epochs(rec.work_dir).flatMap(e => archiveOf(e.dir)
  * of raising an unhandled stream error, and the writer's backpressure paces the reads. F1: the
  * partial is this call's own (created exclusively under a unique name). Returns the published path.
  */
-async function joinSegments(rec, dir, first, alt) {
+async function joinSegments(rec, dir, first, alt, signal = null) {
     const partial = path.join(dir, `${first}.${process.pid}-${crypto.randomBytes(4).toString('hex')}.partial`);
     async function* pieces() {
         for (const file of segmentFiles(rec)) yield* fs.createReadStream(file);
     }
     try {
-        await pipeline(Readable.from(pieces(), { objectMode: false }), fs.createWriteStream(partial, { flags: 'wx' }));
+        await pipeline(Readable.from(pieces(), { objectMode: false }), fs.createWriteStream(partial, { flags: 'wx' }), ...(signal ? [{ signal }] : []));
         return publishNoReplace(partial, dir, first, alt);
     } catch (err) {
         try { fs.unlinkSync(partial); } catch (e) { /* none */ }
@@ -441,8 +441,13 @@ async function deliverTs(rec, stitched) {
     const dir = await shareFolder(rec);
     if (!dir) throw new Error('the recordings folder is not usable');
     const name = rec.segment_name || `Recording ${rec.id}`;
-    const target = await joinSegments(rec, dir, `${name}.ts`, n => `${name} (${n}).ts`);
-    if (!owned(rec.id)) return withdraw(target, rec.id, 'recording');
+    // 0264: a writer of the recording (a deletion stops it and waits); deleted meanwhile, its copy goes.
+    const target = await write(rec.id, async (signal) => {
+        const t = await joinSegments(rec, dir, `${name}.ts`, n => `${name} (${n}).ts`, signal);
+        if (!owned(rec.id)) { withdraw(t, rec.id, 'recording'); return null; }
+        return t;
+    });
+    if (!target) return;
     completed(rec, target, { duration_sec: Math.round(stitched.durationSec), segment_state: 'done' });
     recordingsDb.setNativeStatus(rec.id, 'pending');
     await removeWork(rec);
@@ -467,18 +472,24 @@ async function finishOne(rec) {
 
     const codecs = await media.nativeTools.codecs(stitched.file);
     console.log(`[Recordings] Making the MP4 of #${rec.id} from ${stitched.segments} segments -> ${dir ? target : 'the work folder (the share is not usable now)'}`);
-    const result = await media.nativeTools.ffmpeg(media.buildNativeRemuxArgs(stitched.file, partial, codecs), { watchFile: partial });
-    let problem = null;
-    let keep = null;
-    if (result.code !== 0 || !fs.existsSync(partial)) {
-        problem = result.tail.slice(-3).join(' | ') || `ffmpeg exited with code ${result.code}`;
-    } else {
-        const check = await media.checkPrepared(stitched.file, partial);
-        if (!check.ok) problem = `the MP4 failed its check: ${check.reason}`;
-        // DVR-1 (0227): it plays, but could not be compared with the segments (their length or the
-        // audio could not be read): the segments are its original and are kept, as preparation keeps one.
-        else if (check.keepOriginal) keep = check.reason;
-    }
+    // 0264: the remux and its check are a writer of the recording: a deletion stops it and waits until
+    // its partial is gone.
+    const { problem, keep } = await write(rec.id, async (signal) => {
+        const result = await media.nativeTools.ffmpeg(media.buildNativeRemuxArgs(stitched.file, partial, codecs), { watchFile: partial, signal });
+        let problem = null;
+        let keep = null;
+        if (result.code !== 0 || !fs.existsSync(partial)) {
+            problem = result.tail.slice(-3).join(' | ') || `ffmpeg exited with code ${result.code}`;
+        } else {
+            const check = await media.checkPrepared(stitched.file, partial);
+            if (!check.ok) problem = `the MP4 failed its check: ${check.reason}`;
+            // DVR-1 (0227): it plays, but could not be compared with the segments (their length or the
+            // audio could not be read): the segments are its original and are kept, as preparation keeps one.
+            else if (check.keepOriginal) keep = check.reason;
+        }
+        if (!owned(rec.id)) { try { fs.unlinkSync(partial); } catch (e) { /* none */ } }
+        return { problem, keep };
+    });
     if (!owned(rec.id)) { // deleted (or being deleted) meanwhile
         try { fs.unlinkSync(partial); } catch (e) { /* none */ }
         return;
@@ -491,6 +502,7 @@ async function finishOne(rec) {
             if (!owned(rec.id)) return;
             await deliverTs(recordingsDb.getById(rec.id), stitched);
         } catch (err) {
+            if (!owned(rec.id)) return; // 0264: stopped by its deletion
             recordingsDb.setSegmentFields(rec.id, { status: 'failed', segment_state: 'failed',
                 error: `The recording could not be finished (${err.message}); its segments are kept in appdata.` });
         }
@@ -542,12 +554,14 @@ async function keepOriginal(rec, dir) {
                 return true;
             }
         }
-        const published = await joinSegments(rec, dir, `${base}.ts`, n => `${base} (original${n > 2 ? ` ${n - 1}` : ''}).ts`);
-        if (!owned(rec.id)) {
+        // 0264: a writer of the recording (a deletion stops it and waits).
+        const published = await write(rec.id, async (signal) => {
+            const p = await joinSegments(rec, dir, `${base}.ts`, n => `${base} (original${n > 2 ? ` ${n - 1}` : ''}).ts`, signal);
             // D1 (0251), R4-D2: deleted (or being deleted) while it was copied - this copy is its own, so it goes too.
-            withdraw(published, rec.id, 'kept original');
-            return false;
-        }
+            if (!owned(rec.id)) { withdraw(p, rec.id, 'kept original'); return null; }
+            return p;
+        });
+        if (!published) return false;
         recordingsDb.setSegmentFields(rec.id, { segment_original: published });
         return true;
     } catch (err) {
@@ -569,10 +583,17 @@ async function moveOne(rec) {
         const partial = path.join(dir, `${name}.mp4.${process.pid}-${crypto.randomBytes(4).toString('hex')}.partial`);
         let target;
         try {
-            await fsp.copyFile(source, partial, fs.constants.COPYFILE_EXCL);
-            if (fs.statSync(partial).size !== fs.statSync(source).size) throw new Error('the copy is not the same size');
-            target = publishNoReplace(partial, dir, `${name}.mp4`, n => `${name} (${n}).mp4`); // F1
-            if (!owned(rec.id)) return withdraw(target, rec.id, 'MP4');
+            // 0264: a writer of the recording. A copy cannot be stopped; a deletion waits for it, and a
+            // copy whose recording was deleted meanwhile is withdrawn before the deletion goes on.
+            target = await write(rec.id, async (signal) => {
+                if (signal.aborted) return null;
+                await fsp.copyFile(source, partial, fs.constants.COPYFILE_EXCL);
+                if (fs.statSync(partial).size !== fs.statSync(source).size) throw new Error('the copy is not the same size');
+                const t = publishNoReplace(partial, dir, `${name}.mp4`, n => `${name} (${n}).mp4`); // F1
+                if (!owned(rec.id)) { withdraw(t, rec.id, 'MP4'); return null; }
+                return t;
+            });
+            if (!target) return;
         } catch (err) {
             try { fs.unlinkSync(partial); } catch (e) { /* none */ }
             console.warn(`[Recordings] #${rec.id} could not move to the recordings folder yet: ${err.message}`);

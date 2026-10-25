@@ -719,9 +719,9 @@ test('R4-D2: an MP4 moved to the share while the deletion is still running is re
     try {
         const moving = segments.moveOne(recordings.getById(rec.id));
         await copying;
-        const deleting = engine.deleteRecording(rec.id);
-        await removal.inside;
+        const deleting = engine.deleteRecording(rec.id); // retired at once; it waits for the copy (0264)
         release();
+        await removal.inside;
         await moving;
         assert.ok(String(recordings.getById(rec.id).file_path).startsWith(workDir), 'the late move did not record itself');
         removal.release();
@@ -737,13 +737,18 @@ test('R4-D2: an MP4 whose remux ends while the deletion is still running is neve
     let reached, release;
     const remuxing = new Promise(r => { reached = r; });
     const gate = new Promise(r => { release = r; });
-    engine._nativeTools.ffmpeg = async (...a) => { reached(); await gate; return realFfmpeg(...a); };
+    // 0264: a deletion kills it (the signal), as it would a real ffmpeg.
+    engine._nativeTools.ffmpeg = async (args, opts = {}) => {
+        reached();
+        await Promise.race([gate, new Promise(r => opts.signal && opts.signal.addEventListener('abort', r, { once: true }))]);
+        return opts.signal && opts.signal.aborted ? { code: 255, tail: ['killed'] } : realFfmpeg(args, opts);
+    };
     const removal = holdRemoveWork();
     try {
         const finishing = segments.finishOne(rec);
         await remuxing;
         const deleting = engine.deleteRecording(rec.id);
-        await removal.inside;
+        await removal.inside; // the remux was stopped before the deletion went on
         release();
         await finishing;
         assert.notEqual(recordings.getById(rec.id).status, 'completed', 'not completed by the late remux');
@@ -985,4 +990,53 @@ test('/api/info lists recordingWatchLive; Status shows the appdata folder', asyn
     const st = segments.status();
     assert.ok(Number.isFinite(st.freeBytes));
     assert.deepEqual(Object.keys(st).sort(), ['capturing', 'failed', 'finishing', 'freeBytes', 'waitingToMove']);
+});
+
+// ---- Codex adversarial review of 0261 (25 Oct): once a deletion has returned nothing of it is being
+// written or left on the share, so a restart cannot strand a late partial.
+
+test('C2: a deletion during the MP4 remux stops ffmpeg and returns only once its partial is gone', async () => {
+    const { rec, mp4 } = finishingRow();
+    const realFfmpeg = engine._nativeTools.ffmpeg;
+    let reached, release, killed = false;
+    const remuxing = new Promise(r => { reached = r; });
+    const gate = new Promise(r => { release = r; });
+    engine._nativeTools.ffmpeg = async (args, opts = {}) => {
+        fs.writeFileSync(args.at(-1), 'first bytes'); // ffmpeg opens its output at once
+        reached();
+        await Promise.race([gate, new Promise(r => opts.signal && opts.signal.addEventListener('abort', r, { once: true }))]);
+        if (opts.signal && opts.signal.aborted) {
+            killed = true;
+            await new Promise(r => setTimeout(r, 30));
+            fs.appendFileSync(args.at(-1), 'last bytes'); // it writes once more as it dies
+            return { code: 255, tail: ['killed'] };
+        }
+        return realFfmpeg(args, opts);
+    };
+    let finishing;
+    try {
+        finishing = segments.finishOne(rec);
+        await remuxing;
+        await engine.deleteRecording(rec.id);
+        assert.equal(killed, true, 'the deletion stopped the writer');
+        assert.equal(recordings.getById(rec.id), null);
+        assert.deepEqual(leftIn(path.dirname(mp4), path.basename(mp4, '.mp4')), [], 'nothing on the share when the deletion returns');
+    } finally { release(); await finishing; engine._nativeTools.ffmpeg = realFfmpeg; }
+});
+
+test('C2: a deletion during the last-resort .ts copy stops it and returns only once its partial is gone', async () => {
+    await withTools({ ffmpeg: async () => ({ code: 1, tail: ['failed'] }) }, async () => {
+        const { rec, mp4 } = finishingRow();
+        recordings.setSegmentFields(rec.id, { segment_attempts: 2 }); // the last attempt: the .ts fallback
+        const copy = holdTsCopy();
+        let finishing;
+        try {
+            finishing = segments.finishOne(recordings.getById(rec.id));
+            await copy.atEnd; // every byte written, the partial still open
+            await engine.deleteRecording(rec.id);
+            assert.equal(recordings.getById(rec.id), null);
+            assert.deepEqual(leftIn(path.dirname(mp4), path.basename(mp4, '.mp4')), [], 'nothing on the share when the deletion returns');
+        } finally { copy.restore(); await finishing; }
+        assert.deepEqual(leftIn(path.dirname(mp4), path.basename(mp4, '.mp4')), []);
+    });
 });
