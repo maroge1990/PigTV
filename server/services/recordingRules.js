@@ -275,41 +275,53 @@ const pairEvents = (candidates, now) => pairInstances(candidates, now, { horizon
 
 /**
  * Which schedule each series airing WITH episode data already is, decided before anything is
- * matched by time (Codex review of 0260). An episode is that episode wherever the guide moves it:
- *   1. the schedule its hit names (this rule's, not yet begun, and no other episode's already) is the
- *      episode's - taken by the airing of it at that schedule's time if there is one (a repeat elsewhere
- *      never takes it), else by its first airing, which a pending schedule then follows;
- *   2. an episode with no such schedule: its first airing is the one present within 15 minutes of it,
- *      if any. The other airings of an episode (repeats) are never matched by time (Codex re-review of
- *      0263: a repeat in another episode's slot took that schedule and then the episode's hit).
- * Returns { resolved: Map(candidate -> schedule), taken: Set(schedule id), firsts: Set(candidate) }
- * (firsts: the first airing of each episode without a schedule - the only ones that may still be
- * matched by time, to a schedule made earlier in this evaluation); what is taken is never an
- * unidentified airing's (R5-F2).
+ * matched by time (Codex reviews of 0260, 0263, 0265). An episode is that episode wherever the
+ * guide moves it, and a schedule belongs to one episode only:
+ *   1. the schedule its hit names (this rule's, not yet begun) is the episode's - taken by the airing
+ *      of it at that schedule's time if there is one (a repeat elsewhere never takes it), else by its
+ *      first airing, which a pending schedule then follows. Should two episodes' hits name one
+ *      schedule, an episode with an airing at its time has it first;
+ *   2. an episode with no such schedule: its first airing is the one present within 15 minutes of
+ *      it, if any - never a schedule another episode's hit names, whether that episode is in the
+ *      guide or not. Repeats are never matched by time.
+ * Returns { resolved: Map(candidate -> schedule), taken: Set(schedule id), ownerOf: Map(schedule id
+ * -> identity) }. ownerOf: whose each resolved schedule is (a hit naming one that is another
+ * episode's does not hold that episode back). What is taken is never an unidentified airing's (R5-F2).
  */
 function resolveEpisodes(ruleId, candidates, now) {
-    const resolved = new Map(), taken = new Set(), firsts = new Set();
-    const hitOf = db().prepare('SELECT schedule_id FROM recording_rule_hits WHERE rule_id = ? AND identity = ?');
+    const resolved = new Map(), taken = new Set(), ownerOf = new Map();
     const scheduleOf = db().prepare(`SELECT ${SCHEDULE_COLUMNS} FROM scheduled_recordings
         WHERE id = ? AND rule_id = ? AND status IN ('scheduled', 'waiting', 'cancelled') AND program_start > ?`);
+    // Every schedule an episode's hit names, in the guide or not: never another episode's by time.
+    const named = db().prepare(`SELECT identity, schedule_id FROM recording_rule_hits
+        WHERE rule_id = ? AND identity LIKE 'ep:%' AND schedule_id IS NOT NULL`).all(ruleId);
+    const hitOf = new Map(named.map(h => [h.identity, h.schedule_id]));
     const episodes = candidates.filter(c => c.episode);
+    const claims = [];
     for (const identity of new Set(episodes.map(c => c.identity))) {
-        const h = hitOf.get(ruleId, identity);
-        const s = h && h.schedule_id !== null ? scheduleOf.get(h.schedule_id, ruleId, now) : null;
-        if (!s || taken.has(s.id)) continue;
+        const id = hitOf.get(identity);
+        const s = id !== undefined ? scheduleOf.get(id, ruleId, now) : null;
+        if (!s) continue;
         const airings = episodes.filter(c => c.identity === identity);
-        const owner = airings.find(c => Math.abs(s.program_start - c.start) <= NEAR_MS) || airings[0];
+        const at = airings.find(c => Math.abs(s.program_start - c.start) <= NEAR_MS);
+        claims.push({ identity, s, owner: at || airings[0], present: Boolean(at) });
+    }
+    claims.sort((x, y) => Number(y.present) - Number(x.present));
+    for (const { identity, s, owner } of claims) {
+        if (taken.has(s.id)) continue;
         resolved.set(owner, s);
         taken.add(s.id);
+        ownerOf.set(s.id, identity);
     }
     const settled = new Set([...resolved.keys()].map(c => c.identity));
     for (const c of episodes) {
         if (settled.has(c.identity)) continue;
         settled.add(c.identity); // its first airing only
-        const s = alreadyScheduled(c, taken);
-        if (s) { resolved.set(c, s); taken.add(s.id); } else firsts.add(c);
+        const others = new Set(named.filter(h => h.identity !== c.identity).map(h => h.schedule_id));
+        const s = alreadyScheduled(c, new Set([...taken, ...others]));
+        if (s) { resolved.set(c, s); taken.add(s.id); ownerOf.set(s.id, c.identity); }
     }
-    return { resolved, taken, firsts };
+    return { resolved, taken, ownerOf };
 }
 
 /** 0259: series airings without episode data: on the rule's (stable) channel, a move of at most SERIES_MOVE_MS. */
@@ -345,17 +357,14 @@ function evaluate({ now = Date.now() } = {}) {
                 continue;
             }
             // Episodes first (their identity), then everything else by instance (pairInstances).
-            const episodes = rule.kind === 'series' ? resolveEpisodes(rule.id, candidates, now) : { resolved: new Map(), taken: new Set(), firsts: new Set() };
+            const episodes = rule.kind === 'series' ? resolveEpisodes(rule.id, candidates, now) : { resolved: new Map(), taken: new Set(), ownerOf: new Map() };
             const { pairs: events, declined } = rule.kind === 'sport' ? pairEvents(candidates, now) : pairAirings(candidates, now, episodes.taken);
             const paired = (c) => (rule.kind === 'sport' || !c.episode);
-            // Schedules already some candidate's this evaluation: never another episode's as well.
-            const present = new Set([...episodes.taken, ...[...events.values()].map(s => s.id)]);
             for (const c of candidates) {
                 // D3 (0253): an existing schedule is reconciled first, so a correction back to a time
                 // seen before (A -> B -> A, its identity already a hit) still moves it; the hit only
                 // stops a second schedule being made.
-                const existing = paired(c) ? events.get(c) || null
-                    : episodes.resolved.get(c) || (episodes.firsts.has(c) ? alreadyScheduled(c, present) : null);
+                const existing = paired(c) ? events.get(c) || null : episodes.resolved.get(c) || null;
                 if (existing) {
                     // F4: a moved programme's pending schedule follows it (the viewer's cancel just holds).
                     if (existing.rule_id !== null && ['scheduled', 'waiting'].includes(existing.status)
@@ -365,12 +374,14 @@ function evaluate({ now = Date.now() } = {}) {
                         console.log(`[Rules] Rule #${rule.id}: "${c.title}" moved in the guide; schedule #${existing.id} follows it`);
                     }
                     hit(rule.id, c.identity, existing.id);
-                    present.add(existing.id);
                     continue;
                 }
-                // R5-F1: a hit holds unless it names a cancelled schedule this pairing found unsure for c.
+                // R5-F1: a hit holds unless it names a cancelled schedule this pairing found unsure for c,
+                // or (Codex review of 0265) a schedule another episode holds now - then c is recorded
+                // and its hit names its own schedule.
                 const prior = priorHit.get(rule.id, c.identity);
-                if (prior && !(declined.get(c)?.has(prior.schedule_id))) continue;
+                const othersNow = c.episode && prior && episodes.ownerOf.has(prior.schedule_id) && episodes.ownerOf.get(prior.schedule_id) !== c.identity;
+                if (prior && !(declined.get(c)?.has(prior.schedule_id)) && !othersNow) continue;
                 try {
                     const schedule = await engine.scheduleFromProgram({
                         sourceId: c.sourceId, channelItemId: c.channelId, channelName: c.channelName, channelLogo: c.channelLogo,
@@ -380,7 +391,6 @@ function evaluate({ now = Date.now() } = {}) {
                     });
                     db().prepare('UPDATE scheduled_recordings SET rule_id = ? WHERE id = ? AND rule_id IS NULL').run(rule.id, schedule.id);
                     hit(rule.id, c.identity, schedule.id);
-                    present.add(schedule.id);
                     made.push({ ruleId: rule.id, scheduleId: schedule.id, title: c.title, start: c.start });
                     console.log(`[Rules] Rule #${rule.id} scheduled "${c.title}" (${c.channelName}) #${schedule.id}`);
                 } catch (err) {

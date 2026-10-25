@@ -402,3 +402,27 @@ test('D1: a repeat in another episode\'s slot takes nothing; each episode keeps 
     assert.deepEqual([hitOf('1.1'), hitOf('1.2')], [a.id, b.id]);
     clearAirings();
 });
+
+// ---- Codex review of 0265 (26 Oct): a schedule another episode's hit names is that episode's, even
+// while it is absent from the guide; a hit naming a schedule another episode holds does not suppress.
+
+test('E1: an episode that replaced another in its slot does not take its schedule; both are recorded when both return', async () => {
+    const d = sqlite.getDb();
+    const r = seriesFixture([{ start: NOW + H, data: JSON.stringify({ ep: '1.1' }) }]);
+    await rules.evaluate({ now: NOW });
+    const [a] = ofRule(r.id);
+    d.prepare('UPDATE epg_programs SET data = ? WHERE start_time = ?').run(JSON.stringify({ ep: '1.2' }), NOW + H); // B replaces A in its slot
+    await rules.evaluate({ now: NOW });
+    d.prepare('DELETE FROM epg_programs').run(); // A comes back at +2 h, B moves to +3 h
+    const ins = d.prepare('INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, flags, data) VALUES (?, ?, ?, ?, ?, 0, ?)');
+    ins.run('ff', source.id, NOW + 2 * H, NOW + 3 * H, 'Series Example', JSON.stringify({ ep: '1.1' }));
+    ins.run('ff', source.id, NOW + 3 * H, NOW + 4 * H, 'Series Example', JSON.stringify({ ep: '1.2' }));
+    await rules.evaluate({ now: NOW });
+    const pending = ofRule(r.id).filter(s => s.status === 'scheduled');
+    assert.deepEqual(pending.map(s => s.program_start), [NOW + 2 * H, NOW + 3 * H], 'both episodes are recorded, each at its time');
+    assert.equal(pending[0].id, a.id, '1.1 kept its own schedule');
+    const hits = d.prepare(`SELECT identity, schedule_id FROM recording_rule_hits WHERE rule_id = ? AND identity LIKE 'ep:%' ORDER BY identity`).all(r.id);
+    assert.equal(new Set(hits.map(h => h.schedule_id)).size, hits.length, 'no two episodes name one schedule');
+    assert.deepEqual(await rules.evaluate({ now: NOW }), [], 'and nothing more next time');
+    clearAirings();
+});
