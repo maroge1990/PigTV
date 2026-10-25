@@ -1290,3 +1290,87 @@ test('Q3: a second name the sweep cannot even inspect keeps the partial listed, 
     assert.deepEqual(cleanupRows(), []);
     recordings.setSegmentFields(rec.id, { status: 'failed', segment_state: 'failed' });
 });
+
+// ---- Codex review of the whole journal (26 Oct): the start-up sweep runs before any queue touches a
+// recording, the partial stays listed whenever it cannot be inspected, and a failed rollback keeps it.
+
+test('R1: recovery never adopts a kept original the start-up sweep is about to remove - the queues wait for the sweep', async () => {
+    await withTools({ duration: async (f) => (f.endsWith('recording.m3u8') ? null : 120) }, async () => {
+        const { rec, mp4 } = finishingRow();
+        const away = `${mount}-away`;
+        fs.renameSync(mount, away);
+        try { await segments.finishOne(rec); } finally { fs.renameSync(away, mount); }
+        assert.equal(recordings.getById(rec.id).segment_state, 'moving');
+        // A previous run published this original and stopped before recording it: journalled, unrecorded.
+        const ts = segments.keptOriginalPath(mp4);
+        fs.mkdirSync(path.dirname(ts), { recursive: true });
+        fs.writeFileSync(ts, joined);
+        engine._owners.published(ts, rec.id);
+        // The sweep is held while it inspects that file (a slow share at start-up).
+        const realStat = fs.promises.stat;
+        let reached, release;
+        const inspecting = new Promise(r => { reached = r; });
+        const gate = new Promise(r => { release = r; });
+        fs.promises.stat = async (p, ...a) => { if (p === ts) { reached(); await gate; } return realStat(p, ...a); };
+        let sweeping, moving;
+        try {
+            sweeping = engine._owners.sweepCleanup();
+            await inspecting;
+            moving = segments.moveOne(recordings.getById(rec.id)); // the queue, started at once by init()
+            await new Promise(r => setTimeout(r, 100));
+        } finally { release(); fs.promises.stat = realStat; }
+        await sweeping;
+        await moving;
+        const done = recordings.getById(rec.id);
+        assert.equal(done.segment_state, 'done');
+        assert.ok(done.segment_original && fs.existsSync(done.segment_original), 'the recording\'s kept original is on the share');
+        assert.deepEqual(fs.readFileSync(done.segment_original), joined);
+        await engine.deleteRecording(rec.id);
+    });
+});
+
+test('R2: a partial the sweep cannot inspect stays listed with its other name, and the next start removes both', async () => {
+    const { rec, mp4 } = finishingRow();
+    const folder = path.dirname(mp4);
+    fs.mkdirSync(folder, { recursive: true });
+    let partial;
+    await engine._owners.write(rec.id, async (signal, made) => {
+        partial = path.join(folder, `${path.basename(mp4)}.123-abcdef04.partial`);
+        made(partial);
+        fs.writeFileSync(partial, 'finished MP4');
+        fs.linkSync(partial, mp4); // stopped right after the link
+    });
+    const realStat = fs.promises.stat;
+    fs.promises.stat = async (p, ...a) => { if (p === partial) throw Object.assign(new Error('EIO'), { code: 'EIO' }); return realStat(p, ...a); };
+    try { await engine._owners.sweepCleanup(); } finally { fs.promises.stat = realStat; }
+    assert.ok(fs.existsSync(partial) && cleanupRows().includes(partial), 'the partial stays listed');
+    assert.ok(fs.existsSync(mp4));
+    await engine._owners.sweepCleanup();
+    assert.equal(fs.existsSync(mp4), false);
+    assert.equal(fs.existsSync(partial), false);
+    assert.deepEqual(cleanupRows(), []);
+    recordings.setSegmentFields(rec.id, { status: 'failed', segment_state: 'failed' });
+});
+
+test('R3: a publication that can neither be journalled nor taken back keeps its partial listed, and the next start removes both', async () => {
+    await withTools({ ffmpeg: async () => ({ code: 1, tail: ['failed'] }) }, async () => {
+        const { rec, mp4 } = finishingRow();
+        recordings.setSegmentFields(rec.id, { segment_attempts: 2 }); // the last attempt: the .ts fallback
+        const ts = mp4.replace(/\.mp4$/, '.ts');
+        sqlite.getDb().exec(`CREATE TRIGGER r3_full BEFORE INSERT ON recording_cleanup WHEN NEW.kind = 'published' BEGIN SELECT RAISE(ABORT, 'database or disk is full'); END`);
+        const realUnlink = fs.unlinkSync;
+        fs.unlinkSync = (p) => { if (p === ts) throw Object.assign(new Error('EIO'), { code: 'EIO' }); return realUnlink(p); };
+        try { await segments.finishOne(recordings.getById(rec.id)).catch(() => {}); } finally {
+            fs.unlinkSync = realUnlink;
+            sqlite.getDb().exec('DROP TRIGGER IF EXISTS r3_full');
+        }
+        assert.ok(fs.existsSync(ts), 'the published name could not be taken back');
+        await new Promise(r => setTimeout(r, 20));
+        const partials = cleanupRows().filter(p => p.startsWith(`${ts}.`));
+        assert.equal(partials.length, 1, 'its partial stays listed - the way back to it');
+        await engine._owners.sweepCleanup();
+        assert.equal(fs.existsSync(ts), false);
+        assert.deepEqual(cleanupRows(), []);
+        recordings.setSegmentFields(rec.id, { status: 'failed', segment_state: 'failed' });
+    });
+});

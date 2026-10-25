@@ -36,6 +36,10 @@
  * and inode); the sweep removes it only while that name is still that very file - one put there since
  * is kept, and unlisted. A partial whose second name cannot be removed stays listed, so the next start
  * finds that name again through it.
+ *
+ * 0279 (Codex review of the journal): the queues that finish, move, prepare and compress recordings
+ * wait for the start-up sweep (whenSwept), so recovery never adopts a file the sweep is removing; and
+ * a partial that cannot be inspected stays listed.
  */
 const fs = require('fs');
 const crypto = require('crypto');
@@ -168,7 +172,14 @@ async function stopWriters(id) {
  * stopped right after the link) has that name - the same file, so this code's - treated as published.
  * One that cannot be removed now stays listed.
  */
-async function sweepCleanup() {
+let swept = Promise.resolve(0);
+/** Settles when the last start-up sweep has (never rejects): every queue that changes recordings awaits it first. */
+const whenSwept = () => swept;
+function sweepCleanup() {
+    swept = sweepOnce().catch((err) => { console.warn('[Recordings] The clean-up sweep failed:', err.message); return 0; });
+    return swept;
+}
+async function sweepOnce() {
     let rows = [];
     try { rows = cleanupDb().prepare('SELECT path, kind, identity FROM recording_cleanup').all(); } catch (e) { return 0; }
     let removed = 0;
@@ -181,7 +192,9 @@ async function sweepCleanup() {
             if (now !== identity) { forget(p); continue; } // another file at that name now: never ours to remove
         } else {
             let st = null;
-            try { st = await fs.promises.stat(p); } catch (e) { /* gone, or unreadable: removeListed decides */ }
+            try { st = await fs.promises.stat(p); } catch (e) {
+                if (e.code !== 'ENOENT') continue; // cannot see whether it has another name: it stays listed
+            }
             if (st && st.nlink > 1) {
                 // A publication stopped right after its link: its other name is this very file.
                 let cleared = true;
@@ -206,4 +219,4 @@ async function sweepCleanup() {
 
 const DELETED = 'Recording was deleted';
 
-module.exports = { retire, owned, withdraw, write, stopWriters, sweepCleanup, partialFor, published, committed, DELETED, STOP_WAIT_MS, _setStopWaitMs };
+module.exports = { retire, owned, withdraw, write, stopWriters, sweepCleanup, whenSwept, partialFor, published, committed, DELETED, STOP_WAIT_MS, _setStopWaitMs };

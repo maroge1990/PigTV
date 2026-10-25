@@ -381,7 +381,9 @@ function publishNoReplace(partial, dir, first, alt, id) {
         const dest = path.join(dir, n === 1 ? first : alt(n));
         try { fs.linkSync(partial, dest); } catch (err) { if (err.code === 'EEXIST') continue; throw err; }
         try { owners.published(dest, id); } catch (err) {
-            try { fs.unlinkSync(dest); } catch (e) { /* the partial, still journalled, holds it */ }
+            // Not journalled: the name is taken back. If even that fails, the partial - journalled, the
+            // same file - is the only way back to it, so the caller must keep it (0279).
+            try { fs.unlinkSync(dest); } catch (e) { err.keepPartial = true; }
             throw err;
         }
         try { fs.unlinkSync(partial); } catch (e) { /* already gone */ }
@@ -408,7 +410,7 @@ async function joinSegments(rec, dir, first, alt, signal = null, made = () => {}
         await pipeline(Readable.from(pieces(), { objectMode: false }), fs.createWriteStream(partial, { flags: 'wx' }), ...(signal ? [{ signal }] : []));
         return publishNoReplace(partial, dir, first, alt, rec.id);
     } catch (err) {
-        try { fs.unlinkSync(partial); } catch (e) { /* none */ }
+        if (!err.keepPartial) { try { fs.unlinkSync(partial); } catch (e) { /* none */ } }
         throw err;
     }
 }
@@ -465,6 +467,7 @@ async function deliverTs(rec, stitched) {
 
 /** Remux the segments to the recording's MP4 and put it on the share (or in appdata while the share is down). */
 async function finishOne(rec) {
+    await owners.whenSwept(); // 0279
     const stitched = stitchArchive(rec.work_dir);
     if (stitched.segments === 0) {
         recordingsDb.setSegmentFields(rec.id, { status: 'failed', segment_state: 'failed', error: rec.error || 'Nothing was recorded.' });
@@ -586,6 +589,7 @@ const inWork = (rec) => Boolean(rec.work_dir && rec.file_path && rec.file_path.s
 
 /** An MP4 left in appdata while the share was down goes to the share (and, DVR-1, a kept original with it). */
 async function moveOne(rec) {
+    await owners.whenSwept(); // 0279
     lastMoveTry.set(rec.id, Date.now());
     const dir = await shareFolder(rec);
     if (!dir) return;
@@ -611,7 +615,7 @@ async function moveOne(rec) {
             });
             if (!target) return;
         } catch (err) {
-            try { fs.unlinkSync(partial); } catch (e) { /* none */ }
+            if (!err.keepPartial) { try { fs.unlinkSync(partial); } catch (e) { /* none */ } }
             console.warn(`[Recordings] #${rec.id} could not move to the recordings folder yet: ${err.message}`);
             return;
         }
@@ -663,6 +667,8 @@ let legacyChecked = false;
 /** One step of the queue: finish the oldest capture that has ended, else retry one waiting move. */
 async function processQueue(now = Date.now()) {
     if (finishing) return;
+    await owners.whenSwept(); // 0279: never beside the start-up sweep
+    if (finishing) return; // another call started meanwhile
     if (!legacyChecked) {
         legacyChecked = true;
         try { await recoverLegacyOriginals(); } catch (err) { console.error('[Recordings] Checking kept originals failed:', err.message); }

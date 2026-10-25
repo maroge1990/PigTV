@@ -368,6 +368,8 @@ async function processAdDetectionQueue({ manual = false } = {}) {
 
 async function processCompressionQueue() {
     if (compressing) return;
+    await owners.whenSwept(); // 0279: never beside the start-up sweep
+    if (compressing) return; // another call started meanwhile
     if (jobs.capturing() > 0) return; // never compete with an active recording
     if (detecting) return;       // detection reads the original; let it finish first
 

@@ -645,6 +645,8 @@ async function prepareRecording(rec) {
 /** The next waiting recording, if any may be prepared now; see the section comment. */
 async function processNativeQueue(now = Date.now()) {
     if (preparingNative || !prepareQueueOn) return;
+    await owners.whenSwept(); // 0279: never beside the start-up sweep
+    if (preparingNative || !prepareQueueOn) return; // another call started meanwhile
     const pending = recordingsDb.findPendingNative()
         // Never touch files another job is reading; it is picked up afterwards.
         .filter(r => r.id !== jobs.compressing && r.id !== jobs.detecting && !jobs.liveDetecting.has(r.id)) // 0207: nor one live detection is still reading
