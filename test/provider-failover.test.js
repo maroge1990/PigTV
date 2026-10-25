@@ -80,8 +80,9 @@ writeProbe({});
 
 // ---- logs: kept, so no line this feature writes may carry a URL ------------------
 const logLines = [];
+const logAt = []; // when each line was logged: a timing failure carries its own timeline
 const realConsole = { log: console.log, warn: console.warn, error: console.error };
-for (const k of ['log', 'warn', 'error']) console[k] = (...a) => { logLines.push(a.join(' ')); if (process.env.DEBUG_FAILOVER) realConsole[k](...a); };
+for (const k of ['log', 'warn', 'error']) console[k] = (...a) => { logLines.push(a.join(' ')); logAt.push(Date.now()); if (process.env.DEBUG_FAILOVER) realConsole[k](...a); };
 
 let A, B, C, server, base, userId;
 const url = {
@@ -275,14 +276,16 @@ test('deadline: a candidate that hangs is cut so the next has time, and none sta
     Object.assign(routing, { DEADLINE_MS: 4000, NEXT_RESERVE_MS: 2000, MIN_START_MS: 1000 });
     behaviour.set(url.A(104), 'hang');
     behaviour.set(url.B(5004), 'hang');
+    const from = logLines.length;
     const t0 = Date.now();
     const r = await play('pos_4');
     const took = Date.now() - t0;
+    const timeline = () => '\n' + logLines.slice(from).map((l, i) => `  +${logAt[from + i] - t0} ms ${l}`).join('\n');
     assert.equal(r.status, 500);
     assert.match(r.body.error, /^The provider did not respond in time/);
     assert.equal(startsOf(url.A(104)), 1);
-    assert.equal(startsOf(url.B(5004)), 1, 'the second started with more than MIN_START left');
-    assert.equal(startsOf(url.C(7004)), 0, 'the third would have had less than MIN_START left');
+    assert.equal(startsOf(url.B(5004)), 1, `the second started with more than MIN_START left${timeline()}`);
+    assert.equal(startsOf(url.C(7004)), 0, `the third would have had less than MIN_START left${timeline()}`);
     assert.ok(took < 4500, `resolve took ${took} ms, past its 4 s deadline`);
     assert.ok(logLines.some(l => l.includes('[Playback] failover: stopped after Trex')));
 

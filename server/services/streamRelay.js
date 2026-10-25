@@ -223,8 +223,11 @@ class Relay {
     removeLegFiles(leg) {
         if (leg.removed) return;
         leg.removed = true;
-        fs.rm(leg.dir, { recursive: true, force: true }).catch(() => { /* swept at the next start */ });
+        leg.removing = fs.rm(leg.dir, { recursive: true, force: true }).catch(() => { /* swept at the next start */ });
     }
+
+    /** Settles once every leg folder this relay has begun removing is gone (in the background otherwise). */
+    filesRemoved() { return Promise.all(this.legs.map(leg => leg.removing)); }
 
     nameFor(entry) { return entry.leg === 0 ? entry.name : `L${entry.leg}-${entry.name}`; }
 

@@ -292,7 +292,7 @@ test('the window slides: media sequence continues, a join that leaves the list i
     assert.match(text, /#EXT-X-DISCONTINUITY-SEQUENCE:1\n/);
     assert.ok(!text.includes('#EXT-X-DISCONTINUITY\n'), 'the join itself is no longer in the list');
     assert.equal(segs(text)[0], 'L1-seg0006.m4s');
-    for (let i = 0; i < 40 && fs.existsSync(s.dir); i++) await new Promise(res => setTimeout(res, 50)); // removed in the background
+    await r.filesRemoved(); // removed in the background: its completion, not a timer
     assert.equal(fs.existsSync(s.dir), false, 'leg 0 has nothing listed: its folder is removed');
     assert.equal(await r.getSegment('seg0001.m4s'), null);
 });
@@ -308,7 +308,7 @@ test('a feed that cannot join (another segment type or video range) is not used;
     assert.equal(r.closed, true);
     assert.equal(relay.get(s.id), null, 'the playlist now answers 404 and the client re-resolves, as without a relay');
     assert.equal(registry.size, 0, 'no leg is left running');
-    await new Promise(res => setTimeout(res, 50)); // folders are removed in the background
+    await r.filesRemoved(); // folders are removed in the background: its completion, not a timer
     assert.equal(fs.existsSync(s.dir), false);
 });
 
@@ -398,7 +398,7 @@ test('standby: when its connection is taken the relay carries on without it', as
         await silently(() => r.tick());
         assert.equal(r.standby, null);
         assert.equal(r.closed, false);
-        await new Promise(res => setTimeout(res, 50));
+        await r.filesRemoved();
         assert.equal(fs.existsSync(sb.dir), false);
         assert.ok(r.standbyAt > Date.now() + 30000, 'tried again in a minute, not at once');
     } finally {
