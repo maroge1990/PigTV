@@ -387,7 +387,7 @@ function withImage(row) {
 async function scheduleFromProgram({
     sourceId, channelItemId, channelName, channelLogo,
     title, description, programStart, programEnd,
-    preBufferMin, postBufferMin, createdBy
+    preBufferMin, postBufferMin, createdBy, exclude = null
 }) {
     if (!sourceId || !channelItemId) throw new Error('sourceId and channelItemId are required');
     // Store the bare item_id, not the client's composite m3u_<source>_<item>
@@ -400,8 +400,10 @@ async function scheduleFromProgram({
     const pre = Number.isFinite(preBufferMin) ? preBufferMin : settings.defaultPreBufferMin;
     const post = Number.isFinite(postBufferMin) ? postBufferMin : settings.defaultPostBufferMin;
 
+    // One schedule per programme - unless the caller says that one is not this programme's
+    // (`exclude`: recordingRules, another episode's schedule in the same slot; 0269).
     const existing = scheduledDb.findByProgram(sourceId, String(channelItemId), programStart);
-    if (existing) return existing;
+    if (existing && !(exclude && exclude.has(existing.id))) return existing;
 
     const created = scheduledDb.create({
         title: title || 'Untitled Program',

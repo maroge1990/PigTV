@@ -426,3 +426,40 @@ test('E1: an episode that replaced another in its slot does not take its schedul
     assert.deepEqual(await rules.evaluate({ now: NOW }), [], 'and nothing more next time');
     clearAirings();
 });
+
+// ---- Codex review of 0268 (26 Oct): the engine's own same-time lookup never hands an episode another's schedule.
+
+test('F1: an episode in another\'s exact slot gets its own schedule, and the other is recorded when it returns after this one started', async () => {
+    const d = sqlite.getDb();
+    const r = seriesFixture([{ start: NOW + 5 * H, data: JSON.stringify({ ep: '1.1' }) }]);
+    await rules.evaluate({ now: NOW });
+    const [a] = ofRule(r.id);
+    d.prepare('UPDATE epg_programs SET data = ? WHERE start_time = ?').run(JSON.stringify({ ep: '1.2' }), NOW + 5 * H); // B in A's exact slot
+    await rules.evaluate({ now: NOW });
+    const hitOf = (ep) => d.prepare('SELECT schedule_id FROM recording_rule_hits WHERE rule_id = ? AND identity = ?').get(r.id, `ep:series example|${ep}`).schedule_id;
+    assert.notEqual(hitOf('1.2'), a.id, 'B has a schedule of its own, not A\'s');
+    d.prepare('UPDATE epg_programs SET start_time = ?, end_time = ? WHERE start_time = ?').run(NOW + 3 * H, NOW + 4 * H, NOW + 5 * H); // B moves, A still absent
+    await rules.evaluate({ now: NOW });
+    scheduled.setStatus(hitOf('1.2'), 'recording'); // B's recording starts at +3 h
+    d.prepare('DELETE FROM epg_programs').run();
+    d.prepare('INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, flags, data) VALUES (?, ?, ?, ?, ?, 0, ?)')
+        .run('ff', source.id, NOW + 6 * H, NOW + 7 * H, 'Series Example', JSON.stringify({ ep: '1.1' })); // A returns at +6 h
+    await rules.evaluate({ now: NOW + 3.5 * H });
+    const mine = ofRule(r.id).find(x => x.id === a.id);
+    assert.deepEqual([hitOf('1.1'), mine.program_start, mine.status], [a.id, NOW + 6 * H, 'scheduled'], 'A\'s own schedule follows it');
+    clearAirings();
+});
+
+test('F1: an episode whose hit shares a schedule with another episode\'s (an older build) is recorded, not held back', async () => {
+    const d = sqlite.getDb();
+    const r = seriesFixture([{ start: NOW + 2 * H, data: JSON.stringify({ ep: '2.1' }) }]);
+    await rules.evaluate({ now: NOW });
+    const [s] = ofRule(r.id);
+    d.prepare(`INSERT INTO recording_rule_hits (rule_id, identity, schedule_id, created_at) VALUES (?, 'ep:series example|2.2', ?, ?)`).run(r.id, s.id, NOW);
+    scheduled.setStatus(s.id, 'recording');
+    d.prepare('DELETE FROM epg_programs').run();
+    d.prepare('INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, flags, data) VALUES (?, ?, ?, ?, ?, 0, ?)')
+        .run('ff', source.id, NOW + 8 * H, NOW + 9 * H, 'Series Example', JSON.stringify({ ep: '2.2' }));
+    assert.equal((await rules.evaluate({ now: NOW + 3 * H })).length, 1, '2.2 is recorded');
+    clearAirings();
+});

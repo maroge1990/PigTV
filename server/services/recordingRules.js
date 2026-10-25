@@ -285,8 +285,11 @@ const pairEvents = (candidates, now) => pairInstances(candidates, now, { horizon
  *      it, if any - never a schedule another episode's hit names, whether that episode is in the
  *      guide or not. Repeats are never matched by time.
  * Returns { resolved: Map(candidate -> schedule), taken: Set(schedule id), ownerOf: Map(schedule id
- * -> identity) }. ownerOf: whose each resolved schedule is (a hit naming one that is another
- * episode's does not hold that episode back). What is taken is never an unidentified airing's (R5-F2).
+ * -> identity), namedBy: Map(schedule id -> Set(identity)) }. ownerOf: whose each resolved schedule
+ * is; namedBy: which episodes' hits name each schedule. A hit naming a schedule that another episode
+ * holds now, or whose hit names it too (an older build), does not hold its episode back, and a new
+ * schedule for an episode is never one of another's (0269). What is taken is never an unidentified
+ * airing's (R5-F2).
  */
 function resolveEpisodes(ruleId, candidates, now) {
     const resolved = new Map(), taken = new Set(), ownerOf = new Map();
@@ -296,6 +299,11 @@ function resolveEpisodes(ruleId, candidates, now) {
     const named = db().prepare(`SELECT identity, schedule_id FROM recording_rule_hits
         WHERE rule_id = ? AND identity LIKE 'ep:%' AND schedule_id IS NOT NULL`).all(ruleId);
     const hitOf = new Map(named.map(h => [h.identity, h.schedule_id]));
+    const namedBy = new Map();
+    for (const h of named) {
+        if (!namedBy.has(h.schedule_id)) namedBy.set(h.schedule_id, new Set());
+        namedBy.get(h.schedule_id).add(h.identity);
+    }
     const episodes = candidates.filter(c => c.episode);
     const claims = [];
     for (const identity of new Set(episodes.map(c => c.identity))) {
@@ -321,7 +329,7 @@ function resolveEpisodes(ruleId, candidates, now) {
         const s = alreadyScheduled(c, new Set([...taken, ...others]));
         if (s) { resolved.set(c, s); taken.add(s.id); ownerOf.set(s.id, c.identity); }
     }
-    return { resolved, taken, ownerOf };
+    return { resolved, taken, ownerOf, namedBy };
 }
 
 /** 0259: series airings without episode data: on the rule's (stable) channel, a move of at most SERIES_MOVE_MS. */
@@ -357,7 +365,7 @@ function evaluate({ now = Date.now() } = {}) {
                 continue;
             }
             // Episodes first (their identity), then everything else by instance (pairInstances).
-            const episodes = rule.kind === 'series' ? resolveEpisodes(rule.id, candidates, now) : { resolved: new Map(), taken: new Set(), ownerOf: new Map() };
+            const episodes = rule.kind === 'series' ? resolveEpisodes(rule.id, candidates, now) : { resolved: new Map(), taken: new Set(), ownerOf: new Map(), namedBy: new Map() };
             const { pairs: events, declined } = rule.kind === 'sport' ? pairEvents(candidates, now) : pairAirings(candidates, now, episodes.taken);
             const paired = (c) => (rule.kind === 'sport' || !c.episode);
             for (const c of candidates) {
@@ -380,14 +388,18 @@ function evaluate({ now = Date.now() } = {}) {
                 // or (Codex review of 0265) a schedule another episode holds now - then c is recorded
                 // and its hit names its own schedule.
                 const prior = priorHit.get(rule.id, c.identity);
-                const othersNow = c.episode && prior && episodes.ownerOf.has(prior.schedule_id) && episodes.ownerOf.get(prior.schedule_id) !== c.identity;
+                const another = (id) => (episodes.ownerOf.has(id) && episodes.ownerOf.get(id) !== c.identity)
+                    || [...(episodes.namedBy.get(id) || [])].some(i => i !== c.identity);
+                const othersNow = c.episode && prior && another(prior.schedule_id);
                 if (prior && !(declined.get(c)?.has(prior.schedule_id)) && !othersNow) continue;
+                // 0269: an episode's new schedule is never the one another episode has in that slot.
+                const exclude = c.episode ? new Set([...episodes.ownerOf.keys(), ...episodes.namedBy.keys()].filter(another)) : null;
                 try {
                     const schedule = await engine.scheduleFromProgram({
                         sourceId: c.sourceId, channelItemId: c.channelId, channelName: c.channelName, channelLogo: c.channelLogo,
                         title: c.title, description: c.description, programStart: c.start, programEnd: c.end,
                         preBufferMin: rule.pre_buffer_min ?? undefined, postBufferMin: rule.post_buffer_min ?? undefined,
-                        createdBy: rule.created_by
+                        createdBy: rule.created_by, exclude
                     });
                     db().prepare('UPDATE scheduled_recordings SET rule_id = ? WHERE id = ? AND rule_id IS NULL').run(rule.id, schedule.id);
                     hit(rule.id, c.identity, schedule.id);

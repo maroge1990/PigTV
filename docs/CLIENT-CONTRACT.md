@@ -246,7 +246,7 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
     that episode wherever they move: an episode's schedule is decided by its episode before anything is matched by time
     (0263), and a pending one follows it (0260), unless an airing of it is still at the schedule's time (a repeat is not
     recorded). A schedule belongs to one episode: a repeat or another episode never takes it by time, even while its
-    episode is out of the guide (0265, 0268) - another episode in its slot is then recorded as well. An airing without
+    episode is out of the guide (0265, 0268, 0269) - another episode in its slot is then recorded as well. An airing without
     episode data never takes a schedule of an episode that is still in the guide (0260).
   - *Unclear:* a cancel holds only when its pairing is unambiguous: the cancelled schedule has exactly one candidate it
     could be (same title, on its channel for a series, within the move limit and horizon), and that candidate exactly
