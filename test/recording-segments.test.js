@@ -1268,3 +1268,25 @@ test('Q2: a final name the sweep cannot remove keeps its partial listed, and the
     assert.deepEqual(cleanupRows(), []);
     recordings.setSegmentFields(rec.id, { status: 'failed', segment_state: 'failed' });
 });
+
+test('Q3: a second name the sweep cannot even inspect keeps the partial listed, and the next start removes both', async () => {
+    const { rec, mp4 } = finishingRow();
+    const folder = path.dirname(mp4);
+    fs.mkdirSync(folder, { recursive: true });
+    let partial;
+    await engine._owners.write(rec.id, async (signal, made) => {
+        partial = path.join(folder, `${path.basename(mp4)}.123-abcdef03.partial`);
+        made(partial);
+        fs.writeFileSync(partial, 'finished MP4');
+        fs.linkSync(partial, mp4); // stopped right after the link
+    });
+    const realStat = fs.promises.stat;
+    fs.promises.stat = async (p, ...a) => { if (p === mp4) throw Object.assign(new Error('EIO'), { code: 'EIO' }); return realStat(p, ...a); };
+    try { await engine._owners.sweepCleanup(); } finally { fs.promises.stat = realStat; }
+    assert.ok(fs.existsSync(partial) && cleanupRows().includes(partial), 'the partial stays listed');
+    await engine._owners.sweepCleanup(); // the next start
+    assert.equal(fs.existsSync(mp4), false);
+    assert.equal(fs.existsSync(partial), false);
+    assert.deepEqual(cleanupRows(), []);
+    recordings.setSegmentFields(rec.id, { status: 'failed', segment_state: 'failed' });
+});

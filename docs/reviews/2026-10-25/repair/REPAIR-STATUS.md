@@ -96,6 +96,7 @@ fails after publication) fail - the MP4 is left untracked; the control P3 (a rec
 After: all three pass. Gates: `npm test` twice, each 1145 / 1140 pass / 5 skipped / 0 fail; verify-build passes.
 
 | Server `7507851..a11adb2` (review of 0275-0276) | needs-attention | **Q1** (high): a `published` row held only a path, so a file put at that name since could be removed; **Q2** (medium): a final name the sweep could not remove lost its record with the partial's | Fixed: **0277** - `published`/withdrawn rows hold the file's identity (device:inode); the sweep removes only that very file (another one is kept and unlisted; an unreadable one stays listed), and keeps a partial listed while any of its other names could not be removed. Before (0276): both fail; after: pass. |
+| Server `a11adb2..ea6e7bb` (review of 0277) | needs-attention | **Q3** (medium): a second name the sweep could not inspect (EIO on stat) was taken for "not this file", so the partial's row went | Fixed: **0278** - only ENOENT counts as not there; any other error keeps the partial listed. Before (0277): fails; after: passes. |
 
 Every fix above has a test that fails on the build before it (isolated copies, `old-code.cjs`; logs beside it) and
 passes after, with the full suite and verify-build passing at each commit. The recurring pattern was each fix of the

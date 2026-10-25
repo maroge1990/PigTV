@@ -190,7 +190,8 @@ async function sweepCleanup() {
                 for (const name of names || []) {
                     const other = path.join(path.dirname(p), name);
                     if (other === p) continue;
-                    const o = await fs.promises.stat(other).catch(() => null);
+                    // Only "not there" is not this file; a name that cannot be inspected keeps the partial listed.
+                    const o = await fs.promises.stat(other).catch((e) => { if (e.code !== 'ENOENT') cleared = false; return null; });
                     if (!o || o.ino !== st.ino || o.dev !== st.dev || recorded(other)) continue;
                     try { await fs.promises.unlink(other); removed++; } catch (e) { cleared = false; }
                 }
