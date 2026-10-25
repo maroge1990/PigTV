@@ -517,3 +517,20 @@ test('J2: a writer whose file cannot be journalled does not create it', async ()
         assert.deepEqual(fs.readdirSync(dir).filter(f => f.startsWith(path.basename(r.compressed))), [], 'no file it could not track');
     } finally { getDb().exec('DROP TRIGGER IF EXISTS j2_full'); }
 });
+
+test('K: a withdrawal that cannot remove its file (I/O error) records it for the next start', async () => {
+    const sub = path.join(dir, 'withdraw-locked');
+    fs.mkdirSync(sub, { recursive: true });
+    const file = path.join(sub, 'Late - 2026-10-26 19-30.ts');
+    fs.writeFileSync(file, 'published after the deletion');
+    const listed = () => getDb().prepare('SELECT path FROM recording_cleanup WHERE path = ?').all(file).length;
+    fs.chmodSync(sub, 0o555); // the removal fails (EACCES), as on a share that refuses it
+    try {
+        engine._owners.withdraw(file, 999999, 'recording');
+        assert.equal(fs.existsSync(file), true);
+        assert.equal(listed(), 1, 'recorded for the start-up sweep');
+    } finally { fs.chmodSync(sub, 0o755); }
+    await engine._owners.sweepCleanup();
+    assert.equal(fs.existsSync(file), false);
+    assert.equal(listed(), 0);
+});

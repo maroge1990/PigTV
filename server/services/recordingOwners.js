@@ -38,9 +38,18 @@ const retired = new Set();
 function retire(id) { retired.add(id); }
 const owned = (id) => !retired.has(id) && Boolean(recordingsDb.getById(id));
 
-/** A file this job just made, for a recording that is no longer its: removed. */
+/**
+ * A file this job just made, for a recording that is no longer its: removed. One that cannot be
+ * removed now (not "already gone") is journalled, so the start-up sweep removes it (Codex review of 0274).
+ */
 function withdraw(file, id, what) {
-    try { fs.unlinkSync(file); } catch (e) { /* already gone */ }
+    try { fs.unlinkSync(file); } catch (e) {
+        if (e.code !== 'ENOENT') {
+            try { cleanupDb().prepare('INSERT OR IGNORE INTO recording_cleanup (path, recording_id, created_at) VALUES (?, ?, ?)').run(file, id, Date.now()); } catch (err) { /* database closed */ }
+            console.warn(`[Recordings] #${id} was deleted while its ${what} was published; that copy could not be removed yet (${e.code}) and is removed at the next start`);
+            return;
+        }
+    }
     console.log(`[Recordings] #${id} was deleted while its ${what} was published; that copy is removed too`);
 }
 
