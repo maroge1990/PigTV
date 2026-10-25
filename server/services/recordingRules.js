@@ -276,15 +276,19 @@ const pairEvents = (candidates, now) => pairInstances(candidates, now, { horizon
 /**
  * Which schedule each series airing WITH episode data already is, decided before anything is
  * matched by time (Codex review of 0260). An episode is that episode wherever the guide moves it:
- *   1. the schedule its hit names (this rule's, not yet begun) is the episode's - taken by the airing
- *      of it at that schedule's time if there is one (a repeat elsewhere never takes it), else by its
- *      first airing, which a pending schedule then follows;
- *   2. an airing with no such schedule is the one present within 15 minutes of it, if any.
- * Returns { resolved: Map(candidate -> schedule), taken: Set(schedule id) }; what is taken is never
- * an unidentified airing's (R5-F2).
+ *   1. the schedule its hit names (this rule's, not yet begun, and no other episode's already) is the
+ *      episode's - taken by the airing of it at that schedule's time if there is one (a repeat elsewhere
+ *      never takes it), else by its first airing, which a pending schedule then follows;
+ *   2. an episode with no such schedule: its first airing is the one present within 15 minutes of it,
+ *      if any. The other airings of an episode (repeats) are never matched by time (Codex re-review of
+ *      0263: a repeat in another episode's slot took that schedule and then the episode's hit).
+ * Returns { resolved: Map(candidate -> schedule), taken: Set(schedule id), firsts: Set(candidate) }
+ * (firsts: the first airing of each episode without a schedule - the only ones that may still be
+ * matched by time, to a schedule made earlier in this evaluation); what is taken is never an
+ * unidentified airing's (R5-F2).
  */
 function resolveEpisodes(ruleId, candidates, now) {
-    const resolved = new Map(), taken = new Set();
+    const resolved = new Map(), taken = new Set(), firsts = new Set();
     const hitOf = db().prepare('SELECT schedule_id FROM recording_rule_hits WHERE rule_id = ? AND identity = ?');
     const scheduleOf = db().prepare(`SELECT ${SCHEDULE_COLUMNS} FROM scheduled_recordings
         WHERE id = ? AND rule_id = ? AND status IN ('scheduled', 'waiting', 'cancelled') AND program_start > ?`);
@@ -292,18 +296,20 @@ function resolveEpisodes(ruleId, candidates, now) {
     for (const identity of new Set(episodes.map(c => c.identity))) {
         const h = hitOf.get(ruleId, identity);
         const s = h && h.schedule_id !== null ? scheduleOf.get(h.schedule_id, ruleId, now) : null;
-        if (!s) continue;
+        if (!s || taken.has(s.id)) continue;
         const airings = episodes.filter(c => c.identity === identity);
         const owner = airings.find(c => Math.abs(s.program_start - c.start) <= NEAR_MS) || airings[0];
         resolved.set(owner, s);
         taken.add(s.id);
     }
+    const settled = new Set([...resolved.keys()].map(c => c.identity));
     for (const c of episodes) {
-        if (resolved.has(c)) continue;
+        if (settled.has(c.identity)) continue;
+        settled.add(c.identity); // its first airing only
         const s = alreadyScheduled(c, taken);
-        if (s) { resolved.set(c, s); taken.add(s.id); }
+        if (s) { resolved.set(c, s); taken.add(s.id); } else firsts.add(c);
     }
-    return { resolved, taken };
+    return { resolved, taken, firsts };
 }
 
 /** 0259: series airings without episode data: on the rule's (stable) channel, a move of at most SERIES_MOVE_MS. */
@@ -339,7 +345,7 @@ function evaluate({ now = Date.now() } = {}) {
                 continue;
             }
             // Episodes first (their identity), then everything else by instance (pairInstances).
-            const episodes = rule.kind === 'series' ? resolveEpisodes(rule.id, candidates, now) : { resolved: new Map(), taken: new Set() };
+            const episodes = rule.kind === 'series' ? resolveEpisodes(rule.id, candidates, now) : { resolved: new Map(), taken: new Set(), firsts: new Set() };
             const { pairs: events, declined } = rule.kind === 'sport' ? pairEvents(candidates, now) : pairAirings(candidates, now, episodes.taken);
             const paired = (c) => (rule.kind === 'sport' || !c.episode);
             // Schedules already some candidate's this evaluation: never another episode's as well.
@@ -348,7 +354,8 @@ function evaluate({ now = Date.now() } = {}) {
                 // D3 (0253): an existing schedule is reconciled first, so a correction back to a time
                 // seen before (A -> B -> A, its identity already a hit) still moves it; the hit only
                 // stops a second schedule being made.
-                const existing = paired(c) ? events.get(c) || null : episodes.resolved.get(c) || alreadyScheduled(c, present);
+                const existing = paired(c) ? events.get(c) || null
+                    : episodes.resolved.get(c) || (episodes.firsts.has(c) ? alreadyScheduled(c, present) : null);
                 if (existing) {
                     // F4: a moved programme's pending schedule follows it (the viewer's cancel just holds).
                     if (existing.rule_id !== null && ['scheduled', 'waiting'].includes(existing.status)

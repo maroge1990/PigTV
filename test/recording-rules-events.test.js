@@ -377,3 +377,28 @@ test('C1: a repeat of an episode never takes the episode\'s schedule, whichever 
     assert.deepEqual(ofRule(r.id).map(s => [s.id, s.program_start]), [[ep.id, NOW + 5 * H]], 'the schedule stays with the airing at its time');
     clearAirings();
 });
+
+// ---- Codex re-review of 0263 (26 Oct): one schedule per episode identity, never taken by another's repeat.
+
+test('D1: a repeat in another episode\'s slot takes nothing; each episode keeps its own schedule through returns and moves', async () => {
+    const d = sqlite.getDb();
+    const r = seriesFixture([{ start: NOW + H, data: JSON.stringify({ ep: '1.1' }) }, { start: NOW + 3 * H, data: JSON.stringify({ ep: '1.2' }) }]);
+    assert.equal((await rules.evaluate({ now: NOW })).length, 2);
+    const [a, b] = ofRule(r.id);
+    const hitOf = (ep) => d.prepare('SELECT schedule_id FROM recording_rule_hits WHERE rule_id = ? AND identity = ?').get(r.id, `ep:series example|${ep}`).schedule_id;
+    // 1.2's guide entry becomes a repeat of 1.1.
+    d.prepare('UPDATE epg_programs SET data = ? WHERE start_time = ?').run(JSON.stringify({ ep: '1.1' }), NOW + 3 * H);
+    assert.deepEqual(await rules.evaluate({ now: NOW }), [], 'the repeat is not recorded');
+    assert.equal(hitOf('1.1'), a.id, '1.1 keeps its schedule');
+    // 1.2 comes back an hour later.
+    d.prepare('INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, flags, data) VALUES (?, ?, ?, ?, ?, 0, ?)')
+        .run('ff', source.id, NOW + 4 * H, NOW + 5 * H, 'Series Example', JSON.stringify({ ep: '1.2' }));
+    assert.deepEqual(await rules.evaluate({ now: NOW }), []);
+    // 1.1 moves to +2 h.
+    d.prepare('UPDATE epg_programs SET start_time = ?, end_time = ? WHERE start_time = ?').run(NOW + 2 * H, NOW + 3 * H, NOW + H);
+    assert.deepEqual(await rules.evaluate({ now: NOW }), []);
+    assert.deepEqual(ofRule(r.id).map(s => [s.id, s.program_start, s.status]),
+        [[a.id, NOW + 2 * H, 'scheduled'], [b.id, NOW + 4 * H, 'scheduled']], 'each episode\'s schedule followed it');
+    assert.deepEqual([hitOf('1.1'), hitOf('1.2')], [a.id, b.id]);
+    clearAirings();
+});
