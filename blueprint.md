@@ -2,7 +2,7 @@
 
 **State (28 Oct):** P0 is implemented locally in **0290–0294**: shared ingest defaults on, unused code removed,
 stored adaptive reconnect limits, Fox Cricket recognition/daily Test play, and roster-based league recognition/MLB broadcasts.
-**Round 1 reviewed; 0295–0297 fix roster precision, Test session windows and ambiguous broadcast joins locally. Not pushed; round 2 and device acceptance pending.**
+**Round 1 reviewed; 0295–0298 fix roster precision, Test session windows, ambiguous broadcast joins and concurrent limit ownership locally. Not pushed; round 2 and device acceptance pending.**
 Server **0289** (FR-11, `feed_lag`, the smaller Status page) is deployed and pushed. Apple client
 **57** (live plays held 30 s back) is on the Apple TV. R7 (0282–0284, shared ingest on) passed on the Apple TV: NBC Sports
 Boston 35 min and Chicago Sports Network Plus 65 min with 0 stalls and no switches. Mark approved the next batch on 27 Oct:
@@ -73,7 +73,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0298** |
+| Next build number | **0299** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -152,7 +152,9 @@ it cannot. There is no remux, no legacy pipe and no browser-side strategy any mo
   excused: the ingest calls a feed lost by its PCR at a per-channel/provider limit (0292: default 24 s, up 2 s on a lag reconnect, ceiling 28 s; `PIGTV_INGEST_BEHIND_SEC` sets the default), and the watchdog and
   the relay excuse ffmpeg only while it has been handed less than their limit's worth of media since its last output (0283), then the limit again in time, once (0284); no PCR, no excuse. Bursty providers pause 3-16 s while healthy (FINDINGS FR-8). Each ingest that read a minute or more
   leaves a `feed_lag` row on close (0287, `feedLag.js`, 30 days): channel and provider by name, worst lag over every connection,
-  reconnects and how many were for lag; Status shows it per channel and provider. The current limit is shown beside the worst lag. Limits use the provider source + stable channel key (item id only when no stable id), persist across restarts, and fall 2 s after 3 measured reading hours whose worst lag stays ≥4 s below the level. Lag or marginal headroom resets that clean window; no-PCR feeds keep the default silence rule.
+  reconnects and how many were for lag; Status shows it per channel and provider. The current limit is shown beside the worst lag. Limits use the provider source + stable channel key (item id only when no stable id), persist across restarts, and fall 2 s after 3 measured reading hours whose worst lag stays ≥4 s below the level. Lag or marginal headroom resets that clean window; no-PCR feeds keep the default silence rule. Since 0298,
+  different URLs of one provider/channel share one retained learning state; overlapping reading intervals count once.
+  The last ingest releases the state, and Status reads do not retain it.
 - **Only network URLs are opened** (0104, `streamUrl.js`: http(s), rtmp(s), rtsp(s), udp, rtp, srt). Resolve, the session route,
   `/api/probe` and `/api/subtitle` answer 400, and the check is repeated at spawn. It isn't done with `-protocol_whitelist`
   because stream-doctor and the tests run the real arguments against local files.

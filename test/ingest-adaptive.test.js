@@ -81,6 +81,7 @@ test('three measured reading hours with worst lag at least four seconds below th
     let state = a.open('stable:clean', 8, 24000); a.lag(state); a.lag(state);
     a.observe(state, 2 * 3600000, 24);
     a.flush(state);
+    a.release(state);
     state = a.open('stable:clean', 8, 24000);
     a.observe(state, 3600000, 24);
     assert.equal(state.limitMs, 26000, 'accumulates reading across restarts');
@@ -126,9 +127,50 @@ test('failed persistence retains safe in-memory decisions and fixed warnings', (
         dbh.prepare = function(sql) { if (sql.includes('feed_lag_limits')) throw new Error('private details'); return original.call(this, sql); };
         a.lag(state);
         assert.equal(state.limitMs, 26000, 'open reader still adapts');
-        assert.equal(a.open('stable:db-failure', 8, 24000).limitMs, 24000, 'read failure uses safe default');
+        assert.equal(a.open('stable:db-failure', 8, 24000).limitMs, 26000, 'another active reader retains the in-memory raise');
+        assert.equal(a.open('stable:new-db-failure', 8, 24000).limitMs, 24000, 'new identity read failure uses safe default');
         a.flush(state);
     } finally { dbh.prepare = original; console.warn = warn; }
     assert.ok(warnings.length >= 2);
     assert.ok(warnings.every(s => !s.includes('private details')));
+});
+
+test('two active readers share learned limits and cannot undo each other on flush or close', () => {
+    const adaptive = load('services/feedLagLimit');
+    const a = adaptive.open('stable:two-readers', 8, 24000);
+    const b = adaptive.open('stable:two-readers', 8, 24000);
+    adaptive.lag(a);
+    adaptive.flush(b);
+    assert.equal(adaptive.open('stable:two-readers', 8, 24000).limitMs, 26000, 'stale reader cannot overwrite the raise');
+    assert.equal(b.limitMs, 26000, 'every active reader sees the raise immediately');
+    adaptive.observe(a, 2 * 3600000, 10, 2 * 3600000);
+    adaptive.observe(b, 2 * 3600000, 10, 2 * 3600000);
+    assert.equal(a.limitMs, 26000, 'overlapping readers do not earn a reduction twice as fast');
+    adaptive.observe(b, 3600000, 10, 3 * 3600000);
+    assert.equal(a.limitMs, 24000, 'the same shared level lowers after three reading hours');
+    adaptive.flush(a);
+    adaptive.release(a); adaptive.release(b); adaptive.release(a); // three opens, three releases
+    const next = adaptive.open('stable:two-readers', 8, 24000);
+    assert.notEqual(next, a, 'last reader releases the in-memory state');
+    assert.equal(next.limitMs, 24000, 'a fresh state reads the persisted reduction');
+    adaptive.release(next);
+});
+
+test('two different URLs for one stable channel retain a raise when either ingest closes', async t => {
+    const ingest = load('services/ingest');
+    const adaptive = load('services/feedLagLimit');
+    const server = http.createServer((req, res) => { res.writeHead(200); res.write(packets()); });
+    server.listen(0, '127.0.0.1'); await once(server, 'listening');
+    const base = `http://127.0.0.1:${server.address().port}`;
+    t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+    try {
+        const a = await ingest.subscribe({ pool: 'same-account', url: base + '/a', providerId: 8, channelKey: 'stable:duplicate' });
+        const b = await ingest.subscribe({ pool: 'same-account', url: base + '/b', providerId: 8, channelKey: 'stable:duplicate' });
+        a.resume(); b.resume(); clearInterval(a.ingest.stallTimer); clearInterval(b.ingest.stallTimer);
+        t.mock.timers.tick(25000); a.ingest.checkStall();
+        assert.equal(a.ingest.lagReconnects, 1);
+        assert.equal(b.ingest.describe().limitSec, 26);
+        b.ingest.close('other listing closed'); a.ingest.close('first listing closed');
+        assert.equal(adaptive.current('stable:duplicate', 8, 24000).limitMs, 26000);
+    } finally { ingest.closeAll(); server.closeAllConnections(); await new Promise(r => server.close(r)); }
 });

@@ -36,7 +36,7 @@ function summary({ days = 30, limit = 20, now = Date.now() } = {}) {
         FROM feed_lag WHERE ended_at >= ?
         GROUP BY channel_key, CASE WHEN channel_key IS NULL THEN channel END, provider_id ORDER BY worstBehindSec DESC LIMIT ?
     `).all(now - days * DAY_MS, limit).map(row => ({ ...row,
-        limitSec: (require('./feedLagLimit').open(row.channelKey, row.providerId, require('./ingest').tuning.behindMs)?.limitMs
+        limitSec: (require('./feedLagLimit').current(row.channelKey, row.providerId, require('./ingest').tuning.behindMs)?.limitMs
             ?? require('./feedLagLimit').baseOf(require('./ingest').tuning.behindMs)) / 1000 }));
 }
 

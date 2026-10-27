@@ -73,7 +73,8 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
   playlist keeps well over 30 s of segments (90 × 4 s), and the server calls a measured shared feed lost at its per-channel/provider limit: 24 s by default
   (`PIGTV_INGEST_BEHIND_SEC`), up 2 s on a lag reconnect, capped at 28 s (0292). After 3 measured reading hours
   ≥4 s under the level it drops 2 s. Levels persist across redeploys; no-PCR feeds keep the default silence rule.
-  The Apple hold stays 30 s; no ffmpeg flags change.
+  Since 0298, concurrent ingests of one provider/channel share their learned level and count overlapping reading
+  time once. The Apple hold stays 30 s; no ffmpeg flags change.
 - Resolve failure `error` texts start with a C-B prefix and never contain a URL; the client shows only those.
 - A start stopped on request answers **499** `{error, superseded: true}` (0180); the client ignores it.
 - `recordings/scheduled` rows: `program_end` can **move later** after scheduling (0214, R4: it follows the guide after a

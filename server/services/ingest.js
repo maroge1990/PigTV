@@ -345,7 +345,7 @@ class Ingest extends EventEmitter {
     // a catch-up burst). Never credit a reconnect, offline time, or a connection without PCR.
     learn(now, behind = this.pace.observe(now)) {
         if (this.state === 'live' && this.pace.measured && this.learningAt !== null) {
-            lagLimit.observe(this.lagLimit, Math.max(0, now - this.learningAt), Math.max(behind, this.learningWorst));
+            lagLimit.observe(this.lagLimit, Math.max(0, now - this.learningAt), Math.max(behind, this.learningWorst), now);
         }
         this.learningAt = now;
         this.learningWorst = 0;
@@ -405,6 +405,7 @@ class Ingest extends EventEmitter {
         }
         this.learn(Date.now());
         lagLimit.flush(this.lagLimit);
+        lagLimit.release(this.lagLimit);
         this.closed = true;
         this.state = 'closed';
         clearInterval(this.stallTimer);
