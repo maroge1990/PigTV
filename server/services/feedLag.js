@@ -15,14 +15,14 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const KEEP_MS = 30 * DAY_MS;
 const tuning = { minLiveSec: 60 }; // a probe or a quick zap says nothing about a feed's pauses
 
-function record({ channel = null, providerId = null, providerName = null, startedAt, endedAt = Date.now(), worstBehindSec, reconnects = 0, lagReconnects = 0, why = null }) {
+function record({ channelKey = null, channel = null, providerId = null, providerName = null, startedAt, endedAt = Date.now(), worstBehindSec, reconnects = 0, lagReconnects = 0, why = null }) {
     const liveSec = Math.round((endedAt - startedAt) / 1000);
     if (!(liveSec >= tuning.minLiveSec) || !Number.isFinite(worstBehindSec)) return false;
     const db = getDb();
     db.prepare('DELETE FROM feed_lag WHERE ended_at < ?').run(endedAt - KEEP_MS);
-    db.prepare(`INSERT INTO feed_lag (channel, provider_id, provider_name, started_at, ended_at, live_sec, worst_behind_sec, reconnects, lag_reconnects, why)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-        .run(channel ? String(channel).slice(0, 120) : null, providerId ?? null, providerName ? String(providerName).slice(0, 60) : null,
+    db.prepare(`INSERT INTO feed_lag (channel_key, channel, provider_id, provider_name, started_at, ended_at, live_sec, worst_behind_sec, reconnects, lag_reconnects, why)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(channelKey ?? null, channel ? String(channel).slice(0, 120) : null, providerId ?? null, providerName ? String(providerName).slice(0, 60) : null,
             startedAt, endedAt, liveSec, Math.round(worstBehindSec * 10) / 10, reconnects, lagReconnects, why ? String(why).slice(0, 60) : null);
     return true;
 }
@@ -30,12 +30,14 @@ function record({ channel = null, providerId = null, providerName = null, starte
 /** Per channel and provider over `days`: reads, hours, worst lag, reconnects (all, and for lag), last seen. Worst first. */
 function summary({ days = 30, limit = 20, now = Date.now() } = {}) {
     return getDb().prepare(`
-        SELECT channel, provider_name AS provider, COUNT(*) AS reads, ROUND(SUM(live_sec) / 3600.0, 1) AS hours,
+        SELECT channel_key AS channelKey, provider_id AS providerId, channel, provider_name AS provider, COUNT(*) AS reads, ROUND(SUM(live_sec) / 3600.0, 1) AS hours,
                MAX(worst_behind_sec) AS worstBehindSec, SUM(reconnects) AS reconnects, SUM(lag_reconnects) AS lagReconnects,
                MAX(ended_at) AS lastAt
         FROM feed_lag WHERE ended_at >= ?
-        GROUP BY channel, provider_id ORDER BY worstBehindSec DESC LIMIT ?
-    `).all(now - days * DAY_MS, limit);
+        GROUP BY channel_key, CASE WHEN channel_key IS NULL THEN channel END, provider_id ORDER BY worstBehindSec DESC LIMIT ?
+    `).all(now - days * DAY_MS, limit).map(row => ({ ...row,
+        limitSec: (require('./feedLagLimit').open(row.channelKey, row.providerId, require('./ingest').tuning.behindMs)?.limitMs
+            ?? require('./feedLagLimit').baseOf(require('./ingest').tuning.behindMs)) / 1000 }));
 }
 
 module.exports = { record, summary, tuning, KEEP_MS };

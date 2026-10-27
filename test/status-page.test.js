@@ -189,7 +189,7 @@ test('0288: Status opens on what an admin acts on; the troubleshooting sections 
         interruptions: { days: 7, count: 0, watchedHours: 3, recent: [] },
         events: [{ at: 1, type: 'play-start', channel: 'BBC', start: 'cold', firstPictureSec: 8.1 }],
         sync: [{ name: 'Strong8K', type: 'xtream', enabled: true, feeds: [{ type: 'epg', status: 'error', lastSync: 1, error: 'timed out' }] }],
-        feedLag: { limitSec: 24, channels: [{ channel: 'Chicago <Sports>', provider: 'Strong8K', reads: 2, hours: 1.1, worstBehindSec: 24.1, reconnects: 1, lagReconnects: 1, lastAt: 1 }] },
+        feedLag: { limitSec: 24, channels: [{ channel: 'Chicago <Sports>', provider: 'Strong8K', reads: 2, hours: 1.1, worstBehindSec: 24.1, limitSec: 26, reconnects: 1, lagReconnects: 1, lastAt: 1 }] },
         disk: { transcodeCache: { available: true, freeBytes: 2 * 1024 ** 3, totalBytes: 4 * 1024 ** 3 } }
     };
     const h = pageHarness({ status });
@@ -209,7 +209,7 @@ test('0288: Status opens on what an admin acts on; the troubleshooting sections 
     h.page.toggleDetails();
     html = h.content.innerHTML;
     assert.ok(html.includes('Hide details'));
-    for (const shown of ['Recent plays', 'Streams in detail', 'Feed lag (30 days)', 'Chicago &lt;Sports&gt;', '24.1 s', '1 (1)', 'reconnected when it is 24 s behind', 'Disk', '8.1s']) {
+    for (const shown of ['Recent plays', 'Streams in detail', 'Feed lag (30 days)', 'Chicago &lt;Sports&gt;', '24.1 s', '1 (1)', 'Default reconnect limit: 24 s', 'Current limit', '26 s', 'Disk', '8.1s']) {
         assert.ok(html.includes(shown), shown);
     }
     h.page.toggleDetails();

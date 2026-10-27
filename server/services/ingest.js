@@ -21,6 +21,7 @@ const { Readable } = require('stream');
 const { EventEmitter } = require('events');
 const { URL } = require('url');
 const { FeedPace } = require('./feedPace');
+const lagLimit = require('./feedLagLimit');
 
 const TS_PACKET = 188;
 const SYNC = 0x47;
@@ -130,7 +131,7 @@ class Subscription extends Readable {
 }
 
 class Ingest extends EventEmitter {
-    constructor({ key, pool, url, userAgent, providerId, channel = null, providerName = null }) {
+    constructor({ key, pool, url, userAgent, providerId, channel = null, providerName = null, channelKey = null }) {
         super();
         this.id = nextId++;
         this.key = key;
@@ -140,6 +141,10 @@ class Ingest extends EventEmitter {
         this.providerId = providerId ?? null;
         // Names for the feed-lag record (feedLag.js), never the URL.
         this.channel = channel;
+        this.channelKey = channelKey;
+        this.lagLimit = lagLimit.open(channelKey, providerId, tuning.behindMs);
+        this.learningAt = null;
+        this.learningWorst = 0;
         this.providerName = providerName;
         this.state = 'connecting';
         this.chunks = [];      // { buf, at }
@@ -236,6 +241,8 @@ class Ingest extends EventEmitter {
         // R7: each connection is its own baseline (a provider bursts again on a reconnect).
         this.foldWorst();
         this.pace.reset(Date.now());
+        this.learningAt = Date.now();
+        this.learningWorst = 0;
         if (this.state === 'connecting') {
             this.state = 'live';
             this.liveAt = Date.now();
@@ -252,7 +259,10 @@ class Ingest extends EventEmitter {
         const now = Date.now();
         this.bytesIn += chunk.length;
         this.lastByteAt = now;
+        const wasMeasured = this.pace.measured;
+        if (wasMeasured) this.learningWorst = Math.max(this.learningWorst, this.pace.observe(now));
         this.pace.onChunk(chunk, now);
+        if (!wasMeasured && this.pace.measured) this.learningAt = now;
         this.chunks.push({ buf: chunk, at: now });
         this.bytes += chunk.length;
         while (this.chunks.length > 1 && (this.bytes > tuning.bufferBytes || now - this.chunks[0].at > tuning.bufferMs)) {
@@ -279,6 +289,9 @@ class Ingest extends EventEmitter {
     onUpstreamGone(why) {
         if (this.closed) return;
         if (this.state === 'live') {
+            this.learn(Date.now());
+            lagLimit.flush(this.lagLimit);
+            this.learningAt = null;
             this.state = 'reconnecting';
             this.lostSince = Date.now();
             this.log(`lost the stream (${why}); reconnecting`);
@@ -317,13 +330,25 @@ class Ingest extends EventEmitter {
         // R7 (FR-8): judged by how far the feed has fallen behind real time, not by a pause in bytes.
         const behind = this.pace.observe(now);
         if (this.pace.measured) this.worstBehind = Math.max(this.worstBehind ?? 0, behind);
-        if (behind * 1000 > tuning.behindMs) {
-            if (this.pace.measured) this.lagReconnects++;
+        this.learn(now, behind);
+        const limitMs = this.pace.measured ? (this.lagLimit?.limitMs ?? lagLimit.baseOf(tuning.behindMs)) : tuning.behindMs;
+        if (behind * 1000 > limitMs) {
+            if (this.pace.measured) { this.lagReconnects++; lagLimit.lag(this.lagLimit); }
             const req = this.request;
             this.request = null; // its late events are ignored
             try { req && req.destroy(); } catch (e) { /* gone */ }
             this.onUpstreamGone(this.pace.measured ? `${Math.round(behind)}s behind real time` : `no data for ${Math.round(behind)}s`);
         }
+    }
+
+    // Called on the watchdog clock, with the peak seen between ticks (onData observes before
+    // a catch-up burst). Never credit a reconnect, offline time, or a connection without PCR.
+    learn(now, behind = this.pace.observe(now)) {
+        if (this.state === 'live' && this.pace.measured && this.learningAt !== null) {
+            lagLimit.observe(this.lagLimit, Math.max(0, now - this.learningAt), Math.max(behind, this.learningWorst));
+        }
+        this.learningAt = now;
+        this.learningWorst = 0;
     }
 
     dropRequest() {
@@ -378,6 +403,8 @@ class Ingest extends EventEmitter {
             this._rejectReady(Object.assign(new Error(`Shared ingest closed before it started: ${why}`),
                 providerReason ? { ingestRefused: true, providerReason: true } : { ingestCancelled: true, providerReason: false }));
         }
+        this.learn(Date.now());
+        lagLimit.flush(this.lagLimit);
         this.closed = true;
         this.state = 'closed';
         clearInterval(this.stallTimer);
@@ -396,7 +423,7 @@ class Ingest extends EventEmitter {
         this.log(`closed (${why}); most behind real time ${this.worstBehind === null ? 'not measured' : `${Math.round(this.worstBehind * 10) / 10}s`}`);
         if (this.worstBehind !== null && this.liveAt) {
             try {
-                require('./feedLag').record({ channel: this.channel, providerId: this.providerId, providerName: this.providerName, startedAt: this.liveAt,
+                require('./feedLag').record({ channel: this.channel, channelKey: this.channelKey, providerId: this.providerId, providerName: this.providerName, startedAt: this.liveAt,
                     worstBehindSec: this.worstBehind, reconnects: this.reconnects, lagReconnects: this.lagReconnects, why });
             } catch (err) { console.warn(`[Ingest ${this.id}] feed lag not recorded: ${err.message}`); }
         }
@@ -414,6 +441,7 @@ class Ingest extends EventEmitter {
             subscribers: [...this.subs].map(s => ({ purpose: s.info.purpose || null, backlogBytes: s.readableLength })),
             bufferBytes: this.bytes, kbps: Math.round(this.bytesIn * 8 / seconds / 1000), reconnects: this.reconnects,
             startedAt: this.startedAt,
+            limitSec: (this.lagLimit?.limitMs ?? lagLimit.baseOf(tuning.behindMs)) / 1000,
             // R7: how far behind real time the feed is now, and the most it has been (Status).
             behindSec: Math.round(this.pace.deficit() * 10) / 10,
             maxBehindSec: Math.round(Math.max(this.worstBehind ?? 0, this.pace.measured ? this.pace.maxDeficit : 0) * 10) / 10
@@ -426,13 +454,13 @@ class Ingest extends EventEmitter {
  * once the stream is confirmed MPEG-TS; rejects (`ingestRefused`) when it is not, or the provider
  * refuses the first connection - the caller then uses its usual path.
  */
-async function subscribe({ pool, url, userAgent, providerId = null, purpose = null, owner = null, channel = null, providerName = null }) {
+async function subscribe({ pool, url, userAgent, providerId = null, purpose = null, owner = null, channel = null, providerName = null, channelKey = null }) {
     const key = keyOf(pool, url);
     let ingest = registry.get(key);
     let opened = false;
     if (!ingest || ingest.closed) {
         closeIdleInPool(pool, key); // a lingering connection in this pool would make this one a second
-        ingest = new Ingest({ key, pool, url, userAgent, providerId, channel, providerName });
+        ingest = new Ingest({ key, pool, url, userAgent, providerId, channel, providerName, channelKey });
         registry.set(key, ingest);
         ingest.start();
         opened = true;
@@ -453,7 +481,7 @@ function sourceFor(candidate, settings) {
     if (!enabled(settings) || !candidate || !/^https?:/i.test(String(candidate.url || ''))) return null;
     const pool = require('./streamCoordinator').poolOf(candidate.providerId);
     return { pool, url: candidate.url, userAgent: require('../db').getUserAgent(settings), providerId: candidate.providerId ?? null,
-        key: keyOf(pool, candidate.url), channel: candidate.channelName ?? null, providerName: candidate.providerName ?? null };
+        key: keyOf(pool, candidate.url), channelKey: candidate.channelKey ?? null, channel: candidate.channelName ?? null, providerName: candidate.providerName ?? null };
 }
 
 /** A live ingest for (pool, url), or null - joining one needs no new provider connection. */

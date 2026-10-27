@@ -302,7 +302,7 @@ router.get('/', async (req, res) => {
             ingest: (() => { try { return { enabled: settings.sharedIngestEnabled === true, ...require('../services/ingest').status() }; } catch (e) { return null; } })(),
             // R7 data (0287): each channel's worst lag behind real time per provider, last 30 days.
             feedLag: (() => {
-                try { return { limitSec: require('../services/ingest').tuning.behindMs / 1000, channels: require('../services/feedLag').summary() }; } catch (e) { return null; }
+                try { return { limitSec: require('../services/feedLagLimit').baseOf(require('../services/ingest').tuning.behindMs) / 1000, channels: require('../services/feedLag').summary() }; } catch (e) { return null; }
             })(),
             // 0161 (C-I): ESPN fixture coverage, per league - last successful fetch, fixture
             // count, last error. Never a URL (sportsFixtures.statusSummary never puts one in).

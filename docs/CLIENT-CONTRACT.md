@@ -70,8 +70,10 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 - **Shared ingest defaults on since 0290**; an explicitly stored opt-out wins. This changes no endpoint shape.
 - **A live session's playlist is held 30 s behind its newest segment** (Apple 56: `configuredTimeOffsetFromLive`, and "go to
   live" returns there): providers that deliver in bursts pause for up to ~16 s (`docs/FINDINGS.md` FR-8). So a live media
-  playlist keeps well over 30 s of segments (90 × 4 s), and the server calls a shared feed lost at 24 s behind real time
-  (`PIGTV_INGEST_BEHIND_SEC`, R7), before a player held 30 s back runs dry; a healthy bursty feed reached 18.3 s.
+  playlist keeps well over 30 s of segments (90 × 4 s), and the server calls a measured shared feed lost at its per-channel/provider limit: 24 s by default
+  (`PIGTV_INGEST_BEHIND_SEC`), up 2 s on a lag reconnect, capped at 28 s (0292). After 3 measured reading hours
+  ≥4 s under the level it drops 2 s. Levels persist across redeploys; no-PCR feeds keep the default silence rule.
+  The Apple hold stays 30 s; no ffmpeg flags change.
 - Resolve failure `error` texts start with a C-B prefix and never contain a URL; the client shows only those.
 - A start stopped on request answers **499** `{error, superseded: true}` (0180); the client ignores it.
 - `recordings/scheduled` rows: `program_end` can **move later** after scheduling (0214, R4: it follows the guide after a

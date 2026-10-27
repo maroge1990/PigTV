@@ -388,6 +388,16 @@ function initSchema() {
         CREATE INDEX IF NOT EXISTS idx_feed_lag_ended ON feed_lag(ended_at);
     `);
 
+    // 0292: adaptive headroom survives a redeploy; history gains the same stable identity.
+    try { db.exec('ALTER TABLE feed_lag ADD COLUMN channel_key TEXT'); } catch (e) { /* exists */ }
+    db.exec(`CREATE TABLE IF NOT EXISTS feed_lag_limits (
+        channel_key TEXT NOT NULL,
+        provider_id INTEGER NOT NULL,
+        limit_ms INTEGER NOT NULL,
+        clean_ms INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (channel_key, provider_id)
+    )`);
+
     // EPG matching (0134, roadmap S4.2): the admin's choice of EPG channel for a
     // playlist channel, keyed by identity like channel_numbers. Read at query
     // time over playlist_items.tvg_id (services/epgMapping.js); a sync never

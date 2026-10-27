@@ -41,13 +41,22 @@ test('a play served from a cached analysis gives its session the ingest source w
     transcodeSession.createSession = async (u, options) => { given = options; throw Object.assign(new Error('captured'), { captured: true }); };
     try {
         await assert.rejects(strategy.resolve({ url, settings, live: true, providerId: 3,
-            ingestSource: { pool: 'primary', url, userAgent: 'ua', providerId: 3, key: 'primary|abc', channel: 'NBC Sports Boston', providerName: 'Strong8K' } }),
+            ingestSource: { pool: 'primary', url, userAgent: 'ua', providerId: 3, key: 'primary|abc', channelKey: 'stable:nbc', channel: 'NBC Sports Boston', providerName: 'Strong8K' } }),
             (err) => err.captured === true);
     } finally {
         transcodeSession.createSession = real;
     }
     assert.ok(given && given.ingestSource, 'the session reads through the ingest');
+    assert.equal(given.ingestSource.channelKey, 'stable:nbc');
     assert.equal(given.ingestSource.channel, 'NBC Sports Boston');
     assert.equal(given.ingestSource.providerName, 'Strong8K');
     assert.equal(given.ingestSource.providerId, 3);
+});
+
+test('a routing candidate gives the ingest its stable channel key alongside the provider source', () => {
+    const source = load('services/ingest').sourceFor({ providerId: 3, channelKey: 'stable:nbc',
+        channelName: 'NBC Sports Boston', providerName: 'Strong8K', url: 'http://provider.invalid/live/1.ts' },
+        { sharedIngestEnabled: true });
+    assert.equal(source.channelKey, 'stable:nbc');
+    assert.equal(source.providerId, 3);
 });

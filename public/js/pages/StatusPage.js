@@ -541,10 +541,10 @@ class StatusPage {
         const rows = lag && Array.isArray(lag.channels) ? lag.channels : null;
         if (!rows) return '';
         return this.section('Feed lag (30 days)',
-            `<p class="setting-hint">How far each shared feed fell behind real time at worst.${lag.limitSec ? ` A feed is reconnected when it is ${e(lag.limitSec)} s behind.` : ''}</p>`
-            + this.table(['Channel', 'Provider', 'Watched', 'Worst lag', 'Reconnects (for lag)', 'Last'],
+            `<p class="setting-hint">How far each shared feed fell behind real time at worst.${lag.limitSec ? ` Default reconnect limit: ${e(lag.limitSec)} s; each channel/provider adapts up to 28 s.` : ''}</p>`
+            + this.table(['Channel', 'Provider', 'Watched', 'Worst lag', 'Current limit', 'Reconnects (for lag)', 'Last'],
                 rows.map(r => [e(r.channel || 'A channel'), e(r.provider || '–'), this.amt(`${e(r.hours)} h`),
-                    this.amt(`${e(r.worstBehindSec)} s`), this.amt(`${e(r.reconnects)} (${e(r.lagReconnects)})`), this.when(r.lastAt)]),
+                    this.amt(`${e(r.worstBehindSec)} s`), this.amt(`${e(r.limitSec ?? lag.limitSec)} s`), this.amt(`${e(r.reconnects)} (${e(r.lagReconnects)})`), this.when(r.lastAt)]),
                 'Nothing yet: a feed is recorded when its shared connection closes after a minute or more.'));
     }
 }

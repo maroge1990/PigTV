@@ -192,7 +192,7 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
         // Wave 5: not for a source that ends (paced, seekable), nor once the ingest refused the stream.
         // The names go too (0287's feed_lag): a play from a cached analysis or a profile has no probe, so its session opens the ingest.
         ...(ingestSource && !ingestSource.refused && info.finite !== true ? { ingestSource: { pool: ingestSource.pool, url: ingestSource.url, userAgent: ingestSource.userAgent, providerId: ingestSource.providerId,
-            channel: ingestSource.channel ?? null, providerName: ingestSource.providerName ?? null } } : {}),
+            channelKey: ingestSource.channelKey ?? null, channel: ingestSource.channel ?? null, providerName: ingestSource.providerName ?? null } } : {}),
         // 0189: extra session options from the relay (a standby is marked as one).
         ...(sessionOptions || {}),
         ...(coordinator ? { onRegistered: (s) => { leaseLost = !coordinator.bindLease(lease, s.id); } } : {})
