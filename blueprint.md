@@ -2,7 +2,8 @@
 
 **State (28 Oct):** P0 is implemented locally in **0290–0294**: shared ingest defaults on, unused code removed,
 stored adaptive reconnect limits, Fox Cricket recognition/daily Test play, and roster-based league recognition/MLB broadcasts.
-**Round 1 reviewed; 0295–0299 address round-1 functional findings and anonymous-owner coverage locally. Not pushed; round 2 and device acceptance pending.**
+**Round 1 repairs are local in 0295–0300**, including anonymous-owner coverage and deterministic cache tests.
+**Not pushed; round 2 and device acceptance pending.** Low findings 5–6 remain in FINDINGS as FR-15/FR-16.
 Server **0289** (FR-11, `feed_lag`, the smaller Status page) is deployed and pushed. Apple client
 **57** (live plays held 30 s back) is on the Apple TV. R7 (0282–0284, shared ingest on) passed on the Apple TV: NBC Sports
 Boston 35 min and Chicago Sports Network Plus 65 min with 0 stalls and no switches. Mark approved the next batch on 27 Oct:
@@ -73,7 +74,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0300** |
+| Next build number | **0301** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -559,7 +560,8 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
 
-**28 Oct:** P0 items 1–5 are implemented locally in **0290–0294**, awaiting batch review and device checks
+**28 Oct:** P0 items 1–5 are implemented locally in **0290–0294**; round-1 repairs are local in **0295–0300**,
+awaiting round 2 and device checks
 ([validation and live steps](docs/reviews/2026-10-27/P0-STATUS.md)). The current order of work (P0-P3) and the questions only Mark can answer are in
 [`docs/reviews/2026-10-27/ROADMAP.md`](docs/reviews/2026-10-27/ROADMAP.md). The table below keeps each item's status.
 

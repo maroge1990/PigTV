@@ -377,7 +377,9 @@ test('events are for any signed-in user or device, not anonymous callers', async
     assert.equal((await call('GET', '/api/sports/events', { token: null })).status, 401);
 });
 
-test('the list is built once per 5 minutes (0153; a minute before) and guide version, not per request', async () => {
+test('the list is built once per 5 minutes (0153; a minute before) and guide version, not per request', async t => {
+    // Keep cache identity within one bucket; performance.now() still measures real elapsed time.
+    t.mock.timers.enable({ apis: ['Date'], now: NOW });
     const svc = load('services/sportsEvents');
     svc.reset();
     await call('GET', '/api/sports/events');
@@ -408,7 +410,9 @@ test('quality comes from the channel name', () => {
 
 // C-I asks for a request under ~100 ms warm on 1,000 channels x 30 programmes. Measured, and
 // printed; the bounds asserted here are loose because CI runs every file at once on 2 vCPUs.
-test('1,000 channels x 30 programmes: built once, then served from the cache', perf, async () => {
+test('1,000 channels x 30 programmes: built once, then served from the cache', perf, async t => {
+    // Keep cache identity within one bucket; performance.now() still measures real elapsed time.
+    t.mock.timers.enable({ apis: ['Date'], now: NOW });
     const d = sqlite.getDb();
     const svc = load('services/sportsEvents');
     const insItem = d.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, sort_order, stable_id, tvg_id, is_hidden)
@@ -450,7 +454,9 @@ test('1,000 channels x 30 programmes: built once, then served from the cache', p
 
 // 0153: the build covers 72 h ahead (a whole weekend) and, since 0152, reads the 36 h before now.
 // The same 1,000 channels with hourly programmes over that whole span: 108 per channel.
-test('1,000 channels x 108 hours (36 h back, 72 h ahead): built once, then served from the cache', perf, async () => {
+test('1,000 channels x 108 hours (36 h back, 72 h ahead): built once, then served from the cache', perf, async t => {
+    // Keep cache identity within one bucket; performance.now() still measures real elapsed time.
+    t.mock.timers.enable({ apis: ['Date'], now: NOW });
     const d = sqlite.getDb();
     const svc = load('services/sportsEvents');
     const insItem = d.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, sort_order, stable_id, tvg_id, is_hidden)
