@@ -278,3 +278,40 @@ test('a build reads the 36 h before now, so a re-air inside MLB hours is told fr
     assert.deepEqual(game.map(e => [e.kind, e.kindRule, e.live]),
         [['replay', 'replay: aired first 17 h 55 min earlier (MLB Network)', true]], 'last night\'s game is not listed, but counted');
 });
+
+// 0293: guide evidence, including the overnight replay Mark watched.
+test('Fox Cricket 501 evidence is live during play and replay overnight', () => {
+    const fx = require('./fixtures/sports-export.json').foxCricket501;
+    const start = Date.parse('2026-10-27T08:00Z');
+    const aliases = name => [classify.parseSide(name)];
+    const fixture = { start, end: start + 5 * 24 * H, teamsAliases: [aliases('South Africa'), aliases('Australia')] };
+    const data = new Map([['Cricket', { fixtures: [fixture, { start: start - 48 * H, end: start - 42 * H, teamsAliases: [aliases('Pakistan'), aliases('Sri Lanka')] }], teamsAliases: [], coverage: { from: start - 48 * H, to: start + 7 * 24 * H, at: start } }]]);
+    const channels = [{ key: '8:fox', order: 0, tvgId: 'fox', name: fx.channel, sportChannel: false }];
+    const rows = fx.programmes.map(r => ({ channel_id: 'fox', title: r.title, start_time: Date.parse(r.start), end_time: Date.parse(r.end), flags: r.flags }));
+    const events = sportsEvents.eventsFromProgrammes(channels, rows, ['Cricket'], data);
+    for (const row of fx.programmes) {
+        const event = events.find(e => e.aliases.includes(row.title) && e.start === Date.parse(row.start));
+        assert.equal(event?.kind, row.kind, `${row.start}: ${row.title}`);
+    }
+    for (const [at, flags, expected] of [
+        ['2026-10-28T07:50Z', 0, true], ['2026-10-28T07:30Z', 0, true],
+        ['2026-10-28T07:29Z', 0, false], ['2026-10-29T08:00Z', 0, true], ['2026-10-29T08:30Z', 0, true],
+        ['2026-10-29T08:31Z', 0, false], ['2026-10-29T13:30Z', classify.FLAGS.LIVE, true],
+        ['2026-10-28T01:00Z', 0, false], ['2026-10-27T22:00Z', 0, false],
+        ['2026-11-02T08:00Z', classify.FLAGS.LIVE, false]
+    ]) {
+        const a = airing('Test : South Africa v Australia', Date.parse(at), { league: 'Cricket', hours: 1, flags });
+        assert.equal(classify.fixtureVerdict(a, data.get('Cricket'), start)?.live, expected, at);
+    }
+});
+
+test('multi-day cricket fixtures do not label overnight blocks live', () => {
+    const firstBall = Date.parse('2026-10-27T08:00Z');
+    const aliases = name => [classify.parseSide(name)];
+    const data = { fixtures: [{ start: firstBall, end: firstBall + 5 * 24 * H, teamsAliases: [aliases('South Africa'), aliases('Australia')] }],
+        coverage: { from: firstBall, to: firstBall + 7 * 24 * H, at: firstBall } };
+    for (const time of ['2026-10-27T22:00Z', '2026-10-28T01:00Z', '2026-10-28T04:00Z']) {
+        const a = airing('Cricket: South Africa v Australia', Date.parse(time), { league: 'Cricket' });
+        assert.equal(classify.fixtureVerdict(a, data, firstBall).live, false, time);
+    }
+});

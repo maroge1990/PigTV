@@ -225,3 +225,36 @@ test('the Prime Vision alt cast stays its own item when it does not overlap the 
     assert.deepEqual(games.map(e => [e.kind, e.channels.length]), [['event', 3], ['replay', 1]]);
     assert.equal(games[1].kindRule, 'replay: aired first 6 h 5 min earlier (NFL Game Pass 1 UHD)', 'measured from the earliest airing');
 });
+
+// 0293: real Fox Cricket titles, captured before changing the recognition rule.
+test('Fox Cricket format titles and channel match-ups are cricket without a cricket keyword', () => {
+    const follow = sportsEvents.compileFollow(['Cricket']);
+    const evidence = require('./fixtures/sports-export.json').foxCricket501;
+    for (const row of evidence.programmes) {
+        const result = sportsEvents.classify({ title: row.title, channelName: evidence.channel }, follow);
+        assert.equal(result?.league, 'Cricket', row.title);
+        assert.equal(sportsEvents.classify({ title: row.title, channelName: 'General' }, follow)?.league, 'Cricket', 'the format works on a non-cricket channel');
+    }
+    assert.equal(sportsEvents.classify({ title: 'South Africa v Australia', channelName: 'Willow Cricket' }, follow)?.league, 'Cricket');
+    for (const title of ['screen test v Australia', 'Test : Coverage tonight', 'Test :', 'Test: the camera']) {
+        assert.equal(sportsEvents.classify({ title, channelName: 'General' }, follow), null, title);
+    }
+    assert.equal(sportsEvents.classify({ title: 'South Africa v Australia', channelName: 'General' }, follow), null);
+    for (const [title, expected] of [
+        ['Test : South Africa v Australia 3rd Test Day 1 Session 3', ['South Africa', 'Australia']],
+        ['Test Mini : RSA v AUS Third Test Day 1', ['RSA', 'AUS']],
+        ['ODI : South Africa v Australia G3', ['South Africa', 'Australia']]
+    ]) assert.deepEqual(classify.parseTitle(title).teams?.map(t => t.name), expected);
+});
+
+test('cricket channel recognition is scoped to the channel when a guide id is shared', () => {
+    const title = 'South Africa v Australia';
+    const channels = [
+        { key: '1:a', tvgId: 'same', name: 'General', sportChannel: false },
+        { key: '1:b', tvgId: 'same', name: 'Fox Cricket 501', sportChannel: false }
+    ];
+    const rows = [{ channel_id: 'same', title, start_time: START, end_time: START + 3600000, flags: 8 }];
+    const events = sportsEvents.eventsFromProgrammes(channels, rows, ['Cricket']);
+    assert.equal(events.length, 1);
+    assert.deepEqual(events[0].channels.map(c => c.name), ['Fox Cricket 501']);
+});

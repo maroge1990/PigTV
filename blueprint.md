@@ -1,12 +1,12 @@
 # PigTV: blueprint
 
-**State (28 Oct):** **0290–0292** are local (shared ingest defaults on; unused code removed; adaptive reconnect limits), pending batch review.
+**State (28 Oct):** **0290–0293** are local (shared ingest defaults on; unused code removed; adaptive reconnect limits; Fox Cricket titles), pending batch review.
 Server **0289** (FR-11, `feed_lag`, the smaller Status page) is deployed and pushed. Apple client
 **57** (live plays held 30 s back) is on the Apple TV. R7 (0282–0284, shared ingest on) passed on the Apple TV: NBC Sports
 Boston 35 min and Chicago Sports Network Plus 65 min with 0 stalls and no switches. Mark approved the next batch on 27 Oct:
 shared ingest on by default, the unused code removed, and an adaptive per-channel reconnect limit (24 s up to 28 s).
-Bug 5 (AUS v SA cricket) found its cause the same night: Fox Cricket 501's titles ("Test : South Africa v Australia")
-never say "cricket"; the fix is the batch's fourth commit. The fifth: MLB games are listed only on channels whose title
+Bug 5 has a local fix in **0293**: Fox Cricket format titles and Test stages are recognised, with overnight blocks
+classified as replays; device acceptance remains open. The fifth: MLB games are listed only on channels whose title
 says "MLB" (World Series Game 4 showed on FOX Deportes alone).
 Waves 1–4 of the [16 Oct roadmap](docs/reviews/2026-10-16/ROADMAP.md) are done in code; the shared-ingest design is
 [`docs/SHARED-INGEST.md`](docs/SHARED-INGEST.md). **Next:** the prioritised
@@ -71,7 +71,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0293** |
+| Next build number | **0294** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -269,7 +269,10 @@ the Status page's "EPG categories" panel (loaded once per visit, not on the 5 s 
 in the vocabulary, (b) a followed keyword in the title/categories, or (c) a C-H sport category's channel + a live-looking title
 ("live", "vs", " v "). A keyword that names a league follows its canonical league in every spelling (`sportsClassify.LEAGUES`:
 F1 = Formula 1 = Formula One = FIA F1; AFLW = "Women's AFL" = "AFL Women's", apart from AFL; NFL, NBA, NRL(W), …); other
-keywords match as whole words. **Kinds (0150, `sportsClassify.js`, pure):** each programme is `placeholder` ("no event", "coming
+keywords match as whole words. Cricket format prefixes (`Test`, `ODI`, `T20`, `T20I`, optionally `W`, `Mini` or
+`Classic`) followed by a colon and a match-up also name Cricket; so does a match-up on a channel containing "Cricket".
+The Cricket follow still applies; bare "test" is not a keyword. Test day/session and G1–G5 suffixes are stripped before
+reading the teams. **Kinds (0150, `sportsClassify.js`, pure):** each programme is `placeholder` ("no event", "coming
 up", a bare trailing ":", only league + channel words, a date more than a day from the airing, the same title in ≥3 back-to-back
 identical blocks on its channel, "24/7", "channel guide", a replay word with no game named) > `show` for highlights ("Hls",
 "Bitesize", "Plays of") > `replay` (a game or session + replay/re-air/classic/throwback/playback/mini/condensed, or a year before
@@ -310,7 +313,9 @@ event name): live when the airing starts at/near the fixture's real kickoff (≤
 worded with the real kickoff (`ESPN: the game started Sat 1:30 pm; this airing is 19 h later`); not matched, but both teams
 are known to the league and no such fixture exists: replay (`ESPN has no such game at this time`); anything else (unknown
 teams, league not covered, no fixture data, ESPN down) falls through to (a)-(d) unchanged. A multi-day cricket Test (league
-`Cricket` only - IPL/BBL are always a single day) is live on any of its scheduled days, not just near its first ball.
+`Cricket` only - IPL/BBL are always a single day) is live on later days only when an airing starts within 30 minutes
+either side of that day's first ball and overlaps it, or carries the guide's live flag during the fixture span (0293).
+The daily start is inferred from the first day's UTC kickoff; a changed start needs the live flag. Overnight blocks are replays.
 **Coverage, not just presence (0162):** every league's snapshot carries the exact `[from, to]` window its *last successful*
 fetch covered and when that was; an airing outside that window gets no ESPN verdict at all, matched or not - stale or
 out-of-window data must never decide anything, let alone manufacture a replay for a real live game ESPN simply has not been
@@ -544,7 +549,7 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
 
-**28 Oct:** P0 items 1–3 are implemented locally in **0290–0292**, awaiting batch review and device checks. The current order of work (P0-P3) and the questions only Mark can answer are in
+**28 Oct:** P0 items 1–4 are implemented locally in **0290–0293**, awaiting batch review and device checks. The current order of work (P0-P3) and the questions only Mark can answer are in
 [`docs/reviews/2026-10-27/ROADMAP.md`](docs/reviews/2026-10-27/ROADMAP.md). The table below keeps each item's status.
 
 **25 Oct round-5 repair status:** the five P2 findings have local fixes (0260–0261, Apple 55); see
@@ -644,9 +649,8 @@ feed in five) · the 20 s stall timeout (tighten only after real stall logs).
   whatever international cricket ESPN's scorepanel lists that day. Elsewhere (AFLW always; other leagues; ESPN down or
   stale) the heuristics decide: an unflagged live game outside its league's hours reads as a replay, an unflagged replay
   inside them with no earlier airing in 36 h reads as live, travelling series without a fixture rely on flags and the
-  first-airing rule, and the horizon ends where the provider's guide ends. Until roadmap P0 item 4 lands, a cricket title
-  without the word "cricket" (Fox Cricket's "Test : A v B", "ODI : A v B") is not sport, and a multi-day Test with an
-  ESPN fixture is live at any hour of its span, overnight replays included. Until item 5, a followed league is
+  first-airing rule, and the horizon ends where the provider's guide ends. The later days of a Test use the first day's kickoff time to infer a daily start;
+  a changed start needs the guide's live flag. Until item 5, a followed league is
   recognised only by its name in the title or a category, so a game titled by its teams alone is missed. Add a misfire to
   `test/fixtures/sports-export.json` with its expected kind before changing a rule.
 - ESPN is unofficial and undocumented: a schema change degrades to "not matched" (heuristics), never a crash.

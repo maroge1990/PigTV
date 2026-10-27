@@ -190,9 +190,10 @@ function leagueFromCategories(categories) {
  * a show or a placeholder is sportsClassify.classifyKind's question (0150; before,
  * news/highlights/preview/replay/classic/magazine were dropped here).
  */
-function classify({ title, categories = [], sportChannel = false }, follow) {
+function classify({ title, categories = [], sportChannel = false, channelName = '' }, follow) {
     const text = String(title || '');
-    const titleLeague = sportsClassify.detectLeague(text);
+    const titleLeague = sportsClassify.detectLeague(text)
+        || (/\bcricket\b/i.test(channelName) && sportsClassify.parseMatchup(text) ? 'Cricket' : null);
     const leagues = [titleLeague, ...categories.map(c => sportsClassify.detectLeague(c))].filter(Boolean);
     const keyword = followedKeyword(follow, text, categories, leagues);
     if (keyword) return { rule: 'keyword', match: keyword.keyword, league: leagues[0] || keyword.league || (keyword.team && keyword.team.league) || keyword.keyword };
@@ -414,10 +415,10 @@ function eventsFromProgrammes(channels, progs, follow, fixturesByLeague) {
         // S4 (0247): a row made from a slot's name belongs to that slot only; guide rows to every channel of the id.
         const owners = p.channel_key ? (byKey.has(p.channel_key) ? [byKey.get(p.channel_key)] : []) : (byTvg.get(p.channel_id) || []);
         for (const ch of owners) {
-            const vkey = `${p.title}\u0001${p.categories || ''}\u0001${ch.sportChannel ? 1 : 0}`;
+            const vkey = `${p.title}\u0001${p.categories || ''}\u0001${ch.sportChannel ? 1 : 0}\u0001${/\bcricket\b/i.test(ch.name) ? 1 : 0}`;
             let verdict = verdicts.get(vkey);
             if (verdict === undefined) {
-                verdict = classify({ title: p.title, categories, sportChannel: ch.sportChannel }, follow);
+                verdict = classify({ title: p.title, categories, sportChannel: ch.sportChannel, channelName: ch.name }, follow);
                 verdicts.set(vkey, verdict);
             }
             if (!verdict) continue;

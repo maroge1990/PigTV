@@ -134,8 +134,7 @@ Sports' preview shows the rule for each airing), and (5) the next MLB game lists
    the relay's "cannot join this stream" log lines before designing anything.
 7. **FR-10, Apple player frozen after a long live play.** Not reproducible on demand. If it recurs: the time and channel,
    the server log around it, and whether the app answered at all. An Apple-side diagnostic only after a second case.
-8. **Bug 8 (iPhone tuning)**: still without a root cause (blueprint). Bug 5 (AUS v SA cricket) found its cause on
-   27 Oct and is P0 item 4.
+8. **Bug 8 (iPhone tuning)**: still without a root cause (blueprint).
 
 ### P2: housekeeping and design debts
 

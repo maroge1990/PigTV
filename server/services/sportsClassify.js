@@ -103,6 +103,7 @@ function teamFollow(keyword) {
 function detectLeague(text) {
     const t = normText(text);
     if (!t) return null;
+    if (/^\s*(?:w\s+)?(?:test|odi|t20i?)(?:\s+(?:mini|classic))?\s*:/i.test(String(text)) && parseMatchup(text)) return 'Cricket';
     for (const l of LEAGUES) if (l.re.test(t) && !(l.not && l.not.test(t))) return l.name;
     return null;
 }
@@ -201,7 +202,10 @@ function parseSide(raw) {
 function parseMatchup(title) {
     const cleaned = String(title || '')
         .replace(/\[[^\]]*\]/g, ' ')
-        .replace(/\b(?:start|stop):\s*\S+(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?/gi, ' ');
+        .replace(/\b(?:19|20)\d{2}\/\d{2,4}\b/g, ' ')
+        .replace(/\b(?:start|stop):\s*\S+(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?/gi, ' ')
+        // Cricket stage labels belong to the game, never to the second team's name.
+        .replace(/\s+(?:(?:(?:\d+(?:st|nd|rd|th)|first|second|third|fourth|fifth)\s+)?test(?:\s+day\s+\d+)?(?:\s+session\s+\d+)?|g[1-5])\s*$/i, '');
     for (const segment of cleaned.split(/\s*[|·]\s*|\s+[-–—]+\s+|\s*:\s*/)) {
         const m = SEPARATOR_RE.exec(segment.trim());
         if (!m) continue;
@@ -669,13 +673,16 @@ const teamIsKnown = (side, teamsAliases) => teamsAliases.some(aliases => aliasHi
  * guide block at its own (wrong) time. The one exception is a multi-day Test (league === 'Cricket'
  * only: IPL/BBL are always a single day, whatever ESPN's own `endDate` optimistically claims,
  * because live play only happens once a day but coverage is fresh every day): an airing on a
- * later day of a `Cricket` fixture that hasn't ended is live too.
+ * later day is live near that day's first ball, or with the guide's live flag. Overnight
+ * blocks inside the fixture span are replays.
  */
 function fixtureLiveVerdict(a, best, kind) {
     const tz = liveHoursFor(a.league)?.tz;
     const near = a.start <= best.start + ESPN_GRACE_MS && a.end > best.start;
-    const multiDay = a.league === 'Cricket' && best.end && best.end > best.start + ESPN_GRACE_MS
+    const multiDaySpan = a.league === 'Cricket' && best.end && best.end > best.start + DAY_MS
         && a.start >= best.start && a.start < best.end;
+    const dayStart = best.start + Math.round((a.start - best.start) / DAY_MS) * DAY_MS;
+    const multiDay = multiDaySpan && ((a.flags & FLAGS.LIVE) || (a.start >= dayStart - ESPN_GRACE_MS && a.start <= dayStart + ESPN_GRACE_MS && a.end > dayStart));
     if (near || multiDay) return { live: true, why: `ESPN: the ${kind} started ${espnWhen(best.start, tz)}` };
     const deltaMs = a.start - best.start;
     const later = deltaMs >= 0;
