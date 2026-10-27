@@ -7,8 +7,8 @@ Where things stand after the R7 week, what to do next in order, and what only Ma
 
 | | Server | Apple client |
 |---|---|---|
-| Live (deployed) | **0285** (retired settings dropped) | **57** (pushed; on the Apple TV) |
-| Pushed, CI green, image built, **not deployed** | 0286 FR-11 · 0287 `feed_lag` · 0288 smaller Status page · 0289 feed names on profile plays (`6c4cf96`) | — |
+| Live (deployed 27 Oct) | **0289** (`6c4cf96`): FR-11, `feed_lag`, the smaller Status page | **57** (on the Apple TV) |
+| Next build number | **0290** | **58** |
 
 - **R7 works on the device.** Since 0282–0284 (a feed judged by how far it is behind real time, by its own clock) and
   Apple 56–57 (live plays held 30 s back): NBC Sports Boston 35 min and Chicago Sports Network Plus 65 min, 0 stalls, no
@@ -20,53 +20,87 @@ Where things stand after the R7 week, what to do next in order, and what only Ma
 
 ## Prioritised work
 
-### P0: ship and confirm what is waiting (Mark, then a short session)
+Mark's answers to Q1-Q7 (below) settled the order. Statuses use blueprint §4's words.
 
-1. **Deploy 0289** (pushed; Force Update, then `curl -s http://192.168.1.235:3000/api/version` reads 0289).
-2. **Live checks after the deploy** (Mark):
-   1. Status opens on Providers / Playing now / Recordings / Last 7 days; Show details opens the rest and is remembered
-      after a reload.
-   2. Watch any channel over a minute and close it: Status, Show details, "Feed lag (30 days)" lists it **by name**.
-   3. A short segmented recording, watched from the start on the Apple TV while it records, then the finished MP4.
-3. **FR-11** needs no test unless the app freezes again (FR-10); then a fresh play should end the stuck stream at once.
+### P0: the agreed next batch (Mark approved on 27 Oct)
 
-### P1: finish R7 from real data (after about a week of normal viewing on 0287+)
+Three server commits, in this order, each with a test that fails on the build before it. The batch changes when a live
+feed is reconnected, so it gets a **Codex adversarial review** before Mark is told it is ready (two rounds at most).
 
-4. **FR-12, the 24 s limit.** Read `feed_lag` (Status details, or `SELECT … FROM feed_lag`). Chicago reached 24.1 s
-   healthy on 27 Oct. Options: a per-channel limit from each channel's worst (bounded under the Apple client's 30 s hold),
-   or raise the limit and the hold together (30 s / 36 s). Needs Q2. `PIGTV_INGEST_BEHIND_SEC` is the stop-gap.
-5. **Reconnect or switch.** Today a feed past the limit is reconnected on the same provider, and while it reconnects
-   the relay may switch to a ready standby (FR-12). With `feed_lag`'s lag reconnects per provider, decide whether repeated lag on one provider should
-   move the channel to the next. Avoid switching between Strong8K and Trex for the same pause: they share an upstream
-   and paused together (FR-8).
-6. **Channels with no usable standby** (TNT Sports 4: Dream 4K is HEVC/50 fps/5.1, Trex 720p; FR-14). A standby must
-   match to be spliced; a cold restart on another provider is the only failover. Measure how many channels are like
-   this (the relay logs "cannot join this stream") before designing anything.
+**1. Shared ingest on by default (Q5).** `sharedIngestEnabled` defaults to `true` in `server/db.js`'s defaults. A stored
+value wins, so an install where an admin turned it off stays off; Mark's server is already on. Check what else assumes
+"off by default": Settings → Playback's hint text, `docs/SHARED-INGEST.md`, blueprint §3 and §6, `.env.example` if it is
+mentioned, and tests that start a play without setting it (they now read through the ingest). Test: a fresh database's
+settings have it on, and a stored `false` is kept.
 
-### P2: correctness
+**2. Remove code nothing uses (B4, re-scoped).** Confirmed on 27 Oct by searching every server, script and web file
+(re-check before deleting):
+- `public/js/auth.js` (144 lines) and `public/js/login.js` (13): loaded by no page; `login.html` has its own script.
+- Server exports used nowhere, not even by tests: `requireRole` and `verifyToken` (`server/auth.js`),
+  `getCurrentAndUpcoming` (`epgParser.js`), `liveViewers` and `staleStreams` (`streamCoordinator.js`), `closeForOwner`
+  (`streamRelay.js`), `stopNightly` (`dbBackup.js`). Remove a function only if its body is not used internally.
+- `releaseOwnerElsewhere` (`streamCoordinator.js`) is called only by tests: remove it with its tests, or keep it if the
+  tests are the only proof of a rule still enforced elsewhere (`requestForViewer`'s `elsewhere`).
 
-7. **FR-14, TNT Sports 4's sound 2-3 s behind on Strong8K** (in the feed itself; same on the web player). Needs Q3.
-8. **FR-9, HE-AAC copied on a fresh probe**: one failed start (~6 s) the first time an HE-AAC channel is played after
+Not dead, so kept: the relay's stitching and hot standby (Q4), the 0143 refused-connection retries (recordings, catch-up
+and any stream the ingest refuses still connect directly), and the warm-session leases. Add `verify-build.sh` checks
+that the two web files and the removed names stay gone (prove each by putting one back). About 250 lines in all.
+
+**3. An adaptive reconnect limit per channel (Q2, FR-12).** Mark's rule: every channel starts at the default; one that
+goes past its limit moves up a step; it comes back down by itself once the feed behaves.
+- **Default 24 s** (`PIGTV_INGEST_BEHIND_SEC`), **step 2 s**, **ceiling 28 s**. The ceiling is fixed by the Apple client's
+  30 s hold (`PlayerSeekWindow.liveOffset`): above about 28 s its buffer would run dry before the server reconnects.
+  Two steps (26, 28) is all the room there is; more needs a deeper hold (an Apple build, Mark's call).
+- **Up:** a reconnect for lag (`lagReconnects`) on a channel and provider raises that pair's limit one step, at once,
+  for the ingest that is open and for later ones.
+- **Down:** after about **3 hours of reading** that channel and provider at a level with its worst lag at least **4 s
+  under** the level, step down one. Any lag reconnect resets the count.
+- **Stored per channel and provider** (a small table or rows next to `feed_lag`), so a redeploy keeps the level. Key it
+  by the channel's identity (as `channel_health` does: source + stable_id, else item_id), not its display name; the
+  routing plan already has it (`plan().primaryKey`, each candidate's `channelKey`), and `ingest.sourceFor` is where it
+  would join the names 0287 added.
+- **Shown** in Status → Show details → Feed lag: each channel's current limit next to its worst lag.
+- **Capture first** (AGENTS.md): the batch changes the reconnect decision, not ffmpeg. Use the `feed_lag` rows
+  collected since 0289's deploy plus the 27 Oct soaks (`docs/reviews/2026-10-27/`) as the evidence; no ffmpeg flag
+  changes. Tests: with a fake feed that pauses past 24 s (as in `test/ingest-pace.test.js`), the first pass reconnects
+  and raises the level; the next identical pause at 26 s does not reconnect; a clean run of the down-window lowers it;
+  the level survives a reload of the module and never passes 28 s; a feed with no PCR is unaffected.
+- **Docs in the same commit:** blueprint §3 "Stall watchdog", `docs/SHARED-INGEST.md` (Stall row), FINDINGS FR-12
+  (fixed: delete the row), `docs/CLIENT-CONTRACT.md`'s note on the ingest limit (the hold stays 30 s).
+
+After the batch: Mark deploys, and the live checks are (1) Status → Show details → Feed lag shows a limit per channel,
+(2) normal viewing; any channel that rises to 26 or 28 s is listed there, and (3) after a quiet few hours it comes back.
+
+### P1: correctness
+
+4. **FR-9, HE-AAC copied on a fresh probe**: one failed start (~6 s) the first time an HE-AAC channel is played after
    its cache expires. Find why the fresh probe's capability check says "copy"; the cached path already re-encodes.
-   Small, has a reproduction in FINDINGS.
-9. **FR-10, Apple player frozen after a long live play** (no play-end or DELETE reached the server). Not reproducible
-   on demand. If it recurs: note the time and channel; the server log around it and whether the app answered at all
-   are what to look at. Consider an Apple-side watchdog log line only once there is a second occurrence.
-10. **Bugs 5 (AUS v SA grouping) and 8 (iPhone tuning)**: still without a root cause (blueprint).
+   Small, with a reproduction in FINDINGS.
+5. **Reconnect or switch.** Once the adaptive limit has run a while: should repeated lag on one provider move the
+   channel to the next? Avoid switching between Strong8K and Trex for the same pause: they share an upstream and paused
+   together (FR-8).
+6. **Channels with no usable standby** (TNT Sports 4: Dream 4K is HEVC/50 fps/5.1, Trex 720p; FR-14). Count them from
+   the relay's "cannot join this stream" log lines before designing anything.
+7. **FR-10, Apple player frozen after a long live play.** Not reproducible on demand. If it recurs: the time and channel,
+   the server log around it, and whether the app answered at all. An Apple-side diagnostic only after a second case.
+8. **Bugs 5 (AUS v SA grouping) and 8 (iPhone tuning)**: still without a root cause (blueprint).
 
-### P3: housekeeping and design debts
+### P2: housekeeping and design debts
 
-11. **B4 (retire relay stitching, standby, the 0143 retries, warm leases)** was planned "after shared ingest has run a
-    week". The standby is still the only seamless failover and now reads through the ingest, so B4 should be
-    re-scoped before anything is removed. Needs Q4.
-12. **Settings → Recording has two Save buttons** (the section's and Notifications'); Mark used the wrong one on
-    27 Oct. Left as is by Mark's choice; if touched, save each switch on change, as the hardware-decode switches do.
-13. **FR-1** recording cleanup simplification (design), **FR-2** a Codex round on 0280 if wanted.
-14. **Flaky tests** FR-3, FR-4, FR-13 (keep the log if they recur); Apple test-run hangs FR-5, the tab-switch gate FR-6.
-15. Waiting on Mark from earlier rounds: R8's before/after sync measurement, the E3 samples' location, E2 ffmpeg parity,
-    live ffmpeg speed on Status (deferred), the efficiency register (deferred, unmeasured).
+9. **Settings → Recording has two Save buttons** (the section's and Notifications'). Left as is by Mark's choice; if
+   touched, save each switch on change, as the hardware-decode switches do.
+10. **FR-1** recording cleanup simplification (design), **FR-2** a Codex round on 0280 if wanted.
+11. **Flaky tests** FR-3, FR-4, FR-13 (keep the log if they recur); Apple test-run hangs FR-5, the tab-switch gate FR-6.
+12. **Deferred, unmeasured:** live ffmpeg speed on Status, E2 ffmpeg version parity, the efficiency register.
 
-## Questions for Mark
+### Closed on 27 Oct
+
+- **FR-14** (TNT Sports 4's sound offset is in Strong8K's feed): Mark lives with it; kept in FINDINGS as a known feed
+  defect, no work planned.
+- **B4's retirement of the relay stitching and standby**: not done (Q4); B4 is now the dead-code removal in P0.
+- **R8's before/after sync measurement and the E3 audio-track samples**: closed, no longer of value (Q7).
+
+## Questions for Mark (asked 27 Oct; answered below)
 
 | # | Question | Why it matters | Suggested answer |
 |---|---|---|---|
@@ -77,6 +111,18 @@ Where things stand after the R7 week, what to do next in order, and what only Ma
 | Q5 | Make shared ingest the default in code? | It is on on your server and R7 depends on it; a fresh install gets the old path | Yes, once 0289 has run a week without trouble |
 | Q6 | Is there a channel you watch that still stutters or loses sync after a stall? | The next capture (`scripts/stream-doctor.js`) should be on a real problem channel | Name it when you see it |
 | Q7 | R8 sync measurement and the E3 samples' location (open since 16-18 Oct): still wanted? | They gate R8's future and the audio-track check | Close them if no longer of interest |
+
+## Mark's answers (27 Oct, evening)
+
+| # | Answer |
+|---|---|
+| Q1 | **0289 is deployed** (27 Oct). `feed_lag` collects from now on. |
+| Q2 | **Per channel, by exception, and self-correcting.** Every channel starts at the default limit. A channel that goes past its limit moves up one step (about 2 s); it must come back down on its own once the feed behaves again, because a feed's trouble can be temporary. |
+| Q3 | **Live with it** (TNT Sports 4's offset, FR-14). No change. |
+| Q4 | **Keep the hot standby.** B4 no longer retires the relay's stitching or standby. |
+| Q5 | **Shared ingest on by default** for new installs: it has run well for long enough. |
+| Q6 | Mark will name a channel when he sees one. |
+| Q7 | **Close** R8's sync measurement and the E3 samples if they are no longer of value (they are not: closed). |
 
 ## How to pick this up
 
