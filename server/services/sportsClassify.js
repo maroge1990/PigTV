@@ -115,7 +115,7 @@ const PLACEHOLDER_RE = words(['no events?', 'no games?', 'off air', 'event ends'
 const HIGHLIGHTS_RE = words(['highlights?', 'hls', 'bitesize', 'plays of']);
 const REPLAY_RE = words(['replays?', 're ?airs?', 're ?airing', 'classics?', 'throwback', 'playback', 'mini', 'condensed',
     'rerun', 'repeat', 'encore', 'full game', 'full match', 'full race', 'rewind']);
-const SHOW_RE = words(['tonight', 'daily', 'report', 'blitz', 'gameday', 'game ?day', 'films?', 'presents', 'network',
+const SHOW_RE = words(['world series in [0-9]+', 'tonight', 'daily', 'report', 'blitz', 'gameday', 'game ?day', 'films?', 'presents', 'network',
     'fantasy', 'total access', 'pro', '360', 'bounce', 'action', 'today', 'documentar[a-z]*', 'draft', 'plays of', 'explained',
     'academy', 'notebook', 'pre ?game', 'post ?game', 'pre ?show', 'post ?show', 'pre ?race', 'post ?race', 'pre qualifying',
     'previews?', 'review', 'magazine', 'show', 'project', 'talk', 'podcast', 'news', 'best of', 'analysis', 'countdown']);
@@ -130,7 +130,7 @@ const FILLER = new Set(['ppv', 'pass', 'ch', 'channel', 'exclusive', 'hd', 'uhd'
     'uk', 'au', 'ca', 'nz', 'tv', 'feed', 'backup', 'alt', 'vip', 'the', 'stream', 'streaming', 'start', 'stop', 'am', 'pm']);
 // ...and those a plain broadcast title is made of ("AFL Premiership Football", "NFL Football").
 const BROADCAST = new Set(['football', 'premiership', 'league', 'soccer', 'basketball', 'rugby', 'match', 'game', 'games',
-    'coverage', 'womens', 'women', 'mens', 'grand', 'prix', 'racing', 'motor', 'sport', 'sports', 'championship',
+    'baseball', 'series', 'postseason', 'coverage', 'womens', 'women', 'mens', 'grand', 'prix', 'racing', 'motor', 'sport', 'sports', 'championship',
     'world', 'fia', 'season', 'regular', 'on', 'of']);
 // Words that are never part of a grand prix location.
 const LOCATION_STOP = new Set([...BROADCAST, ...FILLER, 'live', 'gp', 'practice', 'free', 'qualifying', 'sprint', 'shootout', 'race',
@@ -173,7 +173,7 @@ function parseSession(norm) {
 
 // ---- match-ups --------------------------------------------------------------------------
 
-const SEPARATOR_RE = /^(.+?)\s+(?:v|v\.|vs|vs\.|versus|at|@|x)\s+(.+)$/i;
+const SEPARATOR_RE = /^(.+?)\s+(?:v|v\.|vs|vs\.|versus|at|@|x|c\.)\s+(.+)$/i;
 const SIDE_DROP_RE = /^(?:live|hd|uhd|fhd|4k|8k|hls|highlights?|(?:pf|qf|sf|ef|gf)\d?|(?:19|20)\d\d|r\d{1,2}|rd\d{1,2}|wk\d{1,2})$/i;
 const LEAGUE_TOKENS = new Set(LEAGUES.flatMap(l => l.aliases).filter(a => !a.includes(' ')));
 
@@ -300,7 +300,7 @@ function parseTitle(title) {
         location,
         core,
         // a plain broadcast title: league and broadcast words only ("Live: NFL Football", not "NFL Live")
-        broadcast: core.some(w => w !== 'live') && core.every(w => w === 'live' || BROADCAST.has(w)),
+        broadcast: norm === 'mlb' || core.some(w => w !== 'live') && core.every(w => w === 'live' || BROADCAST.has(w)),
         endsColon: /:\s*$/.test(raw),
         placeholderWord: (PLACEHOLDER_RE.exec(norm) || [])[0]?.trim() || null,
         highlightsWord: (HIGHLIGHTS_RE.exec(norm) || [])[0]?.trim() || null,
@@ -334,7 +334,7 @@ function classifyKind({ title, channelName = '', start = Date.now(), categories 
     if (loop) return { kind: 'placeholder', why: 'the channel repeats it in identical blocks' };
     if (!game && !p.showWord) {
         const tokens = chTokens || channelTokens(channelName);
-        if (p.core.every(w => tokens.has(w))) return { kind: 'placeholder', why: 'nothing but the league and channel name' };
+        if (p.norm !== 'mlb' && p.core.every(w => tokens.has(w))) return { kind: 'placeholder', why: 'nothing but the league and channel name' };
     }
     // highlights are a show; a replay needs a game
     if (p.highlightsWord) return { kind: 'show', why: `highlights ("${p.highlightsWord}")` };

@@ -583,3 +583,21 @@ test('/events: ETag and 304 when unchanged; no If-None-Match is a plain 200; the
     assert.equal(zipped.headers.get('content-encoding'), 'gzip');
     assert.equal(await zipped.text(), text);
 });
+
+// 0294: the real build loads the persisted roster, independent of fixture coverage.
+test('a build recognises a followed league from its stored ESPN roster', () => {
+    const ev = load('services/sportsEvents');
+    const d = sqlite.getDb();
+    const fx = require('./fixtures/sports-export.json').worldSeries2026;
+    d.prepare('INSERT OR REPLACE INTO sport_fixture_teams (league, data, updated_at) VALUES (?, ?, ?)').run('MLB', JSON.stringify(fx.roster), NOW);
+    const title = 'Milwaukee Brewers @ Tampa Bay Rays';
+    const row = d.prepare('INSERT INTO epg_programs (channel_id, source_id, title, start_time, end_time, flags) VALUES (?, ?, ?, ?, ?, ?)')
+        .run('seven', source.id, title, NOW + H, NOW + 4 * H, 8);
+    try {
+        const result = ev.buildEvents({ from: NOW, follow: ['MLB'] });
+        assert.equal(result.events.find(e => e.aliases.includes(title))?.kind, 'event');
+    } finally {
+        d.prepare('DELETE FROM epg_programs WHERE id = ?').run(row.lastInsertRowid);
+        d.prepare("DELETE FROM sport_fixture_teams WHERE league = 'MLB'").run();
+    }
+});

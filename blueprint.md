@@ -1,13 +1,15 @@
 # PigTV: blueprint
 
-**State (28 Oct):** **0290–0293** are local (shared ingest defaults on; unused code removed; adaptive reconnect limits; Fox Cricket titles), pending batch review.
+**State (28 Oct):** P0 is implemented locally in **0290–0294**: shared ingest defaults on, unused code removed,
+stored adaptive reconnect limits, Fox Cricket recognition/daily Test play, and roster-based league recognition/MLB broadcasts.
+**Not pushed; adversarial review and device acceptance pending.**
 Server **0289** (FR-11, `feed_lag`, the smaller Status page) is deployed and pushed. Apple client
 **57** (live plays held 30 s back) is on the Apple TV. R7 (0282–0284, shared ingest on) passed on the Apple TV: NBC Sports
 Boston 35 min and Chicago Sports Network Plus 65 min with 0 stalls and no switches. Mark approved the next batch on 27 Oct:
 shared ingest on by default, the unused code removed, and an adaptive per-channel reconnect limit (24 s up to 28 s).
 Bug 5 has a local fix in **0293**: Fox Cricket format titles and Test stages are recognised, with overnight blocks
-classified as replays; device acceptance remains open. The fifth: MLB games are listed only on channels whose title
-says "MLB" (World Series Game 4 showed on FOX Deportes alone).
+classified as replays; device acceptance remains open. **0294** recognises match-ups of stored roster teams in followed
+leagues and joins the overlapping MLB broadcasts.
 Waves 1–4 of the [16 Oct roadmap](docs/reviews/2026-10-16/ROADMAP.md) are done in code; the shared-ingest design is
 [`docs/SHARED-INGEST.md`](docs/SHARED-INGEST.md). **Next:** the prioritised
 plan and Mark's open questions are [`docs/reviews/2026-10-27/ROADMAP.md`](docs/reviews/2026-10-27/ROADMAP.md); the handover
@@ -71,7 +73,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0294** |
+| Next build number | **0295** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -266,7 +268,8 @@ gains the column and its `epg_live` view is **dropped and recreated** (a view ke
 the Status page's "EPG categories" panel (loaded once per visit, not on the 5 s refresh).
 
 **Sport events** (0148, C-I, `sportsEvents.js`, `routes/sports.js`, table `sports_follow`): per programme, sport = (a) a category
-in the vocabulary, (b) a followed keyword in the title/categories, or (c) a C-H sport category's channel + a live-looking title
+in the vocabulary, (b) a followed keyword in the title/categories or a match-up of two distinct teams in a followed
+league's stored ESPN roster (same aliases as fixture matching; no stored roster, no added recognition), or (c) a C-H sport category's channel + a live-looking title
 ("live", "vs", " v "). A keyword that names a league follows its canonical league in every spelling (`sportsClassify.LEAGUES`:
 F1 = Formula 1 = Formula One = FIA F1; AFLW = "Women's AFL" = "AFL Women's", apart from AFL; NFL, NBA, NRL(W), …); other
 keywords match as whole words. Cricket format prefixes (`Test`, `ODI`, `T20`, `T20I`, optionally `W`, `Mini` or
@@ -282,7 +285,9 @@ no game) > `event` (a match-up "A v/vs/at/@/x B", or a session: practice 1–3, 
 same kind + canonical league + overlapping times + the same game: teams in either order (one name's words within the other's,
 single letters as initials, "FRE"/"BRL" by their letters in order), or the same session and a compatible grand prix location;
 a teamless session ("AFL Grand Final 2026") joins the one overlapping match-up of its league; a plain broadcast title ("AFL
-Premiership Football") adds its channel to the event it overlaps most (not its times), else is a show; anything else by the
+Premiership Football") adds its channel to the event it overlaps most (not its times), else is a show. MLB broadcasts include `World Series`, `Game N`, `Postseason` and bare `MLB` (0294);
+"World Series" alone is not a league alias, and recaps such as "World Series in 30" stay shows. French `c.` is also a
+match-up separator. Anything else by the
 normalised title (lower case; tags, the channel's own name, live/HD words and punctuation removed). The item's title is the
 cleanest form ("Carlton Blues v Richmond Tigers", "Azerbaijan GP · Practice 3", "Sydney Swans v Fremantle · Preliminary Final
 2"); `aliases` lists the raw titles. Visible channels only, once per identity; EPG mapping honoured. Built once per (guide
@@ -549,7 +554,8 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
 
-**28 Oct:** P0 items 1–4 are implemented locally in **0290–0293**, awaiting batch review and device checks. The current order of work (P0-P3) and the questions only Mark can answer are in
+**28 Oct:** P0 items 1–5 are implemented locally in **0290–0294**, awaiting batch review and device checks
+([validation and live steps](docs/reviews/2026-10-27/P0-STATUS.md)). The current order of work (P0-P3) and the questions only Mark can answer are in
 [`docs/reviews/2026-10-27/ROADMAP.md`](docs/reviews/2026-10-27/ROADMAP.md). The table below keeps each item's status.
 
 **25 Oct round-5 repair status:** the five P2 findings have local fixes (0260–0261, Apple 55); see
@@ -650,8 +656,8 @@ feed in five) · the 20 s stall timeout (tighten only after real stall logs).
   stale) the heuristics decide: an unflagged live game outside its league's hours reads as a replay, an unflagged replay
   inside them with no earlier airing in 36 h reads as live, travelling series without a fixture rely on flags and the
   first-airing rule, and the horizon ends where the provider's guide ends. The later days of a Test use the first day's kickoff time to infer a daily start;
-  a changed start needs the guide's live flag. Until item 5, a followed league is
-  recognised only by its name in the title or a category, so a game titled by its teams alone is missed. Add a misfire to
+  a changed start needs the guide's live flag. Recognition by team names requires both sides to match distinct teams
+  in a followed league's stored roster; missing rosters add no new recognition. Add a misfire to
   `test/fixtures/sports-export.json` with its expected kind before changing a rule.
 - ESPN is unofficial and undocumented: a schema change degrades to "not matched" (heuristics), never a crash.
 

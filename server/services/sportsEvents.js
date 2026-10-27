@@ -104,7 +104,7 @@ const LIVE_TITLE_RE = /(?:^|[^\p{L}\p{N}])(?:live|vs)(?=$|[^\p{L}\p{N}])|\sv\s/i
  * league - the St. Louis Cardinals are MLB, so the short name alone would not do. Any other
  * keyword ("Chiefs") is matched as whole words.
  */
-function compileFollow(keywords) {
+function compileFollow(keywords, rosters = new Map()) {
     const list = keywords.map(k => {
         const league = sportsClassify.canonicalLeague(k);
         if (league) return { keyword: k, league, team: null, re: null };
@@ -118,6 +118,8 @@ function compileFollow(keywords) {
     ];
     return {
         list,
+        rosters: new Map([...rosters].filter(([league]) => list.some(k => k.league === league))
+            .map(([league, teams]) => [league, teams.map(sportsFixtures.teamAliasSides).filter(Boolean)])),
         leagues: new Set(list.filter(k => k.league).map(k => k.league)),
         any: literal.length ? wordRegExp(literal.join('|')) : null
     };
@@ -195,6 +197,19 @@ function classify({ title, categories = [], sportChannel = false, channelName = 
     const titleLeague = sportsClassify.detectLeague(text)
         || (/\bcricket\b/i.test(channelName) && sportsClassify.parseMatchup(text) ? 'Cricket' : null);
     const leagues = [titleLeague, ...categories.map(c => sportsClassify.detectLeague(c))].filter(Boolean);
+    // A stored roster recognises team-only titles; two different teams of a followed league
+    // must match, using the same alias sides as the fixture verdict. No roster, no new rule.
+    if (!titleLeague && follow.rosters?.size) {
+        const pair = sportsClassify.parseMatchup(text);
+        if (pair) {
+            for (const [league, teams] of follow.rosters) {
+                const hit = side => teams.map((aliases, i) => aliases.some(a => sportsClassify.teamMatch(side, a)) ? i : -1).filter(i => i >= 0);
+                const first = hit(pair[0]);
+                const second = hit(pair[1]);
+                if (first.some(a => second.some(b => a !== b))) { leagues.unshift(league); break; }
+            }
+        }
+    }
     const keyword = followedKeyword(follow, text, categories, leagues);
     if (keyword) return { rule: 'keyword', match: keyword.keyword, league: leagues[0] || keyword.league || (keyword.team && keyword.team.league) || keyword.keyword };
     const category = categories.find(c => VOCABULARY_RE.test(String(c).replace(/[\-_/]+/g, ' ')));
@@ -362,7 +377,10 @@ const RULE_RANK = { keyword: 0, category: 1, sportChannel: 2 };
  */
 function buildEvents({ from, follow: keywords, decorateChannels } = {}) {
     const db = getDb();
-    const follow = compileFollow(keywords || getFollow());
+    const wanted = keywords || getFollow();
+    const rosterLeagues = new Set(wanted.map(sportsClassify.canonicalLeague).filter(Boolean));
+    const rosters = new Map([...rosterLeagues].map(league => [league, sportsFixtures.teamsOf(league, db)]));
+    const follow = compileFollow(wanted, rosters);
     const channels = visibleChannels(db);
     if (decorateChannels) decorateChannels(channels);
     channelHealth.applyHealth(channels);

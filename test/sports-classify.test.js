@@ -258,3 +258,38 @@ test('cricket channel recognition is scoped to the channel when a guide id is sh
     assert.equal(events.length, 1);
     assert.deepEqual(events[0].channels.map(c => c.name), ['Fox Cricket 501']);
 });
+
+// 0294: the same game was listed on FOX Deportes alone because its other titles omit MLB.
+test('World Series evidence joins every game broadcast and leaves unrelated shows out', () => {
+    const fx = require('./fixtures/sports-export.json').worldSeries2026;
+    const rosters = new Map([['MLB', fx.roster]]);
+    const follow = sportsEvents.compileFollow(['MLB'], rosters);
+    const start = Date.parse(fx.start), end = Date.parse(fx.end);
+    const channels = fx.programmes.map((p, i) => ({ key: `8:${i}`, order: i, tvgId: `ch${i}`, name: p.channel, sportChannel: false }));
+    const rows = fx.programmes.map((p, i) => ({ channel_id: `ch${i}`, title: p.title,
+        start_time: p.start ? Date.parse(p.start) : start, end_time: p.end ? Date.parse(p.end) : end, flags: p.flags }));
+    const events = sportsEvents.eventsFromProgrammes(channels, rows, follow);
+    const games = events.filter(e => e.kind === 'event');
+    assert.equal(games.length, 1, 'one game with all channels, no second live recap');
+    for (const p of fx.programmes) {
+        assert.equal(games[0].aliases.includes(p.title), p.joins, p.title);
+        const item = events.find(e => e.aliases.includes(p.title));
+        assert.equal(item?.kind ?? null, p.kind, p.title);
+    }
+    assert.deepEqual(games[0].channels.map(c => c.name).sort(), fx.programmes.filter(p => p.joins).map(p => p.channel).sort());
+    assert.equal(sportsEvents.classify({ title: 'Arsenal v Tampa' }, follow), null, 'both teams must match');
+    assert.equal(sportsEvents.classify({ title: 'Brewers v Brewers' }, follow), null, 'two distinct teams');
+    assert.equal(sportsEvents.classify({ title: 'Brewers v Rays' }, sportsEvents.compileFollow(['NFL'], rosters)), null, 'the league must be followed');
+    const empty = sportsEvents.compileFollow(['MLB']);
+    assert.equal(sportsEvents.classify({ title: 'Milwaukee Brewers @ Tampa Bay Rays' }, empty), null, 'no roster preserves the old recognition');
+    const without = sportsEvents.eventsFromProgrammes(channels, rows, empty).filter(e => e.kind === 'event');
+    assert.equal(without.length, 1);
+    assert.ok(!without[0].channels.some(c => c.name === 'FOX Tampa'));
+    assert.equal(sportsEvents.classify({ title: 'World Series poker' }, follow), null, 'no broad World Series alias');
+});
+
+test('roster recognition uses stored aliases for every followed league', () => {
+    const roster = [{ displayName: 'Los Angeles Lakers', abbreviation: 'LAL' }, { displayName: 'Boston Celtics', abbreviation: 'BOS' }];
+    const follow = sportsEvents.compileFollow(['NBA'], new Map([['NBA', roster]]));
+    assert.deepEqual(sportsEvents.classify({ title: 'LAL @ BOS' }, follow), { rule: 'keyword', match: 'NBA', league: 'NBA' });
+});

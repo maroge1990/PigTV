@@ -207,5 +207,184 @@
         "kind": "replay"
       }
     ]
+  },
+  "worldSeries2026": {
+    "evidence": "docs/reviews/2026-10-27/world-series-titles.txt",
+    "start": "2026-10-28T00:00:00Z",
+    "end": "2026-10-28T03:30:00Z",
+    "roster": [
+      {
+        "displayName": "Milwaukee Brewers",
+        "shortDisplayName": "Brewers",
+        "name": "Brewers",
+        "location": "Milwaukee",
+        "abbreviation": "MIL"
+      },
+      {
+        "displayName": "Tampa Bay Rays",
+        "shortDisplayName": "Rays",
+        "name": "Rays",
+        "location": "Tampa Bay",
+        "abbreviation": "TB"
+      }
+    ],
+    "programmes": [
+      {
+        "channel": "FOX Deportes",
+        "title": "Serie Mundial MLB 2026 : Milwaukee Brewers vs. Tampa Bay Rays",
+        "kind": "event",
+        "joins": true,
+        "flags": 8
+      },
+      {
+        "channel": "FOX Deportes alternate",
+        "title": "Serie Mundial MLB 2026 - Milwaukee Brewers vs. Tampa Bay Rays",
+        "kind": "event",
+        "joins": true,
+        "flags": 0
+      },
+      {
+        "channel": "FOX Tampa",
+        "title": "2026 World Series - Milwaukee Brewers at Tampa Bay Rays",
+        "kind": "event",
+        "joins": true,
+        "flags": 12
+      },
+      {
+        "channel": "FOX Los Angeles",
+        "title": "2026 World Series - Milwaukee Brewers at Tampa Bay Rays",
+        "kind": "event",
+        "joins": true,
+        "flags": 8
+      },
+      {
+        "channel": "FOX Kansas City",
+        "title": "2026 World Series - Milwaukee Brewers at Tampa Bay Rays",
+        "kind": "event",
+        "joins": true,
+        "flags": 0
+      },
+      {
+        "channel": "Sportsnet",
+        "title": "2026 World Series - Milwaukee Brewers at Tampa Bay Rays",
+        "kind": "event",
+        "joins": true,
+        "flags": 12
+      },
+      {
+        "channel": "Sportsnet One",
+        "title": "2026 World Series - Milwaukee Brewers at Tampa Bay Rays",
+        "kind": "event",
+        "joins": true,
+        "flags": 0
+      },
+      {
+        "channel": "Sportsnet East",
+        "title": "2026 World Series - Milwaukee Brewers at Tampa Bay Rays",
+        "kind": "event",
+        "joins": true,
+        "flags": 12
+      },
+      {
+        "channel": "Sportsnet Ontario",
+        "title": "2026 World Series - Milwaukee Brewers at Tampa Bay Rays",
+        "kind": "event",
+        "joins": true,
+        "flags": 0
+      },
+      {
+        "channel": "AFN Sports",
+        "title": "2026 World Series - Milwaukee Brewers at Tampa Bay Rays",
+        "kind": "event",
+        "joins": true,
+        "flags": 0
+      },
+      {
+        "channel": "Sportsnet Event 4K",
+        "title": "Live: 2026 World Series - Milwaukee Brewers at Tampa Bay Rays",
+        "kind": "event",
+        "joins": true,
+        "flags": 0
+      },
+      {
+        "channel": "MLB.tv Rays",
+        "title": "Milwaukee Brewers @ Tampa Bay Rays",
+        "kind": "event",
+        "joins": true,
+        "flags": 8
+      },
+      {
+        "channel": "MLB.tv Brewers",
+        "title": "Milwaukee Brewers @ Tampa Bay Rays",
+        "kind": "event",
+        "joins": true,
+        "flags": 8
+      },
+      {
+        "channel": "RDS 2",
+        "title": "Série mondiale 2026 - Brewers de Milwaukee c. Rays de Tampa Bay",
+        "kind": "event",
+        "joins": true,
+        "flags": 12,
+        "start": "2026-10-27T23:30:00Z"
+      },
+      {
+        "channel": "TNT Sports 1",
+        "title": "MLB World Series - Game 4",
+        "kind": "event",
+        "joins": true,
+        "flags": 8
+      },
+      {
+        "channel": "ESPN Australia",
+        "title": "MLB",
+        "kind": "event",
+        "joins": true,
+        "flags": 0
+      },
+      {
+        "channel": "Sportsnet West",
+        "title": "MLB Postseason 2026",
+        "kind": "event",
+        "joins": true,
+        "flags": 12
+      },
+      {
+        "channel": "ESPN4 NL",
+        "title": "MLB World Series 2026",
+        "kind": "event",
+        "joins": true,
+        "flags": 0
+      },
+      {
+        "channel": "MLB 01",
+        "title": "MLB 01 | Brewers x Rays start:2026-10-28 00:00:00 stop:2026-10-28 07:13:20",
+        "kind": "event",
+        "joins": true,
+        "flags": 0,
+        "end": "2026-10-28T07:13:20Z"
+      },
+      {
+        "channel": "TNT Sports 2",
+        "title": "Climbing World Series Highlights",
+        "kind": null,
+        "joins": false,
+        "flags": 0
+      },
+      {
+        "channel": "Sportsnet LA Dodgers",
+        "title": "Dodgermentary: 1988 World Series",
+        "kind": null,
+        "joins": false,
+        "flags": 0
+      },
+      {
+        "channel": "Sportsnet recap",
+        "title": "World Series in 30 - Game 3: Milwaukee Brewers at Tampa Bay Rays",
+        "kind": "show",
+        "joins": false,
+        "flags": 0
+      }
+    ]
   }
 }

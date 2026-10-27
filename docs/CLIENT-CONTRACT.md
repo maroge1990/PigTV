@@ -174,6 +174,8 @@ work is in `blueprint.md` §3 "Sport events"; the shape the client relies on:
   - `channels`: best first (quality, health ok, favourite, guide order). `channels[0]` plays through the ordinary resolve.
   - `title` is the cleanest form ("Carlton Blues v Richmond Tigers", "Azerbaijan GP · Practice 3"); `aliases` are the raw
     guide titles merged into it.
+  - Since 0294, match-ups of two distinct teams in a followed league's stored ESPN roster name that league even
+    without its keyword. Plain MLB broadcasts join their overlapping event; recaps stay shows. Shape unchanged.
   - Since 0293, Cricket format titles and match-ups on Cricket channels are recognised when Cricket is followed.
     Later-day Tests with ESPN fixtures require a start near that day's first ball (±30 min, overlapping it) or the
     guide's live flag during the fixture span; overnight blocks are replays. Response shapes are unchanged.
