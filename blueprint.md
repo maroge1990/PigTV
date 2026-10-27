@@ -1,6 +1,7 @@
 # PigTV: blueprint
 
-**State (27 Oct):** server **0289** (FR-11, `feed_lag`, the smaller Status page) is deployed and pushed. Apple client
+**State (28 Oct):** **0290** is local (shared ingest defaults on; stored opt-outs stay off), pending batch review.
+Server **0289** (FR-11, `feed_lag`, the smaller Status page) is deployed and pushed. Apple client
 **57** (live plays held 30 s back) is on the Apple TV. R7 (0282–0284, shared ingest on) passed on the Apple TV: NBC Sports
 Boston 35 min and Chicago Sports Network Plus 65 min with 0 stalls and no switches. Mark approved the next batch on 27 Oct:
 shared ingest on by default, the unused code removed, and an adaptive per-channel reconnect limit (24 s up to 28 s).
@@ -70,7 +71,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0290** |
+| Next build number | **0291** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -346,7 +347,7 @@ channel's country (name prefix, else its own id, else its category) scores +0.15
 changed by hand later leaves the batch.
 
 **Shared ingest** (Wave 5, 0223–0225, `ingest.js`; Settings → Playback "Shared provider connection", `sharedIngestEnabled`,
-**off by default**; design and evidence gates: [`docs/SHARED-INGEST.md`](docs/SHARED-INGEST.md)). One plain HTTP(S) reader
+**on by default since 0290** (a stored opt-out wins); design and evidence gates: [`docs/SHARED-INGEST.md`](docs/SHARED-INGEST.md)). One plain HTTP(S) reader
 per (pool, URL), not an ffmpeg remux, so consumers get the provider's own bytes; MPEG-TS only, and a response with a
 Content-Length (a file) is refused. Ring buffer ≤ 48 MB / 20 s; a new reader joins at the last PAT in the final 2 s (the
 opener at its first); > 16 MB behind = evicted; a lost connection is retried 10 s, then every reader ends `upstream-lost`
@@ -543,7 +544,7 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
 
-**27 Oct:** the current order of work (P0-P3) and the questions only Mark can answer are in
+**28 Oct:** P0 item 1 is implemented locally in **0290**, awaiting batch review and device checks. The current order of work (P0-P3) and the questions only Mark can answer are in
 [`docs/reviews/2026-10-27/ROADMAP.md`](docs/reviews/2026-10-27/ROADMAP.md). The table below keeps each item's status.
 
 **25 Oct round-5 repair status:** the five P2 findings have local fixes (0260–0261, Apple 55); see
@@ -659,7 +660,7 @@ feed in five) · the 20 s stall timeout (tighten only after real stall logs).
 - A viewer who chose "Keep watching" blocks a due recording for the whole programme (an unanswered prompt hands over after
   3 min).
 
-**Shared ingest (Wave 5, off by default in code; on on Mark's server)**
+**Shared ingest (Wave 5, on by default since 0290)**
 - First usable bytes and a reconnect each have an absolute deadline (`firstBytesMs`, `reconnectMs`); closing a connecting
   ingest rejects its waiters as a cancellation (`ingestCancelled`, never answered with a direct connection) (0230).
 - Relay legs and standbys read through it (0282); warm channels and direct plays still open their own connections.

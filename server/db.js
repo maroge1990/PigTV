@@ -64,7 +64,7 @@ function getDefaultSettings() {
     vaapiCpuScale: true,           // CPU scale + hwupload, instead of the full-GPU VAAPI pipeline
     relayEnabled: false,           // R12: in-stream recovery (services/streamRelay.js), experimental
     standbyEnabled: false,         // R12: the hot standby; only effective while relayEnabled is on
-    sharedIngestEnabled: false,    // Wave 5 (R2): one provider connection per stream, shared (docs/SHARED-INGEST.md)
+    sharedIngestEnabled: true,     // Wave 5 (R2): one provider connection per stream, shared (docs/SHARED-INGEST.md)
     vaapiHwDecode: true,           // Decode on the GPU (frames returned to system memory for the CPU scale)
     // DVR / Recording settings
     recordingsPath: '/app/recordings', // Where recorded files are written (mount your storage here)

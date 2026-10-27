@@ -51,3 +51,13 @@ test('no retired setting is one the server still has a default for', () => {
     const defaults = db.getDefaultSettings();
     for (const k of db.RETIRED_SETTINGS) assert.equal(k in defaults, false, k);
 });
+
+// 0290: a fresh install shares connections; an explicit stored opt-out remains authoritative.
+test('shared ingest defaults on and a stored false survives a settings reload', async () => {
+    assert.equal(db.getDefaultSettings().sharedIngestEnabled, true);
+    assert.equal((await db.settings.get()).sharedIngestEnabled, true);
+    await quiet(() => db.settings.update({ sharedIngestEnabled: false }));
+    delete require.cache[require.resolve(path.join(sandbox, 'server', 'db'))];
+    const reloaded = require(path.join(sandbox, 'server', 'db'));
+    assert.equal((await reloaded.settings.get()).sharedIngestEnabled, false);
+});

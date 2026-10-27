@@ -67,6 +67,7 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
   (copy only), `FRAME-RATE`, `VIDEO-RANGE` (`SDR`, or `PQ`/`HLG` for an HDR copy into fMP4), **no `CODECS`**. No usable rate,
   or an HDR feed copied into MPEG-TS, gets `stream.m3u8`. The client sets display criteria from resolve `info` (`fps`,
   `videoRange`) and, on AVFoundation -11868 (a non-HDR TV), plays the same session's `stream.m3u8`.
+- **Shared ingest defaults on since 0290**; an explicitly stored opt-out wins. This changes no endpoint shape.
 - **A live session's playlist is held 30 s behind its newest segment** (Apple 56: `configuredTimeOffsetFromLive`, and "go to
   live" returns there): providers that deliver in bursts pause for up to ~16 s (`docs/FINDINGS.md` FR-8). So a live media
   playlist keeps well over 30 s of segments (90 × 4 s), and the server calls a shared feed lost at 24 s behind real time

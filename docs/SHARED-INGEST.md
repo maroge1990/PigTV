@@ -56,7 +56,7 @@ first subscriber) and binds it to the ingest id. Subscribers hold no connection 
 
 ## 4. Consumers, in order (one phase each, each behind the switch)
 
-The switch is `sharedIngestEnabled` (Settings → Playback, **off by default**), read when a consumer starts, like 0197's
+The switch is `sharedIngestEnabled` (Settings → Playback, **on by default since 0290**, with stored opt-outs preserved), read when a consumer starts, like 0197's
 relay switch: turning it off never breaks a stream already running.
 
 1. **Recordings (phase 5a).** The recording ffmpeg reads `-i pipe:0` from its subscription; its output arguments are

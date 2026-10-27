@@ -1,7 +1,7 @@
 /**
  * Shared ingest (Wave 5, Plan B3 / R2): one reader per provider stream, shared by everyone who
  * wants that stream. The design, with the reasons for every number below, is
- * docs/SHARED-INGEST.md; behind the `sharedIngestEnabled` setting, off by default.
+ * docs/SHARED-INGEST.md; behind the `sharedIngestEnabled` setting, on by default since 0290 (stored opt-outs win).
  *
  * An ingest reads the stream with a plain HTTP(S) GET (no ffmpeg in between: subscribers get the
  * provider's own bytes, timestamp quirks and all), keeps a short ring of what it read (bounded by
