@@ -118,10 +118,19 @@ function getUserAgent(settings) {
 let ready = false;
 
 /** The SQLite handle, with the one-time db.json migration done. */
+// 0285: settings no code reads any more (retiredSettings.js): dropped from the store at start, never saved again.
+const RETIRED_SETTINGS = require('./retiredSettings');
+
+function retireSettings(db) {
+  const gone = db.prepare(`DELETE FROM app_settings WHERE key IN (${RETIRED_SETTINGS.map(() => '?').join(',')})`).run(...RETIRED_SETTINGS).changes;
+  if (gone) console.log(`[Settings] Removed ${gone} retired setting${gone === 1 ? '' : 's'} no code reads`);
+}
+
 function store() {
   const db = require('./db/sqlite').getDb();
   if (!ready) {
     migrateLegacy(db);
+    retireSettings(db);
     ready = true;
   }
   return db;
@@ -324,7 +333,7 @@ const settings = {
           INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value
         `);
         for (const [key, value] of Object.entries(newSettings || {})) {
-          if (value !== undefined) upsert.run(key, JSON.stringify(value));
+          if (value !== undefined && !RETIRED_SETTINGS.includes(key)) upsert.run(key, JSON.stringify(value));
         }
         return storedSettings(db);
       });
@@ -423,4 +432,4 @@ const users = {
   }
 };
 
-module.exports = { sources, settings, users, getDefaultSettings, getUserAgent, USER_AGENT_PRESETS };
+module.exports = { sources, settings, users, getDefaultSettings, getUserAgent, USER_AGENT_PRESETS, RETIRED_SETTINGS };
