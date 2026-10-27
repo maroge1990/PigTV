@@ -1,9 +1,9 @@
 # PigTV: blueprint
 
-**State (27 Oct):** server **0284** is deployed; **0285** (retired settings dropped) is pushed but not deployed;
+**State (27 Oct):** server **0285** (retired settings dropped) is deployed; pushed and built but not deployed:
 **0286** (FR-11: a device's new play ends its earlier stream), **0287** (`feed_lag`: each feed's worst lag kept per channel
-and provider) **0288** (a smaller Status page, details behind a button) and **0289** (feed_lag names on plays from a saved profile,
-Codex review) are committed locally for Mark to push. Apple
+and provider), **0288** (a smaller Status page, details behind a button) and **0289** (feed_lag names on plays from a saved profile,
+Codex review). Apple
 client **57** (live plays held 30 s back) is pushed. R7 (0282–0284, shared ingest on) passed on the Apple TV: NBC Sports
 Boston 35 min and Chicago Sports Network Plus 65 min with 0 stalls and no switches; the 24 s limit stays until `feed_lag`
 has a few days of normal viewing (FINDINGS FR-12). Waves 1–4 of the [16 Oct roadmap](docs/reviews/2026-10-16/ROADMAP.md)

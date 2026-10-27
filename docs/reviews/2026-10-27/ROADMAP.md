@@ -7,9 +7,8 @@ Where things stand after the R7 week, what to do next in order, and what only Ma
 
 | | Server | Apple client |
 |---|---|---|
-| Live (deployed) | **0284** | **57** (pushed; on the Apple TV) |
-| Pushed, not deployed | 0285 (retired settings dropped) | — |
-| Committed locally, waiting for Mark to push | 0286 FR-11 · 0287 `feed_lag` · 0288 smaller Status page · 0289 feed names on profile plays | — |
+| Live (deployed) | **0285** (retired settings dropped) | **57** (pushed; on the Apple TV) |
+| Pushed, CI green, image built, **not deployed** | 0286 FR-11 · 0287 `feed_lag` · 0288 smaller Status page · 0289 feed names on profile plays (`6c4cf96`) | — |
 
 - **R7 works on the device.** Since 0282–0284 (a feed judged by how far it is behind real time, by its own clock) and
   Apple 56–57 (live plays held 30 s back): NBC Sports Boston 35 min and Chicago Sports Network Plus 65 min, 0 stalls, no
@@ -23,7 +22,7 @@ Where things stand after the R7 week, what to do next in order, and what only Ma
 
 ### P0: ship and confirm what is waiting (Mark, then a short session)
 
-1. **Push and deploy 0286–0289** (Force Update; `curl -s http://192.168.1.235:3000/api/version` reads 0289).
+1. **Deploy 0289** (pushed; Force Update, then `curl -s http://192.168.1.235:3000/api/version` reads 0289).
 2. **Live checks after the deploy** (Mark):
    1. Status opens on Providers / Playing now / Recordings / Last 7 days; Show details opens the rest and is remembered
       after a reload.
@@ -71,7 +70,7 @@ Where things stand after the R7 week, what to do next in order, and what only Ma
 
 | # | Question | Why it matters | Suggested answer |
 |---|---|---|---|
-| Q1 | When can 0286–0289 be pushed and deployed? | `feed_lag` only collects from the deploy on; the week of data for P1 starts then | As soon as convenient |
+| Q1 | When can 0289 be deployed? | `feed_lag` only collects from the deploy on; the week of data for P1 starts then | As soon as convenient |
 | Q2 | After a week of `feed_lag`: per-channel limits, or one higher limit for every channel (30 s, with the Apple hold at 36 s: 6 s further behind live)? | FR-12: a healthy Chicago pause reached 24.1 s; just above it means a needless reconnect | Per-channel, if a few channels stand out; one higher limit if most channels sit near 20 s |
 | Q3 | TNT Sports 4: put Dream 4K first for it, add a per-channel audio delay, or live with it? | FR-14: the offset is in Strong8K's feed | Try Dream 4K on the Apple TV first (HEVC 50 fps 5.1); if it plays well, prefer it for that channel |
 | Q4 | Keep the hot standby (re-scope B4) rather than retire it? | It is the only seamless failover; B4 assumed the ingest would replace it | Keep it; retire only the parts the ingest made redundant |

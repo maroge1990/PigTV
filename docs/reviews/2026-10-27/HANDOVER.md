@@ -33,12 +33,12 @@ instructions.
 - End the session by updating the blueprint state line, §4 status and any durable fact. Tell Mark what is committed,
   the build numbers, and numbered device steps.
 
-**State at handover:** server 0284 is deployed; 0285 is pushed; **0286-0289 are committed locally**, waiting for Mark to
-push (FR-11, `feed_lag`, the smaller Status page, and 0289 from the Codex review). Both Codex rounds on that batch are
+**State at handover:** server **0285** is deployed; **0286-0289 are pushed** (CI green, image built) but not deployed
+(FR-11, `feed_lag`, the smaller Status page, and 0289 from the Codex review). Both Codex rounds on that batch are
 done (round 2 approved). Apple client 57 is pushed and nothing is waiting there. R7 (0282-0284 with Apple 56-57)
 fixed the stalls and provider switches on Chicago Sports Network Plus and NBC Sports Boston on the device.
 
-**First thing to do:** ask Mark whether 0286-0289 are deployed (`curl -s http://192.168.1.235:3000/api/version`) and
+**First thing to do:** ask Mark whether 0289 is deployed (`curl -s http://192.168.1.235:3000/api/version`) and
 for his answers to Q1-Q7 in the roadmap. Then take the roadmap in order:
 - **P0** the live checks after the deploy;
 - **P1** R7 from `feed_lag` once about a week of data exists (FR-12, then reconnect-or-switch);
