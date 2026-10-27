@@ -386,3 +386,17 @@ test('0181: no twin, no change: the primary and backups keep their own limits an
     assert.equal(coordinator.providerLimit(A.id, S), 2);
     assert.equal(coordinator.providerLimit(B.id, S), 4);
 });
+
+test('an unidentified viewer admitted on provider B releases no anonymous stream on provider A', async () => {
+    const onA = await session(null, 5, A.id);
+    const namedOnA = await session('device:other', 5, A.id);
+    // Omitting owner gives the same null identity as ownerKey for an unidentified caller.
+    const verdict = coordinator.requestForViewer({ settings: S, providerId: B.id });
+    assert.equal(verdict.allowed, true);
+    assert.deepEqual(verdict.release, [], 'no identity means no earlier stream is owned');
+    const admitted = await coordinator.admitViewer({ settings: S, providerId: B.id });
+    assert.equal(admitted.allowed, true);
+    assert.deepEqual(admitted.release, []);
+    assert.ok(alive(onA), 'an anonymous stream on another provider remains alive');
+    assert.ok(alive(namedOnA), 'a named stream on another provider also remains alive');
+});

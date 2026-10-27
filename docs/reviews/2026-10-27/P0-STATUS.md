@@ -1,7 +1,7 @@
 # P0 implementation and checks, 28 Oct 2026
 
 The five approved server changes are local on `main`, **not pushed or deployed**. Server 0289 and Apple 57 remain the
-reported deployed versions. No Apple code or ffmpeg flags changed. Next server build is 0299; next Apple build remains 58.
+reported deployed versions. No Apple code or ffmpeg flags changed. Next server build is 0300; next Apple build remains 58.
 **Round 1 is back; fixes are in progress. Round 2 and Mark's device/feed acceptance are outstanding.**
 
 | Build | Local commit | Change | Required checks |
@@ -47,7 +47,7 @@ used for repairs. Source fixes are separately proved against that baseline befor
 | 4: concurrent limit writes | Fixed locally in **0298**: one retained active state per provider/channel; last ingest releases it, Status reads do not retain; overlapping reading time counts once | Two-open-state and two-real-local-URL regressions both fail with a16eb11 source; restored tests and full gates pass. Progress reload still tested after release |
 | 5: configured default above ceiling / no-PCR display | Recorded as **FR-15** (allowed low-item disposition) | Reproduction retained in FINDINGS; warning/effective-limit display remains open |
 | 6: legacy lag-history current limits | Recorded as **FR-16** (allowed low-item disposition) | Reproduction retained in FINDINGS; suppressing the legacy current-limit label remains open |
-| 7: anonymous multi-provider ownership coverage | Pending | Production guard is already correct at a16eb11; prove coverage by removing it |
+| 7: anonymous multi-provider ownership coverage | Added in **0299**; no admission behavior changed. Numbered as requested for each review fix | New multi-provider request/admission test passes on a16eb11 (already-correct code), fails with only `!owner` removed, and passes after guard restoration. Full gates pass |
 | FR-13: cache-count wall-clock boundary | Pending | Controlled five-minute rollover reproduction required |
 
 Round 2 is the final permitted review round. Its command and final validation will be recorded when repairs finish.
