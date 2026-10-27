@@ -68,9 +68,11 @@ function newSession() {
     sessions.push(s);
     return s;
 }
-const tick = () => new Promise(r => setImmediate(r));
+// Polled by time, not event-loop turns: the start's folder work before it subscribes took longer than
+// 100 turns on CI's 2 vCPUs with every file running at once (run 40446368965, Node 22).
 async function waitingForSubscription(s) {
-    for (let i = 0; i < 100 && !pending; i++) await tick();
+    const deadline = Date.now() + 5000;
+    while (!pending && Date.now() < deadline) await new Promise(r => setTimeout(r, 5));
     assert.ok(pending, 'the start is waiting for its subscription');
 }
 
