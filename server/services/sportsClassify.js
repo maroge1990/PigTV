@@ -673,8 +673,8 @@ const teamIsKnown = (side, teamsAliases) => teamsAliases.some(aliases => aliasHi
  * guide block at its own (wrong) time. The one exception is a multi-day Test (league === 'Cricket'
  * only: IPL/BBL are always a single day, whatever ESPN's own `endDate` optimistically claims,
  * because live play only happens once a day but coverage is fresh every day): an airing on a
- * later day is live near that day's first ball, or with the guide's live flag. Overnight
- * blocks inside the fixture span are replays.
+ * day is live when its airing overlaps that day's estimated eight-hour playing window
+ * (with pre-play grace), or with the guide's live flag. Overnight blocks remain replays.
  */
 function fixtureLiveVerdict(a, best, kind) {
     const tz = liveHoursFor(a.league)?.tz;
@@ -682,7 +682,8 @@ function fixtureLiveVerdict(a, best, kind) {
     const multiDaySpan = a.league === 'Cricket' && best.end && best.end > best.start + DAY_MS
         && a.start >= best.start && a.start < best.end;
     const dayStart = best.start + Math.round((a.start - best.start) / DAY_MS) * DAY_MS;
-    const multiDay = multiDaySpan && ((a.flags & FLAGS.LIVE) || (a.start >= dayStart - ESPN_GRACE_MS && a.start <= dayStart + ESPN_GRACE_MS && a.end > dayStart));
+    const dailyPlay = a.start < dayStart + 8 * 60 * 60 * 1000 && a.end > dayStart - ESPN_GRACE_MS;
+    const multiDay = multiDaySpan && ((a.flags & FLAGS.LIVE) || dailyPlay);
     if (near || multiDay) return { live: true, why: `ESPN: the ${kind} started ${espnWhen(best.start, tz)}` };
     const deltaMs = a.start - best.start;
     const later = deltaMs >= 0;

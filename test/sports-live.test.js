@@ -295,8 +295,8 @@ test('Fox Cricket 501 evidence is live during play and replay overnight', () => 
     }
     for (const [at, flags, expected] of [
         ['2026-10-28T07:50Z', 0, true], ['2026-10-28T07:30Z', 0, true],
-        ['2026-10-28T07:29Z', 0, false], ['2026-10-29T08:00Z', 0, true], ['2026-10-29T08:30Z', 0, true],
-        ['2026-10-29T08:31Z', 0, false], ['2026-10-29T13:30Z', classify.FLAGS.LIVE, true],
+        ['2026-10-28T07:29Z', 0, true], ['2026-10-29T08:00Z', 0, true], ['2026-10-29T08:30Z', 0, true],
+        ['2026-10-29T08:31Z', 0, true], ['2026-10-29T13:30Z', classify.FLAGS.LIVE, true],
         ['2026-10-28T01:00Z', 0, false], ['2026-10-27T22:00Z', 0, false],
         ['2026-11-02T08:00Z', classify.FLAGS.LIVE, false]
     ]) {
@@ -313,5 +313,20 @@ test('multi-day cricket fixtures do not label overnight blocks live', () => {
     for (const time of ['2026-10-27T22:00Z', '2026-10-28T01:00Z', '2026-10-28T04:00Z']) {
         const a = airing('Cricket: South Africa v Australia', Date.parse(time), { league: 'Cricket' });
         assert.equal(classify.fixtureVerdict(a, data, firstBall).live, false, time);
+    }
+});
+
+test('multi-day Tests keep unflagged lunch, tea and delayed-start blocks live on day one and later days', () => {
+    const firstBall = Date.parse('2026-10-27T08:00Z');
+    const aliases = name => [classify.parseSide(name)];
+    const data = { fixtures: [{ start: firstBall, end: firstBall + 5 * 24 * H,
+        teamsAliases: [aliases('South Africa'), aliases('Australia')] }],
+        coverage: { from: firstBall - H, to: firstBall + 7 * 24 * H, at: firstBall } };
+    for (const day of ['2026-10-27', '2026-10-28', '2026-10-29']) {
+        for (const [time, hours, expected] of [['09:15', 2, true], ['10:40', 2, true], ['13:00', 2.5, true],
+            ['15:59', 1, true], ['16:00', 1, false], ['18:00', 1, false], ['22:00', 1, false]]) {
+            const a = airing('Test : South Africa v Australia', Date.parse(`${day}T${time}Z`), { league: 'Cricket', hours, flags: 0 });
+            assert.equal(classify.fixtureVerdict(a, data, firstBall)?.live, expected, `${day} ${time}`);
+        }
     }
 });

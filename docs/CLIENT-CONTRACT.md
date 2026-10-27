@@ -178,8 +178,9 @@ work is in `blueprint.md` §3 "Sport events"; the shape the client relies on:
     without its keyword. Since 0295, inference requires informative full names, nicknames or stored abbreviations,
     unique within and across followed rosters; location-only/subset matches do not infer a league. Plain MLB broadcasts join their overlapping event; recaps stay shows. Shape unchanged.
   - Since 0293, Cricket format titles and match-ups on Cricket channels are recognised when Cricket is followed.
-    Later-day Tests with ESPN fixtures require a start near that day's first ball (±30 min, overlapping it) or the
-    guide's live flag during the fixture span; overnight blocks are replays. Response shapes are unchanged.
+    Since 0296, day-one and later-day Test blocks are live when overlapping the inferred daily playing window
+    (first ball minus 30 min pre-play grace through first ball +8 h), or with the guide's live flag during the
+    fixture span. Wholly overnight blocks are replays. Response shapes are unchanged.
   - Since 0221 (R9) an event can also come from an event slot's own **name** ("NHL: Pittsburgh vs Philadelphia @ Sep 30
     7:30 PM :Sportsnet+ 12") where the slot's guide shows nothing real; same shape, nothing for the client to change.
 - Admin (web only): `GET/PUT /api/sports/follow` (`{keywords}`, ≤100), `GET /api/sports/preview` (72 h, every kind, with

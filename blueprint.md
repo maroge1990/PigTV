@@ -2,7 +2,7 @@
 
 **State (28 Oct):** P0 is implemented locally in **0290–0294**: shared ingest defaults on, unused code removed,
 stored adaptive reconnect limits, Fox Cricket recognition/daily Test play, and roster-based league recognition/MLB broadcasts.
-**Round 1 reviewed; 0295 fixes roster precision locally. Not pushed; round 2 and device acceptance pending.**
+**Round 1 reviewed; 0295–0296 fix roster precision and Test session windows locally. Not pushed; round 2 and device acceptance pending.**
 Server **0289** (FR-11, `feed_lag`, the smaller Status page) is deployed and pushed. Apple client
 **57** (live plays held 30 s back) is on the Apple TV. R7 (0282–0284, shared ingest on) passed on the Apple TV: NBC Sports
 Boston 35 min and Chicago Sports Network Plus 65 min with 0 stalls and no switches. Mark approved the next batch on 27 Oct:
@@ -73,7 +73,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0296** |
+| Next build number | **0297** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -319,9 +319,10 @@ event name): live when the airing starts at/near the fixture's real kickoff (≤
 worded with the real kickoff (`ESPN: the game started Sat 1:30 pm; this airing is 19 h later`); not matched, but both teams
 are known to the league and no such fixture exists: replay (`ESPN has no such game at this time`); anything else (unknown
 teams, league not covered, no fixture data, ESPN down) falls through to (a)-(d) unchanged. A multi-day cricket Test (league
-`Cricket` only - IPL/BBL are always a single day) is live on later days only when an airing starts within 30 minutes
-either side of that day's first ball and overlaps it, or carries the guide's live flag during the fixture span (0293).
-The daily start is inferred from the first day's UTC kickoff; a changed start needs the live flag. Overnight blocks are replays.
+`Cricket` only - IPL/BBL are always a single day) is live on day one and later days when an airing overlaps the daily
+playing window: inferred first ball minus 30 minutes' pre-play grace until 8 hours after first ball (0296). A guide live
+flag during the fixture span also qualifies. Lunch, tea and delayed-start blocks stay live; wholly overnight blocks
+are replays. The daily start is inferred from the first day's UTC kickoff; play outside that estimate needs a live flag.
 **Coverage, not just presence (0162):** every league's snapshot carries the exact `[from, to]` window its *last successful*
 fetch covered and when that was; an airing outside that window gets no ESPN verdict at all, matched or not - stale or
 out-of-window data must never decide anything, let alone manufacture a replay for a real live game ESPN simply has not been
@@ -657,7 +658,7 @@ feed in five) · the 20 s stall timeout (tighten only after real stall logs).
   stale) the heuristics decide: an unflagged live game outside its league's hours reads as a replay, an unflagged replay
   inside them with no earlier airing in 36 h reads as live, travelling series without a fixture rely on flags and the
   first-airing rule, and the horizon ends where the provider's guide ends. The later days of a Test use the first day's kickoff time to infer a daily start;
-  a changed start needs the guide's live flag. Recognition by team names requires both sides to match distinct teams
+  play outside the inferred eight-hour daily window needs the guide's live flag. Recognition by team names requires both sides to match distinct teams
   in a followed league's stored roster; missing rosters add no new recognition. Add a misfire to
   `test/fixtures/sports-export.json` with its expected kind before changing a rule.
 - ESPN is unofficial and undocumented: a schema change degrades to "not matched" (heuristics), never a crash.
