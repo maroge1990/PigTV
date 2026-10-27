@@ -609,39 +609,11 @@ function ownStreamsElsewhere(owner, providerId, dir = providerDirectory()) {
     return activeStreams().filter(s => s.owner === owner && poolKey(s.providerId, dir) !== pool);
 }
 
-/**
- * Release this owner's streams on other providers, as admitViewer does for a
- * viewer admitted on `providerId` (cause `replacement`, with the same
- * terminal-status note today's replacement leaves). Returns how many went.
- */
-async function releaseOwnerElsewhere(owner, providerId) {
-    let released = 0;
-    for (const stream of ownStreamsElsewhere(owner, providerId)) {
-        console.log(`[Coordinator] Releasing ${stream.id} (replacement, ${Math.round(stream.idleMs / 1000)}s idle): its device is now watching on another provider`);
-        noteReplaced(stream);
-        if (await releaseStream(stream)) released++;
-    }
-    return released;
-}
-
 /** The provider of this owner's most recently started stream; undefined when it has none. */
 function ownerProvider(owner) {
     if (!owner) return undefined;
     const mine = activeStreams().filter(s => s.owner === owner && !s.warm).sort((a, b) => b.startTime - a.startTime);
     return mine.length ? mine[0].providerId : undefined;
-}
-
-/**
- * Streams with someone actually watching, as opposed to registered but stale.
- */
-function liveViewers(idleTimeoutSec = DEFAULT_IDLE_TIMEOUT_SEC) {
-    const cutoff = idleTimeoutSec * 1000;
-    return activeStreams().filter(s => !isStale(s, cutoff));
-}
-
-function staleStreams(idleTimeoutSec = DEFAULT_IDLE_TIMEOUT_SEC) {
-    const cutoff = idleTimeoutSec * 1000;
-    return activeStreams().filter(s => isStale(s, cutoff));
 }
 
 async function releaseStream(stream) {
@@ -1057,8 +1029,6 @@ async function admitViewer(opts = {}) {
 module.exports = {
     poolOf,
     activeStreams,
-    liveViewers,
-    staleStreams,
     releaseStream,
     requestForRecording,
     requestForViewer,
@@ -1081,7 +1051,6 @@ module.exports = {
     samePool,
     canAdmitWithoutDisturbing,
     canRecordFreely,
-    releaseOwnerElsewhere,
     ownerProvider,
     ownerKey,
     terminalStatus,

@@ -193,11 +193,6 @@ test('a device admitted on B has its own stream on A released (replacement), and
     const refused = await coordinator.admitViewer({ owner: 'device:tv', settings: S, providerId: B.id });
     assert.equal(refused.allowed, false);
     assert.ok(alive(again));
-
-    // releaseOwnerElsewhere on its own, for P6.
-    assert.equal(await coordinator.releaseOwnerElsewhere('device:tv', C.id), 1);
-    assert.ok(!alive(again));
-    assert.equal(await coordinator.releaseOwnerElsewhere(null, C.id), 0, 'an unidentified caller owns nothing');
 });
 
 test('a recording on B counts against B only', async () => {
@@ -350,7 +345,6 @@ test('with no backup configured every scenario has today\'s outcome, whatever pr
     assert.equal(coordinator.pendingPrompt(S, A.id).scheduleId, 95);
     assert.equal((await coordinator.requestForRecording(due(96), S, C.id)).prompted, true);
     assert.ok(alive(theirs));
-    assert.equal(await coordinator.releaseOwnerElsewhere('device:tv', A.id), 0);
 });
 
 // ------------------------------------------ 0181: the same account is one pool --

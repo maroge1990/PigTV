@@ -1379,6 +1379,24 @@ echo "=== simplification build ==="
 check_absent server/routes/info.js "safely(" "no switchable feature flags left to guard"
 check .github/workflows/test.yml "continue-on-error: true" "and run in their own non-blocking job"
 
+# 0291: retired, unreferenced web scripts and server entry points must stay gone.
+for retired in public/js/auth.js public/js/login.js; do
+    if [ -e "$retired" ]; then
+        echo "  ✗ STILL PRESENT: retired script $retired"; FAIL=1
+    else
+        echo "  ✓ retired script $retired stays gone"
+    fi
+done
+check_absent server/auth.js "verifyToken" "retired verifyToken stays gone"
+check_absent server/auth.js "requireRole" "retired requireRole stays gone"
+check_absent server/services/epgParser.js "getCurrentAndUpcoming" "retired getCurrentAndUpcoming stays gone"
+check_absent server/services/epgParser.js "getProgrammesForChannel" "retired getProgrammesForChannel stays gone"
+check_absent server/services/streamCoordinator.js "releaseOwnerElsewhere" "retired releaseOwnerElsewhere stays gone"
+check_absent server/services/streamCoordinator.js "liveViewers" "retired liveViewers stays gone"
+check_absent server/services/streamCoordinator.js "staleStreams" "retired staleStreams stays gone"
+check_absent server/services/streamRelay.js "closeForOwner" "retired closeForOwner stays gone"
+check_absent server/services/dbBackup.js "stopNightly" "retired stopNightly stays gone"
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys

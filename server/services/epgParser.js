@@ -170,32 +170,6 @@ function parse(input) {
 }
 
 /**
- * Get programmes for a specific channel
- */
-function getProgrammesForChannel(programmes, channelId) {
-    return programmes.filter(p => p.channelId === channelId);
-}
-
-/**
- * Get current and upcoming programmes for a channel
- */
-function getCurrentAndUpcoming(programmes, channelId, count = 5) {
-    const now = new Date();
-    const channelProgrammes = getProgrammesForChannel(programmes, channelId);
-
-    // Sort by start time
-    channelProgrammes.sort((a, b) => a.start - b.start);
-
-    // Find current and upcoming
-    const current = channelProgrammes.find(p => p.start <= now && p.stop > now);
-    const upcoming = channelProgrammes
-        .filter(p => p.start > now)
-        .slice(0, count);
-
-    return { current, upcoming };
-}
-
-/**
  * Fetch and parse XMLTV from URL
  */
 async function fetchAndParse(url) {
@@ -489,7 +463,5 @@ module.exports = {
     fetchAndParse,
     fetchAndParseStreaming,
     parseStreaming,
-    getProgrammesForChannel,
-    getCurrentAndUpcoming
 };
 

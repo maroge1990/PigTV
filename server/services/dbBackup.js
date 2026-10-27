@@ -204,9 +204,4 @@ function startNightly(dbPath) {
     setTimeout(() => nightlyCheck(dbPath), 5 * 60 * 1000).unref?.();
 }
 
-function stopNightly() {
-    if (nightlyTimer) clearInterval(nightlyTimer);
-    nightlyTimer = null;
-}
-
-module.exports = { KEEP, list, backup, backupSync, beforeMigrations, recordBuild, nightlyCheck, startNightly, stopNightly, prune };
+module.exports = { KEEP, list, backup, backupSync, beforeMigrations, recordBuild, nightlyCheck, startNightly, prune };

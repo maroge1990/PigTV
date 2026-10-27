@@ -646,14 +646,6 @@ async function close(id, why = 'stopped by the client') {
     return true;
 }
 
-/** The same viewer is resolving something else: their relays end (their legs with them). */
-async function closeForOwner(owner, why = 'the viewer started another play') {
-    if (!owner) return;
-    for (const relay of [...relays.values()]) {
-        if (relay.ctx.owner === owner) await relay.close(why);
-    }
-}
-
 async function closeAll(why = 'stopped by an admin') {
     for (const relay of [...relays.values()]) await relay.close(why);
 }
@@ -685,4 +677,4 @@ function modeOf(settings) {
     return { enabled: enabled(settings), standby: standbyEnabled(settings) };
 }
 
-module.exports = { enabled, standbyEnabled, modeOf, adopt, get, close, closeForOwner, closeAll, playingSessionId, list, Relay, STANDBY_TAIL };
+module.exports = { enabled, standbyEnabled, modeOf, adopt, get, close, closeAll, playingSessionId, list, Relay, STANDBY_TAIL };

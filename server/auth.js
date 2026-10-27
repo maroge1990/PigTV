@@ -42,17 +42,6 @@ function generateToken(user) {
     );
 }
 
-/**
- * Verify JWT token
- */
-function verifyToken(token) {
-    try {
-        return jwt.verify(token, JWT_SECRET);
-    } catch (err) {
-        return null;
-    }
-}
-
 // How users are looked up. routes/auth.js sets these at load; until then the
 // user store is asked directly, so a route mounted without routes/auth.js still
 // authenticates.
@@ -197,23 +186,10 @@ function requireAdmin(req, res, next) {
     next();
 }
 
-/**
- * Middleware: Check for specific role
- */
-function requireRole(role) {
-    return (req, res, next) => {
-        if (!req.user || req.user.role !== role) {
-            return res.status(403).json({ error: `Forbidden - ${role} access required` });
-        }
-        next();
-    };
-}
-
 module.exports = {
     hashPassword,
     verifyPassword,
     generateToken,
-    verifyToken,
     configureLocalStrategy,
     configureJwtStrategy,
     authenticateCredentials,
@@ -221,5 +197,4 @@ module.exports = {
     optionalAuth,
     streamAuth,
     requireAdmin,
-    requireRole
 };
