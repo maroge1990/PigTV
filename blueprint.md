@@ -4,6 +4,8 @@
 **57** (live plays held 30 s back) is on the Apple TV. R7 (0282–0284, shared ingest on) passed on the Apple TV: NBC Sports
 Boston 35 min and Chicago Sports Network Plus 65 min with 0 stalls and no switches. Mark approved the next batch on 27 Oct:
 shared ingest on by default, the unused code removed, and an adaptive per-channel reconnect limit (24 s up to 28 s).
+Bug 5 (AUS v SA cricket) found its cause the same night: Fox Cricket 501's titles ("Test : South Africa v Australia")
+never say "cricket"; the fix is the batch's fourth commit.
 Waves 1–4 of the [16 Oct roadmap](docs/reviews/2026-10-16/ROADMAP.md) are done in code; the shared-ingest design is
 [`docs/SHARED-INGEST.md`](docs/SHARED-INGEST.md). **Next:** the prioritised
 plan and Mark's open questions are [`docs/reviews/2026-10-27/ROADMAP.md`](docs/reviews/2026-10-27/ROADMAP.md); the handover
@@ -640,7 +642,9 @@ feed in five) · the 20 s stall timeout (tighten only after real stall logs).
   whatever international cricket ESPN's scorepanel lists that day. Elsewhere (AFLW always; other leagues; ESPN down or
   stale) the heuristics decide: an unflagged live game outside its league's hours reads as a replay, an unflagged replay
   inside them with no earlier airing in 36 h reads as live, travelling series without a fixture rely on flags and the
-  first-airing rule, and the horizon ends where the provider's guide ends. Add a misfire to
+  first-airing rule, and the horizon ends where the provider's guide ends. Until roadmap P0 item 4 lands, a cricket title
+  without the word "cricket" (Fox Cricket's "Test : A v B", "ODI : A v B") is not sport, and a multi-day Test with an
+  ESPN fixture is live at any hour of its span, overnight replays included. Add a misfire to
   `test/fixtures/sports-export.json` with its expected kind before changing a rule.
 - ESPN is unofficial and undocumented: a schema change degrades to "not matched" (heuristics), never a crash.
 

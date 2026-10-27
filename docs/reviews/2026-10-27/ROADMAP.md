@@ -13,6 +13,8 @@ Where things stand after the R7 week, what to do next in order, and what only Ma
 - **R7 works on the device.** Since 0282–0284 (a feed judged by how far it is behind real time, by its own clock) and
   Apple 56–57 (live plays held 30 s back): NBC Sports Boston 35 min and Chicago Sports Network Plus 65 min, 0 stalls, no
   switches. Before: a stall every ~7 min and a provider switch every ~11 min, with the sound out of step afterwards.
+- **Bug 5 has its root cause (27 Oct, late):** Fox Cricket 501's guide titles ("Test : South Africa v Australia") never
+  say "cricket", so the channel is missing from the Test's event; the fix is P0 item 4.
 - **Shared ingest is on** on Mark's server (off by default in code). **Segmented recordings is on** since 27 Oct.
 - **Codex review of 0286–0289:** round 1 found one medium (feed names lost on profile plays), fixed in 0289; round 2
   approved. The batch has had its two rounds.
@@ -24,8 +26,9 @@ Mark's answers to Q1-Q7 (below) settled the order. Statuses use blueprint §4's 
 
 ### P0: the agreed next batch (Mark approved on 27 Oct)
 
-Three server commits, in this order, each with a test that fails on the build before it. The batch changes when a live
+Four server commits, in this order, each with a test that fails on the build before it. The batch changes when a live
 feed is reconnected, so it gets a **Codex adversarial review** before Mark is told it is ready (two rounds at most).
+Item 4 touches only the sport files and does not depend on 1-3.
 
 **1. Shared ingest on by default (Q5).** `sharedIngestEnabled` defaults to `true` in `server/db.js`'s defaults. A stored
 value wins, so an install where an admin turned it off stays off; Mark's server is already on. Check what else assumes
@@ -68,8 +71,34 @@ goes past its limit moves up a step; it comes back down by itself once the feed 
 - **Docs in the same commit:** blueprint §3 "Stall watchdog", `docs/SHARED-INGEST.md` (Stall row), FINDINGS FR-12
   (fixed: delete the row), `docs/CLIENT-CONTRACT.md`'s note on the ingest limit (the hold stays 30 s).
 
+**4. Fox Cricket's Test titles (bug 5's conclusion, Mark asked on 27 Oct).** Evidence: the real guide rows in
+[`fox-cricket-501-titles.txt`](fox-cricket-501-titles.txt) (3rd Test, South Africa v Australia, 27 Oct). This is gap 2 of
+the [16 Oct analysis](../2026-10-16/ROADMAP.md) ("an airing with no Cricket category on a non-sport channel is not
+recognised"), now shown with real titles; it also explains the original report of the AUS v SA Test "not linked". Three
+fixes in one commit, all in `server/services/sportsClassify.js` / `sportsEvents.js`:
+- **Recognise:** a title that starts with a cricket format and a colon (`Test :`, `Test Mini :`, `Test Classic :`,
+  `ODI :`, `T20 :`, `T20 Mini :`, `W T20 Mini :`, `T20I :`) and names a match-up is league `Cricket`; so is a match-up on a
+  channel whose name contains "Cricket" (Fox Cricket, Willow Cricket). The bare word "test" stays not a keyword ("screen
+  test"). Today the live Day 1 session was missed as well as the replay.
+- **Parse:** strip a trailing Test-stage suffix ("3rd Test Day 1 Session 3", "Third Test Day 1", "G1"-"G5") before the
+  match-up is read, so the teams are "South Africa" / "Australia" and "RSA" / "AUS" (today: no teams, or a team called
+  "AUS Third Test Day 1"); the stage can stay in the cleaned title.
+- **Live only during the day's play:** `fixtureLiveVerdict`'s multi-day rule calls any airing inside a Test's span live,
+  so the 22:00 UTC replay (Day 1 ended 16:00, Day 2 starts ~08:00) would read as live. Make a later day live only when the
+  airing starts near that day's start of play (the fixture's first-ball time of day, each day, with the usual grace) or
+  carries the guide's live flag; otherwise replay. Keep the existing "day 3 of a still-running match is live" test.
+- **Tests:** add the evidence rows to `test/fixtures/sports-export.json` with their expected kinds (blueprint §6 asks for
+  this before a rule changes): the 13:30 session = event, live; the 22:00 and 01:00 "Test :" airings = replay; "Test
+  Mini" = replay; "Test Classic" = replay or placeholder as today; the ODI G1-G3 blocks = replay. Plus "screen test v"
+  style negatives, and a "Test : …" title on a non-cricket channel without a match-up = not sport. Use
+  `test/sports-classify.test.js` and `test/sports-live.test.js` as patterns.
+- **Docs in the same commit:** blueprint §3 "Sport events" (the recognition and multi-day rules), §6 Sport, the state
+  line; remove bug 5 from FINDINGS' "Also open" line and from P1 below.
+
 After the batch: Mark deploys, and the live checks are (1) Status → Show details → Feed lag shows a limit per channel,
-(2) normal viewing; any channel that rises to 26 or 28 s is listed there, and (3) after a quiet few hours it comes back.
+(2) normal viewing; any channel that rises to 26 or 28 s is listed there, (3) after a quiet few hours it comes back, and
+(4) during the next Test on Fox Cricket 501, Sports lists it live during play and as a replay overnight (Settings →
+Sports' preview shows the rule for each airing).
 
 ### P1: correctness
 
@@ -83,7 +112,8 @@ After the batch: Mark deploys, and the live checks are (1) Status → Show detai
    the relay's "cannot join this stream" log lines before designing anything.
 7. **FR-10, Apple player frozen after a long live play.** Not reproducible on demand. If it recurs: the time and channel,
    the server log around it, and whether the app answered at all. An Apple-side diagnostic only after a second case.
-8. **Bugs 5 (AUS v SA grouping) and 8 (iPhone tuning)**: still without a root cause (blueprint).
+8. **Bug 8 (iPhone tuning)**: still without a root cause (blueprint). Bug 5 (AUS v SA cricket) found its cause on
+   27 Oct and is P0 item 4.
 
 ### P2: housekeeping and design debts
 

@@ -1,0 +1,35 @@
+Fox Cricket 501 (source 8, visible in "TV Guide (Australia)", tvg-id NSW-SydneyFOXCRICKET.au), guide rows read from the
+live database's epg_live on 27 Oct 2026 at ~22:10 UTC, during the 3rd Test, South Africa v Australia, Cape Town.
+Times UTC. categories were null on every row; flags as stored (8 = live). Evidence for bug 5 (roadmap P0 item 4).
+Mark watched the 22:00 airing and reported it as a replay (Day 1 ended at 16:00; Day 2 starts ~08:00 UTC on 28 Oct).
+
+start             end    flags  title
+10-27 13:30       16:00  8      Test : South Africa v Australia 3rd Test Day 1 Session 3
+10-27 16:00       17:00  -      ODI : South Africa v Australia G1
+10-27 17:00       18:00  -      ODI : South Africa v Australia G2
+10-27 18:00       19:00  -      ODI : South Africa v Australia G3
+10-27 19:00       20:00  -      Test Classic : 1993/94 AUS v NZL 2nd Test
+10-27 20:00       21:00  -      Test Classic : 2011/12 AUS v NZL 2nd Test
+10-27 21:00       21:20  8      Test Mini : RSA v AUS Third Test Day 1
+10-27 21:20       21:40  -      W T20 Mini : Australia v New Zealand G3
+10-27 21:40       22:00  -      Test Mini : RSA v AUS Third Test Day 1
+10-27 22:00       23:00  -      Test : South Africa v Australia            <- replay of Day 1 (Mark, on screen)
+10-27 23:00       23:20  -      T20 Mini : New Zealand v India G3
+10-28 00:20       00:40  -      ODI : Pakistan v Sri Lanka
+10-28 01:00       02:00  -      Test : South Africa v Australia
+10-28 04:00       05:00  -      Test : South Africa v Australia
+(the Mini and T20 Mini blocks repeat every 20 min through the night)
+
+Descriptions: "Test :" rows say "Coverage of Test Cricket."; "Test Mini" rows "With the series tied at 1-1 it all comes
+down to the final test in Cape Town to determine the victor."; "Test Classic" rows "We open the Fox Cricket vault ...".
+
+The hidden duplicate tvg-id foxcricketau.au carries the same schedule with the bare format as the title ("Test", "ODI",
+"Test Mini") and the match in the description. Another guide (foxcricket.au, hidden) has
+"Test Cricket - South Africa vs Australia" 23:00-00:00, flags 12: recognised (it says "cricket").
+
+Classifier on 0289 with Mark's follow list (AFL, F1, EPL, Cricket, MLB, NFL, FA Cup, UEFA, Championship, NBA):
+  "Test : South Africa v Australia"                            classify -> null (not sport); detectLeague -> null
+  "Test : South Africa v Australia 3rd Test Day 1 Session 3"   null; parseTitle teams -> null (kind would be "show")
+  "Test Mini : RSA v AUS Third Test Day 1"                     null; teams -> "RSA" / "AUS Third Test Day 1"
+  "Test Cricket - South Africa vs Australia"                   keyword Cricket, event (a match-up)
+Once recognised, fixtureLiveVerdict's multi-day rule would call the 22:00 replay live (inside the fixture's span).
