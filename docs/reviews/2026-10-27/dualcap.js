@@ -34,7 +34,7 @@ function read(name, url, untilMs, file) {
         const note = () => {
             const now = Date.now();
             const gap = now - last;
-            if (gap > 2000) { st.pauses.push({ at: ((last - t0) / 1000).toFixed(1), ms: gap }); console.log(`${at()} ${name}: pause of ${(gap / 1000).toFixed(1)} s ended`); }
+            if (gap > 2000) { st.pauses.push({ at: ((last - t0) / 1000).toFixed(1), ms: gap }); if (!process.env.QUIET) console.log(`${at()} ${name}: pause of ${(gap / 1000).toFixed(1)} s ended`); }
             if (gap > st.longest) { st.longest = gap; st.longestAt = ((last - t0) / 1000).toFixed(1); }
             last = now;
         };
@@ -59,7 +59,7 @@ function read(name, url, untilMs, file) {
         const tick = setInterval(() => {
             if (done) return clearInterval(tick);
             const gap = Date.now() - last;
-            if (gap > 5000 && gap < 6100) console.log(`${at()} ${name}: silent for 5 s and counting`);
+            if (gap > 5000 && gap < 6100 && !process.env.QUIET) console.log(`${at()} ${name}: silent for 5 s and counting`);
         }, 1000);
     });
 }
@@ -74,16 +74,20 @@ function read(name, url, untilMs, file) {
         picks.push(c);
     }
     console.log(`channel ${plan.channelName}; providers: ${picks.map(p => `${p.providerName} (${p.via})`).join(', ')}`);
-    if (picks.length < 2) { console.log('fewer than two providers; stopping'); process.exit(1); }
+    const solo = delayArg === 'solo';
+    if (!solo && picks.length < 2) { console.log('fewer than two providers; stopping'); process.exit(1); }
     const until = t0 + TOTAL;
     const [a, b] = picks;
     const dir = path.join(ROOT, 'data/samples');
     fs.mkdirSync(dir, { recursive: true });
     const ra = read(a.providerName, a.url, until, path.join(dir, `dual-${a.providerId}.ts`));
-    await new Promise(r => setTimeout(r, DELAY));
-    console.log(`${at()} starting ${b.providerName}`);
-    const rb = read(b.providerName, b.url, until, path.join(dir, `dual-${b.providerId}.ts`));
-    for (const s of await Promise.all([ra, rb])) {
+    let rb = null;
+    if (!solo) {
+        await new Promise(r => setTimeout(r, DELAY));
+        console.log(`${at()} starting ${b.providerName}`);
+        rb = read(b.providerName, b.url, until, path.join(dir, `dual-${b.providerId}.ts`));
+    }
+    for (const s of await Promise.all(rb ? [ra, rb] : [ra])) {
         const secs = (Date.now() - s.started) / 1000;
         console.log(`\n${s.name}: ${s.end}; ${(s.bytes / 1e6).toFixed(1)} MB (${Math.round(s.bytes * 8 / secs / 1000)} kbps avg); longest pause ${(s.longest / 1000).toFixed(1)} s at ${s.longestAt}s; pauses over 2 s: ${s.pauses.length ? s.pauses.map(p => `${p.at}s (${(p.ms / 1000).toFixed(1)} s)`).join(', ') : 'none'}`);
     }
