@@ -899,6 +899,17 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
     // A device watches one thing: once admitted here, its streams on the other
     // providers go too (always none with a single provider).
     const elsewhere = () => ownStreamsElsewhere(owner, providerId, dir).map(s => ({ stream: s, cause: 'replacement' }));
+    // FR-11: ...and its earlier stream on this provider goes too, even when nothing needs the
+    // connection: a play joining the ingest that stream reads, or finding a free connection, left
+    // it running (ffmpeg, relay) until the idle sweep. One session at a time, never its ingest
+    // group, so the ingest being joined is not closed; not a standby, a warm session or `adopt`.
+    // A paired device only: a plain login is one owner across every browser and tab it is open in.
+    const ownHere = (release = []) => {
+        if (!owner || !String(owner).startsWith('device:')) return [];
+        const gone = new Set(release.flatMap(({ stream }) => [stream.id, ...(stream.members || []).map(m => m.id)]));
+        return activeStreams().filter(s => s.owner === owner && !s.standby && !s.warm && s.id !== adopt
+            && poolKey(s.providerId, dir) === pool && !gone.has(s.id)).map(s => ({ stream: s, cause: 'replacement' }));
+    };
     const recordings = recordingsInPool(activeRecordings, pool, dir);
 
     // The caller is asking to open one more connection, so count it. A
@@ -915,7 +926,7 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
         .sort((a, b) => (b.warm === true) - (a.warm === true) || (b.standby === true) - (a.standby === true) || b.idleMs - a.idleMs);
     let need = streams.length + recordings.length + (joining ? 0 : 1) - limit;
     if (joining && need > 0) need = 0; // it costs nothing: nobody need go for it
-    if (need <= 0) return { allowed: true, release: elsewhere(), ...(joining ? { joining: true } : {}) };
+    if (need <= 0) return { allowed: true, release: [...ownHere(), ...elsewhere()], ...(joining ? { joining: true } : {}) };
 
     // Entries are { stream, cause }. The cause does not change what happens to
     // the stream - everything released here is released because somebody else
@@ -936,7 +947,7 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
     take(streams.filter(s => s.standby), 'standby');
     take(streams.filter(s => s.idleMs >= idleMs), 'idle');
     take(streams.filter(s => owner && s.owner === owner), 'replacement');
-    if (need <= 0) return { allowed: true, release: [...release, ...elsewhere()] };
+    if (need <= 0) return { allowed: true, release: [...release, ...ownHere(release), ...elsewhere()] };
 
     const others = streams.filter(s => !held.has(s));
     // Which provider the answer is about, only when there is more than one
@@ -991,7 +1002,7 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
         need--;
     }
     take(others, 'forced-takeover');
-    return { allowed: true, release: [...release, ...elsewhere()], sacrificed, ...(closeIngests.length ? { closeIngests } : {}) };
+    return { allowed: true, release: [...release, ...ownHere(release), ...elsewhere()], sacrificed, ...(closeIngests.length ? { closeIngests } : {}) };
 }
 
 /**

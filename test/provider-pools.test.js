@@ -331,9 +331,12 @@ test('with no backup configured every scenario has today\'s outcome, whatever pr
     const own = coordinator.requestForViewer({ owner: 'device:tv', settings: S, providerId: A.id });
     assert.deepEqual(own.release.map(r => [r.stream.id, r.cause]), [[theirs.id, 'replacement']]);
 
-    // With room (limit 2), a device's earlier stream is kept, as before (no "elsewhere").
+    // With room (limit 2), a device's earlier stream goes too since FR-11 (a device watches one thing).
     const roomy = coordinator.requestForViewer({ owner: 'device:tv', settings: { ...S, maxProviderStreams: 2 }, providerId: C.id });
-    assert.deepEqual(roomy, { allowed: true, release: [] });
+    assert.deepEqual(roomy.release.map(r => [r.stream.id, r.cause]), [[theirs.id, 'replacement']]);
+    // ...and somebody else's is still kept.
+    const other = coordinator.requestForViewer({ owner: 'device:ipad', settings: { ...S, maxProviderStreams: 2 }, providerId: C.id });
+    assert.deepEqual(other, { allowed: true, release: [] });
 
     // Every recording counts, whatever its provider.
     const rec = coordinator.requestForViewer({ owner: 'device:x', settings: { ...S, maxProviderStreams: 2 }, providerId: A.id, activeRecordings: [recordingOn(C.id)] });
