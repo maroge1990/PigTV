@@ -119,10 +119,23 @@ function compileFollow(keywords, rosters = new Map()) {
     return {
         list,
         rosters: new Map([...rosters].filter(([league]) => list.some(k => k.league === league))
-            .map(([league, teams]) => [league, teams.map(sportsFixtures.teamAliasSides).filter(Boolean)])),
+            .map(([league, teams]) => [league, teams.map(rosterAliases)])),
         leagues: new Set(list.filter(k => k.league).map(k => k.league)),
         any: literal.length ? wordRegExp(literal.join('|')) : null
     };
+}
+
+// Inferring a league needs stronger evidence than matching a known fixture. A city is shared
+// across sports, and a subset match (Sydney inside Sydney FC) is not a team identity.
+const rosterSideKey = side => side.tokens.filter(t => t !== 'de').sort().join(' ');
+function rosterAliases(team) {
+    const location = sportsClassify.normText(team?.location);
+    const names = {};
+    for (const field of ['displayName', 'shortDisplayName', 'name', 'abbreviation']) {
+        const value = team?.[field];
+        if (typeof value === 'string' && sportsClassify.normText(value) !== location) names[field] = value;
+    }
+    return (sportsFixtures.teamAliasSides(names) || []).map(rosterSideKey);
 }
 
 /**
@@ -198,16 +211,19 @@ function classify({ title, categories = [], sportChannel = false, channelName = 
         || (/\bcricket\b/i.test(channelName) && sportsClassify.parseMatchup(text) ? 'Cricket' : null);
     const leagues = [titleLeague, ...categories.map(c => sportsClassify.detectLeague(c))].filter(Boolean);
     // A stored roster recognises team-only titles; two different teams of a followed league
-    // must match, using the same alias sides as the fixture verdict. No roster, no new rule.
+    // must resolve uniquely by a full name, nickname or stored abbreviation, across all followed
+    // rosters. Location-only or subset matches cannot infer a league. No roster, no new rule.
     if (!titleLeague && follow.rosters?.size) {
         const pair = sportsClassify.parseMatchup(text);
         if (pair) {
+            const matches = [];
             for (const [league, teams] of follow.rosters) {
-                const hit = side => teams.map((aliases, i) => aliases.some(a => sportsClassify.teamMatch(side, a)) ? i : -1).filter(i => i >= 0);
+                const hit = side => teams.map((aliases, i) => aliases.includes(rosterSideKey(side)) ? i : -1).filter(i => i >= 0);
                 const first = hit(pair[0]);
                 const second = hit(pair[1]);
-                if (first.some(a => second.some(b => a !== b))) { leagues.unshift(league); break; }
+                if (first.length === 1 && second.length === 1 && first[0] !== second[0]) matches.push(league);
             }
+            if (matches.length === 1) leagues.unshift(matches[0]);
         }
     }
     const keyword = followedKeyword(follow, text, categories, leagues);

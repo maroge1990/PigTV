@@ -293,3 +293,37 @@ test('roster recognition uses stored aliases for every followed league', () => {
     const follow = sportsEvents.compileFollow(['NBA'], new Map([['NBA', roster]]));
     assert.deepEqual(sportsEvents.classify({ title: 'LAL @ BOS' }, follow), { rule: 'keyword', match: 'NBA', league: 'NBA' });
 });
+
+test('roster inference requires team identity beyond a city and is independent of followed-league order', () => {
+    const team = (displayName, name, location, abbreviation) => ({ displayName, shortDisplayName: displayName, name, location, abbreviation });
+    const rosters = new Map([
+        ['AFL', [team('Sydney Swans', 'Swans', 'Sydney', 'SYD'), team('Melbourne', 'Melbourne', 'Melbourne', 'MEL'),
+            team('Brisbane Lions', 'Lions', 'Brisbane', 'BL'), team('Adelaide Crows', 'Crows', 'Adelaide', 'ADEL')]],
+        ['MLB', [team('Los Angeles Dodgers', 'Dodgers', 'Los Angeles', 'LAD'), team('Boston Red Sox', 'Red Sox', 'Boston', 'BOS'),
+            team('New York Yankees', 'Yankees', 'New York', 'NYY'), team('New York Mets', 'Mets', 'New York', 'NYM')]],
+        ['NBA', [team('Los Angeles Lakers', 'Lakers', 'Los Angeles', 'LAL'), team('Boston Celtics', 'Celtics', 'Boston', 'BOS')]]
+    ]);
+    for (const order of [['AFL', 'MLB', 'NBA'], ['NBA', 'MLB', 'AFL']]) {
+        const follow = sportsEvents.compileFollow(order, rosters);
+        for (const title of ['Sydney FC v Melbourne Victory', 'Brisbane Broncos v Melbourne Storm', 'Sydney Kings v Melbourne United',
+            'Adelaide 36ers v Brisbane Bullets', 'New York Rangers v Boston Bruins', 'New York v New York',
+            'Sydney v Brisbane', 'Yankees v Yankees']) {
+            assert.equal(sportsEvents.classify({ title }, follow), null, title);
+        }
+        for (const title of ['Los Angeles Lakers at Boston Celtics', 'Lakers v Celtics', 'LAL @ BOS']) {
+            assert.equal(sportsEvents.classify({ title }, follow)?.league, 'NBA', title);
+        }
+        assert.equal(sportsEvents.classify({ title: 'Sydney Swans v Brisbane Lions' }, follow)?.league, 'AFL');
+        assert.equal(sportsEvents.classify({ title: 'Yankees v Red Sox' }, follow)?.league, 'MLB');
+    }
+});
+
+test('ambiguous roster names do not pick the first followed league or one of multiple teams', () => {
+    const team = (name, abbreviation) => ({ displayName: name, name, abbreviation });
+    const a = [team('Giants', 'G'), team('Jets', 'J')];
+    const rosters = new Map([['AFL', a], ['NBA', a]]);
+    assert.equal(sportsEvents.classify({ title: 'Giants v Jets' }, sportsEvents.compileFollow(['AFL', 'NBA'], rosters)), null);
+    const duplicateNickname = new Map([['MLB', [team('New York Yankees', 'NYY'), team('New York Mets', 'NYM'),
+        { displayName: 'Boston Red Sox', name: 'Sox' }, { displayName: 'Chicago White Sox', name: 'Sox' }]]]);
+    assert.equal(sportsEvents.classify({ title: 'Yankees v Sox' }, sportsEvents.compileFollow(['MLB'], duplicateNickname)), null);
+});

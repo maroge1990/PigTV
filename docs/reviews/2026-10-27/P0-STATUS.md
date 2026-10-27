@@ -1,8 +1,8 @@
 # P0 implementation and checks, 28 Oct 2026
 
 The five approved server changes are local on `main`, **not pushed or deployed**. Server 0289 and Apple 57 remain the
-reported deployed versions. No Apple code or ffmpeg flags changed. Next server build is 0295; next Apple build remains 58.
-**Adversarial review and Mark's device/feed acceptance are outstanding.**
+reported deployed versions. No Apple code or ffmpeg flags changed. Next server build is 0296; next Apple build remains 58.
+**Round 1 is back; fixes are in progress. Round 2 and Mark's device/feed acceptance are outstanding.**
 
 | Build | Local commit | Change | Required checks |
 |---|---|---|---|
@@ -34,17 +34,25 @@ less than 4 s headroom. A changed display name does not change the identity. The
 playback analyses and recording starts. Feed lag history before 0292 lacks stable keys and remains separate legacy history.
 The fixed ceiling is 28 s even if the configured default is higher; no-PCR silence detection retains its configured default.
 
-## Review to run (Mark)
+## Round 1 dispositions (one of two review rounds used)
 
-AGENTS.md requires Mark to type this slash command; it has not run here. **Zero of this batch's two review rounds used.**
+Reviewed baseline: `a16eb11`; reviewer passed 1200 tests and the build verifier. No deployed-server/provider access is
+used for repairs. Source fixes are separately proved against that baseline before restoration and full gates.
 
-```text
-/codex:adversarial-review --background --base origin/main Challenge 0290 shared-ingest default and stored opt-outs; 0291 dead-code removals and retained admission rules; 0292 adaptive reconnect limits, stable provider/channel identity, persistence, clean-time accounting, no-PCR behavior and Status; 0293 Fox Cricket titles, team parsing and daily Test live windows; 0294 stored-roster league recognition, overlapping MLB broadcasts and replay/show exclusions. Check ownership, cancellation, redaction, migrations and failing-before coverage.
-```
+| Finding | Disposition | Regression proof |
+|---|---|---|
+| 1 HIGH: city-only roster inference / first league wins | Fixed locally in **0295**: exact informative names/nicknames/stored abbreviations; each team and inferred league must be unique across all followed rosters | Both new precision/order and ambiguity tests fail on a16eb11; World Series/Fox fixtures and full gates pass after restoration |
+| 2: Test session blocks | Pending | Day-one and later-day lunch/tea/delay coverage required |
+| 3: ambiguous generic broadcasts | Pending | Multiple overlapping MLB games required |
+| 4: concurrent limit writes | Pending | Two open states required |
+| 5: configured default above ceiling / no-PCR display | Pending disposition | See reviewer reproduction |
+| 6: legacy lag-history current limits | Pending disposition | See reviewer reproduction |
+| 7: anonymous multi-provider ownership coverage | Pending | Production guard is already correct at a16eb11; prove coverage by removing it |
+| FR-13: cache-count wall-clock boundary | Pending | Controlled five-minute rollover reproduction required |
 
-No adversarial findings have been received yet. Fix or answer every first-round finding with its regression proof; use
-at most one further round. After two rounds only high findings block; medium/low findings go in `docs/FINDINGS.md` with
-a reproduction for Mark to prioritise. No push is authorised by this handoff.
+Round 2 is the final permitted review round. Its command and final validation will be recorded when repairs finish.
+After round 2 only high findings block; medium/low findings remain in `docs/FINDINGS.md` with reproduction steps. No push
+is authorised by this handoff.
 
 ## Device/feed checks after review and Mark's deployment
 
