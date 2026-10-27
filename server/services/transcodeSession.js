@@ -1170,6 +1170,23 @@ class TranscodeSession extends EventEmitter {
      * Its stderr is no use: a dead upstream makes it louder, not quieter,
      * because every reconnect attempt logs. Only ffmpeg writes here.
      */
+    /**
+     * R7 (FR-8): the newest output, or - on the shared ingest - the moment the feed's own pause
+     * ended, if later: ffmpeg is not to blame for a silence its input caused. The ingest judges
+     * the feed (how far behind real time); this watchdog then only catches an ffmpeg that has had
+     * bytes and written nothing. Before any output nothing is excused (the start-up grace holds).
+     */
+    async lastActivityAt() {
+        const out = await this.latestOutputAt();
+        const excuse = this.feedExcusedUntil();
+        return out === null || excuse === null ? out : Math.max(out, excuse);
+    }
+
+    /** Until when silence is the shared ingest's doing, or null (no ingest, or it is reconnecting). */
+    feedExcusedUntil(now = Date.now()) {
+        return this.feed && typeof this.feed.excusedUntil === 'function' ? this.feed.excusedUntil(now) : null;
+    }
+
     async latestOutputAt() {
         let names;
         try {
@@ -1191,7 +1208,7 @@ class TranscodeSession extends EventEmitter {
         this.stopWatchdog();
         this._watchdog = createStallWatchdog({
             label: `TranscodeSession ${this.id}`,
-            getLastActivity: () => this.latestOutputAt(),
+            getLastActivity: () => this.lastActivityAt(),
             onStall: () => this.handleStall(),
             stallMs: this.options.stallMs ?? HLS_STALL_MS,
             startupMs: this.options.startupMs ?? STARTUP_GRACE_MS,

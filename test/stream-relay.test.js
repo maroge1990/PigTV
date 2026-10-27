@@ -444,3 +444,66 @@ test('the session routes: a relay answers for its id, later legs\' names are all
     assert.match(playback, /require\('\.\.\/services\/streamRelay'\)\.adopt\(played, \{/);
     assert.match(playback, /playingSessionId\(req\.params\.sessionId\)/);
 });
+
+// R7 (FINDINGS FR-8): on the shared ingest a pause in the provider's feed is the ingest's to judge;
+// the relay switches when the feed is being reconnected, or when it is flowing and the leg writes nothing.
+test('R7: a leg whose shared feed is only pausing is not switched away from; once it is reconnecting, it is', async () => {
+    process.env.PIGTV_RELAY_SWITCH_MS = '3000';
+    const samePool = coordinator.samePool, free = coordinator.hasFreeConnection;
+    coordinator.samePool = (a, b) => a === b;
+    coordinator.hasFreeConnection = (id) => ![...registry.values()].some(x => x.status === 'running' && x.options.providerId === id);
+    try {
+        const s = fakeSession();
+        let excused = () => Date.now(); // the feed is quiet right now: a provider's pause
+        s.feedExcusedUntil = () => excused();
+        write(s, 0, 5);
+        const r = await silently(() => relay.adopt(s, ctx({ settings: withStandby })));
+        await silently(() => r.tick());
+        r.standbyAt = 0;
+        await silently(() => r.tick());
+        await new Promise(res => setTimeout(res, 20));
+        await silently(() => r.tick());
+        assert.equal(r.standbyReady(), true);
+        const sb = r.standby.session;
+
+        write(sb, 3, 7);
+        r.lastProgressAt = Date.now() - 4000; // no segment for longer than the switch time
+        await silently(() => r.tick());
+        assert.equal(r.active.session, s, 'the provider is pausing, not failing: no switch');
+        assert.deepEqual(quarantined, []);
+
+        excused = () => Date.now() - 4000; // bytes came back 4 s ago and still nothing is written
+        await silently(() => r.tick());
+        assert.equal(r.active.session, sb, 'a leg that has had bytes and wrote nothing is switched away from');
+    } finally {
+        coordinator.samePool = samePool; coordinator.hasFreeConnection = free;
+        delete process.env.PIGTV_RELAY_SWITCH_MS;
+    }
+});
+
+test('R7: with the shared connection on, a takeover leg and the standby read through it', async () => {
+    const samePool = coordinator.samePool, free = coordinator.hasFreeConnection;
+    coordinator.samePool = (a, b) => a === b;
+    coordinator.hasFreeConnection = () => true;
+    const seen = [];
+    const resolve = strategy.resolve;
+    strategy.resolve = async (opts) => { seen.push(opts.ingestSource || null); return resolve(opts); };
+    try {
+        const s = fakeSession();
+        write(s, 0, 5);
+        const r = await silently(() => relay.adopt(s, ctx({ settings: { ...withStandby, sharedIngestEnabled: true } })));
+        r.standbyAt = 0;
+        await silently(() => r.tick());
+        await new Promise(res => setTimeout(res, 20));
+        assert.equal(seen.length, 1);
+        assert.equal(seen[0] && seen[0].url, B.url, 'the standby reads Dream4K through the shared ingest');
+        assert.equal(seen[0].providerId, 2);
+        assert.ok(seen[0].key && seen[0].pool !== undefined);
+
+        // Off: no ingest source, so the leg opens its own connection, as before.
+        assert.equal(load('services/ingest').sourceFor(B, withStandby), null);
+    } finally {
+        strategy.resolve = resolve;
+        coordinator.samePool = samePool; coordinator.hasFreeConnection = free;
+    }
+});

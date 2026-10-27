@@ -285,7 +285,7 @@ class StatusPage {
         }
         const ing = status.ingest;
         if (ing && (ing.enabled || ing.ingests.length)) {
-            const rows = ing.ingests.map(i => `<li>Ingest ${e(i.id)} · ${e(i.state)} · ${e(i.subscribers.length)} reading (${i.subscribers.map(s => e(s.purpose || '?')).join(', ')}) · ${e(i.kbps)} kb/s · buffer ${e(Math.round(i.bufferBytes / 1048576))} MB · ${e(i.reconnects)} reconnects</li>`).join('');
+            const rows = ing.ingests.map(i => `<li>Ingest ${e(i.id)} · ${e(i.state)} · ${e(i.subscribers.length)} reading (${i.subscribers.map(s => e(s.purpose || '?')).join(', ')}) · ${e(i.kbps)} kb/s · buffer ${e(Math.round(i.bufferBytes / 1048576))} MB · ${e(i.reconnects)} reconnects${typeof i.behindSec === 'number' ? ` · ${e(i.behindSec)} s behind real time (most ${e(i.maxBehindSec)} s)` : ''}</li>`).join('');
             html.push(`<h4>Shared provider connections</h4>${rows ? `<ul>${rows}</ul>` : '<p class="setting-hint">None open.</p>'}`
                 + (ing.recent.length ? `<p class="setting-hint">Last closed: ${ing.recent.map(r => `ingest ${e(r.id)} (${e(r.why)})`).join(', ')}</p>` : ''));
         }

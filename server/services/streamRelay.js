@@ -64,6 +64,7 @@ const routing = () => require('./providerRouting');
 const strategy = () => require('./playbackStrategy');
 const interruptions = () => require('./playbackInterruptions');
 const playbackEvents = () => require('./playbackEvents');
+const ingest = () => require('./ingest');
 const activeRecordings = () => { try { return require('./recordingEngine').listActive(); } catch (e) { return []; } };
 
 class Relay {
@@ -301,7 +302,11 @@ class Relay {
         await this.tendStandby();
         if (this.closed || this.switching) return;
 
-        const quietMs = Date.now() - this.lastProgressAt;
+        // R7 (FR-8): on the shared ingest, a pause in the feed is the ingest's to judge (how far behind
+        // real time); it is not the leg's silence. Reconnecting, nothing is excused.
+        const now = Date.now();
+        const excuse = typeof leg.session.feedExcusedUntil === 'function' ? leg.session.feedExcusedUntil(now) : null;
+        const quietMs = now - Math.max(this.lastProgressAt, excuse || 0);
         if (leg.lost) {
             return leg.lost.how === 'stall' ? this.switchOver('stopped sending', 'stalled')
                 : leg.lost.how === 'timestamps' ? this.switchOver('broke its timestamps after a reconnect', 'timestamps')
@@ -444,6 +449,9 @@ class Relay {
                 live: true,
                 providerId: candidate.providerId,
                 lease, // R11: bound to the leg's session when it exists
+                // R7: with the shared connection on, a later leg and the standby read through it too, so
+                // their feeds are judged by how far behind real time they are, as the first leg's is.
+                ingestSource: ingest().sourceFor(candidate, ctx.settings),
                 refusedRetryDelaysMs: [1000],
                 deadlineAt: Date.now() + START_DEADLINE_MS,
                 timingNote: `, relay ${this.id} ${standby ? 'standby' : 'takeover'} on ${candidate.providerName}`,
@@ -489,7 +497,8 @@ class Relay {
                 this.close('the viewer is watching something else');
                 return null;
             }
-            const ask = { force: false, activeRecordings: activeRecordings(), settings: ctx.settings, owner: ctx.owner, providerId: candidate.providerId };
+            const ask = { force: false, activeRecordings: activeRecordings(), settings: ctx.settings, owner: ctx.owner, providerId: candidate.providerId,
+                joinIngest: ingest().sourceFor(candidate, ctx.settings)?.key || null };
             if (!coordinator().canAdmitWithoutDisturbing(ask)) continue;
             const verdict = await coordinator().admitViewer(ask);
             if (!verdict.allowed) continue;

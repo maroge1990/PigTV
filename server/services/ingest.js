@@ -20,6 +20,7 @@ const crypto = require('crypto');
 const { Readable } = require('stream');
 const { EventEmitter } = require('events');
 const { URL } = require('url');
+const { FeedPace } = require('./feedPace');
 
 const TS_PACKET = 188;
 const SYNC = 0x47;
@@ -33,7 +34,10 @@ const tuning = {
     slowBytes: num('PIGTV_INGEST_SLOW_MB', 16, 1) * 1024 * 1024,
     reconnectMs: num('PIGTV_INGEST_RECONNECT_MS', 10000, 1000),
     lingerMs: num('PIGTV_INGEST_LINGER_MS', 10000, 0),
-    stallMs: num('PIGTV_INGEST_STALL_MS', 15000, 2000),
+    // R7 (FR-8): a feed this far behind real time, by its own clock (feedPace.js), counts as lost.
+    // Below the Apple client's 30 s live offset, so a dead feed is replaced before a viewer stalls;
+    // above the worst a healthy bursty feed reached live (18.3 s on Chicago, 27 Oct).
+    behindMs: num('PIGTV_INGEST_BEHIND_SEC', 24, 3) * 1000,
     connectTimeoutMs: 10000,
     // I1 (0230): from the start of an ingest to its first usable MPEG-TS, whatever arrives
     // (headers alone, a trickle of fewer than three packets, redirects). A reconnect has the
@@ -107,6 +111,14 @@ class Subscription extends Readable {
         this.push(null);
         this.ingest.drop(this);
     }
+    /**
+     * R7: until when its reader's silence is the feed's doing (feedPace.excusedUntil), or null
+     * while the connection is being re-made: then nothing is excused, so a standby can take over.
+     */
+    excusedUntil(now = Date.now()) {
+        if (this.endReason || this.ingest.state !== 'live') return null;
+        return this.ingest.pace.excusedUntil(now);
+    }
     /** The consumer is done with it. */
     leave() {
         if (!this.endReason) this.endReason = { reason: 'left', providerReason: false };
@@ -132,6 +144,7 @@ class Ingest extends EventEmitter {
         this.reconnects = 0;
         this.startedAt = Date.now();
         this.lastByteAt = 0;
+        this.pace = new FeedPace();
         this.request = null;
         this.lingerTimer = null;
         this.lostSince = null;
@@ -211,6 +224,8 @@ class Ingest extends EventEmitter {
     }
 
     onConnected() {
+        // R7: each connection is its own baseline (a provider bursts again on a reconnect).
+        this.pace.reset(Date.now());
         if (this.state === 'connecting') {
             this.state = 'live';
             this.log(`reading ${hashOf(this.url)} for pool ${this.pool}`);
@@ -226,6 +241,7 @@ class Ingest extends EventEmitter {
         const now = Date.now();
         this.bytesIn += chunk.length;
         this.lastByteAt = now;
+        this.pace.onChunk(chunk, now);
         this.chunks.push({ buf: chunk, at: now });
         this.bytes += chunk.length;
         while (this.chunks.length > 1 && (this.bytes > tuning.bufferBytes || now - this.chunks[0].at > tuning.bufferMs)) {
@@ -287,11 +303,13 @@ class Ingest extends EventEmitter {
             return;
         }
         if (this.state !== 'live' || !this.lastByteAt) return;
-        if (Date.now() - this.lastByteAt > tuning.stallMs) {
+        // R7 (FR-8): judged by how far the feed has fallen behind real time, not by a pause in bytes.
+        const behind = this.pace.observe(now);
+        if (behind * 1000 > tuning.behindMs) {
             const req = this.request;
             this.request = null; // its late events are ignored
             try { req && req.destroy(); } catch (e) { /* gone */ }
-            this.onUpstreamGone(`no data for ${Math.round(tuning.stallMs / 1000)}s`);
+            this.onUpstreamGone(this.pace.measured ? `${Math.round(behind)}s behind real time` : `no data for ${Math.round(behind)}s`);
         }
     }
 
@@ -361,7 +379,7 @@ class Ingest extends EventEmitter {
         history.unshift({ ...this.describe(), endedAt: Date.now(), why });
         history.length = Math.min(history.length, 10);
         this.emit('closed', { why, providerReason });
-        this.log(`closed (${why})`);
+        this.log(`closed (${why}); most behind real time ${Math.round(this.pace.maxDeficit * 10) / 10}s`);
     }
 
     describe() {
@@ -370,7 +388,9 @@ class Ingest extends EventEmitter {
             id: this.id, pool: this.pool, providerId: this.providerId, state: this.state,
             subscribers: [...this.subs].map(s => ({ purpose: s.info.purpose || null, backlogBytes: s.readableLength })),
             bufferBytes: this.bytes, kbps: Math.round(this.bytesIn * 8 / seconds / 1000), reconnects: this.reconnects,
-            startedAt: this.startedAt
+            startedAt: this.startedAt,
+            // R7: how far behind real time the feed is now, and the most it has been (Status).
+            behindSec: Math.round(this.pace.deficit() * 10) / 10, maxBehindSec: Math.round(this.pace.maxDeficit * 10) / 10
         };
     }
 }
@@ -395,6 +415,17 @@ async function subscribe({ pool, url, userAgent, providerId = null, purpose = nu
     try { await ingest.ready; } finally { ingest.waiters--; }
     if (ingest.closed) throw Object.assign(new Error('Shared ingest not used: it closed'), { ingestRefused: true, providerReason: true });
     return ingest.subscribe({ purpose, owner }, { fromStart: opened });
+}
+
+/**
+ * The `ingestSource` a live channel's candidate is read through, or null: the switch is off, or it
+ * is not an http(s) stream. One rule for a play's first start and a relay's later legs (R7).
+ */
+function sourceFor(candidate, settings) {
+    if (!enabled(settings) || !candidate || !/^https?:/i.test(String(candidate.url || ''))) return null;
+    const pool = require('./streamCoordinator').poolOf(candidate.providerId);
+    return { pool, url: candidate.url, userAgent: require('../db').getUserAgent(settings), providerId: candidate.providerId ?? null,
+        key: keyOf(pool, candidate.url) };
 }
 
 /** A live ingest for (pool, url), or null - joining one needs no new provider connection. */
@@ -423,4 +454,4 @@ function list() { return [...registry.values()].filter(i => !i.closed).map(i => 
 function status() { return { ingests: list(), recent: history.slice(0, 5) }; }
 function closeAll(why = 'shutdown') { for (const i of [...registry.values()]) i.close(why); }
 
-module.exports = { enabled, subscribe, liveFor, idleInPool, closeIdleInPool, closeKey, list, status, closeAll, keyOf, looksLikeTs, firstPatOffset, lastPatOffset, tuning, _registry: registry };
+module.exports = { enabled, sourceFor, subscribe, liveFor, idleInPool, closeIdleInPool, closeKey, list, status, closeAll, keyOf, looksLikeTs, firstPatOffset, lastPatOffset, tuning, _registry: registry };
