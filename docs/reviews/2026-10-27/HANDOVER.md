@@ -10,7 +10,7 @@ paste it as the first message.
 You are picking up PigTV, a self-hosted IPTV server (Node 24, Express 5, SQLite, ffmpeg; this repo) with an Apple client
 in `../PigTV-Swift`. Mark owns both and tests on his Apple TV against his Unraid server.
 
-**Your task:** build the agreed next batch, **P0 in `docs/reviews/2026-10-27/ROADMAP.md`**, as four server commits in
+**Your task:** build the agreed next batch, **P0 in `docs/reviews/2026-10-27/ROADMAP.md`**, as five server commits in
 this order. The roadmap has each one's specification, tests and docs; read it in full before starting.
 1. **0290: shared ingest on by default** (`sharedIngestEnabled: true` in the defaults; a stored value still wins).
 2. **0291: remove code nothing uses**: `public/js/auth.js`, `public/js/login.js` and the listed unused server
@@ -24,8 +24,12 @@ this order. The roadmap has each one's specification, tests and docs; read it in
    later day of a Test live only during that day's play (tonight's overnight replay would read as live). The real guide
    rows are in `docs/reviews/2026-10-27/fox-cricket-501-titles.txt`; put them in `test/fixtures/sports-export.json` with
    their expected kinds first. Independent of 1-3 (sport files only).
+5. **0294: MLB games whose title doesn't say "MLB"**: a match-up whose two sides are both teams of a followed league's
+   stored ESPN roster is that league, and broadcast titles ("MLB World Series - Game 4", "MLB") join the overlapping
+   event. Evidence: `docs/reviews/2026-10-27/world-series-titles.txt` (World Series Game 4 on ~40 channels, listed on one),
+   including the rows that must stay out. Sport files only.
 
-Mark has approved all four and the numbers. Do not change ffmpeg flags or the Apple client's hold in this batch.
+Mark has approved all five and the numbers. Do not change ffmpeg flags or the Apple client's hold in this batch.
 
 **Read first, in this order:** `AGENTS.md` (its rules override your defaults), `blueprint.md` (state line, §2, §3
 "Stall watchdog" and "Shared ingest", §6), the roadmap above (including "Mark's answers"), `docs/FINDINGS.md` (FR-8 and
@@ -44,7 +48,7 @@ changing anything the Apple client can see. `docs/archive/` is history, not inst
   container `PigTV`; `docker logs`, a read-only look at the database and files in `/app/transcode-cache` take no provider
   connection. Never print `provider_accounts` or any URL, login or token: select only the columns you need.
 - This batch needs a **Codex adversarial review** before Mark is told it is ready. Mark types the command; give it to him
-  with `--base origin/main` and a focus line naming the four commits. At most two rounds; after that only high
+  with `--base origin/main` and a focus line naming the five commits. At most two rounds; after that only high
   findings block, and the rest go into `docs/FINDINGS.md` with a reproduction.
 - End the session by updating the blueprint state line, §4 status and any durable fact, and tell Mark what is
   committed, the build numbers, and numbered device steps (the roadmap lists the live checks after the batch).

@@ -1,0 +1,31 @@
+World Series Game 4, Milwaukee Brewers at Tampa Bay Rays, 28 Oct 2026 00:00 UTC (11 am in Melbourne). Guide rows read
+from the live database's epg_live on 27 Oct ~22:30 UTC, visible channels only (source 8). categories null on every row;
+flags as stored (8 live, 12 live+new). Mark reported the game listed in Sports on FOX Deportes only.
+Evidence for roadmap P0 item 5.
+
+channel (visible as)                        flags  title
+foxdeportes.us (FOX Deportes)               8      Serie Mundial MLB 2026 : Milwaukee Brewers vs. Tampa Bay Rays   <- listed (says "MLB")
+foxdeportesespanol.us (FOX Deportes)        -      Serie Mundial MLB 2026 - Milwaukee Brewers vs. Tampa Bay Rays   <- listed
+~30 FOX affiliates (FOX (Tampa), FOX (Los Angeles), FOX [Kansas City] 720p, ...)
+                                            12/8/- 2026 World Series - Milwaukee Brewers at Tampa Bay Rays    (":" on some)
+sportsnet.ca / sportsnetone.ca / sportsneteast.ca / sportsnetontario.ca
+                                            12/-   2026 World Series - Milwaukee Brewers at Tampa Bay Rays
+Sportsnet.4K.ca2 (Sportsnet Event 4K)       -      Live: 2026 World Series - Milwaukee Brewers at Tampa Bay Rays
+afnsp.us (AFN Sports)                       -      2026 World Series - Milwaukee Brewers at Tampa Bay Rays
+TampaBayRays.mlb / MilwaukeeBrewers.mlb (MLB.tv)  8  Milwaukee Brewers @ Tampa Bay Rays
+rds2.ca (RDS 2), 23:30-03:30                12     Série mondiale 2026 - Brewers de Milwaukee c. Rays de Tampa Bay
+tntsports1.uk (TNT Sports 1), 00:00-03:30   8      MLB World Series - Game 4
+espn.au (ESPN, Australia)                   -      MLB
+sportsnetwest.ca (Sportsnet West)           12     MLB Postseason 2026
+ESPN4.nl                                    -      MLB World Series 2026
+dummy-3065 (MLB 01, MLB.tv)                 -      MLB 01 | Brewers x Rays start:2026-10-28 00:00:00 stop:2026-10-28 07:13:20
+Not the game (must stay out or stay shows): "Climbing World Series Highlights" (TNT Sports 2), "Dodgermentary: 1988 World
+Series" (Sportsnet LA Dodgers), "World Series in 30 - Game 3: Milwaukee Brewers at Tampa Bay Rays" (Sportsnet, a recap).
+
+Classifier on 0289 with Mark's follow list (AFL, F1, EPL, Cricket, MLB, NFL, FA Cup, UEFA, Championship, NBA):
+  "2026 World Series - Milwaukee Brewers at Tampa Bay Rays"   classify -> null (not sport); kind would be event (match-up)
+  "Milwaukee Brewers @ Tampa Bay Rays"                        null; event
+  "Serie Mundial MLB 2026 : Milwaukee Brewers vs. ..."         keyword MLB, event
+  "MLB World Series - Game 4"                                 keyword MLB, kind show ("only a keyword, no game named")
+  "Série mondiale 2026 - Brewers de Milwaukee c. Rays ..."     null; show (French "c." is not a separator)
+The stored ESPN roster has MLB (sport_fixture_teams, league MLB) and 4 MLB fixtures.

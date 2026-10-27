@@ -14,7 +14,8 @@ Where things stand after the R7 week, what to do next in order, and what only Ma
   Apple 56–57 (live plays held 30 s back): NBC Sports Boston 35 min and Chicago Sports Network Plus 65 min, 0 stalls, no
   switches. Before: a stall every ~7 min and a provider switch every ~11 min, with the sound out of step afterwards.
 - **Bug 5 has its root cause (27 Oct, late):** Fox Cricket 501's guide titles ("Test : South Africa v Australia") never
-  say "cricket", so the channel is missing from the Test's event; the fix is P0 item 4.
+  say "cricket", so the channel is missing from the Test's event; the fix is P0 item 4. **MLB games** show on one
+  channel when the others' titles don't say "MLB" (World Series Game 4, 27 Oct): P0 item 5.
 - **Shared ingest is on** on Mark's server (off by default in code). **Segmented recordings is on** since 27 Oct.
 - **Codex review of 0286–0289:** round 1 found one medium (feed names lost on profile plays), fixed in 0289; round 2
   approved. The batch has had its two rounds.
@@ -26,9 +27,9 @@ Mark's answers to Q1-Q7 (below) settled the order. Statuses use blueprint §4's 
 
 ### P0: the agreed next batch (Mark approved on 27 Oct)
 
-Four server commits, in this order, each with a test that fails on the build before it. The batch changes when a live
+Five server commits, in this order, each with a test that fails on the build before it. The batch changes when a live
 feed is reconnected, so it gets a **Codex adversarial review** before Mark is told it is ready (two rounds at most).
-Item 4 touches only the sport files and does not depend on 1-3.
+Items 4 and 5 touch only the sport files and do not depend on 1-3.
 
 **1. Shared ingest on by default (Q5).** `sharedIngestEnabled` defaults to `true` in `server/db.js`'s defaults. A stored
 value wins, so an install where an admin turned it off stays off; Mark's server is already on. Check what else assumes
@@ -95,10 +96,31 @@ fixes in one commit, all in `server/services/sportsClassify.js` / `sportsEvents.
 - **Docs in the same commit:** blueprint §3 "Sport events" (the recognition and multi-day rules), §6 Sport, the state
   line; remove bug 5 from FINDINGS' "Also open" line and from P1 below.
 
+**5. MLB games whose title doesn't say "MLB" (Mark asked on 27 Oct).** Evidence:
+[`world-series-titles.txt`](world-series-titles.txt): World Series Game 4, Brewers at Rays, 28 Oct 00:00 UTC, on ~40
+visible channels, but Sports listed it on FOX Deportes only, the one guide whose title says "MLB" ("Serie Mundial MLB
+2026 : …"). The FOX affiliates, Sportsnet and AFN say "2026 World Series - Milwaukee Brewers at Tampa Bay Rays", and the
+team channels "Milwaukee Brewers @ Tampa Bay Rays": not sport, because the MLB follow matches only the word "MLB". The
+same gap hits any league whose guides name the teams but not the league (NFL, NBA, AFL titles without the league word).
+- **Recognise a match-up of a followed league's teams:** when both sides of a parsed match-up are teams of a followed
+  league's stored ESPN roster (`sportsFixtures.teamsOf(league)`, the same aliases `fixtureVerdict` uses), the programme is
+  that league (rule `keyword`, match the league). Both sides must match, so "Arsenal v Tampa" does not. With no roster
+  stored the rule does nothing (no new false positives).
+- **Join the broadcast titles:** "MLB World Series - Game 4" (TNT Sports 1), "MLB World Series 2026", "MLB Postseason
+  2026" and a bare "MLB" (ESPN Australia) overlap the game: add their channels to the one overlapping event of the league
+  (the existing plain-broadcast-title merge; check why "World Series - Game 4" is a show rather than a broadcast title).
+- **Keep out:** "Climbing World Series Highlights", "Dodgermentary: 1988 World Series" and "World Series in 30 - Game 3:
+  …" (a recap; must stay a show or a replay, not a second live event). Do not add "world series" as an MLB alias on its
+  own (poker, climbing, Little League).
+- **Optional, if small:** French "c." as a match-up separator ("Brewers de Milwaukee c. Rays de Tampa Bay", RDS 2).
+- **Tests:** the evidence rows into `test/fixtures/sports-export.json` with expected kinds: one live event with every
+  listed channel, the three "keep out" rows not in it. A roster-less build gives today's result.
+- **Docs:** blueprint §3 "Sport events" (rule (b) gains the roster match), §6 Sport, the state line.
+
 After the batch: Mark deploys, and the live checks are (1) Status → Show details → Feed lag shows a limit per channel,
 (2) normal viewing; any channel that rises to 26 or 28 s is listed there, (3) after a quiet few hours it comes back, and
 (4) during the next Test on Fox Cricket 501, Sports lists it live during play and as a replay overnight (Settings →
-Sports' preview shows the rule for each airing).
+Sports' preview shows the rule for each airing), and (5) the next MLB game lists every channel carrying it.
 
 ### P1: correctness
 
