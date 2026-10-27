@@ -16,10 +16,74 @@ prioritises; fixed entries move to the commit that fixed them and are deleted he
 | FR-9 | 27 Oct | Playback: HE-AAC copied on a fresh probe | NBC Sports Boston, 27 Oct 00:04 UTC: the first resolve (probe 5.2 s) chose "Audio: Copy (client capabilities confirm aac support)" for an HE-AAC source; the Apple TV failed at once with `PlayerError 1718449215` (`fmt?`), and the retry (probe cached) re-encoded "HE-AAC source -> AAC-LC". Costs one failed start, ~6 s. | Find why the fresh-probe path misses the HE-AAC profile that the cached path sees; reproduce with a sample of an HE-AAC channel and an uncached probe. |
 | FR-10 | 27 Oct | Apple (build 57): player froze on close | NBC Sports Boston after ~35 min (session `b0dd6c4b…`, 04:42-05:2x UTC): Mark came back to the TV and found the player unresponsive (nothing he did brought it on; it was already frozen when he tried to close it); force-quit needed. He doubts it can be reproduced on demand. The server got neither the `play-end` (sent first, from `clearItem` -> `finishMeasurement`) nor the DELETE, while the frozen app kept fetching segments until the force-quit (the 5-min idle sweep then reaped it at 05:31:42). So the freeze was on the main thread before or in `finishMeasurement`, or before `stop()` was called. Suspects, unproven: `AVPlayerItem.accessLog()` on a long live item (read synchronously there), the item teardown. Unknown whether build 56/57 is involved. | If it recurs with Xcode attached to the Apple TV (Debug -> Attach to Process -> PigTV), on a freeze pause the debugger and save the main thread's backtrace. Without Xcode: note the time and whether the picture was still moving, so the server log can be matched. |
 | FR-6 | 26 Oct | Apple tab-switch gate | The gate now fails a switch only when it stalls on both laps (`63809e4`). The budget stays 500 ms; the 250 ms Apple TV target is still checked by hand with Instruments. | Lower the simulator budget only after a clean device measurement shows headroom. |
+| FR-15 | 28 Oct | P0 round 1 finding 5 (low): configured lag above the ceiling | With `PIGTV_INGEST_BEHIND_SEC=30`, measured PCR feeds use the fixed 28 s ceiling without a startup warning. No-PCR feeds still use 30 s but ingest `describe().limitSec` and Status advertise 28 s. No playback decision is changed by this display defect. | Local fake PCR/no-PCR feeds with tuning `behindMs=30000`: compare the reconnect decision at 29 s with `describe().limitSec`. Add a once-only clamp warning and report the effective per-ingest limit, or prioritise later. Recorded per Mark's round-1 disposition option; confirmed open at the final round 2 (974977f). |
+| FR-16 | 28 Oct | P0 round 1 finding 6 (low): legacy lag history | Pre-0292 `feed_lag` rows have no stable channel key, so summary groups them separately and labels their limit with the default. A channel with a newer keyed row at 26 s can appear again with an old row saying 24 s for the 30-day retention period. | In a sandbox record one row with `channelKey=null` and one with a stable key, same channel/provider; raise the keyed limit to 26 s, call `feedLag.summary()`: two rows show 24/26 s. Display no current limit for legacy rows; do not infer identity by display name. Recorded per Mark's round-1 disposition option; confirmed open at the final round 2 (974977f). |
 
-| FR-15 | 28 Oct | P0 round 1 finding 5 (low): configured lag above the ceiling | With `PIGTV_INGEST_BEHIND_SEC=30`, measured PCR feeds use the fixed 28 s ceiling without a startup warning. No-PCR feeds still use 30 s but ingest `describe().limitSec` and Status advertise 28 s. No playback decision is changed by this display defect. | Local fake PCR/no-PCR feeds with tuning `behindMs=30000`: compare the reconnect decision at 29 s with `describe().limitSec`. Add a once-only clamp warning and report the effective per-ingest limit, or prioritise later. Recorded per Mark's round-1 disposition option; remains open for round 2. |
-| FR-16 | 28 Oct | P0 round 1 finding 6 (low): legacy lag history | Pre-0292 `feed_lag` rows have no stable channel key, so summary groups them separately and labels their limit with the default. A channel with a newer keyed row at 26 s can appear again with an old row saying 24 s for the 30-day retention period. | In a sandbox record one row with `channelKey=null` and one with a stable key, same channel/provider; raise the keyed limit to 26 s, call `feedLag.summary()`: two rows show 24/26 s. Display no current limit for legacy rows; do not infer identity by display name. Recorded per Mark's round-1 disposition option; remains open for round 2. |
+| FR-17 | 28 Oct | P0 round 2 (medium): generic live listings lost without a paired event | Demonstrated regression from deployed 0289, introduced by 0297. With no overlapping named event, generic titles recognised by guide category or a sport-marked channel now become shows; before 0297 only keyword-found titles did. They disappear from default Sports and sport recording rules. | Reproduction and proposed conditional fix below. Awaiting Mark's decision; do not apply automatically after the batch's two review rounds. |
+| FR-18 | 28 Oct | P0 round 2 (medium-low): nicknames shared across unfollowed sports | Demonstrated NFL inference from nickname-only titles; whether real guide rows are misclassified is a hypothesis. Ambiguity is checked only across followed rosters. An NRL game written as two shared nicknames can be inferred as NFL when NFL alone is followed, potentially becoming an ESPN replay or matching an NFL recording rule. | Reproduction below. Mark to prioritise stricter aliases for known cross-code nickname clashes; real guides have not been checked. |
+
+## FR-17 reproduction and proposed fix (not applied)
+
+Reviewed at `974977f`, `server/services/sportsClassify.js`, `mergeAirings` step 3. In a local Node session:
+
+```js
+const sports = require('./server/services/sportsEvents');
+const start = Date.parse('2026-10-28T00:00:00Z');
+const channels = [
+    { key: '8:nfl', tvgId: 'nfl', name: 'Generic NFL', order: 0, sportChannel: false },
+    { key: '8:league', tvgId: 'league', name: 'Generic League', order: 1, sportChannel: true }
+];
+const rows = [
+    { channel_id: 'nfl', title: 'NFL Football', categories: JSON.stringify(['Sports event', 'Football']),
+        flags: 8, start_time: start, end_time: start + 3 * 3600000 },
+    { channel_id: 'league', title: 'Live: Rugby League', categories: null,
+        flags: 8, start_time: start, end_time: start + 3 * 3600000 }
+];
+console.log(sports.eventsFromProgrammes(channels, rows, []).map(e => [e.kind, e.kindRule]));
+```
+
+Deployed 0289 / `origin/main` and `a16eb11` give `event: a broadcast title` for both listings. `974977f` gives
+`show: a broadcast title, no event at that time`. Mark's captured source-8 rows lack guide categories, so the likely
+local impact is smaller; guides supplying categories lose such live listings fully.
+
+Proposed small conditional fix, **awaiting Mark's go-ahead**: exactly one overlapping event joins; several makes a show;
+with none, only keyword-found titles become shows, while category/sport-channel titles remain events. Guard the existing
+show-conversion block with `if (candidates.length || a.rule === 'keyword')`. Add the two-row regression test, which must
+fail on `974977f`. This is a fix for a review finding and needs a separately agreed review scope; no third round of this
+batch is authorised by the stopping rule.
+
+## FR-18 reproduction and scope
+
+Reviewed at `974977f`, `server/services/sportsEvents.js`, `rosterAliases` and the roster-inference loop. In a local Node session:
+
+```js
+const sports = require('./server/services/sportsEvents');
+const team = (displayName, name, location, abbreviation) =>
+    ({ displayName, shortDisplayName: name, name, location, abbreviation });
+const roster = [
+    team('Carolina Panthers', 'Panthers', 'Carolina', 'CAR'),
+    team('Denver Broncos', 'Broncos', 'Denver', 'DEN'),
+    team('Detroit Lions', 'Lions', 'Detroit', 'DET'),
+    team('Philadelphia Eagles', 'Eagles', 'Philadelphia', 'PHI'),
+    team('New York Giants', 'Giants', 'New York', 'NYG'),
+    team('Arizona Cardinals', 'Cardinals', 'Arizona', 'ARI')
+];
+const follow = sports.compileFollow(['NFL'], new Map([['NFL', roster]]));
+for (const title of ['Panthers v Broncos', 'Lions v Eagles', 'Giants v Cardinals',
+    'Penrith Panthers v Brisbane Broncos']) {
+    console.log(title, sports.classify({ title }, follow)?.league ?? null);
+}
+```
+
+The first three infer NFL; the full NRL pairing correctly gives null. NRL and NFL share Panthers, Broncos, Cowboys,
+Titans, Raiders and Dolphins. Without NRL in the followed rosters, a nickname-only NRL title can infer NFL. Following
+both matching rosters can prevent some clashes (for example AFL/NFL Lions v Eagles; Mark follows AFL). Most NRL titles
+name NRL explicitly, which is detected first; **real guide occurrence and frequency are unconfirmed**.
+
+Possible follow-up for Mark: require a full display name or stored abbreviation when a nickname is shared with a known
+other code, or maintain known nickname clashes. No implementation or provider/guide capture was authorised here.
 
 Also open, tracked in `blueprint.md`: bug 8 (iPhone tuning) without a root cause; the deferred
-and unmeasured efficiency register, physical device and real-feed acceptance, and the roadmap items waiting on Mark (none
-since 27 Oct: R8's sync measurement and the E3 samples were closed, and B4 is re-scoped to dead-code removal).
+and unmeasured efficiency register, physical device and real-feed acceptance, and the recorded review findings awaiting
+Mark's prioritisation (including FR-17's fix decision). R8's sync measurement and the E3 samples were closed on 27 Oct;
+B4 was re-scoped to dead-code removal.

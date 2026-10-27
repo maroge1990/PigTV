@@ -2,7 +2,8 @@
 
 The five approved server changes and round-1 fixes **0295–0300** are local on `main`, **not pushed or deployed**. Server 0289 and Apple 57 remain the
 reported deployed versions. No Apple code or ffmpeg flags changed. Next server build is 0301; next Apple build remains 58.
-**Round 1 repairs are complete locally. Round 2 and Mark's device/feed acceptance are outstanding.**
+**Round 2 is complete: both permitted rounds used, no high findings. Review no longer blocks handoff.**
+FR-15/FR-16 remain open; new FR-17/FR-18 are recorded under the stopping rule. Mark's device/feed acceptance is outstanding.
 
 | Build | Local commit | Change | Required checks |
 |---|---|---|---|
@@ -19,7 +20,7 @@ case and later-day pre-play boundaries are retained. MLB evidence preserves mixe
 including the unrelated titles that must stay out; a database-backed build test exercises the persisted roster path.
 
 0292's first full run failed the sports cache-count assertion (`served from the cache`, 33 versus 32); its full rerun was
-clean. FR-13's cache-test boundary hazard is reproduced and fixed in 0300 (details below); it is removed from the
+clean. FR-13's cache-test boundary hazard is reproduced and mitigated by pinned clocks in 0300 (details below); it is removed from the
 open register. The earlier individual runs did not capture their clock boundary, so that historical attribution is not
 claimed as established.
 
@@ -38,7 +39,7 @@ The fixed ceiling is 28 s even if the configured default is higher; no-PCR silen
 In 0298, concurrent ingest URLs of one provider/channel share their learning state and count overlapping intervals once;
 the last ingest releases the state, and Status reads do not retain it. The low display limitations remain FR-15/FR-16.
 
-## Round 1 dispositions (one of two review rounds used)
+## Round 1 dispositions (confirmed by final round 2)
 
 Reviewed baseline: `a16eb11`; reviewer passed 1200 tests and the build verifier. No deployed-server/provider access is
 used for repairs. Source fixes are separately proved against that baseline before restoration and full gates.
@@ -52,7 +53,7 @@ used for repairs. Source fixes are separately proved against that baseline befor
 | 5: configured default above ceiling / no-PCR display | Recorded as **FR-15** (allowed low-item disposition) | Reproduction retained in FINDINGS; warning/effective-limit display remains open |
 | 6: legacy lag-history current limits | Recorded as **FR-16** (allowed low-item disposition) | Reproduction retained in FINDINGS; suppressing the legacy current-limit label remains open |
 | 7: anonymous multi-provider ownership coverage | Added in **0299**; no admission behavior changed. Numbered as requested for each review fix | New multi-provider request/admission test passes on a16eb11 (already-correct code), fails with only `!owner` removed, and passes after guard restoration. Full gates pass |
-| FR-13: cache-count wall-clock boundary | Fixed in **0300**: pin Date in the non-perf and both perf cache-identity tests; performance.now remains real. Production cache behavior unchanged | On a16eb11, controlled 2 ms rollover reproduces all three original assertions (2 builds versus 1); restored pinned tests and full gates pass |
+| FR-13: cache-count wall-clock boundary | Mitigated in **0300**: pin Date in the non-perf and both perf cache-identity tests; performance.now remains real. Production cache behavior unchanged | On a16eb11, controlled 2 ms rollover reproduces all three original assertions (2 builds versus 1); restored pinned tests and full gates pass |
 
 The four production fixes each fail with their source stashed back to a16eb11, then pass after restoration. Finding 7
 is a coverage gap, not a defect in a16eb11: its guard-removal mutation proof is stated explicitly above. FR-13 is a test
@@ -67,16 +68,33 @@ the wall-clock-key mechanism; pinning only Date removes it without weakening the
 | 0297 | `49bca3c` | 1204/1204, passed |
 | 0298 | `5a3d4ef` | 1206/1206, passed |
 | 0299 | `08a0d64` | 1207/1207, passed |
-| 0300 | Commit containing this update | 1207/1207, passed |
+| 0300 | `974977f` | 1207/1207, passed |
 
-Round 2 is the final permitted review round. AGENTS.md requires Mark to type:
+## Final round 2: complete (two of two rounds used)
 
-```text
-/codex:adversarial-review --background --base a16eb11 Round 2 of the P0 batch: fixes for round 1 (roster matching precision across followed leagues, cricket daily live window incl. day 1 and session blocks, generic MLB broadcast joining only a single overlapping game, concurrent feed-lag limit writes, and the low items). Check the fixes and that 0290-0294's intent still holds.
-```
+Mark returned the final review of `a16eb11..974977f`: **no high findings**, 1207/1207 tests and the build verifier passed.
+No deployed-server/provider access or application changes were made to record its outcome. Review no longer blocks
+handoff; medium/low findings are retained for Mark to prioritise, as AGENTS.md requires. No further review round is
+requested for this batch, and no push or deployment is authorised by this handoff.
 
-After round 2 only high findings block; medium/low findings remain in `docs/FINDINGS.md` with reproduction steps. No push
-is authorised by this handoff.
+| Original finding | Reviewer-confirmed disposition at 974977f |
+|---|---|
+| 1 | Fixed in 0295: all eight counterexamples infer no league; World Series still MLB |
+| 2 | Fixed in 0296: unflagged day-one/day-two lunch, tea and delayed-start blocks are live; 22:00 remains replay |
+| 3 | Fixed in 0297: with two overlapping MLB games, generic MLB/MLB Baseball stay shows; see the separate zero-candidate regression FR-17 |
+| 4 | Fixed in 0298: second-reader close retains 26000; overlap counts once; near-limit reading resets the shared window; after last release Status reads stored state |
+| 5, 6 | Still open as FR-15 and FR-16, with reproductions in FINDINGS |
+| 7 | Covered in 0299 |
+| FR-13 | Mitigated by pinned clocks in 0300; cause of the historical failures remains unproven |
+
+| New finding | Stopping-rule disposition |
+|---|---|
+| FR-17 MEDIUM (demonstrated) | Recorded with two-row reproduction in FINDINGS. Regression from deployed 0289, introduced in 0297: no-overlap generic listings found by guide category/sport channel become shows and disappear from Sports/recording rules. The small conditional fix awaits Mark's decision; **not applied**. |
+| FR-18 MEDIUM-LOW (classification demonstrated, real-guide frequency hypothetical) | Recorded with ESPN-shaped NFL roster and nickname-only reproductions in FINDINGS. Cross-code nicknames may infer NFL when another code is not followed. Mark to prioritise; **not applied**. |
+
+FR-17's proposed guard restores the pre-0297 zero-candidate behavior for category/sport-channel recognition while keeping
+several overlapping games ambiguous and keeping keyword-only/no-event titles as shows. It needs Mark's go-ahead and a
+separately agreed review scope, since both batch rounds are used. The current final server build remains **0300**.
 
 ## Device/feed checks after review and Mark's deployment
 

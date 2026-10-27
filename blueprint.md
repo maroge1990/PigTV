@@ -3,7 +3,9 @@
 **State (28 Oct):** P0 is implemented locally in **0290–0294**: shared ingest defaults on, unused code removed,
 stored adaptive reconnect limits, Fox Cricket recognition/daily Test play, and roster-based league recognition/MLB broadcasts.
 **Round 1 repairs are local in 0295–0300**, including anonymous-owner coverage and deterministic cache tests.
-**Not pushed; round 2 and device acceptance pending.** Low findings 5–6 remain in FINDINGS as FR-15/FR-16.
+**Both adversarial rounds complete at 0300 (974977f), no high findings; review no longer blocks handoff.**
+**Not pushed; device/feed acceptance pending.** FR-15/FR-16 remain open; FR-17/FR-18 are recorded for Mark to prioritise.
+FR-17 is a 0297 regression from deployed 0289; its small conditional fix awaits Mark's decision, with no code change made.
 Server **0289** (FR-11, `feed_lag`, the smaller Status page) is deployed and pushed. Apple client
 **57** (live plays held 30 s back) is on the Apple TV. R7 (0282–0284, shared ingest on) passed on the Apple TV: NBC Sports
 Boston 35 min and Chicago Sports Network Plus 65 min with 0 stalls and no switches. Mark approved the next batch on 27 Oct:
@@ -561,7 +563,8 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
 
 **28 Oct:** P0 items 1–5 are implemented locally in **0290–0294**; round-1 repairs are local in **0295–0300**,
-awaiting round 2 and device checks
+both adversarial rounds are complete with no high findings. Device checks remain outstanding; FR-15–FR-18 are recorded
+for Mark to prioritise (FR-17 is a regression, fix awaiting his decision)
 ([validation and live steps](docs/reviews/2026-10-27/P0-STATUS.md)). The current order of work (P0-P3) and the questions only Mark can answer are in
 [`docs/reviews/2026-10-27/ROADMAP.md`](docs/reviews/2026-10-27/ROADMAP.md). The table below keeps each item's status.
 
