@@ -300,6 +300,8 @@ router.get('/', async (req, res) => {
             relay: (() => { const r = require('../services/streamRelay'); return { ...r.modeOf(settings), streams: r.list() }; })(),
             // Wave 5: shared ingests (one provider connection each), their subscribers, buffer and rate.
             ingest: (() => { try { return { enabled: settings.sharedIngestEnabled === true, ...require('../services/ingest').status() }; } catch (e) { return null; } })(),
+            // R7 data (0287): each channel's worst lag behind real time per provider, last 30 days.
+            feedLag: (() => { try { return require('../services/feedLag').summary(); } catch (e) { return []; } })(),
             // 0161 (C-I): ESPN fixture coverage, per league - last successful fetch, fixture
             // count, last error. Never a URL (sportsFixtures.statusSummary never puts one in).
             sportFixtures: sportsFixtures.statusSummary(),

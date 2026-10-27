@@ -265,7 +265,8 @@ async function feedFor(settings, candidate) {
     if (!ingest.enabled(settings) || !candidate || !/^https?:/i.test(String(candidate.url || ''))) return null;
     try {
         return await ingest.subscribe({ pool: coordinator.poolOf(candidate.providerId), url: candidate.url,
-            userAgent: getUserAgent(settings), providerId: candidate.providerId ?? null, purpose: 'recording' });
+            userAgent: getUserAgent(settings), providerId: candidate.providerId ?? null, purpose: 'recording',
+            channel: candidate.channelName ?? null, providerName: candidate.providerName ?? null });
     } catch (err) {
         console.warn(`[Recordings] Shared ingest not used for this recording: ${redact(err.message)}`);
         return null;

@@ -369,6 +369,25 @@ function initSchema() {
         // Column already exists.
     }
 
+    // Feed lag (R7 data, 0287, services/feedLag.js): one row per shared ingest that read live for a
+    // minute or more - how far behind real time its feed fell at worst, and its reconnects. 30 days.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS feed_lag (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            channel TEXT,
+            provider_id INTEGER,
+            provider_name TEXT,
+            started_at INTEGER NOT NULL,
+            ended_at INTEGER NOT NULL,
+            live_sec INTEGER NOT NULL,
+            worst_behind_sec REAL NOT NULL,
+            reconnects INTEGER NOT NULL DEFAULT 0,
+            lag_reconnects INTEGER NOT NULL DEFAULT 0,
+            why TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_feed_lag_ended ON feed_lag(ended_at);
+    `);
+
     // EPG matching (0134, roadmap S4.2): the admin's choice of EPG channel for a
     // playlist channel, keyed by identity like channel_numbers. Read at query
     // time over playlist_items.tvg_id (services/epgMapping.js); a sync never

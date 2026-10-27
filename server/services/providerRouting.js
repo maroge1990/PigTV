@@ -306,7 +306,7 @@ async function plan(sourceId, channelId, now = Date.now()) {
 
     const primary = {
         providerId: primaryId, providerName: providerName(primaryId, map), role: 'primary', via: 'primary',
-        url: primaryUrl, channelKey: primaryKey
+        url: primaryUrl, channelKey: primaryKey, channelName: identity ? identity.name : null
     };
     const primaryDown = providerState(primaryId, now) === 'down';
     const primaryExpired = isExpired(primarySource);
@@ -333,7 +333,7 @@ async function plan(sourceId, channelId, now = Date.now()) {
                 if (!source || source.enabled === false || source.role !== 'backup') continue;
                 if (isExpired(source) || providerState(id, now) === 'down' || isQuarantined(id, streamId, now)) continue;
                 const url = backupUrl(source, streamId);
-                if (url) candidate = { providerId: id, providerName: providerName(id, map), role: 'backup', via: 'backup', url, channelKey: streamId };
+                if (url) candidate = { providerId: id, providerName: providerName(id, map), role: 'backup', via: 'backup', url, channelKey: streamId, channelName: primary.channelName };
             }
         } catch { candidate = null; }
         if (candidate && isStreamUrl(candidate.url)) candidates.push(candidate);
