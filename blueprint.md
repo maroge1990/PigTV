@@ -7,7 +7,9 @@ Codex review) are committed locally for Mark to push. Apple
 client **57** (live plays held 30 s back) is pushed. R7 (0282–0284, shared ingest on) passed on the Apple TV: NBC Sports
 Boston 35 min and Chicago Sports Network Plus 65 min with 0 stalls and no switches; the 24 s limit stays until `feed_lag`
 has a few days of normal viewing (FINDINGS FR-12). Waves 1–4 of the [16 Oct roadmap](docs/reviews/2026-10-16/ROADMAP.md)
-are done in code; the shared-ingest design is [`docs/SHARED-INGEST.md`](docs/SHARED-INGEST.md).
+are done in code; the shared-ingest design is [`docs/SHARED-INGEST.md`](docs/SHARED-INGEST.md). **Next:** the prioritised
+plan and Mark's open questions are [`docs/reviews/2026-10-27/ROADMAP.md`](docs/reviews/2026-10-27/ROADMAP.md); the handover
+prompt is [`docs/reviews/2026-10-27/HANDOVER.md`](docs/reviews/2026-10-27/HANDOVER.md).
 
 **22 Oct review:** source/history review at server 0226 and Apple 46 is recorded in the [review](docs/reviews/2026-10-21/REVIEW.md) and [repair handoff](docs/reviews/2026-10-21/HANDOFF-PROMPT.md). Remote main matched both reviewed HEADs; the unpushed wording above is historical. Installed versions remain unconfirmed. Recording retention/identity and startup/admission defects need repair; no application or deployment change was made.
 
@@ -540,6 +542,9 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
 
+**27 Oct:** the current order of work (P0-P3) and the questions only Mark can answer are in
+[`docs/reviews/2026-10-27/ROADMAP.md`](docs/reviews/2026-10-27/ROADMAP.md). The table below keeps each item's status.
+
 **25 Oct round-5 repair status:** the five P2 findings have local fixes (0260–0261, Apple 55); see
 [the repair status](docs/reviews/2026-10-25/repair/REPAIR-STATUS.md). Awaiting independent review and device acceptance.
 
@@ -650,10 +655,13 @@ feed in five) · the 20 s stall timeout (tighten only after real stall logs).
 - A viewer who chose "Keep watching" blocks a due recording for the whole programme (an unanswered prompt hands over after
   3 min).
 
-**Shared ingest (Wave 5, off by default)**
+**Shared ingest (Wave 5, off by default in code; on on Mark's server)**
 - First usable bytes and a reconnect each have an absolute deadline (`firstBytesMs`, `reconnectMs`); closing a connecting
   ingest rejects its waiters as a cancellation (`ingestCancelled`, never answered with a direct connection) (0230).
-- Not yet used by relay legs, standbys, warm channels or direct plays: those still open their own connections.
+- Relay legs and standbys read through it (0282); warm channels and direct plays still open their own connections.
+- A feed is reconnected at 24 s behind real time, one limit for every channel (FINDINGS FR-12); `feed_lag` (0287) holds
+  each channel's worst so a per-channel limit can be set later.
+- A standby only helps when the backup's feed matches (codec, size, frame rate, audio): TNT Sports 4 has none (FR-14).
 - Benched SAME on seven real samples with production ffmpeg (18 Oct); no current feed is uneven, so the `igndts` path is
   covered by unit tests only.
 
