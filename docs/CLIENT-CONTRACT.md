@@ -176,7 +176,8 @@ work is in `blueprint.md` §3 "Sport events"; the shape the client relies on:
     guide titles merged into it.
   - Since 0294, match-ups of two distinct teams in a followed league's stored ESPN roster name that league even
     without its keyword. Since 0295, inference requires informative full names, nicknames or stored abbreviations,
-    unique within and across followed rosters; location-only/subset matches do not infer a league. Plain MLB broadcasts join their overlapping event; recaps stay shows. Shape unchanged.
+    unique within and across followed rosters; location-only/subset matches do not infer a league. Since 0297, generic broadcasts join only exactly one overlapping event of their league/kind; otherwise they
+    stay shows. Recaps stay shows. Shape unchanged.
   - Since 0293, Cricket format titles and match-ups on Cricket channels are recognised when Cricket is followed.
     Since 0296, day-one and later-day Test blocks are live when overlapping the inferred daily playing window
     (first ball minus 30 min pre-play grace through first ball +8 h), or with the guide's live flag during the

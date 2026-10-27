@@ -327,3 +327,27 @@ test('ambiguous roster names do not pick the first followed league or one of mul
         { displayName: 'Boston Red Sox', name: 'Sox' }, { displayName: 'Chicago White Sox', name: 'Sox' }]]]);
     assert.equal(sportsEvents.classify({ title: 'Yankees v Sox' }, sportsEvents.compileFollow(['MLB'], duplicateNickname)), null);
 });
+
+test('generic MLB broadcasts stay shows when two different games overlap, even with different overlap lengths', () => {
+    const start = Date.parse('2026-10-27T23:00Z');
+    const H = 3600000;
+    const programmes = [
+        ['fox-a', 'MLB: New York Yankees at Boston Red Sox', start, start + 3 * H],
+        ['fox-b', 'MLB: Chicago Cubs at St. Louis Cardinals', start + H / 2, start + 3.5 * H],
+        ['espn-au', 'MLB', start + H / 2, start + 3.5 * H],
+        ['tnt', 'MLB Baseball', start, start + 3 * H]
+    ];
+    const channels = programmes.map(([name], i) => ({ key: `8:${i}`, tvgId: name, name, order: i, sportChannel: false }));
+    const rows = programmes.map(([channel_id, title, start_time, end_time]) => ({ channel_id, title, start_time, end_time, flags: 8 }));
+    const events = sportsEvents.eventsFromProgrammes(channels, rows, ['MLB']);
+    const games = events.filter(e => e.kind === 'event');
+    assert.equal(games.length, 2);
+    assert.deepEqual(games.flatMap(e => e.channels.map(c => c.name)).sort(), ['fox-a', 'fox-b']);
+    assert.deepEqual(events.filter(e => e.kind === 'show').flatMap(e => e.channels.map(c => c.name)).sort(), ['espn-au', 'tnt']);
+    // Removing either game makes the generic channel safe to add to the one remaining event.
+    for (const gone of ['fox-a', 'fox-b']) {
+        const one = sportsEvents.eventsFromProgrammes(channels, rows.filter(r => r.channel_id !== gone), ['MLB']);
+        assert.equal(one.filter(e => e.kind === 'event').length, 1);
+        assert.equal(one.find(e => e.kind === 'event').channels.length, 3);
+    }
+});

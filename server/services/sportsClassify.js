@@ -321,7 +321,7 @@ const channelTokens = (name) => new Set(normText(name).split(' ').filter(Boolean
  * `rule` is how it was recognised ('keyword' | 'category' | 'sportChannel'); `loop` says the
  * channel repeats this title in identical blocks (loopedProgrammes). `generic` marks a plain
  * broadcast title ("AFL Premiership Football") that merges into an overlapping event, and is a
- * show when there is none and it matched only a keyword.
+ * show when there is no unique overlapping event.
  */
 function classifyKind({ title, channelName = '', start = Date.now(), categories = [], rule = 'keyword', loop = false, parsed, chTokens }) {
     const p = parsed || parseTitle(title);
@@ -758,7 +758,7 @@ function fixtureVerdict(a, leagueData, now) {
  *   - sessions with no teams: the same session and a compatible location ("Azerbaijan" ~
  *     "Qatar Airways Azerbaijan"); a session such as "Grand Final" joins the one overlapping
  *     match-up of its league,
- *   - broadcast titles ("AFL Premiership Football"): join the overlapping event they overlap most,
+ *   - broadcast titles ("AFL Premiership Football"): join only one unambiguous overlapping event,
  *   - anything else: the same normalised title (`normalise`).
  * -> [{ kind, why, title, aliases, start, end, airings }]
  */
@@ -826,19 +826,20 @@ function mergeAirings(airings, normalise) {
         }
     }
 
-    // 3. broadcast titles join the event they overlap most
+    // 3. broadcast titles join only a single overlapping event of their league/kind
     const rest = [];
     for (const a of sorted) {
         if (a.kind === 'event' && a.generic) {
             const b = bucket(a);
             const candidates = [...b.all, ...(sessions.get(`${a.kind}\u0001${a.league}`) || [])].filter(c => overlaps(a, c));
-            if (candidates.length) {
+            if (candidates.length === 1) {
                 // It adds its channel and title, not its (usually longer) coverage times.
-                const overlap = (c) => Math.min(a.end, c.end) - Math.max(a.start, c.start);
-                candidates.reduce((best, c) => (overlap(c) > overlap(best) ? c : best)).airings.push(a);
+                candidates[0].airings.push(a);
                 continue;
             }
-            if (a.rule === 'keyword') { rest.push({ ...a, kind: 'show', why: 'a broadcast title, no event at that time' }); continue; }
+            rest.push({ ...a, kind: 'show', why: candidates.length
+                ? 'a broadcast title, multiple events at that time' : 'a broadcast title, no event at that time' });
+            continue;
         }
         if (gameKind(a) && (a.parsed.teams || a.parsed.session)) continue;
         rest.push(a);

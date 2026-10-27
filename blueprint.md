@@ -2,7 +2,7 @@
 
 **State (28 Oct):** P0 is implemented locally in **0290–0294**: shared ingest defaults on, unused code removed,
 stored adaptive reconnect limits, Fox Cricket recognition/daily Test play, and roster-based league recognition/MLB broadcasts.
-**Round 1 reviewed; 0295–0296 fix roster precision and Test session windows locally. Not pushed; round 2 and device acceptance pending.**
+**Round 1 reviewed; 0295–0297 fix roster precision, Test session windows and ambiguous broadcast joins locally. Not pushed; round 2 and device acceptance pending.**
 Server **0289** (FR-11, `feed_lag`, the smaller Status page) is deployed and pushed. Apple client
 **57** (live plays held 30 s back) is on the Apple TV. R7 (0282–0284, shared ingest on) passed on the Apple TV: NBC Sports
 Boston 35 min and Chicago Sports Network Plus 65 min with 0 stalls and no switches. Mark approved the next batch on 27 Oct:
@@ -73,7 +73,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0297** |
+| Next build number | **0298** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -286,7 +286,8 @@ no game) > `event` (a match-up "A v/vs/at/@/x B", or a session: practice 1–3, 
 same kind + canonical league + overlapping times + the same game: teams in either order (one name's words within the other's,
 single letters as initials, "FRE"/"BRL" by their letters in order), or the same session and a compatible grand prix location;
 a teamless session ("AFL Grand Final 2026") joins the one overlapping match-up of its league; a plain broadcast title ("AFL
-Premiership Football") adds its channel to the event it overlaps most (not its times), else is a show. MLB broadcasts include `World Series`, `Game N`, `Postseason` and bare `MLB` (0294);
+Premiership Football") adds its channel only when exactly one event of that league/kind overlaps (not its times);
+with none or several it stays a show (0297). MLB broadcasts include `World Series`, `Game N`, `Postseason` and bare `MLB` (0294);
 "World Series" alone is not a league alias, and recaps such as "World Series in 30" stay shows. French `c.` is also a
 match-up separator. Anything else by the
 normalised title (lower case; tags, the channel's own name, live/HD words and punctuation removed). The item's title is the

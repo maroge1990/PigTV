@@ -1,7 +1,7 @@
 # P0 implementation and checks, 28 Oct 2026
 
 The five approved server changes are local on `main`, **not pushed or deployed**. Server 0289 and Apple 57 remain the
-reported deployed versions. No Apple code or ffmpeg flags changed. Next server build is 0297; next Apple build remains 58.
+reported deployed versions. No Apple code or ffmpeg flags changed. Next server build is 0298; next Apple build remains 58.
 **Round 1 is back; fixes are in progress. Round 2 and Mark's device/feed acceptance are outstanding.**
 
 | Build | Local commit | Change | Required checks |
@@ -43,7 +43,7 @@ used for repairs. Source fixes are separately proved against that baseline befor
 |---|---|---|
 | 1 HIGH: city-only roster inference / first league wins | Fixed locally in **0295**: exact informative names/nicknames/stored abbreviations; each team and inferred league must be unique across all followed rosters | Both new precision/order and ambiguity tests fail on a16eb11; World Series/Fox fixtures and full gates pass after restoration |
 | 2: Test session blocks | Fixed locally in **0296**: overlap an inferred daily eight-hour playing window, including day one, with pre-play grace; explicit live flag still qualifies in-span | New unflagged lunch/tea/delay test and changed overlap cases fail with a16eb11 source; restored Fox evidence/day-three tests and full gates pass |
-| 3: ambiguous generic broadcasts | Pending | Multiple overlapping MLB games required |
+| 3: ambiguous generic broadcasts | Fixed locally in **0297**: join only one overlapping league/kind event; none or several stays a show | New unequal-overlap, two-game MLB case fails with a16eb11 source; removing either game permits the join. Existing AFL/NFL/World Series cases and full gates pass |
 | 4: concurrent limit writes | Pending | Two open states required |
 | 5: configured default above ceiling / no-PCR display | Pending disposition | See reviewer reproduction |
 | 6: legacy lag-history current limits | Pending disposition | See reviewer reproduction |
