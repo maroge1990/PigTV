@@ -15,7 +15,8 @@
  *   deficit = peak - ahead now: how much of a viewer's buffer the feed has used up
  *
  * A healthy bursty feed's deficit rises during a pause and falls back with the next burst; a
- * failing one keeps rising. Media time is summed from PCR steps of 0-2 s; a larger or backward
+ * failing one keeps rising. A reader of the feed (ffmpeg) is judged separately, by `totalMedia`: how
+ * much media it has been handed since it last wrote anything, however the bursts were spaced. Media time is summed from PCR steps of 0-2 s; a larger or backward
  * step (a provider reset, a resend, a clock wrap) adds nothing, so it cannot fake a head start.
  * Before any PCR the deficit counts wall time since the last byte, the old rule.
  */
@@ -28,9 +29,17 @@ const PCR_WRAP = 2 ** 33;
 const MAX_STEP_SEC = 2;          // a PCR step above this is a discontinuity, not media
 const PEAK_DECAY = 1 / 60;       // seconds of peak forgiven per second (1 s a minute)
 const QUIET_MS = 1000;           // a gap in bytes longer than this is a pause
+// 0283: this many PCRs in a row on another PID, none on the one followed, and the clock moves there
+// (an upstream that changes its PCR PID mid-connection). Two programmes' PCRs interleave and never do.
+const PCR_PID_SWITCH = 20;
 
 class FeedPace {
-    constructor(now = Date.now()) { this.reset(now); }
+    constructor(now = Date.now()) {
+        // 0283: media delivered over the ingest's whole life, across reconnects: a reader is judged by
+        // how much it has been given since it last wrote anything (Codex review of 0282).
+        this.totalMedia = 0;
+        this.reset(now);
+    }
 
     /** A new connection: a new baseline (it may burst again). */
     reset(now = Date.now()) {
@@ -38,10 +47,10 @@ class FeedPace {
         this.media = 0;
         this.pcrPid = null;
         this.lastPcr = null;
+        this.otherPcrs = 0;
         this.peak = 0;
         this.peakAt = now;
         this.lastByteAt = now;
-        this.gapEndedAt = now;
         this.maxDeficit = 0;
         this.carry = null;
     }
@@ -49,7 +58,6 @@ class FeedPace {
     /** Bytes as they arrive (any split; packets may straddle chunks). */
     onChunk(chunk, now = Date.now()) {
         this.observe(now); // the end of a pause is where its deficit peaked
-        if (now - this.lastByteAt > QUIET_MS) this.gapEndedAt = now;
         this.lastByteAt = now;
         let buf = this.carry ? Buffer.concat([this.carry, chunk]) : chunk;
         let i = 0;
@@ -65,10 +73,17 @@ class FeedPace {
             if (pcr === null) continue;
             const pid = ((buf[i + 1] & 0x1f) << 8) | buf[i + 2];
             if (this.pcrPid === null) this.pcrPid = pid;
-            if (pid !== this.pcrPid) continue;
+            if (pid !== this.pcrPid) {
+                if (++this.otherPcrs < PCR_PID_SWITCH) continue;
+                // The followed PID has gone quiet while this one carries the clock: follow it, from
+                // here (rebased: the change is not credited as media).
+                this.pcrPid = pid;
+                this.lastPcr = null;
+            }
+            this.otherPcrs = 0;
             if (this.lastPcr !== null) {
                 const step = ((pcr - this.lastPcr + PCR_WRAP) % PCR_WRAP) / PCR_HZ;
-                if (step > 0 && step <= MAX_STEP_SEC) this.media += step;
+                if (step > 0 && step <= MAX_STEP_SEC) { this.media += step; this.totalMedia += step; }
             }
             this.lastPcr = pcr;
         }
@@ -105,14 +120,6 @@ class FeedPace {
     /** Seconds of media received ahead of real time since connecting (negative: behind). */
     ahead(now = Date.now()) { return this.media - (now - this.connectedAt) / 1000; }
 
-    /**
-     * Until when silence downstream is the feed's doing, not its reader's: now while no bytes
-     * are arriving, else the moment they last resumed. A reader (ffmpeg) that has had bytes
-     * since then and written nothing is the one at fault.
-     */
-    excusedUntil(now = Date.now()) {
-        return now - this.lastByteAt > QUIET_MS ? now : this.gapEndedAt;
-    }
 }
 
 /** The PCR base (90 kHz) of the packet at `i`, or null when it carries none. */

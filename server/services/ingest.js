@@ -112,12 +112,12 @@ class Subscription extends Readable {
         this.ingest.drop(this);
     }
     /**
-     * R7: until when its reader's silence is the feed's doing (feedPace.excusedUntil), or null
-     * while the connection is being re-made: then nothing is excused, so a standby can take over.
+     * R7 (0283): seconds of media the feed has delivered over its life (feedPace.totalMedia), or null
+     * while the connection is being re-made or once ended: then nothing excuses its reader's silence.
      */
-    excusedUntil(now = Date.now()) {
+    mediaReceived() {
         if (this.endReason || this.ingest.state !== 'live') return null;
-        return this.ingest.pace.excusedUntil(now);
+        return this.ingest.pace.totalMedia;
     }
     /** The consumer is done with it. */
     leave() {

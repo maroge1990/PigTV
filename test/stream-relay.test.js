@@ -455,7 +455,8 @@ test('R7: a leg whose shared feed is only pausing is not switched away from; onc
     try {
         const s = fakeSession();
         let excused = () => Date.now(); // the feed is quiet right now: a provider's pause
-        s.feedExcusedUntil = () => excused();
+        const budgets = [];
+        s.feedExcusedUntil = (now, budget) => { budgets.push(budget); return excused(); };
         write(s, 0, 5);
         const r = await silently(() => relay.adopt(s, ctx({ settings: withStandby })));
         await silently(() => r.tick());
@@ -471,8 +472,10 @@ test('R7: a leg whose shared feed is only pausing is not switched away from; onc
         await silently(() => r.tick());
         assert.equal(r.active.session, s, 'the provider is pausing, not failing: no switch');
         assert.deepEqual(quarantined, []);
+        // 0283: the leg is excused only while handed less than the switch time's worth of media.
+        assert.ok(budgets.length && budgets.every(b => b === 3000), `asked with the switch time (${budgets})`);
 
-        excused = () => Date.now() - 4000; // bytes came back 4 s ago and still nothing is written
+        excused = () => null; // handed the switch time's worth of media and still nothing written
         await silently(() => r.tick());
         assert.equal(r.active.session, sb, 'a leg that has had bytes and wrote nothing is switched away from');
     } finally {

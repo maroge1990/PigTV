@@ -43,7 +43,6 @@ test('a feed that trickles below real time keeps falling behind, though bytes ne
     let m = 0;
     for (let s = 1; s <= 40; s++) { p.onChunk(media(m, 0.5), t0 + s * 1000); m += 0.5; } // half speed
     assert.ok(p.deficit(t0 + 40_000) > 18, 'about 20 s behind after 40 s at half speed');
-    assert.equal(p.excusedUntil(t0 + 40_000), t0, 'bytes kept arriving: no pause to excuse anybody');
 });
 
 test('a backward or huge PCR step (a resend, a reset) adds no media', () => {
@@ -66,14 +65,31 @@ test('packets split across chunks are reassembled', () => {
     assert.ok(a.media > 4.9);
 });
 
-test('excusedUntil: now while the feed is quiet, else when it last resumed', () => {
+test('0283: totalMedia counts every connection\'s media; a reconnect resets the pace but not the total', () => {
     const t0 = 5_000_000;
     const p = new FeedPace(t0);
-    p.onChunk(media(0, 2), t0 + 100);
-    assert.equal(p.excusedUntil(t0 + 500), t0, 'bytes flowing since the start');
-    assert.equal(p.excusedUntil(t0 + 5000), t0 + 5000, 'quiet for 5 s: the feed is to blame');
-    p.onChunk(media(2, 2), t0 + 5000);
-    assert.equal(p.excusedUntil(t0 + 6000), t0 + 5000, 'resumed at 5 s: its reader has had bytes since');
+    p.onChunk(media(0, 5), t0 + 100);
+    p.reset(t0 + 6000);
+    p.onChunk(media(900, 3), t0 + 6100);
+    assert.ok(Math.abs(p.totalMedia - 8) < 0.3, `${p.totalMedia}`);
+    assert.ok(p.media < 3.1, 'the pace starts again');
+});
+
+test('0283 (Codex review of 0282): an upstream that moves its PCR to another PID mid-connection is followed', () => {
+    const t0 = 7_000_000;
+    const p = new FeedPace(t0);
+    // Real time throughout: one second of media a second, PID 256 for 10 s, then PID 257.
+    for (let s = 0; s < 30; s++) {
+        const pid = s < 10 ? 256 : 257;
+        p.onChunk(Buffer.concat(Array.from({ length: 10 }, (_, k) => packet(1000 + s + k / 10, pid))), t0 + s * 1000);
+    }
+    assert.ok(p.deficit(t0 + 29_000) < 3, `still keeping up after the change (deficit ${p.deficit(t0 + 29_000).toFixed(1)} s)`);
+    // Two programmes' PCRs interleaved: the first one followed stays followed.
+    const q = new FeedPace(t0);
+    for (let s = 0; s < 10; s++) {
+        q.onChunk(Buffer.concat(Array.from({ length: 10 }, (_, k) => Buffer.concat([packet(s + k / 10, 256), packet(5000 + s + k / 10, 300)]))), t0 + s * 1000);
+    }
+    assert.equal(q.pcrPid, 256);
 });
 
 test('before any PCR the deficit is the old rule, seconds since the last byte', () => {

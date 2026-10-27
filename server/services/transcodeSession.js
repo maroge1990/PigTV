@@ -1171,20 +1171,35 @@ class TranscodeSession extends EventEmitter {
      * because every reconnect attempt logs. Only ffmpeg writes here.
      */
     /**
-     * R7 (FR-8): the newest output, or - on the shared ingest - the moment the feed's own pause
-     * ended, if later: ffmpeg is not to blame for a silence its input caused. The ingest judges
-     * the feed (how far behind real time); this watchdog then only catches an ffmpeg that has had
-     * bytes and written nothing. Before any output nothing is excused (the start-up grace holds).
+     * R7 (FR-8): the newest output - or, on the shared ingest, now, while ffmpeg has been handed less
+     * than the stall limit's worth of media since it last wrote anything: a silence its input caused
+     * is not its fault, and the ingest judges the feed (how far behind real time). 0283 (Codex review
+     * of 0282): measured in media handed over, not time since the last pause, so recurring bursts
+     * cannot hide an ffmpeg that reads and writes nothing. Before any output nothing is excused.
      */
     async lastActivityAt() {
         const out = await this.latestOutputAt();
-        const excuse = this.feedExcusedUntil();
-        return out === null || excuse === null ? out : Math.max(out, excuse);
+        if (out === null) return null;
+        const media = this.feedMediaReceived();
+        if (!this.outputSeen || out > this.outputSeen.at) this.outputSeen = { at: out, media };
+        else if (this.outputSeen.media === null) this.outputSeen.media = media; // the ingest was reconnecting then
+        const excuse = this.feedExcusedUntil(Date.now());
+        return excuse === null ? out : Math.max(out, excuse);
     }
 
-    /** Until when silence is the shared ingest's doing, or null (no ingest, or it is reconnecting). */
-    feedExcusedUntil(now = Date.now()) {
-        return this.feed && typeof this.feed.excusedUntil === 'function' ? this.feed.excusedUntil(now) : null;
+    /** Seconds of media the shared ingest has delivered over its life, or null (none, or reconnecting). */
+    feedMediaReceived() {
+        return this.feed && typeof this.feed.mediaReceived === 'function' ? this.feed.mediaReceived() : null;
+    }
+
+    /**
+     * `now` while ffmpeg has been handed less than `budgetMs` of media since its last output (as last
+     * seen by lastActivityAt), else null: then its silence is its own.
+     */
+    feedExcusedUntil(now = Date.now(), budgetMs = this.options.stallMs ?? HLS_STALL_MS) {
+        const media = this.feedMediaReceived();
+        if (media === null || !this.outputSeen || this.outputSeen.media === null) return null;
+        return (media - this.outputSeen.media) * 1000 < budgetMs ? now : null;
     }
 
     async latestOutputAt() {
