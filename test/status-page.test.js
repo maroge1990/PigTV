@@ -36,10 +36,11 @@ test('the Status page renders /api/status and refreshes every 5 seconds only whi
     vm.runInContext(js('api.js'), context);
     vm.runInContext(js('pages/StatusPage.js'), context);
     const page = new context.StatusPage({});
+    page.showDetails = true; // 0288: plays, disk and the rest are details
 
     page.show();
     await new Promise(r => setImmediate(r));
-    assert.deepEqual(requests, ['/api/status']);
+    assert.ok(requests.includes('/api/status'));
     assert.deepEqual(intervals, [5000]);
     const html = elements['status-content'].innerHTML;
     assert.ok(html.includes('Fox &lt;Sports&gt;'), 'escaped');
@@ -123,6 +124,7 @@ test('R16: Status pauses while the tab is hidden and refreshes at once when visi
 
 test('R16: the new status fields render, and an unknown connection purpose just shows up', () => {
     const h = pageHarness();
+    h.page.showDetails = true; // 0288: server load is a detail
     const html = h.page.render({
         providers: [{ name: 'Main', role: 'primary', state: 'up', connections: { used: 2, limit: 2 }, uses: [
             { purpose: 'viewer', channel: 'BBC <One>' }, { purpose: 'warm', channel: null }] }],
@@ -175,4 +177,59 @@ test('R16: every nav link has a name and a tooltip, aria-current moves with the 
     assert.match(app, /setAttribute\('aria-expanded'/);
     assert.match(app, /logoutLink\.setAttribute\('aria-label', 'Logout'\)/);
     assert.match(fs.readFileSync(path.join(__dirname, '../public/css/main.css'), 'utf8'), /\.nav-link:focus-visible/);
+});
+
+// ---- 0288 ----
+test('0288: Status opens on what an admin acts on; the troubleshooting sections are behind "Show details", remembered', async () => {
+    const status = {
+        generatedAt: 1, build: { display: 'v · build 0288' },
+        providers: [{ name: 'Strong8K', role: 'primary', state: 'up', connections: { used: 1, limit: 1 }, uses: [] }],
+        sessions: [{ id: 's1', channel: 'NBC Sports Boston', owner: 'Apple TV', video: 'copy', audio: 'aac', segmentType: 'fmp4', uptimeSec: 600, idleSec: 1, ffmpeg: 'running' }],
+        recordings: { active: [], upcoming: [] },
+        interruptions: { days: 7, count: 0, watchedHours: 3, recent: [] },
+        events: [{ at: 1, type: 'play-start', channel: 'BBC', start: 'cold', firstPictureSec: 8.1 }],
+        sync: [{ name: 'Strong8K', type: 'xtream', enabled: true, feeds: [{ type: 'epg', status: 'error', lastSync: 1, error: 'timed out' }] }],
+        feedLag: { limitSec: 24, channels: [{ channel: 'Chicago <Sports>', provider: 'Strong8K', reads: 2, hours: 1.1, worstBehindSec: 24.1, reconnects: 1, lagReconnects: 1, lastAt: 1 }] },
+        disk: { transcodeCache: { available: true, freeBytes: 2 * 1024 ** 3, totalBytes: 4 * 1024 ** 3 } }
+    };
+    const h = pageHarness({ status });
+    // The harness's localStorage answers 'tok' for every key: details start hidden.
+    await h.page.refresh();
+    let html = h.content.innerHTML;
+    assert.ok(html.includes('Playing now') && html.includes('NBC Sports Boston') && html.includes('data-kill-session="s1"'));
+    assert.ok(html.includes('Providers') && html.includes('Last 7 days') && html.includes('No stream was lost mid-play'));
+    assert.ok(html.includes('Needs attention') && html.includes('timed out'), 'a failed sync is raised without opening the details');
+    assert.ok(html.includes('build 0288'));
+    for (const hidden of ['Recent plays', 'Streams in detail', 'Feed lag', 'Database backups', 'Disk', '8.1s']) {
+        assert.ok(!html.includes(hidden), `${hidden}: a detail`);
+    }
+    assert.ok(html.includes('data-status-details') && html.includes('Show details'));
+
+    // The button shows them, and the choice is kept in this browser.
+    h.page.toggleDetails();
+    html = h.content.innerHTML;
+    assert.ok(html.includes('Hide details'));
+    for (const shown of ['Recent plays', 'Streams in detail', 'Feed lag (30 days)', 'Chicago &lt;Sports&gt;', '24.1 s', '1 (1)', 'reconnected when it is 24 s behind', 'Disk', '8.1s']) {
+        assert.ok(html.includes(shown), shown);
+    }
+    h.page.toggleDetails();
+    assert.ok(!h.content.innerHTML.includes('Recent plays'), 'and hides them again');
+});
+
+test('0288: the details choice is read from and written to localStorage, and a blocked storage just leaves them hidden', () => {
+    const load = (storage) => {
+        const context = vm.createContext({ console, localStorage: storage, document: { getElementById: () => null, addEventListener() {} } });
+        context.window = context;
+        vm.runInContext(js('pages/StatusPage.js'), context);
+        return new context.StatusPage({});
+    };
+    const store = new Map([['pigtv.statusDetails', '1']]);
+    const page = load({ getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) });
+    assert.equal(page.showDetails, true);
+    page.toggleDetails();
+    assert.equal(store.get('pigtv.statusDetails'), '0');
+    const blocked = load({ getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); } });
+    assert.equal(blocked.showDetails, false);
+    blocked.toggleDetails();
+    assert.equal(blocked.showDetails, true, 'still works for this visit');
 });

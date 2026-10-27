@@ -64,7 +64,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0288** |
+| Next build number | **0289** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -234,7 +234,10 @@ silent from the start. **Real problems:** `Could not write header`, `FFmpeg exit
 **Status page** (0124): the admin page "Status" = `GET /api/status` (admin): live sessions with channel names, active
 and next 5 recordings, the last 50 plays (first-picture time, cold/warm/profile, failure text; in memory, `playbackEvents.js`),
 sync per source, free disk (transcode tmpfs, recordings), build. Never a URL: fields are whitelisted and the document is
-scrubbed. Look here before `docker logs`. Since 0133 it also lists the **least reliable channels** (7 days; since 0142 also
+scrubbed. Look here before `docker logs`. Since 0288 it opens on providers, what is playing and recording, the last 7 days
+(problems only when there are some) and a "Needs attention" box (a failed sync, recordings stuck in appdata); everything else
+(recent plays, stream internals, interruptions, feed lag, server load, fixtures, sync, catch-up, backups, disk, EPG
+categories) is behind "Show details", remembered per browser (`pigtv.statusDetails`). Since 0133 it also lists the **least reliable channels** (7 days; since 0142 also
 channels that only stall, ranked by failed starts + stalls per hour watched, hours floored at 30 min; stalls and minutes shown).
 
 **Channel health** (0133, C-G, `channelHealth.js`, table `channel_health`): one row per start attempt per identity, kept 30 days

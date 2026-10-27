@@ -5,6 +5,10 @@
  * the last plays (first-picture times, cold/warm/profile starts, failures), sync
  * health per source, free disk, and the build. Refreshed every 5 seconds while
  * the page is shown, and not at all when it is not.
+ *
+ * 0288: the page opens on what an admin acts on - warnings, providers, what is playing and
+ * recording, the last 7 days' problems (only when there are some) - and everything kept for
+ * troubleshooting is behind "Show details", remembered in this browser.
  */
 
 class StatusPage {
@@ -14,6 +18,8 @@ class StatusPage {
         this.refreshMs = 5000;
         this.shown = false;
         this.rendered = new Map(); // R16: section key -> the html last drawn, so an unchanged section is left alone
+        this.showDetails = false;
+        try { this.showDetails = localStorage.getItem(StatusPage.DETAILS_KEY) === '1'; } catch (e) { /* storage blocked: closed */ }
         // R16: nothing is polled while the tab is hidden; on return it refreshes at once.
         document.addEventListener?.('visibilitychange', () => {
             if (!this.shown) return;
@@ -23,12 +29,32 @@ class StatusPage {
         // 0182: stopping a stuck stream moved here from Settings -> Debug. The table is rebuilt
         // every 5 s, so the buttons are handled where they bubble to.
         document.getElementById('status-content')?.addEventListener('click', (e) => {
-            const button = e.target?.closest?.('button[data-kill-session], button[data-kill-all]');
-            if (button) this.kill(button);
+            const button = e.target?.closest?.('button[data-status-details], button[data-kill-session], button[data-kill-all]');
+            if (!button) return;
+            if (button.dataset?.statusDetails !== undefined) this.toggleDetails();
+            else this.kill(button);
         });
     }
 
     async init() { }
+
+    /** 0288: show or hide the troubleshooting sections; remembered in this browser. */
+    toggleDetails() {
+        this.showDetails = !this.showDetails;
+        try { localStorage.setItem(StatusPage.DETAILS_KEY, this.showDetails ? '1' : '0'); } catch (e) { /* not remembered */ }
+        this.syncEpgPanel();
+        if (this.showDetails) this.loadEpgCategories();
+        if (this.lastStatus) {
+            const content = document.getElementById('status-content');
+            if (content) this.paint(content, this.lastStatus);
+        }
+    }
+
+    /** The EPG categories panel sits outside the refreshed content: it is a detail too. */
+    syncEpgPanel() {
+        const panel = document.getElementById('status-epg-categories');
+        if (panel && panel.style) panel.style.display = this.showDetails ? '' : 'none';
+    }
 
     async kill(button) {
         const all = button.dataset.killAll !== undefined;
@@ -45,7 +71,8 @@ class StatusPage {
 
     show() {
         this.shown = true;
-        this.loadEpgCategories();
+        this.syncEpgPanel();
+        if (this.showDetails) this.loadEpgCategories();
         if (document.hidden) return; // refreshed when the tab is next visible
         this.start();
     }
@@ -106,6 +133,7 @@ class StatusPage {
         const updated = document.getElementById('status-updated');
         try {
             const status = await API.status.get();
+            this.lastStatus = status;
             if (content) this.paint(content, status);
             if (updated) updated.textContent = `Updated ${new Date(status.generatedAt || Date.now()).toLocaleTimeString()} · every 5 s`;
         } catch (err) {
@@ -322,17 +350,16 @@ class StatusPage {
             const days = prov.daysLeft !== undefined ? prov.daysLeft : Math.ceil((prov.expiresAt - Date.now()) / (24 * 60 * 60 * 1000));
             return `${d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} (${days}d)`;
         };
+        // 0288: the role as a hint, and the account only when reading it failed.
         return this.section('Providers', this.table(
-            ['Name', 'Role', 'State', 'Connections', 'In use for', 'Expires', 'Account'],
+            ['Name', 'State', 'Connections', 'In use for', 'Expires'],
             providers.map(p => [
-                e(p.name),
-                e(p.role || 'primary'),
-                `<span class="status-event ${stateClass(p.state)}">${e(p.state || 'up')}${p.downUntil ? ` until ${this.time(p.downUntil)}` : ''}</span>`,
+                `${e(p.name)}${p.role === 'backup' ? ' <span class="setting-hint">(backup)</span>' : ''}`,
+                `<span class="status-event ${stateClass(p.state)}">${e(p.state || 'up')}${p.downUntil ? ` until ${this.time(p.downUntil)}` : ''}</span>`
+                    + (p.accountOk === false ? ' <span class="status-event status-failure">Account error</span>' : ''),
                 this.amt(`${p.connections.used}/${p.connections.limit}`),
                 this.renderUses(p.uses),
-                expiryText(p),
-                p.accountOk === null || p.accountOk === undefined ? 'not checked yet'
-                    : p.accountOk ? '<span class="status-event status-success">OK</span>' : '<span class="status-event status-failure">Error</span>'
+                expiryText(p)
             ]),
             'No providers'));
     }
@@ -347,64 +374,96 @@ class StatusPage {
         const out = [];
         const add = (key, html) => out.push([key, html]);
 
+        // ---- 0288: always shown: what an admin acts on ----
         add('folder', this.renderRecordingsFolderWarning(status.recordingsFolder));
-
-        // Providers (P8, 0175)
+        add('attention', this.renderAttention(status));
         add('providers', this.renderProviders(status.providers));
 
-        // Live sessions
         const sessions = status.sessions || [];
-        add('sessions', this.section('Live sessions', this.table(
-            ['Channel', 'Owner', 'Video / audio', 'Segments', 'Up', 'Idle', 'ffmpeg', ''],
+        add('sessions', this.section('Playing now', this.table(
+            ['Channel', 'Device', 'Playing for', ''],
             sessions.map(s => [
-                `${e(s.channel)}${s.provider ? ` <span class="setting-hint">(${e(s.provider)})</span>` : ''}`, e(s.owner || '–'), `${e(s.video)} / ${e(s.audio)}`, e(s.segmentType || '–'),
-                this.duration(s.uptimeSec), this.duration(s.idleSec),
-                `${e(s.ffmpeg)}${s.error ? `<div class="setting-hint">${e(s.error)}</div>` : ''}`,
+                `${e(s.channel)}${s.provider ? ` <span class="setting-hint">(${e(s.provider)})</span>` : ''}`
+                    + (s.error ? `<div class="setting-hint">${e(s.error)}</div>` : ''),
+                e(s.owner || '–'), this.duration(s.uptimeSec),
                 `<button type="button" class="btn btn-sm btn-danger" data-kill-session="${e(s.id)}" title="Stop this stream and free its provider connection">Stop</button>`
             ]),
             'Nothing is playing')
-            + this.renderRelay(status.relay)
             + (sessions.length > 1 ? '<p><button type="button" class="btn btn-sm btn-danger" data-kill-all>Stop all streams</button></p>' : '')));
 
-        // Interruptions (0188): the measure any recovery change is judged against.
+        const rec = status.recordings || { active: [], upcoming: [] };
+        const recRow = (r) => [e(r.title), `${e(r.channel || '–')}${r.provider ? ` <span class="setting-hint">(${e(r.provider)})</span>` : ''}`, e(r.status), `${this.when(r.programStart)} – ${this.timeShort(r.programEnd)}`];
+        add('recordings', this.section('Recordings',
+            ((rec.active || []).length ? `<h4>Recording now</h4>${this.table(['Programme', 'Channel', 'Status', 'Time'], rec.active.map(recRow), '')}` : '')
+            + `<h4>Next scheduled</h4>${this.table(['Programme', 'Channel', 'Status', 'Time'], (rec.upcoming || []).map(recRow), 'Nothing scheduled')}`));
+
+        add('week', this.renderWeek(status));
+
+        // ---- everything kept for troubleshooting ----
+        add('details', `<p class="status-details-toggle"><button type="button" class="btn btn-sm btn-secondary" data-status-details aria-expanded="${this.showDetails}">${this.showDetails ? 'Hide details' : 'Show details'}</button>`
+            + ' <span class="setting-hint">For troubleshooting: recent plays, stream internals, feed lag, server load, sync, catch-up, backups and disk.</span></p>');
+        if (this.showDetails) this.detailParts(status, add);
+
+        const b = status.build || {};
+        add('build', `<p class="setting-hint status-build">${e(b.display || '')}${b.builtAt ? ` · built ${e(new Date(b.builtAt).toLocaleString())}` : ''}</p>`);
+        return out;
+    }
+
+    /** 0288: things wrong right now that are not in a table above (a source that failed to sync, recordings stuck in appdata). */
+    renderAttention(status) {
+        const e = (v) => this.escape(v);
+        const lines = [];
+        for (const src of status.sync || []) {
+            for (const f of src.feeds || []) if (f.error) lines.push(`${e(src.name)}'s ${e(f.type)} sync failed ${this.when(f.lastSync)}: ${e(f.error)}`);
+        }
+        const seg = status.segmentedRecordings;
+        if (seg && (seg.waitingToMove || []).length) lines.push(`${e(seg.waitingToMove.length)} finished recording(s) are waiting in appdata for the recordings folder.`);
+        if (seg && (seg.failed || []).length) lines.push(`${e(seg.failed.length)} recording(s) could not be finished; their segments are kept in appdata.`);
+        if (!lines.length) return '';
+        return `<div class="settings-section status-section status-warning"><h3>Needs attention</h3>${lines.map(l => `<p class="setting-hint">${l}</p>`).join('')}</div>`;
+    }
+
+    /** 0288: the last 7 days in a line, and the lists only when they have something in them. */
+    renderWeek(status) {
+        const e = (v) => this.escape(v);
         const ix = status.interruptions;
+        const problems = status.recentProblems || [];
+        const flaky = status.leastReliable || [];
+        let line = '';
         if (ix) {
             const secs = (v) => (v === null || v === undefined ? '–' : `${Math.round(v)} s`);
-            const line = ix.count === 0
+            line = ix.count === 0
                 ? `No stream was lost mid-play in the last ${ix.days} days (${e(ix.watchedHours)} h watched).`
                 : `${e(ix.count)} lost mid-play in the last ${ix.days} days over ${e(ix.watchedHours)} h watched`
                     + `${ix.perHour === null ? '' : ` (${e(ix.perHour)} per hour)`}; ${e(ix.recovered)} came back, `
                     + `typically in ${secs(ix.medianRecoverSec)}, at worst ${secs(ix.worstRecoverSec)}.`;
-            add('interruptions', this.section('Interruptions', `<p class="setting-hint">${line}</p>` + this.table(
-                ['When', 'Channel', 'Provider', 'What happened', 'After playing', 'Back in'],
-                (ix.recent || []).map(r => [
-                    this.when(r.at), e(r.channel || '–'), e(r.provider || '–'),
-                    (r.reason ? `<span class="setting-hint">${e(r.reason)}</span> ` : '') + e(r.how === 'stall' ? 'Stopped sending' : r.how === 'timestamps' ? 'Timestamps broke after a reconnect' : (r.providerReason ? 'Provider dropped it' : 'Stream ended')),
-                    this.duration(r.playedSec),
-                    r.recoverSec === null ? '<span class="status-event status-failure">Not recovered</span>'
-                        : `${this.amt(`${e(r.recoverSec)} s`)}${r.recoveredProvider && r.recoveredProvider !== r.provider ? ` <span class="setting-hint">(on ${e(r.recoveredProvider)})</span>` : ''}`
-                ]),
-                'None')));
         }
+        const body = (line ? `<p class="setting-hint">${line}</p>` : '')
+            + (problems.length ? `<h4>Recent problems</h4>` + this.table(
+                ['Programme', 'Channel', 'Status', 'Time', 'Reason'],
+                problems.map(r => [
+                    e(r.title), e(r.channel || '–'),
+                    `<span class="status-event status-failure">${e(r.status === 'missed' ? 'Missed' : 'Failed')}</span>`,
+                    `${this.when(r.programStart)} – ${this.timeShort(r.programEnd)}`,
+                    e(r.error || '')
+                ]), '') : '')
+            + (flaky.length ? `<h4>Least reliable channels</h4>` + this.table(
+                ['Channel', 'Attempts', 'Failures', 'Stalls', 'Watched', 'Median first picture', 'Health'],
+                flaky.map(ch => [
+                    e(ch.name), this.amt(e(ch.attempts)), this.amt(e(ch.failures)),
+                    ch.stallsPerHour !== null && ch.stallsPerHour !== undefined ? `${e(ch.stalls)} (${Number(ch.stallsPerHour).toFixed(1)}/h)` : e(ch.stalls ?? 0),
+                    ch.watchedMin !== null && ch.watchedMin !== undefined ? this.amt(`${Math.round(ch.watchedMin)} min`) : '–',
+                    ch.medianFirstPictureSec !== null && ch.medianFirstPictureSec !== undefined ? `${Number(ch.medianFirstPictureSec).toFixed(1)}s` : '–',
+                    (ch.health === 'flaky' ? '<span class="status-event status-failure">Flaky</span>' : e(ch.health || '–'))
+                        + (ch.blank ? ' <span class="status-event status-failure">Blank picture</span>' : '')
+                ]), '') : '')
+            + (!problems.length && !flaky.length ? '<p class="setting-hint">No missed or failed recordings, and no failed starts or stalls in the last 7 days.</p>' : '');
+        return this.section('Last 7 days', body);
+    }
 
-        // Recordings
-        const rec = status.recordings || { active: [], upcoming: [] };
-        const recRow = (r) => [e(r.title), `${e(r.channel || '–')}${r.provider ? ` <span class="setting-hint">(${e(r.provider)})</span>` : ''}`, e(r.status), `${this.when(r.programStart)} – ${this.timeShort(r.programEnd)}`];
-        add('recordings', this.section('Recordings',
-            `<h4>Recording now</h4>${this.table(['Programme', 'Channel', 'Status', 'Time'], (rec.active || []).map(recRow), 'Nothing is recording')}` +
-            `<h4>Next scheduled</h4>${this.table(['Programme', 'Channel', 'Status', 'Time'], (rec.upcoming || []).map(recRow), 'Nothing scheduled')}`));
-
-        // Recent problems (0156): missed/failed schedules from the last 7 days, so a
-        // silent overnight failure shows up here instead of only in docker logs.
-        add('problems', this.section('Recent problems', this.table(
-            ['Programme', 'Channel', 'Status', 'Time', 'Reason'],
-            (status.recentProblems || []).map(r => [
-                e(r.title), e(r.channel || '–'),
-                `<span class="status-event status-failure">${e(r.status === 'missed' ? 'Missed' : 'Failed')}</span>`,
-                `${this.when(r.programStart)} – ${this.timeShort(r.programEnd)}`,
-                e(r.error || '')
-            ]),
-            'No missed or failed recordings in the last 7 days')));
+    /** 0288: the troubleshooting sections, shown under "Show details". */
+    detailParts(status, add) {
+        const e = (v) => this.escape(v);
 
         // Recent plays
         const label = { 'play-start': 'Started', 'play-end': 'Ended', failure: 'Failed', relay: 'Recovery' };
@@ -421,24 +480,35 @@ class StatusPage {
             ]),
             'No plays since the server started')));
 
-        // Sport fixtures (0161, C-I): ESPN's real kickoff/session times, per league.
-        add('fixtures', this.renderSportFixtures(status.sportFixtures));
+        // Streams in detail: the session internals and in-stream recovery
+        const sessions = status.sessions || [];
+        add('streams', this.section('Streams in detail', (sessions.length ? this.table(
+            ['Channel', 'Video / audio', 'Segments', 'Idle', 'ffmpeg'],
+            sessions.map(s => [
+                e(s.channel), `${e(s.video)} / ${e(s.audio)}`, e(s.segmentType || '–'), this.duration(s.idleSec),
+                `${e(s.ffmpeg)}${s.error ? `<div class="setting-hint">${e(s.error)}</div>` : ''}`
+            ]), '') : '') + this.renderRelay(status.relay)));
 
-        // Least reliable channels (0133, C-G): failed starts and (0142) stalls over the last 7 days
-        add('reliable', this.section('Least reliable channels', this.table(
-            ['Channel', 'Attempts', 'Failures', 'Stalls', 'Watched', 'Median first picture', 'Health'],
-            (status.leastReliable || []).map(ch => [
-                e(ch.name), this.amt(e(ch.attempts)), this.amt(e(ch.failures)),
-                ch.stallsPerHour !== null && ch.stallsPerHour !== undefined ? `${e(ch.stalls)} (${Number(ch.stallsPerHour).toFixed(1)}/h)` : e(ch.stalls ?? 0),
-                ch.watchedMin !== null && ch.watchedMin !== undefined ? this.amt(`${Math.round(ch.watchedMin)} min`) : '–',
-                ch.medianFirstPictureSec !== null && ch.medianFirstPictureSec !== undefined ? `${Number(ch.medianFirstPictureSec).toFixed(1)}s` : '–',
-                (ch.health === 'flaky' ? '<span class="status-event status-failure">Flaky</span>' : e(ch.health || '–'))
-                    + (ch.blank ? ' <span class="status-event status-failure">Blank picture</span>' : '')
-            ]),
-            'No failed starts or stalls in the last 7 days')));
+        // Interruptions (0188): each one, the measure any recovery change is judged against.
+        const ix = status.interruptions;
+        if (ix) {
+            add('interruptions', this.section('Interruptions', this.table(
+                ['When', 'Channel', 'Provider', 'What happened', 'After playing', 'Back in'],
+                (ix.recent || []).map(r => [
+                    this.when(r.at), e(r.channel || '–'), e(r.provider || '–'),
+                    (r.reason ? `<span class="setting-hint">${e(r.reason)}</span> ` : '') + e(r.how === 'stall' ? 'Stopped sending' : r.how === 'timestamps' ? 'Timestamps broke after a reconnect' : (r.providerReason ? 'Provider dropped it' : 'Stream ended')),
+                    this.duration(r.playedSec),
+                    r.recoverSec === null ? '<span class="status-event status-failure">Not recovered</span>'
+                        : `${this.amt(`${e(r.recoverSec)} s`)}${r.recoveredProvider && r.recoveredProvider !== r.provider ? ` <span class="setting-hint">(on ${e(r.recoveredProvider)})</span>` : ''}`
+                ]),
+                'None in the last 7 days')));
+        }
 
-        // Sync
+        // R7 data (0287): each channel's worst lag behind real time, per provider.
+        add('feedlag', this.renderFeedLag(status.feedLag));
+
         add('health', this.renderHealth(status));
+        add('fixtures', this.renderSportFixtures(status.sportFixtures));
 
         add('sync', this.section('Sync', this.table(
             ['Source', 'Type', 'Feed', 'Status', 'Last sync', 'Error'],
@@ -448,12 +518,12 @@ class StatusPage {
             ])),
             'No sources')));
 
-        // Disk
-        // Plan B1: does any provider offer catch-up (Xtream tv_archive)?
+        // Plan B1: does any provider offer catch-up (Xtream tv_archive)? Only once it is known.
         const catchup = Array.isArray(status.catchup) ? status.catchup : [];
-        add('catchup', this.section('Catch-up (provider archive)', this.table(['Provider', 'Streams', 'With archive', 'Longest'],
-            catchup.map(c => [e(c.provider || `#${c.sourceId}`), e(c.streams), e(c.withArchive || 0), c.maxDays ? `${e(c.maxDays)} days` : '–']),
-            'Not known yet: a provider\'s raw list is read after a sync once a backup provider exists.')));
+        if (catchup.length) {
+            add('catchup', this.section('Catch-up (provider archive)', this.table(['Provider', 'Streams', 'With archive', 'Longest'],
+                catchup.map(c => [e(c.provider || `#${c.sourceId}`), e(c.streams), e(c.withArchive || 0), c.maxDays ? `${e(c.maxDays)} days` : '–']), '')));
+        }
         // R12: database copies (newest first). Same disk as the database: not protection against losing it.
         const backups = Array.isArray(status.backups) ? status.backups : [];
         add('backups', this.section('Database backups', this.table(['Copy', 'Why', 'When', 'Size'],
@@ -463,13 +533,22 @@ class StatusPage {
         const diskRow = (name, d) => [e(name), d && d.available ? this.bytes(d.freeBytes) : 'unavailable', d && d.available ? this.bytes(d.totalBytes) : '–'];
         add('disk', this.section('Disk', this.table(['Volume', 'Free', 'Size'],
             [diskRow('Transcode cache', disk.transcodeCache), diskRow('Recordings', disk.recordings)], '')));
+    }
 
-        // Build
-        const b = status.build || {};
-        add('build', this.section('Build', `<p class="setting-hint">${e(b.display || '')}${b.builtAt ? ` · built ${e(new Date(b.builtAt).toLocaleString())}` : ''}</p>`));
-
-        return out;
+    /** R7 data (0287): per channel and provider over 30 days, worst lag first, against the reconnect limit. */
+    renderFeedLag(lag) {
+        const e = (v) => this.escape(v);
+        const rows = lag && Array.isArray(lag.channels) ? lag.channels : null;
+        if (!rows) return '';
+        return this.section('Feed lag (30 days)',
+            `<p class="setting-hint">How far each shared feed fell behind real time at worst.${lag.limitSec ? ` A feed is reconnected when it is ${e(lag.limitSec)} s behind.` : ''}</p>`
+            + this.table(['Channel', 'Provider', 'Watched', 'Worst lag', 'Reconnects (for lag)', 'Last'],
+                rows.map(r => [e(r.channel || 'A channel'), e(r.provider || '–'), this.amt(`${e(r.hours)} h`),
+                    this.amt(`${e(r.worstBehindSec)} s`), this.amt(`${e(r.reconnects)} (${e(r.lagReconnects)})`), this.when(r.lastAt)]),
+                'Nothing yet: a feed is recorded when its shared connection closes after a minute or more.'));
     }
 }
+
+StatusPage.DETAILS_KEY = 'pigtv.statusDetails';
 
 window.StatusPage = StatusPage;

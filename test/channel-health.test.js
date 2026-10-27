@@ -230,7 +230,7 @@ test('the web Status page shows the least reliable channels', () => {
     assert.ok(html.includes('Seven &lt;Flix&gt;'), 'escaped');
     assert.ok(html.includes('8.3s') || html.includes('8.2s'));
     assert.ok(html.includes('Flaky'));
-    assert.ok(page.render({}).includes('No failed starts or stalls in the last 7 days'));
+    assert.ok(page.render({}).includes('no failed starts or stalls in the last 7 days'));
 });
 
 // 0142: Mark saw a channel with stalls on the Status page that was not in the list: play-end's

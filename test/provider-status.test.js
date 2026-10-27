@@ -83,7 +83,9 @@ test('the Status page shows a Providers panel with state, connections, expiry an
     assert.ok(html.includes('Strong8K') && html.includes('down until'), 'a down provider says until when');
     assert.ok(html.includes('Trex &lt;b&gt;'), 'names are escaped');
     assert.ok(html.includes('1/1') && html.includes('0/1'), 'connections used/limit');
-    assert.ok(html.includes('not checked yet'), 'an account never read is not shown as an error');
+    // 0288: the account shows only when reading it failed; one never read is not an error.
+    assert.equal((html.match(/Account error/g) || []).length, 1, 'Strong8K\'s account failed; Trex\'s was never read');
+    assert.ok(html.includes('(backup)'), 'the role as a hint');
 });
 
 test('the banner script loads before app.js and the old duplicate reminders route is gone', () => {
