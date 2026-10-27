@@ -26,7 +26,11 @@ test('excused while it has been handed less than the limit\'s worth of media sin
     media = 103;
     assert.ok(await s.lastActivityAt() >= now, '3 s of media since: still excused');
     media = 105;
-    assert.equal(await s.lastActivityAt(), 1000, '5 s of media and nothing written: its own silence');
+    const spentAt = await s.lastActivityAt();
+    assert.ok(spentAt >= now, '0284: handed 5 s at once, it has the limit again, in time, from now');
+    s.outputSeen.spent[4000] -= 5000; // that time passes with nothing written
+    media = 109;
+    assert.equal(await s.lastActivityAt(), spentAt - 5000, 'its own silence now, and a later burst renews nothing');
     assert.equal(await session({ out: () => null, feed: { mediaReceived: () => 0 } }).lastActivityAt(), null,
         'before any output nothing is excused: the start-up grace holds');
     assert.equal(await session({ out: () => 1000, feed: null }).lastActivityAt(), 1000, 'no ingest: output only');
@@ -52,6 +56,14 @@ before(async () => {
             b[8] = Math.floor(base / 512) & 0xff; b[9] = Math.floor(base / 2) & 0xff; b[10] = (base % 2) << 7;
             return b;
         };
+        // '/nopcr': MPEG-TS that never carries a PCR, sent steadily.
+        if (req.url === '/nopcr') {
+            const plain = (n) => { const b = Buffer.alloc(188, 0xff); b[0] = 0x47; b[1] = n % 20 === 0 ? 0x40 : 0x01; b[2] = n % 20 === 0 ? 0 : 0; b[3] = 0x10; return b; };
+            let n = 0;
+            const t = setInterval(() => { if (!res.destroyed) res.write(Buffer.concat(Array.from({ length: 50 }, () => plain(n++)))); }, 50);
+            res.on('close', () => clearInterval(t));
+            return;
+        }
         const send = (sec) => { if (!res.destroyed) { res.write(Buffer.concat(Array.from({ length: sec * 100 }, (_, k) => pkt(at + k / 100, k)))); at += sec; } };
         send(3);
         const timer = setInterval(() => send(3), 3000);
@@ -82,5 +94,29 @@ test('recurring healthy bursts do not hide a frozen ffmpeg: the watchdog fires',
         sub.leave();
         assert.equal(fired.length, 1, 'a reader handed media and writing nothing is stalled');
         assert.ok(waited < 12000, `within a bounded time (${waited} ms)`);
+    } finally { console.log = log; console.warn = warn; }
+});
+
+// 0284 (Codex review of 0283): bytes without a PCR measure nothing, and must not excuse a frozen
+// ffmpeg for ever: output alone counts, as before R7.
+test('a feed with no PCR excuses nothing: the watchdog fires on frozen output', async () => {
+    const log = console.log, warn = console.warn;
+    console.log = console.warn = () => {};
+    try {
+        const sub = await ingest.subscribe({ pool: 'p', url: `${base}/nopcr`, purpose: 'viewer' });
+        sub.resume();
+        await sleep(300);
+        assert.equal(sub.mediaReceived(), null, 'unmeasured, not "nothing delivered"');
+        let frozenAt = null;
+        const s = session({ out: () => frozenAt, feed: sub, stallMs: 2000 });
+        const fired = [];
+        const dog = createStallWatchdog({ label: 't', getLastActivity: () => s.lastActivityAt(), onStall: (q) => fired.push(q),
+            stallMs: 2000, startupMs: 60000, checkIntervalMs: 100 });
+        frozenAt = Date.now();
+        let waited = 0;
+        while (!fired.length && waited < 8000) { await sleep(200); waited += 200; }
+        dog.stop();
+        sub.leave();
+        assert.equal(fired.length, 1, 'frozen output on an unmeasured feed is stalled');
     } finally { console.log = log; console.warn = warn; }
 });

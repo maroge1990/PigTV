@@ -304,7 +304,8 @@ class Relay {
 
         // R7 (FR-8): on the shared ingest, a pause in the feed is the ingest's to judge (how far behind
         // real time); it is not the leg's silence while the leg has been handed less than the switch
-        // time's worth of media since its last output (0283). Reconnecting, nothing is excused.
+        // time's worth of media since its last output (0283), and once it has, the switch time counts
+        // from then, not from before a pause (0284). Reconnecting or unmeasured, nothing is excused.
         const now = Date.now();
         const excuse = typeof leg.session.feedExcusedUntil === 'function' ? leg.session.feedExcusedUntil(now, switchAfterMs()) : null;
         const quietMs = now - Math.max(this.lastProgressAt, excuse || 0);

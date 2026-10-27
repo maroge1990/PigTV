@@ -113,10 +113,12 @@ class Subscription extends Readable {
     }
     /**
      * R7 (0283): seconds of media the feed has delivered over its life (feedPace.totalMedia), or null
-     * while the connection is being re-made or once ended: then nothing excuses its reader's silence.
+     * while the connection is being re-made, once ended, or while this connection has shown no PCR
+     * (0284, Codex review of 0283: unmeasured is not "nothing delivered"): then nothing excuses its
+     * reader's silence, and output alone counts.
      */
     mediaReceived() {
-        if (this.endReason || this.ingest.state !== 'live') return null;
+        if (this.endReason || this.ingest.state !== 'live' || !this.ingest.pace.measured) return null;
         return this.ingest.pace.totalMedia;
     }
     /** The consumer is done with it. */

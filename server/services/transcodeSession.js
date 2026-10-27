@@ -1194,12 +1194,20 @@ class TranscodeSession extends EventEmitter {
 
     /**
      * `now` while ffmpeg has been handed less than `budgetMs` of media since its last output (as last
-     * seen by lastActivityAt), else null: then its silence is its own.
+     * seen by lastActivityAt). Once it has been handed that much, the moment that was first seen: from
+     * there it has `budgetMs` again, in time, to write something (0284, Codex review of 0283: a
+     * catch-up burst after a long pause hands it a lot at once, and the pause is not its fault). That
+     * moment is fixed until its next output, so later bursts cannot renew it. Null when nothing is
+     * measured (no ingest, reconnecting, no PCR): then only its output counts.
      */
     feedExcusedUntil(now = Date.now(), budgetMs = this.options.stallMs ?? HLS_STALL_MS) {
         const media = this.feedMediaReceived();
-        if (media === null || !this.outputSeen || this.outputSeen.media === null) return null;
-        return (media - this.outputSeen.media) * 1000 < budgetMs ? now : null;
+        const seen = this.outputSeen;
+        if (media === null || !seen || seen.media === null) return null;
+        if ((media - seen.media) * 1000 < budgetMs) return now;
+        if (!seen.spent) seen.spent = {};
+        if (seen.spent[budgetMs] === undefined) seen.spent[budgetMs] = now;
+        return seen.spent[budgetMs];
     }
 
     async latestOutputAt() {

@@ -510,3 +510,49 @@ test('R7: with the shared connection on, a takeover leg and the standby read thr
         coordinator.samePool = samePool; coordinator.hasFreeConnection = free;
     }
 });
+
+// 0284 (Codex review of 0283): a catch-up burst after a long healthy pause hands the leg more than
+// the switch time's worth of media at once. That must not switch at once: the leg has the switch
+// time again, from then, to write - and only once (later bursts do not renew it).
+test('R7: a catch-up burst after a long pause does not switch at once; a leg that still writes nothing then does', async () => {
+    process.env.PIGTV_RELAY_SWITCH_MS = '3000';
+    const samePool = coordinator.samePool, free = coordinator.hasFreeConnection;
+    coordinator.samePool = (a, b) => a === b;
+    coordinator.hasFreeConnection = (id) => ![...registry.values()].some(x => x.status === 'running' && x.options.providerId === id);
+    try {
+        const s = fakeSession();
+        // The real session methods, on a stubbed feed and output record.
+        const proto = sessions.TranscodeSession.prototype;
+        s.feedExcusedUntil = proto.feedExcusedUntil;
+        s.feedMediaReceived = proto.feedMediaReceived;
+        let media = 50;
+        s.feed = { mediaReceived: () => media };
+        s.outputSeen = { at: Date.now() - 16_000, media: 50 };
+        write(s, 0, 5);
+        const r = await silently(() => relay.adopt(s, ctx({ settings: withStandby })));
+        await silently(() => r.tick());
+        r.standbyAt = 0;
+        await silently(() => r.tick());
+        await new Promise(res => setTimeout(res, 20));
+        await silently(() => r.tick());
+        assert.equal(r.standbyReady(), true);
+        const sb = r.standby.session;
+        write(sb, 3, 7);
+
+        r.lastProgressAt = Date.now() - 16_000; // a 16 s healthy pause: nothing handed, nothing written
+        await silently(() => r.tick());
+        assert.equal(r.active.session, s, 'during the pause: excused');
+        media = 66; // the catch-up burst: 16 s of media at once, before ffmpeg has published anything
+        await silently(() => r.tick());
+        assert.equal(r.active.session, s, 'the burst itself is not a reason to switch');
+
+        // The switch time passes from that moment with nothing written: now it is the leg's silence.
+        s.outputSeen.spent[3000] -= 3500;
+        media = 70; // another burst renews nothing
+        await silently(() => r.tick());
+        assert.equal(r.active.session, sb, 'switched once the leg had the switch time to write and did not');
+    } finally {
+        coordinator.samePool = samePool; coordinator.hasFreeConnection = free;
+        delete process.env.PIGTV_RELAY_SWITCH_MS;
+    }
+});
