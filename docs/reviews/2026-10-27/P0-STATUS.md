@@ -186,3 +186,32 @@ The deployed HTTP `/api/version` endpoint returned 200 with build **0300**, comm
 Explicitly read-only SQLite reads confirmed `sharedIngestEnabled=true` and `segmentedRecordings=true`.
 No post-deployment `feed_lag` rows or learned limits were present at this check. These observations confirm
 configuration and endpoint availability, not adaptive behavior or device playback. No provider connection was taken.
+
+## Acceptance status, 28 Oct (later, 01:00–01:30 UTC)
+
+Re-checked with approved read-only SSH. Production is **0300 (`58745fe`)**, built 00:10 UTC; the container started 00:43:59
+UTC with 0 restarts and is healthy; ffmpeg is 6.1.1-3ubuntu5. Local `main` is three docs/0301 commits ahead of
+`origin/main` (`36a9135`, `91a63ca`, `c93239a`); PigTV-Swift has none. Since the deploy there are no play, ingest,
+relay or recording log lines, no `feed_lag` rows and no `feed_lag_limits` rows: nobody has watched yet.
+
+| Check | Status | Evidence / reason |
+|---|---|---|
+| 1. 0300 live; shared ingest on; stored opt-out wins | **Production read-only complete** (version, stored settings) + automated | The opt-out case is covered by tests; there is no stored opt-out on Mark's server to observe |
+| 2. Feed lag rows show the current limit | **Pending: no play since deploy** | `feed_lag` and `feed_lag_limits` are empty |
+| 3. 24→26→28 s on a lag reconnect; kept across a later play and a redeploy | **Pending: needs a natural lag reconnect** | Automated only; no outage is to be forced |
+| 4. A 2 s drop after ~3 clean reading hours | **Pending: needs ≥3 h of reading at a raised level** | Automated only |
+| 5. Fox Cricket daytime live, overnight replays | **Fails offline on production rows** | Day 2 Fox sessions (live-flagged) come out as replays (FR-20); overnight 01:00/04:00 blocks come out as live via a Sheffield Shield fixture (FR-19). Willow lists Day 2 live. `sports-replay/RESULTS.md` |
+| 6. MLB carrying channels; recaps excluded | **Passes offline on production rows** (0300 and 0301) | One event, 45 channels (affiliates, Sportsnet, AFN, team channels, TNT/ESPN broadcasts); recaps out. Device display pending |
+| FR-17 (0301) | **Automated/local complete**; separate review pending | Round-2 synthetic case repaired; 0300 and 0301 identical on production rows (no category generics there) |
+| Roster inference on the real guide | **New defect (FR-21)** | A live EFL Cup game is listed as an EPL replay, a regression from 0289 even with "EFL Cup" followed; AFL CAR v BRI tagged FA Cup |
+| FR-9 HE-AAC first-start failure | **Pending: needs sample media** | The master playlist has no CODECS (a mismatch is ruled out); 0289 logs are gone. Proposed offline remux of existing samples (FINDINGS FR-9) |
+| iPhone same/different-channel playback while recording | **Pending: device** | Needs exact timestamps for log correlation |
+| Segmented recording watch-from-start, seek, publication | **Pending: device + a recording** | No recording started under read-only scope |
+| Catch-up playback | **Pending: provider connection** | Stored archive flags only |
+| Restart, takeover, share loss | **Pending: separate approval** | |
+| Long-play freeze (FR-10) | **Pending: recurrence** | Note time and channel; an Xcode main-thread backtrace if possible |
+
+**Prioritised next action:** a small sport-recognition repair batch for **FR-20, FR-19 and FR-21**, in that order. Each is
+reproduced on stored production rows with `sports-replay/replay.js`; the fix and its tests come from those rows. FR-20
+decides whether Fox Cricket 501 shows the Test live; FR-21 hides live cup games. These are not P0 rounds; they need their
+own approval and review. Meanwhile Mark's 0301 review runs as planned.

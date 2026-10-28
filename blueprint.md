@@ -8,6 +8,10 @@ stored adaptive reconnect limits, Fox Cricket recognition/daily Test play, and r
 **0301** repairs FR-17 locally as a separately approved batch: zero-overlap generic listings recognised by guide category
 or sport channel remain events. Its separate review and device acceptance are pending; it is not deployed.
 Production `/api/version` also confirms 0300; stored shared ingest and segmented recordings are both enabled.
+**28 Oct acceptance (read-only + offline replay of production guide rows):** the MLB World Series event passes; Fox Cricket
+fails (FR-19 overnight blocks live via a Shield fixture, FR-20 Day 2 live sessions as replays) and roster inference lists
+a live EFL Cup game as an EPL replay (FR-21). No plays since the 0300 deploy, so adaptive limits are unobserved.
+Status: `docs/reviews/2026-10-27/P0-STATUS.md` (Acceptance status); evidence `docs/reviews/2026-10-27/sports-replay/`.
 Server **0300** is deployed; local `main` matched `origin/main` at `58745fe` (application `974977f`) at session pickup. Apple client
 **57** (live plays held 30 s back) is on the Apple TV. R7 (0282–0284, shared ingest on) passed on the Apple TV: NBC Sports
 Boston 35 min and Chicago Sports Network Plus 65 min with 0 stalls and no switches. Mark approved the next batch on 27 Oct:

@@ -124,6 +124,11 @@ Sports' preview shows the rule for each airing), and (5) the next MLB game lists
 
 ### P1: correctness
 
+0. **(28 Oct, after P0) Sport recognition on real guide rows: FR-20, FR-19, FR-21** (FINDINGS). Fox Cricket's Day 2 live
+   sessions read as replays, overnight Fox blocks read as live through a Sheffield Shield fixture, and a live EFL Cup
+   game reads as an EPL replay. Reproduce with `sports-replay/replay.js` on the stored export; needs Mark's approval as
+   its own batch.
+
 4. **FR-9, HE-AAC copied on a fresh probe**: one failed start (~6 s) the first time an HE-AAC channel is played after
    its cache expires. Find why the fresh probe's capability check says "copy"; the cached path already re-encodes.
    Small, with a reproduction in FINDINGS.
