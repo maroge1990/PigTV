@@ -77,8 +77,11 @@ They are a minimum; the toolkit below says how thoroughly to test:
   - a burst of three reconnects in a few seconds gives one restart.
 - **Offline A/V check:** extend `avsync-repro/` with a script that splices the capture as a reconnect does and runs it
   through the real session/relay path. It shows the output now has a discontinuity at the join, with no
-  timestamp-gapped segment and no run of very short segments. The capture is in Mark's session scratchpad, not the repo.
-  If you don't have it, make a synthetic equivalent with `avsync-repro`'s generator and say so.
+  timestamp-gapped segment and no run of very short segments. The capture (60 s of FOX [Birmingham],
+  HE-AAC labelled AAC Main) is outside the repo, as broadcast media must be:
+  `/private/tmp/claude-501/-Users-markrogers-Documents-GitHub-PigTV/a1811a72-cb4b-4e02-8d3f-f4b764ba4ed8/scratchpad/avrepro/fox.ts`.
+  A temporary folder may have been cleared. If it's gone, make a synthetic equivalent with `avsync-repro`'s generator and
+  say so; don't take a new capture without Mark's approval.
 - `npm test` and `bash scripts/verify-build.sh .` pass before each commit (Node 24:
   `export PATH="/opt/homebrew/opt/node@24/bin:$PATH"`).
 
