@@ -172,3 +172,20 @@ test('an ADTS header or PES header split across TS packets is still read; a cont
     const info = await probeOf(Buffer.concat(splitAudioPes(0x101, FOX_ADTS, 15)), [FOX_AUDIO_101]);
     assert.equal(info.aacLabelBlocked, true, 'and the session then re-encodes it');
 });
+
+// Codex round 2: a damaged first header must not hide the valid ones after it.
+test('a corrupt first ADTS header on an audio PID does not stop later headers being read', async () => {
+    const { adtsObjectType } = load('services/adtsProfile');
+    const damaged = Buffer.from(FOX_ADTS); damaged[0] = 0x7f; // the sync byte broken
+    const bytes = Buffer.concat([
+        tsPacket(0x101, { start: true, cc: 0, payload: Buffer.concat([PES_AUDIO, damaged]) }),
+        tsPacket(0x101, { start: true, cc: 1, payload: Buffer.concat([PES_AUDIO, FOX_ADTS]) }),
+        tsPacket(0x101, { start: true, cc: 2, payload: Buffer.concat([PES_AUDIO, FOX_ADTS]) })
+    ]);
+    assert.equal(adtsObjectType(bytes, 0x101), 1);
+    const info = await probeOf(bytes, [FOX_AUDIO_101]);
+    assert.equal(info.aacLabelBlocked, true);
+    assert.equal(info.audioOk, false, 'so the session re-encodes it to AAC-LC');
+    // A PID that is not audio at all is still settled at once (a video PES start is never re-read).
+    assert.equal(adtsObjectType(Buffer.concat([videoPacket(), videoPacket()]), 0x100), null);
+});

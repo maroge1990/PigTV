@@ -10,7 +10,8 @@ or sport channel remain events. Its separate review and device acceptance are pe
 **0302** fixes FR-9 locally (Mark approved, 28 Oct): the probe reads the ADTS label; an AAC label other than AAC-LC (Strong8K's
 FOX feeds say AAC Main) is never copied but re-encoded to AAC-LC, because Apple refuses the copy (`fmt?`). **0303** fixes Codex round 1's
 two findings: the label is taken per PID for the track the session maps, and a PES/ADTS header split across TS packets is
-reassembled. Codex round 2 and the device check are pending.
+reassembled. **0304** fixes Codex round 2's one medium finding: a damaged header on an audio PID no longer stops later
+headers being read. Both Codex rounds are used (no high findings); the device check is pending.
 Production `/api/version` also confirms 0300; stored shared ingest and segmented recordings are both enabled.
 **28 Oct acceptance (read-only + offline replay of production guide rows):** the MLB World Series event passes; Fox Cricket
 fails (FR-19 overnight blocks live via a Shield fixture, FR-20 Day 2 live sessions as replays) and roster inference lists
@@ -86,7 +87,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0304** |
+| Next build number | **0305** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---

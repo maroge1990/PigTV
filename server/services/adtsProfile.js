@@ -23,12 +23,16 @@ const SYNC = 0x47;
 // Enough for the first audio PES of every track of any live feed seen here.
 const MAX_SNIFF_BYTES = 4 * 1024 * 1024;
 const HEAD_BYTES = 9 + 255 + 3; // the longest PES header plus the three ADTS bytes needed
+const NOT_AUDIO = Symbol('not audio');
 
-/** The object type in a PES start (`head`): a number, null (not ADTS audio: settled), or undefined (need more bytes). */
+/**
+ * The object type in a PES start (`head`): a number; NOT_AUDIO (a non-audio stream: settled for good);
+ * null (an audio PES whose header is not readable ADTS: try the next PES start); or undefined (need more bytes).
+ */
 function labelOf(head) {
     if (head.length < 4) return undefined;
-    if (head[0] !== 0 || head[1] !== 0 || head[2] !== 1) return null;
-    if (head[3] < 0xC0 || head[3] > 0xDF) return null; // not an audio stream id
+    if (head[0] !== 0 || head[1] !== 0 || head[2] !== 1) return null; // a damaged start code
+    if (head[3] < 0xC0 || head[3] > 0xDF) return NOT_AUDIO;
     if (head.length < 9) return undefined;
     const h = 9 + head[8]; // past the PES header's optional fields
     if (head.length < h + 3) return undefined;
@@ -44,7 +48,7 @@ class AdtsSniffer {
         this.bytes = 0;
         this.types = new Map();  // PID -> object type (1 Main, 2 LC, 3 SSR, 4 LTP)
         this.pending = new Map(); // PID -> { head: Buffer, cc }
-        this.settled = new Set(); // PIDs whose first PES was not ADTS audio
+        this.settled = new Set(); // PIDs that carry a non-audio stream
         this.done = false;
     }
 
@@ -89,8 +93,10 @@ class AdtsSniffer {
         const label = labelOf(entry.head);
         if (label === undefined) { this.pending.set(pid, entry); return; }
         this.pending.delete(pid);
-        if (label === null) this.settled.add(pid);
-        else this.types.set(pid, label);
+        // Codex review of 0303: a damaged header on an audio PID settles nothing; the next PES start
+        // (within MAX_SNIFF_BYTES) is read instead, so one corrupt frame cannot hide a valid label.
+        if (label === NOT_AUDIO) this.settled.add(pid);
+        else if (label !== null) this.types.set(pid, label);
     }
 
     finish() { this.done = true; this.rest = null; this.pending.clear(); }
