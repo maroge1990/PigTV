@@ -204,7 +204,7 @@ relay or recording log lines, no `feed_lag` rows and no `feed_lag_limits` rows: 
 | 6. MLB carrying channels; recaps excluded | **Passes offline on production rows** (0300 and 0301) | One event, 45 channels (affiliates, Sportsnet, AFN, team channels, TNT/ESPN broadcasts); recaps out. Device display pending |
 | FR-17 (0301) | **Automated/local complete**; separate review pending | Round-2 synthetic case repaired; 0300 and 0301 identical on production rows (no category generics there) |
 | Roster inference on the real guide | **New defect (FR-21)** | A live EFL Cup game is listed as an EPL replay, a regression from 0289 even with "EFL Cup" followed; AFL CAR v BRI tagged FA Cup |
-| FR-9 HE-AAC first-start failure | **Pending: needs sample media** | The master playlist has no CODECS (a mismatch is ruled out); 0289 logs are gone. Proposed offline remux of existing samples (FINDINGS FR-9) |
+| FR-9 HE-AAC first-start failure | **Cause established offline; fixed locally in 0302** (review and device check pending) | FOX feeds label HE-AAC as AAC Main in every ADTS header; the copied ASC (object type 1) is refused by Apple. 0302 reads the label in the probe and re-encodes. `avsync-repro/README.md` |
 | iPhone same/different-channel playback while recording | **Pending: device** | Needs exact timestamps for log correlation |
 | Segmented recording watch-from-start, seek, publication | **Pending: device + a recording** | No recording started under read-only scope |
 | Catch-up playback | **Pending: provider connection** | Stored archive flags only |

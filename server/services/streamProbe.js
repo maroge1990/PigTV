@@ -7,6 +7,7 @@
  * the server answers with something playable.
  */
 
+const { AdtsSniffer, copyableObjectType } = require('./adtsProfile');
 const { isStreamUrl, NOT_A_STREAM_URL } = require('./streamUrl');
 const { spawn } = require('child_process');
 const { redact } = require('../redact');
@@ -131,8 +132,12 @@ function probeStream(url, ffprobePath, userAgent = null, timeout = 15000, { feed
         ];
 
         const proc = spawn(ffprobePath, args);
+        // FR-9 (0302): the AAC label in the ADTS headers, which ffprobe does not report; only
+        // a probe through the shared ingest sees the bytes (a direct probe leaves it unknown).
+        const sniffer = feed ? new AdtsSniffer() : null;
         if (feed) {
             proc.stdin.on('error', () => { /* ffprobe has read what it needs and gone */ });
+            feed.on('data', (chunk) => sniffer.push(chunk));
             feed.pipe(proc.stdin);
             proc.on('close', () => feed.leave());
         }
@@ -155,6 +160,7 @@ function probeStream(url, ffprobePath, userAgent = null, timeout = 15000, { feed
             }
             try {
                 const result = JSON.parse(stdout);
+                if (sniffer && sniffer.objectType !== null) result.adtsObjectType = sniffer.objectType;
                 resolve(result);
             } catch (e) {
                 reject(new Error('Failed to parse ffprobe output'));
@@ -236,6 +242,10 @@ function analyzeProbeResult(probeResult, url, clientCaps = {}) {
     // payload is SBR at half that. The decoder rejects the first packet with
     // PIPELINE_ERROR_DECODE. Treat it as audio that needs re-encoding.
     const isHeAac = audioCodec.includes('aac') && audioProfile.includes('he-aac');
+    // FR-9 (0302): the object type a copy would carry (the ADTS label, read by the probe).
+    // Anything but AAC-LC - Strong8K's FOX feeds say AAC Main - fails on Apple with `fmt?`.
+    const aacObjectType = audioCodec.includes('aac') && Number.isInteger(probeResult.adtsObjectType) ? probeResult.adtsObjectType : null;
+    const aacLabelBlocked = !copyableObjectType(aacObjectType);
     const container = format.format_name?.toLowerCase() || 'unknown';
 
     // Check codec compatibility. A codec is acceptable if every browser can
@@ -248,7 +258,7 @@ function analyzeProbeResult(probeResult, url, clientCaps = {}) {
         || (videoIsAv1 && clientCaps.av1 === true);
 
     // ...unless this client says it decodes HE-AAC (AVPlayer does; 0116).
-    const audioOk = (!isHeAac || clientCaps.heaac === true) && (BROWSER_AUDIO_CODECS.some(c => audioCodec.includes(c))
+    const audioOk = !aacLabelBlocked && (!isHeAac || clientCaps.heaac === true) && (BROWSER_AUDIO_CODECS.some(c => audioCodec.includes(c))
         || (matchesAny(audioCodec, OPTIONAL_AUDIO_CODECS.ac3) && clientCaps.ac3 === true)
         || (matchesAny(audioCodec, OPTIONAL_AUDIO_CODECS.eac3) && clientCaps.eac3 === true)
         || (matchesAny(audioCodec, OPTIONAL_AUDIO_CODECS.flac) && clientCaps.flac === true));
@@ -313,6 +323,8 @@ function analyzeProbeResult(probeResult, url, clientCaps = {}) {
         audioOk: audioOk,
         audioProfile: audioStream?.profile || null,
         isHeAac: isHeAac,
+        aacObjectType,
+        aacLabelBlocked,
         videoIsHevc: videoIsHevc,
         finite: finite,
         durationSec: durationSec,

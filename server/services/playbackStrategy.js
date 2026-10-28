@@ -311,6 +311,8 @@ function sessionPlan({ info, caps, settings, userAgent, owner, live, upscale, au
         audioChannels: info.audioChannels,
         audioProfile: info.audioProfile,
         isHeAac: info.isHeAac,
+        // FR-9 (0302): an AAC label no client decodes as a copy (AAC Main on FOX): re-encode.
+        aacLabelBlocked: info.aacLabelBlocked === true,
         // This client decodes HE-AAC, so the session may copy it (0116).
         heaacCopy: caps.heaac === true
     };

@@ -640,7 +640,10 @@ class TranscodeSession extends EventEmitter {
         // in which case it is copied like any other AAC.
         const audioProfile = (this.options.audioProfile || '').toLowerCase();
         const isHeAac = this.options.isHeAac === true || audioProfile.includes('he-aac');
-        const heAacBlocked = isHeAac && this.options.heaacCopy !== true;
+        // FR-9 (0302): an AAC label that is not AAC-LC (Strong8K's FOX feeds say AAC Main) fails
+        // as a copy on Apple (`fmt?`), whatever the client says about HE-AAC: never copied.
+        const labelBlocked = this.options.aacLabelBlocked === true && audioCodec.includes('aac');
+        const heAacBlocked = (isHeAac && this.options.heaacCopy !== true) || labelBlocked;
         const isStereoAac = audioCodec.includes('aac') && audioChannels === 2 && !heAacBlocked;
 
         // Define pan filter presets for 5.1 -> Stereo downmix
@@ -695,7 +698,7 @@ class TranscodeSession extends EventEmitter {
         } else if (heAacBlocked || (isHeAac && forceEncode)) {
             // Re-encode to AAC-LC. Only the audio is touched, so this stays
             // cheap even when the video is being stream-copied.
-            console.log(`[TranscodeSession ${this.id}] Audio: HE-AAC source -> AAC-LC (${heAacBlocked ? 'this client cannot decode HE-AAC' : 're-encode requested'})`);
+            console.log(`[TranscodeSession ${this.id}] Audio: ${isHeAac ? 'HE-AAC' : 'AAC'} source -> AAC-LC (${labelBlocked ? 'its AAC label is not AAC-LC, which no client decodes as a copy' : heAacBlocked ? 'this client cannot decode HE-AAC' : 're-encode requested'})`);
             args.push('-c:a', 'aac', '-profile:a', 'aac_low', '-ar', '48000', '-b:a', '128k');
         } else if (audioMixPreset === 'auto' && isStereoAac && !forceEncode) {
             // Auto + Stereo AAC source: Smart copy
