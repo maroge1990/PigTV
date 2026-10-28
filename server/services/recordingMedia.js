@@ -215,7 +215,7 @@ function buildNativeRemuxArgs(input, output, codecs = {}) {
     // its own header, so decoding from it and encoding once is right whatever changes.
     // aresample=async absorbs the gaps and jumps a reconnect leaves. Audio is small: this
     // costs seconds per hour of recording. MP2 (DVB) was already re-encoded for AVPlayer.
-    if (audio && audio !== 'ac3' && audio !== 'eac3') {
+    if (audio !== 'ac3' && audio !== 'eac3') {
         const channels = Math.min(Math.max(parseInt(codecs.audioChannels, 10) || 2, 1), 6);
         args.push('-c:a', 'aac', '-profile:a', 'aac_low', '-ar', '48000', '-ac', String(channels),
             '-b:a', channels > 2 ? '384k' : '192k', '-af', 'aresample=async=1:first_pts=0');

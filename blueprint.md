@@ -6,7 +6,10 @@ persisted delayed snapshots, conservative broadcast joins and per-user spoiler p
 is pending. F1 is session-only; sport views retain ~72 hours. Apple/web interfaces and live/device acceptance remain
 next. [Scope](docs/SPORTS-DASHBOARD-DESIGN.md), [feed evidence](docs/reviews/2026-10-29/sports-dashboard/README.md).
 
-**State (29 Oct):** **0309** adds the opt-in sports dashboard server foundation; all local gates pass. Adversarial
+**State (29 Oct):** **0310** repairs recording watch audio for profile-0/unknown AAC; clean-snapshot gates pass.
+Remaining 0307 review repairs and Codex review/device acceptance are in progress.
+
+**0309:** **0309** adds the opt-in sports dashboard server foundation; all local gates pass. Adversarial
 review, Apple/web dashboard UI and live/device acceptance remain pending.
 **Recording fixes:** **0308** repairs watch-while-recording AAC-LC muxing locally; regression and raw recording replay pass.
 Apple **58** repairs the exit tuning flash. Required local gates pass in both repos; adversarial reviews and device
@@ -115,7 +118,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0310** |
+| Next build number | **0311** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -622,6 +625,10 @@ requested date, and does no request-path network access. Delays use server obser
 Cache hits never become new observations. C-O specifies the new gated API. It is not consumed by the current clients.
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
+
+**29 Oct review repairs:** **0310** encodes watch audio as AAC-LC except known AC-3/E-AC-3, including unknown probes.
+Profile-0 and unknown-probe regressions fail before and pass after; 1,275 clean-snapshot tests pass. Remaining renewal,
+QSV and tooling dispositions: [review repair record](docs/reviews/2026-10-29/review-repairs/README.md).
 
 **29 Oct sport dashboard:** design/mockup stage, Apple TV first with phone/tablet/web adaptations. All current follows
 are essential; include unmatched games and join games to broadcasts. Seven sport-specific card families, synced

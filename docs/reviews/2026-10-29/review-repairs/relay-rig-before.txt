@@ -1,0 +1,769 @@
+[SQLite] Opening database at /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/data/content.db
+[SQLite] Schema initialized
+[Ingest 1] reading 2fec0d999b81 for pool primary
+[TranscodeSession 14e883c23e8d6027] Starting session for: http://127.0.0.1:56410/a.ts
+[TranscodeSession 14e883c23e8d6027] Audio: Copy (client capabilities confirm aac support)
+[TranscodeSession 14e883c23e8d6027] Command: ffmpeg -hide_banner -loglevel warning -probesize 5000000 -analyzeduration 5000000 -fflags +genpts+discardcorrupt -err_detect ignore_err -dts_delta_threshold 60 -i pipe:0 -map 0:v:0 -map 0:a:0? -c:v copy -c:a copy -bsf:a aac_adtstoasc -avoid_negative_ts make_zero -max_interleave_delta 0 -f hls -hls_time 4 -hls_list_size 90 -hls_delete_threshold 12 -hls_flags independent_segments+delete_segments+temp_file -hls_segment_type fmp4 -hls_fmp4_init_filename init.mp4 -hls_segment_filename /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/14e883c23e8d6027/seg%04d.m4s /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/14e883c23e8d6027/stream.m3u8
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] non-existing PPS 0 referenced
+[FFmpeg 14e883c23e8d6027]     Last message repeated 5 times
+[FFmpeg 14e883c23e8d6027] [h264 @ 0x77e2c20380] no frame!
+[Playback] resolve timing: HLS session, probe 4.8s, first segment after 5.6s, source timing even - DTS kept, master playlist (SDR, 25.000 fps)
+DECISION transcode /api/transcode/14e883c23e8d6027/master.m3u8 copy
+[Relay 14e883c23e8d6027] following "Test" on ProvA
+PLAYLIST http://127.0.0.1:56411/api/transcode/14e883c23e8d6027/stream.m3u8
+t=0s status=200 segs=1 last=seg0000.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"starting","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+t=0s status=200 segs=1 last=seg0000.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"starting","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+t=1s status=200 segs=1 last=seg0000.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"starting","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+t=1s status=200 segs=1 last=seg0000.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"starting","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+t=1s status=200 segs=1 last=seg0000.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"playing","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+t=1s status=200 segs=1 last=seg0000.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"playing","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+t=1s status=200 segs=1 last=seg0000.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"playing","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+t=2s status=200 segs=1 last=seg0000.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"playing","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+t=2s status=200 segs=1 last=seg0000.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"playing","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+t=2s status=200 segs=1 last=seg0000.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"playing","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+t=2s status=200 segs=1 last=seg0000.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"playing","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+t=2s status=200 segs=1 last=seg0000.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"playing","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+t=3s status=200 segs=1 last=seg0000.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"playing","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+t=3s status=200 segs=1 last=seg0000.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"playing","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+t=3s status=200 segs=1 last=seg0000.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"playing","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+t=3s status=200 segs=1 last=seg0000.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"playing","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+t=3s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"playing","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+t=4s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"playing","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+t=4s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"playing","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+[Ingest 1] lost the stream (ECONNRESET); reconnecting
+t=4s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"playing","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+[Ingest 1] reconnected after 0.2s
+[Relay 14e883c23e8d6027] ProvA reconnected; renewing its timeline; switching
+[TranscodeSession 14e883c23e8d6027] Stopping FFmpeg process
+t=4s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=4s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=5s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=5s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=5s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=5s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=5s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=6s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=6s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=6s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+[TranscodeSession 14e883c23e8d6027] FFmpeg completed successfully
+t=6s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=6s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=7s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=7s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=7s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=7s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=7s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=8s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=8s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+[Ingest 1] lost the stream (ECONNRESET); reconnecting
+t=8s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+[Ingest 1] reconnected after 0.2s
+t=8s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=8s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=9s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=9s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=9s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=9s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=9s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=10s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=10s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=10s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=10s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=10s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=11s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=11s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=11s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=11s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=11s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=12s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=12s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+[Ingest 1] lost the stream (ECONNRESET); reconnecting
+t=12s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+[Ingest 1] reconnected after 0.2s
+[Recordings] Schema initialized
+[TranscodeSession cc8730ff2a993926] Starting session for: http://127.0.0.1:56410/a.ts
+[TranscodeSession cc8730ff2a993926] Audio: Copy (client capabilities confirm aac support)
+[TranscodeSession cc8730ff2a993926] Command: ffmpeg -hide_banner -loglevel warning -probesize 5000000 -analyzeduration 5000000 -fflags +genpts+discardcorrupt -err_detect ignore_err -dts_delta_threshold 60 -i pipe:0 -map 0:v:0 -map 0:a:0? -c:v copy -c:a copy -bsf:a aac_adtstoasc -avoid_negative_ts make_zero -max_interleave_delta 0 -f hls -hls_time 4 -hls_list_size 90 -hls_delete_threshold 12 -hls_flags independent_segments+delete_segments+temp_file -hls_segment_type fmp4 -hls_fmp4_init_filename init.mp4 -hls_segment_filename /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/cc8730ff2a993926/seg%04d.m4s /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/cc8730ff2a993926/stream.m3u8
+t=12s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] non-existing PPS 0 referenced
+[FFmpeg cc8730ff2a993926]     Last message repeated 5 times
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] no frame!
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] non-existing PPS 0 referenced
+[FFmpeg cc8730ff2a993926]     Last message repeated 5 times
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] no frame!
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] non-existing PPS 0 referenced
+[FFmpeg cc8730ff2a993926]     Last message repeated 5 times
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] no frame!
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] non-existing PPS 0 referenced
+[FFmpeg cc8730ff2a993926]     Last message repeated 5 times
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] no frame!
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] non-existing PPS 0 referenced
+[FFmpeg cc8730ff2a993926]     Last message repeated 5 times
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] no frame!
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] non-existing PPS 0 referenced
+[FFmpeg cc8730ff2a993926]     Last message repeated 5 times
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] no frame!
+t=12s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] non-existing PPS 0 referenced
+[FFmpeg cc8730ff2a993926]     Last message repeated 5 times
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] no frame!
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] non-existing PPS 0 referenced
+[FFmpeg cc8730ff2a993926]     Last message repeated 5 times
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] no frame!
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] non-existing PPS 0 referenced
+[FFmpeg cc8730ff2a993926]     Last message repeated 5 times
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] no frame!
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] non-existing PPS 0 referenced
+[FFmpeg cc8730ff2a993926]     Last message repeated 5 times
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] no frame!
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] non-existing PPS 0 referenced
+[FFmpeg cc8730ff2a993926]     Last message repeated 5 times
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] no frame!
+t=13s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] non-existing PPS 0 referenced
+[FFmpeg cc8730ff2a993926]     Last message repeated 5 times
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] no frame!
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] non-existing PPS 0 referenced
+[FFmpeg cc8730ff2a993926]     Last message repeated 5 times
+[FFmpeg cc8730ff2a993926] [h264 @ 0x7809024380] no frame!
+t=13s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=13s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=13s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=13s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=14s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=14s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=14s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=14s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=14s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=15s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=15s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=15s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=15s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=15s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=16s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+t=16s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+[Ingest 1] lost the stream (ECONNRESET); reconnecting
+t=16s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+[Ingest 1] reconnected after 0.2s
+[TranscodeSession cc8730ff2a993926] FFmpeg completed successfully
+t=16s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793231354332}}]
+[Playback] resolve timing: HLS session, probe cached, first segment after 4.0s, source timing even - DTS kept, master playlist (SDR, 25.000 fps), relay 14e883c23e8d6027 takeover on ProvA
+[Relay 14e883c23e8d6027] now on ProvA after 12.1 s
+[Relay 14e883c23e8d6027] ProvA continuing after a short reconnect epoch; switching
+[TranscodeSession 4d338cb3c7cae319] Starting session for: http://127.0.0.1:56410/a.ts
+[TranscodeSession 4d338cb3c7cae319] Audio: Copy (client capabilities confirm aac support)
+[TranscodeSession 4d338cb3c7cae319] Command: ffmpeg -hide_banner -loglevel warning -probesize 5000000 -analyzeduration 5000000 -fflags +genpts+discardcorrupt -err_detect ignore_err -dts_delta_threshold 60 -i pipe:0 -map 0:v:0 -map 0:a:0? -c:v copy -c:a copy -bsf:a aac_adtstoasc -avoid_negative_ts make_zero -max_interleave_delta 0 -f hls -hls_time 4 -hls_list_size 90 -hls_delete_threshold 12 -hls_flags independent_segments+delete_segments+temp_file -hls_segment_type fmp4 -hls_fmp4_init_filename init.mp4 -hls_segment_filename /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/4d338cb3c7cae319/seg%04d.m4s /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/4d338cb3c7cae319/stream.m3u8
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] non-existing PPS 0 referenced
+[FFmpeg 4d338cb3c7cae319]     Last message repeated 5 times
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] no frame!
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] non-existing PPS 0 referenced
+[FFmpeg 4d338cb3c7cae319]     Last message repeated 5 times
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] no frame!
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] non-existing PPS 0 referenced
+[FFmpeg 4d338cb3c7cae319]     Last message repeated 5 times
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] no frame!
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] non-existing PPS 0 referenced
+[FFmpeg 4d338cb3c7cae319]     Last message repeated 5 times
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] no frame!
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] non-existing PPS 0 referenced
+[FFmpeg 4d338cb3c7cae319]     Last message repeated 5 times
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] no frame!
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] non-existing PPS 0 referenced
+[FFmpeg 4d338cb3c7cae319]     Last message repeated 5 times
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] no frame!
+FLAP first renewal ms 12465
+t=16s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] non-existing PPS 0 referenced
+[FFmpeg 4d338cb3c7cae319]     Last message repeated 5 times
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] no frame!
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] non-existing PPS 0 referenced
+[FFmpeg 4d338cb3c7cae319]     Last message repeated 5 times
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] no frame!
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] non-existing PPS 0 referenced
+[FFmpeg 4d338cb3c7cae319]     Last message repeated 5 times
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] no frame!
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] non-existing PPS 0 referenced
+[FFmpeg 4d338cb3c7cae319]     Last message repeated 5 times
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] no frame!
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] non-existing PPS 0 referenced
+[FFmpeg 4d338cb3c7cae319]     Last message repeated 5 times
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] no frame!
+t=17s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] non-existing PPS 0 referenced
+[FFmpeg 4d338cb3c7cae319]     Last message repeated 5 times
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] no frame!
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] non-existing PPS 0 referenced
+[FFmpeg 4d338cb3c7cae319]     Last message repeated 5 times
+[FFmpeg 4d338cb3c7cae319] [h264 @ 0x7539024380] no frame!
+t=17s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+t=17s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+t=17s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+t=17s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+t=18s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+t=18s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+t=18s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+t=18s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+t=18s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+t=19s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+t=19s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+t=19s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+t=19s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+t=19s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+t=20s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+t=20s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+[Ingest 1] lost the stream (ECONNRESET); reconnecting
+t=20s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+[Ingest 1] reconnected after 0.2s
+[TranscodeSession 4d338cb3c7cae319] FFmpeg completed successfully
+t=20s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231366433}}]
+[Playback] resolve timing: HLS session, probe cached, first segment after 4.0s, source timing even - DTS kept, master playlist (SDR, 25.000 fps), relay 14e883c23e8d6027 takeover on ProvA
+[Relay 14e883c23e8d6027] now on ProvA after 4.0 s
+[Relay 14e883c23e8d6027] ProvA continuing after a short reconnect epoch; switching
+[TranscodeSession 2efd725354322a0e] Starting session for: http://127.0.0.1:56410/a.ts
+[TranscodeSession 2efd725354322a0e] Audio: Copy (client capabilities confirm aac support)
+[TranscodeSession 2efd725354322a0e] Command: ffmpeg -hide_banner -loglevel warning -probesize 5000000 -analyzeduration 5000000 -fflags +genpts+discardcorrupt -err_detect ignore_err -dts_delta_threshold 60 -i pipe:0 -map 0:v:0 -map 0:a:0? -c:v copy -c:a copy -bsf:a aac_adtstoasc -avoid_negative_ts make_zero -max_interleave_delta 0 -f hls -hls_time 4 -hls_list_size 90 -hls_delete_threshold 12 -hls_flags independent_segments+delete_segments+temp_file -hls_segment_type fmp4 -hls_fmp4_init_filename init.mp4 -hls_segment_filename /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/2efd725354322a0e/seg%04d.m4s /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/2efd725354322a0e/stream.m3u8
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] non-existing PPS 0 referenced
+[FFmpeg 2efd725354322a0e]     Last message repeated 5 times
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] no frame!
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] non-existing PPS 0 referenced
+[FFmpeg 2efd725354322a0e]     Last message repeated 5 times
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] no frame!
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] non-existing PPS 0 referenced
+[FFmpeg 2efd725354322a0e]     Last message repeated 5 times
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] no frame!
+t=20s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] non-existing PPS 0 referenced
+[FFmpeg 2efd725354322a0e]     Last message repeated 5 times
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] no frame!
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] non-existing PPS 0 referenced
+[FFmpeg 2efd725354322a0e]     Last message repeated 5 times
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] no frame!
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] non-existing PPS 0 referenced
+[FFmpeg 2efd725354322a0e]     Last message repeated 5 times
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] no frame!
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] non-existing PPS 0 referenced
+[FFmpeg 2efd725354322a0e]     Last message repeated 5 times
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] no frame!
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] non-existing PPS 0 referenced
+[FFmpeg 2efd725354322a0e]     Last message repeated 5 times
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] no frame!
+t=21s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] non-existing PPS 0 referenced
+[FFmpeg 2efd725354322a0e]     Last message repeated 5 times
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] no frame!
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] non-existing PPS 0 referenced
+[FFmpeg 2efd725354322a0e]     Last message repeated 5 times
+[FFmpeg 2efd725354322a0e] [h264 @ 0x755ac18380] no frame!
+t=21s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+t=21s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+t=21s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+t=21s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+t=22s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+t=22s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+t=22s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+t=22s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+t=22s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+t=23s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+t=23s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+t=23s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+t=23s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+t=23s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+t=24s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+t=24s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+[Ingest 1] lost the stream (ECONNRESET); reconnecting
+t=24s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+[Ingest 1] reconnected after 0.2s
+[TranscodeSession 2efd725354322a0e] FFmpeg completed successfully
+t=24s status=200 segs=4 last=L2-seg0000.m4s disc=2 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":2,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231370448}}]
+[Playback] resolve timing: HLS session, probe cached, first segment after 4.0s, source timing even - DTS kept, master playlist (SDR, 25.000 fps), relay 14e883c23e8d6027 takeover on ProvA
+[Relay 14e883c23e8d6027] now on ProvA after 4.0 s
+[Relay 14e883c23e8d6027] ProvA continuing after a short reconnect epoch; switching
+[TranscodeSession a4fd4e269cb6c7b7] Starting session for: http://127.0.0.1:56410/a.ts
+[TranscodeSession a4fd4e269cb6c7b7] Audio: Copy (client capabilities confirm aac support)
+[TranscodeSession a4fd4e269cb6c7b7] Command: ffmpeg -hide_banner -loglevel warning -probesize 5000000 -analyzeduration 5000000 -fflags +genpts+discardcorrupt -err_detect ignore_err -dts_delta_threshold 60 -i pipe:0 -map 0:v:0 -map 0:a:0? -c:v copy -c:a copy -bsf:a aac_adtstoasc -avoid_negative_ts make_zero -max_interleave_delta 0 -f hls -hls_time 4 -hls_list_size 90 -hls_delete_threshold 12 -hls_flags independent_segments+delete_segments+temp_file -hls_segment_type fmp4 -hls_fmp4_init_filename init.mp4 -hls_segment_filename /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/a4fd4e269cb6c7b7/seg%04d.m4s /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/a4fd4e269cb6c7b7/stream.m3u8
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] non-existing PPS 0 referenced
+[FFmpeg a4fd4e269cb6c7b7]     Last message repeated 5 times
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] no frame!
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] non-existing PPS 0 referenced
+[FFmpeg a4fd4e269cb6c7b7]     Last message repeated 5 times
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] no frame!
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] non-existing PPS 0 referenced
+[FFmpeg a4fd4e269cb6c7b7]     Last message repeated 5 times
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] no frame!
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] non-existing PPS 0 referenced
+[FFmpeg a4fd4e269cb6c7b7]     Last message repeated 5 times
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] no frame!
+t=24s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] non-existing PPS 0 referenced
+[FFmpeg a4fd4e269cb6c7b7]     Last message repeated 5 times
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] no frame!
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] non-existing PPS 0 referenced
+[FFmpeg a4fd4e269cb6c7b7]     Last message repeated 5 times
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] no frame!
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] non-existing PPS 0 referenced
+[FFmpeg a4fd4e269cb6c7b7]     Last message repeated 5 times
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] no frame!
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] non-existing PPS 0 referenced
+[FFmpeg a4fd4e269cb6c7b7]     Last message repeated 5 times
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] no frame!
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] non-existing PPS 0 referenced
+[FFmpeg a4fd4e269cb6c7b7]     Last message repeated 5 times
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] no frame!
+t=25s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] non-existing PPS 0 referenced
+[FFmpeg a4fd4e269cb6c7b7]     Last message repeated 5 times
+[FFmpeg a4fd4e269cb6c7b7] [h264 @ 0x7b38c1c380] no frame!
+t=25s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+t=25s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+t=25s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+t=25s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+t=26s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+t=26s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+t=26s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+t=26s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+t=27s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+t=27s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+t=27s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+t=27s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+t=27s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+t=28s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+t=28s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+t=28s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+[Ingest 1] lost the stream (ECONNRESET); reconnecting
+t=28s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+[Ingest 1] reconnected after 0.2s
+[TranscodeSession a4fd4e269cb6c7b7] FFmpeg completed successfully
+t=28s status=200 segs=5 last=L3-seg0000.m4s disc=3 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231374473}}]
+[Playback] resolve timing: HLS session, probe cached, first segment after 4.0s, source timing even - DTS kept, master playlist (SDR, 25.000 fps), relay 14e883c23e8d6027 takeover on ProvA
+[Relay 14e883c23e8d6027] now on ProvA after 4.0 s
+[Relay 14e883c23e8d6027] ProvA continuing after a short reconnect epoch; switching
+[TranscodeSession bb249cac10dc84cb] Starting session for: http://127.0.0.1:56410/a.ts
+[TranscodeSession bb249cac10dc84cb] Audio: Copy (client capabilities confirm aac support)
+[TranscodeSession bb249cac10dc84cb] Command: ffmpeg -hide_banner -loglevel warning -probesize 5000000 -analyzeduration 5000000 -fflags +genpts+discardcorrupt -err_detect ignore_err -dts_delta_threshold 60 -i pipe:0 -map 0:v:0 -map 0:a:0? -c:v copy -c:a copy -bsf:a aac_adtstoasc -avoid_negative_ts make_zero -max_interleave_delta 0 -f hls -hls_time 4 -hls_list_size 90 -hls_delete_threshold 12 -hls_flags independent_segments+delete_segments+temp_file -hls_segment_type fmp4 -hls_fmp4_init_filename init.mp4 -hls_segment_filename /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/bb249cac10dc84cb/seg%04d.m4s /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/bb249cac10dc84cb/stream.m3u8
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] non-existing PPS 0 referenced
+[FFmpeg bb249cac10dc84cb]     Last message repeated 5 times
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] no frame!
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] non-existing PPS 0 referenced
+[FFmpeg bb249cac10dc84cb]     Last message repeated 5 times
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] no frame!
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] non-existing PPS 0 referenced
+[FFmpeg bb249cac10dc84cb]     Last message repeated 5 times
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] no frame!
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] non-existing PPS 0 referenced
+[FFmpeg bb249cac10dc84cb]     Last message repeated 5 times
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] no frame!
+t=29s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] non-existing PPS 0 referenced
+[FFmpeg bb249cac10dc84cb]     Last message repeated 5 times
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] no frame!
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] non-existing PPS 0 referenced
+[FFmpeg bb249cac10dc84cb]     Last message repeated 5 times
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] no frame!
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] non-existing PPS 0 referenced
+[FFmpeg bb249cac10dc84cb]     Last message repeated 5 times
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] no frame!
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] non-existing PPS 0 referenced
+[FFmpeg bb249cac10dc84cb]     Last message repeated 5 times
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] no frame!
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] non-existing PPS 0 referenced
+[FFmpeg bb249cac10dc84cb]     Last message repeated 5 times
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] no frame!
+t=29s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] non-existing PPS 0 referenced
+[FFmpeg bb249cac10dc84cb]     Last message repeated 5 times
+[FFmpeg bb249cac10dc84cb] [h264 @ 0x7a6cc1c380] no frame!
+t=29s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+t=29s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+t=29s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+t=30s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+t=30s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+t=30s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+t=30s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+t=30s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+t=31s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+t=31s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+t=31s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+t=31s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+t=31s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+t=32s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+t=32s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+t=32s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+[Ingest 1] lost the stream (ECONNRESET); reconnecting
+t=32s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+[Ingest 1] reconnected after 0.2s
+[TranscodeSession bb249cac10dc84cb] FFmpeg completed successfully
+t=32s status=200 segs=6 last=L4-seg0000.m4s disc=4 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":4,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231378493}}]
+[Playback] resolve timing: HLS session, probe cached, first segment after 4.0s, source timing even - DTS kept, master playlist (SDR, 25.000 fps), relay 14e883c23e8d6027 takeover on ProvA
+[Relay 14e883c23e8d6027] now on ProvA after 4.0 s
+[Relay 14e883c23e8d6027] ProvA continuing after a short reconnect epoch; switching
+[TranscodeSession 869bc152bbe5d7cf] Starting session for: http://127.0.0.1:56410/a.ts
+[TranscodeSession 869bc152bbe5d7cf] Audio: Copy (client capabilities confirm aac support)
+[TranscodeSession 869bc152bbe5d7cf] Command: ffmpeg -hide_banner -loglevel warning -probesize 5000000 -analyzeduration 5000000 -fflags +genpts+discardcorrupt -err_detect ignore_err -dts_delta_threshold 60 -i pipe:0 -map 0:v:0 -map 0:a:0? -c:v copy -c:a copy -bsf:a aac_adtstoasc -avoid_negative_ts make_zero -max_interleave_delta 0 -f hls -hls_time 4 -hls_list_size 90 -hls_delete_threshold 12 -hls_flags independent_segments+delete_segments+temp_file -hls_segment_type fmp4 -hls_fmp4_init_filename init.mp4 -hls_segment_filename /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/869bc152bbe5d7cf/seg%04d.m4s /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/869bc152bbe5d7cf/stream.m3u8
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] non-existing PPS 0 referenced
+[FFmpeg 869bc152bbe5d7cf]     Last message repeated 5 times
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] no frame!
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] non-existing PPS 0 referenced
+[FFmpeg 869bc152bbe5d7cf]     Last message repeated 5 times
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] no frame!
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] non-existing PPS 0 referenced
+[FFmpeg 869bc152bbe5d7cf]     Last message repeated 5 times
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] no frame!
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] non-existing PPS 0 referenced
+[FFmpeg 869bc152bbe5d7cf]     Last message repeated 5 times
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] no frame!
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] non-existing PPS 0 referenced
+[FFmpeg 869bc152bbe5d7cf]     Last message repeated 5 times
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] no frame!
+t=33s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] non-existing PPS 0 referenced
+[FFmpeg 869bc152bbe5d7cf]     Last message repeated 5 times
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] no frame!
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] non-existing PPS 0 referenced
+[FFmpeg 869bc152bbe5d7cf]     Last message repeated 5 times
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] no frame!
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] non-existing PPS 0 referenced
+[FFmpeg 869bc152bbe5d7cf]     Last message repeated 5 times
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] no frame!
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] non-existing PPS 0 referenced
+[FFmpeg 869bc152bbe5d7cf]     Last message repeated 5 times
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] no frame!
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] non-existing PPS 0 referenced
+[FFmpeg 869bc152bbe5d7cf]     Last message repeated 5 times
+[FFmpeg 869bc152bbe5d7cf] [h264 @ 0x774ac18380] no frame!
+t=33s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+t=33s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+t=33s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+t=33s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+t=34s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+t=34s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+t=34s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+t=34s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+t=34s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+t=35s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+t=35s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+t=35s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+t=35s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+t=35s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+t=36s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+t=36s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+t=36s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+[Ingest 1] lost the stream (ECONNRESET); reconnecting
+t=36s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+[Ingest 1] reconnected after 0.2s
+[TranscodeSession 869bc152bbe5d7cf] FFmpeg completed successfully
+t=36s status=200 segs=7 last=L5-seg0000.m4s disc=5 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":5,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231382519}}]
+[Playback] resolve timing: HLS session, probe cached, first segment after 4.0s, source timing even - DTS kept, master playlist (SDR, 25.000 fps), relay 14e883c23e8d6027 takeover on ProvA
+[Relay 14e883c23e8d6027] now on ProvA after 4.0 s
+[Relay 14e883c23e8d6027] ProvA continuing after a short reconnect epoch; switching
+[TranscodeSession fa1013d561396f0e] Starting session for: http://127.0.0.1:56410/a.ts
+[TranscodeSession fa1013d561396f0e] Audio: Copy (client capabilities confirm aac support)
+[TranscodeSession fa1013d561396f0e] Command: ffmpeg -hide_banner -loglevel warning -probesize 5000000 -analyzeduration 5000000 -fflags +genpts+discardcorrupt -err_detect ignore_err -dts_delta_threshold 60 -i pipe:0 -map 0:v:0 -map 0:a:0? -c:v copy -c:a copy -bsf:a aac_adtstoasc -avoid_negative_ts make_zero -max_interleave_delta 0 -f hls -hls_time 4 -hls_list_size 90 -hls_delete_threshold 12 -hls_flags independent_segments+delete_segments+temp_file -hls_segment_type fmp4 -hls_fmp4_init_filename init.mp4 -hls_segment_filename /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/fa1013d561396f0e/seg%04d.m4s /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/fa1013d561396f0e/stream.m3u8
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] non-existing PPS 0 referenced
+[FFmpeg fa1013d561396f0e]     Last message repeated 5 times
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] no frame!
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] non-existing PPS 0 referenced
+[FFmpeg fa1013d561396f0e]     Last message repeated 5 times
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] no frame!
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] non-existing PPS 0 referenced
+[FFmpeg fa1013d561396f0e]     Last message repeated 5 times
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] no frame!
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] non-existing PPS 0 referenced
+[FFmpeg fa1013d561396f0e]     Last message repeated 5 times
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] no frame!
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] non-existing PPS 0 referenced
+[FFmpeg fa1013d561396f0e]     Last message repeated 5 times
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] no frame!
+t=37s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] non-existing PPS 0 referenced
+[FFmpeg fa1013d561396f0e]     Last message repeated 5 times
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] no frame!
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] non-existing PPS 0 referenced
+[FFmpeg fa1013d561396f0e]     Last message repeated 5 times
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] no frame!
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] non-existing PPS 0 referenced
+[FFmpeg fa1013d561396f0e]     Last message repeated 5 times
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] no frame!
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] non-existing PPS 0 referenced
+[FFmpeg fa1013d561396f0e]     Last message repeated 5 times
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] no frame!
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] non-existing PPS 0 referenced
+[FFmpeg fa1013d561396f0e]     Last message repeated 5 times
+[FFmpeg fa1013d561396f0e] [h264 @ 0x74a0c1c380] no frame!
+t=37s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+t=37s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+t=37s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+t=37s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+t=38s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+t=38s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+t=38s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+t=38s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+t=38s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+t=39s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+t=39s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+t=39s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+t=39s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+t=39s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+t=40s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+t=40s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+t=40s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+[Ingest 1] lost the stream (ECONNRESET); reconnecting
+t=40s status=200 segs=8 last=L6-seg0000.m4s disc=6 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":6,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231386540}}]
+[Ingest 1] reconnected after 0.2s
+[TranscodeSession fa1013d561396f0e] FFmpeg completed successfully
+[Playback] resolve timing: HLS session, probe cached, first segment after 3.8s, source timing even - DTS kept, master playlist (SDR, 25.000 fps), relay 14e883c23e8d6027 takeover on ProvA
+[Relay 14e883c23e8d6027] now on ProvA after 3.8 s
+[Relay 14e883c23e8d6027] ProvA continuing after a short reconnect epoch; switching
+[TranscodeSession 7668f837db7c8851] Starting session for: http://127.0.0.1:56410/a.ts
+[TranscodeSession 7668f837db7c8851] Audio: Copy (client capabilities confirm aac support)
+[TranscodeSession 7668f837db7c8851] Command: ffmpeg -hide_banner -loglevel warning -probesize 5000000 -analyzeduration 5000000 -fflags +genpts+discardcorrupt -err_detect ignore_err -dts_delta_threshold 60 -i pipe:0 -map 0:v:0 -map 0:a:0? -c:v copy -c:a copy -bsf:a aac_adtstoasc -avoid_negative_ts make_zero -max_interleave_delta 0 -f hls -hls_time 4 -hls_list_size 90 -hls_delete_threshold 12 -hls_flags independent_segments+delete_segments+temp_file -hls_segment_type fmp4 -hls_fmp4_init_filename init.mp4 -hls_segment_filename /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/7668f837db7c8851/seg%04d.m4s /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/7668f837db7c8851/stream.m3u8
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] non-existing PPS 0 referenced
+[FFmpeg 7668f837db7c8851]     Last message repeated 5 times
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] no frame!
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] non-existing PPS 0 referenced
+[FFmpeg 7668f837db7c8851]     Last message repeated 5 times
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] no frame!
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] non-existing PPS 0 referenced
+[FFmpeg 7668f837db7c8851]     Last message repeated 5 times
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] no frame!
+t=40s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] non-existing PPS 0 referenced
+[FFmpeg 7668f837db7c8851]     Last message repeated 5 times
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] no frame!
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] non-existing PPS 0 referenced
+[FFmpeg 7668f837db7c8851]     Last message repeated 5 times
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] no frame!
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] non-existing PPS 0 referenced
+[FFmpeg 7668f837db7c8851]     Last message repeated 5 times
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] no frame!
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] non-existing PPS 0 referenced
+[FFmpeg 7668f837db7c8851]     Last message repeated 5 times
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] no frame!
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] non-existing PPS 0 referenced
+[FFmpeg 7668f837db7c8851]     Last message repeated 5 times
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] no frame!
+t=41s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] non-existing PPS 0 referenced
+[FFmpeg 7668f837db7c8851]     Last message repeated 5 times
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] no frame!
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] non-existing PPS 0 referenced
+[FFmpeg 7668f837db7c8851]     Last message repeated 5 times
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] no frame!
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] non-existing PPS 0 referenced
+[FFmpeg 7668f837db7c8851]     Last message repeated 5 times
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] no frame!
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] non-existing PPS 0 referenced
+[FFmpeg 7668f837db7c8851]     Last message repeated 5 times
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] no frame!
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] non-existing PPS 0 referenced
+[FFmpeg 7668f837db7c8851]     Last message repeated 5 times
+[FFmpeg 7668f837db7c8851] [h264 @ 0x76b8c18380] no frame!
+t=41s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+t=41s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+t=41s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+t=41s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+t=42s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+t=42s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+t=42s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+t=42s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+t=42s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+t=43s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+t=43s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+t=43s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+t=43s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+t=43s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+t=44s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+t=44s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+t=44s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+[Ingest 1] lost the stream (ECONNRESET); reconnecting
+t=44s status=200 segs=9 last=L7-seg0000.m4s disc=7 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":7,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231390374}}]
+[Ingest 1] reconnected after 0.2s
+[TranscodeSession 7668f837db7c8851] FFmpeg completed successfully
+[Playback] resolve timing: HLS session, probe cached, first segment after 4.0s, source timing even - DTS kept, master playlist (SDR, 25.000 fps), relay 14e883c23e8d6027 takeover on ProvA
+[Relay 14e883c23e8d6027] now on ProvA after 4.0 s
+[Relay 14e883c23e8d6027] ProvA continuing after a short reconnect epoch; switching
+[TranscodeSession 43de12682897d536] Starting session for: http://127.0.0.1:56410/a.ts
+[TranscodeSession 43de12682897d536] Audio: Copy (client capabilities confirm aac support)
+[TranscodeSession 43de12682897d536] Command: ffmpeg -hide_banner -loglevel warning -probesize 5000000 -analyzeduration 5000000 -fflags +genpts+discardcorrupt -err_detect ignore_err -dts_delta_threshold 60 -i pipe:0 -map 0:v:0 -map 0:a:0? -c:v copy -c:a copy -bsf:a aac_adtstoasc -avoid_negative_ts make_zero -max_interleave_delta 0 -f hls -hls_time 4 -hls_list_size 90 -hls_delete_threshold 12 -hls_flags independent_segments+delete_segments+temp_file -hls_segment_type fmp4 -hls_fmp4_init_filename init.mp4 -hls_segment_filename /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/43de12682897d536/seg%04d.m4s /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-GlJx0L/transcode-cache/43de12682897d536/stream.m3u8
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] non-existing PPS 0 referenced
+[FFmpeg 43de12682897d536]     Last message repeated 5 times
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] no frame!
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] non-existing PPS 0 referenced
+[FFmpeg 43de12682897d536]     Last message repeated 5 times
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] no frame!
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] non-existing PPS 0 referenced
+[FFmpeg 43de12682897d536]     Last message repeated 5 times
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] no frame!
+t=44s status=200 segs=10 last=L8-seg0000.m4s disc=8 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":8,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231394406}}]
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] non-existing PPS 0 referenced
+[FFmpeg 43de12682897d536]     Last message repeated 5 times
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] no frame!
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] non-existing PPS 0 referenced
+[FFmpeg 43de12682897d536]     Last message repeated 5 times
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] no frame!
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] non-existing PPS 0 referenced
+[FFmpeg 43de12682897d536]     Last message repeated 5 times
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] no frame!
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] non-existing PPS 0 referenced
+[FFmpeg 43de12682897d536]     Last message repeated 5 times
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] no frame!
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] non-existing PPS 0 referenced
+[FFmpeg 43de12682897d536]     Last message repeated 5 times
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] no frame!
+t=45s status=200 segs=10 last=L8-seg0000.m4s disc=8 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":8,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231394406}}]
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] non-existing PPS 0 referenced
+[FFmpeg 43de12682897d536]     Last message repeated 5 times
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] no frame!
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] non-existing PPS 0 referenced
+[FFmpeg 43de12682897d536]     Last message repeated 5 times
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] no frame!
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] non-existing PPS 0 referenced
+[FFmpeg 43de12682897d536]     Last message repeated 5 times
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] no frame!
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] non-existing PPS 0 referenced
+[FFmpeg 43de12682897d536]     Last message repeated 5 times
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] no frame!
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] non-existing PPS 0 referenced
+[FFmpeg 43de12682897d536]     Last message repeated 5 times
+[FFmpeg 43de12682897d536] [h264 @ 0x795ac1c380] no frame!
+t=45s status=200 segs=10 last=L8-seg0000.m4s disc=8 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":8,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231394406}}]
+t=45s status=200 segs=10 last=L8-seg0000.m4s disc=8 relay=[{"id":"14e883c23e8d6027","channel":"Test","provider":"ProvA","state":"switching","switches":8,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793231394406}}]
+CONSUMER exit null
+CONSUMER LOG
+[in#0/hls @ 0x7680c1c000] DTS 80245 < 796645 out of order
+[vist#0:0/h264 @ 0x7680c0c600] timestamp discontinuity (stream id=0): -8000000, new offset= 8000000
+[aist#0:1/aac @ 0x7680c0c480] timestamp discontinuity (stream id=0): -893242, new offset= 8893242
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7680c1c280] Found duplicated MOOV Atom. Skipped it
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7680c1c280] DTS 80245 < 379045 out of order
+[in#0/hls @ 0x7680c1c000] DTS 80245 < 379045 out of order
+[vist#0:0/h264 @ 0x7680c0c600] timestamp discontinuity (stream id=0): -2466755, new offset= 11359997
+[aist#0:1/aac @ 0x7680c0c480] timestamp discontinuity (stream id=0): -1387754, new offset= 12747751
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7680c1c280] Found duplicated MOOV Atom. Skipped it
+[vist#0:0/h264 @ 0x7680c0c600] timestamp discontinuity (stream id=0): -1972244, new offset= 14719995
+[aist#0:1/aac @ 0x7680c0c480] timestamp discontinuity (stream id=0): -1882267, new offset= 16602262
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7680c1c280] Found duplicated MOOV Atom. Skipped it
+[vist#0:0/h264 @ 0x7680c0c600] timestamp discontinuity (stream id=0): -1477733, new offset= 18079995
+[aist#0:1/aac @ 0x7680c0c480] timestamp discontinuity (stream id=0): -2376779, new offset= 20456774
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7680c1c280] Found duplicated MOOV Atom. Skipped it
+[vist#0:0/h264 @ 0x7680c0c600] timestamp discontinuity (stream id=0): -983222, new offset= 21439996
+[aist#0:1/aac @ 0x7680c0c480] timestamp discontinuity (stream id=0): -2871292, new offset= 24311288
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7680c1c280] Found duplicated MOOV Atom. Skipped it
+[vist#0:0/h264 @ 0x7680c0c600] timestamp discontinuity (stream id=0): -488711, new offset= 24799999
+[aist#0:1/aac @ 0x7680c0c480] timestamp discontinuity (stream id=0): -3365804, new offset= 28165803
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7680c1c280] Found duplicated MOOV Atom. Skipped it
+[aist#0:1/aac @ 0x7680c0c480] timestamp discontinuity (stream id=0): -3854512, new offset= 32020315
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7680c1c280] Found duplicated MOOV Atom. Skipped it
+[aist#0:1/aac @ 0x7680c0c480] timestamp discontinuity (stream id=0): -3854512, new offset= 35874827
+
+FINAL PLAYLIST
+#EXTM3U
+#EXT-X-VERSION:7
+#EXT-X-TARGETDURATION:4
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-INDEPENDENT-SEGMENTS
+#EXT-X-MAP:URI="init.mp4"
+#EXTINF:4.000000,
+seg0000.m4s
+#EXTINF:4.000000,
+seg0001.m4s
+#EXT-X-DISCONTINUITY
+#EXT-X-MAP:URI="L1-init.mp4"
+#EXTINF:3.360000,
+L1-seg0000.m4s
+#EXT-X-DISCONTINUITY
+#EXT-X-MAP:URI="L2-init.mp4"
+#EXTINF:3.360000,
+L2-seg0000.m4s
+#EXT-X-DISCONTINUITY
+#EXT-X-MAP:URI="L3-init.mp4"
+#EXTINF:3.360000,
+L3-seg0000.m4s
+#EXT-X-DISCONTINUITY
+#EXT-X-MAP:URI="L4-init.mp4"
+#EXTINF:3.360000,
+L4-seg0000.m4s
+#EXT-X-DISCONTINUITY
+#EXT-X-MAP:URI="L5-init.mp4"
+#EXTINF:3.360000,
+L5-seg0000.m4s
+#EXT-X-DISCONTINUITY
+#EXT-X-MAP:URI="L6-init.mp4"
+#EXTINF:3.360000,
+L6-seg0000.m4s
+#EXT-X-DISCONTINUITY
+#EXT-X-MAP:URI="L7-init.mp4"
+#EXTINF:3.360000,
+L7-seg0000.m4s
+#EXT-X-DISCONTINUITY
+#EXT-X-MAP:URI="L8-init.mp4"
+#EXTINF:3.360000,
+L8-seg0000.m4s
+
+L1 segment fetch 200 840793
+L1 init 200
+[Relay 14e883c23e8d6027] ended: stopped by an admin
+[Ingest 1] closed (rig over); most behind real time 0.1s
+[TranscodeSession 43de12682897d536] FFmpeg completed successfully
+[Playback] resolve timing: HLS session, probe cached, first segment after 1.0s, source timing even - DTS kept, master playlist (SDR, 25.000 fps), relay 14e883c23e8d6027 takeover on ProvA

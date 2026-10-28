@@ -192,8 +192,8 @@ const MAX_FOLLOWER_FAILURES = 3;
 /**
  * The follower for one epoch: read its archive playlist from the first segment (an open one is
  * followed like a live stream until it is sealed) and write an fMP4 event playlist beside it.
- * Video copied (HEVC tagged hvc1, which AVPlayer needs); audio copied unless it is MP2, which
- * AVPlayer cannot play.
+ * Video copied (HEVC tagged hvc1, which AVPlayer needs). As in the finished MP4,
+ * only AC-3/E-AC-3 audio is copied; everything else is encoded as AAC-LC.
  */
 function viewArgs(epochDir, codecs = {}) {
     const video = (codecs.video || '').toLowerCase();
@@ -201,10 +201,14 @@ function viewArgs(epochDir, codecs = {}) {
     const args = ['-nostdin', '-y', '-live_start_index', '0', '-i', path.join(epochDir, 'archive.m3u8'),
         '-map', '0:v:0?', '-map', '0:a:0?', '-c', 'copy'];
     if (video === 'hevc' || video === 'h265') args.push('-tag:v', 'hvc1');
-    // The archive carries AAC in ADTS. The nested fMP4 muxer does not always
-    // insert this filter itself (AAC-LC recording #202 aborted at 0.08 s).
-    if (audio === 'aac') args.push('-bsf:a', 'aac_adtstoasc');
-    if (audio === 'mp2' || audio === 'mp3') args.push('-c:a', 'aac', '-b:a', '192k');
+    // ADTS can label HE-AAC as Main, which Apple rejects after an ASC copy.
+    // Decode every AAC flavour (and unknown/late audio) instead of trusting the
+    // label or a failed probe. Video and the captured archive remain unchanged.
+    if (audio !== 'ac3' && audio !== 'eac3') {
+        const channels = Math.min(Math.max(parseInt(codecs.audioChannels, 10) || 2, 1), 6);
+        args.push('-c:a', 'aac', '-profile:a', 'aac_low', '-ar', '48000', '-ac', String(channels),
+            '-b:a', channels > 2 ? '384k' : '192k');
+    }
     args.push(
         '-f', 'hls',
         '-hls_time', String(SEGMENT_SEC),

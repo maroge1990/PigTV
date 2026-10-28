@@ -1,0 +1,154 @@
+✖ review M1 profile-0: watch audio has an Apple-safe LC config (172.048917ms)
+✖ review L1 unknown probe: watch audio has an Apple-safe LC config (95.067708ms)
+[SQLite] Opening database at /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-ZfviPe/data/content.db
+[SQLite] Schema initialized
+[Relay s1] following "Fox Footy" on Strong8K
+[Relay s3] following "Fox Footy" on Strong8K
+[Relay s4] following "Fox Footy" on Strong8K
+✖ review M3: a reconnect during cold failover cannot publish an exited startup epoch (47.329416ms)
+✖ review L2: rejected switch calls release a transferred follow-on pin exactly once (2.017292ms)
+✖ review M4: repeated pre-ready epochs exhaust one relay budget and fall back without another renewal (16.720875ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 0
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1654.531708
+
+✖ failing tests:
+
+test at test/recording-segments-media.test.js:205:38
+✖ review M1 profile-0: watch audio has an Apple-safe LC config (172.048917ms)
+  AssertionError [ERR_ASSERTION]: Apple must see AAC-LC, not the source Main label
+
+  1 !== 2
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/recording-segments-media.test.js:232:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/recording-segments-media.test.js:205:38
+✖ review L1 unknown probe: watch audio has an Apple-safe LC config (95.067708ms)
+  AssertionError [ERR_ASSERTION]: ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers
+    built with Apple clang version 21.0.0 (clang-2100.3.34.2)
+    configuration: --prefix=/opt/homebrew/Cellar/ffmpeg/9.0.2 --enable-shared --enable-pthreads --enable-version3 --cc=clang --host-cflags= --host-ldflags= --enable-ffplay --enable-gpl --enable-libsvtav1 --enable-libopus --enable-libx264 --enable-libmp3lame --enable-libdav1d --enable-libvmaf --enable-libvpx --enable-libx265 --enable-openssl --enable-videotoolbox --enable-audiotoolbox --enable-neon
+    libavutil      61.  1.102 / 61.  1.102
+    libavcodec     63.  1.102 / 63.  1.102
+    libavformat    63.  1.102 / 63.  1.102
+    libavdevice    63.  1.102 / 63.  1.102
+    libavfilter    12.  1.102 / 12.  1.102
+    libswscale     10.  1.102 / 10.  1.102
+    libswresample   7.  1.102 /  7.  1.102
+  [in#0 @ 0x7cfac1c000] Opening '/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-segments-media-0uzve0/unknown-watch/a000000.ts' for reading
+  Input #0, hls, from '/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-segments-media-0uzve0/unknown-watch/archive.m3u8':
+    Duration: 00:00:12.00, start: 1.400000, bitrate: 0 kb/s
+    Program 0
+      Metadata:
+        variant_bitrate : 0
+    Stream #0:0[0x0]: Video: h264 (Constrained Baseline) ([27][0][0][0] / 0x001B), yuv420p, 320x180 [SAR 1:1 DAR 16:9], 25 fps, 25 tbr, 90k tbn, start 1.400000
+      Metadata:
+        variant_bitrate : 0
+    Stream #0:1[0x0]: Audio: aac (HE-AAC) ([15][0][0][0] / 0x000F), 48000 Hz, stereo, fltp, start 1.400000
+      Metadata:
+        variant_bitrate : 0
+  Stream mapping:
+    Stream #0:0 -> #0:0 (copy)
+    Stream #0:1 -> #0:1 (copy)
+  [hls @ 0x7cfac1ed00] Opening '/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-segments-media-0uzve0/unknown-watch/init.mp4' for writing
+  Output #0, hls, to '/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-segments-media-0uzve0/unknown-watch/view.m3u8':
+    Metadata:
+      encoder         : Lavf63.1.102
+    Stream #0:0: Video: h264 (Constrained Baseline) ([27][0][0][0] / 0x001B), yuv420p, 320x180 [SAR 1:1 DAR 16:9], q=2-31, 25 fps, 25 tbr, 90k tbn
+      Metadata:
+        variant_bitrate : 0
+    Stream #0:1: Audio: aac (HE-AAC) ([15][0][0][0] / 0x000F), 48000 Hz, stereo, fltp
+      Metadata:
+        variant_bitrate : 0
+  [mp4 @ 0x7cfac1ef80] Malformed AAC bitstream detected: use the audio bitstream filter 'aac_adtstoasc' to fix it ('-bsf:a aac_adtstoasc' option with ffmpeg)
+  [aost#0:1/copy @ 0x7cfb078300] Error submitting a packet to the muxer: Operation not permitted
+      Last message repeated 1 times
+  [out#0/hls @ 0x7cfac4c480] Error muxing a packet
+  [out#0/hls @ 0x7cfac4c480] Task finished with error code: -1 (Operation not permitted)
+  [out#0/hls @ 0x7cfac4c480] Terminating thread with return code -1 (Operation not permitted)
+  [hls @ 0x7cfac1ed00] Opening '/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-segments-media-0uzve0/unknown-watch/v000000.m4s.tmp' for writing
+  [hls @ 0x7cfac1ed00] Opening '/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-segments-media-0uzve0/unknown-watch/view.m3u8.tmp' for writing
+  [out#0/hls @ 0x7cfac4c480] video:24KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+  frame=    7 fps=0.0 q=-1.0 Lsize=N/A time=00:00:00.28 bitrate=N/A speed= 452x elapsed=0:00:00.00
+  Conversion failed!
+
+
+  255 !== 0
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/recording-segments-media.test.js:226:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 255,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/stream-relay.test.js:612:1
+✖ review M3: a reconnect during cold failover cannot publish an exited startup epoch (47.329416ms)
+  AssertionError [ERR_ASSERTION]: cold resolve must not use the pre-ready planned-EOF branch
+  + actual - expected
+
+  + 'stopped'
+  - 'running'
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/stream-relay.test.js:623:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'stopped',
+    expected: 'running',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/stream-relay.test.js:627:1
+✖ review L2: rejected switch calls release a transferred follow-on pin exactly once (2.017292ms)
+  AssertionError [ERR_ASSERTION]: switching must return the transferred subscriber
+
+  0 !== 1
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/stream-relay.test.js:633:16)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/stream-relay.test.js:638:1
+✖ review M4: repeated pre-ready epochs exhaust one relay budget and fall back without another renewal (16.720875ms)
+  AssertionError [ERR_ASSERTION]: three renewed epochs, then one non-renewed fallback
+
+  7 !== 4
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/stream-relay.test.js:659:16)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 7,
+    expected: 4,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

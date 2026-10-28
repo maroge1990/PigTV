@@ -253,6 +253,9 @@ unchanged, including every recording made before or with the switch off.
   the recording appears as `#EXT-X-DISCONTINUITY` with a new `EXT-X-MAP`. Every URI carries `?token=`.
 - Since 0308, copied AAC in the watch copy explicitly converts its MPEG-TS ADTS headers to MP4 Audio Specific Config.
   This prevents AAC-LC recordings producing an aborted, sub-second watch playlist. Response shapes are unchanged.
+- Since 0310, watch audio is encoded to AAC-LC unless it is known AC-3/E-AC-3. This includes unknown probe results
+  and AAC with a non-LC ADTS label; video and archives remain copied. Finished MP4s already encode known AAC; unknown
+  audio now also uses that safe fallback. Shapes are unchanged.
 - Once the recording is finished its playlists answer 404: the client then plays the finished recording (`/:id/playback`),
   at the same position.
 

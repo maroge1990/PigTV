@@ -199,3 +199,39 @@ test('a capture killed mid-way, then a second run: one timeline, a watch copy of
     assert.ok(Math.abs(num / den - 50) < 0.5, `no frames lost or doubled at the join (average ${fv.avg_frame_rate})`);
     if (hevc) assert.equal(fv.codec_tag_string, 'hvc1');
 });
+
+// M1/L1: reproduce FOX's ADTS profile-0 label independently of FFmpeg's encoder.
+// ffprobe still decodes this as HE-AAC, but a copied ASC advertises AAC Main.
+for (const unknown of [false, true]) test(`review ${unknown ? 'L1 unknown probe' : 'M1 profile-0'}: watch audio has an Apple-safe LC config`, { skip: !hasFfmpeg && 'no ffmpeg' }, async () => {
+    const dir = path.join(sandbox, unknown ? 'unknown-watch' : 'main-watch');
+    fs.mkdirSync(dir);
+    const adts = Buffer.from(fs.readFileSync(path.join(__dirname, 'fixtures/synthetic-heaac.aac')));
+    for (let p = 0; p + 7 <= adts.length;) {
+        assert.equal(adts[p], 255);
+        const length = ((adts[p + 3] & 3) << 11) | (adts[p + 4] << 3) | (adts[p + 5] >> 5);
+        adts[p + 2] &= 63; // profile 0 (object type 1), payload unchanged
+        p += length;
+    }
+    const input = path.join(dir, 'main.aac'); fs.writeFileSync(input, adts);
+    const made = await run(['-y', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=25',
+        '-stream_loop', '-1', '-i', input, '-t', '12', '-c:v', 'libx264', '-preset', 'ultrafast', '-g', '25',
+        '-c:a', 'copy', '-f', 'hls', '-hls_time', '4', '-hls_list_size', '0',
+        '-hls_segment_filename', path.join(dir, 'a%06d.ts'), path.join(dir, 'archive.m3u8')]);
+    assert.equal(made.code, 0, made.err);
+    const { adtsObjectType } = require('../server/services/adtsProfile');
+    assert.equal(adtsObjectType(fs.readFileSync(path.join(dir, 'a000000.ts'))), 1, 'not an LC-labelled generated fixture');
+    const codecs = unknown ? {} : await media.probeCodecs(path.join(dir, 'a000000.ts'));
+    if (!unknown) assert.equal(codecs.audio, 'aac');
+    const watched = await run(segments.viewArgs(dir, codecs));
+    assert.equal(watched.code, 0, watched.err);
+    const asc = file => {
+        const r = spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_name,extradata', '-show_data', '-of', 'json', file], { encoding: 'utf8' });
+        const audio = JSON.parse(r.stdout).streams.find(s => s.codec_name === 'aac');
+        return parseInt(/00000000:\s+([0-9a-f]{2})/i.exec(audio.extradata)[1], 16) >> 3;
+    };
+    assert.equal(asc(path.join(dir, 'init.mp4')), 2, 'Apple must see AAC-LC, not the source Main label');
+    const final = path.join(dir, 'final.mp4');
+    const finished = await run(media.buildNativeRemuxArgs(path.join(dir, 'archive.m3u8'), final, codecs));
+    assert.equal(finished.code, 0, finished.err);
+    assert.equal(asc(final), 2, 'finished recording has the same safe policy');
+});
