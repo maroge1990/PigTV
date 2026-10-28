@@ -1,7 +1,8 @@
 # P0 implementation and checks, 28 Oct 2026
 
-The five approved server changes and round-1 fixes **0295–0300** are local on `main`, **not pushed or deployed**. Server 0289 and Apple 57 remain the
-reported deployed versions. No Apple code or ffmpeg flags changed. Next server build is 0301; next Apple build remains 58.
+The P0 changes **0290–0294** and round-1 fixes **0295–0300** are pushed: local `main` and `origin/main` match
+`58745fe` (application `974977f`). On 28 Oct Mark reported the latest build live; approved read-only SSH confirmed
+**0300 (`58745fe`)**, container running/healthy, started 00:43:59 UTC (11:43:59 AEDT). Apple 57 remains the last reported installed version. No Apple code or ffmpeg flags changed. Next server build is 0301; next Apple build remains 58.
 **Round 2 is complete: both permitted rounds used, no high findings. Review no longer blocks handoff.**
 FR-15/FR-16 remain open; new FR-17/FR-18 are recorded under the stopping rule. Mark's device/feed acceptance is outstanding.
 
@@ -115,3 +116,40 @@ separately agreed review scope, since both batch rounds are used. The current fi
    broadcasts stay shows; city-only titles must not infer another sport's league.
 
 Nothing above is device/feed Verified until Mark reports the result.
+
+## Acceptance pickup, 28 Oct
+
+- Local tree was clean; `git pull --rebase origin main` found it up to date. No commits remained unpushed.
+- Mark reports the latest build live; no device behavior or feed result is implied by that deployment report.
+- FR-17: two isolated Node 24 regression assertions in a temporary server copy both fail on 0300
+  (`show` instead of `event`), independently covering guide-category and sport-channel recognition without named overlap.
+  No fix or failing test was added to the application tree. Mark subsequently approved an isolated repair as a separate batch.
+- FR-9: current source preserves the analyzed info in the memory cache; `heaac: true` permits copy even with a known
+  HE-AAC profile. Apple's `fmt?` fallback explicitly requests `audioEncode`, which overrides copy. The change of log
+  message on the cached retry does not prove the first probe missed HE-AAC. Initial decode failure remains unresolved.
+  No tracked media sample was found locally; no provider connection or production bench was taken.
+- Recommended next code batch: isolated FR-17 repair, after Mark approves scope. FR-18 needs stored-guide frequency
+  evidence before tightening aliases; FR-15/FR-16 remain display debts. FR-9 needs log/request correlation before a capture.
+- Approved read-only SSH confirmed ffmpeg **6.1.1-3ubuntu5**. Bounded sanitized logs since this container start
+  showed initialization and the completed pre-migration backup; no matching playback/reconnect/recording failure
+  lines were present. This is a quiet startup observation, not a playback soak.
+- Explicitly read-only SQLite inspection: `feed_lag_limits` exists and is empty. The eight saved lag reads predate
+  deployment, total 8,205 reader-seconds (includes concurrent providers), worst lag 5.1–15 s, zero reconnects, all
+  ended because nobody was watching. No evidence yet of 0300 learning, persistence or clean-hour decay.
+- Stored `epg_live` retains Fox Cricket day/session/live flags, overnight Test blocks and the incorrectly live-flagged
+  Mini; World Series rows retain mixed flags and differently timed named/generic broadcasts. Raw-guide channel counts
+  include hidden/unmapped rows and are not acceptance of the visible Sports grouping. The bounded FR-18 nickname
+  query (Broncos/Titans and Panthers/Raiders in either order) returned none; other collisions remain unchecked.
+- Stored archive flags: source 6 has 2,676 channels with 2–3 days, source 7 has 2,194 with 1–7 days, source 8 has
+  978 with 3–7 days. This closes the question whether stored catch-up flags exist, not whether catch-up playback works.
+- Recording work and transcode cache directories are empty; cleanup journal and recordings table are empty.
+  Scheduled history has 12 completed, 3 cancelled and one old failed schedule (September), not a new startup failure.
+  Appdata has about 86.9 GiB free, recording share about 2,274.7 GiB; transcode tmpfs is empty with 2 GiB free.
+- The 28 Oct pre-migration backup exists (224,190,464 bytes). Older `.partial-shm` (32 KiB) and zero-byte
+  `.partial-wal` backup sidecars remain from 20–26 Oct. No cleanup performed; restore integrity was not tested.
+- Existing production samples remain, including historic HE-AAC samples `pos_1164.ts`/`pos_1165.ts` and 27 Oct
+  captures. Only names/sizes/dates were inspected; identity and codec contents were not re-probed. Any production
+  bench needs its own CPU window; no fresh capture is justified before correlating FR-9's fallback.
+- Device acceptance remains pending the numbered steps above, plus recording/iPhone same/different-channel
+  playback and segmented watch-from-start/seek/final-publication checks. Restart, takeover and share-loss tests
+  need separate approval. No provider stream, bench, sync, recording, restart or production change was initiated.

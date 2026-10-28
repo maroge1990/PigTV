@@ -1,12 +1,12 @@
 # PigTV: blueprint
 
-**State (28 Oct):** P0 is implemented locally in **0290–0294**: shared ingest defaults on, unused code removed,
+**State (28 Oct):** P0 is implemented in **0290–0294**: shared ingest defaults on, unused code removed,
 stored adaptive reconnect limits, Fox Cricket recognition/daily Test play, and roster-based league recognition/MLB broadcasts.
-**Round 1 repairs are local in 0295–0300**, including anonymous-owner coverage and deterministic cache tests.
+**Round 1 repairs are in 0295–0300**, including anonymous-owner coverage and deterministic cache tests.
 **Both adversarial rounds complete at 0300 (974977f), no high findings; review no longer blocks handoff.**
-**Not pushed; device/feed acceptance pending.** FR-15/FR-16 remain open; FR-17/FR-18 are recorded for Mark to prioritise.
-FR-17 is a 0297 regression from deployed 0289; its small conditional fix awaits Mark's decision, with no code change made.
-Server **0289** (FR-11, `feed_lag`, the smaller Status page) is deployed and pushed. Apple client
+**0300 (`58745fe`) is pushed and confirmed live by read-only SSH on 28 Oct; container healthy. Device/feed acceptance pending.** FR-15/FR-16 remain open; FR-17/FR-18 are recorded for Mark to prioritise.
+FR-17 is a 0297 regression relative to 0289; Mark approved its isolated fix as a separate batch on 28 Oct; no code change in this diagnostic report.
+Server **0300** is deployed; local `main` matched `origin/main` at `58745fe` (application `974977f`) at session pickup. Apple client
 **57** (live plays held 30 s back) is on the Apple TV. R7 (0282–0284, shared ingest on) passed on the Apple TV: NBC Sports
 Boston 35 min and Chicago Sports Network Plus 65 min with 0 stalls and no switches. Mark approved the next batch on 27 Oct:
 shared ingest on by default, the unused code removed, and an adaptive per-channel reconnect limit (24 s up to 28 s).
@@ -562,9 +562,9 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
 
-**28 Oct:** P0 items 1–5 are implemented locally in **0290–0294**; round-1 repairs are local in **0295–0300**,
-both adversarial rounds are complete with no high findings. Device checks remain outstanding; FR-15–FR-18 are recorded
-for Mark to prioritise (FR-17 is a regression, fix awaiting his decision)
+**28 Oct:** P0 items 1–5 and round-1 repairs (**0290–0300**) are pushed; read-only SSH confirms 0300 (`58745fe`) live and healthy,
+both adversarial rounds are complete with no high findings. Status: **Shipped, awaiting a check**; device checks remain outstanding; FR-15–FR-18 are recorded
+for Mark to prioritise (FR-17 is a regression; Mark approved a separate repair batch)
 ([validation and live steps](docs/reviews/2026-10-27/P0-STATUS.md)). The current order of work (P0-P3) and the questions only Mark can answer are in
 [`docs/reviews/2026-10-27/ROADMAP.md`](docs/reviews/2026-10-27/ROADMAP.md). The table below keeps each item's status.
 
