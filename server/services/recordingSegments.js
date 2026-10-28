@@ -201,6 +201,9 @@ function viewArgs(epochDir, codecs = {}) {
     const args = ['-nostdin', '-y', '-live_start_index', '0', '-i', path.join(epochDir, 'archive.m3u8'),
         '-map', '0:v:0?', '-map', '0:a:0?', '-c', 'copy'];
     if (video === 'hevc' || video === 'h265') args.push('-tag:v', 'hvc1');
+    // The archive carries AAC in ADTS. The nested fMP4 muxer does not always
+    // insert this filter itself (AAC-LC recording #202 aborted at 0.08 s).
+    if (audio === 'aac') args.push('-bsf:a', 'aac_adtstoasc');
     if (audio === 'mp2' || audio === 'mp3') args.push('-c:a', 'aac', '-b:a', '192k');
     args.push(
         '-f', 'hls',

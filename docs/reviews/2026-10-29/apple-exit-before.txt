@@ -1,0 +1,6 @@
+/Users/markrogers/Documents/GitHub/PigTV-Swift/PigTVTests/RealPlaybackTests.swift:138: error: -[PigTVTests.RealPlaybackTests testStoppingAPlayingStreamNeverReturnsToTuning] : XCTAssertFalse failed - stop must publish its closing state before clearing ready
+/Users/markrogers/Documents/GitHub/PigTV-Swift/PigTVTests/RealPlaybackTests.swift:139: error: -[PigTVTests.RealPlaybackTests testStoppingAPlayingStreamNeverReturnsToTuning] : XCTAssertTrue failed
+Test Case '-[PigTVTests.RealPlaybackTests testStoppingAPlayingStreamNeverReturnsToTuning]' failed (0.868 seconds).
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.868 (0.870) seconds
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.868 (0.871) seconds
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.868 (0.873) seconds

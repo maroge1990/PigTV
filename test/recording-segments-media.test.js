@@ -72,6 +72,50 @@ before(async () => {
     base = `http://127.0.0.1:${server.address().port}/live/1.ts`;
 });
 
+// AAC-LC from TS needs ADTS -> ASC when copied into fMP4. The HE-AAC fixture
+// above alone misses the muxer failure seen in recording #202 (29 Oct).
+test('AAC-LC watch copy plays the available archive and follows its growth before capture ends', { skip: !hasFfmpeg && 'no ffmpeg' }, async () => {
+    const workDir = segments.workDirFor(902);
+    const epoch = segments.nextEpoch(workDir);
+    const sampleLC = path.join(sandbox, 'lc.ts');
+    const made = await run(['-y', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=25',
+        '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', '24',
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-g', '25', '-c:a', 'aac', '-f', 'mpegts', sampleLC]);
+    assert.equal(made.code, 0, made.err);
+    assert.equal(probe(sampleLC, 'stream=profile').streams[1].profile, 'LC');
+    // Only remove HTTP input options for the local-file capture; keep the actual
+    // archive muxer and watch-copy builders. Publish the first half, then append.
+    const capture = segments.captureArgs({ userAgent: 'test', url: sampleLC, epochDir: epoch.dir });
+    capture.splice(1, capture.indexOf('-i') - 1);
+    const captured = await run(capture);
+    assert.equal(captured.code, 0, captured.err);
+    const file = path.join(epoch.dir, 'archive.m3u8');
+    const full = fs.readFileSync(file, 'utf8').replace('#EXT-X-ENDLIST\n', '');
+    const split = full.indexOf('#EXTINF:', full.indexOf('a000002.ts') + 'a000002.ts'.length);
+    assert.ok(split > 0);
+    fs.writeFileSync(file, full.slice(0, split));
+    const rec = { id: 902, work_dir: workDir };
+    try {
+        await segments.ensureView(rec);
+        const follower = segments._followers.get('902:1');
+        assert.ok(await until(() => !follower.proc || segments.viewPlaylist(workDir).segments >= 2));
+        assert.ok(follower.proc, 'the follower must stay alive while capture is open');
+        const initial = segments.viewPlaylist(workDir);
+        assert.ok(initial.segments >= 2, 'several playable segments, not an aborted 0.08 s fragment');
+        assert.equal(initial.ended, false);
+        fs.writeFileSync(file, full);
+        assert.ok(await until(() => segments.viewPlaylist(workDir).segments > initial.segments), 'new archive segments reach the viewer');
+        assert.ok(follower.proc, 'still following before the recording ends');
+        fs.appendFileSync(file, '#EXT-X-ENDLIST\n');
+        assert.ok(await until(() => segments.viewPlaylist(workDir, { captureOver: true }).ended));
+        const watched = probe(path.join(epoch.dir, 'view.m3u8'), 'format=duration:stream=codec_name');
+        assert.ok(Number(watched.format.duration) >= 23, 'the full recording survives the remux');
+        assert.ok(watched.streams.some(s => s.codec_name === 'aac'));
+    } finally {
+        segments.stopFollowers(902);
+    }
+});
+
 after(() => {
     server?.closeAllConnections?.();
     server?.close();

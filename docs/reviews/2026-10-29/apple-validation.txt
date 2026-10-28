@@ -1,0 +1,7 @@
+Build 58: Tools/test.sh push exited 0 (== push: passed).
+243 synthetic API/model contract checks passed.
+unit: Passed; 231 passed, 0 failed, 0 skipped.
+ui: Passed; 17 passed, 0 failed, 0 skipped.
+iOS Simulator: BUILD SUCCEEDED, exit 0.
+Post-test simctl diagnose collector stalled; terminated only after all UI tests passed.
+Xcode finalized both result bundles as Passed; simulator shut down.

@@ -1,6 +1,13 @@
 # PigTV: blueprint
 
-**State (28 Oct):** **0307** carries the 0306 FFmpeg/ffprobe 9.0.2 source recipe plus review repairs: a bounded, experimental
+**State (29 Oct):** **0308** repairs watch-while-recording AAC-LC muxing locally; regression and raw recording replay pass.
+Apple **58** repairs the exit tuning flash. Required local gates pass in both repos; adversarial reviews and device
+acceptance are pending. Both changes are committed locally for Mark to review and push. Server **0307** is confirmed deployed.
+Mark reports multiple tvOS channels tested on 28 Oct with **no A/V desync**, timeline renewal **off**; testing with it on
+is next. This is acceptance of that tested configuration, not of reconnect renewal. Evidence and remaining checks:
+[`29 Oct investigation`](docs/reviews/2026-10-29/README.md).
+
+**28 Oct:** **0307** carries the 0306 FFmpeg/ffprobe 9.0.2 source recipe plus review repairs: a bounded, experimental
 relay timeline renewal (off by default), an unprivileged test container, media capability and encoder-option gates,
 shared-ingest accounting coverage, and safe FFmpeg version reporting. Local validation is pending. **Linux image build,
 adversarial round 2, hardware/device acceptance and the intermittent A/V offset reported from play start remain open.**
@@ -100,7 +107,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0308** |
+| Next build number | **0309** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -601,6 +608,12 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 - A sibling-link decision that changes what is listed bumps the guide version (0250).
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
+
+**29 Oct recording / exit bugs:** watch-while-recording failure reproduced on deployed 0307 (diagnostic recording #203)
+and offline: AAC-LC watch muxing aborts at 0.14 s. **0308** adds the missing ADTS-to-ASC filter; the growing-recording
+regression fails before and passes after, and the captured raw segments remux fully. Apple **58** repairs the exit tuning flash with a failing-before real-playback regression.
+Required gates pass in both repos; adversarial review and device acceptance pending. Local commits only. Mark's 28 Oct multi-channel tvOS testing found no
+A/V desync with timeline renewal off; renewal-on testing remains open.
 
 **28 Oct E2 / FR-22 review:** **0307** includes source-pinned 9.0.2 media tools and the first adversarial-review repairs.
 The renewed timeline is now experimental and off by default; its settle wait is bounded. A 4 s reconnect-flap rig renewed

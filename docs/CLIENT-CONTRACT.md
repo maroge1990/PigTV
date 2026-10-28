@@ -249,6 +249,8 @@ unchanged, including every recording made before or with the switch off.
   playlist is an **EVENT** playlist of fMP4 pieces with `#EXT-X-START:TIME-OFFSET=0` (a player starts at the beginning),
   growing while recording; `#EXT-X-ENDLIST` once the programme has ended. A provider failover or a server restart during
   the recording appears as `#EXT-X-DISCONTINUITY` with a new `EXT-X-MAP`. Every URI carries `?token=`.
+- Since 0308, copied AAC in the watch copy explicitly converts its MPEG-TS ADTS headers to MP4 Audio Specific Config.
+  This prevents AAC-LC recordings producing an aborted, sub-second watch playlist. Response shapes are unchanged.
 - Once the recording is finished its playlists answer 404: the client then plays the finished recording (`/:id/playback`),
   at the same position.
 

@@ -1,0 +1,10 @@
+✔ AAC-LC watch copy plays the available archive and follows its growth before capture ends (10812.109333ms)
+✔ a capture killed mid-way, then a second run: one timeline, a watch copy of both, one MP4 that passes the preparation check (11457.435875ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 27634.184709

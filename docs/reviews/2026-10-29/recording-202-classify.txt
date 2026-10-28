@@ -1,0 +1,12 @@
+rec-202-first32s.ts
+  codecs          : video:hevc audio:aac
+  video packets   : 1601
+  near-zero steps : 0 (0.0%)   <- repeats already bumped upstream
+  doubled steps   : 0 (0.0%)
+  mean step       : 1800.0 ticks
+  VERDICT         : EVEN - the server keeps the source DTS
+  A/V start skew  : -13 ms (audio minus video)
+  jumps           : none in video (stream 0)
+  jumps           : none in audio (stream 1)
+  media rate      : 10249 kbps over 32s at 2160p
+  PICTURE         : has picture data

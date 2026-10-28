@@ -1,0 +1,64 @@
+exit 0
+tereo, fltp
+    Metadata:
+      variant_bitrate : 0
+[in#0/hls @ 0x757301c000] Opening '/private/tmp/pigtv-2026-10-29-evidence/rec-203-fixed/e1/a000001.ts' for reading
+[hls @ 0x757301ed00] Opening '/private/tmp/pigtv-2026-10-29-evidence/rec-203-fixed/e1/v000000.m4s.tmp' for writing
+[hls @ 0x757301ed00] Opening '/private/tmp/pigtv-2026-10-29-evidence/rec-203-fixed/e1/view.m3u8.tmp' for writing
+[in#0/hls @ 0x757301c000] Opening '/private/tmp/pigtv-2026-10-29-evidence/rec-203-fixed/e1/a000002.ts' for reading
+[hls @ 0x757301ed00] Opening '/private/tmp/pigtv-2026-10-29-evidence/rec-203-fixed/e1/v000001.m4s.tmp' for writing
+[hls @ 0x757301ed00] Opening '/private/tmp/pigtv-2026-10-29-evidence/rec-203-fixed/e1/view.m3u8.tmp' for writing
+[hls @ 0x757301ed00] Opening '/private/tmp/pigtv-2026-10-29-evidence/rec-203-fixed/e1/v000002.m4s.tmp' for writing
+[hls @ 0x757301ed00] Opening '/private/tmp/pigtv-2026-10-29-evidence/rec-203-fixed/e1/view.m3u8.tmp' for writing
+[out#0/hls @ 0x757300cf00] video:16208KiB audio:191KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=  625 fps=0.0 q=-1.0 Lsize=N/A time=00:00:12.50 bitrate=N/A speed= 321x elapsed=0:00:00.03
+
+#EXTM3U
+#EXT-X-VERSION:7
+#EXT-X-TARGETDURATION:5
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-PLAYLIST-TYPE:EVENT
+#EXT-X-INDEPENDENT-SEGMENTS
+#EXT-X-MAP:URI="init.mp4"
+#EXTINF:4.860000,
+v000000.m4s
+#EXTINF:4.240000,
+v000001.m4s
+#EXTINF:3.400000,
+v000002.m4s
+#EXT-X-ENDLIST
+
+{
+    "programs": [
+        {
+            "streams": [
+                {
+                    "codec_name": "hevc",
+                    "profile": "Main 10",
+                    "codec_tag_string": "hvc1"
+                },
+                {
+                    "codec_name": "aac",
+                    "codec_tag_string": "mp4a"
+                }
+            ]
+        }
+    ],
+    "stream_groups": [
+
+    ],
+    "streams": [
+        {
+            "codec_name": "hevc",
+            "profile": "Main 10",
+            "codec_tag_string": "hvc1"
+        },
+        {
+            "codec_name": "aac",
+            "codec_tag_string": "mp4a"
+        }
+    ],
+    "format": {
+        "duration": "12.500000"
+    }
+}
