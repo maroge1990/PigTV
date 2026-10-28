@@ -1,11 +1,12 @@
 # PigTV: blueprint
 
-**State (28 Oct):** **0306** prepares a source-pinned **FFmpeg/ffprobe 9.0.2** image and matching Linux CI recipe,
-with capability gates and a full suite inside the final candidate before publication. Local **1234 tests pass**;
-6.1.1/9.0.2 software sample comparisons match within the documented 3.311 ms FOX audio-start difference. **Linux image
-build/runtime validation, hardware/device acceptance and adversarial review are pending** (no local Docker). No push or
-deploy; **0304** is the last numerically confirmed deployment. Mark now reports intermittent A/V offset from play start
-without the earlier pause (current build number unconfirmed); FR-22 remains open. Details: [`docs/MEDIA-TOOLCHAIN.md`](docs/MEDIA-TOOLCHAIN.md).
+**State (28 Oct):** **0307** carries the 0306 FFmpeg/ffprobe 9.0.2 source recipe plus review repairs: a bounded, experimental
+relay timeline renewal (off by default), an unprivileged test container, media capability and encoder-option gates,
+shared-ingest accounting coverage, and safe FFmpeg version reporting. Local validation is pending. **Linux image build,
+adversarial round 2, hardware/device acceptance and the intermittent A/V offset reported from play start remain open.**
+The offline Fox loop capture was nondeterministic enough that audio timing could not be measured; it does not prove a fix.
+No push or deployment; the deployed container was confirmed at 0305 during this review. Details:
+[`docs/MEDIA-TOOLCHAIN.md`](docs/MEDIA-TOOLCHAIN.md) and [`the 0307 review record`](docs/reviews/2026-10-28/round1-repairs/README.md).
 
 **0305 local batch (28 Oct):** **0305** implements FR-22's planned same-provider relay timeline renewal after a shared-ingest
 reconnect. Offline FOX splice: one discontinuity, no timestamp-gapped segment or consecutive tiny segments; recordings,
@@ -99,7 +100,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0307** |
+| Next build number | **0308** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -195,11 +196,12 @@ it cannot. There is no remux, no legacy pipe and no browser-side strategy any mo
   sits 19 s further behind live. The threshold only matters for *forward* jumps: fftools treats any backward step over 0.1 s on MPEG-TS
   input as a discontinuity (ffmpeg 9.0 measured; 6.x from reading its source, not run). No code change made.
   Long GOPs (≥10 s) can fail a join (`unspecified size`, exit −22), and a smaller probe makes that worse.
-- **0306** prepares FFmpeg/ffprobe **9.0.2** from verified source, selected first on PATH in the Ubuntu 24.04 image;
-  Linux CI uses the same release/build recipe and tests the final candidate before publishing it. The reported deployment
-  is still apt 6.1.1; Linux image and hardware/device validation of 0306 are pending. This upgrades the tools for parity,
-  not to remove the existing FOX warnings. External codec/VAAPI/Intel libraries remain Ubuntu's; NVENC headers are pinned
-  to a compatible older API, not moving master. Details and limits: [`docs/MEDIA-TOOLCHAIN.md`](docs/MEDIA-TOOLCHAIN.md).
+- **0307** prepares FFmpeg/ffprobe **9.0.2** from verified source, selected first on PATH in the Ubuntu 24.04 image;
+  Linux CI uses the same release/build recipe and tests the final candidate before publishing it. The deployed build was
+  confirmed as 0305 with tools 6.1.1 during this review; Linux image and hardware/device validation of 0307 are pending.
+  This upgrades the tools for parity, not to remove the existing FOX warnings. The recipe uses oneVPL, Ubuntu runtime
+  libraries, and NVENC headers pinned to a compatible older API, not moving master. Optional-library differences are
+  tracked in FR-25. Details: [`docs/MEDIA-TOOLCHAIN.md`](docs/MEDIA-TOOLCHAIN.md).
   One `dump_extra` remains, on the TS copy branch for video that is neither H.264 nor HEVC: never seen, and
   **only change it against a sample** (0043/0044: `dump_extra` corrupts copy sessions).
 
@@ -401,8 +403,10 @@ opener at its first); > 16 MB behind = evicted; a lost connection is retried 10 
 on stdin) read it; every other ffmpeg argument is today's. **0305 (FR-22):** a successful reconnect emits
 `reconnected { forLag, gapSec }` to every subscription and clears the old connection's join buffer. Only a viewer leg
 owned by a relay stops before the new bytes, without `lost` or quarantine. The relay keeps its old leg registered for
-admission and pins the same ingest, waits **6 live seconds after the latest reconnect** (`streamRelay.tuning.reconnectSettleMs`),
-then adopts that slot for a fresh leg on the exact same candidate behind `EXT-X-DISCONTINUITY`. A reconnect during startup
+  admission and pins the same ingest. When the new experimental Settings option is enabled, it settles for **6 live seconds**
+  after the latest reconnect, then adopts that slot for a fresh leg on the exact same candidate behind
+  `EXT-X-DISCONTINUITY`; a forced renewal begins after 8 s and the whole attempt is capped at 20 s. The option defaults off
+  pending iPhone acceptance. A reconnect during startup
 discards the unpublished attempt and settles again; only the finished renewal is a switch. A ready standby stays standby.
 Planned renewals are recorded as relay reason `reconnected`, omitted from `playbackInterruptions` (including recovered counts).
 Recordings, probe/warm/standby readers and sessions without a relay retain their existing behaviour. A promoted standby
@@ -598,9 +602,11 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
 
-**28 Oct E2:** **0306** implements release/feature parity in code (9.0.2), with local comparisons and full tests passing;
-Linux image/CI execution, adversarial review and device acceptance remain pending. No deployment or broad playback fix
-is claimed. [`Media toolchain validation`](docs/MEDIA-TOOLCHAIN.md).
+**28 Oct E2 / FR-22 review:** **0307** includes source-pinned 9.0.2 media tools and the first adversarial-review repairs.
+The renewed timeline is now experimental and off by default; its settle wait is bounded. A 4 s reconnect-flap rig renewed
+at 12.46 s, while 0305 starved until the 60 s flap ended. The FOX loop comparison showed ~10–11 s join stalls with either
+hold setting, so neither the 30 s hold nor ffmpeg flags changed and no sync fix is claimed. See the [0307 review record](docs/reviews/2026-10-28/round1-repairs/README.md).
+Linux image/CI execution, adversarial round 2 and device acceptance remain pending; nothing is deployed.
 
 **28 Oct FR-22:** **0305** is implemented locally with failing-before tests, real-ffmpeg relay rigs and the FOX splice
 through the session/relay and macOS AVPlayer. Review and device acceptance pending; not deployed. The initial short-playlist
@@ -644,7 +650,7 @@ Status words, used exactly: **Done**, **Shipped, awaiting a check** (needs Mark 
 | **B2** recordings | **R3** segmented recordings: an HLS event playlist that appends across restarts and failover (replacing parts), remuxed at the end, MP4 preparation (K12) from the segments. **Approved by Mark on 16 Oct** (replaces the 4 Oct skip): with watch-while-recording on Apple TV, segments in appdata, a Settings switch off by default; see the roadmap's Wave 4. · **R5** follow-list and series recording rules, de-duplicated by episode/event · **R6** EPG artwork | M + M | **Done**, committed, not pushed: R3 (0218, Apple 44; off by default), R5 (0219, Apple 45), R6 (0220, Apple 45). R3's reference-feed capture and Mark's test day still to come |
 | **B3** shared ingest (behind a Settings switch, capture-first) | **R2** one reader per (provider, channel) into an in-memory ring buffer with subscribers, in its own process group. Consumers in order: recordings → the HLS session reads `pipe:0` (rerun `stream-doctor bench` on all five samples) → **R7** failover inside the ingest (speed-based stall detection, reconnect or switch by `providerRouting`'s order). The coordinator counts ingests: the same channel takes no new connection | L | **R2 phases 5a/5b done** (0223–0225, off by default; design in `docs/SHARED-INGEST.md`): recordings, live plays and their probe share one connection per stream. Bench **SAME on seven real samples on the server** (18 Oct, production ffmpeg; HDR, 50 Hz, HE-AAC); no uneven-timestamp feed exists to bench any more. Next: Mark's device test with the switch on. **R7** (5c): **0282–0284** (27 Oct, from the FR-8 captures) judges a shared feed by how far it is behind real time (PCR), not a pause in bytes or segments; relay legs and the standby read through the ingest; the Apple client (56) holds live plays 30 s back. Passed on device 27 Oct (0 stalls, 65 min on Chicago). **0287** keeps each feed's worst lag per channel and provider (`feed_lag`, 30 days, Status details). **0292** adds stored per-channel/provider limits (24–28 s), self-correcting after 3 clean reading hours. Not done: reconnect-vs-switch by stability, avoiding a provider pausing at the same moment |
 | **B4** retire (after B3 has run a week) | `streamRelay.js` leg-stitching and standby, the 0143 refusal retries, per-session warm leases (warming becomes "start an ingest early"): about 800–1,000 lines | M | **Re-scoped 27 Oct (Mark):** the standby and stitching stay (the only seamless failover); the 0143 retries and warm leases are still used by direct connections. **0291** removes the unreferenced scripts and exports; active admission tests retain the device-replacement rule |
-| **B5** provider and guide data (when convenient) | **R8** ingest filters · **R9** event-channel guide · **R10** EPG matching tune-ups · catch-up/start-over if B1 finds archives · E2 ffmpeg version parity | S–M each | R8 pilot **Done** (0217): whole groups never imported, guarded and reversible; the before/after measurement was **closed 27 Oct** (no longer of value). **R9 Done** (0221: events from event-slot names). **R10 Done** (0222: region weighting, auto-map with undo). Catch-up waits for the 0216 answer; **E2 implemented locally in 0306**, Linux image/CI, review and hardware/device acceptance pending |
+| **B5** provider and guide data (when convenient) | **R8** ingest filters · **R9** event-channel guide · **R10** EPG matching tune-ups · catch-up/start-over if B1 finds archives · E2 ffmpeg version parity | S–M each | R8 pilot **Done** (0217): whole groups never imported, guarded and reversible; the before/after measurement was **closed 27 Oct** (no longer of value). **R9 Done** (0221: events from event-slot names). **R10 Done** (0222: region weighting, auto-map with undo). Catch-up waits for the 0216 answer; **E2 implemented locally in 0307**, Linux image/CI, second review and hardware/device acceptance pending |
 
 Rough total: 6–8 weeks of part-time sessions. B3 is the largest change to the playback path since 0102/0103: it needs the
 full capture/bench pass (§3 "Diagnosing playback") before and after.

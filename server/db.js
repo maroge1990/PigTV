@@ -62,6 +62,7 @@ function getDefaultSettings() {
     // Security
     // Hardware transcoding workarounds
     vaapiCpuScale: true,           // CPU scale + hwupload, instead of the full-GPU VAAPI pipeline
+    ingestReconnectRenewal: false, // FR-22: experimental; requires relay + shared ingest, device acceptance pending
     relayEnabled: false,           // R12: in-stream recovery (services/streamRelay.js), experimental
     standbyEnabled: false,         // R12: the hot standby; only effective while relayEnabled is on
     sharedIngestEnabled: true,     // Wave 5 (R2): one provider connection per stream, shared (docs/SHARED-INGEST.md)

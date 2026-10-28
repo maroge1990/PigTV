@@ -84,10 +84,13 @@ jobs:
       # .github is excluded from the image; mount it for infrastructure contract tests.
       - name: Test candidate runtime
         run: |
-          docker run --rm --entrypoint bash \
-            -e PIGTV_SKIP_PERF=1 \
+          docker run --rm --entrypoint bash --user 99:100 \
+            -e HOME=/tmp -e PIGTV_SKIP_PERF=1 \
+            --tmpfs /app/data:rw,uid=99,gid=100,mode=0700 \
+            --tmpfs /app/transcode-cache:rw,uid=99,gid=100,mode=0700 \
+            --tmpfs /app/recordings:rw,uid=99,gid=100,mode=0700 \
             -v "$GITHUB_WORKSPACE/.github:/app/.github:ro" \
-            pigtv:candidate -c 'node scripts/check-media-tools.js --hardware && npm test'
+            pigtv:candidate -c 'node scripts/check-media-tools.js --hardware && node scripts/check-encoder-options.js && npm test'
 
       - name: Publish validated candidate
         env:

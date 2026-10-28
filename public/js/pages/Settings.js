@@ -66,13 +66,19 @@ class SettingsPage {
         // R12: the standby only works while recovery is on, so its switch is greyed out otherwise.
         const relay = document.getElementById('setting-relay-enabled');
         const standby = document.getElementById('setting-standby-enabled');
+        const renewal = document.getElementById('setting-ingest-renewal');
+        const shared = document.getElementById('setting-shared-ingest');
+        const syncRenewalAvailability = () => { if (renewal) renewal.disabled = !relay?.checked || !shared?.checked; };
+        shared?.addEventListener('change', syncRenewalAvailability);
         bind('setting-relay-enabled', 'relayEnabled');
+        bind('setting-ingest-renewal', 'ingestReconnectRenewal');
         bind('setting-standby-enabled', 'standbyEnabled');
         bind('setting-warm-next-channel', 'warmNextChannel'); // R11
         bind('setting-shared-ingest', 'sharedIngestEnabled'); // Wave 5
         // 0203: turning recovery off also turns the standby off (it cannot run without it), and
         // says so: a ticked-but-greyed switch read as "still on".
         relay?.addEventListener('change', async () => {
+            syncRenewalAvailability();
             if (!standby) return;
             standby.disabled = !relay.checked;
             if (!relay.checked && standby.checked) {
@@ -93,6 +99,8 @@ class SettingsPage {
             const relay = document.getElementById('setting-relay-enabled');
             const standby = document.getElementById('setting-standby-enabled');
             if (relay) relay.checked = s.relayEnabled === true;
+            const renewal = document.getElementById('setting-ingest-renewal');
+            if (renewal) { renewal.checked = s.ingestReconnectRenewal === true; renewal.disabled = s.relayEnabled !== true || s.sharedIngestEnabled !== true; }
             if (standby) {
                 // Never shown ticked while recovery is off: the server treats it as off then.
                 standby.checked = s.standbyEnabled === true && s.relayEnabled === true;

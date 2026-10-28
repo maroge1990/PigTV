@@ -999,7 +999,9 @@ async function admitViewer(opts = {}) {
         // the first release is awaited, so a contender arriving while those finish (or while the
         // caller probes) counts it. Not for an adopted warm session: it holds its own lease.
         // Wave 5: joining a shared ingest takes no connection, so no lease.
-        if (!opts.adopt && !verdict.joining) verdict.lease = takeLease(opts.providerId, 'viewer', { owner: opts.owner });
+        const adoptsWarmLease = opts.adopt && activeStreams().some(s => s.id === opts.adopt && s.warm
+            && samePool(s.providerId, opts.providerId));
+        if (!adoptsWarmLease && !verdict.joining) verdict.lease = takeLease(opts.providerId, 'viewer', { owner: opts.owner });
         // A recording that was admitted but has not started yet, and is forced out: it must not
         // start after all (its engine checks the lease), and its count goes with it.
         for (const id of verdict.sacrificed || []) {

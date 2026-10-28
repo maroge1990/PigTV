@@ -210,7 +210,7 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     // 0180: stopped on request while it was starting (the viewer's next play replaced it,
     // a DELETE, a force): not a provider failure, so no failover, breaker, quarantine,
     // profile or health change. The route answers it with a plain SUPERSEDED error.
-    if (session.stopRequested) {
+    if (session.stopRequested || (session.plannedRestart && !ready)) {
         console.log(`[Playback] start superseded: session ${session.id} was stopped on request before it produced a playlist`);
         try { await transcodeSession.removeSession(session.id); } catch (e) { /* already gone */ }
         throw supersededError();

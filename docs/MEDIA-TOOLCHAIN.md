@@ -1,6 +1,6 @@
-# Production media toolchain (0306)
+# Production media toolchain (0307)
 
-0306 prepares **FFmpeg and ffprobe 9.0.2** for the Linux amd64 image and Linux CI. Mark approved upgrading production
+0307 prepares **FFmpeg and ffprobe 9.0.2** for the Linux amd64 image and Linux CI. Mark approved upgrading production
 on 28 Oct to remove the test/deployment version mismatch. It is a separate change from 0305's reconnect timeline fix.
 **Local checks pass; the Linux image has not been built here (no local Docker). CI image validation, adversarial review
 and device/hardware acceptance remain pending. Nothing has been deployed.**
@@ -13,7 +13,8 @@ and device/hardware acceptance remain pending. Nothing has been deployed.**
   computed from the official archive and independently matched the installed Homebrew formula. The downloaded PGP
   signature was not verified (no GPG installed); no signature-verification claim is made.
 - Docker's `media-build` and `.github/actions/setup-media-tools` use that same recipe on **Ubuntu 24.04 amd64**.
-  It explicitly enables software H.264/HEVC, AAC, MP3, VAAPI, NVENC/NVDEC, CUDA scaling, QSV, HTTPS and SRT. FFmpeg's own
+  It explicitly enables software H.264/HEVC, AAC, MP3, VAAPI, NVENC/NVDEC, CUDA scaling, QSV through **oneVPL**,
+  dav1d, XML2, iconv, HTTPS and SRT. FFmpeg's own
   libraries are static in the tools; external codec/driver libraries come from Ubuntu 24.04. Those system packages and
   Node are still allowed security updates; this is release/feature parity, not bit-for-bit reproducibility.
 - The image puts `/opt/pigtv-ffmpeg/bin` first on PATH and does not install the distro ffmpeg executable. Comskip still
@@ -21,10 +22,16 @@ and device/hardware acceptance remain pending. Nothing has been deployed.**
   driver packages and the entrypoint/device-group behaviour remain unchanged.
 - NVIDIA headers use the oldest API FFmpeg 9's configure explicitly accepts, with a documented minimum Linux driver of
   470.57.02. This avoids selecting current moving headers that require much newer drivers. Actual GPU execution still
-  requires acceptance on the host. QSV keeps the existing libmfx API; its upstream deprecation warning is expected.
+  requires acceptance on the host. The Linux profile does not enable AMF encoders; those remain available only where a
+  separately built toolchain includes them. QSV uses oneVPL (`libvpl`), not deprecated libmfx. Actual Intel hardware
+  encode/decode is not established by compile-time capability checks.
 - `scripts/check-media-tools.js --hardware` rejects a wrong release of **either** tool, missing software/hardware
   encoders or filters (including `scale_cuda`), and missing HTTPS/SRT support. It checks compiled support without opening
-  a GPU or provider. Build failure or a missing capability stops the image; there is no fallback to a stripped build.
+  a GPU or provider, and checks required decoders and demuxers. `scripts/check-encoder-options.js` queries the actual
+  session builders' private options against each encoder's own help output and runs real software lavfi encodes at all
+  three quality levels. Hardware execution still requires host acceptance. Build failure or a missing required
+  capability stops the image; there is no fallback to a stripped build. Optional external libraries not named by the
+  explicit profile are not asserted to match the deployed 6.1.1 build; see FR-25 in `docs/FINDINGS.md`.
 
 No production session, recording or probe command-line flags change. Apple capabilities, endpoint shapes and the 30 s
 hold remain unchanged. This is not a fix for FR-22's startup stall or unmeasured iPhone sound timing.
@@ -34,11 +41,15 @@ hold remain unchanged. This is not a fix for FR-22's startup stall or unmeasured
 1. Node 22 and 24 CI use the pinned pair, cached by recipe/hash, before running the full suite and build verifier. Performance reporting
    remains separate/non-blocking. The release tests run on Ubuntu 24.04 rather than moving `ubuntu-latest`.
 2. The publish job builds **without pushing**, loads `pigtv:candidate`, verifies its actual binaries/capabilities and runs
-   `npm test` inside that final runtime image. The checked-out `.github` directory is mounted read-only because it is
-   excluded from the image. That disposable container's writes never enter the image being published.
+   `npm test` inside that final runtime image as UID 99/GID 100. Only its data, transcode-cache and recordings paths are
+   writable tmpfs mounts; `HOME=/tmp`, and the checked-out `.github` directory is read-only because it is excluded from
+   the image. This validates test-user filesystem permissions as well as the final image. It does not start the server's
+   main process as a separate smoke test; the container smoke checks binaries and capabilities.
 3. Only after the candidate tests pass does the job tag and push **that same image**, with the existing metadata tags and
    build identity. It does not rebuild after validation. Container smoke also checks exact versions/capabilities.
-4. No local push or CI dispatch was performed. These new Linux build/runtime checks cannot be claimed passed until
+4. Source archive hashes are checked by `build-media-tools.sh` whenever the source archive is consumed. A cache hit for
+   the compiled tools skips compilation and does not independently validate source contents. The documented PGP
+   signature was not verified. No local push or CI dispatch was performed. These new Linux build/runtime checks cannot be claimed passed until
    Mark's reviewed push runs them. A compiler, dependency, loader or codec regression fails closed before publication.
 
 For local acceptance, keep the system tools at the pinned release, then run:
@@ -109,7 +120,11 @@ Additional runs:
   15 pass. After changing to the shared HE-AAC fixture, two attempts found a leftover old diagnostic variable; removed it,
   then `node --test test/media-toolchain.test.js test/recording-segments-media.test.js`: 11 pass. This exercises capture
   interruption, joined epochs, Apple watch copies, final MP4 preparation checks, HDR metadata and 50 fps.
-- `npm test`: **1234/1234 pass**, zero skips, Node 24 / installed 9.0.2 (61.77 s; final rerun after the install-prefix guard: 62.15 s).
+- The first review-repair full-suite and verifier results are recorded with build 0307 in `docs/reviews/2026-10-28/round1-repairs/README.md`.
+- `npm test`: **1244/1244 pass**, zero skips, Node 24.21.0 / local FFmpeg 9.0.2 (58.67 s).
+- `bash scripts/verify-build.sh .`: all checks pass, including UID 99 candidate wiring. `git diff --check`: pass.
+- `node scripts/check-encoder-options.js --software-only`: three actual lavfi software encodes pass. The `--hardware` production
+  capability gate and the full NVENC/VAAPI/QSV option checks are not available on this Mac; Linux candidate CI must run them.
 - `node docs/reviews/2026-10-27/avsync-repro/reconnect.js <FOX sample> /private/tmp/pigtv-0306-av`: real strategy/session/
   relay/HLS route → ffmpeg reader + macOS AVPlayer. One same-provider discontinuity, two connections, max segment 4.004 s,
   max audio step 21.667 ms, no consecutive tiny segments. AVPlayer's known startup stall at 6.58 s recovers at 36.48 s;
@@ -120,17 +135,19 @@ Additional runs:
   new placement gate fail. No new structural checks were added for behaviours covered by executable tests.
 
 The Linux source build, final runtime/container suite, actual hardware encodes and the reference feeds on devices remain
-**pending**, rather than implied by the macOS comparison. Review base for this batch: `806c1d6`. The preceding 0305 batch
-also still requires its review; a combined review from `da00a7c` can cover both before Mark pushes.
+**pending**, rather than implied by the macOS comparison. Review batch base: `c7127e6` (0305 and 0306 baseline: `da00a7c`).
+The user-supplied first adversarial review has been repaired/dispositioned in
+[`docs/reviews/2026-10-28/round1-repairs/README.md`](reviews/2026-10-28/round1-repairs/README.md); required second round
+has not run yet.
 
 ## Mark's acceptance after review and CI
 
 1. Require the Linux CI version/capability checks and final-candidate tests to pass before using its published image.
-2. Deploy through Unraid and check `/api/version` is 0306; check both `ffmpeg -version` and `ffprobe -version` in the
+2. Deploy through Unraid and check `/api/version` is 0307; check both `ffmpeg -version` and `ffprobe -version` in the
    container report 9.0.2. Deploying ends existing sessions, as usual.
 3. Check the hardware encoder actually used on this host (VAAPI/QSV/NVENC as applicable), not just its name in the list.
-4. Repeat cold and warm starts of the same affected channel: Mark now reports intermittent A/V offset from the start,
-   without the earlier pause (current build number unconfirmed). Record which starts are in/out of sync; correlate first
+4. Before deployment, repeat cold and warm starts of the same affected channel on 0305 as the baseline: Mark reports
+   intermittent A/V offset from the start, without the earlier pause. Record which starts are in/out of sync; correlate first
    segment track starts and copy/encode mode. Then watch H.264 and an HDR/HEVC channel with the expected 50/59.94 display rate, exercise HE-AAC, watch a recording while
    it records, and play its final MP4. Watch FOX on iPhone through a reconnect and report sound/picture alignment.
 5. If acceptance regresses, select the previous known-good image tag/digest using OPERATIONS/AGENTS rollback steps.

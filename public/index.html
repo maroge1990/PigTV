@@ -553,6 +553,17 @@
               </div>
               <div class="setting-item">
                 <label class="setting-toggle">
+                  <input type="checkbox" id="setting-ingest-renewal" disabled>
+                  <span class="toggle-slider"></span>
+                </label>
+                <div class="setting-info">
+                  <span class="setting-label">Renew timeline after a reconnect</span>
+                  <span class="setting-hint">Experimental, off by default pending A/V testing. Restarts the viewer on
+                    the same provider after a shared-feed reconnect. Requires in-stream recovery and shared ingest. Applies to new plays.</span>
+                </div>
+              </div>
+              <div class="setting-item">
+                <label class="setting-toggle">
                   <input type="checkbox" id="setting-standby-enabled" disabled>
                   <span class="toggle-slider"></span>
                 </label>

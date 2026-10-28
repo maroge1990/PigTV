@@ -24,4 +24,5 @@ runs:
       run: |
         export PATH="$RUNNER_TEMP/pigtv-ffmpeg/bin:$PATH"
         node scripts/check-media-tools.js --hardware
+        node scripts/check-encoder-options.js
         echo "$RUNNER_TEMP/pigtv-ffmpeg/bin" >> "$GITHUB_PATH"

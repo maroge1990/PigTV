@@ -374,6 +374,14 @@ class TranscodeSession extends EventEmitter {
         if (!this.options.relayTimeline || this.options.standby || this.options.warm || this.plannedRestart || this.stopRequested) return;
         this.plannedRestart = info;
         this.feed.unpipe(this.process.stdin);
+        if (!this.timings.playlistReady) {
+            // A flapping provider must not starve startup forever. Close this input epoch,
+            // rather than splice new timestamps into it: EOF lets ffmpeg finish a short,
+            // clean segment. The relay may publish it after its bounded settle deadline.
+            this.stopWatchdog();
+            this.process.stdin.end();
+            return;
+        }
         this.emit('timeline-restart', { ...info, feed: this.feed });
         this.stop();
     }
@@ -386,7 +394,7 @@ class TranscodeSession extends EventEmitter {
         if (this.feed) { this.feed.leave(); this.feed = null; } // Wave 5
         // stop() marks the session 'stopped' before it signals ffmpeg, so
         // this tells "we ended it" apart from "it ended".
-        const requested = this.status === 'stopped';
+        const requested = this.status === 'stopped' || !!this.plannedRestart;
         if (code === 0 || (requested && (code === null || code === 255))) {
             // 255 is ffmpeg's own exit after SIGTERM; null is SIGKILL.
             console.log(`[TranscodeSession ${this.id}] FFmpeg completed successfully`);
@@ -412,7 +420,7 @@ class TranscodeSession extends EventEmitter {
             // got 404s from a restart that could not help.
             const diedEarly = (Date.now() - this.startTime) < 10000;
             const couldBeHwDecode = this._usedVaapiDecode === true && !this.timings.playlistReady;
-            if (diedEarly && couldBeHwDecode && !this._triedSwDecode) {
+            if (!requested && diedEarly && couldBeHwDecode && !this._triedSwDecode) {
                 this._triedSwDecode = true;
                 this.options.vaapiHwDecode = false;
                 console.warn(`[TranscodeSession ${this.id}] Retrying with software decode`);

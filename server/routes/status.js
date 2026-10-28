@@ -283,6 +283,7 @@ router.get('/', async (req, res) => {
         const settings = await db.settings.get();
         const status = {
             generatedAt: Date.now(),
+            mediaTools: req.app.locals.mediaTools || null,
             build: require('../version'),
             providers: connectionUse(providersStatus(settings)),
             sessions: liveSessions(),

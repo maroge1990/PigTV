@@ -20,8 +20,10 @@ function run(cmd, args, opts = {}) {
 const packets = JSON.parse(run('ffprobe', ['-v', 'quiet', '-select_streams', 'v:0', '-show_packets',
     '-show_entries', 'packet=pts_time,pos,flags', '-of', 'json', sample])).packets;
 const first = Number(packets[0].pts_time);
-const cutPacket = packets.find(p => Number(p.pts_time) >= first + 18);
-const resumePacket = packets.find(p => Number(p.pts_time) >= first + 29 && p.flags.includes('K'));
+const cutSec = Number(process.env.RECONNECT_CUT_SEC || 18);
+const jumpSec = Number(process.env.RECONNECT_JUMP_SEC || 11);
+const cutPacket = packets.find(p => Number(p.pts_time) >= first + cutSec);
+const resumePacket = packets.find(p => Number(p.pts_time) >= first + cutSec + jumpSec && p.flags.includes('K'));
 if (!cutPacket || !resumePacket) throw new Error('Need a sample with at least 32 seconds and keyframes');
 const data = fs.readFileSync(sample);
 const cut = Number(cutPacket.pos) + 73; // deliberately inside a TS packet

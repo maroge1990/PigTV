@@ -13,7 +13,9 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-media-contract-'));
 after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 const names = {
     '-encoders': 'libx264 libx265 aac libmp3lame h264_vaapi hevc_vaapi h264_nvenc hevc_nvenc h264_qsv hevc_qsv',
-    '-decoders': 'h264 hevc aac ac3 eac3',
+    '-decoders': 'h264 hevc aac ac3 eac3 h264_cuvid hevc_cuvid libdav1d',
+    '-buildconf': '--enable-libvpl --enable-libdav1d --enable-libxml2 --enable-iconv',
+    '-demuxers': 'dash hls mov,mp4,m4a,3gp,3g2,mj2 mpegts',
     '-protocols': 'http https tcp udp rtp srt',
     '-filters': 'scale bwdif yadif aresample scale_vaapi scale_cuda scale_qsv hwupload hwdownload'
 };
@@ -43,7 +45,7 @@ for (const tool of ['FFMPEG', 'FFPROBE']) test(`a drifted ${tool} release is rej
 test('a prefix match cannot silently accept another patch release', () => {
     const r = check({ TEST_FFMPEG_RELEASE: '9.0.20' }); assert.equal(r.status, 1); assert.match(r.stderr, /Expected ffmpeg/);
 });
-for (const missing of ['hevc_nvenc', 'scale_cuda', 'h264_qsv', 'https']) test(`missing ${missing} blocks the production build`, () => {
+for (const missing of ['hevc_nvenc', 'scale_cuda', 'h264_qsv', 'https', 'h264_cuvid', '--enable-libvpl']) test(`missing ${missing} blocks the production build`, () => {
     const r = check({ TEST_MEDIA_OMIT: missing }); assert.equal(r.status, 1); assert.match(r.stderr, new RegExp(missing));
 });
 test('local software validation permits a platform without Linux hardware filters', () => {
@@ -70,4 +72,22 @@ test('source hashes are verified for both cached archives, not trusted merely be
         const r = verify(); assert.equal(r.status, 1); assert.match(r.stderr, /Checksum mismatch/);
         fs.writeFileSync(file, original);
     }
+});
+
+
+test('R1-M4: private builder options must exist on their own encoder, not merely another encoder', () => {
+    const { validate } = require('../scripts/check-encoder-options');
+    const args = ['-c:v', 'h264_qsv', '-look_ahead', '1', '-look_ahead_depth', '40'];
+    assert.throws(() => validate(args, '  -preset <int>\n', 'h264_qsv'), /look_ahead/);
+    assert.doesNotThrow(() => validate(args, '  -look_ahead <boolean>\n  -look_ahead_depth <int>\n', 'h264_qsv'));
+});
+
+test('R1-L5: bundled version mismatch is reported without echoing tool text or paths', () => {
+    const { inspect } = require('../server/services/mediaToolVersions');
+    const report = inspect({ ffmpeg: '/x/node_modules/ffmpeg-static/ffmpeg', ffprobe: '/x/node_modules/@ffprobe-installer/ffprobe' },
+        file => ({ status: 0, stdout: file.includes('ffmpeg-static') ? 'ffmpeg version 6.0 release https://secret.invalid/password' : 'ffprobe version n4.4.1 release' }));
+    assert.equal(report.ffmpeg.version, '6.0'); assert.equal(report.ffprobe.version, '4.4.1');
+    assert.equal(report.ffmpeg.origin, 'bundled'); assert.equal(report.mismatch, true);
+    assert.ok(!JSON.stringify(report).includes('secret'));
+    assert.ok(!JSON.stringify(report).includes('/x/'));
 });

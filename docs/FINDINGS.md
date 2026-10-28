@@ -144,3 +144,16 @@ Also open, tracked in `blueprint.md`: bug 8 (iPhone tuning) without a root cause
 and unmeasured efficiency register, physical device and real-feed acceptance, and the recorded review findings awaiting
 Mark's prioritisation of the remaining findings. R8's sync measurement and the E3 samples were closed on 27 Oct;
 B4 was re-scoped to dead-code removal.
+
+## 0305/0306 adversarial review follow-ups (28 Oct)
+
+Full review dispositions and reproduction notes: [`docs/reviews/2026-10-28/round1-repairs/README.md`](reviews/2026-10-28/round1-repairs/README.md).
+
+| ID | Finding | Current disposition / reproduction |
+|---|---|---|
+| FR-23 | Intermittent A/V offset from playback start, sometimes in sync and sometimes out, without the former pause (Mark report, 28 Oct) | Open. Four offline FOX loop-capture comparisons had join stalls with baseline and 0305, at both 30 s and 0 s hold. Loop fixture had earlier stalls and AVPlayer tap calls were zero, so audio timing is unknown and no root cause/fix is claimed. Reproduce on deployed 0305 through repeated cold and warm starts; record first audio/video timestamps and offset direction/magnitude before changing/deploying. |
+| FR-24 | M2: zero-linger cold probe can be followed by a second provider connection | Open. Old fixture reproduced a serial double connection in 1/6 isolated runs; corrected test passes 20/20 after restoring normal linger before the target cold play. Test a real cold channel at `PIGTV_INGEST_LINGER_MS=0` and decide whether to enforce a minimum. |
+| FR-25 | M3: optional external-library differences between deployed FFmpeg 6.1.1 and intended 9.0.2 Linux profile | Open for review after actual candidate inventory. VPL/dav1d/XML2/iconv and required decoder/demuxer checks are added. The 9.0.2 Linux image has not been built; no full optional-library parity claim. Compare its actual buildconf against deployed `/tmp/pigtv-review-deployed-tools.txt`, then explicitly add or document each omitted library, including platform-specific AMF. |
+| FR-26 | M4: encoder-help checks do not prove actual GPU execution | Open. `check-encoder-options.js` validates private flags against encoder-specific help; software lavfi encodes run locally. On the production host, execute actual VAAPI/QSV/NVENC paths available and verify a real frame encode/decode. |
+| FR-27 | L2: incompatible media during same-provider renewal ends the relay | Answered, no code change. The candidate is marked unusable for that relay because splicing changed media contracts is unsafe; the relay ends without provider-wide quarantine or a `providerReason` event. Reproduce with a new epoch that changes codec/resolution/audio layout and verify relay-local teardown. |
+| FR-28 | L4: smoke/cache/signature descriptions overstated validation | Fixed in `docs/MEDIA-TOOLCHAIN.md`. The workflow tests the candidate image, not the server main process; compiled-binary cache hits skip a source rebuild; source archives are hash-checked when the builder consumes them; PGP signature verification was not done. |

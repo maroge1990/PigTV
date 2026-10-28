@@ -1396,6 +1396,8 @@ try:
     assert build < test < publish
     assert 'push: false' in workflow[build:test] and 'load: true' in workflow[build:test]
     assert 'push: true' not in workflow
+    assert '--user 99:100' in workflow[test:publish] and 'HOME=/tmp' in workflow[test:publish]
+    assert '--tmpfs /app/data:rw,uid=99,gid=100' in workflow[test:publish]
     assert 'npm test' in workflow[test:publish] and 'pigtv:candidate -c' in workflow[test:publish]
     assert 'docker tag pigtv:candidate' in workflow[publish:] and 'docker push' in workflow[publish:]
     print('  ✓ pinned media binaries are selected and the final candidate is tested before publication')

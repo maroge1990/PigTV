@@ -69,8 +69,8 @@ function write(s, first, last, { ended = false, duration = 4 } = {}) {
 }
 const A = { providerId: 1, providerName: 'Strong8K', role: 'primary', via: 'primary', url: 'http://a.invalid/1.ts', channelKey: 'k' };
 const B = { providerId: 2, providerName: 'Dream4K', role: 'backup', via: 'backup', url: 'http://b.invalid/9.ts', channelKey: '9' };
-const withStandby = { maxProviderStreams: 5, relayEnabled: true, standbyEnabled: true };
-const ctx = (extra = {}) => ({ sourceId: 1, channelId: 'pos_1', capabilities: { fmp4: true }, settings: { maxProviderStreams: 5, relayEnabled: true }, ffprobePath: 'ffprobe',
+const withStandby = { maxProviderStreams: 5, ingestReconnectRenewal: true, relayEnabled: true, standbyEnabled: true };
+const ctx = (extra = {}) => ({ sourceId: 1, channelId: 'pos_1', capabilities: { fmp4: true }, settings: { maxProviderStreams: 5, ingestReconnectRenewal: true, relayEnabled: true }, ffprobePath: 'ffprobe',
     owner: 'device:tv', channelName: 'Fox Footy', primaryKey: 'k', candidate: A, ...extra });
 const silently = async (fn) => { const log = console.log, warn = console.warn; console.log = console.warn = () => {}; try { return await fn(); } finally { console.log = log; console.warn = warn; } };
 const segs = (text) => text.split('\n').filter(l => l && !l.startsWith('#'));
@@ -584,4 +584,27 @@ test('FR-22: planned restart never promotes a ready standby or re-plans provider
         assert.match(r.render(), /#EXT-X-DISCONTINUITY\n/);
         assert.equal(left, true);
     } finally { sessions.peekSession = peek; routing.plan = plan; }
+});
+
+
+test('R1-H2: sustained reconnects cannot extend settlement past the first renewal deadline', async () => {
+    const s = fakeSession(); write(s, 0, 2);
+    s.stop = async () => { s.stopRequested = true; };
+    const r = relay.adopt(s, ctx()); clearInterval(r.timer); await r.ingest();
+    const t = { ...relay.tuning };
+    relay.tuning.reconnectSettleMs = 10000;
+    relay.tuning.reconnectWaitMaxMs = 150;
+    relay.tuning.reconnectTotalMaxMs = 1500;
+    const source = { state: 'live', reconnectedAt: Date.now() };
+    const pulse = setInterval(() => { source.reconnectedAt = Date.now(); }, 20);
+    const peek = sessions.peekSession; sessions.peekSession = id => registry.get(id);
+    const pin = { ingest: source, endReason: null, leave() {} };
+    let timeout;
+    try {
+        await Promise.race([r.switchOver('flapping', 'reconnected', pin), new Promise((_, fail) => { timeout = setTimeout(() => fail(new Error('renewal starved')), 2200); })]);
+        await r.ingest();
+        assert.equal(r.switches, 1);
+        assert.match(r.render(), /#EXT-X-DISCONTINUITY\n/);
+        assert.match(r.render(), /L1-seg0000/);
+    } finally { clearTimeout(timeout); clearInterval(pulse); Object.assign(relay.tuning, t); sessions.peekSession = peek; await r.close('test over'); }
 });

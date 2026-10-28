@@ -73,3 +73,14 @@ test('FR-11: when the limit already takes the earlier stream, it is released onc
     assert.equal(verdict.allowed, true);
     assert.deepEqual(released(verdict), ['old']);
 });
+
+
+test('R1-L3: a non-joining adopted viewer reserves a new connection; only a warm adoption keeps its lease', async () => {
+    const c = loadCoordinator([session('old')]);
+    const v = await c.admitViewer({ owner: 'device:tv', providerId: null, adopt: 'old', settings: { maxProviderStreams: 1 } });
+    assert.ok(v.lease, 'a renewal which cannot join must reserve its new connection');
+    c.releaseUnbound(v.lease);
+    const warm = loadCoordinator([session('warm', { warm: true })]);
+    const w = await warm.admitViewer({ owner: 'device:tv', providerId: null, adopt: 'warm', settings: { maxProviderStreams: 1 } });
+    assert.equal(w.lease, undefined, 'an existing warm lease remains its own');
+});

@@ -75,16 +75,20 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
   ≥4 s under the level it drops 2 s. Levels persist across redeploys; no-PCR feeds keep the default silence rule.
   Since 0298, concurrent ingests of one provider/channel share their learned level and count overlapping reading
   time once. The Apple hold stays 30 s; no ffmpeg flags change.
-- Since **0305**, a successful shared-ingest reconnect renews a relay viewer's ffmpeg leg **on the same provider**, behind
-  `EXT-X-DISCONTINUITY` (and a fresh `EXT-X-MAP` for fMP4), keeping the playback URL. The relay waits 6 live seconds after
-  the latest reconnect; bursts and reconnects during startup are coalesced before publishing the replacement timeline.
-  This planned renewal does not promote standby, quarantine the provider or count as a lost/recovered play in interruption
-  statistics; Status uses relay reason `reconnected`. Recordings, probes, warm/standby readers, sessions without a relay,
-  the 0191 direct-read guard, ffmpeg flags and the Apple 30 s live hold are unchanged. A promoted standby becomes a viewer.
-- **0306** prepares a container upgrade to a pinned FFmpeg/ffprobe **9.0.2** pair, matching Linux CI's release/feature
-  recipe. The final image is capability-checked and tested before publication. Playback/probe/recording arguments,
-  endpoint shapes, capability negotiation, HDR/frame-rate metadata policy and the Apple 30 s hold are unchanged.
-  Linux image and device acceptance are pending; see `docs/MEDIA-TOOLCHAIN.md`. This does not establish an FR-22 sound fix.
+- **0307 experimental setting** `ingestReconnectRenewal` (web Settings → Playback, off by default) opts a relay viewer into
+  renewing its ffmpeg timeline after a successful shared-ingest reconnect. It requires both relay and shared ingest to be
+  enabled. The same provider and playback URL are retained; the new timeline follows `EXT-X-DISCONTINUITY` (and a fresh
+  `EXT-X-MAP` for fMP4). The relay settles for 6 live seconds, forces a renewal attempt after 8 s and caps the full wait
+  at 20 s. Startup epochs closed for renewal end with EOF and are not treated as provider failures or hardware-decode
+  failures. The planned renewal does not promote standby, quarantine the provider or count as a lost/recovered play;
+  Status uses relay reason `reconnected`. Recordings, probes, warm/standby readers, sessions without a relay, the 0191
+  direct-read guard, ffmpeg flags and Apple 30 s live hold are unchanged. A promoted standby becomes a viewer. This has
+  synthetic/local tests only and is **not approved as a production sync fix**; Mark's iPhone acceptance is pending.
+- **0307** prepares a container upgrade to a pinned FFmpeg/ffprobe **9.0.2** pair, matching Linux CI's release/feature
+  recipe. The final image is capability-checked, checks actual session-builder encoder options and runs the suite as UID
+  99 before publication. `GET /api/status` reports only each media tool's numeric version, origin and mismatch state;
+  tool output and paths are not returned. Linux image and device acceptance are pending; see `docs/MEDIA-TOOLCHAIN.md`.
+  This does not establish an FR-22 A/V fix. No Apple-side shape or playback command-line flag changes.
 - Resolve failure `error` texts start with a C-B prefix and never contain a URL; the client shows only those.
 - A start stopped on request answers **499** `{error, superseded: true}` (0180); the client ignores it.
 - `recordings/scheduled` rows: `program_end` can **move later** after scheduling (0214, R4: it follows the guide after a

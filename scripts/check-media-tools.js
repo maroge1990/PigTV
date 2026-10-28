@@ -15,7 +15,7 @@ function query(binary, options) {
     return r.stdout;
 }
 function requireNames(text, names, label) {
-    const words = new Set(text.split(/\s+/));
+    const words = new Set(text.split(/[\s,]+/));
     const missing = names.filter(n => !words.has(n));
     if (missing.length) throw new Error(`Missing ${label}: ${missing.join(', ')}`);
 }
@@ -33,6 +33,9 @@ try {
     requireNames(query(ffmpeg, ['-hide_banner', '-protocols']), ['http', 'https', 'tcp', 'udp', 'rtp'], 'protocols');
     requireNames(filters, ['scale', 'bwdif', 'yadif', 'aresample'], 'filters');
     if (args.includes('--hardware')) {
+        requireNames(query(ffmpeg, ['-buildconf']), ['--enable-libvpl', '--enable-libdav1d', '--enable-libxml2', '--enable-iconv'], 'production build features');
+        requireNames(query(ffmpeg, ['-hide_banner', '-decoders']), ['h264_cuvid', 'hevc_cuvid', 'libdav1d'], 'production decoders');
+        requireNames(query(ffmpeg, ['-hide_banner', '-demuxers']), ['dash', 'hls', 'mov', 'mpegts'], 'production demuxers');
         requireNames(encoders, ['h264_vaapi', 'hevc_vaapi', 'h264_nvenc', 'hevc_nvenc', 'h264_qsv', 'hevc_qsv'], 'hardware encoders');
         requireNames(filters, ['scale_vaapi', 'scale_cuda', 'scale_qsv', 'hwupload', 'hwdownload'], 'hardware filters');
         requireNames(query(ffmpeg, ['-hide_banner', '-protocols']), ['srt'], 'production protocols');

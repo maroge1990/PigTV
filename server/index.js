@@ -109,6 +109,13 @@ function findFFprobe() {
 
 app.locals.ffmpegPath = findFFmpeg();
 app.locals.ffprobePath = findFFprobe();
+app.locals.mediaTools = require('./services/mediaToolVersions').inspect({ ffmpeg: app.locals.ffmpegPath, ffprobe: app.locals.ffprobePath });
+for (const tool of ['ffmpeg', 'ffprobe']) {
+    const info = app.locals.mediaTools[tool];
+    console.log(`[MediaTools] ${tool} ${info.version || 'unknown/unavailable'} (${info.origin})`);
+    if (info.origin === 'bundled') console.warn(`[MediaTools] ${tool} uses a bundled fallback; it may differ from the tested system release`);
+}
+if (app.locals.mediaTools.mismatch) console.warn('[MediaTools] ffmpeg/ffprobe versions do not match');
 
 // Graceful shutdown: give any in-progress recordings a chance to close their
 // file cleanly before the process is killed. (The plugin loader that used to

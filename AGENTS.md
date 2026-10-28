@@ -10,7 +10,7 @@ frozen history, not instructions.
 ```bash
 export PATH="/opt/homebrew/opt/node@24/bin:$PATH"   # Node 24: the default node 26 can't build better-sqlite3 12
 npm ci
-npm test                          # every test file, in parallel (~35 s on the MacBook)
+npm test                          # every test file, in parallel (~70 s on the MacBook)
 node --test test/<name>.test.js   # one file
 bash scripts/verify-build.sh .    # what tests can't check: placement, things that must not come back, image, CI, markup
 npm start                         # http://localhost:3000

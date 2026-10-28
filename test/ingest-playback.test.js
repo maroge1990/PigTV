@@ -34,6 +34,7 @@ const relay = load('services/streamRelay');
 const routing = load('services/providerRouting');
 const interruptions = load('services/playbackInterruptions');
 const originalTuning = { ...ingest.tuning };
+const originalRelayTuning = { ...relay.tuning };
 const responses = new Map();
 const { probeCache } = load('services/streamProbe');
 const { scheduled, recordings } = load('db/recordingsDb');
@@ -152,6 +153,7 @@ before(async () => {
 afterEach(async () => {
     await relay.closeAll();
     Object.assign(ingest.tuning, originalTuning);
+    Object.assign(relay.tuning, originalRelayTuning);
     interruptions.reset();
     await engine.stopAllActive(3000);
     for (const s of scheduled.listUpcoming()) { await engine.cancelScheduled(s.id); scheduled.setStatus(s.id, 'cancelled'); }
@@ -317,7 +319,8 @@ test('PB5: a browser that aborts its resolve (stop) leaves no session behind onc
 // FR-22: real routes, coordinator, recording engine and HTTP reconnects. The stand-in
 // ffmpeg only saves a playlist; relay-rig/reconnect.js cover actual muxing and players.
 for (const drops of [1, 3]) test(`FR-22: ${drops} HTTP reconnect(s) renew one viewer timeline on the same ingest; recording carries on`, async () => {
-    await db.settings.update({ relayEnabled: true });
+    await db.settings.update({ relayEnabled: true, ingestReconnectRenewal: true });
+    relay.tuning.reconnectSettleMs = 100;
     Object.assign(ingest.tuning, { backoffMs: [40] });
     const r = await play('pos_1', 'tv');
     assert.equal(r.status, 200, JSON.stringify(r.body));
@@ -335,6 +338,7 @@ for (const drops of [1, 3]) test(`FR-22: ${drops} HTTP reconnect(s) renew one vi
     routing.noteFailure = () => { failures++; };
     const recordBefore = tools().filter(t => t.tool === 'record').length;
     try {
+        if (drops === 3) relay.tuning.reconnectSettleMs = originalRelayTuning.reconnectSettleMs;
         for (let i = 0; i < drops; i++) {
             responses.get('/1.ts').destroy();
             await until(() => connections['/1.ts'] === i + 2 && feed.ingest.state === 'live', 'reconnected');
@@ -366,14 +370,17 @@ for (const drops of [1, 3]) test(`FR-22: ${drops} HTTP reconnect(s) renew one vi
 });
 
 test('FR-22: zero linger retains the viewer ingest without a recording; cancelling during settle releases the pin', async () => {
-    await db.settings.update({ relayEnabled: true });
+    await db.settings.update({ relayEnabled: true, ingestReconnectRenewal: true });
+    relay.tuning.reconnectSettleMs = 100;
     Object.assign(ingest.tuning, { backoffMs: [40] });
     const r = await play('pos_1', 'tv');
     const followed = relay.get(r.body.sessionId);
+    relay.tuning.reconnectSettleMs = 2000;
     ingest.tuning.lingerMs = 0;
     responses.get('/1.ts').destroy();
     await until(() => followed.switching, 'settling');
     assert.equal(ingest.list().length, 1, 'pin retained after old ffmpeg leaves');
+    assert.ok(ingest.list()[0].subscribers.some(s => s.purpose === 'renewal-pin'), 'the pin is not counted as a viewer');
     assert.equal(coordinator.requestForViewer({ owner: 'device:other', settings: await db.settings.get() }).allowed, false, 'settling viewer still owns the connection');
     assert.ok(!String(await followed.getPlaylist()).includes('#EXT-X-ENDLIST'));
     await followed.close('test cancellation');
@@ -383,7 +390,8 @@ test('FR-22: zero linger retains the viewer ingest without a recording; cancelli
 });
 
 test('FR-22: a reconnect while the replacement is starting is absorbed before publishing its timeline', async () => {
-    await db.settings.update({ relayEnabled: true });
+    await db.settings.update({ relayEnabled: true, ingestReconnectRenewal: true });
+    relay.tuning.reconnectSettleMs = 100;
     Object.assign(ingest.tuning, { backoffMs: [40] });
     const r = await play('pos_1', 'tv');
     const followed = relay.get(r.body.sessionId);
@@ -418,7 +426,8 @@ test('FR-22: a reconnect while the replacement is starting is absorbed before pu
 });
 
 test('FR-22: bare, warm and standby sessions carry on when a managed viewer renews', async () => {
-    await db.settings.update({ relayEnabled: true });
+    await db.settings.update({ relayEnabled: true, ingestReconnectRenewal: true });
+    relay.tuning.reconnectSettleMs = 100;
     Object.assign(ingest.tuning, { backoffMs: [40] });
     const r = await play('pos_1', 'tv');
     const followed = relay.get(r.body.sessionId);
@@ -441,7 +450,8 @@ test('FR-22: bare, warm and standby sessions carry on when a managed viewer rene
 });
 
 test('FR-22: zero-linger renewal holds the viewer slot without a recording, and a forced takeover cancels it', async () => {
-    await db.settings.update({ relayEnabled: true });
+    await db.settings.update({ relayEnabled: true, ingestReconnectRenewal: true });
+    relay.tuning.reconnectSettleMs = 100;
     Object.assign(ingest.tuning, { backoffMs: [40] });
     const r = await play('pos_1', 'tv');
     const followed = relay.get(r.body.sessionId);
@@ -455,6 +465,7 @@ test('FR-22: zero-linger renewal holds the viewer slot without a recording, and 
     assert.equal(connections['/1.ts'], 2);
     responses.get('/1.ts').destroy();
     await until(() => followed.switching, 'settling again');
+    ingest.tuning.lingerMs = originalTuning.lingerMs; // zero linger applies to the source being renewed, not the cold target probe
     const forced = await play('pos_2', 'phone', { force: true });
     assert.equal(forced.status, 200, JSON.stringify(forced.body));
     await until(() => followed.closed && !followed.switching, 'renewal cancelled by takeover');
@@ -462,4 +473,30 @@ test('FR-22: zero-linger renewal holds the viewer slot without a recording, and 
     assert.equal(connections['/1.ts'], 3, 'no resurrection after takeover');
     assert.equal(connections['/2.ts'], 1);
     assert.equal(ingest.list().length, 1, 'only the replacement channel remains');
+});
+
+
+test('R1-H3: renewal is explicitly opt-in even when relay recovery and shared ingest are enabled', async () => {
+    await db.settings.update({ relayEnabled: true, ingestReconnectRenewal: false });
+    Object.assign(ingest.tuning, { backoffMs: [40] });
+    const r = await play('pos_1', 'tv');
+    const followed = relay.get(r.body.sessionId), old = followed.active.session;
+    responses.get('/1.ts').destroy();
+    await until(() => connections['/1.ts'] === 2 && old.feed.ingest.state === 'live', 'reconnected');
+    await sleep(500);
+    assert.equal(followed.active.session, old);
+    assert.equal(old.status, 'running');
+    assert.equal(followed.switches, 0);
+    assert.equal(old.plannedRestart, undefined);
+});
+
+test('R1-H2: an intentionally closed startup epoch cannot launch a hardware-decode retry', async () => {
+    const s = new transcodeSession.TranscodeSession('http://offline.invalid/unused', { live: true });
+    s.status = 'running'; s._usedVaapiDecode = true; s.plannedRestart = { gapSec: 1, forLag: false };
+    let retries = 0;
+    s.clearSegments = async () => {};
+    s.start = async () => { retries++; };
+    s.handleExit(1, null);
+    await sleep(100);
+    assert.equal(retries, 0, 'a planned EOF is final for this epoch');
 });

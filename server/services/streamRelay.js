@@ -44,7 +44,7 @@ const TICK_MS = 1000;
 // FR-22: six live seconds after the LAST reconnect covers the observed six-in-30 s
 // flap cadence. Three seconds restarted once per 3.5 s flap in the HTTP regression.
 // Keep it below the Apple 30 s buffer, leaving room for the new ffmpeg to start.
-const tuning = { reconnectSettleMs: 6000 };
+const tuning = { reconnectSettleMs: 6000, reconnectWaitMaxMs: 8000, reconnectTotalMaxMs: 20000 };
 // With a standby ready: how long the playing leg may write nothing before the standby takes
 // over. Segments are written at keyframes, so a 10 s GOP is quiet for 10 s when healthy.
 const switchAfterMs = () => msFromEnv('PIGTV_RELAY_SWITCH_MS', 10000, 3000);
@@ -164,12 +164,12 @@ class Relay {
             lost: null, joined: false, removed: false, startedAt: Date.now(), tail: [], lastSegAt: 0 };
         // Its segments stay listed after its ffmpeg has gone: the relay removes the folder.
         session.retainDir = true;
-        if (!session.options.standby && !session.options.warm) session.options.relayTimeline = true;
+        if (!session.options.standby && !session.options.warm) session.options.relayTimeline = this.ctx.settings.ingestReconnectRenewal === true;
         session.once('timeline-restart', ({ feed }) => {
             if (leg !== this.active || this.closed || this.switching) return;
             // Keep the same ingest alive through retirement AND the next probe/start, including
             // linger=0. This reader costs no connection; drain it to avoid slow-consumer eviction.
-            const pin = feed.ingest.subscribe({ purpose: 'viewer', owner: this.ctx.owner });
+            const pin = feed.ingest.subscribe({ purpose: 'renewal-pin', owner: this.ctx.owner });
             pin.resume();
             this.switchOver('reconnected; renewing its timeline', 'reconnected', pin)
                 .catch(err => { this.log(`timeline restart failed: ${redact(err.message)}`); this.close('timeline restart failed', true); });
@@ -335,13 +335,14 @@ class Relay {
 
     // ---- switching -----------------------------------------------------------------------
 
-    async switchOver(why, code = 'lost', pin = null) {
+    async switchOver(why, code = 'lost', pin = null, renewalStartedAt = Date.now()) {
         if (this.switching || this.closed) return;
         this.switching = true;
         const old = this.active;
         const { ctx } = this;
         const lostAt = Date.now();
         const planned = code === 'reconnected';
+        let followPin = null;
         try {
             this.log(`${this.providerOf(old)} ${why}; switching`);
             this.note(code, `${this.providerOf(old)} ${why}`, { provider: this.providerOf(old) });
@@ -381,14 +382,20 @@ class Relay {
                             return;
                         }
                         const source = pin.ingest;
-                        if (source.state !== 'live' || Date.now() - source.reconnectedAt < tuning.reconnectSettleMs) {
+                        if (Date.now() - renewalStartedAt >= tuning.reconnectTotalMaxMs) {
+                            this.note('renewal-timeout', 'no clean segment within the renewal deadline');
+                            await this.close('timeline renewal timed out', false);
+                            return;
+                        }
+                        const forced = Date.now() - renewalStartedAt >= tuning.reconnectWaitMaxMs;
+                        if (source.state !== 'live' || (!forced && Date.now() - source.reconnectedAt < tuning.reconnectSettleMs)) {
                             await new Promise(r => setTimeout(r, 100));
                             continue;
                         }
                         const generation = source.reconnectedAt;
-                        next = await this.startCold([old.candidate], old.session.id);
+                        next = await this.startCold([old.candidate], old.session.id, renewalStartedAt + tuning.reconnectTotalMaxMs);
                         if (this.closed || pin.endReason) break;
-                        if (generation === source.reconnectedAt && source.state === 'live') break;
+                        if (generation === source.reconnectedAt && source.state === 'live' || next && forced) break;
                         if (next) await this.retire(next, true);
                         next = null;
                     }
@@ -409,6 +416,12 @@ class Relay {
 
             if (planned) this.retire(old).catch(() => { /* logged in retire */ });
             this.active = next;
+            // Under sustained flapping, a startup epoch may have been closed cleanly at EOF.
+            // Publish its valid segment, then follow the live ingest again without a new wait.
+            if (planned && next.session.plannedRestart) {
+                followPin = pin.ingest.subscribe({ purpose: 'renewal-pin', owner: ctx.owner });
+                followPin.resume();
+            }
             this.switches++;
             this.switched = true;
             this.lastProgressAt = Date.now();
@@ -419,6 +432,14 @@ class Relay {
         } finally {
             if (pin) pin.leave();
             this.switching = false;
+            if (followPin) {
+                const keep = followPin;
+                setImmediate(() => {
+                    if (this.closed) { keep.leave(); return; }
+                    this.switchOver('continuing after a short reconnect epoch', 'reconnected', keep,
+                        Date.now() - tuning.reconnectWaitMaxMs).catch(err => { keep.leave(); this.close('renewal failed', false); });
+                });
+            }
         }
     }
 
@@ -478,7 +499,7 @@ class Relay {
     }
 
     /** Start one candidate as a leg: probe, session, first segment. Null when it cannot be used. */
-    async startLeg(candidate, { owner, standby = false, lease = null } = {}) {
+    async startLeg(candidate, { owner, standby = false, lease = null, deadlineAt = null } = {}) {
         const { ctx } = this;
         let decision;
         try {
@@ -497,9 +518,9 @@ class Relay {
                 // their feeds are judged by how far behind real time they are, as the first leg's is.
                 ingestSource: ingest().sourceFor(candidate, ctx.settings),
                 refusedRetryDelaysMs: [1000],
-                deadlineAt: Date.now() + START_DEADLINE_MS,
+                deadlineAt: Math.min(deadlineAt ?? Infinity, Date.now() + START_DEADLINE_MS),
                 timingNote: `, relay ${this.id} ${standby ? 'standby' : 'takeover'} on ${candidate.providerName}`,
-                sessionOptions: { relayTimeline: !standby, channelName: ctx.channelName || null, ...(standby ? { standby: true } : {}) }
+                sessionOptions: { relayTimeline: !standby && ctx.settings.ingestReconnectRenewal === true, channelName: ctx.channelName || null, ...(standby ? { standby: true } : {}) }
             });
         } catch (err) {
             if (routing().isProviderFailure(err)) {
@@ -524,7 +545,7 @@ class Relay {
     }
 
     /** Cold start: re-plan providers, or renew only the supplied candidate using the retained slot. */
-    async startCold(sameCandidate = null, adopt = null) {
+    async startCold(sameCandidate = null, adopt = null, deadlineAt = null) {
         const { ctx } = this;
         let candidates;
         try {
@@ -548,7 +569,7 @@ class Relay {
             if (!verdict.allowed) continue;
             // R11: the lease taken with the admission is bound to the leg's session, or given back.
             let leg;
-            try { leg = await this.startLeg(candidate, { owner: ctx.owner, lease: verdict.lease }); } finally { coordinator().releaseUnbound(verdict.lease); }
+            try { leg = await this.startLeg(candidate, { owner: ctx.owner, lease: verdict.lease, deadlineAt }); } finally { coordinator().releaseUnbound(verdict.lease); }
             if (leg) return leg;
         }
         return null;
@@ -636,7 +657,7 @@ class Relay {
         const s = this.standby;
         this.standby = null;
         s.session.options.standby = false;
-        s.session.options.relayTimeline = true;
+        s.session.options.relayTimeline = this.ctx.settings.ingestReconnectRenewal === true;
         s.session.options.owner = this.ctx.owner;
         s.session.touch();
         s.lastSeq = s.tail[0].seq - 1;

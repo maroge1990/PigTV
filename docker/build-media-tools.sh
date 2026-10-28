@@ -37,7 +37,8 @@ PKG_CONFIG_PATH="$media_work/headers/lib/pkgconfig:${PKG_CONFIG_PATH:-}" ./confi
     --enable-zlib --enable-bzlib --enable-lzma --enable-gnutls --enable-libsrt \
     --enable-libx264 --enable-libx265 --enable-libvpx --enable-libmp3lame --enable-libopus \
     --enable-libass --enable-libfontconfig --enable-libfreetype --enable-libzimg \
-    --enable-libdrm --enable-vaapi --enable-libmfx \
+    --enable-libdrm --enable-vaapi --enable-libvpl \
+    --enable-libdav1d --enable-libxml2 --enable-iconv --enable-libharfbuzz --enable-libfribidi \
     --enable-ffnvcodec --enable-nvenc --enable-nvdec --enable-cuvid --enable-cuda-llvm
 make -j"${MEDIA_BUILD_JOBS:-$(nproc)}"
 make install
