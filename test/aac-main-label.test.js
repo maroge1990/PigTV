@@ -59,12 +59,13 @@ test('the ADTS label is read from the transport stream, in any chunking', () => 
     const sniffer = new AdtsSniffer();
     const offset = Buffer.concat([Buffer.from([1, 2, 3]), feed]); // a read that starts mid-packet
     for (let i = 0; i < offset.length && !sniffer.done; i += 61) sniffer.push(offset.subarray(i, i + 61));
-    assert.equal(sniffer.objectType, 1);
+    assert.equal(sniffer.objectTypeFor(0x101), 1);
+    assert.equal(sniffer.objectTypeFor(0x100), null, 'the video PID has no label');
 });
 
 // ffprobe's fields for the FOX capture: it reports the decoder's view, plain HE-AAC.
 const H264 = { codec_type: 'video', codec_name: 'h264', profile: 'High', width: 1920, height: 1080, avg_frame_rate: '60000/1001' };
-const FOX_AUDIO = { codec_type: 'audio', codec_name: 'aac', profile: 'HE-AAC', channels: 2, sample_rate: '48000' };
+const FOX_AUDIO = { codec_type: 'audio', codec_name: 'aac', profile: 'HE-AAC', channels: 2, sample_rate: '48000', id: '0x101' };
 const SETTINGS = { userAgentPreset: 'chrome', ffmpegPath: 'ffmpeg' };
 const APPLE = { segmentedDelivery: true, hevc: true, fmp4: true, heaac: true };
 
@@ -73,7 +74,7 @@ async function resolveAudio(adtsObjectType) {
     const url = `http://provider.invalid/live/u/p/aacmain-${n++}.ts`;
     const caps = { ...strategy.DEFAULT_CAPABILITIES, ...APPLE };
     const key = `${url}|${db.getUserAgent(SETTINGS) || ''}|${Object.keys(caps).filter(k => caps[k]).sort().join(',')}`;
-    const raw = { streams: [H264, FOX_AUDIO], format: { format_name: 'mpegts' }, ...(adtsObjectType === undefined ? {} : { adtsObjectType }) };
+    const raw = { streams: [H264, FOX_AUDIO], format: { format_name: 'mpegts' }, ...(adtsObjectType === undefined ? {} : { adtsObjectTypes: { 0x101: adtsObjectType } }) };
     probeCache.set(key, { result: analyzeProbeResult(raw, url, caps), timestamp: Date.now() });
     const real = transcodeSession.createSession;
     const seen = {};
@@ -110,8 +111,64 @@ test('a probe through the shared ingest reads the label from the bytes it alread
     const feed = Readable.from([bytes.subarray(0, 100), bytes.subarray(100)]);
     feed.leave = () => {};
     const raw = await probeStream('http://provider.invalid/x.ts', fake, null, 5000, { feed });
-    assert.equal(raw.adtsObjectType, 1);
+    assert.deepEqual(raw.adtsObjectTypes, { 257: 1 }, 'PID 0x101 only: the video PID has no label');
     const info = analyzeProbeResult(raw, 'http://provider.invalid/x.ts', { ...strategy.DEFAULT_CAPABILITIES, ...APPLE });
     assert.equal(info.audioOk, false, 'not copyable for any client');
     assert.equal(info.aacObjectType, 1);
+});
+
+// ---- Codex review of 0302: the label must be the mapped track's, and survive TS packetization ----
+
+/** A TS packet: `payload` after an adaptation field of `adaptation` bytes (0 = none), padded with stuffing. */
+function tsPacket(pid, { start = false, cc = 0, adaptation = 0, payload = Buffer.alloc(0) } = {}) {
+    const pkt = Buffer.alloc(188, 0xff);
+    pkt[0] = 0x47; pkt[1] = (start ? 0x40 : 0) | (pid >> 8); pkt[2] = pid & 0xff;
+    let p = 4;
+    // Stuffing goes in the adaptation field, so the payload ends the packet exactly.
+    const room = 184 - payload.length;
+    const af = adaptation || (room > 0 ? room : 0);
+    if (af) { pkt[3] = 0x30 | (cc & 0xf); pkt[4] = af - 1; if (af > 1) { pkt[5] = 0; pkt.fill(0xff, 6, 4 + af); } p = 4 + af; }
+    else pkt[3] = 0x10 | (cc & 0xf);
+    payload.copy(pkt, p, 0, Math.min(payload.length, 188 - p));
+    return pkt;
+}
+const PES_AUDIO = Buffer.from([0, 0, 1, 0xc0, 0, 0, 0x80, 0x80, 5, 0x21, 0, 1, 0, 1]); // 14 bytes, with a PTS
+/** One audio PES start whose first `head` bytes of (PES header + ADTS) sit in the first packet, the rest in the next. */
+function splitAudioPes(pid, adts, head, { cc = 0, nextCc = cc + 1 } = {}) {
+    const pes = Buffer.concat([PES_AUDIO, adts, Buffer.alloc(40, 0x11)]);
+    return [tsPacket(pid, { start: true, cc, payload: pes.subarray(0, head) }),
+            tsPacket(pid, { cc: nextCc, payload: pes.subarray(head) })];
+}
+const FOX_AUDIO_101 = FOX_AUDIO;
+async function probeOf(bytes, audioStreams) {
+    const fake = path.join(sandbox, `fake-ffprobe-${n++}.js`);
+    const out = JSON.stringify({ streams: [H264, ...audioStreams], format: { format_name: 'mpegts' } });
+    fs.writeFileSync(fake, `#!/usr/bin/env node\nprocess.stdin.resume();process.stdin.on('end',()=>{process.stdout.write(${JSON.stringify(out)});});\n`);
+    fs.chmodSync(fake, 0o755);
+    const feed = Readable.from([bytes]);
+    feed.leave = () => {};
+    const raw = await probeStream('http://provider.invalid/x.ts', fake, null, 5000, { feed });
+    return analyzeProbeResult(raw, 'http://provider.invalid/x.ts', { ...strategy.DEFAULT_CAPABILITIES, ...APPLE });
+}
+
+test('the label is the one of the track the session maps (0:a:0), not of whichever audio PID arrives first', async () => {
+    const secondTrackFirst = Buffer.concat([
+        tsPacket(0x102, { start: true, payload: Buffer.concat([PES_AUDIO, LC_ADTS]) }), // a secondary AAC-LC track
+        tsPacket(0x101, { start: true, payload: Buffer.concat([PES_AUDIO, FOX_ADTS]) })  // the main track: AAC Main
+    ]);
+    const info = await probeOf(secondTrackFirst, [FOX_AUDIO_101, { ...FOX_AUDIO, id: '0x102', profile: 'LC' }]);
+    assert.equal(info.aacObjectType, 1, 'the first ffprobe audio stream (PID 0x101) is AAC Main');
+    assert.equal(info.aacLabelBlocked, true);
+    assert.equal(info.audioOk, false);
+});
+
+test('an ADTS header or PES header split across TS packets is still read; a continuity break is not trusted', async () => {
+    const { adtsObjectType } = load('services/adtsProfile');
+    // Codex's case: only the first ADTS byte fits in the PES's first packet (14 + 1 bytes of payload).
+    assert.equal(adtsObjectType(Buffer.concat(splitAudioPes(0x101, FOX_ADTS, 15))), 1, 'ADTS header split');
+    assert.equal(adtsObjectType(Buffer.concat(splitAudioPes(0x101, FOX_ADTS, 6))), 1, 'PES optional fields split');
+    assert.equal(adtsObjectType(Buffer.concat(splitAudioPes(0x101, FOX_ADTS, 2))), 1, 'even the start code split');
+    assert.equal(adtsObjectType(Buffer.concat(splitAudioPes(0x101, FOX_ADTS, 15, { nextCc: 5 }))), null, 'continuity break: no guess');
+    const info = await probeOf(Buffer.concat(splitAudioPes(0x101, FOX_ADTS, 15)), [FOX_AUDIO_101]);
+    assert.equal(info.aacLabelBlocked, true, 'and the session then re-encodes it');
 });

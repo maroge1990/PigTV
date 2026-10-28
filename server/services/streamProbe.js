@@ -160,7 +160,8 @@ function probeStream(url, ffprobePath, userAgent = null, timeout = 15000, { feed
             }
             try {
                 const result = JSON.parse(stdout);
-                if (sniffer && sniffer.objectType !== null) result.adtsObjectType = sniffer.objectType;
+                // Per PID (plain data, so it caches): analyzeProbeResult picks the track the session maps.
+                if (sniffer && sniffer.types.size) result.adtsObjectTypes = Object.fromEntries(sniffer.types);
                 resolve(result);
             } catch (e) {
                 reject(new Error('Failed to parse ffprobe output'));
@@ -244,7 +245,11 @@ function analyzeProbeResult(probeResult, url, clientCaps = {}) {
     const isHeAac = audioCodec.includes('aac') && audioProfile.includes('he-aac');
     // FR-9 (0302): the object type a copy would carry (the ADTS label, read by the probe).
     // Anything but AAC-LC - Strong8K's FOX feeds say AAC Main - fails on Apple with `fmt?`.
-    const aacObjectType = audioCodec.includes('aac') && Number.isInteger(probeResult.adtsObjectType) ? probeResult.adtsObjectType : null;
+    // The label of the first audio stream - the one the session maps (0:a:0) - found by its PID
+    // (ffprobe's `id`), never whichever audio PID happened to arrive first (Codex review of 0302).
+    const audioPid = audioStream && /^(?:0x[0-9a-f]+|\d+)$/i.test(String(audioStream.id ?? '')) ? Number(audioStream.id) : null;
+    const labelled = probeResult.adtsObjectTypes && audioPid !== null ? probeResult.adtsObjectTypes[audioPid] : undefined;
+    const aacObjectType = audioCodec.includes('aac') && Number.isInteger(labelled) ? labelled : null;
     const aacLabelBlocked = !copyableObjectType(aacObjectType);
     const container = format.format_name?.toLowerCase() || 'unknown';
 

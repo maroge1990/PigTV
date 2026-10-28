@@ -134,8 +134,8 @@ Texts live in `playbackErrors.js` and never contain a URL. Any other text maps t
 The client always sends `capabilities.heaac = true` (app 27). HE-AAC is then copied into fMP4 instead of re-encoded; a
 `'fmt?'` decode failure falls back once to `audioEncode: true` for that channel. The web never sends it. Since 0302 (FR-9) the
 server never copies AAC whose ADTS label is not AAC-LC (Strong8K's FOX feeds label HE-AAC as AAC Main, which Apple refuses as a
-copy): it is re-encoded to AAC-LC for every client, so those channels no longer fail their first start. The label is read only
-when the probe goes through the shared ingest; a direct probe or an older stored channel profile copies as before, and the
+copy): it is re-encoded to AAC-LC for every client, so those channels no longer fail their first start. The label is read, for the audio
+track the session maps, only when the probe goes through the shared ingest; a direct probe or an older stored channel profile copies as before, and the
 `fmt?` fallback still covers it. Request and response shapes are unchanged.
 
 ### C-D. Opaque playback handle. Flag: `playbackHandles`
