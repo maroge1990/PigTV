@@ -35,6 +35,7 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 | `playbackHandles` | 0119 | `direct` resolves use `/api/proxy/stream?h=<handle>` (always, since 0196) | Not read; a 404 leads to a re-resolve |
 | `channelHealth` | 0133 | Rows carry `health` `ok`/`flaky`/null (C-G) | Amber dot on flaky channels |
 | `sportCategories` | 0146 | `library/categories` rows carry `sport` (C-H) | Not read any more (decoded) |
+| `sportsDashboard` | 0309 | Opt-in dashboard/catalog and per-user preferences (C-O); false unless `PIGTV_SPORTS_DASHBOARD=1` | Not yet consumed; existing Sport UI still uses C-I |
 | `sportsEvents` | 0148 | `GET /api/sports/events` (C-I) | Sport tab, Home "Sport now & next", `hours=72` |
 | `scheduleHistory` | 0156 | `recordings/scheduled?include=recent` adds missed/failed of the last 7 days | Asks `include=recent` |
 | `providerReminders` | 0168 | `GET /api/providers/reminders` (C-K) | Daily reminder popup |
@@ -117,6 +118,7 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 | C-L Watch a recording from the start while it records | `recordingWatchLive` | 0218 (R3) | 44 |
 | C-M Recording rules | `recordingRules` | 0219 (R5) | 45 |
 | C-N Recording artwork | `recordingArtwork` | 0220 (R6) | 45 |
+| C-O Sport dashboard foundation | `sportsDashboard` | 0309 (opt-in) | pending |
 
 C-A to C-K are implemented on both sides and verified on devices (results in `docs/archive/TEST-BLOCK-2026-10-13.md`). C-L
 onwards are not verified yet.
@@ -324,3 +326,57 @@ the channel logo, filling the tile; the channel logo stays the fallback.
   `from=device:<id>` are the client's own.
 - Feeds worth knowing: stream **1803789** is a finite ~30-minute file (paced since 0144; a good survival test);
   **1239048** logs harmless `[mp4] Packet duration … out of range` warnings.
+
+
+### C-O. Sport dashboard foundation. Flag: `sportsDashboard` (0309, experimental)
+
+**Server foundation only; Apple/web presentation has not changed.** The flag is false unless the server explicitly sets
+`PIGTV_SPORTS_DASHBOARD=1`. All routes below require a signed-in user or valid paired device and answer 404 while disabled.
+They answer `Cache-Control: private, no-store`; no shared response cache or client-supplied profile ID is used.
+
+- `GET /api/sports/preferences` → `{avoidSpoilers: boolean, scoreDelaySeconds: integer, revision: integer}`. Defaults:
+  false, 90, 0. One row per authenticated user; a paired device uses its approving account. Shared-TV profile switching
+  is not implemented. These values persist across server restart/redeploy in the mounted SQLite database.
+- `PUT /api/sports/preferences` accepts `revision` and one/both of `avoidSpoilers` (strict boolean), `scoreDelaySeconds`
+  (integer 0–300). Success returns the updated object and increments revision. Unknown fields, invalid types or missing
+  revision are 400. An outdated revision is 409; re-read before offering to retry. This is self-service for viewers too.
+- `GET /api/sports/dashboard[?league=NFL]` reads stored data without contacting ESPN. Without a league: today in the
+  server `TZ` (valid IANA zone; default/fallback Australia/Melbourne), plus ongoing cross-midnight games and retained
+  results. With a canonical league: rolling 72 hours, plus ongoing/recent games. Invalid league is 400.
+- Response: `{now, timezone, scope: "today"|"league", hours: null|72, preferences, games:[...]}`. All absolute times are
+  epoch milliseconds. A game has `{id, league, title, start, end, session, circuit, format, competitors, status, freshness,
+  observedAt, progress, availability, broadcastStatus, channels, events, canWatch}`. `end`, `session`, `circuit`, `format`
+  and `observedAt` may be null. `competitors` are `{id,name,logo}`; logos use the existing cached `/api/logo/<key>` route.
+  F1 competitors are empty: its title/session/circuit identify the event; it never carries positions, scores or timing.
+- Source-qualified game IDs remain stable across score updates; they are not playback handles. `events` contains
+  matched C-I `{id,start,end}` references for the existing details/record workflow. `channels` uses C-I's channel shape,
+  with current broadcasts first and otherwise future choices. Preserve `stableId`; never fall back to stored `pos_N`.
+  `canWatch` is true only for a current eligible airing. It does not reserve a provider slot; use the normal resolve
+  flow, which can refuse admission or a vanished channel. No new recording endpoint or playback strategy exists.
+- `status`: `scheduled`, `live` (confirmed by the delayed source state), `break`, `suspended`, `postponed`, `cancelled`,
+  `finished`, `unknown`. A break may include an allowlisted `breakLabel`. `broadcastStatus`: `on-tv`, `scheduled`,
+  `unavailable`; **on TV does not establish live play**. `availability`: `matched`, `unmatched` (no unambiguous join),
+  `unavailable` (a known airing is not currently eligible). No provider probing is performed to populate a card.
+- `freshness`: `buffering` until an old-enough snapshot exists, `fresh` when eligible, `stale` after the configured
+  delay plus two minutes of observation age. Stale/unknown progress is `{}`; never animate a clock locally. A known
+  future scheduled event retains its scheduled label between the slower catalog polls. Observation age is receipt
+  age, not proof of upstream freshness or video alignment.
+- A complete observed snapshot becomes eligible at `observedAt + scoreDelaySeconds * 1000`. Scores, clock, period,
+  breaks and final status come from that snapshot together. `progress` contains available clock/period, MLB half-inning,
+  or cricket day/overs. No missing clock, base situation, innings score or 0–0 is fabricated.
+- With scores enabled, `scores` is a two-element display-string array when available; optional `situation` carries
+  validated sport-specific fields. **Both fields are absent when `avoidSpoilers` is true, or data is unavailable/stale.**
+  No winner/leader, raw status prose, source headlines or raw aliases are returned. Clients must also keep event details,
+  accessibility and any old cached content spoiler-safe; those UI changes are still pending.
+- A result is retained for one hour after its observed final transition becomes eligible. Initially discovered historic
+  finals have no observed transition and are excluded once final data is eligible. Repeated final polls do not restart
+  the hour. Current completion also disables old-airing playback immediately, even while the delayed label still says
+  live. Last-known state survives history pruning; stale completion cannot become a playable airing after an outage.
+
+Collection is separate from C-I's 30-minute fixtures: bounded public ESPN requests, shared across clients, per-URL
+cache/backoff, current/prior UTC dates and dated cricket discovery for future series. Failure leaves catalog/history
+intact and does not label old cached data as newly observed. History keeps a 15-minute window plus the last-known
+snapshot per game; catalog entries expire after eight days without a recent observation. New tables are
+`sports_dashboard_catalog`, `sports_score_history`, `sports_user_preferences`. F1 is session-only; AFL goals/behinds
+summary enrichment and richer optional situations are not promised by this first server slice. Guide-only fallback
+cards, the Apple/web UI, real-feed matching/clock acceptance and adversarial review remain delivery work.

@@ -1,0 +1,51 @@
+[SQLite] Opening database at /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-dashboard-api-X2ZMpS/data/content.db
+[SQLite] Schema initialized
+✔ new routes authenticate and are disabled by default without starting a collector (29.324875ms)
+✖ two devices for one account share preferences; other accounts cannot read/write them (1.949ms)
+✖ dashboard projects scores for the authenticated preference and validates league scope (1.953167ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 1
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 205.492542
+
+✖ failing tests:
+
+test at ../../../../../private/tmp/pigtv-dashboard-route-baseline-fqhicvo2/test/sports-dashboard-api.test.js:36:1
+✖ two devices for one account share preferences; other accounts cannot read/write them (1.949ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  404 !== 200
+
+      at TestContext.<anonymous> (/private/tmp/pigtv-dashboard-route-baseline-fqhicvo2/test/sports-dashboard-api.test.js:38:61)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 404,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../../private/tmp/pigtv-dashboard-route-baseline-fqhicvo2/test/sports-dashboard-api.test.js:52:1
+✖ dashboard projects scores for the authenticated preference and validates league scope (1.953167ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  404 !== 200
+
+      at TestContext.<anonymous> (/private/tmp/pigtv-dashboard-route-baseline-fqhicvo2/test/sports-dashboard-api.test.js:54:64)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 404,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

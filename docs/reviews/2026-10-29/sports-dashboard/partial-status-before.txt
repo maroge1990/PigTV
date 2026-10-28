@@ -1,0 +1,58 @@
+✔ all followed team sports retain real score/clock fields; pregame zero is not a score (1.828625ms)
+✔ F1 is one session card per competition, with no driver positions, scores or inferred clock (0.524792ms)
+✔ cricket stumps is a break, preserves batting innings/overs, and excludes placeholder opposition rows (0.334333ms)
+✔ malformed data cannot publish raw status prose, unsafe artwork, or fake clocks (0.136167ms)
+✔ preferences persist per person, enforce revisions, reject coercions and protect other users (3.572875ms)
+✔ whole snapshots honor the delay boundary, buffer on startup and survive a reopened store (4.815792ms)
+✔ out-of-order observations are ignored, history bounded, and repeated finals do not extend the result hour (0.561625ms)
+✔ broadcast matching needs both teams, the right time, and a unique game; replays never match (3.258667ms)
+✔ today respects Melbourne midnight and DST; sport views retain a rolling 72 hours (14.743792ms)
+✔ spoiler projection removes all result fields, does not leak current final status, and keeps progress/actions (1.090375ms)
+✔ unmatched and stale games remain visible; stale data loses clock/score, old finals disappear (1.645ms)
+✔ collector is opt-in, uses single UTC days, deduplicates overlapping refreshes and discovers future cricket series (1.529542ms)
+✔ cached future payloads never become new score observations, and malformed success retries quickly (0.854333ms)
+✔ future scheduled cards keep their scheduled label between the slower catalog polls (0.458834ms)
+✔ pruning retains last-known completion so old broadcasts cannot become playable after an outage (0.529583ms)
+✔ unfollowed leagues and non-followed teams disappear without clearing the shared score catalog (0.802375ms)
+✔ collector checks the previous UTC day for games still in progress across midnight (0.429709ms)
+✔ F1 broadcast matching requires the right GP and the exact session, including race and sprint qualifying (3.714ms)
+✔ a source outage cannot refresh old scores, and a stopped collector cannot publish in-flight data (0.828083ms)
+✔ malformed successful HTTP payloads are retried as failures, never authoritative empty schedules (0.455042ms)
+✔ network adapter bounds response bodies, refuses redirects/other origins, and never follows provider-shaped refs (12.87975ms)
+✔ MLB preserves top/bottom inning as spoiler-safe progress and cricket never joins a different format (0.319875ms)
+✔ location-only roster aliases cannot authorize a broadcast match (0.095875ms)
+✔ upcoming matched games retain channel choices and event references without becoming watchable (0.674666ms)
+✖ a partially malformed status cannot replace known completion and revive an old broadcast (0.742ms)
+ℹ tests 25
+ℹ suites 0
+ℹ pass 24
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 135.204708
+
+✖ failing tests:
+
+test at test/sports-dashboard.test.js:284:1
+✖ a partially malformed status cannot replace known completion and revive an old broadcast (0.742ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'unknown'
+  - 'finished'
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/sports-dashboard.test.js:288:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'unknown',
+    expected: 'finished',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

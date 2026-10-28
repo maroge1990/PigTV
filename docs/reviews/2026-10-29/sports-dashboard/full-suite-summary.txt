@@ -1,0 +1,9 @@
+ℹ relink: 1,000 x 55,000 in 1895 ms, again in 1020 ms
+ℹ tests 1273
+ℹ suites 0
+ℹ pass 1273
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 60440.310542

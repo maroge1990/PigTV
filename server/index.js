@@ -123,6 +123,7 @@ if (app.locals.mediaTools.mismatch) console.warn('[MediaTools] ffmpeg/ffprobe ve
 process.on('SIGTERM', async () => {
     console.log('SIGTERM received, stopping active recordings...');
     try { require('./services/sportsEvents').shutdown(); } catch (err) { /* best-effort */ }
+    try { require('./services/sportsDashboard').stop(); } catch (err) { /* best-effort */ }
     try {
         const recordingEngine = require('./services/recordingEngine');
         await recordingEngine.stopAllActive();
@@ -267,6 +268,9 @@ app.listen(PORT, async (err) => {
     } catch (err) {
         console.warn('Sport fixtures background refresh failed to start:', err.message);
     }
+
+    try { require('./services/sportsDashboard').start(); }
+    catch { console.warn('Sports dashboard collection could not start'); }
 
     // Bring up the parts that must not wait.
     //

@@ -29,6 +29,33 @@ const channelNumbers = require('../services/channelNumbers');
 router.use(requireAuth);
 router.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 
+// Opt-in additive dashboard API; the existing /events contract is unchanged.
+const dashboard = require('../services/sportsDashboard');
+const dashboardEnabled = (req, res, next) => dashboard.enabled() ? next() : res.status(404).json({ error: 'Sports dashboard disabled' });
+router.get('/preferences', dashboardEnabled, (req, res) => {
+    res.set('Cache-Control', 'private, no-store');
+    try { res.json(dashboard.store().preferences(req.user.id)); }
+    catch { res.status(500).json({ error: 'Could not read sports preferences' }); }
+});
+router.put('/preferences', dashboardEnabled, (req, res) => {
+    res.set('Cache-Control', 'private, no-store');
+    try { res.json(dashboard.store().updatePreferences(req.user.id, req.body)); }
+    catch (err) { res.status([400,409].includes(err.status) ? err.status : 500).json({ error: err.status ? err.message : 'Could not save sports preferences' }); }
+});
+router.get('/dashboard', dashboardEnabled, async (req, res) => {
+    res.set('Cache-Control', 'private, no-store');
+    const league = req.query.league === undefined ? null : require('../services/sportsClassify').canonicalLeague(req.query.league);
+    if (req.query.league !== undefined && !league) return res.status(400).json({ error: 'Unknown sports league' });
+    try {
+        channelNumbers.ensureChannelNumbers();
+        const { events } = await sportsEvents.eventsFor({ hours: 72, userId: req.user.id, decorateChannels });
+        const response = dashboard.buildDashboard(dashboard.store(), { userId: req.user.id, league, events,
+            leagues: require('../services/sportsFixtures').neededLeagues(), follow: sportsEvents.getFollow() });
+        applyLogoCache(response.games.flatMap(g => g.competitors));
+        res.json(response);
+    } catch { res.status(500).json({ error: 'Could not list the sports dashboard' }); }
+});
+
 // Logos as the library hands them out: the EPG's icon when the playlist has none,
 // then our cached /api/logo/<key> path. Run once per build of the event list, on the main
 // thread (it writes the logo cache) and over the channels the events name, in slices.

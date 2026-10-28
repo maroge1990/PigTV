@@ -1,0 +1,33 @@
+✔ all followed team sports retain real score/clock fields; pregame zero is not a score (2.023875ms)
+✔ F1 is one session card per competition, with no driver positions, scores or inferred clock (0.562416ms)
+✔ cricket stumps is a break, preserves batting innings/overs, and excludes placeholder opposition rows (0.330833ms)
+✔ malformed data cannot publish raw status prose, unsafe artwork, or fake clocks (0.143417ms)
+✔ preferences persist per person, enforce revisions, reject coercions and protect other users (11.243208ms)
+✔ whole snapshots honor the delay boundary, buffer on startup and survive a reopened store (6.210167ms)
+✔ out-of-order observations are ignored, history bounded, and repeated finals do not extend the result hour (0.813458ms)
+✔ broadcast matching needs both teams, the right time, and a unique game; replays never match (3.913833ms)
+✔ today respects Melbourne midnight and DST; sport views retain a rolling 72 hours (98.892084ms)
+✔ spoiler projection removes all result fields, does not leak current final status, and keeps progress/actions (5.376167ms)
+✔ unmatched and stale games remain visible; stale data loses clock/score, old finals disappear (1.287417ms)
+✔ collector is opt-in, uses single UTC days, deduplicates overlapping refreshes and discovers future cricket series (2.755625ms)
+✔ cached future payloads never become new score observations, and malformed success retries quickly (0.964625ms)
+✔ future scheduled cards keep their scheduled label between the slower catalog polls (0.569667ms)
+✔ pruning retains last-known completion so old broadcasts cannot become playable after an outage (0.6255ms)
+✔ unfollowed leagues and non-followed teams disappear without clearing the shared score catalog (1.306167ms)
+✔ collector checks the previous UTC day for games still in progress across midnight (0.479792ms)
+✔ F1 broadcast matching requires the right GP and the exact session, including race and sprint qualifying (8.709125ms)
+✔ a source outage cannot refresh old scores, and a stopped collector cannot publish in-flight data (2.249583ms)
+✔ malformed successful HTTP payloads are retried as failures, never authoritative empty schedules (5.377083ms)
+✔ network adapter bounds response bodies, refuses redirects/other origins, and never follows provider-shaped refs (15.052084ms)
+✔ MLB preserves top/bottom inning as spoiler-safe progress and cricket never joins a different format (0.304375ms)
+✔ location-only roster aliases cannot authorize a broadcast match (0.095792ms)
+✔ upcoming matched games retain channel choices and event references without becoming watchable (0.694334ms)
+✔ a partially malformed status cannot replace known completion and revive an old broadcast (0.510458ms)
+ℹ tests 25
+ℹ suites 0
+ℹ pass 25
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 253.314166

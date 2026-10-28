@@ -1,0 +1,67 @@
+✔ all followed team sports retain real score/clock fields; pregame zero is not a score (2.677917ms)
+✔ F1 is one session card per competition, with no driver positions, scores or inferred clock (1.347708ms)
+✔ cricket stumps is a break, preserves batting innings/overs, and excludes placeholder opposition rows (0.338292ms)
+✔ malformed data cannot publish raw status prose, unsafe artwork, or fake clocks (0.131709ms)
+✔ preferences persist per person, enforce revisions, reject coercions and protect other users (10.002208ms)
+✔ whole snapshots honor the delay boundary, buffer on startup and survive a reopened store (3.45925ms)
+✔ out-of-order observations are ignored, history bounded, and repeated finals do not extend the result hour (0.479375ms)
+✔ broadcast matching needs both teams, the right time, and a unique game; replays never match (3.718458ms)
+✔ today respects Melbourne midnight and DST; sport views retain a rolling 72 hours (39.534208ms)
+✔ spoiler projection removes all result fields, does not leak current final status, and keeps progress/actions (1.051ms)
+✔ unmatched and stale games remain visible; stale data loses clock/score, old finals disappear (0.722958ms)
+✔ collector is opt-in, uses single UTC days, deduplicates overlapping refreshes and discovers future cricket series (3.208292ms)
+✖ cached future payloads never become new score observations, and malformed success retries quickly (1.235708ms)
+✖ future scheduled cards keep their scheduled label between the slower catalog polls (0.658709ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 12
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 158.78825
+
+✖ failing tests:
+
+test at test/sports-dashboard.test.js:179:1
+✖ cached future payloads never become new score observations, and malformed success retries quickly (1.235708ms)
+  AssertionError [ERR_ASSERTION]: cache hits cannot extend data freshness
+  + actual - expected
+
+  + 1793235601000
+  - 1793235600000
+             ^
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/sports-dashboard.test.js:185:41)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1793235601000,
+    expected: 1793235600000,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/sports-dashboard.test.js:189:1
+✖ future scheduled cards keep their scheduled label between the slower catalog polls (0.658709ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'unknown'
+  - 'scheduled'
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/sports-dashboard.test.js:192:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'unknown',
+    expected: 'scheduled',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

@@ -1,0 +1,3060 @@
+{
+  "capturedOn": "2026-10-29 Australia/Melbourne",
+  "note": "Public ESPN data, reduced to field evidence; historical/pre-game/break samples do not prove in-play update latency. No IPTV provider or deployed-server request.",
+  "requests": [
+    {
+      "league": "NFL",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20261026-20261101&limit=1000",
+      "error": "HTTP Error 400: Bad Request"
+    },
+    {
+      "league": "AFL",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/australian-football/afl/scoreboard?dates=20260901-20260930&limit=1000",
+      "error": "HTTP Error 400: Bad Request"
+    },
+    {
+      "league": "NBA",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20261026-20261101&limit=1000",
+      "error": "HTTP Error 400: Bad Request"
+    },
+    {
+      "league": "F1",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard?dates=20261026-20261101&limit=1000",
+      "http": 200,
+      "events": 1,
+      "competitions": 5,
+      "states": {
+        "pre": 5
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:58:33 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=10",
+        "ETag": null
+      }
+    },
+    {
+      "league": "MLB",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?dates=20261026-20261101&limit=1000",
+      "error": "HTTP Error 400: Bad Request"
+    },
+    {
+      "league": "EPL",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard?dates=20261026-20261101&limit=1000",
+      "error": "HTTP Error 400: Bad Request"
+    },
+    {
+      "league": "FA Cup",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.fa/scoreboard?dates=20261026-20261101&limit=1000",
+      "error": "HTTP Error 400: Bad Request"
+    },
+    {
+      "league": "UEFA Champions",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/scoreboard?dates=20261026-20261101&limit=1000",
+      "error": "HTTP Error 400: Bad Request"
+    },
+    {
+      "league": "UEFA Europa",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.europa/scoreboard?dates=20261026-20261101&limit=1000",
+      "error": "HTTP Error 400: Bad Request"
+    },
+    {
+      "league": "Championship",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.2/scoreboard?dates=20261026-20261101&limit=1000",
+      "error": "HTTP Error 400: Bad Request"
+    },
+    {
+      "league": "Cricket discovery",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/cricket/scorepanel",
+      "http": 200,
+      "events": 0,
+      "competitions": 0,
+      "states": {},
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:58:34 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=8",
+        "ETag": null
+      }
+    },
+    {
+      "league": "NFL",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20261028",
+      "http": 200,
+      "events": 0,
+      "competitions": 0,
+      "states": {},
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:58:58 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=283",
+        "ETag": null
+      }
+    },
+    {
+      "league": "AFL",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/australian-football/afl/scoreboard?dates=20260926",
+      "http": 200,
+      "events": 1,
+      "competitions": 1,
+      "states": {
+        "post": 1
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:58:58 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=1",
+        "ETag": null
+      }
+    },
+    {
+      "league": "NBA",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20261028",
+      "http": 200,
+      "events": 12,
+      "competitions": 12,
+      "states": {
+        "pre": 12
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:58:58 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=8",
+        "ETag": null
+      }
+    },
+    {
+      "league": "F1",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard?dates=20261028",
+      "http": 200,
+      "events": 0,
+      "competitions": 0,
+      "states": {},
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:58:58 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=39",
+        "ETag": null
+      }
+    },
+    {
+      "league": "MLB",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?dates=20261028",
+      "http": 200,
+      "events": 1,
+      "competitions": 1,
+      "states": {
+        "pre": 1
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:58:58 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=9",
+        "ETag": null
+      }
+    },
+    {
+      "league": "EPL",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard?dates=20261028",
+      "http": 200,
+      "events": 0,
+      "competitions": 0,
+      "states": {},
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:58:58 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=378",
+        "ETag": null
+      }
+    },
+    {
+      "league": "FA Cup",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.fa/scoreboard?dates=20261028",
+      "http": 200,
+      "events": 0,
+      "competitions": 0,
+      "states": {},
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:58:58 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=9",
+        "ETag": null
+      }
+    },
+    {
+      "league": "UEFA Champions",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/scoreboard?dates=20261028",
+      "http": 200,
+      "events": 0,
+      "competitions": 0,
+      "states": {},
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:58:58 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=285",
+        "ETag": null
+      }
+    },
+    {
+      "league": "UEFA Europa",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.europa/scoreboard?dates=20261028",
+      "http": 200,
+      "events": 0,
+      "competitions": 0,
+      "states": {},
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:58:58 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=427",
+        "ETag": null
+      }
+    },
+    {
+      "league": "Championship",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.2/scoreboard?dates=20261028",
+      "http": 200,
+      "events": 0,
+      "competitions": 0,
+      "states": {},
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:58:58 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=1",
+        "ETag": null
+      }
+    },
+    {
+      "league": "NBA range sanity",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20261028-20261030",
+      "error": "HTTP Error 400: Bad Request"
+    },
+    {
+      "league": "NBA limit sanity",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20261028&limit=1000",
+      "http": 200,
+      "events": 12,
+      "competitions": 12,
+      "states": {
+        "pre": 12
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:58:59 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=8",
+        "ETag": null
+      }
+    },
+    {
+      "league": "NFL final",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20261026",
+      "http": 200,
+      "events": 1,
+      "competitions": 1,
+      "states": {
+        "post": 1
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:59:52 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=8",
+        "ETag": null
+      }
+    },
+    {
+      "league": "NBA final",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20261027",
+      "error": "Expecting value: line 1 column 1 (char 0)"
+    },
+    {
+      "league": "MLB final",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?dates=20261027",
+      "http": 200,
+      "events": 1,
+      "competitions": 1,
+      "states": {
+        "post": 1
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:59:51 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=6",
+        "ETag": null
+      }
+    },
+    {
+      "league": "EPL final",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard?dates=20261025",
+      "http": 200,
+      "events": 5,
+      "competitions": 5,
+      "states": {
+        "post": 5
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:59:51 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=1",
+        "ETag": null
+      }
+    },
+    {
+      "league": "FA Cup final",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.fa/scoreboard?dates=20260516",
+      "http": 200,
+      "events": 1,
+      "competitions": 1,
+      "states": {
+        "post": 1
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:59:51 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=1",
+        "ETag": null
+      }
+    },
+    {
+      "league": "UEFA Champions final",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/scoreboard?dates=20261021",
+      "http": 200,
+      "events": 9,
+      "competitions": 9,
+      "states": {
+        "post": 9
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:59:52 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=10",
+        "ETag": null
+      }
+    },
+    {
+      "league": "UEFA Europa final",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.europa/scoreboard?dates=20261022",
+      "http": 200,
+      "events": 18,
+      "competitions": 18,
+      "states": {
+        "post": 18
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:59:52 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=1",
+        "ETag": null
+      }
+    },
+    {
+      "league": "Championship final",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.2/scoreboard?dates=20261024",
+      "http": 200,
+      "events": 11,
+      "competitions": 11,
+      "states": {
+        "post": 11
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:59:52 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=8",
+        "ETag": null
+      }
+    },
+    {
+      "league": "F1 final",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard?dates=20261025",
+      "http": 200,
+      "events": 1,
+      "competitions": 5,
+      "states": {
+        "post": 5
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:59:52 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=1",
+        "ETag": null
+      }
+    },
+    {
+      "league": "Cricket Shield",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/cricket/8043/scoreboard?dates=20261029",
+      "http": 200,
+      "events": 1,
+      "competitions": 1,
+      "states": {
+        "in": 1
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:59:52 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=1",
+        "ETag": null
+      }
+    },
+    {
+      "league": "Cricket international",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/cricket/24203/scoreboard?dates=20261029",
+      "http": 200,
+      "events": 1,
+      "competitions": 1,
+      "states": {
+        "in": 1
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:59:52 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=1",
+        "ETag": null
+      }
+    },
+    {
+      "league": "Cricket Shield next",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/cricket/8043/scoreboard?dates=20261031",
+      "http": 200,
+      "events": 2,
+      "competitions": 2,
+      "states": {
+        "in": 1,
+        "pre": 1
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:59:52 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=1",
+        "ETag": null
+      }
+    },
+    {
+      "league": "Cricket global",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/cricket/scoreboard?dates=20261030",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "league": "UEFA Conference",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.europa.conf/scoreboard?dates=20261022",
+      "http": 200,
+      "events": 18,
+      "competitions": 18,
+      "states": {
+        "post": 18
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:59:53 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=1",
+        "ETag": null
+      }
+    },
+    {
+      "league": "Cricket future scorepanel",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/cricket/scorepanel?dates=20261031",
+      "http": 200,
+      "events": 0,
+      "competitions": 0,
+      "states": {},
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 22:59:53 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=1",
+        "ETag": null
+      }
+    },
+    {
+      "league": "F1 summary",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/racing/f1/summary?event=600057446",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "league": "F1 competition summary",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/racing/f1/summary?event=401839122",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "league": "AFL summary",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/australian-football/afl/summary?event=1133711",
+      "http": 200,
+      "events": 0,
+      "competitions": 0,
+      "states": {},
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 23:00:51 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=1",
+        "ETag": null
+      }
+    },
+    {
+      "league": "NFL summary",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=401873009",
+      "http": 200,
+      "events": 0,
+      "competitions": 0,
+      "states": {},
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 23:00:51 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=7",
+        "ETag": null
+      }
+    },
+    {
+      "league": "MLB summary",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/summary?event=401908045",
+      "http": 200,
+      "events": 0,
+      "competitions": 0,
+      "states": {},
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 23:00:51 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=6",
+        "ETag": null
+      }
+    },
+    {
+      "league": "NBA final retry",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20261026",
+      "http": 200,
+      "events": 9,
+      "competitions": 9,
+      "states": {
+        "post": 9
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 23:00:51 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=1",
+        "ETag": null
+      }
+    },
+    {
+      "league": "NBA live sample",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20261028",
+      "http": 200,
+      "events": 12,
+      "competitions": 12,
+      "states": {
+        "pre": 12
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 23:00:51 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=6",
+        "ETag": null
+      }
+    },
+    {
+      "league": "F1 upcoming",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard?dates=20261031",
+      "http": 200,
+      "events": 1,
+      "competitions": 5,
+      "states": {
+        "pre": 5
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 23:00:51 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=9",
+        "ETag": null
+      }
+    },
+    {
+      "league": "Cricket tomorrow scorepanel",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/cricket/scorepanel?dates=20261030",
+      "http": 200,
+      "events": 0,
+      "competitions": 0,
+      "states": {},
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 23:00:51 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=1",
+        "ETag": null
+      }
+    },
+    {
+      "league": "F1 core competition",
+      "url": "https://sports.core.api.espn.com/v2/sports/racing/leagues/f1/events/600057446/competitions/401839122?lang=en&region=us",
+      "http": 200,
+      "events": 0,
+      "competitions": 0,
+      "states": {},
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 23:01:30 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=600, stale-while-revalidate=7200",
+        "ETag": null
+      }
+    },
+    {
+      "league": "F1 core status",
+      "url": "https://sports.core.api.espn.com/v2/sports/racing/leagues/f1/events/600057446/competitions/401839122/status?lang=en&region=us",
+      "http": 200,
+      "events": 0,
+      "competitions": 0,
+      "states": {},
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 23:01:30 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=600, stale-while-revalidate=7200",
+        "ETag": null
+      }
+    },
+    {
+      "league": "F1 core leader",
+      "url": "https://sports.core.api.espn.com/v2/sports/racing/leagues/f1/events/600057446/competitions/401839122/competitors/5829?lang=en&region=us",
+      "http": 200,
+      "events": 0,
+      "competitions": 0,
+      "states": {},
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 23:01:30 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=600, stale-while-revalidate=7200",
+        "ETag": null
+      }
+    },
+    {
+      "league": "F1 core stats",
+      "url": "https://sports.core.api.espn.com/v2/sports/racing/leagues/f1/events/600057446/competitions/401839122/competitors/5829/statistics?lang=en&region=us",
+      "http": 200,
+      "events": 0,
+      "competitions": 0,
+      "states": {},
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 23:01:31 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=600, stale-while-revalidate=7200",
+        "ETag": null
+      }
+    },
+    {
+      "league": "F1 web summary",
+      "url": "https://site.web.api.espn.com/apis/site/v2/sports/racing/f1/summary?event=600057446",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "league": "F1 scoreboard current",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard",
+      "http": 200,
+      "events": 1,
+      "competitions": 5,
+      "states": {
+        "post": 5
+      },
+      "headers": {
+        "Date": "Wed, 28 Oct 2026 23:01:30 GMT",
+        "Age": null,
+        "Cache-Control": "max-age=5",
+        "ETag": null
+      }
+    }
+  ],
+  "samples": [
+    {
+      "label": "AFL",
+      "events": [
+        {
+          "id": "1133711",
+          "date": "2026-09-26T04:30Z",
+          "name": "Brisbane Lions at Fremantle",
+          "status": {
+            "clock": 1872.0,
+            "displayClock": "31:12",
+            "period": 4,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "competitions": [
+            {
+              "id": "1133711",
+              "date": "2026-09-26T04:30Z",
+              "startDate": "2026-09-26T04:30Z",
+              "type": {
+                "id": "1",
+                "abbreviation": "STD"
+              },
+              "status": {
+                "clock": 1872.0,
+                "displayClock": "31:12",
+                "period": 4,
+                "type": {
+                  "id": "3",
+                  "name": "STATUS_FINAL",
+                  "state": "post",
+                  "completed": true,
+                  "description": "Final",
+                  "detail": "Final",
+                  "shortDetail": "Final"
+                }
+              },
+              "competitors": [
+                {
+                  "id": "1",
+                  "type": "team",
+                  "order": 0,
+                  "homeAway": "home",
+                  "score": "89",
+                  "linescores": [
+                    {
+                      "value": 22.0,
+                      "displayValue": "22",
+                      "period": 1
+                    },
+                    {
+                      "value": 21.0,
+                      "displayValue": "21",
+                      "period": 2
+                    },
+                    {
+                      "value": 29.0,
+                      "displayValue": "29",
+                      "period": 3
+                    },
+                    {
+                      "value": 17.0,
+                      "displayValue": "17",
+                      "period": 4
+                    }
+                  ],
+                  "winner": false,
+                  "team": {
+                    "id": "1",
+                    "displayName": "Fremantle",
+                    "abbreviation": "FRE",
+                    "logo": "https://a.espncdn.com/i/teamlogos/afl/500/fre.png",
+                    "logoDark": ""
+                  }
+                },
+                {
+                  "id": "11",
+                  "type": "team",
+                  "order": 1,
+                  "homeAway": "away",
+                  "score": "96",
+                  "linescores": [
+                    {
+                      "value": 23.0,
+                      "displayValue": "23",
+                      "period": 1
+                    },
+                    {
+                      "value": 20.0,
+                      "displayValue": "20",
+                      "period": 2
+                    },
+                    {
+                      "value": 19.0,
+                      "displayValue": "19",
+                      "period": 3
+                    },
+                    {
+                      "value": 34.0,
+                      "displayValue": "34",
+                      "period": 4
+                    }
+                  ],
+                  "winner": true,
+                  "team": {
+                    "id": "11",
+                    "displayName": "Brisbane Lions",
+                    "abbreviation": "BL",
+                    "logo": "https://a.espncdn.com/i/teamlogos/afl/500/bl.png",
+                    "logoDark": ""
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "NFL-final",
+      "events": [
+        {
+          "id": "401873009",
+          "date": "2026-10-27T00:15Z",
+          "name": "Dallas Cowboys at Philadelphia Eagles",
+          "status": {
+            "clock": 0.0,
+            "displayClock": "0:00",
+            "period": 4,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "competitions": [
+            {
+              "id": "401873009",
+              "date": "2026-10-27T00:15Z",
+              "startDate": "2026-10-27T00:15Z",
+              "type": {
+                "id": "1",
+                "abbreviation": "STD"
+              },
+              "status": {
+                "clock": 0.0,
+                "displayClock": "0:00",
+                "period": 4,
+                "type": {
+                  "id": "3",
+                  "name": "STATUS_FINAL",
+                  "state": "post",
+                  "completed": true,
+                  "description": "Final",
+                  "detail": "Final",
+                  "shortDetail": "Final"
+                }
+              },
+              "competitors": [
+                {
+                  "id": "21",
+                  "type": "team",
+                  "order": 0,
+                  "homeAway": "home",
+                  "score": "21",
+                  "linescores": [
+                    {
+                      "value": 7.0,
+                      "displayValue": "7",
+                      "period": 1
+                    },
+                    {
+                      "value": 7.0,
+                      "displayValue": "7",
+                      "period": 2
+                    },
+                    {
+                      "value": 7.0,
+                      "displayValue": "7",
+                      "period": 3
+                    },
+                    {
+                      "value": 0.0,
+                      "displayValue": "0",
+                      "period": 4
+                    }
+                  ],
+                  "winner": false,
+                  "team": {
+                    "id": "21",
+                    "displayName": "Philadelphia Eagles",
+                    "abbreviation": "PHI",
+                    "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/phi.png",
+                    "logoDark": "https://a.espncdn.com/i/teamlogos/nfl/500-dark/scoreboard/phi.png"
+                  }
+                },
+                {
+                  "id": "6",
+                  "type": "team",
+                  "order": 1,
+                  "homeAway": "away",
+                  "score": "38",
+                  "linescores": [
+                    {
+                      "value": 10.0,
+                      "displayValue": "10",
+                      "period": 1
+                    },
+                    {
+                      "value": 10.0,
+                      "displayValue": "10",
+                      "period": 2
+                    },
+                    {
+                      "value": 8.0,
+                      "displayValue": "8",
+                      "period": 3
+                    },
+                    {
+                      "value": 10.0,
+                      "displayValue": "10",
+                      "period": 4
+                    }
+                  ],
+                  "winner": true,
+                  "team": {
+                    "id": "6",
+                    "displayName": "Dallas Cowboys",
+                    "abbreviation": "DAL",
+                    "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/dal.png",
+                    "logoDark": "https://a.espncdn.com/i/teamlogos/nfl/500-dark/scoreboard/dal.png"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "NBA-final-retry",
+      "events": [
+        {
+          "id": "401909868",
+          "date": "2026-10-26T23:00Z",
+          "name": "Washington Wizards at Charlotte Hornets",
+          "status": {
+            "clock": 0.0,
+            "displayClock": "0.0",
+            "period": 4,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "competitions": [
+            {
+              "id": "401909868",
+              "date": "2026-10-26T23:00Z",
+              "startDate": "2026-10-26T23:00Z",
+              "type": {
+                "id": "1",
+                "abbreviation": "STD"
+              },
+              "status": {
+                "clock": 0.0,
+                "displayClock": "0.0",
+                "period": 4,
+                "type": {
+                  "id": "3",
+                  "name": "STATUS_FINAL",
+                  "state": "post",
+                  "completed": true,
+                  "description": "Final",
+                  "detail": "Final",
+                  "shortDetail": "Final"
+                }
+              },
+              "competitors": [
+                {
+                  "id": "30",
+                  "type": "team",
+                  "order": 0,
+                  "homeAway": "home",
+                  "score": "110",
+                  "linescores": [
+                    {
+                      "value": 19.0,
+                      "displayValue": "19",
+                      "period": 1
+                    },
+                    {
+                      "value": 35.0,
+                      "displayValue": "35",
+                      "period": 2
+                    },
+                    {
+                      "value": 26.0,
+                      "displayValue": "26",
+                      "period": 3
+                    },
+                    {
+                      "value": 30.0,
+                      "displayValue": "30",
+                      "period": 4
+                    }
+                  ],
+                  "winner": true,
+                  "team": {
+                    "id": "30",
+                    "displayName": "Charlotte Hornets",
+                    "abbreviation": "CHA",
+                    "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/cha.png",
+                    "logoDark": "https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/cha.png"
+                  }
+                },
+                {
+                  "id": "27",
+                  "type": "team",
+                  "order": 1,
+                  "homeAway": "away",
+                  "score": "103",
+                  "linescores": [
+                    {
+                      "value": 21.0,
+                      "displayValue": "21",
+                      "period": 1
+                    },
+                    {
+                      "value": 23.0,
+                      "displayValue": "23",
+                      "period": 2
+                    },
+                    {
+                      "value": 24.0,
+                      "displayValue": "24",
+                      "period": 3
+                    },
+                    {
+                      "value": 35.0,
+                      "displayValue": "35",
+                      "period": 4
+                    }
+                  ],
+                  "winner": false,
+                  "team": {
+                    "id": "27",
+                    "displayName": "Washington Wizards",
+                    "abbreviation": "WSH",
+                    "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/wsh.png",
+                    "logoDark": "https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/wsh.png"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "MLB-final",
+      "events": [
+        {
+          "id": "401908045",
+          "date": "2026-10-28T00:00Z",
+          "name": "Milwaukee Brewers at Tampa Bay Rays",
+          "status": {
+            "clock": 0.0,
+            "displayClock": "0:00",
+            "period": 12,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final/12",
+              "shortDetail": "Final/12",
+              "altDetail": "F/12"
+            }
+          },
+          "competitions": [
+            {
+              "id": "401908045",
+              "date": "2026-10-28T00:00Z",
+              "startDate": "2026-10-28T00:00Z",
+              "type": {
+                "id": "17",
+                "abbreviation": "FINAL"
+              },
+              "status": {
+                "clock": 0.0,
+                "displayClock": "0:00",
+                "period": 12,
+                "type": {
+                  "id": "3",
+                  "name": "STATUS_FINAL",
+                  "state": "post",
+                  "completed": true,
+                  "description": "Final",
+                  "detail": "Final/12",
+                  "shortDetail": "Final/12",
+                  "altDetail": "F/12"
+                }
+              },
+              "competitors": [
+                {
+                  "id": "30",
+                  "type": "team",
+                  "order": 0,
+                  "homeAway": "home",
+                  "score": "4",
+                  "linescores": [
+                    {
+                      "value": 0.0,
+                      "displayValue": "0",
+                      "period": 1
+                    },
+                    {
+                      "value": 1.0,
+                      "displayValue": "1",
+                      "period": 2
+                    },
+                    {
+                      "value": 0.0,
+                      "displayValue": "0",
+                      "period": 3
+                    },
+                    {
+                      "value": 1.0,
+                      "displayValue": "1",
+                      "period": 4
+                    }
+                  ],
+                  "winner": true,
+                  "team": {
+                    "id": "30",
+                    "displayName": "Tampa Bay Rays",
+                    "abbreviation": "TB",
+                    "logo": "https://a.espncdn.com/i/teamlogos/mlb/500/scoreboard/tb.png",
+                    "logoDark": "https://a.espncdn.com/i/teamlogos/mlb/500-dark/scoreboard/tb.png"
+                  }
+                },
+                {
+                  "id": "8",
+                  "type": "team",
+                  "order": 1,
+                  "homeAway": "away",
+                  "score": "3",
+                  "linescores": [
+                    {
+                      "value": 0.0,
+                      "displayValue": "0",
+                      "period": 1
+                    },
+                    {
+                      "value": 0.0,
+                      "displayValue": "0",
+                      "period": 2
+                    },
+                    {
+                      "value": 0.0,
+                      "displayValue": "0",
+                      "period": 3
+                    },
+                    {
+                      "value": 1.0,
+                      "displayValue": "1",
+                      "period": 4
+                    }
+                  ],
+                  "winner": false,
+                  "team": {
+                    "id": "8",
+                    "displayName": "Milwaukee Brewers",
+                    "abbreviation": "MIL",
+                    "logo": "https://a.espncdn.com/i/teamlogos/mlb/500/scoreboard/mil.png",
+                    "logoDark": "https://a.espncdn.com/i/teamlogos/mlb/500-dark/scoreboard/mil.png"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "EPL-final",
+      "events": [
+        {
+          "id": "401879254",
+          "date": "2026-10-25T14:00Z",
+          "name": "Newcastle United at Crystal Palace",
+          "status": {
+            "clock": 5400.0,
+            "displayClock": "90'+9'",
+            "period": 2,
+            "type": {
+              "id": "28",
+              "name": "STATUS_FULL_TIME",
+              "state": "post",
+              "completed": true,
+              "description": "Full Time",
+              "detail": "FT",
+              "shortDetail": "FT"
+            }
+          },
+          "competitions": [
+            {
+              "id": "401879254",
+              "date": "2026-10-25T14:00Z",
+              "startDate": "2026-10-25T14:00Z",
+              "status": {
+                "clock": 5400.0,
+                "displayClock": "90'+9'",
+                "period": 2,
+                "type": {
+                  "id": "28",
+                  "name": "STATUS_FULL_TIME",
+                  "state": "post",
+                  "completed": true,
+                  "description": "Full Time",
+                  "detail": "FT",
+                  "shortDetail": "FT"
+                }
+              },
+              "competitors": [
+                {
+                  "id": "384",
+                  "type": "team",
+                  "order": 0,
+                  "homeAway": "home",
+                  "score": "0",
+                  "winner": false,
+                  "team": {
+                    "id": "384",
+                    "displayName": "Crystal Palace",
+                    "abbreviation": "CRY",
+                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/384.png"
+                  }
+                },
+                {
+                  "id": "361",
+                  "type": "team",
+                  "order": 1,
+                  "homeAway": "away",
+                  "score": "2",
+                  "winner": true,
+                  "team": {
+                    "id": "361",
+                    "displayName": "Newcastle United",
+                    "abbreviation": "NEW",
+                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/361.png"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "FA-Cup-final",
+      "events": [
+        {
+          "id": "401867655",
+          "date": "2026-05-16T14:00Z",
+          "name": "Manchester City at Chelsea",
+          "status": {
+            "clock": 5400.0,
+            "displayClock": "90'+6'",
+            "period": 2,
+            "type": {
+              "id": "28",
+              "name": "STATUS_FULL_TIME",
+              "state": "post",
+              "completed": true,
+              "description": "Full Time",
+              "detail": "FT",
+              "shortDetail": "FT"
+            }
+          },
+          "competitions": [
+            {
+              "id": "401867655",
+              "date": "2026-05-16T14:00Z",
+              "startDate": "2026-05-16T14:00Z",
+              "status": {
+                "clock": 5400.0,
+                "displayClock": "90'+6'",
+                "period": 2,
+                "type": {
+                  "id": "28",
+                  "name": "STATUS_FULL_TIME",
+                  "state": "post",
+                  "completed": true,
+                  "description": "Full Time",
+                  "detail": "FT",
+                  "shortDetail": "FT"
+                }
+              },
+              "competitors": [
+                {
+                  "id": "363",
+                  "type": "team",
+                  "order": 0,
+                  "homeAway": "home",
+                  "score": "0",
+                  "winner": false,
+                  "team": {
+                    "id": "363",
+                    "displayName": "Chelsea",
+                    "abbreviation": "CHE",
+                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/363.png"
+                  }
+                },
+                {
+                  "id": "382",
+                  "type": "team",
+                  "order": 1,
+                  "homeAway": "away",
+                  "score": "1",
+                  "winner": true,
+                  "team": {
+                    "id": "382",
+                    "displayName": "Manchester City",
+                    "abbreviation": "MNC",
+                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/382.png"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "UEFA-Champions-final",
+      "events": [
+        {
+          "id": "401915395",
+          "date": "2026-10-21T16:45Z",
+          "name": "Manchester United at Como",
+          "status": {
+            "clock": 5400.0,
+            "displayClock": "90'+4'",
+            "period": 2,
+            "type": {
+              "id": "28",
+              "name": "STATUS_FULL_TIME",
+              "state": "post",
+              "completed": true,
+              "description": "Full Time",
+              "detail": "FT",
+              "shortDetail": "FT"
+            }
+          },
+          "competitions": [
+            {
+              "id": "401915395",
+              "date": "2026-10-21T16:45Z",
+              "startDate": "2026-10-21T16:45Z",
+              "status": {
+                "clock": 5400.0,
+                "displayClock": "90'+4'",
+                "period": 2,
+                "type": {
+                  "id": "28",
+                  "name": "STATUS_FULL_TIME",
+                  "state": "post",
+                  "completed": true,
+                  "description": "Full Time",
+                  "detail": "FT",
+                  "shortDetail": "FT"
+                }
+              },
+              "competitors": [
+                {
+                  "id": "2572",
+                  "type": "team",
+                  "order": 0,
+                  "homeAway": "home",
+                  "score": "4",
+                  "winner": true,
+                  "team": {
+                    "id": "2572",
+                    "displayName": "Como",
+                    "abbreviation": "COMO",
+                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/2572.png"
+                  }
+                },
+                {
+                  "id": "360",
+                  "type": "team",
+                  "order": 1,
+                  "homeAway": "away",
+                  "score": "1",
+                  "winner": false,
+                  "team": {
+                    "id": "360",
+                    "displayName": "Manchester United",
+                    "abbreviation": "MAN",
+                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "UEFA-Europa-final",
+      "events": [
+        {
+          "id": "401915548",
+          "date": "2026-10-22T16:45Z",
+          "name": "AZ Alkmaar at Ararat-Armenia",
+          "status": {
+            "clock": 5400.0,
+            "displayClock": "90'+2'",
+            "period": 2,
+            "type": {
+              "id": "28",
+              "name": "STATUS_FULL_TIME",
+              "state": "post",
+              "completed": true,
+              "description": "Full Time",
+              "detail": "FT",
+              "shortDetail": "FT"
+            }
+          },
+          "competitions": [
+            {
+              "id": "401915548",
+              "date": "2026-10-22T16:45Z",
+              "startDate": "2026-10-22T16:45Z",
+              "status": {
+                "clock": 5400.0,
+                "displayClock": "90'+2'",
+                "period": 2,
+                "type": {
+                  "id": "28",
+                  "name": "STATUS_FULL_TIME",
+                  "state": "post",
+                  "completed": true,
+                  "description": "Full Time",
+                  "detail": "FT",
+                  "shortDetail": "FT"
+                }
+              },
+              "competitors": [
+                {
+                  "id": "20024",
+                  "type": "team",
+                  "order": 0,
+                  "homeAway": "home",
+                  "score": "0",
+                  "winner": false,
+                  "team": {
+                    "id": "20024",
+                    "displayName": "Ararat-Armenia",
+                    "abbreviation": "ARA",
+                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/20024.png"
+                  }
+                },
+                {
+                  "id": "140",
+                  "type": "team",
+                  "order": 1,
+                  "homeAway": "away",
+                  "score": "4",
+                  "winner": true,
+                  "team": {
+                    "id": "140",
+                    "displayName": "AZ Alkmaar",
+                    "abbreviation": "AZ",
+                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/140.png"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "UEFA-Conference",
+      "events": [
+        {
+          "id": "401915846",
+          "date": "2026-10-22T14:30Z",
+          "name": "Panathinaikos at Kairat Almaty",
+          "status": {
+            "clock": 5400.0,
+            "displayClock": "90'+3'",
+            "period": 2,
+            "type": {
+              "id": "28",
+              "name": "STATUS_FULL_TIME",
+              "state": "post",
+              "completed": true,
+              "description": "Full Time",
+              "detail": "FT",
+              "shortDetail": "FT"
+            }
+          },
+          "competitions": [
+            {
+              "id": "401915846",
+              "date": "2026-10-22T14:30Z",
+              "startDate": "2026-10-22T14:30Z",
+              "status": {
+                "clock": 5400.0,
+                "displayClock": "90'+3'",
+                "period": 2,
+                "type": {
+                  "id": "28",
+                  "name": "STATUS_FULL_TIME",
+                  "state": "post",
+                  "completed": true,
+                  "description": "Full Time",
+                  "detail": "FT",
+                  "shortDetail": "FT"
+                }
+              },
+              "competitors": [
+                {
+                  "id": "2528",
+                  "type": "team",
+                  "order": 0,
+                  "homeAway": "home",
+                  "score": "1",
+                  "winner": false,
+                  "team": {
+                    "id": "2528",
+                    "displayName": "Kairat Almaty",
+                    "abbreviation": "KAI",
+                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/2528.png"
+                  }
+                },
+                {
+                  "id": "443",
+                  "type": "team",
+                  "order": 1,
+                  "homeAway": "away",
+                  "score": "5",
+                  "winner": true,
+                  "team": {
+                    "id": "443",
+                    "displayName": "Panathinaikos",
+                    "abbreviation": "PAO",
+                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/443.png"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Championship-final",
+      "events": [
+        {
+          "id": "401880205",
+          "date": "2026-10-24T11:30Z",
+          "name": "Norwich City at Charlton Athletic",
+          "status": {
+            "clock": 5400.0,
+            "displayClock": "90'+9'",
+            "period": 2,
+            "type": {
+              "id": "28",
+              "name": "STATUS_FULL_TIME",
+              "state": "post",
+              "completed": true,
+              "description": "Full Time",
+              "detail": "FT",
+              "shortDetail": "FT"
+            }
+          },
+          "competitions": [
+            {
+              "id": "401880205",
+              "date": "2026-10-24T11:30Z",
+              "startDate": "2026-10-24T11:30Z",
+              "status": {
+                "clock": 5400.0,
+                "displayClock": "90'+9'",
+                "period": 2,
+                "type": {
+                  "id": "28",
+                  "name": "STATUS_FULL_TIME",
+                  "state": "post",
+                  "completed": true,
+                  "description": "Full Time",
+                  "detail": "FT",
+                  "shortDetail": "FT"
+                }
+              },
+              "competitors": [
+                {
+                  "id": "372",
+                  "type": "team",
+                  "order": 0,
+                  "homeAway": "home",
+                  "score": "1",
+                  "winner": false,
+                  "team": {
+                    "id": "372",
+                    "displayName": "Charlton Athletic",
+                    "abbreviation": "CHA",
+                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/372.png"
+                  }
+                },
+                {
+                  "id": "381",
+                  "type": "team",
+                  "order": 1,
+                  "homeAway": "away",
+                  "score": "3",
+                  "winner": true,
+                  "team": {
+                    "id": "381",
+                    "displayName": "Norwich City",
+                    "abbreviation": "NOR",
+                    "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/381.png"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "F1-final",
+      "events": [
+        {
+          "id": "600057446",
+          "date": "2026-10-23T17:30Z",
+          "endDate": "2026-10-25T20:00Z",
+          "name": "MSC Cruises United States Grand Prix",
+          "status": {
+            "clock": 0.0,
+            "displayClock": "0:00",
+            "period": 26,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "circuit": {
+            "id": "609",
+            "fullName": "Circuit of the Americas",
+            "address": {
+              "city": "Austin",
+              "state": "TX",
+              "country": "USA"
+            }
+          },
+          "competitions": [
+            {
+              "id": "401839118",
+              "date": "2026-10-23T17:30Z",
+              "startDate": "2026-10-23T17:30Z",
+              "type": {
+                "id": "1",
+                "abbreviation": "FP1"
+              },
+              "status": {
+                "clock": 0.0,
+                "displayClock": "0:00",
+                "period": 26,
+                "type": {
+                  "id": "3",
+                  "name": "STATUS_FINAL",
+                  "state": "post",
+                  "completed": true,
+                  "description": "Final",
+                  "detail": "Final",
+                  "shortDetail": "Final"
+                }
+              },
+              "competitors": [
+                {
+                  "id": "5498",
+                  "type": "athlete",
+                  "order": 1,
+                  "winner": false,
+                  "athlete": {
+                    "displayName": "Charles Leclerc",
+                    "shortName": "C. Leclerc",
+                    "flag": {
+                      "href": "https://a.espncdn.com/i/teamlogos/countries/500/mon.png",
+                      "alt": "Monaco",
+                      "rel": [
+                        "country-flag"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "id": "4665",
+                  "type": "athlete",
+                  "order": 2,
+                  "winner": false,
+                  "athlete": {
+                    "displayName": "Max Verstappen",
+                    "shortName": "M. Verstappen",
+                    "flag": {
+                      "href": "https://a.espncdn.com/i/teamlogos/countries/500/ned.png",
+                      "alt": "Netherlands",
+                      "rel": [
+                        "country-flag"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "id": "5579",
+                  "type": "athlete",
+                  "order": 3,
+                  "winner": false,
+                  "athlete": {
+                    "displayName": "Lando Norris",
+                    "shortName": "L. Norris",
+                    "flag": {
+                      "href": "https://a.espncdn.com/i/teamlogos/countries/500/gbr.png",
+                      "alt": "Britain",
+                      "rel": [
+                        "country-flag"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "401839119",
+              "date": "2026-10-23T21:00Z",
+              "startDate": "2026-10-23T21:00Z",
+              "type": {
+                "id": "1",
+                "abbreviation": "FP2"
+              },
+              "status": {
+                "clock": 0.0,
+                "displayClock": "0:00",
+                "period": 30,
+                "type": {
+                  "id": "3",
+                  "name": "STATUS_FINAL",
+                  "state": "post",
+                  "completed": true,
+                  "description": "Final",
+                  "detail": "Final",
+                  "shortDetail": "Final"
+                }
+              },
+              "competitors": [
+                {
+                  "id": "5498",
+                  "type": "athlete",
+                  "order": 1,
+                  "winner": false,
+                  "athlete": {
+                    "displayName": "Charles Leclerc",
+                    "shortName": "C. Leclerc",
+                    "flag": {
+                      "href": "https://a.espncdn.com/i/teamlogos/countries/500/mon.png",
+                      "alt": "Monaco",
+                      "rel": [
+                        "country-flag"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "id": "5829",
+                  "type": "athlete",
+                  "order": 2,
+                  "winner": false,
+                  "athlete": {
+                    "displayName": "Kimi Antonelli",
+                    "shortName": "K. Antonelli",
+                    "flag": {
+                      "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                      "alt": "Italy",
+                      "rel": [
+                        "country-flag"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "id": "4665",
+                  "type": "athlete",
+                  "order": 3,
+                  "winner": false,
+                  "athlete": {
+                    "displayName": "Max Verstappen",
+                    "shortName": "M. Verstappen",
+                    "flag": {
+                      "href": "https://a.espncdn.com/i/teamlogos/countries/500/ned.png",
+                      "alt": "Netherlands",
+                      "rel": [
+                        "country-flag"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "401839120",
+              "date": "2026-10-24T17:30Z",
+              "startDate": "2026-10-24T17:30Z",
+              "type": {
+                "id": "1",
+                "abbreviation": "FP3"
+              },
+              "status": {
+                "clock": 0.0,
+                "displayClock": "0:00",
+                "period": 21,
+                "type": {
+                  "id": "3",
+                  "name": "STATUS_FINAL",
+                  "state": "post",
+                  "completed": true,
+                  "description": "Final",
+                  "detail": "Final",
+                  "shortDetail": "Final"
+                }
+              },
+              "competitors": [
+                {
+                  "id": "868",
+                  "type": "athlete",
+                  "order": 1,
+                  "winner": false,
+                  "athlete": {
+                    "displayName": "Lewis Hamilton",
+                    "shortName": "L. Hamilton",
+                    "flag": {
+                      "href": "https://a.espncdn.com/i/teamlogos/countries/500/gbr.png",
+                      "alt": "Britain",
+                      "rel": [
+                        "country-flag"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "id": "4665",
+                  "type": "athlete",
+                  "order": 2,
+                  "winner": false,
+                  "athlete": {
+                    "displayName": "Max Verstappen",
+                    "shortName": "M. Verstappen",
+                    "flag": {
+                      "href": "https://a.espncdn.com/i/teamlogos/countries/500/ned.png",
+                      "alt": "Netherlands",
+                      "rel": [
+                        "country-flag"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "id": "5498",
+                  "type": "athlete",
+                  "order": 3,
+                  "winner": false,
+                  "athlete": {
+                    "displayName": "Charles Leclerc",
+                    "shortName": "C. Leclerc",
+                    "flag": {
+                      "href": "https://a.espncdn.com/i/teamlogos/countries/500/mon.png",
+                      "alt": "Monaco",
+                      "rel": [
+                        "country-flag"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "401839121",
+              "date": "2026-10-24T21:00Z",
+              "startDate": "2026-10-24T21:00Z",
+              "type": {
+                "id": "2",
+                "abbreviation": "Qual"
+              },
+              "status": {
+                "clock": 0.0,
+                "displayClock": "0:00",
+                "period": 18,
+                "type": {
+                  "id": "3",
+                  "name": "STATUS_FINAL",
+                  "state": "post",
+                  "completed": true,
+                  "description": "Final",
+                  "detail": "Final",
+                  "shortDetail": "Final"
+                }
+              },
+              "competitors": [
+                {
+                  "id": "5829",
+                  "type": "athlete",
+                  "order": 1,
+                  "winner": false,
+                  "athlete": {
+                    "displayName": "Kimi Antonelli",
+                    "shortName": "K. Antonelli",
+                    "flag": {
+                      "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                      "alt": "Italy",
+                      "rel": [
+                        "country-flag"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "id": "4665",
+                  "type": "athlete",
+                  "order": 2,
+                  "winner": false,
+                  "athlete": {
+                    "displayName": "Max Verstappen",
+                    "shortName": "M. Verstappen",
+                    "flag": {
+                      "href": "https://a.espncdn.com/i/teamlogos/countries/500/ned.png",
+                      "alt": "Netherlands",
+                      "rel": [
+                        "country-flag"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "id": "5790",
+                  "type": "athlete",
+                  "order": 3,
+                  "winner": false,
+                  "athlete": {
+                    "displayName": "Isack Hadjar",
+                    "shortName": "I. Hadjar",
+                    "flag": {
+                      "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+                      "alt": "France",
+                      "rel": [
+                        "country-flag"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "401839122",
+              "date": "2026-10-25T20:00Z",
+              "startDate": "2026-10-25T20:00Z",
+              "type": {
+                "id": "3",
+                "abbreviation": "Race"
+              },
+              "status": {
+                "clock": 0.0,
+                "displayClock": "0:00",
+                "period": 56,
+                "type": {
+                  "id": "3",
+                  "name": "STATUS_FINAL",
+                  "state": "post",
+                  "completed": true,
+                  "description": "Final",
+                  "detail": "Final",
+                  "shortDetail": "Final"
+                }
+              },
+              "competitors": [
+                {
+                  "id": "5829",
+                  "type": "athlete",
+                  "order": 1,
+                  "winner": true,
+                  "athlete": {
+                    "displayName": "Kimi Antonelli",
+                    "shortName": "K. Antonelli",
+                    "flag": {
+                      "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+                      "alt": "Italy",
+                      "rel": [
+                        "country-flag"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "id": "5498",
+                  "type": "athlete",
+                  "order": 2,
+                  "winner": false,
+                  "athlete": {
+                    "displayName": "Charles Leclerc",
+                    "shortName": "C. Leclerc",
+                    "flag": {
+                      "href": "https://a.espncdn.com/i/teamlogos/countries/500/mon.png",
+                      "alt": "Monaco",
+                      "rel": [
+                        "country-flag"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "id": "4665",
+                  "type": "athlete",
+                  "order": 3,
+                  "winner": false,
+                  "athlete": {
+                    "displayName": "Max Verstappen",
+                    "shortName": "M. Verstappen",
+                    "flag": {
+                      "href": "https://a.espncdn.com/i/teamlogos/countries/500/ned.png",
+                      "alt": "Netherlands",
+                      "rel": [
+                        "country-flag"
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "F1-upcoming",
+      "events": [
+        {
+          "id": "600057447",
+          "date": "2026-10-30T18:30Z",
+          "endDate": "2026-11-01T20:00Z",
+          "name": "Mexico City Grand Prix",
+          "status": {
+            "clock": 0.0,
+            "displayClock": "0:00",
+            "period": 0,
+            "type": {
+              "id": "1",
+              "name": "STATUS_SCHEDULED",
+              "state": "pre",
+              "completed": false,
+              "description": "Scheduled",
+              "detail": "Fri, October 30th at 2:30 PM EDT",
+              "shortDetail": "10/30 - 2:30 PM EDT"
+            }
+          },
+          "circuit": {
+            "id": "782",
+            "fullName": "Autodromo Hermanos Rodriguez",
+            "address": {
+              "city": "Mexico city",
+              "country": "Mexico"
+            }
+          },
+          "competitions": [
+            {
+              "id": "401839123",
+              "date": "2026-10-30T18:30Z",
+              "startDate": "2026-10-30T18:30Z",
+              "type": {
+                "id": "1",
+                "abbreviation": "FP1"
+              },
+              "status": {
+                "clock": 0.0,
+                "displayClock": "0:00",
+                "period": 0,
+                "type": {
+                  "id": "1",
+                  "name": "STATUS_SCHEDULED",
+                  "state": "pre",
+                  "completed": false,
+                  "description": "Scheduled",
+                  "detail": "Fri, October 30th at 2:30 PM EDT",
+                  "shortDetail": "10/30 - 2:30 PM EDT"
+                }
+              },
+              "competitors": []
+            },
+            {
+              "id": "401839124",
+              "date": "2026-10-30T22:00Z",
+              "startDate": "2026-10-30T22:00Z",
+              "type": {
+                "id": "1",
+                "abbreviation": "FP2"
+              },
+              "status": {
+                "clock": 0.0,
+                "displayClock": "0:00",
+                "period": 0,
+                "type": {
+                  "id": "1",
+                  "name": "STATUS_SCHEDULED",
+                  "state": "pre",
+                  "completed": false,
+                  "description": "Scheduled",
+                  "detail": "Fri, October 30th at 6:00 PM EDT",
+                  "shortDetail": "10/30 - 6:00 PM EDT"
+                }
+              },
+              "competitors": []
+            },
+            {
+              "id": "401839125",
+              "date": "2026-10-31T17:30Z",
+              "startDate": "2026-10-31T17:30Z",
+              "type": {
+                "id": "1",
+                "abbreviation": "FP3"
+              },
+              "status": {
+                "clock": 0.0,
+                "displayClock": "0:00",
+                "period": 0,
+                "type": {
+                  "id": "1",
+                  "name": "STATUS_SCHEDULED",
+                  "state": "pre",
+                  "completed": false,
+                  "description": "Scheduled",
+                  "detail": "Sat, October 31st at 1:30 PM EDT",
+                  "shortDetail": "10/31 - 1:30 PM EDT"
+                }
+              },
+              "competitors": []
+            },
+            {
+              "id": "401839126",
+              "date": "2026-10-31T21:00Z",
+              "startDate": "2026-10-31T21:00Z",
+              "type": {
+                "id": "2",
+                "abbreviation": "Qual"
+              },
+              "status": {
+                "clock": 0.0,
+                "displayClock": "0:00",
+                "period": 0,
+                "type": {
+                  "id": "1",
+                  "name": "STATUS_SCHEDULED",
+                  "state": "pre",
+                  "completed": false,
+                  "description": "Scheduled",
+                  "detail": "Sat, October 31st at 5:00 PM EDT",
+                  "shortDetail": "10/31 - 5:00 PM EDT"
+                }
+              },
+              "competitors": []
+            },
+            {
+              "id": "401839127",
+              "date": "2026-11-01T20:00Z",
+              "startDate": "2026-11-01T20:00Z",
+              "type": {
+                "id": "3",
+                "abbreviation": "Race"
+              },
+              "status": {
+                "clock": 0.0,
+                "displayClock": "0:00",
+                "period": 0,
+                "type": {
+                  "id": "1",
+                  "name": "STATUS_SCHEDULED",
+                  "state": "pre",
+                  "completed": false,
+                  "description": "Scheduled",
+                  "detail": "Sun, November 1st at 3:00 PM EST",
+                  "shortDetail": "11/1 - 3:00 PM EST"
+                }
+              },
+              "competitors": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Cricket-international",
+      "events": [
+        {
+          "id": "1525661",
+          "date": "2026-10-27T08:30Z",
+          "endDate": "2026-11-01T23:59Z",
+          "name": "South Africa v Australia",
+          "status": {
+            "clock": 0,
+            "displayClock": "0'",
+            "period": 2,
+            "session": "Day 2",
+            "summary": "Australia lead by 1 run",
+            "type": {
+              "id": "112",
+              "description": "Stumps",
+              "detail": "Live",
+              "shortDetail": "Live",
+              "state": "in"
+            }
+          },
+          "competitions": [
+            {
+              "id": "1525661",
+              "date": "2026-10-27T08:30Z",
+              "startDate": "2026-10-27T08:30Z",
+              "endDate": "2026-11-01T23:59Z",
+              "status": {
+                "clock": 0,
+                "displayClock": "0'",
+                "period": 2,
+                "session": "Day 2",
+                "summary": "Australia lead by 1 run",
+                "type": {
+                  "id": "112",
+                  "description": "Stumps",
+                  "detail": "Live",
+                  "shortDetail": "Live",
+                  "state": "in"
+                }
+              },
+              "situation": {},
+              "class": {
+                "internationalClassId": "1",
+                "generalClassId": "4",
+                "generalClassCard": "Test",
+                "name": "Test matches",
+                "eventType": "Test"
+              },
+              "competitors": [
+                {
+                  "id": "3",
+                  "type": "team",
+                  "order": 1,
+                  "homeAway": "home",
+                  "score": "329",
+                  "linescores": [
+                    {
+                      "period": 1,
+                      "value": 1,
+                      "displayValue": 1,
+                      "wickets": 10,
+                      "runs": 329,
+                      "overs": 82.3,
+                      "isBatting": true,
+                      "description": "all out",
+                      "isCurrent": 0
+                    },
+                    {
+                      "period": 2,
+                      "value": 2,
+                      "displayValue": 2,
+                      "wickets": 0,
+                      "runs": 0,
+                      "overs": 90.0,
+                      "isBatting": false,
+                      "description": "",
+                      "isCurrent": 1
+                    }
+                  ],
+                  "winner": "false",
+                  "team": {
+                    "id": "3",
+                    "displayName": "South Africa",
+                    "abbreviation": "SA",
+                    "logo": "https://a.espncdn.com/i/teamlogos/cricket/500/3.png",
+                    "logoDark": ""
+                  }
+                },
+                {
+                  "id": "2",
+                  "type": "team",
+                  "order": 2,
+                  "homeAway": "away",
+                  "score": "330/4 (90 ov)",
+                  "linescores": [
+                    {
+                      "period": 1,
+                      "value": 1,
+                      "displayValue": 1,
+                      "wickets": 0,
+                      "runs": 0,
+                      "overs": 82.3,
+                      "isBatting": false,
+                      "description": "all out",
+                      "isCurrent": 0
+                    },
+                    {
+                      "period": 2,
+                      "value": 2,
+                      "displayValue": 2,
+                      "wickets": 4,
+                      "runs": 330,
+                      "overs": 90.0,
+                      "isBatting": true,
+                      "description": "",
+                      "isCurrent": 1
+                    }
+                  ],
+                  "winner": "false",
+                  "team": {
+                    "id": "2",
+                    "displayName": "Australia",
+                    "abbreviation": "AUS",
+                    "logo": "https://a.espncdn.com/i/teamlogos/cricket/500/2.png",
+                    "logoDark": ""
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Cricket-Shield-next",
+      "events": [
+        {
+          "id": "1544870",
+          "date": "2026-10-28T00:00Z",
+          "endDate": "2026-11-01T23:59Z",
+          "name": "South Australia v Western Australia",
+          "status": {
+            "clock": 0,
+            "displayClock": "0'",
+            "period": 1,
+            "session": "Day 1",
+            "summary": "West Aust won toss & batted",
+            "type": {
+              "id": "112",
+              "description": "Stumps",
+              "detail": "Live",
+              "shortDetail": "Live",
+              "state": "in"
+            }
+          },
+          "competitions": [
+            {
+              "id": "1544870",
+              "date": "2026-10-28T00:00Z",
+              "startDate": "2026-10-28T00:00Z",
+              "endDate": "2026-11-01T23:59Z",
+              "status": {
+                "clock": 0,
+                "displayClock": "0'",
+                "period": 1,
+                "session": "Day 1",
+                "summary": "West Aust won toss & batted",
+                "type": {
+                  "id": "112",
+                  "description": "Stumps",
+                  "detail": "Live",
+                  "shortDetail": "Live",
+                  "state": "in"
+                }
+              },
+              "situation": {},
+              "class": {
+                "internationalClassId": "0",
+                "generalClassId": "4",
+                "generalClassCard": "First-class",
+                "name": "First-class matches",
+                "eventType": "Test"
+              },
+              "competitors": [
+                {
+                  "id": "520",
+                  "type": "team",
+                  "order": 2,
+                  "homeAway": "home",
+                  "score": "",
+                  "linescores": [
+                    {
+                      "period": 1,
+                      "value": 1,
+                      "displayValue": 1,
+                      "wickets": 0,
+                      "runs": 0,
+                      "overs": 96.0,
+                      "isBatting": false,
+                      "description": "",
+                      "isCurrent": 1
+                    }
+                  ],
+                  "winner": "false",
+                  "team": {
+                    "id": "520",
+                    "displayName": "South Australia",
+                    "abbreviation": "SOA",
+                    "logo": "https://a.espncdn.com/i/teamlogos/cricket/500/520.png",
+                    "logoDark": ""
+                  }
+                },
+                {
+                  "id": "602",
+                  "type": "team",
+                  "order": 1,
+                  "homeAway": "away",
+                  "score": "304/3 (96 ov)",
+                  "linescores": [
+                    {
+                      "period": 1,
+                      "value": 1,
+                      "displayValue": 1,
+                      "wickets": 3,
+                      "runs": 304,
+                      "overs": 96.0,
+                      "isBatting": true,
+                      "description": "",
+                      "isCurrent": 1
+                    }
+                  ],
+                  "winner": "false",
+                  "team": {
+                    "id": "602",
+                    "displayName": "Western Australia",
+                    "abbreviation": "WA",
+                    "logo": "https://a.espncdn.com/i/teamlogos/cricket/500/602.png",
+                    "logoDark": ""
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "1544871",
+          "date": "2026-10-29T23:30Z",
+          "endDate": "2026-11-02T23:59Z",
+          "name": "Tasmania v New South Wales",
+          "status": {
+            "clock": 0,
+            "displayClock": "0'",
+            "period": 0,
+            "summary": "Starts at 10:30 local time",
+            "type": {
+              "id": "0",
+              "description": "Scheduled",
+              "detail": "Scheduled",
+              "shortDetail": "Scheduled",
+              "state": "pre"
+            }
+          },
+          "competitions": [
+            {
+              "id": "1544871",
+              "date": "2026-10-29T23:30Z",
+              "startDate": "2026-10-29T23:30Z",
+              "endDate": "2026-11-02T23:59Z",
+              "status": {
+                "clock": 0,
+                "displayClock": "0'",
+                "period": 0,
+                "summary": "Starts at 10:30 local time",
+                "type": {
+                  "id": "0",
+                  "description": "Scheduled",
+                  "detail": "Scheduled",
+                  "shortDetail": "Scheduled",
+                  "state": "pre"
+                }
+              },
+              "class": {
+                "internationalClassId": "0",
+                "generalClassId": "4",
+                "generalClassCard": "First-class",
+                "name": "First-class matches",
+                "eventType": "Test"
+              },
+              "competitors": [
+                {
+                  "id": "560",
+                  "type": "team",
+                  "order": 1,
+                  "homeAway": "home",
+                  "score": "",
+                  "linescores": [],
+                  "winner": "false",
+                  "team": {
+                    "id": "560",
+                    "displayName": "Tasmania",
+                    "abbreviation": "TAS",
+                    "logo": "https://a.espncdn.com/i/teamlogos/cricket/500/560.png",
+                    "logoDark": ""
+                  }
+                },
+                {
+                  "id": "387",
+                  "type": "team",
+                  "order": 2,
+                  "homeAway": "away",
+                  "score": "",
+                  "linescores": [],
+                  "winner": "false",
+                  "team": {
+                    "id": "387",
+                    "displayName": "New South Wales",
+                    "abbreviation": "NSW",
+                    "logo": "https://a.espncdn.com/i/teamlogos/cricket/500/387.png",
+                    "logoDark": ""
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Cricket-discovery",
+      "discoveredSeries": [
+        {
+          "id": "8043",
+          "name": "Sheffield Shield",
+          "eventIds": [
+            "1544870"
+          ]
+        },
+        {
+          "id": "8880",
+          "name": "The Ford Trophy",
+          "eventIds": [
+            "1550286"
+          ]
+        },
+        {
+          "id": "8050",
+          "name": "Ranji Trophy",
+          "eventIds": [
+            "1546580",
+            "1546570",
+            "1546573",
+            "1546562",
+            "1546577",
+            "1546569",
+            "1546566",
+            "1546567",
+            "1546572",
+            "1546571",
+            "1546578",
+            "1546579",
+            "1546574",
+            "1546565",
+            "1546568",
+            "1546575",
+            "1546564"
+          ]
+        },
+        {
+          "id": "21284",
+          "name": "Women's Big Bash League",
+          "eventIds": [
+            "1543944",
+            "1543945"
+          ]
+        },
+        {
+          "id": "19439",
+          "name": "ICC Men's Cricket World Cup League 2",
+          "eventIds": [
+            "1559565"
+          ]
+        },
+        {
+          "id": "8836",
+          "name": "President's Trophy",
+          "eventIds": [
+            "1553805"
+          ]
+        },
+        {
+          "id": "24203",
+          "name": "Australia tour of South Africa 2026/27",
+          "eventIds": [
+            "1525661"
+          ]
+        },
+        {
+          "id": "24756",
+          "name": "West Indies tour of Bangladesh 2026/27",
+          "eventIds": [
+            "1553295"
+          ]
+        },
+        {
+          "id": "24371",
+          "name": "Zimbabwe Women tour of India 2026/27",
+          "eventIds": [
+            "1535657"
+          ]
+        },
+        {
+          "id": "1559944",
+          "name": "NCL GT20 Canada 2026/27",
+          "eventIds": [
+            "1559959",
+            "1559960"
+          ]
+        },
+        {
+          "id": "8656",
+          "name": "South Africa Domestic T20/Pro20",
+          "eventIds": [
+            "1551888"
+          ]
+        },
+        {
+          "id": "23081",
+          "name": "Nepal Premier League",
+          "eventIds": [
+            "1558586",
+            "1558587"
+          ]
+        },
+        {
+          "id": "1550706",
+          "name": "Pakistan ODI Tri-Series",
+          "eventIds": [
+            "1550718"
+          ]
+        },
+        {
+          "id": "24799",
+          "name": "Zimbabwe tour of United Arab Emirates 2026/27",
+          "eventIds": [
+            "1555121"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Cricket-future-scorepanel",
+      "discoveredSeries": [
+        {
+          "id": "19553",
+          "name": "CWC Challenge League Group A",
+          "eventIds": [
+            "1559454",
+            "1559453"
+          ]
+        },
+        {
+          "id": "8043",
+          "name": "Sheffield Shield",
+          "eventIds": [
+            "1544870",
+            "1544871"
+          ]
+        },
+        {
+          "id": "8880",
+          "name": "The Ford Trophy",
+          "eventIds": [
+            "1550287",
+            "1550289",
+            "1550288"
+          ]
+        },
+        {
+          "id": "21284",
+          "name": "Women's Big Bash League",
+          "eventIds": [
+            "1543947",
+            "1543948"
+          ]
+        },
+        {
+          "id": "19439",
+          "name": "ICC Men's Cricket World Cup League 2",
+          "eventIds": [
+            "1559566"
+          ]
+        },
+        {
+          "id": "8836",
+          "name": "President's Trophy",
+          "eventIds": [
+            "1553805"
+          ]
+        },
+        {
+          "id": "24203",
+          "name": "Australia tour of South Africa 2026/27",
+          "eventIds": [
+            "1525661"
+          ]
+        },
+        {
+          "id": "24756",
+          "name": "West Indies tour of Bangladesh 2026/27",
+          "eventIds": [
+            "1553295"
+          ]
+        },
+        {
+          "id": "24805",
+          "name": "India A tour of New Zealand 2026/27",
+          "eventIds": [
+            "1552530"
+          ]
+        },
+        {
+          "id": "8768",
+          "name": "Hong Kong International Cricket Sixes",
+          "eventIds": [
+            "1559202",
+            "1559203",
+            "1559204",
+            "1559205",
+            "1559206",
+            "1559207",
+            "1559208",
+            "1559209",
+            "1559210"
+          ]
+        },
+        {
+          "id": "8814",
+          "name": "National Cricket League",
+          "eventIds": [
+            "1555683",
+            "1555682",
+            "1555684",
+            "1555681"
+          ]
+        },
+        {
+          "id": "23081",
+          "name": "Nepal Premier League",
+          "eventIds": [
+            "1558588",
+            "1558589"
+          ]
+        },
+        {
+          "id": "1550706",
+          "name": "Pakistan ODI Tri-Series",
+          "eventIds": [
+            "1550719"
+          ]
+        },
+        {
+          "id": "8656",
+          "name": "South Africa Domestic T20/Pro20",
+          "eventIds": [
+            "1551890",
+            "1551891"
+          ]
+        },
+        {
+          "id": "1559944",
+          "name": "NCL GT20 Canada 2026/27",
+          "eventIds": [
+            "1559965",
+            "1559966"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "AFL goals/behinds enrichment",
+      "teams": [
+        {
+          "team": {
+            "id": "1",
+            "displayName": "Fremantle"
+          },
+          "statistics": [
+            {
+              "name": "goals",
+              "displayValue": "12",
+              "abbreviation": "G",
+              "label": "Goals"
+            },
+            {
+              "name": "behinds",
+              "displayValue": "17",
+              "abbreviation": "B",
+              "label": "Behinds"
+            },
+            {
+              "name": "score",
+              "displayValue": "89",
+              "abbreviation": "S",
+              "label": "Score"
+            }
+          ]
+        },
+        {
+          "team": {
+            "id": "11",
+            "displayName": "Brisbane Lions"
+          },
+          "statistics": [
+            {
+              "name": "goals",
+              "displayValue": "14",
+              "abbreviation": "G",
+              "label": "Goals"
+            },
+            {
+              "name": "behinds",
+              "displayValue": "12",
+              "abbreviation": "B",
+              "label": "Behinds"
+            },
+            {
+              "name": "score",
+              "displayValue": "96",
+              "abbreviation": "S",
+              "label": "Score"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "F1-core-status",
+      "data": {
+        "clock": 0.0,
+        "displayClock": "0:00",
+        "period": 56,
+        "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+        },
+        "flag": "CHECKER"
+      }
+    },
+    {
+      "label": "F1-core-stats",
+      "data": {
+        "splits": {
+          "id": "0",
+          "name": "All Splits",
+          "abbreviation": "TOT",
+          "type": "total",
+          "categories": [
+            {
+              "name": "general",
+              "displayName": "General",
+              "shortDisplayName": "General",
+              "abbreviation": "gen",
+              "summary": "",
+              "stats": [
+                {
+                  "name": "lapsLead",
+                  "displayName": "Laps Led",
+                  "shortDisplayName": "Laps Led",
+                  "description": "Total laps led in the race",
+                  "abbreviation": "LL",
+                  "value": 1.0,
+                  "displayValue": "1"
+                },
+                {
+                  "name": "lapsCompleted",
+                  "displayName": "Laps Completed",
+                  "shortDisplayName": "Laps Completed",
+                  "description": "Total laps completed in the race",
+                  "abbreviation": "LC",
+                  "value": 56.0,
+                  "displayValue": "56"
+                },
+                {
+                  "name": "championshipPts",
+                  "displayName": "Championship Points",
+                  "shortDisplayName": "Championship Points",
+                  "description": "Championship points earned for the race",
+                  "abbreviation": "CP",
+                  "value": 25.0,
+                  "displayValue": "25"
+                },
+                {
+                  "name": "bonus",
+                  "displayName": "Bonus Points",
+                  "shortDisplayName": "Bonus",
+                  "description": "Bonus points earned for the race",
+                  "abbreviation": "B",
+                  "value": 0.0,
+                  "displayValue": "0"
+                },
+                {
+                  "name": "penaltyPts",
+                  "displayName": "Penalty Points",
+                  "shortDisplayName": "Penalty Points",
+                  "description": "Penalty points earned for the race",
+                  "abbreviation": "PP",
+                  "value": 0.0,
+                  "displayValue": "0"
+                },
+                {
+                  "name": "pitsTaken",
+                  "displayName": "Pits Taken",
+                  "shortDisplayName": "Pits Taken",
+                  "description": "Pits Taken",
+                  "abbreviation": "PT",
+                  "value": 1.0,
+                  "displayValue": "1"
+                },
+                {
+                  "name": "place",
+                  "displayName": "Place",
+                  "shortDisplayName": "Place",
+                  "description": "Place",
+                  "abbreviation": "P",
+                  "value": 1.0,
+                  "displayValue": "1"
+                },
+                {
+                  "name": "wins",
+                  "displayName": "Wins",
+                  "shortDisplayName": "Wins",
+                  "description": "Wins",
+                  "abbreviation": "WINS",
+                  "value": 1.0,
+                  "displayValue": "1"
+                },
+                {
+                  "name": "pole",
+                  "displayName": "Pole",
+                  "shortDisplayName": "Pole",
+                  "description": "Pole",
+                  "abbreviation": "POLE",
+                  "value": 1.0,
+                  "displayValue": "1"
+                },
+                {
+                  "name": "top5",
+                  "displayName": "Top 5",
+                  "shortDisplayName": "Top 5",
+                  "description": "Top 5",
+                  "abbreviation": "T5",
+                  "value": 1.0,
+                  "displayValue": "1"
+                },
+                {
+                  "name": "top10",
+                  "displayName": "Top 10",
+                  "shortDisplayName": "Top 10",
+                  "description": "Top 10",
+                  "abbreviation": "T10",
+                  "value": 1.0,
+                  "displayValue": "1"
+                },
+                {
+                  "name": "totalTime",
+                  "displayName": "Total Race Time",
+                  "shortDisplayName": "Total Race Time",
+                  "description": "Total Race Time",
+                  "abbreviation": "TOT",
+                  "value": 5716650.0,
+                  "displayValue": "1:35:16.650"
+                },
+                {
+                  "name": "qual1TimeMS",
+                  "displayName": "Q1 Race Time",
+                  "shortDisplayName": "Q1 Race Time",
+                  "description": "Time for the first qualifying run",
+                  "abbreviation": "Q1",
+                  "value": 0.0,
+                  "displayValue": "0.000"
+                },
+                {
+                  "name": "qual2TimeMS",
+                  "displayName": "Q2 Race Time",
+                  "shortDisplayName": "Q2 Race Time",
+                  "description": "Time for the first qualifying run",
+                  "abbreviation": "Q2",
+                  "value": 0.0,
+                  "displayValue": "0.000"
+                },
+                {
+                  "name": "qual3TimeMS",
+                  "displayName": "Q3 Race Time",
+                  "shortDisplayName": "Q3 Race Time",
+                  "description": "Time for the first qualifying run",
+                  "abbreviation": "Q3",
+                  "value": 0.0,
+                  "displayValue": "0.000"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "label": "NFL historical play situation schema",
+      "play": {
+        "id": "40187300963",
+        "wallclock": "2026-10-27T00:17:02Z",
+        "period": {
+          "number": 1
+        },
+        "clock": {
+          "displayValue": "14:55"
+        },
+        "homeScore": 0,
+        "awayScore": 0,
+        "start": {
+          "down": 1,
+          "distance": 10,
+          "yardLine": 65,
+          "yardsToEndzone": 65,
+          "downDistanceText": "1st & 10 at DAL 35",
+          "shortDownDistanceText": "1st & 10",
+          "possessionText": "DAL 35",
+          "team": {
+            "id": "6"
+          }
+        },
+        "end": {
+          "down": 2,
+          "distance": 4,
+          "yardLine": 59,
+          "yardsToEndzone": 59,
+          "downDistanceText": "2nd & 4 at DAL 41",
+          "shortDownDistanceText": "2nd & 4",
+          "possessionText": "DAL 41",
+          "team": {
+            "id": "6"
+          }
+        }
+      }
+    },
+    {
+      "label": "MLB historical play situation schema",
+      "play": {
+        "id": "4019080450003990057",
+        "wallclock": "2026-10-28T00:12:21Z",
+        "period": {
+          "type": "Top",
+          "number": 1,
+          "displayValue": "1st Inning"
+        },
+        "homeScore": 0,
+        "awayScore": 0,
+        "pitchCount": {
+          "balls": 4,
+          "strikes": 0
+        },
+        "resultCount": {
+          "balls": 4,
+          "strikes": 0
+        },
+        "outs": 2,
+        "onFirst": {
+          "athlete": {
+            "id": "31283"
+          }
+        }
+      }
+    }
+  ]
+}

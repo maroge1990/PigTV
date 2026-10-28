@@ -81,6 +81,7 @@ async function sendInfo(req, res) {
             // 0148 (C-I): GET /api/sports/events lists sport events recognised per
             // programme, each with its channels best first.
             sportsEvents: true,
+            sportsDashboard: require('../services/sportsDashboard').enabled(),
             // 0156: GET /api/recordings/scheduled?include=recent also lists schedules
             // that ended up missed or failed in the last 7 days, each with its status
             // and error - a missed/failed recording no longer simply disappears.
