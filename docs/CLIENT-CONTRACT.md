@@ -81,6 +81,10 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
   This planned renewal does not promote standby, quarantine the provider or count as a lost/recovered play in interruption
   statistics; Status uses relay reason `reconnected`. Recordings, probes, warm/standby readers, sessions without a relay,
   the 0191 direct-read guard, ffmpeg flags and the Apple 30 s live hold are unchanged. A promoted standby becomes a viewer.
+- **0306** prepares a container upgrade to a pinned FFmpeg/ffprobe **9.0.2** pair, matching Linux CI's release/feature
+  recipe. The final image is capability-checked and tested before publication. Playback/probe/recording arguments,
+  endpoint shapes, capability negotiation, HDR/frame-rate metadata policy and the Apple 30 s hold are unchanged.
+  Linux image and device acceptance are pending; see `docs/MEDIA-TOOLCHAIN.md`. This does not establish an FR-22 sound fix.
 - Resolve failure `error` texts start with a C-B prefix and never contain a URL; the client shows only those.
 - A start stopped on request answers **499** `{error, superseded: true}` (0180); the client ignores it.
 - `recordings/scheduled` rows: `program_end` can **move later** after scheduling (0214, R4: it follows the guide after a

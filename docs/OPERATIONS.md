@@ -87,3 +87,9 @@ exclude `recordings-work/` from any appdata backup: it is large, short-lived, an
    container pointed back at the previous image)
 3. Make sure the owner matches (`chown 99:100 content.db`; the entrypoint also corrects this at start).
 4. Start the container and check the log and Status page.
+
+## Media toolchain
+
+0306 prepares a pinned FFmpeg/ffprobe 9.0.2 image and matching Linux CI recipe. Require its final-candidate tests before
+deploying, then check both tool versions and the host hardware path. Local Docker/image validation has not run. Build,
+acceptance and rollback details: [MEDIA-TOOLCHAIN.md](MEDIA-TOOLCHAIN.md).

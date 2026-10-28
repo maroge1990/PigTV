@@ -1,0 +1,27 @@
+name: Pinned production media tools
+description: Build/cache the same FFmpeg release and feature recipe as the production image
+runs:
+  using: composite
+  steps:
+    - name: Restore media tools
+      id: media-cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/pigtv-ffmpeg
+        key: media-ubuntu24-amd64-${{ hashFiles('docker/media-toolchain.conf', 'docker/build-media-tools.sh', 'docker/install-media-deps.sh') }}
+    - name: Install runtime dependencies
+      if: steps.media-cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: sudo bash docker/install-media-deps.sh runtime
+    - name: Build pinned media tools
+      if: steps.media-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        sudo bash docker/install-media-deps.sh build
+        bash docker/build-media-tools.sh "$RUNNER_TEMP/pigtv-ffmpeg"
+    - name: Select and verify media tools
+      shell: bash
+      run: |
+        export PATH="$RUNNER_TEMP/pigtv-ffmpeg/bin:$PATH"
+        node scripts/check-media-tools.js --hardware
+        echo "$RUNNER_TEMP/pigtv-ffmpeg/bin" >> "$GITHUB_PATH"

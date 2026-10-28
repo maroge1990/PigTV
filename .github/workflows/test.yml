@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         node: [22, 24]
@@ -22,10 +22,8 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-      # The tests need SQLite, not downloaded FFmpeg/ffprobe executables. The
-      # system ffmpeg is for the tests that probe and remux real files (0192),
-      # which skip without it.
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      # One source recipe/release for Linux tests and the production image.
+      - uses: ./.github/actions/setup-media-tools
       - run: npm ci --ignore-scripts
       - run: npm rebuild better-sqlite3
       # Speed budgets are not part of the gate: a slow shared runner must not block an image
@@ -33,11 +31,12 @@ jobs:
       - run: npm test
         env:
           PIGTV_SKIP_PERF: '1'
+      - run: bash scripts/verify-build.sh .
 
   perf:
     # Reports, never blocks: continue-on-error keeps a slow runner from failing the workflow
     # that docker-publish.yml waits on.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4

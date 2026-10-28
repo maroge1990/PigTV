@@ -1,0 +1,27 @@
+sample: /private/tmp/pigtv-ffmpeg-upgrade/hevc-hdr50-heaac.ts  (1.7 MB)
+codecs: hevc/aac, classified even
+ffmpeg: ffmpeg version 6.1.1 Copyright (c) 2000-2023 the FFmpeg developers
+
+[TranscodeSession a204ea49304d81e2] Audio: Copy (client capabilities confirm aac support)
+[TranscodeSession 6b8c5c10acdb695b] Audio: Copy (client capabilities confirm aac support)
+[Ingest 1] reading 6684a30a51c3 for pool bench
+[Ingest 1] lost the stream (the provider ended the stream); reconnecting
+[Ingest 1] gave up: HTTP 404
+[Ingest 1] closed (HTTP 404); most behind real time 1s
+=== HLS fmp4 (copy A/V) ===
+  url      4 segments, 16.02s, start 0.04, 800pkt mean 20.000ms, 0 outliers, 0 backwards, warnings none
+  ingest   4 segments, 16.02s, start 0.04, 800pkt mean 20.000ms, 0 outliers, 0 backwards, warnings none
+  verdict  SAME
+
+[TranscodeSession 50023fea8e87ff55] Audio: Auto (Smart Copy) - Source is Stereo AAC
+[TranscodeSession 21916a8a39537a91] Audio: Auto (Smart Copy) - Source is Stereo AAC
+[Ingest 2] reading 5dad03b1ef08 for pool bench
+[Ingest 2] lost the stream (the provider ended the stream); reconnecting
+[Ingest 2] gave up: HTTP 404
+[Ingest 2] closed (HTTP 404); most behind real time 1s
+=== HLS mpegts (copy V, encode A) ===
+  url      4 segments, 16.02s, start 1.44, 800pkt mean 20.000ms, 0 outliers, 0 backwards, warnings none
+  ingest   4 segments, 16.02s, start 1.44, 800pkt mean 20.000ms, 0 outliers, 0 backwards, warnings none
+  verdict  SAME
+
+Through the ingest: the same output as reading the URL.

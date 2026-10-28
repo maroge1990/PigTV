@@ -1327,7 +1327,7 @@ check scripts/stream-doctor.js "function rawFetch(" "capture keeps the provider'
 
 echo "=== 0192: recording codec probe reads ffprobe JSON (audit R02) ==="
 check_absent server/services/recordingEngine.js "const \[type, name\] = line.split(',');" "never by CSV column position"
-check .github/workflows/test.yml "apt-get install -y --no-install-recommends ffmpeg" "CI has ffmpeg, so those tests run"
+check .github/workflows/test.yml "uses: ./.github/actions/setup-media-tools" "CI selects the pinned production media recipe, so real-media tests run"
 
 echo "=== 0193: recordings prepared ahead of Play; verified compression (audit R06, R08) ==="
 check_absent server/services/recordingEngine.js "const durationOk = !sourceDuration || !newDuration" "an unreadable length no longer passes verification"
@@ -1378,6 +1378,30 @@ check public/js/pages/Settings.js "standby.checked = s.standbyEnabled === true &
 echo "=== simplification build ==="
 check_absent server/routes/info.js "safely(" "no switchable feature flags left to guard"
 check .github/workflows/test.yml "continue-on-error: true" "and run in their own non-blocking job"
+
+# 0306: placement/build invariants, beyond the executable media-tool tests.
+python3 - <<'MEDIA_CHECK' || FAIL=1
+from pathlib import Path
+import sys
+image = Path('Dockerfile').read_text()
+workflow = Path('.github/workflows/docker-publish.yml').read_text()
+try:
+    assert 'FROM ubuntu:24.04 AS media-build' in image
+    assert 'COPY --from=media-build /opt/pigtv-ffmpeg /opt/pigtv-ffmpeg' in image
+    assert 'ENV PATH="/opt/pigtv-ffmpeg/bin:${PATH}"' in image
+    assert 'node /media-check/scripts/check-media-tools.js --hardware' in image
+    build = workflow.index('name: Build candidate without publishing')
+    test = workflow.index('name: Test candidate runtime')
+    publish = workflow.index('name: Publish validated candidate')
+    assert build < test < publish
+    assert 'push: false' in workflow[build:test] and 'load: true' in workflow[build:test]
+    assert 'push: true' not in workflow
+    assert 'npm test' in workflow[test:publish] and 'pigtv:candidate -c' in workflow[test:publish]
+    assert 'docker tag pigtv:candidate' in workflow[publish:] and 'docker push' in workflow[publish:]
+    print('  ✓ pinned media binaries are selected and the final candidate is tested before publication')
+except (AssertionError, ValueError):
+    print('  ✗ pinned media runtime or candidate publication gate is missing/misplaced'); sys.exit(1)
+MEDIA_CHECK
 
 # 0291: retired, unreferenced web scripts and server entry points must stay gone.
 for retired in public/js/auth.js public/js/login.js; do

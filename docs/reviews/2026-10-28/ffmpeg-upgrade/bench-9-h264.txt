@@ -1,0 +1,27 @@
+sample: /private/tmp/pigtv-ffmpeg-upgrade/h264-5994-lc.ts  (7.7 MB)
+codecs: h264/aac, classified even
+ffmpeg: ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers
+
+[TranscodeSession bcded81ab77a7fff] Audio: Copy (client capabilities confirm aac support)
+[TranscodeSession 7d52bd84d2d53457] Audio: Copy (client capabilities confirm aac support)
+[Ingest 1] reading 0e4874864d9a for pool bench
+[Ingest 1] lost the stream (the provider ended the stream); reconnecting
+[Ingest 1] gave up: HTTP 404
+[Ingest 1] closed (HTTP 404); most behind real time 1s
+=== HLS fmp4 (copy A/V) ===
+  url      4 segments, 16.00s, start 0, 959pkt mean 16.683ms, 0 outliers, 0 backwards, warnings none
+  ingest   4 segments, 16.00s, start 0, 959pkt mean 16.683ms, 0 outliers, 0 backwards, warnings none
+  verdict  SAME
+
+[TranscodeSession 0aee7270f5018df4] Audio: Auto (Smart Copy) - Source is Stereo AAC
+[TranscodeSession 920b5528412b5bfd] Audio: Auto (Smart Copy) - Source is Stereo AAC
+[Ingest 2] reading 0d1b29abbe7a for pool bench
+[Ingest 2] lost the stream (the provider ended the stream); reconnecting
+[Ingest 2] gave up: HTTP 404
+[Ingest 2] closed (HTTP 404); most behind real time 1s
+=== HLS mpegts (copy V, encode A) ===
+  url      4 segments, 16.00s, start 1.4, 959pkt mean 16.683ms, 0 outliers, 0 backwards, warnings none
+  ingest   4 segments, 16.00s, start 1.4, 959pkt mean 16.683ms, 0 outliers, 0 backwards, warnings none
+  verdict  SAME
+
+Through the ingest: the same output as reading the URL.

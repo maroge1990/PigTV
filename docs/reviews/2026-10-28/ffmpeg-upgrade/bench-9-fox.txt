@@ -1,0 +1,27 @@
+sample: /private/tmp/claude-501/-Users-markrogers-Documents-GitHub-PigTV/a1811a72-cb4b-4e02-8d3f-f4b764ba4ed8/scratchpad/avrepro/fox.ts  (48.4 MB)
+codecs: h264/aac, classified even
+ffmpeg: ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers
+
+[TranscodeSession cdef569aee49b2e5] Audio: Copy (client capabilities confirm aac support)
+[TranscodeSession b7407ed07d0d12ed] Audio: Copy (client capabilities confirm aac support)
+[Ingest 1] reading 12c94db2dc72 for pool bench
+[Ingest 1] lost the stream (the provider ended the stream); reconnecting
+[Ingest 1] gave up: HTTP 404
+[Ingest 1] closed (HTTP 404); most behind real time 1s
+=== HLS fmp4 (copy A/V) ===
+  url      20 segments, 76.78s, start 0.02, 4602pkt mean 16.683ms, 0 outliers, 0 backwards, warnings packet duration out of range=20
+  ingest   20 segments, 76.78s, start 0.02, 4602pkt mean 16.683ms, 0 outliers, 0 backwards, warnings packet duration out of range=20
+  verdict  SAME
+
+[TranscodeSession 2413f87dc7390a52] Audio: Auto (Smart Copy) - Source is Stereo AAC
+[TranscodeSession 7ed61b7c32eb6377] Audio: Auto (Smart Copy) - Source is Stereo AAC
+[Ingest 2] reading 61e62cd86dad for pool bench
+[Ingest 2] lost the stream (the provider ended the stream); reconnecting
+[Ingest 2] gave up: HTTP 404
+[Ingest 2] closed (HTTP 404); most behind real time 1s
+=== HLS mpegts (copy V, encode A) ===
+  url      20 segments, 76.78s, start 1.42, 4602pkt mean 16.683ms, 0 outliers, 0 backwards, warnings none
+  ingest   20 segments, 76.78s, start 1.42, 4602pkt mean 16.683ms, 0 outliers, 0 backwards, warnings none
+  verdict  SAME
+
+Through the ingest: the same output as reading the URL.

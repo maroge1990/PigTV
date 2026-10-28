@@ -6,10 +6,10 @@ name: Container smoke test
 # PUID/PGID through docker/entrypoint.sh, and nothing else exercises that.
 on:
   pull_request:
-    paths: ['Dockerfile', 'docker/**', '.dockerignore', 'package*.json', '.github/workflows/docker-smoke.yml']
+    paths: ['Dockerfile', 'docker/**', '.dockerignore', 'package*.json', '.github/workflows/docker-smoke.yml', 'scripts/check-media-tools.js']
   push:
     branches-ignore: [main]
-    paths: ['Dockerfile', 'docker/**', '.dockerignore', 'package*.json', '.github/workflows/docker-smoke.yml']
+    paths: ['Dockerfile', 'docker/**', '.dockerignore', 'package*.json', '.github/workflows/docker-smoke.yml', 'scripts/check-media-tools.js']
   workflow_dispatch:
 
 permissions:
@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   smoke:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -53,7 +53,7 @@ jobs:
           docker logs pigtv 2>&1 | grep -qi 'writable'
       - name: Tools present
         run: |
-          docker exec pigtv ffmpeg -hide_banner -version | head -1
+          docker exec pigtv node scripts/check-media-tools.js --hardware
           docker exec pigtv sh -c 'command -v comskip && ! ldd "$(command -v comskip)" | grep -q "not found"' || echo "::warning::Comskip missing or a library is not found"
       - name: Stops cleanly on SIGTERM
         run: |

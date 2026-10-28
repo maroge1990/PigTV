@@ -11,12 +11,10 @@ const { once } = require('node:events');
 // (recordingSegments.captureArgs / viewArgs, recordingMedia.buildNativeRemuxArgs) against a local
 // sample served over HTTP like a provider. A capture killed mid-way, a second run that continues
 // the timeline, the Apple TV's watch copy of both, and the final MP4 checked the way preparation
-// checks it. Skips without ffmpeg. HEVC and HE-AAC only where this ffmpeg can make a sample.
+// checks it. Skips without ffmpeg. HEVC where supported; HE-AAC comes from the synthetic fixture on every OS.
 const hasFfmpeg = spawnSync('ffmpeg', ['-version']).status === 0;
 const encoders = hasFfmpeg ? spawnSync('ffmpeg', ['-hide_banner', '-encoders'], { encoding: 'utf8' }).stdout : '';
 const hevc = /libx265/.test(encoders);
-const heaac = /aac_at/.test(encoders) ? ['-c:a', 'aac_at', '-profile:a', '4', '-b:a', '64k']
-    : /libfdk_aac/.test(encoders) ? ['-c:a', 'libfdk_aac', '-profile:a', 'aac_he', '-b:a', '64k'] : null;
 
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-segments-media-'));
 const segments = require('../server/services/recordingSegments');
@@ -47,17 +45,19 @@ const until = async (fn, ms = 20000) => {
 
 before(async () => {
     if (!hasFfmpeg) return;
-    // 12 s, 50 fps, HDR10-tagged; HEVC Main 10 where libx265 exists, else H.264. HE-AAC where possible.
+    // 12 s, 50 fps, HDR10-tagged; HEVC Main 10 where libx265 exists, else H.264. HE-AAC from the same looped synthetic fixture on every OS.
     const video = hevc
         ? ['-c:v', 'libx265', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p10le',
             '-x265-params', 'keyint=50:log-level=error:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc']
         : ['-c:v', 'libx264', '-preset', 'ultrafast', '-g', '50', '-x264-params', 'colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc'];
     const made = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y',
-        '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=50', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', '12',
+        '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=50',
+        '-stream_loop', '-1', '-i', path.join(__dirname, 'fixtures/synthetic-heaac.aac'), '-t', '12',
         ...video, '-color_primaries', 'bt2020', '-color_trc', 'smpte2084', '-colorspace', 'bt2020nc',
-        ...(heaac || ['-c:a', 'aac', '-b:a', '128k']), '-ac', '2', '-f', 'mpegts', sample]);
+        '-c:a', 'copy', '-f', 'mpegts', sample]);
     assert.equal(made.status, 0, String(made.stderr));
     assert.equal(probe(sample, 'stream=color_transfer').streams[0].color_transfer, 'smpte2084', 'the sample is HDR-tagged');
+    assert.equal(probe(sample, 'stream=profile').streams[1].profile, 'HE-AAC', 'Linux also exercises real HE-AAC');
     server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'video/mp2t' });
         const data = fs.readFileSync(sample);
@@ -154,5 +154,4 @@ test('a capture killed mid-way, then a second run: one timeline, a watch copy of
     const [num, den] = fv.avg_frame_rate.split('/').map(Number);
     assert.ok(Math.abs(num / den - 50) < 0.5, `no frames lost or doubled at the join (average ${fv.avg_frame_rate})`);
     if (hevc) assert.equal(fv.codec_tag_string, 'hvc1');
-    if (!heaac) t.diagnostic('no HE-AAC encoder here: the sample used AAC-LC');
 });

@@ -1,0 +1,103 @@
+{
+  "connections": 2,
+  "switches": 1,
+  "provider": 1,
+  "consumerExit": null,
+  "discontinuities": 1,
+  "maxDuration": 4.004,
+  "maxVideoStep": 0.017000000000003013,
+  "maxAudioStep": 0.02166700000000077,
+  "tinyRuns": 0,
+  "timings": [
+    {
+      "leg": "leg0",
+      "name": "seg0000.ts",
+      "duration": 2.002,
+      "videoStart": 3.439333,
+      "audioStart": 1.4,
+      "maxVideoStep": 0.017000000000000348,
+      "maxAudioStep": 0.021667000000000103
+    },
+    {
+      "leg": "leg0",
+      "name": "seg0001.ts",
+      "duration": 4.004,
+      "videoStart": 5.441333,
+      "audioStart": 5.410667,
+      "maxVideoStep": 0.017000000000001236,
+      "maxAudioStep": 0.02166700000000077
+    },
+    {
+      "leg": "leg1",
+      "name": "seg0000.ts",
+      "duration": 4.004,
+      "videoStart": 3.379333,
+      "audioStart": 1.4,
+      "maxVideoStep": 0.017000000000000348,
+      "maxAudioStep": 0.021667000000000325
+    },
+    {
+      "leg": "leg1",
+      "name": "seg0001.ts",
+      "duration": 4.004,
+      "videoStart": 7.383333,
+      "audioStart": 7.351333,
+      "maxVideoStep": 0.017000000000001236,
+      "maxAudioStep": 0.021666000000001517
+    },
+    {
+      "leg": "leg1",
+      "name": "seg0002.ts",
+      "duration": 4.004,
+      "videoStart": 11.387333,
+      "audioStart": 11.341333,
+      "maxVideoStep": 0.017000000000001236,
+      "maxAudioStep": 0.021666000000001517
+    },
+    {
+      "leg": "leg1",
+      "name": "seg0003.ts",
+      "duration": 4.004,
+      "videoStart": 15.391333,
+      "audioStart": 15.351667,
+      "maxVideoStep": 0.017000000000003013,
+      "maxAudioStep": 0.02166700000000077
+    },
+    {
+      "leg": "leg1",
+      "name": "seg0004.ts",
+      "duration": 4.004,
+      "videoStart": 19.395333,
+      "audioStart": 19.362,
+      "maxVideoStep": 0.017000000000003013,
+      "maxAudioStep": 0.02166700000000077
+    },
+    {
+      "leg": "leg1",
+      "name": "seg0005.ts",
+      "duration": 2.002,
+      "videoStart": 23.399333,
+      "audioStart": 23.351333,
+      "maxVideoStep": 0.017000000000003013,
+      "maxAudioStep": 0.02166700000000077
+    },
+    {
+      "leg": "leg1",
+      "name": "seg0006.ts",
+      "duration": 4.004,
+      "videoStart": 25.401333,
+      "audioStart": 25.357333,
+      "maxVideoStep": 0.017000000000003013,
+      "maxAudioStep": 0.02166700000000077
+    },
+    {
+      "leg": "leg1",
+      "name": "seg0007.ts",
+      "duration": 4.004,
+      "videoStart": 29.405333,
+      "audioStart": 29.367333,
+      "maxVideoStep": 0.017000000000003013,
+      "maxAudioStep": 0.02166700000000077
+    }
+  ]
+}

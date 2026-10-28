@@ -9,8 +9,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  # The regression tests gate the image. Claude pushes straight to main, so a
-  # commit that fails them must never become :latest.
+  # The regression tests gate the image, so a
+  # commit that fails them must never become :latest. Mark pushes reviewed local commits.
   test:
     uses: ./.github/workflows/test.yml
     permissions:
@@ -18,7 +18,7 @@ jobs:
 
   build-and-push:
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
@@ -61,13 +61,14 @@ jobs:
           echo "commit=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           echo "built_at=$(date -u +%FT%TZ)" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push Container image
+      - name: Build candidate without publishing
         uses: docker/build-push-action@v5
         with:
           context: .
           platforms: linux/amd64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          load: true
+          push: false
+          tags: pigtv:candidate
           labels: ${{ steps.meta.outputs.labels }}
           # Stamp the image with the source it was built from. Without these the
           # Dockerfile's defaults apply and /api/version reports commit "dev", so the
@@ -78,3 +79,22 @@ jobs:
             PIGTV_BUILT_AT=${{ steps.stamp.outputs.built_at }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Test the actual final runtime binaries/libs before any tag is published.
+      # .github is excluded from the image; mount it for infrastructure contract tests.
+      - name: Test candidate runtime
+        run: |
+          docker run --rm --entrypoint bash \
+            -e PIGTV_SKIP_PERF=1 \
+            -v "$GITHUB_WORKSPACE/.github:/app/.github:ro" \
+            pigtv:candidate -c 'node scripts/check-media-tools.js --hardware && npm test'
+
+      - name: Publish validated candidate
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          while IFS= read -r image_tag; do
+            [ -n "$image_tag" ] || continue
+            docker tag pigtv:candidate "$image_tag"
+            docker push "$image_tag"
+          done <<< "$IMAGE_TAGS"

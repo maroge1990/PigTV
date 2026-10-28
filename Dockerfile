@@ -15,6 +15,14 @@
 # Build: docker compose build
 # Run with VAAPI: docker run --device /dev/dri:/dev/dri ...
 
+# The media stage and Linux CI use one checksum-pinned source recipe. The final
+# image has no distro ffmpeg executable that could silently replace this version.
+FROM ubuntu:24.04 AS media-build
+ENV DEBIAN_FRONTEND=noninteractive
+COPY docker/media-toolchain.conf docker/install-media-deps.sh docker/build-media-tools.sh /build-media/
+RUN bash /build-media/install-media-deps.sh build \
+    && bash /build-media/build-media-tools.sh /opt/pigtv-ffmpeg
+
 # ---------------------------------------------------------------- builder ---
 FROM ubuntu:24.04 AS builder
 
@@ -67,6 +75,10 @@ FROM ubuntu:24.04
 
 ARG TARGETARCH
 ENV DEBIAN_FRONTEND=noninteractive
+COPY docker/install-media-deps.sh /tmp/install-media-deps.sh
+RUN bash /tmp/install-media-deps.sh runtime && rm /tmp/install-media-deps.sh
+COPY --from=media-build /opt/pigtv-ffmpeg /opt/pigtv-ffmpeg
+ENV PATH="/opt/pigtv-ffmpeg/bin:${PATH}"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl ca-certificates gnupg \
     && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
@@ -77,15 +89,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fi \
     && apt-get install -y --no-install-recommends \
     nodejs \
-    ffmpeg \
-    libargtable2-0 \
+    libargtable2-0 libavformat60 libavcodec60 libavutil58 libswscale7 libsdl2-2.0-0 \
     util-linux \
     $DRIVERS \
     && apt-get purge -y --auto-remove curl gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-# Verify FFmpeg installed
-RUN ffmpeg -version && ffmpeg -encoders 2>/dev/null | grep -E "vaapi|nvenc|qsv|libx264" | head -10
+# Reject release drift or missing compiled hardware/software capabilities at build time.
+COPY docker/media-toolchain.conf /media-check/docker/media-toolchain.conf
+COPY scripts/check-media-tools.js /media-check/scripts/check-media-tools.js
+RUN node /media-check/scripts/check-media-tools.js --hardware && rm -rf /media-check
 
 COPY --from=builder /out/bin/ /usr/local/bin/
 # Comskip is optional, but if it is here it must be able to start: say so at

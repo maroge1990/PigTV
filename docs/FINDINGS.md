@@ -23,7 +23,34 @@ prioritises; fixed entries move to the commit that fixed them and are deleted he
 | FR-20 | 28 Oct | Sports: Fox Cricket Day 2 live sessions read as replays (medium, demonstrated on production rows) | Fox's Day 2 titles "Test : RSA v AUS 3rd Test D2 S1/S2/S3" (08:30, 11:10, 13:30 UTC on 28 Oct, **flag 8 = live**) come out as `replay: ESPN has no such game at this time` on 0300 and 0301. Three causes. (1) The 0293 stage-suffix strip handles "Day 2 Session 1" but not "D2 S1", so the second side is "AUS 3rd Test D2 S1". (2) "RSA" does not match South Africa ("SA"/"South Africa"). (3) The ESPN "no such game" branch runs before the guide's live flag and overrides it. Willow Cricket still lists Day 2 live, so Sports shows the Test, but not on Fox Cricket 501. | Same replay from 2026-10-28T07:00Z and T08:40Z. Fix candidates: strip `D\d+ S\d+` stage tags; alias RSA for South Africa; let an explicit live flag (or a "Live" title) beat "no such game" (an absence, not a presence). |
 | FR-21 | 28 Oct | Sports: roster inference overrides a followed competition (medium, demonstrated on production rows; a regression from 0289) | "Live EFL Cup: Man City v Brighton" (Sky Sports +, 28 Oct 19:00 UTC) is inferred as EPL from the stored roster (0294/0295), matched to Saturday's EPL fixture between the same clubs, and listed as a **replay** ("68 h earlier"), even with "EFL Cup" followed first. On 0289 the same follow list gives a live EFL Cup event. The roster league is unshifted ahead of the keyword in `classify()`, so it becomes the item's league and drives the ESPN verdict. The same rule tagged an AFL replay "Round 21 CAR v BRI" (Fox Footy) as FA Cup (exact abbreviations of Cardiff/Brighton) and an Eredivisie game as UEFA. | `sports-replay/eflcup.js` (0289 vs 0300/0301), `inferred.js`. Fix candidates: skip roster inference when the title already matches a followed non-league keyword (or names another competition: "EFL Cup", "Eredivisie", "Round N" on an AFL channel); require both abbreviations to be unambiguous across all stored rosters, not just followed ones. |
 
+## E2: ffmpeg release parity (0306)
+
+Mark approved upgrading the production tools on 28 Oct. **0306** prepares checksum-pinned FFmpeg/ffprobe 9.0.2 and one
+Ubuntu 24.04 amd64 recipe for the image and Linux CI. Exact version/capability checks reject drift and missing hardware
+filters; the final candidate image runs the full suite before that same image can be published. Local 1234/1234 tests
+pass. Six 6.1.1/9.0.2 sample commands yield 12/12 URL-versus-ingest SAME verdicts across FOX, synthetic H.264/59.94/AAC-LC
+and HEVC Main10/HDR-tagged/50/HE-AAC; all reported segment/frame metrics match across versions except a 3.311 ms FOX TS
+start difference. The 6.1.1 baseline is an isolated native software build, not the old production binary. Existing FOX
+copy warnings remain on both. The recording test now uses a synthetic HE-AAC fixture on every OS (Linux formerly fell
+back to AAC-LC). New 10 safety tests fail with source stashed and pass restored; structural image/publication checks fail
+with the old recipe or a push-before-test mutation. No session flags/Apple hold changes, provider connection or deploy.
+
+**Still open:** Linux source/image build and runtime tests cannot run locally (no Docker); CI must pass them before
+publication. Actual GPU execution and device/reference-feed acceptance are pending. The current npm fallback binaries
+on this Mac are ffmpeg 6.0/ffprobe 4.4.1; they were not used for acceptance. macOS 9.0.2 real FOX/AVPlayer replay retains
+one marked reconnect and clean segments, but also the startup stall; no HLS sound timing is measured. **Not an FR-22
+sound fix or Verified deployment.** Commands, evidence and exact limits: [MEDIA-TOOLCHAIN.md](MEDIA-TOOLCHAIN.md).
+Adversarial review remains required for 0306 (base `806c1d6`) and 0305 (base `da00a7c`), or jointly from `da00a7c`.
+
 ## FR-22 reconnect timeline (0305)
+
+**Latest device report, 28 Oct (Mark, during 0306 finalisation):** some channels are intermittently out of A/V sync
+**from the beginning** of a play; another start can be in sync. These plays do not show the earlier pause followed by
+loss of sync. The reported current build number, channels, offset direction/magnitude and per-play logs were not supplied.
+This is user-observed evidence, not an instrumented timing measurement. Do not require a pause or reconnect to reproduce
+FR-22 or treat the initial offset as fixed by 0305. Repeat cold and warm starts of the same channel after 0306, correlating
+sync outcome with first-segment track starts, copy/encode mode and session/probe version before changing flags or the hold.
+Mark asked to finish 0306 first; the upgrade may change behaviour or narrow diagnosis, but no sound fix is established.
 
 **Implemented locally, not deployed or device-accepted; adversarial review pending.** Only relay viewer legs renew on a
 successful shared-ingest reconnect. The subscription emits URL-free `{ forLag, gapSec }` before new bytes, the old join
