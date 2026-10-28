@@ -67,7 +67,8 @@ the Apple client's 30 s live hold.
    Coalesce them: one restart once the ingest has been live again for a short settle time, with the time in a tuning
    constant and its reason in a comment. A reconnect while a restart is in flight is absorbed.
 
-**Tests (each must fail on the code before your change; prove it by stashing the source change):**
+**The specific tests this change needs** (each fails on the code before your change; prove it by stashing the source change).
+They are a minimum; the toolkit below says how thoroughly to test:
 - Use a fake TS provider over HTTP that drops the connection and resumes later in the stream (copy the shape of
   `test/ingest-pace.test.js` and the existing relay tests):
   - a viewer under the relay gets a new leg and an `EXT-X-DISCONTINUITY` at the join, on the same provider;
@@ -80,6 +81,39 @@ the Apple client's 30 s live hold.
   If you don't have it, make a synthetic equivalent with `avsync-repro`'s generator and say so.
 - `npm test` and `bash scripts/verify-build.sh .` pass before each commit (Node 24:
   `export PATH="/opt/homebrew/opt/node@24/bin:$PATH"`).
+
+**Test thoroughly with the project's testing toolkit: this is a requirement, not a nicety.** The bar is real ffmpeg,
+real playlists and real players, offline, before Mark sees anything. Passing unit tests alone is **not** enough. Use every
+tool below that applies, record each run's command and result in the commit message and in FR-22, and say plainly what
+none of them could cover:
+1. **Unit and integration tests** (`npm test`, all of them, plus your new ones): fake TS providers over HTTP
+   (`test/ingest-pace.test.js`, `test/ingest-playback.test.js`, `test/ingest-recordings.test.js`), relay behaviour
+   (`test/stream-relay.test.js`), coordinator and admission (`test/provider-pools.test.js`,
+   `test/coordinator-own-stream.test.js`). Each new test fails on the old code: stash the source change, run it, restore.
+2. **The relay rig** (`node scripts/relay-rig.js`, with the `stall`, `standby stall`, `ts` and `long` variants): real
+   ffmpeg against made-up local providers, printing the playlist every 4 s. Add a variant in which the provider drops and
+   resumes behind the shared ingest (a reconnect, not a close). Show the live playlist's `EXT-X-DISCONTINUITY` at the
+   join and a clean leg after it. Run the existing variants too, to prove nothing else changed.
+3. **The offline A/V harness** (`docs/reviews/2026-10-27/avsync-repro/`):
+   - `pace-pcr.js` paces a feed by its own clock, with `HEAD`/`BURSTY` for Strong8K-like delivery;
+   - `session.sh` and `run.sh` are the production session command;
+   - `avsync.swift` is an AVPlayer set up like the app, with the 30 s hold (`HOLD=0` for the default), and it logs stalls
+     and whether the picture stays on the player's clock.
+   Replay the spliced capture (cut mid-packet, resumed from a keyframe later) through the **real server path**, not just
+   the bare ffmpeg command. Compare before and after the change:
+   - output segment durations and per-segment audio/video start times (no timestamp-gapped segment, no run of tiny
+     segments);
+   - AVPlayer's behaviour across the join (stalls, recovery time, picture on the clock).
+   Note the harness's limit: it cannot measure the sound on HLS.
+4. **The stream doctor** (`node scripts/stream-doctor.js classify|bench <sample>`): check the spliced and unspliced
+   samples' timestamps and the session arguments against them. **Never** use `capture` or `list`: they need the deployed
+   server and a provider connection, which need Mark's approval.
+5. **The build verifier** (`bash scripts/verify-build.sh .`) before every commit, and `git diff --check`.
+6. **Optionally, the iOS Simulator:** the real PigTV app (build it from `../PigTV-Swift`) against a local server
+   (`npm start`, with a fake M3U provider serving the paced capture), so the Apple client's own stall and fallback
+   behaviour is exercised end to end. If you skip this, say why.
+
+If a tool shows a problem your design didn't expect, stop and report it with the evidence before building further.
 
 **Rules that matter most here (all in `AGENTS.md`):**
 - Commit to `main` and **never push**. Each functional commit bumps `server/version.js` and blueprint §1, and its
