@@ -1,0 +1,57 @@
+hold 30.0 s
+  0.00 EVENT timeControlStatus=waiting AVPlayerWaitingWhileEvaluatingBufferingRateReason
+  0.05 t=  0.000 rate=0.00 edge=    nan behindEdge=   nan audioLead=    nan videoLead=    nan  sound-minus-picture=    nan tapCalls=0 stalls=0
+  0.11 EVENT timeControlStatus=waiting AVPlayerWaitingWithNoItemToPlayReason
+  0.11 EVENT timeControlStatus=waiting AVPlayerWaitingToMinimizeStallsReason
+  0.62 EVENT item.status=1
+  0.62 EVENT timeControlStatus=playing
+  0.65 EVENT audio tap installed
+  1.05 t=  0.384 rate=1.00 edge=    nan behindEdge=   nan audioLead=    nan videoLead= -0.017  sound-minus-picture=    nan tapCalls=0 stalls=0
+  2.07 t=  1.402 rate=1.00 edge=  2.001 behindEdge=  0.60 audioLead=    nan videoLead= -0.017  sound-minus-picture=    nan tapCalls=0 stalls=0
+  2.55 EVENT playbackStalled (#1)
+  2.55 EVENT timeControlStatus=waiting AVPlayerWaitingToMinimizeStallsReason
+  3.10 t=  1.837 rate=0.00 edge=  0.000 behindEdge= -1.84 audioLead=    nan videoLead= -0.002  sound-minus-picture=    nan tapCalls=0 stalls=1
+  4.14 t=  1.837 rate=0.00 edge=  0.000 behindEdge= -1.84 audioLead=    nan videoLead= -0.002  sound-minus-picture=    nan tapCalls=0 stalls=1
+  5.18 t=  1.837 rate=0.00 edge=  0.000 behindEdge= -1.84 audioLead=    nan videoLead= -0.002  sound-minus-picture=    nan tapCalls=0 stalls=1
+  6.22 t=  1.837 rate=0.00 edge=  0.000 behindEdge= -1.84 audioLead=    nan videoLead= -0.002  sound-minus-picture=    nan tapCalls=0 stalls=1
+  7.14 EVENT timeControlStatus=playing
+  7.26 t=  1.991 rate=1.00 edge=  0.000 behindEdge= -1.99 audioLead=    nan videoLead= -0.005  sound-minus-picture=    nan tapCalls=0 stalls=1
+  8.28 t=  3.012 rate=1.00 edge=  0.000 behindEdge= -3.01 audioLead=    nan videoLead= -0.009  sound-minus-picture=    nan tapCalls=0 stalls=1
+  9.30 t=  4.028 rate=1.00 edge=  0.000 behindEdge= -4.03 audioLead=    nan videoLead= -0.007  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 10.31 t=  5.045 rate=1.00 edge=  0.000 behindEdge= -5.05 audioLead=    nan videoLead= -0.006  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 11.33 t=  6.067 rate=1.00 edge=  0.000 behindEdge= -6.07 audioLead=    nan videoLead= -0.011  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 12.35 t=  7.082 rate=1.00 edge=  0.000 behindEdge= -7.08 audioLead=    nan videoLead= -0.008  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 13.35 t=  8.084 rate=1.00 edge=  0.000 behindEdge= -8.08 audioLead=    nan videoLead= -0.041  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 14.37 t=  9.106 rate=1.00 edge= -0.017 behindEdge= -9.12 audioLead=    nan videoLead= -0.041  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 15.40 t= 10.133 rate=1.00 edge= -0.017 behindEdge=-10.15 audioLead=    nan videoLead= -0.041  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 16.42 t= 11.156 rate=1.00 edge= -0.017 behindEdge=-11.17 audioLead=    nan videoLead= -0.041  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 17.45 t= 12.186 rate=1.00 edge= -0.017 behindEdge=-12.20 audioLead=    nan videoLead= -0.041  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 18.48 t= 13.216 rate=1.00 edge= -0.017 behindEdge=-13.23 audioLead=    nan videoLead= -0.041  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 19.51 t= 14.241 rate=1.00 edge= -0.017 behindEdge=-14.26 audioLead=    nan videoLead= -0.041  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 20.54 t= 15.270 rate=1.00 edge= -0.017 behindEdge=-15.29 audioLead=    nan videoLead= -0.041  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 21.57 t= 16.298 rate=1.00 edge=  0.024 behindEdge=-16.27 audioLead=    nan videoLead= -0.041  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 22.59 t= 17.322 rate=1.00 edge=  0.024 behindEdge=-17.30 audioLead=    nan videoLead= -0.041  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 23.62 t= 18.348 rate=1.00 edge=  0.024 behindEdge=-18.32 audioLead=    nan videoLead= -0.041  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 24.65 t= 19.378 rate=1.00 edge=  0.024 behindEdge=-19.35 audioLead=    nan videoLead= -0.041  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 25.67 t= 20.401 rate=1.00 edge=  0.024 behindEdge=-20.38 audioLead=    nan videoLead= -0.014  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 26.69 t= 21.420 rate=1.00 edge=  0.024 behindEdge=-21.40 audioLead=    nan videoLead= -0.015  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 27.71 t= 22.442 rate=1.00 edge=  0.024 behindEdge=-22.42 audioLead=    nan videoLead= -0.003  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 28.73 t= 23.466 rate=1.00 edge=  8.032 behindEdge=-15.43 audioLead=    nan videoLead= -0.009  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 29.76 t= 24.489 rate=1.00 edge=  8.032 behindEdge=-16.46 audioLead=    nan videoLead= -0.014  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 30.78 t= 25.512 rate=1.00 edge=  8.032 behindEdge=-17.48 audioLead=    nan videoLead= -0.003  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 31.80 t= 26.532 rate=1.00 edge=  8.032 behindEdge=-18.50 audioLead=    nan videoLead= -0.005  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 32.82 t= 27.552 rate=1.00 edge=  8.032 behindEdge=-19.52 audioLead=    nan videoLead= -0.008  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 33.84 t= 28.570 rate=1.00 edge=  8.032 behindEdge=-20.54 audioLead=    nan videoLead= -0.008  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 34.86 t= 29.597 rate=1.00 edge=  8.032 behindEdge=-21.56 audioLead=    nan videoLead= -0.017  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 35.88 t= 30.615 rate=1.00 edge= 16.040 behindEdge=-14.58 audioLead=    nan videoLead= -0.001  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 36.90 t= 31.634 rate=1.00 edge= 16.040 behindEdge=-15.59 audioLead=    nan videoLead= -0.002  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 37.92 t= 32.657 rate=1.00 edge= 16.040 behindEdge=-16.62 audioLead=    nan videoLead= -0.007  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 38.95 t= 33.677 rate=1.00 edge= 16.040 behindEdge=-17.64 audioLead=    nan videoLead= -0.010  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 39.96 t= 34.696 rate=1.00 edge= 16.040 behindEdge=-18.66 audioLead=    nan videoLead= -0.011  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 40.99 t= 35.721 rate=1.00 edge= 16.040 behindEdge=-19.68 audioLead=    nan videoLead= -0.002  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 42.01 t= 36.742 rate=1.00 edge= 16.040 behindEdge=-20.70 audioLead=    nan videoLead= -0.005  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 43.03 t= 37.759 rate=1.00 edge= 20.044 behindEdge=-17.71 audioLead=    nan videoLead= -0.004  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 44.05 t= 38.780 rate=1.00 edge= 20.044 behindEdge=-18.74 audioLead=    nan videoLead= -0.008  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 45.07 t= 39.803 rate=1.00 edge= 20.044 behindEdge=-19.76 audioLead=    nan videoLead= -0.013  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 46.09 t= 40.824 rate=1.00 edge= 20.044 behindEdge=-20.78 audioLead=    nan videoLead= -0.016  sound-minus-picture=    nan tapCalls=0 stalls=1
+ 47.11 t= 41.845 rate=1.00 edge= 20.044 behindEdge=-21.80 audioLead=    nan videoLead= -0.003  sound-minus-picture=    nan tapCalls=0 stalls=1

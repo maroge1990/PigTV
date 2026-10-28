@@ -250,7 +250,14 @@ class Ingest extends EventEmitter {
             this._resolveReady(this);
         } else if (this.state === 'reconnecting') {
             this.state = 'live';
-            this.log(`reconnected after ${Math.round((Date.now() - this.lostSince) / 100) / 10}s`);
+            this.reconnectedAt = Date.now();
+            const info = { forLag: this.reconnectingForLag === true, gapSec: (this.reconnectedAt - this.lostSince) / 1000 };
+            // Drop the old connection's tail: a fresh leg must never join before this boundary,
+            // even if both connections arrived inside joinWindowMs (or the cut was mid-packet).
+            this.chunks = [];
+            this.bytes = 0;
+            this.log(`reconnected after ${Math.round(info.gapSec * 10) / 10}s`);
+            for (const sub of [...this.subs]) sub.emit('reconnected', info);
             this.lostSince = null;
         }
     }
@@ -286,13 +293,14 @@ class Ingest extends EventEmitter {
     }
 
     /** The connection is gone after it had delivered: reconnect (backing off) for up to reconnectMs, then fail. */
-    onUpstreamGone(why) {
+    onUpstreamGone(why, forLag = false) {
         if (this.closed) return;
         if (this.state === 'live') {
             this.learn(Date.now());
             lagLimit.flush(this.lagLimit);
             this.learningAt = null;
             this.state = 'reconnecting';
+            this.reconnectingForLag = forLag;
             this.lostSince = Date.now();
             this.log(`lost the stream (${why}); reconnecting`);
         }
@@ -337,7 +345,7 @@ class Ingest extends EventEmitter {
             const req = this.request;
             this.request = null; // its late events are ignored
             try { req && req.destroy(); } catch (e) { /* gone */ }
-            this.onUpstreamGone(this.pace.measured ? `${Math.round(behind)}s behind real time` : `no data for ${Math.round(behind)}s`);
+            this.onUpstreamGone(this.pace.measured ? `${Math.round(behind)}s behind real time` : `no data for ${Math.round(behind)}s`, this.pace.measured);
         }
     }
 

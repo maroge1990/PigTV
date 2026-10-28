@@ -6,6 +6,7 @@
  *   node scripts/relay-rig.js                 a cold switch: provider A closes after 16 s
  *   node scripts/relay-rig.js stall           ... A stops sending instead (the 20 s watchdog)
  *   node scripts/relay-rig.js standby stall   a hot standby on B; A stops sending after 40 s
+ *   node scripts/relay-rig.js reconnect       shared ingest reconnects on A, renewing the timeline
  *   add "ts" for MPEG-TS segments, "long" for a 110 s run
  *
  * An ffmpeg "player" reads the stream the whole way through; the run prints the playlist every
@@ -28,14 +29,43 @@ const express = require('express');
 const path = pathMod;
 process.chdir(sandbox);
 const mode = { aDead: false };
+const reconnect = process.argv.includes('reconnect');
+const sample = process.env.RIG_SAMPLE;
+if (process.env.RIG_OUTPUT) {
+    const output = pathMod.resolve(process.env.RIG_OUTPUT);
+    if (output === repo || output.startsWith(repo + pathMod.sep)) throw new Error('Keep replay media outside the repository');
+}
+const runSeconds = Number(process.env.RIG_SECONDS || (process.argv.includes('long') ? 110 : 70));
+let connections = 0;
 const feeds = new Set();
 const provider = http.createServer((req, res) => {
     const which = req.url.startsWith('/a') ? 'a' : 'b';
     if (which === 'a' && mode.aDead) { res.statusCode = 503; return res.end(); }
     res.writeHead(200, { 'Content-Type': 'video/mp2t' });
+    connections++;
+    if (sample) {
+        const first = connections === 1;
+        const start = first ? 0 : Number(process.env.RIG_RESUME_BYTE);
+        const ff = spawn(process.execPath, [pathMod.join(repo, 'docs/reviews/2026-10-27/avsync-repro/pace-pcr.js'), sample, String(start)],
+            { env: { ...process.env, HEAD: process.env.HEAD || '8' } });
+        const feed = { which, ff, res }; feeds.add(feed);
+        let sent = 0;
+        const cap = first ? Number(process.env.RIG_CUT_BYTE) : Infinity;
+        ff.stdout.on('data', chunk => {
+            const n = Math.min(chunk.length, cap - sent);
+            if (n > 0) res.write(chunk.subarray(0, n));
+            sent += n;
+            if (sent === cap) { console.log('SAMPLE cut mid-packet', cap); ff.kill(); res.end(); }
+        });
+        // Keep the final connection open after the short fixture ends; only the intentional
+        // cut is a reconnect. A real provider would keep delivering beyond the capture.
+        const end = () => { feeds.delete(feed); ff.kill('SIGKILL'); };
+        res.on('close', end);
+        return;
+    }
     const color = which === 'a' ? 'testsrc2=size=640x360:rate=25' : 'smptebars=size=640x360:rate=25';
     const ff = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-re', '-f', 'lavfi', '-i', color, '-f', 'lavfi', '-i', `sine=frequency=${which === 'a' ? 440 : 880}`,
-        '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', '-g', '25', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-f', 'mpegts', 'pipe:1']);
+        ...(reconnect && connections > 1 ? ['-output_ts_offset', '27'] : []), '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', '-g', '25', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-f', 'mpegts', 'pipe:1']);
     ff.stdout.pipe(res);
     const feed = { which, ff, res };
     feeds.add(feed);
@@ -49,8 +79,10 @@ const provider = http.createServer((req, res) => {
     const A = { providerId: 1, providerName: 'ProvA', role: 'primary', via: 'primary', url: `${P}/a.ts`, channelKey: 'ch' };
     const B = { providerId: 2, providerName: 'ProvB', role: 'backup', via: 'backup', url: `${P}/b.ts`, channelKey: 'chb' };
     routing.plan = async () => ({ candidates: mode.aDead ? [B] : [A, B], primaryKey: 'ch', channelName: 'Test', primarySkipped: mode.aDead, providerCount: 2, backupsConfigured: true });
-    const coordinator = require(sandbox + '/server/services/streamCoordinator');
-    if (process.argv.includes('standby')) { coordinator.samePool = (a, b) => a === b; coordinator.hasFreeConnection = (id) => !coordinator.activeStreams().some(s => s.providerId === id); }
+    // Real directory/leases: the old hasFreeConnection stub was bypassed by tryReserveFree.
+    const db = require(sandbox + '/server/db');
+    await db.sources.create({ type: 'm3u', name: 'ProvA', role: 'primary', url: 'http://a.invalid/list.m3u' });
+    await db.sources.create({ type: 'm3u', name: 'ProvB', role: 'backup', url: 'http://b.invalid/list.m3u' });
     const strategy = require(sandbox + '/server/services/playbackStrategy');
     const sessions = require(sandbox + '/server/services/transcodeSession');
     const relay = require(sandbox + '/server/services/streamRelay');
@@ -60,20 +92,29 @@ const provider = http.createServer((req, res) => {
     await new Promise(r => server.once('listening', r));
     const base = `http://127.0.0.1:${server.address().port}`;
     // R12: the Settings switches, not environment variables.
-    const settings = { ffmpegPath: 'ffmpeg', hwEncoder: 'software', relayEnabled: true, standbyEnabled: process.argv.includes('standby') };
+    const settings = { sharedIngestEnabled: reconnect, ffmpegPath: 'ffmpeg', hwEncoder: 'software', relayEnabled: true, standbyEnabled: process.argv.includes('standby') };
     const caps = { hls: true, fmp4: process.argv.includes('ts') ? false : true };
-    const decision = await strategy.resolve({ url: A.url, capabilities: caps, settings, ffprobePath: 'ffprobe', owner: 'device:tv', live: true, providerId: 1 });
+    const decision = await strategy.resolve({ url: A.url, capabilities: caps, settings, ffprobePath: 'ffprobe', owner: 'device:tv', live: true, providerId: 1, audioEncode: !!sample, ingestSource: reconnect ? require(sandbox + '/server/services/ingest').sourceFor(A, settings) : null });
     console.log('DECISION', decision.strategy, decision.url, decision.videoMode);
     const session = sessions.getSession(decision.sessionId);
-    relay.adopt(session, { sourceId: 1, channelId: 'x', capabilities: caps, settings, ffprobePath: 'ffprobe', owner: 'device:tv', channelName: 'Test', primaryKey: 'ch', candidate: A });
+    relay.adopt(session, { sourceId: 1, channelId: 'x', capabilities: caps, settings, ffprobePath: 'ffprobe', owner: 'device:tv', audioEncode: !!sample, channelName: 'Test', primaryKey: 'ch', candidate: A });
     const playlistUrl = `${base}/api/transcode/${decision.sessionId}/stream.m3u8`;
     console.log('PLAYLIST', playlistUrl);
     // a consumer reading the stream the whole time
     const out = path.join(sandbox, 'consumer.ts');
-    const consumer = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'warning', '-y', '-live_start_index', '0', '-i', playlistUrl, '-t', process.argv.includes('long') ? '110' : '70', '-c', 'copy', out]);
+    const consumer = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'warning', '-y', '-live_start_index', '0', '-i', playlistUrl, '-t', String(runSeconds), '-c', 'copy', out]);
     let clog = ''; consumer.stderr.on('data', d => { clog += d; });
     const killAt = process.argv.includes('standby') ? 40000 : 16000;
-    setTimeout(() => { console.log('--- KILLING PROVIDER A'); mode.aDead = true; for (const f of feeds) if (f.which === 'a') { if (process.argv.includes('stall')) { f.ff.stdout.unpipe(f.res); f.ff.kill('SIGSTOP'); } else { f.res.destroy(); } } }, killAt);
+    if (!sample) setTimeout(() => { console.log('--- KILLING PROVIDER A'); mode.aDead = !reconnect; for (const f of feeds) if (f.which === 'a') { if (process.argv.includes('stall')) { f.ff.stdout.unpipe(f.res); f.ff.kill('SIGSTOP'); } else { f.res.destroy(); } } }, killAt);
+    let avplayer = null;
+    if (process.env.RIG_AVPLAYER) {
+        fsSync.mkdirSync(process.env.RIG_OUTPUT, { recursive: true });
+        avplayer = spawn(process.env.RIG_AVPLAYER, [playlistUrl, String(runSeconds)], { env: process.env });
+        const playerLog = fsSync.createWriteStream(path.join(process.env.RIG_OUTPUT, 'avplayer.log'));
+        avplayer.stdout.pipe(playerLog); avplayer.stderr.pipe(playerLog);
+    }
+    // Wall-clock bound also covers a consumer waiting at the end of a finite replay.
+    const deadline = setTimeout(() => consumer.kill('SIGKILL'), (sample ? runSeconds : runSeconds + 50) * 1000);
     const t0 = Date.now();
     const poll = setInterval(async () => {
         const r = await fetch(playlistUrl); const text = await r.text();
@@ -81,12 +122,23 @@ const provider = http.createServer((req, res) => {
         console.log(`t=${Math.round((Date.now() - t0) / 1000)}s status=${r.status} segs=${segs.length} last=${segs[segs.length - 1]} disc=${(text.match(/DISCONTINUITY\n/g) || []).length} relay=${JSON.stringify(relay.list())}`);
     }, 4000);
     consumer.on('exit', async (code) => {
-        clearInterval(poll);
+        clearInterval(poll); clearTimeout(deadline);
         console.log('CONSUMER exit', code); console.log('CONSUMER LOG\n' + clog.split('\n').slice(-25).join('\n'));
         const text = await (await fetch(playlistUrl)).text(); console.log('FINAL PLAYLIST\n' + text);
         const seg = text.split('\n').filter(l => /^L1-/.test(l))[0];
         if (seg) { const r = await fetch(`${base}/api/transcode/${decision.sessionId}/${seg}`); console.log('L1 segment fetch', r.status, (await r.arrayBuffer()).byteLength); const i = await fetch(`${base}/api/transcode/${decision.sessionId}/L1-init.mp4`); console.log('L1 init', i.status); }
-        await relay.closeAll(); server.close(); provider.close(); for (const f of feeds) try { f.ff.kill('SIGKILL'); } catch (e) {}
+        if (process.env.RIG_OUTPUT) {
+            const dest = process.env.RIG_OUTPUT;
+            fsSync.mkdirSync(dest, { recursive: true });
+            fsSync.writeFileSync(path.join(dest, 'stream.m3u8'), text);
+            const followed = relay.get(decision.sessionId);
+            if (followed) for (const leg of followed.legs) {
+                fsSync.cpSync(leg.dir, path.join(dest, `leg${leg.n}`), { recursive: true });
+            }
+            fsSync.writeFileSync(path.join(dest, 'result.json'), JSON.stringify({ connections, switches: followed?.switches, provider: followed?.active.candidate.providerId, consumerExit: code }));
+        }
+        if (avplayer) await new Promise(r => avplayer.exitCode !== null ? r() : avplayer.once('exit', r));
+        await relay.closeAll(); require(sandbox + '/server/services/ingest').closeAll('rig over'); server.close(); provider.close(); for (const f of feeds) try { f.ff.kill('SIGKILL'); } catch (e) {}
         setTimeout(() => process.exit(0), 500);
     });
 })().catch(e => { console.error('FAILED', e); process.exit(1); });

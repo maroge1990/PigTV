@@ -1,6 +1,11 @@
 # PigTV: blueprint
 
-**State (28 Oct):** P0 is implemented in **0290–0294**: shared ingest defaults on, unused code removed,
+**State (28 Oct):** **0305** implements FR-22's planned same-provider relay timeline renewal after a shared-ingest
+reconnect. Offline FOX splice: one discontinuity, no timestamp-gapped segment or consecutive tiny segments; recordings,
+standby/warm readers and sessions without a relay continue as before. No ffmpeg flag or Apple 30 s hold change.
+Local only; adversarial review and iPhone/feed acceptance are pending. Server **0304** is deployed; Apple **57** is on devices.
+
+**Earlier P0 status (28 Oct):** P0 is implemented in **0290–0294**: shared ingest defaults on, unused code removed,
 stored adaptive reconnect limits, Fox Cricket recognition/daily Test play, and roster-based league recognition/MLB broadcasts.
 **Round 1 repairs are in 0295–0300**, including anonymous-owner coverage and deterministic cache tests.
 **Both adversarial rounds complete at 0300 (974977f), no high findings; review no longer blocks handoff.**
@@ -87,7 +92,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0305** |
+| Next build number | **0306** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -382,9 +387,17 @@ per (pool, URL), not an ffmpeg remux, so consumers get the provider's own bytes;
 Content-Length (a file) is refused. Ring buffer ≤ 48 MB / 20 s; a new reader joins at the last PAT in the final 2 s (the
 opener at its first); > 16 MB behind = evicted; a lost connection is retried 10 s, then every reader ends `upstream-lost`
 (a provider reason for the existing failover); 10 s linger. Recordings, live plays (`-i pipe:0`) and their probe (ffprobe
-on stdin) read it; every other ffmpeg argument is today's. The coordinator counts **one connection per ingest**
+on stdin) read it; every other ffmpeg argument is today's. **0305 (FR-22):** a successful reconnect emits
+`reconnected { forLag, gapSec }` to every subscription and clears the old connection's join buffer. Only a viewer leg
+owned by a relay stops before the new bytes, without `lost` or quarantine. The relay keeps its old leg registered for
+admission and pins the same ingest, waits **6 live seconds after the latest reconnect** (`streamRelay.tuning.reconnectSettleMs`),
+then adopts that slot for a fresh leg on the exact same candidate behind `EXT-X-DISCONTINUITY`. A reconnect during startup
+discards the unpublished attempt and settles again; only the finished renewal is a switch. A ready standby stays standby.
+Planned renewals are recorded as relay reason `reconnected`, omitted from `playbackInterruptions` (including recovered counts).
+Recordings, probe/warm/standby readers and sessions without a relay retain their existing behaviour. A promoted standby
+becomes a managed viewer. 0191's direct-read protection is unchanged. The coordinator counts **one connection per ingest**
 (`streamsInPool` groups; a lingering ingest is the first thing reclaimed); joining a live ingest needs no connection or
-lease. Relay legs, standbys, warm channels and direct plays still use their own connections. `stream-doctor bench
+lease. Relay legs and standbys also use the ingest (0282); warm channels and direct plays keep their own connections. `stream-doctor bench
 --via-ingest <sample>` compares the session's output from the URL and through the ingest (SAME expected).
 
 **Event-slot names** (R9, 0221, `eventChannels.js`, pure): a slot whose guide shows nothing real at the time (only
@@ -573,6 +586,10 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 - A sibling-link decision that changes what is listed bumps the guide version (0250).
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
+
+**28 Oct FR-22:** **0305** is implemented locally with failing-before tests, real-ffmpeg relay rigs and the FOX splice
+through the session/relay and macOS AVPlayer. Review and device acceptance pending; not deployed. The initial short-playlist
+stall and sound timing on iPhone remain open. Evidence and commands: [`docs/FINDINGS.md`](docs/FINDINGS.md#fr-22-reconnect-timeline-0305).
 
 **28 Oct:** P0 items 1–5 and round-1 repairs (**0290–0300**) are pushed; read-only SSH confirms 0300 (`58745fe`) live and healthy,
 both adversarial rounds are complete with no high findings. Status: **Shipped, awaiting a check**; device checks remain outstanding. FR-15/FR-16/FR-18 remain open;

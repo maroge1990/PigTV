@@ -75,6 +75,12 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
   ≥4 s under the level it drops 2 s. Levels persist across redeploys; no-PCR feeds keep the default silence rule.
   Since 0298, concurrent ingests of one provider/channel share their learned level and count overlapping reading
   time once. The Apple hold stays 30 s; no ffmpeg flags change.
+- Since **0305**, a successful shared-ingest reconnect renews a relay viewer's ffmpeg leg **on the same provider**, behind
+  `EXT-X-DISCONTINUITY` (and a fresh `EXT-X-MAP` for fMP4), keeping the playback URL. The relay waits 6 live seconds after
+  the latest reconnect; bursts and reconnects during startup are coalesced before publishing the replacement timeline.
+  This planned renewal does not promote standby, quarantine the provider or count as a lost/recovered play in interruption
+  statistics; Status uses relay reason `reconnected`. Recordings, probes, warm/standby readers, sessions without a relay,
+  the 0191 direct-read guard, ffmpeg flags and the Apple 30 s live hold are unchanged. A promoted standby becomes a viewer.
 - Resolve failure `error` texts start with a C-B prefix and never contain a URL; the client shows only those.
 - A start stopped on request answers **499** `{error, superseded: true}` (0180); the client ignores it.
 - `recordings/scheduled` rows: `program_end` can **move later** after scheduling (0214, R4: it follows the guide after a

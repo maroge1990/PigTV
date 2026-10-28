@@ -41,6 +41,10 @@ const msFromEnv = (name, fallback, min) => {
 };
 
 const TICK_MS = 1000;
+// FR-22: six live seconds after the LAST reconnect covers the observed six-in-30 s
+// flap cadence. Three seconds restarted once per 3.5 s flap in the HTTP regression.
+// Keep it below the Apple 30 s buffer, leaving room for the new ffmpeg to start.
+const tuning = { reconnectSettleMs: 6000 };
 // With a standby ready: how long the playing leg may write nothing before the standby takes
 // over. Segments are written at keyframes, so a 10 s GOP is quiet for 10 s when healthy.
 const switchAfterMs = () => msFromEnv('PIGTV_RELAY_SWITCH_MS', 10000, 3000);
@@ -160,6 +164,16 @@ class Relay {
             lost: null, joined: false, removed: false, startedAt: Date.now(), tail: [], lastSegAt: 0 };
         // Its segments stay listed after its ffmpeg has gone: the relay removes the folder.
         session.retainDir = true;
+        if (!session.options.standby && !session.options.warm) session.options.relayTimeline = true;
+        session.once('timeline-restart', ({ feed }) => {
+            if (leg !== this.active || this.closed || this.switching) return;
+            // Keep the same ingest alive through retirement AND the next probe/start, including
+            // linger=0. This reader costs no connection; drain it to avoid slow-consumer eviction.
+            const pin = feed.ingest.subscribe({ purpose: 'viewer', owner: this.ctx.owner });
+            pin.resume();
+            this.switchOver('reconnected; renewing its timeline', 'reconnected', pin)
+                .catch(err => { this.log(`timeline restart failed: ${redact(err.message)}`); this.close('timeline restart failed', true); });
+        });
         session.once('lost', (info) => { leg.lost = info || { how: 'exit', providerReason: false }; });
         // A blank picture is the provider's problem the stall watchdog does not see: say so (it is
         // quarantined by providerRouting.watchSession), without acting on it here.
@@ -321,12 +335,13 @@ class Relay {
 
     // ---- switching -----------------------------------------------------------------------
 
-    async switchOver(why, code = 'lost') {
+    async switchOver(why, code = 'lost', pin = null) {
         if (this.switching || this.closed) return;
         this.switching = true;
         const old = this.active;
         const { ctx } = this;
         const lostAt = Date.now();
+        const planned = code === 'reconnected';
         try {
             this.log(`${this.providerOf(old)} ${why}; switching`);
             this.note(code, `${this.providerOf(old)} ${why}`, { provider: this.providerOf(old) });
@@ -334,18 +349,18 @@ class Relay {
             await this.ingest();
             // Leg 0's loss is recorded by the resolve route, which listens to its session; a
             // later leg's, and a switch the relay decided itself, are recorded here.
-            if (!old.lost || old.n > 0) {
+            if (!planned && (!old.lost || old.n > 0)) {
                 interruptions().noteLost({ owner: ctx.owner, channel: ctx.channelName, provider: this.providerOf(old),
                     how: old.lost ? old.lost.how : 'stall', providerReason: old.lost ? old.lost.providerReason === true : true,
                     playedSec: (lostAt - old.startedAt) / 1000, reason: code });
             }
             // A lost session is quarantined by providerRouting.watchSession; a leg the relay
             // gave up on itself is quarantined here, the same way.
-            if (!old.lost) {
+            if (!planned && !old.lost) {
                 try { routing().noteFailure(old.candidate, ctx.primaryKey); } catch (e) { /* observation only */ }
             }
             let next = null;
-            if (this.standbyReady()) {
+            if (!planned && this.standbyReady()) {
                 // The standby is already running: join it on first, then let the old leg go.
                 next = this.promoteStandby();
                 this.note('promoted', `standby on ${this.providerOf(next)} took over`, { state: 'promoted', provider: this.providerOf(next) });
@@ -353,13 +368,38 @@ class Relay {
             } else {
                 // Free the lost leg's connection first: the next start may need that very one.
                 // Its folder stays for the segments still listed.
-                await this.retire(old);
+                if (planned) await old.session.stop(); // registered until replacement: still owns its slot
+                else await this.retire(old);
+                if (planned) await this.ingest(); // include ffmpeg's flushed final pre-reconnect segment
                 if (this.closed) return;
-                if (this.standby) await this.dropStandby('not ready when it was needed', 'stalled');
-                next = await this.startCold();
+                if (planned) {
+                    // Never re-plan/promote a backup for an ingest that already recovered. A
+                    // reconnect during resolve is absorbed: discard that attempt, settle again.
+                    while (!this.closed && !pin.endReason) {
+                        if (!sessionsModule().peekSession(old.session.id)) {
+                            await this.close('its stream was replaced');
+                            return;
+                        }
+                        const source = pin.ingest;
+                        if (source.state !== 'live' || Date.now() - source.reconnectedAt < tuning.reconnectSettleMs) {
+                            await new Promise(r => setTimeout(r, 100));
+                            continue;
+                        }
+                        const generation = source.reconnectedAt;
+                        next = await this.startCold([old.candidate], old.session.id);
+                        if (this.closed || pin.endReason) break;
+                        if (generation === source.reconnectedAt && source.state === 'live') break;
+                        if (next) await this.retire(next, true);
+                        next = null;
+                    }
+                } else {
+                    if (this.standby) await this.dropStandby('not ready when it was needed', 'stalled');
+                    next = await this.startCold();
+                }
             }
-            if (this.closed) {
+            if (this.closed || (planned && pin.endReason)) {
                 if (next) await this.retire(next, true);
+                if (!this.closed) await this.close('shared ingest ended during timeline restart', pin.endReason.providerReason === true);
                 return;
             }
             if (!next) {
@@ -367,15 +407,17 @@ class Relay {
                 return this.close('nothing could take over', true);
             }
 
+            if (planned) this.retire(old).catch(() => { /* logged in retire */ });
             this.active = next;
             this.switches++;
             this.switched = true;
             this.lastProgressAt = Date.now();
             this.standbyAt = Date.now() + STANDBY_DELAY_MS;
             aliases.set(this.id, { legId: next.session.id, at: Date.now() });
-            interruptions().noteResolved({ owner: ctx.owner, channel: ctx.channelName, provider: this.providerOf(next) });
+            if (!planned) interruptions().noteResolved({ owner: ctx.owner, channel: ctx.channelName, provider: this.providerOf(next) });
             this.log(`now on ${this.providerOf(next)} after ${((Date.now() - lostAt) / 1000).toFixed(1)} s`);
         } finally {
+            if (pin) pin.leave();
             this.switching = false;
         }
     }
@@ -457,7 +499,7 @@ class Relay {
                 refusedRetryDelaysMs: [1000],
                 deadlineAt: Date.now() + START_DEADLINE_MS,
                 timingNote: `, relay ${this.id} ${standby ? 'standby' : 'takeover'} on ${candidate.providerName}`,
-                sessionOptions: { channelName: ctx.channelName || null, ...(standby ? { standby: true } : {}) }
+                sessionOptions: { relayTimeline: !standby, channelName: ctx.channelName || null, ...(standby ? { standby: true } : {}) }
             });
         } catch (err) {
             if (routing().isProviderFailure(err)) {
@@ -481,12 +523,12 @@ class Relay {
         return this.addLeg(session, candidate);
     }
 
-    /** No standby: plan the channel's providers again and start the first that can be. */
-    async startCold() {
+    /** Cold start: re-plan providers, or renew only the supplied candidate using the retained slot. */
+    async startCold(sameCandidate = null, adopt = null) {
         const { ctx } = this;
         let candidates;
         try {
-            candidates = (await routing().plan(ctx.sourceId, ctx.channelId)).candidates;
+            candidates = sameCandidate || (await routing().plan(ctx.sourceId, ctx.channelId)).candidates;
         } catch (err) {
             return null;
         }
@@ -495,11 +537,11 @@ class Relay {
             if (this.unusable.has(candidate.providerId)) continue;
             // The viewer has started something else since: this play is over, and admitting
             // it again would stop what they are watching now.
-            if (coordinator().activeStreams().some(s => s.owner && s.owner === ctx.owner && !s.warm)) {
+            if (coordinator().activeStreams().some(s => s.owner && s.owner === ctx.owner && s.id !== adopt && !s.warm)) {
                 this.close('the viewer is watching something else');
                 return null;
             }
-            const ask = { force: false, activeRecordings: activeRecordings(), settings: ctx.settings, owner: ctx.owner, providerId: candidate.providerId,
+            const ask = { force: false, adopt, activeRecordings: activeRecordings(), settings: ctx.settings, owner: ctx.owner, providerId: candidate.providerId,
                 joinIngest: ingest().sourceFor(candidate, ctx.settings)?.key || null };
             if (!coordinator().canAdmitWithoutDisturbing(ask)) continue;
             const verdict = await coordinator().admitViewer(ask);
@@ -594,6 +636,7 @@ class Relay {
         const s = this.standby;
         this.standby = null;
         s.session.options.standby = false;
+        s.session.options.relayTimeline = true;
         s.session.options.owner = this.ctx.owner;
         s.session.touch();
         s.lastSeq = s.tail[0].seq - 1;
@@ -677,4 +720,4 @@ function modeOf(settings) {
     return { enabled: enabled(settings), standby: standbyEnabled(settings) };
 }
 
-module.exports = { enabled, standbyEnabled, modeOf, adopt, get, close, closeAll, playingSessionId, list, Relay, STANDBY_TAIL };
+module.exports = { enabled, standbyEnabled, modeOf, adopt, get, close, closeAll, playingSessionId, list, Relay, STANDBY_TAIL, tuning };

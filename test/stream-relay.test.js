@@ -556,3 +556,32 @@ test('R7: a catch-up burst after a long pause does not switch at once; a leg tha
         delete process.env.PIGTV_RELAY_SWITCH_MS;
     }
 });
+
+
+test('FR-22: planned restart never promotes a ready standby or re-plans providers', async () => {
+    const s = fakeSession(); write(s, 0, 2);
+    s.stop = async () => { s.stopRequested = true; };
+    const r = relay.adopt(s, ctx({ settings: { ...withStandby, sharedIngestEnabled: true } }));
+    clearInterval(r.timer);
+    await r.ingest();
+    const backup = fakeSession({ providerId: 2, standby: true, owner: 'standby:test' }); write(backup, 0, 2);
+    r.standby = r.addLeg(backup, B);
+    r.standby.tail = [{ seq: 1 }, { seq: 2 }]; r.standby.lastSegAt = Date.now();
+    let left = false;
+    const pin = { endReason: null, ingest: { state: 'live', reconnectedAt: Date.now() - 10000 }, leave() { left = true; } };
+    const peek = sessions.peekSession;
+    sessions.peekSession = id => registry.get(id);
+    const plan = routing.plan;
+    routing.plan = () => { throw new Error('planned restart must never re-plan'); };
+    try {
+        await r.switchOver('reconnected', 'reconnected', pin);
+        await r.ingest();
+        assert.equal(r.active.candidate, A);
+        assert.equal(r.standby.session, backup, 'ready backup remains standby');
+        assert.equal(backup.options.standby, true);
+        assert.deepEqual(quarantined, []);
+        assert.equal(interruptions.summary().count, 0);
+        assert.match(r.render(), /#EXT-X-DISCONTINUITY\n/);
+        assert.equal(left, true);
+    } finally { sessions.peekSession = peek; routing.plan = plan; }
+});

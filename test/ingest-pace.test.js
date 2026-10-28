@@ -91,3 +91,26 @@ test('Status shows how far behind real time each ingest is', async () => {
         sub.leave();
     });
 });
+
+test('FR-22: every subscription sees URL-free reconnect metadata, and new joins cannot replay the old connection tail', async () => {
+    Object.assign(T, { backoffMs: [20] });
+    await quiet(async () => {
+        const viewer = await ingest.subscribe({ pool: 'r', url: `${base}/bursty`, purpose: 'viewer' });
+        const source = viewer.ingest;
+        const readers = [viewer, ...['recording', 'probe', 'warm', 'standby'].map(purpose => source.subscribe({ purpose }))];
+        const oldChunks = [...source.chunks];
+        const events = readers.map(sub => { sub.resume(); return once(sub, 'reconnected', { signal: AbortSignal.timeout(2000) }); });
+        source.dropRequest();
+        source.onUpstreamGone('test lag', true);
+        for (const [info] of await Promise.all(events)) {
+            assert.deepEqual(Object.keys(info).sort(), ['forLag', 'gapSec']);
+            assert.equal(info.forLag, true);
+            assert.ok(info.gapSec >= 0);
+        }
+        const deadline = Date.now() + 2000;
+        while (source.bytes < media(0, 3).length && Date.now() < deadline) await sleep(10);
+        assert.ok(source.chunks.every(c => !oldChunks.includes(c)), 'old burst discarded even though inside the two-second join window');
+        assert.equal(source.bytes, media(0, 3).length);
+        readers.forEach(sub => sub.leave());
+    });
+});

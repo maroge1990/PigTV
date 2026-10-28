@@ -30,6 +30,11 @@ const coordinator = load('services/streamCoordinator');
 const engine = load('services/recordingEngine');
 engine._setPrepareQueue(false);
 const ingest = load('services/ingest');
+const relay = load('services/streamRelay');
+const routing = load('services/providerRouting');
+const interruptions = load('services/playbackInterruptions');
+const originalTuning = { ...ingest.tuning };
+const responses = new Map();
 const { probeCache } = load('services/streamProbe');
 const { scheduled, recordings } = load('db/recordingsDb');
 
@@ -111,6 +116,7 @@ before(async () => {
         open[req.url] = (open[req.url] || 0) + 1;
         res.on('close', () => { open[req.url]--; });
         res.writeHead(200, { 'Content-Type': 'video/mp2t' });
+        responses.set(req.url, res);
         // '/slow.ts': headers at once, the first bytes after 600 ms (a start that takes a while).
         if (req.url === '/slow.ts') res.flushHeaders();
         const startAt = Date.now() + (req.url === '/slow.ts' ? 600 : 0);
@@ -144,6 +150,9 @@ before(async () => {
 });
 
 afterEach(async () => {
+    await relay.closeAll();
+    Object.assign(ingest.tuning, originalTuning);
+    interruptions.reset();
     await engine.stopAllActive(3000);
     for (const s of scheduled.listUpcoming()) { await engine.cancelScheduled(s.id); scheduled.setStatus(s.id, 'cancelled'); }
     for (const s of sessionsNow()) await transcodeSession.removeSession(s.id);
@@ -153,7 +162,7 @@ afterEach(async () => {
     probeCache.clear();
     connections = {};
     try { fs.unlinkSync(log); } catch { /* none */ }
-    await db.settings.update({ sharedIngestEnabled: true });
+    await db.settings.update({ sharedIngestEnabled: true, relayEnabled: false });
 });
 
 after(() => {
@@ -303,4 +312,154 @@ test('PB5: a browser that aborts its resolve (stop) leaves no session behind onc
     assert.equal((await asked).name, 'AbortError');
     await sleep(1500); // the slow provider's first bytes come at 600 ms; the start completes after the client left
     assert.deepEqual(sessionsNow(), [], 'nobody will play it: given back, not left to the idle sweep');
+});
+
+// FR-22: real routes, coordinator, recording engine and HTTP reconnects. The stand-in
+// ffmpeg only saves a playlist; relay-rig/reconnect.js cover actual muxing and players.
+for (const drops of [1, 3]) test(`FR-22: ${drops} HTTP reconnect(s) renew one viewer timeline on the same ingest; recording carries on`, async () => {
+    await db.settings.update({ relayEnabled: true });
+    Object.assign(ingest.tuning, { backoffMs: [40] });
+    const r = await play('pos_1', 'tv');
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    const followed = relay.get(r.body.sessionId);
+    assert.ok(followed);
+    const front = followed.active.session;
+    ingest.tuning.lingerMs = 0;
+    const rec = await recordNow();
+    await until(() => tools().some(t => t.tool === 'record'), 'recording process');
+    const feed = front.feed;
+    const events = [];
+    feed.on('reconnected', info => events.push(info));
+    let failures = 0;
+    const originalFailure = routing.noteFailure;
+    routing.noteFailure = () => { failures++; };
+    const recordBefore = tools().filter(t => t.tool === 'record').length;
+    try {
+        for (let i = 0; i < drops; i++) {
+            responses.get('/1.ts').destroy();
+            await until(() => connections['/1.ts'] === i + 2 && feed.ingest.state === 'live', 'reconnected');
+            if (i + 1 < drops) await sleep(3500); // spaced flaps: quicker retries alone are not enough to coalesce
+        }
+        await until(() => followed.switches === 1 && !followed.switching, 'one timeline restart', 12000);
+        await followed.tick();
+        const text = await followed.getPlaylist();
+        assert.match(text, /#EXT-X-DISCONTINUITY\n/);
+        assert.match(text, /L1-seg0000/);
+        assert.equal(followed.active.candidate.providerId, A.id);
+        assert.notEqual(followed.active.session.id, front.id);
+        assert.equal(failures, 0, 'a planned renewal never quarantines');
+        assert.equal(interruptions.summary().count, 0, 'not a lost play');
+        assert.equal(connections['/1.ts'], drops + 1, 'only the requested reconnects, no replacement connection');
+        assert.equal(openNow('/1.ts'), 1);
+        assert.equal(followed.active.session.feed.ingest, feed.ingest, 'same ingest');
+        assert.equal(tools().filter(t => t.tool === 'ffmpeg').length, 2, 'one new ffmpeg, including a reconnect burst');
+        assert.equal(tools().filter(t => t.tool === 'record').length, recordBefore, 'recording never restarted');
+        assert.equal(recordings.listBySchedule(rec.id)[0].status, 'recording');
+        assert.equal(ingest.list().length, 1);
+        assert.equal(coordinator.requestForViewer({ owner: 'device:other', settings: await db.settings.get() }).allowed, false, 'pool remains full');
+        assert.equal(events.length, 1, 'old leg detached after its planned boundary');
+        assert.equal(events[0].forLag, false);
+        assert.ok(events[0].gapSec >= 0);
+        await sleep(700);
+        assert.equal(followed.switches, 1);
+    } finally { routing.noteFailure = originalFailure; }
+});
+
+test('FR-22: zero linger retains the viewer ingest without a recording; cancelling during settle releases the pin', async () => {
+    await db.settings.update({ relayEnabled: true });
+    Object.assign(ingest.tuning, { backoffMs: [40] });
+    const r = await play('pos_1', 'tv');
+    const followed = relay.get(r.body.sessionId);
+    ingest.tuning.lingerMs = 0;
+    responses.get('/1.ts').destroy();
+    await until(() => followed.switching, 'settling');
+    assert.equal(ingest.list().length, 1, 'pin retained after old ffmpeg leaves');
+    assert.equal(coordinator.requestForViewer({ owner: 'device:other', settings: await db.settings.get() }).allowed, false, 'settling viewer still owns the connection');
+    assert.ok(!String(await followed.getPlaylist()).includes('#EXT-X-ENDLIST'));
+    await followed.close('test cancellation');
+    await until(() => ingest.list().length === 0 && !followed.switching, 'pin released');
+    assert.equal(connections['/1.ts'], 2);
+    assert.equal(tools().filter(t => t.tool === 'ffmpeg').length, 1, 'cancelled before replacement');
+});
+
+test('FR-22: a reconnect while the replacement is starting is absorbed before publishing its timeline', async () => {
+    await db.settings.update({ relayEnabled: true });
+    Object.assign(ingest.tuning, { backoffMs: [40] });
+    const r = await play('pos_1', 'tv');
+    const followed = relay.get(r.body.sessionId);
+    const strategy = load('services/playbackStrategy');
+    const resolve = strategy.resolve;
+    let interrupted = false;
+    strategy.resolve = async opts => {
+        const decision = await resolve(opts);
+        if (!interrupted && opts.sessionOptions?.relayTimeline) {
+            interrupted = true;
+            const n = connections['/1.ts'];
+            responses.get('/1.ts').destroy();
+            await until(() => connections['/1.ts'] > n && followed.active.session.plannedRestart, 'in-flight reconnect');
+            await until(() => ingest.list()[0].state === 'live', 'live again');
+        }
+        return decision;
+    };
+    try {
+        responses.get('/1.ts').destroy();
+        await until(() => followed.switches === 1 && !followed.switching, 'one completed renewal', 18000);
+        await followed.tick();
+        assert.equal(interrupted, true);
+        assert.equal(connections['/1.ts'], 3, 'two requested reconnects, no extra provider read');
+        assert.equal(followed.active.session.stopRequested, undefined, 'published leg is running');
+        assert.equal(followed.active.session.status, 'running');
+        const text = await followed.getPlaylist();
+        assert.equal((text.match(/#EXT-X-DISCONTINUITY\n/g) || []).length, 1);
+        assert.equal(interruptions.summary().count, 0);
+        await sleep(700);
+        assert.equal(followed.switches, 1);
+    } finally { strategy.resolve = resolve; }
+});
+
+test('FR-22: bare, warm and standby sessions carry on when a managed viewer renews', async () => {
+    await db.settings.update({ relayEnabled: true });
+    Object.assign(ingest.tuning, { backoffMs: [40] });
+    const r = await play('pos_1', 'tv');
+    const followed = relay.get(r.body.sessionId);
+    const others = [];
+    for (const mode of [{}, { warm: true }, { standby: true }]) {
+        const s = await transcodeSession.createSession(`${base}/1.ts`, { ffmpegPath: FFMPEG, live: true, ...mode,
+            ingestSource: { pool: coordinator.poolOf(A.id), url: `${base}/1.ts`, providerId: A.id } });
+        await s.start();
+        assert.equal(await s.waitForPlaylist(3000), true);
+        others.push({ session: s, process: s.process, feed: s.feed });
+    }
+    responses.get('/1.ts').destroy();
+    await until(() => followed.switches === 1 && !followed.switching, 'managed renewal');
+    for (const old of others) {
+        assert.equal(old.session.process, old.process);
+        assert.equal(old.session.feed, old.feed);
+        assert.equal(old.session.status, 'running');
+    }
+    assert.equal(connections['/1.ts'], 2);
+});
+
+test('FR-22: zero-linger renewal holds the viewer slot without a recording, and a forced takeover cancels it', async () => {
+    await db.settings.update({ relayEnabled: true });
+    Object.assign(ingest.tuning, { backoffMs: [40] });
+    const r = await play('pos_1', 'tv');
+    const followed = relay.get(r.body.sessionId);
+    const source = followed.active.session.feed.ingest;
+    ingest.tuning.lingerMs = 0;
+    responses.get('/1.ts').destroy();
+    await until(() => followed.switching, 'settling');
+    assert.equal((await play('pos_2', 'phone')).status, 409, 'still owns the provider slot');
+    await until(() => followed.switches === 1 && !followed.switching, 'renewed without a recording');
+    assert.equal(followed.active.session.feed.ingest, source);
+    assert.equal(connections['/1.ts'], 2);
+    responses.get('/1.ts').destroy();
+    await until(() => followed.switching, 'settling again');
+    const forced = await play('pos_2', 'phone', { force: true });
+    assert.equal(forced.status, 200, JSON.stringify(forced.body));
+    await until(() => followed.closed && !followed.switching, 'renewal cancelled by takeover');
+    assert.equal(followed.failed, false, 'an intentional takeover is not a failed relay');
+    assert.equal(connections['/1.ts'], 3, 'no resurrection after takeover');
+    assert.equal(connections['/2.ts'], 1);
+    assert.equal(ingest.list().length, 1, 'only the replacement channel remains');
 });

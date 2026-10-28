@@ -1,0 +1,157 @@
+{
+  "connections": 2,
+  "switches": 0,
+  "provider": 1,
+  "consumerExit": 0,
+  "discontinuities": 0,
+  "maxDuration": 14.014,
+  "maxVideoStep": 0.017000000000010118,
+  "maxAudioStep": 12.223999999999998,
+  "tinyRuns": 1,
+  "timings": [
+    {
+      "leg": "leg0",
+      "name": "seg0000.ts",
+      "duration": 2.002,
+      "videoStart": 3.439333,
+      "audioStart": 1.4,
+      "maxVideoStep": 0.017000000000000348,
+      "maxAudioStep": 0.021667000000000103
+    },
+    {
+      "leg": "leg0",
+      "name": "seg0001.ts",
+      "duration": 4.004,
+      "videoStart": 5.441333,
+      "audioStart": 5.410667,
+      "maxVideoStep": 0.017000000000001236,
+      "maxAudioStep": 0.02166700000000077
+    },
+    {
+      "leg": "leg0",
+      "name": "seg0002.ts",
+      "duration": 14.014,
+      "videoStart": 9.445333,
+      "audioStart": 9.399667,
+      "maxVideoStep": 0.017000000000001236,
+      "maxAudioStep": 12.223999999999998
+    },
+    {
+      "leg": "leg0",
+      "name": "seg0003.ts",
+      "duration": 0.167,
+      "videoStart": 23.459333,
+      "audioStart": 23.416,
+      "maxVideoStep": 0.01699999999999946,
+      "maxAudioStep": 0.02133399999999952
+    },
+    {
+      "leg": "leg0",
+      "name": "seg0004.ts",
+      "duration": 0.634,
+      "videoStart": 23.626333,
+      "audioStart": 23.586,
+      "maxVideoStep": 0.017000000000003013,
+      "maxAudioStep": 0.02166700000000077
+    },
+    {
+      "leg": "leg0",
+      "name": "seg0005.ts",
+      "duration": 1.201,
+      "videoStart": 24.260333,
+      "audioStart": 24.226,
+      "maxVideoStep": 0.017000000000003013,
+      "maxAudioStep": 0.02166700000000077
+    },
+    {
+      "leg": "leg0",
+      "name": "seg0006.ts",
+      "duration": 4.004,
+      "videoStart": 25.461333,
+      "audioStart": 25.421,
+      "maxVideoStep": 0.017000000000003013,
+      "maxAudioStep": 0.02166700000000077
+    },
+    {
+      "leg": "leg0",
+      "name": "seg0007.ts",
+      "duration": 4.004,
+      "videoStart": 29.465333,
+      "audioStart": 29.431667,
+      "maxVideoStep": 0.017000000000003013,
+      "maxAudioStep": 0.02166700000000077
+    },
+    {
+      "leg": "leg0",
+      "name": "seg0008.ts",
+      "duration": 4.004,
+      "videoStart": 33.469333,
+      "audioStart": 33.420667,
+      "maxVideoStep": 0.017000000000003013,
+      "maxAudioStep": 0.02166700000000077
+    },
+    {
+      "leg": "leg0",
+      "name": "seg0009.ts",
+      "duration": 4.004,
+      "videoStart": 37.473333,
+      "audioStart": 37.432,
+      "maxVideoStep": 0.017000000000003013,
+      "maxAudioStep": 0.02166700000000077
+    },
+    {
+      "leg": "leg0",
+      "name": "seg0010.ts",
+      "duration": 4.004,
+      "videoStart": 41.477333,
+      "audioStart": 41.442333,
+      "maxVideoStep": 0.017000000000003013,
+      "maxAudioStep": 0.02166700000000077
+    },
+    {
+      "leg": "leg0",
+      "name": "seg0011.ts",
+      "duration": 4.004,
+      "videoStart": 45.481333,
+      "audioStart": 45.432,
+      "maxVideoStep": 0.017000000000003013,
+      "maxAudioStep": 0.02166700000000077
+    },
+    {
+      "leg": "leg0",
+      "name": "seg0012.ts",
+      "duration": 4.004,
+      "videoStart": 49.485333,
+      "audioStart": 49.442667,
+      "maxVideoStep": 0.017000000000003013,
+      "maxAudioStep": 0.02166700000000077
+    },
+    {
+      "leg": "leg0",
+      "name": "seg0013.ts",
+      "duration": 4.004,
+      "videoStart": 53.489333,
+      "audioStart": 53.453,
+      "maxVideoStep": 0.017000000000003013,
+      "maxAudioStep": 0.02166700000000077
+    },
+    {
+      "leg": "leg0",
+      "name": "seg0014.ts",
+      "duration": 4.004,
+      "videoStart": 57.493333,
+      "audioStart": 57.463333,
+      "maxVideoStep": 0.017000000000003013,
+      "maxAudioStep": 0.02166700000000077
+    },
+    {
+      "leg": "leg0",
+      "name": "seg0015.ts",
+      "duration": 4.004,
+      "videoStart": 61.497333,
+      "audioStart": 61.453333,
+      "maxVideoStep": 0.017000000000010118,
+      "maxAudioStep": 0.021667000000007874
+    }
+  ]
+}

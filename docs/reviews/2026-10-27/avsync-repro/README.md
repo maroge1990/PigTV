@@ -54,3 +54,62 @@ segments play.
 The player starts at its very beginning and runs into Strong8K's delivery pauses within about 5 s, with or without the
 30 s hold. The hold turns the stall into a 26 s wait; without it the wait is 1.7 s. The synthetic feed with even delivery
 never stalled. Whether the sound comes back 1–2 s late after the stall can't be seen here (no audio tap on HLS).
+
+## Reconnect through the real server path (0305)
+
+`reconnect.js` drives `scripts/relay-rig.js reconnect`: local fake HTTP provider → real shared ingest → production
+strategy/session → relay → real HTTP HLS route → ffmpeg reader and the existing macOS AVPlayer harness (30 s hold).
+It cuts the existing capture **73 bytes inside a TS packet at media 18.002 s**, then resumes with the PAT before the
+keyframe at 30.030 s. `pace-pcr.js` supplies the sample's own pacing and an 8 s connect burst; `BURSTY` is also supported.
+No provider or deployed server is used. The script rejects output paths inside this repository.
+
+```bash
+export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
+FOX_SAMPLE=/private/tmp/claude-501/-Users-markrogers-Documents-GitHub-PigTV/a1811a72-cb4b-4e02-8d3f-f4b764ba4ed8/scratchpad/avrepro/fox.ts
+node docs/reviews/2026-10-27/avsync-repro/reconnect.js "$FOX_SAMPLE" /private/tmp/pigtv-fr22-final
+# Old source only (tests/scripts stay present), then restore it:
+git stash push -m 'FR-22 before proof' -- server/services/ingest.js server/services/streamRelay.js server/services/transcodeSession.js
+node docs/reviews/2026-10-27/avsync-repro/reconnect.js "$FOX_SAMPLE" /private/tmp/pigtv-fr22-before2 --baseline
+git stash pop
+```
+
+The output includes the raw splice, per-leg media, playlists, `rig.log`, `avplayer.log`, and `timings.json`. Only the
+text timings/player logs are retained here (`reconnect-before-*`, `reconnect-after-*`); the broadcast media stays outside
+the repository. `--no-player` skips the Swift build/player. `--baseline` reports old-code defects without requiring the
+new boundary criteria to pass. The finite replay stops after 48 wall-clock seconds; the after ffmpeg reader is deliberately
+killed at that bound (its exit is `null`), while AVPlayer completes its full 48 s observation. The synthetic rig's reader
+instead completes naturally (exit 0).
+
+28 Oct results, ffmpeg 9.0.2 and macOS AVPlayer:
+
+| Metric | Old source | 0305 |
+|---|---:|---:|
+| Provider connections (initial + intentional reconnect) | 2 | 2 |
+| Relay renewals / discontinuities | 0 / 0 | 1 / 1, same provider |
+| Longest segment | 14.014 s | 4.004 s |
+| Largest in-segment audio timestamp step | 12.224 s | 0.021667 s |
+| Consecutive sub-second segments | 0.167, 0.634 s | none |
+| AVPlayer stalls | 1, at 2.55 s | 1, at 6.49 s |
+| Recovery from that startup stall | 4.59 s | 29.92 s |
+| Largest measured picture/clock offset | 41 ms | 15 ms |
+
+This removes the unmarked reconnect gap; it does **not** eliminate the already-known early short-playlist stall. The
+unchanged 30 s hold can lengthen the wait (as the earlier FOX runs showed). Both player runs recover and reach the join;
+no second stall is logged during their observation. The first segment of the fresh leg still has video starting 1.979 s
+after audio: a new ffmpeg waits for the next keyframe, as at ordinary start. Later full segments have audio/video starts within 0.05 s.
+No HLS audio tap runs (`tapCalls=0`): this cannot establish iPhone sound/picture sync or explain its reported 1–2 s lag.
+No iOS Simulator run: no Apple code changed, and the real macOS AVPlayer replay plus Mark's required iPhone check cover
+this server batch's offline/live split; iOS-specific behaviour remains untested. Production ffmpeg 6.1.1 remains untested.
+
+Fixture issues found and corrected before accepting the run: a SIGINT could leave ffmpeg waiting for more fixture bytes,
+allowing the finite sample to cause a second lag reconnect; the wall-clock bound now kills that reader. The old standby
+rig stub intercepted `hasFreeConnection`, bypassed by newer lease admission; the rig now creates real sandbox provider
+rows and uses real leases. The first after attempt still had clean segments but two discontinuities due to that finite
+sample timeout; it was rejected. Early rig runs ended their consumers by SIGINT (255), so the existing variants were rerun
+to natural completion. Initial test `lingerMs=0` also closed the cold probe ingest before the first session; zero linger
+is now set only once the initial play exists, to isolate the reconnect being tested.
+
+The accepted final replay uses a **6 s** settle interval. A 3 s prototype published three renewals for HTTP reconnects
+3.5 s apart; the strengthened regression fails that prototype and original source, and passes with 6 s. The final
+zero-linger test also proves renewal without a recording, 409 admission while settling, and forced takeover without
+resurrection or a false failed-relay status.

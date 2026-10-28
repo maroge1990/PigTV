@@ -264,6 +264,7 @@ class TranscodeSession extends EventEmitter {
                 this.ingestKey = ingest.keyOf(src.pool, src.url);
                 this.feedLost = null;
                 this.feed.on('ingest-end', (why) => { this.feedLost = why; });
+                this.feed.on('reconnected', (info) => this.handleIngestReconnect(info));
             }
         }
 
@@ -362,6 +363,19 @@ class TranscodeSession extends EventEmitter {
             this.error = err.message;
             throw err;
         }
+    }
+
+    /** FR-22: only relay viewer legs opt in. Stop before any new-connection bytes arrive.
+     * This is a planned boundary, never `lost`; recordings, warm/standby and bare sessions carry on.
+     * A replacement can reconnect while resolve is waiting for its first segment: latch the reason
+     * then too, so the relay can discard that attempt and wait for the same ingest to settle again.
+     */
+    handleIngestReconnect(info) {
+        if (!this.options.relayTimeline || this.options.standby || this.options.warm || this.plannedRestart || this.stopRequested) return;
+        this.plannedRestart = info;
+        this.feed.unpipe(this.process.stdin);
+        this.emit('timeline-restart', { ...info, feed: this.feed });
+        this.stop();
     }
 
     /**
@@ -1687,7 +1701,8 @@ function getAllSessions() {
         // 0189: a relay's hot standby: nobody watches it, and anybody may take its connection.
         standby: s.options.standby === true,
         // R12: started ahead for the channel its owner may play next; reclaimed before a standby.
-        warm: s.options.warm === true
+        warm: s.options.warm === true,
+        ...(s.ingestKey ? { ingestKey: s.ingestKey } : {})
     }));
 }
 
