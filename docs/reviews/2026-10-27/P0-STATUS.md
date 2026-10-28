@@ -197,8 +197,8 @@ relay or recording log lines, no `feed_lag` rows and no `feed_lag_limits` rows: 
 | Check | Status | Evidence / reason |
 |---|---|---|
 | 1. 0300 live; shared ingest on; stored opt-out wins | **Production read-only complete** (version, stored settings) + automated | The opt-out case is covered by tests; there is no stored opt-out on Mark's server to observe |
-| 2. Feed lag rows show the current limit | **Pending: no play since deploy** | `feed_lag` and `feed_lag_limits` are empty |
-| 3. 24→26→28 s on a lag reconnect; kept across a later play and a redeploy | **Pending: needs a natural lag reconnect** | Automated only; no outage is to be forced |
+| 2. Feed lag rows show the current limit | **Production read-only: rows present (01:07–01:23 UTC plays)**; the page display is not checked | 3 identity-backed `feed_lag` rows, e.g. FOX [Birmingham] `s429387`/Strong8K: 781 s, worst 24.6 s, 8 reconnects, 1 for lag |
+| 3. 24→26→28 s on a lag reconnect; kept across a later play and a redeploy | **Raise and persistence observed read-only** (26 s); 28 s and survival across a redeploy pending | 01:20:19 `lost the stream (25s behind real time)` on Mark's play; `feed_lag_limits` then held `s429387`/8 at **26000 ms** with 64,951 ms clean after the raise. Not forced |
 | 4. A 2 s drop after ~3 clean reading hours | **Pending: needs ≥3 h of reading at a raised level** | Automated only |
 | 5. Fox Cricket daytime live, overnight replays | **Fails offline on production rows** | Day 2 Fox sessions (live-flagged) come out as replays (FR-20); overnight 01:00/04:00 blocks come out as live via a Sheffield Shield fixture (FR-19). Willow lists Day 2 live. `sports-replay/RESULTS.md` |
 | 6. MLB carrying channels; recaps excluded | **Passes offline on production rows** (0300 and 0301) | One event, 45 channels (affiliates, Sportsnet, AFN, team channels, TNT/ESPN broadcasts); recaps out. Device display pending |

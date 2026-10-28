@@ -8,6 +8,6 @@ printf '#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-INDEPENDENT-SEGMENTS\n#EXT-X-STREAM-IN
 for i in $(seq 1 100); do grep -q "seg0000" "$OUT/stream.m3u8" 2>/dev/null && break; sleep 0.1; done
 echo "first segment after ~$((i*100)) ms"
 "$R/avsync" "http://127.0.0.1:8899/$NAME/master.m3u8" 60 > "$R/$NAME.avsync.log" 2>&1
-pkill -f "pace.js $R/src.ts $2"; sleep 1
+pkill -f "$R/pace"; sleep 1
 cat "$OUT/init.mp4" "$OUT/seg0000.m4s" > "$R/$NAME.seg0.mp4"
 echo "$NAME seg0: v=$(ffprobe -v error -select_streams v:0 -show_entries packet=pts_time -of csv=p=0 "$R/$NAME.seg0.mp4" | head -1) a=$(ffprobe -v error -select_streams a:0 -show_entries packet=pts_time -of csv=p=0 "$R/$NAME.seg0.mp4" | head -1)"

@@ -41,7 +41,9 @@ func makeTap() -> MTAudioProcessingTap? {
 }
 
 let item = AVPlayerItem(url: url)
-item.configuredTimeOffsetFromLive = CMTime(seconds: 30, preferredTimescale: 1) // PlayerSeekWindow.liveOffset
+let holdSec = Double(ProcessInfo.processInfo.environment["HOLD"] ?? "30")!
+if holdSec > 0 { item.configuredTimeOffsetFromLive = CMTime(seconds: holdSec, preferredTimescale: 1) } // PlayerSeekWindow.liveOffset; HOLD=0 leaves AVPlayer's default
+print("hold \(holdSec) s")
 let videoOut = AVPlayerItemVideoOutput(pixelBufferAttributes: nil)
 item.add(videoOut)
 let player = AVPlayer(playerItem: item)
