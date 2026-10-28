@@ -4,8 +4,9 @@
 stored adaptive reconnect limits, Fox Cricket recognition/daily Test play, and roster-based league recognition/MLB broadcasts.
 **Round 1 repairs are in 0295–0300**, including anonymous-owner coverage and deterministic cache tests.
 **Both adversarial rounds complete at 0300 (974977f), no high findings; review no longer blocks handoff.**
-**0300 (`58745fe`) is pushed and confirmed live by read-only SSH on 28 Oct; container healthy. Device/feed acceptance pending.** FR-15/FR-16 remain open; FR-17/FR-18 are recorded for Mark to prioritise.
-FR-17 is a 0297 regression relative to 0289; Mark approved its isolated fix as a separate batch on 28 Oct; no code change in this diagnostic report.
+**0300 (`58745fe`) is pushed and confirmed live by read-only SSH on 28 Oct; container healthy. Device/feed acceptance pending.** FR-15/FR-16/FR-18 remain open.
+**0301** repairs FR-17 locally as a separately approved batch: zero-overlap generic listings recognised by guide category
+or sport channel remain events. Its separate review and device acceptance are pending; it is not deployed.
 Server **0300** is deployed; local `main` matched `origin/main` at `58745fe` (application `974977f`) at session pickup. Apple client
 **57** (live plays held 30 s back) is on the Apple TV. R7 (0282–0284, shared ingest on) passed on the Apple TV: NBC Sports
 Boston 35 min and Chicago Sports Network Plus 65 min with 0 stalls and no switches. Mark approved the next batch on 27 Oct:
@@ -76,7 +77,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0301** |
+| Next build number | **0302** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -292,7 +293,8 @@ same kind + canonical league + overlapping times + the same game: teams in eithe
 single letters as initials, "FRE"/"BRL" by their letters in order), or the same session and a compatible grand prix location;
 a teamless session ("AFL Grand Final 2026") joins the one overlapping match-up of its league; a plain broadcast title ("AFL
 Premiership Football") adds its channel only when exactly one event of that league/kind overlaps (not its times);
-with none or several it stays a show (0297). MLB broadcasts include `World Series`, `Game N`, `Postseason` and bare `MLB` (0294);
+several candidates make a show (0297). With none, category/sport-channel recognition remains an event, while
+keyword-only recognition becomes a show (0301). MLB broadcasts include `World Series`, `Game N`, `Postseason` and bare `MLB` (0294);
 "World Series" alone is not a league alias, and recaps such as "World Series in 30" stay shows. French `c.` is also a
 match-up separator. Anything else by the
 normalised title (lower case; tags, the channel's own name, live/HD words and punctuation removed). The item's title is the
@@ -563,8 +565,8 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
 
 **28 Oct:** P0 items 1–5 and round-1 repairs (**0290–0300**) are pushed; read-only SSH confirms 0300 (`58745fe`) live and healthy,
-both adversarial rounds are complete with no high findings. Status: **Shipped, awaiting a check**; device checks remain outstanding; FR-15–FR-18 are recorded
-for Mark to prioritise (FR-17 is a regression; Mark approved a separate repair batch)
+both adversarial rounds are complete with no high findings. Status: **Shipped, awaiting a check**; device checks remain outstanding. FR-15/FR-16/FR-18 remain open;
+FR-17 is repaired locally in **0301**, a separate batch awaiting its own review and device check
 ([validation and live steps](docs/reviews/2026-10-27/P0-STATUS.md)). The current order of work (P0-P3) and the questions only Mark can answer are in
 [`docs/reviews/2026-10-27/ROADMAP.md`](docs/reviews/2026-10-27/ROADMAP.md). The table below keeps each item's status.
 

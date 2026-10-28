@@ -1,10 +1,10 @@
 # P0 implementation and checks, 28 Oct 2026
 
-The P0 changes **0290–0294** and round-1 fixes **0295–0300** are pushed: local `main` and `origin/main` match
+The P0 changes **0290–0294** and round-1 fixes **0295–0300** are pushed: at session pickup local `main` and `origin/main` matched
 `58745fe` (application `974977f`). On 28 Oct Mark reported the latest build live; approved read-only SSH confirmed
-**0300 (`58745fe`)**, container running/healthy, started 00:43:59 UTC (11:43:59 AEDT). Apple 57 remains the last reported installed version. No Apple code or ffmpeg flags changed. Next server build is 0301; next Apple build remains 58.
+**0300 (`58745fe`)**, container running/healthy, started 00:43:59 UTC (11:43:59 AEDT). Apple 57 remains the last reported installed version. No Apple code or ffmpeg flags changed. Next server build is 0302 (0301 is the separate local FR-17 repair below); next Apple build remains 58.
 **Round 2 is complete: both permitted rounds used, no high findings. Review no longer blocks handoff.**
-FR-15/FR-16 remain open; new FR-17/FR-18 are recorded under the stopping rule. Mark's device/feed acceptance is outstanding.
+FR-15/FR-16/FR-18 remain open. FR-17 is repaired in the separate local 0301 batch below. Mark's device/feed acceptance is outstanding.
 
 | Build | Local commit | Change | Required checks |
 |---|---|---|---|
@@ -90,12 +90,11 @@ requested for this batch, and no push or deployment is authorised by this handof
 
 | New finding | Stopping-rule disposition |
 |---|---|
-| FR-17 MEDIUM (demonstrated) | Recorded with two-row reproduction in FINDINGS. Regression from deployed 0289, introduced in 0297: no-overlap generic listings found by guide category/sport channel become shows and disappear from Sports/recording rules. The small conditional fix awaits Mark's decision; **not applied**. |
+| FR-17 MEDIUM (demonstrated) | At final P0 review: regression relative to 0289, introduced in 0297; no-overlap category/sport-channel generics become shows and disappear from Sports/rules. Subsequently approved and repaired in the separate 0301 batch below. |
 | FR-18 MEDIUM-LOW (classification demonstrated, real-guide frequency hypothetical) | Recorded with ESPN-shaped NFL roster and nickname-only reproductions in FINDINGS. Cross-code nicknames may infer NFL when another code is not followed. Mark to prioritise; **not applied**. |
 
 FR-17's proposed guard restores the pre-0297 zero-candidate behavior for category/sport-channel recognition while keeping
-several overlapping games ambiguous and keeping keyword-only/no-event titles as shows. It needs Mark's go-ahead and a
-separately agreed review scope, since both batch rounds are used. The current final server build remains **0300**.
+several overlapping games ambiguous and keeping keyword-only/no-event titles as shows. Mark approved the separate repair batch below; both P0 rounds remain used. The final P0 build is **0300**.
 
 ## Device/feed checks after review and Mark's deployment
 
@@ -128,7 +127,7 @@ Nothing above is device/feed Verified until Mark reports the result.
   HE-AAC profile. Apple's `fmt?` fallback explicitly requests `audioEncode`, which overrides copy. The change of log
   message on the cached retry does not prove the first probe missed HE-AAC. Initial decode failure remains unresolved.
   No tracked media sample was found locally; no provider connection or production bench was taken.
-- Recommended next code batch: isolated FR-17 repair, after Mark approves scope. FR-18 needs stored-guide frequency
+- Mark approved the isolated FR-17 repair below as the next code batch. FR-18 needs stored-guide frequency
   evidence before tightening aliases; FR-15/FR-16 remain display debts. FR-9 needs log/request correlation before a capture.
 - Approved read-only SSH confirmed ffmpeg **6.1.1-3ubuntu5**. Bounded sanitized logs since this container start
   showed initialization and the completed pre-migration backup; no matching playback/reconnect/recording failure
@@ -153,3 +152,30 @@ Nothing above is device/feed Verified until Mark reports the result.
 - Device acceptance remains pending the numbered steps above, plus recording/iPhone same/different-channel
   playback and segmented watch-from-start/seek/final-publication checks. Restart, takeover and share-loss tests
   need separate approval. No provider stream, bench, sync, recording, restart or production change was initiated.
+
+## Separate FR-17 repair: 0301 (28 Oct)
+
+Mark approved this isolated batch after deployment of 0300. The two P0 review rounds remain complete; this repair
+has a new scope and baseline **36a9135**, not a third P0 review round.
+
+Generic listings recognised by guide category or sport channel remain events when no named event overlaps.
+Exactly one candidate still absorbs the broadcast channel; multiple candidates still produce a show.
+Keyword-only zero-candidate listings remain shows. C-I records the restored behavior.
+
+Failing-before proof: in the 0300 scratch copy both independent category/channel assertions fail (`show` vs `event`).
+The repository regression also fails before the source guard, and passes after it. Added controls cover one/two
+candidates for both recognition paths; existing keyword-only and MLB ambiguity coverage remains.
+
+Validation: Node 24 full suite **1209/1209**, no skips; `verify-build.sh` and `git diff --check` pass.
+The diagnostic docs commit separately passed 1207/1207 and the verifier. Initial sandbox runs could not bind
+local HTTP listeners (`EPERM`); the complete runs above used approved local execution.
+
+Separate review still required before this batch is ready for handoff. Mark's command:
+
+```text
+/codex:adversarial-review --background --base 36a9135 Challenge only the 0301 FR-17 repair: zero-candidate category/sport-channel generic listings retain events; keyword-only listings stay shows; one-candidate merging and multi-candidate ambiguity remain intact; check C-I and recording-rule implications. No production/provider access.
+```
+
+After review and Mark's push/deploy, check a category/sport-channel generic live listing with no named overlap in
+Sports and any applicable existing sport-rule schedules; confirm it remains eligible. With two overlapping named games, the
+generic broadcast must remain a show; with exactly one, it must join only that game. No test recording is authorised.

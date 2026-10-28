@@ -837,9 +837,13 @@ function mergeAirings(airings, normalise) {
                 candidates[0].airings.push(a);
                 continue;
             }
-            rest.push({ ...a, kind: 'show', why: candidates.length
-                ? 'a broadcast title, multiple events at that time' : 'a broadcast title, no event at that time' });
-            continue;
+            // A category or sport channel can establish a live broadcast without a named game.
+            // Only keyword-only recognition needs a paired event; several candidates stay ambiguous.
+            if (candidates.length || a.rule === 'keyword') {
+                rest.push({ ...a, kind: 'show', why: candidates.length
+                    ? 'a broadcast title, multiple events at that time' : 'a broadcast title, no event at that time' });
+                continue;
+            }
         }
         if (gameKind(a) && (a.parsed.teams || a.parsed.session)) continue;
         rest.push(a);

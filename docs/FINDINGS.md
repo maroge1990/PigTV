@@ -18,39 +18,7 @@ prioritises; fixed entries move to the commit that fixed them and are deleted he
 | FR-6 | 26 Oct | Apple tab-switch gate | The gate now fails a switch only when it stalls on both laps (`63809e4`). The budget stays 500 ms; the 250 ms Apple TV target is still checked by hand with Instruments. | Lower the simulator budget only after a clean device measurement shows headroom. |
 | FR-15 | 28 Oct | P0 round 1 finding 5 (low): configured lag above the ceiling | With `PIGTV_INGEST_BEHIND_SEC=30`, measured PCR feeds use the fixed 28 s ceiling without a startup warning. No-PCR feeds still use 30 s but ingest `describe().limitSec` and Status advertise 28 s. No playback decision is changed by this display defect. | Local fake PCR/no-PCR feeds with tuning `behindMs=30000`: compare the reconnect decision at 29 s with `describe().limitSec`. Add a once-only clamp warning and report the effective per-ingest limit, or prioritise later. Recorded per Mark's round-1 disposition option; confirmed open at the final round 2 (974977f). |
 | FR-16 | 28 Oct | P0 round 1 finding 6 (low): legacy lag history | Pre-0292 `feed_lag` rows have no stable channel key, so summary groups them separately and labels their limit with the default. A channel with a newer keyed row at 26 s can appear again with an old row saying 24 s for the 30-day retention period. | In a sandbox record one row with `channelKey=null` and one with a stable key, same channel/provider; raise the keyed limit to 26 s, call `feedLag.summary()`: two rows show 24/26 s. Display no current limit for legacy rows; do not infer identity by display name. Recorded per Mark's round-1 disposition option; confirmed open at the final round 2 (974977f). |
-
-| FR-17 | 28 Oct | P0 round 2 (medium): generic live listings lost without a paired event | Demonstrated regression from deployed 0289, introduced by 0297. With no overlapping named event, generic titles recognised by guide category or a sport-marked channel now become shows; before 0297 only keyword-found titles did. They disappear from default Sports and sport recording rules. | Reproduction and proposed conditional fix below. Awaiting Mark's decision; do not apply automatically after the batch's two review rounds. |
 | FR-18 | 28 Oct | P0 round 2 (medium-low): nicknames shared across unfollowed sports | Demonstrated NFL inference from nickname-only titles; whether real guide rows are misclassified is a hypothesis. Ambiguity is checked only across followed rosters. An NRL game written as two shared nicknames can be inferred as NFL when NFL alone is followed, potentially becoming an ESPN replay or matching an NFL recording rule. | Reproduction below. Mark to prioritise stricter aliases for known cross-code nickname clashes; real guides have not been checked. |
-
-## FR-17 reproduction and proposed fix (not applied)
-
-Reviewed at `974977f`, `server/services/sportsClassify.js`, `mergeAirings` step 3. In a local Node session:
-
-```js
-const sports = require('./server/services/sportsEvents');
-const start = Date.parse('2026-10-28T00:00:00Z');
-const channels = [
-    { key: '8:nfl', tvgId: 'nfl', name: 'Generic NFL', order: 0, sportChannel: false },
-    { key: '8:league', tvgId: 'league', name: 'Generic League', order: 1, sportChannel: true }
-];
-const rows = [
-    { channel_id: 'nfl', title: 'NFL Football', categories: JSON.stringify(['Sports event', 'Football']),
-        flags: 8, start_time: start, end_time: start + 3 * 3600000 },
-    { channel_id: 'league', title: 'Live: Rugby League', categories: null,
-        flags: 8, start_time: start, end_time: start + 3 * 3600000 }
-];
-console.log(sports.eventsFromProgrammes(channels, rows, []).map(e => [e.kind, e.kindRule]));
-```
-
-Deployed 0289 / `origin/main` and `a16eb11` give `event: a broadcast title` for both listings. `974977f` gives
-`show: a broadcast title, no event at that time`. Mark's captured source-8 rows lack guide categories, so the likely
-local impact is smaller; guides supplying categories lose such live listings fully.
-
-Proposed small conditional fix, **awaiting Mark's go-ahead**: exactly one overlapping event joins; several makes a show;
-with none, only keyword-found titles become shows, while category/sport-channel titles remain events. Guard the existing
-show-conversion block with `if (candidates.length || a.rule === 'keyword')`. Add the two-row regression test, which must
-fail on `974977f`. This is a fix for a review finding and needs a separately agreed review scope; no third round of this
-batch is authorised by the stopping rule.
 
 ## FR-18 reproduction and scope
 
@@ -85,5 +53,5 @@ other code, or maintain known nickname clashes. No implementation or provider/gu
 
 Also open, tracked in `blueprint.md`: bug 8 (iPhone tuning) without a root cause; the deferred
 and unmeasured efficiency register, physical device and real-feed acceptance, and the recorded review findings awaiting
-Mark's prioritisation (including FR-17's fix decision). R8's sync measurement and the E3 samples were closed on 27 Oct;
+Mark's prioritisation of the remaining findings. R8's sync measurement and the E3 samples were closed on 27 Oct;
 B4 was re-scoped to dead-code removal.

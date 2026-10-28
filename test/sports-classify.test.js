@@ -351,3 +351,40 @@ test('generic MLB broadcasts stay shows when two different games overlap, even w
         assert.equal(one.find(e => e.kind === 'event').channels.length, 3);
     }
 });
+
+test('generic broadcasts with no named overlap retain category and sport-channel recognition', () => {
+    const start = Date.parse('2026-10-28T00:00:00Z');
+    const end = start + 3 * 3600000;
+    for (const [id, title, categories, sportChannel] of [
+        ['category', 'NFL Football', JSON.stringify(['Sports event', 'Football']), false],
+        ['channel', 'Live: Rugby League', null, true]
+    ]) {
+        const channels = [{ key: `8:${id}`, tvgId: id, name: `Generic ${id}`, order: 0, sportChannel }];
+        const rows = [{ channel_id: id, title, categories, flags: 8, start_time: start, end_time: end }];
+        const events = sportsEvents.eventsFromProgrammes(channels, rows, []);
+        assert.equal(events.length, 1, id);
+        assert.equal(events[0].kind, 'event', id);
+        assert.deepEqual(events[0].channels.map(c => c.name), [`Generic ${id}`]);
+    }
+});
+
+test('category and sport-channel generic broadcasts join one named game but stay shows with two', () => {
+    const start = Date.parse('2026-10-28T00:00:00Z');
+    const end = start + 3 * 3600000;
+    for (const sportChannel of [false, true]) {
+        const channels = ['generic', 'a', 'b'].map((id, order) => ({
+            key: `8:${id}`, tvgId: id, name: id, order, sportChannel
+        }));
+        const row = (id, title) => ({ channel_id: id, title, start_time: start, end_time: end, flags: 8,
+            categories: sportChannel ? null : JSON.stringify(['Sports event', 'Football']) });
+        const rows = [row('generic', 'Live: NFL Football'), row('a', 'Live: NFL Chiefs v Bills'),
+            row('b', 'Live: NFL Jets v Dolphins')];
+        const one = sportsEvents.eventsFromProgrammes(channels, rows.slice(0, 2), []);
+        assert.equal(one.length, 1);
+        assert.equal(one[0].kind, 'event');
+        assert.deepEqual(one[0].channels.map(c => c.name).sort(), ['a', 'generic']);
+        const two = sportsEvents.eventsFromProgrammes(channels, rows, []);
+        assert.equal(two.filter(e => e.kind === 'event').length, 2);
+        assert.deepEqual(two.filter(e => e.kind === 'show').flatMap(e => e.channels.map(c => c.name)), ['generic']);
+    }
+});
