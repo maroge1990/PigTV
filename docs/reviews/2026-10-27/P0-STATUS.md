@@ -179,3 +179,10 @@ Separate review still required before this batch is ready for handoff. Mark's co
 After review and Mark's push/deploy, check a category/sport-channel generic live listing with no named overlap in
 Sports and any applicable existing sport-rule schedules; confirm it remains eligible. With two overlapping named games, the
 generic broadcast must remain a show; with exactly one, it must join only that game. No test recording is authorised.
+
+## Additional read-only acceptance checks, 28 Oct
+
+The deployed HTTP `/api/version` endpoint returned 200 with build **0300**, commit **58745fe**.
+Explicitly read-only SQLite reads confirmed `sharedIngestEnabled=true` and `segmentedRecordings=true`.
+No post-deployment `feed_lag` rows or learned limits were present at this check. These observations confirm
+configuration and endpoint availability, not adaptive behavior or device playback. No provider connection was taken.

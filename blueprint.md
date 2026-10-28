@@ -7,6 +7,7 @@ stored adaptive reconnect limits, Fox Cricket recognition/daily Test play, and r
 **0300 (`58745fe`) is pushed and confirmed live by read-only SSH on 28 Oct; container healthy. Device/feed acceptance pending.** FR-15/FR-16/FR-18 remain open.
 **0301** repairs FR-17 locally as a separately approved batch: zero-overlap generic listings recognised by guide category
 or sport channel remain events. Its separate review and device acceptance are pending; it is not deployed.
+Production `/api/version` also confirms 0300; stored shared ingest and segmented recordings are both enabled.
 Server **0300** is deployed; local `main` matched `origin/main` at `58745fe` (application `974977f`) at session pickup. Apple client
 **57** (live plays held 30 s back) is on the Apple TV. R7 (0282–0284, shared ingest on) passed on the Apple TV: NBC Sports
 Boston 35 min and Chicago Sports Network Plus 65 min with 0 stalls and no switches. Mark approved the next batch on 27 Oct:
