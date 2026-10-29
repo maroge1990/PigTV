@@ -326,3 +326,11 @@ in **0315**; Codex adversarial review remains **0 of 2**. [Latest evidence/hando
   which could unmount the retained settings controls and lose focus. The deferred-response test fails while GET is
   held (`save-reread-before.json`). Saving now covers the private final reread; ordinary polls/actions remain blocked,
   scores stay hidden, and a failed reread removes the draft when saving ends. Fixture and real lifecycles now agree.
+
+## Apple CI 40862302742 — observer assertion ordering
+
+- GATE-A61-OBS1 (test-only repair, local gates passed; replacement CI pending at commit): recording playback test asserted published `hasPlayed`
+  immediately after raw AVPlayer playing state; the KVO MainActor hop could still be pending. CI failed at line 343
+  after 1.165s while UI tests passed. Require both raw and published state in the same existing 10s bounded wait;
+  retain periodic-break/timeline/error/release assertions. No production playback change or timeout increase.
+  [Before evidence and disposition](reviews/2026-10-29/apple-ci-observer-race/README.md).

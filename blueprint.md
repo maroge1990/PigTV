@@ -1,5 +1,9 @@
 # PigTV: blueprint
 
+**CI follow-up (29 Oct):** server 0317 CI passed; Apple 61 CI had one harness observer-order assertion failure.
+A test-only repair awaits raw and published play state within the unchanged deadline; ten focused repeats and the full Apple gate pass.
+Replacement CI is pending at repair commit. No playback/server code change. [Evidence](docs/reviews/2026-10-29/apple-ci-observer-race/README.md).
+
 **State (29 Oct, Apple 61 refinement):** source/stable recording badges, compact per-sport tvOS heights, direct Hold Select
 actions and delay presets with stable save focus are implemented. Local gates pass: 244 contracts, 247 unit/playback,
 23 tvOS UI tests, iOS build and 2 UI tests each on iPhone/iPad. Server remains **0317**.
@@ -680,6 +684,9 @@ per-account revision settings and revalidated actions. Required Apple gates/revi
 [continuation handoff](docs/reviews/2026-10-29/sports-dashboard-continuation/README.md).
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
+
+**Apple CI:** local observer-order repair gates pass; confirm replacement CI and keep the existing consolidated
+review/device/pilot gates. [CI follow-up](docs/reviews/2026-10-29/apple-ci-observer-race/README.md).
 
 **Apple 61:** local refinement gates pass; required review precedes the consolidated four-platform acceptance pass. No interim
 device testing requested. [Refinement handoff](docs/reviews/2026-10-29/sports-tvos-refinements/README.md).

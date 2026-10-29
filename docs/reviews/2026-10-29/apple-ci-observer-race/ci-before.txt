@@ -1,0 +1,9 @@
+build-and-test	Run tvOS tests	2026-10-29T11:08:47.9606520Z Test Case '-[PigTVTests.RealPlaybackTests testRecordingReallyPlaysAndTheTimeObserverTicks]' started.
+build-and-test	Run tvOS tests	2026-10-29T11:08:48.1909160Z /Users/runner/work/PigTV-Swift/PigTV-Swift/PigTVTests/RealPlaybackTests.swift:343: error: -[PigTVTests.RealPlaybackTests testRecordingReallyPlaysAndTheTimeObserverTicks] : XCTAssertTrue failed
+build-and-test	Run tvOS tests	2026-10-29T11:08:48.8345220Z Test Case '-[PigTVTests.RealPlaybackTests testRecordingReallyPlaysAndTheTimeObserverTicks]' failed (1.165 seconds).
+build-and-test	Run tvOS tests	2026-10-29T11:09:02.1864910Z 	 Executed 247 tests, with 1 failure (0 unexpected) in 101.742 (102.020) seconds
+build-and-test	Run tvOS tests	2026-10-29T11:09:02.2177750Z 	 Executed 247 tests, with 1 failure (0 unexpected) in 101.742 (102.021) seconds
+build-and-test	Run tvOS tests	2026-10-29T11:23:40.7183730Z 	 Executed 35 tests, with 3 tests skipped and 0 failures (0 unexpected) in 874.716 (874.766) seconds
+build-and-test	Run tvOS tests	2026-10-29T11:23:40.7185240Z 	 Executed 35 tests, with 3 tests skipped and 0 failures (0 unexpected) in 874.716 (874.769) seconds
+build-and-test	Run tvOS tests	2026-10-29T11:24:05.7058200Z 	RealPlaybackTests.testRecordingReallyPlaysAndTheTimeObserverTicks()
+build-and-test	Run tvOS tests	2026-10-29T11:24:05.7061980Z ** TEST FAILED **
