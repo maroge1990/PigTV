@@ -32,12 +32,30 @@ lists, which the guide covers.
   championship points and form.
 - **Live scores are essential.** The pages degrade honestly when the data feed is missing; Live now, the guide and
   playback never depend on it.
-- **Reminders (the bell):** a reminder on a future session or game. When it starts, a banner appears on whatever screen
-  is up, with Watch to switch to it. Recording is a separate action.
+- **Reminders (the bell):** a reminder on a future session or game. On iPhone and iPad it is a real system notification
+  (scheduled on the device from the known start time, refreshed when the schedule changes), with Watch opening the app
+  on the coverage. On Apple TV, which has no notification banners for apps, it is an in-app banner over whatever is on
+  screen, playback included. Recording is a separate action.
 - **Recording from sport pages:** record a session or game, and rules such as "every race session" or "every game for
   team X".
+- **Preferred channels per sport:** a sport (F1 alone is on 15–20 channels) has an ordered channel preference, set from
+  the record sheet or a channel's options ("use this channel for Formula 1"). Default order: UHD before FHD before HD,
+  then favourites. Watch and recording both use it; a recording falls back to the next channel if the first is
+  unavailable at the start.
+- **Circuit maps:** the ESPN feed supplies its own circuit maps (light and dark: sectors, start line, speed trap and
+  highlighted straights). It has no corner numbers or labelled DRS zones; those would need a second, unofficial source
+  and are not planned. Official F1 logos and fonts are not used.
 - **Built from shared parts:** a few page templates (race weekend, rounds, knockout competition, cricket) plus
   sport-specific modules, so each page feels bespoke without ten hand-built screens per platform.
+
+## Design notes for the build (from the F1 mock-up review)
+
+- Stat values (lap length, lap record) never wrap onto a second line.
+- Lists that sit side by side are symmetric: ten results beside the top ten drivers and the top ten constructors.
+- Spacing and alignment are checked on the real screens at build time; the mock-ups are not pixel-final.
+- Channel quality labels: today the server reads UHD / HD / SD from the channel's name (FHD counts as HD). The build
+  should distinguish FHD from HD and, where a channel has been played, confirm the label from the measured stream
+  (resolution, frame rate, HDR), never by probing channels in the background.
 
 ## Scope and order
 
