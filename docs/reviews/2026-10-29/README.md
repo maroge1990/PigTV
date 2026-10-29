@@ -1,5 +1,8 @@
 # 29 Oct: exit flash and watch-while-recording
 
+**Follow-up:** 0310–0312 repair the subsequent 0307/0308 review. The watch copy now encodes AAC rather than copying
+its ADTS label; [current dispositions and reviewer prompt](review-repairs/README.md). The evidence below records 0308.
+
 ## Scope and evidence
 
 Mark reports tvOS briefly showing “Tuning…” while exiting a live stream, and all attempts to watch an in-progress
@@ -36,7 +39,7 @@ output can contain ENDLIST; its presence alone therefore does not establish succ
 Server **0308** explicitly applies `aac_adtstoasc` when copying AAC into the watch copy's fMP4. Video and audio remain
 stream copies. The raw #203 segments replay successfully with HEVC hvc1 and AAC mp4a, all **12.5 s** represented:
 [replay output](recording-203-fixed.txt). No timestamp/reconnect policy change.
-Repeat with `node docs/reviews/2026-10-29/replay-recording.cjs` from the server root;
+At historical commit `a6e86e1` (0308), repeat with `node docs/reviews/2026-10-29/replay-recording.cjs` from the server root;
 [before/after on the raw archive](raw-replay-before-after.txt).
 The repaired raw excerpt also actually plays in macOS AVPlayer with an advancing clock over loopback HTTP:
 [check](watch-avplayer.swift), [result](watch-avplayer.txt). This is not a tvOS/iOS device pass.

@@ -33,7 +33,9 @@ Thus this is a compatibility defect, not an established active production QSV ou
 
 Intel's [dispatcher documentation](https://github.com/intel/libvpl) requires Media SDK for older graphics and lists the
 newer GPU runtime for Iris Xe/newer. Retaining only VPL's dispatcher and modern GPU runtime loses the legacy path.
-The runtime package repair and actual QSV encode acceptance remain pending in this record.
+Production package inspection confirms `libmfx1` absent, `libvpl2=2023.3.0-1build1`, `libmfx-gen1.2=23.2.3-1`.
+**0312** restores `libmfx1` explicitly alongside dispatcher and modern runtime. Actual Linux image/QSV encode acceptance
+remains pending; no local Docker or Intel GPU is available. The runtime package regression fails before and passes after.
 
 ## 0311 relay repairs: M3 / M4 / L2; L3 answered
 
@@ -55,11 +57,62 @@ routing plan now respects real quarantine, matching production. Raw logs remain 
 observation on test-pattern playback; this does not establish device picture/sound acceptance.
 
 0311 clean-snapshot gate: 1,279 tests pass, no skips/failures; build verification passes.
-M2/L4 toolchain repairs remain pending in this commit.
+## 0312 tooling repair: L4
+
+The validator now requires explicit flag/value pairs and rejects missing values or a following flag where a value is
+expected. Negative numeric values and hyphenated option names are supported. It no longer silently skips later flags
+by assuming every even index must be an option. The missing-value regression fails before (old validator accepts it)
+and passes after. All media-toolchain unit tests and three real software quality encodes pass.
+
+## Final dispositions
+
+| Finding | Disposition |
+|---|---|
+| M1 | Fixed for watch audio in 0310; known AAC in finished MP4 already encoded. Profile-0 watch/final tests plus AVPlayer evidence. |
+| L1 | Fixed in 0310: unknown audio also encodes; no skipped-bsf copy path. |
+| M2 | Fixed recipe in 0312; actual image/legacy-QSV encode acceptance remains FR-26. Production currently selects VAAPI. |
+| M3 | Fixed in 0311: cold failover enables renewal only after readiness. |
+| M4 | Fixed in 0311: cumulative per-relay budget and normal failover; real 70 s flap rig passes. |
+| L2 | Fixed in 0311: early-return pin release, switching and closed regressions. |
+| L3 | Answered: existing resolve cleanup passes the added real hung-child integration test. |
+| L4 | Fixed in 0312: malformed option pairs fail closed, regression fails before. |
 
 ## Validation / review / device steps
 
-In progress. Concurrent dashboard modifications are kept outside this change. A shared-tree full run encountered six
-in-progress dashboard failures; recording tests passed. Clean committed-snapshot validation is used for this repair.
-Recording clean-snapshot validation: 1,275 tests pass (no skips/failures); build verification passes.
-Required Codex adversarial review is pending; at most two rounds for this batch.
+Full clean committed snapshots plus only each repair were used because another chat is modifying the shared dashboard
+code/tests. The shared-tree first run had six in-progress dashboard failures; those changes were neither modified nor
+committed here. Repair gates:
+
+| Batch | Full server tests | Build verification |
+|---|---:|---|
+| 0310 recording | 1,275 passed | Passed |
+| 0311 relay | 1,279 passed | Passed |
+| 0312 toolchain | 1,281 passed | Passed |
+
+No skips/failures in these snapshots. Profile-0 watch/final playback checks pass in macOS AVPlayer; this is not physical
+Apple TV acceptance. Toolchain checks run three real software encodes. No Linux image was built and no production GPU
+encode, setting change, provider connection, deploy or push was performed. Temporary loopback servers are stopped.
+The optional runtime package must still pass Linux candidate CI, and host QSV execution is not proven by names/help.
+
+Required Codex adversarial review remains pending (Claude's supplied review does not establish a completed Codex round).
+The slash command is Mark's to type, per AGENTS.md. Limit this batch to two Codex rounds. In PigTV:
+
+```text
+/codex:adversarial-review --background --base 4d95f10 Review only the committed 0310–0312 repairs for Claude's 0307/0308 M1–M4 and L1–L4. Focus on AAC/unknown-probe audio safety, cold-leg readiness, cumulative renewal budgets and provider failover, pin/lease teardown, hung startup cleanup, legacy Intel runtime packaging and strict encoder option parsing. Read docs/reviews/2026-10-29/review-repairs/README.md. Exclude unrelated uncommitted sports-dashboard work. Report each original finding's disposition and any remaining high issue.
+```
+
+Return-to-reviewer prompt: [REVIEWER-PROMPT.txt](REVIEWER-PROMPT.txt).
+
+After reviewer approval and Linux candidate CI:
+
+1. Install the reviewed server build. On Apple TV, make a FOX segmented recording and watch it early/midway/near end;
+   confirm picture/sound/advancing time, seek, and watch across final-MP4 completion. Record build/channel/time; device
+   acceptance remains open even though synthetic profile-0 watch/final MP4 play on macOS.
+2. On PassyFlix, inspect the new container for the legacy runtime (`dpkg-query -L libmfx1`). Run a synthetic two-second
+   QSV encode without a provider or settings change: `docker exec PigTV ffmpeg -hide_banner -v error -f lavfi -i
+   testsrc2=size=640x360:rate=25 -t 2 -c:v h264_qsv -f null -`. Capture success/failure; current auto recommendation
+   remains VAAPI. A failed QSV check stays in FR-26; do not claim hardware acceptance from package/help checks.
+3. Run the offline flap acceptance: `RIG_SECONDS=70 node scripts/relay-rig.js reconnect flap budget`. Expect three
+   renewals then ordinary failover, at most four switches, and `RENEWAL BUDGET PASS` on healthy ProvB. For a controlled
+   renewal-on device check, record reconnects, Status's renewal-budget event, provider transition and continuing playback;
+   end/restart the play to reset the exhausted renewal budget. No device desync fix is claimed.

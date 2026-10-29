@@ -1,0 +1,46 @@
+✖ review M2: runtime recipe retains both legacy Media SDK and modern oneVPL implementations (12.488292ms)
+✖ review L4: malformed or valueless encoder flags fail closed instead of shifting every option (21.898041ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 186.00975
+
+✖ failing tests:
+
+test at ../../../../../private/tmp/pigtv-review-relay-check/test/media-toolchain.test.js:95:1
+✖ review M2: runtime recipe retains both legacy Media SDK and modern oneVPL implementations (12.488292ms)
+  AssertionError [ERR_ASSERTION]: runtime missing libmfx1
+      at TestContext.<anonymous> (/private/tmp/pigtv-review-relay-check/test/media-toolchain.test.js:101:72)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../../private/tmp/pigtv-review-relay-check/test/media-toolchain.test.js:104:1
+✖ review L4: malformed or valueless encoder flags fail closed instead of shifting every option (21.898041ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (/private/tmp/pigtv-review-relay-check/test/media-toolchain.test.js:107:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /flag\/value/,
+    operator: 'throws',
+    diff: 'simple'
+  }

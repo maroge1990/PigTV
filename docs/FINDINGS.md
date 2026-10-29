@@ -157,3 +157,17 @@ Full review dispositions and reproduction notes: [`docs/reviews/2026-10-28/round
 | FR-26 | M4: encoder-help checks do not prove actual GPU execution | Open. `check-encoder-options.js` validates private flags against encoder-specific help; software lavfi encodes run locally. On the production host, execute actual VAAPI/QSV/NVENC paths available and verify a real frame encode/decode. |
 | FR-27 | L2: incompatible media during same-provider renewal ends the relay | Answered, no code change. The candidate is marked unusable for that relay because splicing changed media contracts is unsafe; the relay ends without provider-wide quarantine or a `providerReason` event. Reproduce with a new epoch that changes codec/resolution/audio layout and verify relay-local teardown. |
 | FR-28 | L4: smoke/cache/signature descriptions overstated validation | Fixed in `docs/MEDIA-TOOLCHAIN.md`. The workflow tests the candidate image, not the server main process; compiled-binary cache hits skip a source rebuild; source archives are hash-checked when the builder consumes them; PGP signature verification was not done. |
+
+## 0307 / 0308 follow-up review (29 Oct)
+
+M1/L1 recording audio, M3 cold-start readiness, M4 cumulative renewal budgeting, L2 transferred-pin release and L4
+encoder-option parsing are repaired in 0310–0312 with failing-before tests. L3 is answered by the existing deadline
+cleanup and a new hung-child integration test. Full dispositions: [repair record](reviews/2026-10-29/review-repairs/README.md).
+
+**M2 / FR-26 hardware acceptance remains open.** Mark identifies the host as an i5-9500T (no dedicated GPU).
+Authorized read-only inspection shows `hwEncoder=auto`, recommended VAAPI, QSV unavailable; `libmfx1` is absent,
+while `libvpl2` and `libmfx-gen1.2` are installed. 0312 restores explicit legacy runtime packaging. A real Linux image
+and legacy-QSV encode have not been tested here. Reproduce/accept after candidate CI: inspect the installed legacy
+runtime library and run a two-second `h264_qsv` lavfi encode on that host, without changing PigTV's encoder setting or
+opening a feed. Name/help checks do not establish hardware operation. Failure remains a compatibility acceptance issue;
+current production is using VAAPI, so no QSV outage is claimed.

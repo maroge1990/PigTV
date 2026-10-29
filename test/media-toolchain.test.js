@@ -91,3 +91,20 @@ test('R1-L5: bundled version mismatch is reported without echoing tool text or p
     assert.ok(!JSON.stringify(report).includes('secret'));
     assert.ok(!JSON.stringify(report).includes('/x/'));
 });
+
+test('review M2: runtime recipe retains both legacy Media SDK and modern oneVPL implementations', () => {
+    const text = fs.readFileSync(path.join(root, 'docker/install-media-deps.sh'), 'utf8');
+    const list = /runtime=\(([\s\S]*?)\)\n/.exec(text)[1];
+    const r = spawnSync('bash', ['-c', `runtime=(${list}); printf '%s\\n' "\${runtime[@]}"`], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    const packages = new Set(r.stdout.trim().split(/\s+/));
+    for (const name of ['libmfx1', 'libvpl2', 'libmfx-gen1.2']) assert.ok(packages.has(name), `runtime missing ${name}`);
+});
+
+test('review L4: malformed or valueless encoder flags fail closed instead of shifting every option', () => {
+    const { validate } = require('../scripts/check-encoder-options');
+    const help = '  -preset <int>\n  -look_ahead <boolean>\n';
+    assert.throws(() => validate(['-c:v', 'h264_qsv', '-look_ahead'], help, 'h264_qsv'), /flag\/value/);
+    assert.throws(() => validate(['-an', '-c:v', 'h264_qsv', '-unsupported', '1'], help, 'h264_qsv'), /flag\/value/);
+    assert.doesNotThrow(() => validate(['-c:v', 'h264_qsv', '-preset', 'medium', '-look_ahead', '0'], help, 'h264_qsv'));
+});

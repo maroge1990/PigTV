@@ -23,12 +23,15 @@ and device/hardware acceptance remain pending. Nothing has been deployed.**
 - NVIDIA headers use the oldest API FFmpeg 9's configure explicitly accepts, with a documented minimum Linux driver of
   470.57.02. This avoids selecting current moving headers that require much newer drivers. Actual GPU execution still
   requires acceptance on the host. The Linux profile does not enable AMF encoders; those remain available only where a
-  separately built toolchain includes them. QSV uses oneVPL (`libvpl`), not deprecated libmfx. Actual Intel hardware
+  separately built toolchain includes them. FFmpeg links the oneVPL dispatcher (`libvpl`). Since 0312 the runtime recipe explicitly retains both
+  legacy Media SDK (`libmfx1`, for older Intel graphics) and modern VPL GPU (`libmfx-gen1.2`) implementations.
+  [Intel documents](https://github.com/intel/libvpl) this dispatcher/runtime distinction. Actual Intel hardware
   encode/decode is not established by compile-time capability checks.
 - `scripts/check-media-tools.js --hardware` rejects a wrong release of **either** tool, missing software/hardware
   encoders or filters (including `scale_cuda`), and missing HTTPS/SRT support. It checks compiled support without opening
   a GPU or provider, and checks required decoders and demuxers. `scripts/check-encoder-options.js` queries the actual
-  session builders' private options against each encoder's own help output and runs real software lavfi encodes at all
+  session builders' private options against each encoder's own help output (0312 rejects malformed/valueless
+  builder flags rather than shifting flag/value pairs) and runs real software lavfi encodes at all
   three quality levels. Hardware execution still requires host acceptance. Build failure or a missing required
   capability stops the image; there is no fallback to a stripped build. Optional external libraries not named by the
   explicit profile are not asserted to match the deployed 6.1.1 build; see FR-25 in `docs/FINDINGS.md`.

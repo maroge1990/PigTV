@@ -6,7 +6,20 @@ const { TranscodeSession } = require('../server/services/transcodeSession');
 const generic = new Set(['fps_mode', 'vf', 'c', 'profile', 'level', 'pix_fmt', 'bf', 'global_quality', 'force_key_frames']);
 function optionNames(help) { return new Set([...help.matchAll(/^\s+-([\w-]+)(?:[:\w]*)\s/gm)].map(m => m[1])); }
 function privateOptions(args) {
-    return args.filter((_, i) => i % 2 === 0).map(v => v.slice(1).split(':')[0]).filter(v => !generic.has(v));
+    const names = [];
+    // Current builders emit flag/value pairs. Reject malformed/valueless flags
+    // explicitly rather than silently shifting every later option. Negative
+    // numeric values remain valid values, not flags.
+    for (let i = 0; i < args.length; i += 2) {
+        const flag = args[i], value = args[i + 1];
+        if (typeof flag !== 'string' || !/^-[\w-]+(?::\w+)*$/.test(flag) ||
+            typeof value !== 'string' || (value.startsWith('-') && !/^-\d+(?:\.\d+)?$/.test(value))) {
+            throw new Error('Encoder builder requires explicit flag/value pairs');
+        }
+        const name = flag.slice(1).split(':')[0];
+        if (!generic.has(name)) names.push(name);
+    }
+    return names;
 }
 function validate(args, help, encoder) {
     const names = optionNames(help), missing = privateOptions(args).filter(n => !names.has(n));

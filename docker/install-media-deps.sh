@@ -6,7 +6,7 @@ if [[ "$ID" != ubuntu || "$VERSION_ID" != 24.04 || "$(uname -m)" != x86_64 ]]; t
     echo 'The production media recipe requires Ubuntu 24.04 amd64' >&2; exit 1
 fi
 runtime=(libx264-164 libx265-199 libvpx9 libmp3lame0 libopus0 libass9 libfontconfig1
-    libfreetype6 libgnutls30t64 libsrt1.5-gnutls libva2 libva-drm2 libdrm2 libvpl2 libmfx-gen1.2
+    libfreetype6 libgnutls30t64 libsrt1.5-gnutls libva2 libva-drm2 libdrm2 libvpl2 libmfx1 libmfx-gen1.2
     libdav1d7 libxml2 libharfbuzz0b libfribidi0 libzimg2 liblzma5 libbz2-1.0 zlib1g fonts-dejavu-core)
 build=(build-essential pkg-config nasm clang curl ca-certificates xz-utils
     libx264-dev libx265-dev libvpx-dev libmp3lame-dev libopus-dev libass-dev

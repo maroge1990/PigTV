@@ -1,0 +1,1 @@
+software: builder options checked, three real encodes passed
