@@ -27,3 +27,14 @@ provides its authoritative result after push. Server documentation gates also pa
 `bash scripts/verify-build.sh .`. Apple repair commit: `e8c9d31`. Prior dashboard
 reviews/device/pilot gates and separate media investigation work remain unchanged. Test/docs-only repair is exempt
 from a new adversarial round under AGENTS.md; it does not approve the pending functional sports batch.
+
+Server follow-up: the evidence commit's [CI 40867960015, attempt 1](https://github.com/maroge1990/PigTV/actions/runs/40867960015/attempts/1)
+passed Node 22/24/perf but failed the candidate-container watch-from-start test at line 965 (JSON instead of HLS).
+[Preserved failure](server-candidate-before.txt). This is a recurrence of open GATE-20261029-REC1; no production
+impact or root cause is claimed. Attempt 2 reran only the failed job and passed, including runtime tests and image
+publication. No code changed between attempts; the finding stays open, separately from this Apple test repair.
+
+Final Apple result: replacement CI **passed** for `e8c9d31` on Xcode 26.6 / tvOS 26.5. iOS build passed;
+247 unit/playback tests passed, including the formerly failing recording test (1.177s); full tvOS UI suite
+had 32 passes / 3 optional-media skips / 0 failures. [Successful CI extract](ci-after.txt). No device acceptance,
+review approval, dashboard flag/deployment or provider/pilot result is inferred from these synthetic tests.

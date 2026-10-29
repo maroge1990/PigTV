@@ -1,0 +1,19 @@
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3269318Z ✖ failing tests:
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3269449Z
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3269612Z test at test/recording-segments.test.js:944:1
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3270362Z ✖ watch from the start: auth, the master and media playlists (token on every URI), the pieces, and the allow-list (423.16324ms)
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3271125Z   AssertionError [ERR_ASSERTION]: The input did not match the regular expression /mpegurl/. Input:
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3271591Z
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3271793Z   'application/json; charset=utf-8'
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3272055Z
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3272385Z       at TestContext.<anonymous> (/app/test/recording-segments.test.js:965:12)
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3272941Z       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3273436Z       at async Test.run (node:internal/test_runner/test:1409:7)
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3273900Z       at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3274311Z     generatedMessage: true,
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3274556Z     code: 'ERR_ASSERTION',
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3274826Z     actual: 'application/json; charset=utf-8',
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3275129Z     expected: /mpegurl/,
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3275367Z     operator: 'match',
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3275582Z     diff: 'simple'
+build-and-push	Test candidate runtime	2026-10-29T11:51:40.3275789Z   }

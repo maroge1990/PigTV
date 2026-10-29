@@ -1,0 +1,6 @@
+build-and-test	Run tvOS tests	2026-10-29T11:51:37.9424780Z Test Case '-[PigTVTests.RealPlaybackTests testRecordingReallyPlaysAndTheTimeObserverTicks]' passed (1.177 seconds).
+build-and-test	Run tvOS tests	2026-10-29T11:51:48.8791620Z 	 Executed 247 tests, with 0 failures (0 unexpected) in 92.751 (93.203) seconds
+build-and-test	Run tvOS tests	2026-10-29T11:51:48.8792370Z 	 Executed 247 tests, with 0 failures (0 unexpected) in 92.751 (93.204) seconds
+build-and-test	Run tvOS tests	2026-10-29T12:06:34.2489030Z 	 Executed 35 tests, with 3 tests skipped and 0 failures (0 unexpected) in 879.997 (880.042) seconds
+build-and-test	Run tvOS tests	2026-10-29T12:06:34.2495300Z 	 Executed 35 tests, with 3 tests skipped and 0 failures (0 unexpected) in 879.997 (880.043) seconds
+build-and-test	Run tvOS tests	2026-10-29T12:07:14.9004730Z ** TEST SUCCEEDED **

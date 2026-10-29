@@ -329,8 +329,16 @@ in **0315**; Codex adversarial review remains **0 of 2**. [Latest evidence/hando
 
 ## Apple CI 40862302742 — observer assertion ordering
 
-- GATE-A61-OBS1 (test-only repair, local gates passed; replacement CI pending at commit): recording playback test asserted published `hasPlayed`
+- GATE-A61-OBS1 (test-only repair, local gates and replacement CI 40867834373 passed): recording playback test asserted published `hasPlayed`
   immediately after raw AVPlayer playing state; the KVO MainActor hop could still be pending. CI failed at line 343
   after 1.165s while UI tests passed. Require both raw and published state in the same existing 10s bounded wait;
   retain periodic-break/timeline/error/release assertions. No production playback change or timeout increase.
   [Before evidence and disposition](reviews/2026-10-29/apple-ci-observer-race/README.md).
+
+- GATE-20261029-REC1 recurrence (CI 40867960015, attempt 1, `87970bd`; still open, separate recording/media work):
+  Node 22/24 and perf jobs passed, but the candidate-container runtime suite had 1,332 passes / 1 failure / 6 skips.
+  The same watch-from-start test now reached line 965 and received JSON instead of an HLS playlist after its
+  readiness poll. Local 1,339-test run passed. Cause and production impact remain unconfirmed; no recording code
+  changed. [Preserved failure](reviews/2026-10-29/apple-ci-observer-race/server-candidate-before.txt);
+  [CI attempt 1](https://github.com/maroge1990/PigTV/actions/runs/40867960015/attempts/1). Attempt 2 reran only the failed job
+  and passed, including candidate runtime tests/image publication; this does not close the finding.
