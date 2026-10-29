@@ -167,7 +167,8 @@ test('bug 9: a shared use reads "· shared"; the recording banner drops its one-
 test('R16: every nav link has a name and a tooltip, aria-current moves with the active page, the menu button reports expanded', () => {
     const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
     const links = [...html.matchAll(/<a [^>]*class="nav-link[^"]*"[^>]*>/g)].map(m => m[0]);
-    assert.equal(links.length, 6);
+    assert.deepEqual(links.map(l => /data-page="([^"]+)"/.exec(l)[1]),
+        ['home', 'live', 'guide', 'sports', 'recordings', 'status', 'settings']);
     for (const l of links) assert.match(l, /aria-label="[^"]+"/), assert.match(l, /title="[^"]+"/);
     assert.equal(links.filter(l => l.includes('aria-current="page"')).length, 1);
     assert.match(html, /id="mobile-menu-toggle" aria-label="Menu" aria-expanded="false"/);

@@ -1,0 +1,43 @@
+✔ seven sport families and all ten follows have a family (1453.43175ms)
+✔ hidden/stale scores and F1 timing cannot leak through card HTML or accessibility (28.434ms)
+✔ one time row, no repeated shelf name, corner availability labels and safe cached logos (352.940708ms)
+✔ final and expired airings never watch; cached live bit cannot permit early playback (354.490875ms)
+✔ first render has no prefs; failed refresh clears previously revealed state (456.089291ms)
+✔ late response from prior scope/account/background cannot republish scores (364.295834ms)
+✔ overlapping requests publish only newest complete delayed snapshot (268.248458ms)
+✔ identity change invalidates a pending response (288.284292ms)
+✔ preference revision conflict rereads and asks for an explicit retry, never blind overwrite (353.707417ms)
+✔ recording associates selected stable channel with its own airing and safe projected title (386.309833ms)
+✔ recording response after backgrounding cannot enable an action (2868.536167ms)
+✔ stable card order retains a focused expired placeholder until focus moves (568.688458ms)
+✔ recording takes the current item ID from the selected channel airing after reorder (163.787667ms)
+✔ dashboard 404 falls back to a rolling 72h ordinary schedule with actions (177.670458ms)
+✔ recording badge has explicit text and strict source/stable identity (510.809875ms)
+✖ a settings form captured at an older revision cannot overwrite the newer polled settings (505.743ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 15
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 44453.566417
+
+✖ failing tests:
+
+test at test/web-sports-dashboard.test.js:140:1
+✖ a settings form captured at an older revision cannot overwrite the newer polled settings (505.743ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  1 !== 0
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:144:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

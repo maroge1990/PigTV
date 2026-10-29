@@ -42,7 +42,7 @@ const API = {
                 window.location.href = '/login.html';
                 throw new Error('Authentication required');
             }
-            throw new Error(result.error || `Server responded with ${response.status}`);
+            throw Object.assign(new Error(result.error || `Server responded with ${response.status}`), { status: response.status });
         }
 
         return result;
@@ -170,6 +170,9 @@ const API = {
 
     // Sport (C-I; admin)
     sports: {
+        dashboard: (league) => API.request('GET', `/sports/dashboard${league ? `?league=${encodeURIComponent(league)}` : ''}`),
+        events: () => API.request('GET', '/sports/events?hours=72'),
+        savePreferences: (data) => API.request('PUT', '/sports/preferences', data),
         categories: () => API.request('GET', '/sports/categories'), // 0147
         follow: () => API.request('GET', '/sports/follow'), // 0148
         setFollow: (keywords) => API.request('PUT', '/sports/follow', { keywords }),

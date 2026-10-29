@@ -1,0 +1,52 @@
+{
+  "devicesAndConfigurations" : [
+    {
+      "device" : {
+        "architecture" : "arm64",
+        "deviceId" : "00F52575-1558-4C65-99EC-50E6813A4864",
+        "deviceName" : "iPad Pro 13-inch (M5)",
+        "modelName" : "iPad Pro 13-inch (M5)",
+        "osBuildNumber" : "24A434",
+        "osVersion" : "27.0",
+        "platform" : "iOS Simulator"
+      },
+      "expectedFailures" : 0,
+      "failedTests" : 1,
+      "passedTests" : 0,
+      "skippedTests" : 0,
+      "testPlanConfiguration" : {
+        "configurationId" : "1",
+        "configurationName" : "Test Scheme Action"
+      }
+    }
+  ],
+  "environmentDescription" : "PigTV · Built with macOS 27.0.1",
+  "expectedFailures" : 0,
+  "failedTests" : 1,
+  "finishTime" : 1793259940.643,
+  "passedTests" : 0,
+  "result" : "Failed",
+  "runtimeWarnings" : [
+
+  ],
+  "skippedTests" : 0,
+  "startTime" : 1793259831.192,
+  "statistics" : [
+
+  ],
+  "testFailures" : [
+    {
+      "failureText" : "XCTAssertGreaterThanOrEqual failed: (\"264.0\") is less than (\"300.0\") - Use phone/tablet space instead of the fixed 264pt card",
+      "targetName" : "PigTVUITests",
+      "testIdentifier" : 1,
+      "testIdentifierString" : "SportsDashboardUITests/testTouchCardsUseAvailableWidthAndVisibleOptionsOpenSafeDetails()",
+      "testIdentifierURL" : "test://com.apple.xcode/PigTV/PigTVUITests/SportsDashboardUITests/testTouchCardsUseAvailableWidthAndVisibleOptionsOpenSafeDetails",
+      "testName" : "testTouchCardsUseAvailableWidthAndVisibleOptionsOpenSafeDetails()"
+    }
+  ],
+  "title" : "Test - PigTV",
+  "topInsights" : [
+
+  ],
+  "totalTestCount" : 1
+}

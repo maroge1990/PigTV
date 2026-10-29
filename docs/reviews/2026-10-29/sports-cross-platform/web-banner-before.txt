@@ -1,0 +1,69 @@
+✔ seven sport families and all ten follows have a family (2.746875ms)
+✔ hidden/stale scores and F1 timing cannot leak through card HTML or accessibility (0.863709ms)
+✔ one time row, no repeated shelf name, corner availability labels and safe cached logos (0.551375ms)
+✔ final and expired airings never watch; cached live bit cannot permit early playback (0.463708ms)
+✔ first render has no prefs; failed refresh clears previously revealed state (0.629542ms)
+✔ late response from prior scope/account/background cannot republish scores (0.484125ms)
+✔ overlapping requests publish only newest complete delayed snapshot (0.465458ms)
+✔ identity change invalidates a pending response (0.457ms)
+✔ preference revision conflict rereads and asks for an explicit retry, never blind overwrite (0.57625ms)
+✔ recording associates selected stable channel with its own airing and safe projected title (0.674875ms)
+✔ recording response after backgrounding cannot enable an action (3.331042ms)
+✔ stable card order retains a focused expired placeholder until focus moves (1.092ms)
+✔ recording takes the current item ID from the selected channel airing after reorder (0.458458ms)
+✔ dashboard 404 falls back to a rolling 72h ordinary schedule with actions (0.554458ms)
+✔ recording badge has explicit text and strict source/stable identity (0.774375ms)
+✔ a settings form captured at an older revision cannot overwrite the newer polled settings (0.513542ms)
+✔ web API uses authenticated C-O routes, encoded league filters and preserves revision conflict status (1.489084ms)
+✔ select revalidates expired/final cards before any existing channel player is called (0.510584ms)
+✔ record-every-game choices use neutral league/team metadata, never score prose (0.485ms)
+✖ global recording banner cannot expose raw programme result prose over the Sport dashboard (27.780875ms)
+✖ entering Sport masks an already visible raw recording title synchronously (0.649041ms)
+ℹ tests 21
+ℹ suites 0
+ℹ pass 19
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 106.702667
+
+✖ failing tests:
+
+test at test/web-sports-dashboard.test.js:176:1
+✖ global recording banner cannot expose raw programme result prose over the Sport dashboard (27.780875ms)
+  AssertionError [ERR_ASSERTION]: The input was expected to not match the regular expression /defeats|101-99/. Input:
+
+  'Recording "A defeats B 101-99" on Sports until 10:00 AM. Live playback may fail while this runs if your provider allows only one stream.'
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:183:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'Recording "A defeats B 101-99" on Sports until 10:00 AM. Live playback may fail while this runs if your provider allows only one stream.',
+    expected: /defeats|101-99/,
+    operator: 'doesNotMatch',
+    diff: 'simple'
+  }
+
+test at test/web-sports-dashboard.test.js:186:1
+✖ entering Sport masks an already visible raw recording title synchronously (0.649041ms)
+  AssertionError [ERR_ASSERTION]: The input was expected to not match the regular expression /defeats|101-99/. Input:
+
+  'Recording A defeats B 101-99'
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:192:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'Recording A defeats B 101-99',
+    expected: /defeats|101-99/,
+    operator: 'doesNotMatch',
+    diff: 'simple'
+  }

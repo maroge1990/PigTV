@@ -1,0 +1,40 @@
+✔ seven sport families and all ten follows have a family (3.319833ms)
+✔ hidden/stale scores and F1 timing cannot leak through card HTML or accessibility (1.651959ms)
+✔ one time row, no repeated shelf name, corner availability labels and safe cached logos (0.669875ms)
+✔ final and expired airings never watch; cached live bit cannot permit early playback (0.484334ms)
+✔ first render has no prefs; failed refresh clears previously revealed state (0.857584ms)
+✔ late response from prior scope/account/background cannot republish scores (0.58875ms)
+✔ overlapping requests publish only newest complete delayed snapshot (0.518792ms)
+✔ identity change invalidates a pending response (0.4905ms)
+✔ preference revision conflict rereads and asks for an explicit retry, never blind overwrite (0.619875ms)
+✔ recording associates selected stable channel with its own airing and safe projected title (0.792541ms)
+✔ recording response after backgrounding cannot enable an action (3.686833ms)
+✔ stable card order retains a focused expired placeholder until focus moves (1.39725ms)
+✔ recording takes the current item ID from the selected channel airing after reorder (0.5525ms)
+✔ dashboard 404 falls back to a rolling 72h ordinary schedule with actions (0.614583ms)
+✔ recording badge has explicit text and strict source/stable identity (0.475875ms)
+✔ a settings form captured at an older revision cannot overwrite the newer polled settings (0.741417ms)
+✔ web API uses authenticated C-O routes, encoded league filters and preserves revision conflict status (1.716834ms)
+✔ select revalidates expired/final cards before any existing channel player is called (0.569ms)
+✖ record-every-game choices use neutral league/team metadata, never score prose (0.531666ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 18
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 91.116917
+
+✖ failing tests:
+
+test at test/web-sports-dashboard.test.js:169:1
+✖ record-every-game choices use neutral league/team metadata, never score prose (0.531666ms)
+  TypeError: p.ruleChoices is not a function
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:171:21)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)

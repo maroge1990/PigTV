@@ -4519,3 +4519,35 @@ kbd {
 }
 .rule-add-form label { width: 100%; }
 .rule-add-form input { flex: 1 1 260px; min-width: 0; }
+
+/* C-O sport shelves: one card geometry per sport, across every state. */
+#page-sports { padding: clamp(12px, 3vw, 40px); }
+.sports-toolbar, .sports-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.sports-filters { flex-basis: 100%; }
+.sports-filters [aria-pressed="true"] { outline: 2px solid currentColor; }
+.sports-shelf { margin-block: 28px; }
+.sports-row { display: flex; gap: 20px; overflow-x: auto; padding: 8px 4px 20px; scroll-snap-type: x proximity; }
+.sports-row article { flex: 0 0 min(310px, calc(100vw - 60px)); scroll-snap-align: start; min-width: 0; }
+.sports-card { position: relative; display: flex; flex-direction: column; gap: 12px; width: 100%; height: 22rem; padding: 20px; border: 1px solid currentColor; border-radius: 18px; background: var(--bg-secondary, Canvas); color: var(--text-primary, CanvasText); text-align: left; font: inherit; overflow: auto; cursor: pointer; }
+.sports-status { font-weight: 700; padding-right: 30px; }
+.sports-availability { position: absolute; right: 14px; top: 14px; border: 2px solid currentColor; border-radius: 50%; width: 24px; height: 24px; text-align: center; font-weight: bold; line-height: 20px; background: #ffe79c; color: #694300; }
+.sports-availability.unavailable { background: #ffe0df; color: #9b1717; }
+.sports-team { display: flex; align-items: center; gap: 10px; min-height: 3.5em; }
+.sports-team > span:not(.sports-logo-fallback) { flex: 1; overflow-wrap: anywhere; }
+.sports-team img, .sports-logo-fallback { flex: 0 0 36px; width: 36px; height: 36px; object-fit: contain; }
+.sports-team strong { font-variant-numeric: tabular-nums; }
+.sports-event-title { font-weight: 600; overflow-wrap: anywhere; }
+.sports-time { font-variant-numeric: tabular-nums; }
+.sports-note { font-size: .85em; }
+.sports-options { margin-top: 10px; width: 100%; min-height: 44px; }
+.sports-card:focus-visible, #page-sports button:focus-visible { outline: 3px solid var(--accent-color, #e76717); outline-offset: 3px; }
+.sports-dialog { color: var(--text-primary, CanvasText); background: var(--bg-secondary, Canvas); border-radius: 20px; padding: clamp(16px, 4vw, 40px); width: min(700px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); overflow: auto; }
+.sports-dialog::backdrop { background: #0009; }
+.sports-dialog label { display: block; margin-block: 20px; }
+.sports-dialog input[type=number] { display: block; width: 7em; min-height: 44px; }
+.sports-dialog button { min-height: 44px; margin: 6px; }
+.sports-dialog h2 { margin-top: 0; }
+.sports-detail-card { display: flex; flex-direction: column; gap: 14px; position: relative; }
+.sports-channel-actions > div { border-top: 1px solid currentColor; padding-block: 12px; }
+@media (prefers-reduced-motion: reduce) { .sports-row { scroll-behavior: auto; } }
+.sports-recording { color: var(--text-primary, CanvasText); font-weight: 700; }

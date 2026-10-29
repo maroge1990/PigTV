@@ -1,0 +1,49 @@
+✔ seven sport families and all ten follows have a family (1.796708ms)
+✔ hidden/stale scores and F1 timing cannot leak through card HTML or accessibility (0.822584ms)
+✔ one time row, no repeated shelf name, corner availability labels and safe cached logos (0.55ms)
+✔ final and expired airings never watch; cached live bit cannot permit early playback (0.854292ms)
+✔ first render has no prefs; failed refresh clears previously revealed state (0.624084ms)
+✔ late response from prior scope/account/background cannot republish scores (0.457958ms)
+✔ overlapping requests publish only newest complete delayed snapshot (0.46075ms)
+✔ identity change invalidates a pending response (0.428958ms)
+✔ preference revision conflict rereads and asks for an explicit retry, never blind overwrite (0.553958ms)
+✔ recording associates selected stable channel with its own airing and safe projected title (0.677708ms)
+✔ recording response after backgrounding cannot enable an action (3.741833ms)
+✔ stable card order retains a focused expired placeholder until focus moves (0.925166ms)
+✔ recording takes the current item ID from the selected channel airing after reorder (0.46725ms)
+✔ dashboard 404 falls back to a rolling 72h ordinary schedule with actions (0.551959ms)
+✔ recording badge has explicit text and strict source/stable identity (0.426042ms)
+✔ a settings form captured at an older revision cannot overwrite the newer polled settings (0.412959ms)
+✔ web API uses authenticated C-O routes, encoded league filters and preserves revision conflict status (1.028542ms)
+✔ select revalidates expired/final cards before any existing channel player is called (0.483375ms)
+✔ record-every-game choices use neutral league/team metadata, never score prose (0.46ms)
+✔ global recording banner cannot expose raw programme result prose over the Sport dashboard (12.770334ms)
+✔ entering Sport masks an already visible raw recording title synchronously (0.677917ms)
+✖ visible polling cannot republish old revealed scores while a preference write is pending (1.03275ms)
+ℹ tests 22
+ℹ suites 0
+ℹ pass 21
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 87.21325
+
+✖ failing tests:
+
+test at test/web-sports-dashboard.test.js:194:1
+✖ visible polling cannot republish old revealed scores while a preference write is pending (1.03275ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  true !== false
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:200:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

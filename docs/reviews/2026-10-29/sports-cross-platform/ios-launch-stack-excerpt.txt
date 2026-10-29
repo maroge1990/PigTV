@@ -1,0 +1,42 @@
+Analysis of sampling PigTV (pid 47575) every 1 millisecond
+Process:         PigTV [47575]
+Path:            /Users/USER/Library/Developer/CoreSimulator/Devices/13730CD5-9CB2-44D4-A4AC-6D50A33871AD/data/Containers/Bundle/Application/B40F217B-4F13-4DCB-AC24-D212AF082311/PigTV.app/PigTV
+Load Address:    0x1005f8000
+Identifier:      au.markrogers.PigTV
+Version:         1.0 (60)
+Code Type:       ARM64
+Platform:        iOS Simulator
+Parent Process:  launchd_sim [47292]
+Target Type:     live task (Roots Present)
+
+Date/Time:       2026-10-29 19:15:43.549 +1100
+Launch Time:     2026-10-29 19:13:15.622 +1100
+OS Version:      macOS 27.0.1 (26A434)
+Report Version:  7
+Analysis Tool:   /usr/bin/sample
+----
+
+Call graph:
+    3 Thread_1153806   DispatchQueue_1: com.apple.main-thread  (serial)
+    + 3 start  (in dyld) + 6688  [0x100905e80]
+    +   3 start_sim  (in dyld_sim) + 20  [0x1006c4350]
+    +     3 __debug_main_executable_dylib_entry_point  (in PigTV.debug.dylib) + 12  [0x1025a0f48]  PigTVApp.swift:0
+    +       3 static PigTVApp.$main()  (in PigTV.debug.dylib) + 40  [0x10259408c]  /<compiler-generated>:0
+    +         3 static App.main()  (in SwiftUI) + 148  [0x1c9b09750]
+    +           3 runApp<A>(_:)  (in SwiftUI) + 204  [0x1c9d8b784]
+    +             3 closure #1 in KitRendererCommon(_:)  (in SwiftUI) + 164  [0x1c9d8b908]
+    +               3 UIApplicationMain  (in UIKitCore) + 104  [0x1c5535e1c]
+    +                 3 _UIApplicationMainPreparations  (in UIKitCore) + 1216  [0x1c48e793c]
+    +                   3 +[UIKeyboardSceneDelegate automaticKeyboardArbiterClient]  (in UIKitCore) + 84  [0x1c4236d3c]
+    +                     3 +[_UIRemoteKeyboards sharedRemoteKeyboards]  (in UIKitCore) + 144  [0x1c46e3960]
+    +                       3 _dispatch_once_callout  (in libdispatch.dylib) + 28  [0x1e641dfa0]
+    +                         3 _dispatch_client_callout  (in libdispatch.dylib) + 12  [0x1e6435fb8]
+    +                           3 __43+[_UIRemoteKeyboards sharedRemoteKeyboards]_block_invoke  (in UIKitCore) + 16  [0x1c46e3974]
+    +                             3 -[_UIRemoteKeyboards init]  (in UIKitCore) + 196  [0x1c46e3a4c]
+    +                               3 -[_UIRemoteKeyboards checkConnection]  (in UIKitCore) + 56  [0x1c46ea204]
+    +                                 3 -[_UIRemoteKeyboards allowedToShowKeyboard]  (in UIKitCore) + 36  [0x1c46ec48c]
+    +                                   3 -[UIApplication isSuspendedEventsOnly]  (in UIKitCore) + 36  [0x1c48ec03c]
+    +                                     3 -[_UISceneLifecycleMultiplexer suspendedEventsOnly]  (in UIKitCore) + 52  [0x1c3e3441c]
+    +                                       3 _objc_msgSend_uncached  (in libobjcMsgSend.dylib) + 64  [0x1c0093b20]
+    +                                         3 objc_lookUpImpOrForward  (in libobjc.A.dylib) + 228  [0x1c00698d4]
+    +                                           3 getMethodFromRelativeList(relative_list_list_t<method_list_t>*, objc_selector*)  (in libobjc.A.dylib) + 168  [0x1c00727b4]

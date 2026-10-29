@@ -1,6 +1,11 @@
 # PigTV: blueprint
 
-**State (29 Oct, sports continuation):** Server **0316** retains guide-only/empty-follow coverage and cross-midnight
+**State (29 Oct, cross-platform sports):** server/web **0317** adds the C-O Sport page and C-I fallback, responsive shelves,
+keyboard/touch options, per-account settings and revalidated stable-channel actions. All **1,339 tests** and build
+checks pass. Apple **60** adapts mobile viewport/large text; 244 contracts, 243 unit/playback, 20 tvOS UI, iOS build and 2 UI tests each on iPhone/iPad pass. Consolidated device acceptance is pending. Reviews remain 0 of 2; no normal enablement
+or pilot/device acceptance is claimed. [Cross-platform evidence](docs/reviews/2026-10-29/sports-cross-platform/README.md).
+
+**0316 coverage baseline (29 Oct):** Server **0316** retains guide-only/empty-follow coverage and cross-midnight
 buffering without inventing scores or widening unknown-format cricket. All **1,316 tests** and build checks pass.
 Apple **59** implements the gated dashboard/compact sport shelves and revalidated existing actions; local gates pass (244 contracts, 243 unit/playback, 20 UI and iOS build). Mandatory sports Codex review remains **0 of 2** per repo. No pilot, deployment or device acceptance
 is claimed. Mark reports no visible web/server/iPad issues; tested versions/flag remain unconfirmed.
@@ -136,7 +141,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0317** |
+| Next build number | **0318** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -642,6 +647,12 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   downloads have one deadline to the last byte (0249).
 - A sibling-link decision that changes what is listed bumps the guide version (0250).
 
+**Web sports (0317):** `SportsPage.js` consumes C-O with ephemeral account-bound state, 20s visible whole-snapshot
+refresh, revision-aware settings and lifecycle hiding. Native browser buttons/dialogs retain focus; card identity/order
+and neutral expired placeholders survive refresh. Strict stable-channel and current-airing revalidation precedes existing
+watch/record/rule actions. Capability/404 fallback uses the C-I 72h schedule. No new endpoint or provider render probe.
+Apple 60 shares the contract with viewport/large-text card sizing. [Contract](docs/CLIENT-CONTRACT.md#web-0317-c-o-consumption-local-devicebrowser-acceptance-pending).
+
 **Sports dashboard foundation (0309):** `sportsScoresEspn.js` is a separate defensive adapter; the old fixture classifier
 is unchanged. `sportsDashboardStore.js` persists catalog metadata, observed whole-score snapshots and per-login preferences
 in SQLite (created on opt-in use). The collector polls current/prior UTC days, caches future days, discovers cricket per
@@ -664,6 +675,9 @@ per-account revision settings and revalidated actions. Required Apple gates/revi
 [continuation handoff](docs/reviews/2026-10-29/sports-dashboard-continuation/README.md).
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
+
+**Sports cross-platform:** web 0317 / Apple 60 implementation and local gates pass; next is mandatory review and
+one consolidated tvOS/iPhone/iPad/web acceptance pass. See the [cross-platform handoff](docs/reviews/2026-10-29/sports-cross-platform/README.md).
 
 **29 Oct continuation (0316):** Guide-only fallback/deduplication implemented offline; 1,316 tests and build checks pass.
 Mark reports no visible web/server/iPad issues; builds/flags unconfirmed. Apple 59 dashboard is implemented with passing local gates (244 contracts, 243 unit/playback, 20 UI and iOS build); pilot, mandatory review

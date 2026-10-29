@@ -1,0 +1,97 @@
+✔ seven sport families and all ten follows have a family (2.959959ms)
+✔ hidden/stale scores and F1 timing cannot leak through card HTML or accessibility (0.863875ms)
+✔ one time row, no repeated shelf name, corner availability labels and safe cached logos (0.547125ms)
+✔ final and expired airings never watch; cached live bit cannot permit early playback (0.463625ms)
+✔ first render has no prefs; failed refresh clears previously revealed state (1.089167ms)
+✔ late response from prior scope/account/background cannot republish scores (0.474833ms)
+✔ overlapping requests publish only newest complete delayed snapshot (0.466375ms)
+✔ identity change invalidates a pending response (0.438083ms)
+✔ preference revision conflict rereads and asks for an explicit retry, never blind overwrite (0.582875ms)
+✔ recording associates selected stable channel with its own airing and safe projected title (0.69825ms)
+✔ recording response after backgrounding cannot enable an action (3.3785ms)
+✔ stable card order retains a focused expired placeholder until focus moves (1.13775ms)
+✔ recording takes the current item ID from the selected channel airing after reorder (0.506667ms)
+✔ dashboard 404 falls back to a rolling 72h ordinary schedule with actions (0.572958ms)
+✔ recording badge has explicit text and strict source/stable identity (0.730916ms)
+✔ a settings form captured at an older revision cannot overwrite the newer polled settings (0.434458ms)
+✔ web API uses authenticated C-O routes, encoded league filters and preserves revision conflict status (1.440959ms)
+✔ select revalidates expired/final cards before any existing channel player is called (0.475625ms)
+✔ record-every-game choices use neutral league/team metadata, never score prose (0.475041ms)
+✔ global recording banner cannot expose raw programme result prose over the Sport dashboard (27.373542ms)
+✔ entering Sport masks an already visible raw recording title synchronously (0.564542ms)
+✔ visible polling cannot republish old revealed scores while a preference write is pending (0.485583ms)
+✖ authentication invalidated inside a refresh hides an already revealed snapshot (1.565167ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 22
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 108.447917
+
+✖ failing tests:
+
+test at test/web-sports-dashboard.test.js:205:1
+✖ authentication invalidated inside a refresh hides an already revealed snapshot (1.565167ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + {
+  +   games: [
+  +     {
+  +       availability: 'matched',
+  +       canWatch: true,
+  +       channels: [
+  +         {
+  +           id: 'pos_1',
+  +           name: 'TV',
+  +           sourceId: 1,
+  +           stableId: 'stable'
+  +         }
+  +       ],
+  +       events: [
+  +         {
+  +           end: 1000,
+  +           id: 'e',
+  +           start: 100
+  +         }
+  +       ],
+  +       freshness: 'fresh',
+  +       id: 'g',
+  +       league: 'NBA',
+  +       progress: {
+  +         clock: '1:20',
+  +         period: 5
+  +       },
+  +       scores: [
+  +         '99',
+  +         '98'
+  +       ],
+  +       status: 'live',
+  +       title: 'A v B'
+  +     }
+  +   ],
+  +   leagues: [
+  +     'NBA'
+  +   ],
+  +   now: 500,
+  +   preferences: {
+  +     avoidSpoilers: false,
+  +     revision: 0,
+  +     scoreDelaySeconds: 90
+  +   },
+  +   timezone: 'Australia/Melbourne'
+  + }
+  - null
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:211:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { now: 500, timezone: 'Australia/Melbourne', leagues: [ 'NBA' ], preferences: { revision: 0, avoidSpoilers: false, scoreDelaySeconds: 90 }, games: [ [Object] ] },
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

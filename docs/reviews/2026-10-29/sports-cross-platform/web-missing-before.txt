@@ -1,0 +1,242 @@
+✖ seven sport families and all ten follows have a family (2.200666ms)
+✖ hidden/stale scores and F1 timing cannot leak through card HTML or accessibility (0.367ms)
+✖ one time row, no repeated shelf name, corner availability labels and safe cached logos (0.733417ms)
+✖ final and expired airings never watch; cached live bit cannot permit early playback (0.342333ms)
+✖ first render has no prefs; failed refresh clears previously revealed state (0.439875ms)
+✖ late response from prior scope/account/background cannot republish scores (0.345792ms)
+✖ overlapping requests publish only newest complete delayed snapshot (0.328458ms)
+✖ identity change invalidates a pending response (0.326833ms)
+✖ preference revision conflict rereads and asks for an explicit retry, never blind overwrite (0.371291ms)
+✖ recording associates selected stable channel with its own airing and safe projected title (0.412542ms)
+✖ recording response after backgrounding cannot enable an action (0.359375ms)
+✖ stable card order retains a focused expired placeholder until focus moves (0.318542ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 0
+ℹ fail 12
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 99.694125
+
+✖ failing tests:
+
+test at test/web-sports-dashboard.test.js:24:1
+✖ seven sport families and all ten follows have a family (2.200666ms)
+  Error: ENOENT: no such file or directory, open 'public/js/pages/SportsPage.js'
+      at Object.readFileSync (node:fs:483:20)
+      at load (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:9:24)
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:25:15)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'open',
+    path: 'public/js/pages/SportsPage.js'
+  }
+
+test at test/web-sports-dashboard.test.js:29:1
+✖ hidden/stale scores and F1 timing cannot leak through card HTML or accessibility (0.367ms)
+  Error: ENOENT: no such file or directory, open 'public/js/pages/SportsPage.js'
+      at Object.readFileSync (node:fs:483:20)
+      at load (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:9:24)
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:30:15)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'open',
+    path: 'public/js/pages/SportsPage.js'
+  }
+
+test at test/web-sports-dashboard.test.js:37:1
+✖ one time row, no repeated shelf name, corner availability labels and safe cached logos (0.733417ms)
+  Error: ENOENT: no such file or directory, open 'public/js/pages/SportsPage.js'
+      at Object.readFileSync (node:fs:483:20)
+      at load (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:9:24)
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:38:15)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'open',
+    path: 'public/js/pages/SportsPage.js'
+  }
+
+test at test/web-sports-dashboard.test.js:47:1
+✖ final and expired airings never watch; cached live bit cannot permit early playback (0.342333ms)
+  Error: ENOENT: no such file or directory, open 'public/js/pages/SportsPage.js'
+      at Object.readFileSync (node:fs:483:20)
+      at load (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:9:24)
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:48:15)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'open',
+    path: 'public/js/pages/SportsPage.js'
+  }
+
+test at test/web-sports-dashboard.test.js:54:1
+✖ first render has no prefs; failed refresh clears previously revealed state (0.439875ms)
+  Error: ENOENT: no such file or directory, open 'public/js/pages/SportsPage.js'
+      at Object.readFileSync (node:fs:483:20)
+      at load (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:9:24)
+      at model (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:19:15)
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:56:19)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'open',
+    path: 'public/js/pages/SportsPage.js'
+  }
+
+test at test/web-sports-dashboard.test.js:63:1
+✖ late response from prior scope/account/background cannot republish scores (0.345792ms)
+  Error: ENOENT: no such file or directory, open 'public/js/pages/SportsPage.js'
+      at Object.readFileSync (node:fs:483:20)
+      at load (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:9:24)
+      at model (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:19:15)
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:65:19)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'open',
+    path: 'public/js/pages/SportsPage.js'
+  }
+
+test at test/web-sports-dashboard.test.js:72:1
+✖ overlapping requests publish only newest complete delayed snapshot (0.328458ms)
+  Error: ENOENT: no such file or directory, open 'public/js/pages/SportsPage.js'
+      at Object.readFileSync (node:fs:483:20)
+      at load (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:9:24)
+      at model (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:19:15)
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:74:19)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'open',
+    path: 'public/js/pages/SportsPage.js'
+  }
+
+test at test/web-sports-dashboard.test.js:80:1
+✖ identity change invalidates a pending response (0.326833ms)
+  Error: ENOENT: no such file or directory, open 'public/js/pages/SportsPage.js'
+      at Object.readFileSync (node:fs:483:20)
+      at load (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:9:24)
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:82:15)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'open',
+    path: 'public/js/pages/SportsPage.js'
+  }
+
+test at test/web-sports-dashboard.test.js:88:1
+✖ preference revision conflict rereads and asks for an explicit retry, never blind overwrite (0.371291ms)
+  Error: ENOENT: no such file or directory, open 'public/js/pages/SportsPage.js'
+      at Object.readFileSync (node:fs:483:20)
+      at load (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:9:24)
+      at model (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:19:15)
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:90:17)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'open',
+    path: 'public/js/pages/SportsPage.js'
+  }
+
+test at test/web-sports-dashboard.test.js:96:1
+✖ recording associates selected stable channel with its own airing and safe projected title (0.412542ms)
+  Error: ENOENT: no such file or directory, open 'public/js/pages/SportsPage.js'
+      at Object.readFileSync (node:fs:483:20)
+      at load (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:9:24)
+      at model (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:19:15)
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:97:17)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'open',
+    path: 'public/js/pages/SportsPage.js'
+  }
+
+test at test/web-sports-dashboard.test.js:105:1
+✖ recording response after backgrounding cannot enable an action (0.359375ms)
+  Error: ENOENT: no such file or directory, open 'public/js/pages/SportsPage.js'
+      at Object.readFileSync (node:fs:483:20)
+      at load (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:9:24)
+      at model (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:19:15)
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:107:17)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'open',
+    path: 'public/js/pages/SportsPage.js'
+  }
+
+test at test/web-sports-dashboard.test.js:112:1
+✖ stable card order retains a focused expired placeholder until focus moves (0.318542ms)
+  Error: ENOENT: no such file or directory, open 'public/js/pages/SportsPage.js'
+      at Object.readFileSync (node:fs:483:20)
+      at load (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:9:24)
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:113:15)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'open',
+    path: 'public/js/pages/SportsPage.js'
+  }

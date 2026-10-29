@@ -1,0 +1,31 @@
+✔ entering Sport masks an already visible raw recording title synchronously (1.433541ms)
+✔ visible polling cannot republish old revealed scores while a preference write is pending (0.966291ms)
+✔ authentication invalidated inside a refresh hides an already revealed snapshot (1.775917ms)
+ℹ tests 1339
+ℹ suites 0
+ℹ pass 1338
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 70682.03175
+
+✖ failing tests:
+
+test at test/sports-dashboard-review.test.js:59:1
+✖ H1/L4: realistic 300-game and 72-hour guide matching has a cold projection budget (173.405375ms)
+  AssertionError [ERR_ASSERTION]: 300 games/1200 airings took 164.6ms (budget 100ms)
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/sports-dashboard-review.test.js:63:126)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

@@ -1,0 +1,14 @@
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ 'LIVE\n×\n◉\nCarlton Blues\n101\n◉\nRichmond Tigers\n99\nQuarter 4 · 2:10'
+- 'Event no longer available'
+
+    at /Users/markrogers/Documents/GitHub/PigTV/scripts/test-web-sports.cjs:38:9 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 'LIVE\n×\n◉\nCarlton Blues\n101\n◉\nRichmond Tigers\n99\nQuarter 4 · 2:10',
+  expected: 'Event no longer available',
+  operator: 'strictEqual',
+  diff: 'simple'
+}

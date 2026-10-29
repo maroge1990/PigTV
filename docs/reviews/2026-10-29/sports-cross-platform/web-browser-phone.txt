@@ -1,0 +1,1 @@
+PASS synthetic mobile browser: hidden first render/details, equal geometry, visible options, Escape, synced save, retained focused expiry, background hiding

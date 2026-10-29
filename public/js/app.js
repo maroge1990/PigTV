@@ -18,6 +18,7 @@ class App {
         this.pages.home = new HomePage(this);
         this.pages.live = new LivePage(this);
         this.pages.guide = new GuidePage(this);
+        this.pages.sports = new SportsPage(this);
         this.pages.recordings = new RecordingsPage(this);
         this.pages.settings = new SettingsPage(this);
         this.pages.status = new StatusPage(this);
@@ -207,8 +208,9 @@ class App {
         // so the one-stream warning is only for recordings that hold a connection of their own.
         const warn = activeRecordings.some(r => !r.ingestKey)
             ? ` Live playback may fail while this runs if your provider allows only one stream.` : '';
-        text.textContent =
-            `Recording "${first.title}" on ${first.channel_name || 'unknown channel'} until ${untilStr}${extra}.${warn}`;
+        text.textContent = this.currentPage === 'sports'
+            ? `Recording in progress until ${untilStr}${extra}.${warn}`
+            : `Recording "${first.title}" on ${first.channel_name || 'unknown channel'} until ${untilStr}${extra}.${warn}`;
         banner.style.display = 'flex';
     }
 
@@ -347,6 +349,12 @@ class App {
         // Don't navigate if already on this page
         if (this.currentPage === pageName && historyMode !== 'replace') {
             return;
+        }
+        // The shared banner may still contain raw guide/result prose from the previous page.
+        // Mask it before Sport becomes visible, including before preferences are known.
+        if (pageName === 'sports') {
+            const bannerText = document.getElementById('recording-banner-text');
+            if (bannerText) bannerText.textContent = 'Recording in progress.';
         }
 
         if (historyMode === 'replace') {

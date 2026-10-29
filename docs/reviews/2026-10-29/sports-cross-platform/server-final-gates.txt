@@ -1,0 +1,17 @@
+Node 24; npm test; all simulators shut down; no provider/deployed access.
+✔ H1/L4: realistic 300-game and 72-hour guide matching has a cold projection budget (17.160292ms)
+✔ authentication invalidated inside a refresh hides an already revealed snapshot (0.42425ms)
+ℹ tests 1339
+ℹ suites 0
+ℹ pass 1339
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 59784.560459
+
+verify-build.sh .
+  ✓ retired stopNightly stays gone
+  ✓ every check runs before the summary
+
+=== ALL CHECKS PASSED ===

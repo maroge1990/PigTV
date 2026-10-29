@@ -338,7 +338,7 @@ the channel logo, filling the tile; the channel logo stays the fallback.
 
 ### C-O. Sport dashboard foundation. Flag: `sportsDashboard` (0309, experimental; 0313/0315 own-review repairs)
 
-**Server foundation plus Apple 59 dashboard slice; web dashboard remains pending.** The flag is false unless the server explicitly sets
+**Server foundation, Apple 59 dashboard slice and web 0317 consumption (locally validated; review/device acceptance pending).** The flag is false unless the server explicitly sets
 `PIGTV_SPORTS_DASHBOARD=1`. All routes below require a signed-in user or valid paired device and answer 404 while disabled.
 They answer `Cache-Control: private, no-store`; no shared response cache or client-supplied profile ID is used.
 
@@ -467,3 +467,32 @@ transition, a different later-starting guide window is also retained as uncertai
 so it cannot tune. The catalog final's retention/removal is unchanged. Only the selected delayed completion participates,
 never a current raw final or an endDate envelope. Actual airing eligibility is recomputed from start/end at request time:
 C-I's per-minute `live` bit is not authoritative at a boundary. These airing bounds do not establish LIVE sport play.
+
+#### Web 0317 C-O consumption (local, device/browser acceptance pending)
+
+- Sport is a separate navigation page. Capability absence or dashboard 404 uses the C-I rolling 72h ordinary schedule.
+  Canonical league chips in the dashboard retain the C-O rolling 72h view. All server-supplied followed leagues have
+  shelves even without games. No new endpoint or response shape is introduced.
+- A visible online C-O page refreshes whole snapshots every 20s after the prior request finishes. Unknown preferences,
+  request failure, background, offline and identity changes hide card/detail scores. Nothing is persisted in browser
+  storage beyond existing authentication. Resume rechecks capability/settings; no score clock is extrapolated.
+- Settings submit the revision the user saw. Conflicts reread settings and ask for a new choice. The client does not
+  retry a write with a newer revision. Spoiler hiding covers card/details/accessibility and masks raw titles in the shared recording banner before Sport
+  opens and on every banner refresh; only cached logo paths load.
+- Cards share a fixed geometry within each sport, with visible More options and native context-menu access. Keyboard
+  buttons retain identity/order; a focused expired card becomes neutral until focus leaves, including removed shelves.
+- Select reloads library metadata, then revalidates the current airing and preferred stable identity. No fallback from
+  a missing stable ID to a positional ID/name. Finals do not tune. Record/series/sport-rule confirmation revalidates C-I airing
+  bounds/channel association and the preference revision; captured title comes only from C-O. Sport rules offer the
+  neutral league and league-qualified team names, rechecked before submission. Recording indicators
+  are labelled and keyed by source/stable channel from the existing active-recording route. No provider probes occur
+  during render, focus, refresh or channel-library loading. Explicit Watch uses the existing admission/takeover flow.
+- An explicit scheduled Watch is cancelled on leaving/background/offline and has a visible cancel button. At its
+  timer it reloads state and eligibility; it never infers that the sport has started from wall time alone.
+
+#### Apple 60 mobile adaptation (local checks pass; device acceptance pending)
+
+The same C-O models/actions render on iPhone/iPad. Dashboard cards use available viewport width (300pt compact,
+360pt regular, up to 480pt for accessibility text, capped to the viewport), with equal scaled height within a sport.
+Controls stack when space is limited; mobile detail/settings padding is 20pt. Visible More options has an event-specific
+accessibility label and accompanies touch-and-hold. tvOS card geometry remains 380pt wide. No API route/shape changes.

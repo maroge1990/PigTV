@@ -1,6 +1,6 @@
 # Sports dashboard: remaining delivery roadmap
 
-Updated 29 October 2026 during local build **0316** continuation (baseline 0315 `8953d12`). This is the current delivery checklist; the
+Updated 29 October 2026 during local **0317 / Apple 60** cross-platform work (starting from server 0316 `cba8019` / Apple 59 `b91e4de`). This is the current delivery checklist; the
 [design](SPORTS-DASHBOARD-DESIGN.md) describes the full intended experience and
 [C-O](CLIENT-CONTRACT.md#c-o-sport-dashboard-foundation-flag-sportsdashboard-0309-experimental-03130315-own-review-repairs)
 is authoritative for implemented API behavior. Mark reports no visible issues on web/server/iPad; tested versions/flag were not supplied. No dashboard-specific
@@ -15,7 +15,7 @@ live results, pilot measurements or device acceptance have been established. Upd
   conservative deduplication and empty followed-sport names are implemented with failing-before tests. Own-review H1/M1–M3/L1/L3/L4
   repaired, original L2 answer accepted; follow-up N1/N2 and worker timeout repaired with failing-before evidence.
   [0315 evidence and review command](reviews/2026-10-29/sports-dashboard-followups/README.md).
-- **Not shipped/verified:** dashboard flag remains off by default. Apple 59 UI slice is implemented with passing local gates (244 contracts, 243 unit/playback, 20 UI and iOS build); web dashboard pending. No real-feed delivery
+- **Not shipped/verified:** dashboard flag remains off by default. Apple 59 UI slice is implemented with passing local gates (244 contracts, 243 unit/playback, 20 UI and iOS build); web 0317 is implemented and locally validated. No real-feed delivery
   latency/performance acceptance, no cross-device UI acceptance. Mandatory Codex server review remains **0 of 2**.
 - **Open low findings:** SD-0313-L2 unknown-format multi-day cricket and SD-0313-L3 collector main-loop parse cost,
   with reproductions in [FINDINGS](FINDINGS.md#sports-dashboard-0313-own-review-follow-ups-29-oct).
@@ -64,8 +64,8 @@ a separately authorized pilot. [Evidence](reviews/2026-10-29/sports-dashboard-co
 **Apple 59 slice (local, local gates pass; review/device acceptance pending):** capability/404 fallback, sport shelves and canonical-league 72h
 filters, seven neutral progress families, cached logos/name fallback, explicit availability/recording labels, preference
 save/conflict and foreground/offline hiding, and revalidated event/channel/recording actions are implemented. Shared iOS
-layout includes visible options; iPhone/iPad adaptation is provisional until device/accessibility acceptance. Web remains
-unimplemented. DEBUG `sport-dashboard` fixtures show invented edge variants with actions disabled. No stage is device
+layout includes visible options; iPhone/iPad adaptation is provisional until device/accessibility acceptance. Web 0317 is now implemented; Apple 60 adds mobile viewport/large-text adaptation. Local gates and
+remaining consolidated cross-platform acceptance are recorded in the new evidence below. DEBUG `sport-dashboard` fixtures show invented edge variants with actions disabled. No stage is device
 accepted. Same-account and separate-user behavior has synthetic API/model tests; physical two-device sync is outstanding.
 
 Stages 3–4 can proceed offline after initial findings are triaged. Do not silently turn optional enrichment into a
@@ -77,3 +77,10 @@ need Mark's authorization for that activity; no new access is implied by this ro
 
 Use [the continuation prompt](SPORTS-DASHBOARD-CONTINUE.md) after initial testing. Bring forward actual review/test
 results and current HEAD; do not assume 0315 is still latest or that outstanding gates have passed.
+
+**0317 / Apple 60 cross-platform work:** Mark requested mobile and web implementation before a consolidated manual
+pass across Apple TV/iPhone/iPad/web. Web has C-O seven-family shelves, current airing/stable-channel actions,
+record/series/sport rules, synced settings, keyboard and visible/context options, lifecycle/privacy hiding and C-I
+72h fallback. Apple 60 adapts card width, controls, large text and labelled touch options. Apple required push gate and
+iOS build pass; server 0317 passes all 1,339 tests/build checks. Final iPhone/iPad UI checks pass (2 each). SD-A60-L1 maximum-text fallback initials remains cosmetic/open. No platform is device accepted; no review or pilot
+is assumed. [Current evidence, review commands and eight numbered consolidated checks](reviews/2026-10-29/sports-cross-platform/README.md).

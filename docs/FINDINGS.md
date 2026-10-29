@@ -274,3 +274,41 @@ in **0315**; Codex adversarial review remains **0 of 2**. [Latest evidence/hando
   `league: "Sport"` event and no catalog game: Today omits tomorrow's listing and `league=Sport` is invalid. Mark's
   inspected configuration had no marked categories and the ten required follows are canonical; extend all-schedule
   navigation before adopting category-only/noncanonical follows. Retained explicitly for adaptation/review priority.
+
+## Web sports 0317 own inspection — 29 October
+
+- SD-W0317-C1 (fixed locally): recording retained an old positional channel ID after matching its stable identity.
+  New regression returns pos_1 instead of pos_8 before repair. The fresh C-I airing now supplies channel metadata.
+- SD-W0317-C2 (fixed locally): expired focused placeholders survived moving keyboard focus because the draft used an
+  unregistered `onfocusout` property. Native event listener plus synthetic Chromium keyboard regression fixes removal.
+- SD-W0317-C3 (fixed locally): removing an entire followed sport left stale revealed cards in its detached-from-data
+  shelf. Browser assertion captures the stale 101/99 scores. Removed shelves are pruned, keeping only a neutral focused
+  placeholder until focus leaves. No score cache survives a failed refresh/background.
+- SD-W0317-C4 (fixed locally): a stale settings form could write using a newer polled revision. Explicit form revision
+  now refuses that write and requires a new user choice. No automatic conflict overwrite. Evidence and pending full
+  gates/review/device acceptance: [cross-platform record](reviews/2026-10-29/sports-cross-platform/README.md).
+- SD-W0317-C5 (fixed locally): the shared recording banner could expose raw guide/result titles over hidden Sport,
+  including while the first settings read was pending. Both the active-recording refresh and entering-Sport regression
+  fail before repair (`web-banner-before.txt`). Sport now masks the banner synchronously and uses neutral wording on
+  every refresh, without changing recording ownership, acquisition or engine behavior.
+- SD-W0317-C6 (fixed locally): a normal visible poll could reveal the old preference/scores while a spoiler-setting
+  PUT was pending. A deferred-write regression fails before repair (`web-pending-write-before.txt`). Reads/actions
+  are now held until the write settles and current preferences are reread; scores remain hidden meanwhile.
+- SD-W0317-C7 (fixed locally): API's same-window 401 token removal does not fire a storage event, and a superseded-auth
+  refresh previously retained its revealed snapshot. `web-auth-before.txt` proves the stale response. The current
+  request now clears its invalidated identity; an older request cannot erase a newer account's publication.
+- SD-W0317-C8 (fixed locally): an asynchronous custom dialog-close focus callback could steal focus back from a card
+  selected after settings saved. The 1440px synthetic browser run failed its retained-focus assertion
+  (`web-dialog-focus-before.txt`). Removed the redundant callback; native modal close restores the opener without a
+  later user-focus override. Final three-width matrix is recorded in the cross-platform evidence.
+
+- GATE-SD0317-P1 (observed local gate variation): one complete 0317 run during iOS simulator startup passed 1,338
+  functional checks but failed the existing 300-game/1200-airing cold projection speed budget: 164.6ms versus 100ms.
+  No server projection code or budget changed in this batch. Earlier full run passed that budget; the isolated final
+  full run passes all 1,339 tests without changing the budget, recorded in the cross-platform evidence. This is not a collector/HLS pilot or a production performance claim.
+
+- SD-A60-L1 (low cosmetic, open): final iPad maximum-Dynamic-Type XCTest capture shows clipped initials inside the
+  existing fixed-size generic logo fallback tile. Adjacent full team names remain visible and accessible; games and
+  missing-logo fallback identification are preserved. Reproduce with `PIGTV_UI_TEST_SCREEN=sport-dashboard`, hidden
+  scores and UICTContentSizeCategoryAccessibilityXXXL; see `sports-cross-platform/ipad-max-text.png`. No logo-cache or
+  provider change made. Retained for Mark's visual acceptance/priority rather than claiming perfect max-text graphics.

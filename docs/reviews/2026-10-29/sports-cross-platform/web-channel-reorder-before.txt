@@ -1,0 +1,41 @@
+✔ seven sport families and all ten follows have a family (4.678125ms)
+✔ hidden/stale scores and F1 timing cannot leak through card HTML or accessibility (1.932792ms)
+✔ one time row, no repeated shelf name, corner availability labels and safe cached logos (1.03025ms)
+✔ final and expired airings never watch; cached live bit cannot permit early playback (1.110792ms)
+✔ first render has no prefs; failed refresh clears previously revealed state (2.926458ms)
+✔ late response from prior scope/account/background cannot republish scores (2.180125ms)
+✔ overlapping requests publish only newest complete delayed snapshot (1.486042ms)
+✔ identity change invalidates a pending response (0.737167ms)
+✔ preference revision conflict rereads and asks for an explicit retry, never blind overwrite (1.078125ms)
+✔ recording associates selected stable channel with its own airing and safe projected title (2.151875ms)
+✔ recording response after backgrounding cannot enable an action (7.594042ms)
+✔ stable card order retains a focused expired placeholder until focus moves (1.831375ms)
+✖ recording takes the current item ID from the selected channel airing after reorder (2.490166ms)
+✔ dashboard 404 falls back to a rolling 72h ordinary schedule with actions (2.122541ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 13
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 175.980208
+
+✖ failing tests:
+
+test at test/web-sports-dashboard.test.js:117:1
+✖ recording takes the current item ID from the selected channel airing after reorder (2.490166ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  'pos_1' !== 'pos_8'
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/web-sports-dashboard.test.js:121:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'pos_1',
+    expected: 'pos_8',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
