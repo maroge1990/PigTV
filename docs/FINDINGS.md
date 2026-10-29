@@ -225,6 +225,13 @@ in **0315**; Codex adversarial review remains **0 of 2**. [Latest evidence/hando
 - Mandatory sports Codex review is still round 0 of 2. Mark's no-visible-issues web/server/iPad report has no supplied
   build/flag; it is not review approval or dashboard/pilot/device acceptance.
 
+## FR-22 live recurrence — FOX Kansas City, 29 October
+
+Build 0315, iPad: Mark reports ~1–2 s A/V offset after a hang/recovery, then complete stop; relaunch restores sync.
+Logs establish failed planned renewal at 13:18 AEDT and a later stalled replacement at 13:20; both relays end without
+a ready replacement. The preserved media is from the recovered 13:21 relaunch, so its continuous timestamps cannot
+clear the affected server output. Renewal was enabled. No timestamp/hold change or new provider capture made.
+[Incident timeline, packet evidence and bounded preservation](reviews/2026-10-29/avsync-kansas-city/README.md).
 
 - SD-0316-C2 (own-inspection, fixed locally before handoff): the first 0316 unknown-format cricket duplicate guard
   hid a possible same-team rematch 48h later. Failing-before reproduction is `cricket-rematch-before.txt` in the

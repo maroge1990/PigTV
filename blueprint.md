@@ -20,6 +20,10 @@ Apple **59** implements the gated dashboard/compact sport shelves and revalidate
 is claimed. Mark reports no visible web/server/iPad issues; tested versions/flag remain unconfirmed.
 [Current handoff/evidence](docs/reviews/2026-10-29/sports-dashboard-continuation/README.md).
 
+**Playback incident (29 Oct):** deployed **0315** on iPad, FOX Kansas City / Strong8K: failed renewal and later stall
+end playback; Mark reports ~1–2 s A/V offset and sync restored by relaunch. Preserved media belongs to the recovered
+play, not the affected one; root cause remains open. [Incident evidence](docs/reviews/2026-10-29/avsync-kansas-city/README.md).
+
 **0315 sport foundation (29 Oct):** **0315** addresses the own-review follow-ups to 0313: legacy fixture cooldown sharing
 is gated on dashboard enablement, deferred fixtures retry after cooldown, and three request slots protect catalog
 progress under hot-source load. Hung projection jobs time out and replace their worker. All 1,305 tests and build verification pass.
@@ -693,6 +697,10 @@ device testing requested. [Refinement handoff](docs/reviews/2026-10-29/sports-tv
 
 **Sports cross-platform:** web 0317 / Apple 60 implementation and local gates pass; next is mandatory review and
 one consolidated tvOS/iPhone/iPad/web acceptance pass. See the [cross-platform handoff](docs/reviews/2026-10-29/sports-cross-platform/README.md).
+
+**FR-22 recurrence (29 Oct):** investigate the 0315 iPad hang/failed renewal and reported A/V offset using retained
+affected-play output. Recovered-play timestamps are clean but cannot clear the earlier output. No speculative flags
+or live-hold change. See the [FOX Kansas City incident](docs/reviews/2026-10-29/avsync-kansas-city/README.md).
 
 **29 Oct continuation (0316):** Guide-only fallback/deduplication implemented offline; 1,316 tests and build checks pass.
 Mark reports no visible web/server/iPad issues; builds/flags unconfirmed. Apple 59 dashboard is implemented with passing local gates (244 contracts, 243 unit/playback, 20 UI and iOS build); pilot, mandatory review
