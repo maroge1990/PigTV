@@ -45,6 +45,8 @@ const M = 60 * 1000;
 
 /** Serve `handlers[urlSubstring] = json` (first match wins) from global.fetch, restoring it after `fn`. */
 async function withEspn(handlers, fn) {
+    // Each scenario is an independent upstream timeline; do not leak a simulated 5xx cooldown into another one.
+    load('services/espnRequestPolicy').reset();
     const original = global.fetch;
     global.fetch = async (url) => {
         const key = Object.keys(handlers).find(k => String(url).includes(k));
@@ -53,7 +55,7 @@ async function withEspn(handlers, fn) {
         if (v === null) return { ok: false, status: 500, json: async () => ({}) };
         return { ok: true, status: 200, json: async () => v };
     };
-    try { return await fn(); } finally { global.fetch = original; }
+    try { return await fn(); } finally { global.fetch = original; load('services/espnRequestPolicy').reset(); }
 }
 
 // ---- the ESPN provider, on real recorded responses -------------------------------------------
@@ -216,7 +218,7 @@ test('PIGTV_SPORT_FIXTURES=0 turns it off completely: no fetch, an empty snapsho
         let fetched = false;
         const original = global.fetch;
         global.fetch = async () => { fetched = true; return { ok: true, json: async () => ({}) }; };
-        try { await fixtures.refreshAll(); } finally { global.fetch = original; }
+        try { await fixtures.refreshAll(); } finally { global.fetch = original; load('services/espnRequestPolicy').reset(); }
         assert.equal(fetched, false, 'no request went out');
         assert.deepEqual(fixtures.snapshot(new Set(['NFL'])), new Map());
         assert.equal(fixtures.statusSummary().enabled, false);

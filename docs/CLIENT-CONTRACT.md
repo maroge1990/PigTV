@@ -333,7 +333,7 @@ the channel logo, filling the tile; the channel logo stays the fallback.
   **1239048** logs harmless `[mp4] Packet duration … out of range` warnings.
 
 
-### C-O. Sport dashboard foundation. Flag: `sportsDashboard` (0309, experimental)
+### C-O. Sport dashboard foundation. Flag: `sportsDashboard` (0309, experimental; 0313 own-review repairs)
 
 **Server foundation only; Apple/web presentation has not changed.** The flag is false unless the server explicitly sets
 `PIGTV_SPORTS_DASHBOARD=1`. All routes below require a signed-in user or valid paired device and answer 404 while disabled.
@@ -345,7 +345,10 @@ They answer `Cache-Control: private, no-store`; no shared response cache or clie
 - `PUT /api/sports/preferences` accepts `revision` and one/both of `avoidSpoilers` (strict boolean), `scoreDelaySeconds`
   (integer 0–300). Success returns the updated object and increments revision. Unknown fields, invalid types or missing
   revision are 400. An outdated revision is 409; re-read before offering to retry. This is self-service for viewers too.
-- `GET /api/sports/dashboard[?league=NFL]` reads stored data without contacting ESPN. Without a league: today in the
+- `GET /api/sports/dashboard[?league=NFL]` reads stored data without contacting ESPN. It consumes the per-minute cached
+  C-I event response and performs parsing, bulk catalog/history reads and projection on a read-only worker, with no
+  main-thread reference-path fallback. Whole-league/category selection is a union: a sport-marked category or a
+  whole-league follow includes all games of that league; a team follow narrows it only without a broad selection. Without a league: today in the
   server `TZ` (valid IANA zone; default/fallback Australia/Melbourne), plus ongoing cross-midnight games and retained
   results. With a canonical league: rolling 72 hours, plus ongoing/recent games. Invalid league is 400.
 - Response: `{now, timezone, scope: "today"|"league", hours: null|72, preferences, games:[...]}`. All absolute times are
@@ -375,11 +378,19 @@ They answer `Cache-Control: private, no-store`; no shared response cache or clie
   accessibility and any old cached content spoiler-safe; those UI changes are still pending.
 - A result is retained for one hour after its observed final transition becomes eligible. Initially discovered historic
   finals have no observed transition and are excluded once final data is eligible. Repeated final polls do not restart
-  the hour. Current completion also disables old-airing playback immediately, even while the delayed label still says
-  live. Last-known state survives history pruning; stale completion cannot become a playable airing after an outage.
+  the hour. Completion changes every score-derived broadcast/action field only when that same delayed snapshot is eligible;
+  an undelayed final must not reveal itself through channels, availability or Watch. Current guide airing bounds still
+  apply independently, and clients revalidate the airing at selection. Final-transition retention is carried in each
+  snapshot, including after a newer correction; existing 0309 history is upgraded before the worker reads it.
+  Last-known state survives pruning. A first-seen historic final intentionally buffers as unknown until eligibility,
+  then disappears because no trustworthy completion transition was observed; no recent-result hour is fabricated.
 
-Collection is separate from C-I's 30-minute fixtures: bounded public ESPN requests, shared across clients, per-URL
-cache/backoff, current/prior UTC dates and dated cricket discovery for future series. Failure leaves catalog/history
+Collection is separate from C-I's 30-minute fixtures: at most 12 public ESPN network attempts per 30-second tick across
+all dashboard sources/dates, with two in flight, including dated cricket discovery. Known in-play/near-start source
+dates poll at 30 seconds; other catalog dates use 15 minutes and budget-deferred work rotates through later ticks.
+A shared host cooldown on 429/5xx also pauses the legacy fixture client without dropping its last-good data.
+Catalog/history writes are batched once per tick, retaining each response's observation timestamp. Cricket endDate
+hints are not treated as actual match ends; joins use format-bounded windows and retain ambiguous ties as unmatched. Failure leaves catalog/history
 intact and does not label old cached data as newly observed. History keeps a 15-minute window plus the last-known
 snapshot per game; catalog entries expire after eight days without a recent observation. New tables are
 `sports_dashboard_catalog`, `sports_score_history`, `sports_user_preferences`. F1 is session-only; AFL goals/behinds

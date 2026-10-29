@@ -16,7 +16,9 @@ before(async()=>{
     const second=await db.users.create({username:'second',role:'viewer'});
     one=auth.generateToken(first);two=auth.generateToken(second);
     load('db/sqlite').getDb().prepare('INSERT INTO sports_follow (position,keyword) VALUES(0,?)').run('NFL');
-    load('services/sportsEvents').eventsFor=async()=>({events:[]});
+    load('services/sportsEvents').eventsFor=async()=>{throw new Error('H1: reference eventsFor must not run on the serving loop');};
+    dashboard.buildDashboard=()=>{throw new Error('H1: projection must run on its worker');};
+    load('services/sportsEvents').eventsResponse=async()=>({body:Buffer.from(JSON.stringify({events:[{id:'real-join',league:'NFL',title:'Chiefs v Bills',kind:'event',start:now-3600000,end:now+3600000,live:true,channels:[{sourceId:1,id:'pos_7',stableId:'stable7',name:'Sports HD',quality:'HD',providerPassword:'must-not-project'}]}]}))});
     now=Date.now();
     dashboard.store().ingest([{id:'espn:football/nfl:1',league:'NFL',title:'Chiefs v Bills',start:now-3600000,end:null,session:null,circuit:null,
         competitors:[{id:'12',name:'Chiefs',aliases:['Chiefs'],logo:null},{id:'2',name:'Bills',aliases:['Bills'],logo:null}],
@@ -53,7 +55,10 @@ test('dashboard projects scores for the authenticated preference and validates l
     process.env.PIGTV_SPORTS_DASHBOARD='1';
     const hidden=await request('/api/sports/dashboard');assert.equal(hidden.status,200);assert.match(hidden.cache,/private.*no-store/);
     const a=JSON.parse(hidden.text);assert.equal(a.games.length,1);assert.equal(a.games[0].scores,undefined);
-    assert.equal(a.games[0].progress.clock,'5:00');assert.equal(a.games[0].availability,'unmatched');
+    assert.equal(a.games[0].progress.clock,'5:00');assert.equal(a.games[0].availability,'matched');
+    assert.equal(a.games[0].channels[0].stableId,'stable7');
+    assert.equal(a.games[0].channels[0].providerPassword,undefined);
+    assert.equal(a.games[0].canWatch,true);
     const shown=JSON.parse((await request('/api/sports/dashboard',two)).text);assert.deepEqual(shown.games[0].scores,['17','14']);
     assert.equal((await request('/api/sports/dashboard?league=bad')).status,400);
     assert.equal(JSON.parse((await request('/api/sports/dashboard?league=NFL')).text).hours,72);

@@ -48,9 +48,12 @@ router.get('/dashboard', dashboardEnabled, async (req, res) => {
     if (req.query.league !== undefined && !league) return res.status(400).json({ error: 'Unknown sports league' });
     try {
         channelNumbers.ensureChannelNumbers();
-        const { events } = await sportsEvents.eventsFor({ hours: 72, userId: req.user.id, decorateChannels });
-        const response = dashboard.buildDashboard(dashboard.store(), { userId: req.user.id, league, events,
-            leagues: require('../services/sportsFixtures').neededLeagues(), follow: sportsEvents.getFollow() });
+        dashboard.store(); // Ensure opt-in tables exist before the read-only worker opens them.
+        const cached = await sportsEvents.eventsResponse({ hours: 72, userId: req.user.id, decorateChannels });
+        const fixtures = require('../services/sportsFixtures');
+        const response = await dashboard.response({ eventsBody: cached.body, options: { now: Date.now(),
+            userId: req.user.id, league, timezone: dashboard.timezone(), leagues: fixtures.neededLeagues(),
+            broadLeagues: fixtures.categoryLeagues(), follow: sportsEvents.getFollow() } });
         applyLogoCache(response.games.flatMap(g => g.competitors));
         res.json(response);
     } catch { res.status(500).json({ error: 'Could not list the sports dashboard' }); }

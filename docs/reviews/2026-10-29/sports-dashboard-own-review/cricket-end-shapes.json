@@ -1,0 +1,1007 @@
+[
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1544870",
+    "competitionId": "1544870",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-28T00:00Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1550286",
+    "competitionId": "1550286",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "5",
+      "generalClassCard": "List A",
+      "name": "List A matches",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-28T21:30Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1546580",
+    "competitionId": "1546580",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-26T02:45Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1546570",
+    "competitionId": "1546570",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-26T03:30Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1546573",
+    "competitionId": "1546573",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-26T03:30Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1546562",
+    "competitionId": "1546562",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-26T04:00Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1546577",
+    "competitionId": "1546577",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-26T04:00Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1546569",
+    "competitionId": "1546569",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-26T04:00Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1546566",
+    "competitionId": "1546566",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-26T04:00Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1546567",
+    "competitionId": "1546567",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-26T04:00Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1546572",
+    "competitionId": "1546572",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-26T04:00Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1546571",
+    "competitionId": "1546571",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-26T04:00Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1546578",
+    "competitionId": "1546578",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-26T04:00Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1546579",
+    "competitionId": "1546579",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-26T04:00Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1546574",
+    "competitionId": "1546574",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-26T04:00Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1546565",
+    "competitionId": "1546565",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-26T04:00Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1546568",
+    "competitionId": "1546568",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-26T04:00Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1546575",
+    "competitionId": "1546575",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-26T04:00Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1546564",
+    "competitionId": "1546564",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-26T04:00Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1543944",
+    "competitionId": "1543944",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "17",
+      "generalClassCard": "Women's T20",
+      "name": "",
+      "eventType": ""
+    },
+    "start": "2026-10-29T04:40Z",
+    "competitionEnd": "2026-10-29T23:59Z",
+    "eventEnd": "2026-10-29T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1543945",
+    "competitionId": "1543945",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "17",
+      "generalClassCard": "Women's T20",
+      "name": "",
+      "eventType": ""
+    },
+    "start": "2026-10-29T08:10Z",
+    "competitionEnd": "2026-10-29T23:59Z",
+    "eventEnd": "2026-10-29T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1559565",
+    "competitionId": "1559565",
+    "class": {
+      "internationalClassId": "2",
+      "generalClassId": "5",
+      "generalClassCard": "ODI",
+      "name": "One-Day Internationals",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-29T05:30Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1553805",
+    "competitionId": "1553805",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-27T05:00Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1525661",
+    "competitionId": "1525661",
+    "class": {
+      "internationalClassId": "1",
+      "generalClassId": "4",
+      "generalClassCard": "Test",
+      "name": "Test matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-27T08:30Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1553295",
+    "competitionId": "1553295",
+    "class": {
+      "internationalClassId": "1",
+      "generalClassId": "4",
+      "generalClassCard": "Test",
+      "name": "Test matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-28T03:30Z",
+    "competitionEnd": "2026-11-02T23:59Z",
+    "eventEnd": "2026-11-02T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1535657",
+    "competitionId": "1535657",
+    "class": {
+      "internationalClassId": "9",
+      "generalClassId": "12",
+      "generalClassCard": "Women's ODI",
+      "name": "Women's One-Day Internationals",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-28T08:30Z",
+    "competitionEnd": "2026-10-29T23:59Z",
+    "eventEnd": "2026-10-29T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1559959",
+    "competitionId": "1559959",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "13",
+      "generalClassCard": "Other T20",
+      "name": "Other Twenty20 matches",
+      "eventType": "T20"
+    },
+    "start": "2026-10-28T14:00Z",
+    "competitionEnd": "2026-10-29T23:59Z",
+    "eventEnd": "2026-10-29T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1559960",
+    "competitionId": "1559960",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "13",
+      "generalClassCard": "Other T20",
+      "name": "Other Twenty20 matches",
+      "eventType": "T20"
+    },
+    "start": "2026-10-28T23:00Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1551888",
+    "competitionId": "1551888",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "6",
+      "generalClassCard": "Twenty20",
+      "name": "Twenty20 matches",
+      "eventType": "T20"
+    },
+    "start": "2026-10-28T16:00Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1558586",
+    "competitionId": "1558586",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "6",
+      "generalClassCard": "Twenty20",
+      "name": "Twenty20 matches",
+      "eventType": "T20"
+    },
+    "start": "2026-10-29T06:45Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1558587",
+    "competitionId": "1558587",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "6",
+      "generalClassCard": "Twenty20",
+      "name": "Twenty20 matches",
+      "eventType": "T20"
+    },
+    "start": "2026-10-29T10:45Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1550718",
+    "competitionId": "1550718",
+    "class": {
+      "internationalClassId": "2",
+      "generalClassId": "5",
+      "generalClassCard": "ODI",
+      "name": "One-Day Internationals",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-29T08:00Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-discovery",
+    "eventId": "1555121",
+    "competitionId": "1555121",
+    "class": {
+      "internationalClassId": "3",
+      "generalClassId": "6",
+      "generalClassCard": "T20I",
+      "name": "Twenty20 Internationals",
+      "eventType": "T20"
+    },
+    "start": "2026-10-29T14:30Z",
+    "competitionEnd": "2026-10-30T23:59Z",
+    "eventEnd": "2026-10-30T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1559454",
+    "competitionId": "1559454",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "5",
+      "generalClassCard": "List A",
+      "name": "List A matches",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-31T06:45Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1559453",
+    "competitionId": "1559453",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "5",
+      "generalClassCard": "List A",
+      "name": "List A matches",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-31T06:45Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1544870",
+    "competitionId": "1544870",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-28T00:00Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1544871",
+    "competitionId": "1544871",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-29T23:30Z",
+    "competitionEnd": "2026-11-02T23:59Z",
+    "eventEnd": "2026-11-02T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1550287",
+    "competitionId": "1550287",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "5",
+      "generalClassCard": "List A",
+      "name": "List A matches",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-30T21:30Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1550289",
+    "competitionId": "1550289",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "5",
+      "generalClassCard": "List A",
+      "name": "List A matches",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-30T21:30Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1550288",
+    "competitionId": "1550288",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "5",
+      "generalClassCard": "List A",
+      "name": "List A matches",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-30T21:30Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1543947",
+    "competitionId": "1543947",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "17",
+      "generalClassCard": "Women's T20",
+      "name": "",
+      "eventType": ""
+    },
+    "start": "2026-10-31T04:40Z",
+    "competitionEnd": "2026-10-31T23:59Z",
+    "eventEnd": "2026-10-31T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1543948",
+    "competitionId": "1543948",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "17",
+      "generalClassCard": "Women's T20",
+      "name": "",
+      "eventType": ""
+    },
+    "start": "2026-10-31T08:10Z",
+    "competitionEnd": "2026-10-31T23:59Z",
+    "eventEnd": "2026-10-31T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1559566",
+    "competitionId": "1559566",
+    "class": {
+      "internationalClassId": "2",
+      "generalClassId": "5",
+      "generalClassCard": "ODI",
+      "name": "One-Day Internationals",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-31T05:30Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1553805",
+    "competitionId": "1553805",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-27T05:00Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1525661",
+    "competitionId": "1525661",
+    "class": {
+      "internationalClassId": "1",
+      "generalClassId": "4",
+      "generalClassCard": "Test",
+      "name": "Test matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-27T08:30Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1553295",
+    "competitionId": "1553295",
+    "class": {
+      "internationalClassId": "1",
+      "generalClassId": "4",
+      "generalClassCard": "Test",
+      "name": "Test matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-28T03:30Z",
+    "competitionEnd": "2026-11-02T23:59Z",
+    "eventEnd": "2026-11-02T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1552530",
+    "competitionId": "1552530",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-30T22:00Z",
+    "competitionEnd": "2026-11-03T23:59Z",
+    "eventEnd": "2026-11-03T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1559202",
+    "competitionId": "1559202",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "12",
+      "generalClassCard": "Other OD",
+      "name": "Other one-day/limited-overs matches",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-31T00:45Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1559203",
+    "competitionId": "1559203",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "12",
+      "generalClassCard": "Other OD",
+      "name": "Other one-day/limited-overs matches",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-31T01:40Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1559204",
+    "competitionId": "1559204",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "12",
+      "generalClassCard": "Other OD",
+      "name": "Other one-day/limited-overs matches",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-31T02:35Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1559205",
+    "competitionId": "1559205",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "12",
+      "generalClassCard": "Other OD",
+      "name": "Other one-day/limited-overs matches",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-31T03:30Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1559206",
+    "competitionId": "1559206",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "12",
+      "generalClassCard": "Other OD",
+      "name": "Other one-day/limited-overs matches",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-31T04:25Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1559207",
+    "competitionId": "1559207",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "12",
+      "generalClassCard": "Other OD",
+      "name": "Other one-day/limited-overs matches",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-31T05:20Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1559208",
+    "competitionId": "1559208",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "12",
+      "generalClassCard": "Other OD",
+      "name": "Other one-day/limited-overs matches",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-31T06:15Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1559209",
+    "competitionId": "1559209",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "12",
+      "generalClassCard": "Other OD",
+      "name": "Other one-day/limited-overs matches",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-31T07:10Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1559210",
+    "competitionId": "1559210",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "12",
+      "generalClassCard": "Other OD",
+      "name": "Other one-day/limited-overs matches",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-31T08:05Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1555683",
+    "competitionId": "1555683",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-31T03:30Z",
+    "competitionEnd": "2026-11-04T23:59Z",
+    "eventEnd": "2026-11-04T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1555682",
+    "competitionId": "1555682",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-31T03:30Z",
+    "competitionEnd": "2026-11-04T23:59Z",
+    "eventEnd": "2026-11-04T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1555684",
+    "competitionId": "1555684",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-31T03:30Z",
+    "competitionEnd": "2026-11-04T23:59Z",
+    "eventEnd": "2026-11-04T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1555681",
+    "competitionId": "1555681",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "4",
+      "generalClassCard": "First-class",
+      "name": "First-class matches",
+      "eventType": "Test"
+    },
+    "start": "2026-10-31T03:30Z",
+    "competitionEnd": "2026-11-04T23:59Z",
+    "eventEnd": "2026-11-04T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1558588",
+    "competitionId": "1558588",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "6",
+      "generalClassCard": "Twenty20",
+      "name": "Twenty20 matches",
+      "eventType": "T20"
+    },
+    "start": "2026-10-31T06:45Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1558589",
+    "competitionId": "1558589",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "6",
+      "generalClassCard": "Twenty20",
+      "name": "Twenty20 matches",
+      "eventType": "T20"
+    },
+    "start": "2026-10-31T10:45Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1550719",
+    "competitionId": "1550719",
+    "class": {
+      "internationalClassId": "2",
+      "generalClassId": "5",
+      "generalClassCard": "ODI",
+      "name": "One-Day Internationals",
+      "eventType": "ODI"
+    },
+    "start": "2026-10-31T08:00Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1551890",
+    "competitionId": "1551890",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "6",
+      "generalClassCard": "Twenty20",
+      "name": "Twenty20 matches",
+      "eventType": "T20"
+    },
+    "start": "2026-10-31T11:00Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1551891",
+    "competitionId": "1551891",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "6",
+      "generalClassCard": "Twenty20",
+      "name": "Twenty20 matches",
+      "eventType": "T20"
+    },
+    "start": "2026-10-31T16:00Z",
+    "competitionEnd": "2026-11-02T23:59Z",
+    "eventEnd": "2026-11-02T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1559965",
+    "competitionId": "1559965",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "13",
+      "generalClassCard": "Other T20",
+      "name": "Other Twenty20 matches",
+      "eventType": "T20"
+    },
+    "start": "2026-10-31T14:00Z",
+    "competitionEnd": "2026-11-01T23:59Z",
+    "eventEnd": "2026-11-01T23:59Z"
+  },
+  {
+    "capture": "Cricket-future-scorepanel",
+    "eventId": "1559966",
+    "competitionId": "1559966",
+    "class": {
+      "internationalClassId": "0",
+      "generalClassId": "13",
+      "generalClassCard": "Other T20",
+      "name": "Other Twenty20 matches",
+      "eventType": "T20"
+    },
+    "start": "2026-10-31T23:00Z",
+    "competitionEnd": "2026-11-02T23:59Z",
+    "eventEnd": "2026-11-02T23:59Z"
+  }
+]

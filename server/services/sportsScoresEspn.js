@@ -1,5 +1,6 @@
 /** Dashboard-only ESPN adapter. Never changes the fixture/live-replay classifier. */
 const { f1Session } = require('./sportsFixtures');
+const requestPolicy = require('./espnRequestPolicy');
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports/';
 const text = (v, max = 160) => typeof v === 'string' ? v.trim().slice(0, max) : '';
 const id = v => /^(?:[A-Za-z0-9_-]{1,80})$/.test(String(v ?? '')) ? String(v) : null;
@@ -31,9 +32,11 @@ function normalize(json, league, source) {
         if (!e || !Array.isArray(e.competitions)) continue;
         for (const c of e.competitions.slice(0, 12)) {
             if (!c || !id(c.id)) continue;
-            const start = Date.parse(c.date || e.date), parsedEnd = Date.parse(c.endDate || (league === 'Cricket' ? e.endDate : ''));
+            const start = Date.parse(c.date || e.date), parsedEnd = Date.parse(league === 'Cricket' ? '' : c.endDate || '');
             if (!Number.isFinite(start)) continue;
-            const formatKey=text(c.class?.eventType || c.class?.generalClassCard).toLowerCase();
+            // Captured cricket endDate values include day/series envelopes, not reliable match ends.
+            // Prefer class card over eventType (first-class matches may say eventType=Test).
+            const formatKey=text(c.class?.generalClassCard || c.class?.eventType).toLowerCase().replace(/^(?:women'?s|men'?s)\s+/, '');
             const format=league==='Cricket' ? ({test:'test',odi:'odi',t20:'t20',t20i:'t20','first-class':'first-class',fc:'first-class','list a':'list-a',lista:'list-a'}[formatKey] || null) : null;
             const session = league === 'F1' ? f1Session(c.type?.abbreviation)?.label : null;
             if (league === 'F1' && !session) continue;
@@ -90,8 +93,10 @@ function normalize(json, league, source) {
 async function fetchJson(url, { signal } = {}) {
     const u = new URL(url);
     if (u.origin !== 'https://site.api.espn.com' || !u.pathname.startsWith('/apis/site/v2/sports/')) throw new Error('Invalid score source');
+    if (requestPolicy.blocked()) throw new Error('Score host cooling down');
     const response = await fetch(u, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(8000)]) : AbortSignal.timeout(8000), redirect:'error' });
-    if (!response.ok) throw new Error('Score source unavailable');
+    requestPolicy.observe(response.status, response.headers.get('retry-after'));
+    if (!response.ok) throw Object.assign(new Error('Score source unavailable'), { status: response.status, retryAfter: response.headers.get('retry-after'), hostBackoffRecorded: true });
     const reader=response.body.getReader(),chunks=[];
     let bytes=0;
     try {

@@ -171,3 +171,20 @@ and legacy-QSV encode have not been tested here. Reproduce/accept after candidat
 runtime library and run a two-second `h264_qsv` lavfi encode on that host, without changing PigTV's encoder setting or
 opening a feed. Name/help checks do not establish hardware operation. Failure remains a compatibility acceptance issue;
 current production is using VAAPI, so no QSV outage is claimed.
+
+## Sports dashboard 0309 own review (29 Oct)
+
+Reviewer: Claude (own review supplied by Mark); reviewed `4d95f10` against `a6e86e1`. These repairs are in **0313**.
+This is not the mandatory Codex adversarial review: round count remains **0 of 2**. Full evidence/dispositions:
+[own-review record](reviews/2026-10-29/sports-dashboard-own-review/README.md).
+
+| ID | Disposition and reproduction |
+|---|---|
+| SD-0309-H1 | Fixed: use cached C-I events and a read-only projection worker, parse/index once, hoist statements/formatters, read snapshots in bulk. Reproduce original by making `eventsFor` or main-thread projection throw: route fails; 300-game original projection prepares hundreds of statements. New route guard, real join and perf tests pass. |
+| SD-0309-M1 | Fixed: with delay 300s and spoilers hidden, ingest live then a newer finished state while keeping the airing valid. Original loses channels/Watch before delayed final; repair preserves every score-derived broadcast field until eligibility. Also test a newer correction after an eligible final: retention now belongs to the historical snapshot, with 0309 history upgrade. |
+| SD-0309-M2 | Fixed with bounded collection; live acceptance remains: original mocked worst-case tick makes 319 cold / 126 next-tick requests; repair never exceeds 12, including discovery. Inactive sources use 15min, active/near-start dates 30s; a 429/5xx pauses score and fixture clients. Cold/partial catalog coverage under the budget and resumed cricket without a known restart time still need real-service acceptance; no guaranteed ESPN allowance or delivery lag is claimed. |
+| SD-0309-M3 | Fixed: three same-team T20/ODI games two days apart no longer overlap a default five-day window. Ignore cricket endDate envelopes, bound by format and prefer clearly nearest starts; ties stay unmatched. Women's T20 labels are normalized. Captured ODI/T20 end hints exceed a day and are not trustworthy match ends. |
+| SD-0309-L1 | Fixed: a marked category/whole-league selection remains broad when a team is followed. Reproduce with category NFL + a different NFL team followed: original hides a catalog game, repaired union retains it; team-only selection still narrows. |
+| SD-0309-L2 | Answered, no behavior change: ingest a first-seen final with no previously observed live/scheduled state. At 1s it buffers as unknown, at the default 90s it disappears; no completion transition means no invented one-hour recent result. Existing observed transitions persist across restart. Regression intentionally passes on 0309 and repair; C-O documents the decision. |
+| SD-0309-L3 | Fixed by one transaction per tick, preserving each response's observation time. Original 20-game probe invokes ingest 20 times; repair calls one batch. Identical newly received states may still have history rows, because receipt/freshness and delay boundaries must remain truthful. |
+| SD-0309-L4 | Fixed: nonempty cached event response exercises actual worker-backed joins and channel projection; sentinel failures prohibit both slow/reference paths. 300 games / 1,200 airings have a perf budget using the standard PIGTV_SKIP_PERF helper. |

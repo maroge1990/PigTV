@@ -23,12 +23,15 @@
 
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 const TIMEOUT_MS = 10000;
+const requestPolicy = require('./espnRequestPolicy');
 
 async function getJson(url, timeoutMs) {
+    if (requestPolicy.blocked()) return { ok: false, error: 'Score host cooling down' };
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
         const res = await fetch(url, { signal: controller.signal });
+        if (res) requestPolicy.observe(res.status, res.headers?.get?.('retry-after'));
         if (!res || !res.ok) return { ok: false, error: `HTTP ${res ? res.status : '?'}` };
         let json;
         try { json = await res.json(); } catch { return { ok: false, error: 'not JSON' }; }

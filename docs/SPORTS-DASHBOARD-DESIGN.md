@@ -1,7 +1,10 @@
 # Live sport dashboard — design proposal, 29 October 2026
 
+Own-review repairs: worker-backed cached projection, delayed action/retention fields, bounded shared-host collection,
+format-bounded cricket joins and category/team union are implemented; mandatory Codex review remains pending.
+
 Status: Mark authorized implementation after the revised F1/session-status discussion. Server foundation is in local
-build 0309, opt-in only; Apple/web dashboard interfaces are not yet implemented. Local gates pass (1,273 tests and build verification); adversarial review is pending.
+builds 0309/0313, opt-in only; Apple/web dashboard interfaces are not yet implemented. Local gates pass (1,297 tests and build verification); adversarial review is pending.
 The proposal below describes the complete feature, not a claim that all delivery slices are finished.
 Mark requested an Apple TV-first interactive mockup before implementation, with iPhone/iPad and web adaptations.
 Recording repairs in progress are a separate batch. Mark accepted the overall mockup, retained the 72-hour sport views, approved existing user accounts as profiles, and
@@ -200,9 +203,9 @@ snapshot exists. Never substitute the current score. Retain snapshots for the ma
 restart margin. Corrections appear when their new observation becomes eligible; don't retroactively expose a newer
 corrected value in an earlier snapshot. Out-of-order responses cannot overwrite newer observed state.
 
-Finished cards become final only once their final snapshot is eligible; then keep for a proposed hour. Playback
-eligibility is independently revalidated against current broadcasts, so a delayed-looking-live card may no longer be
-watchable; explain that it has ended without tuning unrelated content. Postponed/cancelled/suspended are distinct from
+Finished cards become final only once their final snapshot is eligible; then keep for a proposed hour. Broadcast fields and Watch eligibility use the same delayed source state. An undelayed final must not remove Watch
+or reveal completion through availability. Actual guide airing boundaries are independent; revalidate that the airing
+is still eligible at selection rather than using a raw score transition as an early result signal. Postponed/cancelled/suspended are distinct from
 final and need explicit retention behavior. At midnight, recently ended cards from yesterday may remain until their
 hour expires; otherwise today's filter would hide them early.
 

@@ -149,7 +149,7 @@ test('spoiler projection removes all result fields, does not leak current final 
     assert.deepEqual(dashboard.buildDashboard(s,{...args,userId:'2'}).games[0].scores,['17','14']);
     s.ingest([game({snapshot:{state:'finished',progress:{period:4},scores:['24','21'],situation:null}})],NOW+100000);
     const delayed=dashboard.buildDashboard(s,{...args,now:NOW+110000}).games[0];
-    assert.equal(delayed.status,'live');assert.equal(delayed.channels.length,0,'current completion must prevent tuning a stale airing');
+    assert.equal(delayed.status,'live');assert.equal(delayed.channels.length,1,'undelayed completion must not change the delayed card eligibility');
 });
 
 test('unmatched and stale games remain visible; stale data loses clock/score, old finals disappear', () => {
@@ -183,7 +183,8 @@ test('cached future payloads never become new score observations, and malformed 
         fetchJson:async()=>{calls++;return payload;}});
     await c.refresh();const first=s.catalog()[0].observedAt;
     time+=1000;await c.refresh();assert.equal(s.catalog()[0].observedAt,first,'cache hits cannot extend data freshness');
-    time+=30000;await c.refresh();assert.equal(s.catalog()[0].observedAt,time);assert.equal(calls,7);c.stop();
+    time+=30000;await c.refresh();assert.equal(s.catalog()[0].observedAt,first,'inactive catalog uses the slow cadence');
+    time+=900000;await c.refresh();assert.equal(s.catalog()[0].observedAt,time);assert.equal(calls,10);c.stop();
 });
 
 test('future scheduled cards keep their scheduled label between the slower catalog polls', () => {

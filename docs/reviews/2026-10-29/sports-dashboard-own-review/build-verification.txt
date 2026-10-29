@@ -1,0 +1,527 @@
+=== Checking version ===
+  ✓ version field exists
+=== 0007: Recording banner ===
+  ✓ banner polling
+  ✓ banner markup
+=== 0008+0014: M3U sort order + ID fix ===
+  ✓ stop-all button (Status page)
+  ✓ stop button handler (Status page)
+=== 0009: Movies/Series toggle (removed with Movies/Series in 0122) ===
+  ✓ UI load handler (theme)
+  ✓ no movies setting left
+  ✓ no movies/series visibility code left
+=== 0010: Guide → Live TV ===
+  ✓ navigation call
+  ✓ ID-based lookup
+=== 0011: EPG visible filter (0122: the whole-EPG route is gone; /api/library/guide lists visible channels) ===
+  ✓ no whole-EPG dump
+=== 0017: settings reorganisation ===
+  ✓ Recording tab
+  ✓ UI panel (under System)
+  ✓ System tab
+  ✓ recording handlers
+  ✓ ui handlers
+  ✓ per-stream stop (Status page)
+  ✓ transcode api group
+=== 0017: guide cell + transcode + uncategorized ===
+  ✓ whole-cell click guard
+  ✓ whole-cell cursor
+  ✓ group name fallback (0121: from /api/library/categories, else the category id)
+=== 0018: transcode strategy ===
+  ✓ client caps detection
+  ✓ hw decode toggle
+=== 0019: category order preserved client-side ===
+  ✓ SourceManager sorts removed
+  ✓ ChannelList group sort removed
+  ✓ flag stripping reverted
+  ✓ stop button markup
+  ✓ go-live button markup
+  ✓ stop implementation (0102 removed the unused async duplicate)
+  ✓ go-live implementation
+  ✓ live indicator
+  ✓ live button styles
+=== 0021: PigTV rebrand + recording fix ===
+  ✓ package renamed
+  ✓ product lockup in navbar
+  ✓ navbar lockup, light theme
+  ✓ navbar lockup, dark theme
+  ✓ stacked lockup on login, light theme
+  ✓ stacked lockup on login, dark theme
+  ✓ CI image renamed
+  ✓ README rebranded
+  ✓ accent retuned (the 3 Oct brand refresh)
+  \u2713 brand assets checked (public/img/brand)
+  ✓ corner bloom on the app canvas
+  ✓ corner bloom on login
+  ✓ glass navbar
+  ✓ loading splash
+  ✓ vendored radiance CSS linked (app)
+  ✓ vendored glass CSS linked (app)
+  ✓ vendored radiance CSS linked (login)
+  ✓ web manifest linked (app)
+  ✓ web manifest linked (login)
+  ✓ apple-touch-icon (app)
+  ✓ apple-touch-icon (login)
+  ✓ dark favicon fallback
+  ✓ --pig-* aliases bridge the vendored CSS
+  ✓ manifest scope
+  ✓ rounded numerals on Status figures
+  ✓ brand tokens are 1.6.0
+  \u2713 no nodecast references in branded files
+=== 0022: HE-AAC, categories, themes, compression ===
+  ✓ group type helper
+  ✓ empty state wording (0121: points at Manage Content when a source exists)
+  ✓ theme follows system
+  ✓ light tokens
+  ✓ theme loaded early
+  ✓ theme selector
+  ✓ compression tuning UI
+=== 0023: light theme fix + manual compress ===
+  ✓ light block outside :root
+  ✓ compress api method
+  ✓ compression polling
+  ✓ recordings list stored
+=== 0024: compress helpers, EPG staleness, startup order ===
+  ✓ compress helpers on recordings object
+  \u2713 phantom epg cache check removed
+  ✓ DVR engine starts before sync
+=== 0025: CQP fallback + status ===
+  ✓ resumes watching
+  ✓ pauses when off screen
+=== 0027: devices, library, history ===
+  ✓ client uses resolve
+  ✓ pairing UI
+=== packaging ===
+  ✓ package.json agrees with package-lock.json
+=== schema sanity ===
+  ✓ no duplicate CREATE TABLE names (31 tables)
+=== 0030: guide, stream auth, info ===
+  ✓ stream auth has no opt-out (R01: always enforced)
+  ✓ no settings-driven enforcement
+  ✓ the stream auth setting is gone from the defaults
+  ✓ the proxy no longer reads a caller-supplied URL
+  ✓ playback handles are always on
+  ✓ streamAuth declared before its 3 uses
+=== 0031: coordinator + favourites ===
+  ✓ client watches for conflicts
+=== 0032: ad detection ===
+  ✓ comskip built into image
+  ✓ tuning shipped
+  ✓ tuning has detection methods
+  ✓ player skip support
+  ✓ skip button styles
+  ✓ detection setting
+=== compression is request-only ===
+  ✓ compression waits to be asked; detection is automatic
+=== 0038: web client sends stream auth tokens ===
+  ✓ shared token helper exists
+  ✓ authenticated fetch helper for transcode management calls
+  ✓ resolved playback URL carries token
+=== 0034: native HLS delivery for segmented clients ===
+  ✓ fMP4 segments recognized as ready
+  ✓ cleanup() awaits ffmpeg exit before deleting the directory
+=== 0036: media-auth token propagation to HLS children ===
+  ✓ token reaches both the init segment (EXT-X-MAP) and media segments
+=== 0041: AAC copy into fMP4 needs aac_adtstoasc ===
+  ✓ filter applies only for fmp4+aac, across every copy branch
+=== 0042: live-source timestamp handling ===
+  ✓ both flags present with correct values, placed before -f hls
+=== 0043: fmp4 segments for codecsOk, matching /api/remux's container ===
+  ✓ H.264+codecsOk gets fmp4; HEVC and non-codecsOk H.264 paths unaffected
+=== 0044: remove dump_extra from fmp4 copy (caused real playback failure) ===
+  ✓ fmp4 copy path (either codec) sends no bitstream filter; unrelated fallback branch unaffected
+=== 0045: native recording playback contract ===
+  ✓ web client sends token on recording stream URL
+  ✓ web client sends token on recording download URL
+  ✓ playback (JWT-gated) and media.mp4 (token-gated) sit on the correct sides of requireAuth
+=== 0046: bound HLS session disk usage (review P0-1) ===
+  ✓ cache directory taken off the writable layer
+  ✓ list_size bounded (not 0), delete_segments on, append_list gone
+=== 0047: EPG streaming parser data loss and hangs (review P0-2) ===
+  ✓ 300 programmes, slow consumer, zero data loss (490/500 lost against the unpatched code)
+  ✓ recoverable entity error: parsing completes (not hangs, not fails) with all well-formed data intact
+=== 0048: Build identity surfaced ===
+  ✓ webapp badge renders the server's display string
+  ✓ badge markup present in the header
+  ✓ Dockerfile can stamp commit/builtAt at build time
+  ✓ 0208: the image carries the Unraid icon label
+  ✓ 0208: and the Unraid WebUI label
+=== 0049: Live HLS stability ===
+=== 0050: Auth gate on state-changing routes (P0-3) ===
+  ✓ no /api/probe
+  ✓ no /api/subtitle
+=== 0051: Drop the dead ffmpeg-static require ===
+  ✓ proxy.js no longer requires ffmpeg-static at load (would crash startup if the optional dep failed)
+=== 0052: Provider credential redaction (P1-4) ===
+  ✓ redact strips both path-based and query-based provider credentials
+=== 0053: db.json cache + session leak (P1-7) ===
+  ✓ no session store at all (0077 removed it; the MemoryStore leak cannot come back)
+=== 0054: ffmpeg output-inactivity watchdog ===
+  ✓ coordinator no longer hard-codes remux idleMs to 0
+=== 0055: Viewer-vs-viewer arbitration + live idle timeout (A3) ===
+  ✓ viewer arbitration no longer skipped when no recording is active
+  ✓ coordinator has one requestForViewer and one export block
+  ✓ no soft mode (0122: it existed only for the removed POST /api/transcode/session)
+  ✓ web player words the prompt for another viewer
+=== 0056: Atomic EPG swap (P1-5) ===
+  ✓ sync no longer empties the live guide up front
+  ✓ full programme JSON is no longer stored
+  ✓ server/routes/library.js reads epg_live, not the raw table
+  ✓ server/routes/proxy.js reads epg_live, not the raw table
+=== 0057: HLS segment route hardening (P2-4) ===
+  ✓ old suffix-only check is gone
+=== 0058: ?token= through the HLS proxy rewriter (P2-5) ===
+  ✓ only proxiedUrl builds /stream?h= URIs in the rewriter
+=== 0059: Favourites id normalisation (P1-3 server half) ===
+  ✓ add, remove and isFavorite all normalise channel ids
+=== 0060: Guide query bounds + item index (P2-3) ===
+  ✓ both EPG queries (guide, now/next) bound start_time from below
+=== 0061: Recording time zone + User-Agent (P2-6) ===
+  ✓ compose passes TZ through (UTC fallback = unchanged behaviour)
+  ✓ no hard-coded Chrome UA left in the recording engine
+=== 0062: Recording native playback (P1-2 server half) ===
+  ✓ hvc1 is applied to both the native remux and HEVC compression
+=== 0063: Body cap + rate limits (P2-7, partial) ===
+  ✓ the 50 MB body limit is gone
+  ✓ login limit never uses req.ip (spoofable via X-Forwarded-For)
+=== 0064: Remux codec identification ===
+=== 0065: Web player media-error reporting ===
+  ✓ the <video> error event is handled (it used to fail silently)
+  ✓ handler exists
+  ✓ only the URL path is logged/sent, never the query
+  ✓ the server's chosen strategy is recorded for the report
+  ✓ clearing the source (channel change) is not reported as a failure
+  ✓ the error badge has a style
+=== 0067: EPG icon fallback in the library API ===
+  ✓ decorate() (channels, favourites) and the guide both apply it
+=== 0068: Audio re-encode self-heal (remux path) ===
+  ✓ the player retries a failed remux
+  ✓ it never retries a play that was already re-encoding (no loop)
+  ✓ each fresh selection gets one retry, the retry itself does not
+  ✓ a flag that did not help is forgotten
+=== 0069: cleared-source errors are not playback failures ===
+  ✓ the handler asks whether the source was just cleared
+  ✓ by the src attribute, which is reliable (currentSrc is not: Chrome keeps the old URL)
+  ✓ with the browser's own message as a second check
+  ✓ no currentSrc-only guard left (Chrome keeps the old URL there)
+=== 0070: diagnostics for silent 'nothing plays' failures ===
+  ✓ the player watches for a load that never starts
+  ✓ and stops watching once it plays
+  ✓ and reports it
+  ✓ but not when paused or already moving
+=== 0072: Hide All / Show All update the group checkboxes ===
+  ✓ setAllVisibility updates the group key that the checkbox is drawn from
+  ✓ the group key is built the same way where it is drawn, saved and bulk-changed
+=== 0073: HLS sessions tolerate audio/video start-time skew ===
+  ✓ it comes before -i (an input option)
+=== 0075: HLS delivery (beta) for the web player, and play-start / play-end measurement ===
+  ✓ the first picture is measured on the element's 'playing' event
+  ✓ and the play is closed out when it stops
+  ✓ a fatal hls.js error is no longer swallowed
+=== 0076: inert files removed (review P2-1, batch a) ===
+  ✓ server/routes/users.js is gone
+  ✓ server/services/m3uXtreamAdapter.js is gone
+  ✓ server/plugins/hello.js is gone
+  ✓ nothing refers to them
+=== 0077: OIDC / SSO and express-session removed (review P2-1, P1-7) ===
+  ✓ no passport session middleware
+  ✓ auth.js no longer loads the OIDC strategy
+  ✓ or the session (de)serialisation
+  ✓ no OIDC routes
+  ✓ no OIDC lookup in the user store
+  ✓ no SSO button on the login page
+  ✓ the page no longer stores a ?token= from the URL
+  ✓ express-session is not a dependency
+  ✓ nor is passport-openidconnect
+  ✓ and the lockfile agrees
+=== 0078: JSON-file hiddenItems / favorites removed from db.js (review P2-1) ===
+  ✓ no JSON-file hidden items (they live in SQLite, routes/channels.js)
+  ✓ no JSON-file favourites (they live in SQLite, routes/favorites.js)
+=== 0079: unknown /api paths return a JSON 404 ===
+  ✓ it sits after the last router and before the SPA fallback
+=== 0080: a failed db.json write is reported, not swallowed (review §2.14) ===
+  ✓ the old catch-and-continue that reported success is gone
+=== 0081: playback report script for the HLS trial ===
+  ✓ the report reads the play-start line the server writes
+  ✓ and the resolve timing line, to tell cold plays from warm ones
+=== 0082: a recording waiting for a viewer is listed, cancellable and not duplicated ===
+  ✓ the web page labels it instead of showing the raw status
+=== 0084: the playback report keeps Apple-device plays apart from the web trial ===
+  ✓ device plays get their own rows
+=== 0087: cancelling the takeover prompt stops the play instead of taking the stream anyway ===
+  ✓ a declined takeover has its own answer, distinct from null
+  ✓ and play() stops there rather than falling through to the local strategy
+  ✓ the screen goes back to how it was, with no play-start reported
+=== 0090: the timestamp diagnostics become a supported tool ===
+  ✓ one tool with the five subcommands, replacing four throwaway scripts
+  ✓ its verdict is the server function, not a second copy of the rule
+  ✓ and it says which subcommands take the provider connection
+  ✓ and the blueprint points at it
+=== 0091 (docs): troubleshooting starts from a capture of the real channel ===
+  ✓ the loop is written down, in order
+  ✓ and shipping a timestamp fix on a hypothesis is called out as the 0085 mistake
+  ✓ samples are kept and retested, which 0085 had no way to do
+  ✓ the orientation table names the current repo folder
+  ✓ and how changes ship is written down (commit, Mark pushes)
+=== 0092 (docs): commands name the container instead of a placeholder ===
+  ✓ so a command can be pasted as written
+  ✓ including the ones the Apple client session runs
+=== 0093: captured samples survive a deploy ===
+  ✓ they are written under the data bind mount, not the writable layer
+  ✓ and the blueprint says why it matters
+=== 0095: the image says which source it was built from ===
+  ✓ CI passes the commit into the build
+  ✓ computed in a step, so release and workflow_dispatch work too
+  ✓ and the mechanism is written down rather than assumed
+  ✓ and the image build waits for the regression tests
+=== 0099: strip the small-caps LIVE badge at ingest (SR-2) ===
+  ✓ only a trailing badge run is stripped; ordinary and mid-title text untouched
+=== 0102: the web player is on the one path (Phase 3) ===
+  ✓ every browser asks for HLS segments, as the Apple client does
+  ✓ recovery is a fresh resolve, once per selection
+  ✓ a fatal media error is first recovered in place
+  ✓ stop() also ends the recording-conflict poll
+  ✓ no remux, legacy pipe, local probe or beta toggle left in the web player
+=== 0103: remux retired - one delivery path (Phase 4) ===
+  ✓ no remux route, remux URL, remux strategy or legacy pipe anywhere in the server
+=== 0104: session hardening ===
+  ✓ no session.json with the provider URL in it
+  ✓ no unused getOrCreateSession
+=== 0107: dead duplicate proxy routes removed ===
+  ✓ proxy.js registers one route
+=== 0108: gzip JSON responses, never media ===
+  ✓ compression package is a dependency
+  ✓ and never allow-lists a video type
+=== 0109: supported runtime and a reproducible image ===
+  ✓ nodesource points at Node 24, not the EOL Node 20
+  ✓ no leftover reference to Node 20
+  ✓ production install uses the non-deprecated --omit=dev flag
+  ✓ the deprecated --only=production flag is gone
+  ✓ Comskip is pinned to a specific commit, not a moving master
+  ✓ no unpinned clone of Comskip master left behind
+  ✓ CI matrix is Node 22 and 24, not the EOL Node 20
+=== 0113: a failed start fails fast, says why, and a refused first connection is retried once ===
+  ✓ the playback report counts those
+  ✓ the report no longer speaks of the opt-in HLS trial
+  ✓ nor its criteria block
+  ✓ nor the retired toggle
+=== 0114: channel profiles - a repeat play skips ffprobe ===
+  ✓ the playback report counts a profiled play as warm
+=== 0115: frame-rate-aware master playlist for every session ===
+  ✓ the master playlist still carries no CODECS
+  ✓ the web player does not assume the media playlist name
+=== 0116: HE-AAC passthrough for clients that can decode it ===
+  ✓ the web player never sends heaac (Chrome cannot decode HE-AAC)
+=== 0117: channel numbers (C-A) ===
+  ✓ dead number-keyed cursor code removed in 0164 (numbers are labels only since 0139)
+=== 0118: resolve errors use the client's allowed wording (C-B) ===
+  ✓ the old 404 wording is gone
+  ✓ the old 5xx wording is gone
+  ✓ the old timeout wording is gone
+=== 0119: opaque playback handles (C-D) and redacted logs ===
+  ✓ not the provider URL (except under the rollback switch)
+=== 0120: source catalogue for the Sources picker ===
+  ✓ the catalogue is declared after router.use(requireAdmin) (admin only)
+=== 0121: the web reads /api/library (W2.1) ===
+  ✓ api.js has the library helpers
+  ✓ and the Sources catalogue
+  ✓ the live sidebar pages /api/library/channels
+  ✓ and reads /api/library/favourites
+  ✓ and plays by channel identity, never a stream URL
+  ✓ the guide pages /api/library/guide with a cursor
+  ✓ the Sources picker reads the catalogue
+  ✓ the Home favourites row reads /api/library/favourites
+  ✓ public/js/components/ChannelList.js no longer calls the Xtream-emulation or whole-EPG routes
+  ✓ public/js/components/EpgGuide.js no longer calls the Xtream-emulation or whole-EPG routes
+  ✓ public/js/components/SourceManager.js no longer calls the Xtream-emulation or whole-EPG routes
+  ✓ public/js/components/VideoPlayer.js no longer calls the Xtream-emulation or whole-EPG routes
+  ✓ public/js/pages/LivePage.js no longer calls the Xtream-emulation or whole-EPG routes
+  ✓ public/js/pages/Guide.js no longer calls the Xtream-emulation or whole-EPG routes
+  ✓ the picker's movie/series tabs are gone
+  ✓ recovery replays a channel by identity, without a stream URL
+=== 0122: the fork's leftovers removed (W2.1) ===
+  ✓ public/js/pages/MoviesPage.js is gone
+  ✓ public/js/pages/SeriesPage.js is gone
+  ✓ public/js/pages/WatchPage.js is gone
+  ✓ server/services/cache.js is gone
+  ✓ server/plugins is gone
+  ✓ server/routes/history.js is gone
+  ✓ server/routes/probe.js is gone
+  ✓ server/routes/subtitle.js is gone
+  ✓ nothing loads them
+  ✓ no plugin loader
+  ✓ no services map for plugins
+  ✓ no Xtream-emulation routes
+  ✓ no open image passthrough
+  ✓ no /m3u
+  ✓ no Pluto header special case
+  ✓ no POST /api/transcode/session
+  ✓ no /api/channels/recent (movie/series only)
+  ✓ no Movies nav entry
+  ✓ no Series nav entry
+  ✓ no VOD watch page markup
+  ✓ no movie/series CSS
+  ✓ api.js has no proxy helpers
+=== 0123: channel-number editor (Settings -> Channel numbers) ===
+  ✓ the Settings view exists (under Channels, 0182)
+  ✓ with its list
+  ✓ api.js saves through PUT /api/lineup/numbers
+  ✓ the panel reads GET /api/lineup
+  ✓ and loads when the panel opens
+  ✓ the server's validation error is shown
+=== 0124: admin status page (W2.2) ===
+  ✓ a session's URL is never passed through
+  ✓ the page refreshes while shown
+  ✓ with an admin nav entry
+=== 0126: the tuner model, T1 (PIGTV_TUNER=1, off by default) ===
+  ✓ a tuner's ffmpeg never deletes segments (the server keeps the window)
+=== 0128: the tuner model, T3 - timeshift ===
+  ✓ never for segments
+=== 0130: a recording's own tuner uses the Apple TV's default capabilities ===
+  ✓ no heaac in RECORDING_CAPABILITIES
+=== 0133: channel health (C-G) ===
+  ✓ and the web Status page shows them
+=== 0134: EPG matching (S4.2) ===
+  ✓ the sync never touches the mappings
+  ✓ Settings has an EPG matching view (under Channels, 0182)
+  ✓ which loads the unmatched list
+=== 0135: sources, settings and users in SQLite (S4.3a) ===
+  ✓ no clone of the store on reads
+  ✓ stream-doctor reads the user agent from SQLite
+=== 0136: auth without passport (S4.3b) ===
+  ✓ no passport packages in package.json
+  ✓ nor in the lockfile
+  ✓ no passport middleware
+  ✓ the playback route's optional auth is ours
+=== 0137: Express 5 (S4.3c) ===
+  ✓ express 5
+  ✓ not the Express 4 '*'
+=== 0139: channel numbers are labels; the guide keeps the provider's order ===
+  ✓ dead numbered variable removed in 0164 (kept guide in provider order per 0139)
+=== 0142: stalls count towards channel health ===
+  ✓ the Status page shows stalls and minutes watched
+=== 0145: the playback report shows the client wait ===
+  ✓ client wait = first picture minus resolve, per play
+  ✓ a per-path median / p90 table
+=== 0146: sport categories (C-H) ===
+  ✓ the web Sources picker has a Sport toggle
+=== 0147: EPG programme categories stored (C-I) ===
+  ✓ the Status page shows the EPG categories
+  ✓ the column is added, and a stale view dropped, before epg_live is created
+=== 0148: sport events and the follow list (C-I) ===
+  ✓ never the raw table
+=== 0149: web Settings -> Sports (C-I) ===
+  ✓ a Sports tab
+  ✓ with the preview table
+  ✓ loaded when the tab opens
+  ✓ the preview reloads after a save
+  ✓ saves the follow list
+  ✓ the Sport toggle no longer promises the old Home row
+=== 0150: sport programme kinds and merging by meaning (C-I) ===
+  ✓ non-events are classified, not dropped
+=== 0151: web Settings -> Sports preview grouped by kind ===
+  ✓ events and replays open, the rest collapsed
+  ✓ grouped by kind
+  ✓ the merged guide titles are listed
+=== 0152: live or replay from flags, the first airing and league hours (C-I) ===
+  ✓ the flags column is added, and a stale view dropped, before epg_live is created
+=== 0153: the sport horizon is a whole weekend (C-I) ===
+  ✓ the web preview says so
+=== 0155: a viewer joins a running tuner whose output it can play ===
+  ✓ RECORDING_CAPABILITIES still without heaac
+=== 0156: schedule observability and recent problems ===
+  ✓ the missed paths go through it too, not straight to the db
+  ✓ the web Recordings page has a Recent problems section
+=== 0157: the recordings folder is checked for real (missing, not writable, an unmounted share, low space) ===
+  ✓ and shown as a warning banner on the web Status page
+=== 0158: an unanswered recording prompt no longer blocks a recording forever ===
+  ✓ and a web Settings field
+=== 0161: cricket league recognition, ESPN fixtures, the ESPN live/replay rule (C-I) ===
+  ✓ and the web Status page shows it
+=== 0162: stale/out-of-window ESPN data must never manufacture a replay (C-I) ===
+  ✓ cricket is a full replace too, so a postponed game does not linger
+=== 0171: the channel linker (multi-provider P3) ===
+  ✓ the linker never reads a backup's stream URL
+=== 0172: the provider admin pages (multi-provider P4) ===
+  ✓ the Providers tab has its section
+  ✓ and so does Backup links
+  ✓ its script is loaded (before Settings.js builds it)
+  ✓ Settings builds the Providers panel
+  ✓ and the Backup links panel
+  ✓ 0182: an emptied guide or overlay address is removed, an unchanged one is not sent
+  ✓ the page never reads the stored overlay address
+=== 0174: resolve failover, breaker, quarantine, C-J (multi-provider P6) ===
+  ✓ C-J is written down
+=== 0177: recordings choose a free provider, fail over, continue in parts (multi-provider P7) ===
+=== 0180: a start stopped on request is not a provider failure (P10) ===
+  ✓ the web player ignores a superseded resolve
+=== 0181: the same account is one connection pool (P10) ===
+  ✓ Settings -> Providers warns
+=== 0182-0187: one Providers section, six tabs, sport lists, the build number ===
+  ✓ PUT /order is registered before PUT /:id
+  ✓ six tabs: Channels
+  ✓ with its three views on a strip
+  ✓ the Sources tab is gone
+  ✓ the Debug tab is gone
+  ✓ version.js (0313) is one behind the blueprint's next build number
+=== 0188-0189: interruptions, in-stream recovery and the standby (off by default) ===
+  ✓ Settings has the In-stream recovery switch
+  ✓ Settings has the Hot standby switch
+=== R12: channel warming (off by default) ===
+  ✓ and a real-ffmpeg rig
+=== 0191: reconnect timestamp loop, blank pictures, raw captures ===
+  ✓ Status shows it
+  ✓ capture keeps the provider's raw bytes
+=== 0192: recording codec probe reads ffprobe JSON (audit R02) ===
+  ✓ never by CSV column position
+  ✓ CI selects the pinned production media recipe, so real-media tests run
+=== 0193: recordings prepared ahead of Play; verified compression (audit R06, R08) ===
+  ✓ an unreadable length no longer passes verification
+=== 0194: recordings routes read files asynchronously (audit R09) ===
+  ✓ no synchronous stat in a recordings request
+  ✓ no synchronous existence check in a recordings request
+  ✓ no synchronous read in a recordings request
+=== 0195: sport events built on a worker thread (audit R09) ===
+  ✓ no synchronous rebuild on the serving loop
+=== 0196: media always needs a signed-in user; handles only (audit R01) ===
+  ✓ no setting turns it off
+=== R11: the warming switch is in Settings ===
+  ✓ Settings has a Warm the next channel switch
+  ✓ and saves it
+=== R17: hardened image ===
+  ✓ multi-stage build: compilers live in a builder stage
+  ✓ runtime takes node_modules from the builder
+  ✓ no world-writable folders
+  ✓ image declares a healthcheck
+  ✓ healthcheck uses /api/health
+  ✓ entrypoint drops privileges before node
+  ✓ PUID defaults to 99
+  ✓ PGID defaults to 100
+  ✓ privileges dropped with setpriv
+  ✓ node is exec'd so SIGTERM reaches it
+  ✓ the recordings share is never chowned
+  ✓ engines matches the Node versions CI tests
+  ✓ database backup uses SQLite's online backup (R12: the service the script and the server share)
+  ✓ restore procedure documented
+  ✓ the runtime stage installs no compilers or -dev packages
+=== 0203: TS captures; audio re-encoded and decode-checked ===
+  ✓ not Matroska (one audio config per file)
+  ✓ Hot standby never shows ticked while recovery is off
+=== simplification build ===
+  ✓ no switchable feature flags left to guard
+  ✓ and run in their own non-blocking job
+  ✓ pinned media binaries are selected and the final candidate is tested before publication
+  ✓ retired script public/js/auth.js stays gone
+  ✓ retired script public/js/login.js stays gone
+  ✓ retired verifyToken stays gone
+  ✓ retired requireRole stays gone
+  ✓ retired getCurrentAndUpcoming stays gone
+  ✓ retired getProgrammesForChannel stays gone
+  ✓ retired releaseOwnerElsewhere stays gone
+  ✓ retired liveViewers stays gone
+  ✓ retired staleStreams stays gone
+  ✓ retired closeForOwner stays gone
+  ✓ retired stopNightly stays gone
+  ✓ every check runs before the summary
+
+=== ALL CHECKS PASSED ===

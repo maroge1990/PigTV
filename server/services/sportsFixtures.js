@@ -90,7 +90,7 @@ function followedLeagues(db) {
 }
 
 /** Leagues a marked sport category's own name suggests (C-H, sportsClassify.detectLeague). */
-function categoryLeagues(db) {
+function categoryLeagues(db = getDb()) {
     const rows = db.prepare(`
         SELECT DISTINCT c.name FROM sport_categories sc
         JOIN categories c ON c.source_id = sc.source_id AND c.category_id = sc.category_id
@@ -492,7 +492,7 @@ function reset() {
 }
 
 module.exports = {
-    enabled, neededLeagues, refreshAll, refreshLeague, refreshCricket, scheduleRefresh,
+    enabled, neededLeagues, categoryLeagues, refreshAll, refreshLeague, refreshCricket, scheduleRefresh,
     startBackgroundRefresh, stopBackgroundRefresh, snapshot, statusSummary, reset,
     ESPN_LEAGUE_PATHS, teamsOf, rosterFor,
     // exposed for tests

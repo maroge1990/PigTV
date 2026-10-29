@@ -1,0 +1,11 @@
+ℹ relink: 1,000 x 55,000 in 1881 ms, again in 1347 ms
+ℹ projection=14.5ms
+ℹ cold=12, next=12
+ℹ tests 1297
+ℹ suites 0
+ℹ pass 1297
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 61196.730666

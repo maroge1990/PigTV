@@ -1,0 +1,354 @@
+✖ M1: latest completion cannot leak through delayed channel/availability/action fields (50.384792ms)
+✖ M3: three short-format cricket matches two days apart each join their own airing (0.627584ms)
+✖ M3: cricket parent/day end is not a trustworthy match end, and short-format windows stay bounded (1.338625ms)
+✖ H1: statements are prepared once, not twice per card on each poll (253.461166ms)
+✔ H1/L4: realistic 300-game and 72-hour guide matching has a cold projection budget (36.894208ms)
+ℹ projection=30.1ms
+✖ M2: measured worst-case ticks obey a 12-request ceiling including cricket discovery (5.904209ms)
+ℹ cold=319, next=126
+✖ M2: inactive sources use the slow cadence; only active/starting-soon sources poll after 30 seconds (0.61125ms)
+✖ M2: one upstream throttle pauses every dashboard URL and bounds concurrent in-flight requests (0.567541ms)
+✖ L1: category-wide selection is unioned with team follows; team-only follows remain narrow (0.90675ms)
+✔ L2: first-seen historic finals buffer without fabricating a recent finish, then disappear (0.635833ms)
+✖ L3: one collection tick batches all candidate writes into a single ingest transaction (3.129208ms)
+✖ M2: 429/5xx cooldown is shared by the real scoreboard client and the existing fixture client (18.869875ms)
+✖ M3: clearly nearest cricket start wins overlapping multi-day windows; equal starts remain ambiguous (0.221334ms)
+✖ M3: women’s T20 class labels use short-format windows, not an unknown five-day envelope (0.207333ms)
+✖ M1: a newer correction cannot remove a delayed final card through latest finishedAt metadata (1.154708ms)
+✖ M1: existing 0309 history upgrades final-transition times without trusting a newer catalog correction (0.670125ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 2
+ℹ fail 14
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 474.896333
+
+✖ failing tests:
+
+test at ../../../../../private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:20:1
+✖ M1: latest completion cannot leak through delayed channel/availability/action fields (50.384792ms)
+  AssertionError [ERR_ASSERTION]: channels
+  + actual - expected
+
+  + []
+  - [
+  -   {
+  -     id: 'pos_0',
+  -     logo: null,
+  -     name: 'Test Sports',
+  -     number: null,
+  -     quality: 'HD',
+  -     sourceId: 1,
+  -     stableId: '0'
+  -   }
+  - ]
+
+      at TestContext.<anonymous> (/private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:28:98)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ { sourceId: 1, id: 'pos_0', stableId: '0', name: 'Test Sports', number: null, logo: null, quality: 'HD' } ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../../private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:33:1
+✖ M3: three short-format cricket matches two days apart each join their own airing (0.627584ms)
+  AssertionError [ERR_ASSERTION]: t20
+  + actual - expected
+
+    [
+      [
+        'event0'
+      ],
+  +   [],
+  +   []
+  -   [
+  -     'event1'
+  -   ],
+  -   [
+  -     'event2'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (/private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:39:16)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'event0' ], [], [] ],
+    expected: [ [ 'event0' ], [ 'event1' ], [ 'event2' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../../private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:43:1
+✖ M3: cricket parent/day end is not a trustworthy match end, and short-format windows stay bounded (1.338625ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 1796083140000
+  - null
+
+      at TestContext.<anonymous> (/private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:46:64)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1796083140000,
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../../private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:52:1
+✖ H1: statements are prepared once, not twice per card on each poll (253.461166ms)
+  AssertionError [ERR_ASSERTION]: request prepared 602 statements
+      at TestContext.<anonymous> (/private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:56:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../../private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:66:1
+✖ M2: measured worst-case ticks obey a 12-request ceiling including cricket discovery (5.904209ms)
+  AssertionError [ERR_ASSERTION]: cold tick made 319 requests
+      at TestContext.<anonymous> (/private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:70:132)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../../private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:73:1
+✖ M2: inactive sources use the slow cadence; only active/starting-soon sources poll after 30 seconds (0.61125ms)
+  AssertionError [ERR_ASSERTION]: inactive source refetched
+
+  7 !== 5
+
+      at TestContext.<anonymous> (/private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:76:88)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 7,
+    expected: 5,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../../private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:80:1
+✖ M2: one upstream throttle pauses every dashboard URL and bounds concurrent in-flight requests (0.567541ms)
+  AssertionError [ERR_ASSERTION]: throttle allowed 15 requests
+      at TestContext.<anonymous> (/private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:83:34)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../../private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:86:1
+✖ L1: category-wide selection is unioned with team follows; team-only follows remain narrow (0.90675ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  0 !== 1
+
+      at TestContext.<anonymous> (/private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:90:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../../private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:100:1
+✖ L3: one collection tick batches all candidate writes into a single ingest transaction (3.129208ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  20 !== 1
+
+      at TestContext.<anonymous> (/private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:105:70)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 20,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../../private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:109:1
+✖ M2: 429/5xx cooldown is shared by the real scoreboard client and the existing fixture client (18.869875ms)
+  AssertionError [ERR_ASSERTION]: fixture client must respect the scoreboard throttle
+
+  2 !== 1
+
+      at TestContext.<anonymous> (/private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:116:46)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../../private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:120:1
+✖ M3: clearly nearest cricket start wins overlapping multi-day windows; equal starts remain ambiguous (0.221334ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  0 !== 1
+
+      at TestContext.<anonymous> (/private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:124:69)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../../private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:129:1
+✖ M3: women’s T20 class labels use short-format windows, not an unknown five-day envelope (0.207333ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  null !== 't20'
+
+      at TestContext.<anonymous> (/private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:131:64)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: null,
+    expected: 't20',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../../private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:134:1
+✖ M1: a newer correction cannot remove a delayed final card through latest finishedAt metadata (1.154708ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + []
+  - [
+  -   {
+  -     availability: 'unavailable',
+  -     broadcastStatus: 'unavailable',
+  -     canWatch: false,
+  -     channels: [],
+  -     circuit: null,
+  -     competitors: [
+  -       {
+  -         id: 'a0',
+  -         logo: null,
+  -         name: 'Alpha0'
+  -       },
+  -       {
+  -         id: 'b0',
+  -         logo: null,
+  -         name: 'Beta0'
+  -       }
+  -     ],
+  -     end: null,
+  -     events: [
+  -       {
+  -         end: 1793239200000,
+  -         id: 'event0',
+  -         start: 1793232000000
+  -       }
+  -     ],
+  -     format: null,
+  -     freshness: 'fresh',
+  -     id: 'espn:football/nfl:0',
+  -     league: 'NFL',
+  -     observedAt: 1793235250000,
+  -     progress: {
+  -       period: 4
+  -     },
+  -     scores: [
+  -       '24',
+  -       '21'
+  -     ],
+  -     session: null,
+  -     start: 1793232000000,
+  -     status: 'finished',
+  -     title: 'Alpha0 v Beta0'
+  -   }
+  - ]
+
+      at TestContext.<anonymous> (/private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:142:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ { id: 'espn:football/nfl:0', league: 'NFL', title: 'Alpha0 v Beta0', start: 1793232000000, end: null, session: null, circuit: null, format: null, competitors: [Array], status: 'finished', freshness: 'fresh', observedAt: 1793235250000, progress: [Object], availability: 'unavailable', broadcastStatus: 'unavailable', channels: [], events: [Array], canWatch: false, scores: [Array] } ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../../private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:145:1
+✖ M1: existing 0309 history upgrades final-transition times without trusting a newer catalog correction (0.670125ms)
+  TypeError: Cannot read properties of undefined (reading 'status')
+      at TestContext.<anonymous> (/private/tmp/pigtv-0309-review-baseline-_2inzhu3/test/sports-dashboard-review.test.js:157:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
