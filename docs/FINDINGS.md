@@ -349,3 +349,13 @@ clear the affected server output. Renewal was enabled. No timestamp/hold change 
   changed. [Preserved failure](reviews/2026-10-29/apple-ci-observer-race/server-candidate-before.txt);
   [CI attempt 1](https://github.com/maroge1990/PigTV/actions/runs/40867960015/attempts/1). Attempt 2 reran only the failed job
   and passed, including candidate runtime tests/image publication; this does not close the finding.
+
+## Reset intake — Mark, 30 October
+
+To migrate into the issue tracker during the 30 Oct documentation reset.
+
+- **Feature: play from live on an in-progress recording.** Selecting a recording that is still recording offers only
+  "Play from start"; add "Play from live" (join at the live edge of the recording) alongside it.
+- **Bug: tvOS focus stuck after choosing a non-preferred channel for a live sports event.** After picking a channel other
+  than the preferred one, the channel guide is visible but for ~5 s up/down navigation is inaudibly moving focus on the
+  previous (sports) screen instead of the guide. Suspected: focus remains in the sports section behind the guide.
