@@ -1,6 +1,11 @@
 # PigTV: blueprint
 
-**State (29 Oct, cross-platform sports):** server/web **0317** adds the C-O Sport page and C-I fallback, responsive shelves,
+**State (29 Oct, Apple 61 refinement):** source/stable recording badges, compact per-sport tvOS heights, direct Hold Select
+actions and delay presets with stable save focus are implemented. Local gates pass: 244 contracts, 247 unit/playback,
+23 tvOS UI tests, iOS build and 2 UI tests each on iPhone/iPad. Server remains **0317**.
+One consolidated device pass follows required review. [Apple 61 evidence](docs/reviews/2026-10-29/sports-tvos-refinements/README.md).
+
+**0317 / Apple 60 baseline (29 Oct):** server/web **0317** adds the C-O Sport page and C-I fallback, responsive shelves,
 keyboard/touch options, per-account settings and revalidated stable-channel actions. All **1,339 tests** and build
 checks pass. Apple **60** adapts mobile viewport/large text; 244 contracts, 243 unit/playback, 20 tvOS UI, iOS build and 2 UI tests each on iPhone/iPad pass. Consolidated device acceptance is pending. Reviews remain 0 of 2; no normal enablement
 or pilot/device acceptance is claimed. [Cross-platform evidence](docs/reviews/2026-10-29/sports-cross-platform/README.md).
@@ -675,6 +680,9 @@ per-account revision settings and revalidated actions. Required Apple gates/revi
 [continuation handoff](docs/reviews/2026-10-29/sports-dashboard-continuation/README.md).
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
+
+**Apple 61:** local refinement gates pass; required review precedes the consolidated four-platform acceptance pass. No interim
+device testing requested. [Refinement handoff](docs/reviews/2026-10-29/sports-tvos-refinements/README.md).
 
 **Sports cross-platform:** web 0317 / Apple 60 implementation and local gates pass; next is mandatory review and
 one consolidated tvOS/iPhone/iPad/web acceptance pass. See the [cross-platform handoff](docs/reviews/2026-10-29/sports-cross-platform/README.md).

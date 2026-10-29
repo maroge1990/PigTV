@@ -84,3 +84,9 @@ record/series/sport rules, synced settings, keyboard and visible/context options
 72h fallback. Apple 60 adapts card width, controls, large text and labelled touch options. Apple required push gate and
 iOS build pass; server 0317 passes all 1,339 tests/build checks. Final iPhone/iPad UI checks pass (2 each). SD-A60-L1 maximum-text fallback initials remains cosmetic/open. No platform is device accepted; no review or pilot
 is assumed. [Current evidence, review commands and eight numbered consolidated checks](reviews/2026-10-29/sports-cross-platform/README.md).
+
+**Additional Apple 61 build:** Mark authorized strict badge identity, smaller family-specific tvOS cards, direct
+long-press actions and delay presets/stable save focus before consolidated device testing. No additional device pass
+is requested in between. Implementation/evidence and the updated review focus are in the
+[Apple 61 handoff](reviews/2026-10-29/sports-tvos-refinements/README.md); local Apple gates pass (244 contracts, 247 unit/playback, 23 tvOS UI, iOS build and 2 UI tests each on iPhone/iPad). Server remains
+0317; this server batch changes documentation only. Prior cricket/pilot/category/logo limitations remain explicit.

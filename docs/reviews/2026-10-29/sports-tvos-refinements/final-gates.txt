@@ -1,0 +1,19 @@
+Apple 61: Tools/test.sh push passed: 244 contracts, 247 unit/playback, 23 tvOS regression UI.
+Generic iOS Simulator build: exit 0. iPhone 17 UI: 2 pass; iPad Pro 13-inch (M5) UI: 2 pass; zero failures/skips.
+See committed xcresult summaries. All data synthetic; no provider/deployed access. All simulators shut down.
+
+Server 0317 code unchanged; documentation gate on Node 24:
+✔ authentication invalidated inside a refresh hides an already revealed snapshot (0.433209ms)
+ℹ tests 1339
+ℹ suites 0
+ℹ pass 1339
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 60423.323334
+
+  ✓ retired stopNightly stays gone
+  ✓ every check runs before the summary
+
+=== ALL CHECKS PASSED ===

@@ -312,3 +312,17 @@ in **0315**; Codex adversarial review remains **0 of 2**. [Latest evidence/hando
   missing-logo fallback identification are preserved. Reproduce with `PIGTV_UI_TEST_SCREEN=sport-dashboard`, hidden
   scores and UICTContentSizeCategoryAccessibilityXXXL; see `sports-cross-platform/ipad-max-text.png`. No logo-cache or
   provider change made. Retained for Mark's visual acceptance/priority rather than claiming perfect max-text graphics.
+
+## Apple 61 sports refinements — 29 October
+
+- SD-A61-C1 (fixed locally; local Apple gates pass): dashboard recording marks compared only names. Two sources with the
+  same name shared a badge and a renamed stable channel lost it. Both failing-before tests are in the refinement
+  handoff. Optional existing schedule identities now drive a separate strict dashboard key set; no writer changes.
+- SD-A61-C2 (fixed locally; local Apple gates pass): a stale visible preference choice could borrow a newer polled revision
+  before PUT. A synthetic server sees one write instead of zero before repair. Preset/fine/toggle choices now supply
+  their visible revision; a mismatch asks for another choice. Pending drafts contain preferences only and preserve
+  control focus while scores remain hidden. [Evidence/checks](reviews/2026-10-29/sports-tvos-refinements/README.md).
+- SD-A61-C3 (fixed locally; local Apple gates pass): real PUT completion cleared saving before its authoritative GET,
+  which could unmount the retained settings controls and lose focus. The deferred-response test fails while GET is
+  held (`save-reread-before.json`). Saving now covers the private final reread; ordinary polls/actions remain blocked,
+  scores stay hidden, and a failed reread removes the draft when saving ends. Fixture and real lifecycles now agree.

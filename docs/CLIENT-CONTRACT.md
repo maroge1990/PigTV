@@ -496,3 +496,16 @@ The same C-O models/actions render on iPhone/iPad. Dashboard cards use available
 360pt regular, up to 480pt for accessibility text, capped to the viewport), with equal scaled height within a sport.
 Controls stack when space is limited; mobile detail/settings padding is 20pt. Visible More options has an event-specific
 accessibility label and accompanies touch-and-hold. tvOS card geometry remains 380pt wide. No API route/shape changes.
+
+#### Apple 61 refinements (local checks pass; no API shape/route change)
+
+- Dashboard badges consume existing optional `source_id`, `channel_item_id`, `channel_stable_id` on scheduled-recording
+  rows. Match source/stable identity across renames/reorders; missing identity gives no guessed badge and a stable
+  mismatch never falls back to position/name. Ordinary Guide's existing name-based marks are unchanged.
+- tvOS heights are stable per sport family (320pt AFL/NBA/football, 372pt NFL/MLB, 352pt Cricket/F1, 304pt other guide
+  categories), scaled for text. Long press opens the current action/details cover directly. Only explicit Watch/record
+  choices can acquire resources through the existing revalidation/admission flow.
+- Presets 0/30/60/90/120/180/300 plus +/-10 controls retain remote focus during save. The ephemeral pending draft holds
+  preference values only, never scores, and is displayed only while saving. Background/account replacement closes the
+  cover; unknown/offline states hide controls until validated. A stale visible revision refuses a write rather than
+  borrowing a newer polled revision. Server conflict handling remains reread + explicit user choice.

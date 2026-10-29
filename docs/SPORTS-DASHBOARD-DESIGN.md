@@ -4,7 +4,8 @@ Own-review repairs: worker-backed cached projection, delayed action/retention fi
 format-bounded cricket joins and category/team union are implemented; mandatory Codex review remains pending.
 
 Status: Mark authorized implementation after the revised F1/session-status discussion. Server foundation is in local
-builds 0309/0313/0315, opt-in only; Apple/web dashboard interfaces are not yet implemented. Local gates pass (1,305 tests and build verification); adversarial review is pending.
+builds 0309/0313/0315, opt-in only; Apple 59–60 and web 0317 dashboards are implemented locally; Apple 61 adds authorized tvOS refinements before the
+consolidated device pass. Current validation/limits are in the delivery roadmap; adversarial review remains pending.
 The proposal below describes the complete feature, not a claim that all delivery slices are finished.
 The [remaining delivery roadmap](SPORTS-DASHBOARD-ROADMAP.md) tracks review, pilot, coverage gaps, client slices and acceptance;
 use its [continuation prompt](SPORTS-DASHBOARD-CONTINUE.md) after initial testing.
