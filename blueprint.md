@@ -5,6 +5,8 @@ is gated on dashboard enablement, deferred fixtures retry after cooldown, and th
 progress under hot-source load. Hung projection jobs time out and replace their worker. All 1,305 tests and build verification pass.
 Feature remains off by default; Codex review is round 0 of 2. Unknown-format multi-day cricket matching and collector
 parse-cost measurement are registered low follow-ups. [Latest handoff](docs/reviews/2026-10-29/sports-dashboard-followups/README.md).
+[Remaining delivery roadmap](docs/SPORTS-DASHBOARD-ROADMAP.md) and [next-agent prompt](docs/SPORTS-DASHBOARD-CONTINUE.md)
+cover the work after initial testing.
 
 **State (29 Oct):** **0315** implements the sports own-review follow-ups; all 1,305 tests and build verification pass; mandatory Codex review is pending.
 **0314 media review:** **0314** fixes round-1 follow-ups N1/N2 after approval of 0310–0312 (no high findings).
@@ -661,13 +663,14 @@ have a repair or tested answer; actual Linux/QSV and renewal-on device acceptanc
 **29 Oct sports follow-ups (0315):** N1/N2 are repaired with regressions failing on 72fa3b9; hung workers recover on a
 per-job deadline. Unknown-format multi-day cricket and collector parse cost remain low items in FINDINGS. All 1,305 tests and build verification pass; feature is off by default, Codex round remains 0 of 2. [Handoff](docs/reviews/2026-10-29/sports-dashboard-followups/README.md).
 
-**29 Oct sport dashboard:** 0309 server foundation plus 0313 own-review repairs; Apple TV first with phone/tablet/web adaptations. All current follows
-are essential; include unmatched games and join games to broadcasts. Seven sport-specific card families, synced
-per-person spoiler preference and configurable whole-snapshot delay are proposed. Sport views retain ~72 hours;
-F1 needs no live scores/timing, and missing-data cards stay visible. Existing accounts serve as profiles. Initial
-server foundation is implemented in **0309/0313**, off by default; own-review findings are addressed and final gates pass; own-review approval and mandatory Codex review remain pending. Apple/web UI and
-live/device acceptance remain next. [Scope and acceptance plan](docs/SPORTS-DASHBOARD-DESIGN.md),
-[feed evidence](docs/reviews/2026-10-29/sports-dashboard/README.md).
+**29 Oct sport dashboard:** Server foundation and own-review repairs are local in **0309/0313/0315**; all 1,305 tests
+and build verification pass, flag off. Mandatory Codex review is **0 of 2**; initial real-feed/device testing has not
+been reported. The selected sport-shelf layout is the Apple TV starting point; preserve ~72-hour sport/team views.
+Remaining work is explicitly tracked in the [sports delivery roadmap](docs/SPORTS-DASHBOARD-ROADMAP.md): review and
+pilot measurement, guide-only fallback/coverage/matching, remaining seven-family edge designs, Apple TV UI/settings/actions,
+cross-device spoiler safety, iPhone/iPad/web adaptations and release acceptance. SD-0313-L2/L3 remain registered.
+[Continuation prompt after initial testing](docs/SPORTS-DASHBOARD-CONTINUE.md),
+[design](docs/SPORTS-DASHBOARD-DESIGN.md), [feed evidence](docs/reviews/2026-10-29/sports-dashboard/README.md).
 
 **29 Oct recording / exit bugs:** watch-while-recording failure reproduced on deployed 0307 (diagnostic recording #203)
 and offline: AAC-LC watch muxing aborts at 0.14 s. **0308** adds the missing ADTS-to-ASC filter; the growing-recording

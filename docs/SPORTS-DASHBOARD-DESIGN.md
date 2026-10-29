@@ -4,8 +4,10 @@ Own-review repairs: worker-backed cached projection, delayed action/retention fi
 format-bounded cricket joins and category/team union are implemented; mandatory Codex review remains pending.
 
 Status: Mark authorized implementation after the revised F1/session-status discussion. Server foundation is in local
-builds 0309/0313, opt-in only; Apple/web dashboard interfaces are not yet implemented. Local gates pass (1,297 tests and build verification); adversarial review is pending.
+builds 0309/0313/0315, opt-in only; Apple/web dashboard interfaces are not yet implemented. Local gates pass (1,305 tests and build verification); adversarial review is pending.
 The proposal below describes the complete feature, not a claim that all delivery slices are finished.
+The [remaining delivery roadmap](SPORTS-DASHBOARD-ROADMAP.md) tracks review, pilot, coverage gaps, client slices and acceptance;
+use its [continuation prompt](SPORTS-DASHBOARD-CONTINUE.md) after initial testing.
 Mark requested an Apple TV-first interactive mockup before implementation, with iPhone/iPad and web adaptations.
 Recording repairs in progress are a separate batch. Mark accepted the overall mockup, retained the 72-hour sport views, approved existing user accounts as profiles, and
 approved explicit missing-data states. The revised session-only F1 preview was shown before authorization to build.
@@ -32,7 +34,7 @@ Only names were read; no playback, provider connection, recording or server muta
 
 ## Proposed screen and card behavior
 
-Explore two layouts: sport shelves (live, upcoming, recently finished) and a match grid. The inline mockup uses invented
+Use the selected sport-shelf layout (live, upcoming, recently finished); retain the match grid for comparison. The inline mockup uses invented
 match situations and monogram badges, not current results. Its league chips exercise each card type; future schedules,
 real logos, actual playback, recording, sync and authoritative score delay are not implemented in the mockup. The
 updated league views include illustrative future cards across the next ~72 hours. A focused revised F1 preview
@@ -149,8 +151,8 @@ states; no claim of production readiness. **Mark has now authorized build; 0309 
    score/clock fields after a proposed 2-minute excess-age budget **beyond the chosen delay**. Never reset to zero or
    extrapolate a stopped clock. Collector failure cannot block provider admission, guide or playback.
 
-New API shapes remain proposals; the existing client contract is unchanged. Prefer a capability-gated dashboard
-endpoint plus authenticated self-service preference reads/updates, with old clients continuing their existing route.
+The initial API is implemented and specified in CLIENT-CONTRACT C-O; proposals below that go beyond C-O remain
+future work. The capability-gated dashboard and authenticated preference routes preserve old clients on their existing route.
 A normalized game has catalog identity/start/day/session, competitors/artwork, structured sport-specific state,
 match availability/event reference, observed/effective timestamps and freshness; score output is profile-filtered.
 History is bounded by time/count, persisted through server restart for the delay horizon, and never stores credentials.
