@@ -608,3 +608,58 @@ test('R1-H2: sustained reconnects cannot extend settlement past the first renewa
         assert.match(r.render(), /L1-seg0000/);
     } finally { clearTimeout(timeout); clearInterval(pulse); Object.assign(relay.tuning, t); sessions.peekSession = peek; await r.close('test over'); }
 });
+
+test('review M3: a reconnect during cold failover cannot publish an exited startup epoch', async () => {
+    const front = fakeSession(); write(front, 0, 2);
+    const r = relay.adopt(front, ctx()); clearInterval(r.timer); await r.ingest();
+    strategy.resolve = async opts => {
+        const s = fakeSession({ providerId: opts.providerId });
+        if (opts.sessionOptions.relayTimeline) { s.plannedRestart = {}; s.status = 'stopped'; }
+        write(s, 0, 1, { ended: !!s.plannedRestart });
+        return { sessionId: s.id };
+    };
+    front.emit('lost', { how: 'exit', providerReason: true });
+    await silently(() => r.switchOver('lost', 'lost'));
+    assert.equal(r.active.session.status, 'running', 'cold resolve must not use the pre-ready planned-EOF branch');
+    assert.equal(r.active.session.options.relayTimeline, true, 'renewal becomes eligible after resolve is ready');
+});
+
+test('review L2: rejected switch calls release a transferred follow-on pin exactly once', async () => {
+    const front = fakeSession(); write(front, 0, 2);
+    const r = relay.adopt(front, ctx()); clearInterval(r.timer);
+    for (const state of ['switching', 'closed']) {
+        let leaves = 0; r[state] = true;
+        await r.switchOver('queued follow-on', 'reconnected', { leave() { leaves++; } });
+        assert.equal(leaves, 1, `${state} must return the transferred subscriber`);
+        r[state] = false;
+    }
+});
+
+test('review M4: repeated pre-ready epochs exhaust one relay budget and fall back without another renewal', async () => {
+    const front = fakeSession(); write(front, 0, 2); front.stop = async () => {};
+    const r = relay.adopt(front, ctx()); clearInterval(r.timer); await r.ingest();
+    const peek = sessions.peekSession; sessions.peekSession = id => registry.get(id);
+    let calls = 0; const notes = [];
+    const note = r.note.bind(r); r.note = (...a) => { notes.push(a[0]); note(...a); };
+    const source = { state: 'live', reconnectedAt: Date.now() - 10000, subscribe() { return pin(); } };
+    const pin = () => ({ ingest: source, endReason: null, resume() {}, leave() {} });
+    strategy.resolve = async opts => {
+        const s = fakeSession(); s.stop = async () => {};
+        if (opts.sessionOptions.relayTimeline) s.plannedRestart = {};
+        write(s, 0, 1, { ended: !!s.plannedRestart });
+        if (++calls >= 7) await r.close('test safety stop');
+        return { sessionId: s.id };
+    };
+    try {
+        await silently(async () => {
+            await r.switchOver('pulse fixture', 'reconnected', pin());
+            const end = Date.now() + 2000;
+            while ((r.switching || calls < 4) && !r.closed && Date.now() < end) await new Promise(resolve => setTimeout(resolve, 10));
+        });
+        assert.equal(calls, 4, 'three renewed epochs, then one non-renewed fallback');
+        assert.equal(r.closed, false);
+        assert.equal(r.active.session.options.relayTimeline, false);
+        assert.equal(r.active.candidate, B, 'normal failover leaves the flapping provider');
+        assert.ok(notes.includes('renewal-budget'), 'record why renewal was disabled');
+    } finally { sessions.peekSession = peek; await r.close('test over'); }
+});

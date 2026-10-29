@@ -118,3 +118,8 @@ ingest's buffer bytes, subscribers, byte rate and reconnects.
 
 Not on the ingest yet: warm channels, direct plays (`/api/proxy/stream`). They keep their own connections, counted as
 today. Relay legs and standbys joined it in R7.
+
+**0311 review repair:** ordinary cold failover does not use planned pre-ready EOF. A relay permits three renewals
+within a rolling minute, then disables renewal for that play and runs normal provider failover (`renewal-budget`).
+A rejected queued switch always returns its transferred pin. Resolve deadlines remove hung pre-ready epochs, including
+their process and ingest subscription.

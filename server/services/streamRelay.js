@@ -45,6 +45,8 @@ const TICK_MS = 1000;
 // flap cadence. Three seconds restarted once per 3.5 s flap in the HTTP regression.
 // Keep it below the Apple 30 s buffer, leaving room for the new ffmpeg to start.
 const tuning = { reconnectSettleMs: 6000, reconnectWaitMaxMs: 8000, reconnectTotalMaxMs: 20000 };
+const RENEWAL_WINDOW_MS = 60000;
+const MAX_RENEWALS = 3;
 // With a standby ready: how long the playing leg may write nothing before the standby takes
 // over. Segments are written at keyframes, so a 10 s GOP is quiet for 10 s when healthy.
 const switchAfterMs = () => msFromEnv('PIGTV_RELAY_SWITCH_MS', 10000, 3000);
@@ -101,6 +103,8 @@ class Relay {
         // R12: decided when the play began and kept for its life (a Settings change is for the next play).
         this.standbyOn = standbyEnabled(ctx.settings);
         this.switches = 0;
+        this.renewalTimes = [];
+        this.renewalBlocked = false;
         this.failed = false;
         this.lastReason = null;        // { code, detail, at }
         this.flash = null;             // { state, until }: a short-lived "promoted" / "reclaimed" / "failed"
@@ -164,7 +168,7 @@ class Relay {
             lost: null, joined: false, removed: false, startedAt: Date.now(), tail: [], lastSegAt: 0 };
         // Its segments stay listed after its ffmpeg has gone: the relay removes the folder.
         session.retainDir = true;
-        if (!session.options.standby && !session.options.warm) session.options.relayTimeline = this.ctx.settings.ingestReconnectRenewal === true;
+        if (!session.options.standby && !session.options.warm) session.options.relayTimeline = this.renewalEnabled();
         session.once('timeline-restart', ({ feed }) => {
             if (leg !== this.active || this.closed || this.switching) return;
             // Keep the same ingest alive through retirement AND the next probe/start, including
@@ -335,13 +339,26 @@ class Relay {
 
     // ---- switching -----------------------------------------------------------------------
 
+    renewalEnabled() { return this.ctx.settings.ingestReconnectRenewal === true && !this.renewalBlocked; }
+
     async switchOver(why, code = 'lost', pin = null, renewalStartedAt = Date.now()) {
-        if (this.switching || this.closed) return;
+        if (this.switching || this.closed) { if (pin) pin.leave(); return; }
         this.switching = true;
         const old = this.active;
         const { ctx } = this;
         const lostAt = Date.now();
-        const planned = code === 'reconnected';
+        let planned = code === 'reconnected';
+        if (planned && !this.renewalBlocked) {
+            this.renewalTimes = this.renewalTimes.filter(at => lostAt - at < RENEWAL_WINDOW_MS);
+            if (this.renewalTimes.length >= MAX_RENEWALS) {
+                // Stop the epoch/start loop for this play and use ordinary
+                // provider failover instead of restarting the flapping source.
+                this.renewalBlocked = true;
+                planned = false;
+                code = 'renewal-budget';
+                why = 'three renewals within a minute; trying normal failover';
+            } else this.renewalTimes.push(lostAt);
+        }
         let followPin = null;
         try {
             this.log(`${this.providerOf(old)} ${why}; switching`);
@@ -393,7 +410,7 @@ class Relay {
                             continue;
                         }
                         const generation = source.reconnectedAt;
-                        next = await this.startCold([old.candidate], old.session.id, renewalStartedAt + tuning.reconnectTotalMaxMs);
+                        next = await this.startCold([old.candidate], old.session.id, renewalStartedAt + tuning.reconnectTotalMaxMs, true);
                         if (this.closed || pin.endReason) break;
                         if (generation === source.reconnectedAt && source.state === 'live' || next && forced) break;
                         if (next) await this.retire(next, true);
@@ -499,7 +516,7 @@ class Relay {
     }
 
     /** Start one candidate as a leg: probe, session, first segment. Null when it cannot be used. */
-    async startLeg(candidate, { owner, standby = false, lease = null, deadlineAt = null } = {}) {
+    async startLeg(candidate, { owner, standby = false, lease = null, deadlineAt = null, renewal = false } = {}) {
         const { ctx } = this;
         let decision;
         try {
@@ -520,7 +537,7 @@ class Relay {
                 refusedRetryDelaysMs: [1000],
                 deadlineAt: Math.min(deadlineAt ?? Infinity, Date.now() + START_DEADLINE_MS),
                 timingNote: `, relay ${this.id} ${standby ? 'standby' : 'takeover'} on ${candidate.providerName}`,
-                sessionOptions: { relayTimeline: !standby && ctx.settings.ingestReconnectRenewal === true, channelName: ctx.channelName || null, ...(standby ? { standby: true } : {}) }
+                sessionOptions: { relayTimeline: renewal && !standby && this.renewalEnabled(), channelName: ctx.channelName || null, ...(standby ? { standby: true } : {}) }
             });
         } catch (err) {
             if (routing().isProviderFailure(err)) {
@@ -545,7 +562,7 @@ class Relay {
     }
 
     /** Cold start: re-plan providers, or renew only the supplied candidate using the retained slot. */
-    async startCold(sameCandidate = null, adopt = null, deadlineAt = null) {
+    async startCold(sameCandidate = null, adopt = null, deadlineAt = null, renewal = false) {
         const { ctx } = this;
         let candidates;
         try {
@@ -569,7 +586,7 @@ class Relay {
             if (!verdict.allowed) continue;
             // R11: the lease taken with the admission is bound to the leg's session, or given back.
             let leg;
-            try { leg = await this.startLeg(candidate, { owner: ctx.owner, lease: verdict.lease, deadlineAt }); } finally { coordinator().releaseUnbound(verdict.lease); }
+            try { leg = await this.startLeg(candidate, { owner: ctx.owner, lease: verdict.lease, deadlineAt, renewal }); } finally { coordinator().releaseUnbound(verdict.lease); }
             if (leg) return leg;
         }
         return null;
@@ -657,7 +674,7 @@ class Relay {
         const s = this.standby;
         this.standby = null;
         s.session.options.standby = false;
-        s.session.options.relayTimeline = this.ctx.settings.ingestReconnectRenewal === true;
+        s.session.options.relayTimeline = this.renewalEnabled();
         s.session.options.owner = this.ctx.owner;
         s.session.touch();
         s.lastSeq = s.tail[0].seq - 1;

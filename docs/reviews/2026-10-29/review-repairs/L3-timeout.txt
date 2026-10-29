@@ -1,0 +1,25 @@
+[SQLite] Opening database at /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-ingest-play-QTRdKJ/data/content.db
+[SQLite] Schema initialized
+[Recordings] Schema initialized
+[Recordings] Recording engine initialized
+[Recordings] The recordings folder does not exist: /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-ingest-play-QTRdKJ/recordings
+[Ingest 1] reading 97994817e47e for pool primary
+[TranscodeSession 01ec6abd056dadf0] Starting session for: http://127.0.0.1:57797/1.ts
+[TranscodeSession 01ec6abd056dadf0] Command: /opt/homebrew/Cellar/node@24/24.21.0/bin/node -e process.stdin.resume();setInterval(()=>{},1000)
+[TranscodeSession 01ec6abd056dadf0] Playlist not ready after 10000ms
+[TranscodeSession 01ec6abd056dadf0]   created -> spawned: 1ms
+[TranscodeSession 01ec6abd056dadf0]   spawned -> first ffmpeg output: never
+[Playback] start superseded: session 01ec6abd056dadf0 was stopped on request before it produced a playlist
+[TranscodeSession 01ec6abd056dadf0] Stopping FFmpeg process
+[TranscodeSession 01ec6abd056dadf0] FFmpeg completed successfully
+[TranscodeSession 01ec6abd056dadf0] Cleaned up session directory
+[Ingest 1] closed (test over); most behind real time not measured
+✔ review L3: resolve removes a pre-ready reconnect epoch whose process hangs after stdin EOF (1957.014ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2286.825375

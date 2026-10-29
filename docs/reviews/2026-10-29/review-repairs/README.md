@@ -35,11 +35,27 @@ Intel's [dispatcher documentation](https://github.com/intel/libvpl) requires Med
 newer GPU runtime for Iris Xe/newer. Retaining only VPL's dispatcher and modern GPU runtime loses the legacy path.
 The runtime package repair and actual QSV encode acceptance remain pending in this record.
 
-## Remaining findings
+## 0311 relay repairs: M3 / M4 / L2; L3 answered
 
-M3 (cold failover), M4 (cumulative renewal budget), L2 (queued pin), L3 (resolve cleanup), L4 (option parser) are being
-reproduced/repaired. All require a disposition before handoff. `before.txt` captures failing-before tests for M3/M4/L2.
-The real-FFmpeg baseline flap rig is preserved in `relay-rig-before.txt` (45 s, 8 published switches); no provider used.
+- M3: ordinary cold legs resolve with relayTimeline off, enabling it only after readiness. Planned replacements retain
+  the pre-ready EOF behavior their caller handles. Regression simulates a pre-ready reconnect and fails before.
+- M4: three renewal starts within a rolling minute exhaust the relay budget. Further renewal is disabled for the rest
+  of that play; normal provider failover runs, quarantines the flapping candidate, and records `renewal-budget`. If no
+  candidate can take over, existing normal failure closes the relay. The repeated-epoch regression fails before.
+- L2: the switching/closed early return releases the supplied pin. Both paths are checked; the regression fails before.
+- L3: no production change required. The existing resolve deadline removes a planned epoch that never becomes ready.
+  The added integration test starts a real hung Node child, closes its stdin through the reconnect handler, waits out
+  a 1.2 s resolve deadline, and checks the registry, subscription and saved child handle: all released/terminated.
+
+A 45 s real-FFmpeg baseline flap rig published eight renewals. A 70 s budget run now reaches healthy ProvB after
+three renewals plus one ordinary failover and remains at four switches beyond the one-minute window, with advancing
+segments. `node scripts/relay-rig.js reconnect flap budget` asserts the final provider/maximum switch count; its fake
+routing plan now respects real quarantine, matching production. Raw logs remain under ignored
+`data/samples/2026-10-29-review/`; a compact after record is `relay-rig-after.txt`. The synthetic rig also emits a blank
+observation on test-pattern playback; this does not establish device picture/sound acceptance.
+
+0311 clean-snapshot gate: 1,279 tests pass, no skips/failures; build verification passes.
+M2/L4 toolchain repairs remain pending in this commit.
 
 ## Validation / review / device steps
 

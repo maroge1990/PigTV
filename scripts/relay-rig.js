@@ -80,7 +80,8 @@ const provider = http.createServer((req, res) => {
     const routing = require(sandbox + '/server/services/providerRouting');
     const A = { providerId: 1, providerName: 'ProvA', role: 'primary', via: 'primary', url: `${P}/a.ts`, channelKey: 'ch' };
     const B = { providerId: 2, providerName: 'ProvB', role: 'backup', via: 'backup', url: `${P}/b.ts`, channelKey: 'chb' };
-    routing.plan = async () => ({ candidates: mode.aDead ? [B] : [A, B], primaryKey: 'ch', channelName: 'Test', primarySkipped: mode.aDead, providerCount: 2, backupsConfigured: true });
+    routing.plan = async () => ({ candidates: (mode.aDead ? [B] : [A, B]).filter(c => !routing.isQuarantined(c.providerId, c.channelKey)),
+        primaryKey: 'ch', channelName: 'Test', primarySkipped: mode.aDead, providerCount: 2, backupsConfigured: true });
     // Real directory/leases: the old hasFreeConnection stub was bypassed by tryReserveFree.
     const db = require(sandbox + '/server/db');
     await db.sources.create({ type: 'm3u', name: 'ProvA', role: 'primary', url: 'http://a.invalid/list.m3u' });
@@ -134,6 +135,12 @@ const provider = http.createServer((req, res) => {
         clearInterval(poll); clearInterval(flapTimer); clearTimeout(deadline);
         console.log('CONSUMER exit', code); console.log('CONSUMER LOG\n' + clog.split('\n').slice(-25).join('\n'));
         const text = await (await fetch(playlistUrl)).text(); console.log('FINAL PLAYLIST\n' + text);
+        if (process.argv.includes('budget')) {
+            const current = relay.list()[0];
+            const passed = current && current.provider === 'ProvB' && current.switches <= 4 && text.includes('L4-');
+            console.log('RENEWAL BUDGET', passed ? 'PASS' : 'FAIL', JSON.stringify(current));
+            if (!passed) process.exitCode = 1;
+        }
         const seg = text.split('\n').filter(l => /^L1-/.test(l))[0];
         if (seg) { const r = await fetch(`${base}/api/transcode/${decision.sessionId}/${seg}`); console.log('L1 segment fetch', r.status, (await r.arrayBuffer()).byteLength); const i = await fetch(`${base}/api/transcode/${decision.sessionId}/L1-init.mp4`); console.log('L1 init', i.status); }
         if (process.env.RIG_OUTPUT) {

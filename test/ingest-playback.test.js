@@ -500,3 +500,30 @@ test('R1-H2: an intentionally closed startup epoch cannot launch a hardware-deco
     await sleep(100);
     assert.equal(retries, 0, 'a planned EOF is final for this epoch');
 });
+
+// L3 is answered, not patched: the resolve deadline already removes a hung
+// pre-ready EOF epoch even after its session watchdog was intentionally stopped.
+test('review L3: resolve removes a pre-ready reconnect epoch whose process hangs after stdin EOF', async () => {
+    const create = transcodeSession.createSession;
+    let made, child;
+    transcodeSession.createSession = async (url, options) => {
+        const s = await create(url, { ...options, ffmpegPath: process.execPath, relayTimeline: true });
+        made = s;
+        s.buildFFmpegArgs = () => ['-e', 'process.stdin.resume();setInterval(()=>{},1000)'];
+        const wait = s.waitForPlaylist.bind(s);
+        s.waitForPlaylist = async () => {
+            child = s.process;
+            s.handleIngestReconnect({ gapSec: 1, forLag: false });
+            assert.ok(s.plannedRestart);
+            return wait(10000, { deadlineAt: Date.now() + 1200 });
+        };
+        return s;
+    };
+    try {
+        const result = await play('pos_1', 'timeout-tv');
+        assert.equal(result.status, 499, JSON.stringify(result.body));
+        assert.equal(transcodeSession.peekSession(made.id), null);
+        assert.equal(made.feed, null, 'subscription released');
+        await until(() => child.exitCode !== null || child.signalCode !== null, 'hung process killed', 5000);
+    } finally { transcodeSession.createSession = create; }
+});
