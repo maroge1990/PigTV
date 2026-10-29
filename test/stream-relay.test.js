@@ -670,6 +670,7 @@ for (const unavailable of ['admission', 'start']) test(`N1: an exhausted budget 
     const r = relay.adopt(front, ctx()); clearInterval(r.timer); await r.ingest();
     r.renewalTimes = [Date.now(), Date.now(), Date.now()];
     let leaves = 0; const pin = { ingest: { state: 'live' }, endReason: null, leave() { leaves++; } };
+    const details = new Map(); const note = r.note.bind(r); r.note = (code, detail, ...rest) => { details.set(code, detail); return note(code, detail, ...rest); };
     const admit = coordinator.canAdmitWithoutDisturbing;
     const resolve = strategy.resolve;
     if (unavailable === 'admission') coordinator.canAdmitWithoutDisturbing = ask => ask.providerId !== B.providerId && admit(ask);
@@ -681,6 +682,7 @@ for (const unavailable of ['admission', 'start']) test(`N1: an exhausted budget 
         assert.equal(r.active.session.options.relayTimeline, false);
         assert.equal(leaves, 1);
         assert.match(await r.getPlaylist(), /L1-/);
+        assert.match(details.get('renewal-primary-fallback'), /continuing on Strong8K/, 'names the provider it continues on, which need not be the primary');
     } finally { coordinator.canAdmitWithoutDisturbing = admit; strategy.resolve = resolve; }
 });
 

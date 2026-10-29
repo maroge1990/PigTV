@@ -430,7 +430,7 @@ class Relay {
                     // admission/takeover and resolve-deadline checks.
                     if (!next && code === 'renewal-budget' && !this.closed && pin && !pin.endReason) {
                         next = await this.startCold([old.candidate]);
-                        if (next) this.note('renewal-primary-fallback', 'no backup available; continuing on the primary with renewal disabled');
+                        if (next) this.note('renewal-primary-fallback', `no backup available; continuing on ${this.providerOf(next)} with renewal disabled`);
                     }
                 }
             }

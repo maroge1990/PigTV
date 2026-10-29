@@ -502,7 +502,11 @@ function streamsInPool(pool, dir, recordings = undefined) {
     const pending = unboundLeasesInPool(pool, dir).filter(l => l.purpose !== 'recording').map(leaseAsStream);
     const ingest = require('./ingest');
     const idle = ingest.idleInPool(pool);
-    if (!sessions.some(s => s.ingestKey) && idle.length === 0) return [...sessions, ...pending];
+    // An ingest read only by a relay's renewal pins (its session retired while backups are tried)
+    // still holds its connection; nothing else names it, so it is counted here (reset review, 0318).
+    const pinned = [...ingest._registry.values()].filter(i => !i.closed && i.pool === pool && i.subs && i.subs.size > 0
+        && [...i.subs].every(s => s.info && s.info.purpose === 'renewal-pin'));
+    if (!sessions.some(s => s.ingestKey) && idle.length === 0 && pinned.length === 0) return [...sessions, ...pending];
 
     let recs = recordings;
     if (recs === undefined) { try { recs = require('./recordingEngine').listActive(); } catch (e) { recs = []; } }
@@ -529,6 +533,12 @@ function streamsInPool(pool, dir, recordings = undefined) {
         if (groups.has(i.key) || recKeys.has(i.key)) continue;
         out.push({ id: `ingest-${i.id}`, type: 'ingest', ingestKey: i.key, members: [], idleMs: Infinity, startTime: i.startedAt,
             owner: null, providerId: i.providerId, standby: false, warm: false, lingering: true });
+    }
+    for (const i of pinned) {
+        if (groups.has(i.key) || recKeys.has(i.key)) continue;
+        const owners = new Set([...i.subs].map(s => s.info.owner));
+        out.push({ id: `ingest-${i.id}`, type: 'ingest', ingestKey: i.key, members: [], idleMs: i.lastByteAt ? Date.now() - i.lastByteAt : Infinity, startTime: i.startedAt,
+            owner: owners.size === 1 ? [...owners][0] : null, providerId: i.providerId, standby: false, warm: false, pinned: true });
     }
     return [...out, ...pending];
 }
