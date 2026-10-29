@@ -105,6 +105,12 @@ function channelsFor(events, now, includeUpcoming=false) {
     }
     return out;
 }
+// Football period 5 is the shoot-out: with spoilers hidden it reveals a draw, so penalties are never projected.
+function progressFor(game,progress,hidden) {
+    if(!hidden || !game.id.startsWith('espn:soccer/') || !(progress.period>=5)) return progress;
+    const {period,...rest}=progress;
+    return rest;
+}
 function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagues=null,follow=null,broadLeagues=new Set(),timezone:zone=timezone()}={}) {
     const prefs=store.preferences(userId),today=localDay(now,zone);
     // All catalog entries participate in ambiguity checks, even when filtered out of the requested view.
@@ -143,7 +149,7 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
             competitors:g.competitors.map(({id,name,logo})=>({id,name,logo})),
             status:projectedState, ...(fresh && selected.data.breakLabel ? {breakLabel:selected.data.breakLabel}:{}),
             freshness:!selected ? 'buffering' : fresh ? 'fresh' : 'stale',observedAt:at,
-            progress:fresh ? selected.data.progress : {},
+            progress:fresh ? progressFor(g,selected.data.progress,prefs.avoidSpoilers) : {},
             availability:liveChannels.length || (g.start>now && channels.length) ? 'matched' : airings.length ? 'unavailable' : 'unmatched',
             broadcastStatus:liveChannels.length ? 'on-tv' : channels.length ? 'scheduled' : 'unavailable',channels,
             // Upcoming event references retain the existing details/record workflow without inventing channels.
@@ -189,6 +195,9 @@ const CATALOG_RESERVE = 3;
 function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.neededLeagues(),clock=Date.now,enabled:isEnabled=enabled}={}) {
     let running = null, timer = null, stopped = false, remaining = 0, deadline = 0, coldRequests = 0;
     const cache = new Map(), controller = new AbortController();
+    // ESPN groups scoreboards by US Eastern date, so a game after 00:00Z is listed under the previous
+    // UTC date's URL. Remember which query date returned each game and poll that one while it is hot.
+    const listedOn = new Map();
     async function read(url, ttl, { cold = false, maxCold = Infinity } = {}) {
         if (stopped) return null;
         const old = cache.get(url), now = clock();
@@ -215,6 +224,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         const previous = new Date(now - 24 * H).toISOString().slice(0,10).replaceAll('-', '');
         const queryDays = [days[0], previous, ...days.slice(1)];
         const catalog = store.catalog(), known = new Map(catalog.map(g => [g.id, g]));
+        for (const id of listedOn.keys()) if (!known.has(id)) listedOn.delete(id);
         const hot = new Set();
         for (const g of catalog) {
             const source = /^espn:([^:]+):/.exec(g.id)?.[1];
@@ -228,6 +238,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
             const startDay = new Date(g.start).toISOString().slice(0,10).replaceAll('-', '');
             if (nearStart && g.start > now) hot.add(`${source}|${startDay}`);
             if (g.league !== 'Cricket' && inPlay && startDay === previous) hot.add(`${source}|${previous}`);
+            if (listedOn.has(g.id)) hot.add(`${source}|${listedOn.get(g.id)}`);
         }
         function add(league, source, date) {
             const url = `${espn.BASE}${source}/scoreboard?dates=${date}&limit=1000`;
@@ -270,7 +281,10 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                     processed.set(job.url, data.observedAt);
                     for (const game of espn.normalize(data.json, job.league, job.source)) {
                         const priority = queryDays.indexOf(job.date), old = candidates.get(game.id);
-                        if (!old || priority < old.priority) candidates.set(game.id, {game,priority,observedAt:data.observedAt});
+                        if (!old || priority < old.priority) {
+                            candidates.set(game.id, {game,priority,observedAt:data.observedAt});
+                            listedOn.set(game.id, job.date);
+                        }
                     }
                 }
             }

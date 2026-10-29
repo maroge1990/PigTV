@@ -18,9 +18,11 @@ const SportsDashboardPolicy = {
             break:g.breakLabel || 'BREAK',scheduled:'UPCOMING'})[g.status] ||
             (g.broadcastStatus === 'on-tv' ? 'ON TV NOW' : g.freshness === 'buffering' ? 'BUFFERING' : 'STATUS UNAVAILABLE');
     },
-    progress(g) {
+    progress(g, hidden) {
         if (g.freshness !== 'fresh' || this.family(g.league) === 'motorsport') return '';
-        const p = g.progress || {}, n = p.period, family = this.family(g.league), parts = [];
+        const p = g.progress || {}, family = this.family(g.league), parts = [];
+        // A shoot-out reveals a draw: never label penalties with spoilers hidden, whatever the server sent.
+        const n = hidden && family === 'football' && p.period >= 5 ? 0 : p.period;
         if (n > 0) {
             if (['basketball','americanFootball','australianFootball'].includes(family)) {
                 parts.push(n <= 4 ? `Quarter ${n}` : `${family === 'australianFootball' ? 'Extra time' : 'Overtime'} ${n-4}`);
@@ -54,6 +56,10 @@ const SportsDashboardPolicy = {
         try { return new Date(ms).toLocaleString([], {timeZone:timezone,weekday:'short',hour:'2-digit',minute:'2-digit'}); }
         catch { return 'Start time unavailable'; }
     },
+    // A series rule matches guide titles; score-feed titles and masked guide titles never match one.
+    guideTitle(g, hidden) { return g.dataSource === 'guide' && !hidden; },
+    // Only canonical leagues are valid dashboard filters (others are 400); ordinary Sport filters locally.
+    filters(response, legacy) { return legacy ? [...new Set([...(response.leagues || []),...response.games.map(g=>g.league)])] : [...(response.leagues || [])]; },
     ruleChoices(g) {
         const league=g.league?.trim(), names=(g.competitors || []).map(c=>c.name?.trim()).filter(n=>n?.length>=3);
         return [...new Set([...(league && league.toLowerCase()!=='sport' ? [league] : []),
@@ -76,7 +82,7 @@ const SportsDashboardPolicy = {
             }).join('');
         } else html += `<span class="sports-event-title">${e(g.title)}</span>`;
         if (family === 'motorsport') html += `${g.session ? `<span>${e(g.session)}</span>` : ''}${g.circuit?.name ? `<span>${e(g.circuit.name)}</span>` : ''}`;
-        const progress = this.progress(g);
+        const progress = this.progress(g, hidden);
         html += `<span class="sports-time">${e(progress && g.status !== 'scheduled' ? progress : this.time(g.start, timezone))}</span>`;
         const situation = this.situation(g,hidden);
         if (situation) html += `<span>${e(situation)}</span>`;
@@ -246,10 +252,10 @@ class SportsPage {
         this.root.querySelector('.sports-toolbar > button:nth-child(2)').hidden=this.state.legacy;
         this.root.querySelector('.sports-toolbar > button:first-child').textContent=this.state.legacy?'All · Next 72 hours':'Today';
         const leagues=[...new Set([...(response.leagues || []),...response.games.map(g=>g.league)])];
-        const chipNames=JSON.stringify(leagues);
+        const filters=SportsDashboardPolicy.filters(response,this.state.legacy), chipNames=JSON.stringify(filters);
         if(this.chips.dataset.names!==chipNames) {
             this.chips.replaceChildren(); this.chips.dataset.names=chipNames;
-            for(const league of leagues) { const b=document.createElement('button'); b.className='btn btn-secondary'; b.textContent=league; b.onclick=()=>this.changeLeague(league); this.chips.append(b); }
+            for(const league of filters) { const b=document.createElement('button'); b.className='btn btn-secondary'; b.textContent=league; b.onclick=()=>this.changeLeague(league); this.chips.append(b); }
         }
         for(const b of this.chips.children) b.setAttribute('aria-pressed',String(b.textContent===this.state.league));
         const visible=this.state.league ? [this.state.league] : [...leagues];
@@ -335,7 +341,8 @@ class SportsPage {
             const button=(label,action)=> { const b=document.createElement('button'); b.className='btn btn-secondary'; b.textContent=label; b.dataset.actionKey=`${action}:${key}`; b.onclick=()=>this.perform(g.id,key,action); group.append(b); };
             if(g.canWatch) button('Watch','watch');
             else if(g.events.some(e=>e.start>this.state.now())) button('Watch when it starts','wait');
-            button('Record','record'); if(this.rulesEnabled) button('Record series','rule');
+            button('Record','record');
+            if(this.rulesEnabled && SportsDashboardPolicy.guideTitle(g,!this.state.legacy && response.preferences.avoidSpoilers!==false)) button('Record series','rule');
             actions.append(group);
         }
         if(this.rulesEnabled && !SportsDashboardPolicy.terminal(g)) for(const choice of SportsDashboardPolicy.ruleChoices(g)) {
@@ -367,7 +374,17 @@ class SportsPage {
             if(action==='wait') {
                 clearTimeout(this.waiting); this.closeDialog();
                 this.notice('Scheduled watch set. Keep Sport open until it starts.'); this.cancelWait.hidden=false;
-                this.waiting=setTimeout(()=>{this.waiting=null;this.cancelWait.hidden=true;this.perform(id,SportsDashboardPolicy.key(selected.channel),'watch');},Math.max(0,selected.event.start-this.state.now()));
+                // now() includes the whole round trip, so the timer can fire before the server's start:
+                // re-arm while the server still says the airing is in the future, rather than consuming the watch.
+                const fire=async()=> {
+                    const pending={}; this.waiting=pending;
+                    const early=await this.state.load() && this.state.response.now<selected.event.start;
+                    if(this.waiting!==pending) return;
+                    if(early) { this.waiting=setTimeout(fire,Math.max(1000,selected.event.start-this.state.response.now)); return; }
+                    this.waiting=null; this.cancelWait.hidden=true;
+                    await this.perform(id,SportsDashboardPolicy.key(selected.channel),'watch');
+                };
+                this.waiting=setTimeout(fire,Math.max(0,selected.event.start-this.state.now()));
                 return;
             }
             // Confirmation is neutral and modal; actual mutation revalidates again after the user chooses.
@@ -389,13 +406,19 @@ class SportsPage {
                 const fresh=await this.state.action(id,key,false);
                 if(!fresh || this.state.response.preferences.revision!==revision) { this.notice('Event or settings changed. Review and choose again.'); return; }
                 const c=fresh.channel;
+                let rule=null;
                 if(action.startsWith('every:')) {
                     const choice=action.slice(6), game=this.state.response.games.find(g=>g.id===id);
                     if(!game || !SportsDashboardPolicy.ruleChoices(game).includes(choice)) { this.notice('Event changed. Review and choose again.'); return; }
-                    await API.recordings.addRule({kind:'sport',match:choice,preBufferMin:pre,postBufferMin:post});
-                } else if(action==='rule') await API.recordings.addRule({kind:'series',match:fresh.title,sourceId:Number(c.sourceId),channelId:c.id,channelName:c.name,preBufferMin:pre,postBufferMin:post});
-                else await API.recordings.schedule({sourceId:Number(c.sourceId),channelItemId:c.id,channelName:c.name,title:fresh.title,programStart:fresh.event.start,programEnd:fresh.event.end,preBufferMin:pre,postBufferMin:post});
-                this.notice('Recording request saved.');
+                    rule=await API.recordings.addRule({kind:'sport',match:choice,preBufferMin:pre,postBufferMin:post});
+                } else if(action==='rule') {
+                    const game=this.state.response.games.find(g=>g.id===id);
+                    if(!game || !SportsDashboardPolicy.guideTitle(game,!this.state.legacy && this.state.response.preferences.avoidSpoilers!==false)) { this.notice('Event changed. Review and choose again.'); return; }
+                    rule=await API.recordings.addRule({kind:'series',match:fresh.title,sourceId:Number(c.sourceId),channelId:c.id,channelName:c.name,preBufferMin:pre,postBufferMin:post});
+                } else await API.recordings.schedule({sourceId:Number(c.sourceId),channelItemId:c.id,channelName:c.name,title:fresh.title,programStart:fresh.event.start,programEnd:fresh.event.end,preBufferMin:pre,postBufferMin:post});
+                // A rule that matched nothing must not read as a scheduled recording.
+                const made=rule?.scheduled;
+                this.notice(!rule ? 'Recording request saved.' : made>0 ? `Rule saved · ${made} scheduled.` : 'Rule saved · nothing scheduled yet: no upcoming airing matched.');
             } catch { this.notice('Recording request failed. Review Recordings before trying again.'); }
         };
         dialog.showModal();

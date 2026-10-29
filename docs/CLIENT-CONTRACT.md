@@ -379,7 +379,9 @@ They answer `Cache-Control: private, no-store`; no shared response cache or clie
   age, not proof of upstream freshness or video alignment.
 - A complete observed snapshot becomes eligible at `observedAt + scoreDelaySeconds * 1000`. Scores, clock, period,
   breaks and final status come from that snapshot together. `progress` contains available clock/period, MLB half-inning,
-  or cricket day/overs. No missing clock, base situation, innings score or 0–0 is fabricated.
+  or cricket day/overs. No missing clock, base situation, innings score or 0–0 is fabricated. With `avoidSpoilers`
+  true, football (EPL/FA Cup/UEFA/Championship) progress never carries `period` 5 or above: a shoot-out reveals a draw,
+  so penalties are omitted (extra-time periods and the clock remain). Clients must not label penalties when hidden.
 - With scores enabled, `scores` is a two-element display-string array when available; optional `situation` carries
   validated sport-specific fields. **Both fields are absent when `avoidSpoilers` is true, or data is unavailable/stale.**
   No winner/leader, raw status prose, source headlines or raw aliases are returned. Clients must also keep event details,
@@ -396,7 +398,8 @@ They answer `Cache-Control: private, no-store`; no shared response cache or clie
 
 Collection is separate from C-I's 30-minute fixtures: at most 12 public ESPN network attempts per 30-second tick across
 all dashboard sources/dates, with two in flight, including dated cricket discovery. Known in-play/near-start source
-dates poll at 30 seconds; other catalog dates use 15 minutes and budget-deferred work rotates through later ticks.
+dates poll at 30 seconds, including the date whose scoreboard actually listed the game (ESPN groups by US Eastern
+date, so a game after 00:00Z is usually listed under the previous UTC date); other catalog dates use 15 minutes and budget-deferred work rotates through later ticks.
 Three request slots are reserved for eligible least-recent non-hot work, including dated discovery, so busy sources
 cannot indefinitely starve future catalogs; unused capacity can serve either lane. With the dashboard enabled, a shared
 429/5xx cooldown also pauses fixture requests. Deferred leagues are not marked as failed and a coalesced pass retries
@@ -404,8 +407,9 @@ after the cooldown (cancelled if another successful pass already completed). Wit
 client neither observes nor consults dashboard cooldown state; its normal sequential/30-minute behavior is retained.
 Catalog/history writes are batched once per tick, retaining each response's observation timestamp. Cricket endDate
 hints are not treated as actual match ends; joins use format-bounded windows and retain ambiguous ties as unmatched. Failure leaves catalog/history
-intact and does not label old cached data as newly observed. History keeps a 15-minute window plus the last-known
-snapshot per game; catalog entries expire after eight days without a recent observation. New tables are
+intact and does not label old cached data as newly observed. History keeps a 15-minute window plus, per game, the last-known
+snapshot and the newest snapshot at or before now − 300 s (the maximum delay), so a slowly polled game stays eligible
+(and stale) rather than buffering, and a pruned final cannot regain Watch; catalog entries expire after eight days without a recent observation. New tables are
 `sports_dashboard_catalog`, `sports_score_history`, `sports_user_preferences`. F1 is session-only; AFL goals/behinds
 summary enrichment and richer optional situations are not promised by this first server slice. Since 0316, unmatched C-I event listings also produce `guide:<event-id>` cards with `dataSource: "guide"`,
 empty competitors/progress, no scores/situation, and `freshness: "unavailable"`. Their state is scheduled or unknown;
@@ -471,7 +475,8 @@ C-I's per-minute `live` bit is not authoritative at a boundary. These airing bou
 #### Web 0317 C-O consumption (local, device/browser acceptance pending)
 
 - Sport is a separate navigation page. Capability absence or dashboard 404 uses the C-I rolling 72h ordinary schedule.
-  Canonical league chips in the dashboard retain the C-O rolling 72h view. All server-supplied followed leagues have
+  Canonical league chips in the dashboard retain the C-O rolling 72h view; chips come only from the response's
+  `leagues` (guide-only non-canonical leagues keep a shelf but no filter, which the route would refuse with 400). All server-supplied followed leagues have
   shelves even without games. No new endpoint or response shape is introduced.
 - A visible online C-O page refreshes whole snapshots every 20s after the prior request finishes. Unknown preferences,
   request failure, background, offline and identity changes hide card/detail scores. Nothing is persisted in browser
@@ -484,11 +489,15 @@ C-I's per-minute `live` bit is not authoritative at a boundary. These airing bou
 - Select reloads library metadata, then revalidates the current airing and preferred stable identity. No fallback from
   a missing stable ID to a positional ID/name. Finals do not tune. Record/series/sport-rule confirmation revalidates C-I airing
   bounds/channel association and the preference revision; captured title comes only from C-O. Sport rules offer the
-  neutral league and league-qualified team names, rechecked before submission. Recording indicators
+  neutral league and league-qualified team names, rechecked before submission. Record series is offered only on a
+  guide card whose title is the real guide title (spoilers shown, or ordinary Sport): a score-feed "A v B" title or a
+  masked guide title never matches a guide airing. A rule's confirmation reports how many it scheduled, including none. Recording indicators
   are labelled and keyed by source/stable channel from the existing active-recording route. No provider probes occur
   during render, focus, refresh or channel-library loading. Explicit Watch uses the existing admission/takeover flow.
 - An explicit scheduled Watch is cancelled on leaving/background/offline and has a visible cancel button. At its
-  timer it reloads state and eligibility; it never infers that the sport has started from wall time alone.
+  timer it reloads state and eligibility; it never infers that the sport has started from wall time alone. If the
+  server's `now` is still before the airing's start (the local estimate includes the request round trip), it re-arms
+  rather than consuming the scheduled watch.
 
 #### Apple 60 mobile adaptation (local checks pass; device acceptance pending)
 

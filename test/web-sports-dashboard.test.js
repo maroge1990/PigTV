@@ -210,3 +210,44 @@ test('authentication invalidated inside a refresh hides an already revealed snap
     m.active=true; await m.load(); invalidate=true; await m.load();
     assert.equal(m.response,null);
 });
+test('hidden football never labels penalties, even from a server that projects period 5', () => {
+    const p=load().SportsDashboardPolicy;
+    for (const status of ['live','finished']) {
+        const g=game({league:'EPL',status,progress:{period:5,clock:"120'"}});
+        assert.doesNotMatch(p.card(g,{avoidSpoilers:true},'UTC'),/Penalties/);
+        assert.match(p.card(g,{avoidSpoilers:false},'UTC'),/Penalties/);
+    }
+});
+test('Record series is offered only for a real guide title, never a projected or masked one', () => {
+    const p=load().SportsDashboardPolicy;
+    assert.equal(p.guideTitle(game(),false),false,'score-feed titles are "A v B", not guide titles');
+    assert.equal(p.guideTitle(game({dataSource:'guide',title:'NFL · Guide event'}),true),false);
+    assert.equal(p.guideTitle(game({dataSource:'guide',title:'NFL: Chiefs at Bills'}),false),true);
+});
+test('league filters are canonical response leagues; guide-only leagues keep a shelf but no 400 filter', () => {
+    const p=load().SportsDashboardPolicy, r=reply({leagues:['NFL'],games:[game({league:'NFL'}),game({id:'x',league:'A-League'})]});
+    assert.deepEqual([...p.filters(r,false)],['NFL']);
+    assert.deepEqual([...p.filters(r,true)],['NFL','A-League'],'ordinary Sport filters locally, so any league is safe');
+});
+test('Watch when it starts re-arms, not consumes, when the timer fires before the server start', async () => {
+    const timers=[], context=vm.createContext({window:{},API:{},performance:{now:()=>0},localStorage:{getItem:()=>'account-token'},
+        setTimeout:(fn,ms)=>timers.push({fn,ms}),clearTimeout(){},document:{hidden:false,addEventListener(){}}});
+    vm.runInContext(fs.readFileSync('public/js/pages/SportsPage.js','utf8'),context);
+    const w=context.window;
+    let serverNow=500, clock=0, plays=0, notices=[];
+    const upcoming=()=>reply({now:serverNow,games:[game({canWatch:serverNow>=600,events:[{id:'e',start:600,end:2000}]})]});
+    // Each request takes 200 ms, so now() runs a whole round trip ahead of the server clock.
+    const m=new w.SportsDashboardState({dashboard:async()=>{clock+=200;return upcoming();},
+        events:async()=>({events:[{id:'e',start:600,end:2000,channels:game().channels}]})},()=>'account-token',()=>clock);
+    m.active=true;
+    const page=Object.create(w.SportsPage.prototype);
+    Object.assign(page,{state:m,cancelWait:{hidden:true},notice:t=>notices.push(t),closeDialog(){},app:{navigateTo(){},channelList:{
+        loadSources:async()=>{},loadChannels:async()=>{},channels:game().channels,selectChannel:async()=>{plays++;}}}});
+    await page.perform('g',null,'wait');
+    assert.equal(timers.length,1);
+    await timers[0].fn();
+    assert.equal(plays,0); assert.equal(timers.length,2,'early fire re-arms the scheduled watch');
+    assert.equal(page.cancelWait.hidden,false); assert.ok(!notices.some(t=>/no longer watchable/.test(t)));
+    serverNow=650; await timers[1].fn();
+    assert.equal(plays,1);
+});

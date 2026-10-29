@@ -31,9 +31,20 @@ async function request(url,token=one,body){const r=await fetch(base+url,{method:
 
 test('new routes authenticate and are disabled by default without starting a collector',async()=>{
     delete process.env.PIGTV_SPORTS_DASHBOARD;
-    assert.equal((await request('/api/sports/dashboard',null)).status,401);
-    assert.equal((await request('/api/sports/preferences')).status,404);
-    assert.equal((await request('/api/sports/dashboard')).status,404);
+    // Count every kind of work start() or a request could begin: score fetches, the 30 s timer and the worker.
+    const espn=load('services/sportsScoresEspn'),worker=load('services/sportsDashboardResponse');
+    const original={fetchJson:espn.fetchJson,response:worker.response,setInterval:global.setInterval},work=[];
+    espn.fetchJson=async url=>{work.push(`fetch ${url}`);return {events:[]};};
+    worker.response=async()=>{work.push('worker');throw new Error('disabled');};
+    global.setInterval=(...args)=>{work.push('timer');const t=original.setInterval(...args);clearInterval(t);return t;};
+    try {
+        dashboard.start();
+        assert.equal((await request('/api/sports/dashboard',null)).status,401);
+        assert.equal((await request('/api/sports/preferences')).status,404);
+        assert.equal((await request('/api/sports/dashboard')).status,404);
+        await new Promise(setImmediate);
+        assert.deepEqual(work,[]);
+    } finally { dashboard.stop();Object.assign(espn,{fetchJson:original.fetchJson});worker.response=original.response;global.setInterval=original.setInterval; }
 });
 test('two devices for one account share preferences; other accounts cannot read/write them',async()=>{
     process.env.PIGTV_SPORTS_DASHBOARD='1';

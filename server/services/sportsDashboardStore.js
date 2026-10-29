@@ -1,5 +1,6 @@
 /** Isolated persisted catalog/history/preferences for the opt-in sports dashboard. */
 const HISTORY_MS = 15 * 60000;
+const MAX_DELAY_MS = 300000; // scoreDelaySeconds is at most 300
 function initSchema(db) {
     db.exec(`CREATE TABLE IF NOT EXISTS sports_dashboard_catalog (
         id TEXT PRIMARY KEY, league TEXT NOT NULL, start INTEGER NOT NULL, data TEXT NOT NULL, observed_at INTEGER NOT NULL, finished_at INTEGER);
@@ -97,12 +98,15 @@ function createStore(db, { readOnly = false } = {}) {
         }
     });
     result.ingest = (games, at) => result.ingestBatch(games.map(game => ({ game, observedAt: at })));
+    // Also keep each game's newest row at or before now - max delay: a slowly polled game's only
+    // delayed-eligible snapshot can be older than the window, and losing it buffers or revives a final.
     const pruneHistory = db.prepare(`DELETE FROM sports_score_history WHERE observed_at<? AND (game_id,observed_at) NOT IN
-        (SELECT game_id,MAX(observed_at) FROM sports_score_history GROUP BY game_id)`);
+        (SELECT game_id,MAX(observed_at) FROM sports_score_history GROUP BY game_id) AND (game_id,observed_at) NOT IN
+        (SELECT game_id,MAX(observed_at) FROM sports_score_history WHERE observed_at<=? GROUP BY game_id)`);
     const pruneOrphans = db.prepare('DELETE FROM sports_score_history WHERE game_id IN (SELECT id FROM sports_dashboard_catalog WHERE start<? AND observed_at<?)');
     const pruneCatalog = db.prepare('DELETE FROM sports_dashboard_catalog WHERE start<? AND observed_at<?');
     result.prune = db.transaction(now => {
-        pruneHistory.run(now - HISTORY_MS);
+        pruneHistory.run(now - HISTORY_MS, now - MAX_DELAY_MS);
         pruneOrphans.run(now - 8 * 86400000, now - 86400000);
         pruneCatalog.run(now - 8 * 86400000, now - 86400000);
     });
