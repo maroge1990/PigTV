@@ -3,9 +3,10 @@ const { Worker } = require('node:worker_threads');
 const path = require('node:path');
 let worker = null, active = null, sequence = 0;
 const queued = [];
+const JOB_TIMEOUT_MS = 10000;
 function failAll() {
     const error = new Error('Sports dashboard worker unavailable');
-    active?.reject(error); active = null;
+    if (active) { clearTimeout(active.timer); active.reject(error); } active = null;
     for (const item of queued.splice(0)) item.reject(error);
 }
 function dispatch() {
@@ -17,7 +18,7 @@ function dispatch() {
         worker = w;
         w.on('message', message => {
             if (worker !== w || !active || message.id !== active.id) return;
-            const job = active; active = null;
+            const job = active; clearTimeout(job.timer); active = null;
             if (message.error) job.reject(new Error('Could not build sports dashboard'));
             else job.resolve(message.response);
             w.unref(); dispatch();
@@ -26,8 +27,16 @@ function dispatch() {
         w.on('exit', () => { if (worker === w) { worker = null; failAll(); } });
     }
     active = queued.shift(); worker.ref();
-    try { worker.postMessage({ id: active.id, ...active.options }); }
-    catch { failAll(); }
+    const job = active, w = worker;
+    job.timer = setTimeout(() => {
+        if (active !== job || worker !== w) return;
+        active = null; worker = null;
+        job.reject(new Error('Sports dashboard job timed out'));
+        w.terminate(); dispatch();
+    }, JOB_TIMEOUT_MS);
+    job.timer.unref?.();
+    try { w.postMessage({ id: job.id, ...job.options }); }
+    catch { failAll(); w.unref(); }
 }
 function response(options) {
     if (queued.length + Number(Boolean(active)) >= 8) return Promise.reject(new Error('Sports dashboard busy'));

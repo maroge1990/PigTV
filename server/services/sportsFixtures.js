@@ -29,6 +29,7 @@
 const { getDb } = require('../db/sqlite');
 const sportsClassify = require('./sportsClassify');
 const espn = require('./sportsFixturesEspn');
+const requestPolicy = require('./espnRequestPolicy');
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -327,6 +328,17 @@ async function refreshCricket({ now = Date.now(), db = getDb() } = {}) {
     if (teams.size) saveTeams(db, 'Cricket', [...teams.values()]);
 }
 
+// A dashboard-enabled host cooldown defers the rest of a pass without marking those leagues
+// as failed. Retry once the cooldown ends rather than leaving them stale for another 30 minutes.
+let cooldownRetryTimer = null;
+function sharedCooldown() { return process.env.PIGTV_SPORTS_DASHBOARD === '1' && requestPolicy.blocked(); }
+function scheduleCooldownRetry() {
+    if (!enabled() || !sharedCooldown() || cooldownRetryTimer) return;
+    const wait = Math.max(1000, requestPolicy.retryAt() - Date.now() + 1000);
+    cooldownRetryTimer = setTimeout(() => { cooldownRetryTimer = null; scheduleRefresh(); }, wait);
+    cooldownRetryTimer.unref?.();
+}
+
 /** Refresh every league that currently matters. Never throws; never runs two at once. */
 async function refreshAll(now = Date.now()) {
     if (!enabled()) return;
@@ -335,6 +347,7 @@ async function refreshAll(now = Date.now()) {
         const db = getDb();
         const leagues = neededLeagues(db);
         for (const league of leagues) {
+            if (sharedCooldown()) break;
             try {
                 if (league === 'Cricket') await refreshCricket({ now, db });
                 else await refreshLeague(league, { now, db });
@@ -346,6 +359,8 @@ async function refreshAll(now = Date.now()) {
     })();
     try {
         await refreshing;
+        if (sharedCooldown()) scheduleCooldownRetry();
+        else if (cooldownRetryTimer) { clearTimeout(cooldownRetryTimer); cooldownRetryTimer = null; }
     } finally {
         refreshing = null;
     }
@@ -373,6 +388,8 @@ function startBackgroundRefresh() {
 function stopBackgroundRefresh() {
     if (refreshTimer) clearTimeout(refreshTimer);
     refreshTimer = null;
+    if (cooldownRetryTimer) clearTimeout(cooldownRetryTimer);
+    cooldownRetryTimer = null;
 }
 
 // ---- turning stored rows into what sportsClassify.resolveLive needs --------------------------

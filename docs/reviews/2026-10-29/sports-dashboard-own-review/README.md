@@ -1,5 +1,9 @@
 # 0313: sports dashboard 0309 own-review repairs
 
+**Follow-up:** Mark accepted the original H1/M1–M3/L1/L3/L4 repairs and L2 answer. New N1/N2 are addressed in 0315;
+the worker-timeout note is fixed and two low pilot/data notes are registered. See the
+[latest handoff](../sports-dashboard-followups/README.md). Mandatory Codex review still has not run (round 0 of 2).
+
 Reviewed implementation: **4d95f10**, compared with **a6e86e1**. Review author: Claude (own review supplied by Mark).
 This is not the mandatory Codex adversarial review. Codex round count remains **0 of 2**.
 

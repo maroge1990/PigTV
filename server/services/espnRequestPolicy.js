@@ -1,4 +1,4 @@
-/** Shared cooldown for ESPN's public host. Dashboard and fixture requests share the same IP. */
+/** Shared cooldown for ESPN's public host. Legacy fixtures opt in only while the dashboard is enabled. */
 let until = 0, failures = 0;
 function blocked(now = Date.now()) { return now < until; }
 function observe(status, retryAfter, now = Date.now()) {
@@ -13,5 +13,6 @@ function observe(status, retryAfter, now = Date.now()) {
         failures = 0;
     }
 }
+function retryAt(now = Date.now()) { return blocked(now) ? until : null; }
 function reset() { until = 0; failures = 0; }
-module.exports = { blocked, observe, reset };
+module.exports = { blocked, observe, retryAt, reset };

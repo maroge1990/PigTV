@@ -139,15 +139,17 @@ function utcDates(now) {
 }
 const requestPolicy = require('./espnRequestPolicy');
 const REQUESTS_PER_TICK = 12;
+const CATALOG_RESERVE = 3;
 function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.neededLeagues(),clock=Date.now,enabled:isEnabled=enabled}={}) {
-    let running = null, timer = null, stopped = false, remaining = 0, deadline = 0;
+    let running = null, timer = null, stopped = false, remaining = 0, deadline = 0, coldRequests = 0;
     const cache = new Map(), controller = new AbortController();
-    async function read(url, ttl) {
+    async function read(url, ttl, { cold = false, maxCold = Infinity } = {}) {
         if (stopped) return null;
         const old = cache.get(url), now = clock();
         if (old && now < old.nextAt) return old.data;
-        if (remaining <= 0 || now >= deadline || requestPolicy.blocked(now)) return null;
+        if (remaining <= 0 || now >= deadline || requestPolicy.blocked(now) || (cold && coldRequests >= maxCold)) return null;
         remaining--;
+        if (cold) coldRequests++;
         try {
             const data = await fetchJson(url, {signal: controller.signal});
             if (!(url.includes('/scorepanel?') ? Array.isArray(data?.scores) : Array.isArray(data?.events))) throw new Error('Malformed score feed');
@@ -163,7 +165,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
     }
     async function collect() {
         const now = clock(), days = utcDates(now), wanted = leagues(), jobs = [];
-        remaining = REQUESTS_PER_TICK; deadline = now + 20000;
+        remaining = REQUESTS_PER_TICK; coldRequests = 0; deadline = now + 20000;
         const previous = new Date(now - 24 * H).toISOString().slice(0,10).replaceAll('-', '');
         const queryDays = [days[0], previous, ...days.slice(1)];
         const catalog = store.catalog(), known = new Map(catalog.map(g => [g.id, g]));
@@ -191,8 +193,9 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         }
         if (wanted.has('Cricket')) {
             const series = new Set();
-            for (const date of days) {
-                const panel = await read(`${espn.BASE}cricket/scorepanel?dates=${date}`, 900000);
+            const discoveryDays = days.slice().sort((a,b) => (cache.get(`${espn.BASE}cricket/scorepanel?dates=${a}`)?.attemptAt || 0) - (cache.get(`${espn.BASE}cricket/scorepanel?dates=${b}`)?.attemptAt || 0));
+            for (const date of discoveryDays) {
+                const panel = await read(`${espn.BASE}cricket/scorepanel?dates=${date}`, 900000, {cold:true,maxCold:hot.size ? CATALOG_RESERVE : Infinity});
                 if (!Array.isArray(panel?.json.scores)) continue;
                 for (const block of panel.json.scores) for (const l of Array.isArray(block?.leagues) ? block.leagues : []) {
                     if (/^\d{1,12}$/.test(String(l?.id))) series.add(String(l.id));
@@ -205,25 +208,34 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
             }
             for (const seriesId of [...series].slice(0,40)) for (const date of queryDays) add('Cricket', `cricket/${seriesId}`, date);
         }
-        // Active/near-start work first; least recently attempted URLs rotate within each class.
+        // Rotate least-recently-attempted URLs within each class; reserve cold progress below.
         jobs.sort((a,b) => Number(b.hot)-Number(a.hot) || (cache.get(a.url)?.attemptAt || 0)-(cache.get(b.url)?.attemptAt || 0)
             || queryDays.indexOf(a.date)-queryDays.indexOf(b.date));
-        let index = 0;
-        const candidates = new Map();
-        async function worker() {
-            while (index < jobs.length && !stopped && clock() < deadline) {
-                const job = jobs[index++];
-                const existing = cache.get(job.url);
-                if (job.hot && existing?.data) existing.nextAt = Math.min(existing.nextAt, existing.data.observedAt + 30000);
-                const data = await read(job.url, job.hot ? 30000 : 900000);
-                if (stopped || !Array.isArray(data?.json.events)) continue;
-                for (const game of espn.normalize(data.json, job.league, job.source)) {
-                    const priority = queryDays.indexOf(job.date), old = candidates.get(game.id);
-                    if (!old || priority < old.priority) candidates.set(game.id, {game,priority,observedAt:data.observedAt});
+        const candidates = new Map(), processed = new Map();
+        async function runJobs(batch, maxCold = Infinity) {
+            let index = 0;
+            async function worker() {
+                while (index < batch.length && !stopped && clock() < deadline) {
+                    const job = batch[index++];
+                    const existing = cache.get(job.url);
+                    if (job.hot && existing?.data) existing.nextAt = Math.min(existing.nextAt, existing.data.observedAt + 30000);
+                    const data = await read(job.url, job.hot ? 30000 : 900000, {cold:!job.hot,maxCold});
+                    if (stopped || !Array.isArray(data?.json.events) || processed.get(job.url) === data.observedAt) continue;
+                    processed.set(job.url, data.observedAt);
+                    for (const game of espn.normalize(data.json, job.league, job.source)) {
+                        const priority = queryDays.indexOf(job.date), old = candidates.get(game.id);
+                        if (!old || priority < old.priority) candidates.set(game.id, {game,priority,observedAt:data.observedAt});
+                    }
                 }
             }
+            await Promise.all([worker(),worker()]);
         }
-        await Promise.all([worker(),worker()]);
+        const coldJobs = jobs.filter(job => !job.hot), hotJobs = jobs.filter(job => job.hot);
+        // Reserve catalog progress even with more hot sources than the entire request ceiling.
+        // Discovery counts toward the reservation; spare capacity returns to cold work afterward.
+        await runJobs(coldJobs, hotJobs.length ? CATALOG_RESERVE : Infinity);
+        await runJobs(hotJobs);
+        if (remaining > 0) await runJobs(coldJobs);
         if (!stopped) {
             const entries = [...candidates.values()].filter(e => !known.has(e.game.id) || e.observedAt > known.get(e.game.id).observedAt);
             if (entries.length) store.ingestBatch(entries);

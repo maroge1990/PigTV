@@ -1,0 +1,129 @@
+[SQLite] Opening database at /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-sports-followups-0liGJV/data/content.db
+[SQLite] Schema initialized
+[SportFixtures] NFL: fetch recovered
+[Fixtures] NFL: refresh incomplete (HTTP 503); kept the last complete coverage
+[SportFixtures] NBA: fetch recovered
+[SportFixtures] MLB: fetch recovered
+[SportFixtures] NFL: fetch failing - Score host cooling down
+✔ N1: dashboard off preserves legacy sequential fixture refresh after the first league gets a 503 (4.528208ms)
+[SportFixtures] NFL: fetch recovered
+[SportFixtures] NFL: fetch failing - Score host cooling down
+[SportFixtures] NFL: fetch recovered
+✔ N1: enabled shared cooldown retries deferred fixture leagues when it expires, not 30 minutes later (3.457959ms)
+✔ N2: 14 hot leagues over 40 ticks cannot starve any requested catalog/future URL (19.06975ms)
+ℹ distinct=70, future=42
+✔ L1: a hung worker job times out, is terminated, and queued/subsequent work uses a replacement (2.956375ms)
+✔ N1: a successful intervening fixture pass cancels an obsolete cooldown retry (4.523167ms)
+✔ M1: latest completion cannot leak through delayed channel/availability/action fields (23.627542ms)
+✔ M3: three short-format cricket matches two days apart each join their own airing (0.495917ms)
+✔ M3: cricket parent/day end is not a trustworthy match end, and short-format windows stay bounded (0.943916ms)
+✔ H1: statements are prepared once, not twice per card on each poll (22.9225ms)
+✔ H1/L4: realistic 300-game and 72-hour guide matching has a cold projection budget (21.113041ms)
+ℹ projection=17.7ms
+✔ M2: measured worst-case ticks obey a 12-request ceiling including cricket discovery (5.798958ms)
+ℹ cold=12, next=12
+✔ M2: inactive sources use the slow cadence; only active/starting-soon sources poll after 30 seconds (0.937667ms)
+✔ M2: one upstream throttle pauses every dashboard URL and bounds concurrent in-flight requests (0.99325ms)
+✔ L1: category-wide selection is unioned with team follows; team-only follows remain narrow (0.700166ms)
+✔ L2: first-seen historic finals buffer without fabricating a recent finish, then disappear (0.697ms)
+✔ L3: one collection tick batches all candidate writes into a single ingest transaction (3.050792ms)
+✔ M2: 429/5xx cooldown is shared by the real scoreboard client and the existing fixture client (11.015291ms)
+✔ M3: clearly nearest cricket start wins overlapping multi-day windows; equal starts remain ambiguous (0.1805ms)
+✔ M3: women’s T20 class labels use short-format windows, not an unknown five-day envelope (0.148917ms)
+✔ M1: a newer correction cannot remove a delayed final card through latest finishedAt metadata (0.950958ms)
+✔ M1: existing 0309 history upgrades final-transition times without trusting a newer catalog correction (0.850125ms)
+✔ all followed team sports retain real score/clock fields; pregame zero is not a score (2.823208ms)
+✔ F1 is one session card per competition, with no driver positions, scores or inferred clock (0.660041ms)
+✔ cricket stumps is a break, preserves batting innings/overs, and excludes placeholder opposition rows (0.390208ms)
+✔ malformed data cannot publish raw status prose, unsafe artwork, or fake clocks (0.154875ms)
+✔ preferences persist per person, enforce revisions, reject coercions and protect other users (3.781333ms)
+✔ whole snapshots honor the delay boundary, buffer on startup and survive a reopened store (4.381167ms)
+✔ out-of-order observations are ignored, history bounded, and repeated finals do not extend the result hour (0.614458ms)
+✔ broadcast matching needs both teams, the right time, and a unique game; replays never match (4.96575ms)
+✔ today respects Melbourne midnight and DST; sport views retain a rolling 72 hours (15.184042ms)
+✔ spoiler projection removes all result fields, does not leak current final status, and keeps progress/actions (1.746875ms)
+✔ unmatched and stale games remain visible; stale data loses clock/score, old finals disappear (0.949875ms)
+✔ collector is opt-in, uses single UTC days, deduplicates overlapping refreshes and discovers future cricket series (1.942625ms)
+✔ cached future payloads never become new score observations, and malformed success retries quickly (2.524167ms)
+✔ future scheduled cards keep their scheduled label between the slower catalog polls (1.051709ms)
+✔ pruning retains last-known completion so old broadcasts cannot become playable after an outage (0.688959ms)
+✔ unfollowed leagues and non-followed teams disappear without clearing the shared score catalog (0.723292ms)
+✔ collector checks the previous UTC day for games still in progress across midnight (0.49525ms)
+✔ F1 broadcast matching requires the right GP and the exact session, including race and sprint qualifying (6.117208ms)
+✔ a source outage cannot refresh old scores, and a stopped collector cannot publish in-flight data (0.953083ms)
+✔ malformed successful HTTP payloads are retried as failures, never authoritative empty schedules (0.616ms)
+✔ network adapter bounds response bodies, refuses redirects/other origins, and never follows provider-shaped refs (17.742ms)
+✔ MLB preserves top/bottom inning as spoiler-safe progress and cricket never joins a different format (0.334667ms)
+✔ location-only roster aliases cannot authorize a broadcast match (0.097333ms)
+✔ upcoming matched games retain channel choices and event references without becoming watchable (0.551833ms)
+✔ a partially malformed status cannot replace known completion and revive an old broadcast (0.420167ms)
+[SQLite] Opening database at /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-sports-fixtures-LVqKWl/data/content.db
+[SQLite] Schema initialized
+[SportFixtures] NFL: fetch recovered
+[SportFixtures] NFL: fetch failing - HTTP 404
+[SportFixtures] F1: fetch recovered
+[SportFixtures] Cricket: fetch recovered
+[SportFixtures] NFL: fetch recovered
+[SportFixtures] UEFA: fetch recovered
+[Fixtures] UEFA: refresh incomplete (HTTP 500); kept the last complete coverage
+# resolveLive, 2000 NFL airings against a 4-fixture/32-team league: without ESPN 5.1 ms, with 9.6 ms
+[Fixtures] NFL: refresh incomplete (HTTP 500); kept the last complete coverage
+[Fixtures] NFL: refresh incomplete (not a scoreboard); kept the last complete coverage
+[Fixtures] Cricket: refresh incomplete (HTTP 500); kept the last complete coverage
+[SportFixtures] Cricket: fetch failing - not a cricket scorepanel
+[SportFixtures] Cricket: fetch recovered
+[SportFixtures] Cricket: fetch failing - not a cricket scorepanel
+[SportFixtures] Cricket: fetch recovered
+[SportFixtures] Cricket: fetch failing - not a cricket scorepanel
+[SportFixtures] Cricket: fetch recovered
+[Fixtures] Cricket: refresh incomplete (4 of 24 series not fetched (limit 20)); kept the last complete coverage
+[SportFixtures] Cricket: fetch failing - cricket scorepanel unreadable (1 entries)
+[SportFixtures] Cricket: fetch recovered
+[SportFixtures] Cricket: fetch failing - cricket scorepanel unreadable (1 entries)
+[SportFixtures] Cricket: fetch recovered
+[SportFixtures] Cricket: fetch failing - cricket scorepanel unreadable (1 entries)
+[SportFixtures] Cricket: fetch recovered
+[Fixtures] Cricket: refresh incomplete (1 cricket scorepanel entries unreadable); kept the last complete coverage
+✔ recordsFromScoreboard: one record per event, several for F1 (one per session) (1.848834ms)
+✔ a multi-day cricket match keeps its real endDate; a same-day one has none (0.57225ms)
+✔ teamsFromScoreboard: cricket carries its own team list; other sports are read from the competitors (0.5835ms)
+✔ fetchScoreboard: one request per UTC day the window touches, malformed/missing fields never throw (1.686ms)
+✔ fetchTeams: the /teams shape; a cricket league 404s there (real ESPN behaviour), reported as a plain failure (1.054333ms)
+✔ discoverCricketSeries: today's active series and their league ids, from the scorepanel (0.447792ms)
+✔ neededLeagues: only the follow list's own leagues that ESPN actually covers - never AFLW, never an unfollowed one (13.932875ms)
+✔ refreshLeague: stores fixtures and teams, and snapshot() turns them into what resolveLive needs (5.508833ms)
+✔ a failed league keeps its last good fixtures, and status carries the error (1.439166ms)
+✔ F1: sessions from the ESPN abbreviation, location from the event name via the guide's own title parser (4.903834ms)
+✔ international cricket: series discovered from the scorepanel, merged under the league 'Cricket' (1.132583ms)
+✔ PIGTV_SPORT_FIXTURES=0 turns it off completely: no fetch, an empty snapshot, status says so (0.161625ms)
+✔ matched: live at the real kickoff, replay a long way later, with the ESPN wording (18.167792ms)
+✔ not matched, but both teams are known to the league: ESPN says there is no such game now (a replay from last week, inside league hours) (1.319792ms)
+✔ 0162: stale or out-of-window fixture data must never manufacture a replay for a real, unlisted game (1.778625ms)
+✔ not matched, and the teams are not ones ESPN knows for this league: falls through to the heuristics unchanged (1.506041ms)
+✔ a league fixtures never fetched (or ESPN down): every rule is exactly the pre-0161 heuristics (0.1945ms)
+✔ F1: practice is told from the race by session, matched to the right Grand Prix by location (1.442125ms)
+✔ 0185: last weekend's grand prix shown again midweek is a replay, when ESPN has no F1 session anywhere near it (1.213458ms)
+✔ 0185: more leagues have ESPN fixtures; a league with two feeds (UEFA) merges them (1.160291ms)
+✔ a multi-day cricket Test: day 3 of a still-running match is live, not a replay (2.181ms)
+✔ performance: matching against a full league of fixtures does not slow resolveLive down (30.799917ms)
+✔ S5: the game's day fails (503), the other days answer empty - the game is kept and is not called a replay (2.348209ms)
+✔ S5: the game's day answers without an events list, the other days answer empty - the game is kept and is not called a replay (1.360542ms)
+✔ S5: a complete answer that no longer lists the game does remove it (a real postponement) (1.140292ms)
+✔ S5: a cricket series that fails keeps its games; the league's coverage is not renewed (0.878541ms)
+✔ R-S5: a cricket discovery answer of an empty object is a failure - the games and their coverage are kept (0.807958ms)
+✔ R-S5: a cricket discovery answer of scores that is not a list is a failure - the games and their coverage are kept (0.660458ms)
+✔ R-S5: a cricket discovery answer of a bare list is a failure - the games and their coverage are kept (0.679375ms)
+✔ R-S5: a well-formed discovery with no active series is a real, complete answer (the games go) (0.651667ms)
+✔ R-S5: more series than are fetched (the cap) is a partial refresh - a series left out keeps its games (1.374334ms)
+✔ R4-S1: a discovery whose only entry is unreadable (leagues that is not a list) is a failure - the games and their coverage are kept (0.91925ms)
+✔ R4-S1: a discovery whose only entry is unreadable (an entry that is not an object) is a failure - the games and their coverage are kept (0.982375ms)
+✔ R4-S1: a discovery whose only entry is unreadable (a league without an id) is a failure - the games and their coverage are kept (0.856375ms)
+✔ R4-S1: a discovery with readable and unreadable entries is partial - a series it could not read keeps its games (0.964625ms)
+ℹ tests 81
+ℹ suites 0
+ℹ pass 81
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 233.972292

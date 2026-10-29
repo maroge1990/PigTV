@@ -1,0 +1,43 @@
+[SQLite] Opening database at /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-sports-followups-qEVdZU/data/content.db
+[SQLite] Schema initialized
+[SportFixtures] NFL: fetch recovered
+[Fixtures] NFL: refresh incomplete (HTTP 503); kept the last complete coverage
+[SportFixtures] NBA: fetch recovered
+[SportFixtures] MLB: fetch recovered
+[SportFixtures] NFL: fetch failing - Score host cooling down
+✔ N1: dashboard off preserves legacy sequential fixture refresh after the first league gets a 503 (4.153084ms)
+[SportFixtures] NFL: fetch recovered
+[SportFixtures] NFL: fetch failing - Score host cooling down
+[SportFixtures] NFL: fetch recovered
+✔ N1: enabled shared cooldown retries deferred fixture leagues when it expires, not 30 minutes later (3.047792ms)
+✔ N2: 14 hot leagues over 40 ticks cannot starve any requested catalog/future URL (14.90775ms)
+ℹ distinct=70, future=42
+✔ L1: a hung worker job times out, is terminated, and queued/subsequent work uses a replacement (1.384083ms)
+✖ N1: a successful intervening fixture pass cancels an obsolete cooldown retry (3.896375ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 4
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 128.002
+
+✖ failing tests:
+
+test at test/sports-dashboard-followups.test.js:71:1
+✖ N1: a successful intervening fixture pass cancels an obsolete cooldown retry (3.896375ms)
+  AssertionError [ERR_ASSERTION]: obsolete retry duplicated the successful pass
+
+  43 !== 22
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/sports-dashboard-followups.test.js:76:79)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 43,
+    expected: 22,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

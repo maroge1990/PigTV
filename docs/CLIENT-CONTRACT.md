@@ -336,7 +336,7 @@ the channel logo, filling the tile; the channel logo stays the fallback.
   **1239048** logs harmless `[mp4] Packet duration … out of range` warnings.
 
 
-### C-O. Sport dashboard foundation. Flag: `sportsDashboard` (0309, experimental; 0313 own-review repairs)
+### C-O. Sport dashboard foundation. Flag: `sportsDashboard` (0309, experimental; 0313/0315 own-review repairs)
 
 **Server foundation only; Apple/web presentation has not changed.** The flag is false unless the server explicitly sets
 `PIGTV_SPORTS_DASHBOARD=1`. All routes below require a signed-in user or valid paired device and answer 404 while disabled.
@@ -350,7 +350,8 @@ They answer `Cache-Control: private, no-store`; no shared response cache or clie
   revision are 400. An outdated revision is 409; re-read before offering to retry. This is self-service for viewers too.
 - `GET /api/sports/dashboard[?league=NFL]` reads stored data without contacting ESPN. It consumes the per-minute cached
   C-I event response and performs parsing, bulk catalog/history reads and projection on a read-only worker, with no
-  main-thread reference-path fallback. Whole-league/category selection is a union: a sport-marked category or a
+  main-thread reference-path fallback. Each worker job has a 10-second deadline: expiry fails that job, terminates the
+  worker and continues queued work on a replacement; success/failure/close clear its timer. Whole-league/category selection is a union: a sport-marked category or a
   whole-league follow includes all games of that league; a team follow narrows it only without a broad selection. Without a league: today in the
   server `TZ` (valid IANA zone; default/fallback Australia/Melbourne), plus ongoing cross-midnight games and retained
   results. With a canonical league: rolling 72 hours, plus ongoing/recent games. Invalid league is 400.
@@ -391,7 +392,11 @@ They answer `Cache-Control: private, no-store`; no shared response cache or clie
 Collection is separate from C-I's 30-minute fixtures: at most 12 public ESPN network attempts per 30-second tick across
 all dashboard sources/dates, with two in flight, including dated cricket discovery. Known in-play/near-start source
 dates poll at 30 seconds; other catalog dates use 15 minutes and budget-deferred work rotates through later ticks.
-A shared host cooldown on 429/5xx also pauses the legacy fixture client without dropping its last-good data.
+Three request slots are reserved for eligible least-recent non-hot work, including dated discovery, so busy sources
+cannot indefinitely starve future catalogs; unused capacity can serve either lane. With the dashboard enabled, a shared
+429/5xx cooldown also pauses fixture requests. Deferred leagues are not marked as failed and a coalesced pass retries
+after the cooldown (cancelled if another successful pass already completed). With the dashboard off, the legacy fixture
+client neither observes nor consults dashboard cooldown state; its normal sequential/30-minute behavior is retained.
 Catalog/history writes are batched once per tick, retaining each response's observation timestamp. Cricket endDate
 hints are not treated as actual match ends; joins use format-bounded windows and retain ambiguous ties as unmatched. Failure leaves catalog/history
 intact and does not label old cached data as newly observed. History keeps a 15-minute window plus the last-known

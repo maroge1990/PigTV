@@ -1,0 +1,98 @@
+[SQLite] Opening database at /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-sports-followups-LZ6Tlg/data/content.db
+[SQLite] Schema initialized
+[SportFixtures] NFL: fetch failing - Score host cooling down
+[SportFixtures] NBA: fetch failing - Score host cooling down
+[SportFixtures] MLB: fetch failing - Score host cooling down
+[SportFixtures] NFL: fetch recovered
+[SportFixtures] NBA: fetch recovered
+[SportFixtures] MLB: fetch recovered
+✖ N1: dashboard off preserves legacy sequential fixture refresh after the first league gets a 503 (2.897791ms)
+✖ N1: enabled shared cooldown retries deferred fixture leagues when it expires, not 30 minutes later (1.742125ms)
+✖ N2: 14 hot leagues over 40 ticks cannot starve any requested catalog/future URL (21.302167ms)
+ℹ distinct=14, future=0
+✖ L1: a hung worker job times out, is terminated, and queued/subsequent work uses a replacement (2.072375ms)
+✔ N1: a successful intervening fixture pass cancels an obsolete cooldown retry (5.249625ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 1
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 163.014916
+
+✖ failing tests:
+
+test at ../../../../../private/tmp/pigtv-sports-0313-baseline-u1vc63px/test/sports-dashboard-followups.test.js:21:1
+✖ N1: dashboard off preserves legacy sequential fixture refresh after the first league gets a 503 (2.897791ms)
+  AssertionError [ERR_ASSERTION]: NBA skipped after NFL 503
+      at TestContext.<anonymous> (/private/tmp/pigtv-sports-0313-baseline-u1vc63px/test/sports-dashboard-followups.test.js:23:80)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../../private/tmp/pigtv-sports-0313-baseline-u1vc63px/test/sports-dashboard-followups.test.js:27:1
+✖ N1: enabled shared cooldown retries deferred fixture leagues when it expires, not 30 minutes later (1.742125ms)
+  AssertionError [ERR_ASSERTION]: deferred league must not be recorded as an upstream failure
+  + actual - expected
+
+  + {
+  +   last_error: 'Score host cooling down'
+  + }
+  - undefined
+
+      at TestContext.<anonymous> (/private/tmp/pigtv-sports-0313-baseline-u1vc63px/test/sports-dashboard-followups.test.js:31:116)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { last_error: 'Score host cooling down' },
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../../../private/tmp/pigtv-sports-0313-baseline-u1vc63px/test/sports-dashboard-followups.test.js:37:1
+✖ N2: 14 hot leagues over 40 ticks cannot starve any requested catalog/future URL (21.302167ms)
+  AssertionError [ERR_ASSERTION]: hot work starved all future URLs
+      at TestContext.<anonymous> (/private/tmp/pigtv-sports-0313-baseline-u1vc63px/test/sports-dashboard-followups.test.js:44:83)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../../private/tmp/pigtv-sports-0313-baseline-u1vc63px/test/sports-dashboard-followups.test.js:49:1
+✖ L1: a hung worker job times out, is terminated, and queued/subsequent work uses a replacement (2.072375ms)
+  AssertionError [ERR_ASSERTION]: active job has no timeout
+
+  0 !== 1
+
+      at TestContext.<anonymous> (/private/tmp/pigtv-sports-0313-baseline-u1vc63px/test/sports-dashboard-followups.test.js:64:16)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

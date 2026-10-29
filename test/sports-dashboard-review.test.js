@@ -107,14 +107,15 @@ test('L3: one collection tick batches all candidate writes into a single ingest 
 
 
 test('M2: 429/5xx cooldown is shared by the real scoreboard client and the existing fixture client',async()=>{
-    const original=global.fetch;let calls=0;
+    const original=global.fetch,flag=process.env.PIGTV_SPORTS_DASHBOARD;let calls=0;
+    process.env.PIGTV_SPORTS_DASHBOARD='1';
     try{
         global.fetch=async()=>{calls++;return new Response('{}',{status:429,headers:{'retry-after':'120'}});};
         await assert.rejects(()=>espn.fetchJson(espn.BASE+'football/nfl/scoreboard'));
         const after=calls;
         const result=await require('../server/services/sportsFixturesEspn').fetchScoreboard('basketball/nba',NOW,NOW);
         assert.equal(result.ok,false);assert.equal(calls,after,'fixture client must respect the scoreboard throttle');
-    }finally{global.fetch=original;}
+    }finally{global.fetch=original;if(flag===undefined)delete process.env.PIGTV_SPORTS_DASHBOARD;else process.env.PIGTV_SPORTS_DASHBOARD=flag;}
 });
 
 test('M3: clearly nearest cricket start wins overlapping multi-day windows; equal starts remain ambiguous',()=>{
