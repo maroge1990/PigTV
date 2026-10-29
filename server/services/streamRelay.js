@@ -369,13 +369,18 @@ class Relay {
             // later leg's, and a switch the relay decided itself, are recorded here.
             if (!planned && (!old.lost || old.n > 0)) {
                 interruptions().noteLost({ owner: ctx.owner, channel: ctx.channelName, provider: this.providerOf(old),
-                    how: old.lost ? old.lost.how : 'stall', providerReason: old.lost ? old.lost.providerReason === true : true,
+                    how: old.lost ? old.lost.how : 'stall', providerReason: code === 'renewal-budget' ? false : (old.lost ? old.lost.providerReason === true : true),
                     playedSec: (lostAt - old.startedAt) / 1000, reason: code });
             }
             // A lost session is quarantined by providerRouting.watchSession; a leg the relay
             // gave up on itself is quarantined here, the same way.
             if (!planned && !old.lost) {
-                try { routing().noteFailure(old.candidate, ctx.primaryKey); } catch (e) { /* observation only */ }
+                try {
+                    // Mark's N2 decision: exhausting a renewal budget affects
+                    // this channel only, never the provider-wide breaker.
+                    if (code === 'renewal-budget') routing().quarantine(old.candidate.providerId, old.candidate.channelKey);
+                    else routing().noteFailure(old.candidate, ctx.primaryKey);
+                } catch (e) { /* observation only */ }
             }
             let next = null;
             if (!planned && this.standbyReady()) {
@@ -419,6 +424,14 @@ class Relay {
                 } else {
                     if (this.standby) await this.dropStandby('not ready when it was needed', 'stalled');
                     next = await this.startCold();
+                    // The primary is still delivering: unavailable backups must
+                    // not turn a renewal limit into the end of an otherwise live
+                    // play. Try it once with renewal disabled, retaining normal
+                    // admission/takeover and resolve-deadline checks.
+                    if (!next && code === 'renewal-budget' && !this.closed && pin && !pin.endReason) {
+                        next = await this.startCold([old.candidate]);
+                        if (next) this.note('renewal-primary-fallback', 'no backup available; continuing on the primary with renewal disabled');
+                    }
                 }
             }
             if (this.closed || (planned && pin.endReason)) {

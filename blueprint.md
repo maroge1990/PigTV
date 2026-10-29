@@ -6,7 +6,12 @@ All findings have a fix or explicit answer; 1,297 tests and build verification p
 `PIGTV_SPORTS_DASHBOARD=1`. Mandatory Codex review is still round 0 of 2. Apple/web UI and live/device acceptance remain
 next. [Own-review dispositions](docs/reviews/2026-10-29/sports-dashboard-own-review/README.md).
 
-**State (29 Oct):** **0313** implements the sports own-review repairs; final clean-snapshot gates pass (1,297 tests and build verification).
+**State (29 Oct):** **0314** fixes round-1 follow-ups N1/N2 after approval of 0310–0312 (no high findings).
+All 1,300 current-main tests and build verification pass. N3 timestamp-gap capture survives without cumulative
+packet-clock drift; wider reconnect evidence remains FR-29. QSV detection/host acceptance remains FR-26/FR-30.
+Next: Mark’s Codex round (base 4d95f10), the second review under the two-round stopping rule. Local only; no push/deploy.
+
+**0313:** **0313** implements the sports own-review repairs; final clean-snapshot gates pass (1,297 tests and build verification).
 Own-review approval and mandatory Codex review remain pending.
 **0310–0312** repair the 0307/0308 review findings: recording audio, bounded relay renewal and
 ownership, legacy Intel runtime packaging and encoder-option validation. Final clean-snapshot gates pass (1,281 tests
@@ -122,7 +127,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0314** |
+| Next build number | **0315** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -432,7 +437,10 @@ owned by a relay stops before the new bytes, without `lost` or quarantine. The r
 discards the unpublished attempt and settles again; only the finished renewal is a switch. A ready standby stays standby.
 Since **0311**, only a planned replacement opts into pre-ready EOF; ordinary cold failover enables renewal after ready.
 At most three renewals start within a rolling minute. Exhaustion disables renewal for the rest of that play and runs
-normal provider failover (`renewal-budget`), or ends if none is available. Rejected queued switches release their pin.
+normal provider failover (`renewal-budget`). Follow-on operations after short startup epochs count toward the same
+budget. Since **0314**, budget exhaustion quarantines only the channel and does not trip the provider-wide breaker.
+If no backup is admitted/started, one ordinary restart on the pinned primary is attempted with renewal disabled;
+normal admission/takeover/deadline checks remain. Rejected queued switches release their pin.
 Planned renewals are recorded as relay reason `reconnected`, omitted from `playbackInterruptions` (including recovered counts).
 Recordings, probe/warm/standby readers and sessions without a relay retain their existing behaviour. A promoted standby
 becomes a managed viewer. 0191's direct-read protection is unchanged. The coordinator counts **one connection per ingest**
@@ -635,6 +643,11 @@ and retention. Network attempts are capped at 12/tick; 429/5xx cooldown is share
 hints are not trusted as match ends. C-O specifies the gated API; current clients do not consume it.
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
+
+**29 Oct approved round-1 follow-ups:** **0314** retains a still-live primary without renewal when backups cannot take
+over and applies Mark’s channel-only quarantine decision. N1/N2 tests fail before; 1,300 full tests and build checks
+pass. N3 remains FR-29 after a successful +5 s single-epoch capture; missing lspci explains the QSV detection message
+(FR-30/FR-26). Next is the final Codex round under the stopping rule; device/hardware acceptance stays open.
 
 **29 Oct review repairs:** **0310** encodes watch audio as AAC-LC except known AC-3/E-AC-3, including unknown probes.
 Profile-0 and unknown-probe regressions fail before and pass after; 1,275 clean-snapshot tests pass. **0311** fixes cold-start readiness, transferred-pin release and cumulative renewal budgeting; 1,279 tests pass.

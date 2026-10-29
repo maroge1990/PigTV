@@ -1,0 +1,247 @@
+[SQLite] Opening database at /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-5vfT5g/data/content.db
+[SQLite] Schema initialized
+[Ingest 1] reading 80d7eefaf868 for pool primary
+[TranscodeSession 3627232b71da1e22] Starting session for: http://127.0.0.1:59521/a.ts
+[TranscodeSession 3627232b71da1e22] Audio: Copy (client capabilities confirm aac support)
+[TranscodeSession 3627232b71da1e22] Command: ffmpeg -hide_banner -loglevel warning -probesize 5000000 -analyzeduration 5000000 -fflags +genpts+discardcorrupt -err_detect ignore_err -dts_delta_threshold 60 -i pipe:0 -map 0:v:0 -map 0:a:0? -c:v copy -c:a copy -bsf:a aac_adtstoasc -avoid_negative_ts make_zero -max_interleave_delta 0 -f hls -hls_time 4 -hls_list_size 90 -hls_delete_threshold 12 -hls_flags independent_segments+delete_segments+temp_file -hls_segment_type fmp4 -hls_fmp4_init_filename init.mp4 -hls_segment_filename /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-5vfT5g/transcode-cache/3627232b71da1e22/seg%04d.m4s /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-5vfT5g/transcode-cache/3627232b71da1e22/stream.m3u8
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] non-existing PPS 0 referenced
+[FFmpeg 3627232b71da1e22]     Last message repeated 5 times
+[FFmpeg 3627232b71da1e22] [h264 @ 0x7a40c1c380] no frame!
+[Playback] resolve timing: HLS session, probe 4.7s, first segment after 5.6s, source timing even - DTS kept, master playlist (SDR, 25.000 fps)
+DECISION transcode /api/transcode/3627232b71da1e22/master.m3u8 copy
+[Relay 3627232b71da1e22] following "Test" on ProvA
+PLAYLIST http://127.0.0.1:59522/api/transcode/3627232b71da1e22/stream.m3u8
+t=0s status=200 segs=1 last=seg0000.m4s disc=0 relay=[{"id":"3627232b71da1e22","channel":"Test","provider":"ProvA","state":"starting","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":null}]
+[Ingest 1] lost the stream (ECONNRESET); reconnecting
+[Ingest 1] reconnected after 0.2s
+[Relay 3627232b71da1e22] ProvA reconnected; renewing its timeline; switching
+[TranscodeSession 3627232b71da1e22] Stopping FFmpeg process
+[TranscodeSession 3627232b71da1e22] FFmpeg completed successfully
+[Ingest 1] lost the stream (ECONNRESET); reconnecting
+[Ingest 1] reconnected after 0.2s
+t=10s status=200 segs=2 last=seg0001.m4s disc=0 relay=[{"id":"3627232b71da1e22","channel":"Test","provider":"ProvA","state":"switching","switches":0,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA reconnected; renewing its timeline","at":1793235234941}}]
+[Ingest 1] lost the stream (ECONNRESET); reconnecting
+[Ingest 1] reconnected after 0.2s
+[Recordings] Schema initialized
+[TranscodeSession 78051013936d56c0] Starting session for: http://127.0.0.1:59521/a.ts
+[TranscodeSession 78051013936d56c0] Audio: Copy (client capabilities confirm aac support)
+[TranscodeSession 78051013936d56c0] Command: ffmpeg -hide_banner -loglevel warning -probesize 5000000 -analyzeduration 5000000 -fflags +genpts+discardcorrupt -err_detect ignore_err -dts_delta_threshold 60 -i pipe:0 -map 0:v:0 -map 0:a:0? -c:v copy -c:a copy -bsf:a aac_adtstoasc -avoid_negative_ts make_zero -max_interleave_delta 0 -f hls -hls_time 4 -hls_list_size 90 -hls_delete_threshold 12 -hls_flags independent_segments+delete_segments+temp_file -hls_segment_type fmp4 -hls_fmp4_init_filename init.mp4 -hls_segment_filename /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-5vfT5g/transcode-cache/78051013936d56c0/seg%04d.m4s /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-5vfT5g/transcode-cache/78051013936d56c0/stream.m3u8
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] non-existing PPS 0 referenced
+[FFmpeg 78051013936d56c0]     Last message repeated 5 times
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] no frame!
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] non-existing PPS 0 referenced
+[FFmpeg 78051013936d56c0]     Last message repeated 5 times
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] no frame!
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] non-existing PPS 0 referenced
+[FFmpeg 78051013936d56c0]     Last message repeated 5 times
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] no frame!
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] non-existing PPS 0 referenced
+[FFmpeg 78051013936d56c0]     Last message repeated 5 times
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] no frame!
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] non-existing PPS 0 referenced
+[FFmpeg 78051013936d56c0]     Last message repeated 5 times
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] no frame!
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] non-existing PPS 0 referenced
+[FFmpeg 78051013936d56c0]     Last message repeated 5 times
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] no frame!
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] non-existing PPS 0 referenced
+[FFmpeg 78051013936d56c0]     Last message repeated 5 times
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] no frame!
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] non-existing PPS 0 referenced
+[FFmpeg 78051013936d56c0]     Last message repeated 5 times
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] no frame!
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] non-existing PPS 0 referenced
+[FFmpeg 78051013936d56c0]     Last message repeated 5 times
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] no frame!
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] non-existing PPS 0 referenced
+[FFmpeg 78051013936d56c0]     Last message repeated 5 times
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] no frame!
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] non-existing PPS 0 referenced
+[FFmpeg 78051013936d56c0]     Last message repeated 5 times
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] no frame!
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] non-existing PPS 0 referenced
+[FFmpeg 78051013936d56c0]     Last message repeated 5 times
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] no frame!
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] non-existing PPS 0 referenced
+[FFmpeg 78051013936d56c0]     Last message repeated 5 times
+[FFmpeg 78051013936d56c0] [h264 @ 0x7bdec18380] no frame!
+[Ingest 1] lost the stream (ECONNRESET); reconnecting
+[Ingest 1] reconnected after 0.2s
+[TranscodeSession 78051013936d56c0] FFmpeg completed successfully
+[Playback] resolve timing: HLS session, probe cached, first segment after 4.0s, source timing even - DTS kept, master playlist (SDR, 25.000 fps), relay 3627232b71da1e22 takeover on ProvA
+[Relay 3627232b71da1e22] now on ProvA after 12.1 s
+[Relay 3627232b71da1e22] ProvA continuing after a short reconnect epoch; switching
+[TranscodeSession e36e374dd462a2cd] Starting session for: http://127.0.0.1:59521/a.ts
+[TranscodeSession e36e374dd462a2cd] Audio: Copy (client capabilities confirm aac support)
+[TranscodeSession e36e374dd462a2cd] Command: ffmpeg -hide_banner -loglevel warning -probesize 5000000 -analyzeduration 5000000 -fflags +genpts+discardcorrupt -err_detect ignore_err -dts_delta_threshold 60 -i pipe:0 -map 0:v:0 -map 0:a:0? -c:v copy -c:a copy -bsf:a aac_adtstoasc -avoid_negative_ts make_zero -max_interleave_delta 0 -f hls -hls_time 4 -hls_list_size 90 -hls_delete_threshold 12 -hls_flags independent_segments+delete_segments+temp_file -hls_segment_type fmp4 -hls_fmp4_init_filename init.mp4 -hls_segment_filename /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-5vfT5g/transcode-cache/e36e374dd462a2cd/seg%04d.m4s /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-5vfT5g/transcode-cache/e36e374dd462a2cd/stream.m3u8
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] non-existing PPS 0 referenced
+[FFmpeg e36e374dd462a2cd]     Last message repeated 5 times
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] no frame!
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] non-existing PPS 0 referenced
+[FFmpeg e36e374dd462a2cd]     Last message repeated 5 times
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] no frame!
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] non-existing PPS 0 referenced
+[FFmpeg e36e374dd462a2cd]     Last message repeated 5 times
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] no frame!
+FLAP first renewal ms 12466
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] non-existing PPS 0 referenced
+[FFmpeg e36e374dd462a2cd]     Last message repeated 5 times
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] no frame!
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] non-existing PPS 0 referenced
+[FFmpeg e36e374dd462a2cd]     Last message repeated 5 times
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] no frame!
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] non-existing PPS 0 referenced
+[FFmpeg e36e374dd462a2cd]     Last message repeated 5 times
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] no frame!
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] non-existing PPS 0 referenced
+[FFmpeg e36e374dd462a2cd]     Last message repeated 5 times
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] no frame!
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] non-existing PPS 0 referenced
+[FFmpeg e36e374dd462a2cd]     Last message repeated 5 times
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] no frame!
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] non-existing PPS 0 referenced
+[FFmpeg e36e374dd462a2cd]     Last message repeated 5 times
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] no frame!
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] non-existing PPS 0 referenced
+[FFmpeg e36e374dd462a2cd]     Last message repeated 5 times
+[FFmpeg e36e374dd462a2cd] [h264 @ 0x79eac1c380] no frame!
+t=20s status=200 segs=3 last=L1-seg0000.m4s disc=1 relay=[{"id":"3627232b71da1e22","channel":"Test","provider":"ProvA","state":"switching","switches":1,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"reconnected","detail":"ProvA continuing after a short reconnect epoch","at":1793235247054}}]
+[Ingest 1] lost the stream (ECONNRESET); reconnecting
+[Ingest 1] reconnected after 0.2s
+[TranscodeSession e36e374dd462a2cd] FFmpeg completed successfully
+[Playback] resolve timing: HLS session, probe cached, first segment after 4.0s, source timing even - DTS kept, master playlist (SDR, 25.000 fps), relay 3627232b71da1e22 takeover on ProvA
+[Relay 3627232b71da1e22] now on ProvA after 4.0 s
+[Relay 3627232b71da1e22] ProvA continuing after a short reconnect epoch; switching
+[TranscodeSession 2f83de36965e8ff8] Starting session for: http://127.0.0.1:59521/a.ts
+[TranscodeSession 2f83de36965e8ff8] Audio: Copy (client capabilities confirm aac support)
+[TranscodeSession 2f83de36965e8ff8] Command: ffmpeg -hide_banner -loglevel warning -probesize 5000000 -analyzeduration 5000000 -fflags +genpts+discardcorrupt -err_detect ignore_err -dts_delta_threshold 60 -i pipe:0 -map 0:v:0 -map 0:a:0? -c:v copy -c:a copy -bsf:a aac_adtstoasc -avoid_negative_ts make_zero -max_interleave_delta 0 -f hls -hls_time 4 -hls_list_size 90 -hls_delete_threshold 12 -hls_flags independent_segments+delete_segments+temp_file -hls_segment_type fmp4 -hls_fmp4_init_filename init.mp4 -hls_segment_filename /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-5vfT5g/transcode-cache/2f83de36965e8ff8/seg%04d.m4s /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-relay-rig-5vfT5g/transcode-cache/2f83de36965e8ff8/stream.m3u8
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] non-existing PPS 0 referenced
+[FFmpeg 2f83de36965e8ff8]     Last message repeated 5 times
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] no frame!
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] non-existing PPS 0 referenced
+[FFmpeg 2f83de36965e8ff8]     Last message repeated 5 times
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] no frame!
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] non-existing PPS 0 referenced
+[FFmpeg 2f83de36965e8ff8]     Last message repeated 5 times
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] no frame!
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] non-existing PPS 0 referenced
+[FFmpeg 2f83de36965e8ff8]     Last message repeated 5 times
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] no frame!
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] non-existing PPS 0 referenced
+[FFmpeg 2f83de36965e8ff8]     Last message repeated 5 times
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] no frame!
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] non-existing PPS 0 referenced
+[FFmpeg 2f83de36965e8ff8]     Last message repeated 5 times
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] no frame!
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] non-existing PPS 0 referenced
+[FFmpeg 2f83de36965e8ff8]     Last message repeated 5 times
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] no frame!
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] non-existing PPS 0 referenced
+[FFmpeg 2f83de36965e8ff8]     Last message repeated 5 times
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] no frame!
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] non-existing PPS 0 referenced
+[FFmpeg 2f83de36965e8ff8]     Last message repeated 5 times
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] no frame!
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] non-existing PPS 0 referenced
+[FFmpeg 2f83de36965e8ff8]     Last message repeated 5 times
+[FFmpeg 2f83de36965e8ff8] [h264 @ 0x760f028380] no frame!
+[Ingest 1] lost the stream (ECONNRESET); reconnecting
+[Ingest 1] reconnected after 0.2s
+[TranscodeSession 2f83de36965e8ff8] FFmpeg completed successfully
+[Playback] resolve timing: HLS session, probe cached, first segment after 4.0s, source timing even - DTS kept, master playlist (SDR, 25.000 fps), relay 3627232b71da1e22 takeover on ProvA
+[Relay 3627232b71da1e22] now on ProvA after 4.0 s
+[Relay 3627232b71da1e22] ProvA three renewals within a minute; trying normal failover; switching
+[Relay 3627232b71da1e22] ended: nothing could take over
+[HLS] 404 for stream.m3u8 in session 3627232b71da1e22: the session no longer exists
+CONSUMER exit 0
+CONSUMER LOG
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7bd2c0c280] Found duplicated MOOV Atom. Skipped it
+[http @ 0x7bd2c100c0] Error reading HTTP response: End of file
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7bd2c0c280] Found duplicated MOOV Atom. Skipped it
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7bd2c0c280] DTS 80245 < 796645 out of order
+[in#0/hls @ 0x7bd2c0c000] DTS 80245 < 796645 out of order
+[vist#0:0/h264 @ 0x7bd3014600] timestamp discontinuity (stream id=0): -8000000, new offset= 8000000
+[aist#0:1/aac @ 0x7bd3014480] timestamp discontinuity (stream id=0): -893242, new offset= 8893242
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7bd2c0c280] Found duplicated MOOV Atom. Skipped it
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7bd2c0c280] DTS 80245 < 379045 out of order
+[in#0/hls @ 0x7bd2c0c000] DTS 80245 < 379045 out of order
+[vist#0:0/h264 @ 0x7bd3014600] timestamp discontinuity (stream id=0): -2466755, new offset= 11359997
+[aist#0:1/aac @ 0x7bd3014480] timestamp discontinuity (stream id=0): -1387754, new offset= 12747751
+[http @ 0x7bd2c10d80] HTTP error 404 Not Found
+[in#0/hls @ 0x7bd2c0c000] keepalive request failed for 'http://127.0.0.1:59522/api/transcode/3627232b71da1e22/stream.m3u8' with error: 'Server returned 404 Not Found' when parsing playlist
+[http @ 0x7bd2c10d80] HTTP error 404 Not Found
+[in#0/hls @ 0x7bd2c0c000] Failed to reload playlist 0
+[http @ 0x7bd2c10d80] HTTP error 404 Not Found
+[in#0/hls @ 0x7bd2c0c000] Failed to reload playlist 0
+[http @ 0x7bd2c10d80] HTTP error 404 Not Found
+[in#0/hls @ 0x7bd2c0c000] Failed to reload playlist 0
+[http @ 0x7bd2c10d80] HTTP error 404 Not Found
+[in#0/hls @ 0x7bd2c0c000] Failed to reload playlist 0
+
+FINAL PLAYLIST
+{"error":"Session not found"}
+RENEWAL BUDGET FAIL {"id":"3627232b71da1e22","channel":"Test","provider":"ProvA","state":"failed","switches":3,"standbyMode":false,"standby":null,"standbyReady":false,"lastReason":{"code":"no-candidate","detail":"no provider could take over","at":1793235255117}}
+[Ingest 1] closed (rig over); most behind real time 0.1s

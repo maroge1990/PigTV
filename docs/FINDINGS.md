@@ -188,3 +188,15 @@ This is not the mandatory Codex adversarial review: round count remains **0 of 2
 | SD-0309-L2 | Answered, no behavior change: ingest a first-seen final with no previously observed live/scheduled state. At 1s it buffers as unknown, at the default 90s it disappears; no completion transition means no invented one-hour recent result. Existing observed transitions persist across restart. Regression intentionally passes on 0309 and repair; C-O documents the decision. |
 | SD-0309-L3 | Fixed by one transaction per tick, preserving each response's observation time. Original 20-game probe invokes ingest 20 times; repair calls one batch. Identical newly received states may still have history rows, because receipt/freshness and delay boundaries must remain truthful. |
 | SD-0309-L4 | Fixed: nonempty cached event response exercises actual worker-backed joins and channel projection; sentinel failures prohibit both slow/reference paths. 300 games / 1,200 airings have a perf budget using the standard PIGTV_SKIP_PERF helper. |
+
+## 0310–0312 approved review, round-1 follow-ups (29 Oct)
+
+Mark reports round **1 of 2 APPROVED, no high findings**. **0314** fixes N1 (one non-renewed primary restart if backup
+admission/start fails after budget exhaustion) and N2 (Mark chooses channel-only quarantine; no provider-wide breaker
+count or providerReason=true from budget exhaustion). Both have failing-before regressions. Follow-on short epochs
+count toward the same three-per-minute budget. [Evidence/dispositions](reviews/2026-10-29/review-repairs/round1-followups/README.md).
+
+| ID | Priority / status | Reproduction and remaining work |
+|---|---|---|
+| FR-29 (N3) | Medium, investigation open; no timestamp patch | Run `node docs/reviews/2026-10-29/review-repairs/round1-followups/watch-gap.cjs /private/tmp/pigtv-n3-watch-gap`. One epoch has a +5 s A/V timestamp step at t=6; stream-doctor confirms gaps. Existing follower exits 0 and AVPlayer crosses the gap. Watch start/post-jump/end packet skew is -42.667/-2.667/+10.666 ms; no cumulative five-second drift. Does not reproduce the feared failure in this fixture. Capture a real in-epoch reconnect with backward/reset or unequal track jumps, measure packet/content alignment and follower behavior before any aresample change; do not use first_pts=0 while video retains source timestamps. Audible hardware sync remains unmeasured. |
+| FR-30 (low note b) | Low, detection issue open; part of FR-26 acceptance | On PassyFlix, lspci spawn returns ENOENT but /dev/dri/renderD128 exists; hw-info auto currently selects VAAPI and QSV says No Intel GPU found. detectQuickSync() treats failed lspci pipeline as GPU absence. Confirm utility/device access and a real QSV lavfi encode after the reviewed image/runtime is available, then assess detector changes and resulting auto recommendation. Do not equate this string with absence of the i5-9500T/UHD 630, or claim QSV tested from package/help checks. |

@@ -1,5 +1,9 @@
 # 0307 / 0308 review repairs (29 Oct)
 
+**Approval / round status:** Mark reports **0310–0312 APPROVED, no high findings**, round **1 of 2**.
+**0314** repairs follow-ups N1/N2; N3 and the QSV detection note are retained as FR-29/FR-30.
+[Follow-up evidence and dispositions](round1-followups/README.md). Next is Mark’s Codex round under the stopping rule.
+
 Review supplied by Mark: Claude's M1–M4 and L1–L4; this does not count as a completed Codex round.
 Baseline at pickup: 0309 `4d95f10` (the separate sports-dashboard foundation). No push/deployment.
 
@@ -43,7 +47,8 @@ remains pending; no local Docker or Intel GPU is available. The runtime package 
   the pre-ready EOF behavior their caller handles. Regression simulates a pre-ready reconnect and fails before.
 - M4: three renewal starts within a rolling minute exhaust the relay budget. Further renewal is disabled for the rest
   of that play; normal provider failover runs, quarantines the flapping candidate, and records `renewal-budget`. If no
-  candidate can take over, existing normal failure closes the relay. The repeated-epoch regression fails before.
+  candidate can take over, 0311 closed the relay. Since 0314, one non-renewed restart on the pinned primary is
+  attempted if backups cannot be admitted/started. The repeated-epoch regression fails before.
 - L2: the switching/closed early return releases the supplied pin. Both paths are checked; the regression fails before.
 - L3: no production change required. The existing resolve deadline removes a planned epoch that never becomes ready.
   The added integration test starts a real hung Node child, closes its stdin through the reconnect handler, waits out
@@ -94,11 +99,12 @@ Apple TV acceptance. Toolchain checks run three real software encodes. No Linux 
 encode, setting change, provider connection, deploy or push was performed. Temporary loopback servers are stopped.
 The optional runtime package must still pass Linux candidate CI, and host QSV execution is not proven by names/help.
 
-Required Codex adversarial review remains pending (Claude's supplied review does not establish a completed Codex round).
-The slash command is Mark's to type, per AGENTS.md. Limit this batch to two Codex rounds. In PigTV:
+Mark reports round 1 APPROVED with no high findings. The next Codex round is the second under the two-round stopping
+rule; after it, only high findings block handoff and medium/low items stay in FINDINGS.md with reproduction. The slash
+command is Mark's to type per AGENTS.md. In PigTV:
 
 ```text
-/codex:adversarial-review --background --base 4d95f10 Review only the committed 0310–0312 repairs for Claude's 0307/0308 M1–M4 and L1–L4. Focus on AAC/unknown-probe audio safety, cold-leg readiness, cumulative renewal budgets and provider failover, pin/lease teardown, hung startup cleanup, legacy Intel runtime packaging and strict encoder option parsing. Read docs/reviews/2026-10-29/review-repairs/README.md. Exclude unrelated uncommitted sports-dashboard work. Report each original finding's disposition and any remaining high issue.
+/codex:adversarial-review --background --base 4d95f10 Review only playback/media commits 0310/0311/0312/0314; exclude sports commits 0309/0313 and unrelated uncommitted work. 0310–0312 are approved with no high findings (round 1 of 2). Focus on 0314 N1 primary retention when budget failover cannot admit/start a backup, N2 channel-only quarantine (Mark's decision), admission/takeover/deadline and pin ownership. Read docs/reviews/2026-10-29/review-repairs/round1-followups/README.md. N3 is retained as FR-29 after a successful single-epoch +5 s jump capture, with no audio timestamp patch; QSV detection is FR-30/FR-26. Return approval/change request with evidence, respect the stopping rule, and retain medium/low findings with reproduction.
 ```
 
 Return-to-reviewer prompt: [REVIEWER-PROMPT.txt](REVIEWER-PROMPT.txt).
@@ -111,8 +117,11 @@ After reviewer approval and Linux candidate CI:
 2. On PassyFlix, inspect the new container for the legacy runtime (`dpkg-query -L libmfx1`). Run a synthetic two-second
    QSV encode without a provider or settings change: `docker exec PigTV ffmpeg -hide_banner -v error -f lavfi -i
    testsrc2=size=640x360:rate=25 -t 2 -c:v h264_qsv -f null -`. Capture success/failure; current auto recommendation
-   remains VAAPI. A failed QSV check stays in FR-26; do not claim hardware acceptance from package/help checks.
+   remains VAAPI. Confirm the reported No Intel GPU found string against missing lspci and mapped renderD128
+   (FR-30), then check detection/auto selection only with real QSV acceptance. A failed QSV check stays in FR-26; do not claim hardware acceptance from package/help checks.
 3. Run the offline flap acceptance: `RIG_SECONDS=70 node scripts/relay-rig.js reconnect flap budget`. Expect three
-   renewals then ordinary failover, at most four switches, and `RENEWAL BUDGET PASS` on healthy ProvB. For a controlled
+   renewals then ordinary failover, at most four switches, and `RENEWAL BUDGET PASS` on healthy ProvB. Also run
+   `RIG_SECONDS=70 node scripts/relay-rig.js reconnect flap budget backup-full`: expect continued ProvA with renewal
+   disabled, four switches and PASS. For a controlled
    renewal-on device check, record reconnects, Status's renewal-budget event, provider transition and continuing playback;
    end/restart the play to reset the exhausted renewal budget. No device desync fix is claimed.

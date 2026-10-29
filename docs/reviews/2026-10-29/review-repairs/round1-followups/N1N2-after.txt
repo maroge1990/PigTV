@@ -1,0 +1,11 @@
+✔ N1: an exhausted budget retains the primary if backup admission is unavailable (5.389292ms)
+✔ N1: an exhausted budget retains the primary if backup start is unavailable (4.181542ms)
+✔ N2: budget exhaustion on two channels quarantines channels without tripping the provider breaker (5.165ms)
+ℹ tests 45
+ℹ suites 0
+ℹ pass 45
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 27127.419208

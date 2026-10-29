@@ -1,0 +1,21 @@
+✖ N1: an exhausted budget retains the primary if backup admission is unavailable (43.382625ms)
+✖ N1: an exhausted budget retains the primary if backup start is unavailable (5.154417ms)
+✖ N2: budget exhaustion on two channels quarantines channels without tripping the provider breaker (9.7395ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 0
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 181.948084
+test at test/stream-relay.test.js:667:51
+✖ N1: an exhausted budget retains the primary if backup admission is unavailable (43.382625ms)
+  AssertionError [ERR_ASSERTION]: still-delivering primary must remain usable without renewal
+test at test/stream-relay.test.js:667:51
+✖ N1: an exhausted budget retains the primary if backup start is unavailable (5.154417ms)
+  AssertionError [ERR_ASSERTION]: still-delivering primary must remain usable without renewal
+test at test/stream-relay.test.js:686:1
+✖ N2: budget exhaustion on two channels quarantines channels without tripping the provider breaker (9.7395ms)
+  AssertionError [ERR_ASSERTION]: budget alone must not block the whole provider
+  'down' !== 'up'

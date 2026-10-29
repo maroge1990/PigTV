@@ -89,6 +89,13 @@ const provider = http.createServer((req, res) => {
     const strategy = require(sandbox + '/server/services/playbackStrategy');
     const sessions = require(sandbox + '/server/services/transcodeSession');
     const relay = require(sandbox + '/server/services/streamRelay');
+    // Model a carried backup whose admission is refused, while keeping a real
+    // ffmpeg/ingest on the primary for the N1 regression capture.
+    if (process.argv.includes('backup-full')) {
+        const coordinator = require(sandbox + '/server/services/streamCoordinator');
+        const admit = coordinator.canAdmitWithoutDisturbing;
+        coordinator.canAdmitWithoutDisturbing = ask => ask.providerId !== B.providerId && admit(ask);
+    }
     if (flapping) require(sandbox + '/server/services/ingest').tuning.backoffMs = [100];
     const app = express();
     app.use('/api/transcode', require(sandbox + '/server/routes/transcode'));
@@ -137,7 +144,8 @@ const provider = http.createServer((req, res) => {
         const text = await (await fetch(playlistUrl)).text(); console.log('FINAL PLAYLIST\n' + text);
         if (process.argv.includes('budget')) {
             const current = relay.list()[0];
-            const passed = current && current.provider === 'ProvB' && current.switches <= 4 && text.includes('L4-');
+            const expected = process.argv.includes('backup-full') ? 'ProvA' : 'ProvB';
+            const passed = current && current.provider === expected && current.switches <= 4 && text.includes('L4-');
             console.log('RENEWAL BUDGET', passed ? 'PASS' : 'FAIL', JSON.stringify(current));
             if (!passed) process.exitCode = 1;
         }
@@ -156,6 +164,6 @@ const provider = http.createServer((req, res) => {
         }
         if (avplayer) await new Promise(r => avplayer.exitCode !== null ? r() : avplayer.once('exit', r));
         await relay.closeAll(); require(sandbox + '/server/services/ingest').closeAll('rig over'); server.close(); provider.close(); for (const f of feeds) try { f.ff.kill('SIGKILL'); } catch (e) {}
-        setTimeout(() => process.exit(0), 500);
+        setTimeout(() => process.exit(process.exitCode || 0), 500);
     });
 })().catch(e => { console.error('FAILED', e); process.exit(1); });

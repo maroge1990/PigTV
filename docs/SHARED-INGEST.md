@@ -123,3 +123,9 @@ today. Relay legs and standbys joined it in R7.
 within a rolling minute, then disables renewal for that play and runs normal provider failover (`renewal-budget`).
 A rejected queued switch always returns its transferred pin. Resolve deadlines remove hung pre-ready epochs, including
 their process and ingest subscription.
+
+**0314 / approved round-1 follow-ups:** follow-on renewals after short startup epochs count toward the same three-per-minute
+budget. Budget exhaustion quarantines the channel only (Mark's decision), does not increment the provider-wide breaker,
+and records a non-provider interruption. If backup admission/start is unavailable, one ordinary, non-renewed restart
+of the retained primary is allowed through normal admission/deadline guards; no force or continued renewal loop. A
+success is recorded as `renewal-primary-fallback`. If all starts fail or the play was replaced, normal teardown applies.

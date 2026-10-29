@@ -79,6 +79,7 @@ beforeEach(async () => {
     await silently(() => relay.closeAll());
     registry.clear();
     quarantined = []; started = [];
+    routing.reset();
     interruptions.reset();
     sessions.getAllSessions = () => [...registry.values()].filter(s => s.status === 'running').map(s => ({ id: s.id, url: 'x', status: s.status, startTime: s.startTime,
         lastAccess: s.lastAccess, idleMs: Date.now() - s.lastAccess, owner: s.options.owner, providerId: s.options.providerId, standby: s.options.standby === true }));
@@ -86,7 +87,7 @@ beforeEach(async () => {
     sessions.getSession = (id) => registry.get(id) || null;
     routing.noteFailure = (candidate) => { quarantined.push(candidate.providerName); };
     routing.watchSession = () => {};
-    routing.plan = async () => ({ candidates: [A, B].filter(c => !quarantined.includes(c.providerName)), primaryKey: 'k', channelName: 'Fox Footy' });
+    routing.plan = async () => ({ candidates: [A, B].filter(c => !quarantined.includes(c.providerName) && !routing.isQuarantined(c.providerId, c.channelKey)), primaryKey: 'k', channelName: 'Fox Footy' });
     // A leg "starts": a new stand-in session on that candidate's provider, with two segments.
     strategy.resolve = async (opts) => {
         started.push({ provider: opts.providerId, owner: opts.owner, standby: !!(opts.sessionOptions && opts.sessionOptions.standby) });
@@ -662,4 +663,42 @@ test('review M4: repeated pre-ready epochs exhaust one relay budget and fall bac
         assert.equal(r.active.candidate, B, 'normal failover leaves the flapping provider');
         assert.ok(notes.includes('renewal-budget'), 'record why renewal was disabled');
     } finally { sessions.peekSession = peek; await r.close('test over'); }
+});
+
+for (const unavailable of ['admission', 'start']) test(`N1: an exhausted budget retains the primary if backup ${unavailable} is unavailable`, async () => {
+    const front = fakeSession(); write(front, 0, 2);
+    const r = relay.adopt(front, ctx()); clearInterval(r.timer); await r.ingest();
+    r.renewalTimes = [Date.now(), Date.now(), Date.now()];
+    let leaves = 0; const pin = { ingest: { state: 'live' }, endReason: null, leave() { leaves++; } };
+    const admit = coordinator.canAdmitWithoutDisturbing;
+    const resolve = strategy.resolve;
+    if (unavailable === 'admission') coordinator.canAdmitWithoutDisturbing = ask => ask.providerId !== B.providerId && admit(ask);
+    else strategy.resolve = async opts => { if (opts.providerId === B.providerId) throw Error('backup start refused'); return resolve(opts); };
+    try {
+        await silently(() => r.switchOver('another reconnect', 'reconnected', pin));
+        assert.equal(r.closed, false, 'still-delivering primary must remain usable without renewal');
+        assert.equal(r.active.candidate, A);
+        assert.equal(r.active.session.options.relayTimeline, false);
+        assert.equal(leaves, 1);
+        assert.match(await r.getPlaylist(), /L1-/);
+    } finally { coordinator.canAdmitWithoutDisturbing = admit; strategy.resolve = resolve; }
+});
+
+test('N2: budget exhaustion on two channels quarantines channels without tripping the provider breaker', async () => {
+    routing.reset();
+    const failure = routing.noteFailure; routing.noteFailure = real.noteFailure;
+    try {
+        for (let i = 0; i < 2; i++) {
+            const candidate = { ...A, channelKey: `budget-${i}` };
+            const front = fakeSession({ owner: `device:budget-${i}` }); write(front, 0, 2);
+            const r = relay.adopt(front, ctx({ owner: `device:budget-${i}`, candidate, primaryKey: candidate.channelKey }));
+            clearInterval(r.timer); await r.ingest(); r.renewalTimes = [Date.now(), Date.now(), Date.now()];
+            r.startCold = async () => r.addLeg(fakeSession({ providerId: 2 }), B);
+            await silently(() => r.switchOver('budget exhausted', 'reconnected', { ingest: { state: 'live' }, endReason: null, leave() {} }));
+            assert.equal(routing.isQuarantined(1, candidate.channelKey), true);
+            await r.close('test over');
+        }
+        assert.equal(routing.providerState(1), 'up', 'budget alone must not block the whole provider');
+        assert.ok(interruptions.summary().recent.every(item => item.providerReason === false));
+    } finally { routing.noteFailure = failure; routing.reset(); }
 });

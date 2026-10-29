@@ -1,0 +1,14 @@
+archive.ts
+  codecs          : video:h264 audio:aac
+  video packets   : 300
+  near-zero steps : 0 (0.0%)   <- repeats already bumped upstream
+  doubled steps   : 1 (0.3%)
+  mean step       : 5105.0 ticks
+  VERDICT         : EVEN - the server keeps the source DTS
+  A/V start skew  : -21 ms (audio minus video)
+  jumps           : 1 in video (stream 0)
+                    ~6s in: +5.04s  (gap)
+  jumps           : 1 in audio (stream 1)
+                    ~6s in: +5.02s  (gap)
+  media rate      : 788 kbps over 12s at 180p
+  PICTURE         : has picture data

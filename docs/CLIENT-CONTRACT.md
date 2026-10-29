@@ -81,8 +81,11 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
   enabled. The same provider and playback URL are retained; the new timeline follows `EXT-X-DISCONTINUITY` (and a fresh
   `EXT-X-MAP` for fMP4). The relay settles for 6 live seconds, forces a renewal attempt after 8 s and caps the full wait
   at 20 s. Since 0311, three renewals within a rolling minute exhaust the play’s renewal budget: renewal is then
-  disabled for that play and ordinary provider failover runs (or playback ends if none can take over), recorded as
-  `renewal-budget`. Ordinary cold failover opts into renewal only once its first playlist is ready. Startup epochs closed for renewal end with EOF and are not treated as provider failures or hardware-decode
+  disabled for that play and ordinary provider failover runs, recorded as `renewal-budget`. Follow-on renewals after
+  short startup epochs count toward that same budget. Since 0314, budget exhaustion quarantines only this channel,
+  without contributing to the provider-wide breaker; its interruption has `providerReason:false`. If no backup can be
+  admitted/started, the relay tries its still-pinned primary once with renewal disabled under normal admission checks.
+  It ends if neither backup nor primary can start; successful primary fallback records `renewal-primary-fallback`. Ordinary cold failover opts into renewal only once its first playlist is ready. Startup epochs closed for renewal end with EOF and are not treated as provider failures or hardware-decode
   failures. The planned renewal does not promote standby, quarantine the provider or count as a lost/recovered play;
   Status uses relay reason `reconnected`. Recordings, probes, warm/standby readers, sessions without a relay, the 0191
   direct-read guard, ffmpeg flags and Apple 30 s live hold are unchanged. A promoted standby becomes a viewer. This has
