@@ -1,0 +1,61 @@
+[SQLite] Opening database at /private/var/folders/_b/f6xy9cc50w77vh7rryzkvp140000gn/T/pigtv-dashboard-api-KzTVdp/data/content.db
+[SQLite] Schema initialized
+✔ new routes authenticate and are disabled by default without starting a collector (32.307709ms)
+✔ two devices for one account share preferences; other accounts cannot read/write them (17.916084ms)
+✔ dashboard projects scores for the authenticated preference and validates league scope (60.563667ms)
+✔ guide-only follows survive missing catalogs without claiming live scores or leaking channel fields (19.011583ms)
+✔ fallback obeys today/cross-midnight/72h, excludes ended listings, replays and generic shows (0.705917ms)
+✔ catalog joins, ambiguous doubleheaders and delayed/expired finals cannot reappear as watchable fallback (1.255208ms)
+✔ unknown-format multi-day cricket stays unmatched; guide fallback cannot bypass the conservative join (0.240042ms)
+✔ hidden guide fallback never returns untrusted result prose through title, aliases or competitors (0.280416ms)
+✔ M1: latest completion cannot leak through delayed channel/availability/action fields (22.200542ms)
+✔ M3: three short-format cricket matches two days apart each join their own airing (0.420125ms)
+✔ M3: cricket parent/day end is not a trustworthy match end, and short-format windows stay bounded (0.9145ms)
+✔ H1: statements are prepared once, not twice per card on each poll (19.769167ms)
+✔ H1/L4: realistic 300-game and 72-hour guide matching has a cold projection budget (19.795041ms)
+ℹ projection=16.6ms
+✔ M2: measured worst-case ticks obey a 12-request ceiling including cricket discovery (4.292917ms)
+ℹ cold=12, next=12
+✔ M2: inactive sources use the slow cadence; only active/starting-soon sources poll after 30 seconds (0.891333ms)
+✔ M2: one upstream throttle pauses every dashboard URL and bounds concurrent in-flight requests (0.722167ms)
+✔ L1: category-wide selection is unioned with team follows; team-only follows remain narrow (0.67ms)
+✔ L2: first-seen historic finals buffer without fabricating a recent finish, then disappear (0.486959ms)
+✔ L3: one collection tick batches all candidate writes into a single ingest transaction (2.836833ms)
+✔ M2: 429/5xx cooldown is shared by the real scoreboard client and the existing fixture client (10.981792ms)
+✔ M3: clearly nearest cricket start wins overlapping multi-day windows; equal starts remain ambiguous (0.187334ms)
+✔ M3: women’s T20 class labels use short-format windows, not an unknown five-day envelope (0.154375ms)
+✔ M1: a newer correction cannot remove a delayed final card through latest finishedAt metadata (0.65225ms)
+✔ M1: existing 0309 history upgrades final-transition times without trusting a newer catalog correction (0.698209ms)
+✔ all followed team sports retain real score/clock fields; pregame zero is not a score (2.0225ms)
+✔ F1 is one session card per competition, with no driver positions, scores or inferred clock (0.65575ms)
+✔ cricket stumps is a break, preserves batting innings/overs, and excludes placeholder opposition rows (0.434ms)
+✔ malformed data cannot publish raw status prose, unsafe artwork, or fake clocks (0.154709ms)
+✔ preferences persist per person, enforce revisions, reject coercions and protect other users (3.564583ms)
+✔ whole snapshots honor the delay boundary, buffer on startup and survive a reopened store (4.4675ms)
+✔ out-of-order observations are ignored, history bounded, and repeated finals do not extend the result hour (0.594375ms)
+✔ broadcast matching needs both teams, the right time, and a unique game; replays never match (3.949417ms)
+✔ today respects Melbourne midnight and DST; sport views retain a rolling 72 hours (15.332ms)
+✔ spoiler projection removes all result fields, does not leak current final status, and keeps progress/actions (1.440417ms)
+✔ unmatched and stale games remain visible; stale data loses clock/score, old finals disappear (0.719167ms)
+✔ collector is opt-in, uses single UTC days, deduplicates overlapping refreshes and discovers future cricket series (2.293042ms)
+✔ cached future payloads never become new score observations, and malformed success retries quickly (1.275917ms)
+✔ future scheduled cards keep their scheduled label between the slower catalog polls (0.446084ms)
+✔ pruning retains last-known completion so old broadcasts cannot become playable after an outage (0.459166ms)
+✔ unfollowed leagues and non-followed teams disappear without clearing the shared score catalog (0.66075ms)
+✔ collector checks the previous UTC day for games still in progress across midnight (0.453ms)
+✔ F1 broadcast matching requires the right GP and the exact session, including race and sprint qualifying (5.296666ms)
+✔ a source outage cannot refresh old scores, and a stopped collector cannot publish in-flight data (0.906166ms)
+✔ malformed successful HTTP payloads are retried as failures, never authoritative empty schedules (0.632333ms)
+✔ network adapter bounds response bodies, refuses redirects/other origins, and never follows provider-shaped refs (13.714291ms)
+✔ MLB preserves top/bottom inning as spoiler-safe progress and cricket never joins a different format (0.338666ms)
+✔ location-only roster aliases cannot authorize a broadcast match (0.089583ms)
+✔ upcoming matched games retain channel choices and event references without becoming watchable (0.629708ms)
+✔ a partially malformed status cannot replace known completion and revive an old broadcast (0.614875ms)
+ℹ tests 49
+ℹ suites 0
+ℹ pass 49
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 297.01225

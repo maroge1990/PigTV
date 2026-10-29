@@ -1,0 +1,41 @@
+✔ guide-only follows survive missing catalogs without claiming live scores or leaking channel fields (43.931291ms)
+✔ fallback obeys today/cross-midnight/72h, excludes ended listings, replays and generic shows (0.764625ms)
+✔ catalog joins, ambiguous doubleheaders and delayed/expired finals cannot reappear as watchable fallback (8.146167ms)
+✔ unknown-format cricket cannot hide a possible rematch or authorize a wider playback join (0.281625ms)
+✔ hidden guide fallback never returns untrusted result prose through title, aliases or competitors (0.278291ms)
+✔ empty followed sports remain named even without catalog or guide data (0.152792ms)
+✔ a generic C-I event is not hidden just because an unidentified catalog game starts nearby (0.166041ms)
+✔ cross-midnight games stay visible while their first delayed snapshot is buffering, even without a broadcast (0.685083ms)
+✔ cross-midnight first-seen historical finals buffer, then disappear without inventing recent-final retention (0.469958ms)
+✖ a later same-team guide game survives a partial catalog containing only an expired final, without tuning it (0.9595ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 9
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 163.075459
+
+✖ failing tests:
+
+test at test/sports-dashboard-guide.test.js:101:1
+✖ a later same-team guide game survives a partial catalog containing only an expired final, without tuning it (0.9595ms)
+  AssertionError [ERR_ASSERTION]: a new guide window after the eligible final cannot be silently swallowed
+
+  0 !== 1
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/sports-dashboard-guide.test.js:109:16)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

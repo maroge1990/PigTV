@@ -1,6 +1,12 @@
 # PigTV: blueprint
 
-**Sport dashboard (29 Oct):** **0315** addresses the own-review follow-ups to 0313: legacy fixture cooldown sharing
+**State (29 Oct, sports continuation):** Server **0316** retains guide-only/empty-follow coverage and cross-midnight
+buffering without inventing scores or widening unknown-format cricket. All **1,316 tests** and build checks pass.
+Apple **59** implements the gated dashboard/compact sport shelves and revalidated existing actions; local gates pass (244 contracts, 243 unit/playback, 20 UI and iOS build). Mandatory sports Codex review remains **0 of 2** per repo. No pilot, deployment or device acceptance
+is claimed. Mark reports no visible web/server/iPad issues; tested versions/flag remain unconfirmed.
+[Current handoff/evidence](docs/reviews/2026-10-29/sports-dashboard-continuation/README.md).
+
+**0315 sport foundation (29 Oct):** **0315** addresses the own-review follow-ups to 0313: legacy fixture cooldown sharing
 is gated on dashboard enablement, deferred fixtures retry after cooldown, and three request slots protect catalog
 progress under hot-source load. Hung projection jobs time out and replace their worker. All 1,305 tests and build verification pass.
 Feature remains off by default; Codex review is round 0 of 2. Unknown-format multi-day cricket matching and collector
@@ -8,7 +14,7 @@ parse-cost measurement are registered low follow-ups. [Latest handoff](docs/revi
 [Remaining delivery roadmap](docs/SPORTS-DASHBOARD-ROADMAP.md) and [next-agent prompt](docs/SPORTS-DASHBOARD-CONTINUE.md)
 cover the work after initial testing.
 
-**State (29 Oct):** **0315** implements the sports own-review follow-ups; all 1,305 tests and build verification pass; mandatory Codex review is pending.
+**0315 baseline:** **0315** implements the sports own-review follow-ups; all 1,305 tests and build verification pass; mandatory Codex review is pending.
 **0314 media review:** **0314** fixes round-1 follow-ups N1/N2 after approval of 0310–0312 (no high findings).
 All 1,300 current-main tests and build verification pass. N3 timestamp-gap capture survives without cumulative
 packet-clock drift; wider reconnect evidence remains FR-29. QSV detection/host acceptance remains FR-26/FR-30.
@@ -130,7 +136,7 @@ channel-change speed** (Mark, 20 Sept; reaffirmed 23 Sept: "quality of image sho
 | What exists | **Server** (Node 24, Express 5, SQLite via `better-sqlite3`, ffmpeg): M3U/Xtream + XMLTV sources, a primary provider and ordered backups with failover, the guide and library APIs, one playback path (resolve → HLS session), recordings (DVR with Comskip ad detection), channel numbers, channel health, EPG matching, sport events, a logo cache, device pairing. **Web app** (`public/`, no build step): Home, Live TV, Guide, Recordings, Status (admin) and Settings (Providers, Channels, Playback, Recording, Sports, System). **Apple client** (tvOS first, iPad, iPhone): `../PigTV-Swift`. |
 | Repos | Server/web: `github.com/maroge1990/PigTV` → `/Users/markrogers/Documents/GitHub/PigTV`. Apple: `github.com/maroge1990/PigTV-Swift` → `/Users/markrogers/Documents/GitHub/PigTV-Swift`. Both public. |
 | Deployment | Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page. |
-| Next build number | **0316** |
+| Next build number | **0317** |
 | Scale | About **1,000 channels** in the categories Mark selects in the web app (the Apple TV honours the selection); the provider's whole playlist is about 18,000 |
 
 ---
@@ -646,9 +652,22 @@ and retention. Network attempts are capped at 12/tick; 429/5xx cooldown is share
 hints are not trusted as match ends. Since 0315, legacy fixture cooldown participation is gated on dashboard enablement;
 blocked fixture passes defer and retry after cooldown rather than marking unattempted leagues failed. Three request
 slots protect least-recent cold work (including discovery); unused capacity is borrowed. Worker jobs have 10s deadlines.
-C-O specifies the gated API; current clients do not consume it.
+C-O specifies the gated API. Since 0316, guide-only C-I events survive catalog gaps; ambiguous/catalog identities
+suppress fallback (including finals). Unknown-format cricket retains a possible duplicate guide listing with playback disabled, preserving rematches
+without widening the airing join.
+Hidden guide titles use neutral league/event labels because guide prose is not trusted team metadata.
+Cross-midnight pending/unknown cards remain visible within conservative sport bounds (12h unless a reliable cricket
+format supplies its existing bound), including initial delay buffering without a channel. Matched current guide airings
+also retain a card; eligible final/history retention still controls removal. No undelayed completion or endDate widening.
+Apple 59 consumes C-O behind its flag; web remains C-I. Apple uses ephemeral whole projections, visible 20s refresh,
+per-account revision settings and revalidated actions. Required Apple gates/review/device acceptance are tracked in the
+[continuation handoff](docs/reviews/2026-10-29/sports-dashboard-continuation/README.md).
 
 ## 4. Roadmap: close the gaps with Dispatcharr, natively (Plan B)
+
+**29 Oct continuation (0316):** Guide-only fallback/deduplication implemented offline; 1,316 tests and build checks pass.
+Mark reports no visible web/server/iPad issues; builds/flags unconfirmed. Apple 59 dashboard is implemented with passing local gates (244 contracts, 243 unit/playback, 20 UI and iOS build); pilot, mandatory review
+and device acceptance remain outstanding. SD-0313-L2/L3 retained explicitly.
 
 **29 Oct approved round-1 follow-ups:** **0314** retains a still-live primary without renewal when backups cannot take
 over and applies Mark’s channel-only quarantine decision. N1/N2 tests fail before; 1,300 full tests and build checks

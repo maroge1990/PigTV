@@ -1,0 +1,5 @@
+Apple 59 final production/test sources: sh Tools/test.sh push passed (244 contracts, 243 unit/playback, 20 UI; zero failures/skips).
+Generic iOS Simulator xcodebuild build exited 0.
+Xcode optional diagnostic collection: -collect-test-diagnostics never; all assertions remained enabled.
+Synthetic/local APIs and bundled HLS only; no deployed/provider access.
+Required adversarial review 0 of 2; device acceptance/pilot unobserved.

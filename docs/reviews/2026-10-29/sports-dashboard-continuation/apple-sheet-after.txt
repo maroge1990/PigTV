@@ -1,0 +1,2 @@
+PASS: expired-in-transit airing refused; synthetic loopback only
+PASS: old recording-sheet prose masked before dismissal

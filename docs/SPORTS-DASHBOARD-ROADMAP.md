@@ -1,20 +1,21 @@
 # Sports dashboard: remaining delivery roadmap
 
-Updated 29 October 2026 after local build **0315 (`8953d12`)**. This is the current delivery checklist; the
+Updated 29 October 2026 during local build **0316** continuation (baseline 0315 `8953d12`). This is the current delivery checklist; the
 [design](SPORTS-DASHBOARD-DESIGN.md) describes the full intended experience and
 [C-O](CLIENT-CONTRACT.md#c-o-sport-dashboard-foundation-flag-sportsdashboard-0309-experimental-03130315-own-review-repairs)
-is authoritative for implemented API behavior. No deployment, initial live test results or device acceptance have
-been reported for this feature. Update this record from evidence as each slice lands.
+is authoritative for implemented API behavior. Mark reports no visible issues on web/server/iPad; tested versions/flag were not supplied. No dashboard-specific
+live results, pilot measurements or device acceptance have been established. Update this record from evidence as each slice lands.
 
 ## Current baseline
 
 - **Done locally:** 0309/0313/0315 feature-gated server catalog, score adapters, persisted observation history,
   delayed coherent projection, per-account preferences/revisions, conservative game-to-broadcast matching,
   authenticated API, bounded collector and worker projection with timeout/replacement.
-- **Local checks:** 1,305 tests pass, zero failures/skips; build verification passes. Own-review H1/M1–M3/L1/L3/L4
+- **Local checks:** 0316: 1,316 tests pass, zero failures/skips; build verification passes. Guide-only fallback, cross-midnight buffering retention,
+  conservative deduplication and empty followed-sport names are implemented with failing-before tests. Own-review H1/M1–M3/L1/L3/L4
   repaired, original L2 answer accepted; follow-up N1/N2 and worker timeout repaired with failing-before evidence.
   [0315 evidence and review command](reviews/2026-10-29/sports-dashboard-followups/README.md).
-- **Not shipped/verified:** dashboard flag remains off by default. No Apple/web dashboard UI, no real-feed delivery
+- **Not shipped/verified:** dashboard flag remains off by default. Apple 59 UI slice is implemented with passing local gates (244 contracts, 243 unit/playback, 20 UI and iOS build); web dashboard pending. No real-feed delivery
   latency/performance acceptance, no cross-device UI acceptance. Mandatory Codex server review remains **0 of 2**.
 - **Open low findings:** SD-0313-L2 unknown-format multi-day cricket and SD-0313-L3 collector main-loop parse cost,
   with reproductions in [FINDINGS](FINDINGS.md#sports-dashboard-0313-own-review-follow-ups-29-oct).
@@ -52,6 +53,20 @@ automatic score/video alignment, alerts and playback-engine changes are outside 
 | 6. Cross-device safety and resilience | Same-account sync on visible dashboards/resume/sign-in; revision conflict and save failure UX; hide while identity/preferences unknown. Test another user isolation, offline/reconnect, stale reveal cache, increased delay, final correction/expiry and timezone/DST. | Two-device account tests plus Mark's device checks. Target <=30s visible-online sync and immediate resume revalidation is a design acceptance target to validate, not a current client guarantee. Keep focused cards stable on update/expiry. |
 | 7. iPhone/iPad and web | Adapt the shared contract/design: responsive cards, visible more-options action plus touch-and-hold; web keyboard/focus support, accessibility and safe foreground refresh. Preserve future sport/team navigation and all existing event actions. | Phone/tablet/web UI tests and device/browser acceptance, including settings conflicts, spoiler-safe details/menus/alt text and capability fallback. |
 | 8. Release acceptance | Review each functional client/server batch under its repo rules; complete pilot and real-device checks, document remaining limitations, obtain Mark's release decision. Keep flag reversible and separate from unrelated recording repairs. | Mark reports acceptance for all ten follows/basic cards and available live transitions; no normal enablement/performance claim without pilot evidence. Mark controls push/deploy/provider-consuming playback. Record rollback flag behavior and deployed versions. |
+
+**0316 coverage evidence:** guide-only listings now survive catalog gaps with explicit data-source/score-unavailable
+labels. C-I replay/show/placeholder/expired listings stay excluded. Catalog identities suppress guide duplicates even
+when ambiguous or finished; unknown-format cricket retains an unmatched possible duplicate guide listing without channels so rematches are not
+hidden and the join is not widened. Hidden guide-only titles
+are neutral league/event labels because guide prose is not trusted team metadata. SD-0313-L2 remains open; L3 requires
+a separately authorized pilot. [Evidence](reviews/2026-10-29/sports-dashboard-continuation/README.md).
+
+**Apple 59 slice (local, local gates pass; review/device acceptance pending):** capability/404 fallback, sport shelves and canonical-league 72h
+filters, seven neutral progress families, cached logos/name fallback, explicit availability/recording labels, preference
+save/conflict and foreground/offline hiding, and revalidated event/channel/recording actions are implemented. Shared iOS
+layout includes visible options; iPhone/iPad adaptation is provisional until device/accessibility acceptance. Web remains
+unimplemented. DEBUG `sport-dashboard` fixtures show invented edge variants with actions disabled. No stage is device
+accepted. Same-account and separate-user behavior has synthetic API/model tests; physical two-device sync is outstanding.
 
 Stages 3–4 can proceed offline after initial findings are triaged. Do not silently turn optional enrichment into a
 requirement for basic cards, or declare a stage complete because its tests alone pass. A new failing feed must retain

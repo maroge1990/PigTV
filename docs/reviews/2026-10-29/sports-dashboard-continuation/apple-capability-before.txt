@@ -1,0 +1,2 @@
+Swift/ErrorType.swift:254: Fatal error: Error raised at top level: C-O capability is decoded before selecting the dashboard
+Tools/test-contracts.sh: line 10: 93652 Trace/BPT trap: 5       "$BUILD_DIR/contracts"

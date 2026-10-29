@@ -247,3 +247,16 @@ Initial source selection, profile identity and session-only F1 design are settle
 medium-to-large cross-repo feature (data collection/history, matching, preferences/identity, APIs and four client
 presentations), not a card-only facelift. Out of scope: paid feeds, odds/statistics dashboard, score alerts, automatic
 broadcast synchronization, playback engine changes and unrelated recording repairs.
+
+
+### 29 October continuation decisions
+
+Mark's preview feedback: cards within a sport always have the same size, and a labelled sport shelf makes repeated
+sport names on each card unnecessary. Apple 59 reserves a scaled card size through live/upcoming/break/unknown/final,
+missing channel, hidden score and expired-focus states; cards show the status alone. Details retain league context.
+Long team names have two lines beside square cached-logo/name-fallback tiles. Availability uses yellow/red icons in the card’s top corner, with explicit VoiceOver labels and words in details. Offline fixtures/screenshots and test evidence are in the
+[continuation handoff](reviews/2026-10-29/sports-dashboard-continuation/README.md); device acceptance remains open.
+
+Mark's next preview iteration shortens the equal-size cards, removes “Total points,” shows current game progress OR
+scheduled start (one timing row), and moves unavailable/no-channel markers to icons in the top corner. VoiceOver and
+event details retain explicit meanings; recording keeps its distinct labelled indicator.

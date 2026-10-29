@@ -1,0 +1,42 @@
+✔ guide-only follows survive missing catalogs without claiming live scores or leaking channel fields (41.074542ms)
+✔ fallback obeys today/cross-midnight/72h, excludes ended listings, replays and generic shows (0.679208ms)
+✔ catalog joins, ambiguous doubleheaders and delayed/expired finals cannot reappear as watchable fallback (7.834416ms)
+✔ unknown-format cricket cannot hide a possible rematch or authorize a wider playback join (0.264209ms)
+✔ hidden guide fallback never returns untrusted result prose through title, aliases or competitors (0.273666ms)
+✔ empty followed sports remain named even without catalog or guide data (0.148042ms)
+✔ a generic C-I event is not hidden just because an unidentified catalog game starts nearby (0.155542ms)
+✔ cross-midnight games stay visible while their first delayed snapshot is buffering, even without a broadcast (0.65325ms)
+✔ cross-midnight first-seen historical finals buffer, then disappear without inventing recent-final retention (0.465542ms)
+✔ a later same-team guide game survives a partial catalog containing only an expired final, without tuning it (1.009ms)
+✖ selection eligibility rechecks airing bounds instead of the cached C-I live boolean (0.806917ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 10
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 153.602917
+
+✖ failing tests:
+
+test at test/sports-dashboard-guide.test.js:121:1
+✖ selection eligibility rechecks airing bounds instead of the cached C-I live boolean (0.806917ms)
+  AssertionError [ERR_ASSERTION]: C-I live was false when the per-minute cache was built before this airing began
+
+  false !== true
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/sports-dashboard-guide.test.js:127:16)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

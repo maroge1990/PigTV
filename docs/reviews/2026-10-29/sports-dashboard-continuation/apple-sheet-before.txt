@@ -1,0 +1,2 @@
+PASS: expired-in-transit airing refused; synthetic loopback only
+FAIL: captured recording-sheet prose survives unvalidated/changed preferences

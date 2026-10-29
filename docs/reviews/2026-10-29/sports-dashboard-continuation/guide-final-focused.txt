@@ -1,0 +1,15 @@
+✔ guide-only follows survive missing catalogs without claiming live scores or leaking channel fields (47.287542ms)
+✔ fallback obeys today/cross-midnight/72h, excludes ended listings, replays and generic shows (0.750333ms)
+✔ catalog joins, ambiguous doubleheaders and delayed/expired finals cannot reappear as watchable fallback (7.838833ms)
+✔ unknown-format cricket cannot hide a possible rematch or authorize a wider playback join (0.349ms)
+✔ hidden guide fallback never returns untrusted result prose through title, aliases or competitors (0.304417ms)
+✔ empty followed sports remain named even without catalog or guide data (0.165916ms)
+✔ a generic C-I event is not hidden just because an unidentified catalog game starts nearby (0.170833ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 163.081291

@@ -1,0 +1,13 @@
+Final server 0316 tree, Node 24; synthetic/local only.
+✔ F8: an active favourite uses the accent text colour, and the visible copy says favourites and programme (29.892208ms)
+ℹ tests 1316
+ℹ suites 0
+ℹ pass 1316
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 59876.550791
+  ✓ every check runs before the summary
+
+=== ALL CHECKS PASSED ===

@@ -1,0 +1,57 @@
+Separate recording gate, not modified by this sports batch.
+✔ F3: Back/Forward (popstate) changes page without writing history; clicks push; start-up replaces (2.324792ms)
+✔ F4: live rows, group headers, guide names and programmes, and Home tiles are keyboard buttons (59.397125ms)
+✔ F4: Enter and Space click a keyboard button; other keys and other targets are left alone (1.724375ms)
+✔ F7: an unchanged guide is not downloaded again; a changed one is, and the Guide redraws (2.837458ms)
+✔ F7: nothing runs while another page is showing or the browser tab is hidden (2.298958ms)
+✔ F7: start-up does not download the whole guide; Live TV and the Guide load it when shown (0.854ms)
+✔ F8: an active favourite uses the accent text colour, and the visible copy says favourites and programme (58.7725ms)
+ℹ tests 1312
+ℹ suites 0
+ℹ pass 1311
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 80051.534542
+
+✖ failing tests:
+
+test at test/recording-segments.test.js:944:1
+✖ watch from the start: auth, the master and media playlists (token on every URI), the pieces, and the allow-list (435.43525ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  404 !== 200
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/recording-segments.test.js:959:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 404,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+Isolated rerun:
+✔ watch from the start: auth, the master and media playlists (token on every URI), the pieces, and the allow-list (857.888584ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10217.557375
+
+Subsequent full gate:
+✔ F8: an active favourite uses the accent text colour, and the visible copy says favourites and programme (37.207584ms)
+ℹ tests 1312
+ℹ suites 0
+ℹ pass 1312
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 61414.161166

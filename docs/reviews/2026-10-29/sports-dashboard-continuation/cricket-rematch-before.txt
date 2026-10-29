@@ -1,0 +1,37 @@
+✔ guide-only follows survive missing catalogs without claiming live scores or leaking channel fields (45.839958ms)
+✔ fallback obeys today/cross-midnight/72h, excludes ended listings, replays and generic shows (0.7005ms)
+✔ catalog joins, ambiguous doubleheaders and delayed/expired finals cannot reappear as watchable fallback (7.618542ms)
+✖ unknown-format cricket cannot hide a possible rematch or authorize a wider playback join (0.719ms)
+✔ hidden guide fallback never returns untrusted result prose through title, aliases or competitors (0.294625ms)
+✔ empty followed sports remain named even without catalog or guide data (0.156375ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 5
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 161.018542
+
+✖ failing tests:
+
+test at test/sports-dashboard-guide.test.js:45:1
+✖ unknown-format cricket cannot hide a possible rematch or authorize a wider playback join (0.719ms)
+  AssertionError [ERR_ASSERTION]: unknown identity may be a new same-team match; retain the guide listing
+
+  1 !== 2
+
+      at TestContext.<anonymous> (/Users/markrogers/Documents/GitHub/PigTV/test/sports-dashboard-guide.test.js:48:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

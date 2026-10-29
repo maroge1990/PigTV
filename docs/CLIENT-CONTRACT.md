@@ -35,7 +35,7 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 | `playbackHandles` | 0119 | `direct` resolves use `/api/proxy/stream?h=<handle>` (always, since 0196) | Not read; a 404 leads to a re-resolve |
 | `channelHealth` | 0133 | Rows carry `health` `ok`/`flaky`/null (C-G) | Amber dot on flaky channels |
 | `sportCategories` | 0146 | `library/categories` rows carry `sport` (C-H) | Not read any more (decoded) |
-| `sportsDashboard` | 0309 | Opt-in dashboard/catalog and per-user preferences (C-O); false unless `PIGTV_SPORTS_DASHBOARD=1` | Not yet consumed; existing Sport UI still uses C-I |
+| `sportsDashboard` | 0309 | Opt-in dashboard/catalog and per-user preferences (C-O); false unless `PIGTV_SPORTS_DASHBOARD=1` | Apple 59: gated dashboard; absent/404 retains C-I |
 | `sportsEvents` | 0148 | `GET /api/sports/events` (C-I) | Sport tab, Home "Sport now & next", `hours=72` |
 | `scheduleHistory` | 0156 | `recordings/scheduled?include=recent` adds missed/failed of the last 7 days | Asks `include=recent` |
 | `providerReminders` | 0168 | `GET /api/providers/reminders` (C-K) | Daily reminder popup |
@@ -123,7 +123,7 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 | C-L Watch a recording from the start while it records | `recordingWatchLive` | 0218 (R3) | 44 |
 | C-M Recording rules | `recordingRules` | 0219 (R5) | 45 |
 | C-N Recording artwork | `recordingArtwork` | 0220 (R6) | 45 |
-| C-O Sport dashboard foundation | `sportsDashboard` | 0309 (opt-in) | pending |
+| C-O Sport dashboard foundation | `sportsDashboard` | 0309 (opt-in) | 59 |
 
 C-A to C-K are implemented on both sides and verified on devices (results in `docs/archive/TEST-BLOCK-2026-10-13.md`). C-L
 onwards are not verified yet.
@@ -338,7 +338,7 @@ the channel logo, filling the tile; the channel logo stays the fallback.
 
 ### C-O. Sport dashboard foundation. Flag: `sportsDashboard` (0309, experimental; 0313/0315 own-review repairs)
 
-**Server foundation only; Apple/web presentation has not changed.** The flag is false unless the server explicitly sets
+**Server foundation plus Apple 59 dashboard slice; web dashboard remains pending.** The flag is false unless the server explicitly sets
 `PIGTV_SPORTS_DASHBOARD=1`. All routes below require a signed-in user or valid paired device and answer 404 while disabled.
 They answer `Cache-Control: private, no-store`; no shared response cache or client-supplied profile ID is used.
 
@@ -354,9 +354,13 @@ They answer `Cache-Control: private, no-store`; no shared response cache or clie
   worker and continues queued work on a replacement; success/failure/close clear its timer. Whole-league/category selection is a union: a sport-marked category or a
   whole-league follow includes all games of that league; a team follow narrows it only without a broad selection. Without a league: today in the
   server `TZ` (valid IANA zone; default/fallback Australia/Melbourne), plus ongoing cross-midnight games and retained
-  results. With a canonical league: rolling 72 hours, plus ongoing/recent games. Invalid league is 400.
-- Response: `{now, timezone, scope: "today"|"league", hours: null|72, preferences, games:[...]}`. All absolute times are
-  epoch milliseconds. A game has `{id, league, title, start, end, session, circuit, format, competitors, status, freshness,
+  results. Since 0316, pending/unknown cross-midnight cards remain visible through initial buffering or missing scores
+  within conservative bounds: 12h generally, or the existing reliable cricket-format window (T20 4.5h, ODI/List-A 9h,
+  Test/first-class 120h; unknown format stays 12h). Current matched guide airings also retain neutral cards. Neither
+  condition overrides eligible final removal/retention or fabricates scores/live status. With a canonical league: rolling 72 hours, plus ongoing/recent games. Invalid league is 400.
+- Response: `{now, timezone, leagues, scope: "today"|"league", hours: null|72, preferences, games:[...]}`. All absolute times are
+  epoch milliseconds. Since 0316, `leagues` lists followed canonical leagues even when no catalog/guide games exist;
+  clients retain empty named shelves and rolling-72h filters rather than implying the sport was unfollowed. A game has `{id, league, title, start, end, session, circuit, format, competitors, status, freshness,
   observedAt, progress, availability, broadcastStatus, channels, events, canWatch}`. `end`, `session`, `circuit`, `format`
   and `observedAt` may be null. `competitors` are `{id,name,logo}`; logos use the existing cached `/api/logo/<key>` route.
   F1 competitors are empty: its title/session/circuit identify the event; it never carries positions, scores or timing.
@@ -379,7 +383,8 @@ They answer `Cache-Control: private, no-store`; no shared response cache or clie
 - With scores enabled, `scores` is a two-element display-string array when available; optional `situation` carries
   validated sport-specific fields. **Both fields are absent when `avoidSpoilers` is true, or data is unavailable/stale.**
   No winner/leader, raw status prose, source headlines or raw aliases are returned. Clients must also keep event details,
-  accessibility and any old cached content spoiler-safe; those UI changes are still pending.
+  accessibility and any old cached content spoiler-safe. Apple 59 uses only the projected card fields in dashboard
+  cards/details/menus, with no raw C-I aliases or result prose.
 - A result is retained for one hour after its observed final transition becomes eligible. Initially discovered historic
   finals have no observed transition and are excluded once final data is eligible. Repeated final polls do not restart
   the hour. Completion changes every score-derived broadcast/action field only when that same delayed snapshot is eligible;
@@ -402,5 +407,63 @@ hints are not treated as actual match ends; joins use format-bounded windows and
 intact and does not label old cached data as newly observed. History keeps a 15-minute window plus the last-known
 snapshot per game; catalog entries expire after eight days without a recent observation. New tables are
 `sports_dashboard_catalog`, `sports_score_history`, `sports_user_preferences`. F1 is session-only; AFL goals/behinds
-summary enrichment and richer optional situations are not promised by this first server slice. Guide-only fallback
-cards, the Apple/web UI, real-feed matching/clock acceptance and adversarial review remain delivery work.
+summary enrichment and richer optional situations are not promised by this first server slice. Since 0316, unmatched C-I event listings also produce `guide:<event-id>` cards with `dataSource: "guide"`,
+empty competitors/progress, no scores/situation, and `freshness: "unavailable"`. Their state is scheduled or unknown;
+an eligible current airing says ON TV NOW, never confirmed LIVE. Replays/shows/placeholders and expired listings are
+excluded. Catalog candidates suppress same-window duplicates (including ambiguous joins and finals); uncertain later
+windows follow the guard below. Unknown-format cricket identities within five days retain an explicitly unmatched guide listing without channels.
+A later-day game and a same-team rematch cannot be distinguished safely: a possible duplicate remains visible,
+and fallback never widens the 12-hour playback join.
+With spoilers hidden, untrusted guide titles become `<league> · Guide event`; team names are unavailable for these
+cards until catalog matching succeeds. Guide-only events retain their C-I references and safe channel projection.
+The Apple/web UI, real-feed matching/clock acceptance and adversarial review remain delivery work.
+
+
+#### Apple 59 C-O consumption (local slice; review/device acceptance pending)
+
+- Capability absent or a dashboard 404 retains ordinary C-I Sports. Home remains C-I. Server 0316 supplies empty
+  followed-league shelves and guide fallback; 0315 responses without `leagues` still decode. League filters retain
+  rolling 72h schedules and configured team-follow selection. Unknown guide categories remain visible shelves;
+  only canonical leagues are offered as API filters.
+- One ephemeral dashboard model per authenticated BrowseModel/APIClient; require an established account ID (including
+  the approving account after pairing). No scores or preferences are persisted on the device. Render only a complete
+  response containing preferences and its delayed game fields. Never extrapolate game clocks or inspect undelayed finals.
+- Visible dashboards/details/settings refresh every 20s (<=30s is still a device acceptance target). Clear scores before
+  foreground revalidation, on background, scope change, save, and load failure. Generation checks reject late responses;
+  background loads are suppressed. Conflicts re-read current settings and require a new user choice, never blind retry.
+  Existing open recording sheets mask captured content immediately, then close when projection becomes unavailable
+  or preference revision changes.
+- Seven sport families display available neutral period/clock/inning/overs/session fields. AFL shows basic point totals;
+  goals/behinds remain absent. NFL down/distance/yard-line and MLB count/outs/bases are optional. F1 has no positions,
+  timing or scores. Missing logos use names; only `/api/logo/` competitor assets enter the existing artwork cache.
+  Accessibility uses the same visible projected fields; hidden scores and situation fields have no alternate labels.
+- Select/watch/record/record-rule/channel actions fetch a new dashboard and use only its current matching airing/channel
+  identities; a missing selected stable channel never falls back to a different stored position. Finals/cancelled/
+  postponed/expired airings refuse playback. A monotonic round-trip bound ages **airing eligibility only**, so an airing
+  expiring in transit cannot tune unrelated TV. Displayed delayed scores/clocks never tick locally. Preferred channel is
+  the fresh server order. Provider resolve/admission remains the existing flow; no focus/render warm or provider probe.
+- Recording/rule actions re-read matched C-I event references and associate the selected stable channel with its own
+  airing window, rather than taking the first game's airing. Only the C-O projected title enters the recording sheet;
+  raw C-I result prose/aliases stay hidden. Existing C-I/recording routes are already in `APPLE_CLIENT_ROUTES`.
+- A separate visible 20s activity task refreshes existing recording marks through the coalesced/staleness-gated library
+  loader; a slow recording-list read does not hold up score/preference polling. No recording writer or playback engine
+  changes belong to this slice, and background/unknown-account checks suppress activity reads.
+- Long press offers projected event details, channels and existing recording actions; touch also has a visible options
+  button. Upcoming watch waits while foreground, revalidates again on wake and cancels on background. Close details before
+  presenting playback or a recording sheet. Recording APIs and rules semantics are unchanged.
+- Initial shelf order is server live/upcoming/recent order; subsequent score/status updates retain card identity/order.
+  Cards reserve a uniform size within a sport (including missing-data, hidden-score and expiry states); labelled
+  shelves name the sport, while cards show only status. Compact cards omit the redundant “Total points” label and
+  show one timing row: current available progress, otherwise scheduled start in the server zone. Yellow/red availability
+  icons occupy the top corner; explicit meanings remain in accessibility and details. Recording stays separately labelled.
+  Details retain league context.
+  An expired focused ID gets a neutral unavailable placeholder until focus moves, never a cached score or watch action.
+  Actual remote-focus behavior, two-device sync, touch layout and every sport/edge fixture still require device acceptance.
+
+
+0316 matching guard: a later guide window after an eligible observed final is retained as an explicitly unmatched
+listing with no playback channels until the new game is unambiguous in the catalog. If a historic final has no observed
+transition, a different later-starting guide window is also retained as uncertain; this may be a possible duplicate,
+so it cannot tune. The catalog final's retention/removal is unchanged. Only the selected delayed completion participates,
+never a current raw final or an endDate envelope. Actual airing eligibility is recomputed from start/end at request time:
+C-I's per-minute `live` bit is not authoritative at a boundary. These airing bounds do not establish LIVE sport play.

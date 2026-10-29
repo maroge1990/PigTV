@@ -213,3 +213,64 @@ in **0315**; Codex adversarial review remains **0 of 2**. [Latest evidence/hando
 | SD-0313-L1 (low) | Fixed. A hung active projection previously had no timer and exhausted the eight-request queue. A 10s per-job deadline now rejects the hung job, terminates the old worker and dispatches queued work on a replacement; timers clear on completion/error/close. Deterministic worker/timer regression fails on 72fa3b9 and passes after. |
 | SD-0313-L2 (low) | Open, deferred. An unknown-format Cricket game started 48h ago falls outside the 12h join/hot-poll fallback even if it is multi-day: same teams + current airing remains unmatched, source uses slow cadence. Reproduce with format=null, start=now-48h and current status=live; matchBroadcasts rejects a current same-team airing. Do not widen solely from endDate envelopes: captured ODI/T20 hints also span multiple dates. Obtain an authoritative format or validated multi-day/day-session signal, then add a failing regression and consider a five-day bound without reviving short-format ambiguity. The card remains available with honest missing data; no complete cricket-coverage claim. |
 | SD-0313-L3 (low) | Open, pilot measurement required. fetchJson JSON.parse and normalize still run on the main thread: at most 12 fresh payloads x 2 MiB/tick, plus cached normalization. On a Mark-authorized pilot, compare flag-off/on event-loop delay, parse/normalize/ingest durations and bytes per tick while HLS is served. Use timing/size-only instrumentation (no URLs, payloads, tokens), record p95/p99/max HLS latency and CPU/heap, then decide whether collection parsing also needs a worker. No pilot or provider-consuming play was run here. |
+
+
+## Sports dashboard continuation (29 Oct, 0316)
+
+- SD-0316-C1 (coverage blocker, fixed locally): C-I followed guide event absent from an empty score catalog disappeared
+  from the dashboard. `sports-dashboard-guide.test.js` fails on 0315 (three runtime failures), then passes with guide
+  fallback. Empty canonical follows are named in `leagues` even without games (additional failing-before regression).
+- SD-0313-L2 remains open/deferred: unknown-format 48h cricket may be visible but unmatched. The possible-duplicate guide listing has no channels, preventing a fallback bypass; the join/hot cadence still uses 12h. No widening from endDate envelopes.
+- SD-0313-L3 remains open: no collector/HLS pilot was authorized or run. Required before normal enablement.
+- Mandatory sports Codex review is still round 0 of 2. Mark's no-visible-issues web/server/iPad report has no supplied
+  build/flag; it is not review approval or dashboard/pilot/device acceptance.
+
+
+- SD-0316-C2 (own-inspection, fixed locally before handoff): the first 0316 unknown-format cricket duplicate guard
+  hid a possible same-team rematch 48h later. Failing-before reproduction is `cricket-rematch-before.txt` in the
+  continuation evidence. Keep that guide listing explicitly unmatched with no channels: possible duplicates remain
+  visible until L2 has reliable format/day evidence; no wider join or provider probe is authorized.
+
+- SD-0316-C3 (own-inspection, fixed locally): league/start overlap alone in the first fallback draft suppressed a
+  generic C-I event beside an unidentified catalog game. Failing-before `generic-guide-before.txt`; retain the guide
+  listing separately and never assign its channel silently to the named catalog game. Exact/ambiguous identity joins
+  still deduplicate. Latest full gate: 1,312 pass, build checks pass.
+- GATE-20261029-REC1 (open observation, separate recording/media batch; production impact and cause unconfirmed): one
+  full run returned 404 instead of 200 at `test/recording-segments.test.js:959` for the authenticated watch master,
+  after `/watch` returned 200. Isolated `node --test --test-name-pattern='watch from the start: auth'
+  test/recording-segments.test.js` passes; a subsequent full 1,312-test run passes. This is not root-cause proof or
+  evidence that sports caused it. No recording code was changed. Reproduction/output and successful reruns are in
+  `reviews/2026-10-29/sports-dashboard-continuation/recording-gate-observation.txt`; retain for separate investigation.
+
+- SD-0316-C4 (medium own inspection, fixed locally): a game beginning before midnight disappeared from Today while
+  its first delayed snapshot was buffering, including without a broadcast. Two regressions fail before; conservative
+  pending/unknown windows and current matched guide airings retain neutral cards. First-seen historic finals still
+  disappear when their delayed completion becomes eligible, without a fabricated recent-final hour. Unknown cricket
+  stays 12h absent reliable format; no endDate envelope widening. `midnight-before.txt` / `midnight-focused-after.txt`.
+- SD-A59-C1 (fixed locally): an airing could expire while its response was in transit. Monotonic eligibility aging only;
+  displayed game clocks remain server-projected. `apple-expiry-before.txt` / `apple-expiry-after.txt` and lasting unit test.
+- SD-A59-C2 (fixed locally): unconditional captured recording-sheet prose could survive preference invalidation during
+  dismissal. Mask by validated revision before closing. `apple-sheet-before.txt` / `apple-sheet-after.txt` and unit guard.
+- SD-A59-C3 (medium own inspection, fixed locally): choosing channel B for recording took channel A's first referenced
+  airing (1000–9000 instead of 6000–12000 in the reproduction). Explicit recording/rule actions now read C-I association,
+  keep the chosen stable identity and use only the safe projected title. No recording writer change. The before test
+  returns `airing1` instead of `airing2`; `apple-recording-before.json` / `apple-recording-model-after.json`.
+- SD-A59-C4 (fixed locally): recording badges relied on Home/Guide having refreshed schedules. Independent visible
+  activity refresh now loads existing recording marks, with no provider resolve/warm. Same before/after evidence;
+  all 11 dashboard model tests pass. Final full Apple gates/review/device acceptance remain separately tracked.
+
+- SD-0316-C5 (medium own inspection, fixed locally): a later same-team guide window disappeared when only the previous
+  final existed in a partial catalog. Both observed-transition and first-seen historic-final regressions fail before;
+  uncertain later windows now remain visible without channels/Watch, and a newly observed unambiguous game replaces
+  the guide listing. Eligible delayed state only; no final-card tune or invented retention. Possible duplicate listings
+  are an explicit uncertainty tradeoff. `final-rematch-before.txt`, `historic-rematch-before.txt`, `final-focused.txt`.
+- SD-0316-C6 (fixed locally): `canWatch` trusted C-I's cached per-minute live boolean, refusing a programme that began
+  after that cache was built. The producer stamps `live` from its build-time bounds (`sportsEvents.js`); dashboard
+  eligibility now rechecks actual start/end. Before/after tests cover cached false at start, before-start refusal and
+  cached true after expiry. `airing-boundary-before.txt` / `final-focused.txt`.
+
+- SD-A59-L1 (open adaptation edge; current ten follows unaffected): noncanonical guide categories have Today shelves
+  but no rolling-72h league chip, because C-O only accepts canonical league filters. Reproduce with a future C-I
+  `league: "Sport"` event and no catalog game: Today omits tomorrow's listing and `league=Sport` is invalid. Mark's
+  inspected configuration had no marked categories and the ten required follows are canonical; extend all-schedule
+  navigation before adopting category-only/noncanonical follows. Retained explicitly for adaptation/review priority.

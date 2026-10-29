@@ -53,7 +53,7 @@ function sameGame(prepared, parsed) {
     const a = pair[0].tokens.join(' '), b = pair[1].tokens.join(' ');
     return (prepared.sides[0].has(a) && prepared.sides[1].has(b)) || (prepared.sides[0].has(b) && prepared.sides[1].has(a));
 }
-function matchBroadcasts(games, events) {
+function matchBroadcasts(games, events, represented = new Set(), unresolved = new Set(), endedAt = new Map()) {
     const found = new Map(games.map(g => [g.id, []])), byLeague = new Map();
     for (const game of games) {
         if (!byLeague.has(game.league)) byLeague.set(game.league, []);
@@ -63,6 +63,14 @@ function matchBroadcasts(games, events) {
         if (event.kind && event.kind !== 'event') continue;
         const parsed = prepareEvent(event);
         const candidates = (byLeague.get(event.league) || []).filter(g => sameGame(g, parsed));
+        // Mark even ambiguous/terminal candidates as represented. A fallback must not bypass
+        // conservative joins or revive a final after its delayed retention expires.
+        const leagueGames = byLeague.get(event.league) || [];
+        // Unknown-format cricket may be a later day OR a rematch. Keep the guide listing visible,
+        // but never let fallback turn an uncertain identity into wider playback permission (L2).
+        if (!candidates.length && event.league === 'Cricket' && leagueGames.some(g => !g.game.format &&
+            event.start >= g.game.start && event.start < g.game.start + 120*H &&
+            sameGame(prepareGame({...g.game,start:event.start}),parsed))) unresolved.add(event.id);
         // Short-format windows normally decide the join. For cricket only, use a clearly nearest start
         // if a broad listing overlaps multiple games; ties and near-ties remain unmatched.
         if (candidates.length > 1 && event.league === 'Cricket') {
@@ -70,13 +78,23 @@ function matchBroadcasts(games, events) {
             const first = Math.abs(candidates[0].game.start - event.start), second = Math.abs(candidates[1].game.start - event.start);
             if (second - first >= H) candidates.splice(1);
         }
+        // A later programme can be a new same-team game missing from the partial catalog.
+        // Use only eligible delayed completion, never latest/raw completion or endDate. Without an
+        // observed transition, a different later-starting guide window stays an uncertain listing.
+        if (candidates.length && candidates.every(g => endedAt.has(g.game.id) &&
+            (endedAt.get(g.game.id)===null ? event.start>g.game.start : event.start>=endedAt.get(g.game.id)))) {
+            unresolved.add(event.id);
+            continue;
+        }
+        if (candidates.length) represented.add(event.id);
         if (candidates.length === 1) found.get(candidates[0].game.id).push(event);
     }
     return found;
 }
 function channelsFor(events, now, includeUpcoming=false) {
     const seen=new Set(),out=[];
-    for(const event of events.filter(e=>(e.start<=now && now<e.end && e.live===true) || (includeUpcoming && e.start>now))) {
+    // C-I live is stamped when its per-minute cache is built; eligibility uses current airing bounds.
+    for(const event of events.filter(e=>(e.start<=now && now<e.end) || (includeUpcoming && e.start>now))) {
         for(const c of event.channels || []) {
             const key=`${c.sourceId}:${c.stableId || c.id}`;
             if(seen.has(key)) continue;
@@ -91,7 +109,9 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
     const prefs=store.preferences(userId),today=localDay(now,zone);
     // All catalog entries participate in ambiguity checks, even when filtered out of the requested view.
     const view=store.view(now,prefs.scoreDelaySeconds);
-    const catalog=view.catalog,matches=matchBroadcasts(catalog,events),games=[];
+    const endedAt=new Map([...view.selected].filter(([,s])=>s.data.state==='finished')
+        .map(([id,s])=>[id,s.finishedAt===null ? null : s.finishedAt+prefs.scoreDelaySeconds*1000]));
+    const catalog=view.catalog,represented=new Set(),unresolved=new Set(),matches=matchBroadcasts(catalog,events,represented,unresolved,endedAt),games=[];
     for(const g of catalog) {
         if(league && league!==g.league || leagues && !leagues.has(g.league)) continue;
         if(follow && !broadLeagues.has(g.league) && !follow.some(k=>classify.canonicalLeague(k)===g.league)) {
@@ -103,12 +123,18 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
         const fresh=at!==null && now-at <= prefs.scoreDelaySeconds*1000+120000;
         const state=selected?.data.state || 'unknown';
         const ongoing=['live','break','suspended'].includes(state);
+        const airings=matches.get(g.id);
+        const onGuide=airings.some(e=>e.start<=now && now<e.end);
+        // A just-started cross-midnight game must not vanish while delayed history is unknown.
+        // Keep neutral pending cards within conservative sport bounds; never inspect an undelayed final.
+        const pendingHours=g.league==='Cricket' ? ({t20:4.5,odi:9,'list-a':9,test:120,'first-class':120})[g.format] || 12 : 12;
+        const pending=['unknown','scheduled'].includes(state) && g.start<=now && now-g.start<=pendingHours*H;
         const horizon=league ? now+72*H : Infinity;
         const recent=state==='finished' && selected.finishedAt!==null && now<selected.finishedAt+prefs.scoreDelaySeconds*1000+H;
         if(state==='finished' && !recent) continue;
-        if(g.start>horizon || (!league && localDay(g.start,zone)!==today && !ongoing && !recent)) continue;
-        if(g.start<now-8*24*H || (g.start<now-12*H && !ongoing && !recent && (!g.end || g.end<now))) continue;
-        const airings=matches.get(g.id),terminal=['finished','cancelled','postponed'].includes(state);
+        if(g.start>horizon || (!league && localDay(g.start,zone)!==today && !ongoing && !recent && !pending && !onGuide)) continue;
+        if(g.start<now-8*24*H || (g.start<now-12*H && !ongoing && !recent && !pending && !onGuide && (!g.end || g.end<now))) continue;
+        const terminal=['finished','cancelled','postponed'].includes(state);
         const liveChannels=terminal ? [] : channelsFor(airings,now);
         const channels=liveChannels.length ? liveChannels : terminal ? [] : channelsFor(airings,now,true);
         const scheduled=g.start>now && (state==='scheduled' || !selected);
@@ -127,9 +153,29 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
         if(!prefs.avoidSpoilers && fresh && selected.data.situation) card.situation=selected.data.situation;
         games.push(card);
     }
+    // C-I has already selected configured follows/categories. Preserve guide-only coverage,
+    // including leagues without a score adapter. Never treat guide airtime as confirmed play.
+    const seenGuide = new Set();
+    for (const e of events) {
+        if ((e.kind && e.kind !== 'event') || represented.has(e.id) || seenGuide.has(e.id) ||
+            (league && league !== e.league) || !Number.isFinite(e.start) || !Number.isFinite(e.end) ||
+            e.end <= now || e.end <= e.start || e.start > now+72*H) continue;
+        const onNow = e.start <= now && now < e.end;
+        if (!league && localDay(e.start,zone)!==today && !onNow) continue;
+        seenGuide.add(e.id);
+        const liveChannels=unresolved.has(e.id) ? [] : channelsFor([e],now),channels=unresolved.has(e.id) ? [] : liveChannels.length ? liveChannels : channelsFor([e],now,true);
+        games.push({id:`guide:${e.id}`,dataSource:'guide',league:e.league,
+            // Guide titles are not trusted neutral team metadata. Do not expose result prose in hidden mode.
+            title:prefs.avoidSpoilers ? `${e.league} · Guide event` : e.title,
+            start:e.start,end:e.end,session:null,circuit:null,format:null,competitors:[],
+            status:e.start>now ? 'scheduled' : 'unknown',freshness:'unavailable',observedAt:null,progress:{},
+            availability:unresolved.has(e.id) ? 'unmatched' : channels.length ? 'matched' : 'unavailable',
+            broadcastStatus:liveChannels.length ? 'on-tv' : channels.length ? 'scheduled' : 'unavailable',
+            channels,events:[{id:e.id,start:e.start,end:e.end}],canWatch:liveChannels.length>0});
+    }
     const order={live:0,break:1,suspended:2,scheduled:3,unknown:4,postponed:5,cancelled:6,finished:7};
     games.sort((a,b)=>(order[a.status]-order[b.status]) || a.start-b.start || a.id.localeCompare(b.id));
-    return {now,timezone:zone,scope:league ? 'league' : 'today',hours:league ? 72 : null,preferences:prefs,games};
+    return {now,timezone:zone,leagues:[...new Set([...(leagues || []),...games.map(g=>classify.canonicalLeague(g.league)).filter(Boolean)])].sort(),scope:league ? 'league' : 'today',hours:league ? 72 : null,preferences:prefs,games};
 }
 function utcDates(now) {
     const out=[];
