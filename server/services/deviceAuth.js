@@ -47,6 +47,27 @@ function cleanLabel(value, max) {
     return text ? Array.from(text).slice(0, max).join('').trim() : null;
 }
 
+/**
+ * #19 (0363): the Apple app names itself on every request, `X-PigTV-Client: PigTV/<build> (<OS> <version>; <model>)`,
+ * e.g. `PigTV/84 (tvOS 26.1; AppleTV14,1)`. Kept as a label like the name; read back into its parts for display.
+ * Anything else is kept as sent and shown whole.
+ */
+const CLIENT_MAX = 80;
+
+function clientHeader(req) {
+    const value = req?.headers?.['x-pigtv-client'];
+    return cleanLabel(Array.isArray(value) ? value[0] : value, CLIENT_MAX);
+}
+
+function describeClient(text) {
+    if (!text) return null;
+    const m = /^PigTV\/(\S+) \(([^;()]+); ([^;()]+)\)$/.exec(text);
+    if (!m) return { text };
+    const model = m[3].trim();
+    const kind = /^AppleTV/i.test(model) ? 'Apple TV' : /^iPad/i.test(model) ? 'iPad' : /^iPhone/i.test(model) ? 'iPhone' : null;
+    return { text, build: m[1], os: m[2].trim(), model, kind };
+}
+
 function pruneExpired() {
     getDb().prepare('DELETE FROM pairing_codes WHERE expires_at < ?').run(Date.now());
 }
@@ -54,7 +75,7 @@ function pruneExpired() {
 /**
  * Called by the device. Returns a code for the user to type elsewhere.
  */
-function startPairing({ name, platform } = {}) {
+function startPairing({ name, platform, client } = {}) {
     const db = getDb();
     pruneExpired();
 
@@ -69,9 +90,9 @@ function startPairing({ name, platform } = {}) {
 
     const now = Date.now();
     db.prepare(`
-        INSERT INTO pairing_codes (code, created_at, expires_at, name, platform)
-        VALUES (?, ?, ?, ?, ?)
-    `).run(code, now, now + CODE_TTL_MS, cleanLabel(name, NAME_MAX), cleanLabel(platform, PLATFORM_MAX));
+        INSERT INTO pairing_codes (code, created_at, expires_at, name, platform, app_client)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `).run(code, now, now + CODE_TTL_MS, cleanLabel(name, NAME_MAX), cleanLabel(platform, PLATFORM_MAX), cleanLabel(client, CLIENT_MAX));
 
     return { code, expiresAt: now + CODE_TTL_MS, expiresInSec: Math.round(CODE_TTL_MS / 1000) };
 }
@@ -113,9 +134,9 @@ function approvePairing(code, user, { name, platform } = {}) {
     const devicePlatform = cleanLabel(platform, PLATFORM_MAX) || cleanLabel(row.platform, PLATFORM_MAX) || 'unknown';
 
     db.prepare(`
-        INSERT INTO devices (id, user_id, name, platform, created_at, last_seen_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-    `).run(deviceId, String(user.id), deviceName, devicePlatform, now, now);
+        INSERT INTO devices (id, user_id, name, platform, created_at, last_seen_at, app_client)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(deviceId, String(user.id), deviceName, devicePlatform, now, now, row.app_client || null);
 
     const token = jwt.sign(
         { id: user.id, username: user.username, role: user.role, deviceId },
@@ -132,9 +153,9 @@ function approvePairing(code, user, { name, platform } = {}) {
 
 function listDevices(userId) {
     return getDb().prepare(`
-        SELECT id, name, platform, created_at, last_seen_at, revoked_at
+        SELECT id, name, platform, created_at, last_seen_at, revoked_at, app_client
         FROM devices WHERE user_id = ? ORDER BY created_at DESC
-    `).all(String(userId));
+    `).all(String(userId)).map(({ app_client, ...d }) => ({ ...d, app: describeClient(app_client) }));
 }
 
 function revokeDevice(userId, deviceId) {
@@ -155,10 +176,12 @@ function isDeviceValid(deviceId) {
     return !!row && !row.revoked_at;
 }
 
-function touchDevice(deviceId) {
+/** Last seen now; `client` (the request's X-PigTV-Client) replaces the one kept, and a request without one keeps it. */
+function touchDevice(deviceId, client = null) {
     if (!deviceId) return;
     try {
-        getDb().prepare('UPDATE devices SET last_seen_at = ? WHERE id = ?').run(Date.now(), deviceId);
+        getDb().prepare('UPDATE devices SET last_seen_at = ?, app_client = COALESCE(?, app_client) WHERE id = ?')
+            .run(Date.now(), cleanLabel(client, CLIENT_MAX), deviceId);
     } catch (e) { /* last seen is a nicety, never worth failing a request over */ }
 }
 
@@ -169,5 +192,7 @@ module.exports = {
     listDevices,
     revokeDevice,
     isDeviceValid,
-    touchDevice
+    touchDevice,
+    clientHeader,
+    describeClient
 };

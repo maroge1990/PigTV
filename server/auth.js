@@ -91,7 +91,7 @@ function bearerToken(req) {
  * step for step. The role comes from the user store, never from the token, so
  * a demoted or deleted user loses access at once rather than at expiry.
  */
-async function userFromToken(token) {
+async function userFromToken(token, client = null) {
     if (!token || typeof token !== 'string') return null;
     let payload;
     try {
@@ -108,7 +108,7 @@ async function userFromToken(token) {
     if (payload.deviceId) {
         const deviceAuth = require('./services/deviceAuth');
         if (!deviceAuth.isDeviceValid(payload.deviceId)) return null;
-        deviceAuth.touchDevice(payload.deviceId);
+        deviceAuth.touchDevice(payload.deviceId, client);
     }
 
     return {
@@ -121,7 +121,7 @@ async function userFromToken(token) {
 
 /** The user a request's bearer header names, or null (see userFromToken). */
 async function userFromBearer(req) {
-    return userFromToken(bearerToken(req));
+    return userFromToken(bearerToken(req), require('./services/deviceAuth').clientHeader(req));
 }
 
 /**
@@ -169,7 +169,7 @@ function streamAuth(req, res, next) {
     const queryToken = typeof req.query?.token === 'string' ? req.query.token : null;
     const token = queryToken || bearerToken(req);
     if (!token) return res.status(401).json({ error: 'Authentication required' });
-    userFromToken(token).then((user) => {
+    userFromToken(token, require('./services/deviceAuth').clientHeader(req)).then((user) => {
         if (!user) return res.status(401).json({ error: 'Invalid or expired token' });
         req.user = user;
         next();

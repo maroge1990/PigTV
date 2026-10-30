@@ -28,7 +28,7 @@ const pairStartLimiter = createLimiter({ windowMs: 10 * 60 * 1000, max: 60 });
 router.post('/pair/start', limitRequests(pairStartLimiter, 'Too many pairing requests'), (req, res) => {
     try {
         const { name, platform } = req.body || {};
-        res.json(deviceAuth.startPairing({ name, platform }));
+        res.json(deviceAuth.startPairing({ name, platform, client: deviceAuth.clientHeader(req) }));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

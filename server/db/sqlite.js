@@ -595,6 +595,10 @@ function initSchema() {
             approved_at INTEGER
         );
     `);
+    // #19 (0363): what the device's app says it is (X-PigTV-Client), on its last request and when it asked to pair.
+    for (const table of ['devices', 'pairing_codes']) {
+        try { db.exec(`ALTER TABLE ${table} ADD COLUMN app_client TEXT`); } catch (e) { /* present */ }
+    }
 
     // Recently watched channels.
     //

@@ -104,6 +104,13 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 - `POST /api/devices/pair/start` stores `name` and `platform` as a single-line label: control characters removed,
   whitespace collapsed and trimmed, at most 64 and 32 characters; a non-string or empty value takes the default label.
   The Apple client's `"PigTV tvOS"`/`"PigTV iOS"` and `"tvOS"`/`"iOS"` are kept as sent.
+- **`X-PigTV-Client`** (0363, #19; Apple 84 sends it on every API request, pairing included):
+  `PigTV/<CFBundleVersion> (<OS name> <OS version>; <model identifier>)`, e.g. `PigTV/84 (tvOS 26.1; AppleTV14,1)`. No flag:
+  a server that does not read it ignores it. The server keeps it (as a single-line label of at most 80 characters) on the
+  paired device, from `pair/start` and then from every request its token makes, `?token=` media requests included; a request
+  without it keeps what was recorded. `GET /api/devices` rows gain an additive `app`: null, or `{text}` when the header is
+  not in this form, or `{text, build, os, model, kind}` (`kind` `"Apple TV"`, `"iPad"`, `"iPhone"` or null). A password
+  login (no device) records nothing.
 - `/api/logo/*` answers carry `X-Content-Type-Options: nosniff` and a `Content-Security-Policy` for an image (no scripts,
   frames or connections). The bytes and `Content-Type` are unchanged.
 - `recordings/scheduled` rows: `program_end` can **move later** after scheduling (0214, R4: it follows the guide after a

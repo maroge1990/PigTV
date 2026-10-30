@@ -185,7 +185,7 @@ class SettingsPage {
                 <div class="setting-item">
                     <div class="setting-info">
                         <span class="setting-label">${e(d.name || 'Unnamed device')}</span>
-                        <span class="setting-hint">${e(d.platform || 'unknown')} · last seen ${e(seen)}</span>
+                        <span class="setting-hint">${e(SettingsPage.deviceLine(d.app, d.platform))} · last seen ${e(seen)}</span>
                     </div>
                     <button class="btn btn-sm btn-danger" data-revoke="${e(d.id)}">Remove</button>
                 </div>`;
@@ -1529,6 +1529,16 @@ class SettingsPage {
         // Page is hidden
     }
 }
+
+/**
+ * #19 (0363): what a device is and runs, from the app's own X-PigTV-Client (GET /api/devices `app`):
+ * "Apple TV · tvOS 26.1 · PigTV 84", or the platform alone before the app has said.
+ */
+SettingsPage.deviceLine = (app, platform) => {
+    if (!app) return `${platform || 'unknown'} · app version not reported yet`;
+    if (!app.build) return app.text;
+    return [app.kind || app.model, app.os, `PigTV ${app.build}`].filter(Boolean).join(' · ');
+};
 
 SettingsPage.GROUPS = { channels: ['content', 'lineup', 'epg'], playback: ['player', 'transcode'], system: ['ui', 'devices', 'users'] };
 
