@@ -56,8 +56,6 @@ const SportsDashboardPolicy = {
         try { return new Date(ms).toLocaleString([], {timeZone:timezone,weekday:'short',hour:'2-digit',minute:'2-digit'}); }
         catch { return 'Start time unavailable'; }
     },
-    // A series rule matches guide titles; score-feed titles and masked guide titles never match one.
-    guideTitle(g, hidden) { return g.dataSource === 'guide' && !hidden; },
     // Only canonical leagues are valid dashboard filters (others are 400); ordinary Sport filters locally.
     filters(response, legacy) { return legacy ? [...new Set([...(response.leagues || []),...response.games.map(g=>g.league)])] : [...(response.leagues || [])]; },
     ruleChoices(g) {
@@ -342,7 +340,6 @@ class SportsPage {
             if(g.canWatch) button('Watch','watch');
             else if(g.events.some(e=>e.start>this.state.now())) button('Watch when it starts','wait');
             button('Record','record');
-            if(this.rulesEnabled && SportsDashboardPolicy.guideTitle(g,!this.state.legacy && response.preferences.avoidSpoilers!==false)) button('Record series','rule');
             actions.append(group);
         }
         if(this.rulesEnabled && !SportsDashboardPolicy.terminal(g)) for(const choice of SportsDashboardPolicy.ruleChoices(g)) {
@@ -395,7 +392,7 @@ class SportsPage {
         const dialog=this.openDialog('recording'), revision=this.state.response.preferences.revision;
         // Treat this as a live event selection so a poll clears/reprojects it safely.
         this.selection='recording'; this.recordingRevision=revision;
-        const title=document.createElement('h2'); title.textContent=action.startsWith('every:') ? `Record every game: ${action.slice(6)}` : `${action==='rule'?'Record series':'Record'} · ${selected.title}`; dialog.append(title);
+        const title=document.createElement('h2'); title.textContent=action.startsWith('every:') ? `Record every game: ${action.slice(6)}` : `Record · ${selected.title}`; dialog.append(title);
         const form=document.createElement('form');
         form.innerHTML='<label>Minutes before<input name="pre" type="number" min="0" max="60" value="1" required></label><label>Minutes after<input name="post" type="number" min="0" max="120" value="5" required></label><button type="submit" class="btn btn-primary">Confirm</button><button type="button" class="btn btn-secondary">Cancel</button>';
         dialog.append(form); form.querySelector('[type=button]').onclick=()=>this.closeDialog();
@@ -411,10 +408,6 @@ class SportsPage {
                     const choice=action.slice(6), game=this.state.response.games.find(g=>g.id===id);
                     if(!game || !SportsDashboardPolicy.ruleChoices(game).includes(choice)) { this.notice('Event changed. Review and choose again.'); return; }
                     rule=await API.recordings.addRule({kind:'sport',match:choice,preBufferMin:pre,postBufferMin:post});
-                } else if(action==='rule') {
-                    const game=this.state.response.games.find(g=>g.id===id);
-                    if(!game || !SportsDashboardPolicy.guideTitle(game,!this.state.legacy && this.state.response.preferences.avoidSpoilers!==false)) { this.notice('Event changed. Review and choose again.'); return; }
-                    rule=await API.recordings.addRule({kind:'series',match:fresh.title,sourceId:Number(c.sourceId),channelId:c.id,channelName:c.name,preBufferMin:pre,postBufferMin:post});
                 } else await API.recordings.schedule({sourceId:Number(c.sourceId),channelItemId:c.id,channelName:c.name,title:fresh.title,programStart:fresh.event.start,programEnd:fresh.event.end,preBufferMin:pre,postBufferMin:post});
                 // A rule that matched nothing must not read as a scheduled recording.
                 const made=rule?.scheduled;

@@ -60,23 +60,14 @@ const fs=require('fs'),assert=require('node:assert/strict');
  await page.locator('.sports-options').first().click();
  assert.equal(await page.getByRole('button',{name:'Record series',exact:true}).count(),0);
  await page.keyboard.press('Escape');
- // A guide card with spoilers shown carries the real guide title; a rule that matched nothing says so.
+ // A guide card: still no series rule (its normalised title would never match the guide exactly).
  await page.evaluate(async()=>{
    synthetic.leagues=['AFL']; synthetic.games=[makeGame('guide:event',{league:'Sport',dataSource:'guide',title:'Chiefs v Bills',competitors:[],status:'unknown',freshness:'unavailable',progress:{},scores:undefined,availability:'matched',canWatch:true,
      channels:[{sourceId:1,id:'pos_1',stableId:'s1',name:'TV'}],events:[{id:'event',start:synthetic.now-1000,end:synthetic.now+3600000}]})];
-   API.recordings.addRule=async body=>{writes.push(body);return {...body,scheduled:0};};
    await sportPage.state.load();
  });
  assert.deepEqual(await page.locator('.sports-filters button').allInnerTexts(),['AFL'],'non-canonical guide leagues are not 400 filters');
  assert.equal(await page.locator('.sports-shelf[data-league="Sport"] .sports-card').count(),1);
- await page.locator('.sports-options').first().click();
- await page.getByRole('button',{name:'Record series',exact:true}).click();
- await page.getByRole('button',{name:'Confirm',exact:true}).click();
- await page.waitForFunction(()=>writes.length===3);
- assert.equal(await page.evaluate(()=>writes[2].match),'Chiefs v Bills');
- await page.waitForFunction(()=>/nothing scheduled/.test(document.querySelector('.sports-message').textContent));
- // Hidden mode masks the guide title, so the series action disappears with it.
- await page.evaluate(async()=>{synthetic.preferences.avoidSpoilers=true;synthetic.games[0].title='Sport · Guide event';await sportPage.state.load();});
  await page.locator('.sports-options').first().click();
  assert.equal(await page.getByRole('button',{name:'Record series',exact:true}).count(),0);
  await page.keyboard.press('Escape');

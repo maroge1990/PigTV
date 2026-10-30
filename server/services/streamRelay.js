@@ -105,6 +105,7 @@ class Relay {
         this.switches = 0;
         this.renewalTimes = [];
         this.renewalBlocked = false;
+        this.reclaimedPins = new Set();
         this.failed = false;
         this.lastReason = null;        // { code, detail, at }
         this.flash = null;             // { state, until }: a short-lived "promoted" / "reclaimed" / "failed"
@@ -428,7 +429,9 @@ class Relay {
                     // not turn a renewal limit into the end of an otherwise live
                     // play. Try it once with renewal disabled, retaining normal
                     // admission/takeover and resolve-deadline checks.
-                    if (!next && code === 'renewal-budget' && !this.closed && pin && !pin.endReason) {
+                    // A pin ended by anything else (a viewer replacement, shutdown) still ends the play.
+                    const pinUsable = pin && (!pin.endReason || (pin.ingest && this.reclaimedPins.has(pin.ingest.key)));
+                    if (!next && code === 'renewal-budget' && !this.closed && pinUsable) {
                         next = await this.startCold([old.candidate]);
                         if (next) this.note('renewal-primary-fallback', `no backup available; continuing on ${this.providerOf(next)} with renewal disabled`);
                     }
@@ -597,6 +600,9 @@ class Relay {
             if (!coordinator().canAdmitWithoutDisturbing(ask)) continue;
             const verdict = await coordinator().admitViewer(ask);
             if (!verdict.allowed) continue;
+            // A renewal pin's connection this relay gave up to its own next leg (0318): if that leg
+            // fails, the primary may still be started again (Codex review of 0318).
+            for (const { stream } of verdict.release || []) if (stream.pinned) this.reclaimedPins.add(stream.ingestKey);
             // R11: the lease taken with the admission is bound to the leg's session, or given back.
             let leg;
             try { leg = await this.startLeg(candidate, { owner: ctx.owner, lease: verdict.lease, deadlineAt, renewal }); } finally { coordinator().releaseUnbound(verdict.lease); }

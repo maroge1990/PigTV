@@ -487,11 +487,11 @@ C-I's per-minute `live` bit is not authoritative at a boundary. These airing bou
 - Cards share a fixed geometry within each sport, with visible More options and native context-menu access. Keyboard
   buttons retain identity/order; a focused expired card becomes neutral until focus leaves, including removed shelves.
 - Select reloads library metadata, then revalidates the current airing and preferred stable identity. No fallback from
-  a missing stable ID to a positional ID/name. Finals do not tune. Record/series/sport-rule confirmation revalidates C-I airing
+  a missing stable ID to a positional ID/name. Finals do not tune. Record/sport-rule confirmation revalidates C-I airing
   bounds/channel association and the preference revision; captured title comes only from C-O. Sport rules offer the
-  neutral league and league-qualified team names, rechecked before submission. Record series is offered only on a
-  guide card whose title is the real guide title (spoilers shown, or ordinary Sport): a score-feed "A v B" title or a
-  masked guide title never matches a guide airing. A rule's confirmation reports how many it scheduled, including none. Recording indicators
+  neutral league and league-qualified team names, rechecked before submission. The web Sport page offers no
+  series rule (since 0320): C-O and C-I display titles are normalised and merged across channels, so they never equal
+  the exact guide title a series rule matches. A sport rule's confirmation reports how many it scheduled, including none. Recording indicators
   are labelled and keyed by source/stable channel from the existing active-recording route. No provider probes occur
   during render, focus, refresh or channel-library loading. Explicit Watch uses the existing admission/takeover flow.
 - An explicit scheduled Watch is cancelled on leaving/background/offline and has a visible cancel button. At its

@@ -686,6 +686,46 @@ for (const unavailable of ['admission', 'start']) test(`N1: an exhausted budget 
     } finally { coordinator.canAdmitWithoutDisturbing = admit; strategy.resolve = resolve; }
 });
 
+test('Codex R1 of 0318: a same-pool backup that reclaims the pinned primary and then fails still falls back to the primary', async () => {
+    // One connection: the relay's own sibling feed on the primary's account takes the connection
+    // the renewal pin held (0318), then fails to start. The primary must be started again.
+    coordinator._leases.clear(); // an earlier test's recording reservations would otherwise hold the one connection
+    const front = fakeSession(); write(front, 0, 2);
+    const r = relay.adopt(front, ctx({ settings: { maxProviderStreams: 1, ingestReconnectRenewal: true, relayEnabled: true } }));
+    clearInterval(r.timer); await r.ingest();
+    r.renewalTimes = [Date.now(), Date.now(), Date.now()];
+    const ingestModule = load('services/ingest');
+    const S = { ...A, channelKey: 'sibling', url: 'http://a.invalid/sibling.ts' };
+    const live = { id: 99, key: 'pinned-a', pool: coordinator.poolOf(1), state: 'live', providerId: 1, startedAt: Date.now(), lastByteAt: Date.now(), waiters: 0, closed: false };
+    const pin = { ingest: live, endReason: null, info: { purpose: 'renewal-pin', owner: 'device:tv' }, leave() { live.subs.delete(pin); } };
+    live.subs = new Set([pin]);
+    live.close = () => { live.closed = true; pin.endReason = { reason: 'closed', providerReason: false }; ingestModule._registry.delete(live.key); };
+    ingestModule._registry.set(live.key, live);
+    const plan = routing.plan; const resolve = strategy.resolve; const notes = [];
+    const note = r.note.bind(r); r.note = (code, ...rest) => { notes.push(code); return note(code, ...rest); };
+    routing.plan = async () => ({ candidates: [S], primaryKey: 'k', channelName: 'Fox Footy' });
+    strategy.resolve = async (opts) => { if (opts.url === S.url) throw Error('sibling start refused'); return resolve(opts); };
+    try {
+        await silently(() => r.switchOver('another reconnect', 'reconnected', pin));
+        assert.equal(live.closed, true, 'admitting the sibling reclaimed the pinned connection');
+        assert.equal(r.closed, false, 'the primary must be tried again, not the play ended');
+        assert.equal(r.active.candidate, A);
+        assert.ok(notes.includes('renewal-primary-fallback'));
+    } finally { routing.plan = plan; strategy.resolve = resolve; ingestModule._registry.delete(live.key); await r.close('test over'); }
+});
+
+test('Codex R1 of 0318: a pinned primary ended by something else (not this relay\'s own admission) is not restarted', async () => {
+    const front = fakeSession(); write(front, 0, 2);
+    const r = relay.adopt(front, ctx()); clearInterval(r.timer); await r.ingest();
+    r.renewalTimes = [Date.now(), Date.now(), Date.now()];
+    const pin = { ingest: { key: 'pinned-elsewhere', state: 'live' }, endReason: { reason: 'closed', providerReason: false }, leave() {} };
+    const plan = routing.plan; routing.plan = async () => ({ candidates: [], primaryKey: 'k', channelName: 'Fox Footy' });
+    try {
+        await silently(() => r.switchOver('another reconnect', 'reconnected', pin));
+        assert.equal(r.closed, true, 'a viewer replacement or shutdown that ended the pin still ends the play');
+    } finally { routing.plan = plan; await r.close('test over'); }
+});
+
 test('N2: budget exhaustion on two channels quarantines channels without tripping the provider breaker', async () => {
     routing.reset();
     const failure = routing.noteFailure; routing.noteFailure = real.noteFailure;

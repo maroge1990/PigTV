@@ -218,11 +218,13 @@ test('hidden football never labels penalties, even from a server that projects p
         assert.match(p.card(g,{avoidSpoilers:false},'UTC'),/Penalties/);
     }
 });
-test('Record series is offered only for a real guide title, never a projected or masked one', () => {
-    const p=load().SportsDashboardPolicy;
-    assert.equal(p.guideTitle(game(),false),false,'score-feed titles are "A v B", not guide titles');
-    assert.equal(p.guideTitle(game({dataSource:'guide',title:'NFL · Guide event'}),true),false);
-    assert.equal(p.guideTitle(game({dataSource:'guide',title:'NFL: Chiefs at Bills'}),false),true);
+test('Codex R1 of 0319: the web Sport page offers no series rule (a display title never matches the guide exactly)', () => {
+    // C-I titles are normalised ("Live: NFL: Chiefs vs Bills" becomes "Chiefs v Bills") and merged across channels,
+    // while a series rule needs the exact guide title. Sport rules (league/team) remain.
+    const source=fs.readFileSync(require('node:path').join(__dirname,'../public/js/pages/SportsPage.js'),'utf8');
+    assert.doesNotMatch(source,/Record series/);
+    assert.doesNotMatch(source,/kind:'series'/);
+    assert.match(source,/kind:'sport'/);
 });
 test('league filters are canonical response leagues; guide-only leagues keep a shelf but no 400 filter', () => {
     const p=load().SportsDashboardPolicy, r=reply({leagues:['NFL'],games:[game({league:'NFL'}),game({id:'x',league:'A-League'})]});
