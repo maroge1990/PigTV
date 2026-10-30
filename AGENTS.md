@@ -6,8 +6,7 @@ is `../PigTV-Swift`. Work is tracked in [GitHub Issues](https://github.com/marog
 
 ## Map of the docs
 
-Repos (both public): `/Users/markrogers/Documents/GitHub/PigTV` (`github.com/maroge1990/PigTV`) and
-`/Users/markrogers/Documents/GitHub/PigTV-Swift` (`github.com/maroge1990/PigTV-Swift`, its own `AGENTS.md`).
+Repos (public): `github.com/maroge1990/PigTV` and `…/PigTV-Swift` (its own `AGENTS.md`); checkouts in WSL `~/code/PigTV{,-Swift}`, on the Mac `/Users/markrogers/Documents/GitHub/PigTV{,-Swift}` (Apple builds only).
 
 | File | Holds |
 |---|---|
@@ -49,17 +48,23 @@ The story of a change goes in its commit message, not the docs.
 
 **Claude commits to `main` and pushes it once the batch has passed its reviews** (D-34). No feature branches.
 
-1. Make the change with its test. `npm test` and `verify-build.sh` must both pass before a commit; if either can't run,
-   say so in the commit message and to Mark.
+1. Make each fix with its test and run the targeted tests; the full gates (`npm test`, `verify-build.sh`) run once
+   before the batch's first review round and again before the push. If one can't run, say so in the commit and to Mark.
 2. A functional commit bumps `build` in `server/version.js` **and** this row, and its subject starts with the number
    (`0208: what changed`). Docs-only and test-only commits have no number. Next build number: **0333**.
 3. Commits write `Refs #n`, **never** `Fixes`/`Closes` (that would close the issue on push, before Mark's check).
-4. **Push** (`git push origin main`) only once tests, `verify-build.sh` and the batch's Codex rounds (Reviews) are done.
+4. **Push** (`git push origin main`) once the batch's gates and review rounds pass with no high finding left (D-34, D-35).
    CI then runs the tests (Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass**: watch it; if it
-   goes red, fix it or `git revert` at once (`gh run view <id> --log-failed`). One logical change per commit.
+   goes red, fix it or `git revert` at once (`gh run view <id> --log-failed`).
 5. Tell Mark what is committed, the build number, and numbered T5 steps ([`docs/TESTING.md`](docs/TESTING.md)) for
-   anything that needs the real feed or a device. Nothing is *Verified* until he reports back. Deploy and rollback are
-   Mark's ([`docs/OPERATIONS.md`](docs/OPERATIONS.md) › Deployment); a redeploy ends every session.
+   anything that needs the real feed or a device. Nothing is *Verified* until he reports back. A release to production
+   (deploy, rollback) needs Mark's go-ahead each time ([`docs/OPERATIONS.md`](docs/OPERATIONS.md) › Deployment).
+
+## Work in batches (D-35)
+
+Open issues touching the same code and risk (one subsystem, one platform) go in one batch, which pays once for its two
+Codex rounds, push and CI build; a release bundles a few batches. Each fix stays its own commit with its own failing-before
+test. Never batch unrelated areas to save time; a fix whose live effect must be proven alone ships where it can be told apart.
 
 ## Work tracking
 
@@ -81,9 +86,8 @@ The story of a change goes in its commit message, not the docs.
   hypothesis: 0085 did, and broke every even feed.
 - Every functional change has a test that **fails on the old code** (prove it). Add a `verify-build.sh` check only for
   what a test can't say, and prove it by reintroducing the bug.
-- **Test, don't ask:** T1–T3 touch no real provider, so run them (including driving the simulators). T3 (fake provider,
-  browser pane, simulators, before/after screenshots) is required for user-visible changes **once the Unraid rig is
-  live** (#73); until then say which T3 checks could not run.
+- **Test, don't ask:** T1–T3 touch no real provider, so run them. T3 (the Unraid rig's fake provider, browser pane,
+  simulators, before/after screenshots) is required for user-visible changes; say which T3 checks could not run.
 - A change the Apple client can see goes into `docs/CLIENT-CONTRACT.md` in the same commit; a new endpoint it calls goes
   into `APPLE_CLIENT_ROUTES` in `test/api-404.test.js`.
 - Never return or log a provider URL, password or token (`redact()`, opaque handles, C-B error texts).
@@ -98,11 +102,11 @@ Required before a batch is pushed (D-34) if it makes any functional change to re
 playback path, provider routing or admission, caches or other shared ownership/accounting, auth/redaction, or anything
 in `docs/CLIENT-CONTRACT.md`; fixes a review finding; or changes more than ~150 non-test lines (D-17). Docs-only and
 test-only commits are exempt. **Claude launches it itself** in each repo touched: `node ~/.claude/plugins/marketplaces/openai-codex/plugins/codex/scripts/codex-companion.mjs adversarial-review --wait
---base <origin/main or the reviewed baseline> "<focus>"` (Bash in the background, output to the scratchpad). It needs
+--base <the commit before the batch> "<focus: the batch, its issues, its first commit>"` (Bash in the background, output to the scratchpad). It needs
 `codex login`; if it cannot run, say so and give Mark the command and focus. **At most two rounds per batch**
 (the first review, and one of the fixes it prompted; D-19). Every finding becomes an issue labelled `finding` (security
 ones a private advisory), fixed with its own failing-before test or answered; after round two only **high** findings
-block the push. The handoff lists each finding with its disposition.
+block the push, and mediums and lows stay open as issues. The handoff lists each finding with its disposition.
 
 ## Gotchas
 

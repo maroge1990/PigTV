@@ -268,3 +268,17 @@ reviews.
   review, once its tests pass. Deploy and rollback stay Mark's. Supersedes D-15.
 - **Consequence:** [`../AGENTS.md`](../AGENTS.md) › How changes ship; Claude watches CI after each push and fixes or
   reverts a red run at once.
+
+### D-35. Work in batches by area (30 Oct 2026)
+
+- **Choice:** Mark's rule across his projects (PigMusic D-50, 30 Oct 2026). Open issues that touch the same code and the
+  same risk (one subsystem, one platform) are fixed as one batch, which pays its fixed costs once: at most two Codex rounds
+  (D-19), one push, one CI build; a release to production bundles a few batches. Inside a batch each fix is its own commit
+  (`Refs #n`) with its own failing-before test; targeted tests run per fix, the full gates once before the first review
+  round and again before the push. One platform per batch where possible; unrelated areas are never batched to save
+  time, and a fix whose live effect must be proven alone ships where it can be told apart. The review focus names the
+  batch, its issues and its first commit, against the commit before the batch. After round two only high findings
+  block; mediums and lows stay open as issues (security ones private advisories). A batch with no high finding left
+  after its rounds is pushed by Claude (D-34); each release to production still needs Mark's go-ahead.
+- **Consequence:** [`../AGENTS.md`](../AGENTS.md) › How changes ship, Work in batches, Reviews.
+
