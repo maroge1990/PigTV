@@ -15,11 +15,12 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   cancellable, duplicate-checked).
 - **One connection, one stream (D-28, 0324, #12).** `maxConcurrentRecordings` (default 1) counts provider connections, not
   recordings: recordings on one shared ingest are one (`recordingConnections()`). A due recording passes the cap without
-  a slot only when its resolved candidate has a live ingest that a running recording reads (`sharedRecordingKey()`), and
-  its start is abandoned back to waiting if the feed it gets is not that one (`joinedAsPromised()`, 0325, #133). Clashes
+  a slot only when its resolved candidate has a live ingest that a running recording reads (`sharedRecordingKey()`);
+  `chooseProvider()` then gives it that candidate (0326, #137), and at the cap its start is abandoned back to waiting if
+  the feed it gets is not that one (`joinedAsPromised()`, 0325, #133). Clashes
   are shown when scheduling: `listScheduled()` adds `conflictsWith` (up to ten ids) to each upcoming schedule that, at
   some moment of its window (with pre/post padding), is one of more connections than the cap or than its source's
-  provider pool allows (`clashes()`, one sweep over the windows' boundaries, #134). With shared ingest on a channel's
+  provider pool allows (`clashes()`, one sweep over the windows' boundaries with live schedules grouped by connection, #134, #138). With shared ingest on a channel's
   schedules share one connection; with it off each needs its own (#135). Backups are not counted (#136), so it may warn
   when a backup could have carried one. `POST /recordings/schedule` answers with it too; the web guide's toast and
   Recordings list say it.

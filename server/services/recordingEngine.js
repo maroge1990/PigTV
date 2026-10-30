@@ -256,6 +256,10 @@ function freeCandidate(route, settings, from = 0) {
     return -1;
 }
 
+function ingestKeyOf(candidate) {
+    try { return ingest.keyOf(coordinator.poolOf(candidate.providerId), candidate.url); } catch (e) { return null; }
+}
+
 function liveIngestFor(candidate) {
     try { return ingest.liveFor(coordinator.poolOf(candidate.providerId), candidate.url); } catch (e) { return null; }
 }
@@ -310,7 +314,7 @@ function askToStop(entry) {
  * free, today's prompt flow on the first candidate (the 0158 timeout included).
  * With no backup configured, today's requestForRecording on the schedule's source.
  */
-async function chooseProvider(schedule, settings) {
+async function chooseProvider(schedule, settings, joinKey = null) {
     let route;
     try {
         route = await routeFor(schedule);
@@ -322,7 +326,9 @@ async function chooseProvider(schedule, settings) {
     // Wave 5: a channel already being read by a shared ingest (somebody is watching it, or it
     // is recording already) is recorded from it: no connection, so nobody is asked anything.
     if (ingest.enabled(settings)) {
-        const joinAt = route.candidates.findIndex(c => liveIngestFor(c));
+        // #137: a recording that may only join a running recording's ingest gets that candidate, not the first live one.
+        const promised = joinKey ? route.candidates.findIndex(c => liveIngestFor(c) && ingestKeyOf(c) === joinKey) : -1;
+        const joinAt = promised >= 0 ? promised : route.candidates.findIndex(c => liveIngestFor(c));
         if (joinAt >= 0) return { route, index: joinAt, verdict: { allowed: true, reason: 'It joins a shared connection already open', lease: null } };
     }
     if (!route.multi) {
@@ -476,7 +482,7 @@ async function sharedRecordingKey(schedule, settings) {
     try { route = await routeFor(schedule); } catch (e) { return null; }
     for (const candidate of route.candidates) {
         if (!liveIngestFor(candidate)) continue;
-        const key = ingest.keyOf(coordinator.poolOf(candidate.providerId), candidate.url);
+        const key = ingestKeyOf(candidate);
         if (keys.has(key)) return key;
     }
     return null;
@@ -531,29 +537,43 @@ function clashes(rows, settings) {
         if (end > start) events.push([start, 1, r], [end, 0, r]);
     }
     events.sort((x, y) => x[0] - y[0] || x[1] - y[1]); // a window ending as another starts does not overlap it
-    const live = new Set();
-    const counts = new Map();
+    // Live schedules grouped by the connection they need: a row is only ever compared with other groups (#138).
+    const byKey = new Map();
     const found = new Map();
     for (let i = 0; i < events.length;) {
         const t = events[i][0];
         for (; i < events.length && events[i][0] === t; i++) {
             const [, starts, r] = events[i];
             const key = keyOf.get(r.id);
-            if (starts) { live.add(r); counts.set(key, (counts.get(key) || 0) + 1); continue; }
-            live.delete(r);
-            const left = counts.get(key) - 1;
-            if (left) counts.set(key, left); else counts.delete(key);
-        }
-        if (counts.size < 2 || !overloaded(counts)) continue;
-        for (const r of live) {
-            const ids = found.get(r.id) || new Set();
-            if (ids.size >= CLASH_LIST_MAX) continue;
-            const key = keyOf.get(r.id);
-            for (const o of live) {
-                if (keyOf.get(o.id) !== key) ids.add(o.id);
-                if (ids.size >= CLASH_LIST_MAX) break;
+            if (starts) {
+                if (!byKey.has(key)) byKey.set(key, new Set());
+                byKey.get(key).add(r);
+                continue;
             }
-            found.set(r.id, ids);
+            const group = byKey.get(key);
+            group.delete(r);
+            if (!group.size) byKey.delete(key);
+        }
+        if (byKey.size < 2 || !overloaded(byKey)) continue;
+        // Each group lists the first CLASH_LIST_MAX schedules of the other groups once, and every member shares it.
+        const firstOf = new Map([...byKey].map(([key, group]) => {
+            const ids = [];
+            for (const r of group) { ids.push(r.id); if (ids.length >= CLASH_LIST_MAX) break; }
+            return [key, ids];
+        }));
+        for (const [key, group] of byKey) {
+            const others = [];
+            for (const [other, ids] of firstOf) {
+                if (other === key) continue;
+                for (const id of ids) { others.push(id); if (others.length >= CLASH_LIST_MAX) break; }
+                if (others.length >= CLASH_LIST_MAX) break;
+            }
+            for (const r of group) {
+                const ids = found.get(r.id) || new Set();
+                if (ids.size >= CLASH_LIST_MAX) continue;
+                for (const id of others) { ids.add(id); if (ids.size >= CLASH_LIST_MAX) break; }
+                found.set(r.id, ids);
+            }
         }
     }
     return new Map([...found].filter(([, ids]) => ids.size).map(([id, ids]) => [id, [...ids].sort((a, b) => a - b)]));
@@ -843,9 +863,7 @@ function startStillWanted(schedule, { lease, generation, stillWanted }) {
  */
 function joinedAsPromised(schedule, owner, feed, candidate) {
     if (!owner.mustJoin) return true;
-    let key = null;
-    try { key = feed ? ingest.keyOf(coordinator.poolOf(candidate.providerId), candidate.url) : null; } catch (e) { key = null; }
-    if (key === owner.mustJoin) return true;
+    if (feed && ingestKeyOf(candidate) === owner.mustJoin) return true;
     if (feed) { try { feed.leave(); } catch (e) { /* gone */ } }
     waitForSlot(schedule);
     return false;
@@ -1715,7 +1733,8 @@ async function tick() {
             // already being recorded joins that recording's shared ingest, so the cap never holds it back.
             // #133: only when the start really reads that recording's ingest (checked again once the feed is had).
             const joins = await sharedRecordingKey(schedule, settings);
-            if (!joins && recordingConnections() >= recordingSlots(settings)) {
+            const atCap = recordingConnections() >= recordingSlots(settings);
+            if (!joins && atCap) {
                 waitForSlot(schedule);
                 continue;
             }
@@ -1726,7 +1745,7 @@ async function tick() {
             // recording start the moment playback stops.
             // 0177: with backups, the first provider with a free connection is
             // used without asking; the prompt is only for when every one is busy.
-            const choice = await chooseProvider(schedule, settings);
+            const choice = await chooseProvider(schedule, settings, joins);
             const verdict = choice.verdict;
             if (!verdict.allowed) {
                 if (schedule.status !== 'waiting') {
@@ -1735,7 +1754,7 @@ async function tick() {
                 continue;
             }
 
-            if (joins) choice.mustJoin = joins;
+            if (joins && atCap) choice.mustJoin = joins; // past the cap only by joining (#133)
             await startRecording(schedule, choice);
         }
 
@@ -1947,5 +1966,6 @@ module.exports = {
     _reconcileJobsOnStartup: reconcileJobsOnStartup,
     _reconcileOnStartup: reconcileOnStartup, // R3: what a restart does to a recording in progress
     _failoverTuning: failoverTuning,
+    _chooseProvider: chooseProvider, // #137: which candidate a join-only start is given
     segments
 };

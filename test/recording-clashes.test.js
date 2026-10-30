@@ -267,3 +267,53 @@ test('#134: the clash list over 800 heavily overlapping schedules is quick', per
     assert.ok(list.every(r => !r.conflictsWith || r.conflictsWith.length <= 10), 'at most ten ids each');
     assert.ok(ms < 400, `800 schedules took ${ms.toFixed(0)} ms`);
 });
+
+test('#138: 799 overlapping schedules on one channel and one on another: the clash list is quick', perf, async () => {
+    const d = sqlite.getDb();
+    const now = Date.now() + 3 * 86400000;
+    d.transaction(() => {
+        for (let i = 0; i < 799; i++) {
+            scheduled.create({ title: `Same ${i}`, description: null, source_id: A.id, channel_item_id: 'pos_1', channel_stable_id: 'ff',
+                channel_name: 'pos_1', channel_logo: null, program_start: now + i * 1000, program_end: now + 7200000 + i * 1000,
+                pre_buffer_min: 0, post_buffer_min: 0, created_by: 1, created_at: now });
+        }
+    })();
+    const lone = schedule('pos_2', 'fl', { startIn: 3 * 86400000, lengthMs: 9000000 });
+    const began = process.hrtime.bigint();
+    const list = engine.listScheduled({ settings: await db.settings.get() });
+    const ms = Number(process.hrtime.bigint() - began) / 1e6;
+    assert.equal(list.find(r => r.id === lone.id).conflictsWith.length, 10);
+    assert.ok(list.filter(r => r.title.startsWith('Same ') && r.conflictsWith?.[0] === lone.id).length > 790, 'each lists the lone one');
+    assert.ok(ms < 400, `800 schedules took ${ms.toFixed(0)} ms`);
+});
+
+test('#137: a join-only start is given the running recording\'s ingest, not a viewer\'s on another provider', async () => {
+    const B = await db.sources.create({ type: 'm3u', name: 'Backup', url: 'http://backup.invalid/list.m3u', role: 'backup', priority: 1 });
+    const d = sqlite.getDb();
+    d.prepare('INSERT INTO backup_channels (source_id, stream_id, name, url_data) VALUES (?, ?, ?, ?)').run(B.id, '5001', 'Backup Footy', `${base}/ff-backup.ts`);
+    d.prepare(`INSERT INTO channel_links (primary_source_id, primary_key, backup_source_id, backup_stream_id, method, status, rank, score, updated_at)
+               VALUES (?, 'ff', ?, '5001', 'exact', 'auto', 1, 100, ?)`).run(A.id, B.id, Date.now());
+    const subs = [];
+    try {
+        const settings = await db.settings.get();
+        const s = schedule();
+        const sub = async (providerId, url) => {
+            const feed = await ingest.subscribe({ pool: coordinator.poolOf(providerId), url, channelKey: null, userAgent: 'test',
+                providerId, purpose: 'test', channel: 'Fox Footy', providerName: null });
+            subs.push(feed);
+            await until(() => ingest.liveFor(coordinator.poolOf(providerId), url), 'live');
+        };
+        await sub(A.id, `${base}/ff.ts`);            // a viewer on the primary
+        await sub(B.id, `${base}/ff-backup.ts`);     // the running recording's ingest on the backup
+        const backupKey = ingest.keyOf(coordinator.poolOf(B.id), `${base}/ff-backup.ts`);
+        const choice = await engine._chooseProvider(s, settings, backupKey);
+        const given = choice.route.candidates[choice.index];
+        assert.equal(given.url, `${base}/ff-backup.ts`, 'the promised ingest');
+        assert.equal(choice.verdict.allowed, true);
+        await engine.cancelScheduled(s.id);
+    } finally {
+        for (const f of subs) { try { f.leave(); } catch { /* gone */ } }
+        d.prepare('DELETE FROM channel_links WHERE backup_source_id = ?').run(B.id);
+        await db.sources.delete(B.id);
+    }
+});
