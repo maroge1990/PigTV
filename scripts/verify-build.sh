@@ -950,7 +950,7 @@ check docs/architecture/playback.md "When a channel misbehaves" "the loop is wri
 check AGENTS.md "No ffmpeg-flag or" "and shipping a timestamp fix on a hypothesis is called out as the 0085 mistake"
 check docs/architecture/playback.md "regression corpus" "samples are kept and retested, which 0085 had no way to do"
 check AGENTS.md "/Users/markrogers/Documents/GitHub/PigTV" "the map of the docs names the current repo folder"
-check AGENTS.md "but never pushes" "and how changes ship is written down (commit, Mark pushes)"
+check AGENTS.md "and pushes it once the batch has passed its reviews" "and how changes ship is written down (D-34: commit, push once reviewed)"
 
 echo "=== 0092 (docs): commands name the container instead of a placeholder ==="
 check docs/architecture/playback.md "docker exec PigTV node scripts/stream-doctor" "so a command can be pasted as written"

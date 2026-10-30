@@ -260,3 +260,11 @@ reviews.
   dependency of playback.
 - **Consequence:** supersedes the per-sport "next 72 hours" views and the team-follow logic of the 29 Oct dashboard
   design; [`PRODUCT.md`](PRODUCT.md) › Sport; #21.
+
+### D-34. Claude pushes reviewed batches (30 Oct 2026)
+
+- **Choice:** Claude may push `main` itself (both repos) once a batch has passed its Codex review rounds (D-17, D-19:
+  at most two, every finding filed and fixed or answered) and its tests; a docs- or test-only batch, which needs no
+  review, once its tests pass. Deploy and rollback stay Mark's. Supersedes D-15.
+- **Consequence:** [`../AGENTS.md`](../AGENTS.md) › How changes ship; Claude watches CI after each push and fixes or
+  reverts a red run at once.

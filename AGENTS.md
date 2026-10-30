@@ -36,7 +36,7 @@ Tests that need ffmpeg skip without one. `PIGTV_SKIP_PERF=1` skips speed budgets
 
 ## Session checklist
 
-**Start:** `git status`; `git pull --rebase origin main` (never push); read `ROADMAP.md`'s current state;
+**Start:** `git status`; `git pull --rebase origin main`; read `ROADMAP.md`'s current state;
 `gh issue list --label P0` and `gh issue list --label P1` before picking work. Tools that cannot read issues (Codex,
 offline agents) get the issue text pasted into their prompt.
 
@@ -47,16 +47,16 @@ The story of a change goes in its commit message, not the docs.
 
 ## How changes ship
 
-**Claude commits to `main` but never pushes** (D-15). No feature branches; one logical change per commit.
+**Claude commits to `main` and pushes it once the batch has passed its reviews** (D-34). No feature branches.
 
 1. Make the change with its test. `npm test` and `verify-build.sh` must both pass before a commit; if either can't run,
    say so in the commit message and to Mark.
 2. A functional commit bumps `build` in `server/version.js` **and** this row, and its subject starts with the number
    (`0208: what changed`). Docs-only and test-only commits have no number. Next build number: **0333**.
-3. Commits write `Refs #n`, **never** `Fixes`/`Closes` (that would close the issue the moment Mark pushes, before any check).
-4. **Don't `git push`.** Tell Mark which commits are waiting. When Mark pushes, CI runs the tests (Node 22 and 24) and
-   builds `ghcr.io/maroge1990/pigtv` **only if the tests pass**. If CI goes red, fix it or `git revert` at once
-   (`gh run view <id> --log-failed`), again as a local commit.
+3. Commits write `Refs #n`, **never** `Fixes`/`Closes` (that would close the issue on push, before Mark's check).
+4. **Push** (`git push origin main`) only once tests, `verify-build.sh` and the batch's Codex rounds (Reviews) are done.
+   CI then runs the tests (Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass**: watch it; if it
+   goes red, fix it or `git revert` at once (`gh run view <id> --log-failed`). One logical change per commit.
 5. Tell Mark what is committed, the build number, and numbered T5 steps ([`docs/TESTING.md`](docs/TESTING.md)) for
    anything that needs the real feed or a device. Nothing is *Verified* until he reports back. Deploy and rollback are
    Mark's ([`docs/OPERATIONS.md`](docs/OPERATIONS.md) › Deployment); a redeploy ends every session.
@@ -94,7 +94,7 @@ The story of a change goes in its commit message, not the docs.
 
 ## Reviews (Codex adversarial review)
 
-Required before Mark is told a batch is ready if it makes any functional change to recording/DVR, recording rules, the
+Required before a batch is pushed (D-34) if it makes any functional change to recording/DVR, recording rules, the
 playback path, provider routing or admission, caches or other shared ownership/accounting, auth/redaction, or anything
 in `docs/CLIENT-CONTRACT.md`; fixes a review finding; or changes more than ~150 non-test lines (D-17). Docs-only and
 test-only commits are exempt. **Claude launches it itself** in each repo touched: `node ~/.claude/plugins/marketplaces/openai-codex/plugins/codex/scripts/codex-companion.mjs adversarial-review --wait
@@ -102,7 +102,7 @@ test-only commits are exempt. **Claude launches it itself** in each repo touched
 `codex login`; if it cannot run, say so and give Mark the command and focus. **At most two rounds per batch**
 (the first review, and one of the fixes it prompted; D-19). Every finding becomes an issue labelled `finding` (security
 ones a private advisory), fixed with its own failing-before test or answered; after round two only **high** findings
-block the handoff. The handoff lists each finding with its disposition.
+block the push. The handoff lists each finding with its disposition.
 
 ## Gotchas
 
