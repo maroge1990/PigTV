@@ -204,8 +204,9 @@ function parseMatchup(title) {
         .replace(/\[[^\]]*\]/g, ' ')
         .replace(/\b(?:19|20)\d{2}\/\d{2,4}\b/g, ' ')
         .replace(/\b(?:start|stop):\s*\S+(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?/gi, ' ')
-        // Cricket stage labels belong to the game, never to the second team's name.
-        .replace(/\s+(?:(?:(?:\d+(?:st|nd|rd|th)|first|second|third|fourth|fifth)\s+)?test(?:\s+day\s+\d+)?(?:\s+session\s+\d+)?|g[1-5])\s*$/i, '');
+        // Cricket stage labels belong to the game, never to the second team's name ("Day 2 Session 1", and Fox's
+        // "D2 S1", #23).
+        .replace(/\s+(?:(?:(?:\d+(?:st|nd|rd|th)|first|second|third|fourth|fifth)\s+)?test(?:\s+(?:day\s+\d+|d\d+))?(?:\s+(?:session\s+\d+|s\d+))?|g[1-5])\s*$/i, '');
     for (const segment of cleaned.split(/\s*[|·]\s*|\s+[-–—]+\s+|\s*:\s*/)) {
         const m = SEPARATOR_RE.exec(segment.trim());
         if (!m) continue;
@@ -587,7 +588,9 @@ function resolveLive(airings, fixturesByLeague, now = Date.now()) {
             // (0)
             if (fixturesByLeague) {
                 const verdict = fixtureVerdict(a, fixturesByLeague.get(a.league), now);
-                if (verdict) {
+                // #23: "no such game" is an absence; the guide's explicit live flag outweighs it (rule (a) decides).
+                // A "Live" title does not: a rebroadcast often copies it.
+                if (verdict && !(verdict.absence && (flags & FLAGS.LIVE))) {
                     if (verdict.live) { a.why = `${a.why}, ${verdict.why}`; first = a; } else { replay(a, verdict.why); }
                     continue;
                 }
@@ -725,7 +728,7 @@ function fixtureVerdict(a, leagueData, now) {
         if (recent && widelyEnoughCovered) {
             const teamsAliases = leagueData.teamsAliases || [];
             if (teamIsKnown(p.teams[0], teamsAliases) && teamIsKnown(p.teams[1], teamsAliases)) {
-                return { live: false, why: 'ESPN has no such game at this time' };
+                return { live: false, absence: true, why: 'ESPN has no such game at this time' };
             }
         }
         return null;
@@ -741,7 +744,7 @@ function fixtureVerdict(a, leagueData, now) {
             const widelyEnoughCovered = from <= a.start - NO_GAME_HALF_WINDOW_MS && to >= a.start + NO_GAME_HALF_WINDOW_MS;
             const anyNearby = (leagueData.fixtures || []).some(f => Math.abs(f.start - a.start) <= NO_GAME_HALF_WINDOW_MS
                 || (f.end && f.start <= a.start && f.end >= a.start));
-            if (recent && widelyEnoughCovered && !anyNearby) return { live: false, why: `ESPN has no ${a.league} session at this time` };
+            if (recent && widelyEnoughCovered && !anyNearby) return { live: false, absence: true, why: `ESPN has no ${a.league} session at this time` };
             return null;
         }
         const best = candidates.reduce((b, c) => (Math.abs(c.start - a.start) < Math.abs(b.start - a.start) ? c : b));

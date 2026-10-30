@@ -305,6 +305,49 @@ test('Fox Cricket 501 evidence is live during play and replay overnight', () => 
     }
 });
 
+/** The Day 2 evidence (#22, #23): Fox Cricket 501's rows of 28 Oct against both stored ESPN fixtures, as the build sees them. */
+function foxCricketDay2(issue) {
+    const fx = require('./fixtures/sports-export.json').foxCricketDay2;
+    const { toFixture, teamAliasSides } = load('services/sportsFixtures');
+    const fixtures = fx.fixtures.map(f => toFixture({ start: Date.parse(f.start), end: Date.parse(f.end), teams: f.teams }));
+    // The league's known teams, as the stored cricket teams gave them: both sides of each fixture.
+    const teamsAliases = fx.fixtures.flatMap(f => f.teams).map(teamAliasSides);
+    const at = Date.parse('2026-10-28T00:30Z');
+    const data = new Map([['Cricket', { fixtures, teamsAliases, coverage: { from: at - 48 * H, to: at + 7 * 24 * H, at } }]]);
+    const channels = [{ key: '8:fox', order: 0, tvgId: 'fox', name: fx.channel, sportChannel: false }];
+    const rows = fx.programmes.map(r => ({ channel_id: 'fox', title: r.title, start_time: Date.parse(r.start), end_time: Date.parse(r.end), flags: r.flags }));
+    const events = sportsEvents.eventsFromProgrammes(channels, rows, ['Cricket'], data);
+    return fx.programmes.filter(r => r.issue === issue).map(row => {
+        const event = events.find(e => e.aliases.includes(row.title) && e.start <= Date.parse(row.start) && e.end >= Date.parse(row.end));
+        return { row, kind: event?.kind, why: event?.kindRule };
+    });
+}
+
+// #23 (FR-20): "D2 S1" is a stage, not part of Australia's name; RSA is South Africa; and the guide's live flag beats
+// "ESPN has no such game" (an absence, not a presence).
+test('#23: Fox Cricket Day 2 sessions flagged live are live, and credited to the Test', () => {
+    for (const { row, kind, why } of foxCricketDay2(23)) {
+        assert.equal(kind, row.kind, `${row.start} ${row.title}: ${why}`);
+        assert.match(why, /ESPN: the game started/, `${row.title}: matched to a fixture (${why})`);
+        assert.doesNotMatch(why, /Wed 12:00 am/, `${row.title}: the Test, not the Sheffield Shield game (${why})`);
+    }
+    for (const [title, second] of [['Test : RSA v AUS 3rd Test D2 S1', 'AUS'], ['RSA v AUS 3rd Test Day 2 Session 1', 'AUS']]) {
+        assert.equal(classify.parseMatchup(title)?.[1].name, second, title);
+    }
+    // ESPN knowing both teams and listing no game is an absence; the guide's explicit live flag outweighs it.
+    const at = Date.parse('2026-10-28T08:30Z');
+    const known = name => [classify.parseSide(name)];
+    const data = new Map([['Cricket', { fixtures: [], teamsAliases: [known('Pakistan'), known('Sri Lanka')],
+        coverage: { from: at - 24 * H, to: at + 24 * H, at } }]]);
+    const flagged = airing('Pakistan v Sri Lanka', at, { league: 'Cricket', flags: classify.FLAGS.LIVE });
+    const unflagged = airing('Pakistan v Sri Lanka', at + 30 * 24 * H, { league: 'Cricket' });
+    classify.resolveLive([flagged], data, at);
+    assert.equal(flagged.kind, 'event', flagged.why);
+    data.get('Cricket').coverage = { from: at, to: at + 32 * 24 * H, at: at + 30 * 24 * H };
+    classify.resolveLive([unflagged], data, at + 30 * 24 * H);
+    assert.equal(unflagged.kind, 'replay', 'without the flag, "no such game" still decides');
+});
+
 test('multi-day cricket fixtures do not label overnight blocks live', () => {
     const firstBall = Date.parse('2026-10-27T08:00Z');
     const aliases = name => [classify.parseSide(name)];

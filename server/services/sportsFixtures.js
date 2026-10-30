@@ -394,12 +394,16 @@ function stopBackgroundRefresh() {
 
 // ---- turning stored rows into what sportsClassify.resolveLive needs --------------------------
 
+// #23: codes guides use that ESPN's abbreviation is not (Fox Cricket: "RSA v AUS"; ESPN: SA).
+const EXTRA_ABBREVIATIONS = new Map([['south africa', ['RSA']], ['new zealand', ['NZL']], ['sri lanka', ['SRI']]]);
+
 /** parseSide of every non-empty, deduplicated name field a fixture's team carries -> [side, ...], or null. */
 function teamAliasSides(team) {
     if (!team) return null;
     const seen = new Set();
     const sides = [];
-    for (const raw of [team.displayName, team.shortDisplayName, team.name, team.location, team.abbreviation]) {
+    const extra = EXTRA_ABBREVIATIONS.get(sportsClassify.normText(team.displayName)) || [];
+    for (const raw of [team.displayName, team.shortDisplayName, team.name, team.location, team.abbreviation, ...extra]) {
         if (typeof raw !== 'string' || !raw.trim()) continue;
         const key = sportsClassify.normText(raw);
         if (!key || seen.has(key)) continue;
