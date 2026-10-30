@@ -744,19 +744,21 @@ async function cancelScheduled(id) {
 async function deleteRecording(id) {
     let rec = recordingsDb.getById(id);
     if (!rec) throw new Error('Recording not found');
-    // R4-D2 (0257), R5-D1: before any await, nothing being published for it - by any job - may
-    // record itself or stay.
-    owners.retire(id);
-
-    // #141: a share that is not answering refuses the deletion before anything of it is stopped or
-    // removed (its files would stay behind, unlisted, under a recording that is gone). It stays
-    // listed, and retired: its jobs stand down until it is deleted or the server restarts.
+    // #141: a share that is not answering refuses the deletion before anything of it is retired,
+    // stopped or removed (its files would stay behind, unlisted, under a recording that is gone).
+    // #149: before retire(), which cannot be undone: a refused deletion leaves the recording as it
+    // was, its jobs still its own. What one of them published meanwhile is the row read again here.
     const first = rec.file_path || rec.segment_original;
     if (first) {
         try { await shareFs.identity(first); } catch (err) {
             if (err.code === 'SHARE_UNRESPONSIVE') throw new Error('The recordings folder is not responding, so the recording was not deleted. Try again once it is back.');
         }
+        rec = recordingsDb.getById(id);
+        if (!rec) throw new Error('Recording not found');
     }
+    // R4-D2 (0257), R5-D1: from here, before any await, nothing being published for it - by any
+    // job - may record itself or stay.
+    owners.retire(id);
 
     // 0207: nor may a live break-detection run go on reading a file about to go.
     post.abortLive(id);

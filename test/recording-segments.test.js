@@ -731,7 +731,11 @@ test('R4-D2: an MP4 moved to the share while the deletion is still running is re
     try {
         const moving = segments.moveOne(recordings.getById(rec.id));
         await copying;
-        const deleting = engine.deleteRecording(rec.id); // retired at once; it waits for the copy (0264)
+        const deleting = engine.deleteRecording(rec.id); // it waits for the copy (0264)
+        // #141/#149: retired once the share has answered its check, before anything else of the deletion.
+        const owners = load('services/recordingOwners');
+        for (let i = 0; i < 100 && owners.owned(rec.id); i++) await new Promise(r => setTimeout(r, 10));
+        assert.equal(owners.owned(rec.id), false, 'retired before the copy ends');
         release();
         await removal.inside;
         await moving;

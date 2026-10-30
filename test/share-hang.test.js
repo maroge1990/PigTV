@@ -321,7 +321,7 @@ test('#141: a delete while the share is not answering is refused, and nothing of
     assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
     assert.ok(recordings.getById(rec.id), 'the recording is still listed');
     assert.ok(real(() => fs.existsSync(rec.file_path)), 'its file is untouched');
-    assert.equal(owners.owned(rec.id), false, 'retired at once all the same (R4-D2): its jobs stand down');
+    assert.ok(owners.owned(rec.id), '#149: and not retired: its jobs carry on as before');
     shareFs.reset();
 });
 
