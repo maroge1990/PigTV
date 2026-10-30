@@ -60,9 +60,10 @@ the server repo; `blueprint.md` is split between these and retired.
   Mark, a live incident) is written in its body, not a label.
 - **Issue body (template):** symptom · how to reproduce · evidence link · cause (once known) · acceptance: what proves it
   fixed and at which test tier.
-- **Only Mark closes issues** ⓐ. Agents write `Refs #n` in commits, never `Fixes`/`Closes` (which would close the issue
-  the moment Mark pushes, before any device check). When an agent's tiers fully prove a fix, it comments so and adds no
-  `needs-device-test`; Mark closes it on review.
+- **An issue closes only on Mark's confirmation** ⓐ (revised 30 Oct). Agents write `Refs #n` in commits, never
+  `Fixes`/`Closes` (which would close the issue the moment Mark pushes, before any check). Once a fix is pushed, the agent
+  asks Mark whether it has been checked and resolved; on his yes, the agent closes the issue with a comment quoting his
+  confirmation. Asking about fixed-but-open issues is part of every session's handover, not a separate chore.
 - **Issues are read at the start of every session** ⓐ: `gh issue list --label P0` and `--label P1` before picking work.
   Tools that cannot read issues (Codex reviews, offline agents) get the relevant issue text pasted into their prompt.
 - **Codex reviews:** each finding becomes an issue (`finding`), linked from the fix. The two-round stopping rule is
