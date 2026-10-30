@@ -15,7 +15,11 @@ batches without Mark; Mark deployed 0362 at 07:06 and asked for the next batches
   (batch 4b: a backup made the primary keeps the lineup, with a dry run #15; findings #180–#182), **0379–0380** (the NFL
   page's server answer, C-Q; finding #183). CI green for each pushed batch. Next build **0381**.
 - **Apple:** on GitHub **84** (`X-PigTV-Client` on every request), **85** (a UI test for #179), **86–87** (the NFL page,
-  findings #184, #185). Next build **88**. #7 (live hold) stays with its own session.
+  findings #184, #185), **88** (TestFlight prep: export compliance, `Tools/testflight.sh`). Next build **89**. #7 (live
+  hold) stays with its own session.
+- **TestFlight:** parked. Mark joined the developer program on 31 Oct; enrolment is pending (up to 48 h). Then: his
+  Team ID and an App Store Connect API key (Admin) on the Mac, the project moved to the paid team, bundle ids
+  registered, the app record created by Mark (iOS + tvOS), `Tools/testflight.sh both`, internal testing only.
 - **Not done:** #111 (ordered guide sources) deferred: P3, and production has one guide, so nothing duplicates today.
   Production's 7 favourites point at a provider id that no longer exists (an earlier provider change, #15's problem);
   6 are identifiable by name (Fox Footy 504, Sky Sports Main Event, ESPN, Sky Sports F1, Sky Sports Premier League,
