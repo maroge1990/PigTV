@@ -145,3 +145,19 @@ test('#158: race points are not invented', async () => {
     const { results } = await f1.page(NOW, { registerImage });
     assert.deepEqual(results.rows.map(r => r.points), Array(10).fill(null));
 });
+
+// #161: a weekend that cannot be fetched is a failed refresh, never an empty "before" page kept for an hour.
+test('#161: a failed weekend fetch keeps the last good page; cold, it is not available', async () => {
+    fakeEspn();
+    const good = await f1.page(NOW, { registerImage });
+    assert.equal(good.weekend.sessions.length, 5);
+    const real = f1.fetcher.get;
+    f1.fetcher.get = async (url) => (/scoreboard\?dates=/.test(url) ? { ok: false, error: 'timed out' } : real(url));
+    await f1.page(NOW + 20 * 60e3, { registerImage }); // stale: a refresh starts, and its weekend fetch fails
+    for (let i = 0; i < 50; i++) await new Promise(r => setImmediate(r));
+    const after = await f1.page(NOW + 21 * 60e3, { registerImage });
+    assert.equal(after.weekend.sessions.length, 5, 'the good page stays');
+    f1.reset();
+    assert.deepEqual(await f1.page(NOW, { registerImage }), { available: false }, 'cold: not an empty weekend');
+    f1.fetcher.get = real;
+});

@@ -213,7 +213,9 @@ async function build(now, { registerImage = (u) => u } = {}) {
     const [event, standingsAnswer, info] = await Promise.all([
         weekendEvent(entry), fetcher.get(STANDINGS), circuitInfo(entry.eventId, registerImage)
     ]);
-    const sessions = event ? sessionsOf(event) : [];
+    // #161: a weekend that cannot be fetched fails the refresh (the last good page stays), never an empty "before" page.
+    if (!event) return null;
+    const sessions = sessionsOf(event);
     const race = sessions.find(s => s.id === 'race');
     const started = sessions.some(s => s.status !== 'scheduled');
     const phase = race?.status === 'done' ? 'after' : started ? 'during' : 'before';
