@@ -1005,7 +1005,7 @@ class EpgGuide {
      */
     async scheduleRecording(data) {
         try {
-            await API.recordings.schedule({
+            const made = await API.recordings.schedule({
                 sourceId: parseInt(data.sourceId),
                 channelItemId: data.channelId,
                 channelName: data.channelName,
@@ -1018,10 +1018,15 @@ class EpgGuide {
                 postBufferMin: data.postBufferMin
             });
 
+            // #12: a clash is said now, not discovered when a recording waits or is missed.
+            const clashes = Array.isArray(made?.conflictsWith) ? made.conflictsWith.length : 0;
+            const message = clashes
+                ? `Recording scheduled: ${data.title}. It clashes with ${clashes} other recording${clashes === 1 ? '' : 's'} (see Recordings): one will wait or be missed.`
+                : `Recording scheduled: ${data.title}`;
             if (window.app?.showToast) {
-                window.app.showToast(`Recording scheduled: ${data.title}`);
+                window.app.showToast(message);
             } else {
-                alert(`Recording scheduled: ${data.title}`);
+                alert(message);
             }
         } catch (err) {
             console.error('Failed to schedule recording:', err);

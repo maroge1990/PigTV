@@ -68,9 +68,13 @@ jobs.capturing = () => active.size; // capture outranks every recording job
 // scheduledId -> { schedule, nextPart, lostAt, starting, waitingLogged }
 const continuations = new Map();
 
+// The settings the last tick read, for callers that cannot wait for them (#12's clash list).
+let knownSettings = null;
+
 async function getSettings() {
     const { settings } = require('../db');
-    return settings.get();
+    knownSettings = await settings.get();
+    return knownSettings;
 }
 
 /**
@@ -440,9 +444,72 @@ const RECENT_PROBLEMS_MS = 7 * 24 * 60 * 60 * 1000; // how long a missed/failed 
  * (0156). Without `includeRecent` the result is exactly listUpcoming(): the plain
  * route stays byte-for-byte compatible with what the Apple client already decodes.
  */
-function listScheduled({ includeRecent = false } = {}) {
+// #12: why a due recording waits for the recording slot, and why it was missed if it never got one.
+const SLOT_REASON = 'Another recording is using the recording slot.';
+const SLOT_MISSED = 'Other recordings used every recording slot for the whole programme (Settings → Recordings: simultaneous recordings).';
+
+/** One provider connection per recorded channel (D-28): a schedule's channel, for sharing and clashes. */
+function channelKeyOf(schedule) {
+    return `${schedule.source_id}:${schedule.channel_stable_id || schedule.channel_item_id}`;
+}
+
+/** #12: how many provider connections the active recordings hold (recordings on one shared ingest are one). */
+function recordingConnections() {
+    const keys = new Set();
+    let own = 0;
+    for (const entry of active.values()) {
+        if (entry.ingestKey) keys.add(entry.ingestKey); else own++;
+    }
+    return keys.size + own;
+}
+
+/** #12: an active recording already reads this schedule's channel through the shared ingest, so this one joins it. */
+function joinsActiveRecording(schedule, settings) {
+    if (!ingest.enabled(settings)) return false;
+    const key = channelKeyOf(schedule);
+    return [...active.values()].some(entry => entry.ingestKey && entry.schedule && channelKeyOf(entry.schedule) === key);
+}
+
+/** #12: recordings that can run at once: the cap, and no more than the providers' connections. */
+function recordingSlots(settings) {
+    return settings.maxConcurrentRecordings || 2;
+}
+
+function clashCapacity(settings) {
+    let connections = Infinity;
+    try { connections = coordinator.recordingCapacity(settings); } catch (e) { /* unknown: the cap alone */ }
+    return Math.max(1, Math.min(recordingSlots(settings), connections));
+}
+
+/**
+ * #12 (D-28: clashes are shown when scheduling, never silent): for each schedule, the ids of the others it clashes
+ * with. Recordings of one channel share a connection; at any moment more channels than `capacity` is a clash, and
+ * every schedule recording then lists the others on other channels.
+ */
+function clashes(rows, capacity) {
+    const span = (r) => [r.program_start - (r.pre_buffer_min || 0) * 60000, r.program_end + (r.post_buffer_min || 0) * 60000];
+    const out = new Map();
+    for (const r of rows) {
+        const [start, end] = span(r);
+        const points = [start, ...rows.map(o => span(o)[0]).filter(t => t > start && t < end)];
+        const found = new Set();
+        for (const t of points) {
+            const at = rows.filter(o => { const [a, b] = span(o); return a <= t && t < b; });
+            const channels = new Set(at.map(channelKeyOf));
+            if (channels.size <= capacity) continue;
+            for (const o of at) if (channelKeyOf(o) !== channelKeyOf(r)) found.add(o.id);
+        }
+        if (found.size) out.set(r.id, [...found].sort((a, b) => a - b));
+    }
+    return out;
+}
+
+function listScheduled({ includeRecent = false, settings = null } = {}) {
     // R6 (additive): `image` in place of image_url, the only change to these rows.
-    const upcoming = scheduledDb.listUpcoming().map(withImage);
+    // #12 (C-M, additive): `conflictsWith` lists the schedules this one clashes with, when there are any.
+    const rows = scheduledDb.listUpcoming();
+    const found = clashes(rows, clashCapacity(settings || knownSettings || {}));
+    const upcoming = rows.map(r => found.has(r.id) ? { ...r, conflictsWith: found.get(r.id) } : r).map(withImage);
     if (!includeRecent) return upcoming;
     const recent = scheduledDb.findRecentProblems(Date.now() - RECENT_PROBLEMS_MS).map(withImage);
     return [...upcoming, ...recent];
@@ -1567,8 +1634,12 @@ async function tick() {
             if (active.has(schedule.id)) continue;
 
             const settings = await getSettings();
-            if (active.size >= (settings.maxConcurrentRecordings || 2)) {
-                console.warn(`[Recordings] Max concurrent recordings reached, delaying schedule #${schedule.id}`);
+            // #12 (D-28): the cap counts provider connections, not recordings. A recording of a channel that is
+            // already being recorded joins that recording's shared ingest, so the cap never holds it back.
+            if (!joinsActiveRecording(schedule, settings) && recordingConnections() >= recordingSlots(settings)) {
+                if (schedule.status !== 'waiting' || schedule.error !== SLOT_REASON) {
+                    setScheduleStatus(schedule, 'waiting', { error: SLOT_REASON });
+                }
                 continue;
             }
 
@@ -1616,9 +1687,9 @@ async function tick() {
             // "the window passed" is not.
             const wasWaiting = schedule.status === 'waiting';
             setScheduleStatus(schedule.id, 'missed', {
-                error: wasWaiting
-                    ? 'Playback continued for the whole programme, so the provider stream was never free.'
-                    : 'Recording window passed without starting.'
+                error: wasWaiting && schedule.error === SLOT_REASON ? SLOT_MISSED
+                    : wasWaiting ? 'Playback continued for the whole programme, so the provider stream was never free.'
+                        : 'Recording window passed without starting.'
             });
             coordinator.clearPrompt(schedule.id);
         }

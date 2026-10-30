@@ -226,7 +226,10 @@ router.post('/schedule', async (req, res) => {
             createdBy: req.user?.id
         });
 
-        res.status(201).json(schedule);
+        // #12 (D-28): a clash is said when scheduling (additive `conflictsWith`, as on the schedule list).
+        const settings = await require('../db').settings.get();
+        const listed = schedule && recordingEngine.listScheduled({ settings }).find(r => r.id === schedule.id);
+        res.status(201).json(listed && listed.conflictsWith ? { ...schedule, conflictsWith: listed.conflictsWith } : schedule);
     } catch (err) {
         console.error('[Recordings] Schedule error:', err);
         res.status(500).json({ error: err.message });
@@ -248,10 +251,11 @@ router.get('/active', (req, res) => {
 // lists schedules that ended up missed or failed in the last 7 days, each with
 // its status and error - otherwise identical to the plain response, so an older
 // Apple client decoding this route unchanged sees no difference.
-router.get('/scheduled', (req, res) => {
+router.get('/scheduled', async (req, res) => {
     try {
         const includeRecent = req.query.include === 'recent';
-        res.json(recordingEngine.listScheduled({ includeRecent }));
+        const settings = await require('../db').settings.get();
+        res.json(recordingEngine.listScheduled({ includeRecent, settings }));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

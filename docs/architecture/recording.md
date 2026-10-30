@@ -10,7 +10,17 @@ C-M and C-N in [`../CLIENT-CONTRACT.md`](../CLIENT-CONTRACT.md). What a user not
 
 **Recordings** (`recordingEngine.js`: capture, scheduling, failover; `recordingMedia.js`: probes, MP4 remux, native playback,
 preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js`: which recording each job is on)
-- `scheduled → waiting → recording → …`, where `waiting` = due but held back by a viewer (listed, cancellable, duplicate-checked).
+- `scheduled → waiting → recording → …`, where `waiting` = due but held back, by a viewer on the provider's stream or (0324,
+  #12) by the recording slot (`error` "Another recording is using the recording slot."; missed with its own text) (listed,
+  cancellable, duplicate-checked).
+- **One connection, one stream (D-28, 0324, #12).** `maxConcurrentRecordings` (default 1) counts provider connections, not
+  recordings: recordings on one shared ingest are one (`recordingConnections()`), and a due recording of a channel already
+  being recorded joins that ingest without asking the cap (`joinsActiveRecording()`; needs shared ingest). Clashes are
+  shown when scheduling: `listScheduled()` adds `conflictsWith` to each upcoming schedule that, at some moment of its
+  window (with pre/post padding), is one of more channels than the cap and the providers' connections allow
+  (`clashes()`, `streamCoordinator.recordingCapacity()`: the primary pool's limit plus each enabled backup pool's); one
+  channel's overlapping schedules never clash. `POST /recordings/schedule` answers with it too; the web guide's toast and
+  Recordings list say it.
 - File names use the server's local time, so **`TZ` must be set** (verified).
 - Native playback is a `.native.mp4` remux of the file: `hvc1`, MP2→AAC, shared across concurrent requests, written atomically,
   sidecars deleted with the recording. `?async=1` answers 202 while preparing. Old HEVC sidecars are `hev1`: delete

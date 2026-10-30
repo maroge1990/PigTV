@@ -154,6 +154,11 @@ class RecordingsPage {
             return;
         }
 
+        // #12: a clash is shown on each schedule involved, never silent (D-28).
+        const titles = new Map(items.map(i => [i.id, `${i.title} (${i.channel_name || 'unknown channel'})`]));
+        const clash = (item) => (Array.isArray(item.conflictsWith) && item.conflictsWith.length)
+            ? `<div class="recording-error" data-clash>Clashes with ${this.escape(item.conflictsWith.map(id => titles.get(id) || `schedule #${id}`).join(', '))}: more channels at once than the provider connections or the recording limit allow, so one will wait or be missed.</div>`
+            : '';
         this.scheduledList.innerHTML = items.map(item => `
             <div class="recording-item" data-id="${item.id}">
                 <img class="recording-thumb" src="${this.escape(this.proxiedLogo(item.image || item.channel_logo))}" alt=""
@@ -161,7 +166,8 @@ class RecordingsPage {
                 <div class="recording-info">
                     <div class="recording-title">${this.escape(item.title)}</div>
                     <div class="recording-meta">${this.escape(item.channel_name || '')} &middot; <span class="pig-amount">${this.formatRange(item.program_start, item.program_end)}</span></div>
-                    <div class="recording-status status-${this.escape(item.status)}">${this.escape(this.statusLabel(item.status))}</div>
+                    <div class="recording-status status-${this.escape(item.status)}">${this.escape(item.status === 'waiting' && item.error ? `Waiting: ${item.error}` : this.statusLabel(item.status))}</div>
+                    ${clash(item)}
                 </div>
                 <div class="recording-actions">
                     <button class="btn btn-sm btn-secondary" data-action="cancel" data-id="${item.id}">

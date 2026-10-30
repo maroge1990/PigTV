@@ -609,6 +609,24 @@ function providerLimit(providerId, settings = {}, dir = providerDirectory()) {
 }
 
 /**
+ * #12: how many provider connections recordings could use at once: the primary pool's limit, plus each backup
+ * pool's (a recording fails over to a backup that has the channel).
+ */
+function recordingCapacity(settings = {}, dir = providerDirectory()) {
+    if (!dir.multi) return providerLimit(null, settings, dir);
+    const pools = new Set([PRIMARY_POOL]);
+    let total = providerLimit(null, settings, dir);
+    for (const [id, src] of dir.backups) {
+        if (src.enabled === false) continue;
+        const pool = poolKey(id, dir);
+        if (pools.has(pool)) continue;
+        pools.add(pool);
+        total += providerLimit(id, settings, dir);
+    }
+    return total;
+}
+
+/**
  * This owner's streams on every provider except `providerId`'s: a device watches
  * one thing, so admitting it on one provider replaces what it had on the others.
  * Empty for an unidentified caller, and always empty with one provider (one pool).
@@ -1059,6 +1077,7 @@ module.exports = {
     LEASE_TTL_MS,
     // Provider pools (0173)
     providerLimit,
+    recordingCapacity,
     hasFreeConnection,
     samePool,
     canAdmitWithoutDisturbing,

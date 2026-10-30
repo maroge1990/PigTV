@@ -290,6 +290,11 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
 - `DELETE /api/recordings/rules/:id` → `{success, cancelled}`: its schedules that have not started are cancelled; one
   recording now, and everything recorded, stays.
 - `recordings/scheduled` rows carry `rule_id` (null for a one-off). Two rules never record the same programme twice.
+- **Clashes (0324, additive, no flag; #12, D-28).** An upcoming `recordings/scheduled` row may carry `conflictsWith: [id]`,
+  the other schedules it clashes with (more channels at once than the recording limit and the providers' connections
+  allow; schedules of one channel share a connection and never clash). Absent when there is none. `POST
+  /recordings/schedule` answers with the same field. A `waiting` row's `error` says why it waits (a viewer, or "Another
+  recording is using the recording slot.").
 - **What a cancel holds against (0245, 0253, 0254, 0259; not durable identity).** The guide gives no lasting id, so a
   rule decides per evaluation whether a programme is one it has already scheduled (policy accepted by Mark, 25 Oct):
   - *Present:* a schedule of the same title within 15 minutes is that programme (for a series, on its channel: the

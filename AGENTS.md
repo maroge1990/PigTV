@@ -52,7 +52,7 @@ The story of a change goes in its commit message, not the docs.
 1. Make the change with its test. `npm test` and `verify-build.sh` must both pass before a commit; if either can't run,
    say so in the commit message and to Mark.
 2. A functional commit bumps `build` in `server/version.js` **and** this row, and its subject starts with the number
-   (`0208: what changed`). Docs-only and test-only commits have no number. Next build number: **0324**.
+   (`0208: what changed`). Docs-only and test-only commits have no number. Next build number: **0325**.
 3. Commits write `Refs #n`, **never** `Fixes`/`Closes` (that would close the issue the moment Mark pushes, before any check).
 4. **Don't `git push`.** Tell Mark which commits are waiting. When Mark pushes, CI runs the tests (Node 22 and 24) and
    builds `ghcr.io/maroge1990/pigtv` **only if the tests pass**. If CI goes red, fix it or `git revert` at once
