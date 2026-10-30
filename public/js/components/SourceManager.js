@@ -108,6 +108,73 @@ class SourceManager {
     }
 
     /**
+     * #10 (0359): "New on the provider": groups the provider added since the last sync. They arrive hidden, so the guide
+     * and the TV do not fill up with thousands of channels; each can be shown here (at once), or the list cleared.
+     */
+    async loadNewGroups(sourceId) {
+        const box = document.getElementById('content-new-groups');
+        if (!box) return;
+        let groups = [];
+        try { groups = await API.channels.newGroups(sourceId); } catch { groups = []; }
+        this.newGroups = Array.isArray(groups) ? groups : [];
+        box.hidden = this.newGroups.length === 0;
+        if (box.hidden) { box.innerHTML = ''; return; }
+        const e = (v) => this.escapeHtml(String(v ?? ''));
+        box.innerHTML = `<h3>New on the provider</h3>
+            <p class="setting-hint">New groups arrive hidden, so the guide and the Apple TV do not fill up with thousands of channels. Show the ones you want.</p>
+            ${this.newGroups.map(g => `<div class="setting-item new-group">
+                <div class="setting-info"><span class="setting-label">${e(g.name)}</span>
+                    <span class="setting-hint">${e(Number(g.channels || 0).toLocaleString())} channel${g.channels === 1 ? '' : 's'} · found ${e(new Date(g.foundAt).toLocaleDateString())}</span></div>
+                <button type="button" class="btn btn-sm btn-secondary" data-new-group-look="${e(g.categoryId)}">Look inside</button>
+                <button type="button" class="btn btn-sm btn-primary" data-new-group-show="${e(g.categoryId)}">Show</button>
+            </div>`).join('')}
+            <p><button type="button" class="btn btn-sm btn-ghost" data-new-groups-dismiss>Keep all hidden and clear this list</button></p>`;
+        box.querySelectorAll('[data-new-group-show]').forEach(b => b.addEventListener('click', () => this.showNewGroup(b.dataset.newGroupShow, b)));
+        box.querySelectorAll('[data-new-group-look]').forEach(b => b.addEventListener('click', () => this.lookInside(b.dataset.newGroupLook)));
+        box.querySelector('[data-new-groups-dismiss]')?.addEventListener('click', () => this.dismissNewGroups());
+    }
+
+    /** Show a new group now (the server also takes it off the list), then redraw. */
+    async showNewGroup(categoryId, button) {
+        if (button) button.disabled = true;
+        try {
+            await API.channels.show(this.treeData.sourceId, this.groupItemType(), categoryId);
+            const group = this.treeData.groups.find(g => String(g.categoryId) === String(categoryId));
+            for (const set of [this.hiddenSet, this.originalHiddenSet]) {
+                set.delete(`${this.groupItemType()}:${categoryId}`);
+                group?.items.forEach(i => set.delete(`${i.type}:${i.id}`));
+            }
+            this.renderTree();
+            await this.loadNewGroups(this.treeData.sourceId);
+            try { await window.app?.channelList?.loadChannels?.(); } catch { /* the list reloads on its own */ }
+        } catch (err) {
+            alert(`Could not show the group: ${err.message || err}`);
+            if (button) button.disabled = false;
+        }
+    }
+
+    /** Open the group in the tree below (its channels can then be ticked one by one). */
+    lookInside(categoryId) {
+        const group = this.treeData?.groups.find(g => String(g.categoryId) === String(categoryId));
+        if (!group) return;
+        this.searchQuery = '';
+        const search = document.getElementById('content-search');
+        if (search) search.value = '';
+        this.expandedGroups.add(group.id);
+        this.renderTree();
+        this.contentTree?.querySelector?.(`.content-group[data-group-id="${CSS.escape(group.id)}"]`)?.scrollIntoView?.({ block: 'start' });
+    }
+
+    async dismissNewGroups() {
+        try {
+            await API.channels.dismissNewGroups(this.treeData.sourceId);
+            await this.loadNewGroups(this.treeData.sourceId);
+        } catch (err) {
+            alert(`Could not clear the list: ${err.message || err}`);
+        }
+    }
+
+    /**
      * Load sources into content browser dropdown
      */
     async loadContentSources() {
@@ -169,6 +236,7 @@ class SourceManager {
             this.treeData.groups = [...groupMap.values()].filter(g => g.items.length > 0);
 
             this.renderTree();
+            this.loadNewGroups(sourceId);
 
         } catch (err) {
             console.error('Error loading content tree:', err);

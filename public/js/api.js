@@ -208,7 +208,10 @@ const API = {
         bulkShow: (items) => API.request('POST', '/channels/show/bulk', { items }),
         // Fast bulk operations - single SQL statement
         showAll: (sourceId, contentType) => API.request('POST', '/channels/show/all', { sourceId, contentType }),
-        hideAll: (sourceId, contentType) => API.request('POST', '/channels/hide/all', { sourceId, contentType })
+        hideAll: (sourceId, contentType) => API.request('POST', '/channels/hide/all', { sourceId, contentType }),
+        // #10 (0347): groups a provider added since the last sync, which arrive hidden
+        newGroups: (sourceId) => API.request('GET', `/channels/new-groups?sourceId=${encodeURIComponent(sourceId)}`),
+        dismissNewGroups: (sourceId, categoryIds) => API.request('POST', '/channels/new-groups/dismiss', { sourceId, categoryIds })
     },
 
     // Favorites

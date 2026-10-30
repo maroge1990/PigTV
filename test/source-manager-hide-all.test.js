@@ -9,21 +9,26 @@ const vm = require('node:vm');
 // when it is many), and the last save can be undone. Before, they saved at once, ignored the filter, threw pending
 // edits away and could not be undone. #59: ticking a channel inside a hidden group shows the group and keeps its other
 // channels hidden; groups are keyed by id, not name. #128: unsaved ticks are known.
-function makeManager({ groups, confirmAnswer = true } = {}) {
+function makeManager({ groups, confirmAnswer = true, newGroups = [] } = {}) {
     const calls = [];
     const confirms = [];
+    let listed = newGroups;
+    const box = { hidden: true, innerHTML: '', querySelectorAll: () => [], querySelector: () => null };
     const context = vm.createContext({
         window: { app: {}, confirm: (msg) => { confirms.push(msg); return confirmAnswer; } },
         console: { ...console, log() {}, warn() {}, error() {} },
         alert() {}, setTimeout: () => 0,
-        document: { getElementById: () => null, querySelector: () => null },
+        document: { getElementById: (id) => (id === 'content-new-groups' ? box : null), querySelector: () => null },
         Icons: { chevronDown: '' },
         CSS: { escape: (s) => s },
         API: { channels: {
             hideAll: async () => { calls.push(['hideAll']); },
             showAll: async () => { calls.push(['showAll']); },
             bulkShow: async (items) => { calls.push(['bulkShow', items.map(i => `${i.itemType}:${i.itemId}`)]); },
-            bulkHide: async (items) => { calls.push(['bulkHide', items.map(i => `${i.itemType}:${i.itemId}`)]); }
+            bulkHide: async (items) => { calls.push(['bulkHide', items.map(i => `${i.itemType}:${i.itemId}`)]); },
+            newGroups: async () => listed,
+            show: async (sourceId, type, id) => { calls.push(['show', sourceId, type, id]); listed = listed.filter(g => g.categoryId !== id); },
+            dismissNewGroups: async (sourceId) => { calls.push(['dismiss', sourceId]); listed = []; }
         } }
     });
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/components/SourceManager.js'), 'utf8'), context);
@@ -41,7 +46,7 @@ function makeManager({ groups, confirmAnswer = true } = {}) {
         contentTree: { querySelector: () => null },
         renderTree() { this.rendered = (this.rendered || 0) + 1; }
     });
-    return { manager, calls, confirms };
+    return { manager, calls, confirms, box };
 }
 const plain = (v) => JSON.parse(JSON.stringify(v));
 const groupChecked = (manager, index) => /group-checkbox[^>]*\bchecked\b/.test(manager.getGroupHtml(manager.treeData.groups[index]));
@@ -110,4 +115,27 @@ test('#59: two groups with the same name are two groups', () => {
     assert.match(manager.getGroupHtml(manager.treeData.groups[1]), /group-checkbox[^>]*data-id="31"/);
     manager.toggleGroupChildren({ dataset: { id: '31' }, checked: false });
     assert.deepEqual([...manager.hiddenSet].sort(), ['channel:q', 'group:31']);
+});
+
+
+test("#10 (0359): the provider's new groups are listed; Show shows the group at once and takes it off the list", async () => {
+    const { manager, calls, box } = makeManager({ newGroups: [{ sourceId: 7, categoryId: '11', name: 'NFL Sunday Ticket', channels: 1, foundAt: 1 }] });
+    manager.hiddenSet = new Set(['group:11', 'channel:c']);
+    manager.originalHiddenSet = new Set(manager.hiddenSet);
+    await manager.loadNewGroups(7);
+    assert.equal(box.hidden, false);
+    assert.match(box.innerHTML, /New on the provider[\s\S]*NFL Sunday Ticket[\s\S]*1 channel ·[\s\S]*data-new-group-show="11"/);
+    await manager.showNewGroup('11');
+    assert.deepEqual(plain(calls), [['show', 7, 'group', '11']]);
+    assert.equal(manager.hiddenSet.size, 0, 'the group and its channel are shown in the tree too');
+    assert.equal(manager.isDirty(), false, 'nothing left to save: the server already has it');
+    assert.equal(box.hidden, true, 'the list is empty now');
+});
+
+test('#10 (0359): Keep all hidden clears the list without showing anything', async () => {
+    const { manager, calls, box } = makeManager({ newGroups: [{ sourceId: 7, categoryId: '11', name: 'NFL Sunday Ticket', channels: 1, foundAt: 1 }] });
+    await manager.loadNewGroups(7);
+    await manager.dismissNewGroups();
+    assert.deepEqual(plain(calls), [['dismiss', 7]]);
+    assert.equal(box.hidden, true);
 });
