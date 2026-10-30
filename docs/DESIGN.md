@@ -80,8 +80,8 @@ From the F1 mock-up review (30 Oct), for the sport rebuild (#21):
   vertical space: paired actions (e.g. "Watch at kick-off" and "Record every Packers game") sit on one line.
 - No redundant labels: the current week or session is evident from its content ("Week 8", not "Week 8 · this week").
 - No section tabs on a sport page (Mark, 30 Oct): the championship already sits on the main page, so F1 has no
-  Race weekend / Championship / Calendar tabs. The mock-ups' spacing and overlaps are fixed at build time, on the real
-  screens.
+  Race weekend / Championship / Calendar tabs, and no season calendar either: the next race weekend is enough. The
+  mock-ups' spacing and overlaps are fixed at build time, on the real screens.
 - Fixture sports open on the current round, with rounds in chronological order (last round, then this one). Standings
   sit on the right with Division, Conference and Overall views: the whole column without a followed team, below the
   team card with one.
