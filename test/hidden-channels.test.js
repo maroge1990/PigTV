@@ -132,6 +132,35 @@ test('a channel listed twice in one group: hiding one copy keeps the other shown
     assert.deepEqual(flags, ['Suns v Heat:0', 'Lakers v Celtics:0', 'Lakers v Celtics:1', 'Bulls v Knicks:0']);
 });
 
+test('#167: a hide or show while the source is syncing is refused, so nothing is recorded against moving rows', async () => {
+    let release;
+    const gate = new Promise(r => { release = r; });
+    const slow = http.createServer(async (req, res) => {
+        await gate;
+        res.setHeader('content-type', 'audio/x-mpegurl'); res.end(playlistOf(BASE));
+    });
+    slow.listen(0, '127.0.0.1'); await once(slow, 'listening');
+    const busy = await db.sources.create({ type: 'm3u', name: 'Busy', url: `http://127.0.0.1:${slow.address().port}/busy.m3u` });
+    try {
+        const running = sync.syncSource(busy.id);
+        await new Promise(r => setTimeout(r, 100));
+        for (const [url, body] of [['/api/channels/hide', { sourceId: busy.id, itemType: 'channel', itemId: 'pos_0' }],
+            ['/api/channels/show', { sourceId: busy.id, itemType: 'group', itemId: 'News' }],
+            ['/api/channels/hide/bulk', { items: [{ sourceId: busy.id, itemType: 'channel', itemId: 'pos_1' }] }],
+            ['/api/channels/hide/all', { sourceId: busy.id }]]) {
+            const r = await post(url, body);
+            assert.equal(r.status, 409, url);
+            assert.match(r.body.error, /being updated from the provider/);
+        }
+        release();
+        await running;
+        assert.equal((await post('/api/channels/hide', { sourceId: busy.id, itemType: 'group', itemId: 'Adult' })).status, 200, 'after the sync it works');
+    } finally {
+        release();
+        slow.closeAllConnections(); await new Promise(r => slow.close(r));
+    }
+});
+
 test('the review list is admin-only and validated', async () => {
     const viewer = auth.generateToken(await db.users.create({ username: 'viewer', role: 'viewer' }));
     const r = await fetch(`${base}/api/channels/new-groups`, { headers: { authorization: `Bearer ${viewer}` } });

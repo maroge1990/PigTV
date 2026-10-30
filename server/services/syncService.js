@@ -404,6 +404,11 @@ class SyncService {
         }
     }
 
+    /** #167: whether a source is syncing now (its rows may be part-way through moving). */
+    isSyncing(sourceId) {
+        return activeSyncs.has(Number(sourceId));
+    }
+
     /**
      * Update sync status in DB
      */

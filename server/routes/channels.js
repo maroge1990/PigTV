@@ -6,6 +6,19 @@ const { refreshChannelNumbers } = require('../services/channelNumbers');
 const { requireAdmin } = require('../auth');
 const hiddenChannels = require('../services/hiddenChannels');
 
+/**
+ * #167: a sync rewrites a playlist's rows in batches and moves their hidden flags back onto the right channels only at
+ * the end, so a visibility change in between would be recorded against rows that are part-way through moving. It is
+ * refused, with a message the web shows, until the sync finishes (usually well under a minute).
+ */
+function refuseWhileSyncing(res, sourceIds) {
+    const syncService = require('../services/syncService');
+    const busy = [...new Set(sourceIds.map(Number))].filter(id => Number.isInteger(id) && syncService.isSyncing(id));
+    if (!busy.length) return false;
+    res.status(409).json({ error: 'Channels are being updated from the provider. Try again when the sync finishes.' });
+    return true;
+}
+
 // Helper to map API item types to DB types and tables
 function mapItemType(apiType) {
     switch (apiType) {
@@ -97,6 +110,7 @@ router.post('/hide', requireAdmin, async (req, res) => {
         const mapping = mapItemType(itemType);
 
         if (!mapping) return res.status(400).json({ error: 'Invalid item type' });
+        if (refuseWhileSyncing(res, [sourceId])) return;
 
         const db = getDb();
         const idCol = mapping.table === 'categories' ? 'category_id' : 'item_id';
@@ -132,6 +146,7 @@ router.post('/show', requireAdmin, async (req, res) => {
         const mapping = mapItemType(itemType);
 
         if (!mapping) return res.status(400).json({ error: 'Invalid item type' });
+        if (refuseWhileSyncing(res, [sourceId])) return;
 
         const db = getDb();
         const idCol = mapping.table === 'categories' ? 'category_id' : 'item_id';
@@ -187,6 +202,7 @@ router.post('/hide/bulk', requireAdmin, async (req, res) => {
     try {
         const { items } = req.body;
         if (!Array.isArray(items)) return res.status(400).json({ error: 'items array required' });
+        if (refuseWhileSyncing(res, items.map(i => i && i.sourceId))) return;
 
         const db = getDb();
 
@@ -233,6 +249,7 @@ router.post('/show/bulk', requireAdmin, async (req, res) => {
     try {
         const { items } = req.body;
         if (!Array.isArray(items)) return res.status(400).json({ error: 'items array required' });
+        if (refuseWhileSyncing(res, items.map(i => i && i.sourceId))) return;
 
         const db = getDb();
 
@@ -282,6 +299,7 @@ router.post('/show/all', requireAdmin, async (req, res) => {
     try {
         const { sourceId, contentType } = req.body;
         if (!sourceId) return res.status(400).json({ error: 'sourceId required' });
+        if (refuseWhileSyncing(res, [sourceId])) return;
 
         const db = getDb();
         let catCount = 0;
@@ -316,6 +334,7 @@ router.post('/hide/all', requireAdmin, async (req, res) => {
     try {
         const { sourceId, contentType } = req.body;
         if (!sourceId) return res.status(400).json({ error: 'sourceId required' });
+        if (refuseWhileSyncing(res, [sourceId])) return;
 
         const db = getDb();
         let catCount = 0;
