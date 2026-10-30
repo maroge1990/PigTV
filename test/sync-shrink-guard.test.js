@@ -117,3 +117,14 @@ test('a source synced for the first time has no baseline: nothing is held', asyn
     await sync.syncSource(fresh.id);
     assert.equal(d().prepare(`SELECT COUNT(*) AS n FROM playlist_items WHERE source_id = ?`).get(fresh.id).n, 5);
 });
+
+test('#169: an install upgraded from before 0348 (no stored count) is guarded by the lineup it already has', async () => {
+    const upgraded = await db.sources.create({ type: 'm3u', name: 'Upgraded', url: `http://127.0.0.1:${provider.address().port}/upgraded.m3u` });
+    M3U = playlist(150);
+    await sync.syncSource(upgraded.id);
+    d().prepare('DELETE FROM meta WHERE key = ?').run(`playlist_lines:${upgraded.id}`); // as 0347 left it
+    M3U = playlist(10);
+    await sync.syncSource(upgraded.id);
+    assert.equal(d().prepare(`SELECT COUNT(*) AS n FROM playlist_items WHERE source_id = ? AND type = 'live'`).get(upgraded.id).n, 150);
+    assert.equal(d().prepare('SELECT status FROM sync_status WHERE source_id = ? AND type = ?').get(upgraded.id, 'all').status, 'held');
+});

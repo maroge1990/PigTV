@@ -71,10 +71,23 @@ function heldError(message) {
 
 /** Throws a held error when `count` lines is a shrink against the last good sync's; remembers nothing itself. */
 function checkPlaylistSize(db, sourceId, count, { acceptSmaller = false } = {}) {
-    const previous = Number(db.prepare('SELECT value FROM meta WHERE key = ?').get(linesKey(sourceId))?.value) || 0;
+    const previous = Number(db.prepare('SELECT value FROM meta WHERE key = ?').get(linesKey(sourceId))?.value) || storedLines(db, sourceId);
     if (acceptSmaller || previous < SHRINK.minPlaylist || count >= previous * SHRINK.playlist) return;
     throw heldError(`Held: the provider's list had ${count.toLocaleString('en-AU')} of the usual `
         + `${previous.toLocaleString('en-AU')} channels; the last good list is kept`);
+}
+
+/**
+ * #169: an install upgraded from before 0348 has no stored count: the lineup it already holds is the baseline (its
+ * rows, plus the lines the admin's import exclusions skipped at the last sync), so its first sync is guarded too.
+ */
+function storedLines(db, sourceId) {
+    const rows = db.prepare(`SELECT COUNT(*) AS n FROM playlist_items WHERE source_id = ? AND type = 'live'`).get(sourceId).n;
+    let skipped = 0;
+    try {
+        skipped = db.prepare('SELECT COALESCE(SUM(skipped), 0) AS n FROM import_exclusion_stats WHERE source_id = ?').get(sourceId).n;
+    } catch (e) { /* no exclusions table yet */ }
+    return rows + skipped;
 }
 
 function rememberPlaylistSize(db, sourceId, count) {
