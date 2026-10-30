@@ -27,7 +27,7 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 | `clientEvents` | 0083 | `POST /api/playback/client-event` | Sends `media-error`, `play-start`, `play-end` (`watchedSec`, `stalls`, …); since Apple 64 also `start-timeout` (`waitedSec`, nothing played 20 s after the item was installed) and `media-error` with `codeName` `StallTimeout` (a 35 s wait mid-play) |
 | `scheduledWaiting` | 0083 | `recordings/scheduled` lists cancellable `waiting` rows | Shown and cancellable |
 | `recordingPlaybackPolling` | 0083 | `recordings/:id/playback?async=1` may answer 202 `preparing` | Sends `?async=1` and polls |
-| `playbackTerminalStatus` | 0094 | `GET /api/playback/:id/terminal-status` → `taken-over` \| `none`. From 0286 a paired device's new play also ends that device's earlier session on the same provider (FR-11), even when a connection is free; that session then answers `taken-over` | Asked once before its one recovery |
+| `playbackTerminalStatus` | 0094 | `GET /api/playback/:id/terminal-status` → `taken-over` \| `none`. From 0286 a paired device's new play also ends that device's earlier session on the same provider (FR-11), even when a connection is free; that session then answers `taken-over` | Asked before each automatic recovery (Apple 66: up to three in 10 minutes) |
 | `guideCursor` | 0111 | Cursor paging, `limit` ≤ 500 on `library/guide` | Pages 500 by cursor |
 | `guideVersion` | 0111 | `GET /api/library/guide/version` (includes the build, so a deploy reloads once) | Skips a reload when unchanged |
 | `logoCache` | 0112 | `logo` fields are `/api/logo/<key>`; `?size=full` / `?size=640` | Top Shelf asks `size=full` |
