@@ -120,21 +120,36 @@ function standingsOf(json, teams, registerImage) {
 }
 
 /**
- * C-I channels for each game: NFL events overlapping the kick-off whose title names both teams (nickname or city),
- * or one of them when only one event overlaps. Best channels first, as C-I orders them.
+ * C-I channels for each game. An event's title (and aliases) is read as the teams it names: a team by its nickname
+ * ("Packers"), or by its city only where no other team has that city (#183: Los Angeles and New York each have two). A
+ * game gets the NFL events overlapping its kick-off that name both its teams and no other; failing that, an event that
+ * names exactly one team, one of this game's, when it is the only such event around. Best channels first, as C-I orders
+ * them.
  */
 function channelsForGames(games, events, teams) {
     const nfl = (events || []).filter(e => e.league === 'NFL' && e.kind === 'event');
     const out = new Map();
-    const names = (abbr) => [teams.get(abbr)?.name, teams.get(abbr)?.location].filter(Boolean).map(n => n.toLowerCase());
+    const words = (text) => ` ${String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ')} `;
+    const cities = new Map();
+    for (const t of teams.values()) if (t.location) cities.set(t.location.toLowerCase(), (cities.get(t.location.toLowerCase()) || 0) + 1);
+    const names = [...teams.values()].map(t => ({ abbr: t.abbr,
+        keys: [t.name, cities.get((t.location || '').toLowerCase()) === 1 ? t.location : null].filter(Boolean).map(n => words(n).trim()) }));
+    const mentions = (e) => {
+        const text = words(`${e.title} ${(e.aliases || []).join(' ')}`);
+        return new Set(names.filter(n => n.keys.some(k => k && text.includes(` ${k} `))).map(n => n.abbr));
+    };
+    const named = nfl.map(e => ({ e, teams: mentions(e) }));
     for (const g of games) {
-        const near = nfl.filter(e => e.start <= g.start + HOUR_MS && e.end > g.start - HOUR_MS);
-        const says = (e, abbr) => { const t = `${e.title} ${(e.aliases || []).join(' ')}`.toLowerCase(); return names(abbr).some(n => t.includes(n)); };
-        let matched = near.filter(e => says(e, g.home.abbr) && says(e, g.away.abbr));
-        if (!matched.length && near.length === 1 && (says(near[0], g.home.abbr) || says(near[0], g.away.abbr))) matched = near;
+        const near = named.filter(({ e }) => e.start <= g.start + HOUR_MS && e.end > g.start - HOUR_MS);
+        const ours = (t) => t === g.home.abbr || t === g.away.abbr;
+        let matched = near.filter(({ teams: t }) => t.has(g.home.abbr) && t.has(g.away.abbr) && [...t].every(ours));
+        if (!matched.length) {
+            const single = near.filter(({ teams: t }) => t.size === 1 && ours([...t][0]));
+            if (single.length === 1) matched = single;
+        }
         const seen = new Set();
         const list = [];
-        for (const e of matched) {
+        for (const { e } of matched) {
             for (const ch of e.channels || []) {
                 const key = `${ch.sourceId}:${ch.id}`;
                 if (seen.has(key)) continue;

@@ -110,3 +110,26 @@ test('page(): kept, then refreshed once stale (2 min with a game on); channels p
     stub({ scoreboard$: { ok: false, error: 'HTTP 503' } });
     assert.deepEqual(await nfl.page(NOW), { available: false });
 });
+
+// #183: on 0379 a city was a team identity, so "Los Angeles Rams vs Seattle Seahawks" also matched a Chargers game in
+// the same slot, and one "Los Angeles" mention satisfied both sides of Rams v Chargers.
+test('#183: a city two teams share names neither; an event naming another team does not match', async () => {
+    const p = await nfl.build(NOW);
+    const teams = new Map(Object.entries(p.teams));
+    const at = Date.parse('2026-11-08T21:05:00Z');
+    const game = (id, away, home) => ({ id, start: at, away: { abbr: away }, home: { abbr: home } });
+    const ev = (title, id) => ({ league: 'NFL', kind: 'event', title, start: at - 1800e3, end: at + 12600e3, channels: [{ sourceId: 8, id }] });
+    const games = [game('a', 'SEA', 'LAR'), game('b', 'KC', 'LAC'), game('c', 'NYJ', 'NYG')];
+    let map = nfl.channelsForGames(games, [ev('NFL: Seattle Seahawks at Los Angeles Rams', 'rams')], teams);
+    assert.deepEqual(map.get('a').map(c => c.id), ['rams']);
+    assert.equal(map.get('b'), undefined, 'the Chargers game is not "Los Angeles"');
+    map = nfl.channelsForGames(games, [ev('NFL: New York Jets at New York Giants', 'derby')], teams);
+    assert.deepEqual(map.get('c').map(c => c.id), ['derby'], 'by nickname');
+    map = nfl.channelsForGames([game('d', 'LAC', 'LAR')], [ev('NFL Live: Los Angeles', 'x')], teams);
+    assert.equal(map.get('d'), undefined, 'a bare shared city names no team');
+    map = nfl.channelsForGames(games, [ev('NFL: Chiefs v Chargers', 'kc'), ev('Rams Preview Show', 'show')], teams);
+    assert.deepEqual(map.get('b').map(c => c.id), ['kc']);
+    assert.deepEqual(map.get('a').map(c => c.id), ['show'], 'one team, the only such event around');
+    map = nfl.channelsForGames(games, [ev('NFL: Seahawks at Rams, then Chiefs', 'mix')], teams);
+    assert.equal(map.get('a'), undefined, 'an event that names a team outside the game is not this game');
+});
