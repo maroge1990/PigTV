@@ -82,7 +82,16 @@ class SettingsPage {
         const standby = document.getElementById('setting-standby-enabled');
         const renewal = document.getElementById('setting-ingest-renewal');
         const shared = document.getElementById('setting-shared-ingest');
-        const syncRenewalAvailability = () => { if (renewal) renewal.disabled = !relay?.checked || !shared?.checked; };
+        // #65 (0360): like the standby (0203), a renewal switch that cannot run is unticked and saved off, not left
+        // ticked and greyed, which read as "still on".
+        const syncRenewalAvailability = async () => {
+            if (!renewal) return;
+            renewal.disabled = !relay?.checked || !shared?.checked;
+            if (renewal.disabled && renewal.checked) {
+                renewal.checked = false;
+                try { await API.settings.update({ ingestReconnectRenewal: false }); } catch (err) { console.error('Failed to save ingestReconnectRenewal:', err); }
+            }
+        };
         shared?.addEventListener('change', syncRenewalAvailability);
         bind('setting-relay-enabled', 'relayEnabled');
         bind('setting-ingest-renewal', 'ingestReconnectRenewal');

@@ -593,7 +593,7 @@ class ProvidersSettings {
     async remove(p, button) {
         const ordered = ProviderFormat.order(this.providers);
         const next = ordered[0].id === p.id ? ordered[1] : null;
-        if (!confirm(`Delete ${p.name}? Its channels, guide and backup links are removed.`
+        if (!confirm(`Delete ${p.name}? Its channels, guide and backup links are removed, with the favourites, channel numbers and scheduled recordings on its channels.`
             + (next ? `\n\n${next.name} becomes the primary provider.` : ''))) return;
         button.disabled = true;
         try {

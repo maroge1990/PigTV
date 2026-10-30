@@ -170,7 +170,7 @@ class BackupLinksSettings {
         if (!el) return;
         const providers = (this.summary && this.summary.providers) || [];
         if (providers.length === 0) {
-            el.innerHTML = '<p class="hint">No backup provider yet. Add a source, then set its role to Backup on the Providers tab.</p>';
+            el.innerHTML = '<p class="hint">No backup provider yet. Add one in Settings → Providers: the first card is the primary, every card below it is a backup.</p>';
             return;
         }
         el.innerHTML = `

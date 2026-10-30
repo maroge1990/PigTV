@@ -484,7 +484,9 @@
             </div>
 
             <div class="settings-section">
-              <h3>Encoder Settings</h3>
+              <h3>Only when re-encoding</h3>
+              <p class="setting-hint" id="reencode-only-hint">PigTV copies the provider's video whenever the device can play it, so the
+                settings below apply only to the plays it has to re-encode (a format the browser cannot play).</p>
               <div class="setting-item">
                 <div class="setting-info" style="flex: 1;">
                   <span class="setting-label">Hardware Encoder</span>
@@ -663,8 +665,9 @@
                 </label>
                 <div class="setting-info">
                   <span class="setting-label">Enable Upscaling</span>
-                  <span class="setting-hint">Upscale lower-resolution content to a higher resolution during
-                    transcoding.</span>
+                  <span class="setting-hint">Upscale lower-resolution content to a higher resolution. On the web
+                    player this <strong>re-encodes every play</strong> (slower to start, more CPU or GPU); the Apple
+                    app is not affected.</span>
                 </div>
               </div>
               <div class="setting-item" id="upscale-method-container" style="display: none;">

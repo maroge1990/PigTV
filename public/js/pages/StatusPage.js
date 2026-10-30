@@ -226,7 +226,7 @@ class StatusPage {
         const e = (v) => this.escape(v);
         if (!relay) return '';
         const mode = `In-stream recovery is ${relay.enabled ? 'on' : 'off'}; hot standby is ${relay.enabled && relay.standby ? 'on' : 'off'}. `
-            + '<span class="setting-hint">(Settings, Transcoding. A change applies to plays started afterwards.)</span>';
+            + '<span class="setting-hint">(Settings → Playback. A change applies to plays started afterwards.)</span>';
         const streams = relay.streams || [];
         if (!streams.length) return `<p class="setting-hint">${mode}${relay.enabled ? 'No stream is being followed.' : ''}</p>`;
         return `<p class="setting-hint">${mode}</p>` + this.table(
