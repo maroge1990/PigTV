@@ -198,4 +198,4 @@ async function discoverCricketSeries({ timeoutMs = TIMEOUT_MS } = {}) {
     return { ok: true, series: out, complete: true };
 }
 
-module.exports = { name: 'espn', fetchScoreboard, fetchTeams, discoverCricketSeries, datesFor, recordsFromScoreboard, teamsFromScoreboard };
+module.exports = { name: 'espn', getJson, fetchScoreboard, fetchTeams, discoverCricketSeries, datesFor, recordsFromScoreboard, teamsFromScoreboard };

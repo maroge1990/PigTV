@@ -358,3 +358,14 @@ Apple 60 shares the contract with viewport/large-text card sizing. [Contract](..
 
 - C-I has no per-channel airing times: a merged event carries the earliest start and latest end of all its broadcasts,
   so a client cannot tell one channel's own window (#20, a P1 requirement of the rebuild).
+
+## Sport pages (0340, C-P, #21)
+
+`services/sportPageF1.js` builds the Formula 1 page from ESPN's free F1 feeds when `GET /api/sports/pages/f1` is asked
+for (on whenever `PIGTV_SPORT_FIXTURES` is): the season calendar orders the weekends (its dates are hours off, so each
+weekend's own scoreboard gives the session times); the core event and circuit give length, laps, turns, lap record and
+a raster circuit map (registered in the logo cache, never fetched by the client from ESPN); finished sessions give the
+order, and each car's team and colour come from the core competitor, a request per driver once per finished session.
+Kept 10 min within a day of a session, 1 h otherwise; a stale page is served while one refresh runs; ESPN down with
+nothing kept answers `{ available: false }`. Sessions take their channels from C-I (`channelsForSessions`): an F1
+event naming the session whose channel's own airing covers its start. Names drop the title sponsor (`SPONSOR_RE`).

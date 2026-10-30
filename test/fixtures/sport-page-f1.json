@@ -1,0 +1,1843 @@
+{
+ "about": "Real ESPN F1 answers captured 30 Oct 2026 (between the United States GP and Mexico City GP), trimmed to the fields services/sportPageF1.js reads. Keys are request paths.",
+ "answers": {
+  "/scoreboard": {
+   "leagues": [
+    {
+     "calendar": [
+      {
+       "label": "Qatar Airways Australian Grand Prix",
+       "startDate": "2026-03-06T04:30Z",
+       "endDate": "2026-03-08T07:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057427?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Heineken Chinese Grand Prix",
+       "startDate": "2026-03-13T06:30Z",
+       "endDate": "2026-03-15T10:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057428?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Aramco Japanese Grand Prix",
+       "startDate": "2026-03-27T05:30Z",
+       "endDate": "2026-03-29T08:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057429?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Gulf Air Bahrain Grand Prix",
+       "startDate": "2026-04-10T14:30Z",
+       "endDate": "2026-04-12T18:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057430?lang=en&region=us"
+       }
+      },
+      {
+       "label": "STC Saudi Arabian Grand Prix",
+       "startDate": "2026-04-17T16:30Z",
+       "endDate": "2026-04-19T20:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057431?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Crypto.com Miami Grand Prix",
+       "startDate": "2026-05-01T19:00Z",
+       "endDate": "2026-05-03T20:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057432?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Lenovo Canadian Grand Prix",
+       "startDate": "2026-05-22T19:30Z",
+       "endDate": "2026-05-24T23:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057433?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Monaco Grand Prix",
+       "startDate": "2026-06-05T14:30Z",
+       "endDate": "2026-06-07T16:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057434?lang=en&region=us"
+       }
+      },
+      {
+       "label": "MSC Cruises Barcelona-Catalunya Grand Prix",
+       "startDate": "2026-06-12T14:30Z",
+       "endDate": "2026-06-14T16:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057435?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Lenovo Austrian Grand Prix",
+       "startDate": "2026-06-26T14:30Z",
+       "endDate": "2026-06-28T16:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057436?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Pirelli British Grand Prix",
+       "startDate": "2026-07-03T14:30Z",
+       "endDate": "2026-07-05T17:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057437?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Mo\u00ebt & Chandon Belgian Grand Prix",
+       "startDate": "2026-07-17T14:30Z",
+       "endDate": "2026-07-19T16:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057439?lang=en&region=us"
+       }
+      },
+      {
+       "label": "AWS Hungarian Grand Prix",
+       "startDate": "2026-07-24T14:30Z",
+       "endDate": "2026-07-26T16:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057440?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Heineken Dutch Grand Prix",
+       "startDate": "2026-08-21T13:30Z",
+       "endDate": "2026-08-23T16:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057441?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Pirelli Italian Grand Prix",
+       "startDate": "2026-09-04T13:30Z",
+       "endDate": "2026-09-06T16:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057442?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Tag Heuer Spanish Grand Prix",
+       "startDate": "2026-09-11T14:30Z",
+       "endDate": "2026-09-13T16:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057443?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Qatar Airways Azerbaijan Grand Prix",
+       "startDate": "2026-09-24T11:30Z",
+       "endDate": "2026-09-26T14:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057444?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Gulf Air Bahrain Grand Prix in Malaysia",
+       "startDate": "2026-10-02T07:30Z",
+       "endDate": "2026-10-04T10:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600060990?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Singapore Airlines Singapore Grand Prix",
+       "startDate": "2026-10-09T11:30Z",
+       "endDate": "2026-10-11T15:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057445?lang=en&region=us"
+       }
+      },
+      {
+       "label": "MSC Cruises United States Grand Prix",
+       "startDate": "2026-10-23T20:30Z",
+       "endDate": "2026-10-25T23:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057446?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Mexico City Grand Prix",
+       "startDate": "2026-10-30T21:30Z",
+       "endDate": "2026-11-01T23:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057447?lang=en&region=us"
+       }
+      },
+      {
+       "label": "MSC Cruises S\u00e3o Paulo Grand Prix",
+       "startDate": "2026-11-06T18:30Z",
+       "endDate": "2026-11-08T20:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057448?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Heineken Las Vegas Grand Prix",
+       "startDate": "2026-11-20T03:30Z",
+       "endDate": "2026-11-22T07:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057449?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Qatar Airways Qatar Grand Prix",
+       "startDate": "2026-11-27T16:30Z",
+       "endDate": "2026-11-29T19:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057450?lang=en&region=us"
+       }
+      },
+      {
+       "label": "Etihad Airways Abu Dhabi Grand Prix",
+       "startDate": "2026-12-04T12:30Z",
+       "endDate": "2026-12-06T16:00Z",
+       "event": {
+        "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/f1/events/600057451?lang=en&region=us"
+       }
+      }
+     ]
+    }
+   ],
+   "events": [
+    {
+     "id": "600057447",
+     "name": "Mexico City Grand Prix",
+     "shortName": "Mexico City GP",
+     "date": "2026-10-30T18:30Z",
+     "circuit": {
+      "fullName": "Autodromo Hermanos Rodriguez",
+      "address": {
+       "city": "Mexico city",
+       "country": "Mexico"
+      }
+     },
+     "competitions": [
+      {
+       "id": "401839123",
+       "date": "2026-10-30T18:30Z",
+       "type": {
+        "abbreviation": "FP1"
+       },
+       "status": {
+        "type": {
+         "name": "STATUS_SCHEDULED",
+         "state": "pre",
+         "completed": false
+        }
+       },
+       "competitors": []
+      },
+      {
+       "id": "401839124",
+       "date": "2026-10-30T22:00Z",
+       "type": {
+        "abbreviation": "FP2"
+       },
+       "status": {
+        "type": {
+         "name": "STATUS_SCHEDULED",
+         "state": "pre",
+         "completed": false
+        }
+       },
+       "competitors": []
+      },
+      {
+       "id": "401839125",
+       "date": "2026-10-31T17:30Z",
+       "type": {
+        "abbreviation": "FP3"
+       },
+       "status": {
+        "type": {
+         "name": "STATUS_SCHEDULED",
+         "state": "pre",
+         "completed": false
+        }
+       },
+       "competitors": []
+      },
+      {
+       "id": "401839126",
+       "date": "2026-10-31T21:00Z",
+       "type": {
+        "abbreviation": "Qual"
+       },
+       "status": {
+        "type": {
+         "name": "STATUS_SCHEDULED",
+         "state": "pre",
+         "completed": false
+        }
+       },
+       "competitors": []
+      },
+      {
+       "id": "401839127",
+       "date": "2026-11-01T20:00Z",
+       "type": {
+        "abbreviation": "Race"
+       },
+       "status": {
+        "type": {
+         "name": "STATUS_SCHEDULED",
+         "state": "pre",
+         "completed": false
+        }
+       },
+       "competitors": []
+      }
+     ]
+    }
+   ]
+  },
+  "/scoreboard?dates=20261022-20261026": {
+   "events": [
+    {
+     "id": "600057446",
+     "name": "MSC Cruises United States Grand Prix",
+     "shortName": "MSC Cruises United States GP",
+     "date": "2026-10-23T17:30Z",
+     "circuit": {
+      "fullName": "Circuit of the Americas",
+      "address": {
+       "city": "Austin",
+       "state": "TX",
+       "country": "USA"
+      }
+     },
+     "competitions": [
+      {
+       "id": "401839118",
+       "date": "2026-10-23T17:30Z",
+       "type": {
+        "abbreviation": "FP1"
+       },
+       "status": {
+        "type": {
+         "name": "STATUS_FINAL",
+         "state": "post",
+         "completed": true
+        }
+       },
+       "competitors": [
+        {
+         "id": "5498",
+         "order": 1,
+         "winner": false,
+         "athlete": {
+          "displayName": "Charles Leclerc"
+         }
+        },
+        {
+         "id": "4665",
+         "order": 2,
+         "winner": false,
+         "athlete": {
+          "displayName": "Max Verstappen"
+         }
+        },
+        {
+         "id": "5579",
+         "order": 3,
+         "winner": false,
+         "athlete": {
+          "displayName": "Lando Norris"
+         }
+        },
+        {
+         "id": "5503",
+         "order": 4,
+         "winner": false,
+         "athlete": {
+          "displayName": "George Russell"
+         }
+        },
+        {
+         "id": "5829",
+         "order": 5,
+         "winner": false,
+         "athlete": {
+          "displayName": "Kimi Antonelli"
+         }
+        },
+        {
+         "id": "868",
+         "order": 6,
+         "winner": false,
+         "athlete": {
+          "displayName": "Lewis Hamilton"
+         }
+        },
+        {
+         "id": "5752",
+         "order": 7,
+         "winner": false,
+         "athlete": {
+          "displayName": "Oscar Piastri"
+         }
+        },
+        {
+         "id": "5835",
+         "order": 8,
+         "winner": false,
+         "athlete": {
+          "displayName": "Gabriel Bortoleto"
+         }
+        },
+        {
+         "id": "5855",
+         "order": 9,
+         "winner": false,
+         "athlete": {
+          "displayName": "Arvid Lindblad"
+         }
+        },
+        {
+         "id": "5741",
+         "order": 10,
+         "winner": false,
+         "athlete": {
+          "displayName": "Liam Lawson"
+         }
+        },
+        {
+         "id": "5789",
+         "order": 11,
+         "winner": false,
+         "athlete": {
+          "displayName": "Oliver Bearman"
+         }
+        },
+        {
+         "id": "348",
+         "order": 12,
+         "winner": false,
+         "athlete": {
+          "displayName": "Fernando Alonso"
+         }
+        }
+       ]
+      },
+      {
+       "id": "401839119",
+       "date": "2026-10-23T21:00Z",
+       "type": {
+        "abbreviation": "FP2"
+       },
+       "status": {
+        "type": {
+         "name": "STATUS_FINAL",
+         "state": "post",
+         "completed": true
+        }
+       },
+       "competitors": [
+        {
+         "id": "5498",
+         "order": 1,
+         "winner": false,
+         "athlete": {
+          "displayName": "Charles Leclerc"
+         }
+        },
+        {
+         "id": "5829",
+         "order": 2,
+         "winner": false,
+         "athlete": {
+          "displayName": "Kimi Antonelli"
+         }
+        },
+        {
+         "id": "4665",
+         "order": 3,
+         "winner": false,
+         "athlete": {
+          "displayName": "Max Verstappen"
+         }
+        },
+        {
+         "id": "868",
+         "order": 4,
+         "winner": false,
+         "athlete": {
+          "displayName": "Lewis Hamilton"
+         }
+        },
+        {
+         "id": "5503",
+         "order": 5,
+         "winner": false,
+         "athlete": {
+          "displayName": "George Russell"
+         }
+        },
+        {
+         "id": "5741",
+         "order": 6,
+         "winner": false,
+         "athlete": {
+          "displayName": "Liam Lawson"
+         }
+        },
+        {
+         "id": "5579",
+         "order": 7,
+         "winner": false,
+         "athlete": {
+          "displayName": "Lando Norris"
+         }
+        },
+        {
+         "id": "5752",
+         "order": 8,
+         "winner": false,
+         "athlete": {
+          "displayName": "Oscar Piastri"
+         }
+        },
+        {
+         "id": "5790",
+         "order": 9,
+         "winner": false,
+         "athlete": {
+          "displayName": "Isack Hadjar"
+         }
+        },
+        {
+         "id": "5789",
+         "order": 10,
+         "winner": false,
+         "athlete": {
+          "displayName": "Oliver Bearman"
+         }
+        },
+        {
+         "id": "5835",
+         "order": 11,
+         "winner": false,
+         "athlete": {
+          "displayName": "Gabriel Bortoleto"
+         }
+        },
+        {
+         "id": "5501",
+         "order": 12,
+         "winner": false,
+         "athlete": {
+          "displayName": "Pierre Gasly"
+         }
+        }
+       ]
+      },
+      {
+       "id": "401839120",
+       "date": "2026-10-24T17:30Z",
+       "type": {
+        "abbreviation": "FP3"
+       },
+       "status": {
+        "type": {
+         "name": "STATUS_FINAL",
+         "state": "post",
+         "completed": true
+        }
+       },
+       "competitors": [
+        {
+         "id": "868",
+         "order": 1,
+         "winner": false,
+         "athlete": {
+          "displayName": "Lewis Hamilton"
+         }
+        },
+        {
+         "id": "4665",
+         "order": 2,
+         "winner": false,
+         "athlete": {
+          "displayName": "Max Verstappen"
+         }
+        },
+        {
+         "id": "5498",
+         "order": 3,
+         "winner": false,
+         "athlete": {
+          "displayName": "Charles Leclerc"
+         }
+        },
+        {
+         "id": "5829",
+         "order": 4,
+         "winner": false,
+         "athlete": {
+          "displayName": "Kimi Antonelli"
+         }
+        },
+        {
+         "id": "5503",
+         "order": 5,
+         "winner": false,
+         "athlete": {
+          "displayName": "George Russell"
+         }
+        },
+        {
+         "id": "5752",
+         "order": 6,
+         "winner": false,
+         "athlete": {
+          "displayName": "Oscar Piastri"
+         }
+        },
+        {
+         "id": "4396",
+         "order": 7,
+         "winner": false,
+         "athlete": {
+          "displayName": "Nico H\u00fclkenberg"
+         }
+        },
+        {
+         "id": "5579",
+         "order": 8,
+         "winner": false,
+         "athlete": {
+          "displayName": "Lando Norris"
+         }
+        },
+        {
+         "id": "5501",
+         "order": 9,
+         "winner": false,
+         "athlete": {
+          "displayName": "Pierre Gasly"
+         }
+        },
+        {
+         "id": "5790",
+         "order": 10,
+         "winner": false,
+         "athlete": {
+          "displayName": "Isack Hadjar"
+         }
+        },
+        {
+         "id": "5741",
+         "order": 11,
+         "winner": false,
+         "athlete": {
+          "displayName": "Liam Lawson"
+         }
+        },
+        {
+         "id": "5855",
+         "order": 12,
+         "winner": false,
+         "athlete": {
+          "displayName": "Arvid Lindblad"
+         }
+        }
+       ]
+      },
+      {
+       "id": "401839121",
+       "date": "2026-10-24T21:00Z",
+       "type": {
+        "abbreviation": "Qual"
+       },
+       "status": {
+        "type": {
+         "name": "STATUS_FINAL",
+         "state": "post",
+         "completed": true
+        }
+       },
+       "competitors": [
+        {
+         "id": "5829",
+         "order": 1,
+         "winner": false,
+         "athlete": {
+          "displayName": "Kimi Antonelli"
+         }
+        },
+        {
+         "id": "4665",
+         "order": 2,
+         "winner": false,
+         "athlete": {
+          "displayName": "Max Verstappen"
+         }
+        },
+        {
+         "id": "5790",
+         "order": 3,
+         "winner": false,
+         "athlete": {
+          "displayName": "Isack Hadjar"
+         }
+        },
+        {
+         "id": "5498",
+         "order": 4,
+         "winner": false,
+         "athlete": {
+          "displayName": "Charles Leclerc"
+         }
+        },
+        {
+         "id": "868",
+         "order": 5,
+         "winner": false,
+         "athlete": {
+          "displayName": "Lewis Hamilton"
+         }
+        },
+        {
+         "id": "5503",
+         "order": 6,
+         "winner": false,
+         "athlete": {
+          "displayName": "George Russell"
+         }
+        },
+        {
+         "id": "5752",
+         "order": 7,
+         "winner": false,
+         "athlete": {
+          "displayName": "Oscar Piastri"
+         }
+        },
+        {
+         "id": "5579",
+         "order": 8,
+         "winner": false,
+         "athlete": {
+          "displayName": "Lando Norris"
+         }
+        },
+        {
+         "id": "5855",
+         "order": 9,
+         "winner": false,
+         "athlete": {
+          "displayName": "Arvid Lindblad"
+         }
+        },
+        {
+         "id": "5741",
+         "order": 10,
+         "winner": false,
+         "athlete": {
+          "displayName": "Liam Lawson"
+         }
+        },
+        {
+         "id": "5501",
+         "order": 11,
+         "winner": false,
+         "athlete": {
+          "displayName": "Pierre Gasly"
+         }
+        },
+        {
+         "id": "4396",
+         "order": 12,
+         "winner": false,
+         "athlete": {
+          "displayName": "Nico H\u00fclkenberg"
+         }
+        }
+       ]
+      },
+      {
+       "id": "401839122",
+       "date": "2026-10-25T20:00Z",
+       "type": {
+        "abbreviation": "Race"
+       },
+       "status": {
+        "type": {
+         "name": "STATUS_FINAL",
+         "state": "post",
+         "completed": true
+        }
+       },
+       "competitors": [
+        {
+         "id": "5829",
+         "order": 1,
+         "winner": true,
+         "athlete": {
+          "displayName": "Kimi Antonelli"
+         }
+        },
+        {
+         "id": "5498",
+         "order": 2,
+         "winner": false,
+         "athlete": {
+          "displayName": "Charles Leclerc"
+         }
+        },
+        {
+         "id": "4665",
+         "order": 3,
+         "winner": false,
+         "athlete": {
+          "displayName": "Max Verstappen"
+         }
+        },
+        {
+         "id": "868",
+         "order": 4,
+         "winner": false,
+         "athlete": {
+          "displayName": "Lewis Hamilton"
+         }
+        },
+        {
+         "id": "5579",
+         "order": 5,
+         "winner": false,
+         "athlete": {
+          "displayName": "Lando Norris"
+         }
+        },
+        {
+         "id": "5790",
+         "order": 6,
+         "winner": false,
+         "athlete": {
+          "displayName": "Isack Hadjar"
+         }
+        },
+        {
+         "id": "5752",
+         "order": 7,
+         "winner": false,
+         "athlete": {
+          "displayName": "Oscar Piastri"
+         }
+        },
+        {
+         "id": "5503",
+         "order": 8,
+         "winner": false,
+         "athlete": {
+          "displayName": "George Russell"
+         }
+        },
+        {
+         "id": "5741",
+         "order": 9,
+         "winner": false,
+         "athlete": {
+          "displayName": "Liam Lawson"
+         }
+        },
+        {
+         "id": "5501",
+         "order": 10,
+         "winner": false,
+         "athlete": {
+          "displayName": "Pierre Gasly"
+         }
+        },
+        {
+         "id": "4396",
+         "order": 11,
+         "winner": false,
+         "athlete": {
+          "displayName": "Nico H\u00fclkenberg"
+         }
+        },
+        {
+         "id": "5855",
+         "order": 12,
+         "winner": false,
+         "athlete": {
+          "displayName": "Arvid Lindblad"
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "/scoreboard?dates=20261029-20261102": {
+   "events": [
+    {
+     "id": "600057447",
+     "name": "Mexico City Grand Prix",
+     "shortName": "Mexico City GP",
+     "date": "2026-10-30T18:30Z",
+     "circuit": {
+      "fullName": "Autodromo Hermanos Rodriguez",
+      "address": {
+       "city": "Mexico city",
+       "country": "Mexico"
+      }
+     },
+     "competitions": [
+      {
+       "id": "401839123",
+       "date": "2026-10-30T18:30Z",
+       "type": {
+        "abbreviation": "FP1"
+       },
+       "status": {
+        "type": {
+         "name": "STATUS_SCHEDULED",
+         "state": "pre",
+         "completed": false
+        }
+       },
+       "competitors": []
+      },
+      {
+       "id": "401839124",
+       "date": "2026-10-30T22:00Z",
+       "type": {
+        "abbreviation": "FP2"
+       },
+       "status": {
+        "type": {
+         "name": "STATUS_SCHEDULED",
+         "state": "pre",
+         "completed": false
+        }
+       },
+       "competitors": []
+      },
+      {
+       "id": "401839125",
+       "date": "2026-10-31T17:30Z",
+       "type": {
+        "abbreviation": "FP3"
+       },
+       "status": {
+        "type": {
+         "name": "STATUS_SCHEDULED",
+         "state": "pre",
+         "completed": false
+        }
+       },
+       "competitors": []
+      },
+      {
+       "id": "401839126",
+       "date": "2026-10-31T21:00Z",
+       "type": {
+        "abbreviation": "Qual"
+       },
+       "status": {
+        "type": {
+         "name": "STATUS_SCHEDULED",
+         "state": "pre",
+         "completed": false
+        }
+       },
+       "competitors": []
+      },
+      {
+       "id": "401839127",
+       "date": "2026-11-01T20:00Z",
+       "type": {
+        "abbreviation": "Race"
+       },
+       "status": {
+        "type": {
+         "name": "STATUS_SCHEDULED",
+         "state": "pre",
+         "completed": false
+        }
+       },
+       "competitors": []
+      }
+     ]
+    }
+   ]
+  },
+  "standings": {
+   "children": [
+    {
+     "name": "Driver Standings",
+     "standings": {
+      "entries": [
+       {
+        "athlete": {
+         "id": "5829",
+         "displayName": "Kimi Antonelli"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "championshipPts",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Championship Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 365.0,
+          "displayValue": "365",
+          "topFinish": 1.0
+         }
+        ]
+       },
+       {
+        "athlete": {
+         "id": "5503",
+         "displayName": "George Russell"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "championshipPts",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Championship Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 242.0,
+          "displayValue": "242",
+          "topFinish": 1.0
+         }
+        ]
+       },
+       {
+        "athlete": {
+         "id": "868",
+         "displayName": "Lewis Hamilton"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 3.0,
+          "displayValue": "3"
+         },
+         {
+          "name": "championshipPts",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Championship Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 241.0,
+          "displayValue": "241",
+          "topFinish": 1.0
+         }
+        ]
+       },
+       {
+        "athlete": {
+         "id": "4665",
+         "displayName": "Max Verstappen"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 4.0,
+          "displayValue": "4"
+         },
+         {
+          "name": "championshipPts",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Championship Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 236.0,
+          "displayValue": "236",
+          "topFinish": 1.0
+         }
+        ]
+       },
+       {
+        "athlete": {
+         "id": "5498",
+         "displayName": "Charles Leclerc"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 5.0,
+          "displayValue": "5"
+         },
+         {
+          "name": "championshipPts",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Championship Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 233.0,
+          "displayValue": "233",
+          "topFinish": 1.0
+         }
+        ]
+       },
+       {
+        "athlete": {
+         "id": "5579",
+         "displayName": "Lando Norris"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 6.0,
+          "displayValue": "6"
+         },
+         {
+          "name": "championshipPts",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Championship Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 211.0,
+          "displayValue": "211",
+          "topFinish": 1.0
+         }
+        ]
+       },
+       {
+        "athlete": {
+         "id": "5752",
+         "displayName": "Oscar Piastri"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 7.0,
+          "displayValue": "7"
+         },
+         {
+          "name": "championshipPts",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Championship Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 144.0,
+          "displayValue": "144",
+          "topFinish": 2.0
+         }
+        ]
+       },
+       {
+        "athlete": {
+         "id": "5790",
+         "displayName": "Isack Hadjar"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 8.0,
+          "displayValue": "8"
+         },
+         {
+          "name": "championshipPts",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Championship Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 105.0,
+          "displayValue": "105",
+          "topFinish": 3.0
+         }
+        ]
+       },
+       {
+        "athlete": {
+         "id": "5741",
+         "displayName": "Liam Lawson"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 9.0,
+          "displayValue": "9"
+         },
+         {
+          "name": "championshipPts",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Championship Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 77.0,
+          "displayValue": "77",
+          "topFinish": 5.0
+         }
+        ]
+       },
+       {
+        "athlete": {
+         "id": "5501",
+         "displayName": "Pierre Gasly"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 10.0,
+          "displayValue": "10"
+         },
+         {
+          "name": "championshipPts",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Championship Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 42.0,
+          "displayValue": "42",
+          "topFinish": 6.0
+         }
+        ]
+       },
+       {
+        "athlete": {
+         "id": "5855",
+         "displayName": "Arvid Lindblad"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 11.0,
+          "displayValue": "11"
+         },
+         {
+          "name": "championshipPts",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Championship Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 38.0,
+          "displayValue": "38",
+          "topFinish": 6.0
+         }
+        ]
+       },
+       {
+        "athlete": {
+         "id": "5823",
+         "displayName": "Franco Colapinto"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 12.0,
+          "displayValue": "12"
+         },
+         {
+          "name": "championshipPts",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Championship Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 27.0,
+          "displayValue": "27",
+          "topFinish": 6.0
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Constructor Standings",
+     "standings": {
+      "entries": [
+       {
+        "team": {
+         "id": "106893",
+         "displayName": "Mercedes"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "points",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 607.0,
+          "displayValue": "607"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "106842",
+         "displayName": "Ferrari"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "points",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 474.0,
+          "displayValue": "474"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "106921",
+         "displayName": "Red Bull"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 3.0,
+          "displayValue": "3"
+         },
+         {
+          "name": "points",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 355.0,
+          "displayValue": "355"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "106892",
+         "displayName": "McLaren"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 4.0,
+          "displayValue": "4"
+         },
+         {
+          "name": "points",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 355.0,
+          "displayValue": "355"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "123988",
+         "displayName": "Racing Bulls"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 5.0,
+          "displayValue": "5"
+         },
+         {
+          "name": "points",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 102.0,
+          "displayValue": "102"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "106922",
+         "displayName": "Alpine"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 6.0,
+          "displayValue": "6"
+         },
+         {
+          "name": "points",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 69.0,
+          "displayValue": "69"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "111427",
+         "displayName": "Haas"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 7.0,
+          "displayValue": "7"
+         },
+         {
+          "name": "points",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 30.0,
+          "displayValue": "30"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "132212",
+         "displayName": "Audi"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 8.0,
+          "displayValue": "8"
+         },
+         {
+          "name": "points",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 23.0,
+          "displayValue": "23"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "106967",
+         "displayName": "Williams"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 9.0,
+          "displayValue": "9"
+         },
+         {
+          "name": "points",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 12.0,
+          "displayValue": "12"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "123986",
+         "displayName": "Aston Martin"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 10.0,
+          "displayValue": "10"
+         },
+         {
+          "name": "points",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 7.0,
+          "displayValue": "7"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "132211",
+         "displayName": "Cadillac"
+        },
+        "stats": [
+         {
+          "name": "rank",
+          "displayName": "Rank",
+          "shortDisplayName": "RK",
+          "description": "Rank",
+          "abbreviation": "RK",
+          "type": "rank",
+          "value": 11.0,
+          "displayValue": "11"
+         },
+         {
+          "name": "points",
+          "displayName": "Points",
+          "shortDisplayName": "PTS",
+          "description": "Points",
+          "abbreviation": "PTS",
+          "type": "points",
+          "value": 0.0,
+          "displayValue": "0"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "core/events/600057447": {
+   "id": "600057447",
+   "circuit": {
+    "$ref": "core/circuits/782"
+   }
+  },
+  "core/circuits/782": {
+   "fullName": "Autodromo Hermanos Rodriguez",
+   "length": "4.304 km",
+   "laps": 71,
+   "turns": 17,
+   "fastestLapTime": "1:17.774",
+   "fastestLapYear": 2021,
+   "diagrams": [
+    {
+     "href": "https://a.espncdn.com/i/venues/f1/circuit/50.svg",
+     "width": 2000,
+     "height": 1125,
+     "alt": "",
+     "rel": [
+      "full",
+      "circuit"
+     ]
+    },
+    {
+     "href": "https://a.espncdn.com/i/venues/f1/circuit/50.jpg",
+     "width": 2000,
+     "height": 1125,
+     "alt": "",
+     "rel": [
+      "full",
+      "circuit"
+     ]
+    },
+    {
+     "href": "https://a.espncdn.com/i/venues/f1/circuit-info/50.svg",
+     "width": 2000,
+     "height": 1125,
+     "alt": "",
+     "rel": [
+      "full",
+      "circuit-info"
+     ]
+    },
+    {
+     "href": "https://a.espncdn.com/i/venues/f1/circuit-info/50.jpg",
+     "width": 2000,
+     "height": 1125,
+     "alt": "",
+     "rel": [
+      "full",
+      "circuit-info"
+     ]
+    },
+    {
+     "href": "https://a.espncdn.com/i/venues/f1/day/50.svg",
+     "width": 2000,
+     "height": 1125,
+     "alt": "",
+     "rel": [
+      "full",
+      "day"
+     ]
+    },
+    {
+     "href": "https://a.espncdn.com/i/venues/f1/day/50.jpg",
+     "width": 2000,
+     "height": 1125,
+     "alt": "",
+     "rel": [
+      "full",
+      "day"
+     ]
+    },
+    {
+     "href": "https://a.espncdn.com/i/venues/f1/day-dark/50.svg",
+     "width": 2000,
+     "height": 1125,
+     "alt": "",
+     "rel": [
+      "full",
+      "day-dark"
+     ]
+    },
+    {
+     "href": "https://a.espncdn.com/i/venues/f1/circuit-dark/50.svg",
+     "width": 2000,
+     "height": 1125,
+     "alt": "",
+     "rel": [
+      "full",
+      "circuit-dark"
+     ]
+    },
+    {
+     "href": "https://a.espncdn.com/i/venues/f1/circuit-info-dark/50.svg",
+     "width": 2000,
+     "height": 1125,
+     "alt": "",
+     "rel": [
+      "full",
+      "circuit-info-dark"
+     ]
+    }
+   ]
+  },
+  "core/events/600057446/competitions/401839122/competitors/5829": {
+   "id": "5829",
+   "vehicle": {
+    "manufacturer": "Mercedes",
+    "teamColor": "00D2BE"
+   }
+  },
+  "core/events/600057446/competitions/401839122/competitors/5498": {
+   "id": "5498",
+   "vehicle": {
+    "manufacturer": "Ferrari",
+    "teamColor": "DC0000"
+   }
+  },
+  "core/events/600057446/competitions/401839122/competitors/4665": {
+   "id": "4665",
+   "vehicle": {
+    "manufacturer": "Red Bull",
+    "teamColor": "00327D"
+   }
+  },
+  "core/events/600057446/competitions/401839122/competitors/868": {
+   "id": "868",
+   "vehicle": {
+    "manufacturer": "Ferrari",
+    "teamColor": "DC0000"
+   }
+  },
+  "core/events/600057446/competitions/401839122/competitors/5579": {
+   "id": "5579",
+   "vehicle": {
+    "manufacturer": "McLaren",
+    "teamColor": "FF8700"
+   }
+  },
+  "core/events/600057446/competitions/401839122/competitors/5790": {
+   "id": "5790",
+   "vehicle": {
+    "manufacturer": "Red Bull",
+    "teamColor": "00327D"
+   }
+  },
+  "core/events/600057446/competitions/401839122/competitors/5752": {
+   "id": "5752",
+   "vehicle": {
+    "manufacturer": "McLaren",
+    "teamColor": "FF8700"
+   }
+  },
+  "core/events/600057446/competitions/401839122/competitors/5503": {
+   "id": "5503",
+   "vehicle": {
+    "manufacturer": "Mercedes",
+    "teamColor": "00D2BE"
+   }
+  },
+  "core/events/600057446/competitions/401839122/competitors/5741": {
+   "id": "5741",
+   "vehicle": {
+    "manufacturer": "Racing Bulls",
+    "teamColor": "6692FF"
+   }
+  },
+  "core/events/600057446/competitions/401839122/competitors/5501": {
+   "id": "5501",
+   "vehicle": {
+    "manufacturer": "Alpine",
+    "teamColor": "FFF500"
+   }
+  },
+  "core/events/600057446/competitions/401839122/competitors/4396": {
+   "id": "4396",
+   "vehicle": {
+    "manufacturer": "Audi",
+    "teamColor": "FF2D00"
+   }
+  },
+  "core/events/600057446/competitions/401839122/competitors/5855": {
+   "id": "5855",
+   "vehicle": {
+    "manufacturer": "Racing Bulls",
+    "teamColor": "6692FF"
+   }
+  }
+ }
+}

@@ -37,6 +37,7 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 | `sportCategories` | 0146 | `library/categories` rows carry `sport` (C-H) | Not read any more (decoded) |
 | `sportsDashboard` | 0309 | Opt-in dashboard/catalog and per-user preferences (C-O); false unless `PIGTV_SPORTS_DASHBOARD=1` | Apple 59: gated dashboard; absent/404 retains C-I |
 | `sportsEvents` | 0148 | `GET /api/sports/events` (C-I) | Sport tab, Home "Sport now & next", `hours=72` |
+| `sportPages` | 0340 | `GET /api/sports/pages/f1` (C-P), on whenever ESPN fixtures are | The Formula 1 page (sport rebuild, #21) |
 | `scheduleHistory` | 0156 | `recordings/scheduled?include=recent` adds missed/failed of the last 7 days | Asks `include=recent` |
 | `providerReminders` | 0168 | `GET /api/providers/reminders` (C-K) | Daily reminder popup |
 | `providers` | 0174 | Resolve carries `provider` (C-J) | Shown in Stream info |
@@ -132,6 +133,7 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 | C-M Recording rules | `recordingRules` | 0219 (R5) | 45 |
 | C-N Recording artwork | `recordingArtwork` | 0220 (R6) | 45 |
 | C-O Sport dashboard foundation | `sportsDashboard` | 0309 (opt-in) | 59 |
+| C-P Sport pages: Formula 1 | `sportPages` | 0340 | (sport rebuild) |
 
 C-A to C-K are implemented on both sides and verified on devices (results in `docs/archive/TEST-BLOCK-2026-10-13.md`). C-L
 onwards are not verified yet.
@@ -547,3 +549,32 @@ accessibility label and accompanies touch-and-hold. tvOS card geometry remains 3
   a clock aged through both requests. A scheduled watch waits for that airing's start and re-arms (at most three times)
   while the server still places it in the future. A Record/rule result is refused if the preference revision changed
   during the C-I read, and the record sheet is checked against the revision of the snapshot it came from.
+
+### C-P. Sport pages: Formula 1. Flag: `sportPages` (0340, #21)
+
+One page per sport (PRODUCT.md › Sport, D-33); Formula 1 first. Built from ESPN's free F1 feeds on demand (cached 10 min
+on a race weekend, 1 h otherwise; nothing is fetched unless the page is asked for) and PigTV's own C-I sport events.
+
+- `GET /api/sports/pages/f1` (any user) → `{ available, updatedAt, weekend, results, standings }`
+  - `available: false` (and nothing else) until the first fetch has answered, or when ESPN cannot be reached and
+    nothing is cached; a later request has it. Fields the feed does not give are `null`, never guessed.
+  - `weekend`: the current race weekend (from Friday's first session until a day after its race), else the next one:
+    `{ round, rounds, name, circuit, city, country, phase, info, sessions }`.
+    - `phase`: `"before"` (no session has started) | `"during"` | `"after"` (the race has finished).
+    - `info`: `{ length, laps, turns, lapRecord, lapRecordYear, map }` from the circuit's own data: `length` is text
+      ("4.304 km"), `lapRecord` text ("1:17.774"), `map` a logo-cache path (`/api/logo/<key>`, `?size=640`) or null.
+    - `sessions[]`: `{ id, name, start, end, status, top, channels }` in order. `id`: `practice 1` | `practice 2` |
+      `practice 3` | `sprint qualifying` | `sprint` | `qualifying` | `race` (C-I's session ids); `name` its label
+      ("Practice 1"); `start`/`end` ms (`end` estimated when ESPN has none); `status` `scheduled` | `live` | `done`.
+      `top` (done only): `{ kind: "fastest" | "pole" | "winner", driver }`. `channels`: C-I's channel objects for that
+      session's airing (each with its own `start`/`end`, 0337), best first; `[]` until the guide carries it.
+  - `results`: `{ kind, title, date, rows }` or null. During a weekend after qualifying, `kind: "grid"` (qualifying's
+    order, `title` "Starting grid · Qualifying"); otherwise `kind: "race"` for the last finished race (`title` "Last race
+    · <GP>"). `rows` (top 10): `{ pos, driver, team, teamColor, points }` (`points` null on a grid; `teamColor` hex
+    "00D2BE" or null).
+  - `standings`: `{ afterRound, drivers, constructors }` or null; each list the top 10: `{ pos, name, team, teamColor,
+    points }`. A driver's `team` is the car ESPN lists for them in the newest finished session (null if unknown); a
+    constructor's `team` is null and `teamColor` its colour. Names are the race's own, without the title sponsor.
+- Spoilers are the client's: the server always sends results, `top` and standings; with the global spoiler-free switch
+  on, the client hides them (PRODUCT.md › Sport). Watch/Record on a session use its channel's own times (C-I, #20).
+

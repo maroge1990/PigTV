@@ -97,6 +97,24 @@ router.get('/events', async (req, res) => {
     }
 });
 
+// #21 (0340, C-P): the Formula 1 page. On whenever ESPN fixtures are (PIGTV_SPORT_FIXTURES).
+router.get('/pages/f1', async (req, res) => {
+    if (!require('../services/sportsFixtures').enabled()) return res.status(404).json({ error: 'Sport pages are off on this server' });
+    try {
+        channelNumbers.ensureChannelNumbers();
+        const f1 = require('../services/sportPageF1');
+        const page = await f1.page(Date.now(), {
+            registerImage: require('../services/logoCache').registerLogo,
+            channelsFor: async (sessions) => f1.channelsForSessions(sessions,
+                (await sportsEvents.eventsFor({ hours: sportsEvents.MAX_HOURS, userId: req.user.id, decorateChannels })).events)
+        });
+        res.json(page);
+    } catch (err) {
+        console.error('[Sports] F1 page failed:', err.message);
+        res.status(500).json({ error: 'Could not build the Formula 1 page' });
+    }
+});
+
 router.get('/preview', requireAdmin, async (req, res) => {
     try {
         res.json(await sportsEvents.eventsFor({ hours: sportsEvents.MAX_HOURS, userId: req.user.id, withRule: true, include: 'all', decorateChannels }));

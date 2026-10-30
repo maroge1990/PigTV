@@ -160,6 +160,33 @@ test('/api/info advertises sportsEvents', async () => {
     assert.equal((await call('GET', '/api/info')).body.features.sportsEvents, true);
 });
 
+// #21 (0340, C-P): the F1 page's route, with ESPN answered from the captured fixture (the page's own tests are in
+// sport-page-f1.test.js; this is the route, its flag and its auth).
+test('/api/sports/pages/f1 answers the F1 page to any user, and /api/info advertises it', async () => {
+    assert.equal((await call('GET', '/api/info')).body.features.sportPages, true);
+    const f1 = load('services/sportPageF1');
+    const { answers } = require('./fixtures/sport-page-f1.json');
+    const realGet = f1.fetcher.get;
+    f1.fetcher.get = async (url) => {
+        const u = new URL(url);
+        const key = u.pathname.endsWith('/racing/f1/scoreboard') ? (u.searchParams.get('dates') ? `/scoreboard?dates=${u.searchParams.get('dates')}` : '/scoreboard')
+            : u.pathname.endsWith('/racing/f1/standings') ? 'standings' : `core${u.pathname.split('/leagues/f1')[1]}`;
+        return key in answers ? { ok: true, json: answers[key] } : { ok: false, error: 'HTTP 404' };
+    };
+    f1.reset();
+    try {
+        const r = await call('GET', '/api/sports/pages/f1', { token: viewerToken });
+        assert.equal(r.status, 200);
+        assert.equal(r.body.available, true);
+        assert.equal(r.body.weekend.rounds, 25);
+        assert.ok(Array.isArray(r.body.weekend.sessions));
+        assert.equal((await call('GET', '/api/sports/pages/f1', { token: null })).status, 401);
+    } finally {
+        f1.fetcher.get = realGet;
+        f1.reset();
+    }
+});
+
 test('the same game on three channels is one event; a different game at the same time is another', async () => {
     const body = await events();
     assert.ok(body.now <= Date.now() && Date.now() - body.now < 65000, "now is the start of the current minute (the answer is kept per minute)");

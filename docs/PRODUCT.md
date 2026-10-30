@@ -33,7 +33,7 @@ exists, not built).
 | Recording rules | Sport follow and series rules, de-duplicated | ✓ | ✓ | ✓ | shipped |
 | Sport events (C-I) | Sport recognised per programme across every channel, with a follow list, replays and a 72-hour horizon, checked against ESPN's free fixtures | ✓ | ✓ | ✓ | shipped |
 | Live now dashboard (C-O) | Live and upcoming games with scores, spoiler and delay settings | ✓ | ✓ | ✓ | gated (`sportsDashboard`) |
-| Sport pages | A page per sport (see Sport below) | later | first | then | planned (#21) |
+| Sport pages | A page per sport (see Sport below) | later | first | then | F1: server data built (0340, C-P); Apple page next (#21) |
 | Status page | What is playing and recording, providers, the last 7 days, "Needs attention", details on demand | admin | — | — | shipped |
 | Top Shelf | Favourites as rendered cards with play links | — | ✓ | — | shipped |
 | Device pairing | Pair an Apple device by approving a code in the web app | admin | ✓ | ✓ | shipped |
