@@ -5,39 +5,34 @@ issues hold the detail.
 
 ## Current state
 
-*Overwritten at the end of every session. 31 Oct 2026, early (second Windows session; D-37: Claude worked through
-batches 3b–6 without Mark, no device testing, no deploy needed).*
+*Overwritten at the end of every session. 31 Oct 2026, morning (third Windows session; D-37: Claude works through
+batches without Mark; Mark deployed 0362 at 07:06 and asked for the next batches).*
 
-- **Server:** production still runs **0323** (nothing since 0324 is deployed; deploy is Mark's). On GitHub: **0346**
-  (batch 3b: household spoiler-free and followed driver, C-P), **0347–0356** (batch 4: hidden channels follow the channel
-  #10, new provider groups held for review, shrunken playlist/guide held #42, ingest deadlines and User-Agent #106,
-  04:30 schedule, retries and guide-stale warning #11; findings #166–#170, #173), **0357–0362** (batch 5, web: Show/Hide
-  all pending with confirm and Undo #16, hidden-group ticks #59, unsaved-edit guards #128, single-key player settings #9,
-  New on the provider list, settings copy #65; findings #174–#176). CI green for each. Next build **0363**.
-- **Apple:** on GitHub **74–78** (batch 3b: per-channel airing times #20, the Formula 1 page on Apple TV, iPad, iPhone
-  #21; findings #162–#165, #171, #172) and **79–83** (batch 6: channel list #13, Top Shelf/timer plays close open pages
-  and a watchdog ends a play whose player never appears #14, Home and Top Shelf freshness #46; findings #178, #179).
-  Next build **84**. #7 (live hold) stays with its own session.
-- **Tooling:** WSL2 on Windows; the Mac over SSH (Xcode, simulators; its two Apple TVs and iPhone are paired with Xcode
-  but were not used); the Unraid rig is the full-suite gate (`unraid-rig.sh test`); `PIGTV_RIG_SPORT_FIXTURES=1
-  unraid-rig.sh up` lets staging fetch ESPN for the sport pages (staging now runs 0346+). A read-only copy of production's
-  database is on the Unraid test share for migration rehearsals (D-37).
-- **Waiting for Mark (T5, after deploying):** everything above, plus #141/#149/#151/#152, #22/#23/#24 (next Fox Cricket
-  Test), #147/#148/#153, the older #6, #5, #12, #8, #18. Open design question: iPhone sport pages as one scroll or pages
-  (#177). Relay timeline renewal stays **off** (D-25).
+- **Server:** production runs **0362** (deployed 31 Oct 07:06; the 08:30 sync migrated hidden channels with nothing
+  moved: 1,413 shown, 17,693 hidden, the guide 152 h ahead). On GitHub: **0363–0371** (batch 7, Status: the app build per
+  device from `X-PigTV-Client`, who is playing by name, the pairing preview #19; ffmpeg/ffprobe, Re-detect GPU, last
+  synced per provider #61; Status cost measured and cut, `?details=0`, the banner paused while hidden #129), **0372–0378**
+  (batch 4b: a backup made the primary keeps the lineup, with a dry run #15; findings #180–#182), **0379–0380** (the NFL
+  page's server answer, C-Q; finding #183). CI green for each pushed batch. Next build **0381**.
+- **Apple:** on GitHub **84** (`X-PigTV-Client` on every request), **85** (a UI test for #179), **86–87** (the NFL page,
+  findings #184, #185). Next build **88**. #7 (live hold) stays with its own session.
+- **Not done:** #111 (ordered guide sources) deferred: P3, and production has one guide, so nothing duplicates today.
+  Production's 7 favourites point at a provider id that no longer exists (an earlier provider change, #15's problem);
+  6 are identifiable by name (Fox Footy 504, Sky Sports Main Event, ESPN, Sky Sports F1, Sky Sports Premier League,
+  Marquee Sports Network): restoring them needs Mark's yes.
+- **Waiting for Mark (T5, after deploying):** batches 3b–7 and 4b, the NFL page, plus the older list (#141/#149/#151/#152,
+  #22/#23/#24, #147/#148/#153, #6, #5, #12, #8, #18). Open design question: iPhone sport pages (#177). Relay timeline
+  renewal stays **off** (D-25).
 
 ## Now
 
 Batches by area (D-35), in this order:
 
-1. **Batch 7: Status** (#19 which device and build is playing, needs an Apple header; #61 Status facts; #129 Status
-   cost: measure first). A UI test for #179 (open a page, deliver a play link) is owed.
-2. **Batch 4b** (server): #15 promote a backup without losing the lineup (carry favourites, numbers, hidden choices, EPG
-   matches, rules and schedules through `channel_links`, with a dry run), #111 ordered guide sources.
-3. **Sport pages:** AFL or NFL next (mock-up "NFL · Apple TV" approved earlier), then cricket (mock-up approved 31 Oct;
-   needs a C-P-style server answer first), each Apple TV first.
-4. Batch 8: #4 relay renewal (capture first, a device test with renewal on, released alone): waits for Mark.
-5. #29 (collector cost, a pilot) before the Live now dashboard is switched on by default; #85 waits for a format signal.
+1. **Sport pages:** cricket next (mock-up approved 31 Oct; a C-Q-style server answer first), then AFL (off-season
+   until March). The NFL page is built (C-Q, Apple 86–87).
+2. Batch 8: #4 relay renewal (capture first, a device test with renewal on, released alone): waits for Mark.
+3. #29 (collector cost, a pilot) before the Live now dashboard is switched on by default; #85 waits for a format signal.
+4. #111 ordered guide sources, when a second guide source is added.
 
 ## Next (P1)
 
