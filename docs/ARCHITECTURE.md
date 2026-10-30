@@ -172,7 +172,9 @@ sync per source, free disk (transcode tmpfs, recordings), build. Never a URL: fi
 scrubbed. Look here before `docker logs`. Since 0288 it opens on providers, what is playing and recording, the last 7 days
 (problems only when there are some) and a "Needs attention" box (a failed sync, recordings stuck in appdata); everything else
 (recent plays, stream internals, interruptions, feed lag, server load, fixtures, sync, catch-up, backups, disk, EPG
-categories) is behind "Show details", remembered per browser (`pigtv.statusDetails`). Since 0133 it also lists the **least reliable channels** (7 days; since 0142 also
+categories) is behind "Show details", remembered per browser (`pigtv.statusDetails`); with it closed the page asks for
+`?details=0`, which skips building those parts (0370; the catch-up summary is also cached until a sync, 0369). Since 0364
+sessions and plays name their device or login (`ownerName`; a device's app build from `X-PigTV-Client`, 0363). Since 0133 it also lists the **least reliable channels** (7 days; since 0142 also
 channels that only stall, ranked by failed starts + stalls per hour watched, hours floored at 30 min; stalls and minutes shown).
 
 **Channel health** (0133, C-G, `channelHealth.js`, table `channel_health`): one row per start attempt per identity, kept 30 days
@@ -233,3 +235,13 @@ Client events carry no session id, so the mapping is owner → last resolve (as 
   and continue as part N+1 on a mid-recording death or a 30 s stall (at most 3 parts).
 
 - A sibling-link decision that changes what is listed bumps the guide version (0250).
+- **Making a backup the primary keeps the lineup** (#15, 0372–0378, `providerPromotion.js`). The lineup is keyed on the
+  primary's identities, so the links carry it: per shown channel the best usable link to a channel in the backup's own
+  playlist (`backup_channels.listed`: not the extra channels an M3U backup takes from the provider's whole list) gives
+  its key as a primary channel (`s<stream id>`, else the hash). `GET /api/sources/:id/promotion-preview` is the dry run
+  the web shows before the order changes. `PUT /order` stores the plan (`provider_promotions`, one at a time; until it is
+  used only the old primary back first, which drops it, may change the primary: 409 otherwise), and the new primary's
+  first **complete** live import applies it before numbers are refreshed: carried channels shown, every other hidden,
+  numbers moved, favourites, guide matches, series rules and pending recordings re-pointed. A provider that was the
+  primary before (its own `hidden_channels` record, judged when the plan is stored) keeps its own choice instead, so
+  moving back restores it. Links cover shown channels only; sport groups are marked again by hand.
