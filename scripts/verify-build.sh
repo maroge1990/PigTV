@@ -1423,6 +1423,29 @@ check_absent server/services/streamCoordinator.js "staleStreams" "retired staleS
 check_absent server/services/streamRelay.js "closeForOwner" "retired closeForOwner stays gone"
 check_absent server/services/dbBackup.js "stopNightly" "retired stopNightly stays gone"
 
+# Documentation size budgets (30 Oct reset, decision D-22): warnings only, never a failure. A warning means
+# something probably belongs elsewhere; it is never a reason to cut useful detail.
+echo "=== Doc size budgets (warnings only) ==="
+python3 - <<'PY'
+import glob
+def lines(p):
+    with open(p, encoding='utf-8', errors='replace') as f:
+        return sum(1 for _ in f)
+budget = {'AGENTS.md': 120, 'ROADMAP.md': 150}
+docs = [f for f in glob.glob('*.md') + glob.glob('docs/**/*.md', recursive=True)
+        if not f.startswith(('docs/archive/', 'docs/evidence/'))]
+warnings = []
+for f in sorted(docs):
+    n, limit = lines(f), budget.get(f, 600)
+    if n > limit: warnings.append(f"{f}: {n} lines (budget {limit})")
+for f in sorted(glob.glob('docs/evidence/*/README.md')):
+    n = lines(f)
+    if n > 40: warnings.append(f"{f}: {n} lines (budget 40)")
+for w in warnings:
+    print(f"  ⚠ WARNING (not a failure): {w}")
+print(f"  ✓ size budgets checked ({len(warnings)} warning(s); AGENTS.md 120, ROADMAP.md 150, evidence README 40, other docs 600)")
+PY
+
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).
 python3 - <<'PY' || FAIL=1
 import re, sys
