@@ -282,3 +282,13 @@ reviews.
   after its rounds is pushed by Claude (D-34); each release to production still needs Mark's go-ahead.
 - **Consequence:** [`../AGENTS.md`](../AGENTS.md) › How changes ship, Work in batches, Reviews.
 
+### D-36. The live start builds its hold by playing slightly slower (30 Oct 2026)
+
+- **Context:** #7: a new live play meets the provider's first delivery pause within ~5 s, and the fixed 30 s hold turns it
+  into a ~26 s frozen picture. Measured four ways ([`evidence/2026-10-30-live-hold-variants/`](evidence/2026-10-30-live-hold-variants/README.md)).
+- **Choice (Mark, 30 Oct):** RATE. The Apple player starts a live play without the fixed hold and plays at 0.97× (pitch
+  kept) until it is 30 s behind the live edge, then at 1.0: the same 30 s buffer, built while the picture moves. If
+  Mark finds 0.97× noticeable on his TV, the fallback is the hold that grows at each stall (GROW).
+- **Consequence:** an Apple build of its own (released apart from other changes, D-35), then Mark's device check: 10 cold
+  plays per test channel with a stopwatch.
+
