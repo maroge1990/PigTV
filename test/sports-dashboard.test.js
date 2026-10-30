@@ -7,7 +7,7 @@ const Database = require('better-sqlite3');
 const espn = require('../server/services/sportsScoresEspn');
 const { createStore } = require('../server/services/sportsDashboardStore');
 const dashboard = require('../server/services/sportsDashboard');
-const evidence = JSON.parse(fs.readFileSync(path.join(__dirname, '../docs/reviews/2026-10-29/sports-dashboard/feed-evidence.json')));
+const evidence = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/sports-feed-evidence.json')));
 const sample = label => evidence.samples.find(s => s.label === label);
 const H = 3600000, NOW = Date.parse('2026-10-29T01:00Z');
 const databases = [];

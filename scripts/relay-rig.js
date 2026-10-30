@@ -48,7 +48,7 @@ const provider = http.createServer((req, res) => {
     if (sample) {
         const first = connections === 1;
         const start = first ? 0 : Number(process.env.RIG_RESUME_BYTE);
-        const ff = spawn(process.execPath, [pathMod.join(repo, 'docs/reviews/2026-10-27/avsync-repro/pace-pcr.js'), sample, String(start)],
+        const ff = spawn(process.execPath, [pathMod.join(repo, 'docs/evidence/2026-10-28-avsync-start-repro/pace-pcr.js'), sample, String(start)],
             { env: { ...process.env, HEAD: process.env.HEAD || '8' } });
         const feed = { which, ff, res }; feeds.add(feed);
         let sent = 0;

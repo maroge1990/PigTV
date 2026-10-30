@@ -106,7 +106,7 @@
   ],
   "foxCricket501": {
     "channel": "Fox Cricket 501",
-    "evidence": "docs/reviews/2026-10-27/fox-cricket-501-titles.txt",
+    "evidence": "docs/evidence/2026-10-27-p0-batch/fox-cricket-501-titles.txt",
     "programmes": [
       {
         "title": "Test : South Africa v Australia 3rd Test Day 1 Session 3",
@@ -209,7 +209,7 @@
     ]
   },
   "worldSeries2026": {
-    "evidence": "docs/reviews/2026-10-27/world-series-titles.txt",
+    "evidence": "docs/evidence/2026-10-27-p0-batch/world-series-titles.txt",
     "start": "2026-10-28T00:00:00Z",
     "end": "2026-10-28T03:30:00Z",
     "roster": [
