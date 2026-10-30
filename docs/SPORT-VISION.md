@@ -52,7 +52,12 @@ lists, which the guide covers.
 
 - Stat values (lap length, lap record) never wrap onto a second line.
 - Lists that sit side by side are symmetric: ten results beside the top ten drivers and the top ten constructors.
-- Spacing and alignment are checked on the real screens at build time; the mock-ups are not pixel-final.
+- Spacing and alignment are checked on the real screens at build time; the mock-ups are not pixel-final. Save
+  vertical space: paired actions (e.g. "Watch at kick-off" and "Record every Packers game") sit on one line.
+- No redundant labels: the current week or session is evident from its content ("Week 8", not "Week 8 · this week").
+- Fixture sports open on the current round, with rounds in chronological order (last round, then this one). Standings
+  sit on the right with Division, Conference and Overall views: the whole column without a followed team, below the
+  team card with one.
 - Channel quality labels: today the server reads UHD / HD / SD from the channel's name (FHD counts as HD). The build
   should distinguish FHD from HD and, where a channel has been played, confirm the label from the measured stream
   (resolution, frame rate, HDR), never by probing channels in the background.
