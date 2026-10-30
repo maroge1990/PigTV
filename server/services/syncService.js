@@ -441,7 +441,18 @@ class SyncService {
         const liveCats = await api.getLiveCategories();
         console.log(`[Sync] Fetching Live Streams for ${source.name}`);
         const liveStreams = await api.getLiveStreams();
-        checkPlaylistSize(db, source.id, (liveStreams || []).length, options);
+        // #168: a held list keeps the lineup, but the rest of the sync (the guide above all) still runs; the hold is
+        // reported at the end.
+        let held = null;
+        try { checkPlaylistSize(db, source.id, (liveStreams || []).length, options); } catch (e) { if (!e.held) throw e; held = e; }
+        if (!held) await this.syncXtreamLive(source, liveCats, liveStreams);
+        await this.syncXtreamRest(source, api, options);
+        if (held) throw held;
+    }
+
+    /** The live part of an Xtream sync: groups, channels (R8: minus excluded groups), then stale rows out. */
+    async syncXtreamLive(source, liveCats, liveStreams) {
+        const db = getDb();
         await this.saveCategories(source.id, 'live', liveCats);
 
         // 2. Live Streams (R8: minus any group the admin never imports)
@@ -456,6 +467,10 @@ class SyncService {
         if ((liveStreams || []).length > 0) await this.purgeStaleItems(source.id, 'live', this.keepBlocked(source.id, excluded, liveIds), { allowEmpty: true });
         if ((liveStreams || []).length > 0) rememberPlaylistSize(db, source.id, liveStreams.length);
         importFilters.recordSkipped(source.id, excluded, skipped);
+    }
+
+    /** The rest of an Xtream sync: films, series, then the guide. */
+    async syncXtreamRest(source, api, options = {}) {
 
         // 3. VOD Categories
         console.log(`[Sync] Fetching VOD Categories for ${source.name}`);
