@@ -369,5 +369,6 @@ order, and each car's team and colour come from the core competitor, a request p
 six at a time under a 6 s deadline (what answered is used; a partial map is not kept), and a cold request waits at most
 8 s for the first build (0341, #156).
 Kept 10 min within a day of a session, 1 h otherwise; a stale page is served while one refresh runs; ESPN down with
-nothing kept answers `{ available: false }`. Sessions take their channels from C-I (`channelsForSessions`): an F1
-event naming the session whose channel's own airing covers its start. Names drop the title sponsor (`SPONSOR_RE`).
+nothing kept answers `{ available: false }`. Only ESPN's part is kept; each request attaches its own sessions'
+channels from C-I (`channelsForSessions`, the current guide in that user's order, 0342, #157): an F1 event naming the
+session whose channel's own airing covers its start. Names drop the title sponsor (`SPONSOR_RE`).

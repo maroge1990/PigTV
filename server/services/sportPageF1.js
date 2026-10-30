@@ -201,8 +201,8 @@ function channelsForSessions(sessions, events) {
     return out;
 }
 
-/** The page, built from ESPN at `now`. Resolves to C-P's object; never rejects. */
-async function build(now, { registerImage = (u) => u, channelsFor = async () => new Map() } = {}) {
+/** The page's ESPN part, built at `now` (sessions with `channels: []`; page() attaches them). Never rejects. */
+async function build(now, { registerImage = (u) => u } = {}) {
     const sb = await fetcher.get(`${SITE}/scoreboard`);
     if (!sb.ok) return null;
     const calendar = calendarOf(sb.json);
@@ -241,7 +241,6 @@ async function build(now, { registerImage = (u) => u, channelsFor = async () => 
     const standings = standingsAnswer.ok ? standingsOf(standingsAnswer.json, teams) : null;
     if (standings) standings.afterRound = phase === 'after' ? index + 1 : index;
 
-    const channels = await channelsFor(sessions);
     const tops = (s) => {
         if (s.status !== 'done' || !s.order.length) return null;
         return { kind: TOP_KIND[s.id] || 'fastest', driver: str(s.order[0]?.athlete?.displayName) };
@@ -256,7 +255,7 @@ async function build(now, { registerImage = (u) => u, channelsFor = async () => 
             city: str(event?.circuit?.address?.city), country: str(event?.circuit?.address?.country),
             phase, info,
             sessions: sessions.map(s => ({ id: s.id, name: s.name, start: s.start, end: s.end, status: s.status, top: tops(s),
-                channels: channels.get(s.id) || [] }))
+                channels: [] }))
         },
         results,
         standings
@@ -264,10 +263,19 @@ async function build(now, { registerImage = (u) => u, channelsFor = async () => 
 }
 
 /**
- * C-P's answer at `now`: the cached page (refreshed in the background once stale), or, the first time, the result of a
- * refresh. `{ available: false }` while nothing has been fetched successfully.
+ * C-P's answer at `now`: the cached ESPN part (refreshed in the background once stale), or, the first time, the result
+ * of a refresh; `{ available: false }` while nothing has been fetched. #157: the sessions' channels are this request's
+ * (`deps.channelsFor`: the current guide, this user's order), never kept with the page.
  */
 async function page(now = Date.now(), deps = {}) {
+    const value = await espnPart(now, deps);
+    if (!value.available || !deps.channelsFor) return value;
+    let channels = new Map();
+    try { channels = await deps.channelsFor(value.weekend.sessions); } catch (err) { console.warn('[Sport] F1 page channels:', err.message); }
+    return { ...value, weekend: { ...value.weekend, sessions: value.weekend.sessions.map(s => ({ ...s, channels: channels.get(s.id) || [] })) } };
+}
+
+async function espnPart(now, deps) {
     const fresh = cache && now - cache.at < cache.ttl;
     if (!fresh && !refreshing) {
         const mine = generation;
