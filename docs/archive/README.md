@@ -1,6 +1,6 @@
 # Archive
 
-Frozen documents: history, not instructions. **Read [`../../AGENTS.md`](../../AGENTS.md) and [`../../blueprint.md`](../../blueprint.md) instead.**
+Frozen documents: history, not instructions. **Read [`../../AGENTS.md`](../../AGENTS.md) and its map of the docs instead.**
 
 | File | What it was |
 |---|---|
@@ -15,3 +15,12 @@ Frozen documents: history, not instructions. **Read [`../../AGENTS.md`](../../AG
 | `MULTI-PROVIDER-BRIEF-2026-09-30.md` | The multi-provider failover design and decisions D1–D9 (summarised in blueprint §3) |
 | `STANDBY-BRIEF-2026-10-02.md` | In-stream recovery and the hot standby (summarised in blueprint §3) |
 | `audit-2026-10-03/` | The 3 Oct independent audit (R01–R17, delivered in 0192–0204 and app 37–39), its evidence and measurement script |
+| `blueprint-2026-10-30.md` | The blueprint at 0323, retired in the 30 Oct documentation reset. Its §1–§3 and §6 live on in `docs/PRODUCT.md`, `docs/ARCHITECTURE.md` and `docs/architecture/` (the "what to know before touching each area" lessons moved intact), §4 in the issues and `ROADMAP.md`, §5 in `docs/DECISIONS.md` |
+| `FINDINGS-2026-10-30.md` | The findings register (FR-1…FR-30, SD-*, GATE-*): open entries became GitHub issues on 30 Oct |
+| `DISPATCHARR-REVIEW.md` | The 13 Oct Dispatcharr analysis behind Plan B (decision D-11) |
+| `MEDIA-TOOLCHAIN.md` | The 0307 FFmpeg 9.0.2 toolchain write-up (now `docs/architecture/playback.md` › Media toolchain and `docs/TESTING.md`) |
+| `SHARED-INGEST.md` | The shared-ingest design and phase status (now `docs/architecture/ingest.md`) |
+| `SPORTS-DASHBOARD-DESIGN.md`, `SPORTS-DASHBOARD-ROADMAP.md`, `SPORTS-DASHBOARD-CONTINUE.md` | The 29 Oct Live now dashboard design, its delivery roadmap and continuation prompt (superseded by the sport vision, D-33) |
+| `brand-standard-1.6.0.md` | What PigTV took from the Pig family kit 1.6.0 (now `docs/DESIGN.md` › Brand) |
+| `fork-issue-templates/` | The upstream fork's issue templates, replaced by `.github/ISSUE_TEMPLATE/issue.md` |
+| `reviews/` | Handovers, agent prompts and dated roadmaps from `docs/reviews/` (16–28 Oct); the review evidence itself moved to `docs/evidence/` |

@@ -2,6 +2,14 @@
 
 Running the container on Unraid (or anywhere else). Image: `ghcr.io/maroge1990/pigtv`.
 
+## Deployment
+
+Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page.
+
+**Deploy (Mark):** Unraid → Docker → PigTV → Force Update, then `curl -s http://192.168.1.235:3000/api/version`. A redeploy
+ends every session. Rollback: point the container at `ghcr.io/maroge1990/pigtv:sha-<short>` of the last good build, then
+`git revert`.
+
 ## Running as a normal user (PUID / PGID)
 
 The server no longer runs as root. The entrypoint (`docker/entrypoint.sh`) starts as root only to
@@ -92,4 +100,6 @@ exclude `recordings-work/` from any appdata backup: it is large, short-lived, an
 
 0306 prepares a pinned FFmpeg/ffprobe 9.0.2 image and matching Linux CI recipe. Require its final-candidate tests before
 deploying, then check both tool versions and the host hardware path. Local Docker/image validation has not run. Build,
-acceptance and rollback details: [MEDIA-TOOLCHAIN.md](MEDIA-TOOLCHAIN.md).
+acceptance and rollback details: [architecture/playback.md](architecture/playback.md#media-toolchain) and
+[TESTING.md](TESTING.md#ci-and-the-media-toolchain); the original write-up is
+[archive/MEDIA-TOOLCHAIN.md](archive/MEDIA-TOOLCHAIN.md).

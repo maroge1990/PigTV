@@ -31,6 +31,8 @@ This repository is the **server and the web app**. The Apple client is
 - **Web app:** Home, Live TV, Guide, Recordings, a Status page for the admin, and Settings (sources, channel numbers, EPG
   matching, sports, devices, users).
 
+Feature by feature, with where each runs and its status: [`docs/PRODUCT.md`](docs/PRODUCT.md).
+
 ## Running it
 
 PigTV is published as a container image, built by CI after the tests pass. A typical setup (Unraid shown):
@@ -86,11 +88,13 @@ Needs Node 22 or 24 (CI tests both; the image runs 24) and ffmpeg. Pushing to `m
 
 | Document | For |
 |---|---|
-| [`AGENTS.md`](AGENTS.md) | Start here when working on the code: commands, how changes ship, the rules |
-| [`blueprint.md`](blueprint.md) | How everything works, the decisions, the roadmap and the known limitations |
-| [`docs/CLIENT-CONTRACT.md`](docs/CLIENT-CONTRACT.md) | What the Apple client relies on: the `/api/info` flags, the frozen shapes, contracts C-A…C-K |
-| [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | Running the container: PUID/PGID, health check, backup and restore |
-| [`docs/DISPATCHARR-REVIEW.md`](docs/DISPATCHARR-REVIEW.md) | The analysis behind the current roadmap |
+| [`AGENTS.md`](AGENTS.md) | Start here when working on the code: commands, how changes ship, the rules, the map of the docs |
+| [`ROADMAP.md`](ROADMAP.md) and [Issues](https://github.com/maroge1990/PigTV/issues) | What is being worked on, in order; open work for both repos |
+| [`docs/PRODUCT.md`](docs/PRODUCT.md) | What PigTV does, feature by feature, and its known limitations |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How it works, with a page per area in [`docs/architecture/`](docs/architecture/) |
+| [`docs/CLIENT-CONTRACT.md`](docs/CLIENT-CONTRACT.md) | What the Apple client relies on: the `/api/info` flags, the frozen shapes, the contracts |
+| [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | Running the container: deployment, PUID/PGID, health check, backup and restore |
+| [`docs/DECISIONS.md`](docs/DECISIONS.md), [`docs/DESIGN.md`](docs/DESIGN.md), [`docs/TESTING.md`](docs/TESTING.md) | Why it is the way it is; how it should look; how it is tested |
 | [`docs/archive/`](docs/archive/README.md) | Frozen history |
 
 ## Licence and credits

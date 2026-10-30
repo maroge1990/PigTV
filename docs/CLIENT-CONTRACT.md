@@ -70,7 +70,7 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
   `videoRange`) and, on AVFoundation -11868 (a non-HDR TV), plays the same session's `stream.m3u8`.
 - **Shared ingest defaults on since 0290**; an explicitly stored opt-out wins. This changes no endpoint shape.
 - **A live session's playlist is held 30 s behind its newest segment** (Apple 56: `configuredTimeOffsetFromLive`, and "go to
-  live" returns there): providers that deliver in bursts pause for up to ~16 s (`docs/FINDINGS.md` FR-8). So a live media
+  live" returns there): providers that deliver in bursts pause for up to ~16 s (FR-8, `docs/archive/FINDINGS-2026-10-30.md`; open part #30). So a live media
   playlist keeps well over 30 s of segments (90 × 4 s), and the server calls a measured shared feed lost at its per-channel/provider limit: 24 s by default
   (`PIGTV_INGEST_BEHIND_SEC`), up 2 s on a lag reconnect, capped at 28 s (0292). After 3 measured reading hours
   ≥4 s under the level it drops 2 s. Levels persist across redeploys; no-PCR feeds keep the default silence rule.
@@ -93,7 +93,7 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 - **0307** prepares a container upgrade to a pinned FFmpeg/ffprobe **9.0.2** pair, matching Linux CI's release/feature
   recipe. The final image is capability-checked, checks actual session-builder encoder options and runs the suite as UID
   99 before publication. `GET /api/status` reports only each media tool's numeric version, origin and mismatch state;
-  tool output and paths are not returned. Linux image and device acceptance are pending; see `docs/MEDIA-TOOLCHAIN.md`.
+  tool output and paths are not returned. Linux image and device acceptance are pending; see `docs/architecture/playback.md` › Media toolchain.
   This does not establish an FR-22 A/V fix. No Apple-side shape or playback command-line flag changes.
 - Resolve failure `error` texts start with a C-B prefix and never contain a URL; the client shows only those.
 - A start stopped on request answers **499** `{error, superseded: true}` (0180); the client ignores it.
@@ -196,7 +196,7 @@ or >30% of ≥3, or ≥3 stalls per hour over ≥20 min watched. Stalls and watc
 ### C-I. Sport events. Flag: `sportsEvents`
 
 Sport is recognised per **programme**, not per channel. How recognition, kinds, merging, live-or-replay and ESPN fixtures
-work is in `blueprint.md` §3 "Sport events"; the shape the client relies on:
+work is in `docs/architecture/sports.md` › Recognition; the shape the client relies on:
 
 - `GET /api/sports/events?hours=N[&include=all]` (any user; default 6, max 72) →
   `{ now, events: [ { id, title, league, start, end, live, kind, aliases, channels: [ { sourceId, id, stableId, name, number, logo, quality } ] } ] }`

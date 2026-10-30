@@ -943,22 +943,22 @@ echo "=== 0090: the timestamp diagnostics become a supported tool ==="
 check scripts/stream-doctor.js "capture <pos_N>" "one tool with the five subcommands, replacing four throwaway scripts"
 check scripts/stream-doctor.js "classifyTimestamps" "its verdict is the server function, not a second copy of the rule"
 check scripts/stream-doctor.js "uses the provider slot" "and it says which subcommands take the provider connection"
-check blueprint.md "reach for this first on any playback fault" "and the blueprint points at it"
+check docs/architecture/playback.md "reach for this first on any playback fault" "and the playback page points at it"
 
 echo "=== 0091 (docs): troubleshooting starts from a capture of the real channel ==="
-check blueprint.md "When a channel misbehaves" "the loop is written down, in order"
+check docs/architecture/playback.md "When a channel misbehaves" "the loop is written down, in order"
 check AGENTS.md "No ffmpeg-flag or" "and shipping a timestamp fix on a hypothesis is called out as the 0085 mistake"
-check blueprint.md "regression corpus" "samples are kept and retested, which 0085 had no way to do"
-check blueprint.md "/Users/markrogers/Documents/GitHub/PigTV" "the orientation table names the current repo folder"
+check docs/architecture/playback.md "regression corpus" "samples are kept and retested, which 0085 had no way to do"
+check AGENTS.md "/Users/markrogers/Documents/GitHub/PigTV" "the map of the docs names the current repo folder"
 check AGENTS.md "but never pushes" "and how changes ship is written down (commit, Mark pushes)"
 
 echo "=== 0092 (docs): commands name the container instead of a placeholder ==="
-check blueprint.md "docker exec PigTV node scripts/stream-doctor" "so a command can be pasted as written"
+check docs/architecture/playback.md "docker exec PigTV node scripts/stream-doctor" "so a command can be pasted as written"
 check docs/CLIENT-CONTRACT.md "docker logs PigTV" "including the ones the Apple client session runs"
 
 echo "=== 0093: captured samples survive a deploy ==="
 check scripts/stream-doctor.js "path.join(DATA, .samples.)" "they are written under the data bind mount, not the writable layer"
-check blueprint.md "has to outlive the build it was taken on" "and the blueprint says why it matters"
+check docs/architecture/playback.md "has to outlive the build it was taken on" "and the playback page says why it matters"
 
 echo "=== 0095: the image says which source it was built from ==="
 check .github/workflows/docker-publish.yml "PIGTV_COMMIT=" "CI passes the commit into the build"
@@ -1308,10 +1308,10 @@ check_absent public/index.html 'id="tab-debug"' "the Debug tab is gone"
 python3 - <<'PY' || FAIL=1
 import re, sys, subprocess
 build = re.search(r"const BUILD = '(\d{4})';", open('server/version.js').read()).group(1)
-nxt = re.search(r"Next build number \| \*\*(\d{4})\*\*", open('blueprint.md').read())
+nxt = re.search(r"Next build number: \*\*(\d{4})\*\*", open('AGENTS.md').read())
 if not nxt or int(nxt.group(1)) != int(build) + 1:
-    print(f"  ✗ version.js says build {build} but the blueprint's next build number is {nxt.group(1) if nxt else '?'} (0187: every build bumps both)"); sys.exit(1)
-print(f"  ✓ version.js ({build}) is one behind the blueprint's next build number")
+    print(f"  ✗ version.js says build {build} but AGENTS.md's next build number is {nxt.group(1) if nxt else '?'} (0187: every build bumps both)"); sys.exit(1)
+print(f"  ✓ version.js ({build}) is one behind AGENTS.md's next build number")
 PY
 
 echo "=== 0188-0189: interruptions, in-stream recovery and the standby (off by default) ==="
