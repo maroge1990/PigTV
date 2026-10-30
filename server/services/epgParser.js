@@ -242,7 +242,11 @@ async function* fetchAndParseStreaming(url, batchSize = 1000) {
 
     if (isGzipped) {
         const gunzip = zlib.createGunzip();
-        stream.pipe(gunzip);
+        // #166: pipe() does not carry an upstream error (a download deadline) on to the gunzip; the parser below
+        // listens to the stream it is given, so the failure has to reach it.
+        const body = stream;
+        body.on('error', (err) => gunzip.destroy(err));
+        body.pipe(gunzip);
         stream = gunzip;
     }
 
@@ -279,13 +283,24 @@ async function* parseStreaming(input, batchSize = 1000) {
     let currentObject = null;
     let textBuffer = '';
     let resolveNext = null;
+    let rejectNext = null;
     const batchQueue = [];
     let ended = false;
+    // #166: a failed download (its deadline, a reset connection, broken gzip) ends the sync with that error,
+    // instead of an uncaught stream 'error' and a generator waiting forever.
+    let failure = null;
+    input.on('error', (err) => {
+        if (failure) return;
+        failure = err;
+        try { input.unpipe(saxStream); } catch { /* not piped yet */ }
+        if (rejectNext) { const reject = rejectNext; resolveNext = null; rejectNext = null; reject(err); }
+    });
 
     function enqueueBatch(batch) {
         if (resolveNext) {
             resolveNext(batch);
             resolveNext = null;
+            rejectNext = null;
             return;
         }
         batchQueue.push(batch);
@@ -436,7 +451,9 @@ async function* parseStreaming(input, batchSize = 1000) {
     input.pipe(saxStream);
 
     // Yield batches as they become available
+    try {
     while (!ended || batchQueue.length > 0) {
+        if (failure) throw failure;
         if (batchQueue.length > 0) {
             const batch = batchQueue.shift();
             if (batchQueue.length < BATCH_QUEUE_LIMIT && typeof input.resume === 'function' && typeof input.isPaused === 'function' && input.isPaused()) {
@@ -446,14 +463,20 @@ async function* parseStreaming(input, batchSize = 1000) {
             if (batch.isLast) break;
         } else if (!ended) {
             // Wait for next batch
-            const batch = await new Promise(resolve => {
+            const batch = await new Promise((resolve, reject) => {
+                if (failure) return reject(failure);
                 resolveNext = resolve;
+                rejectNext = reject;
             });
             if (batch) {
                 yield batch;
                 if (batch.isLast) break;
             }
         }
+    }
+    } finally {
+        // Stopped early (an error, or the consumer gave up): nothing keeps downloading.
+        if (!ended && typeof input.destroy === 'function') input.destroy();
     }
 }
 

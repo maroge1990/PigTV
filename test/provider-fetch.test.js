@@ -35,6 +35,20 @@ const server = http.createServer((req, res) => {
         res.on('close', () => { clearInterval(t); trickles.delete(t); });
         return;
     }
+    if (req.url.startsWith('/stall')) {
+        // #166: headers and the start of a guide, then nothing (plain, or gzip when the path ends .gz).
+        const head = '<?xml version="1.0"?><tv><channel id="c"><display-name>C</display-name></channel>';
+        if (req.url.endsWith('.gz')) {
+            res.setHeader('content-type', 'application/gzip');
+            const gz = require('node:zlib').createGzip();
+            gz.pipe(res, { end: false });
+            gz.write(head); gz.flush();
+        } else {
+            res.setHeader('content-type', 'application/xml');
+            res.write(head);
+        }
+        return; // never ends
+    }
     if (req.url.startsWith('/xmltv')) { res.setHeader('content-type', 'application/xml'); return res.end('<tv></tv>'); }
     if (req.url.startsWith('/player_api.php')) { res.setHeader('content-type', 'application/json'); return res.end('[]'); }
     res.setHeader('content-type', 'audio/x-mpegurl'); res.end('#EXTM3U\n#EXTINF:-1 group-title="G",A\nhttp://p.invalid/live/u/p/1.ts\n');
@@ -67,4 +81,25 @@ test('playlist, guide and Xtream API downloads send the configured User-Agent', 
     for await (const batch of epg.fetchAndParseStreaming(`${base}/xmltv.php`)) { void batch; }
     await xtream.createFromSource({ url: base, username: 'u', password: 'p' }).getLiveCategories();
     assert.deepEqual(agents.map(a => a[1]), ['TiviMate/4.7.0', 'TiviMate/4.7.0', 'TiviMate/4.7.0'], JSON.stringify(agents.map(a => a[0])));
+});
+
+test('#166: a guide stalled after its headers fails the download cleanly, plain and gzip, with nothing uncaught', async () => {
+    if (timeouts) timeouts.guide = 600;
+    const uncaught = [];
+    const onUncaught = (err) => uncaught.push(err && err.name);
+    process.on('uncaughtException', onUncaught);
+    try {
+        for (const file of ['/stall.xml', '/stall.xml.gz']) {
+            const outcome = await Promise.race([
+                (async () => { for await (const batch of epg.fetchAndParseStreaming(`${base}${file}`)) { void batch; } return 'finished'; })()
+                    .catch(err => `failed: ${err.name}`),
+                new Promise(r => setTimeout(() => r('still waiting after 4 s'), 4000))
+            ]);
+            assert.match(outcome, /^failed: (TimeoutError|AbortError)/, file);
+        }
+        await new Promise(r => setTimeout(r, 200));
+        assert.deepEqual(uncaught, []);
+    } finally {
+        process.off('uncaughtException', onUncaught);
+    }
 });
