@@ -16,7 +16,10 @@ not a row of its own (C-I replaces the C-H Home row).
 **Sport events** (0148, C-I, `sportsEvents.js`, `routes/sports.js`, table `sports_follow`): per programme, sport = (a) a category
 in the vocabulary, (b) a followed keyword in the title/categories or a match-up of two distinct teams in a followed
 league's stored ESPN roster (0295: exact informative full names, nicknames or stored abbreviations; no city-only
-or subset inference, unique teams and league across all followed rosters; no stored roster, no added recognition), or (c) a C-H sport category's channel + a live-looking title
+or subset inference; unique teams and league across every stored roster, followed or not, and the league followed, 0335; not
+when the title names a competition itself, a followed keyword, another competition or a round number, 0335, or a side is a
+nickname football codes share such as Panthers or Lions, 0336; no stored roster, no added recognition), or (c) a C-H sport
+category's channel + a live-looking title
 ("live", "vs", " v "). A keyword that names a league follows its canonical league in every spelling (`sportsClassify.LEAGUES`:
 F1 = Formula 1 = Formula One = FIA F1; AFLW = "Women's AFL" = "AFL Women's", apart from AFL; NFL, NBA, NRL(W), …); other
 keywords match as whole words. Cricket format prefixes (`Test`, `ODI`, `T20`, `T20I`, optionally `W`, `Mini` or
@@ -39,7 +42,8 @@ keyword-only recognition becomes a show (0301). MLB broadcasts include `World Se
 match-up separator. Anything else by the
 normalised title (lower case; tags, the channel's own name, live/HD words and punctuation removed). The item's title is the
 cleanest form ("Carlton Blues v Richmond Tigers", "Azerbaijan GP · Practice 3", "Sydney Swans v Fremantle · Preliminary Final
-2"); `aliases` lists the raw titles. Visible channels only, once per identity; EPG mapping honoured. Built once per (guide
+2"); `aliases` lists the raw titles; each channel carries its own airing's `start`/`end` (0337, #20), as the item's span
+merges them. Visible channels only, once per identity; EPG mapping honoured. Built once per (guide
 version, follow-list version, 5 minutes; a minute before 0153) for 72 h + 5 min ahead and 36 h back (0152), loop detection
 and live/replay included (~0.3 s on 1,000 channels × 30 programmes; ~1.1 s on 1,000 channels × 108 hourly programmes, the
 whole 36 h + 72 h, where every programme is a match-up); a request filters and orders (warm ~20 ms, ~50 ms returning 10,000
@@ -65,10 +69,12 @@ that ended before now. The 0148 route tests switch `LIVE_HOURS` off (they use th
 **A 0-th rule ahead of (a)-(d) (0161, `sportsFixtures.js`, `sportsClassify.fixtureVerdict`):** when ESPN's free scoreboard
 (`site.api.espn.com/apis/site/v2/sports/{path}/scoreboard`) covers the airing's league and time, its answer is checked first -
 matched to a fixture (the existing fuzzy team matchers, extended with the fixture's own displayName/shortDisplayName/name/
-location/abbreviation as aliases; F1 by session + Grand Prix location, reusing `parseTitle`'s own location parsing on the
-event name): live when the airing starts at/near the fixture's real kickoff (≤ 30 min after, and still running), else replay,
+location/abbreviation as aliases, plus a few codes guides use for cricket nations: RSA, NZL, SRI, 0333; F1 by session +
+Grand Prix location, reusing `parseTitle`'s own location parsing on the event name; a fixture naming both teams word for word
+beats a nearer loose match, 0334): live when the airing starts at/near the fixture's real kickoff (≤ 30 min after, and still running), else replay,
 worded with the real kickoff (`ESPN: the game started Sat 1:30 pm; this airing is 19 h later`); not matched, but both teams
-are known to the league and no such fixture exists: replay (`ESPN has no such game at this time`); anything else (unknown
+are known to the league and no such fixture exists: replay (`ESPN has no such game at this time`), unless the guide flags
+the airing live (an absence never outweighs an explicit flag, 0333); anything else (unknown
 teams, league not covered, no fixture data, ESPN down) falls through to (a)-(d) unchanged. A multi-day cricket Test (league
 `Cricket` only - IPL/BBL are always a single day) is live on day one and later days when an airing overlaps the daily
 playing window: inferred first ball minus 30 minutes' pre-play grace until 8 hours after first ball (0296). A guide live
