@@ -90,6 +90,14 @@ an identity must never fall back to its stored `pos_N`. Joins use
 the identity. Only *pending* schedules were backfilled. The provider's stream id and URL live in the row's `data` JSON, not
 `stream_url`.
 
+**Hidden channels** (0347, #10). Every reader filters on `playlist_items.is_hidden`, which sits on the row and so on the
+position. `hiddenChannels.js` keeps the truth in `hidden_channels` (source, group, identity; a second copy of a channel in
+the same group is told apart by its order), refreshed by every hide/show route (`capture`) and re-applied to wherever the
+channels sit after each playlist sync (`after`, about 0.1 s on production's 19,000 rows). A source synced for the first time
+on 0347 is captured before its rows move. A group added by the provider after a source's first sync arrives hidden and is
+listed in `new_channel_groups` (`GET /api/channels/new-groups`, `POST …/new-groups/dismiss`; showing the group also takes it
+off), unless one of its channels was shown before (a renamed group).
+
 ## Channel numbers
 
 **Channel numbers** (0117, `channelNumbers.js`, contract C-A). Table `channel_numbers`, keyed on the favourites' identity

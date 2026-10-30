@@ -4,6 +4,7 @@ const { getDb } = require('../db/sqlite');
 const { bumpLibraryRev } = require('../services/libraryRev');
 const { refreshChannelNumbers } = require('../services/channelNumbers');
 const { requireAdmin } = require('../auth');
+const hiddenChannels = require('../services/hiddenChannels');
 
 // Helper to map API item types to DB types and tables
 function mapItemType(apiType) {
@@ -111,7 +112,9 @@ router.post('/hide', requireAdmin, async (req, res) => {
         let cascaded = 0;
         if (mapping.table === 'categories') {
             cascaded = cascadeCategory(db, sourceId, mapping.type, itemId, true);
+            hiddenChannels.dismiss(db, Number(sourceId), [itemId]); // kept hidden on purpose: reviewed
         }
+        hiddenChannels.capture(db, Number(sourceId)); // #10: the record follows the channel
 
         bumpLibraryRev();
         refreshChannelNumbers(); // 0117: a shown channel gets a number, a hidden one is reserved
@@ -144,7 +147,9 @@ router.post('/show', requireAdmin, async (req, res) => {
         let cascaded = 0;
         if (mapping.table === 'categories') {
             cascaded = cascadeCategory(db, sourceId, mapping.type, itemId, false);
+            hiddenChannels.dismiss(db, Number(sourceId), [itemId]);
         }
+        hiddenChannels.capture(db, Number(sourceId)); // #10: the record follows the channel
 
         bumpLibraryRev();
         refreshChannelNumbers(); // 0117: a shown channel gets a number, a hidden one is reserved
@@ -210,6 +215,7 @@ router.post('/hide/bulk', requireAdmin, async (req, res) => {
         });
 
         runBulk(items);
+        hiddenChannels.captureAll(db, items.map(i => i && i.sourceId)); // #10
         bumpLibraryRev();
         refreshChannelNumbers(); // 0117: a shown channel gets a number, a hidden one is reserved
         res.json({ success: true, count: items.length });
@@ -255,6 +261,10 @@ router.post('/show/bulk', requireAdmin, async (req, res) => {
         });
 
         runBulk(items);
+        hiddenChannels.captureAll(db, items.map(i => i && i.sourceId)); // #10
+        for (const i of items) {
+            if (mapItemType(i && i.itemType)?.table === 'categories') hiddenChannels.dismiss(db, Number(i.sourceId), [i.itemId]);
+        }
         bumpLibraryRev();
         refreshChannelNumbers(); // 0117: a shown channel gets a number, a hidden one is reserved
         res.json({ success: true, count: items.length });
@@ -290,6 +300,8 @@ router.post('/show/all', requireAdmin, async (req, res) => {
         }
 
         console.log(`[Channels] Show all for source ${sourceId} (${contentType}): ${catCount} categories, ${itemCount} items`);
+        hiddenChannels.capture(db, Number(sourceId)); // #10
+        hiddenChannels.dismiss(db, Number(sourceId));
         bumpLibraryRev();
         refreshChannelNumbers(); // 0117: a shown channel gets a number, a hidden one is reserved
         res.json({ success: true, categoriesUpdated: catCount, itemsUpdated: itemCount });
@@ -322,12 +334,41 @@ router.post('/hide/all', requireAdmin, async (req, res) => {
         }
 
         console.log(`[Channels] Hide all for source ${sourceId} (${contentType}): ${catCount} categories, ${itemCount} items`);
+        hiddenChannels.capture(db, Number(sourceId)); // #10
         bumpLibraryRev();
         refreshChannelNumbers(); // 0117: a shown channel gets a number, a hidden one is reserved
         res.json({ success: true, categoriesUpdated: catCount, itemsUpdated: itemCount });
     } catch (err) {
         console.error('Error hide all:', err);
         res.status(500).json({ error: 'Failed to hide all' });
+    }
+});
+
+// #10 (0347): groups the provider added since the last sync, which arrive hidden ("New on the provider", D-37).
+router.get('/new-groups', requireAdmin, (req, res) => {
+    try {
+        const sourceId = req.query.sourceId === undefined ? undefined : Number(req.query.sourceId);
+        if (sourceId !== undefined && !Number.isInteger(sourceId)) return res.status(400).json({ error: 'Invalid sourceId' });
+        res.json(hiddenChannels.newGroups(getDb(), sourceId));
+    } catch (err) {
+        console.error('Error listing new groups:', err.message);
+        res.status(500).json({ error: 'Failed to list new groups' });
+    }
+});
+
+// Take groups off the review list without showing them (Keep hidden). No categoryIds: the source's whole list.
+router.post('/new-groups/dismiss', requireAdmin, (req, res) => {
+    try {
+        const sourceId = Number(req.body && req.body.sourceId);
+        const ids = req.body && req.body.categoryIds;
+        if (!Number.isInteger(sourceId)) return res.status(400).json({ error: 'sourceId required' });
+        if (ids !== undefined && (!Array.isArray(ids) || ids.some(i => typeof i !== 'string' && typeof i !== 'number'))) {
+            return res.status(400).json({ error: 'categoryIds must be a list' });
+        }
+        res.json({ success: true, dismissed: hiddenChannels.dismiss(getDb(), sourceId, ids) });
+    } catch (err) {
+        console.error('Error dismissing new groups:', err.message);
+        res.status(500).json({ error: 'Failed to dismiss' });
     }
 });
 

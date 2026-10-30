@@ -8,6 +8,7 @@ const xtreamApi = require('./xtreamApi');
 const { redact } = require('../redact');
 const m3uParser = require('./m3uParser');
 const backupChannels = require('./backupChannels');
+const hiddenChannels = require('./hiddenChannels');
 const epgParser = require('./epgParser');
 
 // Sync tracking
@@ -308,6 +309,10 @@ class SyncService {
      * Xtream Sync Logic
      */
     async syncXtream(source) {
+        return this.withHiddenChannels(source, () => this.syncXtreamRows(source));
+    }
+
+    async syncXtreamRows(source) {
         const api = xtreamApi.createFromSource(source);
         const db = getDb();
 
@@ -985,7 +990,28 @@ class SyncService {
      * M3U Sync Logic (Streaming - Memory Efficient)
      * Processes M3U files in batches to avoid OOM on large playlists
      */
+    /**
+     * #10 (0347): around a playlist sync, hidden channels follow their channel, not their line (hiddenChannels.js).
+     * The record is re-applied even when the sync fails part-way, since the rows it did write may have moved.
+     */
+    async withHiddenChannels(source, work) {
+        const db = getDb();
+        const state = hiddenChannels.before(db, source.id);
+        let ok = false;
+        try {
+            await work();
+            ok = true;
+        } finally {
+            const listed = hiddenChannels.after(db, source.id, ok ? state : null);
+            if (listed.length) console.log(`[Sync] ${listed.length} new group(s) on ${source.name} arrive hidden, listed for review: ${listed.map(g => g.name).join(', ')}`);
+        }
+    }
+
     async syncM3u(source) {
+        return this.withHiddenChannels(source, () => this.syncM3uRows(source));
+    }
+
+    async syncM3uRows(source) {
         console.log(`[Sync] Fetching M3U playlist for ${source.name}`);
 
         // Temporary memory logging for verification
