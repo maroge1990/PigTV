@@ -68,6 +68,10 @@ const ProviderFormat = {
     formatSync(row, now = Date.now()) {
         if (!row) return { text: 'Not synced yet', level: 'none' };
         if (row.status === 'syncing') return { text: 'Syncing...', level: 'busy' };
+        // #42: a much smaller list from the provider is held; the last good one stays.
+        if (row.status === 'held') {
+            return { text: `${row.error ? ProviderFormat.safeText(row.error) : 'Held: the last good list is kept'} (${ProviderFormat.ago(row.last_sync, now)})`, level: 'soon', held: true };
+        }
         if (row.status === 'error') {
             return { text: `Failed ${ProviderFormat.ago(row.last_sync, now)}${row.error ? `: ${ProviderFormat.safeText(row.error)}` : ''}`, level: 'error' };
         }
@@ -223,7 +227,8 @@ class ProvidersSettings {
             rows.push(['Login', p.hasLogin ? 'Found in the playlist'
                 : '<span class="provider-soon">Not found in the playlist: no account details, and only the playlist\'s own channels</span>']);
         }
-        rows.push(['Channels', `<span class="provider-${sync.level}">${e(sync.text)}</span>`]);
+        rows.push(['Channels', `<span class="provider-${sync.level}">${e(sync.text)}</span>${sync.held
+            ? ` <button type="button" class="btn btn-sm btn-secondary provider-inline" data-provider-action="accept-smaller" data-id="${p.id}">Accept the smaller list…</button>` : ''}`]);
         rows.push(['Guide', this.guideFact(p)]);
         if (p.role === 'backup') {
             rows.push(['Backup channels', e(Number(p.backupChannels || 0).toLocaleString())]);
@@ -413,6 +418,7 @@ class ProvidersSettings {
         if (action === 'up' || action === 'down') return this.move(p, action === 'up' ? -1 : 1);
         if (action === 'check') return this.check(p, button);
         if (action === 'sync') return this.sync(p, button);
+        if (action === 'accept-smaller') return this.acceptSmaller(p, button);
         if (action === 'test') return this.test(p, button);
         if (action === 'toggle') return this.toggle(p, button);
         if (action === 'delete') return this.remove(p, button);
@@ -533,6 +539,22 @@ class ProvidersSettings {
         this.cardStatus(p.id, 'Starting the sync...');
         try {
             await API.sources.sync(p.id);
+            this.cardStatus(p.id, 'Sync started');
+            this.polls.set(p.id, 40);
+            this.pollSync(p.id);
+        } catch (err) {
+            this.cardStatus(p.id, err.message || 'Could not start the sync', true);
+        }
+        button.disabled = false;
+    }
+
+    /** #42: apply the smaller list the provider is sending now, after a confirm that says what it removes. */
+    async acceptSmaller(p, button) {
+        if (!window.confirm(`Sync ${p.name} and keep the smaller list it sends now? Channels missing from it are removed from the guide and every device until the provider sends them again.`)) return;
+        button.disabled = true;
+        this.cardStatus(p.id, 'Starting the sync...');
+        try {
+            await API.sources.sync(p.id, { acceptSmaller: true });
             this.cardStatus(p.id, 'Sync started');
             this.polls.set(p.id, 40);
             this.pollSync(p.id);

@@ -439,8 +439,9 @@ router.post('/:id/sync', async (req, res) => {
         const source = await sources.getById(id);
         if (!source) return res.status(404).json({ error: 'Source not found' });
 
-        // Trigger sync (async)
-        syncService.syncSource(id).catch(console.error);
+        // Trigger sync (async). #42: `acceptSmaller` applies a list much smaller than the last good one.
+        const acceptSmaller = req.body && req.body.acceptSmaller === true;
+        syncService.syncSource(id, { acceptSmaller }).catch(console.error);
 
         res.json({ success: true, message: 'Sync started' });
     } catch (err) {

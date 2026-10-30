@@ -59,6 +59,29 @@ function epgCoverageLine(lastStop, now = Date.now()) {
     return `[Sync] EPG covers until ${new Date(lastStop).toISOString()}, ${ahead} h ahead${short}`;
 }
 
+// #42 (0348): a provider answering with a much smaller list (maintenance, an "account expired" placeholder, a
+// region-limited list) is held, not applied: the last good playlist or guide stays until a sync brings the usual
+// size back, or the admin accepts the smaller one (POST /api/sources/:id/sync { acceptSmaller: true }).
+const SHRINK = Object.freeze({ playlist: 0.7, guide: 0.5, minPlaylist: 50, minGuide: 1000, guideHorizonMs: 36 * 3600e3 });
+const linesKey = (sourceId) => `playlist_lines:${sourceId}`;
+
+function heldError(message) {
+    return Object.assign(new Error(message), { held: true });
+}
+
+/** Throws a held error when `count` lines is a shrink against the last good sync's; remembers nothing itself. */
+function checkPlaylistSize(db, sourceId, count, { acceptSmaller = false } = {}) {
+    const previous = Number(db.prepare('SELECT value FROM meta WHERE key = ?').get(linesKey(sourceId))?.value) || 0;
+    if (acceptSmaller || previous < SHRINK.minPlaylist || count >= previous * SHRINK.playlist) return;
+    throw heldError(`Held: the provider's list had ${count.toLocaleString('en-AU')} of the usual `
+        + `${previous.toLocaleString('en-AU')} channels; the last good list is kept`);
+}
+
+function rememberPlaylistSize(db, sourceId, count) {
+    db.prepare(`INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+        .run(linesKey(sourceId), String(count));
+}
+
 class SyncService {
     constructor() {
         this.lastSyncTime = null; // Track when global sync last completed
@@ -219,7 +242,7 @@ class SyncService {
     /**
      * Start sync for a source
      */
-    async syncSource(sourceId) {
+    async syncSource(sourceId, options = {}) {
         if (activeSyncs.has(sourceId)) {
             console.log(`[Sync] Source ${sourceId} is already syncing`);
             return;
@@ -247,19 +270,29 @@ class SyncService {
             this.updateSyncStatus(sourceId, 'all', 'syncing');
 
             const isBackup = source.role === 'backup' && source.type !== 'epg';
+            // #42: a held playlist keeps the last good one; the rest of the sync (the guide) still runs.
+            let held = null;
+            const holding = async (work) => {
+                try { await work(); } catch (e) { if (!e || !e.held) throw e; held = e.message; }
+            };
             if (isBackup) {
                 await this.syncBackup(source);
             } else if (source.type === 'xtream') {
                 this.dropBackupRows(source.id);
-                await this.syncXtream(source);
+                await holding(() => this.syncXtream(source, options));
             } else if (source.type === 'm3u') {
                 this.dropBackupRows(source.id);
-                await this.syncM3u(source);
-                await this.syncProviderGuide(source);
+                await holding(() => this.syncM3u(source, options));
+                await this.syncProviderGuide(source, null, options);
             } else if (source.type === 'epg') {
-                await this.syncEpg(source);
+                await holding(() => this.syncEpg(source, options));
             }
 
+            if (held) {
+                console.warn(`[Sync] ${source.name}: ${held}`);
+                this.updateSyncStatus(sourceId, 'all', 'held', held);
+                return;
+            }
             this.updateSyncStatus(sourceId, 'all', 'success');
             // A completed sync (playlist or EPG) can change every guide row, so
             // the guide's "did anything change?" version must move. The EPG
@@ -308,22 +341,23 @@ class SyncService {
     /**
      * Xtream Sync Logic
      */
-    async syncXtream(source) {
-        return this.withHiddenChannels(source, () => this.syncXtreamRows(source));
+    async syncXtream(source, options = {}) {
+        return this.withHiddenChannels(source, () => this.syncXtreamRows(source, options));
     }
 
-    async syncXtreamRows(source) {
+    async syncXtreamRows(source, options = {}) {
         const api = xtreamApi.createFromSource(source);
         const db = getDb();
 
-        // 1. Live Categories
+        // 1. Live Categories and Streams, both fetched before anything is written (#42: a shrunken list is held)
         console.log(`[Sync] Fetching Live Categories for ${source.name}`);
         const liveCats = await api.getLiveCategories();
+        console.log(`[Sync] Fetching Live Streams for ${source.name}`);
+        const liveStreams = await api.getLiveStreams();
+        checkPlaylistSize(db, source.id, (liveStreams || []).length, options);
         await this.saveCategories(source.id, 'live', liveCats);
 
         // 2. Live Streams (R8: minus any group the admin never imports)
-        console.log(`[Sync] Fetching Live Streams for ${source.name}`);
-        const liveStreams = await api.getLiveStreams();
         const importFilters = require('./importFilters');
         const { excluded } = importFilters.applicable(source.id, await importFilters.excludedFor(source.id));
         const skipped = new Map();
@@ -333,6 +367,7 @@ class SyncService {
         // that is a deliberate empty import, so the old rows go. An empty answer (no channels at
         // all) still keeps them - it is more likely a provider fault than an empty lineup.
         if ((liveStreams || []).length > 0) await this.purgeStaleItems(source.id, 'live', this.keepBlocked(source.id, excluded, liveIds), { allowEmpty: true });
+        if ((liveStreams || []).length > 0) rememberPlaylistSize(db, source.id, liveStreams.length);
         importFilters.recordSkipped(source.id, excluded, skipped);
 
         // 3. VOD Categories
@@ -369,7 +404,7 @@ class SyncService {
      * the provider's 'epg' sync status and never fails the channel sync; the guide it had is
      * kept. With no address at all, whatever guide it had is removed.
      */
-    async syncProviderGuide(source, ownUrl = null) {
+    async syncProviderGuide(source, ownUrl = null, options = {}) {
         const url = source.epgUrl || ownUrl;
         if (!url) {
             await this.dropGuide(source.id);
@@ -378,9 +413,14 @@ class SyncService {
         console.log(`[Sync] Fetching EPG for ${source.name}`);
         this.updateSyncStatus(source.id, 'epg', 'syncing');
         try {
-            await this.syncEpgFromUrl(source.id, url);
+            await this.syncEpgFromUrl(source.id, url, options);
             this.updateSyncStatus(source.id, 'epg', 'success');
         } catch (e) {
+            if (e && e.held) {
+                console.warn(`[Sync] Guide for ${source.name}: ${e.message}`);
+                this.updateSyncStatus(source.id, 'epg', 'held', e.message);
+                return;
+            }
             // The address can carry a login: it is never stored or logged.
             const message = String(redact(e && e.message)).replace(/\bhttps?:\/\/\S+/gi, '[address]').slice(0, 200);
             console.warn(`[Sync] Guide for ${source.name} failed, keeping the previous one: ${message}`);
@@ -827,7 +867,7 @@ class SyncService {
      * Sync EPG from URL (Streaming - Memory Efficient)
      * Processes EPG files in batches to avoid OOM on large EPG data
      */
-    async syncEpgFromUrl(sourceId, url) {
+    async syncEpgFromUrl(sourceId, url, { acceptSmaller = false } = {}) {
         console.log(`[Sync] Fetching EPG from: ${redact(url).slice(0, 80)}...`);
 
         // Temporary memory logging for verification
@@ -914,6 +954,24 @@ class SyncService {
                 console.warn('[Sync] EPG feed contained no programmes; keeping the existing guide');
                 await this.purgeEpgRows(sourceId, '=', newGen);
                 return;
+            }
+
+            // #42: a guide much smaller, or reaching much less far ahead, than the one on screen is held.
+            if (!acceptSmaller) {
+                const prev = db.prepare(`SELECT COUNT(*) AS n, MAX(end_time) AS stop FROM epg_programs
+                    WHERE source_id = ? AND gen = ?`).get(sourceId, activeGen);
+                const now = Date.now();
+                const prevAhead = (prev.stop || 0) - now;
+                const shrunk = prev.n >= SHRINK.minGuide && totalProgrammes < prev.n * SHRINK.guide;
+                const shorter = prevAhead > SHRINK.guideHorizonMs && (lastStop - now) < prevAhead * SHRINK.guide;
+                if (shrunk || shorter) {
+                    await this.purgeEpgRows(sourceId, '=', newGen);
+                    const hours = (ms) => Math.max(0, Math.round(ms / 3600e3));
+                    throw heldError(shrunk
+                        ? `Held: the guide had ${totalProgrammes.toLocaleString('en-AU')} programmes against `
+                          + `${prev.n.toLocaleString('en-AU')} last time; the last good guide is kept`
+                        : `Held: the guide reached ${hours(lastStop - now)} h ahead against ${hours(prevAhead)} h; the last good guide is kept`);
+                }
             }
 
             // The swap: one small statement, so readers see the old guide or
@@ -1007,11 +1065,11 @@ class SyncService {
         }
     }
 
-    async syncM3u(source) {
-        return this.withHiddenChannels(source, () => this.syncM3uRows(source));
+    async syncM3u(source, options = {}) {
+        return this.withHiddenChannels(source, () => this.syncM3uRows(source, options));
     }
 
-    async syncM3uRows(source) {
+    async syncM3uRows(source, options = {}) {
         console.log(`[Sync] Fetching M3U playlist for ${source.name}`);
 
         // Temporary memory logging for verification
@@ -1023,6 +1081,7 @@ class SyncService {
         logMemory();
 
         const allGroups = new Set();
+        const pending = []; // #42: the parsed batches, written once the size is known
         // Just the URLs, for the identity tally below - not the rows.
         const identityUrls = [];
         const allSyncedIds = new Set(); // Collect IDs across all batches
@@ -1058,11 +1117,9 @@ class SyncService {
 
             for (const p of playlistItems) identityUrls.push(p.stream_url || null);
 
-            // Save this batch immediately (skip purge - we'll do it at the end)
+            // Kept until the whole list is in (#42: a shrunken list is held before anything is written)
             if (playlistItems.length > 0) {
-                const imported = importFilters.filterItems(playlistItems, excluded, skipped);
-                const batchIds = await this.saveStreams(source.id, 'live', imported, { skipPurge: true });
-                batchIds.forEach(id => allSyncedIds.add(id));
+                pending.push(importFilters.filterItems(playlistItems, excluded, skipped));
                 totalChannels += playlistItems.length; // every line counts towards the positions
             }
 
@@ -1075,6 +1132,13 @@ class SyncService {
                 logMemory();
             }
         }
+
+        checkPlaylistSize(getDb(), source.id, totalChannels, options);
+        for (const imported of pending) {
+            const batchIds = await this.saveStreams(source.id, 'live', imported, { skipPurge: true });
+            batchIds.forEach(id => allSyncedIds.add(id));
+        }
+        pending.length = 0;
 
         if (credentialsLine) {
             try { require('./providerAccounts').noteM3uHeader(source.id, credentialsLine); } catch (e) { /* the stream URLs are the fallback */ }
@@ -1097,6 +1161,7 @@ class SyncService {
         // playlist itself had no channels.
         if (totalChannels > 0) {
             await this.purgeStaleItems(source.id, 'live', this.keepBlocked(source.id, excluded, allSyncedIds), { allowEmpty: true });
+            rememberPlaylistSize(getDb(), source.id, totalChannels);
         }
 
         // Save Categories (Groups) at the end
@@ -1118,12 +1183,13 @@ class SyncService {
     /**
      * EPG Source Sync Logic
      */
-    async syncEpg(source) {
+    async syncEpg(source, options = {}) {
         console.log(`[Sync] Fetching standalone EPG for ${source.name}`);
-        await this.syncEpgFromUrl(source.id, source.url);
+        await this.syncEpgFromUrl(source.id, source.url, options);
     }
 }
 
 module.exports = new SyncService();
 module.exports.epgCoverageLine = epgCoverageLine; // 0153, for tests
 module.exports.programmeData = programmeData; // R5, for tests
+module.exports.SHRINK = SHRINK; // #42, for tests

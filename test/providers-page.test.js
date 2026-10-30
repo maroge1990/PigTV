@@ -118,6 +118,9 @@ test('sync status and ages are plain words, and no address ever survives', () =>
     assert.equal(failed.level, 'error');
     assert.ok(!/host\.invalid|password|user:pw/.test(failed.text), failed.text);
     assert.ok(failed.text.includes('[address]'));
+    // #42 (0348): a held list says so, as a warning, and offers to accept it (not "Synced").
+    const held = F.formatSync({ status: 'held', last_sync: now - 120_000, error: "Held: the provider's list had 20 of the usual 200 channels; the last good list is kept" }, now);
+    assert.deepEqual(plain(held), { text: "Held: the provider's list had 20 of the usual 200 channels; the last good list is kept (2 minutes ago)", level: 'soon', held: true });
 });
 
 test('order: the primary first, backups by priority (empty last); moving a card gives the new id order', () => {

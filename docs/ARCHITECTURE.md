@@ -113,6 +113,10 @@ The `channelNumbers` flag is always sent (its off switch went in 0204).
 **Guide and library.**
 - Query **`epg_live`**, never `epg_programs`. A sync loads generation active+1, flips it in one statement, then deletes the old
   one in slices; a failed feed leaves the guide untouched.
+- **A shrunken answer is held** (0348, #42): a playlist with fewer than 70% of the last good sync's lines (kept in `meta`
+  `playlist_lines:<id>`; the whole M3U is parsed before any row is written), or a guide with under half the programmes or
+  reaching under half as far ahead, is not applied. The sync row says `held` with the counts (Status, Providers); the next
+  sync at the usual size applies, or **Accept the smaller list…** (`POST /api/sources/:id/sync {acceptSmaller: true}`).
 - Queries bound `start_time > from − 24 h`.
 - `/api/library/*` fill a missing logo from the EPG (by tvg-id, then by name).
 - **Ingest-time changes only show after a sync:** a redeploy skips any source synced in the last 24 h (`syncIfStale`), so use
