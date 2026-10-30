@@ -497,7 +497,7 @@ class SyncService {
         // 0182: the guide address on the provider's card wins; with none, the provider's own XMLTV.
         let ownUrl = null;
         try { ownUrl = api.getXmltvUrl(); } catch (e) { /* no XMLTV address for this login */ }
-        await this.syncProviderGuide(source, ownUrl);
+        await this.syncProviderGuide(source, ownUrl, options); // #170: acceptSmaller reaches the guide too
     }
 
     /**

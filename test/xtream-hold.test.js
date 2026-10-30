@@ -73,3 +73,14 @@ test('#168: a held Xtream list keeps its 100 channels and still refreshes the gu
     assert.deepEqual(titles(), ['Second guide'], 'the guide moved on');
     assert.equal(status('epg'), 'success');
 });
+
+test('#170: accepting the smaller list accepts the smaller guide too', async () => {
+    state.xml = guide(20, 'Short guide');
+    await sync.syncSource(source.id);
+    assert.equal(status('epg'), 'held');
+    await sync.syncSource(source.id, { acceptSmaller: true });
+    assert.equal(channels(), 10);
+    assert.deepEqual(titles(), ['Short guide']);
+    assert.equal(status('all'), 'success');
+    assert.equal(status('epg'), 'success');
+});
