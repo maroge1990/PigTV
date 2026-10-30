@@ -385,7 +385,7 @@ class StatusPage {
             sessions.map(s => [
                 `${e(s.channel)}${s.provider ? ` <span class="setting-hint">(${e(s.provider)})</span>` : ''}`
                     + (s.error ? `<div class="setting-hint">${e(s.error)}</div>` : ''),
-                e(s.owner || '–'), this.duration(s.uptimeSec),
+                e(s.ownerName || s.owner || '–'), this.duration(s.uptimeSec),
                 `<button type="button" class="btn btn-sm btn-danger" data-kill-session="${e(s.id)}" title="Stop this stream and free its provider connection">Stop</button>`
             ]),
             'Nothing is playing')
@@ -479,11 +479,11 @@ class StatusPage {
         // Recent plays
         const label = { 'play-start': 'Started', 'play-end': 'Ended', failure: 'Failed', relay: 'Recovery' };
         add('plays', this.section('Recent plays', this.table(
-            ['Time', 'Event', 'Channel', 'Owner', 'Start', 'First picture', 'Detail'],
+            ['Time', 'Event', 'Channel', 'Device', 'Start', 'First picture', 'Detail'],
             (status.events || []).map(ev => [
                 this.time(ev.at),
                 `<span class="status-event status-${e(ev.type)}">${e(label[ev.type] || ev.type)}</span>`,
-                e(ev.channel || 'unknown'), e(ev.owner || '–'), e(ev.start || '–'),
+                e(ev.channel || 'unknown'), e(ev.ownerName || ev.owner || '–'), e(ev.start || '–'),
                 ev.firstPictureSec !== null && ev.firstPictureSec !== undefined ? this.amt(`${ev.firstPictureSec.toFixed(1)}s`) : '–',
                 ev.type === 'failure' || ev.type === 'relay' ? e(ev.reason || '')
                     : ev.type === 'play-end' ? `watched ${this.duration(ev.watchedSec)}, ${ev.stalls ?? 0} stall${ev.stalls === 1 ? '' : 's'}`

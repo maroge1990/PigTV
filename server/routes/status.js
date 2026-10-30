@@ -4,7 +4,7 @@
  * One read of what the server is doing, for the web app's Status page:
  *   build        the build identity (server/version.js)
  *   sessions     live HLS sessions: id, channel name (looked up from the session's
- *                stream identity, else "unknown"), owner key, video/audio copy or
+ *                stream identity, else "unknown"), owner key and its name (#19), video/audio copy or
  *                encode, segment type, uptime, idle seconds, ffmpeg status
  *   recordings   { active: [...], upcoming: [the next 5 scheduled] }
  *   events       the last 50 play-start / play-end / failure events, newest first
@@ -87,6 +87,26 @@ function providerName(providerId) {
         return null;
     }
 }
+
+/**
+ * #19 (0364): who an owner key (streamCoordinator.ownerKey) is: a paired device by its name and what its app last said
+ * it was ("PigTV tvOS (Apple TV, PigTV 84)"), a password login by its username. Read once per status request.
+ */
+function ownerNames() {
+    const names = new Map();
+    try {
+        const { describeClient } = require('../services/deviceAuth');
+        for (const d of getDb().prepare('SELECT id, name, platform, app_client FROM devices').all()) {
+            const app = describeClient(d.app_client);
+            const what = app?.build ? [app.kind || app.model, `PigTV ${app.build}`].filter(Boolean).join(', ') : (app?.text || d.platform);
+            names.set(`device:${d.id}`, `${d.name || 'Unnamed device'}${what ? ` (${what})` : ''}`);
+        }
+        for (const u of getDb().prepare('SELECT id, username FROM app_users').all()) names.set(`user:${u.id}`, u.username);
+    } catch (e) { /* the raw key is shown instead */ }
+    return names;
+}
+
+const withOwnerName = (names) => (row) => ({ ...row, ownerName: (row.owner && names.get(row.owner)) || null });
 
 function liveSessions() {
     const now = Date.now();
@@ -283,16 +303,17 @@ function preparationQueue() {
 router.get('/', async (req, res) => {
     try {
         const settings = await db.settings.get();
+        const names = ownerNames();
         const status = {
             generatedAt: Date.now(),
             mediaTools: req.app.locals.mediaTools || null,
             build: require('../version'),
             providers: connectionUse(providersStatus(settings)),
-            sessions: liveSessions(),
+            sessions: liveSessions().map(withOwnerName(names)),
             recordings: recordings(),
             recentProblems: recentProblems(),
             recordingsFolder: recordingsFolderHealth(),
-            events: playbackEvents.recent(),
+            events: playbackEvents.recent().map(withOwnerName(names)),
             // 0133 (C-G): the channels that failed to start most in the last 7 days.
             leastReliable: leastReliable(),
             // 0188: streams lost mid-play in the last 7 days, and how long they took to come back.

@@ -247,3 +247,23 @@ test('the recent-plays buffer keeps the last 50, newest first', () => {
     playbackEvents.record({ type: 'failure', reason: `Server returned 403 for ${STREAM_URL}` });
     assert.ok(!playbackEvents.recent()[0].reason.includes(SECRET), 'a URL handed to the buffer is removed on the way in');
 });
+
+// #19 (0364): Status names who is playing. Before, the Device column was the raw owner key (`device:<uuid>`, `user:<id>`).
+test('#19: live sessions and recent plays name the paired device (and what its app runs) or the login', async () => {
+    const d = sqlite.getDb();
+    d.prepare(`INSERT INTO devices (id, user_id, name, platform, created_at, last_seen_at, app_client) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+        .run('tv-1', String(admin.id), 'PigTV tvOS', 'tvOS', 1, 2, 'PigTV/84 (tvOS 26.1; AppleTV14,1)');
+    d.prepare(`INSERT INTO devices (id, user_id, name, platform, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)`)
+        .run('pad-1', String(admin.id), 'PigTV iOS', 'iOS', 1, 2);
+    playbackEvents.reset();
+    playbackEvents.record({ type: 'play-start', owner: 'device:tv-1', channel: 'Seven' });
+    playbackEvents.record({ type: 'play-start', owner: 'device:pad-1', channel: 'Nine' });
+    playbackEvents.record({ type: 'failure', owner: 'device:gone', channel: 'Ten' });
+
+    const { body } = await get('/api/status', adminToken);
+    assert.equal(body.sessions[0].owner, `user:${admin.id}`, 'the key itself is unchanged');
+    assert.equal(body.sessions[0].ownerName, 'owner');
+    const byChannel = Object.fromEntries(body.events.map(e => [e.channel, e.ownerName]));
+    assert.deepEqual(byChannel, { Seven: 'PigTV tvOS (Apple TV, PigTV 84)', Nine: 'PigTV iOS (iOS)', Ten: null });
+    playbackEvents.reset();
+});

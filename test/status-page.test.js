@@ -15,9 +15,9 @@ test('the Status page renders /api/status and refreshes every 5 seconds only whi
     const requests = [];
     const status = {
         generatedAt: Date.now(), build: { display: 'v3.7.0 · build 0124' },
-        sessions: [{ id: 'a', channel: 'Fox <Sports>', owner: 'user:1', video: 'copy', audio: 'auto', segmentType: 'fmp4', uptimeSec: 75, idleSec: 2, ffmpeg: 'running' }],
+        sessions: [{ id: 'a', channel: 'Fox <Sports>', owner: 'device:9f2', ownerName: 'PigTV tvOS (Apple TV, PigTV 84)', video: 'copy', audio: 'auto', segmentType: 'fmp4', uptimeSec: 75, idleSec: 2, ffmpeg: 'running' }],
         recordings: { active: [], upcoming: [{ id: 1, title: 'News', channel: 'BBC', status: 'scheduled', programStart: Date.now(), programEnd: Date.now() + 1 }] },
-        events: [{ at: Date.now(), type: 'play-start', channel: 'BBC', owner: 'user:1', start: 'cold', firstPictureSec: 8.1 },
+        events: [{ at: Date.now(), type: 'play-start', channel: 'BBC', owner: 'user:1', ownerName: 'mark', start: 'cold', firstPictureSec: 8.1 },
                  { at: Date.now(), type: 'failure', channel: 'Seven', reason: 'The provider refused this channel' }],
         // 0156: missed/failed schedules from the last 7 days.
         recentProblems: [{ id: 9, title: 'The Big Game', channel: 'Fox Sports 505', status: 'failed',
@@ -45,6 +45,9 @@ test('the Status page renders /api/status and refreshes every 5 seconds only whi
     const html = elements['status-content'].innerHTML;
     assert.ok(html.includes('Fox &lt;Sports&gt;'), 'escaped');
     assert.ok(html.includes('8.1s') && html.includes('cold'), 'first-picture time and start kind');
+    // #19 (0364): the device or login by name, not its key.
+    assert.ok(html.includes('PigTV tvOS (Apple TV, PigTV 84)') && !html.includes('device:9f2'), 'a session names its device');
+    assert.ok(html.includes('<td>mark</td>') && !html.includes('user:1'), 'a recent play names its login');
     assert.ok(html.includes('The provider refused this channel'));
     assert.ok(html.includes('2.0 GB') && html.includes('unavailable'));
     assert.ok(html.includes('build 0124'));
