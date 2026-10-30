@@ -110,3 +110,38 @@ test('a session gets the channels of the F1 event naming it whose own airing cov
     assert.deepEqual(got.get('race').map(c => c.id), ['a'], 'the race as "Grand Prix"');
     assert.deepEqual(got.get('practice 3').map(c => c.id), ['c']);
 });
+
+// #156: team lookups are optional; a stalled ESPN core endpoint must not hold a cold request for minutes.
+test('#156: a stalled team lookup cannot hold the first request: a bounded wait, the page without those teams', async () => {
+    fakeEspn();
+    const real = f1.fetcher.get;
+    f1.fetcher.get = async (url) => {
+        if (/\/competitors\//.test(url)) await new Promise(r => setTimeout(r, 1000)); // each car's request, slow
+        return real(url);
+    };
+    if (f1.tuning) Object.assign(f1.tuning, { teamDeadlineMs: 1500 });
+    const began = Date.now();
+    const page = await f1.page(NOW, { registerImage });
+    const took = Date.now() - began;
+    assert.ok(took < 4000, `the first request waited ${took} ms`);
+    assert.equal(page.available, true);
+    assert.equal(page.results.rows.length, 10, 'the results without waiting for every team');
+    if (f1.tuning) Object.assign(f1.tuning, { teamDeadlineMs: f1.TUNING.teamDeadlineMs });
+});
+
+// #157: the cache keeps ESPN's data only; each request gets its own user's channels from the current guide.
+test('#157: channels are attached per request, never kept with the page', async () => {
+    fakeEspn();
+    const ch = (id) => ({ sourceId: 1, id, name: id, start: Date.parse('2026-10-30T18:15:00Z'), end: Date.parse('2026-10-30T20:00:00Z') });
+    const first = await f1.page(NOW, { registerImage, channelsFor: async (s) => new Map([[s[0].id, [ch('mine')]]]) });
+    const second = await f1.page(NOW + 60e3, { registerImage, channelsFor: async (s) => new Map([[s[0].id, [ch('theirs')]]]) });
+    assert.deepEqual(first.weekend.sessions[0].channels.map(c => c.id), ['mine']);
+    assert.deepEqual(second.weekend.sessions[0].channels.map(c => c.id), ['theirs'], 'another viewer, a newer guide');
+});
+
+// #158: points are what the feed says, never a guessed scale (ESPN's results give none, so null).
+test('#158: race points are not invented', async () => {
+    fakeEspn();
+    const { results } = await f1.page(NOW, { registerImage });
+    assert.deepEqual(results.rows.map(r => r.points), Array(10).fill(null));
+});

@@ -32,6 +32,11 @@ const SESSION_MS = { 'practice 1': 3600e3, 'practice 2': 3600e3, 'practice 3': 3
     'sprint qualifying': 2700e3, sprint: 2700e3, qualifying: 3600e3, race: 7200e3 };
 const TOP_KIND = { qualifying: 'pole', 'sprint qualifying': 'pole', race: 'winner', sprint: 'winner' };
 
+// #156: team lookups are optional (a few at a time, under a deadline: what answered is used, a partial map is not
+// kept), and a cold request waits only so long for the first build before answering { available: false }.
+const TUNING = Object.freeze({ teamConcurrency: 6, teamDeadlineMs: 6000, coldWaitMs: 8000 });
+const tuning = { ...TUNING };
+
 // Test seam: `get(url) -> { ok, json } | { ok: false, error }`, as sportsFixturesEspn.getJson.
 const fetcher = { get: (url) => espn.getJson(url, TIMEOUT_MS) };
 
@@ -96,17 +101,26 @@ async function teamsFor(eventId, session) {
     if (known) return known;
     const map = new Map();
     let failed = false;
-    for (const x of session.order.slice(0, 22)) {
-        const r = await fetcher.get(`${CORE}/events/${eventId}/competitions/${session.competitionId}/competitors/${x.id}?lang=en&region=us`);
-        if (!r.ok) { failed = true; continue; }
-        const team = str(r.json?.vehicle?.manufacturer);
-        if (team) map.set(String(x.id), { team, teamColor: colour(r.json?.vehicle?.teamColor) });
-    }
+    const queue = session.order.slice(0, 22);
+    let next = 0;
+    const worker = async () => {
+        while (next < queue.length) {
+            const x = queue[next++];
+            const r = await fetcher.get(`${CORE}/events/${eventId}/competitions/${session.competitionId}/competitors/${x.id}?lang=en&region=us`);
+            if (!r.ok) { failed = true; continue; }
+            const team = str(r.json?.vehicle?.manufacturer);
+            if (team) map.set(String(x.id), { team, teamColor: colour(r.json?.vehicle?.teamColor) });
+        }
+    };
+    let timer;
+    const deadline = new Promise(resolve => { timer = setTimeout(() => { failed = true; resolve(); }, tuning.teamDeadlineMs); });
+    await Promise.race([Promise.all(Array.from({ length: Math.min(tuning.teamConcurrency, queue.length) }, worker)), deadline]);
+    clearTimeout(timer);
     if (!failed) {
         if (teamsByCompetition.size >= 8) teamsByCompetition.delete(teamsByCompetition.keys().next().value);
         teamsByCompetition.set(session.competitionId, map);
     }
-    return map;
+    return new Map(map); // what had answered by now; a late answer changes nothing returned
 }
 
 async function circuitInfo(eventId, registerImage) {
@@ -265,11 +279,15 @@ async function page(now = Date.now(), deps = {}) {
         }).catch((err) => console.warn('[Sport] F1 page refresh failed:', err.message))
             .finally(() => { refreshing = null; });
     }
-    if (!cache && refreshing) await refreshing;
+    if (!cache && refreshing) {
+        let timer;
+        await Promise.race([refreshing, new Promise(resolve => { timer = setTimeout(resolve, tuning.coldWaitMs); })]);
+        clearTimeout(timer);
+    }
     return cache ? cache.value : { available: false };
 }
 
 /** Tests: forget everything. */
 function reset() { cache = null; refreshing = null; generation++; teamsByCompetition.clear(); }
 
-module.exports = { page, build, reset, fetcher, calendarOf, weekendIndex, sessionsOf, channelsForSessions };
+module.exports = { page, build, reset, fetcher, tuning, TUNING, calendarOf, weekendIndex, sessionsOf, channelsForSessions };
