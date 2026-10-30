@@ -4,74 +4,110 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-// The real SourceManager script, with the API stubbed and no DOM.
-function makeManager(type = 'channels') {
+// Settings → Manage content (the real SourceManager script, API stubbed, no DOM).
+// #16 (0357): Show all / Hide all act on what the filter shows, as pending edits that Save applies (asking with counts
+// when it is many), and the last save can be undone. Before, they saved at once, ignored the filter, threw pending
+// edits away and could not be undone. #59: ticking a channel inside a hidden group shows the group and keeps its other
+// channels hidden; groups are keyed by id, not name. #128: unsaved ticks are known.
+function makeManager({ groups, confirmAnswer = true } = {}) {
     const calls = [];
+    const confirms = [];
     const context = vm.createContext({
-        window: { app: {} },
-        console: { ...console, warn() {}, error() {} },
-        alert() {}, setTimeout: (fn) => 0,
+        window: { app: {}, confirm: (msg) => { confirms.push(msg); return confirmAnswer; } },
+        console: { ...console, log() {}, warn() {}, error() {} },
+        alert() {}, setTimeout: () => 0,
         document: { getElementById: () => null, querySelector: () => null },
         Icons: { chevronDown: '' },
+        CSS: { escape: (s) => s },
         API: { channels: {
-            hideAll: async (sourceId, contentType) => { calls.push(['hideAll', sourceId, contentType]); },
-            showAll: async (sourceId, contentType) => { calls.push(['showAll', sourceId, contentType]); }
+            hideAll: async () => { calls.push(['hideAll']); },
+            showAll: async () => { calls.push(['showAll']); },
+            bulkShow: async (items) => { calls.push(['bulkShow', items.map(i => `${i.itemType}:${i.itemId}`)]); },
+            bulkHide: async (items) => { calls.push(['bulkHide', items.map(i => `${i.itemType}:${i.itemId}`)]); }
         } }
     });
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/components/SourceManager.js'), 'utf8'), context);
     const manager = Object.create(context.window.SourceManager.prototype);
     Object.assign(manager, {
         treeData: {
-            type, sourceId: 7,
-            groups: [
-                { id: 'g1', name: 'US TV Guide', categoryId: '10', items: [{ type: 'live', id: 'a', name: 'A' }, { type: 'live', id: 'b', name: 'B' }] },
-                { id: 'g2', name: 'NFL Sunday Ticket', categoryId: '11', items: [{ type: 'live', id: 'c', name: 'C' }] },
-                { id: 'g3', name: 'No category id', categoryId: null, items: [{ type: 'live', id: 'd', name: 'D' }] }
+            type: 'channels', sourceId: 7,
+            groups: groups || [
+                { id: '10', name: 'US TV Guide', categoryId: '10', items: [{ type: 'channel', id: 'a', name: 'ABC' }, { type: 'channel', id: 'b', name: 'BBC' }] },
+                { id: '11', name: 'NFL Sunday Ticket', categoryId: '11', items: [{ type: 'channel', id: 'c', name: 'CBS Sports' }] },
+                { id: 'Uncategorized', name: 'No category id', categoryId: null, items: [{ type: 'channel', id: 'd', name: 'Dave' }] }
             ]
         },
-        hiddenSet: new Set(), originalHiddenSet: new Set(), expandedGroups: new Set(), searchQuery: '',
+        hiddenSet: new Set(), originalHiddenSet: new Set(), expandedGroups: new Set(), searchQuery: '', undoSnapshot: null,
+        contentTree: { querySelector: () => null },
         renderTree() { this.rendered = (this.rendered || 0) + 1; }
     });
-    return { manager, calls };
+    return { manager, calls, confirms };
 }
+const plain = (v) => JSON.parse(JSON.stringify(v));
 const groupChecked = (manager, index) => /group-checkbox[^>]*\bchecked\b/.test(manager.getGroupHtml(manager.treeData.groups[index]));
 
-test('Hide All unticks every group checkbox straight away, not only after a reload', async () => {
+test('#16: Hide all is a pending edit: the boxes untick at once, nothing is sent until Save', async () => {
     const { manager, calls } = makeManager();
-    assert.equal(groupChecked(manager, 0), true, 'starts visible');
-    assert.equal(groupChecked(manager, 1), true);
-
-    await manager.setAllVisibility(false);
-
-    assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['hideAll', 7, 'channels']], 'the server is asked once, as before');
-    assert.equal(groupChecked(manager, 0), false, 'what the user sees now matches what the server did');
-    assert.equal(groupChecked(manager, 1), false);
-    assert.equal(manager.rendered, 1, 'and the tree is redrawn');
+    manager.setAllVisibility(false);
+    assert.deepEqual(calls, [], 'no server call');
+    assert.equal(groupChecked(manager, 0), false);
+    assert.equal(groupChecked(manager, 2), false, 'a group with no category id follows its channels');
+    assert.equal(manager.isDirty(), true, '#128: unsaved');
+    await manager.saveContentChanges();
+    assert.deepEqual(plain(calls), [['bulkHide', ['group:10', 'group:11', 'channel:d']]]);
+    assert.equal(manager.isDirty(), false);
 });
 
-test('Show All ticks them again', async () => {
-    const { manager } = makeManager();
-    await manager.setAllVisibility(false);
-    await manager.setAllVisibility(true);
-    assert.equal(groupChecked(manager, 0), true);
-    assert.equal(groupChecked(manager, 1), true);
-    assert.equal(manager.hiddenSet.size, 0, 'nothing is left marked hidden');
+test('#16: with a filter, Show all and Hide all touch only what the filter lists', async () => {
+    const { manager, calls } = makeManager();
+    manager.searchQuery = 'bbc';
+    manager.setAllVisibility(false);
+    assert.deepEqual([...manager.hiddenSet].sort(), ['channel:b'], 'only BBC: its group keeps ABC');
+    await manager.saveContentChanges();
+    assert.deepEqual(plain(calls), [['bulkHide', ['channel:b']]]);
 });
 
-test('the individual channels change too, and the saved baseline follows, so Save has nothing left to do', async () => {
-    const { manager } = makeManager();
-    await manager.setAllVisibility(false);
-    for (const key of ['live:a', 'live:b', 'live:c', 'live:d']) assert.ok(manager.hiddenSet.has(key), key);
-    assert.ok(manager.hiddenSet.has('group:10') && manager.hiddenSet.has('group:11'));
-    assert.deepEqual([...manager.originalHiddenSet].sort(), [...manager.hiddenSet].sort(),
-        'otherwise Save Changes would think there were unsaved edits and repeat the work');
+test('#16: a large change asks first with the counts; Cancel sends nothing', async () => {
+    const many = Array.from({ length: 60 }, (_, i) => ({ type: 'channel', id: `x${i}`, name: `Channel ${i}` }));
+    const { manager, calls, confirms } = makeManager({ groups: [{ id: '20', name: 'Big', categoryId: '20', items: many }], confirmAnswer: false });
+    manager.setAllVisibility(false);
+    await manager.saveContentChanges();
+    assert.equal(confirms.length, 1);
+    assert.match(confirms[0], /^Hide 60 shown channels\? .* You now show 60 channels; this makes 0\.$/);
+    assert.deepEqual(calls, [], 'cancelled');
+    assert.equal(manager.isDirty(), true, 'the edits are kept for another try');
 });
 
-test('a group with no category id still follows its channels', async () => {
-    const { manager } = makeManager();
-    await manager.setAllVisibility(false);
-    assert.equal(groupChecked(manager, 2), false, 'no category key exists for it, so it is drawn from its items');
+test('#16: Undo last save puts back exactly what was hidden before it, once', async () => {
+    const { manager, calls } = makeManager();
+    manager.hiddenSet = new Set(['channel:b']);
+    manager.originalHiddenSet = new Set(['channel:b']);
+    manager.setAllVisibility(true);
+    await manager.saveContentChanges();
+    assert.deepEqual(plain(calls), [['bulkShow', ['channel:b']]]);
+    await manager.undoLastSave();
+    assert.deepEqual(plain(calls[1]), ['bulkHide', ['channel:b']]);
+    assert.deepEqual([...manager.hiddenSet], ['channel:b']);
+    assert.equal(manager.undoSnapshot, null, 'an undo is not itself undone');
 });
 
-// 0121: the picker is live-only (the movie/series tabs went with the VOD pages), so
-// the vod_category/series_category namespaces it used to write are no longer drawn.
+test('#59: ticking one channel of a hidden group shows the group and keeps its other channels hidden', async () => {
+    const { manager, calls } = makeManager();
+    manager.hiddenSet = new Set(['group:10', 'channel:a', 'channel:b']);
+    manager.originalHiddenSet = new Set(manager.hiddenSet);
+    manager.toggleVisibility({ dataset: { type: 'channel', id: 'b' }, checked: true, closest: () => null });
+    assert.equal(manager.hiddenSet.has('group:10'), false, 'the group is shown too');
+    await manager.saveContentChanges();
+    assert.deepEqual(plain(calls), [['bulkShow', ['group:10']], ['bulkHide', ['channel:a']]],
+        'the group shows (cascading on the server), then ABC is hidden again');
+});
+
+test('#59: two groups with the same name are two groups', () => {
+    const { manager } = makeManager({ groups: [
+        { id: '30', name: 'Sport', categoryId: '30', items: [{ type: 'channel', id: 'p', name: 'P' }] },
+        { id: '31', name: 'Sport', categoryId: '31', items: [{ type: 'channel', id: 'q', name: 'Q' }] }
+    ] });
+    assert.match(manager.getGroupHtml(manager.treeData.groups[1]), /group-checkbox[^>]*data-id="31"/);
+    manager.toggleGroupChildren({ dataset: { id: '31' }, checked: false });
+    assert.deepEqual([...manager.hiddenSet].sort(), ['channel:q', 'group:31']);
+});

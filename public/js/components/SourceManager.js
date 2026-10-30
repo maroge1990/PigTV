@@ -12,8 +12,34 @@ class SourceManager {
         this.originalHiddenSet = new Set(); // Set of hidden item keys (state when loaded)
         this.expandedGroups = new Set(); // Set of expanded group IDs
         this.searchQuery = ''; // Search filter for content browser
+        this.undoSnapshot = null; // #16: the hidden set before the last save, for one-step Undo
 
         this.init();
+    }
+
+    /** #128: unsaved ticks that a reload, another source or leaving the page would lose. */
+    isDirty() {
+        if (!this.treeData) return false;
+        if (this.hiddenSet.size !== this.originalHiddenSet.size) return true;
+        for (const key of this.hiddenSet) if (!this.originalHiddenSet.has(key)) return true;
+        return false;
+    }
+
+    /** #16: the counts a save would apply: channels newly shown and newly hidden, and the total shown after. */
+    pendingCounts() {
+        const visible = (set, group, item) => !set.has(`${item.type}:${item.id}`)
+            && (!group.categoryId || !set.has(`${this.groupItemType()}:${group.categoryId}`));
+        let show = 0, hide = 0, before = 0, after = 0;
+        for (const group of this.treeData?.groups || []) {
+            for (const item of group.items) {
+                const was = visible(this.originalHiddenSet, group, item), now = visible(this.hiddenSet, group, item);
+                if (was) before++;
+                if (now) after++;
+                if (!was && now) show++;
+                if (was && !now) hide++;
+            }
+        }
+        return { show, hide, before, after };
     }
 
     init() {
@@ -36,6 +62,14 @@ class SourceManager {
 
         // Save Changes button
         document.getElementById('content-save')?.addEventListener('click', () => this.saveContentChanges());
+        document.getElementById('content-undo')?.addEventListener('click', () => this.undoLastSave());
+
+        // #128: leaving the page with unsaved ticks asks first.
+        window.addEventListener?.('beforeunload', (e) => {
+            if (!this.isDirty()) return;
+            e.preventDefault();
+            e.returnValue = '';
+        });
 
         // Search input
         const searchInput = document.getElementById('content-search');
@@ -60,6 +94,12 @@ class SourceManager {
      */
     reloadContentTree() {
         const sourceId = this.contentSourceSelect?.value;
+        // #128: another provider throws the unsaved ticks away: ask first.
+        if (this.isDirty() && String(sourceId) !== String(this.treeData.sourceId)
+            && !window.confirm('Discard the changes you have not saved?')) {
+            if (this.contentSourceSelect) this.contentSourceSelect.value = String(this.treeData.sourceId);
+            return;
+        }
         if (!sourceId) {
             this.contentTree.innerHTML = '<p class="hint">Select a source to view groups and channels</p>';
             return;
@@ -82,6 +122,8 @@ class SourceManager {
             sources.filter(s => s.type === 'xtream' || s.type === 'm3u').forEach(source => {
                 select.innerHTML += `<option value="${this.escapeHtml(source.id)}">${this.escapeHtml(source.name)} (${this.escapeHtml(source.type)})</option>`;
             });
+            // #128: coming back to this tab keeps the provider (and any unsaved ticks) on screen.
+            if (this.treeData?.sourceId) select.value = String(this.treeData.sourceId);
         } catch (err) {
             console.error('Error loading content sources:', err);
         }
@@ -226,7 +268,7 @@ class SourceManager {
                     <label class="checkbox-label" onclick="event.stopPropagation()">
                         <input type="checkbox" class="group-checkbox" 
                                data-type="group" 
-                               data-id="${this.escapeHtml(group.name)}" 
+                               data-id="${this.escapeHtml(group.id)}" 
                                data-source-id="${this.treeData.sourceId}" 
                                ${checked ? 'checked' : ''}>
                         <span class="group-name">${this.escapeHtml(group.name)} (${group.items.length})</span>
@@ -351,6 +393,11 @@ class SourceManager {
         } else {
             this.hiddenSet.add(key);
         }
+        // #59: a channel can only be seen when its group is shown too, so showing one channel of a hidden group shows
+        // the group, and Save keeps its other channels hidden one by one.
+        const owner = this.treeData.groups.find(g => g.items.some(i => `${i.type}:${i.id}` === key));
+        if (isVisible && owner?.categoryId) this.hiddenSet.delete(`${this.groupItemType()}:${owner.categoryId}`);
+        this.updateSaveLabel();
 
         // Update parent group checkbox to reflect derived state
         const groupEl = checkbox.closest('.content-group');
@@ -371,8 +418,8 @@ class SourceManager {
      * Toggle all children of a group (LOCAL STATE ONLY - use Save to persist)
      */
     toggleGroupChildren(groupCb) {
-        const groupName = groupCb.dataset.id;
-        const group = this.treeData.groups.find(g => g.name === groupName);
+        // #59: keyed by the group's id; two groups with the same name are two groups.
+        const group = this.treeData.groups.find(g => g.id === groupCb.dataset.id);
         if (!group) return;
 
         const isChecked = groupCb.checked;
@@ -409,103 +456,69 @@ class SourceManager {
     }
 
     /**
-     * Set visibility for all items and IMMEDIATELY persist to server
-     * Uses fast bulk API endpoint (single SQL statement) instead of item-by-item
+     * #16: Show all / Hide all act on what the filter shows, as pending edits like every other tick; Save applies them
+     * (asking first when it is many). Before 0357 they saved at once, ignored the filter and could not be undone.
      */
-    async setAllVisibility(visible) {
+    setAllVisibility(visible) {
         if (!this.treeData || !this.treeData.groups) return;
+        const groupType = this.groupItemType();
+        for (const shown of this.getFilteredGroups()) {
+            const group = this.treeData.groups.find(g => g.id === shown.id) || shown;
+            const whole = shown.items.length === group.items.length;
+            for (const item of shown.items) {
+                const key = `${item.type}:${item.id}`;
+                if (visible) this.hiddenSet.delete(key); else this.hiddenSet.add(key);
+            }
+            if (!group.categoryId) continue;
+            const groupKey = `${groupType}:${group.categoryId}`;
+            if (visible) this.hiddenSet.delete(groupKey); // its other channels stay hidden one by one (#59)
+            else if (whole || group.items.every(i => this.hiddenSet.has(`${i.type}:${i.id}`))) this.hiddenSet.add(groupKey);
+        }
+        this.renderTree();
+        this.updateSaveLabel();
+    }
 
+    /** The Save button says how many changes are waiting. */
+    updateSaveLabel() {
         const saveBtn = document.getElementById('content-save');
-        const showAllBtn = document.querySelector('.content-actions button:first-child');
-        const hideAllBtn = document.querySelector('.content-actions button:nth-child(2)');
+        if (!saveBtn || saveBtn.disabled) return;
+        const { show, hide } = this.pendingCounts();
+        const n = show + hide;
+        saveBtn.textContent = n ? `💾 Save ${n.toLocaleString()} change${n === 1 ? '' : 's'}` : '💾 Save Changes';
+    }
 
-        // Disable buttons during operation
-        if (showAllBtn) showAllBtn.disabled = true;
-        if (hideAllBtn) hideAllBtn.disabled = true;
-        if (saveBtn) {
-            saveBtn.disabled = true;
-            saveBtn.textContent = visible ? '⏳ Showing all...' : '⏳ Hiding all...';
-        }
+    /** #16: put back exactly what was hidden before the last save. */
+    async undoLastSave() {
+        if (!this.undoSnapshot || !this.treeData) return;
+        this.hiddenSet = new Set(this.undoSnapshot);
+        this.undoSnapshot = null;
+        await this.saveContentChanges({ confirmed: true, undo: true });
+    }
 
-        try {
-            const sourceId = this.treeData.sourceId;
-            const contentType = this.treeData.type; // 'channels'
-
-            // Use fast API endpoint (single SQL UPDATE statement)
-            if (visible) {
-                await API.channels.showAll(sourceId, contentType);
-            } else {
-                await API.channels.hideAll(sourceId, contentType);
-            }
-
-            // Update local state to match. A group's checkbox is drawn from the
-            // category's own key, not from its items (see getGroupHtml), so that
-            // has to change too - otherwise the server hides everything but the
-            // group boxes stay ticked until the page is reloaded.
-            const groupItemType = this.groupItemType();
-            this.treeData.groups.forEach(group => {
-                if (group.categoryId) {
-                    const groupKey = `${groupItemType}:${group.categoryId}`;
-                    if (visible) {
-                        this.hiddenSet.delete(groupKey);
-                    } else {
-                        this.hiddenSet.add(groupKey);
-                    }
-                }
-                group.items.forEach(item => {
-                    const key = `${item.type}:${item.id}`;
-                    if (visible) {
-                        this.hiddenSet.delete(key);
-                    } else {
-                        this.hiddenSet.add(key);
-                    }
-                });
-            });
-
-            // Update originalHiddenSet to match current state
-            this.originalHiddenSet = new Set(this.hiddenSet);
-
-            // Sync Channel List (it lists only visible channels, so reload it)
-            try {
-                if (window.app?.channelList?.loadChannels) {
-                    await window.app.channelList.loadChannels();
-                }
-            } catch (e) {
-                console.warn('[SourceManager] Channel list sync failed:', e);
-            }
-
-            // Re-render to reflect changes
-            this.renderTree();
-
-            if (saveBtn) {
-                saveBtn.textContent = '✓ Done!';
-                setTimeout(() => {
-                    saveBtn.textContent = '💾 Save Changes';
-                    saveBtn.disabled = false;
-                }, 1500);
-            }
-
-        } catch (err) {
-            console.error('Error setting all visibility:', err);
-            alert('Failed: ' + err.message);
-            if (saveBtn) {
-                saveBtn.textContent = '💾 Save Changes';
-                saveBtn.disabled = false;
-            }
-        } finally {
-            if (showAllBtn) showAllBtn.disabled = false;
-            if (hideAllBtn) hideAllBtn.disabled = false;
-        }
+    showUndo(visible) {
+        const undo = document.getElementById('content-undo');
+        if (undo) undo.hidden = !visible;
     }
 
     /**
      * Save all content visibility changes to the server
      */
-    async saveContentChanges() {
+    async saveContentChanges({ confirmed = false, undo = false } = {}) {
         if (!this.treeData) {
             alert('No content loaded to save');
             return;
         }
+        // #16: a large change says what it will do before it does it.
+        const counts = this.pendingCounts();
+        if (!confirmed && counts.show + counts.hide > 50) {
+            const parts = [];
+            if (counts.show) parts.push(`show ${counts.show.toLocaleString()} hidden channel${counts.show === 1 ? '' : 's'}`);
+            if (counts.hide) parts.push(`hide ${counts.hide.toLocaleString()} shown channel${counts.hide === 1 ? '' : 's'}`);
+            const sentence = parts.join(' and ');
+            const ok = window.confirm(`${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}? Each shown channel gets a number and appears in the guide on every device. You now show ${counts.before.toLocaleString()} channels; this makes ${counts.after.toLocaleString()}.`);
+            if (!ok) return;
+        }
+        const before = new Set(this.originalHiddenSet);
 
         const saveBtn = document.getElementById('content-save');
         if (saveBtn) {
@@ -517,6 +530,7 @@ class SourceManager {
             const sourceId = this.treeData.sourceId;
             const itemsToShow = [];
             const itemsToHide = [];
+            const hideKeys = new Set();
 
             // Only collect items that have CHANGED from their original state
             // Track group changes for redundancy check
@@ -563,9 +577,23 @@ class SourceManager {
 
                         if (isNowHidden) {
                             itemsToHide.push({ sourceId, itemType: item.type, itemId: String(item.id) });
+                            hideKeys.add(key);
                         } else {
                             itemsToShow.push({ sourceId, itemType: item.type, itemId: String(item.id) });
                         }
+                    }
+                });
+            });
+
+            // #59: showing a group shows every channel in it on the server (it cascades), so the ones still unticked
+            // are hidden again one by one, after the shows.
+            this.treeData.groups.forEach(group => {
+                if (changedGroups.get(group.categoryId) !== false) return;
+                group.items.forEach(item => {
+                    const key = `${item.type}:${item.id}`;
+                    if (this.hiddenSet.has(key) && !hideKeys.has(key)) {
+                        itemsToHide.push({ sourceId, itemType: item.type, itemId: String(item.id) });
+                        hideKeys.add(key);
                     }
                 });
             });
@@ -622,6 +650,9 @@ class SourceManager {
 
             // Update originalHiddenSet to reflect saved state
             this.originalHiddenSet = new Set(this.hiddenSet);
+            // #16: one step back is offered until the next save (an Undo is not itself undone).
+            this.undoSnapshot = undo ? null : before;
+            this.showUndo(!undo);
 
             // Sync Channel List (it lists only visible channels, so reload it)
             try {

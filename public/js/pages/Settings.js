@@ -302,6 +302,12 @@ class SettingsPage {
     initLineup() {
         this.lineup = [];
         this.lineupEdits = new Map(); // key -> the typed value, only where it differs
+        // #128: leaving the page with typed but unsaved numbers asks first.
+        window.addEventListener?.('beforeunload', (e) => {
+            if (!this.lineupEdits.size) return;
+            e.preventDefault();
+            e.returnValue = '';
+        });
         this.lineupQuery = '';
         this.lineupCategoryNames = new Map();
 
@@ -1405,7 +1411,7 @@ class SettingsPage {
         if (panel === 'devices') this.loadDevices();
         if (panel === 'recording') this.loadRecordingSettings();
         if (panel === 'ui') this.loadUiSettings();
-        if (panel === 'lineup') this.loadLineup();
+        if (panel === 'lineup' && !this.lineupEdits?.size) this.loadLineup(); // #128: typed numbers survive a tab switch
         if (panel === 'epg') this.loadEpgMatching();
         if (panel === 'sports') this.loadSports();
         if (panel === 'providers') { this.providers.load(); if (this.isAdmin()) this.loadImportExclusions(); }
