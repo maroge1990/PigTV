@@ -5,34 +5,39 @@ issues hold the detail.
 
 ## Current state
 
-*Overwritten at the end of every session. 30 Oct 2026, late (first Windows session).*
+*Overwritten at the end of every session. 31 Oct 2026, early (second Windows session; D-37: Claude worked through
+batches 3b–6 without Mark, no device testing, no deploy needed).*
 
-- **Server:** production runs **0323**. Pushed this session (Claude pushes reviewed batches, D-34; batches by area,
-  D-35): **0330–0332** (#141, a hung share no longer stalls deletes or start-up), **0333–0339** (batch 2, sport
-  matching: #22, #23, #24, #82, #20 per-channel times in C-I, findings #154, #155), **0340–0345** (batch 3a, the F1 page's
-  data, C-P `GET /api/sports/pages/f1`; findings #156–#158, #160, #161). Image 0345 published; **not deployed** (deploy
-  is Mark's). Next build **0346**.
-- **Apple:** pushed **69–71** (#147, #148, #153) and **72–73** (#7, D-36: the live start builds its 30 s hold at 0.97×;
-  #159). The 30 Oct session keeps #7 to the end (Mark's stopwatch check, any follow-up such as GROW); other work leaves
-  #7 and the live catch-up code alone. Next build **74**.
-- **Tooling:** Claude works in WSL2 (Ubuntu 26.04) on Windows; the MacBook over SSH (`ssh mac`, LAN only) for Xcode and
-  the AVPlayer harness (mac:~/pigtv-build). Ubuntu's ffmpeg 8.0.1 fails 4 HE-AAC tests locally; the Unraid rig
-  (`scripts/unraid-rig.sh test`, ffmpeg 9.0.2) is the full-suite gate; staging runs 0332 with the copied login.
-- **Waiting for Mark (T5, after deploying):** #141/#149/#151/#152, #22/#23/#24 (next Fox Cricket Test), #147/#148/#153,
-  #7 (10 cold plays per test channel with a stopwatch), and the older #6, #5, #12, #8, #18 (untested). Relay timeline
-  renewal stays **off** (D-25).
+- **Server:** production still runs **0323** (nothing since 0324 is deployed; deploy is Mark's). On GitHub: **0346**
+  (batch 3b: household spoiler-free and followed driver, C-P), **0347–0356** (batch 4: hidden channels follow the channel
+  #10, new provider groups held for review, shrunken playlist/guide held #42, ingest deadlines and User-Agent #106,
+  04:30 schedule, retries and guide-stale warning #11; findings #166–#170, #173), **0357–0362** (batch 5, web: Show/Hide
+  all pending with confirm and Undo #16, hidden-group ticks #59, unsaved-edit guards #128, single-key player settings #9,
+  New on the provider list, settings copy #65; findings #174–#176). CI green for each. Next build **0363**.
+- **Apple:** on GitHub **74–78** (batch 3b: per-channel airing times #20, the Formula 1 page on Apple TV, iPad, iPhone
+  #21; findings #162–#165, #171, #172) and **79–83** (batch 6: channel list #13, Top Shelf/timer plays close open pages
+  and a watchdog ends a play whose player never appears #14, Home and Top Shelf freshness #46; findings #178, #179).
+  Next build **84**. #7 (live hold) stays with its own session.
+- **Tooling:** WSL2 on Windows; the Mac over SSH (Xcode, simulators; its two Apple TVs and iPhone are paired with Xcode
+  but were not used); the Unraid rig is the full-suite gate (`unraid-rig.sh test`); `PIGTV_RIG_SPORT_FIXTURES=1
+  unraid-rig.sh up` lets staging fetch ESPN for the sport pages (staging now runs 0346+). A read-only copy of production's
+  database is on the Unraid test share for migration rehearsals (D-37).
+- **Waiting for Mark (T5, after deploying):** everything above, plus #141/#149/#151/#152, #22/#23/#24 (next Fox Cricket
+  Test), #147/#148/#153, the older #6, #5, #12, #8, #18. Open design question: iPhone sport pages as one scroll or pages
+  (#177). Relay timeline renewal stays **off** (D-25).
 
 ## Now
 
 Batches by area (D-35), in this order:
 
-1. **Batch 3b: the Apple TV F1 page** (#21), on C-P. Mock-up: claude.ai "PigTV Sport mock-ups", "Formula 1 · Apple TV"
-   (Mark approved it with DESIGN.md › Sport pages: no section tabs, no season calendar, spacing fixed at build).
-   Then AFL or NFL (mock-up "NFL · Apple TV" exists), then cricket, each a mock-up for Mark first.
-2. Batch 4: channels and guide when providers change (#10, #15, #11, #42, #106, #111), server.
-3. Batch 5: web settings (#9, #16, #59, #65, #128). Batch 6: Apple player channel list and Top Shelf (#13, #14, #46).
-   Batch 7: Status (#19, #61, #129). Batch 8: #4 relay renewal, capture first, released alone.
-4. #29 (collector cost, a pilot) before the Live now dashboard is switched on by default; #85 waits for a format signal.
+1. **Batch 7: Status** (#19 which device and build is playing, needs an Apple header; #61 Status facts; #129 Status
+   cost: measure first). A UI test for #179 (open a page, deliver a play link) is owed.
+2. **Batch 4b** (server): #15 promote a backup without losing the lineup (carry favourites, numbers, hidden choices, EPG
+   matches, rules and schedules through `channel_links`, with a dry run), #111 ordered guide sources.
+3. **Sport pages:** AFL or NFL next (mock-up "NFL · Apple TV" approved earlier), then cricket (mock-up approved 31 Oct;
+   needs a C-P-style server answer first), each Apple TV first.
+4. Batch 8: #4 relay renewal (capture first, a device test with renewal on, released alone): waits for Mark.
+5. #29 (collector cost, a pilot) before the Live now dashboard is switched on by default; #85 waits for a format signal.
 
 ## Next (P1)
 

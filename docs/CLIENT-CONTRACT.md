@@ -583,4 +583,7 @@ on a race weekend, 1 h otherwise; nothing is fetched unless the page is asked fo
   answers the whole object. Anything else is 400 and changes nothing. A 404 (an older server) means the defaults
   (`false`, nobody), kept on the device. The C-O dashboard's own `avoidSpoilers` is separate until Live now is
   reassessed.
+- Apple (74–78): Sport tab → "Sport pages" → Formula 1. A session is played, recorded and waited for as a C-I event on
+  its channels' own times; spoiler content stays hidden until the preferences are known; changes are sent one field
+  at a time, in order. Since Apple 74 every C-I Watch/Record uses the chosen channel's `start`/`end` (#20).
 
