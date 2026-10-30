@@ -195,7 +195,9 @@ test('0182: PUT /api/sources/order makes the first the primary and numbers the b
     assert.equal(syncs, 0, 'reordering backups syncs nothing');
 
     r = await order([c, a, b]);
-    assert.deepEqual(r.body, { success: true, primaryChanged: true });
+    const { promotion, ...rest } = r.body;
+    assert.deepEqual(rest, { success: true, primaryChanged: true });
+    assert.equal(promotion?.toSourceId, c, '#15 (0374): a backup made the primary answers with what of the lineup carries over');
     assert.deepEqual(await roles(), { [c]: ['primary', null], [a]: ['backup', 1], [b]: ['backup', 2] });
     await new Promise(r2 => setTimeout(r2, 20));
     assert.equal(syncs, 2, 'the old and the new primary are synced');

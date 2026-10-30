@@ -1175,6 +1175,13 @@ class SyncService {
             published = true;
             const listed = hiddenChannels.after(db, source.id, state);
             if (listed.length) console.log(`[Sync] ${listed.length} new group(s) on ${source.name} arrive hidden, listed for review: ${listed.map(g => g.name).join(', ')}`);
+            // #15 (0374): a backup just made the primary takes over the old primary's lineup through its links.
+            try {
+                const carried = require('./providerPromotion').applyIfPlanned(db, source.id);
+                if (carried) console.log(`[Sync] ${source.name} is the primary now: ${carried.shown} channels shown (${carried.visibility === 'own' ? 'its own earlier choice' : 'as on the old primary'}; ${carried.hidden} hidden), ${carried.numbers} numbers, ${carried.favourites} favourites, ${carried.guideMatches} guide matches, ${carried.seriesRules} series rules and ${carried.schedules} recordings carried over`);
+            } catch (e) {
+                console.error(`[Sync] Carrying the lineup over to ${source.name} failed (kept for the next sync): ${e.message}`);
+            }
         };
         try {
             await work(publish);

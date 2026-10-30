@@ -294,7 +294,16 @@ router.put('/order', async (req, res) => {
         if (!ids || ids.length !== providers.length || new Set(ids).size !== ids.length || !ids.every(id => known.has(id))) {
             return res.status(400).json({ error: 'ids must list every provider exactly once' });
         }
-        res.json({ success: true, primaryChanged: await applyOrder(providers, ids) });
+        // #15 (0374): a backup made the primary takes the lineup over (providerPromotion.js); any earlier plan goes.
+        const promotion = require('../services/providerPromotion');
+        const fromId = promotion.currentPrimary();
+        let carried = null;
+        if (fromId != null && ids[0] !== fromId && providers.find(s => s.id === ids[0])?.role === 'backup') {
+            carried = promotion.store(fromId, ids[0]);
+        } else if (ids[0] === fromId) {
+            promotion.clear();
+        }
+        res.json({ success: true, primaryChanged: await applyOrder(providers, ids), ...(carried ? { promotion: carried } : {}) });
     } catch (err) {
         console.error('Error saving the provider order:', err);
         res.status(500).json({ error: 'Failed to save the provider order' });

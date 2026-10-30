@@ -6,8 +6,11 @@
  * went, ~1,100 chosen channels, their numbers and the rest had to be rebuilt by hand. The linker (channelLinks.js)
  * already knows, for each shown primary channel, the same channel at each backup. `plan` turns those links into a
  * mapping from the old primary's keys to the keys the backup's channels will have once it is the primary, and
- * reports what would and would not carry over (the dry run). 0374 stores the plan when the order changes and
- * applies it as the new primary's first channel list is written.
+ * reports what would and would not carry over (the dry run). 0374: `store` keeps that mapping when the order makes
+ * the backup the primary, and `applyIfPlanned` uses it the moment the new primary's channel list is written
+ * (syncService, before channel numbers are refreshed): the carried channels are shown and every other one hidden,
+ * and the numbers, favourites, guide matches, series rules and pending recordings move to the new keys. The old
+ * primary keeps its own record of hidden channels (hiddenChannels.js), so moving back restores it.
  *
  * Only a usable link (auto, approved or manual) carries a channel, best rank first, and only to a channel in the
  * backup's own playlist (backup_channels.listed): the channels an M3U backup adds from the provider's whole list
@@ -61,7 +64,7 @@ function plan(fromId, toId, db = getDb()) {
     const carried = (keys) => keys.filter(k => mapping.has(k)).length;
 
     const numbered = db.prepare('SELECT channel_key AS k FROM channel_numbers WHERE source_id = ?').all(fromId).map(r => r.k);
-    const favourites = db.prepare(`SELECT item_id AS k FROM favorites WHERE source_id = ? AND item_type = 'channel'`).all(fromId).map(r => r.k);
+    const favourites = db.prepare(`SELECT COALESCE(stable_id, item_id) AS k FROM favorites WHERE source_id = ? AND item_type = 'channel'`).all(fromId).map(r => r.k);
     const guideMatches = db.prepare('SELECT channel_key AS k FROM epg_mappings WHERE source_id = ?').all(fromId).map(r => r.k);
     const rules = tableExists(db, 'recording_rules')
         ? db.prepare(`SELECT COALESCE(channel_stable_id, channel_item_id) AS k FROM recording_rules
@@ -72,6 +75,8 @@ function plan(fromId, toId, db = getDb()) {
 
     const report = {
         fromSourceId: fromId, toSourceId: toId,
+        // 0374: a provider that was the primary before keeps its own record of what was shown; that decides.
+        visibility: ownRecord(db, toId) ? 'own' : 'carried',
         shown: { total: listed.size, carried: mapping.size },
         missing: {
             count: missing.length,
@@ -89,6 +94,12 @@ function plan(fromId, toId, db = getDb()) {
     return { report, mapping };
 }
 
+/** Whether `sourceId` has its own record of hidden channels from an earlier time as the primary (hiddenChannels.js). */
+function ownRecord(db, sourceId) {
+    return tableExists(db, 'hidden_channels')
+        && !!db.prepare('SELECT 1 FROM hidden_channels WHERE source_id = ? LIMIT 1').get(Number(sourceId));
+}
+
 function tableExists(db, name) {
     return !!db.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?`).get(name);
 }
@@ -104,4 +115,110 @@ function currentPrimary(db = getDb()) {
     return null;
 }
 
-module.exports = { plan, keyOf, currentPrimary };
+function ensure(db) {
+    db.exec(`CREATE TABLE IF NOT EXISTS provider_promotions (
+        to_source_id INTEGER PRIMARY KEY, from_source_id INTEGER NOT NULL, mapping TEXT NOT NULL, created_at INTEGER NOT NULL)`);
+}
+
+/** 0374: keep the plan for making `toId` the primary in place of `fromId` (one at a time). Returns the report. */
+function store(fromId, toId, db = getDb()) {
+    ensure(db);
+    const { report, mapping } = plan(fromId, toId, db);
+    db.transaction(() => {
+        db.prepare('DELETE FROM provider_promotions').run();
+        db.prepare('INSERT INTO provider_promotions (to_source_id, from_source_id, mapping, created_at) VALUES (?, ?, ?, ?)')
+            .run(Number(toId), Number(fromId), JSON.stringify([...mapping.entries()]), Date.now());
+    })();
+    return report;
+}
+
+/** 0374: drop a stored plan (the order changed again before it was used). */
+function clear(db = getDb()) {
+    ensure(db);
+    db.prepare('DELETE FROM provider_promotions').run();
+}
+
+/**
+ * 0374: once `sourceId`'s live channels are written as the primary, carry the old primary's lineup over (see the top).
+ * Kept for the next sync when no live channel was written. Returns what moved, or null when there was no plan.
+ */
+function applyIfPlanned(db, sourceId) {
+    ensure(db);
+    const row = db.prepare('SELECT from_source_id AS fromId, mapping FROM provider_promotions WHERE to_source_id = ?').get(Number(sourceId));
+    if (!row) return null;
+    const toId = Number(sourceId), fromId = row.fromId;
+    const mapping = new Map(JSON.parse(row.mapping));
+    const rows = db.prepare(`SELECT id, item_id, COALESCE(stable_id, item_id) AS k, is_hidden FROM playlist_items
+        WHERE source_id = ? AND type = 'live' ORDER BY COALESCE(sort_order, 999999999), id`).all(toId);
+    if (!rows.length) return null;
+    const itemOf = new Map();
+    for (const r of rows) if (!itemOf.has(r.k)) itemOf.set(r.k, r.item_id);
+    const shown = new Set([...mapping.values()].filter(k => itemOf.has(k)));
+    // Its own record (already re-applied by hiddenChannels.after) decides what a former primary shows: moving back
+    // restores it exactly. Otherwise the carried channels are shown and every other one is hidden.
+    const own = ownRecord(db, toId);
+    const moved = { visibility: own ? 'own' : 'carried', shown: 0, hidden: 0, numbers: 0, favourites: 0, guideMatches: 0, seriesRules: 0, schedules: 0 };
+    const now = Date.now();
+    db.transaction(() => {
+        if (!own) {
+            const setFlag = db.prepare('UPDATE playlist_items SET is_hidden = ? WHERE id = ?');
+            for (const r of rows) {
+                const hidden = shown.has(r.k) ? 0 : 1;
+                if (hidden !== r.is_hidden) setFlag.run(hidden, r.id);
+            }
+            db.prepare(`UPDATE categories SET is_hidden = CASE WHEN EXISTS (SELECT 1 FROM playlist_items p
+                    WHERE p.source_id = categories.source_id AND p.type = 'live' AND p.category_id = categories.category_id
+                    AND p.is_hidden = 0) THEN 0 ELSE 1 END
+                WHERE source_id = ? AND type = 'live'`).run(toId);
+        }
+        for (const r of db.prepare(`SELECT is_hidden FROM playlist_items WHERE source_id = ? AND type = 'live'`).all(toId)) {
+            if (r.is_hidden) moved.hidden++; else moved.shown++;
+        }
+
+        const pairs = [...mapping.entries()].filter(([, k]) => itemOf.has(k));
+        // Numbers: the old channel's number moves; a key that already took one keeps it (two channels linked to one).
+        const taken = new Set();
+        const oldNumber = db.prepare('SELECT number FROM channel_numbers WHERE source_id = ? AND channel_key = ?');
+        const dropStale = db.prepare('DELETE FROM channel_numbers WHERE source_id = ? AND channel_key = ?');
+        const moveNumber = db.prepare(`UPDATE channel_numbers SET source_id = ?, channel_key = ?, item_id = ?, last_seen = ?
+            WHERE source_id = ? AND channel_key = ?`);
+        for (const [from, to] of [...pairs].sort((a, b) => (oldNumber.get(fromId, a[0])?.number ?? 1e9) - (oldNumber.get(fromId, b[0])?.number ?? 1e9))) {
+            if (taken.has(to) || !oldNumber.get(fromId, from)) continue;
+            dropStale.run(toId, to);
+            moved.numbers += moveNumber.run(toId, to, itemOf.get(to), now, fromId, from).changes;
+            taken.add(to);
+        }
+        // A favourite keeps its identity in stable_id and the row it was made on in item_id (favorites.js).
+        const favourites = db.prepare(`SELECT user_id, COALESCE(stable_id, item_id) AS k FROM favorites WHERE source_id = ? AND item_type = 'channel'`).all(fromId);
+        const addFavourite = db.prepare(`INSERT OR IGNORE INTO favorites (user_id, source_id, item_id, item_type, stable_id) VALUES (?, ?, ?, 'channel', ?)`);
+        for (const f of favourites) {
+            const to = mapping.get(f.k);
+            if (to && itemOf.has(to)) moved.favourites += addFavourite.run(f.user_id, toId, itemOf.get(to), to).changes;
+        }
+        const matches = db.prepare('SELECT channel_key, tvg_id, batch FROM epg_mappings WHERE source_id = ?').all(fromId);
+        const addMatch = db.prepare(`INSERT INTO epg_mappings (source_id, channel_key, tvg_id, updated_at, batch) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(source_id, channel_key) DO UPDATE SET tvg_id = excluded.tvg_id, updated_at = excluded.updated_at, batch = excluded.batch`);
+        for (const m of matches) if (mapping.has(m.channel_key) && itemOf.has(mapping.get(m.channel_key))) {
+            moved.guideMatches += addMatch.run(toId, mapping.get(m.channel_key), m.tvg_id, now, m.batch ?? null).changes;
+        }
+        const repoint = (table, where) => {
+            if (!tableExists(db, table)) return 0;
+            let n = 0;
+            const update = db.prepare(`UPDATE ${table} SET source_id = ?, channel_stable_id = ?, channel_item_id = ? WHERE id = ?`);
+            for (const r of db.prepare(`SELECT id, COALESCE(channel_stable_id, channel_item_id) AS k FROM ${table} WHERE source_id = ? AND ${where}`).all(fromId)) {
+                const to = mapping.get(r.k);
+                if (to && itemOf.has(to)) n += update.run(toId, to, itemOf.get(to), r.id).changes;
+            }
+            return n;
+        };
+        moved.seriesRules = repoint('recording_rules', "kind = 'series'");
+        moved.schedules = repoint('scheduled_recordings', "status IN ('scheduled', 'waiting')");
+        db.prepare('DELETE FROM provider_promotions').run();
+        db.prepare('DELETE FROM new_channel_groups WHERE source_id = ?').run(toId);
+    })();
+    if (!own) require('./hiddenChannels').capture(db, toId);
+    try { require('./epgMapping').reset(); } catch (e) { /* re-read on its own */ }
+    return { fromSourceId: fromId, ...moved };
+}
+
+module.exports = { plan, keyOf, currentPrimary, store, clear, applyIfPlanned };

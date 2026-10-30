@@ -65,8 +65,8 @@ before(async () => {
 
     const num = d.prepare('INSERT INTO channel_numbers (source_id, channel_key, item_id, number, last_seen) VALUES (?, ?, ?, ?, ?)');
     [['s100', 504], ['s101', 520], ['s102', 530], ['s104', 540]].forEach(([k, n]) => num.run(primary.id, k, null, n, Date.now()));
-    const fav = d.prepare(`INSERT INTO favorites (user_id, source_id, item_id, item_type) VALUES (?, ?, ?, 'channel')`);
-    fav.run(admin.id, primary.id, 's100'); fav.run(admin.id, primary.id, 's104');
+    const fav = d.prepare(`INSERT INTO favorites (user_id, source_id, item_id, item_type, stable_id) VALUES (?, ?, ?, 'channel', ?)`);
+    fav.run(admin.id, primary.id, 'pos_1', 's100'); fav.run(admin.id, primary.id, 'pos_5', 's104');
     d.prepare('INSERT INTO epg_mappings (source_id, channel_key, tvg_id, updated_at) VALUES (?, ?, ?, ?)').run(primary.id, 's102', 'SkySportsF1.uk', 1);
     d.prepare(`INSERT INTO recording_rules (kind, match, source_id, channel_item_id, channel_stable_id, channel_name, created_at)
         VALUES ('series', 'Formula 1', ?, 'pos_3', 's102', 'Sky Sports F1', 1)`).run(primary.id);
