@@ -190,7 +190,7 @@ test('deleting a prepared recording removes the MP4 and any original that was ke
 
 // ---- restart ------------------------------------------------------------------
 
-test('on startup, interrupted jobs are requeued, a cut-short encode is cleared, and the library is queued', () => {
+test('on startup, interrupted jobs are requeued, a cut-short encode is cleared, and the library is queued', async () => {
     const compressing = makeRecording();
     const preparing = makeRecording();
     const never = makeRecording();
@@ -199,7 +199,7 @@ test('on startup, interrupted jobs are requeued, a cut-short encode is cleared, 
     recordings.setNativeStatus(preparing.id, 'preparing');
     getDb().prepare('UPDATE recordings SET native_status = NULL WHERE id = ?').run(never.id);
 
-    engine._reconcileJobsOnStartup();
+    await engine._reconcileJobsOnStartup(); // #141 (0330): its removals go through shareFs, in the helper process
 
     assert.equal(row(compressing.id).compress_status, 'pending');
     assert.ok(!fs.existsSync(compressing.compressed), 'truncated encode removed');
