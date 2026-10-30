@@ -85,6 +85,11 @@ From the F1 mock-up review (30 Oct), for the sport rebuild (#21):
 - Fixture sports open on the current round, with rounds in chronological order (last round, then this one). Standings
   sit on the right with Division, Conference and Overall views: the whole column without a followed team, below the
   team card with one.
+- Approved by Mark on 31 Oct (canvas "PigTV Sport mock-ups"): **Cricket · Apple TV** (the followed team's match leads:
+  day and session, both innings, the lead, who is batting, the five days, Watch / Channels / Record; the whole tour on the
+  right; other competitions today and next below), **Formula 1 · iPhone** (one scrolling column; whether it should be
+  split into pages is open, #177) and **· iPad** (the Apple TV layout in landscape, one column in portrait), and **Web ·
+  channel changes** (held smaller lists, New on the provider, Show all / Hide all with a confirm and Undo).
 - Channel quality labels: today the server reads UHD / HD / SD from the channel's name (FHD counts as HD). The build
   should distinguish FHD from HD and, where a channel has been played, confirm the label from the measured stream
   (resolution, frame rate, HDR), never by probing channels in the background.
