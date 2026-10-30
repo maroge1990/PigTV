@@ -43,3 +43,28 @@ test('the Status route reports it by provider name', () => {
     const src = fs.readFileSync(path.join(sandbox, 'server/routes/status.js'), 'utf8');
     assert.match(src, /catchup:[\s\S]{0,200}archiveSummary\(\)/);
 });
+
+// #129 (0369): measured on a copy of production (~150,000 raw rows), this scan was ~100 ms of a ~110 ms Status request,
+// on the event loop every 5 s while Status is open. It is kept until a sync rewrites the rows (or an hour passes).
+test('#129: the catch-up summary is read once and kept until a sync rewrites the raw rows', () => {
+    const db = sqlite.getDb();
+    const realPrepare = db.prepare.bind(db);
+    let scans = 0;
+    db.prepare = (sql) => { if (/FROM provider_raw_channels GROUP BY/.test(sql)) scans++; return realPrepare(sql); };
+    try {
+        raw.replaceAll(9, raw.toRows([{ category_id: '1', category_name: 'Sport' }], [{ stream_id: 1, name: 'A', category_id: '1', tv_archive: 1 }]));
+        const first = raw.archiveSummary();
+        first[0].streams = 999; // a caller changing its copy changes nothing kept
+        const second = raw.archiveSummary();
+        assert.equal(scans, 1, 'the second Status request does not scan again');
+        assert.equal(second[0].streams, 1);
+
+        raw.replaceAll(9, raw.toRows([{ category_id: '1', category_name: 'Sport' }], [{ stream_id: 1, name: 'A', category_id: '1' }, { stream_id: 2, name: 'B', category_id: '1' }]));
+        assert.equal(raw.archiveSummary()[0].streams, 2, 'a sync shows at once');
+        assert.equal(scans, 2);
+        assert.equal(raw.archiveSummary(Date.now() + 3601e3)[0].streams, 2);
+        assert.equal(scans, 3, 'and an hour bounds anything else');
+    } finally {
+        db.prepare = realPrepare;
+    }
+});

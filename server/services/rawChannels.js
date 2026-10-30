@@ -15,6 +15,9 @@
  * rows stay. Rows are replaced in one transaction.
  */
 const { getDb } = require('../db/sqlite');
+
+const SUMMARY_TTL_MS = 3600e3;
+let summaryCache = null; // #129: { at, rows } of archiveSummary
 const { redact } = require('../redact');
 
 /** Xtream's catch-up flag as days (tv_archive 1 + tv_archive_duration; 1 when no duration is given), else 0. */
@@ -50,9 +53,11 @@ function replaceAll(sourceId, rows) {
         db.prepare('DELETE FROM provider_raw_channels WHERE source_id = ?').run(sourceId);
         for (const r of rows) insert.run(sourceId, r.streamId, r.name, r.epg, r.category, now, r.archiveDays || 0);
     })();
+    summaryCache = null;
 }
 
 function removeFor(sourceId) {
+    summaryCache = null;
     return getDb().prepare('DELETE FROM provider_raw_channels WHERE source_id = ?').run(sourceId).changes;
 }
 
@@ -105,13 +110,18 @@ async function fetchMissing(sources, exceptId = null) {
  * provider flags for catch-up (and the longest archive). Answers "does any provider offer
  * catch-up?" from data the sync already fetches.
  */
-function archiveSummary() {
-    return getDb().prepare(`
+function archiveSummary(now = Date.now()) {
+    // #129 (0369): on production's ~150,000 raw rows this scan took ~100 ms of the event loop, and Status asks every 5 s.
+    // It changes only when a sync writes the rows (replaceAll/removeFor clear it); the hour bounds anything else.
+    if (summaryCache && now - summaryCache.at < SUMMARY_TTL_MS) return summaryCache.rows.map(r => ({ ...r }));
+    const rows = getDb().prepare(`
         SELECT source_id AS sourceId, COUNT(*) AS streams,
                SUM(CASE WHEN archive_days > 0 THEN 1 ELSE 0 END) AS withArchive,
                MAX(archive_days) AS maxDays, MAX(updated_at) AS checkedAt
         FROM provider_raw_channels GROUP BY source_id ORDER BY source_id
     `).all();
+    summaryCache = { at: now, rows };
+    return rows.map(r => ({ ...r }));
 }
 
 module.exports = { toRows, replaceAll, removeFor, count, loadMap, fetchFor, fetchMissing, archiveSummary, archiveDaysOf };
