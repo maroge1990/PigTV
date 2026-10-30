@@ -288,6 +288,38 @@ test('a stalled recording (file stops growing) continues in part 2', async () =>
     assert.ok(logLines.some(l => /no data for \d+s from Strong8K/.test(l)));
 });
 
+test('#143: a share that stops answering is not a provider stall: the healthy capture keeps going', async () => {
+    const shareFs = load('services/shareFs');
+    const { EventEmitter } = require('node:events');
+    tuning.startFailoverMs = 200;
+    tuning.endGraceMs = 0;
+    tuning.stallMs = 300;
+    const s = due();
+    await until(() => engine.listActive().some(r => r.id === s.id), 'recording');
+    await sleep(400);
+    await engine.tick(); // growth seen while the share answers
+    const realFork = shareFs._spawner.fork;
+    const timeout = shareFs.tuning.timeoutMs;
+    shareFs.reset();
+    shareFs.tuning.timeoutMs = 100;
+    const logged = logLines.length;
+    shareFs._spawner.fork = () => Object.assign(new EventEmitter(), {
+        connected: true, exitCode: null, signalCode: null, send() {}, kill() { this.connected = false; this.emit('exit', null, 'SIGKILL'); },
+        unref() {}, channel: { ref() {}, unref() {} }
+    });
+    try {
+        const end = Date.now() + 1500;
+        while (Date.now() < end) { await engine.tick(); await sleep(40); }
+        assert.equal(partsOf(s.id).length, 1, 'no part 2: the provider did not stall');
+        assert.ok(engine.listActive().some(r => r.id === s.id && r.providerId === A.id), 'still recording on the primary');
+        assert.ok(!logLines.slice(logged).some(l => /no data for \d+s/.test(l)), 'no stall was declared');
+    } finally {
+        shareFs._spawner.fork = realFork;
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = timeout;
+    }
+});
+
 test('a part with no free provider waits (no prompt), then starts when one frees up', async () => {
     tuning.startFailoverMs = 200;
     tuning.endGraceMs = 0;

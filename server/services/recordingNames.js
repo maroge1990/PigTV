@@ -38,4 +38,16 @@ function uniqueFilePath(dir, baseName, ext) {
     return candidate;
 }
 
-module.exports = { formatLocalStamp, sanitizeForFs, uniqueFilePath };
+/** #144: uniqueFilePath() with an asynchronous `exists` (shareFs.exists, for the recordings share). */
+async function uniqueFilePathAsync(dir, baseName, ext, exists) {
+    const path = require('path');
+    let candidate = path.join(dir, `${baseName}${ext}`);
+    let n = 2;
+    while (await exists(candidate)) {
+        candidate = path.join(dir, `${baseName} (${n})${ext}`);
+        n++;
+    }
+    return candidate;
+}
+
+module.exports = { formatLocalStamp, sanitizeForFs, uniqueFilePath, uniqueFilePathAsync };

@@ -16,7 +16,7 @@ const { scheduled: scheduledDb, recordings: recordingsDb } = require('../db/reco
 const { getDb } = require('../db/sqlite');
 const xtreamApi = require('./xtreamApi');
 const coordinator = require('./streamCoordinator');
-const { formatLocalStamp, sanitizeForFs, uniqueFilePath } = require('./recordingNames');
+const { formatLocalStamp, sanitizeForFs, uniqueFilePathAsync } = require('./recordingNames');
 const { redact } = require('../redact');
 const { checkRecordingsFolder, checkRecordingsFolderAsync, refusalMessage, TINY_FS_BYTES } = require('./recordingsFolder');
 const shareFs = require('./shareFs'); // #8: file calls on the recordings share, off the event loop
@@ -710,7 +710,9 @@ async function cancelScheduled(id) {
         const owner = failingOver.get(id);
         owner.cancelled = true;
         failingOver.delete(id);
-        finalizeRecording(id, owner.recordingId, owner.outputPath, null, [], { scheduleStatus: false });
+        // #144: the size through shareFs (its file was deleted for the new attempt, so usually 0).
+        const size = (await shareFs.sizeOf(owner.outputPath)) ?? 0;
+        finalizeRecording(id, owner.recordingId, owner.outputPath, null, [], { scheduleStatus: false, size });
         setScheduleStatus(scheduledDb.getById(id) || schedule, 'cancelled');
     } else if (schedule.status === 'recording' && continuations.has(id)) {
         // 0177: between parts (waiting for a free provider): nothing is running.
@@ -943,7 +945,16 @@ async function startPartLeased(schedule, route, index, part, { gapMs = 0, refuse
     // "Local" is the process's TZ, which docker-compose.yml passes through.
     const dateStr = formatLocalStamp(schedule.program_start);
     const baseName = `${sanitizeForFs(schedule.title)} - ${dateStr}${part > 1 ? ` (part ${part})` : ''}`;
-    const outputPath = uniqueFilePath(channelDir, baseName, '.ts'); // 0203: was .mkv
+    let outputPath;
+    try {
+        outputPath = await uniqueFilePathAsync(channelDir, baseName, '.ts', (p) => shareFs.exists(p)); // 0203: was .mkv; #144
+    } catch (err) {
+        const msg = refusalMessage({ problem: 'unresponsive' }, root, minFreeGB);
+        console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${msg}`);
+        if (feed) { try { feed.leave(); } catch (e) { /* gone */ } }
+        refuse(msg);
+        return false;
+    }
     const candidate = route.candidates[index];
 
     const recording = recordingsDb.create({
@@ -1193,13 +1204,16 @@ async function onPartExit(schedule, entry, exitCode) {
     coordinator.releaseLease(entry.lease);
     if (entry.segmented) return onSegmentExit(schedule, entry, exitCode);
     const now = Date.now();
-    const size = fileSizeOf(entry.outputPath);
+    // #144: through shareFs; when the share does not answer, the growth seen while recording stands in.
+    const measured = await shareFs.sizeOf(entry.outputPath);
+    const size = measured ?? entry.lastSize ?? 0;
+    const known = { size };
     const unrequested = !entry.stopRequested && now < currentStopTime(schedule) - failoverTuning.endGraceMs;
     const providerReason = entry.stalled || providerFailureIn(entry.stderrTail) || entry.feedLost?.providerReason === true;
     const candidate = entry.route.candidates[entry.index];
 
     if (!entry.route.multi || !unrequested || !providerReason) {
-        finalizeRecording(schedule.id, entry.recordingId, entry.outputPath, exitCode, entry.stderrTail);
+        finalizeRecording(schedule.id, entry.recordingId, entry.outputPath, exitCode, entry.stderrTail, known);
         return;
     }
 
@@ -1222,7 +1236,7 @@ async function onPartExit(schedule, entry, exitCode) {
             if (feed) { try { feed.leave(); } catch (e) { /* gone */ } }
             if (failingOver.get(schedule.id) === owner) failingOver.delete(schedule.id);
             // Shutdown (not a cancel, which has finalised it): the part ends with what it has.
-            if (!owner.cancelled) finalizeRecording(schedule.id, entry.recordingId, entry.outputPath, exitCode, entry.stderrTail);
+            if (!owner.cancelled) finalizeRecording(schedule.id, entry.recordingId, entry.outputPath, exitCode, entry.stderrTail, known);
             console.log(`[Recordings] #${entry.recordingId}: not started on the next provider (cancelled or shutting down meanwhile)`);
         };
         const settings = await getSettings();
@@ -1255,6 +1269,7 @@ async function onPartExit(schedule, entry, exitCode) {
             return;
         }
         finalizeRecording(schedule.id, entry.recordingId, entry.outputPath, exitCode, entry.stderrTail, {
+            ...known,
             scheduleError: `Recording failed: ${candidate.providerName} did not deliver the stream, and no other provider had a free connection.`
         });
         return;
@@ -1262,7 +1277,7 @@ async function onPartExit(schedule, entry, exitCode) {
 
     // Mid-recording: keep this part, continue in the next.
     const last = entry.part >= failoverTuning.maxParts;
-    finalizeRecording(schedule.id, entry.recordingId, entry.outputPath, exitCode, entry.stderrTail, { scheduleStatus: last });
+    finalizeRecording(schedule.id, entry.recordingId, entry.outputPath, exitCode, entry.stderrTail, { ...known, scheduleStatus: last });
     recordingsDb.markEndedEarly(entry.recordingId, last
         ? `Stopped early: ${candidate.providerName} ${how} (part ${entry.part} of at most ${failoverTuning.maxParts}).`
         : `Stopped early: ${candidate.providerName} ${how}; the recording continues in part ${entry.part + 1}.`);
@@ -1429,16 +1444,22 @@ function finishSchedule(scheduleId, why = null) {
  * `scheduleStatus` is false - 0177, a part the recording continues after): completed
  * when this part, or an earlier part of the same schedule, recorded something.
  */
-function finalizeRecording(scheduledId, recordingId, outputPath, exitCode, stderrTail, { scheduleStatus = true, scheduleError = null } = {}) {
+function finalizeRecording(scheduledId, recordingId, outputPath, exitCode, stderrTail, { scheduleStatus = true, scheduleError = null, size } = {}) {
     if (active.get(scheduledId)?.recordingId === recordingId) active.delete(scheduledId);
 
     let fileSize = 0;
     let existedAndHasData = false;
-    try {
-        const stat = fs.statSync(outputPath);
-        fileSize = stat.size;
-        existedAndHasData = stat.size > 1024; // ignore near-empty/zero-byte failures
-    } catch (e) { /* file never got created */ }
+    if (typeof size === 'number') {
+        // #144: measured by the caller through shareFs, off the event loop.
+        fileSize = size;
+        existedAndHasData = size > 1024;
+    } else {
+        try {
+            const stat = fs.statSync(outputPath);
+            fileSize = stat.size;
+            existedAndHasData = stat.size > 1024; // ignore near-empty/zero-byte failures
+        } catch (e) { /* file never got created */ }
+    }
 
     const rec = recordingsDb.getById(recordingId);
     const startedAt = rec?.started_at || Date.now();
@@ -1495,6 +1516,8 @@ async function checkRecordingStalls(now = Date.now()) {
         if (!entry.route || !entry.route.multi || entry.stopRequested || entry.stalled) continue;
         const size = await captureSize(entry);
         if (entry.stopRequested || entry.stalled || !active.has(entry.schedule.id)) continue;
+        // #143: the share did not say; that is no evidence about the provider, so the stall clock starts again.
+        if (size === null) { entry.lastGrowthAt = now; continue; }
         if (size > entry.lastSize) {
             entry.lastSize = size;
             entry.lastGrowthAt = now;
@@ -1525,7 +1548,8 @@ async function startLiveDetections() {
     for (const entry of [...active.values()]) {
         // R3: a segmented recording is analysed once its MP4 exists (live detection follows one growing file).
         if (entry.liveStarted || entry.stopRequested || entry.segmented) continue;
-        if (await shareFs.sizeOf(entry.outputPath) < LIVE_DETECT_MIN_BYTES) continue; // #8
+        const size = await shareFs.sizeOf(entry.outputPath); // #8
+        if (size === null || size < LIVE_DETECT_MIN_BYTES) continue;
         if (entry.liveStarted || entry.stopRequested || active.get(entry.schedule.id) !== entry) continue;
         post.startLiveDetection({ id: entry.recordingId, file_path: entry.outputPath },
             { stillCapturing: () => active.get(entry.schedule.id) === entry })

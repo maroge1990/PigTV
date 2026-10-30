@@ -41,11 +41,15 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 - **A hung share cannot freeze the server** (0327, #8). The share is a network mount; a hung SMB server blocks a
   synchronous call (and fills libuv's thread pool for an asynchronous one), which froze every stream. File calls on it go
   to one helper process (`shareFs.js`, `shareFsWorker.js`) with a 5 s deadline; a miss kills the helper, a new one starts
-  on the next call, and the folder reads `unresponsive` ("The recordings folder is not responding"). Through it: the
+  on the next call, and the folder reads `unresponsive` ("The recordings folder is not responding"). Killed helpers that
+  have not exited (stuck in the kernel) are counted; with two, calls fail at once without forking more (0328, #142). A
+  size the share did not give is unknown, never "no growth": it restarts the stall clock instead of ending a part as a
+  provider stall (#143). Through it: the
   folder health check and the start pre-flight (`checkRecordingsFolderAsync`), `getRecordingsRoot`, the channel folder,
-  segmented recordings' move to the share, and each tick's growth, live-detection and free-space checks. `/api/status`
+  segmented recordings' share folder, choosing a capture's file name and reading its size when it ends (#144), and each
+  tick's growth, live-detection and free-space checks. `/api/status`
   shows a cached free-space line refreshed in the background (`shareFs.diskInfo`) and never touches the share. Still
-  synchronous and rare: the size read when a capture ends, and deleting files. `getRecordingsRoot()` only creates the final folder
+  synchronous and rare: a segmented recording's final MP4 on the share, and deleting files (#141). `getRecordingsRoot()` only creates the final folder
   when its parent already exists. Settings → Recording → Storage refuses an unusable `recordingsPath` with 400 instead of
   saving it silently (`services/recordingsFolder.js` `validateRecordingsPathSetting()`).
 - **An unanswered "give up the stream" prompt no longer blocks a recording forever** (0158): if a due recording finds a

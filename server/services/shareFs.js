@@ -19,11 +19,16 @@ const tuning = { timeoutMs: 5000 };
 
 let child = null;
 let nextId = 1;
+// #142: helpers killed after a missed deadline that have not exited yet (stuck in the kernel on the hung mount).
+// With MAX_STUCK of them, calls fail at once instead of forking another into the same mount.
+const MAX_STUCK = 2;
+const stuck = new Set();
+const spawner = { fork: (file) => fork(file, [], { stdio: ['ignore', 'ignore', 'ignore', 'ipc'], serialization: 'json' }) };
 const pending = new Map(); // id -> { resolve, reject, timer }
 let unresponsiveSince = null;
 
 function start() {
-    child = fork(path.join(__dirname, 'shareFsWorker.js'), [], { stdio: ['ignore', 'ignore', 'ignore', 'ipc'], serialization: 'json' });
+    child = spawner.fork(path.join(__dirname, 'shareFsWorker.js'));
     const mine = child;
     child.on('message', (msg) => {
         const call = pending.get(msg && msg.id);
@@ -36,6 +41,7 @@ function start() {
         else call.resolve(msg.result);
     });
     const gone = () => {
+        stuck.delete(mine);
         if (child === mine) child = null;
         for (const [id, call] of pending) {
             if (call.child !== mine) continue;
@@ -60,6 +66,7 @@ function idle(which) {
 /** Kill the helper (it may be stuck in the kernel; it is left to the OS) so the next call gets a fresh one. */
 function abandon(which) {
     if (child === which) child = null;
+    if (which.exitCode === null && which.signalCode === null) stuck.add(which);
     try { which.kill('SIGKILL'); } catch (e) { /* gone */ }
 }
 
@@ -69,6 +76,9 @@ let inProcess = false;
 function call(op, file, { timeoutMs = tuning.timeoutMs } = {}) {
     if (inProcess) {
         try { return Promise.resolve(require('./shareFsWorker').run(op, String(file))); } catch (err) { return Promise.reject(err); }
+    }
+    if (!(child && child.connected) && stuck.size >= MAX_STUCK) {
+        return Promise.reject(Object.assign(new Error('The recordings share is not answering (earlier calls are still stuck)'), { code: 'SHARE_UNRESPONSIVE' }));
     }
     return new Promise((resolve, reject) => {
         const worker = child && child.connected ? child : start();
@@ -98,9 +108,9 @@ const stat = (file, opts) => call('stat', file, opts);
 const statfs = (file, opts) => call('statfs', file, opts);
 const mkdir = (file, opts) => call('mkdir', file, opts);
 const writeProbe = (file, opts) => call('writeProbe', file, opts);
-/** The size of `file`, 0 when it is missing or the share does not answer. */
+/** The size of `file`: 0 when it is missing, null when the share does not say (#143: unknown is not "no growth"). */
 async function sizeOf(file, opts) {
-    try { return (await stat(file, opts))?.size || 0; } catch (e) { return 0; }
+    try { const s = await stat(file, opts); return s ? s.size : 0; } catch (e) { return null; }
 }
 
 // ---- the Status page's disk line: cached, refreshed in the background, never awaited by a request ----
@@ -140,6 +150,7 @@ function unresponsive() {
 /** Tests: stop the helper and forget cached disks. */
 function reset() {
     if (child) abandon(child);
+    stuck.clear();
     disks.clear();
     unresponsiveSince = null;
 }
@@ -147,4 +158,4 @@ function reset() {
 /** Tests: run calls in this process (true) or in the helper (false). */
 function _inProcess(on) { inProcess = !!on; }
 
-module.exports = { _inProcess, call, exists, stat, statfs, mkdir, writeProbe, sizeOf, diskInfo, unresponsive, reset, tuning };
+module.exports = { _inProcess, _spawner: spawner, _stuck: stuck, call, exists, stat, statfs, mkdir, writeProbe, sizeOf, diskInfo, unresponsive, reset, tuning };
