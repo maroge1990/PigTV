@@ -94,11 +94,14 @@ router.get('/defaults', (req, res) => {
  * Get sync status (last sync time)
  * GET /api/settings/sync-status
  */
-router.get('/sync-status', (req, res) => {
+router.get('/sync-status', async (req, res) => {
     const lastSyncTime = syncService.getLastSyncTime();
-    res.json({
-        lastSyncTime: lastSyncTime ? lastSyncTime.toISOString() : null
-    });
+    const body = { lastSyncTime: lastSyncTime ? lastSyncTime.toISOString() : null };
+    // #61 (0368): each enabled source's feeds as sync_status keeps them (it survives a restart), for an admin.
+    if (req.user?.role === 'admin') {
+        try { body.sources = await syncService.lastSyncs(); } catch (e) { body.sources = null; }
+    }
+    res.json(body);
 });
 
 /**

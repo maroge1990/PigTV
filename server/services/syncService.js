@@ -128,6 +128,15 @@ class SyncService {
         return this.lastSyncTime;
     }
 
+    /** #61 (0368): each enabled source's feeds: { id, name, feeds: [{ type, status, at }] }, from sync_status. */
+    async lastSyncs() {
+        const rows = getDb().prepare('SELECT source_id, type, status, last_sync FROM sync_status').all();
+        return (await sources.getAll()).filter(s => s.enabled).map(s => ({
+            id: s.id, name: s.name,
+            feeds: rows.filter(r => r.source_id === s.id).map(r => ({ type: r.type, status: r.status, at: r.last_sync }))
+        }));
+    }
+
     /**
      * Start the server-side sync timer based on settings
      * Should be called once on server startup after initial sync
@@ -312,10 +321,9 @@ class SyncService {
                 }
             }
 
-            if (synced === 0) {
-                console.log('[Sync] All sources are fresh, no sync needed');
-            }
-            this.lastSyncTime = new Date();
+            // #61 (0368): only a check that synced something is a sync ("Just now" after every restart misled).
+            if (synced === 0) console.log('[Sync] All sources are fresh, no sync needed');
+            else this.lastSyncTime = new Date();
         } catch (err) {
             console.error('[Sync] Stale check failed:', err);
         }

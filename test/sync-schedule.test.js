@@ -113,3 +113,25 @@ test('a guide reaching less than 36 h ahead is raised once by webhook and shows 
     await wait(200);
     assert.equal(state.hooks.length, 1, 'the webhook itself dedupes the same key for an hour');
 });
+
+// #61 (0368): Settings' "Last full sync" read "Just now" after every restart, because the start-up check set the time
+// even when every source was fresh and nothing synced; and it never said which source. Now the time moves only when
+// something synced, and lastSyncs() gives each source's feeds from sync_status (which a restart keeps).
+test('#61: a start-up check that synced nothing leaves the last sync time alone; each source\'s feeds are listed', async () => {
+    state.guideHours = 96;
+    await sync.syncSource(source.id, { acceptSmaller: true });
+    sync.lastSyncTime = null;
+    await sync.syncIfStale();
+    assert.equal(sync.getLastSyncTime(), null, 'every source fresh: nothing synced, so no "Just now"');
+
+    const [one] = await sync.lastSyncs();
+    assert.equal(one.name, 'Strong8K');
+    assert.deepEqual(one.feeds.map(f => [f.type, f.status]).sort(), [['all', 'success'], ['epg', 'success']]);
+    assert.ok(one.feeds.every(f => Date.now() - f.at < 60e3));
+
+    state.guideFails = 1;
+    sync.SCHEDULE.retriesMs = [];
+    await sync.syncSource(source.id);
+    await sync.syncIfStale();
+    assert.ok(sync.getLastSyncTime(), 'a check that synced something sets it');
+});

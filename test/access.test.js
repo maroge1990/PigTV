@@ -103,7 +103,12 @@ test('viewers can discover M3U and separate EPG sources without configuration se
         }
     }
     assert.equal((await request('GET', '/api/settings', viewerToken)).status, 200);
-    assert.equal((await request('GET', '/api/settings/sync-status', viewerToken)).status, 200);
+    const viewerSync = await request('GET', '/api/settings/sync-status', viewerToken);
+    assert.equal(viewerSync.status, 200);
+    assert.equal(viewerSync.data.sources, undefined, '#61: the per-source sync list is for an admin');
+    const adminSync = await request('GET', '/api/settings/sync-status', adminToken);
+    assert.ok(Array.isArray(adminSync.data.sources), '#61: an admin gets each source');
+    assert(!JSON.stringify(adminSync.data).includes('secret'));
 });
 
 test('viewers cannot mutate sources/settings, inspect edit credentials or initiate upstream work', async () => {

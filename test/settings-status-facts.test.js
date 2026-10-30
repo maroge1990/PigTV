@@ -57,3 +57,20 @@ test('#61: Settings → Playback has a Re-detect GPU button that probes again an
     assert.match(container.innerHTML, /renderD128/);
     assert.match(container.innerHTML, /Detected again just now/);
 });
+
+// 0368: "Last full sync" was one time kept in memory ("Just now" after a restart, "Never" after a provider's own
+// Sync now). It is now each source from the server's sync records, naming a failed or held feed.
+test('#61: Settings → Providers shows when each source last synced, and a failed or held feed', async () => {
+    const display = { textContent: '', title: '' };
+    const now = Date.now();
+    const page = settingsPage({ 'epg-last-refreshed': display }, {
+        'GET /api/settings/sync-status': { lastSyncTime: null, sources: [
+            { id: 8, name: 'Dream 4K', feeds: [{ type: 'all', status: 'success', at: now - 30 * 60e3 }, { type: 'epg', status: 'success', at: now - 3 * 3600e3 }] },
+            { id: 7, name: 'Trex', feeds: [{ type: 'all', status: 'success', at: now - 60e3 }, { type: 'epg', status: 'error', at: now - 2 * 60e3 }] },
+            { id: 6, name: 'Strong8K', feeds: [{ type: 'all', status: 'held', at: now - 5 * 60e3 }] },
+            { id: 5, name: 'New one', feeds: [] }] }
+    }, []);
+    await page.updateEpgLastRefreshed();
+    assert.equal(display.textContent, 'Dream 4K 3 hours ago · Trex: guide failed 2 minutes ago · Strong8K: channels held 5 minutes ago · New one: never');
+    assert.match(display.title, /Dream 4K guide: success/);
+});

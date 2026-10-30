@@ -1520,33 +1520,32 @@ class SettingsPage {
         const display = document.getElementById('epg-last-refreshed');
         if (!display) return;
 
+        const ago = (ms) => {
+            const mins = Math.floor((Date.now() - ms) / 60000);
+            if (mins < 1) return 'just now';
+            if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`;
+            const hours = Math.floor(mins / 60);
+            return hours < 24 ? `${hours} hour${hours === 1 ? '' : 's'} ago` : new Date(ms).toLocaleString();
+        };
         try {
-            // Fetch last sync time from server
             const data = await API.request('GET', '/settings/sync-status');
-
-            if (data.lastSyncTime) {
-                const lastRefreshTime = new Date(data.lastSyncTime);
-
-                // Format as relative time or absolute
-                const now = new Date();
-                const diffMs = now - lastRefreshTime;
-                const diffMins = Math.floor(diffMs / 60000);
-                const diffHours = Math.floor(diffMins / 60);
-
-                let text;
-                if (diffMins < 1) {
-                    text = 'Just now';
-                } else if (diffMins < 60) {
-                    text = `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`;
-                } else if (diffHours < 24) {
-                    text = `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
-                } else {
-                    // Use absolute time for older refreshes
-                    text = lastRefreshTime.toLocaleString();
-                }
-
-                display.textContent = text;
-                display.title = lastRefreshTime.toLocaleString(); // Full timestamp on hover
+            // #61 (0368): per source, from what the server keeps (a restart no longer reads as "Just now"). A source
+            // is as current as its oldest feed; a failed or held feed is named.
+            if (Array.isArray(data.sources)) {
+                const label = { epg: 'guide', all: 'channels', live: 'channels' };
+                const lines = data.sources.map(src => {
+                    const feeds = src.feeds || [];
+                    if (!feeds.length) return `${src.name}: never`;
+                    const bad = feeds.find(f => f.status !== 'success');
+                    if (bad) return `${src.name}: ${label[bad.type] || bad.type} ${bad.status === 'held' ? 'held' : bad.status === 'syncing' ? 'syncing' : 'failed'} ${ago(bad.at)}`;
+                    return `${src.name} ${ago(Math.min(...feeds.map(f => f.at)))}`;
+                });
+                display.textContent = lines.length ? lines.join(' · ') : 'No providers';
+                display.title = data.sources.flatMap(src => (src.feeds || []).map(f => `${src.name} ${label[f.type] || f.type}: ${f.status}, ${new Date(f.at).toLocaleString()}`)).join('\n');
+            } else if (data.lastSyncTime) {
+                const at = new Date(data.lastSyncTime).getTime();
+                display.textContent = ago(at);
+                display.title = new Date(at).toLocaleString();
             } else {
                 display.textContent = 'Never';
                 display.title = 'Sync has not run yet since server started';
