@@ -370,5 +370,6 @@ six at a time under a 6 s deadline (what answered is used; a partial map is not 
 8 s for the first build (0341, #156).
 Kept 10 min within a day of a session, 1 h otherwise; a stale page is served while one refresh runs; ESPN down with
 nothing kept answers `{ available: false }`. Only ESPN's part is kept; each request attaches its own sessions'
-channels from C-I (`channelsForSessions`, the current guide in that user's order, 0342, #157): an F1 event naming the
-session whose channel's own airing covers its start. Names drop the title sponsor (`SPONSOR_RE`).
+channels from C-I (`channelsForSessions`, the current guide in that user's order, 0342, #157; from
+`sportsEvents.leagueEvents`, which orders only F1's events around the sessions, 0345, #160): an F1 event naming the
+session whose channel's own airing covers its start. A weekend that cannot be fetched fails the refresh (0344, #161). Names drop the title sponsor (`SPONSOR_RE`).

@@ -98,6 +98,7 @@ router.get('/events', async (req, res) => {
 });
 
 // #21 (0340, C-P): the Formula 1 page. On whenever ESPN fixtures are (PIGTV_SPORT_FIXTURES).
+const HOUR_MS = 60 * 60 * 1000;
 router.get('/pages/f1', async (req, res) => {
     if (!require('../services/sportsFixtures').enabled()) return res.status(404).json({ error: 'Sport pages are off on this server' });
     try {
@@ -105,8 +106,10 @@ router.get('/pages/f1', async (req, res) => {
         const f1 = require('../services/sportPageF1');
         const page = await f1.page(Date.now(), {
             registerImage: require('../services/logoCache').registerLogo,
-            channelsFor: async (sessions) => f1.channelsForSessions(sessions,
-                (await sportsEvents.eventsFor({ hours: sportsEvents.MAX_HOURS, userId: req.user.id, decorateChannels })).events)
+            // #160: only F1's events around the sessions are ordered and built, not the whole 72 h answer.
+            channelsFor: async (sessions) => !sessions.length ? new Map() : f1.channelsForSessions(sessions,
+                await sportsEvents.leagueEvents({ league: 'F1', from: Math.min(...sessions.map(s => s.start)) - HOUR_MS,
+                    to: Math.max(...sessions.map(s => s.end)) + HOUR_MS, userId: req.user.id, decorateChannels }))
         });
         res.json(page);
     } catch (err) {

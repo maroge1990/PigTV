@@ -160,6 +160,16 @@ test('/api/info advertises sportsEvents', async () => {
     assert.equal((await call('GET', '/api/info')).body.features.sportsEvents, true);
 });
 
+// #160: a sport page asks for one league's events around its sessions, ordered and built like C-I's, and nothing else.
+test('#160: leagueEvents gives one league\'s events in a window, exactly as eventsFor answers them', async () => {
+    const ev = load('services/sportsEvents');
+    const all = (await ev.eventsFor({ hours: 72 })).events;
+    const nfl = await ev.leagueEvents({ league: 'American Football', from: NOW - 3 * H, to: NOW + 3 * H });
+    assert.deepEqual(nfl.map(e => e.title), ['Chiefs v Bills']);
+    assert.deepEqual(nfl, all.filter(e => e.league === 'American Football' && e.kind === 'event' && e.end > NOW - 3 * H && e.start < NOW + 3 * H));
+    assert.deepEqual(await ev.leagueEvents({ league: 'American Football', from: NOW + 10 * H, to: NOW + 11 * H }), [], 'outside the window');
+});
+
 // #21 (0340, C-P): the F1 page's route, with ESPN answered from the captured fixture (the page's own tests are in
 // sport-page-f1.test.js; this is the route, its flag and its auth).
 test('/api/sports/pages/f1 answers the F1 page to any user, and /api/info advertises it', async () => {

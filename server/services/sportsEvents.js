@@ -828,6 +828,51 @@ function favouriteKeys(userId) {
 const DEFAULT_KINDS = new Set(['event', 'replay']);
 const KIND_ORDER = { event: 0, replay: 1, show: 2, placeholder: 3 };
 
+function favouriteTest(userId) {
+    const favs = favouriteKeys(userId);
+    return (ch) => favs.has(`${ch.sourceId}:${ch.stableId || ch.id}`) || favs.has(`${ch.sourceId}:${ch.id}`);
+}
+
+/** One cached event as C-I answers it: its channels best first (quality, health ok, favourite, guide order). */
+function eventOut(ev, now, isFav, withRule = false) {
+    const channels = ev.channels.slice().sort((a, b) =>
+        qualityRank(a.quality) - qualityRank(b.quality)
+        || healthRank(a.health) - healthRank(b.health)
+        || (isFav(b) ? 1 : 0) - (isFav(a) ? 1 : 0)
+        || a.order - b.order);
+    const out = {
+        id: ev.id,
+        kind: ev.kind,
+        title: ev.title,
+        aliases: ev.aliases,
+        league: ev.league,
+        start: ev.start,
+        end: ev.end,
+        live: ev.start <= now && now < ev.end,
+        channels: channels.map(ch => ({
+            sourceId: ch.sourceId, id: ch.id, stableId: ch.stableId, name: ch.name,
+            number: ch.number, logo: ch.logo, quality: ch.quality, ...ownTimes(ev, ch)
+        }))
+    };
+    if (withRule) { out.rule = ev.rule; out.match = ev.match; out.kindRule = ev.kindRule; }
+    return out;
+}
+
+/**
+ * #160: the events (kind `event`) of one league overlapping [from, to), as eventsFor would answer them, without ordering
+ * or building any other event: a sport page needs a handful, not the whole 72 h answer (~100-200 ms on a large guide).
+ */
+async function leagueEvents({ league, from, to, userId, now = Date.now(), decorateChannels } = {}) {
+    const built = await cachedEvents(now, decorateChannels);
+    const isFav = favouriteTest(userId);
+    const events = [];
+    for (const ev of built.events) {
+        if (ev.league !== league || ev.kind !== 'event' || !(ev.end > from && ev.start < to)) continue;
+        events.push(eventOut(ev, now, isFav));
+    }
+    return events;
+}
+
 /**
  * The events for one request (C-I):
  *   { now, events: [{ id, kind, title, aliases, league, start, end, live,
@@ -840,35 +885,14 @@ const KIND_ORDER = { event: 0, replay: 1, show: 2, placeholder: 3 };
 async function eventsFor({ hours, userId, now = Date.now(), withRule = false, include, decorateChannels } = {}) {
     const span = clampHours(hours) * HOUR_MS;
     const built = await cachedEvents(now, decorateChannels);
-    const favs = favouriteKeys(userId);
-    const isFav = (ch) => favs.has(`${ch.sourceId}:${ch.stableId || ch.id}`) || favs.has(`${ch.sourceId}:${ch.id}`);
+    const isFav = favouriteTest(userId);
 
     const events = [];
     const all = include === 'all';
     for (const ev of built.events) {
         if (!all && !DEFAULT_KINDS.has(ev.kind)) continue;
         if (!(ev.end > now && ev.start < now + span)) continue;
-        const channels = ev.channels.slice().sort((a, b) =>
-            qualityRank(a.quality) - qualityRank(b.quality)
-            || healthRank(a.health) - healthRank(b.health)
-            || (isFav(b) ? 1 : 0) - (isFav(a) ? 1 : 0)
-            || a.order - b.order);
-        const out = {
-            id: ev.id,
-            kind: ev.kind,
-            title: ev.title,
-            aliases: ev.aliases,
-            league: ev.league,
-            start: ev.start,
-            end: ev.end,
-            live: ev.start <= now && now < ev.end,
-            channels: channels.map(ch => ({
-                sourceId: ch.sourceId, id: ch.id, stableId: ch.stableId, name: ch.name,
-                number: ch.number, logo: ch.logo, quality: ch.quality, ...ownTimes(ev, ch)
-            }))
-        };
-        if (withRule) { out.rule = ev.rule; out.match = ev.match; out.kindRule = ev.kindRule; }
-        events.push(out);
+        events.push(eventOut(ev, now, isFav, withRule));
     }
     events.sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]
         || (a.live === b.live ? 0 : a.live ? -1 : 1) || a.start - b.start || a.title.localeCompare(b.title));
@@ -1106,7 +1130,7 @@ module.exports = {
     classify, compileFollow, followedKeyword, normaliseTitle, qualityFromName, leagueFromCategories,
     // R5: recording rules match events the way the follow list does, and find a series' channel
     visibleChannels,
-    getFollow, setFollow, cleanFollow, eventsFor, buildEvents, clampHours, stats, eventsResponse,
+    getFollow, setFollow, cleanFollow, eventsFor, leagueEvents, buildEvents, clampHours, stats, eventsResponse,
     // for tests: what the response cache holds, and an empty one
     responseCacheSize: () => ({ entries: responses.size, bytes: responseBytes }),
     clearResponses: () => { responses.clear(); responseBytes = 0; },
