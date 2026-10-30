@@ -11,7 +11,7 @@ issues hold the detail.
   accounting, hardening tracked in private advisories, a newer device request ending a recovering relay). Next build **0324**.
 - Apple: **61** last pushed; **62–63** local (sport action repairs, tvOS player focus #18). Codex rounds on 62–63 done.
 - Documentation reset done (D-22): issues #3–#130 replace the findings register and the roadmaps.
-- Relay timeline renewal goes **off** in production (D-25): Mark unticks Settings → System, Claude confirms over SSH.
+- Relay timeline renewal is **off** in production (D-25), confirmed over SSH on 30 Oct.
 - Live now dashboard stays gated (D-29). T3 is live: fake providers and staging server on Unraid (`scripts/unraid-rig.sh`, docs/FAKE-PROVIDER.md).
 
 ## Now
