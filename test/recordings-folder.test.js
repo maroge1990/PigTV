@@ -172,8 +172,9 @@ test('the recordings-folder health check logs a warning only when the state chan
     console.warn = (...a) => lines.push(['warn', a.join(' ')]);
     console.log = (...a) => lines.push(['log', a.join(' ')]);
     try {
+        // No free-space minimum: the scratch folder's own size (a small RAM-backed /tmp under WSL) is not under test.
         const missing = path.join(scratch, 'health-check-missing');
-        await db.settings.update({ recordingsPath: missing });
+        await db.settings.update({ recordingsPath: missing, minFreeSpaceGB: 0 });
         await engine.checkFolderHealthNow();
         await engine.checkFolderHealthNow();
         await engine.checkFolderHealthNow();
