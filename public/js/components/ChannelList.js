@@ -986,6 +986,9 @@ class ChannelList {
         this.contextMenu.dataset.type = type;
         this.contextMenu.dataset.sourceId = data.sourceId || '';
         this.contextMenu.dataset.itemId = type === 'group' ? data.group : data.channelId;
+        // Hiding changes the lineup for everyone, which only an admin may do.
+        const hide = this.contextMenu.querySelector('[data-action="hide"]');
+        if (hide) hide.style.display = window.app?.currentUser?.role === 'admin' ? '' : 'none';
 
         this.contextMenu.style.left = `${e.clientX}px`;
         this.contextMenu.style.top = `${e.clientY}px`;

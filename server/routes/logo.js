@@ -43,6 +43,16 @@ const SIZES = { full: '.orig', 640: '.640' }; // 0154: ?size= -> the file beside
 
 const logoFile = (key, suffix = '') => path.join(LOGOS_DIR, key + suffix);
 
+// Every answer here is an image (or a short JSON error): the browser is told not to
+// guess another type, and a logo opened on its own, an SVG especially, gets no
+// scripts, frames, forms or connections.
+const IMAGE_ONLY_CSP = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+router.use((req, res, next) => {
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('Content-Security-Policy', IMAGE_ONLY_CSP);
+    next();
+});
+
 // Keys are always our own sha256-derived hex strings (services/logoCache.js);
 // reject anything else before it can be used to build a path or query a row.
 const isSafeKey = (key) => /^[a-f0-9]{16,64}$/i.test(key);

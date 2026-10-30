@@ -57,7 +57,7 @@ before(async () => {
     app.use('/api/auth', load('routes/auth'));
     app.use('/api/info', load('routes/info'));
     app.use('/api/library', load('routes/library'));
-    app.use('/api/channels', load('routes/channels'));
+    app.use('/api/channels', auth.requireAuth, load('routes/channels')); // as server/index.js mounts it
     server = app.listen(0, '127.0.0.1');
     await once(server, 'listening');
     base = `http://127.0.0.1:${server.address().port}`;

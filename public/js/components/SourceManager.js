@@ -80,7 +80,7 @@ class SourceManager {
             select.innerHTML = '<option value="">Select a source...</option>';
 
             sources.filter(s => s.type === 'xtream' || s.type === 'm3u').forEach(source => {
-                select.innerHTML += `<option value="${source.id}">${source.name} (${source.type})</option>`;
+                select.innerHTML += `<option value="${this.escapeHtml(source.id)}">${this.escapeHtml(source.name)} (${this.escapeHtml(source.type)})</option>`;
             });
         } catch (err) {
             console.error('Error loading content sources:', err);
@@ -209,8 +209,8 @@ class SourceManager {
                 return `
                     <label class="checkbox-label channel-item" title="${this.escapeHtml(item.name)}">
                         <input type="checkbox" class="channel-checkbox" 
-                               data-type="${item.type}" 
-                               data-id="${item.id}" 
+                               data-type="${this.escapeHtml(String(item.type))}" 
+                               data-id="${this.escapeHtml(String(item.id))}" 
                                data-source-id="${this.treeData.sourceId}" 
                                ${!itemHidden ? 'checked' : ''}>
                         <span class="channel-name">${item.number !== null && item.number !== undefined ? `<span class="channel-number pig-amount">${this.escapeHtml(item.number)}</span> ` : ''}${this.escapeHtml(item.name)}</span>

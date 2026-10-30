@@ -17,16 +17,26 @@ function redact(value) {
     let s = String(value);
     // scheme://user:pass@host  ->  scheme://***:***@host
     s = s.replace(/(\/\/)[^/:@\s]+:[^/@\s]+@/g, '$1***:***@');
-    // Xtream path-based stream URL: host/{live|movie|series}/{user}/{pass}/{id}.{ext}
-    // (the primary format buildStreamUrl produces). Anchored on a numeric
-    // stream id so a normal path like /live/news/sports/ is not caught.
+    // Xtream path-based stream URL: host/{live|movie|series}/{user}/{pass}/{id}[.{ext}]
+    // (buildStreamUrl's format, and playlists that leave the extension off).
+    // Anchored on a numeric stream id so a normal path like /live/news/sports/
+    // is not caught.
     s = s.replace(
-        /\/(live|movie|series)\/[^/\s]+\/[^/\s]+\/(\d+\.\w+)/gi,
+        /\/(live|movie|series)\/[^/\s]+\/[^/\s]+\/(\d+(?:\.\w+)?)(?=$|[^\w/])/gi,
         '/$1/***/***/$2'
+    );
+    // Xtream catch-up: host/timeshift/{user}/{pass}/{minutes}/{start}/{id}.{ext}
+    s = s.replace(/\/timeshift\/[^/\s]+\/[^/\s]+\/(\d+)\//gi, '/timeshift/***/***/$1/');
+    // The short form straight after the host: scheme://host[:port]/{user}/{pass}/{id}[.{ext}].
+    // Only at the start of the path and only with a numeric last segment, so the
+    // server's own /api/... paths are left alone.
+    s = s.replace(
+        /(\b[a-z][a-z0-9+.-]*:\/\/[^/\s?#'"]+)\/(?!api\/)[^/\s?#'"]+\/[^/\s?#'"]+\/(\d+(?:\.\w+)?)(?=$|[^\w/])/gi,
+        '$1/***/***/$2'
     );
     // ?username=..&password=..&token=.. -> secret values replaced with ***
     s = s.replace(
-        /([?&](?:username|password|pass|pwd|token|secret|api[_-]?key)=)[^&\s'"#]+/gi,
+        /([?&](?:username|user|password|pass|pwd|token|secret|api[_-]?key)=)[^&\s'"#]+/gi,
         '$1***'
     );
     return s;

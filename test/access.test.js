@@ -55,6 +55,7 @@ before(async () => {
     app.use('/api/sources', require(path.join(sandbox, 'server/routes/sources')));
     app.use('/api/settings', require(path.join(sandbox, 'server/routes/settings')));
     app.use('/api/library', require(path.join(sandbox, 'server/routes/library')));
+    app.use('/api/channels', auth.requireAuth, require(path.join(sandbox, 'server/routes/channels')));
     server = app.listen(0, '127.0.0.1');
     await once(server, 'listening');
     base = `http://127.0.0.1:${server.address().port}`;
@@ -217,4 +218,70 @@ test('HE-AAC still requires audio conversion and HEVC compatibility follows the 
     assert.equal(lc.videoOk, true);
     assert.equal(lc.audioOk, true);
     assert.equal(analyzeProbeResult(media('LC'), 'https://fixture.invalid/live.ts', { hevc: false }).videoOk, false);
+});
+
+test('lineup changes under /api/channels require an admin; reading the hidden list does not', async () => {
+    const devices = require(path.join(sandbox, 'server/services/deviceAuth'));
+    const pairing = devices.startPairing({ name: 'PigTV tvOS', platform: 'tvOS' });
+    devices.approvePairing(pairing.code, viewer);
+    const viewerDevice = devices.pollPairing(pairing.code).token;
+    const item = { sourceId: source.id, itemType: 'channel', itemId: 'pos_1' };
+    const mutations = [
+        ['POST', '/api/channels/hide', item], ['POST', '/api/channels/show', item],
+        ['POST', '/api/channels/hide/bulk', { items: [item] }], ['POST', '/api/channels/show/bulk', { items: [item] }],
+        ['POST', '/api/channels/hide/all', { sourceId: source.id, contentType: 'channels' }],
+        ['POST', '/api/channels/show/all', { sourceId: source.id, contentType: 'channels' }]
+    ];
+    const sql = sqlite.getDb();
+    const hiddenRows = () => sql.prepare('SELECT COUNT(*) AS n FROM playlist_items WHERE source_id = ? AND is_hidden = 1').get(source.id).n
+        + sql.prepare('SELECT COUNT(*) AS n FROM categories WHERE source_id = ? AND is_hidden = 1').get(source.id).n;
+    const before = hiddenRows();
+    for (const token of [viewerToken, viewerDevice]) {
+        for (const [method, route, body] of mutations) {
+            assert.equal((await request(method, route, token, body)).status, 403, `${method} ${route}`);
+        }
+    }
+    assert.equal(hiddenRows(), before, 'nothing changed');
+    for (const [method, route, body] of mutations) {
+        assert.equal((await request(method, route)).status, 401, `${method} ${route} anonymous`);
+    }
+    assert.equal((await request('GET', '/api/channels/hidden', viewerToken)).status, 200);
+
+    for (const [method, route, body] of mutations) {
+        const r = await request(method, route, adminToken, body);
+        assert.notEqual(r.status, 403, `${method} ${route} admin`);
+        assert.notEqual(r.status, 401, `${method} ${route} admin`);
+    }
+});
+
+test('Test connection answers the account facts only, never the provider login or server address', async () => {
+    const xtream = await db.sources.create({ type: 'xtream', name: 'Xtream fixture', url: 'http://panel.fixture.invalid:8080',
+        username: 'xtream-user-7', password: 'xtream-pass-7' });
+    const originalFetch = global.fetch;
+    // The provider is stood in for; requests to this test's own server go through.
+    const provider = (reply) => async (url, opts) => (String(url).startsWith(base) ? originalFetch(url, opts) : reply());
+    try {
+        global.fetch = provider(() => new Response(JSON.stringify({
+            user_info: { username: 'xtream-user-7', password: 'xtream-pass-7', message: '', auth: 1, status: 'Active',
+                exp_date: '1893456000', is_trial: '0', active_cons: '1', created_at: '1700000000', max_connections: '2',
+                allowed_output_formats: ['m3u8', 'ts'] },
+            server_info: { url: 'panel.fixture.invalid', port: '8080', https_port: '8443', server_protocol: 'http',
+                rtmp_port: '8880', timezone: 'UTC', timestamp_now: 1761800000, time_now: '2026-10-30 05:00:00' }
+        }), { headers: { 'content-type': 'application/json' } }));
+        const ok = await request('POST', `/api/sources/${xtream.id}/test`, adminToken);
+        assert.equal(ok.status, 200);
+        assert.deepEqual(ok.data, { success: true, status: 'Active', expiresAt: 1893456000000, isTrial: false,
+            maxConnections: 2, activeConnections: 1 });
+
+        global.fetch = provider(() => { throw new Error('connect failed for http://panel.fixture.invalid:8080/player_api.php?username=xtream-user-7&password=xtream-pass-7'); });
+        const failed = await request('POST', `/api/sources/${xtream.id}/test`, adminToken);
+        assert.equal(failed.data.success, false);
+        assert.ok(failed.data.error, 'a reason for the admin');
+        for (const secret of ['xtream-user-7', 'xtream-pass-7']) {
+            assert.ok(!JSON.stringify(failed.data).includes(secret), `${secret} in ${JSON.stringify(failed.data)}`);
+        }
+    } finally {
+        global.fetch = originalFetch;
+        await db.sources.delete(xtream.id);
+    }
 });

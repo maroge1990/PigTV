@@ -3,6 +3,7 @@ const router = express.Router();
 const { redact } = require('../redact');
 const { requireAdmin } = require('../auth');
 const transcodeSession = require('../services/transcodeSession');
+const sessionAccess = require('../services/sessionAccess');
 
 /**
  * Transcode Routes
@@ -13,7 +14,7 @@ const transcodeSession = require('../services/transcodeSession');
  * movie/series page used, went with it in 0122.
  *   GET  /api/transcode/:id/stream.m3u8 - Get HLS playlist
  *   GET  /api/transcode/:id/:segment.ts - Get segment file
- *   DELETE /api/transcode/:id          - Stop and cleanup session
+ *   DELETE /api/transcode/:id          - Stop and cleanup session (its owner, or an admin)
  *   GET /api/transcode/sessions        - List all sessions (admin; debug)
  *   DELETE /api/transcode/sessions/all - Stop every session (admin)
  *
@@ -175,6 +176,9 @@ router.delete('/:sessionId', async (req, res) => {
     const { sessionId } = req.params;
 
     try {
+        if (!sessionAccess.mayEnd(req.user, sessionId)) {
+            return res.status(403).json({ error: 'Only the viewer who started this stream, or an admin, can stop it' });
+        }
         if (!(await relay.close(sessionId))) await transcodeSession.removeSession(sessionId);
         res.json({ success: true });
     } catch (err) {

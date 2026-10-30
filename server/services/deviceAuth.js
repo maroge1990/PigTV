@@ -31,6 +31,22 @@ function generateCode(length = 6) {
     return out;
 }
 
+// A device's name and platform are shown in the device list, so they are kept as a
+// short single-line label: control and bidirectional-formatting characters removed,
+// whitespace collapsed, trimmed and capped. Anything that is not a string is ignored.
+const NAME_MAX = 64;
+const PLATFORM_MAX = 32;
+
+function cleanLabel(value, max) {
+    if (typeof value !== 'string') return null;
+    const text = value
+        .replace(/\s+/g, ' ')
+        .replace(/[\p{Cc}\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu, '')
+        .replace(/ {2,}/g, ' ')
+        .trim();
+    return text ? Array.from(text).slice(0, max).join('').trim() : null;
+}
+
 function pruneExpired() {
     getDb().prepare('DELETE FROM pairing_codes WHERE expires_at < ?').run(Date.now());
 }
@@ -55,7 +71,7 @@ function startPairing({ name, platform } = {}) {
     db.prepare(`
         INSERT INTO pairing_codes (code, created_at, expires_at, name, platform)
         VALUES (?, ?, ?, ?, ?)
-    `).run(code, now, now + CODE_TTL_MS, name || null, platform || null);
+    `).run(code, now, now + CODE_TTL_MS, cleanLabel(name, NAME_MAX), cleanLabel(platform, PLATFORM_MAX));
 
     return { code, expiresAt: now + CODE_TTL_MS, expiresInSec: Math.round(CODE_TTL_MS / 1000) };
 }
@@ -93,8 +109,8 @@ function approvePairing(code, user, { name, platform } = {}) {
 
     const deviceId = crypto.randomUUID();
     const now = Date.now();
-    const deviceName = name || row.name || 'Unnamed device';
-    const devicePlatform = platform || row.platform || 'unknown';
+    const deviceName = cleanLabel(name, NAME_MAX) || cleanLabel(row.name, NAME_MAX) || 'Unnamed device';
+    const devicePlatform = cleanLabel(platform, PLATFORM_MAX) || cleanLabel(row.platform, PLATFORM_MAX) || 'unknown';
 
     db.prepare(`
         INSERT INTO devices (id, user_id, name, platform, created_at, last_seen_at)

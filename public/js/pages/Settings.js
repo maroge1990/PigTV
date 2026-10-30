@@ -155,15 +155,16 @@ class SettingsPage {
                 list.innerHTML = '<span class="setting-hint">No devices paired yet</span>';
                 return;
             }
+            const e = (v) => this.escapeLineup(v);
             list.innerHTML = active.map(d => {
                 const seen = d.last_seen_at ? new Date(d.last_seen_at).toLocaleString() : 'never';
                 return `
                 <div class="setting-item">
                     <div class="setting-info">
-                        <span class="setting-label">${d.name || 'Unnamed device'}</span>
-                        <span class="setting-hint">${d.platform || 'unknown'} · last seen ${seen}</span>
+                        <span class="setting-label">${e(d.name || 'Unnamed device')}</span>
+                        <span class="setting-hint">${e(d.platform || 'unknown')} · last seen ${e(seen)}</span>
                     </div>
-                    <button class="btn btn-sm btn-danger" data-revoke="${d.id}">Remove</button>
+                    <button class="btn btn-sm btn-danger" data-revoke="${e(d.id)}">Remove</button>
                 </div>`;
             }).join('');
 
@@ -1073,6 +1074,7 @@ class SettingsPage {
 
         try {
             const hwInfo = await API.request('GET', '/settings/hw-info');
+            const e = (v) => this.escapeLineup(v);
 
             const detected = [];
 
@@ -1080,14 +1082,14 @@ class SettingsPage {
             if (hwInfo.nvidia?.available) {
                 detected.push(`<div class="hw-info-item hw-available">
                     <span class="hw-badge">✓ NVIDIA</span>
-                    <span class="hw-name">${hwInfo.nvidia.name}</span>
+                    <span class="hw-name">${e(hwInfo.nvidia.name)}</span>
                 </div>`);
             }
 
             if (hwInfo.amf?.available) {
                 detected.push(`<div class="hw-info-item hw-available">
                     <span class="hw-badge">✓ AMD</span>
-                    <span class="hw-name">${hwInfo.amf.name || 'Available'}</span>
+                    <span class="hw-name">${e(hwInfo.amf.name || 'Available')}</span>
                 </div>`);
             }
 
@@ -1101,14 +1103,14 @@ class SettingsPage {
             if (hwInfo.vaapi?.available) {
                 detected.push(`<div class="hw-info-item hw-available">
                     <span class="hw-badge">✓ VAAPI</span>
-                    <span class="hw-name">${hwInfo.vaapi.device || 'Available'}</span>
+                    <span class="hw-name">${e(hwInfo.vaapi.device || 'Available')}</span>
                 </div>`);
             }
 
             let html;
             if (detected.length > 0) {
                 html = `<div class="hw-info-grid">${detected.join('')}</div>`;
-                html += `<p class="hint" style="margin-top: var(--space-sm);">Recommended encoder: <strong>${hwInfo.recommended}</strong></p>`;
+                html += `<p class="hint" style="margin-top: var(--space-sm);">Recommended encoder: <strong>${e(hwInfo.recommended)}</strong></p>`;
             } else {
                 html = `<p class="hint">No GPU acceleration detected. Using software encoding.</p>`;
             }
@@ -1160,6 +1162,7 @@ class SettingsPage {
                 return;
             }
 
+            const e = (v) => this.escapeLineup(v);
             userList.innerHTML = users.map(user => {
                 const typeBadge = '<span class="user-badge user-badge-local">Local</span>';
 
@@ -1171,19 +1174,29 @@ class SettingsPage {
                 <tr>
                     <td>
                         <div style="display:flex;align-items:center;gap:8px;">
-                            <strong>${user.username}</strong>
+                            <strong>${e(user.username)}</strong>
                             ${typeBadge}
                         </div>
                     </td>
-                    <td>${user.email || '<span class="hint">-</span>'}</td>
+                    <td>${user.email ? e(user.email) : '<span class="hint">-</span>'}</td>
                     <td>${roleBadge}</td>
                     <td>${user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</td>
                     <td>
-                        <button class="btn btn-sm btn-secondary" onclick="window.app.pages.settings.openEditUserModal(${user.id})">Edit</button>
-                        <button class="btn btn-sm btn-error" onclick="window.app.pages.settings.deleteUser(${user.id}, '${user.username}')">Delete</button>
+                        <button type="button" class="btn btn-sm btn-secondary" data-user-action="edit" data-user-id="${e(user.id)}">Edit</button>
+                        <button type="button" class="btn btn-sm btn-error" data-user-action="delete" data-user-id="${e(user.id)}">Delete</button>
                     </td>
                 </tr>
             `}).join('');
+
+            // The buttons find their user by id in this.users, so no name is put into script.
+            userList.querySelectorAll('[data-user-action]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const user = this.users.find(u => String(u.id) === button.dataset.userId);
+                    if (!user) return;
+                    if (button.dataset.userAction === 'edit') this.openEditUserModal(user.id);
+                    else this.deleteUser(user.id, user.username);
+                });
+            });
         } catch (err) {
             console.error('Error loading users:', err);
             userList.innerHTML = '<tr><td colspan="5" class="hint">Error loading users</td></tr>';

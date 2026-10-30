@@ -97,6 +97,14 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
   This does not establish an FR-22 A/V fix. No Apple-side shape or playback command-line flag changes.
 - Resolve failure `error` texts start with a C-B prefix and never contain a URL; the client shows only those.
 - A start stopped on request answers **499** `{error, superseded: true}` (0180); the client ignores it.
+- `DELETE /api/playback/{id}` (and `DELETE /api/transcode/{id}`) ends a session for the account that started it, a device
+  paired to that account, or an admin; anyone else gets **403** `{error}` and the session keeps running. An id that names
+  no running session still answers `{success: true}`. A client stopping its own play is unaffected.
+- `POST /api/devices/pair/start` stores `name` and `platform` as a single-line label: control characters removed,
+  whitespace collapsed and trimmed, at most 64 and 32 characters; a non-string or empty value takes the default label.
+  The Apple client's `"PigTV tvOS"`/`"PigTV iOS"` and `"tvOS"`/`"iOS"` are kept as sent.
+- `/api/logo/*` answers carry `X-Content-Type-Options: nosniff` and a `Content-Security-Policy` for an image (no scripts,
+  frames or connections). The bytes and `Content-Type` are unchanged.
 - `recordings/scheduled` rows: `program_end` can **move later** after scheduling (0214, R4: it follows the guide after a
   sync, never earlier than first scheduled, at most +3 h); a client re-reads it rather than caching it. The additive
   `program_end_original` is the end it was made with (null until it moves).

@@ -11,6 +11,7 @@ const { NUMBER_JOIN } = require('../services/channelNumbers');
 const sportCategories = require('../services/sportCategories');
 const providerFields = require('../services/providerFields');
 const providerAccounts = require('../services/providerAccounts');
+const { redact } = require('../redact');
 const backupChannels = require('../services/backupChannels');
 
 router.use(requireAuth);
@@ -457,8 +458,18 @@ router.post('/:id/test', async (req, res) => {
         }
 
         if (source.type === 'xtream') {
-            const result = await xtreamApi.authenticate(source.url, source.username, source.password);
-            res.json({ success: true, data: result });
+            // Only the account facts the page shows: the reply also carries the login and
+            // the server's address, which never leave the server.
+            const account = providerAccounts.parseAccountReply(
+                await xtreamApi.authenticate(source.url, source.username, source.password));
+            res.json({
+                success: true,
+                status: account.status,
+                expiresAt: account.exp_date,
+                isTrial: account.is_trial === null ? null : account.is_trial === 1,
+                maxConnections: account.max_connections,
+                activeConnections: account.active_cons
+            });
         } else if (source.type === 'm3u') {
             const response = await fetch(source.url);
             const text = await response.text();
@@ -471,8 +482,8 @@ router.post('/:id/test', async (req, res) => {
             res.json({ success: isValid, message: isValid ? 'Valid EPG XML' : 'Invalid EPG format' });
         }
     } catch (err) {
-        console.error('Error testing source:', err);
-        res.json({ success: false, error: err.message });
+        console.error('Error testing source:', redact(err && err.message));
+        res.json({ success: false, error: redact(err && err.message) || 'The connection test failed' });
     }
 });
 

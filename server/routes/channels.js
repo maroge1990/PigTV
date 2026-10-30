@@ -3,6 +3,7 @@ const router = express.Router();
 const { getDb } = require('../db/sqlite');
 const { bumpLibraryRev } = require('../services/libraryRev');
 const { refreshChannelNumbers } = require('../services/channelNumbers');
+const { requireAdmin } = require('../auth');
 
 // Helper to map API item types to DB types and tables
 function mapItemType(apiType) {
@@ -89,7 +90,7 @@ function cascadeCategory(db, sourceId, type, categoryId, hidden) {
     return result.changes;
 }
 
-router.post('/hide', async (req, res) => {
+router.post('/hide', requireAdmin, async (req, res) => {
     try {
         const { sourceId, itemType, itemId } = req.body;
         const mapping = mapItemType(itemType);
@@ -122,7 +123,7 @@ router.post('/hide', async (req, res) => {
 });
 
 // Show item
-router.post('/show', async (req, res) => {
+router.post('/show', requireAdmin, async (req, res) => {
     try {
         const { sourceId, itemType, itemId } = req.body;
         const mapping = mapItemType(itemType);
@@ -177,7 +178,7 @@ router.get('/hidden/check', async (req, res) => {
 });
 
 // Bulk Hide
-router.post('/hide/bulk', async (req, res) => {
+router.post('/hide/bulk', requireAdmin, async (req, res) => {
     try {
         const { items } = req.body;
         if (!Array.isArray(items)) return res.status(400).json({ error: 'items array required' });
@@ -222,7 +223,7 @@ router.post('/hide/bulk', async (req, res) => {
 });
 
 // Bulk Show
-router.post('/show/bulk', async (req, res) => {
+router.post('/show/bulk', requireAdmin, async (req, res) => {
     try {
         const { items } = req.body;
         if (!Array.isArray(items)) return res.status(400).json({ error: 'items array required' });
@@ -267,7 +268,7 @@ router.post('/show/bulk', async (req, res) => {
 });
 
 // Show ALL items for a source (single SQL statement - much faster than bulk)
-router.post('/show/all', async (req, res) => {
+router.post('/show/all', requireAdmin, async (req, res) => {
     try {
         const { sourceId, contentType } = req.body;
         if (!sourceId) return res.status(400).json({ error: 'sourceId required' });
@@ -299,7 +300,7 @@ router.post('/show/all', async (req, res) => {
 });
 
 // Hide ALL items for a source (single SQL statement - much faster than bulk)
-router.post('/hide/all', async (req, res) => {
+router.post('/hide/all', requireAdmin, async (req, res) => {
     try {
         const { sourceId, contentType } = req.body;
         if (!sourceId) return res.status(400).json({ error: 'sourceId required' });

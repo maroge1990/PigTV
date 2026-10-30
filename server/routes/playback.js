@@ -634,11 +634,16 @@ router.post('/client-event', requireToken, (req, res) => {
  *
  * Release whatever resolve() started. Clients should call this when they stop
  * playing: every session holds an ffmpeg process and a connection to the
- * provider, which matters when the provider allows only one.
+ * provider, which matters when the provider allows only one. The account that
+ * started the session (or a device paired to it) or an admin may end it; anyone
+ * else gets a 403 and the session keeps running (services/sessionAccess.js).
  */
 router.delete('/:sessionId', requireToken, async (req, res) => {
     const { sessionId } = req.params;
     try {
+        if (!require('../services/sessionAccess').mayEnd(req.user, sessionId)) {
+            return res.status(403).json({ error: 'Only the viewer who started this stream, or an admin, can stop it' });
+        }
         const transcodeSession = require('../services/transcodeSession');
         // 0189: a relay ends with every leg it has; else the one session.
         if (!(await require('../services/streamRelay').close(sessionId))) await transcodeSession.removeSession(sessionId);
