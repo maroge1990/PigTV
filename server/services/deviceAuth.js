@@ -151,6 +151,19 @@ function approvePairing(code, user, { name, platform } = {}) {
     return { deviceId, name: deviceName, platform: devicePlatform };
 }
 
+/**
+ * #19 (0365): the device behind a code still waiting for approval, so the person approving sees what they let in.
+ * Null when the code is unknown, expired or already used.
+ */
+function pendingPairing(code) {
+    pruneExpired();
+    const normalised = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const row = getDb().prepare('SELECT name, platform, app_client, created_at FROM pairing_codes WHERE code = ? AND approved_at IS NULL')
+        .get(normalised);
+    if (!row) return null;
+    return { name: row.name || 'Unnamed device', platform: row.platform || 'unknown', app: describeClient(row.app_client), askedAt: row.created_at };
+}
+
 function listDevices(userId) {
     return getDb().prepare(`
         SELECT id, name, platform, created_at, last_seen_at, revoked_at, app_client
@@ -189,6 +202,7 @@ module.exports = {
     startPairing,
     pollPairing,
     approvePairing,
+    pendingPairing,
     listDevices,
     revokeDevice,
     isDeviceValid,

@@ -149,6 +149,24 @@ class SettingsPage {
         input?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') this.approveDevice();
         });
+        // #19 (0365): once a whole code is typed, say which device is asking before it is approved.
+        input?.addEventListener('input', () => this.lookUpPairing());
+    }
+
+    async lookUpPairing() {
+        const input = document.getElementById('pair-code');
+        const status = document.getElementById('pair-status');
+        const code = (input?.value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (!status) return;
+        if (code.length < 6) { status.textContent = ''; return; }
+        try {
+            const p = await API.request('GET', `/devices/pair/pending?code=${encodeURIComponent(code)}`);
+            if (((input?.value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '')) !== code) return; // typed on since
+            const mins = Math.max(0, Math.round((Date.now() - p.askedAt) / 60000));
+            status.textContent = `Asking: ${p.name} · ${SettingsPage.deviceLine(p.app, p.platform)} · ${mins < 1 ? 'just now' : `${mins} min ago`}`;
+        } catch (err) {
+            status.textContent = err.message || 'That code was not found';
+        }
     }
 
     async approveDevice() {

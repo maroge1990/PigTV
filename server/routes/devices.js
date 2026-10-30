@@ -52,6 +52,18 @@ router.get('/pair/poll', limitRequests(pairingLimiter, 'Too many pairing request
 router.use(requireAuth);
 
 /**
+ * GET /api/devices/pair/pending?code=ABC123 (#19, 0365)
+ * Who is asking: { name, platform, app, askedAt } for a code still waiting, else 404.
+ */
+router.get('/pair/pending', (req, res) => {
+    const { code } = req.query;
+    if (!code || typeof code !== 'string') return res.status(400).json({ error: 'code is required' });
+    const pending = deviceAuth.pendingPairing(code);
+    if (!pending) return res.status(404).json({ error: 'That code has expired or was never issued' });
+    res.json(pending);
+});
+
+/**
  * POST /api/devices/pair/approve  { code, name?, platform? }
  */
 router.post('/pair/approve', (req, res) => {

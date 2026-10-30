@@ -108,3 +108,53 @@ test('Settings → Devices shows the device kind, OS and app build, and says whe
     assert.ok(list.innerHTML.includes('Apple TV · tvOS 26.1 · PigTV 84'), list.innerHTML);
     assert.ok(list.innerHTML.includes('iOS · app version not reported yet'), list.innerHTML);
 });
+
+// #19 (0365): approving a code was blind. GET /api/devices/pair/pending says which device is asking, and Settings shows
+// it as soon as a whole code is typed. The old code answers 404 for the route and shows nothing.
+test('a code waiting for approval names the device asking for it; an unknown or used code does not', async () => {
+    const res = await fetch(`${base}/api/devices/pair/start`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-PigTV-Client': TV },
+        body: JSON.stringify({ name: 'PigTV tvOS', platform: 'tvOS' })
+    });
+    const { code } = await res.json();
+    const token = auth.generateToken(owner);
+    const pending = (c, t = token) => fetch(`${base}/api/devices/pair/pending?code=${c}`, { headers: t ? { Authorization: `Bearer ${t}` } : {} });
+
+    assert.equal((await pending(code, null)).status, 401, 'signed-in users only');
+    const asked = await pending(code.toLowerCase());
+    assert.equal(asked.status, 200);
+    const body = await asked.json();
+    assert.equal(body.name, 'PigTV tvOS');
+    assert.equal(body.app.kind, 'Apple TV');
+    assert.equal(body.app.build, '84');
+    assert.equal(typeof body.askedAt, 'number');
+    assert.deepEqual(Object.keys(body).sort(), ['app', 'askedAt', 'name', 'platform'], 'never the token or the device id');
+
+    devices.approvePairing(code, owner);
+    assert.equal((await pending(code)).status, 404, 'an approved code is no longer pending');
+    assert.equal((await pending('ZZZZZZ')).status, 404);
+});
+
+test('Settings → Devices names the asking device once a whole code is typed', async () => {
+    const js = fs.readFileSync(path.join(__dirname, '../public/js/pages/Settings.js'), 'utf8');
+    const input = { value: '7km q2x' };
+    const status = { textContent: '' };
+    const asked = [];
+    const ctx = vm.createContext({
+        console, localStorage: { getItem: () => 'tok' },
+        document: { getElementById: (id) => ({ 'pair-code': input, 'pair-status': status })[id] || null, querySelectorAll: () => [], querySelector: () => null },
+        fetch: async (url) => { asked.push(url); return { ok: true, status: 200, headers: { get: () => 'application/json' },
+            json: async () => ({ name: 'PigTV tvOS', platform: 'tvOS', app: devices.describeClient(TV), askedAt: Date.now() - 120000 }) }; }
+    });
+    ctx.window = ctx;
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/api.js'), 'utf8'), ctx);
+    vm.runInContext(js, ctx);
+    const page = Object.create(ctx.SettingsPage.prototype);
+    await page.lookUpPairing();
+    assert.deepEqual(asked, ['/api/devices/pair/pending?code=7KMQ2X']);
+    assert.equal(status.textContent, 'Asking: PigTV tvOS · Apple TV · tvOS 26.1 · PigTV 84 · 2 min ago');
+    input.value = '7KM';
+    await page.lookUpPairing();
+    assert.equal(asked.length, 1, 'nothing is asked for half a code');
+    assert.equal(status.textContent, '');
+});
