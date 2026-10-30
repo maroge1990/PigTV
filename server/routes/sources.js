@@ -257,6 +257,28 @@ const inOrder = (providers) => [...providers].sort((a, b) =>
     (a.role === 'backup' ? 1 : 0) - (b.role === 'backup' ? 1 : 0) || (a.priority ?? 999) - (b.priority ?? 999) || a.id - b.id);
 
 /**
+ * GET /api/sources/:id/promotion-preview   (admin; #15, 0373)
+ *
+ * The dry run of making this backup the primary: of the current primary's shown channels, numbers, favourites,
+ * guide matches, series rules and pending recordings, how many would carry over through its links, and the
+ * names of (up to 50) shown channels that would not. Changes nothing.
+ */
+router.get('/:id/promotion-preview', requireAdmin, async (req, res) => {
+    try {
+        const target = await sources.getById(req.params.id);
+        if (!target || target.type === 'epg') return res.status(404).json({ error: 'Provider not found' });
+        if (target.role !== 'backup') return res.status(400).json({ error: 'This provider is already the primary' });
+        const promotion = require('../services/providerPromotion');
+        const fromId = promotion.currentPrimary();
+        if (fromId == null) return res.status(400).json({ error: 'There is no primary provider' });
+        res.json(promotion.plan(fromId, target.id).report);
+    } catch (err) {
+        console.error('Error previewing a promotion:', err.message);
+        res.status(500).json({ error: 'Could not preview the change' });
+    }
+});
+
+/**
  * PUT /api/sources/order   (admin; 0182)   body: { ids: [providerId, ...] }
  *
  * The order of the provider cards is the whole of their roles: the first is the primary
