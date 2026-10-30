@@ -429,10 +429,10 @@ class SyncService {
      * Xtream Sync Logic
      */
     async syncXtream(source, options = {}) {
-        return this.withHiddenChannels(source, () => this.syncXtreamRows(source, options));
+        return this.withHiddenChannels(source, (publish) => this.syncXtreamRows(source, options, publish));
     }
 
-    async syncXtreamRows(source, options = {}) {
+    async syncXtreamRows(source, options = {}, publish = () => {}) {
         const api = xtreamApi.createFromSource(source);
         const db = getDb();
 
@@ -446,6 +446,7 @@ class SyncService {
         let held = null;
         try { checkPlaylistSize(db, source.id, (liveStreams || []).length, options); } catch (e) { if (!e.held) throw e; held = e; }
         if (!held) await this.syncXtreamLive(source, liveCats, liveStreams);
+        publish(); // #173: hidden channels and new groups settled before the rest downloads
         await this.syncXtreamRest(source, api, options);
         if (held) throw held;
     }
@@ -1157,13 +1158,19 @@ class SyncService {
     async withHiddenChannels(source, work) {
         const db = getDb();
         const state = hiddenChannels.before(db, source.id);
-        let ok = false;
-        try {
-            await work();
-            ok = true;
-        } finally {
-            const listed = hiddenChannels.after(db, source.id, ok ? state : null);
+        let published = false;
+        // #173: run as soon as the live rows are written (Xtream calls it before films, series and the guide), and
+        // with the pre-sync snapshot even when the sync fails later, so a new group is never left on screen.
+        const publish = () => {
+            if (published) return;
+            published = true;
+            const listed = hiddenChannels.after(db, source.id, state);
             if (listed.length) console.log(`[Sync] ${listed.length} new group(s) on ${source.name} arrive hidden, listed for review: ${listed.map(g => g.name).join(', ')}`);
+        };
+        try {
+            await work(publish);
+        } finally {
+            publish();
         }
     }
 
