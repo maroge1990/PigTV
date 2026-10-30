@@ -15,6 +15,7 @@
  *       -> { now, events } for the next 72 hours (0153), every kind, each also with `rule`
  *          ("keyword" | "category" | "sportChannel"), `match` (what matched) and
  *          `kindRule` (why it is that kind, e.g. "placeholder: ends in a bare \":\"")
+ *   GET/PUT /api/sports/pages/preferences (any user; 0346) -> { spoilerFree, following: { F1 } }, one for the household
  *   GET /api/sports/categories       (admin; 0147)
  *       -> [{category, programmes}] the EPG categories in the live guide with how
  *          many programmes carry each, most used first, at most 200 (web Status page)
@@ -116,6 +117,16 @@ router.get('/pages/f1', async (req, res) => {
         console.error('[Sports] F1 page failed:', err.message);
         res.status(500).json({ error: 'Could not build the Formula 1 page' });
     }
+});
+
+// #68, #67 (0346, C-P): the sport pages' spoiler-free switch and followed driver, one for the household.
+router.get('/pages/preferences', (req, res) => {
+    try { res.json(require('../services/sportPagePrefs').get()); }
+    catch { res.status(500).json({ error: 'Could not read the sport page preferences' }); }
+});
+router.put('/pages/preferences', (req, res) => {
+    try { res.json(require('../services/sportPagePrefs').update(req.body)); }
+    catch (err) { res.status(err.status === 400 ? 400 : 500).json({ error: err.status === 400 ? err.message : 'Could not save the sport page preferences' }); }
 });
 
 router.get('/preview', requireAdmin, async (req, res) => {

@@ -577,4 +577,10 @@ on a race weekend, 1 h otherwise; nothing is fetched unless the page is asked fo
     constructor's `team` is null and `teamColor` its colour. Names are the race's own, without the title sponsor.
 - Spoilers are the client's: the server always sends results, `top` and standings; with the global spoiler-free switch
   on, the client hides them (PRODUCT.md › Sport). Watch/Record on a session use its channel's own times (C-I, #20).
+- Since 0346 (#68, #67): `GET /api/sports/pages/preferences` (any user) → `{ spoilerFree, following: { F1 } }`, one
+  for the whole household (every account and device; D-37). `PUT` the same path (any user) with `spoilerFree`
+  (strict boolean) and/or `following: { F1: name | null }` (a driver's name as the page gives it, ≤ 80 characters);
+  answers the whole object. Anything else is 400 and changes nothing. A 404 (an older server) means the defaults
+  (`false`, nobody), kept on the device. The C-O dashboard's own `avoidSpoilers` is separate until Live now is
+  reassessed.
 
