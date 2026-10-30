@@ -616,6 +616,10 @@ test('#24: a roster never overrides a followed competition, another competition\
     // A title naming another competition is not re-assigned by a roster.
     assert.equal(league('Eredivisie Soccer - PSV vs. Feyenoord', ['UEFA'], [['UEFA', uefa]]), null);
     assert.equal(league('TBA : Round 21 CAR v BRI', ['FA Cup', 'AFL'], [['FA Cup', faCup]]), null, 'a round number is AFL/NRL, not a cup tie');
+    // #155: every round marker parseSide drops, and a code with a trailing full stop.
+    for (const title of ['Rd21 CAR v BRI', 'Rd 21 CAR v BRI', 'R21 CAR v BRI', 'Round 21 CAR v BRI.']) {
+        assert.equal(league(title, ['FA Cup', 'AFL'], [['FA Cup', faCup]]), null, title);
+    }
     // Every stored roster counts for ambiguity, followed or not: Carlton v Brisbane is also Cardiff v Brighton.
     assert.equal(league('CAR v BRI', ['FA Cup'], [['FA Cup', faCup], ['AFL', afl]]), null);
     // Still inferred when one roster alone fits.

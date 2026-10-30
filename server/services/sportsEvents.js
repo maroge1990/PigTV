@@ -133,8 +133,10 @@ const sharedNickname = side => side.tokens.length === 1 && SHARED_NICKNAMES.has(
 // #24: a title that names a competition says which one it is, even one PigTV does not know.
 const OTHER_COMPETITION_RE = /\b(?:eredivisie|la ?liga|serie a|bundesliga|ligue 1|mls|a-?league|scottish premiership|carabao cup|league cup|copa)\b/i;
 // #24, #154: a round number with two bare codes ("Round 21 CAR v BRI": AFL's Carlton v Brisbane) is too weak to infer a
-// league from abbreviations another code may share; named teams in a round are inferred as usual.
-const ROUND_RE = /\bround \d{1,2}\b/i;
+// league from abbreviations another code may share; named teams in a round are inferred as usual. #155: every round
+// marker parseSide drops (round 21, rd 21, rd21, r21), and a code is bare whatever punctuation follows it.
+const ROUND_RE = /\b(?:round|rd)\s*\d{1,2}\b|\br\d{1,2}\b/i;
+const bareCode = side => side.abbr || /^[A-Z]{2,4}$/.test(String(side.name).replace(/[^\p{L}\p{N}]+$/u, ''));
 const rosterSideKey = side => side.tokens.filter(t => t !== 'de').sort().join(' ');
 function rosterAliases(team) {
     const location = sportsClassify.normText(team?.location);
@@ -226,7 +228,7 @@ function classify({ title, categories = [], sportChannel = false, channelName = 
     const namesCompetition = OTHER_COMPETITION_RE.test(text) || follow.list.some(k => k.re && k.re.test(text));
     if (!titleLeague && !namesCompetition && follow.rosters?.size) {
         const pair = sportsClassify.parseMatchup(text);
-        if (pair && !pair.some(sharedNickname) && !(ROUND_RE.test(text) && pair.every(side => side.abbr))) {
+        if (pair && !pair.some(sharedNickname) && !(ROUND_RE.test(text) && pair.every(bareCode))) {
             const matches = [];
             for (const [league, teams] of follow.rosters) {
                 const hit = side => teams.map((aliases, i) => aliases.includes(rosterSideKey(side)) ? i : -1).filter(i => i >= 0);

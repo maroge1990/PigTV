@@ -18,7 +18,7 @@ in the vocabulary, (b) a followed keyword in the title/categories or a match-up 
 league's stored ESPN roster (0295: exact informative full names, nicknames or stored abbreviations; no city-only
 or subset inference; unique teams and league across every stored roster, followed or not, and the league followed, 0335; not
 when the title names a competition itself, a followed keyword or another competition, 0335, nor for two bare codes in a
-numbered round, 0338, or when a side is a
+numbered round (round, rd or r with its number; 0338, 0339), or when a side is a
 nickname football codes share such as Panthers or Lions, 0336; no stored roster, no added recognition), or (c) a C-H sport
 category's channel + a live-looking title
 ("live", "vs", " v "). A keyword that names a league follows its canonical league in every spelling (`sportsClassify.LEAGUES`:
