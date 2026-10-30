@@ -348,6 +348,15 @@ test('#23: Fox Cricket Day 2 sessions flagged live are live, and credited to the
     assert.equal(unflagged.kind, 'replay', 'without the flag, "no such game" still decides');
 });
 
+// #22 (FR-19): the nearer Sheffield Shield game (South Australia v Western Australia) matched "South Africa v Australia"
+// only fuzzily (ESPN's "SOA" by its letters, "Australia" inside "Western Australia"); the Test matches both sides exactly.
+test('#22: an exact two-team fixture match beats a nearer fuzzy one (the Test, not the Sheffield Shield game)', () => {
+    for (const { row, kind, why } of foxCricketDay2(22)) {
+        assert.equal(kind, row.kind, `${row.start} ${row.title}: ${why}`);
+        assert.doesNotMatch(why, /Wed 12:00 am/, `${row.start}: the Test, not the Sheffield Shield game (${why})`);
+    }
+});
+
 test('multi-day cricket fixtures do not label overnight blocks live', () => {
     const firstBall = Date.parse('2026-10-27T08:00Z');
     const aliases = name => [classify.parseSide(name)];

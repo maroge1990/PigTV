@@ -666,6 +666,11 @@ const aliasHit = (aliases, side) => aliases.some(alias => teamMatch(side, alias)
 /** The fixture's two teams (each already an array of alias-sides) against the airing's pair, either order. */
 const fixtureTeamsMatch = (aliasesA, aliasesB, teams) =>
     (aliasHit(aliasesA, teams[0]) && aliasHit(aliasesB, teams[1])) || (aliasHit(aliasesA, teams[1]) && aliasHit(aliasesB, teams[0]));
+/** #22: the same name, word for word (in any order): "South Africa" is ESPN's "South Africa", "RSA" its alias "RSA". */
+const sideWords = (side) => side.tokens.slice().sort().join(' ');
+const aliasExact = (aliases, side) => aliases.some(alias => sideWords(alias) === sideWords(side));
+const fixtureTeamsExact = (aliasesA, aliasesB, teams) =>
+    (aliasExact(aliasesA, teams[0]) && aliasExact(aliasesB, teams[1])) || (aliasExact(aliasesA, teams[1]) && aliasExact(aliasesB, teams[0]));
 /** Is this side one of the league's known teams (any alias), even with no fixture pairing it today? */
 const teamIsKnown = (side, teamsAliases) => teamsAliases.some(aliases => aliasHit(aliases, side));
 
@@ -720,7 +725,11 @@ function fixtureVerdict(a, leagueData, now) {
     if (p.teams) {
         const candidates = (leagueData.fixtures || []).filter(f => f.teamsAliases && fixtureTeamsMatch(f.teamsAliases[0], f.teamsAliases[1], p.teams));
         if (candidates.length) {
-            const best = candidates.reduce((b, c) => (Math.abs(c.start - a.start) < Math.abs(b.start - a.start) ? c : b));
+            // #22: a fixture naming both teams exactly beats a nearer one that only matches loosely (an abbreviation by
+            // its letters, a name inside a longer one: South Australia v Western Australia for South Africa v Australia).
+            const exact = candidates.filter(f => fixtureTeamsExact(f.teamsAliases[0], f.teamsAliases[1], p.teams));
+            const pool = exact.length ? exact : candidates;
+            const best = pool.reduce((b, c) => (Math.abs(c.start - a.start) < Math.abs(b.start - a.start) ? c : b));
             return fixtureLiveVerdict(a, best, 'game');
         }
         const recent = Number.isFinite(at) && Number.isFinite(now) && now - at <= NO_GAME_MAX_AGE_MS;
