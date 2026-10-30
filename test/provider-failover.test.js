@@ -475,7 +475,8 @@ test('0180: a start replaced by the same viewer\'s next play is not a provider f
     logLines.length = 0;
     const failedBefore = sqlite.getDb().prepare('SELECT COUNT(*) AS n FROM channel_health WHERE ok = 0').get().n;
     const first = play('pos_3');                 // starts ffmpeg, which never produces a playlist
-    await sleep(500);
+    // Polled, not a fixed 500 ms: on CI's 2 vCPUs the start can take longer (failed once on 0da6159, 31 Oct).
+    for (let waited = 0; startsOf(url.A(103)) < 1 && waited < 5000; waited += 50) await sleep(50);
     assert.equal(startsOf(url.A(103)), 1);
     const second = await play('pos_4');          // the zap: the coordinator releases the first as a replacement
     const r = await first;
