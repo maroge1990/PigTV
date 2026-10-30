@@ -28,7 +28,7 @@ function makeManager({ groups, confirmAnswer = true, newGroups = [] } = {}) {
             bulkShow: async (items) => { calls.push(['bulkShow', items.map(i => `${i.itemType}:${i.itemId}`)]); },
             bulkHide: async (items) => { calls.push(['bulkHide', items.map(i => `${i.itemType}:${i.itemId}`)]); if (gate) await gate; },
             newGroups: async () => listed,
-            show: async (sourceId, type, id) => { calls.push(['show', sourceId, type, id]); listed = listed.filter(g => g.categoryId !== id); },
+            show: async (sourceId, type, id) => { calls.push(['show', sourceId, type, id]); if (gate) await gate; listed = listed.filter(g => g.categoryId !== id); },
             dismissNewGroups: async (sourceId) => { calls.push(['dismiss', sourceId]); listed = []; }
         } }
     });
@@ -175,4 +175,28 @@ test('#175: ticks made while a save is running are not marked saved; a second Sa
     await manager.saveContentChanges();
     assert.deepEqual(plain(calls[1]), ['bulkHide', ['channel:b']]);
     assert.equal(manager.isDirty(), false);
+});
+
+test('#176: after switching provider, the old list\'s buttons do nothing and a late Show leaves the new provider alone', async () => {
+    const { manager, calls, box } = makeManager({ newGroups: [{ sourceId: 7, categoryId: '11', name: 'NFL Sunday Ticket', channels: 1, foundAt: 1 }] });
+    await manager.loadNewGroups(7);
+    // A click on provider 7's Show while it is still on screen, answered only after the switch.
+    let open;
+    gate = new Promise(r => { open = r; });
+    const pending = manager.showNewGroup('11', null, 7);
+    await new Promise(r => setTimeout(r, 0));
+    manager.clearNewGroups();
+    manager.treeData = { type: 'channels', sourceId: 8, groups: [{ id: '11', name: 'Same id, other provider', categoryId: '11', items: [{ type: 'channel', id: 'z', name: 'Z' }] }] };
+    manager.hiddenSet = new Set(['group:11', 'channel:z']);
+    manager.originalHiddenSet = new Set(manager.hiddenSet);
+    open();
+    await pending;
+    gate = null;
+    assert.deepEqual(plain(calls), [['show', 7, 'group', '11']], 'sent for provider 7, the one it came from');
+    assert.deepEqual([...manager.hiddenSet].sort(), ['channel:z', 'group:11'], "provider 8's selection untouched");
+    assert.equal(box.hidden, true, 'the old list is gone');
+    // A stale button from provider 7 now does nothing.
+    await manager.showNewGroup('11', null, 7);
+    await manager.dismissNewGroups(7);
+    assert.equal(calls.length, 1);
 });

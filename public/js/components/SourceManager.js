@@ -117,11 +117,27 @@ class SourceManager {
      * #10 (0359): "New on the provider": groups the provider added since the last sync. They arrive hidden, so the guide
      * and the TV do not fill up with thousands of channels; each can be shown here (at once), or the list cleared.
      */
+    /** #176: the list box emptied, and any answer still on its way made stale. */
+    clearNewGroups() {
+        this.newGroupsGen = (this.newGroupsGen || 0) + 1;
+        this.newGroups = [];
+        const box = document.getElementById('content-new-groups');
+        if (box) { box.hidden = true; box.innerHTML = ''; }
+    }
+
+    /** Whether `sourceId` is still the provider on screen (#176). */
+    isCurrentSource(sourceId) {
+        return String(this.treeData?.sourceId) === String(sourceId);
+    }
+
     async loadNewGroups(sourceId) {
         const box = document.getElementById('content-new-groups');
         if (!box) return;
+        const gen = (this.newGroupsGen = (this.newGroupsGen || 0) + 1);
         let groups = [];
         try { groups = await API.channels.newGroups(sourceId); } catch { groups = []; }
+        // #176: an answer for a provider no longer on screen, or overtaken by a newer load, is dropped.
+        if (gen !== this.newGroupsGen || !this.isCurrentSource(sourceId)) return;
         this.newGroups = Array.isArray(groups) ? groups : [];
         box.hidden = this.newGroups.length === 0;
         if (box.hidden) { box.innerHTML = ''; return; }
@@ -135,23 +151,26 @@ class SourceManager {
                 <button type="button" class="btn btn-sm btn-primary" data-new-group-show="${e(g.categoryId)}">Show</button>
             </div>`).join('')}
             <p><button type="button" class="btn btn-sm btn-ghost" data-new-groups-dismiss>Keep all hidden and clear this list</button></p>`;
-        box.querySelectorAll('[data-new-group-show]').forEach(b => b.addEventListener('click', () => this.showNewGroup(b.dataset.newGroupShow, b)));
-        box.querySelectorAll('[data-new-group-look]').forEach(b => b.addEventListener('click', () => this.lookInside(b.dataset.newGroupLook)));
-        box.querySelector('[data-new-groups-dismiss]')?.addEventListener('click', () => this.dismissNewGroups());
+        // #176: each action carries the provider this list came from.
+        box.querySelectorAll('[data-new-group-show]').forEach(b => b.addEventListener('click', () => this.showNewGroup(b.dataset.newGroupShow, b, sourceId)));
+        box.querySelectorAll('[data-new-group-look]').forEach(b => b.addEventListener('click', () => this.lookInside(b.dataset.newGroupLook, sourceId)));
+        box.querySelector('[data-new-groups-dismiss]')?.addEventListener('click', () => this.dismissNewGroups(sourceId));
     }
 
     /** Show a new group now (the server also takes it off the list), then redraw. */
-    async showNewGroup(categoryId, button) {
+    async showNewGroup(categoryId, button, sourceId = this.treeData?.sourceId) {
+        if (!this.isCurrentSource(sourceId)) return; // #176: a list left over from another provider
         if (button) button.disabled = true;
         try {
-            await API.channels.show(this.treeData.sourceId, this.groupItemType(), categoryId);
+            await API.channels.show(sourceId, this.groupItemType(), categoryId);
+            if (!this.isCurrentSource(sourceId)) return; // switched while it ran: the other provider's tree is untouched
             const group = this.treeData.groups.find(g => String(g.categoryId) === String(categoryId));
             for (const set of [this.hiddenSet, this.originalHiddenSet]) {
                 set.delete(`${this.groupItemType()}:${categoryId}`);
                 group?.items.forEach(i => set.delete(`${i.type}:${i.id}`));
             }
             this.renderTree();
-            await this.loadNewGroups(this.treeData.sourceId);
+            await this.loadNewGroups(sourceId);
             try { await window.app?.channelList?.loadChannels?.(); } catch { /* the list reloads on its own */ }
         } catch (err) {
             alert(`Could not show the group: ${err.message || err}`);
@@ -160,7 +179,8 @@ class SourceManager {
     }
 
     /** Open the group in the tree below (its channels can then be ticked one by one). */
-    lookInside(categoryId) {
+    lookInside(categoryId, sourceId = this.treeData?.sourceId) {
+        if (!this.isCurrentSource(sourceId)) return;
         const group = this.treeData?.groups.find(g => String(g.categoryId) === String(categoryId));
         if (!group) return;
         this.searchQuery = '';
@@ -171,10 +191,11 @@ class SourceManager {
         this.contentTree?.querySelector?.(`.content-group[data-group-id="${CSS.escape(group.id)}"]`)?.scrollIntoView?.({ block: 'start' });
     }
 
-    async dismissNewGroups() {
+    async dismissNewGroups(sourceId = this.treeData?.sourceId) {
+        if (!this.isCurrentSource(sourceId)) return;
         try {
-            await API.channels.dismissNewGroups(this.treeData.sourceId);
-            await this.loadNewGroups(this.treeData.sourceId);
+            await API.channels.dismissNewGroups(sourceId);
+            if (this.isCurrentSource(sourceId)) await this.loadNewGroups(sourceId);
         } catch (err) {
             alert(`Could not clear the list: ${err.message || err}`);
         }
@@ -211,6 +232,8 @@ class SourceManager {
      * hidden flags - instead of the Xtream-emulation routes plus /channels/hidden.
      */
     async loadContentTree(sourceId) {
+        // #176: the previous provider's new-group list goes at once (its buttons would act on the wrong provider).
+        this.clearNewGroups();
         // #174: an Undo belongs to the provider it was saved on.
         if (this.undoSnapshot && String(this.undoSnapshot.sourceId) !== String(sourceId)) {
             this.undoSnapshot = null;
