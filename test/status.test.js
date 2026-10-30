@@ -267,3 +267,27 @@ test('#19: live sessions and recent plays name the paired device (and what its a
     assert.deepEqual(byChannel, { Seven: 'PigTV tvOS (Apple TV, PigTV 84)', Nine: 'PigTV iOS (iOS)', Ten: null });
     playbackEvents.reset();
 });
+
+// #129 (0370): with "Show details" closed the page asks for ?details=0, and the server skips what only the details draw.
+// On 0369 the parameter was ignored: every piece was read on every 5 s refresh.
+test('#129: ?details=0 leaves out (and does not read) what only the details draw, and keeps what the page shows', async () => {
+    const raw = load('services/rawChannels');
+    const real = raw.archiveSummary;
+    let reads = 0;
+    raw.archiveSummary = (...a) => { reads++; return real(...a); };
+    try {
+        const { body } = await get('/api/status?details=0', adminToken);
+        for (const key of ['events', 'relay', 'ingest', 'feedLag', 'sportFixtures', 'sportEvents', 'preparation', 'loopDelay', 'catchup', 'backups', 'disk', 'warming']) {
+            assert.equal(body[key], undefined, `${key} is a detail`);
+        }
+        for (const key of ['build', 'providers', 'sessions', 'recordings', 'recentProblems', 'recordingsFolder', 'leastReliable', 'interruptions', 'sync', 'segmentedRecordings']) {
+            assert.notEqual(body[key], undefined, `${key} is on the page without details`);
+        }
+        assert.equal(reads, 0, 'the catch-up summary is not read');
+        const full = await get('/api/status', adminToken);
+        assert.ok(Array.isArray(full.body.catchup) && full.body.disk, 'without the parameter, everything (as before)');
+        assert.equal(reads, 1);
+    } finally {
+        raw.archiveSummary = real;
+    }
+});

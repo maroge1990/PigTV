@@ -273,3 +273,26 @@ test('#61: Status shows the ffmpeg and ffprobe versions after the build, and a m
     assert.match(h.sections.get('attention').innerHTML, /ffprobe is not available/);
     assert.ok(h.sections.get('build').innerHTML.includes('ffprobe unknown'));
 });
+
+// #129 (0370): the page asks for ?details=0 while "Show details" is closed, and asks again in full when it is opened.
+test('#129: Status asks for details only while they are shown', async () => {
+    const urls = [];
+    const elements = { 'status-content': { innerHTML: '', querySelector: () => null, querySelectorAll: () => [], addEventListener() {} }, 'status-updated': { textContent: '' } };
+    const context = vm.createContext({
+        console, localStorage: { getItem: () => null, setItem() {} },
+        document: { hidden: false, getElementById: (id) => elements[id] || null, addEventListener() {} },
+        setInterval: () => 1, clearInterval() {},
+        fetch: async (url) => { urls.push(url); return { ok: true, status: 200, headers: { get: () => 'application/json' },
+            json: async () => ({ generatedAt: 1, build: {}, providers: [], sessions: [], recordings: { active: [], upcoming: [] } }) }; }
+    });
+    context.window = context;
+    vm.runInContext(js('api.js'), context);
+    vm.runInContext(js('pages/StatusPage.js'), context);
+    const page = new context.StatusPage({});
+    page.show();
+    await new Promise(r => setImmediate(r));
+    assert.deepEqual(urls, ['/api/status?details=0']);
+    page.toggleDetails();
+    await new Promise(r => setImmediate(r));
+    assert.deepEqual(urls.filter(u => u.startsWith('/api/status')), ['/api/status?details=0', '/api/status']);
+});

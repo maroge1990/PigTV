@@ -165,7 +165,8 @@ const API = {
 
     // Server status (admin; 0124)
     status: {
-        get: () => API.request('GET', '/status')
+        // #129 (0370): `details: false` asks only for what the page shows with "Show details" closed.
+        get: ({ details = true } = {}) => API.request('GET', details ? '/status' : '/status?details=0')
     },
 
     // Sport (C-I; admin)

@@ -304,6 +304,9 @@ router.get('/', async (req, res) => {
     try {
         const settings = await db.settings.get();
         const names = ownerNames();
+        // #129 (0370): ?details=0 (the page with "Show details" closed) skips what only the details draw.
+        const full = req.query.details !== '0';
+        const detail = (read) => (full ? read() : undefined);
         const status = {
             generatedAt: Date.now(),
             mediaTools: req.app.locals.mediaTools || null,
@@ -313,54 +316,54 @@ router.get('/', async (req, res) => {
             recordings: recordings(),
             recentProblems: recentProblems(),
             recordingsFolder: recordingsFolderHealth(),
-            events: playbackEvents.recent().map(withOwnerName(names)),
+            events: detail(() => playbackEvents.recent().map(withOwnerName(names))),
             // 0133 (C-G): the channels that failed to start most in the last 7 days.
             leastReliable: leastReliable(),
             // 0188: streams lost mid-play in the last 7 days, and how long they took to come back.
             interruptions: require('../services/playbackInterruptions').summary(),
             // R11: channels warmed ahead (the warmNextChannel setting).
-            warming: require('../services/channelWarming').status(settings),
+            warming: detail(() => require('../services/channelWarming').status(settings)),
             // 0189: streams a relay is keeping going (Settings: In-stream recovery), and their standbys.
-            relay: (() => { const r = require('../services/streamRelay'); return { ...r.modeOf(settings), streams: r.list() }; })(),
+            relay: detail(() => { const r = require('../services/streamRelay'); return { ...r.modeOf(settings), streams: r.list() }; }),
             // Wave 5: shared ingests (one provider connection each), their subscribers, buffer and rate.
-            ingest: (() => { try { return { enabled: settings.sharedIngestEnabled === true, ...require('../services/ingest').status() }; } catch (e) { return null; } })(),
+            ingest: detail(() => { try { return { enabled: settings.sharedIngestEnabled === true, ...require('../services/ingest').status() }; } catch (e) { return null; } }),
             // R7 data (0287): each channel's worst lag behind real time per provider, last 30 days.
-            feedLag: (() => {
+            feedLag: detail(() => {
                 try { return { limitSec: require('../services/feedLagLimit').baseOf(require('../services/ingest').tuning.behindMs) / 1000, channels: require('../services/feedLag').summary() }; } catch (e) { return null; }
-            })(),
+            }),
             // 0161 (C-I): ESPN fixture coverage, per league - last successful fetch, fixture
             // count, last error. Never a URL (sportsFixtures.statusSummary never puts one in).
-            sportFixtures: sportsFixtures.statusSummary(),
+            sportFixtures: detail(() => sportsFixtures.statusSummary()),
             // R09: the sport event list's builds (on a worker thread): count, last build time, the
             // worst event-loop stall seen during it, and how long the served list has been stale.
-            sportEvents: require('../services/sportsEvents').status(),
+            sportEvents: detail(() => require('../services/sportsEvents').status()),
             // R16: the recording preparation queue (0193), and the server's own event-loop lateness.
-            preparation: preparationQueue(),
+            preparation: detail(preparationQueue),
             // R3: segmented recordings' appdata folder and what is still in it (being recorded, being
             // finished, waiting for the recordings folder, or failed with its segments kept).
             segmentedRecordings: (() => { try { return { enabled: settings.segmentedRecordings === true, ...require('../services/recordingSegments').status() }; } catch (e) { return null; } })(),
-            loopDelay: require('../services/loopDelay').summary(),
+            loopDelay: detail(() => require('../services/loopDelay').summary()),
             sync: await syncStatus(),
             // Plan B1 (0216): catch-up as each provider flags it (tv_archive), from the last raw fetch.
-            catchup: (() => {
+            catchup: detail(() => {
                 try {
                     return require('../services/rawChannels').archiveSummary()
                         .map(r => ({ ...r, provider: providerName(r.sourceId) }));
                 } catch (e) { return []; }
-            })(),
+            }),
             // R12: the database copies in data/backups (file name, why, when, size; never a path).
-            backups: (() => {
+            backups: detail(() => {
                 try {
                     const dbBackup = require('../services/dbBackup');
                     return dbBackup.list(require('../db/sqlite').databasePath())
                         .map(({ file, reason, at, bytes }) => ({ file, reason, at, bytes }));
                 } catch (e) { return []; }
-            })(),
-            disk: {
+            }),
+            disk: detail(() => ({
                 transcodeCache: diskAt(transcodeSession.CACHE_DIR),
                 // #8: the share's line is cached and refreshed off the event loop; a request never touches the share.
                 recordings: require('../services/shareFs').diskInfo(settings.recordingsPath || '/app/recordings')
-            }
+            }))
         };
         res.set('Cache-Control', 'no-store');
         res.json(scrubUrls(status));

@@ -44,6 +44,8 @@ class StatusPage {
         try { localStorage.setItem(StatusPage.DETAILS_KEY, this.showDetails ? '1' : '0'); } catch (e) { /* not remembered */ }
         this.syncEpgPanel();
         if (this.showDetails) this.loadEpgCategories();
+        // #129 (0370): the last answer has no details when they were closed, so opening them asks again.
+        if (this.showDetails && this.shown) { this.refresh(); return; }
         if (this.lastStatus) {
             const content = document.getElementById('status-content');
             if (content) this.paint(content, this.lastStatus);
@@ -132,7 +134,7 @@ class StatusPage {
         const content = document.getElementById('status-content');
         const updated = document.getElementById('status-updated');
         try {
-            const status = await API.status.get();
+            const status = await API.status.get({ details: this.showDetails });
             this.lastStatus = status;
             if (content) this.paint(content, status);
             if (updated) updated.textContent = `Updated ${new Date(status.generatedAt || Date.now()).toLocaleTimeString()} · every 5 s`;
