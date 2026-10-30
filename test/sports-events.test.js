@@ -180,6 +180,16 @@ test('the same game on three channels is one event; a different game at the same
     assert.deepEqual(nba.map(e => e.kind), ['event', 'replay'], '0152: the same game 5 h later is a replay of the first airing');
 });
 
+// #20: a merged event spans every channel's airing; each channel also says when its own airing runs, so the client
+// acts (Watch, Record, Watch when it starts) on the chosen channel's window, not the merged one.
+test('#20: each channel of an event carries its own airing times', async () => {
+    const own = ev => Object.fromEntries(ev.channels.map(c => [c.name, [c.start - NOW, c.end - NOW]]));
+    const want = { 'Sky Sports UHD': [-45 * M, 150 * M], 'ESPN 2 HD': [-30 * M, 150 * M], 'Fox Sports 505 SD': [-30 * M, 150 * M] };
+    assert.deepEqual(own(find(await events(), 'NFL')[0]), want, 'the served answer');
+    const direct = await load('services/sportsEvents').eventsFor({ hours: 6 });
+    assert.deepEqual(own(direct.events.find(e => e.title === 'Chiefs v Bills')), want, 'eventsFor');
+});
+
 test('(a) an EPG category in the sport vocabulary makes a programme sport', async () => {
     const body = await events('?hours=24');
     assert.equal(find(body, 'Rugby').length, 1);
@@ -224,7 +234,8 @@ test('channels are ordered by quality, then health ok, then favourite, then guid
     const body = await events();
     assert.deepEqual(find(body, 'NFL')[0].channels.map(c => c.quality), ['UHD', 'HD', 'SD']);
     const nflSky = find(body, 'NFL')[0].channels[0];
-    assert.deepEqual(Object.keys(nflSky).sort(), ['id', 'logo', 'name', 'number', 'quality', 'sourceId', 'stableId']);
+    // #20 (0337): plus the channel's own airing times, additive.
+    assert.deepEqual(Object.keys(nflSky).sort(), ['end', 'id', 'logo', 'name', 'number', 'quality', 'sourceId', 'stableId', 'start']);
     assert.equal(nflSky.sourceId, source.id);
     assert.equal(typeof nflSky.number, 'number');
 

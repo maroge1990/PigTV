@@ -199,13 +199,16 @@ Sport is recognised per **programme**, not per channel. How recognition, kinds, 
 work is in `docs/architecture/sports.md` › Recognition; the shape the client relies on:
 
 - `GET /api/sports/events?hours=N[&include=all]` (any user; default 6, max 72) →
-  `{ now, events: [ { id, title, league, start, end, live, kind, aliases, channels: [ { sourceId, id, stableId, name, number, logo, quality } ] } ] }`
+  `{ now, events: [ { id, title, league, start, end, live, kind, aliases, channels: [ { sourceId, id, stableId, name, number, logo, quality, start, end } ] } ] }`
   - `kind`: `"event"` | `"replay"` | `"show"` | `"placeholder"`; absent means `"event"` (an older server).
   - Default: events and replays; `include=all` adds shows and placeholders after them.
   - Order: live events, upcoming events (by start), then replays (on-now first, then by start).
   - `league`: the canonical league ("F1", "AFLW", …), else the most specific EPG category, else "Sport".
   - `live`: on now. `quality`: `"UHD"` | `"HD"` | `"SD"` | null from the channel name.
   - `channels`: best first (quality, health ok, favourite, guide order). `channels[0]` plays through the ordinary resolve.
+  - Since 0337 (#20, additive) each channel also carries `start` and `end` (ms): when **that channel's** airing of the
+    event runs. The event's own `start`/`end` span every channel's airing (merged), so Watch eligibility, Record and
+    "Watch when it starts" on a chosen channel use the channel's times; absent from an older server (use the event's).
   - `title` is the cleanest form ("Carlton Blues v Richmond Tigers", "Azerbaijan GP · Practice 3"); `aliases` are the raw
     guide titles merged into it.
   - Since 0294, match-ups of two distinct teams in a followed league's stored ESPN roster name that league even

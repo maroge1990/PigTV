@@ -507,7 +507,11 @@ function finishEvent(item, keywordOrder) {
     }
     const channels = [];
     const seen = new Set();
+    // #20: when each channel's own airing of it runs (several back-to-back blocks on one channel are one span).
+    const airingTimes = {};
     for (const a of item.airings) {
+        const t = airingTimes[a.channel.key];
+        airingTimes[a.channel.key] = t ? [Math.min(t[0], a.start), Math.max(t[1], a.end)] : [a.start, a.end];
         if (seen.has(a.channel.key)) continue;
         seen.add(a.channel.key);
         channels.push(a.channel);
@@ -523,7 +527,8 @@ function finishEvent(item, keywordOrder) {
         end: item.end,
         rule: best.rule,
         match: best.match,
-        channels
+        channels,
+        airingTimes
     };
 }
 
@@ -822,7 +827,7 @@ const KIND_ORDER = { event: 0, replay: 1, show: 2, placeholder: 3 };
 /**
  * The events for one request (C-I):
  *   { now, events: [{ id, kind, title, aliases, league, start, end, live,
- *                     channels: [{ sourceId, id, stableId, name, number, logo, quality }] }] }
+ *                     channels: [{ sourceId, id, stableId, name, number, logo, quality, start, end }] }] }
  * Events and replays (0150), or every kind with `include: 'all'`. Ordered by kind
  * (events, replays, shows, placeholders), each live first, then by start. `withRule`
  * adds `rule` and `match` (how it was recognised) and `kindRule` (why it is that kind;
@@ -855,7 +860,7 @@ async function eventsFor({ hours, userId, now = Date.now(), withRule = false, in
             live: ev.start <= now && now < ev.end,
             channels: channels.map(ch => ({
                 sourceId: ch.sourceId, id: ch.id, stableId: ch.stableId, name: ch.name,
-                number: ch.number, logo: ch.logo, quality: ch.quality
+                number: ch.number, logo: ch.logo, quality: ch.quality, ...ownTimes(ev, ch)
             }))
         };
         if (withRule) { out.rule = ev.rule; out.match = ev.match; out.kindRule = ev.kindRule; }
@@ -907,8 +912,16 @@ const byBaseOrder = (a, b) => qualityRank(a.quality) - qualityRank(b.quality)
     || healthRank(a.health) - healthRank(b.health)
     || a.order - b.order;
 
-/** The ',"channels":[...]}' end of an event's JSON for these channels, already in order. */
-const channelsTail = (channels, jsons) => `,"channels":[${channels.map(ch => jsons.get(ch)).join(',')}]}`;
+/** #20: { start, end } of this channel's own airing of the event (absent on an event built before 0337). */
+function ownTimes(ev, ch) {
+    const t = ev.airingTimes && ev.airingTimes[ch.key];
+    return t ? { start: t[0], end: t[1] } : {};
+}
+/** The ',"channels":[...]}' end of an event's JSON for these channels, already in order (each with its own times, #20). */
+const channelsTail = (ev, channels, jsons) => `,"channels":[${channels.map(ch => {
+    const t = ev.airingTimes && ev.airingTimes[ch.key];
+    return t ? `${jsons.get(ch).slice(0, -1)},"start":${t[0]},"end":${t[1]}}` : jsons.get(ch);
+}).join(',')}]}`;
 
 async function prepareBuilt(built) {
     if (built.prep) return built.prep;
@@ -925,7 +938,7 @@ async function prepareBuilt(built) {
             ev, kind: KIND_ORDER[ev.kind],
             head: JSON.stringify({ id: ev.id, kind: ev.kind, title: ev.title, aliases: ev.aliases, league: ev.league, start: ev.start, end: ev.end })
                 .slice(0, -1) + ',"live":',
-            tail: channelsTail(channels, jsons)
+            tail: channelsTail(ev, channels, jsons)
         };
         entries.push(entry);
         for (const ch of ev.channels) {
@@ -957,7 +970,7 @@ function favouriteTails(prep, favs, favSig) {
                 || healthRank(a.health) - healthRank(b.health)
                 || (isFav(b) ? 1 : 0) - (isFav(a) ? 1 : 0)
                 || a.order - b.order);
-            tails.set(entry, channelsTail(channels, prep.jsons));
+            tails.set(entry, channelsTail(entry.ev, channels, prep.jsons));
         }
     }
     if (prep.favTails.size >= 8) prep.favTails.delete(prep.favTails.keys().next().value);
