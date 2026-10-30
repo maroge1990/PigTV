@@ -1116,12 +1116,13 @@ class SettingsPage {
     /**
      * Load and display hardware info in Transcoding tab
      */
-    async loadHardwareInfo() {
+    async loadHardwareInfo({ redetect = false } = {}) {
         const container = document.getElementById('hw-info-container');
         if (!container) return;
 
         try {
-            const hwInfo = await API.request('GET', '/settings/hw-info');
+            // #61 (0367): "Re-detect GPU" probes again (a device passed through after the container started).
+            const hwInfo = await API.request(redetect ? 'POST' : 'GET', redetect ? '/settings/hw-info/refresh' : '/settings/hw-info');
             const e = (v) => this.escapeLineup(v);
 
             const detected = [];
@@ -1163,11 +1164,25 @@ class SettingsPage {
                 html = `<p class="hint">No GPU acceleration detected. Using software encoding.</p>`;
             }
 
+            html += `<p style="margin-top: var(--space-sm);"><button type="button" class="btn btn-sm btn-secondary" data-hw-redetect>Re-detect GPU</button>`
+                + `${redetect ? ' <span class="setting-hint">Detected again just now.</span>' : ''}</p>`;
             container.innerHTML = html;
+            this.wireHwRedetect(container);
         } catch (err) {
             console.error('Error loading hardware info:', err);
-            container.innerHTML = '<p class="hint error">Failed to load hardware info</p>';
+            container.innerHTML = '<p class="hint error">Failed to load hardware info</p>'
+                + '<p><button type="button" class="btn btn-sm btn-secondary" data-hw-redetect>Re-detect GPU</button></p>';
+            this.wireHwRedetect(container);
         }
+    }
+
+    wireHwRedetect(container) {
+        const button = container.querySelector?.('[data-hw-redetect]');
+        button?.addEventListener('click', () => {
+            button.disabled = true;
+            button.textContent = 'Detecting…';
+            this.loadHardwareInfo({ redetect: true });
+        });
     }
 
     initUserManagement() {
