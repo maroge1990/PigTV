@@ -118,8 +118,8 @@ function compileFollow(keywords, rosters = new Map()) {
     ];
     return {
         list,
-        rosters: new Map([...rosters].filter(([league]) => list.some(k => k.league === league))
-            .map(([league, teams]) => [league, teams.map(rosterAliases)])),
+        // #24: every stored roster, followed or not: a pairing two leagues share infers neither.
+        rosters: new Map([...rosters].map(([league, teams]) => [league, teams.map(rosterAliases)])),
         leagues: new Set(list.filter(k => k.league).map(k => k.league)),
         any: literal.length ? wordRegExp(literal.join('|')) : null
     };
@@ -127,6 +127,9 @@ function compileFollow(keywords, rosters = new Map()) {
 
 // Inferring a league needs stronger evidence than matching a known fixture. A city is shared
 // across sports, and a subset match (Sydney inside Sydney FC) is not a team identity.
+// #24: a title that names a competition says which one it is, even one PigTV does not know: a round number is a
+// round-based code (AFL, NRL), never a cup tie inferred from two abbreviations.
+const OTHER_COMPETITION_RE = /\b(?:eredivisie|la ?liga|serie a|bundesliga|ligue 1|mls|a-?league|scottish premiership|carabao cup|league cup|copa|round \d{1,2})\b/i;
 const rosterSideKey = side => side.tokens.filter(t => t !== 'de').sort().join(' ');
 function rosterAliases(team) {
     const location = sportsClassify.normText(team?.location);
@@ -213,7 +216,10 @@ function classify({ title, categories = [], sportChannel = false, channelName = 
     // A stored roster recognises team-only titles; two different teams of a followed league
     // must resolve uniquely by a full name, nickname or stored abbreviation, across all followed
     // rosters. Location-only or subset matches cannot infer a league. No roster, no new rule.
-    if (!titleLeague && follow.rosters?.size) {
+    // #24: and only where the title names no competition itself (a followed keyword such as "EFL Cup", or another one),
+    // checked against every stored roster, followed or not; the one league it infers must be followed.
+    const namesCompetition = OTHER_COMPETITION_RE.test(text) || follow.list.some(k => k.re && k.re.test(text));
+    if (!titleLeague && !namesCompetition && follow.rosters?.size) {
         const pair = sportsClassify.parseMatchup(text);
         if (pair) {
             const matches = [];
@@ -223,7 +229,7 @@ function classify({ title, categories = [], sportChannel = false, channelName = 
                 const second = hit(pair[1]);
                 if (first.length === 1 && second.length === 1 && first[0] !== second[0]) matches.push(league);
             }
-            if (matches.length === 1) leagues.unshift(matches[0]);
+            if (matches.length === 1 && follow.leagues.has(matches[0])) leagues.unshift(matches[0]);
         }
     }
     const keyword = followedKeyword(follow, text, categories, leagues);
@@ -394,7 +400,10 @@ const RULE_RANK = { keyword: 0, category: 1, sportChannel: 2 };
 function buildEvents({ from, follow: keywords, decorateChannels } = {}) {
     const db = getDb();
     const wanted = keywords || getFollow();
-    const rosterLeagues = new Set(wanted.map(sportsClassify.canonicalLeague).filter(Boolean));
+    // #24: every stored roster (ambiguity is judged across all of them), plus the followed leagues' own.
+    let stored = [];
+    try { stored = db.prepare('SELECT league FROM sport_fixture_teams').all().map(r => r.league); } catch (e) { /* no table yet */ }
+    const rosterLeagues = new Set([...wanted.map(sportsClassify.canonicalLeague).filter(Boolean), ...stored]);
     const rosters = new Map([...rosterLeagues].map(league => [league, sportsFixtures.teamsOf(league, db)]));
     const follow = compileFollow(wanted, rosters);
     const channels = visibleChannels(db);

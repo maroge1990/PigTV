@@ -590,6 +590,27 @@ test('/events: ETag and 304 when unchanged; no If-None-Match is a plain 200; the
     assert.equal(await zipped.text(), text);
 });
 
+// #24 (FR-21): roster inference must not override what the title says, nor pick one league where another stored roster
+// fits as well.
+test('#24: a roster never overrides a followed competition, another competition\'s name, or a pairing another roster shares', () => {
+    const ev = load('services/sportsEvents');
+    const t = (displayName, name, location, abbreviation) => ({ displayName, shortDisplayName: name, name, location, abbreviation });
+    const epl = [t('Manchester City', 'Man City', 'Manchester', 'MCI'), t('Brighton & Hove Albion', 'Brighton', 'Brighton', 'BHA')];
+    const faCup = [t('Cardiff City', 'Cardiff', 'Cardiff', 'CAR'), t('Brighton & Hove Albion', 'Brighton', 'Brighton', 'BRI')];
+    const uefa = [t('PSV Eindhoven', 'PSV', 'Eindhoven', 'PSV'), t('Feyenoord Rotterdam', 'Feyenoord', 'Rotterdam', 'FEY')];
+    const afl = [t('Carlton Blues', 'Blues', 'Carlton', 'CAR'), t('Brisbane Lions', 'Lions', 'Brisbane', 'BRI')];
+    const league = (title, keywords, rosters) => ev.classify({ title }, ev.compileFollow(keywords, new Map(rosters)))?.league ?? null;
+    // The followed competition the title names wins (0289's live EFL Cup event, not 0300's EPL replay).
+    assert.equal(league('Live EFL Cup: Man City v Brighton', ['EFL Cup', 'EPL'], [['EPL', epl]]), 'EFL Cup');
+    // A title naming another competition is not re-assigned by a roster.
+    assert.equal(league('Eredivisie Soccer - PSV vs. Feyenoord', ['UEFA'], [['UEFA', uefa]]), null);
+    assert.equal(league('TBA : Round 21 CAR v BRI', ['FA Cup', 'AFL'], [['FA Cup', faCup]]), null, 'a round number is AFL/NRL, not a cup tie');
+    // Every stored roster counts for ambiguity, followed or not: Carlton v Brisbane is also Cardiff v Brighton.
+    assert.equal(league('CAR v BRI', ['FA Cup'], [['FA Cup', faCup], ['AFL', afl]]), null);
+    // Still inferred when one roster alone fits.
+    assert.equal(league('Man City v Brighton & Hove Albion', ['EPL'], [['EPL', epl], ['AFL', afl]]), 'EPL');
+});
+
 // 0294: the real build loads the persisted roster, independent of fixture coverage.
 test('a build recognises a followed league from its stored ESPN roster', () => {
     const ev = load('services/sportsEvents');
