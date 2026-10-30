@@ -57,3 +57,32 @@ second). Listings use the request's Host, so PigTV must reach it by the address 
 
 **Cost** (Apple M1, 30 Oct): 9–13 % of one core per stream being read at 640x360, 13.5 % at 960x540; nothing when idle
 (node itself ~56 MB). Lower it with `--fps 15` or `--size 480x270`; keep `--video-kbps` ≥ 300 or plays are marked blank.
+
+## Test rig on Unraid (`scripts/unraid-rig.sh`)
+
+The rig runs the Mac's working tree, not a CI image (local commits are not pushed), on the Unraid box in TEST containers
+beside production. It uses the production image as it is on the box (Node 24, its `node_modules`, FFmpeg 9; `--pull
+never`) and never touches the `PigTV` container, its appdata or its tag. Every container is named `pigtv-test-*`, capped
+at 3 CPUs (1.5 for a fake), `--cpu-shares 256`, ≤ 6 GB and `--restart no`; everything lives in
+`/mnt/user/appdata/pigtv-test/` (keep it under 20 GB).
+
+| Container | Port on the box | What |
+|---|---|---|
+| `pigtv-test-fake-a` / `-fake-b` | 8290 / 8291 | Profiles a and b (b is the backup), `--fps 15 --size 480x270 --uhd-size 640x360 --video-kbps 400` |
+| `pigtv-test-staging` | 3100 | The synced `server/`, `public/`, `scripts/`, `docker/` mounted over the image's; data in `staging/`, HLS in a 1 GB tmpfs; `PIGTV_SPORT_FIXTURES=0` |
+| `pigtv-test-runner` | none | Made and removed by `test`: `npm test` (`PIGTV_SKIP_PERF=1`) and `verify-build.sh`, with `node_modules` from `npm ci` cached in `runner/deps-<lockfile>-<image>` |
+
+```bash
+scripts/unraid-rig.sh up       # sync, (re)start fakes and staging, seed, re-sync, smoke check (~15 s)
+scripts/unraid-rig.sh check    # channels, guide, sport events, one channel played to HLS
+scripts/unraid-rig.sh test     # sync + full suite on the box (~4 min; the first run adds ~10 s for npm ci)
+scripts/unraid-rig.sh status   # containers, docker stats, disk, production's uptime and image (read only)
+scripts/unraid-rig.sh down     # remove the containers (data kept);  reset = down + wipe staging data
+```
+
+`up` again after editing code (the server only reads it at start). The staging server is `http://<box>:3100` for the
+web app and the simulators. `up` creates a throwaway staging admin on first run and keeps its login in `PIGTV_RIG_CREDS`
+(default `~/.local/state/pigtv-rig/staging-admin.env`, outside the repo); it adds the fakes as sources from inside the
+container (`http://localhost:3000` only). `reset` deletes the staging data and that file together. Other settings
+(`PIGTV_RIG_HOST`, ports, root, image) are listed at the top of the script. Logs of the last `test` are in
+`src/.rig-logs/` on the box until the next sync.

@@ -7,12 +7,12 @@ issues hold the detail.
 
 *Overwritten at the end of every session. 30 Oct 2026.*
 
-- Server: **0317** last pushed; **0318–0323** committed locally for Mark to push (sport review repairs, renewal-pin
+- Server: production runs **0315** (FFmpeg 9.0.2); **0317** is the last push; **0318–0323** committed locally for Mark to push (sport review repairs, renewal-pin
   accounting, hardening tracked in private advisories, a newer device request ending a recovering relay). Next build **0324**.
 - Apple: **61** last pushed; **62–63** local (sport action repairs, tvOS player focus #18). Codex rounds on 62–63 done.
 - Documentation reset done (D-22): issues #3–#130 replace the findings register and the roadmaps.
 - Relay timeline renewal goes **off** in production (D-25): Mark unticks Settings → System, Claude confirms over SSH.
-- Live now dashboard stays gated (D-29). T3 test rig not live yet (#73); the fake provider is built.
+- Live now dashboard stays gated (D-29). T3 is live: fake providers and staging server on Unraid (`scripts/unraid-rig.sh`, docs/FAKE-PROVIDER.md).
 
 ## Now
 
