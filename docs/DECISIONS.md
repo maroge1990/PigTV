@@ -292,3 +292,20 @@ reviews.
 - **Consequence:** an Apple build of its own (released apart from other changes, D-35), then Mark's device check: 10 cold
   plays per test channel with a stopwatch.
 
+
+### D-37. Working without Mark for batches 3b–7 (30 Oct 2026)
+
+- **Context:** Mark will be unavailable, and no device testing (T5) is possible, while batches 3b–7 are built.
+- **Choice (Mark, 30 Oct):** Claude builds, tests, reviews and pushes batches 3b–7 without asking. It deploys to
+  production only when a deploy helps testing; otherwise it carries on without one. Batch 8 (#4, relay renewal: a real
+  provider capture and a device test with renewal on) waits until Mark is back. A read-only copy of the production
+  database sits on the Unraid test share (`/mnt/user/appdata/pigtv-test/prod-snapshot/`, owner-only, never in Git) for
+  rehearsing migrations. Anything that needs Mark's approval is shown to him before he goes: the Cricket (Apple TV), F1
+  iPhone and iPad, and web channel-change mock-ups were added to the "PigTV Sport mock-ups" canvas on 30 Oct.
+- **Claude's defaults (Mark may change any):** new provider groups arrive hidden and are listed as "New on the provider"
+  (#10); guide sync at a fixed 4:30 am, retrying after 15 min, 1 h and 3 h, with a warning under 36 h of guide (#11); a
+  playlist more than 30% smaller, or a guide more than 50% shorter, is held until accepted (#42); spoiler-free and
+  "Following" are server-wide, so every device agrees (#68, #67); the sport page's bells use the existing "watch when it
+  starts" reminder (#69); channel up/down after a play from Home or the Top Shelf follows the guide order (#13); the web
+  player's own preferences stay in the browser, and Show all / Hide all ask with counts and can be undone (#9, #16).
+- **Consequence:** issues stay open until Mark's device checks after his return (AGENTS.md › Work tracking).

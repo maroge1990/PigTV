@@ -4,7 +4,7 @@ Running the container on Unraid (or anywhere else). Image: `ghcr.io/maroge1990/p
 
 ## Deployment
 
-Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/nodecast_tv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page.
+Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/pigtv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page.
 
 **Deploy (Mark):** Unraid → Docker → PigTV → Force Update, then `curl -s http://192.168.1.235:3000/api/version`. A redeploy
 ends every session. Rollback: point the container at `ghcr.io/maroge1990/pigtv:sha-<short>` of the last good build, then
@@ -34,7 +34,7 @@ Add two optional Variables to the `PigTV` container template:
 | User ID | `PUID` | `99` |
 | Group ID | `PGID` | `100` |
 
-Nothing else changes: `/mnt/user/appdata/nodecast_tv/data` -> `/app/data`, `/mnt/remotes` -> `/app/recordings`
+Nothing else changes: `/mnt/user/appdata/pigtv/data` -> `/app/data`, `/mnt/remotes` -> `/app/recordings`
 (Read/Write - Slave), the transcode tmpfs, and the `/dev/dri` device stay as they are.
 
 **Icon and WebUI:** the image carries `net.unraid.docker.icon` and `net.unraid.docker.webui` labels (0208). If the
@@ -73,7 +73,7 @@ docker exec PigTV sh scripts/backup-db.sh
 
 Writes an application-consistent copy (SQLite online backup, safe while the server runs) to
 `/app/data/backups/content-<timestamp>-<reason>.db` and keeps the newest 7. On Unraid that is
-`/mnt/user/appdata/nodecast_tv/data/backups/`.
+`/mnt/user/appdata/pigtv/data/backups/`.
 
 **Automatic (0213, R12):** the server takes the same copy itself, `pre-migration` before a new build opens the database
 (so a failed migration can be undone) and `nightly` once a day; the Status page lists them. Each copy is checked
@@ -82,7 +82,7 @@ Writes an application-consistent copy (SQLite online backup, safe while the serv
 the disk).
 
 **Segmented recordings (0218, R3, off by default):** while on, recordings in progress live in
-`/app/data/recordings-work/` (on Unraid `/mnt/user/appdata/nodecast_tv/data/recordings-work/`) until their MP4 is on the
+`/app/data/recordings-work/` (on Unraid `/mnt/user/appdata/pigtv/data/recordings-work/`) until their MP4 is on the
 share. Leave room in appdata for the longest recording (twice that while an HEVC one is watched from the start), and
 exclude `recordings-work/` from any appdata backup: it is large, short-lived, and remade by the next recording. Status →
 "Segmented recordings (appdata)" says what is still there (recording, being finished, waiting for the share, failed).
