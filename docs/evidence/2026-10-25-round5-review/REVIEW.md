@@ -14,7 +14,7 @@
 | R5-D1 | P2 | Native preparation of fallbackTS, input opened before delete/output afterward: row deleted, late MP4 still published and left unlisted. | Missed downstream publication owner |
 | R5-A1 | P2 | Prune lists2000B file, writer replaces with500B, removal subtracts cached2000B: count−1500. Next2000B write leaves actual2000/count500/cap1500, prune idle. | Remaining cached-file-size accounting defect |
 
-Details, source locations, acceptance criteria and saved expected-correct/scheduling reproductions: [docs/evidence/2026-10-25-round5-review/F4.md](F4.md), [docs/evidence/2026-10-25-round5-review/DVR.md](DVR.md), [docs/evidence/2026-10-25-round5-review/APPLE.md](APPLE.md). Local synthetic evidence only; none establishes a cause for original bugs5/8.
+Details, source locations, acceptance criteria and saved expected-correct/scheduling reproductions: [F4.md](F4.md), [DVR.md](DVR.md), [APPLE.md](APPLE.md). Local synthetic evidence only; none establishes a cause for original bugs5/8.
 
 ## Finding-by-finding disposition
 
@@ -36,7 +36,7 @@ Details, source locations, acceptance criteria and saved expected-correct/schedu
 - iOS simulator build: **pass**, exit0.
 - Isolated Apple mutation: **2tests,1expectedfail/1pass**, exit65; locked-folder guard0.010394s versus current0.006752s. The reported92s guard duration is not reproduced. Native extracted-production guard is also fast on both conditions. A separate long simulator diagnostic collector was observed and stopped to finalize the result; that does not prove the cause of the author's92s measurement.
 
-[docs/evidence/2026-10-25-round5-review/CHECKS.md](CHECKS.md) has exact evidence, limitations and any focused UI retry outcome. Result JSON and focused parent/current logs are retained beside it. Old-code experiments used isolated copies with bounded runs; working application files were never replaced. No web focus code changed, so no fresh browser-focus run was needed or claimed.
+[CHECKS.md](CHECKS.md) has exact evidence, limitations and any focused UI retry outcome. Result JSON and focused parent/current logs are retained beside it. Old-code experiments used isolated copies with bounded runs; working application files were never replaced. No web focus code changed, so no fresh browser-focus run was needed or claimed.
 
 ## Contract, documentation and remaining scope
 
@@ -44,4 +44,4 @@ C-M now states the accepted intended heuristic and drops its former universal du
 
 The repair status/blueprints correctly retain physical-device/feed acceptance, bug5 AUS v SA grouping, bug8 iPhone Tuning and the deferred/unmeasured efficiency register. Their closure claims for broad DVR-1/publication, A5 and F4 exceed this evidence. Updated blueprint review notes point here while preserving the dated author status as reviewed evidence.
 
-No application changes, commits, pushes, deployment, provider connection or deployed-server access. Only review artifacts and blueprint status notes changed. Repair instructions: [docs/archive/reviews/2026-10-25/HANDOFF-PROMPT.md](../../archive/reviews/2026-10-25/HANDOFF-PROMPT.md).
+No application changes, commits, pushes, deployment, provider connection or deployed-server access. Only review artifacts and blueprint status notes changed. Repair instructions: [HANDOFF-PROMPT.md](../../archive/reviews/2026-10-25/HANDOFF-PROMPT.md).

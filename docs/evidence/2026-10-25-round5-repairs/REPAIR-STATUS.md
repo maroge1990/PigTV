@@ -1,8 +1,8 @@
 # Repair status after the 25 Oct round-5 review
 
-Local work on 25 Oct from server 0259 (`230118c`) and Apple 54 (`79b67f9`), answering [docs/evidence/2026-10-25-round5-review/REVIEW.md](../2026-10-25-round5-review/REVIEW.md) with
-[docs/evidence/2026-10-25-round5-review/F4.md](../2026-10-25-round5-review/F4.md), [docs/evidence/2026-10-25-round5-review/DVR.md](../2026-10-25-round5-review/DVR.md), [docs/evidence/2026-10-25-round5-review/APPLE.md](../2026-10-25-round5-review/APPLE.md), [docs/evidence/2026-10-25-round5-review/SERVICE-TESTS.md](../2026-10-25-round5-review/SERVICE-TESTS.md) and
-[docs/evidence/2026-10-25-round5-review/CHECKS.md](../2026-10-25-round5-review/CHECKS.md). Nothing pushed or deployed; no deployed server or provider contacted; no playback flag changed.
+Local work on 25 Oct from server 0259 (`230118c`) and Apple 54 (`79b67f9`), answering [REVIEW.md](../2026-10-25-round5-review/REVIEW.md) with
+[F4.md](../2026-10-25-round5-review/F4.md), [DVR.md](../2026-10-25-round5-review/DVR.md), [APPLE.md](../2026-10-25-round5-review/APPLE.md), [SERVICE-TESTS.md](../2026-10-25-round5-review/SERVICE-TESTS.md) and
+[CHECKS.md](../2026-10-25-round5-review/CHECKS.md). Nothing pushed or deployed; no deployed server or provider contacted; no playback flag changed.
 
 "Fixed locally" means implemented, with a test that fails on the code before it (shown below), and the repository checks
 passing. It is not device or real-feed acceptance; nothing here is *Verified*.
@@ -35,7 +35,7 @@ dropped.
 ## Before/after proof
 
 All "before" runs use current tests over an archived older server in a disposable copy
-([`docs/evidence/2026-10-25-round5-repairs/old-code.cjs`](old-code.cjs): `git archive`, `--test-timeout=25000`, 60 s process limit). Logs are local
+([`old-code.cjs`](old-code.cjs): `git archive`, `--test-timeout=25000`, 60 s process limit). Logs are local
 (`*.log` is git-ignored) beside the scripts.
 
 | ID | Tests | Before | After |
@@ -44,7 +44,7 @@ All "before" runs use current tests over an archived older server in a disposabl
 | R5-F1 | DVR-3 rematch (recording-rules), updated | 0259: fails (the cancelled game is not recorded) | passes |
 | R5-D1 | 5 `R5-D1` tests, recording-prepare | 2/5: fallback-.ts preparation, a viewer's remux and compression each leave a late `.mp4`/`.compressed.mp4`; the check-in-progress ordering and the coalescing control already pass (coverage, not proof) | 5/5 |
 | R5-A1 | `CacheTests.testAFileThatShrankAfter…`, `…Grew…` | both fail: shrink counts −1500 then disk 2000 / count 500 over a 1500 cap; growth counts 1400 with an empty folder | pass |
-| relay | stream-relay with removal delayed 200 ms ([`docs/evidence/2026-10-25-round5-repairs/relay-slow-rm.cjs`](relay-slow-rm.cjs)) | 0261 test file 13/15 (both 50 ms sleeps fail) | 15/15 |
+| relay | stream-relay with removal delayed 200 ms ([`relay-slow-rm.cjs`](relay-slow-rm.cjs)) | 0261 test file 13/15 (both 50 ms sleeps fail) | 15/15 |
 
 ## Checks
 

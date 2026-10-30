@@ -28,7 +28,7 @@ build 47), and the repository checks passing. It is not device or real-feed acce
 | A4 | Apple 50 | Fixed: same-shape corrections reconfigure visible cells and redo layout at once, keeping the cell (focus). |
 | A5 | Apple 51 | Fixed: a running byte count and one coalesced prune keep the 50 MB cap during use. |
 
-The other original findings keep the dispositions in [docs/evidence/2026-10-23-fix-review/FIX-REVIEW.md](FIX-REVIEW.md) (addressed: I1, PB1–PB5, DVR-2, DVR-5,
+The other original findings keep the dispositions in [FIX-REVIEW.md](FIX-REVIEW.md) (addressed: I1, PB1–PB5, DVR-2, DVR-5,
 A1, W1, S1–S3). A1 gained a behavioural before/after proof in this pass (see the Apple status in its blueprint).
 
 ## Still open, deliberately

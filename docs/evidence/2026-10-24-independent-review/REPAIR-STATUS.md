@@ -1,8 +1,8 @@
 # Repair status after the 24 Oct independent review
 
 Local work on 24 Oct, from server 0250 (`bc92dfc`) and Apple build 51 (`64f1258`), answering
-[docs/evidence/2026-10-24-independent-review/REVIEW.md](REVIEW.md) (with [docs/evidence/2026-10-24-independent-review/DVR-REVIEW.md](DVR-REVIEW.md), [docs/evidence/2026-10-24-independent-review/SERVICE-REVIEW.md](SERVICE-REVIEW.md) and
-[docs/evidence/2026-10-24-independent-review/APPLE-REVIEW.md](APPLE-REVIEW.md)). **This supersedes [the 23 Oct repair status](../2026-10-23-fix-review/REPAIR-STATUS.md)**
+[REVIEW.md](REVIEW.md) (with [DVR-REVIEW.md](DVR-REVIEW.md), [SERVICE-REVIEW.md](SERVICE-REVIEW.md) and
+[APPLE-REVIEW.md](APPLE-REVIEW.md)). **This supersedes [the 23 Oct repair status](../2026-10-23-fix-review/REPAIR-STATUS.md)**
 wherever they differ; that file is kept as the claim the review examined. Nothing pushed or deployed; no deployed server
 or provider contacted; no playback flag changed.
 
@@ -59,7 +59,7 @@ queues work; the test holds the clear there, the order the review found), `Artwo
 stops between its size read and its replacement) and `ArtworkBudget.waitingForFiles` (another change had to wait). All
 three are nil in the app. The tests wait on these signals or on `queuedCount`, and yield rather than sleep.
 
-[`docs/evidence/2026-10-24-independent-review/apple-repair-mutate.py`](apple-repair-mutate.py) makes that copy: the clear goes back to a detached
+[`apple-repair-mutate.py`](apple-repair-mutate.py) makes that copy: the clear goes back to a detached
 `run(ifCurrent: nil)`, and `ArtworkBudget`'s owner of folder changes runs its body directly. Run on a copy of the
 working tree (`python3 apple-repair-mutate.py <copy>`), then the four tests with `-only-testing`: **4 run, 4 failed**
 (exit 65) as above; on the real tree the same four pass.

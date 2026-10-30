@@ -28,7 +28,7 @@ claimed as established.
 ## Capture before the reconnect change
 
 Mark approved read-only SSH access. The explicitly read-only SQLite capture selected only channel/provider labels,
-times, durations, lag and reconnect counts: [0289 snapshot](README.md). Eight completed reads reached
+times, durations, lag and reconnect counts: [0289 snapshot](README.md#files-kept-outside-the-repository). Eight completed reads reached
 5.1–15 s with zero reconnects. Combined with the 27 Oct soaks and FR-12's 24.1 s Chicago result, this supports a 24 s default
 with exceptions learned per stable channel key and provider source. No provider stream was opened for this capture.
 

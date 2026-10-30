@@ -38,9 +38,9 @@ The first three findings below retain their original detailed explanations. The 
 | P2 | S6 | Logo response bodies outlive the download deadline | [Service supplement](SERVICE-SUPPLEMENT.md); synthetic stalled-body reproduction |
 | P2 | S7 | Sibling link status changes do not invalidate guide membership | [Service supplement](SERVICE-SUPPLEMENT.md); synthetic SQLite reproduction |
 
-The register contains **25 actionable findings: six P1 and nineteen P2**. Supplemental evidence is in [docs/evidence/2026-10-21-four-week-review/SERVICE-SUPPLEMENT.md](SERVICE-SUPPLEMENT.md). Also resolve the disappeared-favourite positional-ID contract concern documented at the end of the playback report; visible wrong-channel impact is not established, so it is not overstated as a reproduced UI bug.
+The register contains **25 actionable findings: six P1 and nineteen P2**. Supplemental evidence is in [SERVICE-SUPPLEMENT.md](SERVICE-SUPPLEMENT.md). Also resolve the disappeared-favourite positional-ID contract concern documented at the end of the playback report; visible wrong-channel impact is not established, so it is not overstated as a reproduced UI bug.
 
-**Repair handoff:** [docs/archive/reviews/2026-10-21/HANDOFF-PROMPT.md](../../archive/reviews/2026-10-21/HANDOFF-PROMPT.md), ready to give to the original agent. It includes every register item, supplemental findings, efficiency work and outstanding acceptance.
+**Repair handoff:** [HANDOFF-PROMPT.md](../../archive/reviews/2026-10-21/HANDOFF-PROMPT.md), ready to give to the original agent. It includes every register item, supplemental findings, efficiency work and outstanding acceptance.
 
 ## Current findings, newest implementation first
 

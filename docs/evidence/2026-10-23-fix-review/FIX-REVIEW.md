@@ -8,43 +8,43 @@ No application code was changed, committed, pushed or deployed. No deployed serv
 
 ### F1 — P1: original retention can accept a different file and delete the real source
 
-At [recordingSegments.js:489](../../../../../../../../../../../Users/markrogers/Documents/GitHub/PigTV/server/services/recordingSegments.js:489), an existing companion TS is accepted solely because its length equals the total segment bytes. The caller then removes the actual segments. Reproduced using a 4096-byte original filled with zeros and an unrelated existing 4096-byte TS filled with 99: finalization reports “Original kept”, retains the unrelated file, and deletes the work directory. The new test covers a different-size collision, missing this case.
+At [recordingSegments.js:489](/Users/markrogers/Documents/GitHub/PigTV/server/services/recordingSegments.js:489), an existing companion TS is accepted solely because its length equals the total segment bytes. The caller then removes the actual segments. Reproduced using a 4096-byte original filled with zeros and an unrelated existing 4096-byte TS filled with 99: finalization reports “Original kept”, retains the unrelated file, and deletes the work directory. The new test covers a different-size collision, missing this case.
 
 This is introduced by the 0227 retention repair. Prove ownership/content of an existing original, or publish to an exclusively reserved companion path. Do not rely on size or check-then-rename for identity/no-overwrite guarantees. Add equal-size/different-content and concurrent-publication cases before deleting source segments.
 
-Evidence: [docs/evidence/2026-10-23-fix-review/dvr-retention-fix-repro.cjs](dvr-retention-fix-repro.cjs). DVR-1 remains open.
+Evidence: [dvr-retention-fix-repro.cjs](dvr-retention-fix-repro.cjs). DVR-1 remains open.
 
 ### F2 — P2: original-copy work is marked done before it can survive a restart
 
-At [recordingSegments.js:461](../../../../../../../../../../../Users/markrogers/Documents/GitHub/PigTV/server/services/recordingSegments.js:461), the share-available path persists `segment_state: done` before awaiting the retained-original copy. Restart recovery selects only finishing/moving. A crash while copying therefore leaves source segments in appdata and a partial on the share, but no queued recovery or waiting status. The original survives; this is orphaned recovery work, not immediate loss.
+At [recordingSegments.js:461](/Users/markrogers/Documents/GitHub/PigTV/server/services/recordingSegments.js:461), the share-available path persists `segment_state: done` before awaiting the retained-original copy. Restart recovery selects only finishing/moving. A crash while copying therefore leaves source segments in appdata and a partial on the share, but no queued recovery or waiting status. The original survives; this is orphaned recovery work, not immediate loss.
 
 The reproduction inspects durable state immediately before the copy opens and confirms it is absent from `findSegmentWork()`. Persist a pending/moving state until the original is safely published, then mark done. Test restart/reopen while the copy is paused.
 
-Evidence: [docs/evidence/2026-10-23-fix-review/dvr-retention-crash-state-repro.cjs](dvr-retention-crash-state-repro.cjs). Second incomplete DVR-1 boundary.
+Evidence: [dvr-retention-crash-state-repro.cjs](dvr-retention-crash-state-repro.cjs). Second incomplete DVR-1 boundary.
 
 ### F3 — P2: immediate recording failover still starts after cancellation/shutdown
 
-At [recordingEngine.js:1006](../../../../../../../../../../../Users/markrogers/Documents/GitHub/PigTV/server/services/recordingEngine.js:1006), immediate ordinary recording failover awaits `feedFor()` then unconditionally calls `spawnPart()`. Its old active entry has already been removed; the new initial-start and continuation guards do not own this path. `cancelScheduled()` cannot find it, and `stopAllActive()` returns without cancelling it.
+At [recordingEngine.js:1006](/Users/markrogers/Documents/GitHub/PigTV/server/services/recordingEngine.js:1006), immediate ordinary recording failover awaits `feedFor()` then unconditionally calls `spawnPart()`. Its old active entry has already been removed; the new initial-start and continuation guards do not own this path. `cancelScheduled()` cannot find it, and `stopAllActive()` returns without cancelling it.
 
 Reproduced with the real engine and synthetic child/feed: primary fails, hold backup subscription pending, cancel then stop all, release the feed, and backup ffmpeg starts. Extend cancellable ownership/generations to this immediate failover and its settings await; release late feeds, update schedule status, and assert no post-cancel spawn.
 
-Evidence: [docs/evidence/2026-10-23-fix-review/failover-cancel-reproduction.cjs](failover-cancel-reproduction.cjs). DVR-4 remains open; 0232 fixes other startup paths.
+Evidence: [failover-cancel-reproduction.cjs](failover-cancel-reproduction.cjs). DVR-4 remains open; 0232 fixes other startup paths.
 
 ### F4 — P2: six-hour title matching is not durable sport-event identity
 
-At [recordingRules.js:189](../../../../../../../../../../../Users/markrogers/Documents/GitHub/PigTV/server/services/recordingRules.js:189), 0237 broadens the old ±15-minute title match to ±6 hours. Two distinct same-title events three hours apart now collapse into one schedule. A cancelled event moved seven hours still returns. Both reproduced against the real rule service with distinct synthetic event IDs.
+At [recordingRules.js:189](/Users/markrogers/Documents/GitHub/PigTV/server/services/recordingRules.js:189), 0237 broadens the old ±15-minute title match to ±6 hours. Two distinct same-title events three hours apart now collapse into one schedule. A cancelled event moved seven hours still returns. Both reproduced against the real rule service with distinct synthetic event IDs.
 
 The changed contract documents the heuristic, but that narrows the original intent instead of satisfying it. Introduce event-instance identity/disambiguation and cancellation continuity, testing both close distinct matches and larger genuine corrections. If product policy deliberately accepts a heuristic, get that decision explicitly; don't label the durable-identity finding closed merely because 20-minute and two-hour examples pass.
 
-Evidence: [docs/evidence/2026-10-23-fix-review/dvr-rule-fix-repro.cjs](dvr-rule-fix-repro.cjs). DVR-3 remains partial, with new over-suppression within six hours.
+Evidence: [dvr-rule-fix-repro.cjs](dvr-rule-fix-repro.cjs). DVR-3 remains partial, with new over-suppression within six hours.
 
 ### F5 — P2: channel-list focus is still lost beyond the initial rendered batches
 
-At [ChannelList.js:478](../../../../../../../../../../../Users/markrogers/Documents/GitHub/PigTV/public/js/components/ChannelList.js:478), restoreFocus only searches existing DOM. `render()` rebuilds the first two 100-group batches; a previously focused channel/header in a later group has no replacement node yet, so restoration does nothing. The IntersectionObserver eventually adding the group does not retry focus.
+At [ChannelList.js:478](/Users/markrogers/Documents/GitHub/PigTV/public/js/components/ChannelList.js:478), restoreFocus only searches existing DOM. `render()` rebuilds the first two 100-group batches; a previously focused channel/header in a later group has no replacement node yet, so restoration does nothing. The IntersectionObserver eventually adding the group does not retry focus.
 
 Independent browser check: provided harness cases pass, but with 205 synthetic groups, focus on `late204` becomes `BODY` after render. Render the required batch/group before restoration, or retain pending focus ownership until it exists. Include disappeared-group fallback. Existing one-group/c9 harness cannot establish this acceptance case.
 
-Evidence: [docs/evidence/2026-10-23-fix-review/focus-large-list-reproduction.html](focus-large-list-reproduction.html). W2 remains partial.
+Evidence: [focus-large-list-reproduction.html](focus-large-list-reproduction.html). W2 remains partial.
 
 ## Original finding dispositions
 

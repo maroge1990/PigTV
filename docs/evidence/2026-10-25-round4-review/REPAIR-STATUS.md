@@ -1,7 +1,7 @@
 # Repair status after the round-4 review (25 Oct)
 
 Local work on 25 Oct from server 0255 (`63a022f`, review docs `93583f6`) and Apple 53 (`6c552cb`), answering
-[docs/evidence/2026-10-25-round4-review/REVIEW.md](REVIEW.md) with [docs/evidence/2026-10-25-round4-review/DVR.md](DVR.md), [docs/evidence/2026-10-25-round4-review/SERVICE.md](SERVICE.md), [docs/evidence/2026-10-25-round4-review/APPLE.md](APPLE.md) and [docs/evidence/2026-10-25-round4-review/CHECKS.md](CHECKS.md).
+[REVIEW.md](REVIEW.md) with [DVR.md](DVR.md), [SERVICE.md](SERVICE.md), [APPLE.md](APPLE.md) and [CHECKS.md](CHECKS.md).
 It updates [the 24 Oct repair status](../2026-10-24-independent-review/REPAIR-STATUS.md) for D1, R-S5 and A5. That file's D2, D3, D4 and A2-R entries
 stand (the review passed them, and they are unchanged here), as do its F4 policy proposal, efficiency dispositions and
 device steps. Nothing pushed or deployed; no deployed server or provider contacted; no playback flag changed.
@@ -38,7 +38,7 @@ durable identity, and its broader intent is not closed until Mark accepts a poli
 
 How "before" was run. Server: `git stash` of `server/` only (the new tests kept), the named tests with `--test-timeout`,
 then unstashed; `pgrep` found no fixture process left. Apple: an isolated copy with build 53's stop condition restored
-by [`docs/evidence/2026-10-25-round4-review/apple-mutate-a5r2.py`](apple-mutate-a5r2.py), only the two tests selected: **2 run, 1 failed (exit 65)** as above.
+by [`apple-mutate-a5r2.py`](apple-mutate-a5r2.py), only the two tests selected: **2 run, 1 failed (exit 65)** as above.
 In that copy the guard test took 92 s (0.005 s on the real tree); the cause was not established (it follows the failing
 test, and may be XCTest's diagnostics after a failure).
 

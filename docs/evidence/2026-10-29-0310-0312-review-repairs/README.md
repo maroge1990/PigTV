@@ -107,7 +107,7 @@ command is Mark's to type per AGENTS.md. In PigTV:
 /codex:adversarial-review --background --base 4d95f10 Review only playback/media commits 0310/0311/0312/0314; exclude sports commits 0309/0313 and unrelated uncommitted work. 0310–0312 are approved with no high findings (round 1 of 2). Focus on 0314 N1 primary retention when budget failover cannot admit/start a backup, N2 channel-only quarantine (Mark's decision), admission/takeover/deadline and pin ownership. Read docs/reviews/2026-10-29/review-repairs/round1-followups/README.md. N3 is retained as FR-29 after a successful single-epoch +5 s jump capture, with no audio timestamp patch; QSV detection is FR-30/FR-26. Return approval/change request with evidence, respect the stopping rule, and retain medium/low findings with reproduction.
 ```
 
-Return-to-reviewer prompt: [docs/evidence/2026-10-29-0310-0312-review-repairs/REVIEWER-PROMPT.txt](REVIEWER-PROMPT.txt).
+Return-to-reviewer prompt: [REVIEWER-PROMPT.txt](REVIEWER-PROMPT.txt).
 
 After reviewer approval and Linux candidate CI:
 

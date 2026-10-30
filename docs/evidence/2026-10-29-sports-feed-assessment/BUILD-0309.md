@@ -21,7 +21,7 @@ Validation:
 - [Partial status before](partial-status-before.txt): an unknown status could replace completion. The store now retains
   known state and lets its freshness expire. The added test passes.
 - [Unit after](unit-after.txt), [full suite](full-suite-summary.txt): **1,273/1,273 pass**, no skipped tests.
-- [Build verification](README.md): all checks pass. No new static-only checks were needed.
+- [Build verification](README.md#files-kept-outside-the-repository): all checks pass. No new static-only checks were needed.
 
 ## Review status and next work
 

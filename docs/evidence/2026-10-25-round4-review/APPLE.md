@@ -17,7 +17,7 @@ Location: `PigTV/PrivateCaches.swift:191–197`, especially line 194.
 
 The new shared file lock correctly accounts for this write; it does not close the gap between the completed pass and its final state decision. Thus this is separate from, and survives the repair of, the original undercounting race.
 
-Independent deterministic reproduction: [`docs/evidence/2026-10-25-round4-review/artwork-prune-completion.py`](artwork-prune-completion.py) extracts the actual current `ArtworkBudget` and `ArtworkDiskStore`, adding only a scheduling barrier between `pruneOnce` and `finished`. It seeds 1,000 bytes from a previous launch, starts the same `begin`/`pruneLoop` path used by `shared`, holds the pass after it removes zero files, then writes another 1,000 bytes against a 1,500-byte limit. Observed on repeated runs:
+Independent deterministic reproduction: [`artwork-prune-completion.py`](artwork-prune-completion.py) extracts the actual current `ArtworkBudget` and `ArtworkDiskStore`, adding only a scheduling barrier between `pruneOnce` and `finished`. It seeds 1,000 bytes from a previous launch, starts the same `begin`/`pruneLoop` path used by `shared`, holds the pass after it removes zero files, then writes another 1,000 bytes against a 1,500-byte limit. Observed on repeated runs:
 
 ```text
 disk=2000 counted=2000 limit=1500; prune idle
