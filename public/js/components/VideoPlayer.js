@@ -62,21 +62,30 @@ class VideoPlayer {
     /**
      * Load settings from server API
      */
+    /**
+     * #9 (0358): this browser's own player preferences. They never go to the server: they are not the household's,
+     * and saving them used to write a whole page-load copy of every setting back.
+     */
+    static get LOCAL_KEYS() { return ['arrowKeysChangeChannel', 'overlayDuration', 'defaultVolume', 'rememberVolume']; }
+
+    localPrefs() {
+        try {
+            const saved = JSON.parse(localStorage.getItem('pigtv_player_prefs') || '{}');
+            return Object.fromEntries(VideoPlayer.LOCAL_KEYS.filter(k => k in saved).map(k => [k, saved[k]]));
+        } catch { return {}; }
+    }
+
     async loadSettingsFromServer() {
         try {
             const serverSettings = await API.settings.get();
-            this.settings = { ...this.getDefaultSettings(), ...serverSettings };
+            this.settings = { ...this.getDefaultSettings(), ...serverSettings, ...this.localPrefs() };
             this.settingsLoaded = true;
             console.log('[Player] Settings loaded from server');
         } catch (err) {
             console.warn('[Player] Failed to load settings from server, using defaults:', err.message);
             // Fall back to localStorage for backwards compatibility
             try {
-                const saved = localStorage.getItem('pigtv_player_settings');
-                if (saved) {
-                    this.settings = { ...this.getDefaultSettings(), ...JSON.parse(saved) };
-                    console.log('[Player] Settings loaded from localStorage (fallback)');
-                }
+                this.settings = { ...this.getDefaultSettings(), ...this.localPrefs() };
             } catch (localErr) {
                 console.error('[Player] Error loading localStorage settings:', localErr);
             }
@@ -90,20 +99,29 @@ class VideoPlayer {
     }
 
     /**
-     * Save settings to server API (admin Settings page only).
+     * #9 (0358): save only the named settings. This browser's own preferences go to localStorage; the rest are PUT one
+     * key at a time, so a save can never put back a value another tab or switch has since changed. Resolves
+     * { ok, error } so the page can say "Saved" or why not; a refused server value is not kept in this copy.
      */
-    async saveSettings() {
-        try {
-            await API.settings.update(this.settings);
-            console.log('[Player] Settings saved to server');
-        } catch (err) {
-            console.error('[Player] Error saving settings to server:', err);
-            // Also save to localStorage as backup
+    async saveSettings(keys) {
+        const list = Array.isArray(keys) ? keys : [keys];
+        const local = list.filter(k => VideoPlayer.LOCAL_KEYS.includes(k));
+        const remote = list.filter(k => !VideoPlayer.LOCAL_KEYS.includes(k));
+        if (local.length) {
             try {
-                localStorage.setItem('pigtv_player_settings', JSON.stringify(this.settings));
-            } catch (localErr) {
-                console.error('[Player] Error saving to localStorage:', localErr);
-            }
+                const saved = JSON.parse(localStorage.getItem('pigtv_player_prefs') || '{}');
+                for (const k of local) saved[k] = this.settings[k];
+                localStorage.setItem('pigtv_player_prefs', JSON.stringify(saved));
+            } catch { /* browser storage off: the preference lasts until the page reloads */ }
+        }
+        if (!remote.length) return { ok: true };
+        try {
+            const saved = await API.settings.update(Object.fromEntries(remote.map(k => [k, this.settings[k]])));
+            if (saved && typeof saved === 'object') for (const k of remote) if (k in saved) this.settings[k] = saved[k];
+            return { ok: true };
+        } catch (err) {
+            console.error('[Player] Could not save', remote.join(', '), err);
+            return { ok: false, error: err.message || 'Could not save' };
         }
     }
 

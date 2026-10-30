@@ -48,6 +48,20 @@ class SettingsPage {
         this.switchTab('backuplinks');
     }
 
+    /**
+     * #9 (0358): one setting at a time, and the result shown: "Saved" next to the page's status, or why not. The
+     * volume slider saves when let go, not on every step.
+     */
+    async savePlayerSetting(key) {
+        const result = await this.app.player.saveSettings([key]);
+        const status = document.getElementById('playback-settings-status');
+        if (status) {
+            status.textContent = result.ok ? 'Saved' : `Not saved: ${result.error}`;
+            status.classList.toggle('error', !result.ok);
+        }
+        return result;
+    }
+
     initHwDecodeSettings() {
         const bind = (id, key) => {
             const el = document.getElementById(id);
@@ -919,27 +933,28 @@ class SettingsPage {
         // Arrow keys toggle
         arrowKeysToggle.addEventListener('change', () => {
             this.app.player.settings.arrowKeysChangeChannel = arrowKeysToggle.checked;
-            this.app.player.saveSettings();
+            this.savePlayerSetting('arrowKeysChangeChannel');
         });
 
         // Overlay duration
         overlayDurationInput.addEventListener('change', () => {
             this.app.player.settings.overlayDuration = parseInt(overlayDurationInput.value) || 5;
-            this.app.player.saveSettings();
+            this.savePlayerSetting('overlayDuration');
         });
 
         // Default volume slider
         defaultVolumeSlider.addEventListener('input', () => {
-            const value = defaultVolumeSlider.value;
-            volumeValueDisplay.textContent = value + '%';
-            this.app.player.settings.defaultVolume = parseInt(value);
-            this.app.player.saveSettings();
+            volumeValueDisplay.textContent = defaultVolumeSlider.value + '%';
+        });
+        defaultVolumeSlider.addEventListener('change', () => {
+            this.app.player.settings.defaultVolume = parseInt(defaultVolumeSlider.value);
+            this.savePlayerSetting('defaultVolume');
         });
 
         // Remember volume toggle
         rememberVolumeToggle.addEventListener('change', () => {
             this.app.player.settings.rememberVolume = rememberVolumeToggle.checked;
-            this.app.player.saveSettings();
+            this.savePlayerSetting('rememberVolume');
         });
 
         // EPG refresh interval
@@ -951,7 +966,7 @@ class SettingsPage {
             // Save on change - server will restart its sync timer via PUT /api/settings
             epgRefreshSelect.addEventListener('change', () => {
                 this.app.player.settings.epgRefreshInterval = epgRefreshSelect.value;
-                this.app.player.saveSettings();
+                this.savePlayerSetting('epgRefreshInterval');
             });
         }
 
@@ -991,17 +1006,17 @@ class SettingsPage {
         // Event listeners for encoder settings
         hwEncoderSelect?.addEventListener('change', () => {
             this.app.player.settings.hwEncoder = hwEncoderSelect.value;
-            this.app.player.saveSettings();
+            this.savePlayerSetting('hwEncoder');
         });
 
         maxResolutionSelect?.addEventListener('change', () => {
             this.app.player.settings.maxResolution = maxResolutionSelect.value;
-            this.app.player.saveSettings();
+            this.savePlayerSetting('maxResolution');
         });
 
         qualitySelect?.addEventListener('change', () => {
             this.app.player.settings.quality = qualitySelect.value;
-            this.app.player.saveSettings();
+            this.savePlayerSetting('quality');
         });
 
         // Audio Mix Preset
@@ -1010,7 +1025,7 @@ class SettingsPage {
             audioMixSelect.value = s.audioMixPreset || 'auto';
             audioMixSelect.addEventListener('change', () => {
                 this.app.player.settings.audioMixPreset = audioMixSelect.value;
-                this.app.player.saveSettings();
+                this.savePlayerSetting('audioMixPreset');
             });
         }
 
@@ -1038,18 +1053,18 @@ class SettingsPage {
         // Upscaling event handlers
         upscaleEnabledToggle?.addEventListener('change', () => {
             this.app.player.settings.upscaleEnabled = upscaleEnabledToggle.checked;
-            this.app.player.saveSettings();
+            this.savePlayerSetting('upscaleEnabled');
             toggleUpscaleOptions(upscaleEnabledToggle.checked);
         });
 
         upscaleMethodSelect?.addEventListener('change', () => {
             this.app.player.settings.upscaleMethod = upscaleMethodSelect.value;
-            this.app.player.saveSettings();
+            this.savePlayerSetting('upscaleMethod');
         });
 
         upscaleTargetSelect?.addEventListener('change', () => {
             this.app.player.settings.upscaleTarget = upscaleTargetSelect.value;
-            this.app.player.saveSettings();
+            this.savePlayerSetting('upscaleTarget');
         });
 
         // User-Agent handlers
@@ -1061,13 +1076,13 @@ class SettingsPage {
 
         userAgentSelect?.addEventListener('change', () => {
             this.app.player.settings.userAgentPreset = userAgentSelect.value;
-            this.app.player.saveSettings();
+            this.savePlayerSetting('userAgentPreset');
             toggleCustomInput();
         });
 
         userAgentCustomInput?.addEventListener('change', () => {
             this.app.player.settings.userAgentCustom = userAgentCustomInput.value;
-            this.app.player.saveSettings();
+            this.savePlayerSetting('userAgentCustom');
         });
     }
 
