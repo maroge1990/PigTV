@@ -140,3 +140,28 @@ test('#15: moving the old primary back restores its own choice of channels', asy
     assert.deepEqual(shownKeys(primary.id), ['s100', 's101', 's102', 's103'], 'its own record: beIN shown, the film channel hidden');
     assert.equal(sqlite.getDb().prepare('SELECT 1 FROM provider_promotions LIMIT 1').get(), undefined, 'no plan left behind');
 });
+
+// #181: the plan was applied (and gone) at publish even when the import failed part-way: only the channels written so
+// far carried, and the sync that then wrote the whole list had nothing to apply.
+test('#181: a playlist import that fails part-way keeps the plan; the next complete one uses it', async () => {
+    const d = sqlite.getDb();
+    const promotion = load('services/providerPromotion');
+    // The switch as the order route makes it, without its background syncs (so nothing races the failed import).
+    promotion.store(primary.id, backup.id);
+    await db.sources.setOrder([{ id: backup.id, role: 'primary', priority: null }, { id: primary.id, role: 'backup', priority: 1 }]);
+    await sync.syncSource(primary.id); // demoted: out of the library
+    await sync.withHiddenChannels(backup, async () => {
+        // One channel written, then the playlist connection drops.
+        d.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, is_hidden, sort_order, stable_id)
+            VALUES (?, ?, 'pos_1', 'live', 'AU| FOX FOOTY HD', 'AU Sport', 0, 1, 's9100')`).run(`${backup.id}:pos_1`, backup.id);
+        throw new Error('the playlist connection dropped');
+    }).catch(() => {});
+    assert.deepEqual(promotion.pending(), { fromId: primary.id, toId: backup.id }, 'kept after a failed import');
+    await sync.syncSource(backup.id);
+    assert.equal(promotion.pending(), null, 'used by the complete sync');
+    assert.deepEqual(shownKeys(backup.id), ['s9100', 's9101', 's9102']);
+    await db.sources.setOrder([{ id: primary.id, role: 'primary', priority: null }, { id: backup.id, role: 'backup', priority: 1 }]);
+    await sync.syncSource(backup.id);
+    await sync.syncSource(primary.id);
+    assert.deepEqual(shownKeys(primary.id), ['s100', 's101', 's102', 's103']);
+});

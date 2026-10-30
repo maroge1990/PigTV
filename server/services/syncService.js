@@ -454,7 +454,7 @@ class SyncService {
         let held = null;
         try { checkPlaylistSize(db, source.id, (liveStreams || []).length, options); } catch (e) { if (!e.held) throw e; held = e; }
         if (!held) await this.syncXtreamLive(source, liveCats, liveStreams);
-        publish(); // #173: hidden channels and new groups settled before the rest downloads
+        publish(!held); // #173: hidden channels and new groups settled before the rest downloads (#181: a held list is not new)
         await this.syncXtreamRest(source, api, options);
         if (held) throw held;
     }
@@ -1170,11 +1170,14 @@ class SyncService {
         let published = false;
         // #173: run as soon as the live rows are written (Xtream calls it before films, series and the guide), and
         // with the pre-sync snapshot even when the sync fails later, so a new group is never left on screen.
-        const publish = () => {
+        // #181: `complete` is false when the live import failed part-way (or was held): the hidden channels are still
+        // settled, but a promotion's plan waits for a sync that wrote the whole list.
+        const publish = (complete = true) => {
             if (published) return;
             published = true;
             const listed = hiddenChannels.after(db, source.id, state);
             if (listed.length) console.log(`[Sync] ${listed.length} new group(s) on ${source.name} arrive hidden, listed for review: ${listed.map(g => g.name).join(', ')}`);
+            if (!complete) return;
             // #15 (0374): a backup just made the primary takes over the old primary's lineup through its links.
             try {
                 const carried = require('./providerPromotion').applyIfPlanned(db, source.id);
@@ -1183,10 +1186,12 @@ class SyncService {
                 console.error(`[Sync] Carrying the lineup over to ${source.name} failed (kept for the next sync): ${e.message}`);
             }
         };
+        let ok = false;
         try {
             await work(publish);
+            ok = true;
         } finally {
-            publish();
+            publish(ok);
         }
     }
 
