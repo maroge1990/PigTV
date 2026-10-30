@@ -526,3 +526,13 @@ accessibility label and accompanies touch-and-hold. tvOS card geometry remains 3
   preference values only, never scores, and is displayed only while saving. Background/account replacement closes the
   cover; unknown/offline states hide controls until validated. A stale visible revision refuses a write rather than
   borrowing a newer polled revision. Server conflict handling remains reread + explicit user choice.
+
+#### Apple 62–63 repairs (local checks pass; no API shape/route change)
+
+- Details actions (Watch, Record, rules) revalidate while the details are still shown, then close and act. Opening or
+  returning from details no longer clears the dashboard; scores are still cleared on background, scope change, save and
+  failure. Only background/active scene changes act (inactive no longer closes covers or cancels a scheduled watch).
+- Watch, card select and "Watch when it starts" also read C-I and require the selected channel's own airing, current on
+  a clock aged through both requests. A scheduled watch waits for that airing's start and re-arms (at most three times)
+  while the server still places it in the future. A Record/rule result is refused if the preference revision changed
+  during the C-I read, and the record sheet is checked against the revision of the snapshot it came from.
