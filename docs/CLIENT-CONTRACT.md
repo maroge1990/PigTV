@@ -24,7 +24,7 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 | `guide`, `devicePairing`, `recordings`, `recordingCompression`, `channelHistory`, `adDetection`, `streamCoordination`, `streamTokenAuth` | early | Base features (`comskipAvailable` says whether ad detection can run) | `devicePairing` gates pairing; the rest are not read |
 | `viewerConflict` | 0083 | Resolve may answer 409 `viewer-in-progress` | The 409 is handled by `conflict.type` either way |
 | `epgLogoFallback` | 0083 | Library rows fill a missing `logo` from the EPG | Skips its own artwork index |
-| `clientEvents` | 0083 | `POST /api/playback/client-event` | Sends `media-error`, `play-start`, `play-end` (`watchedSec`, `stalls`, …) |
+| `clientEvents` | 0083 | `POST /api/playback/client-event` | Sends `media-error`, `play-start`, `play-end` (`watchedSec`, `stalls`, …); since Apple 64 also `start-timeout` (`waitedSec`, nothing played 20 s after the item was installed) and `media-error` with `codeName` `StallTimeout` (a 35 s wait mid-play) |
 | `scheduledWaiting` | 0083 | `recordings/scheduled` lists cancellable `waiting` rows | Shown and cancellable |
 | `recordingPlaybackPolling` | 0083 | `recordings/:id/playback?async=1` may answer 202 `preparing` | Sends `?async=1` and polls |
 | `playbackTerminalStatus` | 0094 | `GET /api/playback/:id/terminal-status` → `taken-over` \| `none`. From 0286 a paired device's new play also ends that device's earlier session on the same provider (FR-11), even when a connection is free; that session then answers `taken-over` | Asked once before its one recovery |
