@@ -48,8 +48,15 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   folder health check and the start pre-flight (`checkRecordingsFolderAsync`), `getRecordingsRoot`, the channel folder,
   segmented recordings' share folder, choosing a capture's file name and reading its size when it ends (#144), and each
   tick's growth, live-detection and free-space checks. `/api/status`
-  shows a cached free-space line refreshed in the background (`shareFs.diskInfo`) and never touches the share. Still
-  synchronous and rare: a segmented recording's final MP4 on the share, and deleting files (#141). `getRecordingsRoot()` only creates the final folder
+  shows a cached free-space line refreshed in the background (`shareFs.diskInfo`) and never touches the share. Deleting
+  a recording (0330, #141): a share that is not answering refuses it before anything is stopped or removed ("The
+  recordings folder is not responding…"; it stays listed, retired, so its jobs stand down until it is deleted or the
+  server restarts); a file the share stops answering on partway is listed in `recording_cleanup` as
+  `deleted`, with its identity, and removed through shareFs at the next folder check that finds the share answering (and
+  at start), only while that name is still that file. At start, the size of a recording cut short by the restart (an
+  unanswered one is kept as `completed`, size unknown) and the removal of what interrupted compressions and old MP4s left
+  go through it too; the queues wait for those as for the sweep. Still synchronous and rare: a segmented recording's final
+  MP4 on the share. `getRecordingsRoot()` only creates the final folder
   when its parent already exists. Settings → Recording → Storage refuses an unusable `recordingsPath` with 400 instead of
   saving it silently (`services/recordingsFolder.js` `validateRecordingsPathSetting()`).
 - **An unanswered "give up the stream" prompt no longer blocks a recording forever** (0158): if a due recording finds a

@@ -239,7 +239,7 @@ test('if the audio cannot be decode-checked at all, the original is kept', async
     assert.match(row(r.id).native_error, /decode-checked/);
 });
 
-test('on startup, an old preparation beside a surviving .mkv is made again; an adopted one is left', () => {
+test('on startup, an old preparation beside a surviving .mkv is made again; an adopted one is left', async () => {
     const kept = makeRecording();
     fs.writeFileSync(kept.native, 'copied audio');
     recordings.setNativeStatus(kept.id, 'ready');
@@ -252,7 +252,7 @@ test('on startup, an old preparation beside a surviving .mkv is made again; an a
     recordings.setNativeStatus(current.id, 'ready');
     recordings.setNativeVersion(current.id, 2);
 
-    engine._reconcileJobsOnStartup();
+    await engine._reconcileJobsOnStartup(); // #141: its removals go through shareFs
 
     assert.equal(row(kept.id).native_status, 'pending');
     assert.ok(!fs.existsSync(kept.native), 'the copied-audio MP4 is removed');

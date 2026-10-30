@@ -429,7 +429,7 @@ test('a restart mid-part finishes that part and keeps the earlier ones', async (
     const one = mk(1, 'completed');
     const two = mk(2, 'recording');
     scheduled.setStatus(s.id, 'recording', { recording_id: two.id });
-    engine.init({ ffmpegPath: FFMPEG, ffprobePath: 'ffprobe' });
+    await engine.init({ ffmpegPath: FFMPEG, ffprobePath: 'ffprobe' }); // #141: the part's size is read through shareFs
     engine.shutdown();
     assert.equal(recordings.getById(one.id).status, 'completed');
     assert.match(recordings.getById(one.id).error, /continues in part 2/, 'part 1 untouched');

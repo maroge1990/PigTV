@@ -294,3 +294,121 @@ test('#146: a cancel stays cancelled when the capture\'s size answers late', asy
         await db.settings.update({ recordingsPath });
     }
 });
+
+// ---- #141: deleting recordings and the start-up clean-up ----
+
+/** Real file calls on the share, from this process, for a test's own setup and checks. */
+const real = (fn) => { bypass = true; try { return fn(); } finally { bypass = false; } };
+const until = async (fn, ms) => { const end = Date.now() + ms; while (Date.now() < end) { if (fn()) return true; await new Promise(r => setTimeout(r, 50)); } return false; };
+const cleanupRow = (p) => load('db/sqlite').getDb().prepare('SELECT kind, identity FROM recording_cleanup WHERE path = ?').get(p);
+
+function completedRecording(file, title) {
+    const { recordings } = load('db/recordingsDb');
+    real(() => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, Buffer.alloc(4000)); });
+    const rec = recordings.create({ scheduled_id: null, title, channel_name: 'Fox Footy', channel_logo: null, source_id: null,
+        channel_item_id: null, file_path: file, started_at: Date.now() - 60000 });
+    recordings.finish(rec.id, { status: 'completed', ended_at: Date.now(), file_size_bytes: 4000, duration_sec: 60, error: null });
+    return rec;
+}
+
+test('#141: a delete while the share is not answering is refused, and nothing of the recording is touched', async () => {
+    const { recordings } = load('db/recordingsDb');
+    const owners = load('services/recordingOwners');
+    const rec = completedRecording(path.join(recordingsPath, 'Hung.ts'), 'Hung');
+    blocked.length = 0;
+    const { worst } = await loopFreeze(() => assert.rejects(() => engine.deleteRecording(rec.id), /not responding/));
+    assert.deepEqual(blocked, [], 'no synchronous call on the share');
+    assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
+    assert.ok(recordings.getById(rec.id), 'the recording is still listed');
+    assert.ok(real(() => fs.existsSync(rec.file_path)), 'its file is untouched');
+    assert.equal(owners.owned(rec.id), false, 'retired at once all the same (R4-D2): its jobs stand down');
+    shareFs.reset();
+});
+
+test('#141: a file the share stops answering on is listed; the recording goes at once, the file once the share answers', async () => {
+    await db.settings.update({ recordingsPath: path.join(slowShare, 'Recordings') });
+    const { recordings } = load('db/recordingsDb');
+    const ts = path.join(slowShare, 'Recordings', 'Gone.ts');
+    const mp4 = path.join(slowShare, 'Recordings', 'Gone.mp4');
+    const rec = completedRecording(ts, 'Gone');
+    real(() => fs.writeFileSync(mp4, 'sidecar'));
+    const realFork = shareFs._spawner.fork;
+    // The share answers everything but the removal of the recording's own file, which it never answers.
+    const helper = deferringHelper((op, file) => op === 'unlink' && file === ts);
+    shareFs.reset();
+    shareFs.tuning.timeoutMs = 300;
+    shareFs._spawner.fork = () => helper.fake;
+    blocked.length = 0;
+    try {
+        const { worst } = await loopFreeze(() => engine.deleteRecording(rec.id));
+        assert.deepEqual(blocked, [], 'no synchronous call on the share');
+        assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
+        assert.ok(!recordings.getById(rec.id), 'the recording is gone');
+        assert.equal(real(() => fs.existsSync(mp4)), false, 'what the share answered for is removed');
+        assert.ok(real(() => fs.existsSync(ts)), 'the file it did not answer for is still there');
+        const row = cleanupRow(ts);
+        assert.equal(row?.kind, 'deleted', 'and listed for removal');
+        assert.ok(row.identity, 'as that very file');
+    } finally {
+        shareFs._spawner.fork = realFork;
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = 1500;
+    }
+    // The share answers again: the next folder check removes it.
+    await engine.checkFolderHealthNow();
+    assert.ok(await until(() => !real(() => fs.existsSync(ts)), 5000), 'removed once the share answers');
+    assert.ok(await until(() => !cleanupRow(ts), 2000), 'and no longer listed');
+    await db.settings.update({ recordingsPath });
+});
+
+test('#141: start-up clean-up of interrupted compressions and old MP4s goes through the helper, before the queues run', async () => {
+    await db.settings.update({ recordingsPath: path.join(slowShare, 'Recordings') });
+    const { recordings } = load('db/recordingsDb');
+    const owners = load('services/recordingOwners');
+    const { compressionTargetPath, nativePlaybackTargetPath } = load('services/recordingMedia');
+    const sql = load('db/sqlite').getDb();
+    const squash = completedRecording(path.join(slowShare, 'Recordings', 'Squash.mkv'), 'Squash');
+    const target = compressionTargetPath(squash.file_path);
+    real(() => { fs.writeFileSync(target, 'truncated'); fs.writeFileSync(`${target}.partial`, 'old'); });
+    sql.prepare(`UPDATE recordings SET compress_status = 'running' WHERE id = ?`).run(squash.id);
+    const old = completedRecording(path.join(slowShare, 'Recordings', 'Old.mkv'), 'Old');
+    const native = nativePlaybackTargetPath(old.file_path);
+    real(() => fs.writeFileSync(native, 'copied audio'));
+    sql.prepare(`UPDATE recordings SET native_status = 'ready', native_version = NULL WHERE id = ?`).run(old.id);
+    blocked.length = 0;
+    try {
+        const { worst } = await loopFreeze(async () => { engine._reconcileJobsOnStartup(); await owners.whenSwept(); });
+        assert.deepEqual(blocked, [], 'no synchronous call on the share');
+        assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
+        assert.equal(real(() => fs.existsSync(target)), false, 'the interrupted compression output is gone before the queue may run');
+        assert.equal(real(() => fs.existsSync(`${target}.partial`)), false);
+        assert.equal(real(() => fs.existsSync(native)), false, 'the old MP4 is gone');
+        assert.equal(recordings.getById(old.id).native_status, 'pending', 'and it is prepared again');
+        assert.equal(recordings.getById(squash.id).compress_status, 'pending');
+    } finally {
+        sql.prepare(`UPDATE recordings SET compress_status = NULL, native_status = NULL WHERE id IN (?, ?)`).run(squash.id, old.id);
+        await db.settings.update({ recordingsPath });
+    }
+});
+
+test('#141: a recording cut short by a restart is finished with its size read through the helper', async () => {
+    await db.settings.update({ recordingsPath: path.join(slowShare, 'Recordings') });
+    const { s, scheduled, recordings } = await recordingSetup('Cut short');
+    const file = path.join(slowShare, 'Recordings', 'Cut short.ts');
+    real(() => fs.writeFileSync(file, Buffer.alloc(5000)));
+    const rec = recordings.create({ scheduled_id: s.id, title: 'Cut short', channel_name: 'Fox Footy', channel_logo: null,
+        source_id: s.source_id, channel_item_id: 'pos_1', file_path: file, started_at: Date.now() - 60000 });
+    load('db/sqlite').getDb().prepare(`UPDATE scheduled_recordings SET status = 'recording', recording_id = ? WHERE id = ?`).run(rec.id, s.id);
+    blocked.length = 0;
+    try {
+        const { worst } = await loopFreeze(() => engine._reconcileOnStartup());
+        assert.deepEqual(blocked, [], 'no synchronous call on the share');
+        assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
+        assert.ok(await until(() => recordings.getById(rec.id).status !== 'recording', 3000), 'finished');
+        assert.equal(recordings.getById(rec.id).status, 'completed');
+        assert.equal(recordings.getById(rec.id).file_size_bytes, 5000);
+        assert.equal(scheduled.getById(s.id).status, 'failed');
+    } finally {
+        await db.settings.update({ recordingsPath });
+    }
+});

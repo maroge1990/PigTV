@@ -748,6 +748,16 @@ async function deleteRecording(id) {
     // record itself or stay.
     owners.retire(id);
 
+    // #141: a share that is not answering refuses the deletion before anything of it is stopped or
+    // removed (its files would stay behind, unlisted, under a recording that is gone). It stays
+    // listed, and retired: its jobs stand down until it is deleted or the server restarts.
+    const first = rec.file_path || rec.segment_original;
+    if (first) {
+        try { await shareFs.identity(first); } catch (err) {
+            if (err.code === 'SHARE_UNRESPONSIVE') throw new Error('The recordings folder is not responding, so the recording was not deleted. Try again once it is back.');
+        }
+    }
+
     // 0207: nor may a live break-detection run go on reading a file about to go.
     post.abortLive(id);
     // 0264: every writer of it is stopped, and has ended and removed what it made, before anything of
@@ -781,10 +791,7 @@ async function deleteRecording(id) {
     // What the row says now (a publication that finished before the retirement may have moved it on).
     rec = recordingsDb.getById(id) || rec;
     // F1 (0242): a segmented recording's kept original, wherever it was published.
-    if (rec.segment_original) {
-        try { fs.unlinkSync(rec.segment_original); } catch (e) { /* already gone */ }
-    }
-
+    const files = rec.segment_original ? [rec.segment_original] : [];
     if (rec.file_path) {
         // The recording and everything derived from it. The native-playback
         // remux and, when "keep original" is on, the compressed copy sit beside
@@ -796,17 +803,31 @@ async function deleteRecording(id) {
         const base = path.join(path.dirname(rec.file_path), path.basename(rec.file_path, path.extname(rec.file_path)));
         const compressed = compressionTargetPath(rec.file_path);
         // D1 (0251): a segmented recording's "<name>.ts" may be another file; the original it owns
-        // is only ever segment_original (removed above; R4-D1: never inferred from an older row).
+        // is only ever segment_original (listed above; R4-D1: never inferred from an older row).
         const ownTs = !rec.segment_name;
-        for (const file of new Set([rec.file_path, native, `${native}.partial`, compressed, `${compressed}.partial`, `${base}.mkv`, ...(ownTs ? [`${base}.ts`] : []), `${base}.mp4`])) {
-            if (!fs.existsSync(file)) continue;
-            try { fs.unlinkSync(file); } catch (e) {
-                console.warn('[Recordings] Failed to delete file:', e.message);
-            }
-            verifiedNativeFiles.delete(file);
+        files.push(rec.file_path, native, `${native}.partial`, compressed, `${compressed}.partial`, `${base}.mkv`, ...(ownTs ? [`${base}.ts`] : []), `${base}.mp4`);
+    }
+    // #141: through shareFs. A file the share stops answering on is listed (as the file it was) and
+    // removed once the share answers again; the deletion goes on.
+    const left = [];
+    for (const file of new Set(files)) {
+        let identity = null;
+        try {
+            identity = await shareFs.identity(file);
+            if (identity === null) continue;
+            await shareFs.unlink(file);
+        } catch (err) {
+            if (err.code === 'SHARE_UNRESPONSIVE') left.push({ path: file, identity });
+            else console.warn('[Recordings] Failed to delete file:', err.message);
         }
+        verifiedNativeFiles.delete(file);
     }
     recordingsDb.delete(id);
+    // After the row: a file still listed as a recording's is never removed (recordingOwners.retryDeleted).
+    if (left.length) {
+        owners.deferRemoval(left, id);
+        console.warn(`[Recordings] #${id}: the recordings folder stopped answering; ${left.length} file(s) will be removed once it answers again`);
+    }
 }
 
 async function startRecording(schedule, choice = null) {
@@ -1252,7 +1273,7 @@ async function onPartExit(schedule, entry, exitCode) {
             console.warn(`[Recordings] #${entry.recordingId} ${how} on ${candidate.providerName} as it started; ` +
                 `starting again on ${nextCandidate.providerName}`);
             post.abortLive(entry.recordingId); // 0207: it followed a file that is being rewritten
-            try { fs.unlinkSync(entry.outputPath); } catch (e) { /* nothing was written */ }
+            await shareFs.unlink(entry.outputPath).catch(() => {}); // #141; the next part overwrites it anyway
             recordingsDb.setProvider(entry.recordingId, nextCandidate.providerId);
             const feed = await feedFor(settings, nextCandidate); // Wave 5
             if (!stillOurs()) return giveUp(feed);
@@ -1267,7 +1288,7 @@ async function onPartExit(schedule, entry, exitCode) {
         if (entry.part > 1) {
             // A continuation that never got going: drop its empty row (and file) and wait
             // for another provider, as a part that could not start at all does.
-            try { fs.unlinkSync(entry.outputPath); } catch (e) { /* nothing was written */ }
+            await shareFs.unlink(entry.outputPath).catch(() => {}); // #141; nothing was written, usually
             recordingsDb.delete(entry.recordingId);
             waitForNextPart(schedule, entry.part, entry.lostAt ?? now);
             return;
@@ -1611,8 +1632,10 @@ async function stopRecording(scheduledId, reasonStatus = 'completed') {
  * server process that owned its ffmpeg child is gone (container restarted,
  * crashed, etc). We can't resume the child process, so mark it interrupted -
  * the partial file (if any) is left on disk for the user to keep or delete.
+ * #141: its size is read through shareFs; resolves once those parts are finished.
  */
 function reconcileOnStartup() {
+    const finishing = [];
     const orphans = scheduledDb.findOrphanedRecording();
     for (const schedule of orphans) {
         if (resumeSegmentedOnStartup(schedule)) continue;
@@ -1622,15 +1645,21 @@ function reconcileOnStartup() {
             // provider died and the next had not started) is already finished, and so
             // is every earlier part: they are kept as they are.
             const rec = recordingsDb.getById(schedule.recording_id);
-            let fileSize = null;
-            try { if (rec?.file_path) fileSize = fs.statSync(rec.file_path).size; } catch (e) { /* ignore */ }
-            recordingsDb.finish(schedule.recording_id, {
-                status: (fileSize && fileSize > 1024) ? 'completed' : 'failed',
-                ended_at: Date.now(),
-                file_size_bytes: fileSize,
-                duration_sec: null,
-                error: 'Server restarted while this recording was in progress.'
-            });
+            const endedAt = Date.now();
+            finishing.push((async () => {
+                // 0 when the file is missing; null when the share did not answer (#143: unknown is not
+                // "nothing recorded", so the part is kept as it would be with its file there).
+                const fileSize = rec?.file_path ? await shareFs.sizeOf(rec.file_path) : 0;
+                recordingsDb.finish(rec.id, {
+                    status: (fileSize === null || fileSize > 1024) ? 'completed' : 'failed',
+                    ended_at: endedAt,
+                    file_size_bytes: fileSize,
+                    duration_sec: null,
+                    error: 'Server restarted while this recording was in progress.'
+                });
+                // reconcileJobsOnStartup's backfill ran before this answered.
+                if (media.isPrepareQueueOn()) recordingsDb.queueNativeBackfill();
+            })().catch(err => console.warn(`[Recordings] #${rec.id}: could not finish it after the restart:`, err.message)));
         }
         setScheduleStatus(schedule.id, 'failed', { error: 'Server restarted while this recording was in progress.' });
     }
@@ -1646,6 +1675,7 @@ function reconcileOnStartup() {
         getDb().prepare(`UPDATE recordings SET ad_detect_status = CASE WHEN status = 'completed' THEN 'pending' ELSE NULL END,
             ad_detect_error = NULL WHERE ad_detect_status = 'running'`).run();
     } catch (e) { /* columns may be missing on a very old database */ }
+    return Promise.all(finishing);
 }
 
 /**
@@ -1683,30 +1713,43 @@ function resumeSegmentedOnStartup(schedule) {
  * encode's output is removed (older versions wrote it in place, so the final name
  * may hold a truncated file), and the library recorded before preparation existed
  * is queued for it.
+ * #141: those removals go through shareFs, and the queues wait for them as for the sweep (whenSwept).
  */
 function reconcileJobsOnStartup() {
-    // 0270: files writers of deleted recordings left when a deletion stopped waiting for them.
-    owners.sweepCleanup().catch(err => console.warn('[Recordings] Could not remove what deleted recordings left:', err.message));
-    for (const rec of recordingsDb.requeueInterrupted()) {
-        if (!rec.file_path) continue;
-        const target = compressionTargetPath(rec.file_path);
-        for (const file of [target, `${target}.partial`]) {
-            try { fs.unlinkSync(file); console.warn(`[Recordings] Removed ${path.basename(file)}, left by an interrupted compression`); } catch (e) { /* none */ }
+    const interrupted = recordingsDb.requeueInterrupted();
+    const oldPrepared = recordingsDb.findOldPreparedWithOriginal();
+    const removals = (async () => {
+        for (const rec of interrupted) {
+            if (!rec.file_path) continue;
+            const target = compressionTargetPath(rec.file_path);
+            for (const file of [target, `${target}.partial`]) {
+                try {
+                    if (await shareFs.unlink(file)) console.warn(`[Recordings] Removed ${path.basename(file)}, left by an interrupted compression`);
+                } catch (err) {
+                    if (err.code === 'SHARE_UNRESPONSIVE') console.warn(`[Recordings] Could not remove ${path.basename(file)}, left by an interrupted compression: the recordings folder is not responding`);
+                }
+            }
         }
-    }
-    // 0203: an MP4 made the old way (audio copied, never decode-checked) beside an .mkv that
-    // still exists is made again; one whose .mkv is already gone can only be left as it is.
-    for (const rec of recordingsDb.findOldPreparedWithOriginal()) {
-        const native = nativePlaybackTargetPath(rec.file_path);
-        try { fs.unlinkSync(native); } catch (e) { /* not there: prepared from compression, or never made */ }
-        verifiedNativeFiles.delete(native);
-        recordingsDb.setNativeStatus(rec.id, 'pending');
-        console.log(`[Recordings] #${rec.id} will be prepared again (its audio is re-encoded since 0203)`);
-    }
+        // 0203: an MP4 made the old way (audio copied, never decode-checked) beside an .mkv that
+        // still exists is made again; one whose .mkv is already gone can only be left as it is.
+        for (const rec of oldPrepared) {
+            const native = nativePlaybackTargetPath(rec.file_path);
+            try { await shareFs.unlink(native); } catch (err) {
+                // Not answering: it stays as it is, and is found again at the next start.
+                if (err.code === 'SHARE_UNRESPONSIVE') continue;
+            }
+            verifiedNativeFiles.delete(native);
+            recordingsDb.setNativeStatus(rec.id, 'pending');
+            console.log(`[Recordings] #${rec.id} will be prepared again (its audio is re-encoded since 0203)`);
+        }
+    })();
+    // 0270: files writers of deleted recordings left when a deletion stopped waiting for them.
+    owners.sweepCleanup(removals).catch(err => console.warn('[Recordings] Could not remove what deleted recordings left:', err.message));
     if (media.isPrepareQueueOn()) {
         const queued = recordingsDb.queueNativeBackfill();
         if (queued) console.log(`[Recordings] ${queued} earlier recording(s) queued to be prepared for the Apple client`);
     }
+    return removals;
 }
 
 /**
@@ -1900,6 +1943,8 @@ async function checkFolderHealthNow() {
     }
     folderHealthState = state;
     folderHealth = { ...result, root, checkedAt: Date.now() };
+    // #141: the share answers: files of deleted recordings it had not answered for go now.
+    if (result.ok) owners.retryDeleted().catch(err => console.warn('[Recordings] Could not remove files of deleted recordings:', err.message));
     return folderHealth;
 }
 
@@ -1928,6 +1973,7 @@ function followGuide({ now = Date.now() } = {}) {
     return changes;
 }
 
+/** Resolves once start-up's own share calls (#141) have answered; nothing needs to wait for it. */
 function init({ ffmpegPath, ffprobePath } = {}) {
     media.setToolPaths({ ffmpegPath, ffprobePath });
 
@@ -1938,8 +1984,8 @@ function init({ ffmpegPath, ffprobePath } = {}) {
         minFreeGB: async () => { const s = await getSettings(); return Number.isFinite(s.minFreeSpaceGB) ? s.minFreeSpaceGB : 10; }
     });
 
-    reconcileOnStartup();
-    reconcileJobsOnStartup();
+    const reconciled = Promise.all([reconcileOnStartup(), reconcileJobsOnStartup()])
+        .catch(err => console.warn('[Recordings] Start-up clean-up failed:', err.message)); // never an unhandled rejection
 
     if (tickTimer) clearInterval(tickTimer);
     tickTimer = setInterval(tick, TICK_INTERVAL_MS);
@@ -1953,6 +1999,7 @@ function init({ ffmpegPath, ffprobePath } = {}) {
     }, FOLDER_HEALTH_INTERVAL_MS);
 
     console.log('[Recordings] Recording engine initialized');
+    return reconciled;
 }
 
 function shutdown() {

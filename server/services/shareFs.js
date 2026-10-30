@@ -9,7 +9,8 @@
  * counts as unresponsive until a call succeeds again.
  *
  * Calls: exists, stat ({size, mtimeMs} or null), statfs ({freeBytes, totalBytes}), mkdir, writeProbe (write and
- * remove a small file: true or false). Paths only; nothing here knows what the share holds.
+ * remove a small file: true or false), identity (which file is there, or null; #141) and unlink (true, or false when
+ * nothing was there; #141). Paths only; nothing here knows what the share holds.
  */
 const { fork } = require('child_process');
 const path = require('path');
@@ -108,6 +109,8 @@ const stat = (file, opts) => call('stat', file, opts);
 const statfs = (file, opts) => call('statfs', file, opts);
 const mkdir = (file, opts) => call('mkdir', file, opts);
 const writeProbe = (file, opts) => call('writeProbe', file, opts);
+const identity = (file, opts) => call('identity', file, opts);
+const unlink = (file, opts) => call('unlink', file, opts);
 /** The size of `file`: 0 when it is missing, null when the share does not say (#143: unknown is not "no growth"). */
 async function sizeOf(file, opts) {
     try { const s = await stat(file, opts); return s ? s.size : 0; } catch (e) { return null; }
@@ -158,4 +161,4 @@ function reset() {
 /** Tests: run calls in this process (true) or in the helper (false). */
 function _inProcess(on) { inProcess = !!on; }
 
-module.exports = { _inProcess, _spawner: spawner, _stuck: stuck, call, exists, stat, statfs, mkdir, writeProbe, sizeOf, diskInfo, unresponsive, reset, tuning };
+module.exports = { _inProcess, _spawner: spawner, _stuck: stuck, call, exists, stat, statfs, mkdir, writeProbe, identity, unlink, sizeOf, diskInfo, unresponsive, reset, tuning };

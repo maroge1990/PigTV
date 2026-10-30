@@ -41,12 +41,19 @@
  * wait for the start-up sweep (whenSwept), so recovery never adopts a file the sweep is removing; and
  * a partial that cannot be inspected stays listed.
  *
+ * #141: a deleted recording's file that the share stopped answering on is listed as 'deleted', with the identity read
+ * just before; the deletion goes on without it. It is removed through shareFs (never the event loop) when the folder
+ * check next finds the share answering, and at start - only while that name is still that very file. One whose
+ * identity could not be read stays listed (and on the share) until it is gone.
+ *
  * 0280 (Codex review of 0279): they wait at most SWEEP_WAIT_MS - a sweep stuck on a share that stopped
  * answering must not stall every queue - so recovery itself never adopts a file the sweep may still
  * remove (adoptable: not listed, and no second name). Inodes are compared exactly (bigint).
  */
 const fs = require('fs');
 const crypto = require('crypto');
+const shareFs = require('./shareFs');
+const { identityOfStat } = require('./shareFsWorker');
 const { recordings: recordingsDb, initSchema } = require('../db/recordingsDb');
 const { getDb } = require('../db/sqlite');
 
@@ -89,7 +96,6 @@ const recorded = (p) => Boolean(cleanupDb().prepare('SELECT 1 FROM recordings WH
  * alone does not tell a replacement from the file journalled; its times and size do. None of these
  * change when the file's partial name is linked or removed (only ctime does), so publication keeps it.
  */
-const identityOfStat = (st) => `${st.dev}:${st.ino}:${st.size}:${st.mtimeNs}:${st.birthtimeNs}`;
 function identityOf(p) {
     try { return identityOfStat(fs.statSync(p, { bigint: true })); } catch (e) { return null; }
 }
@@ -213,15 +219,58 @@ function adoptable(p) {
         return fs.statSync(p, { bigint: true }).nlink === 1n;
     } catch (e) { return false; }
 }
-function sweepCleanup() {
-    swept = sweepOnce().catch((err) => { console.warn('[Recordings] The clean-up sweep failed:', err.message); return 0; });
+/** `alongside`: other start-up removals the queues must also wait for (#141). */
+function sweepCleanup(alongside = null) {
+    const sweep = sweepOnce().catch((err) => { console.warn('[Recordings] The clean-up sweep failed:', err.message); return 0; });
+    swept = Promise.all([sweep, Promise.resolve(alongside).catch(() => null)]).then(([n]) => n);
+    swept.then(() => retryDeleted()).catch(() => {});
     return swept;
+}
+
+/** #141: `files` ({path, identity}) of deleted recording `id` were not removed: the share stopped answering. */
+function deferRemoval(files, id) {
+    const stmt = cleanupDb().prepare(`INSERT INTO recording_cleanup (path, recording_id, created_at, kind, identity) VALUES (?, ?, ?, 'deleted', ?)
+        ON CONFLICT (path) DO UPDATE SET kind = 'deleted', recording_id = excluded.recording_id, identity = excluded.identity`);
+    for (const f of files) stmt.run(f.path, id, Date.now(), f.identity ?? null);
+}
+
+/**
+ * #141: remove the listed files of deleted recordings, through shareFs: each only while its name is still that very
+ * file. Stops at the first call the share does not answer (the next check tries again). Resolves with the number removed.
+ */
+let retrying = null;
+function retryDeleted() {
+    if (!retrying) retrying = retryOnce().finally(() => { retrying = null; });
+    return retrying;
+}
+async function retryOnce() {
+    let rows = [];
+    try { rows = cleanupDb().prepare(`SELECT path, identity FROM recording_cleanup WHERE kind = 'deleted'`).all(); } catch (e) { return 0; }
+    let removed = 0;
+    for (const { path: p, identity } of rows) {
+        if (recorded(p)) { forget(p); continue; } // a recording's file now: never ours to remove
+        try {
+            const now = await shareFs.identity(p);
+            if (now === null) { forget(p); continue; }
+            if (identity === null) continue; // cannot tell which file it is: kept, still listed
+            if (now !== identity) { forget(p); continue; } // another file at that name now
+            await shareFs.unlink(p);
+            forget(p);
+            removed++;
+        } catch (err) {
+            if (err.code === 'SHARE_UNRESPONSIVE') break;
+            console.warn(`[Recordings] Could not remove ${p} yet (${err.code || err.message}); it stays listed`);
+        }
+    }
+    if (removed) console.log(`[Recordings] Removed ${removed} file(s) of deleted recordings the share had not answered for`);
+    return removed;
 }
 async function sweepOnce() {
     let rows = [];
     try { rows = cleanupDb().prepare('SELECT path, kind, identity FROM recording_cleanup').all(); } catch (e) { return 0; }
     let removed = 0;
     for (const { path: p, kind, identity } of rows) {
+        if (kind === 'deleted') continue; // #141: retryDeleted's, through shareFs
         if (kind === 'published') {
             if (recorded(p)) { forget(p); continue; }
             const now = await identityNow(p);
@@ -257,4 +306,4 @@ async function sweepOnce() {
 
 const DELETED = 'Recording was deleted';
 
-module.exports = { retire, owned, withdraw, write, stopWriters, sweepCleanup, whenSwept, adoptable, partialFor, published, committed, DELETED, STOP_WAIT_MS, _setStopWaitMs, _setSweepWaitMs };
+module.exports = { retire, owned, withdraw, write, stopWriters, sweepCleanup, whenSwept, deferRemoval, retryDeleted, adoptable, partialFor, published, committed, DELETED, STOP_WAIT_MS, _setStopWaitMs, _setSweepWaitMs };
