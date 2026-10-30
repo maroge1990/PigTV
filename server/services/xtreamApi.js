@@ -139,7 +139,7 @@ class XtreamApi {
      * Get XMLTV EPG URL
      */
     getXmltvUrl() {
-        return `${this.baseUrl}/xmltv.php?username=${this.username}&password=${this.password}`;
+        return `${this.baseUrl}/xmltv.php?username=${encodeURIComponent(this.username)}&password=${encodeURIComponent(this.password)}`;
     }
 }
 

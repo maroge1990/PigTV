@@ -29,14 +29,16 @@ function redact(value) {
     s = s.replace(/\/timeshift\/[^/\s]+\/[^/\s]+\/(\d+)\//gi, '/timeshift/***/***/$1/');
     // The short form straight after the host: scheme://host[:port]/{user}/{pass}/{id}[.{ext}].
     // Only at the start of the path and only with a numeric last segment, so the
-    // server's own /api/... paths are left alone.
+    // server's own /api/... paths are left alone. A login may contain quotes, so the
+    // login segments do not stop at them (a quote that ends a logged URL comes after the id).
     s = s.replace(
-        /(\b[a-z][a-z0-9+.-]*:\/\/[^/\s?#'"]+)\/(?!api\/)[^/\s?#'"]+\/[^/\s?#'"]+\/(\d+(?:\.\w+)?)(?=$|[^\w/])/gi,
+        /(\b[a-z][a-z0-9+.-]*:\/\/[^/\s?#'"]+)\/(?!api\/)[^/\s?#]+\/[^/\s?#]+\/(\d+(?:\.\w+)?)(?=$|[^\w/])/gi,
         '$1/***/***/$2'
     );
-    // ?username=..&password=..&token=.. -> secret values replaced with ***
+    // ?username=..&password=..&token=.. -> secret values replaced with ***. Quotes are part of
+    // the value: over-redacting a closing quote in a log line is harmless, leaving a suffix is not.
     s = s.replace(
-        /([?&](?:username|user|password|pass|pwd|token|secret|api[_-]?key)=)[^&\s'"#]+/gi,
+        /([?&](?:username|user|password|pass|pwd|token|secret|api[_-]?key)=)[^&\s#]+/gi,
         '$1***'
     );
     return s;

@@ -67,3 +67,30 @@ test('redact leaves ordinary server paths and text alone', () => {
     assert.equal(redact(null), null);
     assert.equal(redact(undefined), undefined);
 });
+
+// Codex review of 0321: credentials may carry URL punctuation that log text also uses as a delimiter.
+// Nothing of the login may survive, in raw or percent-encoded form.
+test('redact removes logins that contain quotes and other punctuation', () => {
+    for (const pass of ["Pw'7x!q", 'Pw"7x', "it's-ok(1)*"]) {
+        const urls = [
+            `http://h.example:8080/${USER}/${pass}/123`,
+            `http://h.example/live/${USER}/${pass}/123.ts`,
+            `http://h.example/get.php?username=${USER}&password=${pass}&type=m3u_plus`,
+            new XtreamApi('http://h.example', USER, pass).getXmltvUrl()
+        ];
+        for (const url of urls) {
+            const out = redact(url);
+            for (const secret of [USER, pass, encodeURIComponent(pass), pass.slice(Math.max(1, pass.indexOf("'") + 1, pass.indexOf('"') + 1))]) {
+                assert.ok(!out.includes(secret), `"${secret}" left in ${out}`);
+            }
+        }
+    }
+});
+
+test('the XMLTV URL encodes the login, so a password with & or # stays one value and is fully redacted', () => {
+    const api = new XtreamApi('http://h.example', USER, 'a&b#c');
+    const url = api.getXmltvUrl();
+    assert.equal(new URL(url).searchParams.get('password'), 'a&b#c');
+    const out = redact(url);
+    assert.ok(!out.includes('a&b#c') && !out.includes('b%23c') && !out.includes('%26b'), `left in ${out}`);
+});
