@@ -14,12 +14,14 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   #12) by the recording slot (`error` "Another recording is using the recording slot."; missed with its own text) (listed,
   cancellable, duplicate-checked).
 - **One connection, one stream (D-28, 0324, #12).** `maxConcurrentRecordings` (default 1) counts provider connections, not
-  recordings: recordings on one shared ingest are one (`recordingConnections()`), and a due recording of a channel already
-  being recorded joins that ingest without asking the cap (`joinsActiveRecording()`; needs shared ingest). Clashes are
-  shown when scheduling: `listScheduled()` adds `conflictsWith` to each upcoming schedule that, at some moment of its
-  window (with pre/post padding), is one of more channels than the cap and the providers' connections allow
-  (`clashes()`, `streamCoordinator.recordingCapacity()`: the primary pool's limit plus each enabled backup pool's); one
-  channel's overlapping schedules never clash. `POST /recordings/schedule` answers with it too; the web guide's toast and
+  recordings: recordings on one shared ingest are one (`recordingConnections()`). A due recording passes the cap without
+  a slot only when its resolved candidate has a live ingest that a running recording reads (`sharedRecordingKey()`), and
+  its start is abandoned back to waiting if the feed it gets is not that one (`joinedAsPromised()`, 0325, #133). Clashes
+  are shown when scheduling: `listScheduled()` adds `conflictsWith` (up to ten ids) to each upcoming schedule that, at
+  some moment of its window (with pre/post padding), is one of more connections than the cap or than its source's
+  provider pool allows (`clashes()`, one sweep over the windows' boundaries, #134). With shared ingest on a channel's
+  schedules share one connection; with it off each needs its own (#135). Backups are not counted (#136), so it may warn
+  when a backup could have carried one. `POST /recordings/schedule` answers with it too; the web guide's toast and
   Recordings list say it.
 - File names use the server's local time, so **`TZ` must be set** (verified).
 - Native playback is a `.native.mp4` remux of the file: `hvc1`, MP2→AAC, shared across concurrent requests, written atomically,

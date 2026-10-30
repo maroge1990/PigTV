@@ -25,6 +25,7 @@ engine._setPrepareQueue(false);
 const ingest = load('services/ingest');
 const coordinator = load('services/streamCoordinator');
 const { scheduled, recordings } = load('db/recordingsDb');
+const perf = require(path.join(__dirname, 'helpers', 'perf'));
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 async function until(cond, label, ms = 10000) {
@@ -205,4 +206,64 @@ test('scheduling answers with the clash (POST /api/recordings/schedule)', async 
     } finally {
         web.close();
     }
+});
+
+test('#133: after the channel\'s URL changes, a second recording at the cap waits instead of opening a connection', async () => {
+    const one = schedule();
+    await until(() => recordings.listBySchedule(one.id)[0]?.status === 'recording', 'first');
+    sqlite.getDb().prepare('UPDATE playlist_items SET stream_url = ? WHERE id = ?').run(`${base}/ff2.ts`, `${A.id}:pos_1`);
+    try {
+        const two = schedule();
+        await until(() => statusOf(two) === 'waiting', 'waiting for the slot', 3000);
+        assert.equal(scheduled.getById(two.id).error, 'Another recording is using the recording slot.');
+        for (let i = 0; i < 5; i++) { await engine.tick(); await sleep(50); }
+        assert.equal(connections['/ff2.ts'] || 0, 0, 'no second provider connection');
+        assert.equal(statusOf(two), 'waiting');
+    } finally {
+        sqlite.getDb().prepare('UPDATE playlist_items SET stream_url = ? WHERE id = ?').run(`${base}/ff.ts`, `${A.id}:pos_1`);
+    }
+});
+
+test('#135: with shared ingest off, two overlapping recordings of one channel clash (each needs a connection)', async () => {
+    await db.settings.update({ sharedIngestEnabled: false });
+    const a = schedule('pos_1', 'ff', { startIn: 3600000, lengthMs: 3600000 });
+    const b = schedule('pos_1', 'ff', { startIn: 5400000, lengthMs: 3600000 });
+    const list = new Map(engine.listScheduled({ settings: await db.settings.get() }).map(r => [r.id, r]));
+    assert.deepEqual(list.get(a.id).conflictsWith, [b.id]);
+    assert.deepEqual(list.get(b.id).conflictsWith, [a.id]);
+});
+
+test('#136: an enabled backup that carries neither channel does not hide a clash on a one-connection primary', async () => {
+    await db.settings.update({ maxConcurrentRecordings: 2, maxProviderStreams: 1 });
+    const backup = await db.sources.create({ type: 'm3u', name: 'Unrelated', url: 'http://backup.invalid/list.m3u', role: 'backup' });
+    try {
+        const a = schedule('pos_1', 'ff', { startIn: 3600000, lengthMs: 3600000 });
+        const b = schedule('pos_2', 'fl', { startIn: 3600000, lengthMs: 3600000 });
+        const list = new Map(engine.listScheduled({ settings: await db.settings.get() }).map(r => [r.id, r]));
+        assert.deepEqual(list.get(a.id).conflictsWith, [b.id]);
+        assert.deepEqual(list.get(b.id).conflictsWith, [a.id]);
+    } finally {
+        await db.sources.delete(backup.id);
+    }
+});
+
+test('#134: the clash list over 800 heavily overlapping schedules is quick', perf, async () => {
+    const d = sqlite.getDb();
+    const now = Date.now() + 86400000;
+    const insert = d.transaction(() => {
+        for (let i = 0; i < 800; i++) {
+            const channel = i % 2 ? ['pos_1', 'ff'] : [`pos_x${i % 40}`, `x${i % 40}`];
+            scheduled.create({ title: `Bulk ${i}`, description: null, source_id: A.id, channel_item_id: channel[0], channel_stable_id: channel[1],
+                channel_name: channel[0], channel_logo: null, program_start: now + i * 1000, program_end: now + 7200000 + i * 1000,
+                pre_buffer_min: 1, post_buffer_min: 5, created_by: 1, created_at: now });
+        }
+    });
+    insert();
+    const settings = await db.settings.get();
+    const began = process.hrtime.bigint();
+    const list = engine.listScheduled({ settings });
+    const ms = Number(process.hrtime.bigint() - began) / 1e6;
+    assert.ok(list.filter(r => r.conflictsWith).length > 700, 'they clash');
+    assert.ok(list.every(r => !r.conflictsWith || r.conflictsWith.length <= 10), 'at most ten ids each');
+    assert.ok(ms < 400, `800 schedules took ${ms.toFixed(0)} ms`);
 });

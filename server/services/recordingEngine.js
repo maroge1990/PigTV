@@ -463,52 +463,107 @@ function recordingConnections() {
     return keys.size + own;
 }
 
-/** #12: an active recording already reads this schedule's channel through the shared ingest, so this one joins it. */
-function joinsActiveRecording(schedule, settings) {
-    if (!ingest.enabled(settings)) return false;
-    const key = channelKeyOf(schedule);
-    return [...active.values()].some(entry => entry.ingestKey && entry.schedule && channelKeyOf(entry.schedule) === key);
+/**
+ * #12, #133: the ingest key of an active recording this schedule would join: a candidate of its resolved route has a
+ * live shared ingest that a running recording reads, so recording it costs no connection. null otherwise (sharing
+ * off, nothing recording, the channel's URL changed since, or it cannot be resolved).
+ */
+async function sharedRecordingKey(schedule, settings) {
+    if (!ingest.enabled(settings)) return null;
+    const keys = new Set([...active.values()].map(entry => entry.ingestKey).filter(Boolean));
+    if (!keys.size) return null;
+    let route;
+    try { route = await routeFor(schedule); } catch (e) { return null; }
+    for (const candidate of route.candidates) {
+        if (!liveIngestFor(candidate)) continue;
+        const key = ingest.keyOf(coordinator.poolOf(candidate.providerId), candidate.url);
+        if (keys.has(key)) return key;
+    }
+    return null;
 }
 
-/** #12: recordings that can run at once: the cap, and no more than the providers' connections. */
+/** #12: recordings that can run at once (the cap). */
 function recordingSlots(settings) {
     return settings.maxConcurrentRecordings || 2;
 }
 
-function clashCapacity(settings) {
-    let connections = Infinity;
-    try { connections = coordinator.recordingCapacity(settings); } catch (e) { /* unknown: the cap alone */ }
-    return Math.max(1, Math.min(recordingSlots(settings), connections));
-}
+const CLASH_LIST_MAX = 10; // ids per schedule in conflictsWith
 
 /**
- * #12 (D-28: clashes are shown when scheduling, never silent): for each schedule, the ids of the others it clashes
- * with. Recordings of one channel share a connection; at any moment more channels than `capacity` is a clash, and
- * every schedule recording then lists the others on other channels.
+ * #12 (D-28: clashes are shown when scheduling, never silent): for each schedule, up to CLASH_LIST_MAX ids of the
+ * others it clashes with. Each schedule needs a connection (its channel's, shared by that channel's schedules when
+ * recordings share an ingest; its own when they do not, #135); at a moment when more connections are wanted than the
+ * cap, or than a provider pool's limit for the schedules on it (#136: a backup is not counted, so this may warn when
+ * a backup could have helped), every schedule then wanted lists those on other connections. One sweep over the
+ * windows' boundaries (#134), padding included.
  */
-function clashes(rows, capacity) {
-    const span = (r) => [r.program_start - (r.pre_buffer_min || 0) * 60000, r.program_end + (r.post_buffer_min || 0) * 60000];
-    const out = new Map();
+function clashes(rows, settings) {
+    const sharing = ingest.enabled(settings);
+    const keyOf = new Map(rows.map(r => [r.id, sharing ? channelKeyOf(r) : `own:${r.id}`]));
+    const poolOfKey = new Map();
+    const limitOf = new Map();
     for (const r of rows) {
-        const [start, end] = span(r);
-        const points = [start, ...rows.map(o => span(o)[0]).filter(t => t > start && t < end)];
-        const found = new Set();
-        for (const t of points) {
-            const at = rows.filter(o => { const [a, b] = span(o); return a <= t && t < b; });
-            const channels = new Set(at.map(channelKeyOf));
-            if (channels.size <= capacity) continue;
-            for (const o of at) if (channelKeyOf(o) !== channelKeyOf(r)) found.add(o.id);
+        let pool = 'primary';
+        try { pool = coordinator.poolOf(r.source_id); } catch (e) { /* one pool */ }
+        poolOfKey.set(keyOf.get(r.id), pool);
+        if (!limitOf.has(pool)) {
+            let limit = Infinity;
+            try { limit = coordinator.providerLimit(r.source_id, settings); } catch (e) { /* unknown: the cap alone */ }
+            limitOf.set(pool, Math.max(1, limit));
         }
-        if (found.size) out.set(r.id, [...found].sort((a, b) => a - b));
     }
-    return out;
+    const cap = recordingSlots(settings);
+    const overloaded = (counts) => {
+        if (counts.size > cap) return true;
+        const perPool = new Map();
+        for (const key of counts.keys()) {
+            const pool = poolOfKey.get(key);
+            const n = (perPool.get(pool) || 0) + 1;
+            if (n > limitOf.get(pool)) return true;
+            perPool.set(pool, n);
+        }
+        return false;
+    };
+    const events = [];
+    for (const r of rows) {
+        const start = r.program_start - (r.pre_buffer_min || 0) * 60000;
+        const end = r.program_end + (r.post_buffer_min || 0) * 60000;
+        if (end > start) events.push([start, 1, r], [end, 0, r]);
+    }
+    events.sort((x, y) => x[0] - y[0] || x[1] - y[1]); // a window ending as another starts does not overlap it
+    const live = new Set();
+    const counts = new Map();
+    const found = new Map();
+    for (let i = 0; i < events.length;) {
+        const t = events[i][0];
+        for (; i < events.length && events[i][0] === t; i++) {
+            const [, starts, r] = events[i];
+            const key = keyOf.get(r.id);
+            if (starts) { live.add(r); counts.set(key, (counts.get(key) || 0) + 1); continue; }
+            live.delete(r);
+            const left = counts.get(key) - 1;
+            if (left) counts.set(key, left); else counts.delete(key);
+        }
+        if (counts.size < 2 || !overloaded(counts)) continue;
+        for (const r of live) {
+            const ids = found.get(r.id) || new Set();
+            if (ids.size >= CLASH_LIST_MAX) continue;
+            const key = keyOf.get(r.id);
+            for (const o of live) {
+                if (keyOf.get(o.id) !== key) ids.add(o.id);
+                if (ids.size >= CLASH_LIST_MAX) break;
+            }
+            found.set(r.id, ids);
+        }
+    }
+    return new Map([...found].filter(([, ids]) => ids.size).map(([id, ids]) => [id, [...ids].sort((a, b) => a - b)]));
 }
 
 function listScheduled({ includeRecent = false, settings = null } = {}) {
     // R6 (additive): `image` in place of image_url, the only change to these rows.
     // #12 (C-M, additive): `conflictsWith` lists the schedules this one clashes with, when there are any.
     const rows = scheduledDb.listUpcoming();
-    const found = clashes(rows, clashCapacity(settings || knownSettings || {}));
+    const found = clashes(rows, settings || knownSettings || {});
     const upcoming = rows.map(r => found.has(r.id) ? { ...r, conflictsWith: found.get(r.id) } : r).map(withImage);
     if (!includeRecent) return upcoming;
     const recent = scheduledDb.findRecentProblems(Date.now() - RECENT_PROBLEMS_MS).map(withImage);
@@ -741,6 +796,7 @@ async function startRecording(schedule, choice = null) {
     }
     return startPart(schedule, route, choice ? choice.index : 0, 1, {
         lease,
+        mustJoin: choice ? choice.mustJoin || null : null,
         refuse: (msg) => setScheduleStatus(schedule.id, 'failed', { error: msg })
     });
 }
@@ -781,14 +837,33 @@ function startStillWanted(schedule, { lease, generation, stillWanted }) {
 }
 
 /** DVR-4: an abandoned start gives back the feed it was handed (the caller releases its lease). */
+/**
+ * #133: a start let past the recording slot because it joins a running recording's ingest must get exactly that
+ * feed; otherwise it would open a connection of its own, so it goes back to waiting for the slot.
+ */
+function joinedAsPromised(schedule, owner, feed, candidate) {
+    if (!owner.mustJoin) return true;
+    let key = null;
+    try { key = feed ? ingest.keyOf(coordinator.poolOf(candidate.providerId), candidate.url) : null; } catch (e) { key = null; }
+    if (key === owner.mustJoin) return true;
+    if (feed) { try { feed.leave(); } catch (e) { /* gone */ } }
+    waitForSlot(schedule);
+    return false;
+}
+
+function waitForSlot(schedule) {
+    const now = scheduledDb.getById(schedule.id) || schedule;
+    if (now.status !== 'waiting' || now.error !== SLOT_REASON) setScheduleStatus(now, 'waiting', { error: SLOT_REASON });
+}
+
 function abandonStart(schedule, feed) {
     if (feed) { try { feed.leave(); } catch (e) { /* gone */ } }
     console.log(`[Recordings] Schedule #${schedule.id}: not started (cancelled, taken or shutting down while it got ready)`);
     return false;
 }
 
-async function startPartLeased(schedule, route, index, part, { gapMs = 0, refuse, lease = null, stillWanted = null } = {}) {
-    const owner = { lease, generation: stopAllGeneration, stillWanted };
+async function startPartLeased(schedule, route, index, part, { gapMs = 0, refuse, lease = null, stillWanted = null, mustJoin = null } = {}) {
+    const owner = { lease, generation: stopAllGeneration, stillWanted, mustJoin };
     const settings = await getSettings();
     // A viewer that forced the stream while this start was getting ready took the lease with it:
     // the connection is theirs, so this recording waits for the next tick instead.
@@ -829,6 +904,7 @@ async function startPartLeased(schedule, route, index, part, { gapMs = 0, refuse
     if (!fs.existsSync(channelDir)) fs.mkdirSync(channelDir, { recursive: true });
     const feed = await feedFor(settings, route.candidates[index]); // Wave 5
     if (!startStillWanted(schedule, owner)) return abandonStart(schedule, feed);
+    if (!joinedAsPromised(schedule, owner, feed, route.candidates[index])) return false;
 
     // Local time, not UTC - a 7:30pm program should read 19-30 in the filename.
     // "Local" is the process's TZ, which docker-compose.yml passes through.
@@ -912,6 +988,7 @@ async function startSegmented(schedule, settings, route, index, { refuse, lease,
     if (!startStillWanted(schedule, owner)) return false;
     const feed = await feedFor(settings, candidate); // Wave 5
     if (!startStillWanted(schedule, owner)) return abandonStart(schedule, feed);
+    if (!joinedAsPromised(schedule, owner, feed, candidate)) return false;
     const recording = recordingsDb.create({
         scheduled_id: schedule.id,
         title: schedule.title,
@@ -1636,10 +1713,10 @@ async function tick() {
             const settings = await getSettings();
             // #12 (D-28): the cap counts provider connections, not recordings. A recording of a channel that is
             // already being recorded joins that recording's shared ingest, so the cap never holds it back.
-            if (!joinsActiveRecording(schedule, settings) && recordingConnections() >= recordingSlots(settings)) {
-                if (schedule.status !== 'waiting' || schedule.error !== SLOT_REASON) {
-                    setScheduleStatus(schedule, 'waiting', { error: SLOT_REASON });
-                }
+            // #133: only when the start really reads that recording's ingest (checked again once the feed is had).
+            const joins = await sharedRecordingKey(schedule, settings);
+            if (!joins && recordingConnections() >= recordingSlots(settings)) {
+                waitForSlot(schedule);
                 continue;
             }
 
@@ -1658,6 +1735,7 @@ async function tick() {
                 continue;
             }
 
+            if (joins) choice.mustJoin = joins;
             await startRecording(schedule, choice);
         }
 
