@@ -31,14 +31,14 @@ function replaceAll(sourceId, rows, overlay) {
     const now = Date.now();
     const insert = db.prepare(`
         INSERT OR IGNORE INTO backup_channels
-            (source_id, stream_id, name, category_id, category_name, tvg_id, overlay_tvg_id, logo, url_data, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (source_id, stream_id, name, category_id, category_name, tvg_id, overlay_tvg_id, logo, url_data, updated_at, listed)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     db.transaction(() => {
         db.prepare('DELETE FROM backup_channels WHERE source_id = ?').run(sourceId);
         for (const r of rows) {
             insert.run(sourceId, r.streamId, r.name, r.categoryId, r.categoryName, r.tvgId,
-                (overlay && overlay.get(r.streamId)) || null, r.logo, r.urlData, now);
+                (overlay && overlay.get(r.streamId)) || null, r.logo, r.urlData, now, r.listed === false ? 0 : 1);
         }
     })();
 }

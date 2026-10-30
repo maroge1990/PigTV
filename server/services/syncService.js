@@ -715,7 +715,8 @@ class SyncService {
                     categoryName: names.get(String(s.category_id)) || null,
                     tvgId: s.epg_channel_id || null,
                     logo: s.stream_icon || null,
-                    urlData: api.buildStreamUrl(s.stream_id, 'live', 'ts')
+                    urlData: api.buildStreamUrl(s.stream_id, 'live', 'ts'),
+                    listed: false // #15: not in the playlist, so not a channel this provider would have as the primary
                 });
                 added++;
             }

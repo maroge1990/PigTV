@@ -289,6 +289,10 @@ function initSchema() {
         CREATE INDEX IF NOT EXISTS idx_backup_channels_tvg ON backup_channels(source_id, tvg_id);
         CREATE INDEX IF NOT EXISTS idx_backup_channels_overlay ON backup_channels(source_id, overlay_tvg_id);
     `);
+    // #15 (0372): 1 when the channel is in the backup's own playlist (an Xtream backup's whole list is), 0 when it was
+    // added from the provider's full list (0183): only a listed channel is one the provider would have as the primary.
+    // NULL on rows written before this build, until the next backup sync.
+    try { db.exec('ALTER TABLE backup_channels ADD COLUMN listed INTEGER'); } catch (e) { /* present */ }
 
     // A provider's own raw Xtream rows (0178, multi-provider P9, services/rawChannels.js): the raw
     // name, epg_channel_id and category of each stream id, for every provider whatever its role, so

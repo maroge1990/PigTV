@@ -116,6 +116,7 @@ test('an Xtream backup writes backup_channels and nothing the library reads', as
     assert.equal(row.category_name, 'UK| SPORTS');
     assert.equal(row.tvg_id, 'SkySportsF1.uk');
     assert.equal(row.url_data, null, 'an Xtream backup stores no URL');
+    assert.ok(rows(s.id).every(r => r.listed === 1), '#15: an Xtream backup\'s whole list is its own');
     // 0171: the linker (channelLinks.js) fills these after the sync.
     assert.equal(row.region, 'UK'); assert.equal(row.quality, 'hd'); assert.equal(row.is_event, 0);
     const status = sqlite.getDb().prepare('SELECT status FROM sync_status WHERE source_id = ?').get(s.id);
@@ -162,6 +163,9 @@ test('0183: an M3U backup also gets the provider\'s channels its playlist leaves
     assert.equal(extra.url_data, liveUrl(raw.stream_id));
     assert.equal(extra.tvg_id, raw.epg_channel_id);
     assert.equal(extra.category_name, RAW.categories.find(c => String(c.category_id) === String(raw.category_id)).category_name);
+    // #15 (0372): only the playlist's own channels would be this provider's channels if it became the primary.
+    assert.equal(listed.listed, 1, 'in the playlist');
+    assert.equal(extra.listed, 0, 'added from the provider\'s whole list');
     assert.equal(count('provider_raw_channels', s.id), RAW.streams.length, 'the raw rows come from the same fetch');
     assert.equal(hits.filter(h => h.endsWith('get_live_streams')).length, 1, 'the provider is asked once');
     assert.ok(seen.some(l => l.includes(`${RAW.streams.length - 3} channels the playlist leaves out`)));
