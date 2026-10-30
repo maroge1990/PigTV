@@ -583,3 +583,33 @@ test('nothing this feature logged or stored carries a URL', () => {
     for (const r of engine.listRecordings()) noUrl(r.error || '', `recording #${r.id}`);
     for (const s of scheduled.listAll()) noUrl(s.error || '', `schedule #${s.id}`);
 });
+
+test('#152: a cancel while a failed part 2\'s file is being removed is honoured: no part 3', async () => {
+    tuning.startFailoverMs = 200;
+    tuning.endGraceMs = 0;
+    setBehaviour(url.A(101), 'dies');
+    setBehaviour(url.B(5001), '502');
+    await db.sources.update(C.id, { enabled: false });
+    const shareFs = load('services/shareFs');
+    const realUnlink = shareFs.unlink;
+    let release = null;
+    shareFs.unlink = (file, ...rest) => {
+        if (!release && / \(part 2\)\.ts$/.test(String(file))) {
+            return new Promise(resolve => { release = () => resolve(realUnlink(file, ...rest)); });
+        }
+        return realUnlink(file, ...rest);
+    };
+    try {
+        const s = due({ windowMs: 30000 });
+        await until(() => release, 'part 2 refused on Trex, its file being removed');
+        await engine.cancelScheduled(s.id);
+        const starts = startsOf().length;
+        release();
+        for (let i = 0; i < 10; i++) { await engine.tick(); await sleep(40); }
+        assert.equal(startsOf().length, starts, 'nothing starts after the cancel');
+        assert.equal(scheduled.getById(s.id).status, 'cancelled');
+    } finally {
+        shareFs.unlink = realUnlink;
+        if (release) release();
+    }
+});

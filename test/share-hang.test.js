@@ -412,3 +412,23 @@ test('#141: a recording cut short by a restart is finished with its size read th
         await db.settings.update({ recordingsPath });
     }
 });
+
+test('#151: a second delete of the same recording joins the first, and a path another recording points at is kept', async () => {
+    await db.settings.update({ recordingsPath: path.join(slowShare, 'Recordings') });
+    const { recordings } = load('db/recordingsDb');
+    const dir = path.join(slowShare, 'Recordings');
+    const rec = completedRecording(path.join(dir, 'Twice.ts'), 'Twice');
+    // Another recording whose own file has a name in this one's family ("<name>.mp4").
+    const other = completedRecording(path.join(dir, 'Twice.mp4'), 'Twice, kept');
+    try {
+        const first = engine.deleteRecording(rec.id);
+        const second = engine.deleteRecording(rec.id);
+        assert.equal(second, first, 'one deletion, not two interleaving');
+        await first;
+        assert.ok(!recordings.getById(rec.id));
+        assert.ok(recordings.getById(other.id), 'the other recording stays');
+        assert.ok(real(() => fs.existsSync(other.file_path)), 'and so does its file');
+    } finally {
+        await db.settings.update({ recordingsPath });
+    }
+});

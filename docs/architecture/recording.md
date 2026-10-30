@@ -50,7 +50,8 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   tick's growth, live-detection and free-space checks. `/api/status`
   shows a cached free-space line refreshed in the background (`shareFs.diskInfo`) and never touches the share. Deleting
   a recording (0330, #141): a share that is not answering refuses it before it is retired ("The recordings folder is not
-  responding…"; it stays as it was, its jobs still its own: 0331, #149); a file the share stops answering on partway is listed in `recording_cleanup` as
+  responding…"; it stays as it was, its jobs still its own: 0331, #149). A second delete of the same recording joins the
+  first, and a name another recording points at is never removed (0332, #151); a file the share stops answering on partway is listed in `recording_cleanup` as
   `deleted`, with its identity, and removed through shareFs at the next folder check that finds the share answering (and
   at start), only while that name is still that file. At start, the size of a recording cut short by the restart (an
   unanswered one is kept as `completed`, size unknown) and the removal of what interrupted compressions and old MP4s left

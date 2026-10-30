@@ -741,7 +741,19 @@ async function cancelScheduled(id) {
     return scheduledDb.getById(id);
 }
 
-async function deleteRecording(id) {
+/**
+ * #151: one deletion per recording at a time: a second request for it joins the first (two
+ * interleaving file loops could remove a name a new recording was given in between).
+ */
+const deleting = new Map(); // recording id -> its deletion
+function deleteRecording(id) {
+    if (deleting.has(id)) return deleting.get(id);
+    const run = deleteRecordingOnce(id).finally(() => deleting.delete(id));
+    deleting.set(id, run);
+    return run;
+}
+
+async function deleteRecordingOnce(id) {
     let rec = recordingsDb.getById(id);
     if (!rec) throw new Error('Recording not found');
     // #141: a share that is not answering refuses the deletion before anything of it is retired,
@@ -812,7 +824,10 @@ async function deleteRecording(id) {
     // #141: through shareFs. A file the share stops answering on is listed (as the file it was) and
     // removed once the share answers again; the deletion goes on.
     const left = [];
+    const anotherRecords = getDb().prepare('SELECT 1 FROM recordings WHERE (file_path = ? OR segment_original = ?) AND id != ? LIMIT 1');
     for (const file of new Set(files)) {
+        // #151: a name in this one's family that another recording points at is that recording's.
+        if (anotherRecords.get(file, file, id)) continue;
         let identity = null;
         try {
             identity = await shareFs.identity(file);
@@ -1290,7 +1305,9 @@ async function onPartExit(schedule, entry, exitCode) {
         if (entry.part > 1) {
             // A continuation that never got going: drop its empty row (and file) and wait
             // for another provider, as a part that could not start at all does.
-            await shareFs.unlink(entry.outputPath).catch(() => {}); // #141; nothing was written, usually
+            // #141, #152: in the background: an await here left the schedule in no state a cancel
+            // could find (not active, not moving, no continuation yet).
+            shareFs.unlink(entry.outputPath).catch(() => {});
             recordingsDb.delete(entry.recordingId);
             waitForNextPart(schedule, entry.part, entry.lostAt ?? now);
             return;
