@@ -504,8 +504,10 @@ class ProvidersSettings {
         const first = ProviderFormat.order(this.providers)[0];
         if (ids[0] !== first.id) {
             const next = this.providers.find(x => x.id === ids[0]);
-            if (!confirm(`Make ${next.name} the primary provider?\n\nIts channels and guide replace ${first.name}'s, and ${first.name} becomes a backup. `
-                + 'Both are synced again, which can take a few minutes. Favourites, channel numbers and scheduled recordings belong to the current primary\'s channels.')) return;
+            // #15 (0375): say what of the lineup carries over (the server's dry run) before anything changes.
+            let report = null;
+            try { report = await API.sources.promotionPreview(next.id); } catch (e) { /* the general wording */ }
+            if (!confirm(ProvidersSettings.promotionText(next.name, first.name, report))) return;
         }
         this.setStatus('Saving the order...');
         try {
@@ -651,4 +653,32 @@ class ProvidersSettings {
 }
 
 window.ProviderFormat = ProviderFormat;
+/**
+ * #15 (0375): the question asked before a backup becomes the primary, from GET /api/sources/:id/promotion-preview.
+ * Without a report (an older server, a failed read) it says what happens in general.
+ */
+ProvidersSettings.promotionText = (next, first, r) => {
+    const n = (v) => Number(v || 0).toLocaleString();
+    const head = `Make ${next} the primary provider?\n\nIts channels and guide replace ${first}'s, and ${first} becomes a backup; `
+        + `${first}'s own choices are kept for if you move it back. Both are synced again, which can take a few minutes.`;
+    if (!r || !r.shown) return `${head}\n\nFavourites, channel numbers and scheduled recordings belong to the current primary's channels.`;
+    const lines = [head, ''];
+    if (r.visibility === 'own') {
+        lines.push(`${next} shows the channels you chose when it was the primary before.`);
+    } else {
+        lines.push(`Of ${first}'s ${n(r.shown.total)} shown channels, ${n(r.shown.carried)} have a match on ${next} and stay shown; `
+            + `every other ${next} channel starts hidden.`);
+    }
+    if (r.missing && r.missing.count) {
+        lines.push(`${n(r.missing.count)} have no usable match${r.missing.withPendingMatch ? ` (${n(r.missing.withPendingMatch)} have one waiting for approval under Backup links)` : ''}`
+            + `${r.missing.names && r.missing.names.length ? `, for example: ${r.missing.names.slice(0, 8).join(', ')}` : ''}.`);
+    }
+    const part = (label, x) => (x && x.total ? `${n(x.carried)} of ${n(x.total)} ${label}` : null);
+    const carried = [part('channel numbers', r.numbers), part('favourites', r.favourites), part('guide matches', r.guideMatches),
+        part('series rules', r.seriesRules), part('scheduled recordings', r.schedules)].filter(Boolean);
+    if (carried.length) lines.push(`Carried over: ${carried.join(', ')}.`);
+    if (r.listingUnknown) lines.push(`${next} has not synced since this update, so a few of these may turn out not to be in its playlist.`);
+    return lines.join('\n');
+};
+
 window.ProvidersSettings = ProvidersSettings;

@@ -102,6 +102,7 @@ const API = {
         importExclusions: (id) => API.request('GET', `/sources/${id}/import-exclusions`),
         setImportExclusions: (id, categoryIds) => API.request('PUT', `/sources/${id}/import-exclusions`, { categoryIds }),
         setOrder: (ids) => API.request('PUT', '/sources/order', { ids }), // 0182: the card order is the roles
+        promotionPreview: (id) => API.request('GET', `/sources/${encodeURIComponent(id)}/promotion-preview`), // #15
         account: (id) => API.request('GET', `/sources/${id}/account`),
         checkAccount: (id) => API.request('POST', `/sources/${id}/account/check`),
         backupChannels: (id, search = '', limit = 50) =>

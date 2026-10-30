@@ -298,6 +298,35 @@ test('Providers: moving a backup sends the whole order once; moving a card to th
     assert.deepEqual(plain(requests.find(r => r.key === 'PUT /api/sources/order').body), { ids: [4, 1, 2] }, 'moving the primary down is the same change');
 });
 
+// #15 (0375): the question before a backup becomes the primary says what carries over (the server's dry run). On 0374
+// it only warned that favourites, numbers and recordings belong to the current primary.
+test('Providers: making a backup the primary first shows what of the lineup carries over', async () => {
+    const asked = [];
+    const report = { visibility: 'carried', shown: { total: 1140, carried: 543 },
+        missing: { count: 597, withPendingMatch: 290, names: ['beIN Sports 1', 'Kayo 1'] },
+        numbers: { total: 1140, carried: 543 }, favourites: { total: 7, carried: 6 }, guideMatches: { total: 0, carried: 0 },
+        seriesRules: { total: 2, carried: 1 }, schedules: { total: 0, carried: 0 }, listingUnknown: false };
+    const { context, requests } = harness({
+        'GET /api/sources/4/promotion-preview': report,
+        'PUT /api/sources/order': () => ({ success: true, primaryChanged: true }),
+        'GET /api/sources/providers': [], 'GET /api/sources/status': [], 'GET /api/sources': []
+    });
+    context.confirm = (m) => { asked.push(m); return false; };
+    const panel = new context.ProvidersSettings();
+    panel.providers = [{ id: 1, role: 'primary', name: 'Strong8K' }, { id: 4, role: 'backup', priority: 1, name: 'Dream4K' }];
+    await panel.move(panel.providers[1], -1);
+    assert.ok(requests.some(r => r.key === 'GET /api/sources/4/promotion-preview'), 'the dry run is asked for');
+    const text = asked[0];
+    assert.match(text, /Of Strong8K's 1,140 shown channels, 543 have a match on Dream4K and stay shown/);
+    assert.match(text, /597 have no usable match \(290 have one waiting for approval under Backup links\), for example: beIN Sports 1, Kayo 1/);
+    assert.match(text, /Carried over: 543 of 1,140 channel numbers, 6 of 7 favourites, 1 of 2 series rules\./);
+    assert.match(text, /Strong8K's own choices are kept for if you move it back/);
+    assert.equal(requests.filter(r => r.key.startsWith('PUT')).length, 0, 'declined: nothing is sent');
+
+    assert.match(context.ProvidersSettings.promotionText('Dream4K', 'Strong8K', { ...report, visibility: 'own' }), /Dream4K shows the channels you chose when it was the primary before/);
+    assert.match(context.ProvidersSettings.promotionText('Dream4K', 'Strong8K', null), /belong to the current primary's channels/, 'no report: the general wording');
+});
+
 test('link helpers: status badges, decision buttons, paging, filters', () => {
     const { L } = harness();
     assert.deepEqual(plain(['auto', 'approved', 'manual', 'pending', 'rejected', 'broken', 'x'].map(L.badgeClass)), ['ok', 'ok', 'ok', 'warn', 'bad', 'bad', 'none']);
