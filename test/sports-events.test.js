@@ -620,6 +620,10 @@ test('#24: a roster never overrides a followed competition, another competition\
     assert.equal(league('CAR v BRI', ['FA Cup'], [['FA Cup', faCup], ['AFL', afl]]), null);
     // Still inferred when one roster alone fits.
     assert.equal(league('Man City v Brighton & Hove Albion', ['EPL'], [['EPL', epl], ['AFL', afl]]), 'EPL');
+    // #154: a round number blocks only a pairing of bare codes; named teams in a round are still recognised.
+    for (const title of ['Round 10: Man City v Brighton & Hove Albion', 'Man City v Brighton & Hove Albion - Round 10']) {
+        assert.equal(league(title, ['EPL'], [['EPL', epl]]), 'EPL', title);
+    }
 });
 
 // #82 (FR-18): nicknames other codes share (NRL Panthers and Broncos, AFL Lions and Eagles) infer no league on their own.
