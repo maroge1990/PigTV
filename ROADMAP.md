@@ -5,27 +5,34 @@ issues hold the detail.
 
 ## Current state
 
-*Overwritten at the end of every session. 30 Oct 2026, night (first Windows session).*
+*Overwritten at the end of every session. 30 Oct 2026, late (first Windows session).*
 
-- Server: production runs **0323**. On GitHub: 0324–0329 (pushed by Mark from the Mac) and, from this session under
-  D-34, **0330–0332** (#141: deleting a recording and the start-up clean-up no longer wait on a hung share; Codex round 1
-  → #149 fixed in 0331, round 2 → #151, #152 fixed in 0332). Next build **0333**. Not deployed: deploy is Mark's.
-- Apple: **64–68** pushed by Mark; #147, #148 still open (need the Mac).
-- Work runs in WSL2 (Ubuntu 26.04) on Windows; the MacBook over SSH only for Xcode and the AVPlayer harness (Mac SSH not
-  set up yet). Ubuntu's ffmpeg 8.0.1 fails the 4 HE-AAC media tests here; the Unraid rig (`unraid-rig.sh test`, image
-  ffmpeg 9.0.2) is the full-suite check. #150: a live-watch test flaked once on the rig.
-- Waiting for Mark's T5 checks: #6, #5, #12, #8. Relay timeline renewal stays **off** in production (D-25).
+- **Server:** production runs **0323**. Pushed this session (Claude pushes reviewed batches, D-34; batches by area,
+  D-35): **0330–0332** (#141, a hung share no longer stalls deletes or start-up), **0333–0339** (batch 2, sport
+  matching: #22, #23, #24, #82, #20 per-channel times in C-I, findings #154, #155), **0340–0345** (batch 3a, the F1 page's
+  data, C-P `GET /api/sports/pages/f1`; findings #156–#158, #160, #161). Image 0345 published; **not deployed** (deploy
+  is Mark's). Next build **0346**.
+- **Apple:** pushed **69–71** (#147, #148, #153) and **72–73** (#7, D-36: the live start builds its 30 s hold at 0.97×;
+  #159). The 30 Oct session keeps #7 to the end (Mark's stopwatch check, any follow-up such as GROW); other work leaves
+  #7 and the live catch-up code alone. Next build **74**.
+- **Tooling:** Claude works in WSL2 (Ubuntu 26.04) on Windows; the MacBook over SSH (`ssh mac`, LAN only) for Xcode and
+  the AVPlayer harness (mac:~/pigtv-build). Ubuntu's ffmpeg 8.0.1 fails 4 HE-AAC tests locally; the Unraid rig
+  (`scripts/unraid-rig.sh test`, ffmpeg 9.0.2) is the full-suite gate; staging runs 0332 with the copied login.
+- **Waiting for Mark (T5, after deploying):** #141/#149/#151/#152, #22/#23/#24 (next Fox Cricket Test), #147/#148/#153,
+  #7 (10 cold plays per test channel with a stopwatch), and the older #6, #5, #12, #8, #18 (untested). Relay timeline
+  renewal stays **off** (D-25).
 
 ## Now
 
-In this order (D-31):
+Batches by area (D-35), in this order:
 
-1. #147, #148 (Apple findings, need the Mac); #141 built (0330–0332), waiting for a deploy and Mark's check
-2. #7 The 30 s live hold cannot apply at the start of a play (measure first on the AVPlayer harness)
-3. Mark's T5 checks for #6, #5, #12, #8 (built, waiting for push and a device check)
-
-Then the **sport rebuild, #21**, absorbing #22, #23 and #24 (sport recognition on real guide rows) and #20 (per-channel
-airing times), with #29 (collector cost) before the dashboard is enabled by default.
+1. **Batch 3b: the Apple TV F1 page** (#21), on C-P. Mock-up: claude.ai "PigTV Sport mock-ups", "Formula 1 · Apple TV"
+   (Mark approved it with DESIGN.md › Sport pages: no section tabs, no season calendar, spacing fixed at build).
+   Then AFL or NFL (mock-up "NFL · Apple TV" exists), then cricket, each a mock-up for Mark first.
+2. Batch 4: channels and guide when providers change (#10, #15, #11, #42, #106, #111), server.
+3. Batch 5: web settings (#9, #16, #59, #65, #128). Batch 6: Apple player channel list and Top Shelf (#13, #14, #46).
+   Batch 7: Status (#19, #61, #129). Batch 8: #4 relay renewal, capture first, released alone.
+4. #29 (collector cost, a pilot) before the Live now dashboard is switched on by default; #85 waits for a format signal.
 
 ## Next (P1)
 
