@@ -405,8 +405,17 @@ class StatusPage {
         if (this.showDetails) this.detailParts(status, add);
 
         const b = status.build || {};
-        add('build', `<p class="setting-hint status-build">${e(b.display || '')}${b.builtAt ? ` · built ${e(new Date(b.builtAt).toLocaleString())}` : ''}</p>`);
+        add('build', `<p class="setting-hint status-build">${e(b.display || '')}${b.builtAt ? ` · built ${e(new Date(b.builtAt).toLocaleString())}` : ''}${this.mediaToolsText(status.mediaTools)}</p>`);
         return out;
+    }
+
+    /** #61 (0366): the ffmpeg and ffprobe the server runs, after the build (" · ffmpeg 9.0.2 · ffprobe 9.0.2 (system)"). */
+    mediaToolsText(tools) {
+        if (!tools) return '';
+        const e = (v) => this.escape(v);
+        const one = (name) => `${name} ${e(tools[name]?.version || 'unknown')}`;
+        const origins = [...new Set(['ffmpeg', 'ffprobe'].map(t => tools[t]?.origin).filter(Boolean))];
+        return ` · ${one('ffmpeg')} · ${one('ffprobe')}${origins.length ? ` (${e(origins.join(', '))})` : ''}`;
     }
 
     /** 0288: things wrong right now that are not in a table above (a source that failed to sync, recordings stuck in appdata). */
@@ -426,6 +435,12 @@ class StatusPage {
                 const hours = Math.max(0, Math.round((src.guideUntil - now) / 3600e3));
                 lines.push(`${e(src.name)}'s guide covers only ${e(hours)} hours ahead (until ${e(new Date(src.guideUntil).toLocaleString())}). Sport pages and recording rules see less until it syncs.`);
             }
+        }
+        // #61 (0366): a mismatched or missing media tool, which was only in the server log.
+        const tools = status.mediaTools;
+        if (tools?.mismatch) lines.push(`ffmpeg ${e(tools.ffmpeg?.version)} and ffprobe ${e(tools.ffprobe?.version)} are different versions: the image is not the tested pair.`);
+        for (const t of ['ffmpeg', 'ffprobe']) {
+            if (tools && tools[t]?.origin === 'unavailable') lines.push(`${t} is not available: plays and recordings that need it fail.`);
         }
         const seg = status.segmentedRecordings;
         if (seg && (seg.waitingToMove || []).length) lines.push(`${e(seg.waitingToMove.length)} finished recording(s) are waiting in appdata for the recordings folder.`);

@@ -252,3 +252,24 @@ test('#11, #42 (0350): a held list reads as held, not failed, and a guide about 
     assert.ok(html.includes("Strong8K's channel list was held") && !html.includes('sync failed'), 'held, not failed');
     assert.match(html, /Strong8K&#39;s guide covers only (8|9) hours ahead|Strong8K's guide covers only (8|9) hours ahead/);
 });
+
+// #61 (0366): /api/status has sent the media tools since 0307, but the page never showed them and a mismatch was only logged.
+test('#61: Status shows the ffmpeg and ffprobe versions after the build, and a mismatch or missing tool needs attention', async () => {
+    const tools = (ffmpeg, ffprobe, origin = 'system') => ({ ffmpeg: { version: ffmpeg, origin }, ffprobe: { version: ffprobe, origin: ffprobe ? origin : 'unavailable' },
+        mismatch: !!ffmpeg && !!ffprobe && ffmpeg !== ffprobe });
+    const base = { generatedAt: 1, build: { display: 'v3.7.0 · build 0366' }, providers: [], sessions: [], recordings: { active: [], upcoming: [] } };
+
+    let h = pageHarness({ status: { ...base, mediaTools: tools('9.0.2', '9.0.2') } });
+    await h.page.refresh();
+    assert.ok(h.sections.get('build').innerHTML.includes('build 0366 · ffmpeg 9.0.2 · ffprobe 9.0.2 (system)'), h.sections.get('build').innerHTML);
+    assert.ok(!h.content.innerHTML.includes('Needs attention'));
+
+    h = pageHarness({ status: { ...base, mediaTools: tools('9.0.2', '7.1') } });
+    await h.page.refresh();
+    assert.match(h.sections.get('attention').innerHTML, /ffmpeg 9\.0\.2 and ffprobe 7\.1 are different versions/);
+
+    h = pageHarness({ status: { ...base, mediaTools: tools('9.0.2', null) } });
+    await h.page.refresh();
+    assert.match(h.sections.get('attention').innerHTML, /ffprobe is not available/);
+    assert.ok(h.sections.get('build').innerHTML.includes('ffprobe unknown'));
+});
