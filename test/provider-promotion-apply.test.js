@@ -165,3 +165,34 @@ test('#181: a playlist import that fails part-way keeps the plan; the next compl
     await sync.syncSource(primary.id);
     assert.deepEqual(shownKeys(primary.id), ['s100', 's101', 's102', 's103']);
 });
+
+// #182: on 0377 whether the new primary keeps "its own earlier choice" was decided when the plan was applied. A failed
+// first import that wrote some groups makes the retry hide the other groups as new and record them, so the record
+// looked like an earlier choice: the carried visibility was skipped and the plan used up.
+test('#182: a partial first import and a retry show exactly the carried channels', async () => {
+    const d = sqlite.getDb();
+    const promotion = load('services/providerPromotion');
+    d.prepare('DELETE FROM hidden_channels WHERE source_id = ?').run(backup.id); // as a backup that was never the primary
+    d.prepare(`DELETE FROM meta WHERE key = ?`).run(`hidden_channels_captured:${backup.id}`);
+    // The admin's approved links, as in before() (the switches above relinked).
+    d.prepare('DELETE FROM channel_links WHERE primary_source_id = ? AND backup_source_id = ?').run(primary.id, backup.id);
+    const add = d.prepare(`INSERT INTO channel_links (primary_source_id, primary_key, backup_source_id, backup_stream_id, method, status, rank, score, updated_at)
+        VALUES (?, ?, ?, ?, 'manual', 'approved', 1, 0, 0)`);
+    add.run(primary.id, 's100', backup.id, '9100'); add.run(primary.id, 's101', backup.id, '9101'); add.run(primary.id, 's102', backup.id, '9102');
+    assert.equal(promotion.store(primary.id, backup.id).shown.carried, 3);
+    await db.sources.setOrder([{ id: backup.id, role: 'primary', priority: null }, { id: primary.id, role: 'backup', priority: 1 }]);
+    await sync.syncSource(primary.id);
+    await sync.withHiddenChannels(backup, async () => {
+        // One group and its channel written, then the import fails.
+        d.prepare(`INSERT INTO categories (id, source_id, category_id, type, name, is_hidden) VALUES (?, ?, 'AU Sport', 'live', 'AU Sport', 0)`).run(`${backup.id}:AU Sport`, backup.id);
+        d.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, is_hidden, sort_order, stable_id)
+            VALUES (?, ?, 'pos_2', 'live', 'AU| FOX FOOTY HD', 'AU Sport', 0, 2, 's9100')`).run(`${backup.id}:pos_2`, backup.id);
+        throw new Error('the playlist connection dropped');
+    }).catch(() => {});
+    await sync.syncSource(backup.id);
+    assert.equal(promotion.pending(), null);
+    assert.deepEqual(shownKeys(backup.id), ['s9100', 's9101', 's9102'], 'exactly the carried channels, the groups the retry saw as new included');
+    await db.sources.setOrder([{ id: primary.id, role: 'primary', priority: null }, { id: backup.id, role: 'backup', priority: 1 }]);
+    await sync.syncSource(backup.id);
+    await sync.syncSource(primary.id);
+});

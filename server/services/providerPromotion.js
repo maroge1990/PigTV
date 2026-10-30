@@ -118,6 +118,8 @@ function currentPrimary(db = getDb()) {
 function ensure(db) {
     db.exec(`CREATE TABLE IF NOT EXISTS provider_promotions (
         to_source_id INTEGER PRIMARY KEY, from_source_id INTEGER NOT NULL, mapping TEXT NOT NULL, created_at INTEGER NOT NULL)`);
+    // #182: whether the target had its own earlier lineup, decided when the plan is stored (an import can make a record).
+    try { db.exec('ALTER TABLE provider_promotions ADD COLUMN own_record INTEGER NOT NULL DEFAULT 0'); } catch (e) { /* present */ }
 }
 
 /** 0374: keep the plan for making `toId` the primary in place of `fromId` (one at a time). Returns the report. */
@@ -126,8 +128,8 @@ function store(fromId, toId, db = getDb()) {
     const { report, mapping } = plan(fromId, toId, db);
     db.transaction(() => {
         db.prepare('DELETE FROM provider_promotions').run();
-        db.prepare('INSERT INTO provider_promotions (to_source_id, from_source_id, mapping, created_at) VALUES (?, ?, ?, ?)')
-            .run(Number(toId), Number(fromId), JSON.stringify([...mapping.entries()]), Date.now());
+        db.prepare('INSERT INTO provider_promotions (to_source_id, from_source_id, mapping, created_at, own_record) VALUES (?, ?, ?, ?, ?)')
+            .run(Number(toId), Number(fromId), JSON.stringify([...mapping.entries()]), Date.now(), report.visibility === 'own' ? 1 : 0);
     })();
     return report;
 }
@@ -151,7 +153,7 @@ function clear(db = getDb()) {
  */
 function applyIfPlanned(db, sourceId) {
     ensure(db);
-    const row = db.prepare('SELECT from_source_id AS fromId, mapping FROM provider_promotions WHERE to_source_id = ?').get(Number(sourceId));
+    const row = db.prepare('SELECT from_source_id AS fromId, mapping, own_record AS own FROM provider_promotions WHERE to_source_id = ?').get(Number(sourceId));
     if (!row) return null;
     const toId = Number(sourceId), fromId = row.fromId;
     const mapping = new Map(JSON.parse(row.mapping));
@@ -162,8 +164,9 @@ function applyIfPlanned(db, sourceId) {
     for (const r of rows) if (!itemOf.has(r.k)) itemOf.set(r.k, r.item_id);
     const shown = new Set([...mapping.values()].filter(k => itemOf.has(k)));
     // Its own record (already re-applied by hiddenChannels.after) decides what a former primary shows: moving back
-    // restores it exactly. Otherwise the carried channels are shown and every other one is hidden.
-    const own = ownRecord(db, toId);
+    // restores it exactly. Otherwise the carried channels are shown and every other one is hidden. #182: decided when
+    // the plan was stored, never now: a failed import's retry can have made a record of its own.
+    const own = row.own === 1;
     const moved = { visibility: own ? 'own' : 'carried', shown: 0, hidden: 0, numbers: 0, favourites: 0, guideMatches: 0, seriesRules: 0, schedules: 0 };
     const now = Date.now();
     db.transaction(() => {
