@@ -55,6 +55,9 @@ const path = require('path');
 const args = process.argv.slice(2);
 const input = args[args.indexOf('-i') + 1];
 const out = args[args.length - 1];
+// #150: playlists are replaced whole, as ffmpeg's temp_file does (a temporary file renamed into place): a plain
+// rewrite empties the file first, and a reader caught there saw no segments ("cannot be watched while it records").
+const putPlaylist = (text) => { fs.writeFileSync(out + '.tmp', text); fs.renameSync(out + '.tmp', out); };
 fs.appendFileSync(${JSON.stringify(startsFile)}, JSON.stringify(args) + '\\n');
 if (args.includes('-live_start_index')) {
   // The watch copy: one piece per archive segment, ended when the archive is.
@@ -65,8 +68,8 @@ if (args.includes('-live_start_index')) {
     fs.writeFileSync(path.join(dir, 'init.mp4'), 'init');
     let pl = '#EXTM3U\\n#EXT-X-VERSION:7\\n#EXT-X-TARGETDURATION:4\\n#EXT-X-MEDIA-SEQUENCE:0\\n#EXT-X-PLAYLIST-TYPE:EVENT\\n#EXT-X-MAP:URI="init.mp4"\\n';
     for (let i = 0; i < n; i++) { const name = 'v' + String(i).padStart(6, '0') + '.m4s'; fs.writeFileSync(path.join(dir, name), 'm4s'); pl += '#EXTINF:4.000000,\\n' + name + '\\n'; }
-    if (text.includes('#EXT-X-ENDLIST')) { fs.writeFileSync(out, pl + '#EXT-X-ENDLIST\\n'); process.exit(0); }
-    fs.writeFileSync(out, pl);
+    if (text.includes('#EXT-X-ENDLIST')) { putPlaylist(pl + '#EXT-X-ENDLIST\\n'); process.exit(0); }
+    putPlaylist(pl);
   };
   pieces();
   setInterval(pieces, 40);
@@ -83,13 +86,13 @@ if (args.includes('hls')) {
     const name = 'a' + String(n++).padStart(6, '0') + '.ts';
     fs.writeFileSync(path.join(dir, name), Buffer.alloc(3000));
     pl += '#EXTINF:4.000000,\\n' + name + '\\n';
-    fs.writeFileSync(out, pl);
+    putPlaylist(pl);
   };
   segment();
   setInterval(segment, 60);
   process.stdin.on('data', (d) => {
     if (!String(d).includes('q')) return;
-    fs.writeFileSync(out, pl + '#EXT-X-ENDLIST\\n');
+    putPlaylist(pl + '#EXT-X-ENDLIST\\n');
     process.stderr.write('[tcp @ 0x1] Connection reset by peer\\n');
     process.exit(1);
   });
