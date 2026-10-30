@@ -949,12 +949,15 @@ async function startPartLeased(schedule, route, index, part, { gapMs = 0, refuse
     try {
         outputPath = await uniqueFilePathAsync(channelDir, baseName, '.ts', (p) => shareFs.exists(p)); // 0203: was .mkv; #144
     } catch (err) {
+        if (!startStillWanted(schedule, owner)) return abandonStart(schedule, feed); // #145
         const msg = refusalMessage({ problem: 'unresponsive' }, root, minFreeGB);
         console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${msg}`);
         if (feed) { try { feed.leave(); } catch (e) { /* gone */ } }
         refuse(msg);
         return false;
     }
+    // #145: the lookup waited on the share; a cancel, shutdown or taken lease meanwhile wins.
+    if (!startStillWanted(schedule, owner)) return abandonStart(schedule, feed);
     const candidate = route.candidates[index];
 
     const recording = recordingsDb.create({
@@ -1151,7 +1154,8 @@ function spawnPart(schedule, settings, { recordingId, outputPath, route, index, 
     });
 
     proc.on('close', (code) => {
-        onPartExit(schedule, entry, code).catch(err =>
+        // #146: kept, so a stop can wait for the part's finalisation (it awaits the share since 0328).
+        entry.exited = onPartExit(schedule, entry, code).catch(err =>
             console.error(`[Recordings] Error ending recording #${recordingId}:`, err.message));
     });
 
@@ -1587,6 +1591,9 @@ async function stopRecording(scheduledId, reasonStatus = 'completed') {
 
         setTimeout(done, 9000); // safety net so callers never hang forever
     });
+    // #146: onPartExit reads the file's size through shareFs before finalising; wait for it (bounded by the share
+    // deadline), so the cancel below is the last word.
+    if (entry.exited) await Promise.race([entry.exited, new Promise(r => setTimeout(r, shareFs.tuning.timeoutMs + 1000))]);
 
     // The proc's 'close' handler registered in spawnPart (onPartExit ->
     // finalizeRecording, synchronously for a requested stop) runs before the listener above, since it was registered first - by now the

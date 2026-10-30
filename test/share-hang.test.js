@@ -28,12 +28,14 @@ const express = require(path.join(sandbox, 'node_modules', 'express'));
 const db = load('db');
 const auth = load('auth');
 const engine = load('services/recordingEngine');
+engine._setPrepareQueue(false); // no background MP4 preparation of the recordings these tests finish
 let shareFs = null; // absent before #8: the proof runs this file against the old server too
 try { shareFs = load('services/shareFs'); } catch { /* old server */ }
 
 // Any synchronous call on the share from this process blocks, as on a hung mount.
 const blocked = [];
-const onShare = (p) => String(p).startsWith(share) || String(p).startsWith(slowShare);
+let bypass = false; // a stand-in helper's own calls (deferringHelper) are not this process's
+const onShare = (p) => !bypass && (String(p).startsWith(share) || String(p).startsWith(slowShare));
 const hang = () => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 3000);
 for (const name of ['existsSync', 'statSync', 'statfsSync', 'mkdirSync', 'writeFileSync', 'readdirSync', 'unlinkSync']) {
     const real = fs[name];
@@ -178,6 +180,116 @@ process.stdin.on('data', d => { if (String(d).includes('q')) { clearInterval(t);
         assert.deepEqual(blocked, [], 'no synchronous call on the share');
         assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
     } finally {
+        await engine.stopAllActive(3000);
+        await db.settings.update({ recordingsPath });
+    }
+});
+
+/**
+ * A stand-in share helper that answers from this process (the real calls, unblocked) but holds any call `hold(op,
+ * file)` picks until `release()`: a share that answers late at exactly the wrong moment.
+ */
+function deferringHelper(hold, onHeld = () => {}) {
+    const { EventEmitter } = require('node:events');
+    const { run } = load('services/shareFsWorker');
+    const held = [];
+    let realFs = null;
+    const fake = Object.assign(new EventEmitter(), {
+        connected: true, exitCode: null, signalCode: null, unref() {}, channel: { ref() {}, unref() {} },
+        kill() { this.connected = false; this.emit('exit', null, 'SIGKILL'); },
+        send(msg) {
+            const answer = () => {
+                // The helper's calls are not this process's: run them with the real (unblocked) fs.
+                let result;
+                try { result = realFs(() => run(msg.op, msg.file)); } catch (err) { return fake.emit('message', { id: msg.id, error: err.message }); }
+                fake.emit('message', { id: msg.id, result });
+            };
+            if (hold(msg.op, msg.file)) { held.push(answer); onHeld(); } else setImmediate(answer);
+        }
+    });
+    realFs = (fn) => { bypass = true; try { return fn(); } finally { bypass = false; } };
+    return { fake, release: () => { for (const a of held.splice(0)) a(); }, heldCount: () => held.length };
+}
+
+async function recordingSetup(title) {
+    const { scheduled, recordings } = load('db/recordingsDb');
+    let source = (await db.sources.getAll()).find(s => s.name === 'Provider');
+    if (!source) {
+        source = await db.sources.create({ type: 'm3u', name: 'Provider', url: 'http://provider.invalid/list.m3u' });
+        load('db/sqlite').getDb().prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, is_hidden, sort_order, stable_id, stream_url)
+            VALUES (?, ?, 'pos_1', 'live', 'Fox Footy', 'Sport', 0, 1, 'ff', 'http://provider.invalid/ff.ts')`).run(`${source.id}:pos_1`, source.id);
+    }
+    const ffmpeg = path.join(sandbox, 'ffmpeg-fake');
+    if (!fs.existsSync(ffmpeg)) {
+        fs.writeFileSync(ffmpeg, `#!${process.execPath}
+const fs = require('fs');
+const out = process.argv[process.argv.length - 1];
+fs.writeFileSync(out, Buffer.alloc(4000));
+const t = setInterval(() => fs.appendFileSync(out, Buffer.alloc(500)), 50);
+process.stdin.on('data', d => { if (String(d).includes('q')) { clearInterval(t); process.exit(0); } });
+`);
+        fs.chmodSync(ffmpeg, 0o755);
+    }
+    engine.init({ ffmpegPath: ffmpeg, ffprobePath: 'ffprobe' });
+    engine.shutdown();
+    const now = Date.now();
+    const s = scheduled.create({ title, description: null, source_id: source.id, channel_item_id: 'pos_1', channel_stable_id: 'ff',
+        channel_name: 'Fox Footy', channel_logo: null, program_start: now - 1000, program_end: now + 60000,
+        pre_buffer_min: 0, post_buffer_min: 0, created_by: 1, created_at: now });
+    return { s, scheduled, recordings };
+}
+
+test('#145: a cancel while the file name is looked up on the share starts nothing', async () => {
+    await db.settings.update({ recordingsPath: path.join(slowShare, 'Recordings'), sharedIngestEnabled: false });
+    const realFork = shareFs._spawner.fork;
+    const helper = deferringHelper((op, file) => op === 'exists' && String(file).endsWith('.ts'));
+    shareFs.reset();
+    shareFs._spawner.fork = () => helper.fake;
+    try {
+        const { s, scheduled, recordings } = await recordingSetup('Cancelled while naming');
+        const ticks = [];
+        for (let i = 0; i < 100 && helper.heldCount() === 0; i++) {
+            ticks.push(engine.tick());
+            await new Promise(r => setTimeout(r, 30));
+        }
+        assert.equal(helper.heldCount(), 1, 'the name lookup is waiting on the share');
+        await engine.cancelScheduled(s.id);
+        helper.release();
+        await Promise.all(ticks);
+        await new Promise(r => setTimeout(r, 200));
+        assert.deepEqual(recordings.listBySchedule(s.id), [], 'no recording was created');
+        assert.equal(scheduled.getById(s.id).status, 'cancelled');
+        assert.ok(!engine.listActive().some(r => r.id === s.id), 'no capture runs');
+    } finally {
+        shareFs._spawner.fork = realFork;
+        shareFs.reset();
+        await engine.stopAllActive(3000);
+        await db.settings.update({ recordingsPath });
+    }
+});
+
+test('#146: a cancel stays cancelled when the capture\'s size answers late', async () => {
+    await db.settings.update({ recordingsPath: path.join(slowShare, 'Recordings'), sharedIngestEnabled: false });
+    const realFork = shareFs._spawner.fork;
+    let holdStat = false;
+    // The size read at the capture's exit is answered 100 ms late: after the stop has seen the capture close.
+    const helper = deferringHelper((op, file) => holdStat && op === 'stat' && String(file).endsWith('.ts'),
+        () => setTimeout(() => helper.release(), 100));
+    shareFs.reset();
+    shareFs._spawner.fork = () => helper.fake;
+    try {
+        const { s, scheduled, recordings } = await recordingSetup('Cancelled at the end');
+        for (let i = 0; i < 100 && recordings.listBySchedule(s.id)[0]?.status !== 'recording'; i++) { await engine.tick(); await new Promise(r => setTimeout(r, 30)); }
+        assert.equal(recordings.listBySchedule(s.id)[0]?.status, 'recording');
+        holdStat = true;
+        await engine.cancelScheduled(s.id);
+        await new Promise(r => setTimeout(r, 300));
+        assert.equal(scheduled.getById(s.id).status, 'cancelled', 'the cancel is the last word');
+    } finally {
+        holdStat = false;
+        helper.release();
+        shareFs._spawner.fork = realFork;
+        shareFs.reset();
         await engine.stopAllActive(3000);
         await db.settings.update({ recordingsPath });
     }
