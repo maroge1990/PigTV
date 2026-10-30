@@ -714,6 +714,35 @@ test('Codex R1 of 0318: a same-pool backup that reclaims the pinned primary and 
     } finally { routing.plan = plan; strategy.resolve = resolve; ingestModule._registry.delete(live.key); await r.close('test over'); }
 });
 
+test('Codex R2 of 0320: a newer request from the same device during the backup start ends the relay, never restarts the primary', async () => {
+    coordinator._leases.clear();
+    const front = fakeSession(); write(front, 0, 2);
+    const r = relay.adopt(front, ctx({ settings: { maxProviderStreams: 1, ingestReconnectRenewal: true, relayEnabled: true } }));
+    clearInterval(r.timer); await r.ingest();
+    r.renewalTimes = [Date.now(), Date.now(), Date.now()];
+    const ingestModule = load('services/ingest');
+    const S = { ...A, channelKey: 'sibling', url: 'http://a.invalid/sibling.ts' };
+    const live = { id: 98, key: 'pinned-b', pool: coordinator.poolOf(1), state: 'live', providerId: 1, startedAt: Date.now(), lastByteAt: Date.now(), waiters: 0, closed: false };
+    const pin = { ingest: live, endReason: null, info: { purpose: 'renewal-pin', owner: 'device:tv' }, leave() { live.subs.delete(pin); } };
+    live.subs = new Set([pin]);
+    live.close = () => { live.closed = true; pin.endReason = { reason: 'closed', providerReason: false }; ingestModule._registry.delete(live.key); };
+    ingestModule._registry.set(live.key, live);
+    const plan = routing.plan; const resolve = strategy.resolve; const tried = []; let newer = null;
+    routing.plan = async () => ({ candidates: [S], primaryKey: 'k', channelName: 'Fox Footy' });
+    strategy.resolve = async (opts) => {
+        tried.push(opts.url);
+        // While the backup probes, the same device asks for another channel: its admission reserves the connection.
+        newer = coordinator.takeLease(1, 'viewer', { owner: 'device:tv' });
+        throw Error('superseded');
+    };
+    try {
+        await silently(() => r.switchOver('another reconnect', 'reconnected', pin));
+        assert.deepEqual(tried, [S.url], 'the primary must not be started again');
+        assert.equal(r.closed, true, 'a superseded relay ends');
+        assert.ok(coordinator.listLeases().some(l => l.id === newer.id), 'the newer request keeps its reserved connection');
+    } finally { routing.plan = plan; strategy.resolve = resolve; ingestModule._registry.delete(live.key); if (newer) coordinator.releaseUnbound(newer); await r.close('test over'); }
+});
+
 test('Codex R1 of 0318: a pinned primary ended by something else (not this relay\'s own admission) is not restarted', async () => {
     const front = fakeSession(); write(front, 0, 2);
     const r = relay.adopt(front, ctx()); clearInterval(r.timer); await r.ingest();

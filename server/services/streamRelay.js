@@ -591,7 +591,10 @@ class Relay {
             if (this.unusable.has(candidate.providerId)) continue;
             // The viewer has started something else since: this play is over, and admitting
             // it again would stop what they are watching now.
-            if (coordinator().activeStreams().some(s => s.owner && s.owner === ctx.owner && s.id !== adopt && !s.warm)) {
+            // A newer request still probing holds only an unbound viewer lease (Codex review of 0320):
+            // it counts too, so a fallback never takes the connection reserved for it.
+            if (coordinator().activeStreams().some(s => s.owner && s.owner === ctx.owner && s.id !== adopt && !s.warm)
+                || (ctx.owner && coordinator().listLeases().some(l => l.purpose === 'viewer' && l.owner === ctx.owner && !l.sessionId))) {
                 this.close('the viewer is watching something else');
                 return null;
             }
