@@ -2,6 +2,7 @@
  * Xtream Codes API v2 Client
  * Handles authentication and API calls to Xtream servers
  */
+const { providerFetch } = require('./providerFetch'); // #106: deadline and the configured User-Agent
 
 class XtreamApi {
     constructor(baseUrl, username, password) {
@@ -34,7 +35,7 @@ class XtreamApi {
      */
     async request(action, params = {}) {
         const url = this.buildApiUrl(action, params);
-        const response = await fetch(url);
+        const response = await providerFetch(url, 'api');
         if (!response.ok) {
             throw new Error(`Xtream API error: ${response.status} ${response.statusText}`);
         }

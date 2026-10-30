@@ -7,6 +7,7 @@ const sax = require('sax');
 const zlib = require('zlib');
 const { Readable } = require('stream');
 const { stripBadgeSuffix } = require('./textCleanup');
+const { providerFetch } = require('./providerFetch'); // #106: deadline and the configured User-Agent
 
 // 0152: XMLTV programme flags, as a bitmask (the same bits as sportsClassify.FLAGS; stored in
 // epg_programs.flags): <previously-shown/> (with or without a start), <premiere/>, <new/>, and
@@ -173,7 +174,7 @@ function parse(input) {
  * Fetch and parse XMLTV from URL
  */
 async function fetchAndParse(url) {
-    const response = await fetch(url);
+    const response = await providerFetch(url, 'guide');
     if (!response.ok) {
         throw new Error(`Failed to fetch EPG: ${response.status} ${response.statusText}`);
     }
@@ -223,7 +224,7 @@ async function fetchAndParse(url) {
  * @yields {{ channels: Array|null, programmes: Array, isLast: boolean }}
  */
 async function* fetchAndParseStreaming(url, batchSize = 1000) {
-    const response = await fetch(url);
+    const response = await providerFetch(url, 'guide');
     if (!response.ok) {
         throw new Error(`Failed to fetch EPG: ${response.status} ${response.statusText}`);
     }
