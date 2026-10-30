@@ -1159,7 +1159,7 @@ check public/index.html 'data-subtab="lineup"' "the Settings view exists (under 
 check public/index.html 'id="lineup-list"' "with its list"
 check public/js/api.js "API.request('PUT', '/lineup/numbers', { numbers })" "api.js saves through PUT /api/lineup/numbers"
 check public/js/pages/Settings.js "API.lineup.get()" "the panel reads GET /api/lineup"
-check public/js/pages/Settings.js "if (panel === 'lineup') this.loadLineup();" "and loads when the panel opens"
+check public/js/pages/Settings.js "if (panel === 'lineup' && !this.lineupEdits?.size) this.loadLineup();" "and loads when the panel opens (unless numbers are typed but unsaved, #128)"
 check public/js/pages/Settings.js "this.setLineupStatus(err.message" "the server's validation error is shown"
 
 echo "=== 0124: admin status page (W2.2) ==="

@@ -9,6 +9,7 @@ const vm = require('node:vm');
 // when it is many), and the last save can be undone. Before, they saved at once, ignored the filter, threw pending
 // edits away and could not be undone. #59: ticking a channel inside a hidden group shows the group and keeps its other
 // channels hidden; groups are keyed by id, not name. #128: unsaved ticks are known.
+let gate = null; // #175: holds a bulk hide open while a test ticks more
 function makeManager({ groups, confirmAnswer = true, newGroups = [] } = {}) {
     const calls = [];
     const confirms = [];
@@ -25,7 +26,7 @@ function makeManager({ groups, confirmAnswer = true, newGroups = [] } = {}) {
             hideAll: async () => { calls.push(['hideAll']); },
             showAll: async () => { calls.push(['showAll']); },
             bulkShow: async (items) => { calls.push(['bulkShow', items.map(i => `${i.itemType}:${i.itemId}`)]); },
-            bulkHide: async (items) => { calls.push(['bulkHide', items.map(i => `${i.itemType}:${i.itemId}`)]); },
+            bulkHide: async (items) => { calls.push(['bulkHide', items.map(i => `${i.itemType}:${i.itemId}`)]); if (gate) await gate; },
             newGroups: async () => listed,
             show: async (sourceId, type, id) => { calls.push(['show', sourceId, type, id]); listed = listed.filter(g => g.categoryId !== id); },
             dismissNewGroups: async (sourceId) => { calls.push(['dismiss', sourceId]); listed = []; }
@@ -42,7 +43,7 @@ function makeManager({ groups, confirmAnswer = true, newGroups = [] } = {}) {
                 { id: 'Uncategorized', name: 'No category id', categoryId: null, items: [{ type: 'channel', id: 'd', name: 'Dave' }] }
             ]
         },
-        hiddenSet: new Set(), originalHiddenSet: new Set(), expandedGroups: new Set(), searchQuery: '', undoSnapshot: null,
+        hiddenSet: new Set(), originalHiddenSet: new Set(), expandedGroups: new Set(), searchQuery: '', undoSnapshot: null, saving: false,
         contentTree: { querySelector: () => null },
         renderTree() { this.rendered = (this.rendered || 0) + 1; }
     });
@@ -138,4 +139,40 @@ test('#10 (0359): Keep all hidden clears the list without showing anything', asy
     await manager.dismissNewGroups();
     assert.deepEqual(plain(calls), [['dismiss', 7]]);
     assert.equal(box.hidden, true);
+});
+
+test('#174: Undo belongs to the provider it was saved on; loading another provider drops it', async () => {
+    const { manager, calls } = makeManager();
+    manager.hiddenSet = new Set(['channel:b']);
+    manager.originalHiddenSet = new Set(['channel:b']);
+    manager.setAllVisibility(true);
+    await manager.saveContentChanges();
+    // Another provider's tree arrives (as loadContentTree leaves it), then Undo is pressed.
+    manager.treeData = { type: 'channels', sourceId: 8, groups: [{ id: '50', name: 'Other', categoryId: '50', items: [{ type: 'channel', id: 'b', name: 'Same id' }] }] };
+    manager.hiddenSet = new Set();
+    manager.originalHiddenSet = new Set();
+    await manager.undoLastSave();
+    assert.deepEqual(plain(calls), [['bulkShow', ['channel:b']]], 'nothing more is sent: the snapshot was provider 7\'s');
+    assert.equal(manager.undoSnapshot, null);
+});
+
+test('#175: ticks made while a save is running are not marked saved; a second Save sends them', async () => {
+    const { manager, calls } = makeManager();
+    let open;
+    gate = new Promise(r => { open = r; });
+    try {
+        manager.toggleVisibility({ dataset: { type: 'channel', id: 'a' }, checked: false, closest: () => null });
+        const first = manager.saveContentChanges();
+        await new Promise(r => setTimeout(r, 0));
+        manager.toggleVisibility({ dataset: { type: 'channel', id: 'b' }, checked: false, closest: () => null });
+        const second = manager.saveContentChanges(); // refused: one save at a time
+        open();
+        await first;
+        await second;
+    } finally { gate = null; }
+    assert.deepEqual(plain(calls), [['bulkHide', ['channel:a']]]);
+    assert.equal(manager.isDirty(), true, 'BBC is still to save');
+    await manager.saveContentChanges();
+    assert.deepEqual(plain(calls[1]), ['bulkHide', ['channel:b']]);
+    assert.equal(manager.isDirty(), false);
 });

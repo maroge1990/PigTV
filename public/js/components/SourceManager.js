@@ -12,7 +12,8 @@ class SourceManager {
         this.originalHiddenSet = new Set(); // Set of hidden item keys (state when loaded)
         this.expandedGroups = new Set(); // Set of expanded group IDs
         this.searchQuery = ''; // Search filter for content browser
-        this.undoSnapshot = null; // #16: the hidden set before the last save, for one-step Undo
+        this.undoSnapshot = null; // #16: { sourceId, hidden } before the last save, for one-step Undo (#174: per provider)
+        this.saving = false; // #175: one save at a time
 
         this.init();
     }
@@ -94,6 +95,11 @@ class SourceManager {
      */
     reloadContentTree() {
         const sourceId = this.contentSourceSelect?.value;
+        // #175: not while a save is running: it finishes on the provider it started on.
+        if (this.saving) {
+            if (this.contentSourceSelect && this.treeData) this.contentSourceSelect.value = String(this.treeData.sourceId);
+            return;
+        }
         // #128: another provider throws the unsaved ticks away: ask first.
         if (this.isDirty() && String(sourceId) !== String(this.treeData.sourceId)
             && !window.confirm('Discard the changes you have not saved?')) {
@@ -205,6 +211,11 @@ class SourceManager {
      * hidden flags - instead of the Xtream-emulation routes plus /channels/hidden.
      */
     async loadContentTree(sourceId) {
+        // #174: an Undo belongs to the provider it was saved on.
+        if (this.undoSnapshot && String(this.undoSnapshot.sourceId) !== String(sourceId)) {
+            this.undoSnapshot = null;
+            this.showUndo(false);
+        }
         this.contentTree.innerHTML = '<p class="hint">Loading...</p>';
         this.treeData = { type: 'channels', sourceId, groups: [] };
         this.expandedGroups.clear();
@@ -529,7 +540,7 @@ class SourceManager {
      */
     setAllVisibility(visible) {
         if (!this.treeData || !this.treeData.groups) return;
-        const groupType = this.groupItemType();
+        const groupItemType = this.groupItemType();
         for (const shown of this.getFilteredGroups()) {
             const group = this.treeData.groups.find(g => g.id === shown.id) || shown;
             const whole = shown.items.length === group.items.length;
@@ -538,7 +549,7 @@ class SourceManager {
                 if (visible) this.hiddenSet.delete(key); else this.hiddenSet.add(key);
             }
             if (!group.categoryId) continue;
-            const groupKey = `${groupType}:${group.categoryId}`;
+            const groupKey = `${groupItemType}:${group.categoryId}`;
             if (visible) this.hiddenSet.delete(groupKey); // its other channels stay hidden one by one (#59)
             else if (whole || group.items.every(i => this.hiddenSet.has(`${i.type}:${i.id}`))) this.hiddenSet.add(groupKey);
         }
@@ -557,8 +568,13 @@ class SourceManager {
 
     /** #16: put back exactly what was hidden before the last save. */
     async undoLastSave() {
-        if (!this.undoSnapshot || !this.treeData) return;
-        this.hiddenSet = new Set(this.undoSnapshot);
+        if (!this.undoSnapshot || !this.treeData || this.saving) return;
+        if (String(this.undoSnapshot.sourceId) !== String(this.treeData.sourceId)) { // #174
+            this.undoSnapshot = null;
+            this.showUndo(false);
+            return;
+        }
+        this.hiddenSet = new Set(this.undoSnapshot.hidden);
         this.undoSnapshot = null;
         await this.saveContentChanges({ confirmed: true, undo: true });
     }
@@ -576,6 +592,7 @@ class SourceManager {
             alert('No content loaded to save');
             return;
         }
+        if (this.saving) return; // #175: one save at a time
         // #16: a large change says what it will do before it does it.
         const counts = this.pendingCounts();
         if (!confirmed && counts.show + counts.hide > 50) {
@@ -587,6 +604,11 @@ class SourceManager {
             if (!ok) return;
         }
         const before = new Set(this.originalHiddenSet);
+        // #175: the save sends, and afterwards records as saved, exactly the selection it started with; ticks made
+        // while it runs stay unsaved for the next Save.
+        const target = new Set(this.hiddenSet);
+        const savedSource = this.treeData.sourceId;
+        this.saving = true;
 
         const saveBtn = document.getElementById('content-save');
         if (saveBtn) {
@@ -610,7 +632,7 @@ class SourceManager {
 
                 if (group.categoryId) {
                     const groupKey = `${groupItemType}:${group.categoryId}`;
-                    const isGroupNowHidden = this.hiddenSet.has(groupKey);
+                    const isGroupNowHidden = target.has(groupKey);
                     const wasGroupHidden = this.originalHiddenSet.has(groupKey);
 
                     if (isGroupNowHidden !== wasGroupHidden) {
@@ -631,7 +653,7 @@ class SourceManager {
 
                 group.items.forEach(item => {
                     const key = `${item.type}:${item.id}`;
-                    const isNowHidden = this.hiddenSet.has(key);
+                    const isNowHidden = target.has(key);
                     const wasHidden = this.originalHiddenSet.has(key);
 
                     // Only send if state changed
@@ -659,7 +681,7 @@ class SourceManager {
                 if (changedGroups.get(group.categoryId) !== false) return;
                 group.items.forEach(item => {
                     const key = `${item.type}:${item.id}`;
-                    if (this.hiddenSet.has(key) && !hideKeys.has(key)) {
+                    if (target.has(key) && !hideKeys.has(key)) {
                         itemsToHide.push({ sourceId, itemType: item.type, itemId: String(item.id) });
                         hideKeys.add(key);
                     }
@@ -717,9 +739,9 @@ class SourceManager {
             console.log('[SourceManager] Bulk operations completed');
 
             // Update originalHiddenSet to reflect saved state
-            this.originalHiddenSet = new Set(this.hiddenSet);
+            this.originalHiddenSet = target;
             // #16: one step back is offered until the next save (an Undo is not itself undone).
-            this.undoSnapshot = undo ? null : before;
+            this.undoSnapshot = undo ? null : { sourceId: savedSource, hidden: before };
             this.showUndo(!undo);
 
             // Sync Channel List (it lists only visible channels, so reload it)
@@ -746,6 +768,8 @@ class SourceManager {
                 saveBtn.textContent = '💾 Save Changes';
                 saveBtn.disabled = false;
             }
+        } finally {
+            this.saving = false;
         }
     }
 }
