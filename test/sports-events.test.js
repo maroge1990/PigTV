@@ -611,6 +611,21 @@ test('#24: a roster never overrides a followed competition, another competition\
     assert.equal(league('Man City v Brighton & Hove Albion', ['EPL'], [['EPL', epl], ['AFL', afl]]), 'EPL');
 });
 
+// #82 (FR-18): nicknames other codes share (NRL Panthers and Broncos, AFL Lions and Eagles) infer no league on their own.
+test('#82: a nickname another football code shares infers no league; full names still do', () => {
+    const ev = load('services/sportsEvents');
+    const t = (displayName, name, location, abbreviation) => ({ displayName, shortDisplayName: name, name, location, abbreviation });
+    const nfl = [t('Carolina Panthers', 'Panthers', 'Carolina', 'CAR'), t('Denver Broncos', 'Broncos', 'Denver', 'DEN'),
+        t('Detroit Lions', 'Lions', 'Detroit', 'DET'), t('Philadelphia Eagles', 'Eagles', 'Philadelphia', 'PHI'),
+        t('New York Giants', 'Giants', 'New York', 'NYG'), t('Arizona Cardinals', 'Cardinals', 'Arizona', 'ARI')];
+    const follow = ev.compileFollow(['NFL'], new Map([['NFL', nfl]]));
+    const league = title => ev.classify({ title }, follow)?.league ?? null;
+    for (const title of ['Panthers v Broncos', 'Lions v Eagles', 'Giants v Cardinals']) assert.equal(league(title), null, title);
+    assert.equal(league('Carolina Panthers v Denver Broncos'), 'NFL');
+    assert.equal(league('DET v PHI'), 'NFL', 'stored abbreviations are not nicknames');
+    assert.equal(league('Penrith Panthers v Brisbane Broncos'), null, 'the NRL pairing, as before');
+});
+
 // 0294: the real build loads the persisted roster, independent of fixture coverage.
 test('a build recognises a followed league from its stored ESPN roster', () => {
     const ev = load('services/sportsEvents');

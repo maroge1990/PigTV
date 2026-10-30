@@ -129,6 +129,9 @@ function compileFollow(keywords, rosters = new Map()) {
 // across sports, and a subset match (Sydney inside Sydney FC) is not a team identity.
 // #24: a title that names a competition says which one it is, even one PigTV does not know: a round number is a
 // round-based code (AFL, NRL), never a cup tie inferred from two abbreviations.
+// #82 (FR-18): nicknames football codes share (NRL and NFL; AFL and NFL): a title of two of them names no league.
+const SHARED_NICKNAMES = new Set(['panthers', 'broncos', 'cowboys', 'titans', 'raiders', 'dolphins', 'lions', 'eagles', 'giants', 'saints']);
+const sharedNickname = side => side.tokens.length === 1 && SHARED_NICKNAMES.has(side.tokens[0]);
 const OTHER_COMPETITION_RE = /\b(?:eredivisie|la ?liga|serie a|bundesliga|ligue 1|mls|a-?league|scottish premiership|carabao cup|league cup|copa|round \d{1,2})\b/i;
 const rosterSideKey = side => side.tokens.filter(t => t !== 'de').sort().join(' ');
 function rosterAliases(team) {
@@ -221,7 +224,7 @@ function classify({ title, categories = [], sportChannel = false, channelName = 
     const namesCompetition = OTHER_COMPETITION_RE.test(text) || follow.list.some(k => k.re && k.re.test(text));
     if (!titleLeague && !namesCompetition && follow.rosters?.size) {
         const pair = sportsClassify.parseMatchup(text);
-        if (pair) {
+        if (pair && !pair.some(sharedNickname)) {
             const matches = [];
             for (const [league, teams] of follow.rosters) {
                 const hit = side => teams.map((aliases, i) => aliases.includes(rosterSideKey(side)) ? i : -1).filter(i => i >= 0);
