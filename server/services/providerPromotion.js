@@ -132,7 +132,14 @@ function store(fromId, toId, db = getDb()) {
     return report;
 }
 
-/** 0374: drop a stored plan (the order changed again before it was used). */
+/** #180: the plan waiting for its new primary's first complete sync, as { fromId, toId }, or null. */
+function pending(db = getDb()) {
+    ensure(db);
+    const row = db.prepare('SELECT from_source_id AS fromId, to_source_id AS toId FROM provider_promotions LIMIT 1').get();
+    return row || null;
+}
+
+/** 0374: drop a stored plan (the old primary was put back first before the new one was synced). */
 function clear(db = getDb()) {
     ensure(db);
     db.prepare('DELETE FROM provider_promotions').run();
@@ -221,4 +228,4 @@ function applyIfPlanned(db, sourceId) {
     return { fromSourceId: fromId, ...moved };
 }
 
-module.exports = { plan, keyOf, currentPrimary, store, clear, applyIfPlanned };
+module.exports = { plan, keyOf, currentPrimary, store, clear, pending, applyIfPlanned };

@@ -294,14 +294,25 @@ router.put('/order', async (req, res) => {
         if (!ids || ids.length !== providers.length || new Set(ids).size !== ids.length || !ids.every(id => known.has(id))) {
             return res.status(400).json({ error: 'ids must list every provider exactly once' });
         }
-        // #15 (0374): a backup made the primary takes the lineup over (providerPromotion.js); any earlier plan goes.
+        // #15 (0374): a backup made the primary takes the lineup over (providerPromotion.js).
+        // #180: until the new primary's first complete sync has used the plan, the lineup is still the old primary's:
+        // an order that keeps the new one first keeps the plan, the old one back first drops it, and any other
+        // primary would be built from a list not written yet, so it waits.
         const promotion = require('../services/providerPromotion');
-        const fromId = promotion.currentPrimary();
+        const waiting = promotion.pending();
         let carried = null;
-        if (fromId != null && ids[0] !== fromId && providers.find(s => s.id === ids[0])?.role === 'backup') {
-            carried = promotion.store(fromId, ids[0]);
-        } else if (ids[0] === fromId) {
-            promotion.clear();
+        if (waiting) {
+            if (ids[0] === waiting.fromId) promotion.clear();
+            else if (ids[0] !== waiting.toId) {
+                const name = (id) => providers.find(s => s.id === id)?.name || 'The new primary';
+                return res.status(409).json({ error: `${name(waiting.toId)} is still becoming the primary (its channels are being synced). `
+                    + `Try again once that has finished, or move ${name(waiting.fromId)} back to the top first.` });
+            }
+        } else {
+            const fromId = promotion.currentPrimary();
+            if (fromId != null && ids[0] !== fromId && providers.find(s => s.id === ids[0])?.role === 'backup') {
+                carried = promotion.store(fromId, ids[0]);
+            }
         }
         res.json({ success: true, primaryChanged: await applyOrder(providers, ids), ...(carried ? { promotion: carried } : {}) });
     } catch (err) {
@@ -373,6 +384,9 @@ router.delete('/:id', async (req, res) => {
         backupChannels.removeFor(sourceId); // 0170
         require('../services/rawChannels').removeFor(sourceId); // 0178
         require('../services/channelLinks').removeFor(sourceId); // 0171
+        // #180: a plan from or to a deleted provider has nothing left to carry, or nowhere to go.
+        { const promotion = require('../services/providerPromotion'); const waiting = promotion.pending();
+            if (waiting && (waiting.fromId === sourceId || waiting.toId === sourceId)) promotion.clear(); }
 
         console.log(`[Source] Cascade delete for source ${sourceId}: ${catResult.changes} categories, ${itemResult.changes} items, ${epgResult.changes} EPG programs`);
 

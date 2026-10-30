@@ -123,3 +123,29 @@ test('#15: the preview is for a backup, by an admin', async () => {
     const viewer = auth.generateToken(await db.users.create({ username: 'viewer', role: 'viewer' }));
     assert.equal((await fetch(`${base}/api/sources/${backup.id}/promotion-preview`, { headers: { Authorization: `Bearer ${viewer}` } })).status, 403);
 });
+
+// #180: until the new primary's first complete sync uses the plan, saving the order again (or reordering the backups)
+// kept nothing safe: on 0375 it cleared the plan, and promoting a third provider built one from an empty list.
+// Here the syncs the order starts fail (the providers' addresses do not resolve), so the plan stays pending.
+test('#180: a pending plan survives order saves that keep its target first; another primary waits; the old one back drops it', async () => {
+    const d = sqlite.getDb();
+    const plan = () => d.prepare('SELECT from_source_id AS f, to_source_id AS t FROM provider_promotions').all();
+    const put = (ids) => fetch(`${base}/api/sources/order`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ids }) });
+    let r = await put([backup.id, primary.id, other.id]);
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).promotion.shown.carried, 3);
+    assert.deepEqual(plan(), [{ f: primary.id, t: backup.id }]);
+
+    assert.equal((await put([backup.id, primary.id, other.id])).status, 200, 'the same order again');
+    assert.equal((await put([backup.id, other.id, primary.id])).status, 200, 'the backups reordered');
+    assert.deepEqual(plan(), [{ f: primary.id, t: backup.id }], 'the plan is kept');
+
+    r = await put([other.id, backup.id, primary.id]);
+    assert.equal(r.status, 409);
+    assert.match((await r.json()).error, /Dream 4K is still becoming the primary[\s\S]*move Strong8K back/);
+    assert.deepEqual(plan(), [{ f: primary.id, t: backup.id }], 'nothing changed');
+
+    assert.equal((await put([primary.id, backup.id, other.id])).status, 200, 'the old primary back first');
+    assert.deepEqual(plan(), [], 'the plan is dropped');
+});
