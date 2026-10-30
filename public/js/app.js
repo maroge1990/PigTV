@@ -175,9 +175,21 @@ class App {
 
     startRecordingWatch() {
         const update = () => this.updateRecordingBanner();
-        update();
-        if (this._recordingWatchTimer) clearInterval(this._recordingWatchTimer);
-        this._recordingWatchTimer = setInterval(update, 30000);
+        const start = () => {
+            update();
+            if (this._recordingWatchTimer) clearInterval(this._recordingWatchTimer);
+            this._recordingWatchTimer = setInterval(update, 30000);
+        };
+        // #129 (0371): nothing is polled while the tab is hidden; on return the banner is brought up to date at once.
+        if (!this._recordingWatchVisibility) {
+            this._recordingWatchVisibility = () => {
+                if (document.hidden) { clearInterval(this._recordingWatchTimer); this._recordingWatchTimer = null; }
+                else start();
+            };
+            document.addEventListener?.('visibilitychange', this._recordingWatchVisibility);
+        }
+        if (document.hidden) return;
+        start();
     }
 
     async updateRecordingBanner() {
