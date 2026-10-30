@@ -5,24 +5,25 @@ issues hold the detail.
 
 ## Current state
 
-*Overwritten at the end of every session. 30 Oct 2026.*
+*Overwritten at the end of every session. 30 Oct 2026, evening.*
 
-- Server: production runs **0315** (FFmpeg 9.0.2); **0317** is the last push; **0318–0323** committed locally for Mark to push (sport review repairs, renewal-pin
-  accounting, hardening tracked in private advisories, a newer device request ending a recovering relay). Next build **0324**.
-- Apple: **61** last pushed; **62–63** local (sport action repairs, tvOS player focus #18). Codex rounds on 62–63 done.
-- Documentation reset done (D-22): issues #3–#130 replace the findings register and the roadmaps.
-- Relay timeline renewal is **off** in production (D-25), confirmed over SSH on 30 Oct.
-- Live now dashboard stays gated (D-29). T3 is live: fake providers and staging server on Unraid (`scripts/unraid-rig.sh`, docs/FAKE-PROVIDER.md).
+- Server: production runs **0323** (deployed 30 Oct). Committed locally, waiting for Mark to push: **0324–0329** plus docs
+  commits (#12 overlapping recordings under D-28; #8 a hung recordings share). Next build **0330**.
+- Apple: **63** last pushed; **64–68** local (#6 player states, #5 recovery window, #12 clash display). Each batch had its
+  Codex rounds; findings are issues #131–#148 (fixed in the following build except #141, #147, #148, still open).
+- Now items done this session, waiting for Mark's T5 checks: #6, #5, #12, #8. #7 not started (needs the macOS AVPlayer
+  harness; the harness copy with the variants is not in the repo yet).
+- Work moves to WSL on Windows, reaching the MacBook over SSH for Xcode and the AVPlayer harness only.
+- Relay timeline renewal stays **off** in production (D-25). Live now dashboard gated (D-29). T3 rig on Unraid
+  (`scripts/unraid-rig.sh`).
 
 ## Now
 
 In this order (D-31):
 
-1. #6 Live player drops "Tuning…" before the first picture, never shows buffering, no start or stall timeout
-2. #5 A second stream loss within 120 s shows an error mid-game instead of recovering
-3. #7 The 30 s live hold cannot apply at the start of a play
-4. #12 Overlapping recordings are silently delayed or missed (with the connection rule, D-28)
-5. #8 A hung recordings share can freeze all playback
+1. #147, #148 (Apple findings left from this session's last rounds), then #141 (the share's rare synchronous calls)
+2. #7 The 30 s live hold cannot apply at the start of a play (measure first on the AVPlayer harness)
+3. Mark's T5 checks for #6, #5, #12, #8 (built, waiting for push and a device check)
 
 Then the **sport rebuild, #21**, absorbing #22, #23 and #24 (sport recognition on real guide rows) and #20 (per-channel
 airing times), with #29 (collector cost) before the dashboard is enabled by default.
