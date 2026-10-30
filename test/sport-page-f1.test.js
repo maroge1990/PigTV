@@ -55,8 +55,8 @@ test('results are the last race (Austin), with each car\'s team; standings are b
     assert.equal(results.kind, 'race');
     assert.equal(results.title, 'Last race · United States GP', 'the sponsor is not part of the name');
     assert.equal(results.rows.length, 10);
-    assert.deepEqual(results.rows[0], { pos: 1, driver: 'Kimi Antonelli', team: 'Mercedes', teamColor: '00D2BE', points: 25 });
-    assert.deepEqual(results.rows.map(r => r.points), [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]);
+    assert.deepEqual(results.rows[0], { pos: 1, driver: 'Kimi Antonelli', team: 'Mercedes', teamColor: '00D2BE', points: null },
+        'ESPN gives no awarded points with the results (#158)');
     assert.ok(results.rows.every(r => r.team), 'every top-ten car has its team');
     assert.equal(standings.afterRound, 20);
     assert.equal(standings.drivers.length, 10);

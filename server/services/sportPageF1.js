@@ -160,12 +160,13 @@ function standingsOf(json, teams) {
     return { drivers, constructors };
 }
 
-function rowsOf(session, teams, withPoints) {
-    const POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
+/** #158: points only as the feed gives them (the scoreboard's results carry none today: null), never a guessed scale. */
+function rowsOf(session, teams) {
     return session.order.slice(0, 10).map((x, i) => {
         const t = teams.get(String(x.id)) || null;
+        const given = (x?.statistics || []).find(st => /^(?:points|championshipPts)$/.test(String(st?.name || '')));
         return { pos: i + 1, driver: str(x?.athlete?.displayName), team: t?.team ?? null, teamColor: t?.teamColor ?? null,
-            points: withPoints ? POINTS[i] : null };
+            points: given ? num(given.value ?? given.displayValue) : null };
     });
 }
 
@@ -232,10 +233,10 @@ async function build(now, { registerImage = (u) => u } = {}) {
     const teamSource = phase === 'during' && qualifying?.status === 'done' ? { eventId: entry.eventId, session: qualifying } : lastRace;
     const teams = teamSource ? await teamsFor(teamSource.eventId, teamSource.session) : new Map();
     if (phase === 'during' && qualifying?.status === 'done' && race?.status !== 'done') {
-        results = { kind: 'grid', title: 'Starting grid · Qualifying', date: qualifying.start, rows: rowsOf(qualifying, teams, false) };
+        results = { kind: 'grid', title: 'Starting grid · Qualifying', date: qualifying.start, rows: rowsOf(qualifying, teams) };
     } else if (lastRace) {
         const name = raceName(lastRace.event?.shortName) || raceName(lastRace.event?.name);
-        results = { kind: 'race', title: `Last race · ${name}`, date: lastRace.session.start, rows: rowsOf(lastRace.session, teams, true) };
+        results = { kind: 'race', title: `Last race · ${name}`, date: lastRace.session.start, rows: rowsOf(lastRace.session, teams) };
     }
 
     const standings = standingsAnswer.ok ? standingsOf(standingsAnswer.json, teams) : null;

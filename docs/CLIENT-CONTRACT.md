@@ -570,8 +570,8 @@ on a race weekend, 1 h otherwise; nothing is fetched unless the page is asked fo
       session's airing (each with its own `start`/`end`, 0337), best first; `[]` until the guide carries it.
   - `results`: `{ kind, title, date, rows }` or null. During a weekend after qualifying, `kind: "grid"` (qualifying's
     order, `title` "Starting grid · Qualifying"); otherwise `kind: "race"` for the last finished race (`title` "Last race
-    · <GP>"). `rows` (top 10): `{ pos, driver, team, teamColor, points }` (`points` null on a grid; `teamColor` hex
-    "00D2BE" or null).
+    · <GP>"). `rows` (top 10): `{ pos, driver, team, teamColor, points }` (`points` the awarded points when ESPN gives
+    them with the results, else null: today always null, never a guessed scale, 0343; `teamColor` hex "00D2BE" or null).
   - `standings`: `{ afterRound, drivers, constructors }` or null; each list the top 10: `{ pos, name, team, teamColor,
     points }`. A driver's `team` is the car ESPN lists for them in the newest finished session (null if unknown); a
     constructor's `team` is null and `teamColor` its colour. Names are the race's own, without the title sponsor.
