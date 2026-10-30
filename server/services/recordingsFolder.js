@@ -83,6 +83,30 @@ function checkRecordingsFolder(dir, minFreeGB = 10) {
 }
 
 /**
+ * #8: checkRecordingsFolder() through shareFs (a child process with a deadline), for every path that runs while the
+ * server is streaming: a hung share answers 'unresponsive' instead of blocking the event loop.
+ */
+async function checkRecordingsFolderAsync(dir, minFreeGB = 10, share = require('./shareFs')) {
+    try {
+        if (!dir || !(await share.exists(dir))) return { ok: false, problem: 'missing', freeBytes: null, totalBytes: null };
+        let freeBytes = null;
+        let totalBytes = null;
+        try {
+            const st = await share.statfs(dir);
+            if (st) ({ freeBytes, totalBytes } = st);
+        } catch (e) {
+            if (e.code === 'SHARE_UNRESPONSIVE') throw e;
+        }
+        if (!(await share.writeProbe(dir))) return { ok: false, problem: 'not-writable', freeBytes, totalBytes };
+        if (totalBytes !== null && totalBytes < TINY_FS_BYTES) return { ok: false, problem: 'tiny', freeBytes, totalBytes };
+        if (freeBytes !== null && minFreeGB > 0 && freeBytes < minFreeGB * GB) return { ok: false, problem: 'low-space', freeBytes, totalBytes };
+        return { ok: true, problem: null, freeBytes, totalBytes };
+    } catch (e) {
+        return { ok: false, problem: e.code === 'SHARE_UNRESPONSIVE' ? 'unresponsive' : 'missing', freeBytes: null, totalBytes: null };
+    }
+}
+
+/**
  * True when `dir`'s filesystem is under 1 GB in total: an unmounted share's mount
  * point (Unraid keeps /mnt/remotes on a 1 MB tmpfs), not a real recordings volume.
  * False when it can't be told (no statfs), so an unknown never blocks recording.
@@ -115,6 +139,9 @@ function formatBytes(bytes) {
 function refusalMessage(check, dir, minFreeGB) {
     if (check.problem === 'missing') {
         return `The recordings folder does not exist: ${dir}`;
+    }
+    if (check.problem === 'unresponsive') {
+        return `The recordings folder is not responding: ${dir}. Is the network share's server up?`;
     }
     if (check.problem === 'not-writable') {
         return `The recordings folder is not writable: ${dir}`;
@@ -168,4 +195,4 @@ function validateRecordingsPathSetting(dir) {
     return { ok: true };
 }
 
-module.exports = { checkRecordingsFolder, refusalMessage, formatBytes, validateRecordingsPathSetting, onTinyFilesystem, TINY_FS_BYTES, GB, MB };
+module.exports = { checkRecordingsFolder, checkRecordingsFolderAsync, refusalMessage, formatBytes, validateRecordingsPathSetting, onTinyFilesystem, TINY_FS_BYTES, GB, MB };

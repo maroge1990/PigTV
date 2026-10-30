@@ -18,7 +18,8 @@ const xtreamApi = require('./xtreamApi');
 const coordinator = require('./streamCoordinator');
 const { formatLocalStamp, sanitizeForFs, uniqueFilePath } = require('./recordingNames');
 const { redact } = require('../redact');
-const { checkRecordingsFolder, refusalMessage, onTinyFilesystem } = require('./recordingsFolder');
+const { checkRecordingsFolder, checkRecordingsFolderAsync, refusalMessage, TINY_FS_BYTES } = require('./recordingsFolder');
+const shareFs = require('./shareFs'); // #8: file calls on the recordings share, off the event loop
 const providerRouting = require('./providerRouting');
 const { providerFailureIn } = require('./transcodeSession');
 // Split out in the simplification build: making recordings playable (media) and what runs
@@ -91,17 +92,24 @@ async function getSettings() {
 async function getRecordingsRoot() {
     const settings = await getSettings();
     const root = settings.recordingsPath || '/app/recordings';
-    if (!fs.existsSync(root)) {
-        const parent = path.dirname(root);
-        if (!fs.existsSync(parent)) {
-            throw new Error(`The recordings folder's parent does not exist: ${parent}. Is the share mounted?`);
+    // #8: through shareFs, so a hung share is an error here, not a frozen server.
+    try {
+        if (!(await shareFs.exists(root))) {
+            const parent = path.dirname(root);
+            if (!(await shareFs.exists(parent))) {
+                throw new Error(`The recordings folder's parent does not exist: ${parent}. Is the share mounted?`);
+            }
+            // 0160: nor inside a disconnected share's empty mount point, which exists
+            // but sits on a tiny tmpfs (Unraid's /mnt/remotes).
+            const fsInfo = await shareFs.statfs(parent).catch(e => { if (e.code === 'SHARE_UNRESPONSIVE') throw e; return null; });
+            if (fsInfo && fsInfo.totalBytes < TINY_FS_BYTES) {
+                throw new Error(`The recordings folder isn't reachable: ${root} does not exist and ${parent} is not on a real volume. Is the network share connected?`);
+            }
+            await shareFs.mkdir(root);
         }
-        // 0160: nor inside a disconnected share's empty mount point, which exists
-        // but sits on a tiny tmpfs (Unraid's /mnt/remotes).
-        if (onTinyFilesystem(parent)) {
-            throw new Error(`The recordings folder isn't reachable: ${root} does not exist and ${parent} is not on a real volume. Is the network share connected?`);
-        }
-        fs.mkdirSync(root);
+    } catch (err) {
+        if (err.code === 'SHARE_UNRESPONSIVE') throw new Error(`The recordings folder is not responding: ${root}. Is the network share's server up?`);
+        throw err;
     }
     return root;
 }
@@ -910,7 +918,7 @@ async function startPartLeased(schedule, route, index, part, { gapMs = 0, refuse
     // whole share down with it.
     // 0160: always checked; a minimum of 0 only switches off the low-space part
     // (checkRecordingsFolder ignores free space then), never the unmounted-share one.
-    const check = checkRecordingsFolder(root, minFreeGB);
+    const check = await checkRecordingsFolderAsync(root, minFreeGB); // #8
     if (!check.ok) {
         const msg = refusalMessage(check, root, minFreeGB);
         console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${msg}`);
@@ -919,7 +927,14 @@ async function startPartLeased(schedule, route, index, part, { gapMs = 0, refuse
     }
 
     const channelDir = path.join(root, sanitizeForFs(schedule.channel_name || 'Unknown Channel'));
-    if (!fs.existsSync(channelDir)) fs.mkdirSync(channelDir, { recursive: true });
+    try {
+        if (!(await shareFs.exists(channelDir))) await shareFs.mkdir(channelDir);
+    } catch (err) {
+        const msg = err.code === 'SHARE_UNRESPONSIVE' ? refusalMessage({ problem: 'unresponsive' }, root, minFreeGB) : `The channel folder could not be made: ${channelDir}`;
+        console.error(`[Recordings] Refusing to start schedule ${schedule.id}: ${msg}`);
+        refuse(msg);
+        return false;
+    }
     const feed = await feedFor(settings, route.candidates[index]); // Wave 5
     if (!startStillWanted(schedule, owner)) return abandonStart(schedule, feed);
     if (!joinedAsPromised(schedule, owner, feed, route.candidates[index])) return false;
@@ -996,7 +1011,7 @@ async function startSegmented(schedule, settings, route, index, { refuse, lease,
     }
     try {
         const root = await getRecordingsRoot();
-        const share = checkRecordingsFolder(root, minFreeGB);
+        const share = await checkRecordingsFolderAsync(root, minFreeGB); // #8
         if (!share.ok) console.warn(`[Recordings] Schedule #${schedule.id} records into appdata; ${refusalMessage(share, root, minFreeGB)} (the MP4 waits until it is usable)`);
     } catch (err) {
         console.warn(`[Recordings] Schedule #${schedule.id} records into appdata; ${err.message} (the MP4 waits until it is usable)`);
@@ -1047,8 +1062,9 @@ function spawnSegment(schedule, settings, { recordingId, workDir, route, index, 
 }
 
 /** How much a capture has written: its file, or (R3) its current epoch's segments. */
-function captureSize(entry) {
-    return entry.segmented ? segments.captureBytes(entry.outputPath) : fileSizeOf(entry.outputPath);
+async function captureSize(entry) {
+    // #8: a segmented capture is in appdata (local); an ordinary one is on the share.
+    return entry.segmented ? segments.captureBytes(entry.outputPath) : shareFs.sizeOf(entry.outputPath);
 }
 
 /** Run ffmpeg for one part on its candidate. Its exit decides what happens next (onPartExit). */
@@ -1474,10 +1490,11 @@ function finalizeRecording(scheduledId, recordingId, outputPath, exitCode, stder
  * the next provider. Also where a part that is recording counts as a success for its
  * provider's breaker (a half-open provider is up again).
  */
-function checkRecordingStalls(now = Date.now()) {
-    for (const entry of active.values()) {
+async function checkRecordingStalls(now = Date.now()) {
+    for (const entry of [...active.values()]) {
         if (!entry.route || !entry.route.multi || entry.stopRequested || entry.stalled) continue;
-        const size = captureSize(entry);
+        const size = await captureSize(entry);
+        if (entry.stopRequested || entry.stalled || !active.has(entry.schedule.id)) continue;
         if (size > entry.lastSize) {
             entry.lastSize = size;
             entry.lastGrowthAt = now;
@@ -1504,11 +1521,12 @@ function checkRecordingStalls(now = Date.now()) {
  * (detection off, Comskip missing and the cap all just mean "not now"), and never again
  * after, so a run that ended early is not restarted over a stalled file.
  */
-function startLiveDetections() {
-    for (const entry of active.values()) {
+async function startLiveDetections() {
+    for (const entry of [...active.values()]) {
         // R3: a segmented recording is analysed once its MP4 exists (live detection follows one growing file).
         if (entry.liveStarted || entry.stopRequested || entry.segmented) continue;
-        if (fileSizeOf(entry.outputPath) < LIVE_DETECT_MIN_BYTES) continue;
+        if (await shareFs.sizeOf(entry.outputPath) < LIVE_DETECT_MIN_BYTES) continue; // #8
+        if (entry.liveStarted || entry.stopRequested || active.get(entry.schedule.id) !== entry) continue;
         post.startLiveDetection({ id: entry.recordingId, file_path: entry.outputPath },
             { stillCapturing: () => active.get(entry.schedule.id) === entry })
             .then(started => { if (started) entry.liveStarted = true; })
@@ -1694,7 +1712,12 @@ async function enforceFreeSpaceDuringRecording() {
         }
     }
     if (![...active.values()].some(e => !e.segmented)) return;
-    const space = hasFreeSpace(root, minFreeGB, 0.5);
+    // #8: the share's free space through shareFs; a share that does not answer is the folder check's to report.
+    let space = { ok: true, freeGB: null };
+    try {
+        const st = await shareFs.statfs(root);
+        if (st) space = { ok: st.freeBytes / (1024 ** 3) >= minFreeGB * 0.5, freeGB: st.freeBytes / (1024 ** 3) };
+    } catch (e) { return; }
     if (space.ok) return;
 
     console.error(`[Recordings] Free space critical (${space.freeGB.toFixed(1)} GB at ${root}); stopping ${active.size} in-progress recording(s). Partial files are kept.`);
@@ -1761,8 +1784,8 @@ async function tick() {
         // 0177: a part whose provider died and that waits for a free one, and
         // recordings whose file has stopped growing (default path, with backups).
         for (const scheduleId of [...continuations.keys()]) await continuePart(scheduleId, now);
-        checkRecordingStalls(now);
-        startLiveDetections();
+        await checkRecordingStalls(now);
+        await startLiveDetections();
 
         // Give a viewer notice before a recording is actually due, rather than
         // at the moment it needs the stream.
@@ -1834,7 +1857,7 @@ async function checkFolderHealthNow() {
     const settings = await getSettings();
     const root = settings.recordingsPath || '/app/recordings';
     const minFreeGB = Number.isFinite(settings.minFreeSpaceGB) ? settings.minFreeSpaceGB : 10;
-    const result = checkRecordingsFolder(root, minFreeGB);
+    const result = await checkRecordingsFolderAsync(root, minFreeGB); // #8
     const state = result.ok ? 'ok' : `problem:${result.problem}`;
 
     if (state !== folderHealthState) {

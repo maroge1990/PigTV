@@ -335,7 +335,8 @@ router.get('/', async (req, res) => {
             })(),
             disk: {
                 transcodeCache: diskAt(transcodeSession.CACHE_DIR),
-                recordings: diskAt(settings.recordingsPath || '/app/recordings')
+                // #8: the share's line is cached and refreshed off the event loop; a request never touches the share.
+                recordings: require('../services/shareFs').diskInfo(settings.recordingsPath || '/app/recordings')
             }
         };
         res.set('Cache-Control', 'no-store');

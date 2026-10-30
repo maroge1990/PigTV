@@ -111,7 +111,10 @@ function withTinyFilesystem(fn) {
     fs.statfsSync = (dir, ...rest) => (String(dir).startsWith(tinyRoot)
         ? { ...real(scratch), blocks: 256, bsize: 4096, bavail: 256 }
         : real(dir, ...rest));
-    return Promise.resolve().then(fn).finally(() => { fs.statfsSync = real; });
+    // #8: the server's share calls run in a helper process, which cannot see this patch; run them here meanwhile.
+    const share = load('services/shareFs');
+    share._inProcess(true);
+    return Promise.resolve().then(fn).finally(() => { fs.statfsSync = real; share._inProcess(false); });
 }
 
 test('validateRecordingsPathSetting: refused on a tiny filesystem, existing or not yet created (0160)', () => withTinyFilesystem(() => {

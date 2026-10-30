@@ -38,7 +38,8 @@ const { pipeline } = require('stream/promises');
 const { spawn } = require('child_process');
 const media = require('./recordingMedia');
 const { parseMediaPlaylist, renderMediaPlaylist } = require('./hlsPlaylist');
-const { checkRecordingsFolder } = require('./recordingsFolder');
+const { checkRecordingsFolderAsync } = require('./recordingsFolder');
+const shareFs = require('./shareFs'); // #8
 const { uniqueFilePath } = require('./recordingNames');
 const { recordings: recordingsDb } = require('../db/recordingsDb');
 const owners = require('./recordingOwners');
@@ -352,10 +353,10 @@ const lastMoveTry = new Map();
 async function shareFolder(rec) {
     let root;
     try { root = await deps.recordingsRoot(); } catch (e) { return null; }
-    const check = checkRecordingsFolder(root, await deps.minFreeGB());
+    const check = await checkRecordingsFolderAsync(root, await deps.minFreeGB()); // #8: never blocks on a hung share
     if (!check.ok) return null;
     const dir = path.join(root, rec.segment_folder || 'Unknown Channel');
-    try { fs.mkdirSync(dir, { recursive: true }); } catch (e) { return null; }
+    try { if (!(await shareFs.exists(dir))) await shareFs.mkdir(dir); } catch (e) { return null; }
     return dir;
 }
 

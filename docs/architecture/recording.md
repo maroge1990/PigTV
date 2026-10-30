@@ -37,7 +37,15 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   `checkRecordingsFolder()`): missing, not writable, a filesystem under 1 GB total (an unmounted network share or a stale
   Docker bind reads back this way, not as "missing" - what live testing actually hit), or free space below the configured
   minimum. Checked at startup and every 15 minutes (`recordingEngine.getFolderHealth()`, on `/api/status`, a warning banner
-  on the web Status page); a warning is logged only on a state change. `getRecordingsRoot()` only creates the final folder
+  on the web Status page); a warning is logged only on a state change.
+- **A hung share cannot freeze the server** (0327, #8). The share is a network mount; a hung SMB server blocks a
+  synchronous call (and fills libuv's thread pool for an asynchronous one), which froze every stream. File calls on it go
+  to one helper process (`shareFs.js`, `shareFsWorker.js`) with a 5 s deadline; a miss kills the helper, a new one starts
+  on the next call, and the folder reads `unresponsive` ("The recordings folder is not responding"). Through it: the
+  folder health check and the start pre-flight (`checkRecordingsFolderAsync`), `getRecordingsRoot`, the channel folder,
+  segmented recordings' move to the share, and each tick's growth, live-detection and free-space checks. `/api/status`
+  shows a cached free-space line refreshed in the background (`shareFs.diskInfo`) and never touches the share. Still
+  synchronous and rare: the size read when a capture ends, and deleting files. `getRecordingsRoot()` only creates the final folder
   when its parent already exists. Settings → Recording → Storage refuses an unusable `recordingsPath` with 400 instead of
   saving it silently (`services/recordingsFolder.js` `validateRecordingsPathSetting()`).
 - **An unanswered "give up the stream" prompt no longer blocks a recording forever** (0158): if a due recording finds a
