@@ -8,7 +8,7 @@
 const { getDb } = require('../db/sqlite');
 
 const KEY = 'sport_page_prefs';
-const PAGES = ['F1'];
+const PAGES = ['F1', 'NFL']; // #21 (0379): the NFL page's followed team (its abbreviation, "GB")
 const MAX_NAME = 80;
 
 const defaults = () => ({ spoilerFree: false, following: Object.fromEntries(PAGES.map(p => [p, null])) });
@@ -28,7 +28,7 @@ function get(db = getDb()) {
 
 const bad = (message) => Object.assign(new Error(message), { status: 400 });
 
-/** Apply `{ spoilerFree?, following?: { F1?: name | null } }`; anything else is a 400 and changes nothing. */
+/** Apply `{ spoilerFree?, following?: { F1?: name | null, NFL?: team | null } }`; anything else is a 400 and changes nothing. */
 function update(patch, db = getDb()) {
     if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw bad('Expected an object');
     const keys = Object.keys(patch);

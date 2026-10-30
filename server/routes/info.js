@@ -84,6 +84,8 @@ async function sendInfo(req, res) {
             sportsDashboard: require('../services/sportsDashboard').enabled(),
             // #21 (0340, C-P): GET /api/sports/pages/f1, whenever ESPN fixtures are on.
             sportPages: require('../services/sportsFixtures').enabled(),
+            // #21 (0379, C-Q): the NFL page, on with the F1 page.
+            sportPageNfl: require('../services/sportsFixtures').enabled(),
             // 0156: GET /api/recordings/scheduled?include=recent also lists schedules
             // that ended up missed or failed in the last 7 days, each with its status
             // and error - a missed/failed recording no longer simply disappears.

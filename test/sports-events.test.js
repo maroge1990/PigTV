@@ -197,6 +197,29 @@ test('/api/sports/pages/f1 answers the F1 page to any user, and /api/info advert
     }
 });
 
+// #21 (0379, C-Q): the NFL page's route, its flag and its auth (the page's own tests are in sport-page-nfl.test.js).
+test('/api/sports/pages/nfl answers the NFL page to any user, and /api/info advertises it', async () => {
+    assert.equal((await call('GET', '/api/info')).body.features.sportPageNfl, true);
+    const nfl = load('services/sportPageNFL');
+    const fx = (name) => require(`./fixtures/espn/nfl/${name}`);
+    const realGet = nfl.fetcher.get;
+    nfl.fetcher.get = async (url) => ({ ok: true, json: /standings/.test(url) ? fx('standings.json') : /week=7/.test(url) ? fx('scoreboard-week7.json') : fx('scoreboard-week8.json') });
+    nfl.reset();
+    try {
+        const r = await call('GET', '/api/sports/pages/nfl', { token: viewerToken });
+        assert.equal(r.status, 200);
+        assert.equal(r.body.available, true);
+        assert.deepEqual(r.body.weeks.map(w => w.label), ['Week 7', 'Week 8']);
+        assert.ok(r.body.weeks.every(w => w.games.every(g => Array.isArray(g.channels))));
+        assert.equal(r.body.standings.divisions.length, 8);
+        assert.ok(!JSON.stringify(r.body).includes('espncdn'), 'team logos go through the logo cache');
+        assert.equal((await call('GET', '/api/sports/pages/nfl', { token: null })).status, 401);
+    } finally {
+        nfl.fetcher.get = realGet;
+        nfl.reset();
+    }
+});
+
 test('the same game on three channels is one event; a different game at the same time is another', async () => {
     const body = await events();
     assert.ok(body.now <= Date.now() && Date.now() - body.now < 65000, "now is the start of the current minute (the answer is kept per minute)");

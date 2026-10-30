@@ -42,34 +42,34 @@ test('the defaults: spoilers shown, nobody followed; signed out is refused', asy
     const r = await call('/api/sports/pages/preferences');
     assert.equal(r.status, 200);
     assert.match(r.cache, /no-store/);
-    assert.deepEqual(r.body, { spoilerFree: false, following: { F1: null } });
+    assert.deepEqual(r.body, { spoilerFree: false, following: { F1: null, NFL: null } });
 });
 
 test('one household setting: what one account saves, another reads, and it survives a restart of the cache', async () => {
     const saved = await call('/api/sports/pages/preferences', viewer, { spoilerFree: true, following: { F1: '  Oscar Piastri ' } });
     assert.equal(saved.status, 200);
-    assert.deepEqual(saved.body, { spoilerFree: true, following: { F1: 'Oscar Piastri' } });
+    assert.deepEqual(saved.body, { spoilerFree: true, following: { F1: 'Oscar Piastri', NFL: null } });
     assert.deepEqual((await call('/api/sports/pages/preferences', other)).body, saved.body, 'the same for every account');
     // A change to one field keeps the other.
     const half = await call('/api/sports/pages/preferences', other, { spoilerFree: false });
-    assert.deepEqual(half.body, { spoilerFree: false, following: { F1: 'Oscar Piastri' } });
-    const none = await call('/api/sports/pages/preferences', other, { following: { F1: null } });
-    assert.deepEqual(none.body, { spoilerFree: false, following: { F1: null } });
+    assert.deepEqual(half.body, { spoilerFree: false, following: { F1: 'Oscar Piastri', NFL: null } });
+    const none = await call('/api/sports/pages/preferences', other, { following: { F1: null, NFL: null } });
+    assert.deepEqual(none.body, { spoilerFree: false, following: { F1: null, NFL: null } });
     const stored = load('db/sqlite').getDb().prepare("SELECT value FROM meta WHERE key = 'sport_page_prefs'").get();
     assert.ok(stored, 'kept in the database, not in the settings object the web rewrites (#9)');
 });
 
 test('anything else is refused with 400 and changes nothing', async () => {
     await call('/api/sports/pages/preferences', viewer, { spoilerFree: true, following: { F1: 'Lando Norris' } });
-    for (const bad of [{}, { spoilerFree: 'yes' }, { spoilerFree: 1 }, { following: 'Lando' }, { following: { NFL: 'Packers' } },
+    for (const bad of [{}, { spoilerFree: 'yes' }, { spoilerFree: 1 }, { following: 'Lando' }, { following: { AFL: 'Cats' } },
         { following: { F1: 7 } }, { following: { F1: 'x'.repeat(81) } }, { extra: true }, []]) {
         const r = await call('/api/sports/pages/preferences', viewer, bad);
         assert.equal(r.status, 400, JSON.stringify(bad));
     }
-    assert.deepEqual((await call('/api/sports/pages/preferences')).body, { spoilerFree: true, following: { F1: 'Lando Norris' } });
+    assert.deepEqual((await call('/api/sports/pages/preferences')).body, { spoilerFree: true, following: { F1: 'Lando Norris', NFL: null } });
 });
 
 test('a corrupt stored value reads as the defaults', async () => {
     load('db/sqlite').getDb().prepare("UPDATE meta SET value = '{not json' WHERE key = 'sport_page_prefs'").run();
-    assert.deepEqual((await call('/api/sports/pages/preferences')).body, { spoilerFree: false, following: { F1: null } });
+    assert.deepEqual((await call('/api/sports/pages/preferences')).body, { spoilerFree: false, following: { F1: null, NFL: null } });
 });

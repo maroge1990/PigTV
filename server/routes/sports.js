@@ -119,6 +119,26 @@ router.get('/pages/f1', async (req, res) => {
     }
 });
 
+// #21 (0379, C-Q): the NFL page, as the F1 page: on whenever ESPN fixtures are.
+router.get('/pages/nfl', async (req, res) => {
+    if (!require('../services/sportsFixtures').enabled()) return res.status(404).json({ error: 'Sport pages are off on this server' });
+    try {
+        channelNumbers.ensureChannelNumbers();
+        const nfl = require('../services/sportPageNFL');
+        const page = await nfl.page(Date.now(), {
+            registerImage: require('../services/logoCache').registerLogo,
+            // Only the NFL's events around the two weeks' games are ordered and built, as for F1 (#160).
+            channelsFor: async (games, teams) => !games.length ? new Map() : nfl.channelsForGames(games,
+                await sportsEvents.leagueEvents({ league: 'NFL', ...nfl.spanOf(games), userId: req.user.id, decorateChannels }),
+                new Map(Object.entries(teams || {})))
+        });
+        res.json(page);
+    } catch (err) {
+        console.error('[Sports] NFL page failed:', err.message);
+        res.status(500).json({ error: 'Could not build the NFL page' });
+    }
+});
+
 // #68, #67 (0346, C-P): the sport pages' spoiler-free switch and followed driver, one for the household.
 router.get('/pages/preferences', (req, res) => {
     try { res.json(require('../services/sportPagePrefs').get()); }

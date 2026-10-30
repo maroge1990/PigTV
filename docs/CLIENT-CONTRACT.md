@@ -38,6 +38,7 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 | `sportsDashboard` | 0309 | Opt-in dashboard/catalog and per-user preferences (C-O); false unless `PIGTV_SPORTS_DASHBOARD=1` | Apple 59: gated dashboard; absent/404 retains C-I |
 | `sportsEvents` | 0148 | `GET /api/sports/events` (C-I) | Sport tab, Home "Sport now & next", `hours=72` |
 | `sportPages` | 0340 | `GET /api/sports/pages/f1` (C-P), on whenever ESPN fixtures are | The Formula 1 page (sport rebuild, #21) |
+| `sportPageNfl` | 0379 | `GET /api/sports/pages/nfl` (C-Q), on whenever ESPN fixtures are | The NFL page (#21) |
 | `scheduleHistory` | 0156 | `recordings/scheduled?include=recent` adds missed/failed of the last 7 days | Asks `include=recent` |
 | `providerReminders` | 0168 | `GET /api/providers/reminders` (C-K) | Daily reminder popup |
 | `providers` | 0174 | Resolve carries `provider` (C-J) | Shown in Stream info |
@@ -141,6 +142,7 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 | C-N Recording artwork | `recordingArtwork` | 0220 (R6) | 45 |
 | C-O Sport dashboard foundation | `sportsDashboard` | 0309 (opt-in) | 59 |
 | C-P Sport pages: Formula 1 | `sportPages` | 0340 | (sport rebuild) |
+| C-Q Sport pages: NFL | `sportPageNfl` | 0379 | (sport rebuild) |
 
 C-A to C-K are implemented on both sides and verified on devices (results in `docs/archive/TEST-BLOCK-2026-10-13.md`). C-L
 onwards are not verified yet.
@@ -593,4 +595,31 @@ on a race weekend, 1 h otherwise; nothing is fetched unless the page is asked fo
 - Apple (74–78): Sport tab → "Sport pages" → Formula 1. A session is played, recorded and waited for as a C-I event on
   its channels' own times; spoiler content stays hidden until the preferences are known; changes are sent one field
   at a time, in order. Since Apple 74 every C-I Watch/Record uses the chosen channel's `start`/`end` (#20).
+
+### C-Q. Sport pages: NFL. Flag: `sportPageNfl` (0379, #21)
+
+The NFL page (mock-up "NFL · Apple TV", DESIGN.md › Sport pages), built like C-P from ESPN's free NFL feeds on demand
+(kept 2 min while a game is on, 10 min on a game day, 1 h otherwise; nothing is fetched until the page is asked for).
+
+- `GET /api/sports/pages/nfl` (any user) → `{ available, updatedAt, season, weeks, teams, standings }`
+  - `available: false` (and nothing else) until the first fetch has answered, or when ESPN cannot be reached and nothing
+    is cached. Fields the feed does not give are `null`, never guessed.
+  - `season`: `{ year, type }`, `type` `"preseason"` | `"regular"` | `"postseason"`.
+  - `weeks[]`: the week before the current one (when there is one) then the current one, in order: `{ number, label
+    ("Week 8"), current, byes: [abbr], games }`. The page opens on the `current` week.
+  - `games[]` by kick-off: `{ id, start (ms), status, detail, home, away, situation, broadcasts, channels }`. `status`:
+    `scheduled` | `live` | `done`. `detail`: null before kick-off, `"Q1 5:54"` / `"OT 2:10"` / `"Halftime"` while live,
+    `"Final"` or `"Final · OT"` after. `home`/`away`: `{ abbr, score, record }` (`score` is ESPN's, 0 before kick-off:
+    show the time then). `situation` (live only, else null): `{ downDistance ("3rd & 8 at CAR 12"), possession (abbr),
+    redZone }`. `broadcasts`: the US networks' names. `channels`: C-I's channel objects for that game's airing (each with
+    its own `start`/`end`), best first; `[]` until the guide carries it.
+  - `teams`: by abbreviation, `{ abbr, name ("Packers"), full, location, color (hex or null), logo (a logo-cache path
+    or null) }`, every team in the games and standings.
+  - `standings`: `{ divisions: [{ name ("AFC East"), conference ("AFC" | "NFC"), teams: [{ abbr, wins, losses, ties,
+    record ("5-1"), seed, streak ("W2"), pointsFor, pointsAgainst }] }] }` in ESPN's division order, or null. The
+    Conference view orders a conference by `seed`; Overall orders all 32 by win share.
+- Spoilers are the client's, as C-P: with the household's spoiler-free switch on, scores, `detail` after kick-off,
+  `situation`, records, seeds and streaks are hidden. Watch/Record use a channel's own times (C-I, #20).
+- Since 0379 the preferences (C-P) carry `following.NFL`: a team abbreviation ("GB") or null, the household's. `PUT`
+  takes it like `F1` (≤ 80 characters); a server before 0379 answers 400 to it, so send it only with this flag.
 
