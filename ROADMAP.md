@@ -5,23 +5,22 @@ issues hold the detail.
 
 ## Current state
 
-*Overwritten at the end of every session. 30 Oct 2026, evening.*
+*Overwritten at the end of every session. 30 Oct 2026, night (first Windows session).*
 
-- Server: production runs **0323** (deployed 30 Oct). Committed locally, waiting for Mark to push: **0324–0329** plus docs
-  commits (#12 overlapping recordings under D-28; #8 a hung recordings share). Next build **0330**.
-- Apple: **63** last pushed; **64–68** local (#6 player states, #5 recovery window, #12 clash display). Each batch had its
-  Codex rounds; findings are issues #131–#148 (fixed in the following build except #141, #147, #148, still open).
-- Now items done this session, waiting for Mark's T5 checks: #6, #5, #12, #8. #7 not started (needs the macOS AVPlayer
-  harness; the harness copy with the variants is not in the repo yet).
-- Work moves to WSL on Windows, reaching the MacBook over SSH for Xcode and the AVPlayer harness only.
-- Relay timeline renewal stays **off** in production (D-25). Live now dashboard gated (D-29). T3 rig on Unraid
-  (`scripts/unraid-rig.sh`).
+- Server: production runs **0323**. On GitHub: 0324–0329 (pushed by Mark from the Mac) and, from this session under
+  D-34, **0330–0332** (#141: deleting a recording and the start-up clean-up no longer wait on a hung share; Codex round 1
+  → #149 fixed in 0331, round 2 → #151, #152 fixed in 0332). Next build **0333**. Not deployed: deploy is Mark's.
+- Apple: **64–68** pushed by Mark; #147, #148 still open (need the Mac).
+- Work runs in WSL2 (Ubuntu 26.04) on Windows; the MacBook over SSH only for Xcode and the AVPlayer harness (Mac SSH not
+  set up yet). Ubuntu's ffmpeg 8.0.1 fails the 4 HE-AAC media tests here; the Unraid rig (`unraid-rig.sh test`, image
+  ffmpeg 9.0.2) is the full-suite check. #150: a live-watch test flaked once on the rig.
+- Waiting for Mark's T5 checks: #6, #5, #12, #8. Relay timeline renewal stays **off** in production (D-25).
 
 ## Now
 
 In this order (D-31):
 
-1. #147, #148 (Apple findings left from this session's last rounds), then #141 (the share's rare synchronous calls)
+1. #147, #148 (Apple findings, need the Mac); #141 built (0330–0332), waiting for a deploy and Mark's check
 2. #7 The 30 s live hold cannot apply at the start of a play (measure first on the AVPlayer harness)
 3. Mark's T5 checks for #6, #5, #12, #8 (built, waiting for push and a device check)
 
