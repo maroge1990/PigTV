@@ -25,6 +25,8 @@
 #   PIGTV_RIG_CREDS       local file for the staging admin made by `up` (~/.local/state/pigtv-rig/staging-admin.env).
 #                         A throwaway login for the staging server only, generated on first `up`; keep it out of the repo.
 #   PIGTV_RIG_FAKE_FLAGS  extra fake-provider flags (default: a CPU-frugal picture)
+#   PIGTV_RIG_SPORT_FIXTURES  1 lets staging fetch ESPN's free sport feeds (the sport pages, C-P); default 0. ESPN is
+#                         not a provider: no provider connection is opened either way.
 #
 # Limits on every container (Mark, 30 Oct): <= 3 CPUs, cpu-shares 256, <= 6 GB, --restart no, names pigtv-test-*,
 # data only under PIGTV_RIG_ROOT (keep it under 20 GB).
@@ -125,7 +127,7 @@ cmd_up() {
     rsh "set -e; mkdir -p '$ROOT/staging/data' '$ROOT/staging/recordings'
          chown $RUNTIME_UID '$ROOT/staging/data' '$ROOT/staging/recordings'
          docker run -d --name $STAGING ${CAPS[*]} --cpus 3 --memory 4g -p $PORT:3000 \
-           -e TZ=$TZ_RIG -e PUID=99 -e PGID=100 -e NODE_ENV=production -e PIGTV_SPORT_FIXTURES=0 \
+           -e TZ=$TZ_RIG -e PUID=99 -e PGID=100 -e NODE_ENV=production -e PIGTV_SPORT_FIXTURES=${PIGTV_RIG_SPORT_FIXTURES:-0} \
            -e PIGTV_COMMIT='rig-$rev' -e PIGTV_BUILT_AT=\$(date -u +%FT%TZ) \
            -v '$SRC/server':/app/server:ro -v '$SRC/public':/app/public:ro \
            -v '$SRC/scripts':/app/scripts:ro -v '$SRC/docker':/app/docker:ro \
