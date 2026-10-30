@@ -82,11 +82,30 @@ function rememberPlaylistSize(db, sourceId, count) {
         .run(linesKey(sourceId), String(count));
 }
 
+// #11 (0350): the scheduled sync runs at fixed local times (04:30, then every `epgRefreshInterval` hours from it), not
+// on an uptime timer that every redeploy reset; a source whose playlist or guide failed (or was held) is retried
+// after 15 min, 1 h and 3 h; and a guide that reaches less than 36 h ahead is raised on Status and by webhook.
+const SCHEDULE = { hour: 4, minute: 30, retriesMs: [15 * 60e3, 60 * 60e3, 3 * 3600e3],
+    guideShortMs: 36 * 3600e3, guideCheckMs: 60 * 60e3 }; // not frozen: tests shorten the retries
+
+/** The next scheduled run after `now`: local 04:30 plus whole multiples of `intervalHours` (DST-safe: local hours). */
+function nextRunAt(now, intervalHours) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 1);
+    d.setHours(SCHEDULE.hour, SCHEDULE.minute, 0, 0);
+    while (d.getTime() <= now) d.setHours(d.getHours() + intervalHours);
+    return d.getTime();
+}
+
 class SyncService {
     constructor() {
         this.lastSyncTime = null; // Track when global sync last completed
         this._syncTimer = null;   // Server-side sync timer
         this._currentInterval = null;
+        this._retries = new Map(); // #11: sourceId -> { attempt, timer }
+        this._guideTimer = null;
+        this._guideAhead = new Map(); // #11: sourceId -> the active guide's last end (ms)
+        this._guideAlerted = new Set();
     }
 
     /**
@@ -101,9 +120,9 @@ class SyncService {
      * Should be called once on server startup after initial sync
      */
     async startSyncTimer() {
-        // Get interval from settings
         const currentSettings = await settings.get();
-        const intervalHours = parseInt(currentSettings.epgRefreshInterval) || 24;
+        const intervalHours = parseInt(currentSettings.epgRefreshInterval) || 0;
+        this.startGuideWatch();
 
         // If interval is 0, don't start timer (manual only mode)
         if (intervalHours <= 0) {
@@ -113,30 +132,24 @@ class SyncService {
             return;
         }
 
-        const intervalMs = intervalHours * 60 * 60 * 1000;
-
         // Don't restart if interval hasn't changed and timer exists
         if (this._currentInterval === intervalHours && this._syncTimer) {
             console.log(`[Sync] Timer already running for ${intervalHours} hours, not restarting`);
             return;
         }
 
-        // Clear existing timer
         this.stopSyncTimer();
-
-        const nextSyncTime = new Date(Date.now() + intervalMs);
-        console.log(`[Sync] Starting server-side sync timer: every ${intervalHours} hours`);
-        console.log(`[Sync] Next scheduled sync at: ${nextSyncTime.toLocaleString()}`);
-
-        this._syncTimer = setInterval(async () => {
-            console.log('[Sync] Scheduled sync triggered');
-            await this.syncAll();
-            // Log next sync time
-            const next = new Date(Date.now() + intervalMs);
-            console.log(`[Sync] Next scheduled sync at: ${next.toLocaleString()}`);
-        }, intervalMs);
-
         this._currentInterval = intervalHours;
+        const schedule = () => {
+            const next = nextRunAt(Date.now(), intervalHours);
+            console.log(`[Sync] Next scheduled sync at: ${new Date(next).toLocaleString()} (every ${intervalHours} h from 04:30)`);
+            this._syncTimer = setTimeout(async () => {
+                console.log('[Sync] Scheduled sync triggered');
+                try { await this.syncAll({ retry: true }); } finally { if (this._syncTimer) schedule(); }
+            }, Math.max(1000, next - Date.now()));
+            if (this._syncTimer.unref) this._syncTimer.unref();
+        };
+        schedule();
     }
 
     /**
@@ -144,9 +157,67 @@ class SyncService {
      */
     stopSyncTimer() {
         if (this._syncTimer) {
-            clearInterval(this._syncTimer);
+            clearTimeout(this._syncTimer);
             this._syncTimer = null;
         }
+    }
+
+    /** #11: the sync row(s) of a source that failed or were held at its last attempt. */
+    failedFeeds(sourceId) {
+        return getDb().prepare(`SELECT type, status FROM sync_status WHERE source_id = ? AND status IN ('error', 'held')`).all(sourceId);
+    }
+
+    /**
+     * #11: sync a source; when its playlist or guide failed (or was held), try again after 15 min, 1 h and 3 h.
+     * A later success, or a new scheduled run, ends the series.
+     */
+    async syncWithRetry(sourceId, attempt = 0) {
+        const pending = this._retries.get(sourceId);
+        if (pending) { clearTimeout(pending.timer); this._retries.delete(sourceId); }
+        await this.syncSource(sourceId);
+        const failed = this.failedFeeds(sourceId);
+        if (!failed.length || attempt >= SCHEDULE.retriesMs.length) return;
+        const delay = SCHEDULE.retriesMs[attempt];
+        console.warn(`[Sync] Source ${sourceId}: ${failed.map(f => `${f.type} ${f.status}`).join(', ')}; trying again in ${Math.round(delay / 60e3)} min`);
+        const timer = setTimeout(() => { this.syncWithRetry(sourceId, attempt + 1).catch(console.error); }, delay);
+        if (timer.unref) timer.unref();
+        this._retries.set(sourceId, { attempt: attempt + 1, timer });
+    }
+
+    /** #11: how far each source's live guide reaches (its last programme end), re-read after syncs and hourly. */
+    guideReach() {
+        const rows = getDb().prepare(`SELECT p.source_id AS id, MAX(p.end_time) AS stop FROM epg_programs p
+            JOIN epg_state s ON s.source_id = p.source_id AND s.active_gen = p.gen GROUP BY p.source_id`).all();
+        return new Map(rows.map(r => [r.id, r.stop]));
+    }
+
+    /** #11: raise a guide reaching less than 36 h ahead (webhook once per episode); Status reads `guideAhead()`. */
+    async checkGuide(now = Date.now()) {
+        let reach;
+        try { reach = this.guideReach(); } catch (e) { return; }
+        this._guideAhead = reach;
+        const all = await sources.getAll();
+        for (const source of all) {
+            if (!source.enabled || !reach.has(source.id)) continue;
+            const short = reach.get(source.id) - now < SCHEDULE.guideShortMs;
+            if (!short) { this._guideAlerted.delete(source.id); continue; }
+            if (this._guideAlerted.has(source.id)) continue;
+            this._guideAlerted.add(source.id);
+            const hours = Math.max(0, Math.round((reach.get(source.id) - now) / 3600e3));
+            try {
+                require('./notify').send('guide-stale', { key: `guide-stale:${source.id}`, title: 'PigTV guide running out',
+                    message: `${source.name}'s guide covers only ${hours} hours ahead. Sport pages and recording rules see less until it syncs.` });
+            } catch (e) { /* best-effort */ }
+        }
+    }
+
+    guideAhead() { return this._guideAhead; }
+
+    startGuideWatch() {
+        if (this._guideTimer) return;
+        this.checkGuide().catch(() => {});
+        this._guideTimer = setInterval(() => this.checkGuide().catch(() => {}), SCHEDULE.guideCheckMs);
+        if (this._guideTimer.unref) this._guideTimer.unref();
     }
 
     /**
@@ -160,16 +231,18 @@ class SyncService {
     /**
      * Sync all enabled sources
      */
-    async syncAll() {
+    async syncAll({ retry = false } = {}) {
         console.log('[Sync] Starting global sync...');
         try {
             const allSources = await sources.getAll();
             for (const source of allSources) {
                 if (source.enabled) {
                     // Run sequentially to not overload
-                    await this.syncSource(source.id);
+                    if (retry) await this.syncWithRetry(source.id);
+                    else await this.syncSource(source.id);
                 }
             }
+            this.checkGuide().catch(() => {});
             this.lastSyncTime = new Date();
             console.log('[Sync] Global sync completed at', this.lastSyncTime.toISOString());
         } catch (err) {
@@ -201,29 +274,25 @@ class SyncService {
 
                 if (!hasData || hasData.c === 0) {
                     console.log(`[Sync] Source "${source.name}" has no data, syncing...`);
-                    await this.syncSource(source.id);
+                    await this.syncWithRetry(source.id);
                     synced++;
                     continue;
                 }
 
-                // sync_status is written on every successful sync and is the
-                // only record that actually exists. An earlier version of this
-                // checked a file cache that syncEpgFromUrl never writes, so it
-                // always missed and re-parsed the entire EPG — several hundred
-                // thousand programmes — on every container start.
-                const lastRow = db.prepare(`
-                    SELECT MAX(last_sync) AS last_sync FROM sync_status
-                    WHERE source_id = ? AND status = 'success'
-                `).get(source.id);
+                // #11: each feed on its own (the playlist and the provider's guide): one that failed, was held or
+                // was cut off mid-sync is stale whatever its age; otherwise the oldest success decides, against the
+                // admin's own interval (Settings, "Sync channels and guide every"), not a field nothing ever set.
+                const rows = db.prepare('SELECT type, status, last_sync FROM sync_status WHERE source_id = ?').all(source.id);
+                const intervalHours = parseInt((await settings.get()).epgRefreshInterval) || 24;
+                const bad = rows.find(r => r.status !== 'success');
+                const oldest = rows.length ? Math.min(...rows.map(r => r.last_sync || 0)) : 0;
+                const age = Date.now() - oldest;
 
-                const syncInterval = (source.syncInterval || 24) * 60 * 60 * 1000;
-                const lastSync = lastRow?.last_sync || 0;
-                const age = Date.now() - lastSync;
-
-                if (age > syncInterval) {
-                    const desc = lastSync ? `${Math.round(age / 3600000)}h old` : 'never synced';
+                if (bad || age > intervalHours * 3600e3) {
+                    const desc = bad ? `its ${bad.type} sync ${bad.status === 'success' ? 'is old' : `is ${bad.status}`}`
+                        : oldest ? `${Math.round(age / 3600000)}h old` : 'never synced';
                     console.log(`[Sync] Source "${source.name}" is stale (${desc}), syncing...`);
-                    await this.syncSource(source.id);
+                    await this.syncWithRetry(source.id);
                     synced++;
                 } else {
                     console.log(`[Sync] Source "${source.name}" is fresh (${Math.round(age / 3600000)}h old), skipping`);
@@ -1193,3 +1262,5 @@ module.exports = new SyncService();
 module.exports.epgCoverageLine = epgCoverageLine; // 0153, for tests
 module.exports.programmeData = programmeData; // R5, for tests
 module.exports.SHRINK = SHRINK; // #42, for tests
+module.exports.nextRunAt = nextRunAt; // #11, for tests
+module.exports.SCHEDULE = SCHEDULE;

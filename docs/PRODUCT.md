@@ -37,7 +37,7 @@ exists, not built).
 | Status page | What is playing and recording, providers, the last 7 days, "Needs attention", details on demand | admin | — | — | shipped |
 | Top Shelf | Favourites as rendered cards with play links | — | ✓ | — | shipped |
 | Device pairing | Pair an Apple device by approving a code in the web app | admin | ✓ | ✓ | shipped |
-| Backups and webhook | Nightly database backup; one webhook URL for provider down, recording failed, licence expiring | admin | — | — | shipped |
+| Backups and webhook | Nightly database backup; one webhook URL for provider down, recording failed, licence expiring, guide running out | admin | — | — | shipped |
 
 ## Sport
 

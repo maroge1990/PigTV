@@ -39,7 +39,8 @@ share.
   (`/app/data`); back it up before a risky deploy ([`OPERATIONS.md`](OPERATIONS.md)).
 - **Transcode tmpfs** (2 GB, `/app/transcode-cache`): live HLS sessions. **Recordings**: the share mounted at
   `/app/recordings`, plus `data/recordings-work/` for segmented recordings in progress.
-- **Background jobs**: source sync (playlist and guide, on a timer and on "Sync now"), provider account checks (startup,
+- **Background jobs**: source sync (playlist and guide at 04:30 local and every `epgRefreshInterval` hours from it, a failed
+  or held feed retried after 15 min, 1 h and 3 h, and on "Sync now"; #11), a guide-reach check (hourly), provider account checks (startup,
   every 6 h, after a sync), recording scheduler and rules (every 15 min and after each EPG sync), recordings folder health
   (startup and every 15 min), sport events rebuild (worker thread, every 5-minute bucket and after sync/follow changes),
   ESPN fixtures (every 30 min and after a sync), nightly database backup, the idle and stall sweeps of live sessions.
@@ -119,6 +120,9 @@ The `channelNumbers` flag is always sent (its off switch went in 0204).
   sync at the usual size applies, or **Accept the smaller list…** (`POST /api/sources/:id/sync {acceptSmaller: true}`).
 - Queries bound `start_time > from − 24 h`.
 - `/api/library/*` fill a missing logo from the EPG (by tvg-id, then by name).
+- **A guide running out** (0350, #11): a live guide whose last programme ends less than 36 h ahead is on Status's Needs
+  attention and sends the `guide-stale` webhook once per episode. At start-up a source is synced when any of its feeds
+  failed, was held or was cut off, or its oldest success is older than the admin's interval.
 - **Ingest-time changes only show after a sync:** a redeploy skips any source synced in the last 24 h (`syncIfStale`), so use
   Settings → Sources → the source's refresh button (⟳, "Refresh Data"), which these docs call **Sync now**.
 - Favourites store the bare channel id (`channelIds.js`); `GET /api/favorites` re-presents the composite form (the web no

@@ -161,11 +161,13 @@ function recordingsFolderHealth() {
 async function syncStatus() {
     const sources = await db.sources.getAll();
     const rows = getDb().prepare('SELECT source_id, type, status, last_sync, error FROM sync_status').all();
+    const reach = require('../services/syncService').guideAhead(); // #11: each live guide's last programme end
     return sources.map(source => ({
         sourceId: source.id,
         name: source.name,
         type: source.type,
         enabled: !!source.enabled,
+        guideUntil: reach.get(source.id) ?? null,
         feeds: rows.filter(r => r.source_id === source.id).map(r => ({
             type: r.type,
             status: r.status,

@@ -413,8 +413,19 @@ class StatusPage {
     renderAttention(status) {
         const e = (v) => this.escape(v);
         const lines = [];
+        const now = Date.now();
         for (const src of status.sync || []) {
-            for (const f of src.feeds || []) if (f.error) lines.push(`${e(src.name)}'s ${e(f.type)} sync failed ${this.when(f.lastSync)}: ${e(f.error)}`);
+            for (const f of src.feeds || []) {
+                if (!f.error) continue;
+                // #42: a held list is not a failure: the last good one is on screen.
+                if (f.status === 'held') lines.push(`${e(src.name)}'s ${e(f.type === 'epg' ? 'guide' : 'channel list')} was held ${this.when(f.lastSync)}: ${e(f.error)}`);
+                else lines.push(`${e(src.name)}'s ${e(f.type)} sync failed ${this.when(f.lastSync)}: ${e(f.error)}`);
+            }
+            // #11: a guide about to run out (less than 36 h of programmes ahead).
+            if (src.enabled && src.guideUntil && src.guideUntil - now < 36 * 3600e3) {
+                const hours = Math.max(0, Math.round((src.guideUntil - now) / 3600e3));
+                lines.push(`${e(src.name)}'s guide covers only ${e(hours)} hours ahead (until ${e(new Date(src.guideUntil).toLocaleString())}). Sport pages and recording rules see less until it syncs.`);
+            }
         }
         const seg = status.segmentedRecordings;
         if (seg && (seg.waitingToMove || []).length) lines.push(`${e(seg.waitingToMove.length)} finished recording(s) are waiting in appdata for the recordings folder.`);

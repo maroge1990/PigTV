@@ -234,3 +234,18 @@ test('0288: the details choice is read from and written to localStorage, and a b
     blocked.toggleDetails();
     assert.equal(blocked.showDetails, true, 'still works for this visit');
 });
+
+test('#11, #42 (0350): a held list reads as held, not failed, and a guide about to run out is raised', async () => {
+    const status = {
+        generatedAt: 1, build: { display: 'v · build 0350' }, providers: [], sessions: [], recordings: { active: [], upcoming: [] },
+        interruptions: { days: 7, count: 0, watchedHours: 0, recent: [] }, events: [],
+        sync: [{ name: 'Strong8K', type: 'm3u', enabled: true, guideUntil: Date.now() + 9 * 3600e3,
+            feeds: [{ type: 'all', status: 'held', lastSync: 1, error: "Held: the provider's list had 20 of the usual 200 channels; the last good list is kept" }] }],
+        feedLag: { limitSec: 24, channels: [] }, disk: {}
+    };
+    const h = pageHarness({ status });
+    await h.page.refresh();
+    const html = h.content.innerHTML;
+    assert.ok(html.includes("Strong8K's channel list was held") && !html.includes('sync failed'), 'held, not failed');
+    assert.match(html, /Strong8K&#39;s guide covers only (8|9) hours ahead|Strong8K's guide covers only (8|9) hours ahead/);
+});

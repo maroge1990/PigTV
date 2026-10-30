@@ -15,7 +15,7 @@ const { redact } = require('../redact');
 
 const DEDUPE_MS = 60 * 60 * 1000;
 const TIMEOUT_MS = 10000;
-const EVENTS = ['provider-down', 'recording-failed', 'licence-expiring', 'test'];
+const EVENTS = ['provider-down', 'recording-failed', 'licence-expiring', 'guide-stale', 'test']; // #11: guide-stale
 const lastSent = new Map(); // key -> ms
 
 /** '' or a usable http(s) URL, else null (invalid). */
