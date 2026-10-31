@@ -247,6 +247,49 @@ test('/api/sports/pages/nfl answers the NFL page to any user, and /api/info adve
     }
 });
 
+// #21 (0388, C-T): any other team league's page: its route, flag, auth and 404s (the page's own tests are in
+// sport-page-league.test.js).
+test('/api/sports/pages/league/:league answers a league page to any user; /api/info lists the leagues; NFL, F1, IPL and unknown are 404', async () => {
+    const leagues = (await call('GET', '/api/info')).body.features.sportPageLeagues;
+    assert.ok(Array.isArray(leagues) && leagues.includes('AFL') && leagues.includes('Super Rugby') && leagues.includes('UEFA'));
+    for (const own of ['NFL', 'F1', 'IPL', 'BBL']) assert.ok(!leagues.includes(own), own);
+    const lp = load('services/sportPageLeague');
+    const fx = (name) => require(`./fixtures/espn/league/${name}.json`);
+    const realGet = lp.fetcher.get;
+    lp.reset();
+    try {
+        lp.fetcher.get = async () => ({ ok: false, error: 'HTTP 503' });
+        let r = await call('GET', '/api/sports/pages/league/AFL', { token: viewerToken });
+        assert.equal(r.status, 200);
+        assert.deepEqual(r.body, { available: false }, 'nothing until ESPN first answers');
+        lp.reset();
+        lp.fetcher.get = async (url) => /afl\/scoreboard$/.test(url) ? { ok: true, json: fx('afl-scoreboard') }
+            : /week=4/.test(url) ? { ok: true, json: fx('afl-week4') } : /afl\/standings/.test(url) ? { ok: true, json: fx('afl-standings') } : { ok: false, error: 'HTTP 400' };
+        r = await call('GET', '/api/sports/pages/league/AFL', { token: viewerToken });
+        assert.equal(r.status, 200);
+        assert.equal(r.body.available, true);
+        assert.equal(r.body.league, 'AFL');
+        assert.deepEqual(r.body.rounds.map(x => x.label), ['Preliminary Finals', 'Grand Final']);
+        assert.ok(r.body.rounds.every(x => x.games.every(g => Array.isArray(g.channels))));
+        assert.equal(r.body.following, null);
+        assert.ok(!JSON.stringify(r.body).includes('espncdn'), 'team logos go through the logo cache');
+        assert.ok(!JSON.stringify(r.body).includes('aliases'), 'the join\'s names stay on the server');
+        for (const no of ['NFL', 'F1', 'IPL', 'Quidditch']) {
+            const x = await call('GET', `/api/sports/pages/league/${no}`, { token: viewerToken });
+            assert.equal(x.status, 404, no);
+            assert.equal(typeof x.body.error, 'string');
+        }
+        assert.equal((await call('GET', '/api/sports/pages/league/Super%20Rugby', { token: null })).status, 401);
+        process.env.PIGTV_SPORT_FIXTURES = '0';
+        assert.deepEqual((await call('GET', '/api/info')).body.features.sportPageLeagues, [], 'empty with fixtures off');
+        assert.equal((await call('GET', '/api/sports/pages/league/AFL', { token: viewerToken })).status, 404);
+    } finally {
+        delete process.env.PIGTV_SPORT_FIXTURES;
+        lp.fetcher.get = realGet;
+        lp.reset();
+    }
+});
+
 test('the same game on three channels is one event; a different game at the same time is another', async () => {
     const body = await events();
     assert.ok(body.now <= Date.now() && Date.now() - body.now < 65000, "now is the start of the current minute (the answer is kept per minute)");

@@ -90,6 +90,9 @@ async function sendInfo(req, res) {
             sportPageNfl: require('../services/sportsFixtures').enabled(),
             // #21 (0383, C-S): the Cricket page, on with the other sport pages.
             sportPageCricket: require('../services/sportsFixtures').enabled(),
+            // #21 (0388, C-T): the leagues GET /api/sports/pages/league/:league answers, by canonical name (an array, not a
+            // boolean); empty when ESPN fixtures are off.
+            sportPageLeagues: require('../services/sportsFixtures').enabled() ? [...require('../services/sportPageLeague').LEAGUES] : [],
             // 0156: GET /api/recordings/scheduled?include=recent also lists schedules
             // that ended up missed or failed in the last 7 days, each with its status
             // and error - a missed/failed recording no longer simply disappears.

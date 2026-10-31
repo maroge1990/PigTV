@@ -379,3 +379,14 @@ nothing kept answers `{ available: false }`. Only ESPN's part is kept; each requ
 channels from C-I (`channelsForSessions`, the current guide in that user's order, 0342, #157; from
 `sportsEvents.leagueEvents`, which orders only F1's events around the sessions, 0345, #160): an F1 event naming the
 session whose channel's own airing covers its start. A weekend that cannot be fetched fails the refresh (0344, #161). Names drop the title sponsor (`SPONSOR_RE`).
+
+**Any other team league (0388, C-T).** `services/sportPageLeague.js` answers `GET /api/sports/pages/league/:league` for
+every `ESPN_LEAGUE_PATHS` league but F1, NFL, IPL and BBL (one cache entry per league, so leagues never evict each
+other), with the NFL page's caching, stale-while-refresh and #191 rule. Where the scoreboard reports a round
+(`week.number`: AFL and NRL on 31 Oct 2026) it fetches the previous round by `seasontype`/`week` and, once the current
+one is over, the next, from the scoreboard's calendar; everywhere else (soccer, including the cups, basketball, baseball,
+hockey, Super Rugby) games are grouped by the server's local day. ESPN's date ranges (`dates=A-B`) answer HTTP 400, so a
+day league asks for each US-Eastern scoreboard day overlapping local yesterday, today and tomorrow (three or four
+requests from Melbourne, the default scoreboard's day reused). Standings are fetched at most hourly. Channels come from
+the dashboard's join (`sportsDashboard.matchBroadcasts`, with `sportsScoresEspn.teamAliases`), so an airing that fits
+two games joins neither. UEFA merges the Champions and Europa League paths, tagging each game's `competition`.

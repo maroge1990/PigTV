@@ -41,6 +41,7 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 | `sportPageNfl` | 0379 | `GET /api/sports/pages/nfl` (C-Q), on whenever ESPN fixtures are | The NFL page (#21) |
 | `sportFront` | 0381 | `GET /api/sports/front` (C-R), on whenever ESPN fixtures are and `PIGTV_SPORTS_DASHBOARD` is not `0` | The Sport front page (D-39) |
 | `sportPageCricket` | 0383 | `GET /api/sports/pages/cricket` (C-S), on whenever ESPN fixtures are | The Cricket page (#21) |
+| `sportPageLeagues` | 0388 | **An array**, not a boolean: the leagues `GET /api/sports/pages/league/:league` (C-T) answers, by canonical name; `[]` when ESPN fixtures are off | One page design for any other team league (#21) |
 | `scheduleHistory` | 0156 | `recordings/scheduled?include=recent` adds missed/failed of the last 7 days | Asks `include=recent` |
 | `providerReminders` | 0168 | `GET /api/providers/reminders` (C-K) | Daily reminder popup |
 | `providers` | 0174 | Resolve carries `provider` (C-J) | Shown in Stream info |
@@ -147,6 +148,7 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 | C-Q Sport pages: NFL | `sportPageNfl` | 0379 | (sport rebuild) |
 | C-R Sport front page | `sportFront` | 0381 | (sport rebuild) |
 | C-S Sport pages: Cricket | `sportPageCricket` | 0383 | (sport rebuild) |
+| C-T Sport pages: any team league | `sportPageLeagues` | 0388 | (sport rebuild) |
 
 C-A to C-K are implemented on both sides and verified on devices (results in `docs/archive/TEST-BLOCK-2026-10-13.md`). C-L
 onwards are not verified yet.
@@ -708,3 +710,49 @@ on demand (kept 2 min while the lead is in play, 10 min on a match day, 1 h othe
   channel's own times (C-I, #20).
 - Since 0386 (#191): a match whose day is in play (`live`, or a `break` other than stumps) keeps an airing that ended up
   to 4 h ago in its `channels`, `overrun: true`, as C-O.
+
+### C-T. Sport pages: any team league. Flag: `sportPageLeagues` (0388, #21)
+
+One page for every ESPN team league without a page of its own, built like C-Q from ESPN's free feeds on demand (kept
+2 min while a game is on, 10 min on a game day, 1 h otherwise; nothing is fetched until the page is asked for). A refresh
+asks ESPN for: a round league, 2 scoreboards (the current and previous round), plus 1 for the next round once the current
+one is over; a day league, up to 4 (one per US-Eastern ESPN day overlapping local yesterday, today and tomorrow; ESPN
+rejects date ranges); UEFA, that for each of its two paths; the standings at most hourly (UEFA: one per path). `sportPageLeagues` lists the leagues it answers: AFL, NBA, MLB, NHL, WNBA, NBL, NRL, Super Rugby, EPL,
+Championship, FA Cup, UEFA, La Liga, Bundesliga, Serie A, Ligue 1, MLS, A-League (never F1, NFL or cricket: C-P, C-Q, C-S).
+
+- `GET /api/sports/pages/league/<league>` (any user; the league URL-encoded, `Super%20Rugby`) → `{ available, updatedAt,
+  league, sport, season, rounds, teams, following, standings }`; a league not in the list is a 404 `{ error }`.
+  - `available: false` (and nothing else) until the first fetch has answered, or when ESPN cannot be reached and nothing
+    is cached. Fields the feed does not give are `null`, never guessed.
+  - `sport`: `"australian-football"` | `"rugby-league"` | `"rugby"` | `"soccer"` | `"basketball"` | `"baseball"` |
+    `"hockey"`, for the client's period words. `season`: `{ year, type ("preseason" | "regular" | "postseason" | null),
+    label (ESPN's season name or null) }`.
+  - `rounds[]`: the one before the current one (when there is one), the current one, and the next only once the current
+    one is entirely over: `{ key, label, current, games }`. Where ESPN reports rounds (on 31 Oct 2026: AFL and NRL)
+    a round is ESPN's, labelled "Round 20" (or "Matchday N" / "Week N") or by ESPN's own name ("Grand Final",
+    "Preliminary Finals"); `key` is opaque. Elsewhere a round is a day in the server's time zone: `key` its date
+    (`"2026-10-31"`), `label` `"Yesterday"` | `"Today"` | `"Tomorrow"` or `"Sat 1 Nov"`; the current day is today, or the
+    next day with games. The page opens on the `current` round.
+  - `games[]` by start: `{ id, start (ms), status, detail, home, away, venue, competition, channels }`. `status`:
+    `scheduled` | `live` | `break` | `done` | `postponed` | `cancelled`. `detail`: null before the start (and when
+    postponed or cancelled); while live `"Q3 5:21"` (quarters), `"2nd Half 67'"` (halves), `"2nd 12:34"` (hockey),
+    ESPN's `"Top 5th"` (baseball); a break is ESPN's text (`"HT"`, `"Halftime"`, `"Quarter Time"`); after, `"Final"`,
+    `"Final · OT"`, `"FT"`, `"FT · Pens"`, `"AET"`. `home`/`away`: `{ id, abbr, score }` (`id` the key into `teams`), `score` ESPN's string, null
+    before the start. `venue`: a name or null. `competition`: `"Champions League"` | `"Europa League"` for UEFA, else
+    null. `channels`: C-I channel objects for that game's airing (each with its own `start`/`end`), best first, joined
+    as the dashboard joins them (C-O: both teams named, start within 90 min; an airing two games fit joins neither);
+    `[]` until the guide carries it.
+  - `teams`: by ESPN team id (a string), `{ id, abbr, name, full, location, color (hex or null), logo (a logo-cache path
+    or null) }`. Not by abbreviation: two teams can share one (UEFA merges two competitions).
+  - `following`: the household's followed team for this league (C-R `teams[league]`, the first name that matches a
+    team's `name`, `full` or `abbr`, any case) as a team id, or null. Read-only here: follow through C-R.
+  - `standings`: `{ groups: [{ name, columns: [{ key, label }], rows: [{ id, abbr, rank, values: { <key>: text } }] }] }` or
+    null. A single table has `name: null`; otherwise the conference or league ("Eastern Conference"), or for UEFA the
+    competition. Columns by sport (a column the feed lacks is left out): australian-football P W L D Pts %;
+    rugby-league and rugby P W L D Diff Pts; soccer P W D L GD Pts; basketball and baseball W L PCT GB; hockey GP W L
+    OTL PTS. Values are ESPN's display text (`"+11"`, `".833"`, `"-"`), null when a row lacks one.
+- Spoilers are the client's, as C-P and C-Q: with the household's spoiler-free switch on, scores, `detail` after the
+  start and the `standings` values are hidden (the table may show its teams in alphabetical order, or be hidden);
+  `status`, `start` and the teams stay. Watch/Record use a channel's own times (C-I, #20).
+- A `live` or `break` game's channels keep an airing that ended up to 4 h ago, `overrun: true`, while the page's
+  `updatedAt` is at most 15 min old (#191, as C-Q).

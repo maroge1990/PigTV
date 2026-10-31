@@ -18,6 +18,7 @@
  *   GET/PUT /api/sports/pages/preferences (any user; 0346) -> { spoilerFree, sports, teams, following: { F1, NFL } }, one for the household
  *   GET /api/sports/front            (any user; 0381, D-39) -> the Sport front page (services/sportFront.js)
  *   GET /api/sports/pages/cricket    (any user; 0383, C-S) -> the Cricket page (services/sportPageCricket.js)
+ *   GET /api/sports/pages/league/:league (any user; 0388, C-T) -> any other team league's page (services/sportPageLeague.js)
  *   GET /api/sports/categories       (admin; 0147)
  *       -> [{category, programmes}] the EPG categories in the live guide with how
  *          many programmes carry each, most used first, at most 200 (web Status page)
@@ -186,6 +187,30 @@ router.get('/pages/cricket', async (req, res) => {
     } catch (err) {
         console.error('[Sports] Cricket page failed:', err.message);
         res.status(500).json({ error: 'Could not build the Cricket page' });
+    }
+});
+
+// #21 (0388, C-T): the page of any other ESPN team league (sportPageLeague.LEAGUES; /api/info `sportPageLeagues`), as the
+// NFL page: on whenever ESPN fixtures are. An unknown league, or one with its own page (F1, NFL, cricket), is a 404.
+router.get('/pages/league/:league', async (req, res) => {
+    if (!require('../services/sportsFixtures').enabled()) return res.status(404).json({ error: 'Sport pages are off on this server' });
+    const leaguePage = require('../services/sportPageLeague');
+    const league = leaguePage.leagueOf(req.params.league);
+    if (!league) return res.status(404).json({ error: 'No sport page for that league' });
+    try {
+        channelNumbers.ensureChannelNumbers();
+        const now = Date.now();
+        const page = await leaguePage.page(league, now, {
+            registerImage: require('../services/logoCache').registerLogo,
+            followed: () => require('../services/sportPagePrefs').get().teams[league] || [],
+            // Only this league's events around the page's games are ordered and built, as for F1 (#160); #191 as F1.
+            channelsFor: async (games, observedAt) => !games.length ? new Map() : leaguePage.channelsForGames(games,
+                await sportsEvents.leagueEvents({ league, ...leaguePage.spanOf(games), userId: req.user.id, now, decorateChannels, ended: true }), { now, observedAt })
+        });
+        res.json(page);
+    } catch (err) {
+        console.error('[Sports] league page failed:', err.message);
+        res.status(500).json({ error: 'Could not build the sport page' });
     }
 });
 

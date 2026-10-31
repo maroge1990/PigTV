@@ -101,7 +101,7 @@ test('the web app itself is still served for everything that is not /api', async
 // its own "not found" for an unknown id) - anything except the generic reply. A route that is
 // missing, or moved behind the catch-all, fails here instead of on somebody's Apple TV.
 const APPLE_CLIENT_ROUTES = [
-    ['GET', '/api/info'], ['GET', '/api/version'], ['GET', '/api/sports/pages/f1'], ['GET', '/api/sports/pages/nfl'], ['GET', '/api/sports/pages/cricket'], ['GET', '/api/sports/pages/preferences'], ['PUT', '/api/sports/pages/preferences'],
+    ['GET', '/api/info'], ['GET', '/api/version'], ['GET', '/api/sports/pages/f1'], ['GET', '/api/sports/pages/nfl'], ['GET', '/api/sports/pages/cricket'], ['GET', '/api/sports/pages/league/AFL'], ['GET', '/api/sports/pages/preferences'], ['PUT', '/api/sports/pages/preferences'],
     ['POST', '/api/auth/login'], ['GET', '/api/auth/me'],
     ['POST', '/api/devices/pair/start'], ['GET', '/api/devices/pair/poll'],
     ['GET', '/api/sources'],

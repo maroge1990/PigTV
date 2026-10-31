@@ -5,6 +5,9 @@ const BASE = 'https://site.api.espn.com/apis/site/v2/sports/';
 const text = (v, max = 160) => typeof v === 'string' ? v.trim().slice(0, max) : '';
 const id = v => /^(?:[A-Za-z0-9_-]{1,80})$/.test(String(v ?? '')) ? String(v) : null;
 const number = v => Number.isFinite(v) && v >= 0 ? v : undefined;
+// A team's names as the dashboard's game↔guide join reads them (sportsDashboard.matchBroadcasts); a bare location is
+// not a name unless it is the display name. 0388: also the league page's join (sportPageLeague.js).
+const teamAliases = team => [...new Set(['displayName','shortDisplayName','name','abbreviation'].map(k => text(team?.[k])).filter(a => a && (a.toLowerCase() !== text(team?.location).toLowerCase() || a === text(team?.displayName))))];
 function logo(v) {
     try { const u = new URL(v); return u.protocol === 'https:' && u.hostname === 'a.espncdn.com' ? u.href : null; } catch { return null; }
 }
@@ -45,7 +48,7 @@ function normalize(json, league, source) {
             if (league !== 'F1' && sides.length !== 2) continue;
             const competitors = league === 'F1' ? [] : sides.map(t => ({
                 id: id(t.team.id ?? t.id), name: text(t.team.displayName || t.team.name),
-                aliases: [...new Set(['displayName','shortDisplayName','name','abbreviation'].map(k => text(t.team[k])).filter(a => a && (a.toLowerCase() !== text(t.team.location).toLowerCase() || a === text(t.team.displayName))))],
+                aliases: teamAliases(t.team),
                 logo: logo(t.team.logo)
             }));
             if (competitors.some(t => !t.name) || (competitors.length && competitors[0].id === competitors[1].id)) continue;
@@ -110,4 +113,4 @@ async function fetchJson(url, { signal } = {}) {
     } finally { reader.releaseLock(); }
     return JSON.parse(Buffer.concat(chunks,bytes).toString('utf8'));
 }
-module.exports = { BASE, normalize, fetchJson };
+module.exports = { BASE, normalize, fetchJson, teamAliases };
