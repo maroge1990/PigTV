@@ -34,7 +34,9 @@ The protocol for both repos: which tier proves what, who runs it, and the tools.
 For a device run, note the app build (Settings → Version), the server build (`/api/version`), the device and OS, and for
 a fault the channel and roughly when; keep provider URLs and tokens out of anything shared. On-device diagnostics:
 Settings → Diagnostics (tvOS, the Top Shelf), and Console on the Mac filtered to subsystem `au.markrogers.PigTV.TopShelf`.
-Checks no simulator can settle carry the `needs-device-test` label.
+Checks no simulator can settle carry the `needs-device-test` label. Until TestFlight, Claude installs a build on Mark's
+device with the Apple repo's `Tools/install-device.sh`, run in the desktop app's Terminal panel so Mark types the Mac
+password there (its `AGENTS.md` › Installing on Mark's devices).
 
 ## Evidence
 
