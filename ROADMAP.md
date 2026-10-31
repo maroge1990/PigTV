@@ -5,39 +5,34 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 31 Oct 2026, evening (fourth Windows session: D-38 process reset, the issue
-clean-up, D-39 and the Sport front page's server side, the Cricket page's server side, the brand review).*
+*Overwritten at the end of every session. 31 Oct 2026, night (fifth Windows session: Apple 89 and 90, the overrun fix,
+the general league page, the first TestFlight upload).*
 
-- **Server:** production runs **0362** (deployed 31 Oct 07:06). On GitHub, CI green: **0363–0380** (batch 7, batch 4b,
-  the NFL page C-Q), **0381–0382** (the Sport front page's answer C-R: hero rule, rails, follows, results, per-channel
-  airing times, logos; one household following store `sports` → `teams`; the score collector on by default, legacy
-  `/dashboard` still behind `PIGTV_SPORTS_DASHBOARD=1`), **0383–0385** (the Cricket page's answer C-S; play-start
-  `origin`; the lead never a finished match). Next build **0386**. Evidence: `docs/evidence/2026-10-31-sport-front-page`.
-- **Apple:** on GitHub **84–88**. **Build 89** (the front page "Blend 1", the app opens on Sport, Home → TV in second
-  place, play `origin`, spoiler and feed-off states, 13 unit tests, one UI test) is built in this session's worktree
-  with the quick tier green and the review fixes applied; see the handover for whether it was pushed. Next **90**.
-- **Process (D-38):** one Codex round per batch, a second only on a high; docs-only pushes skip CI; Claude closes
-  issues on T1–T3 evidence; device checks live on Mark's Test Round page (artifact `LbZZpEBbjgnqEj2CDJx3X1`).
-- **Issues:** 58 open (from 183): live work plus the device checks. P3 is parked under #188 (`parked` label).
-- **Decisions today:** D-38 (process), D-39 (front page = Blend 1, following model sport → team, hero rule, team
-  badges, PNG circuit maps, open on Sport, Home → TV with a two-week usage check via play `origin`).
-- **Brand review:** done as evidence in PR #189 (docs only, awaiting Mark's read): kit 1.7.0 differs from 1.6.0 only in
-  PigMenu and version strings; nine web gaps (W1–W9) and seven Apple gaps (#190, plus #116); the fixes are one web
-  batch and one Apple batch after the front page. Apple simulator screenshots still owed (the Mac was busy).
-- **TestFlight:** parked until Mark's enrolment clears (steps: Team ID and an App Store Connect API key on the Mac, the
-  project moved to the paid team, bundle ids, the app record (iOS + tvOS), `Tools/testflight.sh both`, internal only).
-- **Not done:** production's 7 favourites point at a deleted provider id (6 identifiable by name): restoring them needs
-  Mark's yes. No in-app "Follow a sport" UI yet: the household's sports/teams were seeded from the admin follow list and
-  the F1/NFL page follow buttons write teams; a web Settings page for it is the next web piece. #111 parked.
-- **Waiting for Mark (T5):** the Test Round page (batch 7 and 4b web checks, NFL page, Top Shelf, start-up feel, the
-  real-feed items and the three set-aside sessions); the front page itself once Apple 89 is on a device.
+- **Server:** production runs **0387** (Mark deployed 31 Oct evening; healthy, score collector on). On GitHub, CI green:
+  **0386–0387** (#191: a live game overrunning its guide slot keeps Watch; pages only while their ESPN answer is ≤ 15 min
+  old) and **0388–0389** (C-T: a general page for every ESPN team league, `/api/sports/pages/league/:league`,
+  `sportPageLeagues` in `/api/info`; no client yet). Next build **0390**.
+- **Apple:** on GitHub **89** (the Sport front page, opens on Sport, TV tab second) and **90** (the Cricket page on C-S;
+  every sport page and the front page fail closed on spoiler-free, #192). **Build 90 is uploaded to TestFlight** (tvOS
+  and iOS, 31 Oct 21:03), processing. Next **91**.
+- **Decisions:** D-40 (one league page for all other team sports, no more mock-ups until NFL/Cricket/F1 are tried on a
+  device; TestFlight from 90; the overrun rule; the spoiler choice fails closed).
+- **Process (D-38):** unchanged. Apple 90 used both Codex rounds; the round-2 highs were fixed with failing-before tests
+  and pushed without a third round. Evidence: `docs/evidence/2026-10-31-{overrun-191,league-page,apple-90}`.
+- **Issues:** 61 open. #191 and #192 wait for Mark's device check (Test Round checks 25 and 28).
+- **TestFlight:** works. `ssh -t mac '... security unlock-keychain ... && sh Tools/testflight.sh both'` from the Terminal
+  panel (Mark types the Mac password); internal testers are added in App Store Connect › TestFlight.
+- **Not done:** the Apple page for C-T (after the device check); production's 7 favourites (needs Mark's yes); the web
+  Following page and brand fixes W1–W9; the Apple brand batch (#190, #116) and its simulator screenshots; PR #189 waits
+  for Mark's read. #111 parked.
+- **Waiting for Mark (T5):** the Test Round page, now with the front page (checks 22–28) on TestFlight build 90.
 
 ## Now
 
-1. **Sport front page on the devices** (#21, D-39): Apple 89 pushed and on Mark's Apple TV and iPad (install or
-   TestFlight), his T5 pass, then the iPad layout check and the iPhone question (#177); #186, #187 fold in.
-2. **Cricket page on Apple** (C-S is on the server, 0383–0385): the "Cricket · Apple TV" mock-up as `CricketPageView`,
-   reached from the front page's Cricket tile; then AFL in March.
+1. **Sport on the devices** (#21, D-39, D-40): Mark's T5 pass of the front page, NFL, Cricket and F1 on TestFlight
+   build 90, then the iPad layout check and the iPhone question (#177); #186, #187, #191, #192 fold in.
+2. **Every other team sport on Apple** (D-40): one page design on C-T (the server side is 0388–0389), after step 1;
+   then sports without two teams.
 3. **Web: Following settings** (choose and order sports, follow teams; the household store from 0381) and the brand
    fixes W1–W9 as one web batch (PR #189's README); the Apple brand batch (#190, #116) after.
 3. Batch 8: #4 relay renewal (capture first, a device test with renewal on, released alone): waits for Mark.

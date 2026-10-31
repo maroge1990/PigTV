@@ -357,3 +357,23 @@ reviews.
 - **Consequence:** #21 (the brief and its addenda); `DESIGN.md` › Sport pages; the server batch adds the data the page
   needs to C-O (followed flag, next-up, per-channel airing times, results, logos, one following store); Apple TV first,
   then iPad (the same page at iPad scale, one column in portrait), iPhone after #177.
+
+### D-40. Every sport through one league page, TestFlight from build 90, and sport pages fail closed (31 Oct 2026)
+
+- **Context:** Mark wants a sport experience covering every sport quickly. His developer account cleared on 31 Oct.
+  Apple 90's two Codex rounds found three spoiler highs (#192).
+- **Choice (Mark, 31 Oct):**
+  1. **No more bespoke mock-ups** for other sports until NFL, Cricket and F1 have been tried on a device. Every other
+     ESPN team league gets one general server page (C-T, 0388) and, after that device check, one Apple page design.
+     Sports without two teams (tennis, golf, UFC, IndyCar, NASCAR) need their own matching work and come later.
+  2. **TestFlight replaces one-off device installs** from build 90 (internal testing). The Mac keeps the API key
+     outside the repositories (`~/.pigtv-testflight.env`). Signing needs the login keychain, so an upload runs in the
+     Terminal panel, where Mark types the Mac password.
+- **Choice (Claude, recorded):**
+  3. **Overrun (#191, 0386–0387):** while the delayed score feed says a game is live, its ended airing (≤ 4 h) is
+     reported as airing until now + 10 min, rolling. On the pages, this applies only while their last good ESPN answer
+     is ≤ 15 min old.
+  4. **Spoiler choice fails closed (Apple 90):** an unknown household spoiler choice hides scores on every sport page
+     and the front page. That covers reopening, a failed read, and an answer older than the latest read.
+- **Consequence:** C-O, C-P to C-T in `docs/CLIENT-CONTRACT.md`; ROADMAP › Now; the Test Round page is checked on
+  TestFlight builds.
