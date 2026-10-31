@@ -43,3 +43,21 @@ Verdict needs-attention, two mediums, no high (so no second round, D-38); both f
 |---|---|---|
 | A finished followed-team match stayed the lead while other matches were live | medium | fixed on top of 0384: unfinished followed matches first, then the global live/next fallback; regression test with the panel's match 1525661 marked completed |
 | C-S's spoiler list left out `others[].line` (the feed's summary carries the situation) and the lead's `innings` | medium | contract corrected (C-S › Spoilers) |
+
+## Apple 89: the front page on the devices
+
+- `Tools/test.sh fast`: 257 contract checks, 333 unit tests (SportFrontTests 18); `push` (the regression UI tests) ran
+  before the review round; a reviewer agent's four mediums and five lows were fixed before the commit (spoiler state
+  from the household preference, the follow kept by league and name, a finished pin or flip let go, wording, waits).
+- Codex round 1: **high**: a cached live card stayed watchable after its channel's airing ended (a failed refresh keeps
+  the previous answer), so Watch could put the viewer on the channel after the game. Fixed in the follow-up commit:
+  Watch revalidates the selected channel's own `start`/`end` at action time; cached `canWatch` never overrides expired
+  bounds; regression tests. Round 2 below.
+
+## Codex round 2 (Apple 89 + fix)
+
+Verdict needs-attention, one **high**: the same hole by another door. An expired card now opens the details page, whose
+Watch and channel rows use `SportRows.playsChannelNow`, which had no end guard (pre-existing; the new page made it
+reachable with a stale answer). Fixed in the third commit of 89: `playsChannelNow` requires the channel's `end` to be
+ahead, and the details page revalidates at the press; regression tests. At most two rounds (D-19): the fix was checked
+by the lead and the tests, not a third round.
