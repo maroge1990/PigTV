@@ -332,3 +332,28 @@ reviews.
      checks on the Test Round; P3 items parked under one label and one tracking issue.
 - **Consequence:** `AGENTS.md` › How changes ship, Work tracking, Reviews (both repos); `docs/TESTING.md` › Tiers;
   D-19, D-34, D-35 and D-37 read with this where they say two rounds or that Mark closes.
+
+### D-39. The Sport front page, the following model, and opening on Sport (31 Oct 2026)
+
+- **Context:** the Live now dashboard (C-O) was built but never became a page people open; Mark reviewed seven mock-ups
+  on 31 Oct (a baseline, options A–C, blends 1–3 of A and C) on the "PigTV Sport mock-ups" canvas.
+- **Choice (Mark, 31 Oct):**
+  1. **Front page = Blend 1.** Under the app's tabs: the followed sports as tiles (live dot, one line, press for the
+     sport's page); a **hero band** (left: the selected follow's live event, or their next game with Remind me and
+     Record; right: the followed teams and drivers as a list that flips the hero); then **a rail per followed sport**
+     (live cards first, then results and next starts, each with its action). With more than three follows the list
+     keeps the band's height: compact rows, live first then soonest, a "N more" row. Nothing comes from a sport that is
+     not followed.
+  2. **Following model:** a sport is followed first; inside a followed sport a team or driver can be followed. One
+     household store (sports → teams) replaces the dashboard's admin keyword list and the pages' separate following.
+  3. **Hero rule:** a followed team or driver live (closest to finishing wins a tie) → else a live event in the
+     highest-ranked followed sport → else the next start for a follow → without the scores feed, the guide's live sport
+     channel. Sticky until the event ends unless a follow goes live; long press "Make this the hero" overrides.
+  4. **Team badges** beside every score and team name, from the feed's logos, with the monogram disc as fallback.
+     Circuit maps are served as PNG.
+  5. **The app opens on Sport.** Home moves to second place as **TV** (Recently watched, Favourites on now, Starting
+     soon). Plays record which tab they started from; after two weeks of use Mark decides whether TV stays or Recently
+     watched becomes a row at the foot of the Guide.
+- **Consequence:** #21 (the brief and its addenda); `DESIGN.md` › Sport pages; the server batch adds the data the page
+  needs to C-O (followed flag, next-up, per-channel airing times, results, logos, one following store); Apple TV first,
+  then iPad (the same page at iPad scale, one column in portrait), iPhone after #177.

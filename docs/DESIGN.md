@@ -90,6 +90,12 @@ From the F1 mock-up review (30 Oct), for the sport rebuild (#21):
   right; other competitions today and next below), **Formula 1 · iPhone** (one scrolling column; whether it should be
   split into pages is open, #177) and **· iPad** (the Apple TV layout in landscape, one column in portrait), and **Web ·
   channel changes** (held smaller lists, New on the provider, Show all / Hide all with a confirm and Undo).
+- **Sport front page, approved 31 Oct (D-39, canvas "Blend 1"):** the app's tabs stay on screen; followed sports as
+  tiles at the top; a hero band (hero left, the followed teams and drivers as a flip list right, compact rows beyond
+  three); a rail per followed sport below, live cards first. Team badges beside every score; the monogram disc only as
+  a fallback. Spoiler-free keeps neutral progress (Q4, 2nd session) and hides scores, situations and results; without
+  the scores feed the page says so once and shows the guide's channels and start times. Never invent a clock, a leader
+  or 0–0.
 - Channel quality labels: today the server reads UHD / HD / SD from the channel's name (FHD counts as HD). The build
   should distinguish FHD from HD and, where a channel has been played, confirm the label from the measured stream
   (resolution, frame rate, HDR), never by probing channels in the background.
