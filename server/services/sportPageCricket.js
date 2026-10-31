@@ -21,6 +21,7 @@
  * feed: every field is read defensively, a missing one is null, and nothing here throws.
  */
 const espn = require('./sportsFixturesEspn');
+const overrun = require('./sportOverrun');
 
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports/cricket';
 const TIMEOUT_MS = 10000;
@@ -170,7 +171,8 @@ function nextStartOf(m, n, now) {
 function airingOf(m, n, now) {
     if (m.status === 'done') return null;
     const begin = inPlay(m) ? dayStart(m, currentDay(m, n, now)) : nextStartOf(m, n, now);
-    return begin === null ? null : { id: m.id, start: begin - HOUR_MS, end: begin + dayLength(m), teams: m.teams.map(t => t.name) };
+    // `inPlay`: a day in progress (live or a break within it, never stumps), for the overrun rule (#191, sportOverrun.js).
+    return begin === null ? null : { id: m.id, start: begin - HOUR_MS, end: begin + dayLength(m), teams: m.teams.map(t => t.name), inPlay: inPlay(m) };
 }
 
 /** The lead's match days from the summary's note ("27,28,29,30,31 October 2026 (5-day match)"), else null. */
@@ -377,7 +379,7 @@ function ttlOf(value, now) {
  * them. A team is named by its full name, that name without "Women", or its last word ("Sixers") where no other team
  * on the page shares it. Longer names are read first, so "South Australia" is not also "Australia".
  */
-function channelsForMatches(airings, events) {
+function channelsForMatches(airings, events, { now } = {}) {
     const cricket = (events || []).filter(e => LEAGUES.includes(e.league) && e.kind === 'event');
     const out = new Map();
     const words = (s) => ` ${String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ')} `;
@@ -412,7 +414,8 @@ function channelsForMatches(airings, events) {
         const list = [];
         for (const { e } of matched) for (const ch of e.channels || []) {
             const key = `${ch.sourceId}:${ch.id}`;
-            if (!seen.has(key)) { seen.add(key); list.push(ch); }
+            const kept = seen.has(key) ? null : overrun.keep(ch, e, a.inPlay === true, now); // #191: a day's play past its slot
+            if (kept) { seen.add(key); list.push(kept); }
         }
         if (list.length) out.set(a.id, list);
     }

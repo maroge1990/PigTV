@@ -170,6 +170,33 @@ test('#160: leagueEvents gives one league\'s events in a window, exactly as even
     assert.deepEqual(await ev.leagueEvents({ league: 'American Football', from: NOW + 10 * H, to: NOW + 11 * H }), [], 'outside the window');
 });
 
+// #191 (0386): a game's airing that ended within 4 h stays in the build for the sport surfaces' overrun rule alone: never in
+// C-I's answer (eventsFor, GET /events) nor in leagueEvents unless asked (`ended`); endedEvents lists those leagues' ones.
+test('#191: an airing ended within 4 h is kept for endedEvents and leagueEvents `ended`, never in C-I\'s answer', async () => {
+    const ev = load('services/sportsEvents');
+    const d = sqlite.getDb();
+    const ins = d.prepare('INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, categories) VALUES (?, 99, ?, ?, ?, ?)');
+    const cats = JSON.stringify(['Sport', 'American Football']);
+    const rows = [ins.run('fs505', NOW - 4 * H, NOW - 40 * M, 'NFL: Packers v Bears', cats).lastInsertRowid,
+        ins.run('fs505', NOW - 8 * H, NOW - 4 * H - 10 * M, 'NFL: Rams v Seahawks', cats).lastInsertRowid];
+    try {
+        ev.reset();
+        const has = (list, title) => list.some(e => e.title === title);
+        assert.ok(!has((await ev.eventsFor({ hours: 72 })).events, 'Packers v Bears'), 'eventsFor');
+        assert.ok(!has((await events('?hours=72')).events, 'Packers v Bears'), 'GET /api/sports/events');
+        const window = { league: 'American Football', from: NOW - 6 * H, to: NOW + 3 * H };
+        assert.deepEqual((await ev.leagueEvents(window)).map(e => e.title), ['Chiefs v Bills'], 'leagueEvents as before');
+        assert.deepEqual((await ev.leagueEvents({ ...window, ended: true })).map(e => e.title).sort(), ['Chiefs v Bills', 'Packers v Bears']);
+        const ended = await ev.endedEvents({ leagues: new Set(['American Football']) });
+        assert.deepEqual(ended.map(e => [e.title, e.end, e.live]), [['Packers v Bears', NOW - 40 * M, false]], 'ended over 4 h ago is gone');
+        assert.equal(ended[0].channels[0].end, NOW - 40 * M);
+        assert.deepEqual(await ev.endedEvents({ leagues: new Set(['Basketball']) }), []);
+    } finally {
+        for (const id of rows) d.prepare('DELETE FROM epg_programs WHERE id = ?').run(id);
+        ev.reset();
+    }
+});
+
 // #21 (0340, C-P): the F1 page's route, with ESPN answered from the captured fixture (the page's own tests are in
 // sport-page-f1.test.js; this is the route, its flag and its auth).
 test('/api/sports/pages/f1 answers the F1 page to any user, and /api/info advertises it', async () => {

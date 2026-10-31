@@ -53,11 +53,15 @@ router.get('/dashboard', dashboardEnabled, async (req, res) => {
     try {
         channelNumbers.ensureChannelNumbers();
         dashboard.store(); // Ensure opt-in tables exist before the read-only worker opens them.
-        const cached = await sportsEvents.eventsResponse({ hours: 72, userId: req.user.id, decorateChannels });
+        const now = Date.now();
+        const cached = await sportsEvents.eventsResponse({ hours: 72, userId: req.user.id, now, decorateChannels });
         const fixtures = require('../services/sportsFixtures');
-        const response = await dashboard.response({ eventsBody: cached.body, options: { now: Date.now(),
-            userId: req.user.id, league, timezone: dashboard.timezone(), leagues: fixtures.neededLeagues(),
-            broadLeagues: fixtures.categoryLeagues(), follow: sportsEvents.getFollow() } });
+        const leagues = fixtures.neededLeagues();
+        // #191: a live game's airings that ended within the overrun window (sportOverrun.js) keep its channels.
+        const endedEvents = await sportsEvents.endedEvents({ leagues, userId: req.user.id, now, decorateChannels });
+        const response = await dashboard.response({ eventsBody: cached.body, options: { now,
+            userId: req.user.id, league, timezone: dashboard.timezone(), leagues,
+            broadLeagues: fixtures.categoryLeagues(), follow: sportsEvents.getFollow(), endedEvents } });
         applyLogoCache(response.games.flatMap(g => g.competitors));
         res.json(response);
     } catch { res.status(500).json({ error: 'Could not list the sports dashboard' }); }
@@ -70,8 +74,11 @@ router.get('/front', async (req, res) => {
     if (!dashboard.collectorEnabled()) return res.status(404).json({ error: 'The sport front page is off on this server' });
     try {
         channelNumbers.ensureChannelNumbers();
-        res.json(await require('../services/sportFront').front({ userId: req.user.id,
-            events: () => sportsEvents.eventsResponse({ hours: 72, userId: req.user.id, decorateChannels }) }));
+        const now = Date.now();
+        res.json(await require('../services/sportFront').front({ userId: req.user.id, now,
+            events: () => sportsEvents.eventsResponse({ hours: 72, userId: req.user.id, now, decorateChannels }),
+            // #191: the followed sports' airings that ended within the overrun window (sportOverrun.js)
+            ended: (leagues) => sportsEvents.endedEvents({ leagues, userId: req.user.id, now, decorateChannels }) }));
     } catch (err) {
         console.error('[Sports] front page failed:', err.message);
         res.status(500).json({ error: 'Could not build the sport front page' });
@@ -123,12 +130,14 @@ router.get('/pages/f1', async (req, res) => {
     try {
         channelNumbers.ensureChannelNumbers();
         const f1 = require('../services/sportPageF1');
-        const page = await f1.page(Date.now(), {
+        const now = Date.now();
+        const page = await f1.page(now, {
             registerImage: require('../services/logoCache').registerLogo,
             // #160: only F1's events around the sessions are ordered and built, not the whole 72 h answer.
+            // #191: with the airings ended within the overrun window, which a live session's channels keep (sportOverrun.js).
             channelsFor: async (sessions) => !sessions.length ? new Map() : f1.channelsForSessions(sessions,
                 await sportsEvents.leagueEvents({ league: 'F1', from: Math.min(...sessions.map(s => s.start)) - HOUR_MS,
-                    to: Math.max(...sessions.map(s => s.end)) + HOUR_MS, userId: req.user.id, decorateChannels }))
+                    to: Math.max(...sessions.map(s => s.end)) + HOUR_MS, userId: req.user.id, now, decorateChannels, ended: true }), { now })
         });
         res.json(page);
     } catch (err) {
@@ -143,12 +152,13 @@ router.get('/pages/nfl', async (req, res) => {
     try {
         channelNumbers.ensureChannelNumbers();
         const nfl = require('../services/sportPageNFL');
-        const page = await nfl.page(Date.now(), {
+        const now = Date.now();
+        const page = await nfl.page(now, {
             registerImage: require('../services/logoCache').registerLogo,
-            // Only the NFL's events around the two weeks' games are ordered and built, as for F1 (#160).
+            // Only the NFL's events around the two weeks' games are ordered and built, as for F1 (#160); #191 as F1.
             channelsFor: async (games, teams) => !games.length ? new Map() : nfl.channelsForGames(games,
-                await sportsEvents.leagueEvents({ league: 'NFL', ...nfl.spanOf(games), userId: req.user.id, decorateChannels }),
-                new Map(Object.entries(teams || {})))
+                await sportsEvents.leagueEvents({ league: 'NFL', ...nfl.spanOf(games), userId: req.user.id, now, decorateChannels, ended: true }),
+                new Map(Object.entries(teams || {})), { now })
         });
         res.json(page);
     } catch (err) {
@@ -164,12 +174,13 @@ router.get('/pages/cricket', async (req, res) => {
     try {
         channelNumbers.ensureChannelNumbers();
         const cricket = require('../services/sportPageCricket');
-        const page = await cricket.page(Date.now(), {
+        const now = Date.now();
+        const page = await cricket.page(now, {
             registerImage: require('../services/logoCache').registerLogo,
             // Only cricket's events around the matches' days are ordered and built, as for F1 (#160), for each league a
-            // cricket programme can be filed under.
+            // cricket programme can be filed under; #191 as F1.
             channelsFor: async (airings) => cricket.channelsForMatches(airings, (await Promise.all(cricket.LEAGUES.map(league =>
-                sportsEvents.leagueEvents({ league, ...cricket.spanOf(airings), userId: req.user.id, decorateChannels })))).flat())
+                sportsEvents.leagueEvents({ league, ...cricket.spanOf(airings), userId: req.user.id, now, decorateChannels, ended: true })))).flat(), { now })
         });
         res.json(page);
     } catch (err) {

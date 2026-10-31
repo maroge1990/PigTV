@@ -178,6 +178,30 @@ test('front: each channel carries its own airing start and end', async () => {
     guideEvents = [];
 });
 
+// #191 (0386): a live game past its guide slot keeps its channel on the front page, its end rolled on (sportOverrun.js).
+test('front: a live game whose only airing ended 30 min ago keeps its channel, overrun, end now + 10 min, and Watch', async () => {
+    const now = Date.now();
+    const id = 'espn:football/nfl:407';
+    dashboard.store().ingest([game(id, 'NFL', now - 3.5 * H, [packers, team('3', 'Bears')], live())], now - 100000);
+    const events = load('services/sportsEvents'), asked = [];
+    const realEnded = events.endedEvents;
+    events.endedEvents = async ({ leagues }) => { asked.push([...leagues].sort()); return [{ id: 'ev-gb-ended', league: 'NFL', title: 'Packers v Bears',
+        kind: 'event', start: now - 3.5 * H, end: now - 30 * MIN, live: false,
+        channels: [{ sourceId: 1, id: 'pos_3', stableId: 's3', name: 'Fox HD', quality: 'HD', start: now - 3.5 * H, end: now - 30 * MIN }] }]; };
+    try {
+        const before = Date.now();
+        const card = (await front()).games.find(c => c.id === id);
+        assert.ok(asked.length && asked[0].includes('NFL'), 'asked for the followed sports\' ended airings');
+        assert.equal(card.status, 'live');
+        assert.equal(card.canWatch, true);
+        assert.equal(card.broadcastStatus, 'on-tv');
+        assert.equal(card.channels.length, 1);
+        const c = card.channels[0];
+        assert.deepEqual([c.stableId, c.start, c.overrun], ['s3', now - 3.5 * H, true]);
+        assert.ok(c.end >= before + 10 * MIN && c.end <= Date.now() + 10 * MIN, `end ${c.end - before} ms after the request`);
+    } finally { events.endedEvents = realEnded; removeGame(id); }
+});
+
 test('front: no scores, one guide listing on now: scores unavailable, the guide card leads and sits in its rail', async () => {
     clearGames();
     const now = Date.now();

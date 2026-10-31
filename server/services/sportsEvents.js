@@ -44,6 +44,7 @@ const { NUMBER_JOIN, VISIBLE_SQL, CHANNEL_KEY_SQL } = require('./channelNumbers'
 const channelHealth = require('./channelHealth');
 const epgMapping = require('./epgMapping');
 const sportCategories = require('./sportCategories');
+const { OVERRUN_MAX } = require('./sportOverrun');
 const sportsClassify = require('./sportsClassify');
 const sportsFixtures = require('./sportsFixtures');
 
@@ -428,8 +429,10 @@ function buildEvents({ from, follow: keywords, decorateChannels } = {}) {
     // eventsFromProgrammes below stays the pure part of a build its own comment promises: no
     // caller of it (a test, sportsClassify's own tests) is silently made to open a database.
     const fixturesByLeague = sportsFixtures.snapshot(sportsFixtures.neededLeagues(db));
-    // Items that ended before this minute were only read to find first airings.
-    const events = eventsFromProgrammes(channels, progs, follow, fixturesByLeague).filter(ev => ev.end > from);
+    // Items that ended before this minute were only read to find first airings, except a game's airings that ended within
+    // OVERRUN_MAX (#191): kept for the sport surfaces' overrun rule (leagueEvents `ended`), never in C-I's answer.
+    const events = eventsFromProgrammes(channels, progs, follow, fixturesByLeague)
+        .filter(ev => ev.end > from || (ev.kind === 'event' && ev.end > from - OVERRUN_MAX));
     return { from, events, channelCount: channels.length, programmeCount: progs.length };
 }
 
@@ -833,6 +836,9 @@ function favouriteTest(userId) {
     return (ch) => favs.has(`${ch.sourceId}:${ch.stableId || ch.id}`) || favs.has(`${ch.sourceId}:${ch.id}`);
 }
 
+/** #191: C-I answers only events ending after its build's start; earlier ones are kept for the overrun rule alone. */
+const keptFrom = (built) => (Number.isFinite(built.from) ? built.from : -Infinity);
+
 /** One cached event as C-I answers it: its channels best first (quality, health ok, favourite, guide order). */
 function eventOut(ev, now, isFav, withRule = false) {
     const channels = ev.channels.slice().sort((a, b) =>
@@ -862,12 +868,31 @@ function eventOut(ev, now, isFav, withRule = false) {
  * #160: the events (kind `event`) of one league overlapping [from, to), as eventsFor would answer them, without ordering
  * or building any other event: a sport page needs a handful, not the whole 72 h answer (~100-200 ms on a large guide).
  */
-async function leagueEvents({ league, from, to, userId, now = Date.now(), decorateChannels } = {}) {
+async function leagueEvents({ league, from, to, userId, now = Date.now(), decorateChannels, ended = false } = {}) {
+    const built = await cachedEvents(now, decorateChannels);
+    const isFav = favouriteTest(userId);
+    const events = [];
+    // #191: `ended` adds the airings that ended within OVERRUN_MAX of `now` (the overrun rule, sportOverrun.js).
+    const after = ended ? now - OVERRUN_MAX : keptFrom(built);
+    for (const ev of built.events) {
+        if (ev.league !== league || ev.kind !== 'event' || !(ev.end > from && ev.start < to && ev.end > after)) continue;
+        events.push(eventOut(ev, now, isFav));
+    }
+    return events;
+}
+
+/**
+ * #191: the events (kind `event`) of these leagues whose airing ended within OVERRUN_MAX of `now` (end <= now), as
+ * leagueEvents answers them, for the dashboard and front page's overrun rule (sportOverrun.js). Never in C-I's answer.
+ */
+async function endedEvents({ leagues, userId, now = Date.now(), decorateChannels } = {}) {
+    const wanted = new Set(leagues || []);
+    if (!wanted.size) return [];
     const built = await cachedEvents(now, decorateChannels);
     const isFav = favouriteTest(userId);
     const events = [];
     for (const ev of built.events) {
-        if (ev.league !== league || ev.kind !== 'event' || !(ev.end > from && ev.start < to)) continue;
+        if (!wanted.has(ev.league) || ev.kind !== 'event' || !(ev.end <= now && ev.end > now - OVERRUN_MAX)) continue;
         events.push(eventOut(ev, now, isFav));
     }
     return events;
@@ -889,9 +914,10 @@ async function eventsFor({ hours, userId, now = Date.now(), withRule = false, in
 
     const events = [];
     const all = include === 'all';
+    const after = keptFrom(built);
     for (const ev of built.events) {
         if (!all && !DEFAULT_KINDS.has(ev.kind)) continue;
-        if (!(ev.end > now && ev.start < now + span)) continue;
+        if (!(ev.end > now && ev.start < now + span && ev.end > after)) continue;
         events.push(eventOut(ev, now, isFav, withRule));
     }
     events.sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]
@@ -956,7 +982,8 @@ async function prepareBuilt(built) {
     const jsons = new Map(); // channel -> its JSON, shared by every event naming it
     const entries = [];
     const byFav = new Map(); // "sourceId:identity" -> entries with such a channel
-    const sorted = built.events.slice().sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]
+    const after = keptFrom(built); // #191: the overrun rule's ended airings are never in C-I's answer
+    const sorted = built.events.filter(ev => ev.end > after).sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]
         || a.start - b.start || a.title.localeCompare(b.title));
     for (let i = 0; i < sorted.length; i++) {
         const ev = sorted[i];
@@ -1130,7 +1157,7 @@ module.exports = {
     classify, compileFollow, followedKeyword, normaliseTitle, qualityFromName, leagueFromCategories,
     // R5: recording rules match events the way the follow list does, and find a series' channel
     visibleChannels,
-    getFollow, setFollow, cleanFollow, eventsFor, leagueEvents, buildEvents, clampHours, stats, eventsResponse,
+    getFollow, setFollow, cleanFollow, eventsFor, leagueEvents, endedEvents, buildEvents, clampHours, stats, eventsResponse,
     // for tests: what the response cache holds, and an empty one
     responseCacheSize: () => ({ entries: responses.size, bytes: responseBytes }),
     clearResponses: () => { responses.clear(); responseBytes = 0; },

@@ -300,6 +300,12 @@ is still eligible at selection rather than using a raw score transition as an ea
 final and need explicit retention behavior. At midnight, recently ended cards from yesterday may remain until their
 hour expires; otherwise today's filter would hide them early.
 
+Overrun (0386, #191; `services/sportOverrun.js`, the one rule for C-O/C-R and the F1, NFL and Cricket pages): while the
+status a surface reports is ongoing, a matched channel whose guide airing ended within 4 h is projected to now + 10 min
+(`overrun: true`), so Watch survives a game running past its slot and lapses within 10 min of it ending. The event build
+keeps a game's airings for 4 h after they end for this alone (`leagueEvents({ ended })`, `endedEvents`); C-I never
+answers them.
+
 A uniform fixed delay **reduces** spoilers; it cannot synchronize heterogeneous channel encodes, upstream score lag,
 client buffering, stalls or timeshifted recordings. Automatic broadcast alignment and scoring a recording from its
 playhead would require additional evidence/data and are out of scope. Recommend increasing delay or Avoid spoilers

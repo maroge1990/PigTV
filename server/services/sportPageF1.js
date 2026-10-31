@@ -19,6 +19,7 @@
  */
 const espn = require('./sportsFixturesEspn');
 const { f1Session } = require('./sportsFixtures');
+const overrun = require('./sportOverrun');
 
 const SITE = 'https://site.api.espn.com/apis/site/v2/sports/racing/f1';
 const STANDINGS = 'https://site.api.espn.com/apis/v2/sports/racing/f1/standings';
@@ -177,7 +178,7 @@ const SESSION_GRACE_MS = 30 * 60 * 1000;
  * whose own airing (C-I channel start/end, 0337) covers the session's start within 30 min either way. Best first,
  * once each.
  */
-function channelsForSessions(sessions, events) {
+function channelsForSessions(sessions, events, { now } = {}) {
     const f1 = (events || []).filter(e => e.league === 'F1' && e.kind === 'event');
     const out = new Map();
     for (const s of sessions) {
@@ -193,8 +194,10 @@ function channelsForSessions(sessions, events) {
                 if (!(start <= s.start + SESSION_GRACE_MS && end > s.start - SESSION_GRACE_MS)) continue;
                 const key = `${ch.sourceId}:${ch.id}`;
                 if (seen.has(key)) continue;
+                const kept = overrun.keep(ch, e, s.status === 'live', now);
+                if (!kept) continue;
                 seen.add(key);
-                list.push(ch);
+                list.push(kept);
             }
         }
         if (list.length) out.set(s.id, list);

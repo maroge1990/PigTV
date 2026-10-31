@@ -429,6 +429,13 @@ They answer `Cache-Control: private, no-store`; no shared response cache or clie
   snapshot, including after a newer correction; existing 0309 history is upgraded before the worker reads it.
   Last-known state survives pruning. A first-seen historic final intentionally buffers as unknown until eligibility,
   then disappears because no trustworthy completion transition was observed; no recent-result hour is fabricated.
+- Since 0386 (#191, additive): **a game that overruns its guide slot keeps its channels.** While the card's own projected
+  `status` (the delayed, eligible, fresh snapshot) is `live`, `break` or `suspended`, a channel whose matched airing of
+  that game ended (its `end` <= now) no more than 4 hours ago is still listed, with `overrun: true` and, where channel
+  times are sent (C-R), `end` = now + 10 minutes (`start` unchanged); each refresh rolls it on. `canWatch`,
+  `broadcastStatus: "on-tv"` and `availability: "matched"` follow. Stale, unknown, scheduled or finished cards, and
+  airings that did not join the game, are never extended, so Watch goes within 10 minutes of the feed saying anything
+  but ongoing. Ended airings are not added to `events`. C-I's own answer is unchanged (it still drops ended events).
 
 Collection is separate from C-I's 30-minute fixtures: at most 12 public ESPN network attempts per 30-second tick across
 all dashboard sources/dates, with two in flight, including dated cricket discovery. Known in-play/near-start source
@@ -590,6 +597,7 @@ on a race weekend, 1 h otherwise; nothing is fetched unless the page is asked fo
     constructor's `team` is null and `teamColor` its colour. Names are the race's own, without the title sponsor.
 - Spoilers are the client's: the server always sends results, `top` and standings; with the global spoiler-free switch
   on, the client hides them (PRODUCT.md › Sport). Watch/Record on a session use its channel's own times (C-I, #20).
+- Since 0386 (#191): a `live` session's channels keep an airing that ended up to 4 h ago, `overrun: true`, as C-O.
 - Since 0346 (#68, #67): `GET /api/sports/pages/preferences` (any user) → `{ spoilerFree, following: { F1 } }`, one
   for the whole household (every account and device; D-37). `PUT` the same path (any user) with `spoilerFree`
   (strict boolean) and/or `following: { F1: name | null }` (a driver's name as the page gives it, ≤ 80 characters);
@@ -624,6 +632,7 @@ The NFL page (mock-up "NFL · Apple TV", DESIGN.md › Sport pages), built like 
     Conference view orders a conference by `seed`; Overall orders all 32 by win share.
 - Spoilers are the client's, as C-P: with the household's spoiler-free switch on, scores, `detail` after kick-off,
   `situation`, records, seeds and streaks are hidden. Watch/Record use a channel's own times (C-I, #20).
+- Since 0386 (#191): a `live` game's channels keep an airing that ended up to 4 h ago, `overrun: true`, as C-O.
 - Since 0379 the preferences (C-P) carry `following.NFL`: a team abbreviation ("GB") or null, the household's. `PUT`
   takes it like `F1` (≤ 80 characters); a server before 0379 answers 400 to it, so send it only with this flag.
 
@@ -651,7 +660,8 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
   - `games[]`: C-O cards (each once; rails, follows and the hero point at ids), with additive `followed` (boolean) and
     per-channel `start`/`end` on `channels[]`. Finished games from today are kept (status `finished`) so the page can
     show results. With the household's `spoilerFree` on, no card carries `scores` or `situation`, and `progress` keeps
-    only neutral fields, as C-O does for `avoidSpoilers`.
+    only neutral fields, as C-O does for `avoidSpoilers`. Since 0386 (#191) a live card past its guide slot keeps its
+    channels, `overrun: true` with `end` rolled on, as C-O.
 - Badges: `competitors[].logo` is a logo-cache path when the feed has one; the client shows it beside every score and
   team name, the monogram disc only as a fallback. The hero band's backdrop is the F1 circuit map (C-P `info.map`) for a
   race, else the hero team's badge, faded.
@@ -695,3 +705,5 @@ on demand (kept 2 min while the lead is in play, 10 min on a match day, 1 h othe
   `summary`, `crease` and `seriesLine`, every `result`, and each of `others[]`' `scores` and `line` (the feed's summary,
   which carries the match situation) are hidden; `day`, `status`, `breakLabel`, `days`, `nextStart` and the teams stay. Watch/Record use a
   channel's own times (C-I, #20).
+- Since 0386 (#191): a match whose day is in play (`live`, or a `break` other than stumps) keeps an airing that ended up
+  to 4 h ago in its `channels`, `overrun: true`, as C-O.

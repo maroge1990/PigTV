@@ -86,17 +86,22 @@ function arrange(response, prefs) {
     return { now: response.now, timezone: response.timezone, spoilerFree: prefs.spoilerFree, scores, sports, follows, hero, rails, games };
 }
 
-/** The front page for a signed-in user. `events()` answers C-I's cached 72-hour events ({ body }). Throws on a worker failure. */
-async function front({ userId, events, now = Date.now() }) {
+/**
+ * The front page for a signed-in user. `events()` answers C-I's cached 72-hour events ({ body }); `ended(leagues)`, if
+ * given, the airings of those leagues that ended within the overrun window (#191, sportsEvents.endedEvents). Throws on a
+ * worker failure.
+ */
+async function front({ userId, events, ended = null, now = Date.now() }) {
     const dashboard = require('./sportsDashboard');
     const prefs = require('./sportPagePrefs').get();
     const timezone = dashboard.timezone();
     if (!prefs.sports.length) return emptyFront({ now, timezone, spoilerFree: prefs.spoilerFree });
     dashboard.store(); // the tables exist before the read-only worker opens them
     const cached = await events();
+    const endedEvents = ended ? await ended(new Set(prefs.sports)) : [];
     const response = await dashboard.response({ eventsBody: cached.body, options: { now, userId, timezone,
         league: null, leagues: new Set(prefs.sports), follow: null, broadLeagues: new Set(),
-        keepFinishedToday: true, teams: prefs.teams, spoilerFree: prefs.spoilerFree, channelTimes: true, upcomingHours: 72 } });
+        keepFinishedToday: true, teams: prefs.teams, spoilerFree: prefs.spoilerFree, channelTimes: true, upcomingHours: 72, endedEvents } });
     require('./logoCache').applyLogoCache(response.games.flatMap(g => g.competitors));
     return arrange(response, prefs);
 }

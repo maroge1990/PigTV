@@ -3,6 +3,7 @@ const classify = require('./sportsClassify');
 const fixtures = require('./sportsFixtures');
 const espn = require('./sportsScoresEspn');
 const { createStore } = require('./sportsDashboardStore');
+const { overrunEnd } = require('./sportOverrun');
 const H = 3600000;
 // 0381 (D-39): the score collector runs by default (PIGTV_SPORTS_DASHBOARD=0 turns it off) whenever ESPN fixtures are on,
 // for the Sport front page; the legacy /dashboard and /preferences routes stay opt-in (=1) for the current Apple app.
@@ -95,18 +96,27 @@ function matchBroadcasts(games, events, represented = new Set(), unresolved = ne
     }
     return found;
 }
-function channelsFor(events, now, includeUpcoming=false, times=false) {
+// #191 (0386): `ongoing` (the card's projected status is live, break or suspended) applies the overrun rule
+// (sportOverrun.js): a channel whose airing of the game has ended within OVERRUN_MAX is projected as still airing,
+// `overrun: true` with its end rolled on. `ended` are the game's matched airings that have already ended.
+function channelsFor(events, now, includeUpcoming=false, times=false, ongoing=false, ended=[]) {
     const seen=new Set(),out=[];
     // C-I live is stamped when its per-minute cache is built; eligibility uses current airing bounds.
-    for(const event of events.filter(e=>(e.start<=now && now<e.end) || (includeUpcoming && e.start>now))) {
+    const current=events.filter(e=>(e.start<=now && now<e.end) || (includeUpcoming && e.start>now));
+    const over=new Map(ongoing ? [...events,...ended].filter(e=>e.end<=now).map(e=>[e.id,e]) : []);
+    for(const event of [...current,...over.values()]) {
+        const gone=event.end<=now;
         for(const c of event.channels || []) {
             const key=`${c.sourceId}:${c.stableId || c.id}`;
             if(seen.has(key)) continue;
+            const extended=overrunEnd(Number.isFinite(c.end) ? c.end : event.end,ongoing,now);
+            if(gone && extended===null) continue; // an ended airing counts only while the overrun rule extends it
             seen.add(key);
             // Explicit projection: no upstream URL, alias prose, internal fields or credentials reach the client.
             out.push({sourceId:c.sourceId,id:c.id,stableId:c.stableId || null,name:c.name,number:c.number || null,logo:c.logo || null,quality:c.quality || null,
                 // 0381: the channel's own airing bounds (C-I), only when asked for (the front page).
-                ...(times ? {start:Number.isFinite(c.start) ? c.start : null,end:Number.isFinite(c.end) ? c.end : null} : {})});
+                ...(times ? {start:Number.isFinite(c.start) ? c.start : null,end:extended ?? (Number.isFinite(c.end) ? c.end : null)} : {}),
+                ...(extended!==null ? {overrun:true} : {})});
         }
     }
     return out;
@@ -135,7 +145,7 @@ function followMatchesFor(g,teams) {
 // cards, `spoilerFree` (the household switch) overrides the account's avoidSpoilers, channelTimes projects airing bounds,
 // upcomingHours keeps what starts within that many hours whatever its local day (tomorrow's fixtures; 0382).
 function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagues=null,follow=null,broadLeagues=new Set(),timezone:zone=timezone(),
-    keepFinishedToday=false,teams=null,spoilerFree,channelTimes=false,upcomingHours=0}={}) {
+    keepFinishedToday=false,teams=null,spoilerFree,channelTimes=false,upcomingHours=0,endedEvents=[]}={}) {
     const prefs=store.preferences(userId),today=localDay(now,zone);
     const hidden=typeof spoilerFree==='boolean' ? spoilerFree : prefs.avoidSpoilers;
     const followMatches=teams ? {} : null;
@@ -144,6 +154,9 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
     const endedAt=new Map([...view.selected].filter(([,s])=>s.data.state==='finished')
         .map(([id,s])=>[id,s.finishedAt===null ? null : s.finishedAt+prefs.scoreDelaySeconds*1000]));
     const catalog=view.catalog,represented=new Set(),unresolved=new Set(),matches=matchBroadcasts(catalog,events,represented,unresolved,endedAt),games=[];
+    // #191: airings that have already ended (sportsEvents.endedEvents), joined exactly as the current ones but on their own,
+    // so they never change a card's `events`, nor which guide listings count as represented or unresolved.
+    const endedMatches=matchBroadcasts(catalog,endedEvents.filter(e=>e.end<=now),new Set(),new Set(),endedAt);
     for(const g of catalog) {
         if(league && league!==g.league || leagues && !leagues.has(g.league)) continue;
         if(follow && !broadLeagues.has(g.league) && !follow.some(k=>classify.canonicalLeague(k)===g.league)) {
@@ -170,11 +183,13 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
         if(g.start>horizon || (!league && localDay(g.start,zone)!==today && !ongoing && !recent && !pending && !onGuide && !upcoming)) continue;
         if(g.start<now-8*24*H || (g.start<now-12*H && !ongoing && !recent && !finalToday && !pending && !onGuide && (!g.end || g.end<now))) continue;
         const terminal=['finished','cancelled','postponed'].includes(state);
-        const liveChannels=terminal ? [] : channelsFor(airings,now,false,channelTimes);
-        const channels=liveChannels.length ? liveChannels : terminal ? [] : channelsFor(airings,now,true,channelTimes);
         const shown=fresh || finalToday; // a final does not go stale
         const scheduled=g.start>now && (state==='scheduled' || !selected);
         const projectedState=scheduled ? 'scheduled' : finalToday ? 'finished' : !fresh ? 'unknown' : state;
+        // #191: only the status this card reports (delayed, eligible, fresh) extends an overrunning airing.
+        const extend=!terminal && ['live','break','suspended'].includes(projectedState);
+        const liveChannels=terminal ? [] : channelsFor(airings,now,false,channelTimes,extend,endedMatches.get(g.id));
+        const channels=liveChannels.length ? liveChannels : terminal ? [] : channelsFor(airings,now,true,channelTimes);
         const card={id:g.id,league:g.league,title:g.title,start:g.start,end:g.end,session:g.session,circuit:g.circuit,format:g.format || null,
             competitors:g.competitors.map(({id,name,logo})=>({id,name,logo})),
             status:projectedState, ...(fresh && selected.data.breakLabel ? {breakLabel:selected.data.breakLabel}:{}),

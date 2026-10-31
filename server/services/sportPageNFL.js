@@ -17,6 +17,7 @@
  * defensively, a missing one is null, and nothing here throws.
  */
 const espn = require('./sportsFixturesEspn');
+const overrun = require('./sportOverrun');
 
 const SITE = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl';
 const STANDINGS = 'https://site.api.espn.com/apis/v2/sports/football/nfl/standings?level=3';
@@ -126,7 +127,7 @@ function standingsOf(json, teams, registerImage) {
  * names exactly one team, one of this game's, when it is the only such event around. Best channels first, as C-I orders
  * them.
  */
-function channelsForGames(games, events, teams) {
+function channelsForGames(games, events, teams, { now } = {}) {
     const nfl = (events || []).filter(e => e.league === 'NFL' && e.kind === 'event');
     const out = new Map();
     const words = (text) => ` ${String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ')} `;
@@ -153,8 +154,10 @@ function channelsForGames(games, events, teams) {
             for (const ch of e.channels || []) {
                 const key = `${ch.sourceId}:${ch.id}`;
                 if (seen.has(key)) continue;
+                const kept = overrun.keep(ch, e, g.status === 'live', now); // #191: a game on past its slot
+                if (!kept) continue;
                 seen.add(key);
-                list.push(ch);
+                list.push(kept);
             }
         }
         if (list.length) out.set(g.id, list);

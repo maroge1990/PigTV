@@ -192,6 +192,8 @@ test('others: the other competitions today and tomorrow, live and at stumps, wit
         'tomorrow\'s game, no 0 for a team that has not batted');
     assert.ok(p.others.findIndex(x => x.id === '1543947') < p.others.findIndex(x => x.id === '1544871'), 'in play before stumps');
     assert.ok(windows.every(w => w.end > w.start && Array.isArray(w.teams)));
+    // #191: the overrun rule's `inPlay`: the WBBL game live, the Shield at stumps not.
+    assert.deepEqual([windows.find(w => w.id === '1543947').inPlay, windows.find(w => w.id === '1544871').inPlay], [true, false]);
     const cached = await cricket.page(NOW + 1000);
     assert.ok(cached.others.every(x => Array.isArray(x.channels) && !x.channels.length), 'channels belong to the request, not the cache');
 });
