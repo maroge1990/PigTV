@@ -39,6 +39,7 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 | `sportsEvents` | 0148 | `GET /api/sports/events` (C-I) | Sport tab, Home "Sport now & next", `hours=72` |
 | `sportPages` | 0340 | `GET /api/sports/pages/f1` (C-P), on whenever ESPN fixtures are | The Formula 1 page (sport rebuild, #21) |
 | `sportPageNfl` | 0379 | `GET /api/sports/pages/nfl` (C-Q), on whenever ESPN fixtures are | The NFL page (#21) |
+| `sportFront` | 0381 | `GET /api/sports/front` (C-R), on whenever ESPN fixtures are and `PIGTV_SPORTS_DASHBOARD` is not `0` | The Sport front page (D-39) |
 | `scheduleHistory` | 0156 | `recordings/scheduled?include=recent` adds missed/failed of the last 7 days | Asks `include=recent` |
 | `providerReminders` | 0168 | `GET /api/providers/reminders` (C-K) | Daily reminder popup |
 | `providers` | 0174 | Resolve carries `provider` (C-J) | Shown in Stream info |
@@ -143,6 +144,7 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 | C-O Sport dashboard foundation | `sportsDashboard` | 0309 (opt-in) | 59 |
 | C-P Sport pages: Formula 1 | `sportPages` | 0340 | (sport rebuild) |
 | C-Q Sport pages: NFL | `sportPageNfl` | 0379 | (sport rebuild) |
+| C-R Sport front page | `sportFront` | 0381 | (sport rebuild) |
 
 C-A to C-K are implemented on both sides and verified on devices (results in `docs/archive/TEST-BLOCK-2026-10-13.md`). C-L
 onwards are not verified yet.
@@ -623,3 +625,38 @@ The NFL page (mock-up "NFL · Apple TV", DESIGN.md › Sport pages), built like 
 - Since 0379 the preferences (C-P) carry `following.NFL`: a team abbreviation ("GB") or null, the household's. `PUT`
   takes it like `F1` (≤ 80 characters); a server before 0379 answers 400 to it, so send it only with this flag.
 
+### C-R. The Sport front page. Flag: `sportFront` (0381, #21, D-39)
+
+What the Sport tab opens on (mock-up "Blend 1", DESIGN.md › Sport pages): the household's followed sports as tiles, a
+hero band (the hero on the left, the followed teams and drivers as a flip list on the right), then a rail per followed
+sport. Built from the C-O score catalog (its collector now runs whenever ESPN fixtures are on; `PIGTV_SPORTS_DASHBOARD=0`
+turns it off) and C-I's guide events. The legacy C-O routes and `features.sportsDashboard` keep their old flag.
+
+- `GET /api/sports/front` (any user) → `{ now, timezone, spoilerFree, scores, sports, follows, hero, rails, games }`
+  - `scores`: `"fresh"` (at least one score card is current) | `"stale"` (cards exist, none current) | `"unavailable"`
+    (no score data at all: the page says so once and shows the guide's channels and times, no scores or results).
+  - `sports[]`, in the household's order: `{ league, live (count), next: { gameId, start } | null, line }`; `line`
+    is `"live"` | `"next"` | `"quiet"` (the client words it: "Race live", "2 live", a start time, "Nothing scheduled").
+  - `follows[]`, one per followed team or driver in the household's order: `{ league, name, logo, state, gameId,
+    start }`; `state` `"live"` | `"next"` | `"none"`; `logo` the competitor's logo-cache path or null (drivers: null).
+  - `hero`: `{ reason, followIndex, gameId }`. `reason`: `"follow-live"` (a follow is live; the one closest to
+    finishing wins a tie) | `"league-live"` (a live game in the highest-ranked followed sport) | `"follow-next"` (the
+    next start for a follow) | `"guide"` (without scores, the guide's live sport channel) | `"none"`. The client keeps
+    the hero until its event ends unless a follow goes live, and lets a long press on any card make it the hero.
+  - `rails[]`, in the household's order: `{ league, gameIds }`: live first (earliest start first), then today's finished
+    games (results), then upcoming by start.
+  - `games[]`: C-O cards (each once; rails, follows and the hero point at ids), with additive `followed` (boolean) and
+    per-channel `start`/`end` on `channels[]`. Finished games from today are kept (status `finished`) so the page can
+    show results. With the household's `spoilerFree` on, no card carries `scores` or `situation`, and `progress` keeps
+    only neutral fields, as C-O does for `avoidSpoilers`.
+- Badges: `competitors[].logo` is a logo-cache path when the feed has one; the client shows it beside every score and
+  team name, the monogram disc only as a fallback. The hero band's backdrop is the F1 circuit map (C-P `info.map`) for a
+  race, else the hero team's badge, faded.
+- Following (0381): `GET/PUT /api/sports/pages/preferences` becomes `{ spoilerFree, sports: [league, …], teams: {
+  [league]: [name, …] }, following: { F1, NFL } }`. `sports` is the ordered list of followed sports (canonical league
+  names, at most 20); `teams[league]` the followed teams or drivers inside a followed sport (at most 10 names of at most
+  80 characters each; a league not in `sports` is a 400). `following` is kept as a derived view (`teams[page][0]` or
+  null) and writing it still works. On the first read after 0381 the server derives `sports` and `teams` from the admin
+  follow list ("NFL", "NFL: Green Bay Packers") once. The follow list and sport categories still decide which guide
+  programmes are sport (C-I); the household's `sports` also decide which leagues the collector fetches.
+- A server before 0381 answers 404 to `/api/sports/front` and 400 to `sports`/`teams`: send them only with this flag.

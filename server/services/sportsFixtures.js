@@ -78,7 +78,7 @@ function enabled() {
 
 // ---- which leagues matter right now -------------------------------------------------------
 
-/** The follow list's own canonical leagues (sportsClassify.canonicalLeague of each keyword). */
+/** The follow list's own canonical leagues (sportsClassify.canonicalLeague of each keyword), and the household's sports. */
 function followedLeagues(db) {
     const rows = db.prepare('SELECT keyword FROM sports_follow').all();
     const out = new Set();
@@ -87,6 +87,8 @@ function followedLeagues(db) {
         const l = sportsClassify.canonicalLeague(r.keyword) || sportsClassify.teamFollow(r.keyword)?.league;
         if (l) out.add(l);
     }
+    // 0381 (D-39): and the sports the household follows on the Sport front page.
+    try { for (const l of require('./sportPagePrefs').get(db).sports) out.add(l); } catch { /* the follow list alone */ }
     return out;
 }
 
@@ -331,7 +333,8 @@ async function refreshCricket({ now = Date.now(), db = getDb() } = {}) {
 // A dashboard-enabled host cooldown defers the rest of a pass without marking those leagues
 // as failed. Retry once the cooldown ends rather than leaving them stale for another 30 minutes.
 let cooldownRetryTimer = null;
-function sharedCooldown() { return process.env.PIGTV_SPORTS_DASHBOARD === '1' && requestPolicy.blocked(); }
+// 0381: the score collector runs by default now, so its ESPN cooldown is shared whenever it is on.
+function sharedCooldown() { return require('./sportsDashboard').collectorEnabled() && requestPolicy.blocked(); }
 function scheduleCooldownRetry() {
     if (!enabled() || !sharedCooldown() || cooldownRetryTimer) return;
     const wait = Math.max(1000, requestPolicy.retryAt() - Date.now() + 1000);

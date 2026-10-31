@@ -15,7 +15,8 @@
  *       -> { now, events } for the next 72 hours (0153), every kind, each also with `rule`
  *          ("keyword" | "category" | "sportChannel"), `match` (what matched) and
  *          `kindRule` (why it is that kind, e.g. "placeholder: ends in a bare \":\"")
- *   GET/PUT /api/sports/pages/preferences (any user; 0346) -> { spoilerFree, following: { F1 } }, one for the household
+ *   GET/PUT /api/sports/pages/preferences (any user; 0346) -> { spoilerFree, sports, teams, following: { F1, NFL } }, one for the household
+ *   GET /api/sports/front            (any user; 0381, D-39) -> the Sport front page (services/sportFront.js)
  *   GET /api/sports/categories       (admin; 0147)
  *       -> [{category, programmes}] the EPG categories in the live guide with how
  *          many programmes carry each, most used first, at most 200 (web Status page)
@@ -32,7 +33,8 @@ router.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); }
 
 // Opt-in additive dashboard API; the existing /events contract is unchanged.
 const dashboard = require('../services/sportsDashboard');
-const dashboardEnabled = (req, res, next) => dashboard.enabled() ? next() : res.status(404).json({ error: 'Sports dashboard disabled' });
+// 0381: these legacy routes stay opt-in (PIGTV_SPORTS_DASHBOARD=1); the collector itself runs by default (front page).
+const dashboardEnabled = (req, res, next) => dashboard.dashboardEnabled() ? next() : res.status(404).json({ error: 'Sports dashboard disabled' });
 router.get('/preferences', dashboardEnabled, (req, res) => {
     res.set('Cache-Control', 'private, no-store');
     try { res.json(dashboard.store().preferences(req.user.id)); }
@@ -58,6 +60,21 @@ router.get('/dashboard', dashboardEnabled, async (req, res) => {
         applyLogoCache(response.games.flatMap(g => g.competitors));
         res.json(response);
     } catch { res.status(500).json({ error: 'Could not list the sports dashboard' }); }
+});
+
+// 0381 (D-39): the Sport front page, from the household's followed sports and teams (sportPagePrefs) and the collector's
+// scores. On whenever the collector is (sportsDashboard.collectorEnabled).
+router.get('/front', async (req, res) => {
+    res.set('Cache-Control', 'private, no-store');
+    if (!dashboard.collectorEnabled()) return res.status(404).json({ error: 'The sport front page is off on this server' });
+    try {
+        channelNumbers.ensureChannelNumbers();
+        res.json(await require('../services/sportFront').front({ userId: req.user.id,
+            events: () => sportsEvents.eventsResponse({ hours: 72, userId: req.user.id, decorateChannels }) }));
+    } catch (err) {
+        console.error('[Sports] front page failed:', err.message);
+        res.status(500).json({ error: 'Could not build the sport front page' });
+    }
 });
 
 // Logos as the library hands them out: the EPG's icon when the playlist has none,

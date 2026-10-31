@@ -4,7 +4,11 @@ const fixtures = require('./sportsFixtures');
 const espn = require('./sportsScoresEspn');
 const { createStore } = require('./sportsDashboardStore');
 const H = 3600000;
-const enabled = () => process.env.PIGTV_SPORTS_DASHBOARD === '1';
+// 0381 (D-39): the score collector runs by default (PIGTV_SPORTS_DASHBOARD=0 turns it off) whenever ESPN fixtures are on,
+// for the Sport front page; the legacy /dashboard and /preferences routes stay opt-in (=1) for the current Apple app.
+const collectorEnabled = () => process.env.PIGTV_SPORTS_DASHBOARD !== '0' && fixtures.enabled();
+const dashboardEnabled = () => process.env.PIGTV_SPORTS_DASHBOARD === '1';
+const enabled = dashboardEnabled;
 const dateFormats = new Map();
 function localDay(ms, timezone) {
     if (!dateFormats.has(timezone)) {
@@ -91,7 +95,7 @@ function matchBroadcasts(games, events, represented = new Set(), unresolved = ne
     }
     return found;
 }
-function channelsFor(events, now, includeUpcoming=false) {
+function channelsFor(events, now, includeUpcoming=false, times=false) {
     const seen=new Set(),out=[];
     // C-I live is stamped when its per-minute cache is built; eligibility uses current airing bounds.
     for(const event of events.filter(e=>(e.start<=now && now<e.end) || (includeUpcoming && e.start>now))) {
@@ -100,7 +104,9 @@ function channelsFor(events, now, includeUpcoming=false) {
             if(seen.has(key)) continue;
             seen.add(key);
             // Explicit projection: no upstream URL, alias prose, internal fields or credentials reach the client.
-            out.push({sourceId:c.sourceId,id:c.id,stableId:c.stableId || null,name:c.name,number:c.number || null,logo:c.logo || null,quality:c.quality || null});
+            out.push({sourceId:c.sourceId,id:c.id,stableId:c.stableId || null,name:c.name,number:c.number || null,logo:c.logo || null,quality:c.quality || null,
+                // 0381: the channel's own airing bounds (C-I), only when asked for (the front page).
+                ...(times ? {start:Number.isFinite(c.start) ? c.start : null,end:Number.isFinite(c.end) ? c.end : null} : {})});
         }
     }
     return out;
@@ -111,8 +117,27 @@ function progressFor(game,progress,hidden) {
     const {period,...rest}=progress;
     return rest;
 }
-function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagues=null,follow=null,broadLeagues=new Set(),timezone:zone=timezone()}={}) {
+// 0381 (D-39): which followed names (teams[league]) a card's competitors are. F1: a followed driver races in every session.
+function followMatchesFor(g,teams) {
+    const names=(teams?.[g.league] || []).filter(n=>typeof n==='string' && n);
+    if(!names.length) return [];
+    if(g.league==='F1') return names.map(name=>({name,competitor:null}));
+    const out=[];
+    for(const name of names) {
+        const wanted=norm(name);
+        if(!wanted) continue;
+        const competitor=g.competitors.findIndex(c=>[c.name,...(c.aliases || [])].some(a=>typeof a==='string' && norm(a)===wanted));
+        if(competitor>=0) out.push({name,competitor});
+    }
+    return out;
+}
+// Front-page options (0381), all off for /dashboard: keepFinishedToday keeps today's finals, `teams` marks followed
+// cards, `spoilerFree` (the household switch) overrides the account's avoidSpoilers, channelTimes projects airing bounds.
+function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagues=null,follow=null,broadLeagues=new Set(),timezone:zone=timezone(),
+    keepFinishedToday=false,teams=null,spoilerFree,channelTimes=false}={}) {
     const prefs=store.preferences(userId),today=localDay(now,zone);
+    const hidden=typeof spoilerFree==='boolean' ? spoilerFree : prefs.avoidSpoilers;
+    const followMatches=teams ? {} : null;
     // All catalog entries participate in ambiguity checks, even when filtered out of the requested view.
     const view=store.view(now,prefs.scoreDelaySeconds);
     const endedAt=new Map([...view.selected].filter(([,s])=>s.data.state==='finished')
@@ -137,26 +162,34 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
         const pending=['unknown','scheduled'].includes(state) && g.start<=now && now-g.start<=pendingHours*H;
         const horizon=league ? now+72*H : Infinity;
         const recent=state==='finished' && selected.finishedAt!==null && now<selected.finishedAt+prefs.scoreDelaySeconds*1000+H;
-        if(state==='finished' && !recent) continue;
+        // A final from today stays on the front page with its (delayed) result, however long ago it ended.
+        const finalToday=keepFinishedToday && state==='finished' && localDay(g.start,zone)===today;
+        if(state==='finished' && !recent && !finalToday) continue;
         if(g.start>horizon || (!league && localDay(g.start,zone)!==today && !ongoing && !recent && !pending && !onGuide)) continue;
-        if(g.start<now-8*24*H || (g.start<now-12*H && !ongoing && !recent && !pending && !onGuide && (!g.end || g.end<now))) continue;
+        if(g.start<now-8*24*H || (g.start<now-12*H && !ongoing && !recent && !finalToday && !pending && !onGuide && (!g.end || g.end<now))) continue;
         const terminal=['finished','cancelled','postponed'].includes(state);
-        const liveChannels=terminal ? [] : channelsFor(airings,now);
-        const channels=liveChannels.length ? liveChannels : terminal ? [] : channelsFor(airings,now,true);
+        const liveChannels=terminal ? [] : channelsFor(airings,now,false,channelTimes);
+        const channels=liveChannels.length ? liveChannels : terminal ? [] : channelsFor(airings,now,true,channelTimes);
+        const shown=fresh || finalToday; // a final does not go stale
         const scheduled=g.start>now && (state==='scheduled' || !selected);
-        const projectedState=scheduled ? 'scheduled' : !fresh ? 'unknown' : state;
+        const projectedState=scheduled ? 'scheduled' : finalToday ? 'finished' : !fresh ? 'unknown' : state;
         const card={id:g.id,league:g.league,title:g.title,start:g.start,end:g.end,session:g.session,circuit:g.circuit,format:g.format || null,
             competitors:g.competitors.map(({id,name,logo})=>({id,name,logo})),
             status:projectedState, ...(fresh && selected.data.breakLabel ? {breakLabel:selected.data.breakLabel}:{}),
             freshness:!selected ? 'buffering' : fresh ? 'fresh' : 'stale',observedAt:at,
-            progress:fresh ? progressFor(g,selected.data.progress,prefs.avoidSpoilers) : {},
+            progress:shown ? progressFor(g,selected.data.progress,hidden) : {},
             availability:liveChannels.length || (g.start>now && channels.length) ? 'matched' : airings.length ? 'unavailable' : 'unmatched',
             broadcastStatus:liveChannels.length ? 'on-tv' : channels.length ? 'scheduled' : 'unavailable',channels,
             // Upcoming event references retain the existing details/record workflow without inventing channels.
             events:airings.map(e=>({id:e.id,start:e.start,end:e.end})),
             canWatch:liveChannels.length>0 && !['finished','cancelled','postponed'].includes(state)};
-        if(!prefs.avoidSpoilers && fresh && selected.data.scores!==null) card.scores=selected.data.scores;
-        if(!prefs.avoidSpoilers && fresh && selected.data.situation) card.situation=selected.data.situation;
+        if(!hidden && shown && selected.data.scores!==null) card.scores=selected.data.scores;
+        if(!hidden && shown && selected.data.situation) card.situation=selected.data.situation;
+        if(followMatches) {
+            const found=followMatchesFor(g,teams);
+            card.followed=found.length>0;
+            if(found.length) followMatches[g.id]=found;
+        }
         games.push(card);
     }
     // C-I has already selected configured follows/categories. Preserve guide-only coverage,
@@ -169,19 +202,20 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
         const onNow = e.start <= now && now < e.end;
         if (!league && localDay(e.start,zone)!==today && !onNow) continue;
         seenGuide.add(e.id);
-        const liveChannels=unresolved.has(e.id) ? [] : channelsFor([e],now),channels=unresolved.has(e.id) ? [] : liveChannels.length ? liveChannels : channelsFor([e],now,true);
+        const liveChannels=unresolved.has(e.id) ? [] : channelsFor([e],now,false,channelTimes),channels=unresolved.has(e.id) ? [] : liveChannels.length ? liveChannels : channelsFor([e],now,true,channelTimes);
         games.push({id:`guide:${e.id}`,dataSource:'guide',league:e.league,
             // Guide titles are not trusted neutral team metadata. Do not expose result prose in hidden mode.
-            title:prefs.avoidSpoilers ? `${e.league} · Guide event` : e.title,
+            title:hidden ? `${e.league} · Guide event` : e.title,
             start:e.start,end:e.end,session:null,circuit:null,format:null,competitors:[],
             status:e.start>now ? 'scheduled' : 'unknown',freshness:'unavailable',observedAt:null,progress:{},
             availability:unresolved.has(e.id) ? 'unmatched' : channels.length ? 'matched' : 'unavailable',
             broadcastStatus:liveChannels.length ? 'on-tv' : channels.length ? 'scheduled' : 'unavailable',
-            channels,events:[{id:e.id,start:e.start,end:e.end}],canWatch:liveChannels.length>0});
+            channels,events:[{id:e.id,start:e.start,end:e.end}],canWatch:liveChannels.length>0,...(followMatches ? {followed:false} : {})});
     }
     const order={live:0,break:1,suspended:2,scheduled:3,unknown:4,postponed:5,cancelled:6,finished:7};
     games.sort((a,b)=>(order[a.status]-order[b.status]) || a.start-b.start || a.id.localeCompare(b.id));
-    return {now,timezone:zone,leagues:[...new Set([...(leagues || []),...games.map(g=>classify.canonicalLeague(g.league)).filter(Boolean)])].sort(),scope:league ? 'league' : 'today',hours:league ? 72 : null,preferences:prefs,games};
+    return {now,timezone:zone,leagues:[...new Set([...(leagues || []),...games.map(g=>classify.canonicalLeague(g.league)).filter(Boolean)])].sort(),scope:league ? 'league' : 'today',hours:league ? 72 : null,preferences:prefs,games,
+        ...(followMatches ? {followMatches} : {})};
 }
 function utcDates(now) {
     const out=[];
@@ -192,7 +226,7 @@ function utcDates(now) {
 const requestPolicy = require('./espnRequestPolicy');
 const REQUESTS_PER_TICK = 12;
 const CATALOG_RESERVE = 3;
-function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.neededLeagues(),clock=Date.now,enabled:isEnabled=enabled}={}) {
+function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.neededLeagues(),clock=Date.now,enabled:isEnabled=collectorEnabled}={}) {
     let running = null, timer = null, stopped = false, remaining = 0, deadline = 0, coldRequests = 0;
     const cache = new Map(), controller = new AbortController();
     // ESPN groups scoreboards by US Eastern date, so a game after 00:00Z is listed under the previous
@@ -324,6 +358,6 @@ function store() {
     if(!stores.has(db)) stores.set(db,createStore(db));
     return stores.get(db);
 }
-function start() { if(enabled() && !runtime) {runtime=createCollector({store:store()});runtime.start();} }
+function start() { if(collectorEnabled() && !runtime) {runtime=createCollector({store:store()});runtime.start();} }
 function stop() {runtime?.stop();runtime=null;require('./sportsDashboardResponse').close();}
-module.exports={enabled,localDay,timezone,matchBroadcasts,buildDashboard,createCollector,store,start,stop,response: options => require('./sportsDashboardResponse').response(options)};
+module.exports={enabled,collectorEnabled,dashboardEnabled,localDay,timezone,matchBroadcasts,buildDashboard,createCollector,store,start,stop,response: options => require('./sportsDashboardResponse').response(options)};

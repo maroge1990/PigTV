@@ -145,6 +145,8 @@ test('discoverCricketSeries: today\'s active series and their league ids, from t
 function setFollow(...keywords) {
     const d = sqlite.getDb();
     d.prepare('DELETE FROM sports_follow').run();
+    // 0381: the household's followed sports also count (sportPagePrefs, migrated once from this list); start each from none.
+    d.prepare("DELETE FROM meta WHERE key = 'sport_page_prefs'").run();
     const ins = d.prepare('INSERT INTO sports_follow (position, keyword) VALUES (?, ?)');
     keywords.forEach((k, i) => ins.run(i, k));
 }

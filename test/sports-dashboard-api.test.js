@@ -29,8 +29,14 @@ before(async()=>{
 after(async()=>{dashboard.stop();load('services/sportsEvents').shutdown();if(server?.listening) await new Promise(r=>server.close(r));load('db/sqlite').getDb().close();fs.rmSync(sandbox,{recursive:true,force:true});});
 async function request(url,token=one,body){const r=await fetch(base+url,{method:body?'PUT':'GET',headers:{...(token?{authorization:`Bearer ${token}`} : {}),'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});return {status:r.status,cache:r.headers.get('cache-control'),text:await r.text()};}
 
-test('new routes authenticate and are disabled by default without starting a collector',async()=>{
+test('legacy routes authenticate and are off by default; with PIGTV_SPORTS_DASHBOARD=0 no collector starts',async()=>{
+    // 0381 (D-39): the collector now runs by default (the front page); the legacy routes still need =1.
     delete process.env.PIGTV_SPORTS_DASHBOARD;
+    assert.equal(dashboard.collectorEnabled(),true);
+    assert.equal(dashboard.dashboardEnabled(),false);
+    assert.equal((await request('/api/sports/preferences')).status,404);
+    assert.equal((await request('/api/sports/dashboard')).status,404);
+    process.env.PIGTV_SPORTS_DASHBOARD='0';
     // Count every kind of work start() or a request could begin: score fetches, the 30 s timer and the worker.
     const espn=load('services/sportsScoresEspn'),worker=load('services/sportsDashboardResponse');
     const original={fetchJson:espn.fetchJson,response:worker.response,setInterval:global.setInterval},work=[];

@@ -1,0 +1,325 @@
+{
+  "now": 1793410062253,
+  "timezone": "Etc/GMT-9",
+  "spoilerFree": false,
+  "scores": "fresh",
+  "sports": [
+    {
+      "league": "F1",
+      "live": 0,
+      "next": {
+        "gameId": "espn:racing/f1:1",
+        "start": 1793417262249
+      },
+      "line": "next"
+    },
+    {
+      "league": "NFL",
+      "live": 1,
+      "next": {
+        "gameId": "espn:football/nfl:406",
+        "start": 1793413362249
+      },
+      "line": "live"
+    },
+    {
+      "league": "NBA",
+      "live": 1,
+      "next": null,
+      "line": "live"
+    },
+    {
+      "league": "Cricket",
+      "live": 0,
+      "next": null,
+      "line": "quiet"
+    }
+  ],
+  "follows": [
+    {
+      "league": "F1",
+      "name": "Oscar Piastri",
+      "logo": null,
+      "state": "next",
+      "gameId": "espn:racing/f1:1",
+      "start": 1793417262249
+    },
+    {
+      "league": "NFL",
+      "name": "Green Bay Packers",
+      "logo": "/api/logo/espn-gb",
+      "state": "live",
+      "gameId": "espn:football/nfl:401",
+      "start": 1793406462249
+    }
+  ],
+  "hero": {
+    "reason": "follow-live",
+    "followIndex": 1,
+    "gameId": "espn:football/nfl:401"
+  },
+  "rails": [
+    {
+      "league": "F1",
+      "gameIds": [
+        "espn:racing/f1:1"
+      ]
+    },
+    {
+      "league": "NFL",
+      "gameIds": [
+        "espn:football/nfl:401",
+        "espn:football/nfl:405",
+        "espn:football/nfl:406"
+      ]
+    },
+    {
+      "league": "NBA",
+      "gameIds": [
+        "espn:basketball/nba:1"
+      ]
+    },
+    {
+      "league": "Cricket",
+      "gameIds": [
+        "guide:ev-cricket"
+      ]
+    }
+  ],
+  "games": [
+    {
+      "id": "espn:football/nfl:401",
+      "league": "NFL",
+      "title": "Packers v Bears",
+      "start": 1793406462249,
+      "end": null,
+      "session": null,
+      "circuit": null,
+      "format": null,
+      "competitors": [
+        {
+          "id": "9",
+          "name": "Packers",
+          "logo": "/api/logo/espn-gb"
+        },
+        {
+          "id": "3",
+          "name": "Bears",
+          "logo": null
+        }
+      ],
+      "status": "live",
+      "freshness": "fresh",
+      "observedAt": 1793409962249,
+      "progress": {
+        "clock": "5:00",
+        "period": 2
+      },
+      "availability": "unmatched",
+      "broadcastStatus": "unavailable",
+      "channels": [],
+      "events": [],
+      "canWatch": false,
+      "scores": [
+        "7",
+        "3"
+      ],
+      "situation": {
+        "down": 3
+      },
+      "followed": true
+    },
+    {
+      "id": "espn:basketball/nba:1",
+      "league": "NBA",
+      "title": "Lakers v Celtics",
+      "start": 1793408262249,
+      "end": null,
+      "session": null,
+      "circuit": null,
+      "format": null,
+      "competitors": [
+        {
+          "id": "1",
+          "name": "Lakers",
+          "logo": null
+        },
+        {
+          "id": "2",
+          "name": "Celtics",
+          "logo": null
+        }
+      ],
+      "status": "live",
+      "freshness": "fresh",
+      "observedAt": 1793409962249,
+      "progress": {
+        "clock": "5:00",
+        "period": 2
+      },
+      "availability": "unmatched",
+      "broadcastStatus": "unavailable",
+      "channels": [],
+      "events": [],
+      "canWatch": false,
+      "scores": [
+        "50",
+        "48"
+      ],
+      "situation": {
+        "down": 3
+      },
+      "followed": false
+    },
+    {
+      "id": "espn:football/nfl:406",
+      "league": "NFL",
+      "title": "Chiefs v Bills",
+      "start": 1793413362249,
+      "end": null,
+      "session": null,
+      "circuit": null,
+      "format": null,
+      "competitors": [
+        {
+          "id": "12",
+          "name": "Chiefs",
+          "logo": null
+        },
+        {
+          "id": "2",
+          "name": "Bills",
+          "logo": null
+        }
+      ],
+      "status": "scheduled",
+      "freshness": "fresh",
+      "observedAt": 1793409962249,
+      "progress": {},
+      "availability": "matched",
+      "broadcastStatus": "scheduled",
+      "channels": [
+        {
+          "sourceId": 1,
+          "id": "pos_5",
+          "stableId": "s5",
+          "name": "ESPN HD",
+          "number": null,
+          "logo": null,
+          "quality": "HD",
+          "start": 1793413062249,
+          "end": 1793424762249
+        }
+      ],
+      "events": [
+        {
+          "id": "ev-kc",
+          "start": 1793413362249,
+          "end": 1793424462249
+        }
+      ],
+      "canWatch": false,
+      "followed": false
+    },
+    {
+      "id": "espn:racing/f1:1",
+      "league": "F1",
+      "title": "Mexico City Grand Prix",
+      "start": 1793417262249,
+      "end": null,
+      "session": "Race",
+      "circuit": null,
+      "format": null,
+      "competitors": [],
+      "status": "scheduled",
+      "freshness": "fresh",
+      "observedAt": 1793409962249,
+      "progress": {},
+      "availability": "unmatched",
+      "broadcastStatus": "unavailable",
+      "channels": [],
+      "events": [],
+      "canWatch": false,
+      "followed": true
+    },
+    {
+      "id": "guide:ev-cricket",
+      "dataSource": "guide",
+      "league": "Cricket",
+      "title": "Australia v India - 1st ODI",
+      "start": 1793402862249,
+      "end": 1793428062249,
+      "session": null,
+      "circuit": null,
+      "format": null,
+      "competitors": [],
+      "status": "unknown",
+      "freshness": "unavailable",
+      "observedAt": null,
+      "progress": {},
+      "availability": "matched",
+      "broadcastStatus": "on-tv",
+      "channels": [
+        {
+          "sourceId": 1,
+          "id": "pos_6",
+          "stableId": "s6",
+          "name": "Fox Cricket",
+          "number": null,
+          "logo": null,
+          "quality": "HD",
+          "start": 1793402862249,
+          "end": 1793428062249
+        }
+      ],
+      "events": [
+        {
+          "id": "ev-cricket",
+          "start": 1793402862249,
+          "end": 1793428062249
+        }
+      ],
+      "canWatch": true,
+      "followed": false
+    },
+    {
+      "id": "espn:football/nfl:405",
+      "league": "NFL",
+      "title": "Packers v Vikings",
+      "start": 1793392062249,
+      "end": null,
+      "session": null,
+      "circuit": null,
+      "format": null,
+      "competitors": [
+        {
+          "id": "9",
+          "name": "Packers",
+          "logo": "/api/logo/espn-gb"
+        },
+        {
+          "id": "16",
+          "name": "Vikings",
+          "logo": null
+        }
+      ],
+      "status": "finished",
+      "freshness": "stale",
+      "observedAt": 1793399262249,
+      "progress": {
+        "clock": "0:00",
+        "period": 4
+      },
+      "availability": "unmatched",
+      "broadcastStatus": "unavailable",
+      "channels": [],
+      "events": [],
+      "canWatch": false,
+      "scores": [
+        "27",
+        "20"
+      ],
+      "followed": true
+    }
+  ]
+}

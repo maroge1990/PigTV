@@ -81,7 +81,9 @@ async function sendInfo(req, res) {
             // 0148 (C-I): GET /api/sports/events lists sport events recognised per
             // programme, each with its channels best first.
             sportsEvents: true,
-            sportsDashboard: require('../services/sportsDashboard').enabled(),
+            sportsDashboard: require('../services/sportsDashboard').dashboardEnabled(),
+            // 0381 (D-39): GET /api/sports/front, whenever the score collector runs (on by default).
+            sportFront: require('../services/sportsDashboard').collectorEnabled(),
             // #21 (0340, C-P): GET /api/sports/pages/f1, whenever ESPN fixtures are on.
             sportPages: require('../services/sportsFixtures').enabled(),
             // #21 (0379, C-Q): the NFL page, on with the F1 page.
