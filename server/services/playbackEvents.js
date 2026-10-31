@@ -40,6 +40,7 @@ function record(event) {
         watchedSec: num(event.watchedSec),
         stalls: num(event.stalls),
         reason: clean(event.reason, 200),
+        origin: clean(event.origin, 24), // 0384: where in the app a play started (play-start only)
         // 0174: the provider's name (never a URL); play-start/end inherit the owner's last resolve's.
         provider: clean(event.provider, 60)
     });

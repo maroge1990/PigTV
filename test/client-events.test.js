@@ -135,6 +135,20 @@ test('play-start is one readable line: how it was delivered, and how long until 
     assert.equal(lines[0], '[Player] play-start via transcode(hls, video copy) hls-delivery=on resolve=0.8s first-picture=4.9s from=user:1');
 });
 
+test('0384: a play-start names where in the app it started, and the recorded event keeps it', async () => {
+    const lines = await withLog(async () => {
+        await post({ event: 'play-start', strategy: 'transcode', container: 'hls', videoMode: 'copy', hlsDelivery: true,
+            resolveMs: 500, totalMs: 3000, origin: 'sport-front\u0007 ' });
+    });
+    assert.equal(lines[0], '[Player] play-start via transcode(hls, video copy) hls-delivery=on resolve=0.5s first-picture=3.0s from=user:1 origin=sport-front');
+    const recent = load('services/playbackEvents').recent();
+    assert.equal(recent[0].origin, 'sport-front'); // newest first
+    // Without one (an older client) the line and the event are as before.
+    const plain = await withLog(async () => { await post({ event: 'play-start', strategy: 'remux', container: 'fmp4', hlsDelivery: false, resolveMs: 300, totalMs: 6100 }); });
+    assert.equal(plain[0], '[Player] play-start via remux(fmp4) hls-delivery=off resolve=0.3s first-picture=6.1s from=user:1');
+    assert.equal(load('services/playbackEvents').recent()[0].origin, null);
+});
+
 test('the remux path reads the same way, so the two can be compared side by side', async () => {
     const lines = await withLog(async () => {
         await post({ event: 'play-start', strategy: 'remux', container: 'fmp4', videoMode: null, hlsDelivery: false,

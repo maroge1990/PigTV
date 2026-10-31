@@ -590,10 +590,13 @@ router.post('/client-event', requireToken, (req, res) => {
         const last = playbackEvents.lastResolveFor(owner) || {};
         const sec = (ms) => (typeof ms === 'number' && Number.isFinite(ms) && ms >= 0 ? Math.round(ms / 100) / 10 : null);
         if (body.event === 'play-start') {
-            console.log(`[Player] play-start via ${how} resolve=${secs(body.resolveMs)} first-picture=${secs(body.totalMs)} ${from}`);
+            // 0384 (D-39): which part of the app the play started from ("sport-front", "tv", "guide"...; Apple 89),
+            // so the TV tab's use can be measured. Optional: an older client sends none.
+            const origin = typeof body.origin === 'string' && body.origin.trim() ? text(body.origin, 24).trim() || null : null;
+            console.log(`[Player] play-start via ${how} resolve=${secs(body.resolveMs)} first-picture=${secs(body.totalMs)} ${from}${origin ? ` origin=${origin}` : ''}`);
             playbackEvents.record({ type: 'play-start', owner, channel: last.channel, start: last.start, provider: last.provider,
                 strategy: text(body.strategy, 20), videoMode: body.videoMode ? text(body.videoMode, 10) : last.videoMode,
-                firstPictureSec: sec(body.totalMs), resolveSec: sec(body.resolveMs) });
+                firstPictureSec: sec(body.totalMs), resolveSec: sec(body.resolveMs), origin });
             channelHealth.clientStarted(owner, sec(body.totalMs));
         } else {
             console.log(`[Player] play-end via ${how} watched=${num(body.watchedSec)}s stalls=${num(body.stalls)} ${from}`);
