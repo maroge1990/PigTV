@@ -135,9 +135,9 @@ router.get('/pages/f1', async (req, res) => {
             registerImage: require('../services/logoCache').registerLogo,
             // #160: only F1's events around the sessions are ordered and built, not the whole 72 h answer.
             // #191: with the airings ended within the overrun window, which a live session's channels keep (sportOverrun.js).
-            channelsFor: async (sessions) => !sessions.length ? new Map() : f1.channelsForSessions(sessions,
+            channelsFor: async (sessions, observedAt) => !sessions.length ? new Map() : f1.channelsForSessions(sessions,
                 await sportsEvents.leagueEvents({ league: 'F1', from: Math.min(...sessions.map(s => s.start)) - HOUR_MS,
-                    to: Math.max(...sessions.map(s => s.end)) + HOUR_MS, userId: req.user.id, now, decorateChannels, ended: true }), { now })
+                    to: Math.max(...sessions.map(s => s.end)) + HOUR_MS, userId: req.user.id, now, decorateChannels, ended: true }), { now, observedAt })
         });
         res.json(page);
     } catch (err) {
@@ -156,9 +156,9 @@ router.get('/pages/nfl', async (req, res) => {
         const page = await nfl.page(now, {
             registerImage: require('../services/logoCache').registerLogo,
             // Only the NFL's events around the two weeks' games are ordered and built, as for F1 (#160); #191 as F1.
-            channelsFor: async (games, teams) => !games.length ? new Map() : nfl.channelsForGames(games,
+            channelsFor: async (games, teams, observedAt) => !games.length ? new Map() : nfl.channelsForGames(games,
                 await sportsEvents.leagueEvents({ league: 'NFL', ...nfl.spanOf(games), userId: req.user.id, now, decorateChannels, ended: true }),
-                new Map(Object.entries(teams || {})), { now })
+                new Map(Object.entries(teams || {})), { now, observedAt })
         });
         res.json(page);
     } catch (err) {
@@ -179,8 +179,8 @@ router.get('/pages/cricket', async (req, res) => {
             registerImage: require('../services/logoCache').registerLogo,
             // Only cricket's events around the matches' days are ordered and built, as for F1 (#160), for each league a
             // cricket programme can be filed under; #191 as F1.
-            channelsFor: async (airings) => cricket.channelsForMatches(airings, (await Promise.all(cricket.LEAGUES.map(league =>
-                sportsEvents.leagueEvents({ league, ...cricket.spanOf(airings), userId: req.user.id, now, decorateChannels, ended: true })))).flat(), { now })
+            channelsFor: async (airings, observedAt) => cricket.channelsForMatches(airings, (await Promise.all(cricket.LEAGUES.map(league =>
+                sportsEvents.leagueEvents({ league, ...cricket.spanOf(airings), userId: req.user.id, now, decorateChannels, ended: true })))).flat(), { now, observedAt })
         });
         res.json(page);
     } catch (err) {

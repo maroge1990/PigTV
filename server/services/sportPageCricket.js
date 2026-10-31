@@ -379,7 +379,7 @@ function ttlOf(value, now) {
  * them. A team is named by its full name, that name without "Women", or its last word ("Sixers") where no other team
  * on the page shares it. Longer names are read first, so "South Australia" is not also "Australia".
  */
-function channelsForMatches(airings, events, { now } = {}) {
+function channelsForMatches(airings, events, { now, observedAt } = {}) {
     const cricket = (events || []).filter(e => LEAGUES.includes(e.league) && e.kind === 'event');
     const out = new Map();
     const words = (s) => ` ${String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ')} `;
@@ -414,7 +414,7 @@ function channelsForMatches(airings, events, { now } = {}) {
         const list = [];
         for (const { e } of matched) for (const ch of e.channels || []) {
             const key = `${ch.sourceId}:${ch.id}`;
-            const kept = seen.has(key) ? null : overrun.keep(ch, e, a.inPlay === true, now); // #191: a day's play past its slot
+            const kept = seen.has(key) ? null : overrun.keep(ch, e, a.inPlay === true, now, observedAt); // #191: a day's play past its slot
             if (kept) { seen.add(key); list.push(kept); }
         }
         if (list.length) out.set(a.id, list);
@@ -432,7 +432,7 @@ async function page(now = Date.now(), deps = {}) {
     if (!value.available || !deps.channelsFor) return value;
     const airings = AIRINGS.get(value) || [];
     let channels = new Map();
-    try { if (airings.length) channels = await deps.channelsFor(airings); } catch (err) { console.warn('[Sport] Cricket page channels:', err.message); }
+    try { if (airings.length) channels = await deps.channelsFor(airings, value.updatedAt); } catch (err) { console.warn('[Sport] Cricket page channels:', err.message); }
     const withChannels = (m) => ({ ...m, channels: channels.get(m.id) || [] });
     return { ...value, lead: value.lead ? withChannels(value.lead) : null, others: value.others.map(withChannels) };
 }

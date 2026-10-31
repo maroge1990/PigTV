@@ -29,6 +29,15 @@ test('overrunEnd: ongoing and ended within 4 h rolls on 10 min; 4 h + 1 ms, not 
     assert.equal(overrunEnd(NOW - MIN, true, NaN), null);
 });
 
+test('keep: a page extends only from an ESPN answer at most 15 min old', () => {
+    const c = { sourceId: 1, id: 'a', start: NOW - 3 * H, end: NOW - 30 * MIN }, e = { end: NOW - 30 * MIN };
+    assert.equal(overrun.PAGE_FRESH_MS, 15 * MIN);
+    assert.deepEqual(overrun.keep(c, e, true, NOW, NOW - 15 * MIN), { ...c, end: NOW + 10 * MIN, overrun: true });
+    assert.equal(overrun.keep(c, e, true, NOW, NOW - 15 * MIN - 1), null);
+    assert.equal(overrun.keep(c, e, true, NOW, undefined), null, 'no observation time: no extension');
+    assert.equal(overrun.keep(c, e, true, undefined, undefined), c, 'callers before 0386: unchanged');
+});
+
 // ---- dashboard / front page (buildDashboard) ----
 const game = (snapshot, extra = {}) => ({ id: 'espn:football/nfl:1', league: 'NFL', start: NOW - 3.5 * H, end: null,
     title: 'Kansas City Chiefs v Buffalo Bills', session: null, circuit: null,
@@ -110,9 +119,11 @@ test('F1 page: a live session\'s ended airing is extended; a done session\'s end
     const session = (status) => [{ id: 'race', name: 'Race', start: at, end: at + 2 * H, status }];
     const events = [{ league: 'F1', kind: 'event', title: 'Mexico City Grand Prix', start: at - 30 * MIN, end: NOW - 15 * MIN,
         channels: [ch('a', at - 30 * MIN, NOW - 15 * MIN)] }];
-    const got = f1.channelsForSessions(session('live'), events, { now: NOW });
+    const got = f1.channelsForSessions(session('live'), events, { now: NOW, observedAt: NOW - MIN });
     assert.deepEqual(got.get('race').map(c => [c.id, c.start, c.end, c.overrun]), [['a', at - 30 * MIN, NOW + 10 * MIN, true]]);
-    assert.equal(f1.channelsForSessions(session('done'), events, { now: NOW }).get('race'), undefined);
+    assert.equal(f1.channelsForSessions(session('done'), events, { now: NOW, observedAt: NOW - MIN }).get('race'), undefined);
+    assert.equal(f1.channelsForSessions(session('live'), events, { now: NOW, observedAt: NOW - 16 * MIN }).get('race'), undefined,
+        'a live status from an answer over 15 min old does not extend');
 });
 
 test('NFL page: a live game\'s ended airing is extended; a finished game\'s is not listed', () => {
@@ -121,16 +132,18 @@ test('NFL page: a live game\'s ended airing is extended; a finished game\'s is n
     const game = (status) => [{ id: 'g1', start: kick, status, away: { abbr: 'BUF' }, home: { abbr: 'KC' } }];
     const events = [{ league: 'NFL', kind: 'event', title: 'NFL: Bills at Chiefs', start: kick - 15 * MIN, end: NOW - 20 * MIN,
         channels: [ch('fox', kick - 15 * MIN, NOW - 20 * MIN)] }];
-    const got = nfl.channelsForGames(game('live'), events, teams, { now: NOW });
+    const got = nfl.channelsForGames(game('live'), events, teams, { now: NOW, observedAt: NOW - MIN });
     assert.deepEqual(got.get('g1').map(c => [c.id, c.end, c.overrun]), [['fox', NOW + 10 * MIN, true]]);
-    assert.equal(nfl.channelsForGames(game('done'), events, teams, { now: NOW }).get('g1'), undefined);
+    assert.equal(nfl.channelsForGames(game('done'), events, teams, { now: NOW, observedAt: NOW - MIN }).get('g1'), undefined);
 });
 
 test('Cricket page: a day in play past its slot keeps its channel; stumps (not in play) does not', () => {
     const airing = (inPlay) => [{ id: 'm1', start: NOW - 8 * H, end: NOW + H, teams: ['Australia', 'India'], inPlay }];
     const events = [{ league: 'Cricket', kind: 'event', title: 'Cricket: Australia v India', aliases: [], start: NOW - 7 * H, end: NOW - 40 * MIN,
         channels: [ch('fox', NOW - 7 * H, NOW - 40 * MIN)] }];
-    const got = cricket.channelsForMatches(airing(true), events, { now: NOW });
+    const got = cricket.channelsForMatches(airing(true), events, { now: NOW, observedAt: NOW - MIN });
     assert.deepEqual(got.get('m1').map(c => [c.id, c.end, c.overrun]), [['fox', NOW + 10 * MIN, true]]);
-    assert.equal(cricket.channelsForMatches(airing(false), events, { now: NOW }).get('m1'), undefined);
+    assert.equal(cricket.channelsForMatches(airing(false), events, { now: NOW, observedAt: NOW - MIN }).get('m1'), undefined);
+    assert.equal(cricket.channelsForMatches(airing(true), events, { now: NOW, observedAt: NOW - 16 * MIN }).get('m1'), undefined,
+        'an in-play day from an answer over 15 min old does not extend');
 });

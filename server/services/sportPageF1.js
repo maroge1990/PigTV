@@ -178,7 +178,7 @@ const SESSION_GRACE_MS = 30 * 60 * 1000;
  * whose own airing (C-I channel start/end, 0337) covers the session's start within 30 min either way. Best first,
  * once each.
  */
-function channelsForSessions(sessions, events, { now } = {}) {
+function channelsForSessions(sessions, events, { now, observedAt } = {}) {
     const f1 = (events || []).filter(e => e.league === 'F1' && e.kind === 'event');
     const out = new Map();
     for (const s of sessions) {
@@ -194,7 +194,7 @@ function channelsForSessions(sessions, events, { now } = {}) {
                 if (!(start <= s.start + SESSION_GRACE_MS && end > s.start - SESSION_GRACE_MS)) continue;
                 const key = `${ch.sourceId}:${ch.id}`;
                 if (seen.has(key)) continue;
-                const kept = overrun.keep(ch, e, s.status === 'live', now);
+                const kept = overrun.keep(ch, e, s.status === 'live', now, observedAt);
                 if (!kept) continue;
                 seen.add(key);
                 list.push(kept);
@@ -277,7 +277,7 @@ async function page(now = Date.now(), deps = {}) {
     const value = await espnPart(now, deps);
     if (!value.available || !deps.channelsFor) return value;
     let channels = new Map();
-    try { channels = await deps.channelsFor(value.weekend.sessions); } catch (err) { console.warn('[Sport] F1 page channels:', err.message); }
+    try { channels = await deps.channelsFor(value.weekend.sessions, value.updatedAt); } catch (err) { console.warn('[Sport] F1 page channels:', err.message); }
     return { ...value, weekend: { ...value.weekend, sessions: value.weekend.sessions.map(s => ({ ...s, channels: channels.get(s.id) || [] })) } };
 }
 

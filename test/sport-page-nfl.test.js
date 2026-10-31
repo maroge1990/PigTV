@@ -133,3 +133,29 @@ test('#183: a city two teams share names neither; an event naming another team d
     map = nfl.channelsForGames(games, [ev('NFL: Seahawks at Rams, then Chiefs', 'mix')], teams);
     assert.equal(map.get('a'), undefined, 'an event that names a team outside the game is not this game');
 });
+
+// #191 (0386, Codex round 1): the overrun rule trusts the page's `live` only while its ESPN answer is fresh. A cached
+// live game whose refreshes fail must not keep renewing its ended channels: within 15 min of the last good answer it is
+// still extended, past that its ended airing is gone.
+test('#191: a cached live game keeps an overrun channel only while the last good ESPN answer is at most 15 min old', async () => {
+    const live = fixture('scoreboard-week8.json');
+    for (const e of live.events) e.competitions[0].status.type = { ...e.competitions[0].status.type, state: 'in', completed: false };
+    stub({ scoreboard$: { ok: true, json: live } });
+    const g = (await nfl.build(NOW)).weeks[1].games[1];
+    assert.equal(g.status, 'live');
+    nfl.reset();
+    const teams = (await nfl.build(NOW)).teams;
+    nfl.reset();
+    const at = g.start + 3 * 3600e3; // the game is on past its 2.5 h slot
+    const ended = { league: 'NFL', kind: 'event', title: `NFL: ${teams[g.away.abbr].full} at ${teams[g.home.abbr].full}`,
+        start: g.start - 15 * 60e3, end: g.start + 2.5 * 3600e3, channels: [{ sourceId: 1, id: 'fox', start: g.start - 15 * 60e3, end: g.start + 2.5 * 3600e3 }] };
+    const deps = (now) => ({ channelsFor: async (games, t, observedAt) =>
+        nfl.channelsForGames(games, [ended], new Map(Object.entries(t)), { now, observedAt }) });
+    const channelsAt = async (now) => (await nfl.page(now, deps(now))).weeks[1].games.find(x => x.id === g.id).channels;
+    assert.deepEqual((await channelsAt(at)).map(c => [c.id, c.end, c.overrun]), [['fox', at + 10 * 60e3, true]], 'fresh: extended');
+    stub({ scoreboard$: { ok: false, error: 'HTTP 503' } }); // every refresh from here fails; the old answer is served
+    const later = at + 14 * 60e3;
+    assert.deepEqual((await channelsAt(later)).map(c => [c.id, c.end, c.overrun]), [['fox', later + 10 * 60e3, true]], 'within 15 min');
+    await new Promise(resolve => setImmediate(resolve)); // let the failed refresh settle
+    assert.deepEqual(await channelsAt(at + 16 * 60e3), [], 'the cached live status is too old to keep renewing Watch');
+});

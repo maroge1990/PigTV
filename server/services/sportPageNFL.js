@@ -127,7 +127,7 @@ function standingsOf(json, teams, registerImage) {
  * names exactly one team, one of this game's, when it is the only such event around. Best channels first, as C-I orders
  * them.
  */
-function channelsForGames(games, events, teams, { now } = {}) {
+function channelsForGames(games, events, teams, { now, observedAt } = {}) {
     const nfl = (events || []).filter(e => e.league === 'NFL' && e.kind === 'event');
     const out = new Map();
     const words = (text) => ` ${String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ')} `;
@@ -154,7 +154,7 @@ function channelsForGames(games, events, teams, { now } = {}) {
             for (const ch of e.channels || []) {
                 const key = `${ch.sourceId}:${ch.id}`;
                 if (seen.has(key)) continue;
-                const kept = overrun.keep(ch, e, g.status === 'live', now); // #191: a game on past its slot
+                const kept = overrun.keep(ch, e, g.status === 'live', now, observedAt); // #191: a game on past its slot
                 if (!kept) continue;
                 seen.add(key);
                 list.push(kept);
@@ -219,7 +219,7 @@ async function page(now = Date.now(), deps = {}) {
     if (!value.available || !deps.channelsFor) return value;
     const games = value.weeks.flatMap(w => w.games);
     let channels = new Map();
-    try { channels = await deps.channelsFor(games, value.teams); } catch (err) { console.warn('[Sport] NFL page channels:', err.message); }
+    try { channels = await deps.channelsFor(games, value.teams, value.updatedAt); } catch (err) { console.warn('[Sport] NFL page channels:', err.message); }
     return { ...value, weeks: value.weeks.map(w => ({ ...w, games: w.games.map(g => ({ ...g, channels: channels.get(g.id) || [] })) })) };
 }
 

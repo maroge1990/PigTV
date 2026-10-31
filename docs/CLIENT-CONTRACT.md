@@ -436,6 +436,7 @@ They answer `Cache-Control: private, no-store`; no shared response cache or clie
   `broadcastStatus: "on-tv"` and `availability: "matched"` follow. Stale, unknown, scheduled or finished cards, and
   airings that did not join the game, are never extended, so Watch goes within 10 minutes of the feed saying anything
   but ongoing. Ended airings are not added to `events`. C-I's own answer is unchanged (it still drops ended events).
+  The sport pages (C-P, C-Q, C-S) extend only while their status comes from an ESPN answer at most 15 minutes old.
 
 Collection is separate from C-I's 30-minute fixtures: at most 12 public ESPN network attempts per 30-second tick across
 all dashboard sources/dates, with two in flight, including dated cricket discovery. Known in-play/near-start source
