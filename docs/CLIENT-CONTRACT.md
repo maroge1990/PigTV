@@ -691,6 +691,7 @@ on demand (kept 2 min while the lead is in play, 10 min on a match day, 1 h othe
   - `others[]`: today's and tomorrow's matches from the other competitions the feed lists (at most 20): `{ id,
     seriesId, competition, teams, scores ([text, text] as ESPN shows them, "329 & 200/5"), line, status, start,
     nextStart, channels }`.
-- Spoilers are the client's, as C-P and C-Q: with the household's spoiler-free switch on, scores, `summary`, `crease`,
-  `seriesLine`, results and `scores` are hidden; `day`, `status`, `days` and `nextStart` stay. Watch/Record use a
+- Spoilers are the client's, as C-P and C-Q: with the household's spoiler-free switch on, the lead's `innings`,
+  `summary`, `crease` and `seriesLine`, every `result`, and each of `others[]`' `scores` and `line` (the feed's summary,
+  which carries the match situation) are hidden; `day`, `status`, `breakLabel`, `days`, `nextStart` and the teams stay. Watch/Record use a
   channel's own times (C-I, #20).

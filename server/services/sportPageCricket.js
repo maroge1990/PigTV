@@ -278,13 +278,18 @@ function byInterest(a, b) {
     return a.status === 'done' ? b.start - a.start : a.status === 'scheduled' ? a.start - b.start : 0;
 }
 
-/** The lead: a followed team's current or next match; else the first live match, else the next, else the latest. */
+/**
+ * The lead: a followed team's current or next match; else the first live match, else the next; a finished match only
+ * when nothing is in play or to come (the followed team's, else the latest). 0383 Codex round 1: a followed team's
+ * finished match no longer outranks a live one.
+ */
 function pickLead(matches, followed) {
     const names = (followed || []).map(n => String(n).trim().toLowerCase()).filter(Boolean);
     const theirs = matches.filter(m => m.keys.some(ks => names.some(n => ks.includes(n))));
-    const pool = theirs.length ? theirs : matches;
     // Array.sort is stable: within a rank the feed's (panel) order stands, so "first live" is ESPN's first.
-    return pool.slice().sort(byInterest)[0] || null;
+    const best = (pool) => pool.slice().sort(byInterest)[0] || null;
+    const open = (m) => m.status !== 'done';
+    return best(theirs.filter(open)) || best(matches.filter(open)) || best(theirs) || best(matches);
 }
 
 function followedTeams() {

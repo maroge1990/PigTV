@@ -104,6 +104,19 @@ test('the followed team decides the lead; with none (or one not playing), the fi
     assert.equal((await cricket.page(NOW + 1000)).lead.id, '1525661');
 });
 
+// 0383 Codex round 1 (medium): a followed team's finished match stayed the lead while other matches were in play.
+test('a followed team\'s finished match gives way to a live one, and leads only when every match is finished', async () => {
+    const finish = (c, summary) => { c.status.type = { id: '28', description: 'Result', detail: 'Result', shortDetail: 'Result', state: 'post', completed: true }; c.status.summary = summary; };
+    stub((name, json) => { if (name === 'scorepanel-20261031') finish(eventIn(json, '1525661').competitions[0], 'South Africa won by 150 runs'); });
+    const p = await cricket.build(NOW, { followed: ['Australia'] });
+    assert.ok(['1544870', '1544871'].includes(p.lead.id), `a live match leads, not the finished Test (got ${p.lead.id})`);
+    assert.equal(p.lead.status, 'live');
+
+    stub((name, json) => { if (/^scorepanel-/.test(name)) for (const e of json.scores.flatMap(b => b.events)) finish(e.competitions[0], 'Result'); });
+    const all = await cricket.build(NOW, { followed: ['Australia'] });
+    assert.deepEqual([all.lead.id, all.lead.status], ['1525661', 'done'], 'nothing in play or to come: the followed team\'s match');
+});
+
 test('stumps: a break labelled Stumps, play resumes the next day at the same time, its chip is next', async () => {
     const p = await cricket.build(NOW, { followed: ['Australia'] });
     const lead = p.lead;
