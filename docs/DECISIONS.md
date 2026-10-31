@@ -309,3 +309,26 @@ reviews.
   starts" reminder (#69); channel up/down after a play from Home or the Top Shelf follows the guide order (#13); the web
   player's own preferences stay in the browser, and Show all / Hide all ask with counts and can be undone (#9, #16).
 - **Consequence:** issues stay open until Mark's device checks after his return (AGENTS.md › Work tracking).
+
+### D-38. Process reset: one review round, closing on evidence, cheaper gates (31 Oct 2026)
+
+- **Context:** the week since 24 Oct: 36 server pushes at ~10 min of CI each (83 of 213 commits were docs- or test-only
+  and each still built and published an image), 17 Apple pushes at ~23 min each plus `test.sh push` (25–40 min) before
+  every commit, two Codex rounds per batch, and 183 open issues of which 104 had a fix on `main` waiting for Mark's
+  check. Mark asked for less time in gates, fewer immaterial issues, and the sport front page first.
+- **Choice (Mark, 31 Oct):**
+  1. **One Codex round per batch**; a second only when round one leaves a high finding. A finding fixed inside the batch
+     is listed in the batch's evidence README, not filed; a high, or anything left unfixed, becomes a `finding` issue.
+     After round two only highs block the push (D-19's cap stays).
+  2. **Apple gates:** `Tools/test.sh fast` before each commit; `push` once per batch before its review round and again
+     before the push; CI on every push is the full gate.
+  3. **Docs-only pushes skip CI** in both repos (`docs/**`, any `.md`, the issue templates). Docs-only commits have no
+     build number.
+  4. **Closing on evidence:** Claude closes an issue once its fix is pushed with T1–T3 evidence (the failing-before test;
+     the rig for user-visible work), in a comment naming the build. An issue whose acceptance names T5, or labelled
+     `needs-device-test`, waits for Mark's device report; those steps live on his Test Round checklist, not as issues. A
+     closed issue is reopened if a device check contradicts it.
+  5. **The issue list holds live work only:** fixed issues closed under 4; the sport family tracked under #21; device
+     checks on the Test Round; P3 items parked under one label and one tracking issue.
+- **Consequence:** `AGENTS.md` › How changes ship, Work tracking, Reviews (both repos); `docs/TESTING.md` › Tiers;
+  D-19, D-34, D-35 and D-37 read with this where they say two rounds or that Mark closes.

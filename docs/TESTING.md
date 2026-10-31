@@ -7,7 +7,7 @@ The protocol for both repos: which tier proves what, who runs it, and the tools.
 
 | Tier | What | Who | Required for |
 |---|---|---|---|
-| T1 Automated | `npm test`, `verify-build.sh`; Apple `Tools/test.sh push`, iOS build | Claude | Every functional commit |
+| T1 Automated | `npm test`, `verify-build.sh`; Apple `Tools/test.sh fast` per commit, `push` per batch, iOS build | Claude | Every functional commit |
 | T2 Real media, offline | ffmpeg fixture tests, relay rig, stream doctor and avsync harness on saved captures, AVPlayer over loopback | Claude | Any change to playback, recording or ingest |
 | T3 End to end | Server against the fake provider; web app driven in the browser pane; the real Apple app in tvOS and iOS simulators against that server; before/after screenshots of every changed screen as evidence | Claude | Any change a user can see or touch, **once the test rig is live** |
 | T4 Deployed, read-only | `/api/version`, health, logs; no provider connection | Claude | Diagnosing a live report |
@@ -21,7 +21,7 @@ The protocol for both repos: which tier proves what, who runs it, and the tools.
   ≤ 20 GB under `appdata/pigtv-test`). Claude may create, rebuild and remove those test containers and read production
   status; anything that changes the production container or opens a real provider connection still needs Mark's yes.
 - **Status words:** *Implemented* (code done) → *Locally verified* (T1–T3 pass, evidence linked) → *Verified* (Mark's T5
-  report). Claude never writes *Verified*.
+  report). Claude never writes *Verified*. An issue closes at *Locally verified* unless its acceptance names T5 (D-38).
 - **Claude's default is to test, not to ask.** T1–T3 touch no real provider, so Claude runs them without asking,
   including driving the simulators (attach, screenshots, input).
 - **Mark's checklist** in each handoff lists only T5 items: numbered steps, each with the expected result and what to

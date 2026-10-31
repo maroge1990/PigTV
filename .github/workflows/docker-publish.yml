@@ -3,6 +3,8 @@ name: Build and Publish Container Image
 on:
   push:
     branches: [ main ]
+    # A push that changes only docs builds nothing (D-38): no code, no image. Tags are not filtered.
+    paths-ignore: [ 'docs/**', '**.md', '.github/ISSUE_TEMPLATE/**' ]
     tags: [ 'v*' ]
   release:
     types: [ published ]

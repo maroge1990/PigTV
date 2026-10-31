@@ -966,6 +966,9 @@ check .github/workflows/docker-publish.yml "id: stamp" "computed in a step, so r
 check AGENTS.md "builds \`ghcr.io/maroge1990/pigtv\` \*\*only if the tests pass" "and the mechanism is written down rather than assumed"
 check .github/workflows/docker-publish.yml "needs: test" "and the image build waits for the regression tests"
 
+echo "=== D-38: a docs-only push builds no image ==="
+check .github/workflows/docker-publish.yml "paths-ignore: \[ 'docs/\*\*', '\*\*.md'" "docker-publish.yml ignores pushes that change only docs"
+
 echo "=== 0099: strip the small-caps LIVE badge at ingest (SR-2) ==="
 python3 - <<'PYCHK'
 import subprocess, sys

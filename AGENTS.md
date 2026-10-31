@@ -41,7 +41,7 @@ offline agents) get the issue text pasted into their prompt.
 
 **End** (reported in every handover): docs touched (which); `ROADMAP.md` current state overwritten (yes/no); no new
 handover or status files (yes/no); issues updated (which, with a comment for item-level handover); commits waiting
-(`git log origin/main..main`); and, for every pushed-but-open issue, ask Mark whether it has been checked and resolved.
+(`git log origin/main..main`); and, for every issue still waiting on a device check (T5), ask Mark whether it has been done.
 The story of a change goes in its commit message, not the docs.
 
 ## How changes ship
@@ -49,21 +49,21 @@ The story of a change goes in its commit message, not the docs.
 **Claude commits to `main` and pushes it once the batch has passed its reviews** (D-34). No feature branches.
 
 1. Make each fix with its test and run the targeted tests; the full gates (`npm test`, `verify-build.sh`) run once
-   before the batch's first review round and again before the push. If one can't run, say so in the commit and to Mark.
+   before the batch's review round and again before the push. If one can't run, say so in the commit and to Mark.
 2. A functional commit bumps `build` in `server/version.js` **and** this row, and its subject starts with the number
    (`0208: what changed`). Docs-only and test-only commits have no number. Next build number: **0381**.
 3. Commits write `Refs #n`, **never** `Fixes`/`Closes` (that would close the issue on push, before Mark's check).
 4. **Push** (`git push origin main`) once the batch's gates and review rounds pass with no high finding left (D-34, D-35).
    CI then runs the tests (Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass**: watch it; if it
-   goes red, fix it or `git revert` at once (`gh run view <id> --log-failed`).
+   goes red, fix it or `git revert` at once (`gh run view <id> --log-failed`). A push that changes only docs skips CI (D-38).
 5. Tell Mark what is committed, the build number, and numbered T5 steps ([`docs/TESTING.md`](docs/TESTING.md)) for
    anything that needs the real feed or a device. Nothing is *Verified* until he reports back. A release to production
    (deploy, rollback) needs Mark's go-ahead each time ([`docs/OPERATIONS.md`](docs/OPERATIONS.md) › Deployment).
 
 ## Work in batches (D-35)
 
-Open issues touching the same code and risk (one subsystem, one platform) go in one batch, which pays once for its two
-Codex rounds, push and CI build; a release bundles a few batches. Each fix stays its own commit with its own failing-before
+Open issues touching the same code and risk (one subsystem, one platform) go in one batch, which pays once for its
+Codex round, push and CI build; a release bundles a few batches. Each fix stays its own commit with its own failing-before
 test. Never batch unrelated areas to save time; a fix whose live effect must be proven alone ships where it can be told apart.
 
 ## Work tracking
@@ -73,7 +73,9 @@ test. Never batch unrelated areas to save time; a fix whose live effect must be 
   its body, not a label.
 - Body (template in `.github/ISSUE_TEMPLATE/`): symptom · how to reproduce · evidence link · cause (once known) ·
   acceptance with its test tier.
-- **An issue is closed by an agent only after Mark confirms the fix was checked**, with a comment quoting him.
+- **Claude closes an issue once its fix is pushed with T1–T3 evidence**, in a comment naming the build (D-38). An issue
+  whose acceptance names T5, or labelled `needs-device-test`, stays open until Mark reports the device check (his Test
+  Round checklist holds those steps), and a closed one is reopened if his check contradicts it.
 - Anything that would help someone attack an exposed server (auth or redaction bypass) is a **private security
   advisory**, never a public issue, commit text or doc.
 - Docs never list open work; they may link an issue. Size budgets warn, never fail (`verify-build.sh`): `AGENTS.md` 120
@@ -103,10 +105,10 @@ playback path, provider routing or admission, caches or other shared ownership/a
 in `docs/CLIENT-CONTRACT.md`; fixes a review finding; or changes more than ~150 non-test lines (D-17). Docs-only and
 test-only commits are exempt. **Claude launches it itself** in each repo touched: `node ~/.claude/plugins/marketplaces/openai-codex/plugins/codex/scripts/codex-companion.mjs adversarial-review --wait
 --base <the commit before the batch> "<focus: the batch, its issues, its first commit>"` (Bash in the background, output to the scratchpad). It needs
-`codex login`; if it cannot run, say so and give Mark the command and focus. **At most two rounds per batch**
-(the first review, and one of the fixes it prompted; D-19). Every finding becomes an issue labelled `finding` (security
-ones a private advisory), fixed with its own failing-before test or answered; after round two only **high** findings
-block the push, and mediums and lows stay open as issues. The handoff lists each finding with its disposition.
+`codex login`; if it cannot run, say so and give Mark the command and focus. **One round per batch; a second only if
+round one leaves a high finding** (D-38, D-19). A finding fixed inside the batch is listed in the batch's evidence README;
+a high, or anything left unfixed, becomes an issue labelled `finding` (security ones a private advisory), each fix with
+its own failing-before test. After round two only **high** findings block the push. The handoff lists each finding.
 
 ## Gotchas
 
