@@ -132,9 +132,10 @@ function followMatchesFor(g,teams) {
     return out;
 }
 // Front-page options (0381), all off for /dashboard: keepFinishedToday keeps today's finals, `teams` marks followed
-// cards, `spoilerFree` (the household switch) overrides the account's avoidSpoilers, channelTimes projects airing bounds.
+// cards, `spoilerFree` (the household switch) overrides the account's avoidSpoilers, channelTimes projects airing bounds,
+// upcomingHours keeps what starts within that many hours whatever its local day (tomorrow's fixtures; 0382).
 function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagues=null,follow=null,broadLeagues=new Set(),timezone:zone=timezone(),
-    keepFinishedToday=false,teams=null,spoilerFree,channelTimes=false}={}) {
+    keepFinishedToday=false,teams=null,spoilerFree,channelTimes=false,upcomingHours=0}={}) {
     const prefs=store.preferences(userId),today=localDay(now,zone);
     const hidden=typeof spoilerFree==='boolean' ? spoilerFree : prefs.avoidSpoilers;
     const followMatches=teams ? {} : null;
@@ -165,7 +166,8 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
         // A final from today stays on the front page with its (delayed) result, however long ago it ended.
         const finalToday=keepFinishedToday && state==='finished' && localDay(g.start,zone)===today;
         if(state==='finished' && !recent && !finalToday) continue;
-        if(g.start>horizon || (!league && localDay(g.start,zone)!==today && !ongoing && !recent && !pending && !onGuide)) continue;
+        const upcoming=upcomingHours>0 && ['scheduled','unknown'].includes(state) && g.start>now && g.start<=now+upcomingHours*H;
+        if(g.start>horizon || (!league && localDay(g.start,zone)!==today && !ongoing && !recent && !pending && !onGuide && !upcoming)) continue;
         if(g.start<now-8*24*H || (g.start<now-12*H && !ongoing && !recent && !finalToday && !pending && !onGuide && (!g.end || g.end<now))) continue;
         const terminal=['finished','cancelled','postponed'].includes(state);
         const liveChannels=terminal ? [] : channelsFor(airings,now,false,channelTimes);
@@ -200,7 +202,8 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
             (league && league !== e.league) || !Number.isFinite(e.start) || !Number.isFinite(e.end) ||
             e.end <= now || e.end <= e.start || e.start > now+72*H) continue;
         const onNow = e.start <= now && now < e.end;
-        if (!league && localDay(e.start,zone)!==today && !onNow) continue;
+        const upcoming = upcomingHours > 0 && e.start > now && e.start <= now + upcomingHours*H;
+        if (!league && localDay(e.start,zone)!==today && !onNow && !upcoming) continue;
         seenGuide.add(e.id);
         const liveChannels=unresolved.has(e.id) ? [] : channelsFor([e],now,false,channelTimes),channels=unresolved.has(e.id) ? [] : liveChannels.length ? liveChannels : channelsFor([e],now,true,channelTimes);
         games.push({id:`guide:${e.id}`,dataSource:'guide',league:e.league,

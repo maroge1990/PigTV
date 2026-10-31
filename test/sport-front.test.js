@@ -196,6 +196,40 @@ test('front: no scores, one guide listing on now: scores unavailable, the guide 
         sports: [], follows: [], hero: { reason: 'none', followIndex: null, gameId: null }, rails: [], games: [] });
 });
 
+test('front: a followed team\'s game tomorrow is its sport\'s next and leads with nothing live; /dashboard keeps today only', async () => {
+    clearGames();
+    const now = Date.now(), id = 'espn:football/nfl:420';
+    await call('/api/sports/pages/preferences', { sports: ['NFL'], teams: { NFL: ['Green Bay Packers'] } });
+    dashboard.store().ingest([game(id, 'NFL', now + 20 * H, [packers, team('8', 'Lions')], scheduled)], now - 100000);
+    const f = await front();
+    assert.deepEqual(f.games.map(g => g.id), [id], 'tomorrow\'s fixture is on the front page (0382)');
+    assert.deepEqual(f.sports[0].next, { gameId: id, start: now + 20 * H });
+    assert.deepEqual([f.follows[0].state, f.follows[0].gameId], ['next', id]);
+    assert.deepEqual(f.hero, { reason: 'follow-next', followIndex: 0, gameId: id });
+    process.env.PIGTV_SPORTS_DASHBOARD = '1';
+    try {
+        const legacy = await call('/api/sports/dashboard');
+        assert.equal(legacy.status, 200);
+        assert.equal(legacy.body.games.some(g => g.id === id), false, 'the legacy dashboard\'s scope is unchanged');
+    } finally { delete process.env.PIGTV_SPORTS_DASHBOARD; }
+    clearGames();
+});
+
+test('arrange: between live followed cards the one closest to finishing leads, by its end or the league\'s typical length', () => {
+    const { arrange } = load('services/sportFront');
+    const now = Date.now();
+    const card = (id, league, start, extra) => ({ id, league, start, end: null, status: 'live', followed: true, freshness: 'fresh',
+        competitors: [], channels: [], canWatch: true, ...extra });
+    const prefs = { spoilerFree: false, sports: ['Cricket', 'NFL'], teams: { Cricket: ['Australia'], NFL: ['Green Bay Packers'] } };
+    const respond = games => ({ now, timezone: 'Etc/GMT', games, followMatches: {
+        'espn:cricket/1:1': [{ name: 'Australia', competitor: null }], 'espn:football/nfl:9': [{ name: 'Green Bay Packers', competitor: null }] } });
+    const testMatch = card('espn:cricket/1:1', 'Cricket', now - 6 * H, { format: 'test' });
+    let f = arrange(respond([testMatch, card('espn:football/nfl:9', 'NFL', now - 3 * H, { end: now + 10 * MIN })]), prefs);
+    assert.deepEqual(f.hero, { reason: 'follow-live', followIndex: 1, gameId: 'espn:football/nfl:9' });
+    f = arrange(respond([testMatch, card('espn:football/nfl:9', 'NFL', now - 3 * H)]), prefs);
+    assert.equal(f.hero.gameId, 'espn:football/nfl:9', 'NFL (3.25 h) before a Test (120 h) without an end on either');
+});
+
 test('features: sportFront on by default, the legacy dashboard off; PIGTV_SPORTS_DASHBOARD=0 turns the front page off', async () => {
     let features = (await call('/api/info')).body.features;
     assert.equal(features.sportFront, true);

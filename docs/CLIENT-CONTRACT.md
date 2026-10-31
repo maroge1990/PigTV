@@ -640,11 +640,12 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
   - `follows[]`, one per followed team or driver in the household's order: `{ league, name, logo, state, gameId,
     start }`; `state` `"live"` | `"next"` | `"none"`; `logo` the competitor's logo-cache path or null (drivers: null).
   - `hero`: `{ reason, followIndex, gameId }`. `reason`: `"follow-live"` (a follow is live; the one closest to
-    finishing wins a tie) | `"league-live"` (a live game in the highest-ranked followed sport) | `"follow-next"` (the
+    finishing wins a tie: the card's `end`, else its start plus a typical duration for the sport) | `"league-live"` (a live game in the highest-ranked followed sport) | `"follow-next"` (the
     next start for a follow) | `"guide"` (without scores, the guide's live sport channel) | `"none"`. The client keeps
     the hero until its event ends unless a follow goes live, and lets a long press on any card make it the hero.
   - `rails[]`, in the household's order: `{ league, gameIds }`: live first (earliest start first), then today's finished
-    games (results), then upcoming by start.
+    games (results), then upcoming by start. Upcoming games reach 72 hours ahead (the collector's horizon): a follow whose
+    next game is later than that has `state: "none"` and the client says so ("Nothing in the next three days").
   - `games[]`: C-O cards (each once; rails, follows and the hero point at ids), with additive `followed` (boolean) and
     per-channel `start`/`end` on `channels[]`. Finished games from today are kept (status `finished`) so the page can
     show results. With the household's `spoilerFree` on, no card carries `scores` or `situation`, and `progress` keeps
