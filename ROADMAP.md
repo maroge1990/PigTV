@@ -5,44 +5,41 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 31 Oct 2026, afternoon (fourth Windows session: the process reset, D-38, and
-the issue clean-up Mark approved).*
+*Overwritten at the end of every session. 31 Oct 2026, evening (fourth Windows session: D-38 process reset, the issue
+clean-up, D-39 and the Sport front page's server side, the Cricket page's server side, the brand review).*
 
-- **Server:** production runs **0362** (deployed 31 Oct 07:06). On GitHub: **0363–0380** (batch 7: Status and Devices
-  name the device and app build, ffmpeg versions, Re-detect GPU, last synced per provider, Status cost cut; batch 4b: a
-  backup made the primary keeps the lineup; the NFL page's server answer, C-Q). CI green for each pushed batch. Next build
-  **0381**. The D-38 docs commit and this roadmap are the last things pushed.
-- **Apple:** on GitHub **84–88** (`X-PigTV-Client`, the NFL page, TestFlight prep). Next build **89**. #7 (live hold)
-  stays with its own session.
-- **Process (D-38, 31 Oct):** one Codex round per batch, a second only on a high; Apple `test.sh fast` per commit and
-  `push` per batch; docs-only pushes skip CI in both repos; Claude closes an issue on T1–T3 evidence, and only issues
-  needing a device look wait for Mark, whose steps live on the Test Round page (his checklist artifact), not as issues.
-- **Issues:** 183 open this morning, **58** now: 67 fixed issues closed naming their builds (none needed a device),
-  13 sport features folded into #21's checklist, 47 P3 items parked under #188 (label `parked`, all reopenable). What is
-  left is live work plus the device checks on the Test Round.
-- **TestFlight:** parked. Mark joined the developer program on 31 Oct; enrolment is pending (up to 48 h). Then: his
-  Team ID and an App Store Connect API key (Admin) on the Mac, the project moved to the paid team, bundle ids
-  registered, the app record created by Mark (iOS + tvOS), `Tools/testflight.sh both`, internal testing only.
-- **Brand:** the kit is now on WSL at `~/code/PigBrand` (1.7.0); PigTV vendors 1.6.0. The cross-platform brand review
-  (a separate session) starts by diffing the two.
-- **Not done:** production's 7 favourites point at a provider id that no longer exists (6 identifiable by name: Fox
-  Footy 504, Sky Sports Main Event, ESPN, Sky Sports F1, Sky Sports Premier League, Marquee Sports Network); restoring
-  them needs Mark's yes. #111 (ordered guide sources) parked until a second guide source exists. Relay timeline renewal
-  stays **off** (D-25).
-- **Waiting for Mark (T5):** the Test Round page: web checks for batch 7 and 4b, the Apple TV checks for the NFL page,
-  Top Shelf, channel up/down, Home staying current, start-up feel (#5, #6, #7), and the real-feed items (#3, #12, #18,
-  #22–#24, #32, #101) plus the set-aside sessions (#28, #31, #79).
+- **Server:** production runs **0362** (deployed 31 Oct 07:06). On GitHub, CI green: **0363–0380** (batch 7, batch 4b,
+  the NFL page C-Q), **0381–0382** (the Sport front page's answer C-R: hero rule, rails, follows, results, per-channel
+  airing times, logos; one household following store `sports` → `teams`; the score collector on by default, legacy
+  `/dashboard` still behind `PIGTV_SPORTS_DASHBOARD=1`), **0383–0385** (the Cricket page's answer C-S; play-start
+  `origin`; the lead never a finished match). Next build **0386**. Evidence: `docs/evidence/2026-10-31-sport-front-page`.
+- **Apple:** on GitHub **84–88**. **Build 89** (the front page "Blend 1", the app opens on Sport, Home → TV in second
+  place, play `origin`, spoiler and feed-off states, 13 unit tests, one UI test) is built in this session's worktree
+  with the quick tier green and the review fixes applied; see the handover for whether it was pushed. Next **90**.
+- **Process (D-38):** one Codex round per batch, a second only on a high; docs-only pushes skip CI; Claude closes
+  issues on T1–T3 evidence; device checks live on Mark's Test Round page (artifact `LbZZpEBbjgnqEj2CDJx3X1`).
+- **Issues:** 58 open (from 183): live work plus the device checks. P3 is parked under #188 (`parked` label).
+- **Decisions today:** D-38 (process), D-39 (front page = Blend 1, following model sport → team, hero rule, team
+  badges, PNG circuit maps, open on Sport, Home → TV with a two-week usage check via play `origin`).
+- **Brand review:** done as evidence in PR #189 (docs only, awaiting Mark's read): kit 1.7.0 differs from 1.6.0 only in
+  PigMenu and version strings; nine web gaps (W1–W9) and seven Apple gaps (#190, plus #116); the fixes are one web
+  batch and one Apple batch after the front page. Apple simulator screenshots still owed (the Mac was busy).
+- **TestFlight:** parked until Mark's enrolment clears (steps: Team ID and an App Store Connect API key on the Mac, the
+  project moved to the paid team, bundle ids, the app record (iOS + tvOS), `Tools/testflight.sh both`, internal only).
+- **Not done:** production's 7 favourites point at a deleted provider id (6 identifiable by name): restoring them needs
+  Mark's yes. No in-app "Follow a sport" UI yet: the household's sports/teams were seeded from the admin follow list and
+  the F1/NFL page follow buttons write teams; a web Settings page for it is the next web piece. #111 parked.
+- **Waiting for Mark (T5):** the Test Round page (batch 7 and 4b web checks, NFL page, Top Shelf, start-up feel, the
+  real-feed items and the three set-aside sessions); the front page itself once Apple 89 is on a device.
 
 ## Now
 
-1. **Sport front page** (#21): every live game across Mark's followed sports with teams, score, clock, channel and one
-   press to watch; next up; the followed team pinned; spoiler-free honoured; honest without ESPN. A one-page brief and
-   "Live now" mock-ups (Apple TV, iPad) for Mark's approval first, then tvOS, then iPad, reusing the server's C-O score
-   data and replacing the gated dashboard as the Sport tab's landing page. #186, #187 and the iPhone question #177 fold
-   in. Then the cricket page (mock-up approved 31 Oct), then AFL in March.
-2. **Brand review** in a separate session alongside: diff the vendored 1.6.0 against the kit's 1.7.0, screenshot every
-   screen on tvOS, iPad, iPhone and web against `docs/DESIGN.md` › Brand, write up the gaps with before images, fix as
-   one batch after the front page.
+1. **Sport front page on the devices** (#21, D-39): Apple 89 pushed and on Mark's Apple TV and iPad (install or
+   TestFlight), his T5 pass, then the iPad layout check and the iPhone question (#177); #186, #187 fold in.
+2. **Cricket page on Apple** (C-S is on the server, 0383–0385): the "Cricket · Apple TV" mock-up as `CricketPageView`,
+   reached from the front page's Cricket tile; then AFL in March.
+3. **Web: Following settings** (choose and order sports, follow teams; the household store from 0381) and the brand
+   fixes W1–W9 as one web batch (PR #189's README); the Apple brand batch (#190, #116) after.
 3. Batch 8: #4 relay renewal (capture first, a device test with renewal on, released alone): waits for Mark.
 4. #29 (collector cost) before the Live now data is on by default; #20 per-channel airing times inside the sport work.
 
