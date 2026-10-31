@@ -255,3 +255,23 @@ test('two teams sharing an abbreviation (UEFA): both survive, each game and tabl
     assert.deepEqual(p.standings.groups.map(g => [g.name, g.rows.map(r => r.id)]), [['Champions League', ['160', '176']], ['Europa League', ['2604', '104']]]);
     assert.equal(lp.followingOf(p.teams, ['Maribor']), '2604');
 });
+
+// 0389 (0388 Codex round 1, medium): the cached table kept only the teams the games had not already named, so a team that
+// left the scoreboard window vanished from `teams` while its standings row stayed.
+test('a reused table still resolves every row through `teams` once its teams leave the scoreboard window; following stays set', async () => {
+    const deps = { zone: ZONE, followed: () => ['Chelsea'] };
+    const first = await lp.page('EPL', NOW, deps);
+    assert.equal(first.following, '363');
+    const empty = (url) => { const j = fixture('epl-scoreboard'); j.events = []; return { ok: true, json: j }; };
+    stub({ 'eng\\.1/scoreboard': empty }); // no games anywhere around the next refresh; the table is under an hour old
+    await lp.page('EPL', NOW + 11 * 60e3, deps);
+    await new Promise(resolve => setImmediate(resolve));
+    const p = await lp.page('EPL', NOW + 12 * 60e3, deps);
+    assert.deepEqual(p.rounds, []);
+    assert.ok(!asked.some(u => /standings/.test(u)), 'the table was reused');
+    const rows = p.standings.groups.flatMap(g => g.rows);
+    assert.equal(rows.length, 20);
+    assert.deepEqual(rows.filter(r => !p.teams[r.id]).map(r => r.abbr), [], 'every row\'s team is in `teams`');
+    assert.equal(p.teams['363'].full, 'Chelsea');
+    assert.equal(p.following, '363');
+});

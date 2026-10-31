@@ -402,9 +402,11 @@ async function build(league, now, { registerImage = (u) => u, zone, prior = null
     let standings;
     const answered = (standingsAnswers || []).filter(Boolean);
     if (!reuse && answered.length) {
-        const before = new Set(teams.keys());
         const parsed = standingsOf(answered, family, teams, registerImage);
-        standings = { value: parsed, teams: [...teams.values()].filter(t => !before.has(t.id)), at: now };
+        // Every team a row names, including those this refresh's games already collected: a reused table must still
+        // resolve each row's id through `teams` once a team has left the scoreboard window.
+        const named = new Set((parsed?.groups || []).flatMap(g => g.rows.map(r => r.id)));
+        standings = { value: parsed, teams: [...teams.values()].filter(t => named.has(t.id)), at: now };
     } else {
         // Under an hour old, or this refresh's request failed: the last good table, if any (retried next refresh).
         standings = reuse || prior?.standings || { value: null, teams: [], at: -Infinity };
