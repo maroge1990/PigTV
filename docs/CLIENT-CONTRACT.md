@@ -40,6 +40,7 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 | `sportPages` | 0340 | `GET /api/sports/pages/f1` (C-P), on whenever ESPN fixtures are | The Formula 1 page (sport rebuild, #21) |
 | `sportPageNfl` | 0379 | `GET /api/sports/pages/nfl` (C-Q), on whenever ESPN fixtures are | The NFL page (#21) |
 | `sportFront` | 0381 | `GET /api/sports/front` (C-R), on whenever ESPN fixtures are and `PIGTV_SPORTS_DASHBOARD` is not `0` | The Sport front page (D-39) |
+| `sportPageCricket` | 0383 | `GET /api/sports/pages/cricket` (C-S), on whenever ESPN fixtures are | The Cricket page (#21) |
 | `scheduleHistory` | 0156 | `recordings/scheduled?include=recent` adds missed/failed of the last 7 days | Asks `include=recent` |
 | `providerReminders` | 0168 | `GET /api/providers/reminders` (C-K) | Daily reminder popup |
 | `providers` | 0174 | Resolve carries `provider` (C-J) | Shown in Stream info |
@@ -145,6 +146,7 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 | C-P Sport pages: Formula 1 | `sportPages` | 0340 | (sport rebuild) |
 | C-Q Sport pages: NFL | `sportPageNfl` | 0379 | (sport rebuild) |
 | C-R Sport front page | `sportFront` | 0381 | (sport rebuild) |
+| C-S Sport pages: Cricket | `sportPageCricket` | 0383 | (sport rebuild) |
 
 C-A to C-K are implemented on both sides and verified on devices (results in `docs/archive/TEST-BLOCK-2026-10-13.md`). C-L
 onwards are not verified yet.
@@ -661,3 +663,34 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
   follow list ("NFL", "NFL: Green Bay Packers") once. The follow list and sport categories still decide which guide
   programmes are sport (C-I); the household's `sports` also decide which leagues the collector fetches.
 - A server before 0381 answers 404 to `/api/sports/front` and 400 to `sports`/`teams`: send them only with this flag.
+
+### C-S. Sport pages: Cricket. Flag: `sportPageCricket` (0383, #21)
+
+The Cricket page (mock-up "Cricket · Apple TV", DESIGN.md › Sport pages), built like C-Q from ESPN's free cricket feeds
+on demand (kept 2 min while the lead is in play, 10 min on a match day, 1 h otherwise; nothing is fetched until asked).
+
+- `GET /api/sports/pages/cricket` (any user) → `{ available, updatedAt, lead, series, others }`
+  - `available: false` (and nothing else) until the first fetch has answered, or when ESPN cannot be reached and
+    nothing is cached. Fields the feed does not give are `null`, never guessed.
+  - `lead`: the match the page leads with: the household's followed cricket team's (`teams.Cricket`, C-R) current or
+    next match, else the first live match the feed lists, else the next one; null when there is none. `{ id, seriesId,
+    competition, label ("3rd Test"), format, venue, city, start, end, status, breakLabel, day, session, teams, innings,
+    summary, crease, seriesLine, days, nextStart, channels }`. `format`: `test` | `odi` | `t20` | `first-class` |
+    `list-a` | null. `status`: `scheduled` | `live` | `break` | `done`; `breakLabel` ("Stumps", "Lunch") while on a
+    break; `day` ("Day 4") and `session` (1–3, counted from the day's intervals, live only). `teams[]`: `{ abbr, name,
+    logo }` (logo-cache path or null). `innings`: one list per team in batting order, each `{ runs, wickets, overs
+    (text, balls notation), declared, current }`; a team that has not batted has an empty list, never 0. `summary`: the
+    feed's line ("South Africa lead by 100 runs"). `crease`: `[{ name, runs, balls }]` for an open innings when the
+    feed's batting card has it (internationals), else null. `seriesLine` ("Series level 1–1 · third of three Tests"),
+    only for a tour's Tests, ODIs or T20s. `days[]`: `{ number, date (local midnight, ms), state }` with `state`
+    `done` | `live` | `next` | `later` (a one-day match has one). `nextStart`: the next day's start while on a break
+    or before play, else null. `channels`: C-I channel objects for the current day's airing (each with its own
+    `start`/`end`), best first; `[]` until the guide carries it.
+  - `series`: the lead's tour or league: `{ id, name, season, matches: [{ id, label, start, end, status, result,
+    current }] }` in order; `result` the feed's text ("Australia won by 45 runs (DLS)") or null; or null.
+  - `others[]`: today's and tomorrow's matches from the other competitions the feed lists (at most 20): `{ id,
+    seriesId, competition, teams, scores ([text, text] as ESPN shows them, "329 & 200/5"), line, status, start,
+    nextStart, channels }`.
+- Spoilers are the client's, as C-P and C-Q: with the household's spoiler-free switch on, scores, `summary`, `crease`,
+  `seriesLine`, results and `scores` are hidden; `day`, `status`, `days` and `nextStart` stay. Watch/Record use a
+  channel's own times (C-I, #20).
