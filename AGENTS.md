@@ -94,7 +94,7 @@ test. Never batch unrelated areas to save time; a fix whose live effect must be 
 - Ask Mark before changing the production container or opening a real provider connection (a capture, a probe, a play);
   read-only production status (T4) is fine.
 - **Questions to Mark: one at a time**, each with options and a marked recommendation.
-- The lead session may delegate to sub-agents (never Haiku) and reviews every diff before committing.
+- The lead session may delegate to sub-agents and reviews every diff before committing.
 
 ## Reviews (Codex adversarial review)
 
