@@ -190,6 +190,18 @@ test('IndyCar after its season: no event this week, the last race\'s winner, no 
     assert.ok(asked.length > n, 'asked again after an hour');
 });
 
+test('0428 Codex round 1: a quiet answer is never kept past the next start, so play is not missed for an hour', async () => {
+    const first = await pe.page('NASCAR', NOW);
+    const start = [...first.events.map(e => e.start), first.next?.start].filter(t => Number.isFinite(t) && t > NOW).sort((a, b) => a - b)[0];
+    assert.ok(start, 'the sample has a start to come');
+    pe.reset();
+    await pe.page('NASCAR', start - MIN);
+    const n = asked.length;
+    await pe.page('NASCAR', start + 30 * MIN);
+    await new Promise(r => setImmediate(r));
+    assert.ok(asked.length > n, 'asked again once the event has started');
+});
+
 test('cache: 10 min while an event is on; a stale answer is served while one refresh runs; a failed refresh keeps the last good one', async () => {
     await pe.page('WTA Tour', NOW);
     const n = asked.length;

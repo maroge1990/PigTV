@@ -235,13 +235,24 @@ async function build(league, now) {
 const onNow = (value, now) => value.events.some(e => ['live', 'break', 'suspended'].includes(e.status) ||
     (Number.isFinite(e.start) && e.start <= now && (Number.isFinite(e.end) ? now < e.end : now < e.start + DAY)));
 
+/**
+ * How long an answer is kept: ON_TTL_MS while an event is on; otherwise QUIET_TTL_MS, but never past the next start
+ * this week's events or the next race give (0428 Codex round 1, medium: an answer fetched a minute before a start was
+ * kept an hour into play).
+ */
+function ttlOf(value, now) {
+    if (onNow(value, now)) return ON_TTL_MS;
+    const starts = [...value.events.map(e => e.start), value.next?.start].filter(t => Number.isFinite(t) && t > now);
+    return starts.length ? Math.min(QUIET_TTL_MS, Math.max(0, Math.min(...starts) - now)) : QUIET_TTL_MS;
+}
+
 async function cached(league, now) {
     const kept = caches.get(league);
     const fresh = kept && now - kept.at < kept.ttl;
     if (!fresh && !refreshing.has(league)) {
         const mine = generation;
         refreshing.set(league, build(league, now).then((value) => {
-            if (value && mine === generation) caches.set(league, { value, at: now, ttl: onNow(value, now) ? ON_TTL_MS : QUIET_TTL_MS });
+            if (value && mine === generation) caches.set(league, { value, at: now, ttl: ttlOf(value, now) });
         }).catch((err) => console.warn('[Sport] events page refresh failed:', err.message))
             .finally(() => { if (mine === generation) refreshing.delete(league); }));
     }
