@@ -22,6 +22,7 @@
  *   GET /api/sports/front            (any user; 0381, D-39) -> the Sport front page (services/sportFront.js)
  *   GET /api/sports/pages/cricket    (any user; 0383, C-S) -> the Cricket page (services/sportPageCricket.js)
  *   GET /api/sports/pages/league/:league (any user; 0388, C-T) -> any other team league's page (services/sportPageLeague.js)
+ *   GET /api/sports/pages/events?league=L (any user; 0428, C-V) -> a tennis, golf, UFC, IndyCar or NASCAR league's week (services/sportPageEvents.js)
  *   GET /api/sports/categories       (admin; 0147)
  *       -> [{category, programmes}] the EPG categories in the live guide with how
  *          many programmes carry each, most used first, at most 200 (web Status page)
@@ -217,6 +218,23 @@ router.get('/pages/league/:league', async (req, res) => {
         res.json(page);
     } catch (err) {
         console.error('[Sports] league page failed:', err.message);
+        res.status(500).json({ error: 'Could not build the sport page' });
+    }
+});
+
+// 0428 (C-V, #197, D-43): this week's events of a tennis, golf, UFC, IndyCar or NASCAR league, as the other pages: on
+// whenever ESPN fixtures are. `followed` names come from the account's follows in the league's sport (C-U).
+router.get('/pages/events', async (req, res) => {
+    if (!require('../services/sportsFixtures').enabled()) return res.status(404).json({ error: 'Sport pages are off on this server' });
+    const events = require('../services/sportPageEvents');
+    const league = events.leagueOf(req.query.league);
+    if (!league) return res.status(400).json({ error: `league must be one of: ${events.LEAGUES.join(', ')}` });
+    try {
+        const sport = require('../services/sportCatalog').sportOf(league);
+        const names = require('../services/sportPagePrefs').follows(req.user.id).sports.find(s => s.sport === sport)?.teams || [];
+        res.json(await events.page(league, Date.now(), { names }));
+    } catch (err) {
+        console.error('[Sports] events page failed:', err.message);
         res.status(500).json({ error: 'Could not build the sport page' });
     }
 });

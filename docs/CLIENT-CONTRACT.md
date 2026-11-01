@@ -42,6 +42,7 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 | `sportFront` | 0381 | `GET /api/sports/front` (C-R), on whenever ESPN fixtures are and `PIGTV_SPORTS_DASHBOARD` is not `0` | The Sport front page (D-39) |
 | `sportPageCricket` | 0383 | `GET /api/sports/pages/cricket` (C-S), on whenever ESPN fixtures are | The Cricket page (#21) |
 | `sportPageLeagues` | 0388 | **An array**, not a boolean: the leagues `GET /api/sports/pages/league/:league` (C-T) answers, by canonical name; `[]` when ESPN fixtures are off | One page design for any other team league (#21) |
+| `sportPageEvents` | 0428 | `GET /api/sports/pages/events?league=` (C-V), on whenever ESPN fixtures are | The tennis, golf, UFC, IndyCar and NASCAR pages (#197, D-43) |
 | `scheduleHistory` | 0156 | `recordings/scheduled?include=recent` adds missed/failed of the last 7 days | Asks `include=recent` |
 | `providerReminders` | 0168 | `GET /api/providers/reminders` (C-K) | Daily reminder popup |
 | `providers` | 0174 | Resolve carries `provider` (C-J) | Shown in Stream info |
@@ -859,7 +860,7 @@ account follows nothing; only the server's owner (its first admin account) takes
   tournament is on today's front page every day it runs. A major appears only under `Grand Slams` (men's and women's
   draws together) or `Majors` (the four men's majors; the women's stay under `LPGA`). The sport's followed names mark a
   card `followed` only when the name is in its draw, field, fight card or entry list (F1 sessions too); a MotoGP or
-  Supercars card, which has none, for each name no other series lists. No C-T page yet.
+  Supercars card, which has none, for each name no other series lists. No C-T page; since 0428 their page is C-V.
 - **Names to follow (0418, #199).** `GET /api/sports/names?league=<league>` (any user) → `{ league, kind, names }`:
   what Settings › Sport offers to follow in one catalogue league, in name order: its teams (ESPN's roster; the
   International groups' stored one) and whoever the collected fixtures list (feed leagues' sides, players, fighters,
@@ -874,3 +875,53 @@ account follows nothing; only the server's owner (its first admin account) takes
   outside the catalogue). Football knows every competition a club has fixtures in; other sports only those some
   account follows.
 - A server before 0391 answers 404 to `/api/sports/follows` and `/catalog`: send them only with this flag.
+
+### C-V. Sport pages: events. Flag: `sportPageEvents` (0428, #197, D-43)
+
+The pages of the leagues followed by individuals (DESIGN.md › Apple TV sport pages): tennis, golf, UFC, IndyCar and
+NASCAR. Built like C-P from ESPN's free feeds on demand (kept 10 min while one of the league's events is on, 1 h
+otherwise; nothing is fetched until a page is asked for; one answer per league, shared by every account). The flag is
+on whenever ESPN fixtures are, as the other pages.
+
+- `GET /api/sports/pages/events?league=<league>` (any user; the league any case, URL-encoded) → `{ available, league,
+  sport, kind, updatedAt, events }`. `league` must be one of `Grand Slams`, `ATP Tour`, `WTA Tour`, `Majors`, `PGA Tour`,
+  `DP World Tour`, `LIV`, `LPGA`, `UFC`, `IndyCar`, `NASCAR` (C-U): anything else, or none, is a 400 `{ error }`.
+  - `available: false` (and nothing else) until the first fetch has answered, or when ESPN cannot be reached and nothing
+    is kept. Fields the feed does not give are `null`, never guessed.
+  - `sport`: `"Tennis"` | `"Golf"` | `"Combat"` | `"Motorsport"` (C-U's names); `kind`: `"tennis"` | `"golf"` | `"fight"`
+    | `"race"`, which says what each event carries.
+  - `events[]`: this week's events of the league. Tennis and golf: the events ESPN lists for the week (as the C-R
+    cards: a major only under `Grand Slams` or `Majors`); UFC, IndyCar, NASCAR: those from 3 days ago to 7 days ahead.
+    Each `{ id, name, start, end, status, breakLabel?, venue, followed, … }`: `id` the C-R card's (`espn:<feed>:<event>`),
+    `start`/`end` and `status` as the card's (`scheduled` | `live` | `break` with `breakLabel` | `finished` | …); `venue`
+    `{ name, city, country }` or null (golf and racing: null, the feed has none). `followed`: the requesting account's
+    followed names (its sport's, C-U) found in the event, spelt as the event spells them (accents and case aside: a
+    follow "Lucia Szabova" is `"Lucia Szabová"`), so a row is tinted when its name is in the list; a doubles pair's row
+    when either of its names (split at `" / "`) is.
+  - `kind: "tennis"`: `matches[]` (every match of every draw, by start) `{ id, draw ("Men's Singles"…), round ("Round
+    1", "Qualifying Final", "Final"…), start, status, court (or null), players, sets }`. `players`: two, in ESPN's order,
+    each `{ name, seed, country, winner }`; a doubles pair's `name` is both joined (`"A / B"`), its `country` set only when
+    both share it; `name` null while the player is not drawn (TBD). `seed` ESPN's (`curatedRank`) or null. `winner`
+    true/false once the match is finished (walkover and retirement too), null before. `sets`: per set, the two players'
+    games in the players' order (`[[6,4],[3,6]]`; the set in play counts its games so far; a tiebreak set is `[7,6]`;
+    a match tiebreak `[1,0]`), null before play and for a walkover. No point score or server (D-43). `draws[]`: `{ name,
+    rounds: [{ name, matchIds }] }`, qualifying rounds first, then the main draw in order; `matchIds` point into
+    `matches`. The client builds its rails from `matches`: Your players (`followed`), Live now, Tonight, Results today.
+  - `kind: "golf"`: `round` (the round being played or last played, 1–4, or null) and `leaderboard[]`, the whole field in
+    ESPN's order: `{ pos ("1", "T4"; null for a player who missed the cut, or when ESPN's leaderboard did not answer),
+    name, country, toPar ("-7", "E", "+2"), rounds: [strokes | null ×4], status ("cut" | "wd" | "dq" | null) }`. A round is
+    its strokes once all 18 holes are in; a round being played is null. No tee times or hole (D-43).
+  - `kind: "fight"` (UFC): `bouts[]` in the feed's order (the first bout of the night first, the main event last) `{ id,
+    start, status, weightClass ("Lightweight", "W Flyweight"), card, fighters: [{ name, winner }], result }`. `card`:
+    `"main"` for the bouts that start at the night's latest start time, `"prelims"` for every earlier one (ESPN gives
+    each part of the night one start time; a night with one start time is all `"main"`). `winner` true/false once the
+    bout is finished, null before. `result`: `{ round, clock ("1:28") }` once finished, else null. No method or record.
+  - `kind: "race"` (IndyCar, NASCAR): each event's `entryList[]` `{ name }` in alphabetical order (never a running
+    order; ESPN's feed has no car number or team, so none is sent). At the top level, beside `events`: `lastWinner: {
+    name, race, date } | null` (the newest finished race's winner, this week's or the season calendar's) and `next: {
+    name, start } | null` (the next race not yet started, at its own time). No practice, qualifying or standings.
+- Spoilers are the client's, as C-P, C-S and C-T: the server always sends results; with the account's spoiler-free
+  switch on (C-U) the client hides `sets`, every `winner`, golf `pos`, `toPar`, `rounds` and `status` (the field may be
+  shown alphabetically), UFC `result`, and `lastWinner`; `status`, `start`, the draws and the names stay.
+- No channels: an event's airings are on its C-R card (Watch and Record from there or the banner).
+- A server before 0428 answers 404 to `/api/sports/pages/events`: ask only with this flag.

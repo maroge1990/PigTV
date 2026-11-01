@@ -138,4 +138,6 @@ function normalize(json, league, source) {
     return out;
 }
 
-module.exports = { LEAGUES, MAX_BYTES, has, normalize, personKey };
+// 0428 (C-V): the events page (sportPageEvents.js) reads the same events with the same helpers, so its ids, dates and
+// states are the cards'.
+module.exports = { LEAGUES, MAX_BYTES, has, normalize, personKey, stateOf, place, text, time };

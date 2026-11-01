@@ -94,6 +94,8 @@ async function sendInfo(req, res) {
             // #21 (0388, C-T): the leagues GET /api/sports/pages/league/:league answers, by canonical name (an array, not a
             // boolean); empty when ESPN fixtures are off.
             sportPageLeagues: require('../services/sportsFixtures').enabled() ? [...require('../services/sportPageLeague').LEAGUES] : [],
+            // 0428 (#197, C-V, D-43): GET /api/sports/pages/events?league=, the tennis, golf, UFC, IndyCar and NASCAR pages.
+            sportPageEvents: require('../services/sportsFixtures').enabled(),
             // 0156: GET /api/recordings/scheduled?include=recent also lists schedules
             // that ended up missed or failed in the last 7 days, each with its status
             // and error - a missed/failed recording no longer simply disappears.
