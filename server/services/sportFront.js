@@ -3,9 +3,10 @@
  * projection (sportsDashboard.buildDashboard, on its worker) for the account's followed sports, leagues and teams
  * (sportPagePrefs; the household's before 0391), then arranged here into what the page draws:
  *
- *   sports  one row per followed sport, in the household's order: how many are live, the next start, and `line`
- *           ('live' | 'next' | 'quiet'; the client words and formats it)
- *   follows one per followed team or driver: live now, next, or nothing (`state`), with the card it points at
+ *   sports  one row per followed league, in the account's order with those playing now first (D-43): how many are
+ *           live, the next start, and `line` ('live' | 'next' | 'quiet'; the client words and formats it)
+ *   follows one per followed team or driver, in the account's order with those playing now first (D-43): live now,
+ *           next, or nothing (`state`), with the card it points at
  *   hero    the one card the page leads with (rule below); stickiness and the long-press override are the client's
  *   rails   per followed league, leagues with a game on now first (D-41), then the account's order; card ids: live first
  *           (earliest start), then today's finals (latest first), then the rest
@@ -35,6 +36,8 @@ function finishEstimate(card) {
     return card.start + hours * HOUR;
 }
 const byFinish = (a, b) => finishEstimate(a) - finishEstimate(b) || byStart(a, b);
+/** 0427 (D-43 points 3 and 5): what plays now first, then the rest, each part in its given (the account's) order. */
+const playingFirst = (list, playing) => [...list.filter(playing), ...list.filter(x => !playing(x))];
 
 function emptyFront({ now, timezone, spoilerFree }) {
     return { now, timezone, spoilerFree, scores: 'unavailable', sports: [], follows: [],
@@ -55,15 +58,15 @@ function arrange(response, prefs) {
     const inLeague = league => games.filter(g => g.league === league);
     const firstScheduled = list => list.filter(g => g.status === 'scheduled').sort(byStart)[0] || null;
 
-    const sports = order.map(league => {
+    const sports = playingFirst(order.map(league => {
         const list = inLeague(league);
         const live = list.filter(isLive).length;
         const nextCard = firstScheduled(list);
         const next = nextCard ? { gameId: nextCard.id, start: nextCard.start } : null;
         return { league, sport: sportOf.get(league), live, next, line: live ? 'live' : next ? 'next' : 'quiet' };
-    });
+    }), s => s.live > 0);
 
-    const follows = [], followed = [];
+    let follows = [], followed = [];
     for (const { sport, leagues, teams } of prefs.sports) for (const name of teams) {
         const cards = games.filter(g => leagues.includes(g.league) && (matches[g.id] || []).some(m => m.name === name));
         const pick = cards.filter(isLive).sort(byFinish)[0] || firstScheduled(cards);
@@ -77,6 +80,9 @@ function arrange(response, prefs) {
             gameId: pick?.id ?? null, start: pick?.start ?? null });
         followed.push(new Set(cards.map(g => g.id)));
     }
+    // 0427 (D-43): a follow playing now moves to the top; `followed` keeps step, so the hero's followIndex points into it.
+    const moved = playingFirst(follows.map((f, i) => i), i => follows[i].state === 'live');
+    [follows, followed] = [moved.map(i => follows[i]), moved.map(i => followed[i])];
     const followIndexOf = card => { const i = followed.findIndex(ids => ids.has(card.id)); return i >= 0 ? i : null; };
 
     let hero = { reason: 'none', followIndex: null, gameId: null };

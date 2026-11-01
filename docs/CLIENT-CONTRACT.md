@@ -712,6 +712,11 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
 - Since 0390 (#194, D-41) every card is a fixture's game: a guide listing never becomes a card (no `guide:` ids,
   `dataSource: "guide"`); the guide only adds channels. A game whose airing the join cannot match has `channels: []`
   (the client says "No TV listing found"). The legacy C-O `/dashboard` is unchanged.
+- Since 0427 (D-43 points 3 and 5): `sports[]` and `follows[]` keep the account's order, but whatever is playing now
+  moves to the top until it ends: a `sports[]` entry with `live` > 0, a `follows[]` entry with `state: "live"` (a card
+  `live`, `break`, `suspended` or `onAir`). Each part, playing and not, stays in the account's order. `hero.followIndex`
+  points into the reordered `follows[]`. Draw both lists in the order sent (the banner's list on the front page and a
+  sport page's leagues); the sport tiles are gone (D-43 point 5). Replaces C-U's "`sports[]` keeps the account's order".
 - A server before 0381 answers 404 to `/api/sports/front` and 400 to `sports`/`teams`: send them only with this flag.
 
 ### C-S. Sport pages: Cricket. Flag: `sportPageCricket` (0383, #21)
@@ -822,7 +827,7 @@ account follows nothing; only the server's owner (its first admin account) takes
   `recording: { scheduleId, status, ruleId, clashesWith? }` (`ruleId` set when "Record every game" made it);
   `clashesWith` (titles) only when that recording loses its clash and waits: show "Clashes with …" on the card.
 - C-R since 0392: `rails[]` puts the leagues with a game on now (`live`, `break`, `suspended`) first, then the rest, each
-  part in the account's order (D-41); `sports[]` keeps the account's order.
+  part in the account's order (D-41); `sports[]` keeps the account's order (until 0427: C-R, D-43, moves them up too).
 - Since 0395 (#195): `UEFA` is three leagues, `Champions League`, `Europa League` and `Conference League` (a stored or
   sent `UEFA` means the first two); new football leagues `League Cup`, `Scottish Premiership`, `Eredivisie`, `WSL`,
   `A-League Women`, and the groups `Internationals` and `Women's Internationals` (every national-team competition ESPN

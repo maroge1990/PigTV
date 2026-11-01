@@ -106,18 +106,20 @@ test('front: shape, rails in the household order, a followed team live leads (fo
             teams: { F1: ['Oscar Piastri'], NFL: ['Green Bay Packers'] } })).status, 200);
         const f = await front();
         assert.equal(f.scores, 'fresh');
-        assert.deepEqual(f.hero, { reason: 'follow-live', followIndex: 1, gameId: 'espn:football/nfl:401' });
+        assert.deepEqual(f.hero, { reason: 'follow-live', followIndex: 0, gameId: 'espn:football/nfl:401' }, 'the live follow, now first (0427)');
         assert.deepEqual(f.rails.map(r => r.league), ['NFL', 'NBA', 'F1', 'Cricket'], 'leagues with a game on now first (D-41)');
         assert.deepEqual(f.rails.map(r => r.gameIds), [['espn:football/nfl:401', 'espn:football/nfl:405', 'espn:football/nfl:406'],
             ['espn:basketball/nba:1'], ['espn:racing/f1:1'], []],
             'a guide listing without a fixture game makes no card (#194, D-41)');
         assert.deepEqual(f.follows.map(x => [x.league, x.name, x.state, x.gameId]),
-            [['F1', 'Oscar Piastri', 'next', 'espn:racing/f1:1'], ['NFL', 'Green Bay Packers', 'live', 'espn:football/nfl:401']]);
-        assert.equal(f.follows[0].logo, null, 'a driver has no logo');
-        assert.equal(f.follows[1].logo, '/api/logo/espn-gb', 'the matching competitor\'s logo, through the logo cache');
-        assert.deepEqual(f.sports.map(s => [s.league, s.live, s.line]), [['F1', 0, 'next'], ['NFL', 1, 'live'], ['NBA', 1, 'live'], ['Cricket', 0, 'quiet']]);
-        assert.deepEqual(f.sports[0].next, { gameId: 'espn:racing/f1:1', start: f.games.find(g => g.id === 'espn:racing/f1:1').start });
-        assert.deepEqual(f.sports[1].next, { gameId: 'espn:football/nfl:406', start: now + 55 * MIN });
+            [['NFL', 'Green Bay Packers', 'live', 'espn:football/nfl:401'], ['F1', 'Oscar Piastri', 'next', 'espn:racing/f1:1']],
+            'a follow playing now first, then the account\'s order (0427, D-43)');
+        assert.equal(f.follows[1].logo, null, 'a driver has no logo');
+        assert.equal(f.follows[0].logo, '/api/logo/espn-gb', 'the matching competitor\'s logo, through the logo cache');
+        assert.deepEqual(f.sports.map(s => [s.league, s.live, s.line]), [['NFL', 1, 'live'], ['NBA', 1, 'live'], ['F1', 0, 'next'], ['Cricket', 0, 'quiet']],
+            'leagues playing now first, each part in the account\'s order (0427, D-43)');
+        assert.deepEqual(f.sports[2].next, { gameId: 'espn:racing/f1:1', start: f.games.find(g => g.id === 'espn:racing/f1:1').start });
+        assert.deepEqual(f.sports[0].next, { gameId: 'espn:football/nfl:406', start: now + 55 * MIN });
         const byId = Object.fromEntries(f.games.map(g => [g.id, g]));
         assert.equal(byId['espn:football/nfl:401'].followed, true);
         assert.equal(byId['espn:racing/f1:1'].followed, true, 'a followed driver races in every session');
@@ -309,12 +311,42 @@ test('arrange: a team followed in a sport is one follow across its leagues, and 
         gameId: 'espn:soccer/uefa.champions:2', start: now + 2 * H }], 'one follow, its next game in either league');
     assert.deepEqual(f.sports.map(s => [s.league, s.sport]), [['EPL', 'Football'], ['UEFA', 'Football']]);
     assert.deepEqual(f.rails.map(r => [r.league, r.sport]), [['EPL', 'Football'], ['UEFA', 'Football']]);
-    // A league with a game on now moves to the top of the rails (D-41 point 10); the tiles keep the account's order.
+    // A league with a game on now moves to the top of the rails (D-41 point 10) and, since 0427 (D-43), of `sports`.
     const onNow = arrange({ now, timezone: 'Etc/GMT', followMatches, games: [games[0], { ...games[1], status: 'live' }] },
         { ...prefs, sports: [{ sport: 'Football', leagues: ['EPL', 'UEFA'], teams: [] }] });
     assert.deepEqual(onNow.rails.map(r => r.league), ['UEFA', 'EPL']);
-    assert.deepEqual(onNow.sports.map(r => r.league), ['EPL', 'UEFA']);
+    assert.deepEqual(onNow.sports.map(r => r.league), ['UEFA', 'EPL']);
     assert.deepEqual(f.hero, { reason: 'follow-next', followIndex: 0, gameId: 'espn:soccer/uefa.champions:2' });
+});
+
+test('0427 (D-43 points 3 and 5): sports and follows keep the account\'s order, with what plays now (live, break, suspended, on air) first', () => {
+    const { arrange } = load('services/sportFront');
+    const now = Date.now();
+    const card = (id, league, status, extra) => ({ id, league, start: now - H, end: null, status, followed: true, freshness: 'fresh',
+        competitors: [], channels: [], canWatch: false, ...extra });
+    const prefs = { spoilerFree: false, sports: [
+        { sport: 'Australian football', leagues: ['AFL'], teams: ['Carlton'] },
+        { sport: 'Basketball', leagues: ['NBA', 'NBL'], teams: ['Boston Celtics', 'Melbourne United'] },
+        { sport: 'Tennis', leagues: ['ATP Tour'], teams: ['Jannik Sinner'] },
+        { sport: 'Golf', leagues: ['PGA Tour'], teams: ['Scottie Scheffler'] },
+        { sport: 'American football', leagues: ['NFL'], teams: ['Green Bay Packers'] }] };
+    const games = [card('espn:afl:1', 'AFL', 'scheduled', { start: now + 5 * H }),
+        card('espn:nba:1', 'NBA', 'suspended'), card('espn:nbl:1', 'NBL', 'scheduled', { start: now + 2 * H }),
+        card('espn:tennis/atp:1', 'ATP Tour', 'break'), card('espn:golf/pga:1', 'PGA Tour', 'finished'),
+        card('espn:nfl:1', 'NFL', 'scheduled', { start: now + 10 * MIN, onAir: true })];
+    const followMatches = { 'espn:afl:1': [{ name: 'Carlton', competitor: null }], 'espn:nba:1': [{ name: 'Boston Celtics', competitor: null }],
+        'espn:nbl:1': [{ name: 'Melbourne United', competitor: null }], 'espn:tennis/atp:1': [{ name: 'Jannik Sinner', competitor: null }],
+        'espn:golf/pga:1': [{ name: 'Scottie Scheffler', competitor: null }], 'espn:nfl:1': [{ name: 'Green Bay Packers', competitor: null }] };
+    const f = arrange({ now, timezone: 'Etc/GMT', games, followMatches }, prefs);
+    assert.deepEqual(f.sports.map(s => s.league), ['NBA', 'ATP Tour', 'NFL', 'AFL', 'NBL', 'PGA Tour']);
+    assert.deepEqual(f.follows.map(x => [x.name, x.state]), [['Boston Celtics', 'live'], ['Jannik Sinner', 'live'], ['Green Bay Packers', 'live'],
+        ['Carlton', 'next'], ['Melbourne United', 'next'], ['Scottie Scheffler', 'none']]);
+    // The hero's followIndex points into the reordered list: the follow-live card closest to finishing (NFL's, typical 3.25 h).
+    assert.equal(f.follows[f.hero.followIndex].gameId, f.hero.gameId);
+    // Once it ends, a follow goes back to its place.
+    const later = arrange({ now, timezone: 'Etc/GMT', followMatches, games: games.map(g => g.id === 'espn:nba:1' ? { ...g, status: 'finished' } : g) }, prefs);
+    assert.deepEqual(later.follows.map(x => x.name).slice(2), ['Carlton', 'Boston Celtics', 'Melbourne United', 'Scottie Scheffler']);
+    assert.deepEqual(later.sports.map(s => s.league), ['ATP Tour', 'NFL', 'AFL', 'NBA', 'NBL', 'PGA Tour']);
 });
 
 test('features: sportFront on by default, the legacy dashboard off; PIGTV_SPORTS_DASHBOARD=0 turns the front page off', async () => {

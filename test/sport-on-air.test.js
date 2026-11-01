@@ -69,7 +69,7 @@ test('front: an on-air card counts among live (tile count and line, rails first,
     const nflLater = fc('espn:football/nfl:2', 'NFL', NOW + 5 * MIN);
     const nflOnAir = fc('espn:football/nfl:1', 'NFL', NOW + 10 * MIN, { onAir: true, canWatch: true });
     const f = front([nba, nflLater, nflOnAir]);
-    assert.deepEqual(f.sports.map(s => [s.league, s.live, s.line]), [['NBA', 0, 'next'], ['NFL', 1, 'live']]);
+    assert.deepEqual(f.sports.map(s => [s.league, s.live, s.line]), [['NFL', 1, 'live'], ['NBA', 0, 'next']], 'on air moves up (0427, D-43)');
     assert.deepEqual(f.rails.map(r => r.league), ['NFL', 'NBA'], 'the league with coverage on air moves up');
     assert.deepEqual(f.rails[0].gameIds, ['espn:football/nfl:1', 'espn:football/nfl:2'], 'on air before what starts sooner but is not on');
     assert.deepEqual(f.hero, { reason: 'league-live', followIndex: null, gameId: 'espn:football/nfl:1' });
