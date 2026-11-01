@@ -42,14 +42,26 @@ function timezone() {
     try { localDay(Date.now(),zone);return zone; } catch { return 'Australia/Melbourne'; }
 }
 const norm = v => classify.parseSide(v)?.tokens.join(' ') || '';
+// 0404 (#206): MotoGP's sessions as its own feed names them. F1's reader folds "Qualifying 1" and "2" into one (they are
+// 25 minutes apart, so the window can't tell them apart) and reads "Grand Prix - Warm Up" as the race.
+const MOTOGP_QUALIFYING_RE = /(?:^| )(?:qualifying|q) ?([12])(?= |$)/;
+const MOTOGP_WARM_UP_RE = /(?:^| )warm ?up(?= |$)/;
+function sessionTitle(league, text) {
+    const parsed = classify.parseTitle(text);
+    if (league !== 'MotoGP') return parsed;
+    const q = MOTOGP_QUALIFYING_RE.exec(parsed.norm);
+    const session = q ? { id: `qualifying ${q[1]}`, label: `Qualifying ${q[1]}` }
+        : MOTOGP_WARM_UP_RE.test(parsed.norm) ? { id: 'warm up', label: 'Warm Up' } : parsed.session;
+    return { ...parsed, session, location: parsed.location.filter(w => !['warm', 'up', 'warmup'].includes(w) && !/^q\d$/.test(w)) };
+}
 function prepareGame(game) {
     return { game, sides: game.competitors.map(t => new Set(t.aliases.map(norm))),
-        title: SESSIONS.has(game.league) ? classify.parseTitle(game.title) : null,
-        session: SESSIONS.has(game.league) ? classify.parseTitle(game.session).session : null };
+        title: SESSIONS.has(game.league) ? sessionTitle(game.league, game.title) : null,
+        session: SESSIONS.has(game.league) ? sessionTitle(game.league, game.session).session : null };
 }
 function prepareEvent(event) {
     return { event, pair: classify.parseMatchup(event.title),
-        title: SESSIONS.has(event.league) ? classify.parseTitle(event.title) : null,
+        title: SESSIONS.has(event.league) ? sessionTitle(event.league, event.title) : null,
         format: /\b(test|odi|t20i?|first.class|list a)\b/i.exec(event.title)?.[1]?.toLowerCase() };
 }
 function sameGame(prepared, parsed) {

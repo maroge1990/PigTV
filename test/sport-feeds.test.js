@@ -119,6 +119,35 @@ test('guide airings join a MotoGP session by session and place, and a Supercars 
     assert.equal(r.games[0].followed, true);
 });
 
+// 0404 (#206): MotoGP's two qualifying sessions are 25 minutes apart, so the session's number decides the join; Warm Up is a
+// session of its own. Every airing of the Qatar weekend joins its one card, and F1's session reading is unchanged.
+test('0404: a MotoGP airing joins only its own session of the whole weekend: Qualifying 1 and 2 apart, Warm Up recognised', () => {
+    const [qatar] = json('motogp-events.json');
+    const cards = feeds.motogpGames(qatar, json('motogp-sessions-qatar.json'));
+    const by = (session) => cards.find(c => c.session === session);
+    const ev = (id, session, title) => ({ id, league: 'MotoGP', kind: 'event', title, start: by(session).start - 5 * 60000, end: by(session).start + 45 * 60000, channels: [] });
+    const airings = [
+        ev('fp1', 'Practice 1', 'MotoGP: Qatar Grand Prix - Practice 1'),
+        ev('pr', 'Practice', 'MotoGP: Qatar Grand Prix - Practice'),
+        ev('fp2', 'Practice 2', 'MotoGP: Qatar Grand Prix - Free Practice 2'),
+        ev('q1', 'Qualifying 1', 'MotoGP: Qatar Grand Prix - Qualifying 1'),
+        ev('q2', 'Qualifying 2', 'MotoGP: Qatar Grand Prix - Q2'),
+        ev('spr', 'Sprint', 'MotoGP: Qatar Grand Prix - Tissot Sprint'),
+        ev('wup', 'Warm Up', 'MotoGP: Qatar Grand Prix - Warm Up'),
+        ev('rac', 'Race', 'MotoGP: Qatar Grand Prix - Race')];
+    const found = dashboard.matchBroadcasts(cards, airings);
+    const joined = Object.fromEntries(cards.map(c => [c.session, found.get(c.id).map(e => e.id)]));
+    assert.deepEqual(joined, { 'Practice 1': ['fp1'], Practice: ['pr'], 'Practice 2': ['fp2'], 'Qualifying 1': ['q1'], 'Qualifying 2': ['q2'],
+        Sprint: ['spr'], 'Warm Up': ['wup'], Race: ['rac'] });
+    // a bare "Qualifying" names neither session: it joins none
+    const bare = dashboard.matchBroadcasts(cards, [{ ...ev('q', 'Qualifying 1', 'MotoGP: Qatar Grand Prix - Qualifying') }]);
+    assert.equal([...bare.values()].flat().length, 0);
+    // F1 unchanged: its sessions still come from the shared title reader
+    const f1 = { id: 'f1q', league: 'F1', start: by('Race').start, end: null, title: 'Qatar Grand Prix · Qualifying', session: 'Qualifying', competitors: [] };
+    const f1found = dashboard.matchBroadcasts([f1], [{ id: 'a', league: 'F1', kind: 'event', title: 'F1: Qatar Grand Prix - Qualifying', start: f1.start, end: f1.start + H, channels: [] }]);
+    assert.deepEqual(f1found.get('f1q').map(e => e.id), ['a']);
+});
+
 // 0403 (0402 Codex round 1, two high): a redirect could lead off the allowed hosts, and an answer had no size limit.
 test('0403: a redirect is refused, never followed; an answer past the size limit is dropped, whatever its length header', async () => {
     const real = global.fetch;
