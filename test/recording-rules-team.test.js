@@ -133,3 +133,19 @@ test('0416: a game of the same name in another league never takes over a schedul
     await load('services/recordingRules').evaluate();
     assert.deepEqual(rows(), [['Fox Footy', NOW + 26 * H], ['Fox Footy 2', NOW + 27 * H]], 'the AFL schedule stays; the AFLW game gets its own');
 });
+
+// 0417 (0416 Codex round 2, high): a game on two channels whose coverage starts at different times is one guide event with
+// the widest bounds: once one channel's coverage had begun, the rule dropped the game, never recording the other airing.
+test('0417: a game whose coverage has begun on one channel is recorded on another channel\'s airing still to come, on its own times', async () => {
+    const d = sqlite.getDb();
+    const ins = d.prepare(`INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, categories, flags, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
+    ins.run('ff', source.id, NOW - 30 * 60000, NOW + 3 * H, 'AFL: Brisbane v Adelaide', '["Sport"]', 8, null);
+    ins.run('ff2', source.id, NOW + H, NOW + 3 * H + 30 * 60000, 'AFL: Brisbane v Adelaide', '["Sport"]', 8, null);
+    prefs.setFollows(user.id, { sports: [{ sport: 'Australian football', leagues: ['AFL', 'AFLW'], teams: ['Brisbane'] }] });
+    dashboard.store().ingest([game('espn:australian-football/afl:8', 'AFL', NOW + 10 * 60000, 'Brisbane', 'Adelaide')], NOW);
+    sportsEvents.reset();
+    const made = await call('POST', '/api/recordings/rules', { kind: 'team', match: 'Brisbane', sport: 'Australian football' });
+    assert.equal(made.status, 201);
+    assert.deepEqual(scheduled.listUpcoming().filter(s => s.rule_id === made.body.id).map(s => [s.channel_name, s.program_start, s.program_end]),
+        [['Fox Footy 2', NOW + H, NOW + 3 * H + 30 * 60000]]);
+});

@@ -190,11 +190,15 @@ async function teamCandidates(rule, now, { games = null, events = null } = {}) {
     const joined = dashboard.matchBroadcasts(mine, airings);
     const out = [];
     for (const g of mine) {
-        const on = (joined.get(g.id) || []).filter(e => e.start > now && (e.channels || []).length)
+        // 0417 (0416 Codex round 2, high): each channel by its own airing (C-I merges overlapping broadcasts into one
+        // event, its bounds the widest): the best channel whose own airing is still to start, on that airing's times.
+        const airingsOf = (e) => (e.channels || []).map(ch => ({ e, ch, start: Number.isFinite(ch.start) ? ch.start : e.start,
+            end: Number.isFinite(ch.end) ? ch.end : e.end }));
+        const pick = (joined.get(g.id) || []).flatMap(airingsOf).filter(a => a.start > now)
             .sort((a, b) => Math.abs(a.start - g.start) - Math.abs(b.start - g.start))[0];
-        if (!on) continue;
-        const ch = on.channels[0];
-        out.push({ identity: `game:${g.id}`, title: on.title, titles: [on.title, g.title], anyChannel: false, start: on.start, end: on.end,
+        if (!pick) continue;
+        const { e: on, ch } = pick;
+        out.push({ identity: `game:${g.id}`, title: on.title, titles: [on.title, g.title], anyChannel: false, start: pick.start, end: pick.end,
             sourceId: ch.sourceId, channelId: String(ch.id).replace(/^(?:m3u|xtream)_\d+_/, ''), stableId: ch.stableId || null,
             channelName: ch.name, channelLogo: ch.logo || null, description: null });
     }
