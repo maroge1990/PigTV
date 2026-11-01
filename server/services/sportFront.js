@@ -21,7 +21,7 @@ const ONGOING = new Set(['live', 'break', 'suspended']);
 const byStart = (a, b) => a.start - b.start || a.id.localeCompare(b.id);
 const HOUR = 3600000;
 const FOOTBALL = new Set(require('./sportCatalog').sport('Football').leagues);
-const TYPICAL_HOURS = { F1: 2, NFL: 3.25, NBA: 2.5, AFL: 3, MLB: 3.25 };
+const TYPICAL_HOURS = { F1: 2, MotoGP: 1, NFL: 3.25, NBA: 2.5, AFL: 3, AFLW: 2.5, NRLW: 2, 'Super Netball': 1.5, MLB: 3.25 };
 const CRICKET_HOURS = { t20: 4.5, odi: 9, test: 120, 'first-class': 120 };
 
 /** When a card should end: its own `end`, else its start plus the league's typical length (0382). */
@@ -69,7 +69,7 @@ function arrange(response, prefs) {
             return Number.isInteger(index) ? card.competitors[index]?.logo || null : null;
         };
         const league = pick?.league ?? leagues[0];
-        const logo = league === 'F1' ? null : (pick && logoOf(pick)) || cards.map(logoOf).find(Boolean) || null;
+        const logo = ['F1', 'MotoGP', 'Supercars'].includes(league) ? null : (pick && logoOf(pick)) || cards.map(logoOf).find(Boolean) || null;
         follows.push({ league, sport, name, logo, state: !pick ? 'none' : ONGOING.has(pick.status) ? 'live' : 'next',
             gameId: pick?.id ?? null, start: pick?.start ?? null });
         followed.push(new Set(cards.map(g => g.id)));

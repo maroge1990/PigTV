@@ -66,7 +66,7 @@ test('each account its own: what one saves, another does not see, and it survive
 test('anything else is refused with 400 and changes nothing', async () => {
     await call('/api/sports/pages/preferences', viewer, { spoilerFree: true, following: { F1: 'Lando Norris' } });
     for (const bad of [{}, { spoilerFree: 'yes' }, { spoilerFree: 1 }, { following: 'Lando' }, { following: { AFL: 'Cats' } },
-        { following: { F1: 7 } }, { following: { F1: 'x'.repeat(81) } }, { extra: true }, [], { sports: ['AFLW'] }]) {
+        { following: { F1: 7 } }, { following: { F1: 'x'.repeat(81) } }, { extra: true }, [], { sports: ['AFLW Reserves'] }]) {
         const r = await call('/api/sports/pages/preferences', viewer, bad);
         assert.equal(r.status, 400, JSON.stringify(bad));
     }
@@ -105,7 +105,8 @@ test('C-U: sports hold their leagues and one list of teams, shown under every le
     assert.deepEqual(cricket.slice(0, 3), [{ league: 'Cricket', label: 'International (men)', heading: 'International' },
         { league: "Women's Cricket", label: 'International (women)', heading: 'International' }, { league: 'IPL', label: 'IPL', heading: 'Franchise' }]);
     assert.deepEqual(catalog.sports.find(s => s.sport === 'American football').leagues, [{ league: 'NFL', label: 'NFL', heading: null }]);
-    assert.equal(catalog.sports.flatMap(s => s.leagues).length, 45, 'every league with a fixture source; #196 and #197 add the rest');
+    assert.equal(catalog.sports.flatMap(s => s.leagues).length, 50, 'every league with a fixture source; #197 adds the rest');
+    assert.deepEqual(catalog.sports.find(s => s.sport === 'Netball').leagues.map(l => l.league), ['Super Netball'], '#196');
     assert.ok(load('services/sportsFixtures').neededLeagues().has('NBA'), 'any account\'s leagues are fetched');
 });
 
@@ -114,10 +115,10 @@ test('the owner takes over the household\'s follows once; a corrupt stored value
     // neededLeagues() above already read the owner, who then took over an empty household; start the owner afresh.
     d.prepare('DELETE FROM sport_follows WHERE user_id = (SELECT MIN(id) FROM app_users)').run();
     d.prepare("INSERT INTO meta (key, value) VALUES ('sport_page_prefs', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
-        .run(JSON.stringify({ spoilerFree: true, sports: ['EPL', 'NFL', 'UEFA', 'AFLW'], teams: { EPL: ['Arsenal'], UEFA: ['Arsenal', 'Celtic'], NFL: ['Green Bay Packers'] } }));
+        .run(JSON.stringify({ spoilerFree: true, sports: ['EPL', 'NFL', 'UEFA', 'VFLW'], teams: { EPL: ['Arsenal'], UEFA: ['Arsenal', 'Celtic'], NFL: ['Green Bay Packers'] } }));
     assert.deepEqual((await call('/api/sports/follows', owner)).body, { spoilerFree: true, sports: [
         { sport: 'Football', leagues: ['EPL', 'Champions League', 'Europa League'], teams: ['Arsenal', 'Celtic'] },
-        { sport: 'American football', leagues: ['NFL'], teams: ['Green Bay Packers'] }] }, 'AFLW has no fixture yet, so it is not offered');
+        { sport: 'American football', leagues: ['NFL'], teams: ['Green Bay Packers'] }] }, 'a league the catalogue does not offer is dropped');
     d.prepare("DELETE FROM meta WHERE key = 'sport_page_prefs'").run();
     assert.equal((await call('/api/sports/follows', owner)).body.sports.length, 2, 'taken over once, then the owner\'s own');
     d.prepare('UPDATE sport_follows SET value = \'{not json\' WHERE user_id = (SELECT MIN(id) FROM app_users)').run();

@@ -7,6 +7,12 @@ const { overrunEnd } = require('./sportOverrun');
 const { isCricket, CRICKET_GROUPS } = require('./sportCatalog');
 const { cricketGroupOf } = require('./sportsFixturesEspn');
 const { isTournament } = require('./sportGroups');
+// #196: motorsport follows riders and drivers, who race in every session; F1 and MotoGP cards are sessions (joined by
+// session and place), a Supercars card the event weekend.
+const MOTOR = new Set(['F1', 'MotoGP', 'Supercars']);
+const SESSIONS = new Set(['F1', 'MotoGP']);
+const WEEKENDS = new Set(['Supercars']);
+const feeds = require('./sportFeeds');
 const H = 3600000;
 // 0381 (D-39): the score collector runs by default (PIGTV_SPORTS_DASHBOARD=0 turns it off) whenever ESPN fixtures are on,
 // for the Sport front page; the legacy /dashboard and /preferences routes stay opt-in (=1) for the current Apple app.
@@ -30,12 +36,12 @@ function timezone() {
 const norm = v => classify.parseSide(v)?.tokens.join(' ') || '';
 function prepareGame(game) {
     return { game, sides: game.competitors.map(t => new Set(t.aliases.map(norm))),
-        title: game.league === 'F1' ? classify.parseTitle(game.title) : null,
-        session: game.league === 'F1' ? classify.parseTitle(game.session).session : null };
+        title: SESSIONS.has(game.league) ? classify.parseTitle(game.title) : null,
+        session: SESSIONS.has(game.league) ? classify.parseTitle(game.session).session : null };
 }
 function prepareEvent(event) {
     return { event, pair: classify.parseMatchup(event.title),
-        title: event.league === 'F1' ? classify.parseTitle(event.title) : null,
+        title: SESSIONS.has(event.league) ? classify.parseTitle(event.title) : null,
         format: /\b(test|odi|t20i?|first.class|list a)\b/i.exec(event.title)?.[1]?.toLowerCase() };
 }
 function sameGame(prepared, parsed) {
@@ -51,8 +57,11 @@ function sameGame(prepared, parsed) {
             const format = ({ t20i: 't20', 'first class': 'first-class', 'list a': 'list-a' })[parsed.format] || parsed.format;
             if (format !== game.format) return false;
         }
+    } else if (WEEKENDS.has(game.league)) {
+        // #196: a Supercars card is the whole event weekend (no session times are published): an airing inside it joins.
+        return Number.isFinite(game.end) && event.start < game.end && event.end > game.start;
     } else if (event.end < game.start || Math.abs(event.start - game.start) > 90 * 60000) return false;
-    if (game.league === 'F1') {
+    if (SESSIONS.has(game.league)) {
         return Boolean(parsed.title.session && prepared.session && parsed.title.session.id === prepared.session.id &&
             prepared.title.location.length && parsed.title.location.length && classify.locationMatch(parsed.title.location, prepared.title.location));
     }
@@ -134,7 +143,7 @@ function progressFor(game,progress,hidden) {
 function followMatchesFor(g,teams) {
     const names=(teams?.[g.league] || []).filter(n=>typeof n==='string' && n);
     if(!names.length) return [];
-    if(g.league==='F1') return names.map(name=>({name,competitor:null}));
+    if(MOTOR.has(g.league)) return names.map(name=>({name,competitor:null}));
     const out=[];
     for(const name of names) {
         const wanted=norm(name);
@@ -252,9 +261,10 @@ function utcDates(now) {
 const requestPolicy = require('./espnRequestPolicy');
 const REQUESTS_PER_TICK = 12;
 const CATALOG_RESERVE = 3;
-function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.neededLeagues(),clock=Date.now,enabled:isEnabled=collectorEnabled}={}) {
+function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.neededLeagues(),clock=Date.now,enabled:isEnabled=collectorEnabled,
+    feedGames=(league,o)=>feeds.games(league,{...o,registerImage:require('./logoCache').registerLogo}),recordFeed=fixtures.recordFeed}={}) {
     let running = null, timer = null, stopped = false, remaining = 0, deadline = 0, coldRequests = 0;
-    const cache = new Map(), controller = new AbortController();
+    const cache = new Map(), controller = new AbortController(), recordedFeeds = new WeakSet();
     // ESPN groups scoreboards by US Eastern date, so a game after 00:00Z is listed under the previous
     // UTC date's URL. Remember which query date returned each game and poll that one while it is hot.
     const listedOn = new Map();
@@ -305,7 +315,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
             jobs.push({league,source,date,url,hot:hot.has(`${source}|${date}`)});
         }
         for (const league of wanted) {
-            if (CRICKET_GROUPS.includes(league)) continue;
+            if (CRICKET_GROUPS.includes(league) || feeds.has(league)) continue;
             for (const source of [fixtures.ESPN_LEAGUE_PATHS[league]].flat().filter(Boolean)) for (const date of queryDays) add(league, source, date);
         }
         // #195 (D-41): the International cricket groups take ESPN's active series by their international class; a series
@@ -360,6 +370,17 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         await runJobs(coldJobs, hotJobs.length ? CATALOG_RESERVE : Infinity);
         await runJobs(hotJobs);
         if (remaining > 0) await runJobs(coldJobs);
+        // #196 (D-41): the leagues ESPN does not cover, from their own feeds (sportFeeds.js keeps each answer a while).
+        for (const league of wanted) {
+            if (!feeds.has(league) || stopped) continue;
+            const answer = await feedGames(league, { now: clock() });
+            if (!recordedFeeds.has(answer)) { // a kept answer is recorded once, not on every tick
+                recordedFeeds.add(answer);
+                try { recordFeed(league, answer, clock()); } catch { /* status is best-effort */ }
+            }
+            if (!answer.ok) continue;
+            for (const game of answer.games) candidates.set(game.id, { game, priority: 0, observedAt: answer.observedAt });
+        }
         if (!stopped) {
             const entries = [...candidates.values()].filter(e => !known.has(e.game.id) || e.observedAt > known.get(e.game.id).observedAt);
             if (entries.length) store.ingestBatch(entries);

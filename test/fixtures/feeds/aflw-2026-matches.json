@@ -1,0 +1,744 @@
+{
+ "matches": [
+  {
+   "id": 8983,
+   "providerId": "CD_M20262641206",
+   "compSeason": {
+    "id": 96,
+    "providerId": "CD_S2026264",
+    "name": "2026 NAB AFLW Season",
+    "shortName": "2026 AFL Womens",
+    "currentRoundNumber": 12
+   },
+   "round": {
+    "id": 1514,
+    "providerId": "CD_R202626412",
+    "abbreviation": "Rd 12",
+    "name": "Round 12",
+    "roundNumber": 12,
+    "byes": [],
+    "utcStartTime": "2026-10-30T08:15:00.000+0000",
+    "utcEndTime": "2026-11-01T06:05:00.000+0000"
+   },
+   "home": {
+    "team": {
+     "id": 28,
+     "providerId": "CD_T7889",
+     "name": "GWS GIANTS",
+     "abbreviation": "GWS",
+     "nickname": "GIANTS",
+     "club": {
+      "id": 5,
+      "providerId": "CD_O16",
+      "name": "GWS GIANTS",
+      "abbreviation": "GIANTS",
+      "nickname": "GIANTS"
+     },
+     "teamType": "WOMEN"
+    },
+    "score": {
+     "goals": 7,
+     "behinds": 11,
+     "totalScore": 53,
+     "superGoals": 0
+    }
+   },
+   "away": {
+    "team": {
+     "id": 33,
+     "providerId": "CD_T8786",
+     "name": "Gold Coast SUNS",
+     "abbreviation": "GCFC",
+     "nickname": "SUNS",
+     "club": {
+      "id": 9,
+      "providerId": "CD_O14",
+      "name": "Gold Coast SUNS",
+      "abbreviation": "SUNS",
+      "nickname": "SUNS"
+     },
+     "teamType": "WOMEN"
+    },
+    "score": {
+     "goals": 9,
+     "behinds": 8,
+     "totalScore": 62,
+     "superGoals": 0
+    }
+   },
+   "venue": {
+    "id": 113,
+    "providerId": "CD_V341",
+    "name": "Henson Park",
+    "abbreviation": "HEN",
+    "location": "Sydney",
+    "state": "NSW",
+    "timezone": "Australia/Sydney",
+    "landOwner": "Gadigal/Wangal"
+   },
+   "utcStartTime": "2026-11-01T01:35:00.000+0000",
+   "status": "POSTGAME",
+   "metadata": {
+    "ticket_link": "https://www.ticketmaster.com.au/event/130064E8B0A74AB6"
+   }
+  },
+  {
+   "id": 8986,
+   "providerId": "CD_M20262641207",
+   "compSeason": {
+    "id": 96,
+    "providerId": "CD_S2026264",
+    "name": "2026 NAB AFLW Season",
+    "shortName": "2026 AFL Womens",
+    "currentRoundNumber": 12
+   },
+   "round": {
+    "id": 1514,
+    "providerId": "CD_R202626412",
+    "abbreviation": "Rd 12",
+    "name": "Round 12",
+    "roundNumber": 12,
+    "byes": [],
+    "utcStartTime": "2026-10-30T08:15:00.000+0000",
+    "utcEndTime": "2026-11-01T06:05:00.000+0000"
+   },
+   "home": {
+    "team": {
+     "id": 118,
+     "providerId": "CD_T9406",
+     "name": "Essendon",
+     "abbreviation": "ESS",
+     "nickname": "Bombers",
+     "club": {
+      "id": 10,
+      "providerId": "CD_O9",
+      "name": "Essendon",
+      "abbreviation": "Bombers",
+      "nickname": "Bombers"
+     },
+     "teamType": "WOMEN"
+    }
+   },
+   "away": {
+    "team": {
+     "id": 24,
+     "providerId": "CD_T8097",
+     "name": "Collingwood",
+     "abbreviation": "COLL",
+     "nickname": "Magpies",
+     "club": {
+      "id": 12,
+      "providerId": "CD_O6",
+      "name": "Collingwood",
+      "abbreviation": "Magpies",
+      "nickname": "Magpies"
+     },
+     "teamType": "WOMEN"
+    }
+   },
+   "venue": {
+    "id": 87,
+    "providerId": "CD_V345",
+    "name": "Windy Hill",
+    "abbreviation": "WH",
+    "location": "Melbourne",
+    "state": "VIC",
+    "timezone": "Australia/Melbourne",
+    "landOwner": "Wurundjeri"
+   },
+   "utcStartTime": "2026-11-01T02:05:00.000+0000",
+   "status": "LIVE",
+   "metadata": {
+    "ticket_link": "https://www.ticketmaster.com.au/event/250064E6AC5D2B14"
+   }
+  },
+  {
+   "id": 8985,
+   "providerId": "CD_M20262641208",
+   "compSeason": {
+    "id": 96,
+    "providerId": "CD_S2026264",
+    "name": "2026 NAB AFLW Season",
+    "shortName": "2026 AFL Womens",
+    "currentRoundNumber": 12
+   },
+   "round": {
+    "id": 1514,
+    "providerId": "CD_R202626412",
+    "abbreviation": "Rd 12",
+    "name": "Round 12",
+    "roundNumber": 12,
+    "byes": [],
+    "utcStartTime": "2026-10-30T08:15:00.000+0000",
+    "utcEndTime": "2026-11-01T06:05:00.000+0000"
+   },
+   "home": {
+    "team": {
+     "id": 19,
+     "providerId": "CD_T8098",
+     "name": "Adelaide Crows",
+     "abbreviation": "ADEL",
+     "nickname": "Crows",
+     "club": {
+      "id": 3,
+      "providerId": "CD_O1",
+      "name": "Adelaide Crows",
+      "abbreviation": "Crows",
+      "nickname": "Crows"
+     },
+     "teamType": "WOMEN"
+    }
+   },
+   "away": {
+    "team": {
+     "id": 29,
+     "providerId": "CD_T7386",
+     "name": "Melbourne",
+     "abbreviation": "MELB",
+     "nickname": "Demons",
+     "club": {
+      "id": 14,
+      "providerId": "CD_O18",
+      "name": "Melbourne",
+      "abbreviation": "Demons",
+      "nickname": "Demons"
+     },
+     "teamType": "WOMEN"
+    }
+   },
+   "venue": {
+    "id": 49,
+    "providerId": "CD_V336",
+    "name": "Unley Oval",
+    "abbreviation": "UO",
+    "location": "Adelaide",
+    "state": "SA",
+    "timezone": "Australia/Adelaide",
+    "landOwner": "Kaurna"
+   },
+   "utcStartTime": "2026-11-01T04:05:00.000+0000",
+   "status": "CONFIRMED_TEAMS",
+   "metadata": {
+    "ticket_link": "https://www.ticketmaster.com.au/event/130064E78B571862"
+   }
+  },
+  {
+   "id": 8987,
+   "providerId": "CD_M20262641209",
+   "compSeason": {
+    "id": 96,
+    "providerId": "CD_S2026264",
+    "name": "2026 NAB AFLW Season",
+    "shortName": "2026 AFL Womens",
+    "currentRoundNumber": 12
+   },
+   "round": {
+    "id": 1514,
+    "providerId": "CD_R202626412",
+    "abbreviation": "Rd 12",
+    "name": "Round 12",
+    "roundNumber": 12,
+    "byes": [],
+    "utcStartTime": "2026-10-30T08:15:00.000+0000",
+    "utcEndTime": "2026-11-01T06:05:00.000+0000"
+   },
+   "home": {
+    "team": {
+     "id": 25,
+     "providerId": "CD_T7886",
+     "name": "Fremantle",
+     "abbreviation": "FRE",
+     "nickname": "Dockers",
+     "club": {
+      "id": 6,
+      "providerId": "CD_O10",
+      "name": "Fremantle",
+      "abbreviation": "Dockers",
+      "nickname": "Dockers"
+     },
+     "teamType": "WOMEN"
+    }
+   },
+   "away": {
+    "team": {
+     "id": 121,
+     "providerId": "CD_T9408",
+     "name": "Sydney Swans",
+     "abbreviation": "SYD",
+     "nickname": "Swans",
+     "club": {
+      "id": 24,
+      "providerId": "CD_O28",
+      "name": "Sydney Swans",
+      "abbreviation": "Swans",
+      "nickname": "Swans"
+     },
+     "teamType": "WOMEN"
+    }
+   },
+   "venue": {
+    "id": 191,
+    "providerId": "CD_V3475",
+    "name": "Cockburn ARC Oval",
+    "abbreviation": "CAO",
+    "location": "Perth",
+    "state": "WA",
+    "timezone": "Australia/Perth",
+    "landOwner": "Noongar Boodjar"
+   },
+   "utcStartTime": "2026-11-01T06:05:00.000+0000",
+   "status": "UNCONFIRMED_TEAMS",
+   "metadata": {
+    "ticket_link": "https://www.ticketmaster.com.au/event/250064EDB2532E78"
+   }
+  },
+  {
+   "id": 9073,
+   "providerId": "CD_M20262641301",
+   "compSeason": {
+    "id": 96,
+    "providerId": "CD_S2026264",
+    "name": "2026 NAB AFLW Season",
+    "shortName": "2026 AFL Womens",
+    "currentRoundNumber": 12
+   },
+   "round": {
+    "id": 1543,
+    "providerId": "CD_R202626413",
+    "abbreviation": "QE",
+    "name": "Qualifying & Elimination Finals",
+    "roundNumber": 13,
+    "byes": []
+   },
+   "home": {
+    "team": {
+     "id": 30,
+     "providerId": "CD_T8466",
+     "name": "North Melbourne",
+     "abbreviation": "NMFC",
+     "nickname": "Kangaroos",
+     "club": {
+      "id": 20,
+      "providerId": "CD_O20",
+      "name": "North Melbourne",
+      "abbreviation": "Kangaroos",
+      "nickname": "Kangaroos"
+     },
+     "teamType": "WOMEN"
+    }
+   },
+   "away": {
+    "team": {
+     "id": 155,
+     "providerId": "CD_T3003",
+     "name": "4th",
+     "abbreviation": "TBD",
+     "nickname": "TBD",
+     "teamType": "MEN"
+    }
+   },
+   "venue": {
+    "id": 103,
+    "providerId": "CD_V2385",
+    "name": "To Be Confirmed",
+    "abbreviation": "TBC",
+    "location": "Victoria",
+    "state": "VIC",
+    "timezone": "Australia/Melbourne"
+   },
+   "utcStartTime": "2026-11-02T01:00:00.000+0000",
+   "status": "PLACEHOLDER",
+   "metadata": {
+    "finals_match_label": "First Qualifying Final"
+   }
+  },
+  {
+   "id": 9074,
+   "providerId": "CD_M20262641302",
+   "compSeason": {
+    "id": 96,
+    "providerId": "CD_S2026264",
+    "name": "2026 NAB AFLW Season",
+    "shortName": "2026 AFL Womens",
+    "currentRoundNumber": 12
+   },
+   "round": {
+    "id": 1543,
+    "providerId": "CD_R202626413",
+    "abbreviation": "QE",
+    "name": "Qualifying & Elimination Finals",
+    "roundNumber": 13,
+    "byes": []
+   },
+   "home": {
+    "team": {
+     "id": 26,
+     "providerId": "CD_T8467",
+     "name": "Geelong Cats",
+     "abbreviation": "GEEL",
+     "nickname": "Cats",
+     "club": {
+      "id": 15,
+      "providerId": "CD_O11",
+      "name": "Geelong Cats",
+      "abbreviation": "Cats",
+      "nickname": "Cats"
+     },
+     "teamType": "WOMEN"
+    }
+   },
+   "away": {
+    "team": {
+     "id": 163,
+     "providerId": "CD_T3002",
+     "name": "3rd",
+     "abbreviation": "TBD",
+     "nickname": "TBD",
+     "teamType": "MEN"
+    }
+   },
+   "venue": {
+    "id": 103,
+    "providerId": "CD_V2385",
+    "name": "To Be Confirmed",
+    "abbreviation": "TBC",
+    "location": "Victoria",
+    "state": "VIC",
+    "timezone": "Australia/Melbourne"
+   },
+   "utcStartTime": "2026-11-02T01:00:00.000+0000",
+   "status": "PLACEHOLDER",
+   "metadata": {
+    "finals_match_label": "Second Qualifying Final"
+   }
+  },
+  {
+   "id": 8984,
+   "providerId": "CD_M20262641202",
+   "compSeason": {
+    "id": 96,
+    "providerId": "CD_S2026264",
+    "name": "2026 NAB AFLW Season",
+    "shortName": "2026 AFL Womens",
+    "currentRoundNumber": 12
+   },
+   "round": {
+    "id": 1514,
+    "providerId": "CD_R202626412",
+    "abbreviation": "Rd 12",
+    "name": "Round 12",
+    "roundNumber": 12,
+    "byes": [],
+    "utcStartTime": "2026-10-30T08:15:00.000+0000",
+    "utcEndTime": "2026-11-01T06:05:00.000+0000"
+   },
+   "home": {
+    "team": {
+     "id": 36,
+     "providerId": "CD_T8796",
+     "name": "St Kilda",
+     "abbreviation": "STK",
+     "nickname": "St Kilda",
+     "club": {
+      "id": 21,
+      "providerId": "CD_O27",
+      "name": "St Kilda",
+      "abbreviation": "Saints",
+      "nickname": "Saints"
+     },
+     "teamType": "WOMEN"
+    },
+    "score": {
+     "goals": 7,
+     "behinds": 3,
+     "totalScore": 45,
+     "superGoals": 0
+    }
+   },
+   "away": {
+    "team": {
+     "id": 120,
+     "providerId": "CD_T9409",
+     "name": "Port Adelaide",
+     "abbreviation": "PORT",
+     "nickname": "Power",
+     "club": {
+      "id": 19,
+      "providerId": "CD_O24",
+      "name": "Port Adelaide",
+      "abbreviation": "Power",
+      "nickname": "Power"
+     },
+     "teamType": "WOMEN"
+    },
+    "score": {
+     "goals": 7,
+     "behinds": 9,
+     "totalScore": 51,
+     "superGoals": 0
+    }
+   },
+   "venue": {
+    "id": 78,
+    "providerId": "CD_V347",
+    "name": "RSEA Park",
+    "abbreviation": "RSEA",
+    "location": "Melbourne",
+    "state": "VIC",
+    "timezone": "Australia/Melbourne",
+    "landOwner": "Bunurong/Boonwurrung"
+   },
+   "utcStartTime": "2026-10-31T02:05:00.000+0000",
+   "status": "CONCLUDED",
+   "metadata": {
+    "ticket_link": "https://www.ticketmaster.com.au/event/250064E3E2909A48"
+   }
+  },
+  {
+   "id": 8980,
+   "providerId": "CD_M20262641203",
+   "compSeason": {
+    "id": 96,
+    "providerId": "CD_S2026264",
+    "name": "2026 NAB AFLW Season",
+    "shortName": "2026 AFL Womens",
+    "currentRoundNumber": 12
+   },
+   "round": {
+    "id": 1514,
+    "providerId": "CD_R202626412",
+    "abbreviation": "Rd 12",
+    "name": "Round 12",
+    "roundNumber": 12,
+    "byes": [],
+    "utcStartTime": "2026-10-30T08:15:00.000+0000",
+    "utcEndTime": "2026-11-01T06:05:00.000+0000"
+   },
+   "home": {
+    "team": {
+     "id": 34,
+     "providerId": "CD_T8788",
+     "name": "Richmond",
+     "abbreviation": "RICH",
+     "nickname": "Richmond",
+     "club": {
+      "id": 22,
+      "providerId": "CD_O25",
+      "name": "Richmond",
+      "abbreviation": "Tigers",
+      "nickname": "Tigers"
+     },
+     "teamType": "WOMEN"
+    },
+    "score": {
+     "goals": 5,
+     "behinds": 3,
+     "totalScore": 33,
+     "superGoals": 0
+    }
+   },
+   "away": {
+    "team": {
+     "id": 30,
+     "providerId": "CD_T8466",
+     "name": "North Melbourne",
+     "abbreviation": "NMFC",
+     "nickname": "Kangaroos",
+     "club": {
+      "id": 20,
+      "providerId": "CD_O20",
+      "name": "North Melbourne",
+      "abbreviation": "Kangaroos",
+      "nickname": "Kangaroos"
+     },
+     "teamType": "WOMEN"
+    },
+    "score": {
+     "goals": 15,
+     "behinds": 11,
+     "totalScore": 101,
+     "superGoals": 0
+    }
+   },
+   "venue": {
+    "id": 87,
+    "providerId": "CD_V345",
+    "name": "Windy Hill",
+    "abbreviation": "WH",
+    "location": "Melbourne",
+    "state": "VIC",
+    "timezone": "Australia/Melbourne",
+    "landOwner": "Wurundjeri"
+   },
+   "utcStartTime": "2026-10-31T04:05:00.000+0000",
+   "status": "CONCLUDED",
+   "metadata": {
+    "ticket_link": "https://www.ticketmaster.com.au/event/250064E6E00F49F6"
+   }
+  },
+  {
+   "id": 8981,
+   "providerId": "CD_M20262641204",
+   "compSeason": {
+    "id": 96,
+    "providerId": "CD_S2026264",
+    "name": "2026 NAB AFLW Season",
+    "shortName": "2026 AFL Womens",
+    "currentRoundNumber": 12
+   },
+   "round": {
+    "id": 1514,
+    "providerId": "CD_R202626412",
+    "abbreviation": "Rd 12",
+    "name": "Round 12",
+    "roundNumber": 12,
+    "byes": [],
+    "utcStartTime": "2026-10-30T08:15:00.000+0000",
+    "utcEndTime": "2026-11-01T06:05:00.000+0000"
+   },
+   "home": {
+    "team": {
+     "id": 21,
+     "providerId": "CD_T7887",
+     "name": "Brisbane Lions",
+     "abbreviation": "BL",
+     "nickname": "Lions",
+     "club": {
+      "id": 13,
+      "providerId": "CD_O3",
+      "name": "Brisbane Lions",
+      "abbreviation": "Lions",
+      "nickname": "Lions"
+     },
+     "teamType": "WOMEN"
+    },
+    "score": {
+     "goals": 5,
+     "behinds": 5,
+     "totalScore": 35,
+     "superGoals": 0
+    }
+   },
+   "away": {
+    "team": {
+     "id": 22,
+     "providerId": "CD_T8096",
+     "name": "Carlton",
+     "abbreviation": "CARL",
+     "nickname": "Blues",
+     "club": {
+      "id": 1,
+      "providerId": "CD_O5",
+      "name": "Carlton",
+      "abbreviation": "Blues",
+      "nickname": "Blues"
+     },
+     "teamType": "WOMEN"
+    },
+    "score": {
+     "goals": 6,
+     "behinds": 4,
+     "totalScore": 40,
+     "superGoals": 0
+    }
+   },
+   "venue": {
+    "id": 152,
+    "providerId": "CD_V3765",
+    "name": "Brighton Homes Arena",
+    "abbreviation": "BHA",
+    "location": "Ipswich",
+    "state": "QLD",
+    "timezone": "Australia/Brisbane",
+    "landOwner": "Jagera/Yuggera/Ugarapul"
+   },
+   "utcStartTime": "2026-10-31T06:05:00.000+0000",
+   "status": "CONCLUDED",
+   "metadata": {
+    "ticket_link": "http://www.ticketmaster.com.au/event/250064E8D2275B17"
+   }
+  },
+  {
+   "id": 8982,
+   "providerId": "CD_M20262641205",
+   "compSeason": {
+    "id": 96,
+    "providerId": "CD_S2026264",
+    "name": "2026 NAB AFLW Season",
+    "shortName": "2026 AFL Womens",
+    "currentRoundNumber": 12
+   },
+   "round": {
+    "id": 1514,
+    "providerId": "CD_R202626412",
+    "abbreviation": "Rd 12",
+    "name": "Round 12",
+    "roundNumber": 12,
+    "byes": [],
+    "utcStartTime": "2026-10-30T08:15:00.000+0000",
+    "utcEndTime": "2026-11-01T06:05:00.000+0000"
+   },
+   "home": {
+    "team": {
+     "id": 35,
+     "providerId": "CD_T8787",
+     "name": "West Coast Eagles",
+     "abbreviation": "WCE",
+     "nickname": "Eagles",
+     "club": {
+      "id": 23,
+      "providerId": "CD_O30",
+      "name": "West Coast Eagles",
+      "abbreviation": "Eagles",
+      "nickname": "Eagles"
+     },
+     "teamType": "WOMEN"
+    },
+    "score": {
+     "goals": 6,
+     "behinds": 3,
+     "totalScore": 39,
+     "superGoals": 0
+    }
+   },
+   "away": {
+    "team": {
+     "id": 119,
+     "providerId": "CD_T9407",
+     "name": "Hawthorn",
+     "abbreviation": "HAW",
+     "nickname": "Hawks",
+     "club": {
+      "id": 16,
+      "providerId": "CD_O17",
+      "name": "Hawthorn",
+      "abbreviation": "Hawks",
+      "nickname": "Hawks"
+     },
+     "teamType": "WOMEN"
+    },
+    "score": {
+     "goals": 14,
+     "behinds": 10,
+     "totalScore": 94,
+     "superGoals": 0
+    }
+   },
+   "venue": {
+    "id": 69,
+    "providerId": "CD_V101",
+    "name": "Sullivan Logistics Stadium",
+    "abbreviation": "SLR",
+    "location": "Perth",
+    "state": "WA",
+    "timezone": "Australia/Perth",
+    "landOwner": "Whadjuk"
+   },
+   "utcStartTime": "2026-10-31T08:15:00.000+0000",
+   "status": "CONCLUDED",
+   "metadata": {
+    "ticket_link": "https://www.ticketmaster.com.au/event/130064EF9DD63104"
+   }
+  }
+ ]
+}

@@ -800,4 +800,10 @@ account follows nothing; only the server's owner (its first admin account) takes
   championships, ICC events) is shown only when a followed nation plays in it: on the front page (C-R), the C-T page
   and the Cricket page. Following no nation of the group shows every game. A C-R cricket card of a group may carry
   `competition` (the series name).
+- Since 0402 (#196) the leagues ESPN does not cover come from their own feeds: `AFLW` (Australian football), `NRLW`
+  (Rugby league), `Super Netball` (a new sport, Netball), `MotoGP` and `Supercars` (Motorsport). Their C-R cards have
+  the usual shape, ids `aflw:…`, `cd:…`, `motogp:…`, `supercars:…`. AFLW and NRLW carry scores once played (no live
+  clock); a MotoGP card is a session as F1's; a Supercars card is the event weekend (`end` set, no sessions: the
+  feed publishes none), `status` `unknown` while it is on. Motorsport follows riders and drivers: every session of a
+  followed name's series is `followed`. They have no C-T page.
 - A server before 0391 answers 404 to `/api/sports/follows` and `/catalog`: send them only with this flag.

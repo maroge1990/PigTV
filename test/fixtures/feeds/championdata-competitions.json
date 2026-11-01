@@ -1,0 +1,262 @@
+{
+ "competitionDetails": {
+  "competition": [
+   {
+    "id": 10083,
+    "name": "2017 Super Netball",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 14,
+    "season": 2017
+   },
+   {
+    "id": 10084,
+    "name": "2017 Super Netball Finals",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 3,
+    "season": 2017
+   },
+   {
+    "id": 10393,
+    "name": "2018 Super Netball",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 14,
+    "season": 2018
+   },
+   {
+    "id": 10394,
+    "name": "2018 Super Netball Finals",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 3,
+    "season": 2018
+   },
+   {
+    "id": 10724,
+    "name": "2019 Super Netball",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 14,
+    "season": 2019
+   },
+   {
+    "id": 10725,
+    "name": "2019 Super Netball Finals",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 3,
+    "season": 2019
+   },
+   {
+    "id": 11108,
+    "name": "2020 Super Netball",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 14,
+    "season": 2020
+   },
+   {
+    "id": 11109,
+    "name": "2020 Super Netball Finals",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 3,
+    "season": 2020
+   },
+   {
+    "id": 11391,
+    "name": "2021 Super Netball",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 14,
+    "season": 2021
+   },
+   {
+    "id": 11392,
+    "name": "2021 Super Netball Finals",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 3,
+    "season": 2021
+   },
+   {
+    "id": 11665,
+    "name": "2022 Super Netball",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 14,
+    "season": 2022
+   },
+   {
+    "id": 11666,
+    "name": "2022 Super Netball Finals",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 3,
+    "season": 2022
+   },
+   {
+    "id": 11715,
+    "name": "2022 NRLW",
+    "regulationPeriodLength": 2400,
+    "regulationPeriods": 2,
+    "rounds": 5,
+    "season": 2022
+   },
+   {
+    "id": 11717,
+    "name": "2022 NRLW Finals",
+    "regulationPeriodLength": 2400,
+    "regulationPeriods": 2,
+    "rounds": 2,
+    "season": 2022
+   },
+   {
+    "id": 11925,
+    "name": "2022B NRLW",
+    "regulationPeriodLength": 2400,
+    "regulationPeriods": 2,
+    "rounds": 5,
+    "season": 2022
+   },
+   {
+    "id": 11926,
+    "name": "2022B NRLW Finals",
+    "regulationPeriodLength": 2400,
+    "regulationPeriods": 2,
+    "rounds": 2,
+    "season": 2022
+   },
+   {
+    "id": 12045,
+    "name": "2023 Super Netball",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 14,
+    "season": 2023
+   },
+   {
+    "id": 12046,
+    "name": "2023 Super Netball Finals",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 3,
+    "season": 2023
+   },
+   {
+    "id": 12285,
+    "name": "2023 NRLW",
+    "regulationPeriodLength": 2400,
+    "regulationPeriods": 2,
+    "rounds": 9,
+    "season": 2023
+   },
+   {
+    "id": 12286,
+    "name": "2023 NRLW Finals",
+    "regulationPeriodLength": 2400,
+    "regulationPeriods": 2,
+    "rounds": 2,
+    "season": 2023
+   },
+   {
+    "id": 12447,
+    "name": "2024 NRLW",
+    "regulationPeriodLength": 2400,
+    "regulationPeriods": 2,
+    "rounds": 9,
+    "season": 2024
+   },
+   {
+    "id": 12448,
+    "name": "2024 NRLW Finals",
+    "regulationPeriodLength": 2400,
+    "regulationPeriods": 2,
+    "rounds": 2,
+    "season": 2024
+   },
+   {
+    "id": 12438,
+    "name": "2024 Super Netball",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 14,
+    "season": 2024
+   },
+   {
+    "id": 12439,
+    "name": "2024 Super Netball Finals",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 3,
+    "season": 2024
+   },
+   {
+    "id": 12715,
+    "name": "2025 Super Netball",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 14,
+    "season": 2025
+   },
+   {
+    "id": 12716,
+    "name": "2025 Super Netball Finals",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 3,
+    "season": 2025
+   },
+   {
+    "id": 12757,
+    "name": "2025 NRLW",
+    "regulationPeriodLength": 2400,
+    "regulationPeriods": 2,
+    "rounds": 11,
+    "season": 2025
+   },
+   {
+    "id": 12949,
+    "name": "2026 Super Netball",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 14,
+    "season": 2026
+   },
+   {
+    "id": 12950,
+    "name": "2026 Super Netball Finals",
+    "regulationPeriodLength": 900,
+    "regulationPeriods": 4,
+    "rounds": 3,
+    "season": 2026
+   },
+   {
+    "id": 12758,
+    "name": "2025 NRLW Finals",
+    "regulationPeriodLength": 2400,
+    "regulationPeriods": 2,
+    "rounds": 3,
+    "season": 2025
+   },
+   {
+    "id": 13019,
+    "name": "2026 NRLW",
+    "regulationPeriodLength": 2400,
+    "regulationPeriods": 2,
+    "rounds": 11,
+    "season": 2026
+   },
+   {
+    "id": 13020,
+    "name": "2026 NRLW Finals",
+    "regulationPeriodLength": 2400,
+    "regulationPeriods": 2,
+    "rounds": 3,
+    "season": 2026
+   }
+  ]
+ }
+}

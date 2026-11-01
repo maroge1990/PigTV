@@ -82,7 +82,8 @@ const LEAGUES = [
     ['MotoGP', ['motogp', 'moto gp']],
     ['NASCAR', ['nascar']],
     ['IndyCar', ['indycar']],
-    ['Supercars', ['supercars']],
+    ['Supercars', ['supercars', 'repco supercars', 'supercars championship']],
+    ['Super Netball', ['super netball', 'suncorp super netball', 'ssn']],
     // #195 (D-41): the women's Big Bash before the men's ("Women's Big Bash" contains "Big Bash").
     ['WBBL', ['wbbl', 'womens big bash', 'womens big bash league', 'weber wbbl']],
     ['BBL', ['bbl', 'big bash']],

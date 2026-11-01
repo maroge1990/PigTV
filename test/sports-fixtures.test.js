@@ -160,9 +160,9 @@ function setFollow(...keywords) {
     keywords.forEach((k, i) => ins.run(i, k));
 }
 
-test('neededLeagues: only the follow list\'s own leagues that ESPN actually covers - never AFLW, never an unfollowed one', () => {
-    setFollow('NFL', 'AFLW', 'Chiefs', 'Cricket');
-    assert.deepEqual([...fixtures.neededLeagues()].sort(), ['Cricket', 'NFL']);
+test('neededLeagues: only the follow list\'s own leagues that have a feed (ESPN, or #196 their own: AFLW) - never an unfollowed one', () => {
+    setFollow('NFL', 'AFLW', 'Chiefs', 'Cricket', 'VFLW');
+    assert.deepEqual([...fixtures.neededLeagues()].sort(), ['AFLW', 'Cricket', 'NFL']);
     setFollow();
     assert.deepEqual([...fixtures.neededLeagues()], []);
 });

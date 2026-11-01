@@ -1,0 +1,134 @@
+[
+ {
+  "country": {
+   "iso": "QA",
+   "name": "Qatar",
+   "region_iso": ""
+  },
+  "event_files": {
+   "circuit_information": {
+    "url": "",
+    "menu_position": 1
+   },
+   "podiums": {
+    "url": "",
+    "menu_position": 2
+   },
+   "pole_positions": {
+    "url": "",
+    "menu_position": 2
+   },
+   "nations_statistics": {
+    "url": "",
+    "menu_position": 2
+   },
+   "riders_all_time": {
+    "url": "",
+    "menu_position": 2
+   }
+  },
+  "circuit": {
+   "id": "e9a71399-cea9-400a-b2ef-48bfdcdf6526",
+   "name": "Lusail International Circuit",
+   "legacy_id": 93,
+   "place": "Doha",
+   "nation": "QAT",
+   "events_id": null
+  },
+  "test": false,
+  "sponsored_name": "Qatar Airways Grand Prix of Qatar",
+  "date_end": "2026-11-08",
+  "toad_api_uuid": "3f3d3f5e-851c-42d2-887a-8ce8b41fa908",
+  "date_start": "2026-11-06",
+  "additional_name": "QATAR",
+  "name": "GRAND PRIX OF QATAR",
+  "legacy_id": [
+   {
+    "categoryId": 3,
+    "eventId": 4
+   },
+   {
+    "categoryId": 2,
+    "eventId": 4
+   },
+   {
+    "categoryId": 1,
+    "eventId": 4
+   }
+  ],
+  "season": {
+   "id": "e88b4e43-2209-47aa-8e83-0e0b1cedde6e",
+   "year": 2026,
+   "current": true
+  },
+  "short_name": "QAT",
+  "id": "5a880aba-62c4-413c-bb2d-b721683dd064",
+  "status": "NOT-STARTED"
+ },
+ {
+  "country": {
+   "iso": "PT",
+   "name": "Portugal",
+   "region_iso": ""
+  },
+  "event_files": {
+   "circuit_information": {
+    "url": "",
+    "menu_position": 1
+   },
+   "podiums": {
+    "url": "",
+    "menu_position": 2
+   },
+   "pole_positions": {
+    "url": "",
+    "menu_position": 2
+   },
+   "nations_statistics": {
+    "url": "",
+    "menu_position": 2
+   },
+   "riders_all_time": {
+    "url": "",
+    "menu_position": 2
+   }
+  },
+  "circuit": {
+   "id": "912a9d7f-2864-4311-bebb-19851e9c2620",
+   "name": "Aut\u00f3dromo Internacional do Algarve",
+   "legacy_id": 109,
+   "place": "Portimao",
+   "nation": "POR",
+   "events_id": null
+  },
+  "test": false,
+  "sponsored_name": "Repsol Grand Prix of Portugal",
+  "date_end": "2026-11-22",
+  "toad_api_uuid": "c7f7626b-807f-4a6f-813e-7ad2c68302a3",
+  "date_start": "2026-11-20",
+  "additional_name": "PORTUGAL",
+  "name": "GRAND PRIX OF PORTUGAL",
+  "legacy_id": [
+   {
+    "categoryId": 3,
+    "eventId": 21
+   },
+   {
+    "categoryId": 2,
+    "eventId": 21
+   },
+   {
+    "categoryId": 1,
+    "eventId": 21
+   }
+  ],
+  "season": {
+   "id": "e88b4e43-2209-47aa-8e83-0e0b1cedde6e",
+   "year": 2026,
+   "current": true
+  },
+  "short_name": "POR",
+  "id": "4b3882a8-24b2-4321-aa12-d1847c989438",
+  "status": "NOT-STARTED"
+ }
+]

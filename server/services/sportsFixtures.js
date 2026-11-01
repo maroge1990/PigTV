@@ -145,7 +145,7 @@ function categoryLeagues(db = getDb()) {
 function neededLeagues(db = getDb()) {
     const wanted = new Set([...followedLeagues(db), ...categoryLeagues(db)]);
     const out = new Set();
-    for (const l of wanted) if (ESPN_LEAGUE_PATHS[l] || CRICKET_GROUPS.includes(l)) out.add(l);
+    for (const l of wanted) if (ESPN_LEAGUE_PATHS[l] || CRICKET_GROUPS.includes(l) || require('./sportFeeds').has(l)) out.add(l);
     return out;
 }
 
@@ -164,6 +164,13 @@ function logStateChange(league, ok, detail) {
 }
 
 // ---- storage --------------------------------------------------------------------------------
+
+/** #196: a league's own feed (sportFeeds.js), as read by the score collector, on the Status page's fixtures panel. */
+function recordFeed(league, answer, now = Date.now(), db = getDb()) {
+    saveStatus(db, league, { last_attempt_at: now });
+    if (answer.ok) saveStatus(db, league, { last_success_at: now, last_error: null, fixture_count: answer.games.length });
+    else saveStatus(db, league, { last_error: answer.error || 'failed', last_error_at: now });
+}
 
 function saveStatus(db, league, patch) {
     const existing = db.prepare('SELECT * FROM sport_fixture_status WHERE league = ?').get(league) || {};
@@ -392,6 +399,7 @@ async function refreshAll(now = Date.now()) {
         const leagues = neededLeagues(db);
         for (const league of leagues) {
             if (sharedCooldown()) break;
+            if (require('./sportFeeds').has(league)) continue; // #196: its own feed, read by the score collector
             try {
                 if (CRICKET_GROUPS.includes(league)) await refreshCricket({ now, db, league });
                 else await refreshLeague(league, { now, db });
@@ -559,7 +567,7 @@ function reset() {
 module.exports = {
     enabled, neededLeagues, categoryLeagues, refreshAll, refreshLeague, refreshCricket, scheduleRefresh,
     startBackgroundRefresh, stopBackgroundRefresh, snapshot, statusSummary, reset,
-    ESPN_LEAGUE_PATHS, INTERNATIONAL_PATHS, teamsOf, rosterFor,
+    ESPN_LEAGUE_PATHS, INTERNATIONAL_PATHS, teamsOf, rosterFor, recordFeed,
     // exposed for tests
     toFixture, teamAliasSides, f1Session
 };

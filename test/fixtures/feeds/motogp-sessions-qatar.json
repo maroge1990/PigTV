@@ -1,0 +1,794 @@
+[
+ {
+  "date": "2026-11-06T14:45:00+00:00",
+  "number": 1,
+  "condition": {
+   "track": "",
+   "air": "\u00ba",
+   "humidity": "%",
+   "ground": "\u00ba",
+   "weather": ""
+  },
+  "circuit": "Lusail International Circuit",
+  "session_files": {
+   "classification": {
+    "url": "",
+    "menu_position": 1
+   },
+   "analysis": {
+    "url": "",
+    "menu_position": 2
+   },
+   "average_speed": {
+    "url": "",
+    "menu_position": 2
+   },
+   "fast_lap_sequence": {
+    "url": "",
+    "menu_position": 2
+   },
+   "lap_chart": {
+    "url": "",
+    "menu_position": 2
+   },
+   "analysis_by_lap": {
+    "url": "",
+    "menu_position": 2
+   },
+   "fast_lap_rider": {
+    "url": "",
+    "menu_position": 2
+   },
+   "grid": {
+    "url": "",
+    "menu_position": 2
+   },
+   "session": {
+    "url": "",
+    "menu_position": 2
+   },
+   "world_standing": {
+    "url": "",
+    "menu_position": 2
+   },
+   "best_partial_time": {
+    "url": "",
+    "menu_position": 2
+   },
+   "maximum_speed": {
+    "url": "",
+    "menu_position": 2
+   },
+   "combined_practice": {
+    "url": "",
+    "menu_position": 2
+   },
+   "combined_classification": {
+    "url": "",
+    "menu_position": 2
+   }
+  },
+  "id": "d1022c09-0af2-4e5d-b4ac-fba02562fb0c",
+  "type": "FP",
+  "category": {
+   "id": "e8c110ad-64aa-4e8e-8a86-f2f152f6a942",
+   "legacy_id": 3,
+   "name": "MotoGP\u2122"
+  },
+  "event": {
+   "id": "5a880aba-62c4-413c-bb2d-b721683dd064",
+   "name": "GRAND PRIX OF QATAR",
+   "sponsored_name": "Qatar Airways Grand Prix of Qatar",
+   "short_name": "QAT",
+   "test": false,
+   "season": "2026",
+   "circuit": {
+    "id": "e9a71399-cea9-400a-b2ef-48bfdcdf6526",
+    "name": "Lusail International Circuit",
+    "legacy_id": 93,
+    "place": "Doha",
+    "nation": "QAT",
+    "events_id": null
+   },
+   "country": {
+    "iso": "QA",
+    "name": "Qatar",
+    "region_iso": ""
+   }
+  },
+  "status": "NOT-STARTED"
+ },
+ {
+  "date": "2026-11-06T19:00:00+00:00",
+  "number": null,
+  "condition": {
+   "track": "",
+   "air": "\u00ba",
+   "humidity": "%",
+   "ground": "\u00ba",
+   "weather": ""
+  },
+  "circuit": "Lusail International Circuit",
+  "session_files": {
+   "classification": {
+    "url": "",
+    "menu_position": 1
+   },
+   "analysis": {
+    "url": "",
+    "menu_position": 2
+   },
+   "average_speed": {
+    "url": "",
+    "menu_position": 2
+   },
+   "fast_lap_sequence": {
+    "url": "",
+    "menu_position": 2
+   },
+   "lap_chart": {
+    "url": "",
+    "menu_position": 2
+   },
+   "analysis_by_lap": {
+    "url": "",
+    "menu_position": 2
+   },
+   "fast_lap_rider": {
+    "url": "",
+    "menu_position": 2
+   },
+   "grid": {
+    "url": "",
+    "menu_position": 2
+   },
+   "session": {
+    "url": "",
+    "menu_position": 2
+   },
+   "world_standing": {
+    "url": "",
+    "menu_position": 2
+   },
+   "best_partial_time": {
+    "url": "",
+    "menu_position": 2
+   },
+   "maximum_speed": {
+    "url": "",
+    "menu_position": 2
+   },
+   "combined_practice": {
+    "url": "",
+    "menu_position": 2
+   },
+   "combined_classification": {
+    "url": "",
+    "menu_position": 2
+   }
+  },
+  "id": "ef26a201-6a9c-4e9b-a97c-6df91e5132bf",
+  "type": "PR",
+  "category": {
+   "id": "e8c110ad-64aa-4e8e-8a86-f2f152f6a942",
+   "legacy_id": 3,
+   "name": "MotoGP\u2122"
+  },
+  "event": {
+   "id": "5a880aba-62c4-413c-bb2d-b721683dd064",
+   "name": "GRAND PRIX OF QATAR",
+   "sponsored_name": "Qatar Airways Grand Prix of Qatar",
+   "short_name": "QAT",
+   "test": false,
+   "season": "2026",
+   "circuit": {
+    "id": "e9a71399-cea9-400a-b2ef-48bfdcdf6526",
+    "name": "Lusail International Circuit",
+    "legacy_id": 93,
+    "place": "Doha",
+    "nation": "QAT",
+    "events_id": null
+   },
+   "country": {
+    "iso": "QA",
+    "name": "Qatar",
+    "region_iso": ""
+   }
+  },
+  "status": "NOT-STARTED"
+ },
+ {
+  "date": "2026-11-07T14:00:00+00:00",
+  "number": 2,
+  "condition": {
+   "track": "",
+   "air": "\u00ba",
+   "humidity": "%",
+   "ground": "\u00ba",
+   "weather": ""
+  },
+  "circuit": "Lusail International Circuit",
+  "session_files": {
+   "classification": {
+    "url": "",
+    "menu_position": 1
+   },
+   "analysis": {
+    "url": "",
+    "menu_position": 2
+   },
+   "average_speed": {
+    "url": "",
+    "menu_position": 2
+   },
+   "fast_lap_sequence": {
+    "url": "",
+    "menu_position": 2
+   },
+   "lap_chart": {
+    "url": "",
+    "menu_position": 2
+   },
+   "analysis_by_lap": {
+    "url": "",
+    "menu_position": 2
+   },
+   "fast_lap_rider": {
+    "url": "",
+    "menu_position": 2
+   },
+   "grid": {
+    "url": "",
+    "menu_position": 2
+   },
+   "session": {
+    "url": "",
+    "menu_position": 2
+   },
+   "world_standing": {
+    "url": "",
+    "menu_position": 2
+   },
+   "best_partial_time": {
+    "url": "",
+    "menu_position": 2
+   },
+   "maximum_speed": {
+    "url": "",
+    "menu_position": 2
+   },
+   "combined_practice": {
+    "url": "",
+    "menu_position": 2
+   },
+   "combined_classification": {
+    "url": "",
+    "menu_position": 2
+   }
+  },
+  "id": "1ef9fd35-2e75-4f3c-ac40-cd6b36341514",
+  "type": "FP",
+  "category": {
+   "id": "e8c110ad-64aa-4e8e-8a86-f2f152f6a942",
+   "legacy_id": 3,
+   "name": "MotoGP\u2122"
+  },
+  "event": {
+   "id": "5a880aba-62c4-413c-bb2d-b721683dd064",
+   "name": "GRAND PRIX OF QATAR",
+   "sponsored_name": "Qatar Airways Grand Prix of Qatar",
+   "short_name": "QAT",
+   "test": false,
+   "season": "2026",
+   "circuit": {
+    "id": "e9a71399-cea9-400a-b2ef-48bfdcdf6526",
+    "name": "Lusail International Circuit",
+    "legacy_id": 93,
+    "place": "Doha",
+    "nation": "QAT",
+    "events_id": null
+   },
+   "country": {
+    "iso": "QA",
+    "name": "Qatar",
+    "region_iso": ""
+   }
+  },
+  "status": "NOT-STARTED"
+ },
+ {
+  "date": "2026-11-07T14:40:00+00:00",
+  "number": 1,
+  "condition": {
+   "track": "",
+   "air": "\u00ba",
+   "humidity": "%",
+   "ground": "\u00ba",
+   "weather": ""
+  },
+  "circuit": "Lusail International Circuit",
+  "session_files": {
+   "classification": {
+    "url": "",
+    "menu_position": 1
+   },
+   "analysis": {
+    "url": "",
+    "menu_position": 2
+   },
+   "average_speed": {
+    "url": "",
+    "menu_position": 2
+   },
+   "fast_lap_sequence": {
+    "url": "",
+    "menu_position": 2
+   },
+   "lap_chart": {
+    "url": "",
+    "menu_position": 2
+   },
+   "analysis_by_lap": {
+    "url": "",
+    "menu_position": 2
+   },
+   "fast_lap_rider": {
+    "url": "",
+    "menu_position": 2
+   },
+   "grid": {
+    "url": "",
+    "menu_position": 2
+   },
+   "session": {
+    "url": "",
+    "menu_position": 2
+   },
+   "world_standing": {
+    "url": "",
+    "menu_position": 2
+   },
+   "best_partial_time": {
+    "url": "",
+    "menu_position": 2
+   },
+   "maximum_speed": {
+    "url": "",
+    "menu_position": 2
+   },
+   "combined_practice": {
+    "url": "",
+    "menu_position": 2
+   },
+   "combined_classification": {
+    "url": "",
+    "menu_position": 2
+   }
+  },
+  "id": "b02a9a45-2460-47da-b4ff-a4af64d4c7de",
+  "type": "Q",
+  "category": {
+   "id": "e8c110ad-64aa-4e8e-8a86-f2f152f6a942",
+   "legacy_id": 3,
+   "name": "MotoGP\u2122"
+  },
+  "event": {
+   "id": "5a880aba-62c4-413c-bb2d-b721683dd064",
+   "name": "GRAND PRIX OF QATAR",
+   "sponsored_name": "Qatar Airways Grand Prix of Qatar",
+   "short_name": "QAT",
+   "test": false,
+   "season": "2026",
+   "circuit": {
+    "id": "e9a71399-cea9-400a-b2ef-48bfdcdf6526",
+    "name": "Lusail International Circuit",
+    "legacy_id": 93,
+    "place": "Doha",
+    "nation": "QAT",
+    "events_id": null
+   },
+   "country": {
+    "iso": "QA",
+    "name": "Qatar",
+    "region_iso": ""
+   }
+  },
+  "status": "NOT-STARTED"
+ },
+ {
+  "date": "2026-11-07T15:05:00+00:00",
+  "number": 2,
+  "condition": {
+   "track": "",
+   "air": "\u00ba",
+   "humidity": "%",
+   "ground": "\u00ba",
+   "weather": ""
+  },
+  "circuit": "Lusail International Circuit",
+  "session_files": {
+   "classification": {
+    "url": "",
+    "menu_position": 1
+   },
+   "analysis": {
+    "url": "",
+    "menu_position": 2
+   },
+   "average_speed": {
+    "url": "",
+    "menu_position": 2
+   },
+   "fast_lap_sequence": {
+    "url": "",
+    "menu_position": 2
+   },
+   "lap_chart": {
+    "url": "",
+    "menu_position": 2
+   },
+   "analysis_by_lap": {
+    "url": "",
+    "menu_position": 2
+   },
+   "fast_lap_rider": {
+    "url": "",
+    "menu_position": 2
+   },
+   "grid": {
+    "url": "",
+    "menu_position": 2
+   },
+   "session": {
+    "url": "",
+    "menu_position": 2
+   },
+   "world_standing": {
+    "url": "",
+    "menu_position": 2
+   },
+   "best_partial_time": {
+    "url": "",
+    "menu_position": 2
+   },
+   "maximum_speed": {
+    "url": "",
+    "menu_position": 2
+   },
+   "combined_practice": {
+    "url": "",
+    "menu_position": 2
+   },
+   "combined_classification": {
+    "url": "",
+    "menu_position": 2
+   }
+  },
+  "id": "f167c84a-83d8-4865-96f0-a5774f7352a4",
+  "type": "Q",
+  "category": {
+   "id": "e8c110ad-64aa-4e8e-8a86-f2f152f6a942",
+   "legacy_id": 3,
+   "name": "MotoGP\u2122"
+  },
+  "event": {
+   "id": "5a880aba-62c4-413c-bb2d-b721683dd064",
+   "name": "GRAND PRIX OF QATAR",
+   "sponsored_name": "Qatar Airways Grand Prix of Qatar",
+   "short_name": "QAT",
+   "test": false,
+   "season": "2026",
+   "circuit": {
+    "id": "e9a71399-cea9-400a-b2ef-48bfdcdf6526",
+    "name": "Lusail International Circuit",
+    "legacy_id": 93,
+    "place": "Doha",
+    "nation": "QAT",
+    "events_id": null
+   },
+   "country": {
+    "iso": "QA",
+    "name": "Qatar",
+    "region_iso": ""
+   }
+  },
+  "status": "NOT-STARTED"
+ },
+ {
+  "date": "2026-11-07T19:00:00+00:00",
+  "number": null,
+  "condition": {
+   "track": "",
+   "air": "\u00ba",
+   "humidity": "%",
+   "ground": "\u00ba",
+   "weather": ""
+  },
+  "circuit": "Lusail International Circuit",
+  "session_files": {
+   "classification": {
+    "url": "",
+    "menu_position": 1
+   },
+   "analysis": {
+    "url": "",
+    "menu_position": 2
+   },
+   "average_speed": {
+    "url": "",
+    "menu_position": 2
+   },
+   "fast_lap_sequence": {
+    "url": "",
+    "menu_position": 2
+   },
+   "lap_chart": {
+    "url": "",
+    "menu_position": 2
+   },
+   "analysis_by_lap": {
+    "url": "",
+    "menu_position": 2
+   },
+   "fast_lap_rider": {
+    "url": "",
+    "menu_position": 2
+   },
+   "grid": {
+    "url": "",
+    "menu_position": 2
+   },
+   "session": {
+    "url": "",
+    "menu_position": 2
+   },
+   "world_standing": {
+    "url": "",
+    "menu_position": 2
+   },
+   "best_partial_time": {
+    "url": "",
+    "menu_position": 2
+   },
+   "maximum_speed": {
+    "url": "",
+    "menu_position": 2
+   },
+   "combined_practice": {
+    "url": "",
+    "menu_position": 2
+   },
+   "combined_classification": {
+    "url": "",
+    "menu_position": 2
+   }
+  },
+  "id": "a0b6a09b-0a93-4181-8614-7bcc0c507381",
+  "type": "SPR",
+  "category": {
+   "id": "e8c110ad-64aa-4e8e-8a86-f2f152f6a942",
+   "legacy_id": 3,
+   "name": "MotoGP\u2122"
+  },
+  "event": {
+   "id": "5a880aba-62c4-413c-bb2d-b721683dd064",
+   "name": "GRAND PRIX OF QATAR",
+   "sponsored_name": "Qatar Airways Grand Prix of Qatar",
+   "short_name": "QAT",
+   "test": false,
+   "season": "2026",
+   "circuit": {
+    "id": "e9a71399-cea9-400a-b2ef-48bfdcdf6526",
+    "name": "Lusail International Circuit",
+    "legacy_id": 93,
+    "place": "Doha",
+    "nation": "QAT",
+    "events_id": null
+   },
+   "country": {
+    "iso": "QA",
+    "name": "Qatar",
+    "region_iso": ""
+   }
+  },
+  "status": "NOT-STARTED"
+ },
+ {
+  "date": "2026-11-08T14:40:00+00:00",
+  "number": null,
+  "condition": {
+   "track": "",
+   "air": "\u00ba",
+   "humidity": "%",
+   "ground": "\u00ba",
+   "weather": ""
+  },
+  "circuit": "Lusail International Circuit",
+  "session_files": {
+   "classification": {
+    "url": "",
+    "menu_position": 1
+   },
+   "analysis": {
+    "url": "",
+    "menu_position": 2
+   },
+   "average_speed": {
+    "url": "",
+    "menu_position": 2
+   },
+   "fast_lap_sequence": {
+    "url": "",
+    "menu_position": 2
+   },
+   "lap_chart": {
+    "url": "",
+    "menu_position": 2
+   },
+   "analysis_by_lap": {
+    "url": "",
+    "menu_position": 2
+   },
+   "fast_lap_rider": {
+    "url": "",
+    "menu_position": 2
+   },
+   "grid": {
+    "url": "",
+    "menu_position": 2
+   },
+   "session": {
+    "url": "",
+    "menu_position": 2
+   },
+   "world_standing": {
+    "url": "",
+    "menu_position": 2
+   },
+   "best_partial_time": {
+    "url": "",
+    "menu_position": 2
+   },
+   "maximum_speed": {
+    "url": "",
+    "menu_position": 2
+   },
+   "combined_practice": {
+    "url": "",
+    "menu_position": 2
+   },
+   "combined_classification": {
+    "url": "",
+    "menu_position": 2
+   }
+  },
+  "id": "9a5a5e3c-66b6-45b6-af3a-76f874b9ce9f",
+  "type": "WUP",
+  "category": {
+   "id": "e8c110ad-64aa-4e8e-8a86-f2f152f6a942",
+   "legacy_id": 3,
+   "name": "MotoGP\u2122"
+  },
+  "event": {
+   "id": "5a880aba-62c4-413c-bb2d-b721683dd064",
+   "name": "GRAND PRIX OF QATAR",
+   "sponsored_name": "Qatar Airways Grand Prix of Qatar",
+   "short_name": "QAT",
+   "test": false,
+   "season": "2026",
+   "circuit": {
+    "id": "e9a71399-cea9-400a-b2ef-48bfdcdf6526",
+    "name": "Lusail International Circuit",
+    "legacy_id": 93,
+    "place": "Doha",
+    "nation": "QAT",
+    "events_id": null
+   },
+   "country": {
+    "iso": "QA",
+    "name": "Qatar",
+    "region_iso": ""
+   }
+  },
+  "status": "NOT-STARTED"
+ },
+ {
+  "date": "2026-11-08T19:00:00+00:00",
+  "number": null,
+  "condition": {
+   "track": "",
+   "air": "\u00ba",
+   "humidity": "%",
+   "ground": "\u00ba",
+   "weather": ""
+  },
+  "circuit": "Lusail International Circuit",
+  "session_files": {
+   "classification": {
+    "url": "",
+    "menu_position": 1
+   },
+   "analysis": {
+    "url": "",
+    "menu_position": 2
+   },
+   "average_speed": {
+    "url": "",
+    "menu_position": 2
+   },
+   "fast_lap_sequence": {
+    "url": "",
+    "menu_position": 2
+   },
+   "lap_chart": {
+    "url": "",
+    "menu_position": 2
+   },
+   "analysis_by_lap": {
+    "url": "",
+    "menu_position": 2
+   },
+   "fast_lap_rider": {
+    "url": "",
+    "menu_position": 2
+   },
+   "grid": {
+    "url": "",
+    "menu_position": 2
+   },
+   "session": {
+    "url": "",
+    "menu_position": 2
+   },
+   "world_standing": {
+    "url": "",
+    "menu_position": 2
+   },
+   "best_partial_time": {
+    "url": "",
+    "menu_position": 2
+   },
+   "maximum_speed": {
+    "url": "",
+    "menu_position": 2
+   },
+   "combined_practice": {
+    "url": "",
+    "menu_position": 2
+   },
+   "combined_classification": {
+    "url": "",
+    "menu_position": 2
+   }
+  },
+  "id": "67c2f209-bea0-47e9-9375-d7958fd4fe1d",
+  "type": "RAC",
+  "category": {
+   "id": "e8c110ad-64aa-4e8e-8a86-f2f152f6a942",
+   "legacy_id": 3,
+   "name": "MotoGP\u2122"
+  },
+  "event": {
+   "id": "5a880aba-62c4-413c-bb2d-b721683dd064",
+   "name": "GRAND PRIX OF QATAR",
+   "sponsored_name": "Qatar Airways Grand Prix of Qatar",
+   "short_name": "QAT",
+   "test": false,
+   "season": "2026",
+   "circuit": {
+    "id": "e9a71399-cea9-400a-b2ef-48bfdcdf6526",
+    "name": "Lusail International Circuit",
+    "legacy_id": 93,
+    "place": "Doha",
+    "nation": "QAT",
+    "events_id": null
+   },
+   "country": {
+    "iso": "QA",
+    "name": "Qatar",
+    "region_iso": ""
+   }
+  },
+  "status": "NOT-STARTED"
+ }
+]

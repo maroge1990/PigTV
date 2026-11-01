@@ -6,7 +6,7 @@
  * label of their own (the two "International (men)" are cricket's 'Cricket' and football's 'Internationals').
  */
 const CATALOG = [
-    { sport: 'Australian football', groups: [{ heading: null, leagues: ['AFL'] }] },
+    { sport: 'Australian football', groups: [{ heading: null, leagues: ['AFL', 'AFLW'] }] },
     { sport: 'Football', groups: [
         { heading: 'Domestic leagues', leagues: ['EPL', 'Championship', 'Scottish Premiership', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1',
             'Eredivisie', 'MLS', 'A-League'] },
@@ -19,7 +19,7 @@ const CATALOG = [
         { heading: 'International', leagues: ['Cricket', "Women's Cricket"] },
         { heading: 'Franchise', leagues: ['IPL', 'BBL', 'WBBL', 'SA20', 'The Hundred'] },
         { heading: 'Domestic', leagues: ['Sheffield Shield', 'One-Day Cup', 'WNCL'] }] },
-    { sport: 'Rugby league', groups: [{ heading: null, leagues: ['NRL'] }] },
+    { sport: 'Rugby league', groups: [{ heading: null, leagues: ['NRL', 'NRLW'] }] },
     { sport: 'Rugby union', groups: [
         { heading: 'Club', leagues: ['Super Rugby', 'Premiership Rugby', 'Top 14', 'Champions Cup'] },
         { heading: 'International', leagues: ['Rugby Championship', 'Six Nations', 'Rugby World Cup'] }] },
@@ -27,7 +27,8 @@ const CATALOG = [
     { sport: 'American football', groups: [{ heading: null, leagues: ['NFL'] }] },
     { sport: 'Ice hockey', groups: [{ heading: null, leagues: ['NHL'] }] },
     { sport: 'Baseball', groups: [{ heading: null, leagues: ['MLB'] }] },
-    { sport: 'Motorsport', groups: [{ heading: null, leagues: ['F1'] }] }
+    { sport: 'Motorsport', groups: [{ heading: null, leagues: ['F1', 'MotoGP', 'Supercars'] }] },
+    { sport: 'Netball', groups: [{ heading: null, leagues: ['Super Netball'] }] }
 ];
 const LABELS = { Cricket: 'International (men)', "Women's Cricket": 'International (women)',
     Internationals: 'International (men)', "Women's Internationals": 'International (women)' };
