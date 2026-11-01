@@ -157,7 +157,7 @@ test('without ffmpeg, every size is the original', async () => {
 
 test('unknown keys are 404 at every size; an unknown size is 400; nothing is fetched', async () => {
     const before = fetches;
-    for (const suffix of ['', '?size=full', '?size=640', '?size=huge']) {
+    for (const suffix of ['', '?size=full', '?size=640', '?size=3840', '?size=huge']) {
         assert.equal((await get(`/api/logo/0000000000000000000000000000dead${suffix}`)).status, 404, suffix);
     }
     assert.equal((await get(`/api/logo/${encodeURIComponent('../x')}?size=full`)).status, 404);
@@ -205,4 +205,57 @@ test('a cache-version change drops the originals and the 640 px copies with the 
     } finally {
         fresh.closeAllConnections?.(); fresh.close();
     }
+});
+
+// #201: ESPN's circuit maps are SVG (its JPEG is 320 px); the Apple TV cannot draw SVG and needs 3840 px for 4K.
+// The test's own drawing, not ESPN's artwork: a track outline on a clear background.
+const TRACK = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="160px" height="96px" viewBox="0 0 160 96">'
+    + '<path d="M20 48 L80 10 L140 48 L80 86 Z" fill="none" stroke="#FFB819" stroke-width="6"/></svg>');
+/** The PNG's width, colour type and its first pixel's alpha (the first pixel of the first row is never filtered). */
+function pngInfo(buf) {
+    assert.equal(buf.readUInt32BE(0), 0x89504e47, 'a PNG');
+    const width = buf.readUInt32BE(16), colourType = buf[25];
+    const idat = [];
+    for (let i = 8; i < buf.length;) {
+        const len = buf.readUInt32BE(i), type = buf.toString('latin1', i + 4, i + 8);
+        if (type === 'IDAT') idat.push(buf.subarray(i + 8, i + 8 + len));
+        i += 12 + len;
+    }
+    const raw = zlib.inflateSync(Buffer.concat(idat));
+    return { width, colourType, cornerAlpha: colourType === 6 ? raw[4] : null };
+}
+
+test('#201: ?size=3840 draws an SVG to a transparent PNG 3840 px wide, once; it keeps the cache headers', async () => {
+    const p = logo('track.svg', TRACK, 'image/svg+xml');
+    const big = await get(`${p}?size=3840`);
+    assert.equal(big.status, 200);
+    assert.equal(big.type, 'image/png');
+    assert.equal(big.cache, 'public, max-age=604800');
+    const info = pngInfo(big.body);
+    assert.equal(info.width, 3840);
+    assert.equal(info.colourType, 6, 'RGBA');
+    assert.equal(info.cornerAlpha, 0, 'the background is clear (light and dark both draw on it)');
+    assert.ok(fs.existsSync(path.join(logosDir, `${keyForUrl(`${imageBase}/track.svg`)}.3840`)), 'kept');
+    const before = fetches;
+    assert.ok((await get(`${p}?size=3840`)).body.equals(big.body));
+    assert.equal(fetches, before);
+    assert.equal((await get(`${p}?size=3840`, { 'If-None-Match': big.etag })).status, 304);
+    assert.equal((await get(`${p}?size=640`)).type, 'image/svg+xml', 'the other sizes are unchanged');
+});
+
+test('#201: a raster at ?size=3840 is never upscaled; a broken SVG is a 404, not drawn again on every request', async () => {
+    const original = png(1280, 640);
+    assert.ok((await get(`${logo('raster.png', original)}?size=3840`)).body.equals(original), 'narrower than 3840: as fetched');
+    const p = logo('broken.svg', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><path d='), 'image/svg+xml');
+    const first = await get(`${p}?size=3840`);
+    assert.equal(first.status, 404);
+    const marker = path.join(logosDir, `${keyForUrl(`${imageBase}/broken.svg`)}.3840.fail`);
+    assert.ok(fs.existsSync(marker), 'the failure is remembered');
+    const raster = load('services/svgRaster'), real = raster.svgToPng;
+    let draws = 0;
+    raster.svgToPng = async (...a) => { draws++; return real(...a); };
+    try {
+        assert.equal((await get(`${p}?size=3840`)).status, 404);
+        assert.equal(draws, 0, 'not drawn again within a day');
+    } finally { raster.svgToPng = real; }
 });

@@ -603,7 +603,7 @@ on a race weekend, 1 h otherwise; nothing is fetched unless the page is asked fo
     `{ round, rounds, name, circuit, city, country, phase, info, sessions }`.
     - `phase`: `"before"` (no session has started) | `"during"` | `"after"` (the race has finished).
     - `info`: `{ length, laps, turns, lapRecord, lapRecordYear, map }` from the circuit's own data: `length` is text
-      ("4.304 km"), `lapRecord` text ("1:17.774"), `map` a logo-cache path (`/api/logo/<key>`, `?size=640`) or null.
+      ("4.304 km"), `lapRecord` text ("1:17.774"), `map` a logo-cache path or null (since 0424 with its size, below).
     - `sessions[]`: `{ id, name, start, end, status, top, channels }` in order. `id`: `practice 1` | `practice 2` |
       `practice 3` | `sprint qualifying` | `sprint` | `qualifying` | `race` (C-I's session ids); `name` its label
       ("Practice 1"); `start`/`end` ms (`end` estimated when ESPN has none); `status` `scheduled` | `live` | `done`.
@@ -619,6 +619,11 @@ on a race weekend, 1 h otherwise; nothing is fetched unless the page is asked fo
 - Spoilers are the client's: the server always sends results, `top` and standings; with the global spoiler-free switch
   on, the client hides them (PRODUCT.md › Sport). Watch/Record on a session use its channel's own times (C-I, #20).
 - Since 0386 (#191): a `live` session's channels keep an airing that ended up to 4 h ago, `overrun: true`, as C-O.
+- Since 0424 (#201): `info.map` is the whole path to fetch as given, `/api/logo/<key>?size=3840`: ESPN's circuit SVG
+  drawn by the server to a PNG 3840 px wide on a transparent background (ESPN's own JPEG is 320 px; without an SVG,
+  that raster, never upscaled). Additive `info.mapDark`: the same for ESPN's dark-theme map, or null. A map the server
+  cannot draw answers 404 (show no map). The logo cache's `?size=3840` (at most 3840 px wide; an SVG drawn to PNG) is
+  available for any registered key; the other sizes are unchanged.
 - Since 0422 (#202, additive): `drivers`, the whole current grid to follow a driver from: every car in the newest
   finished session (this weekend's qualifying once done, else the last race), `[{ name, team, teamColor }]` in a
   neutral order (by `team`, then `name`; an unknown `team` null and last), never the standings' order (#164). Null or

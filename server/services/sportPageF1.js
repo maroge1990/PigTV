@@ -133,13 +133,22 @@ async function circuitInfo(eventId, registerImage) {
     const r = await fetcher.get(`${CORE}/circuits/${circuitId}?lang=en&region=us`);
     if (!r.ok) return null;
     const c = r.json || {};
-    // A raster map the Apple TV can draw (it cannot draw SVG): the plain circuit diagram, not the circuit-info one.
-    const diagram = (Array.isArray(c.diagrams) ? c.diagrams : []).find(d => /\.(?:jpe?g|png)(?:$|\?)/i.test(String(d?.href || ''))
-        && Array.isArray(d?.rel) && d.rel.includes('circuit') && !/circuit-info/.test(d.href));
+    // #201: the plain circuit diagram (not the circuit-info one) as ESPN's SVG, which the logo cache draws to a
+    // transparent PNG 3840 px wide (`?size=3840`; the Apple TV cannot draw SVG, and ESPN's JPEG is only 320 px), light
+    // and dark (`circuit-dark`, SVG only). Without an SVG, the raster diagram, never upscaled.
+    const diagrams = Array.isArray(c.diagrams) ? c.diagrams : [];
+    const find = (rel, ext) => diagrams.find(d => Array.isArray(d?.rel) && d.rel.includes(rel) && ext.test(String(d?.href || '')));
+    const SVG = /\.svg(?:$|\?)/i, RASTER = /\.(?:jpe?g|png)(?:$|\?)/i;
+    const sized = (d) => {
+        if (!d) return null;
+        const path = registerImage(d.href);
+        return typeof path === 'string' && path.startsWith('/api/logo/') ? `${path}?size=3840` : null;
+    };
     return {
         length: str(c.length), laps: num(c.laps), turns: num(c.turns),
         lapRecord: str(c.fastestLapTime), lapRecordYear: num(c.fastestLapYear),
-        map: diagram ? registerImage(diagram.href) : null
+        map: sized(find('circuit', SVG) || find('circuit', RASTER)),
+        mapDark: sized(find('circuit-dark', SVG))
     };
 }
 

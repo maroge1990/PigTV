@@ -19,6 +19,10 @@
  * wide (made from the original on first request, `<key>.640`). No size is the
  * <=320 px copy, as before; any other size is a 400. The same allow-list,
  * cache lifetime and cache-version handling apply; each size has its own ETag.
+ *
+ * #201: `?size=3840` is a copy at most 3840 px wide (`<key>.3840`) for a 4K screen; an SVG original (ESPN's circuit
+ * maps) is drawn to a transparent PNG 3840 px wide (services/svgRaster.js). A draw that fails is remembered for a
+ * day (`<key>.3840.fail`) and answered 404, so a broken SVG is not drawn again on every request.
  */
 const express = require('express');
 const router = express.Router();
@@ -39,7 +43,8 @@ if (!fs.existsSync(LOGOS_DIR)) fs.mkdirSync(LOGOS_DIR, { recursive: true });
 const timeouts = { fetchMs: 10000, convertMs: 10000 };
 const MAX_BYTES = 2 * 1024 * 1024;
 const MAX_WIDTH = 320;
-const SIZES = { full: '.orig', 640: '.640' }; // 0154: ?size= -> the file beside the default copy
+const SIZES = { full: '.orig', 640: '.640', 3840: '.3840' }; // 0154, #201: ?size= -> the file beside the default copy
+const DRAW_RETRY_MS = 24 * 60 * 60 * 1000; // #201: a failed SVG draw is tried again after this
 
 const logoFile = (key, suffix = '') => path.join(LOGOS_DIR, key + suffix);
 
@@ -202,6 +207,8 @@ async function fetchAndStore(req, row) {
     // 0154: the original beside the resized copy (?size=full); a stale ?size=640 goes.
     fs.writeFileSync(logoFile(row.key, SIZES.full), fetched.bytes);
     fs.rmSync(logoFile(row.key, SIZES[640]), { force: true });
+    fs.rmSync(logoFile(row.key, SIZES[3840]), { force: true });
+    fs.rmSync(logoFile(row.key, `${SIZES[3840]}.fail`), { force: true });
     fs.writeFileSync(logoFile(row.key), buffer);
     getDb().prepare('UPDATE logo_cache SET content_type = ?, fetched_at = ?, bytes = ?, original_type = ?, original_bytes = ? WHERE key = ?')
         .run(finalType, Date.now(), buffer.length, contentType, fetched.bytes.length, row.key);
@@ -264,14 +271,32 @@ async function serveSize(req, res, row, size) {
     }
     const file = logoFile(row.key, SIZES[size]);
     if (!fs.existsSync(file)) {
-        const { buffer } = await storableLogo(req.app.locals.ffmpegPath, fs.readFileSync(orig), row.original_type, 640);
-        fs.writeFileSync(file, buffer);
+        const original = fs.readFileSync(orig);
+        if (size === '3840' && isSvg(original, row.original_type)) {
+            const failed = logoFile(row.key, `${SIZES[3840]}.fail`);
+            if (fs.existsSync(failed) && Date.now() - fs.statSync(failed).mtimeMs < DRAW_RETRY_MS) {
+                return res.status(404).json({ error: 'Could not draw the image' });
+            }
+            try {
+                const png = await require('../services/svgRaster').svgToPng(original, 3840);
+                if (!isPng(png)) throw new Error('not a PNG');
+                fs.writeFileSync(file, png);
+                fs.rmSync(failed, { force: true });
+            } catch (err) {
+                fs.writeFileSync(failed, '');
+                console.warn('[Logo] Could not draw an SVG:', err.message);
+                return res.status(404).json({ error: 'Could not draw the image' });
+            }
+        } else {
+            const { buffer } = await storableLogo(req.app.locals.ffmpegPath, original, row.original_type, Number(size));
+            fs.writeFileSync(file, buffer);
+        }
     }
     const head = Buffer.alloc(8);
     const fd = fs.openSync(file, 'r');
     try { fs.readSync(fd, head, 0, 8, 0); } finally { fs.closeSync(fd); }
     const type = isPng(head) ? 'image/png' : row.original_type;
-    return serveFile(req, res, file, `"${row.key}-640-${fs.statSync(file).size}-v${LOGO_CACHE_VERSION}"`, type);
+    return serveFile(req, res, file, `"${row.key}-${size}-${fs.statSync(file).size}-v${LOGO_CACHE_VERSION}"`, type);
 }
 
 router.get('/:key', async (req, res) => {
@@ -287,7 +312,7 @@ router.get('/:key', async (req, res) => {
         const size = req.query.size;
         if (size !== undefined) {
             if (typeof size !== 'string' || !Object.hasOwn(SIZES, size)) {
-                return res.status(400).json({ error: 'size must be full or 640' });
+                return res.status(400).json({ error: 'size must be full, 640 or 3840' });
             }
             return await serveSize(req, res, row, size);
         }

@@ -11,6 +11,7 @@
     },
     "dependencies": {
         "@ffprobe-installer/ffprobe": "^2.1.2",
+        "@resvg/resvg-wasm": "2.6.2",
         "bcryptjs": "^3.0.3",
         "better-sqlite3": "^12.5.0",
         "compression": "^1.8.2",

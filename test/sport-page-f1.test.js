@@ -44,9 +44,11 @@ test('the page leads with the next weekend: Mexico City, round 21 of 25, its cir
     ]);
     assert.equal(w.sessions[4].end - w.sessions[4].start, 2 * 3600e3, 'no end from ESPN: a race is estimated at two hours');
     assert.deepEqual(w.sessions.map(s => s.channels), [[], [], [], [], []], 'no guide airing given');
-    const { map, ...info } = w.info;
+    const { map, mapDark, ...info } = w.info;
     assert.deepEqual(info, { length: '4.304 km', laps: 71, turns: 17, lapRecord: '1:17.774', lapRecordYear: 2021 });
-    assert.equal(map, registerImage('https://a.espncdn.com/i/venues/f1/circuit/50.jpg'), 'the raster map, through the logo cache');
+    // #201: ESPN's SVG, drawn by the logo cache to a 3840 px PNG (its JPEG is 320 px), light and dark.
+    assert.equal(map, `${registerImage('https://a.espncdn.com/i/venues/f1/circuit/50.svg')}?size=3840`);
+    assert.equal(mapDark, `${registerImage('https://a.espncdn.com/i/venues/f1/circuit-dark/50.svg')}?size=3840`);
 });
 
 test('results are the last race (Austin), with each car\'s team; standings are both top tens after round 20', async () => {
@@ -204,4 +206,20 @@ test('#202: the grid is null when no session has finished; an unknown team sorts
     assert.deepEqual(f1.gridOf({ order }, new Map([['1', { team: 'Mercedes', teamColor: '00D2BE' }], ['3', { team: 'Alpine', teamColor: null }]])), [
         { name: 'C Driver', team: 'Alpine', teamColor: null }, { name: 'B Driver', team: 'Mercedes', teamColor: '00D2BE' },
         { name: 'A Driver', team: null, teamColor: null }]);
+});
+
+test('#201: without an SVG the raster diagram, without a dark one mapDark is null; a path the cache did not take is null', async () => {
+    fakeEspn();
+    const real = f1.fetcher.get;
+    f1.fetcher.get = async (url) => {
+        const r = await real(url);
+        if (!url.includes('/circuits/782')) return r;
+        return { ok: true, json: { ...r.json, diagrams: r.json.diagrams.filter(d => !/\.svg$/.test(d.href)) } };
+    };
+    const { info } = (await f1.page(NOW, { registerImage })).weekend;
+    assert.equal(info.map, `${registerImage('https://a.espncdn.com/i/venues/f1/circuit/50.jpg')}?size=3840`);
+    assert.equal(info.mapDark, null);
+    f1.reset();
+    f1.fetcher.get = real;
+    assert.equal((await f1.page(NOW, { registerImage: (u) => u })).weekend.info.map, null, 'never a raw ESPN URL');
 });
