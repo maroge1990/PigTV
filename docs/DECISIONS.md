@@ -377,3 +377,48 @@ reviews.
      and the front page. That covers reopening, a failed read, and an answer older than the latest read.
 - **Consequence:** C-O, C-P to C-T in `docs/CLIENT-CONTRACT.md`; ROADMAP › Now; the Test Round page is checked on
   TestFlight builds.
+
+### D-41. Following: sport → league → team, per account, from fixtures only (1 Nov 2026)
+
+- **Context:** after a night of testing, Mark asked to settle how sports, leagues and teams are chosen before more pages
+  are built. Today a "sport" is really a league (EPL, UEFA and NFL side by side), teams are stored per league, the list
+  is shared by the household (D-39), and the dashboard makes a second card from the guide whenever a listing does not
+  match an ESPN game. Facts checked on 1 Nov: ESPN gives a team one id across competitions (Arsenal 359, Australia 628);
+  a cup's team list fills in only as clubs enter (no Arsenal in the FA Cup until January); international cricket comes
+  as one-off tours, never a fixed league (54 competitions listed for Nov 2026–Apr 2027, 12 of them men's tours); the
+  Australian Open is in ESPN's ATP feed, marked `major`, with every draw.
+- **Choice (Mark, 1 Nov):**
+  1. **Three levels.** A sport (Football) holds leagues (EPL, Champions League), and at least one league must be picked.
+     Teams or individuals are optional, picked from the chosen leagues only, each team once however many of those
+     leagues it plays in, and highlighted in all of them.
+  2. **A followed team shows only in leagues you picked.** The app suggests the other competitions it plays in: when
+     you follow it, and again when it gains a fixture in a new one (the FA Cup third round). "No thanks" is remembered.
+  3. **Per account, not per household** (replaces D-39 point 2). Each account has its own sports, leagues, teams, order
+     and spoiler-free switch, synced to every device signed in to it. New accounts start empty; only Mark's account
+     takes over today's follows, for testing.
+  4. **Groups where the feed has no fixed league.** Cricket and football each offer *International (men)* and
+     *International (women)*, which take in tours, qualifiers, friendlies and World Cups on their own; club
+     competitions are picked by name under headings (cricket: Franchise, Domestic, A teams and youth; football:
+     Domestic leagues, Domestic cups, European club competitions, Women's). Champions League and Europa League become
+     separate leagues. A group shows tournaments in full, and tours, qualifiers and friendlies only for nations the
+     account follows (everything when it follows none).
+  5. **Motorsport follows drivers only;** backing a team means following both its drivers.
+  6. **Tennis and golf have a majors league:** Grand Slams (men's and women's draws together), ATP Tour, WTA Tour;
+     Majors, PGA Tour, DP World Tour, LIV, LPGA. A major appears only under its majors league; players are followed
+     across all.
+  7. **A curated list only** (about 60 leagues, PRODUCT.md › Sport), no search of ESPN's whole catalogue.
+  8. **The fixture is the only source of games.** Every league has a fixture feed: ESPN; AFL's own API for AFLW;
+     Champion Data for NRLW and Super Netball; MotoGP's API; Supercars' calendar page. The guide only attaches channels
+     to a fixture's game and never creates one; an unmatched airing leaves the game without Watch ("No TV listing
+     found"), never a second card.
+  9. **Men's and women's sides are separate teams** (Adelaide Crows and Adelaide Crows AFLW).
+  10. **The account's order** sets sport tiles, dashboard rows, sport-page tabs and the hero's sport rank; on the Live
+      dashboard a league with a live game moves to the top until it ends.
+  11. **"Record every game"** on a followed team creates a household recording rule on that team's fixture, shown in
+      Recordings with who set it; unfollowing asks whether to keep it.
+- **Choice (Claude, recorded):** a sport with one league picks it automatically and its page has no tabs; removing a
+  league removes, after a warning, the teams that play in no other picked league; recording rules and guide sport
+  detection stay household-wide, and the server fetches each league any account follows once; Settings gets a Sport
+  section on every platform; Super Netball's eight badges are added by hand, AFLW and NRLW reuse their clubs' logos.
+- **Consequence:** PRODUCT.md › Sport › Following; build issues #193–#200 (ROADMAP › Now); C-R's household
+  preferences and C-O's guide-only cards are replaced through `docs/CLIENT-CONTRACT.md` when each issue lands.

@@ -65,13 +65,10 @@ lists, which the guide covers.
   championships.
 - **Fixture sport (NFL, AFL, NBA, MLB, league football):** the next round with times, live scores, last round's results,
   standings, and whatever else the data makes obvious.
-- **Football is one Sport entry with chosen competitions inside it.** A banner "Football"; the user picks which leagues
-  and one-off tournaments (EPL, Championship, FA Cup, UEFA, a World Cup) appear within it. To be mocked up, including
-  how a tournament differs from a league and how it stays uncluttered.
-- **Following a team or driver** replaces the current team logic: following a team gives the whole sport page, with that
-  team highlighted (and its next game surfaced on Live now).
-- **Spoiler-free is one global switch in Settings,** covering every page: scores, results, standings, finishing orders,
-  championship points and form.
+- **A sport page has a tab per followed league** (Football → EPL, Champions League), each with standings, the last
+  round and what is next. What is followed, and how, is under [Following](#following-sport--league--team) (D-41).
+- **Spoiler-free is one switch per account in Settings,** covering every page: scores, results, standings, finishing
+  orders, championship points and form.
 - **Live scores are essential.** The pages degrade honestly when the data feed is missing; Live now, the guide and
   playback never depend on it.
 - **Reminders (the bell):** a reminder on a future session or game. On iPhone and iPad it is a real system notification
@@ -92,6 +89,43 @@ lists, which the guide covers.
 
 Design notes for the build are in [`DESIGN.md`](DESIGN.md) › Sport pages.
 
+### Following: sport → league → team
+
+Agreed with Mark on 1 Nov 2026 (D-41). It replaces the household follow list of D-39 and the admin keyword list as what
+a person sees; recording rules and guide sport detection stay household-wide.
+
+- **Per account,** in a Sport section of Settings on every platform, synced to every device signed in to it. A new
+  account starts with nothing followed.
+- **Sport, then leagues (at least one), then optional teams or individuals.** The team list holds each team of the
+  chosen leagues once; a followed team is highlighted in every chosen league it plays in, and nowhere else. The app
+  suggests the team's other competitions when it is followed and when it gains a fixture in a new one; "No thanks" is
+  remembered. A sport with one league picks it automatically and its page has no tabs. Removing a league removes, after
+  a warning, the teams that play in no other chosen league.
+- **What is followed:** teams in team sports; drivers in motorsport (a constructor means following both its drivers);
+  players in tennis and golf; fighters in UFC. Men's and women's sides are separate teams.
+- **Groups** where the feed has no fixed league: *International (men)* and *International (women)* in cricket and
+  football take in tours, qualifiers, friendlies and World Cups by themselves. Tournaments show in full; tours,
+  qualifiers and friendlies only for followed nations (all of them when none is followed).
+- **Order:** the account's order of sports and leagues sets the sport tiles, sport-page tabs and dashboard rows; on
+  the Live dashboard a league with a live game moves to the top until it ends.
+- **Games come only from the fixture.** The guide attaches channels to a game and never creates one; a game without a
+  matched airing says "No TV listing found".
+- **"Record every game"** on a followed team makes a household recording rule on that team's fixture.
+
+The curated list (no search beyond it):
+
+| Sport | Leagues | Fixture source |
+|---|---|---|
+| Australian football | AFL, AFLW | ESPN; AFL's own API |
+| Football | Domestic leagues: EPL, Championship, Scottish Premiership, La Liga, Bundesliga, Serie A, Ligue 1, Eredivisie, MLS, A-League · Domestic cups: FA Cup, League Cup · European club competitions: Champions League, Europa League, Conference League · Women's: WSL, A-League Women · International (men), International (women) | ESPN |
+| Cricket | International (men), International (women) · Franchise: IPL, BBL, WBBL, SA20, The Hundred · Domestic: Sheffield Shield, One-Day Cup, WNCL | ESPN |
+| Rugby league | NRL (with State of Origin), NRLW | ESPN; Champion Data |
+| Rugby union | Super Rugby, Rugby Championship, Six Nations, Rugby World Cup, Premiership, Top 14, Champions Cup | ESPN |
+| Basketball · American football · Ice hockey · Baseball | NBA, NBL, WNBA · NFL · NHL · MLB | ESPN |
+| Motorsport | F1, IndyCar, NASCAR Cup, MotoGP, Supercars | ESPN; MotoGP's API; Supercars' calendar page |
+| Tennis · Golf | Grand Slams, ATP Tour, WTA Tour · Majors, PGA Tour, DP World Tour, LIV, LPGA | ESPN |
+| Combat · Netball | UFC · Super Netball | ESPN; Champion Data |
+
 ### Scope and order
 
 - **Apple TV first,** then iPad/iPhone. The web app may lag; its version stays on the roadmap as a future feature.
@@ -107,8 +141,8 @@ The first step, the data survey of the free ESPN feeds, ran on 30 Oct.
 ### Live now: requirements (29 Oct)
 
 These were set for the Live now dashboard (C-O) and still hold where the vision above does not replace them. Superseded
-by the vision: the rolling ~72-hour sport/team views (sport pages take their place) and per-account spoiler settings (one
-global switch, D-30).
+by the vision: the rolling ~72-hour sport/team views (sport pages take their place) and guide-only game cards (games
+come only from the fixture, D-41). Spoiler-free is per account again (D-41 replaces D-30's single household switch).
 
 - Sports opens on a game-first dashboard: discover games, then find their TV broadcasts. Show all games matching
   existing follows/categories, including games without a matching channel. Preserve the current sport/team views for

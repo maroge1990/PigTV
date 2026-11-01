@@ -5,8 +5,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 31 Oct 2026, night (fifth Windows session: Apple 89 and 90, the overrun fix,
-the general league page, the first TestFlight upload).*
+*Overwritten at the end of every session. 1 Nov 2026, morning (design session: the following model, D-41; no code).*
 
 - **Server:** production runs **0387** (Mark deployed 31 Oct evening; healthy, score collector on). On GitHub, CI green:
   **0386–0387** (#191: a live game overrunning its guide slot keeps Watch; pages only while their ESPN answer is ≤ 15 min
@@ -15,11 +14,14 @@ the general league page, the first TestFlight upload).*
 - **Apple:** on GitHub **89** (the Sport front page, opens on Sport, TV tab second) and **90** (the Cricket page on C-S;
   every sport page and the front page fail closed on spoiler-free, #192). **Build 90 is uploaded to TestFlight** (tvOS
   and iOS, 31 Oct 21:03), processing. Next **91**.
-- **Decisions:** D-40 (one league page for all other team sports, no more mock-ups until NFL/Cricket/F1 are tried on a
-  device; TestFlight from 90; the overrun rule; the spoiler choice fails closed).
+- **Decisions:** D-41 (1 Nov, Mark): following becomes sport → leagues → teams, per account, set in Settings › Sport on
+  every platform; games come only from fixtures (new feeds for AFLW, NRLW, Super Netball, MotoGP, Supercars); groups
+  for international cricket and football; majors leagues for tennis and golf. Build issues #193–#200. D-40 before it.
+- **Mark's overnight testing (1 Nov):** the Live dashboard looks right; sport pages show promise; usability bugs to come
+  as issues once he lists them (the duplicate card is #194, the WBBL-led Cricket page is in #195).
 - **Process (D-38):** unchanged. Apple 90 used both Codex rounds; the round-2 highs were fixed with failing-before tests
   and pushed without a third round. Evidence: `docs/evidence/2026-10-31-{overrun-191,league-page,apple-90}`.
-- **Issues:** 61 open. #191 and #192 wait for Mark's device check (Test Round checks 25 and 28).
+- **Issues:** 69 open. #191 and #192 wait for Mark's device check (Test Round checks 25 and 28).
 - **TestFlight:** works. `ssh -t mac '... security unlock-keychain ... && sh Tools/testflight.sh both'` from the Terminal
   panel (Mark types the Mac password); internal testers are added in App Store Connect › TestFlight.
 - **Not done:** the Apple page for C-T (after the device check); production's 7 favourites (needs Mark's yes); the web
@@ -33,8 +35,10 @@ the general league page, the first TestFlight upload).*
    build 90, then the iPad layout check and the iPhone question (#177); #186, #187, #191, #192 fold in.
 2. **Every other team sport on Apple** (D-40): one page design on C-T (the server side is 0388–0389), after step 1;
    then sports without two teams.
-3. **Web: Following settings** (choose and order sports, follow teams; the household store from 0381) and the brand
-   fixes W1–W9 as one web batch (PR #189's README); the Apple brand batch (#190, #116) after.
+3. **The following model (D-41), before more pages:** #193 the per-account store, #194 games only from fixtures, #195
+   the curated catalogue and International groups (one server batch); then #199 web Settings › Sport and #200 Apple
+   Settings › Sport; then #196 new fixture feeds, #197 tennis/golf/UFC/IndyCar/NASCAR, #198 suggestions and Record every
+   game. The web brand fixes W1–W9 (PR #189's README) and the Apple brand batch (#190, #116) follow.
 3. Batch 8: #4 relay renewal (capture first, a device test with renewal on, released alone): waits for Mark.
 4. #29 (collector cost) before the Live now data is on by default; #20 per-channel airing times inside the sport work.
 
