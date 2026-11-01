@@ -47,6 +47,17 @@ const MAX_CRICKET_SERIES = 20; // scorepanel's own list is small; a cap keeps a 
 // fixtures on 2 Oct 2026. Not here: UFC, IndyCar, NASCAR, golf and tennis (ESPN has them, but
 // as events without two teams, which needs its own matching); MotoGP, Supercars and netball
 // (no ESPN feed).
+// #195 (D-41): national-team competitions. `tournaments` show in full in a group; the others (qualifiers, friendlies,
+// nations leagues) only for the nations an account follows (sportGroups.js).
+const INTERNATIONAL_PATHS = {
+    men: ['soccer/fifa.world', 'soccer/uefa.euro', 'soccer/afc.asian.cup', 'soccer/conmebol.america', 'soccer/caf.nations',
+        'soccer/concacaf.gold', 'soccer/fifa.worldq.afc', 'soccer/fifa.worldq.uefa', 'soccer/fifa.worldq.conmebol',
+        'soccer/fifa.worldq.concacaf', 'soccer/fifa.worldq.caf', 'soccer/fifa.worldq.ofc', 'soccer/uefa.euroq',
+        'soccer/uefa.nations', 'soccer/concacaf.nations.league', 'soccer/fifa.friendly'],
+    women: ['soccer/fifa.wwc', 'soccer/uefa.weuro', 'soccer/afc.w.asian.cup', 'soccer/uefa.w.nations', 'soccer/fifa.friendly.w'],
+    tournaments: new Set(['soccer/fifa.world', 'soccer/uefa.euro', 'soccer/afc.asian.cup', 'soccer/conmebol.america',
+        'soccer/caf.nations', 'soccer/concacaf.gold', 'soccer/fifa.wwc', 'soccer/uefa.weuro', 'soccer/afc.w.asian.cup'])
+};
 const ESPN_LEAGUE_PATHS = {
     NFL: 'football/nfl',
     AFL: 'australian-football/afl',
@@ -63,7 +74,17 @@ const ESPN_LEAGUE_PATHS = {
     EPL: 'soccer/eng.1',
     Championship: 'soccer/eng.2',
     'FA Cup': 'soccer/eng.fa',
-    UEFA: ['soccer/uefa.champions', 'soccer/uefa.europa'],
+    'League Cup': 'soccer/eng.league_cup',
+    'Champions League': 'soccer/uefa.champions',
+    'Europa League': 'soccer/uefa.europa',
+    'Conference League': 'soccer/uefa.europa.conf',
+    'Scottish Premiership': 'soccer/sco.1',
+    Eredivisie: 'soccer/ned.1',
+    WSL: 'soccer/eng.w.1',
+    'A-League Women': 'soccer/aus.w.1',
+    // #195 (D-41): the International groups, every national-team competition ESPN lists (checked 1 Nov 2026), merged.
+    Internationals: INTERNATIONAL_PATHS.men,
+    "Women's Internationals": INTERNATIONAL_PATHS.women,
     'La Liga': 'soccer/esp.1',
     Bundesliga: 'soccer/ger.1',
     'Serie A': 'soccer/ita.1',
@@ -518,7 +539,7 @@ function reset() {
 module.exports = {
     enabled, neededLeagues, categoryLeagues, refreshAll, refreshLeague, refreshCricket, scheduleRefresh,
     startBackgroundRefresh, stopBackgroundRefresh, snapshot, statusSummary, reset,
-    ESPN_LEAGUE_PATHS, teamsOf, rosterFor,
+    ESPN_LEAGUE_PATHS, INTERNATIONAL_PATHS, teamsOf, rosterFor,
     // exposed for tests
     toFixture, teamAliasSides, f1Session
 };

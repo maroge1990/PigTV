@@ -388,3 +388,29 @@ test('category and sport-channel generic broadcasts join one named game but stay
         assert.deepEqual(two.filter(e => e.kind === 'show').flatMap(e => e.channels.map(c => c.name)), ['generic']);
     }
 });
+
+// #195 (D-41): the curated football competitions are leagues of their own; UEFA is three; the International groups take
+// national-team football, but never cricket's or rugby's World Cups, nor a bare "World Cup".
+test('#195: guide titles name the new football leagues and groups', () => {
+    const { detectLeague, canonicalLeague } = require('../server/services/sportsClassify');
+    for (const [title, league] of [
+        ['UEFA Champions League: Arsenal v Bayern Munich', 'Champions League'],
+        ['Europa League - Roma v AZ Alkmaar', 'Europa League'],
+        ['UEFA Europa Conference League: Chelsea v Fiorentina', 'Conference League'],
+        ['Carabao Cup: Fleetwood Town v Arsenal', 'League Cup'],
+        ['Scottish Premiership: Celtic v Rangers', 'Scottish Premiership'],
+        ['Eredivisie: PSV v Feyenoord', 'Eredivisie'],
+        ["Barclays Women's Super League: Arsenal v Chelsea", 'WSL'],
+        ['Liberty A-League Women: Sydney FC v Melbourne Victory', 'A-League Women'],
+        ['A-League Men: Sydney FC v Melbourne Victory', 'A-League'],
+        ['FIFA World Cup Qualifier: Australia v Japan', 'Internationals'],
+        ['International Friendly: England v Wales', 'Internationals'],
+        ["FIFA Women's World Cup: Australia v Ireland", "Women's Internationals"],
+        ['Matildas v Canada', "Women's Internationals"],
+        ['Premier League: Arsenal v Spurs', 'EPL']
+    ]) assert.equal(detectLeague(title), league, title);
+    for (const title of ["ICC Men's T20 World Cup: Australia v India", 'Rugby World Cup Final', 'World Cup Rewind']) {
+        assert.notEqual(detectLeague(title), 'Internationals', title);
+    }
+    assert.equal(canonicalLeague('UEFA'), null, 'UEFA alone is no longer one league (followers get both, sportPagePrefs)');
+});

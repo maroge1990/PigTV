@@ -40,7 +40,17 @@ const MAX_DAYS = 4;            // US-Eastern days asked for per path (a day leag
 // F1 and NFL have their own pages (C-P, C-Q); IPL and BBL are on the Cricket page (C-S).
 const EXCLUDED = new Set(['F1', 'NFL', 'IPL', 'BBL']);
 const LEAGUES = Object.keys(ESPN_LEAGUE_PATHS).filter(l => !EXCLUDED.has(l));
-const COMPETITIONS = { 'soccer/uefa.champions': 'Champions League', 'soccer/uefa.europa': 'Europa League' };
+// #195: a merged league's games and tables are named by their competition (the International groups).
+const COMPETITIONS = {
+    'soccer/fifa.world': 'World Cup', 'soccer/uefa.euro': 'Euro', 'soccer/afc.asian.cup': 'Asian Cup', 'soccer/conmebol.america': 'Copa América',
+    'soccer/caf.nations': 'Africa Cup of Nations', 'soccer/concacaf.gold': 'Gold Cup', 'soccer/fifa.worldq.afc': 'World Cup qualifying (AFC)',
+    'soccer/fifa.worldq.uefa': 'World Cup qualifying (UEFA)', 'soccer/fifa.worldq.conmebol': 'World Cup qualifying (CONMEBOL)',
+    'soccer/fifa.worldq.concacaf': 'World Cup qualifying (Concacaf)', 'soccer/fifa.worldq.caf': 'World Cup qualifying (CAF)',
+    'soccer/fifa.worldq.ofc': 'World Cup qualifying (OFC)', 'soccer/uefa.euroq': 'Euro qualifying', 'soccer/uefa.nations': 'Nations League',
+    'soccer/concacaf.nations.league': 'Concacaf Nations League', 'soccer/fifa.friendly': 'Friendly',
+    'soccer/fifa.wwc': 'Women\'s World Cup', 'soccer/uefa.weuro': 'Women\'s Euro', 'soccer/afc.w.asian.cup': 'Women\'s Asian Cup',
+    'soccer/uefa.w.nations': 'Women\'s Nations League', 'soccer/fifa.friendly.w': 'Friendly'
+};
 const FAMILIES = new Set(['australian-football', 'rugby-league', 'rugby', 'soccer', 'basketball', 'baseball', 'hockey']);
 const ROUND_WORD = { 'australian-football': 'Round', 'rugby-league': 'Round', rugby: 'Round', soccer: 'Matchday' };
 
@@ -165,7 +175,7 @@ function detailOf(c, status, family) {
 }
 
 function teamOf(team, teams, registerImage, logo) {
-    // Keyed by ESPN's team id: abbreviations repeat across a merged competition (UEFA).
+    // Keyed by ESPN's team id: abbreviations repeat across a merged league (the International groups).
     const id = str(String(team?.id ?? ''));
     const abbr = str(team?.abbreviation);
     if (!id || !abbr) return null;
@@ -235,7 +245,7 @@ function tablesOf(node, out = [], depth = 0) {
 
 /**
  * Standings answers (one per path, with its competition) as `{ groups: [{ name, columns, rows }] }`, or null. A single
- * table has `name: null`; several are named by ESPN (conference, league), or by their competition (UEFA).
+ * table has `name: null`; several are named by ESPN (conference, league), or by their competition (a merged league).
  */
 function standingsOf(answers, family, teams, registerImage) {
     const columns = COLUMNS[family] || [];

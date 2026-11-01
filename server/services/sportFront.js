@@ -20,7 +20,7 @@
 const ONGOING = new Set(['live', 'break', 'suspended']);
 const byStart = (a, b) => a.start - b.start || a.id.localeCompare(b.id);
 const HOUR = 3600000;
-const FOOTBALL = new Set(['EPL', 'Championship', 'FA Cup', 'UEFA', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1', 'MLS', 'A-League']);
+const FOOTBALL = new Set(require('./sportCatalog').sport('Football').leagues);
 const TYPICAL_HOURS = { F1: 2, NFL: 3.25, NBA: 2.5, AFL: 3, MLB: 3.25 };
 const CRICKET_HOURS = { t20: 4.5, odi: 9, test: 120, 'first-class': 120 };
 

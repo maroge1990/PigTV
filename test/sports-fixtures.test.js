@@ -379,25 +379,26 @@ test('0185: last weekend\'s grand prix shown again midweek is a replay, when ESP
     assert.match(other, /^event: /);
 });
 
-test('0185: more leagues have ESPN fixtures; a league with two feeds (UEFA) merges them', async () => {
-    for (const league of ['EPL', 'Championship', 'FA Cup', 'UEFA', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1', 'MLS', 'A-League', 'NHL', 'WNBA', 'NBL', 'NRL', 'Super Rugby']) {
+test('0185: more leagues have ESPN fixtures; a league with several feeds (#195: Internationals) merges them', async () => {
+    for (const league of ['EPL', 'Championship', 'FA Cup', 'Champions League', 'Europa League', 'Conference League', 'League Cup',
+        'Scottish Premiership', 'Eredivisie', 'WSL', 'A-League Women', 'Internationals', "Women's Internationals", 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1', 'MLS', 'A-League', 'NHL', 'WNBA', 'NBL', 'NRL', 'Super Rugby']) {
         assert.ok(fixtures.ESPN_LEAGUE_PATHS[league], league);
         assert.equal(classify.canonicalLeague(league), league, `${league} can be followed by name`);
     }
     const now = Date.parse('2026-09-27T12:00Z');
     const game = (id, home, away) => ({ events: [{ id, date: '2026-09-27T19:00Z', name: `${away} at ${home}`, competitions: [{ id, date: '2026-09-27T19:00Z',
         competitors: [{ team: { displayName: home } }, { team: { displayName: away } }] }] }] });
-    await withEspn({
-        'soccer/uefa.champions/scoreboard': game('1', 'Arsenal', 'Lens'),
-        'soccer/uefa.europa/scoreboard': game('2', 'AZ Alkmaar', 'Roma'),
-        'soccer/uefa.champions/teams': null, 'soccer/uefa.europa/teams': null
-    }, () => fixtures.refreshLeague('UEFA', { now }));
-    const uefa = fixtures.snapshot(new Set(['UEFA'])).get('UEFA');
-    assert.equal(uefa.fixtures.length, 2, 'both competitions');
-    // One feed down: the other's answer is used, and (S5, 0248) the down feed's games are kept, not
+    const paths = fixtures.ESPN_LEAGUE_PATHS.Internationals;
+    const answers = (down = []) => Object.fromEntries(paths.flatMap(p => [[`${p}/scoreboard`, down.includes(p) ? null
+        : p === 'soccer/fifa.worldq.afc' ? game('1', 'Australia', 'Japan') : p === 'soccer/fifa.friendly' ? game('2', 'England', 'Wales') : { events: [] }],
+        [`${p}/teams`, null]]));
+    await withEspn(answers(), () => fixtures.refreshLeague('Internationals', { now }));
+    const intl = fixtures.snapshot(new Set(['Internationals'])).get('Internationals');
+    assert.equal(intl.fixtures.length, 2, 'both competitions');
+    // One feed down: the others' answers are used, and (S5, 0248) the down feed's games are kept, not
     // dropped as if ESPN had said there were none.
-    await withEspn({ 'soccer/uefa.champions/scoreboard': game('1', 'Arsenal', 'Lens'), 'soccer/uefa.europa/scoreboard': null }, () => fixtures.refreshLeague('UEFA', { now: now + H }));
-    const after = fixtures.snapshot(new Set(['UEFA'])).get('UEFA');
+    await withEspn(answers(['soccer/fifa.friendly']), () => fixtures.refreshLeague('Internationals', { now: now + H }));
+    const after = fixtures.snapshot(new Set(['Internationals'])).get('Internationals');
     assert.equal(after.fixtures.length, 2);
     assert.equal(after.coverage.at, now, 'coverage still dates from the last complete refresh');
 });

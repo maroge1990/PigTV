@@ -58,6 +58,23 @@ const LEAGUES = [
     ['Serie A', ['serie a']],
     ['Ligue 1', ['ligue 1']],
     ['FA Cup', ['fa cup']],
+    // #195 (D-41): the curated football competitions. The women's ones before their men's namesakes ("A-League Women"
+    // contains "A-League"); the Conference League before the Europa League's spellings.
+    ['League Cup', ['league cup', 'efl cup', 'carabao cup']],
+    ['Scottish Premiership', ['scottish premiership', 'spfl', 'spfl premiership', 'cinch premiership', 'william hill premiership']],
+    ['Eredivisie', ['eredivisie']],
+    ['WSL', ['wsl', 'womens super league', 'barclays wsl', 'barclays womens super league', 'fa wsl']],
+    ['Conference League', ['conference league', 'europa conference league', 'uefa conference league', 'uecl']],
+    ['Champions League', ['champions league', 'uefa champions league', 'ucl']],
+    ['Europa League', ['europa league', 'uefa europa league', 'uel']],
+    // Groups (D-41): every national-team competition, women's first. Never the bare "world cup" (cricket and rugby
+    // have theirs), nor bare "friendly".
+    ["Women's Internationals", ['womens internationals', 'fifa womens world cup', 'womens world cup qualifier', 'womens world cup qualifiers',
+        'womens international friendly', 'womens nations league', 'uefa womens nations league', 'womens euro', 'uefa womens euro',
+        'womens asian cup', 'afc womens asian cup', 'matildas']],
+    ['Internationals', ['internationals', 'fifa world cup', 'world cup qualifier', 'world cup qualifiers', 'world cup qualifying',
+        'international friendly', 'uefa nations league', 'nations league', 'euro qualifier', 'euro qualifiers', 'uefa euro',
+        'asian cup', 'afc asian cup', 'copa america', 'africa cup of nations', 'afcon', 'gold cup', 'concacaf gold cup', 'socceroos']],
     ['UFC', ['ufc']],
     ['MotoGP', ['motogp', 'moto gp']],
     ['NASCAR', ['nascar']],
@@ -74,9 +91,9 @@ const LEAGUES = [
     // sportsFixtures.js's international-cricket fixtures (services/sportsFixtures.js) apply.
     ['Cricket', ['test cricket', 'twenty20 international', 't20i', 'odi cricket', 'one day international', 'the ashes', 'cricket']],
     // 0152: leagues the live-hours table (LIVE_HOURS) names
-    ['UEFA', ['uefa', 'champions league', 'europa league', 'conference league']],
     ['Championship', ['efl championship', 'sky bet championship']],
-    ['A-League', ['a league', 'aleague', 'a leagues']]
+    ['A-League Women', ['a league women', 'a leagues women', 'aleague women', 'liberty a league', 'alw']],
+    ['A-League', ['a league', 'aleague', 'a leagues', 'a league men']]
 ].map(([name, aliases, not]) => ({ name, aliases, re: words(aliases), not: not || null }));
 const ALL_ALIASES_RE = new RegExp(`(?:^| )(?:${LEAGUES.flatMap(l => l.aliases).sort((a, b) => b.length - a.length).join('|')})(?= |$)`, 'g');
 const MOTOR = new Set(['F1', 'MotoGP', 'NASCAR', 'IndyCar', 'Supercars']);
@@ -414,7 +431,14 @@ const LIVE_HOURS = {
     MLS: US_EVENING,
     EPL: UK_DAY,
     Championship: UK_DAY,
-    UEFA: UK_DAY,
+    'Champions League': UK_DAY,
+    'Europa League': UK_DAY,
+    'Conference League': UK_DAY,
+    'League Cup': UK_DAY,
+    'Scottish Premiership': UK_DAY,
+    WSL: UK_DAY,
+    Eredivisie: { tz: 'Europe/Amsterdam', from: '11:00', to: '22:00' },
+    'A-League Women': AU_DAY,
     AFL: AU_DAY,
     AFLW: AU_DAY,
     NRL: AU_DAY,

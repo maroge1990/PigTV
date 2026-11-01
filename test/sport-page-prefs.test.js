@@ -87,10 +87,11 @@ test('C-U: sports hold their leagues and one list of teams, shown under every le
         { sport: 'American football', teams: ['Green Bay Packers'] }] });
     assert.equal(put.status, 200, JSON.stringify(put.body));
     assert.deepEqual(put.body, { spoilerFree: false, sports: [
-        { sport: 'Football', leagues: ['UEFA', 'EPL'], teams: ['Arsenal'] },
-        { sport: 'American football', leagues: ['NFL'], teams: ['Green Bay Packers'] }] }, 'a one-league sport picks it');
-    assert.deepEqual((await call('/api/sports/pages/preferences', other)).body, { spoilerFree: false, sports: ['UEFA', 'EPL', 'NFL'],
-        teams: { UEFA: ['Arsenal'], EPL: ['Arsenal'], NFL: ['Green Bay Packers'] }, following: { F1: null, NFL: 'Green Bay Packers' } });
+        { sport: 'Football', leagues: ['Champions League', 'Europa League', 'EPL'], teams: ['Arsenal'] },
+        { sport: 'American football', leagues: ['NFL'], teams: ['Green Bay Packers'] }] }, 'a one-league sport picks it; "UEFA" is both its leagues (#195)');
+    assert.deepEqual((await call('/api/sports/pages/preferences', other)).body, { spoilerFree: false, sports: ['Champions League', 'Europa League', 'EPL', 'NFL'],
+        teams: { 'Champions League': ['Arsenal'], 'Europa League': ['Arsenal'], EPL: ['Arsenal'], NFL: ['Green Bay Packers'] },
+        following: { F1: null, NFL: 'Green Bay Packers' } });
     // The older apps write through the view: dropping a league keeps the sport's teams while one of its leagues stays.
     const older = await call('/api/sports/pages/preferences', other, { sports: ['EPL', 'NFL', 'NBA'] });
     assert.deepEqual(older.body.teams, { EPL: ['Arsenal'], NFL: ['Green Bay Packers'] });
@@ -108,7 +109,7 @@ test('the owner takes over the household\'s follows once; a corrupt stored value
     d.prepare("INSERT INTO meta (key, value) VALUES ('sport_page_prefs', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
         .run(JSON.stringify({ spoilerFree: true, sports: ['EPL', 'NFL', 'UEFA', 'AFLW'], teams: { EPL: ['Arsenal'], UEFA: ['Arsenal', 'Celtic'], NFL: ['Green Bay Packers'] } }));
     assert.deepEqual((await call('/api/sports/follows', owner)).body, { spoilerFree: true, sports: [
-        { sport: 'Football', leagues: ['EPL', 'UEFA'], teams: ['Arsenal', 'Celtic'] },
+        { sport: 'Football', leagues: ['EPL', 'Champions League', 'Europa League'], teams: ['Arsenal', 'Celtic'] },
         { sport: 'American football', leagues: ['NFL'], teams: ['Green Bay Packers'] }] }, 'AFLW has no fixture yet, so it is not offered');
     d.prepare("DELETE FROM meta WHERE key = 'sport_page_prefs'").run();
     assert.equal((await call('/api/sports/follows', owner)).body.sports.length, 2, 'taken over once, then the owner\'s own');

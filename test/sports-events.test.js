@@ -252,7 +252,7 @@ test('/api/sports/pages/nfl answers the NFL page to any user, and /api/info adve
 // sport-page-league.test.js).
 test('/api/sports/pages/league/:league answers a league page to any user; /api/info lists the leagues; NFL, F1, IPL and unknown are 404', async () => {
     const leagues = (await call('GET', '/api/info')).body.features.sportPageLeagues;
-    assert.ok(Array.isArray(leagues) && leagues.includes('AFL') && leagues.includes('Super Rugby') && leagues.includes('UEFA'));
+    assert.ok(Array.isArray(leagues) && leagues.includes('AFL') && leagues.includes('Super Rugby') && leagues.includes('Champions League'));
     for (const own of ['NFL', 'F1', 'IPL', 'BBL']) assert.ok(!leagues.includes(own), own);
     const lp = load('services/sportPageLeague');
     const fx = (name) => require(`./fixtures/espn/league/${name}.json`);
@@ -751,9 +751,9 @@ test('#24: a roster never overrides a followed competition, another competition\
     const afl = [t('Carlton Blues', 'Blues', 'Carlton', 'CAR'), t('Brisbane Lions', 'Lions', 'Brisbane', 'BRI')];
     const league = (title, keywords, rosters) => ev.classify({ title }, ev.compileFollow(keywords, new Map(rosters)))?.league ?? null;
     // The followed competition the title names wins (0289's live EFL Cup event, not 0300's EPL replay).
-    assert.equal(league('Live EFL Cup: Man City v Brighton', ['EFL Cup', 'EPL'], [['EPL', epl]]), 'EFL Cup');
+    assert.equal(league('Live EFL Cup: Man City v Brighton', ['EFL Cup', 'EPL'], [['EPL', epl]]), 'League Cup', 'its canonical name since #195');
     // A title naming another competition is not re-assigned by a roster.
-    assert.equal(league('Eredivisie Soccer - PSV vs. Feyenoord', ['UEFA'], [['UEFA', uefa]]), null);
+    assert.equal(league('Eredivisie Soccer - PSV vs. Feyenoord', ['Champions League'], [['Champions League', uefa]]), null);
     assert.equal(league('TBA : Round 21 CAR v BRI', ['FA Cup', 'AFL'], [['FA Cup', faCup]]), null, 'a round number is AFL/NRL, not a cup tie');
     // #155: every round marker parseSide drops, and a code with a trailing full stop.
     for (const title of ['Rd21 CAR v BRI', 'Rd 21 CAR v BRI', 'R21 CAR v BRI', 'Round 21 CAR v BRI.']) {

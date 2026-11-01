@@ -741,8 +741,8 @@ Championship, FA Cup, UEFA, La Liga, Bundesliga, Serie A, Ligue 1, MLS, A-League
     postponed or cancelled); while live `"Q3 5:21"` (quarters), `"2nd Half 67'"` (halves), `"2nd 12:34"` (hockey),
     ESPN's `"Top 5th"` (baseball); a break is ESPN's text (`"HT"`, `"Halftime"`, `"Quarter Time"`); after, `"Final"`,
     `"Final · OT"`, `"FT"`, `"FT · Pens"`, `"AET"`. `home`/`away`: `{ id, abbr, score }` (`id` the key into `teams`), `score` ESPN's string, null
-    before the start. `venue`: a name or null. `competition`: `"Champions League"` | `"Europa League"` for UEFA, else
-    null. `channels`: C-I channel objects for that game's airing (each with its own `start`/`end`), best first, joined
+    before the start. `venue`: a name or null. `competition`: in a merged league (since 0395 the International groups) the
+    game's competition (`"World Cup"`, `"Friendly"`, `"World Cup qualifying (AFC)"` …), else null (0388–0394: UEFA's two). `channels`: C-I channel objects for that game's airing (each with its own `start`/`end`), best first, joined
     as the dashboard joins them (C-O: both teams named, start within 90 min; an airing two games fit joins neither);
     `[]` until the guide carries it.
   - `teams`: by ESPN team id (a string), `{ id, abbr, name, full, location, color (hex or null), logo (a logo-cache path
@@ -784,4 +784,8 @@ account follows nothing; only the server's owner (its first admin account) takes
   C-T's `following` use the requesting account's follows.
 - C-R since 0392: `rails[]` puts the leagues with a game on now (`live`, `break`, `suspended`) first, then the rest, each
   part in the account's order (D-41); `sports[]` keeps the account's order.
+- Since 0395 (#195): `UEFA` is three leagues, `Champions League`, `Europa League` and `Conference League` (a stored or
+  sent `UEFA` means the first two); new football leagues `League Cup`, `Scottish Premiership`, `Eredivisie`, `WSL`,
+  `A-League Women`, and the groups `Internationals` and `Women's Internationals` (every national-team competition ESPN
+  lists). Each also has a C-T page (`sportPageLeagues`).
 - A server before 0391 answers 404 to `/api/sports/follows` and `/catalog`: send them only with this flag.

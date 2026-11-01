@@ -6,7 +6,9 @@
  */
 const SPORTS = [
     { sport: 'Australian football', leagues: ['AFL'] },
-    { sport: 'Football', leagues: ['EPL', 'Championship', 'FA Cup', 'UEFA', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1', 'MLS', 'A-League'] },
+    { sport: 'Football', leagues: ['EPL', 'Championship', 'Scottish Premiership', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1',
+        'Eredivisie', 'MLS', 'A-League', 'FA Cup', 'League Cup', 'Champions League', 'Europa League', 'Conference League', 'WSL',
+        'A-League Women', 'Internationals', "Women's Internationals"] },
     { sport: 'Cricket', leagues: ['Cricket', 'IPL', 'BBL'] },
     { sport: 'Rugby league', leagues: ['NRL'] },
     { sport: 'Rugby union', leagues: ['Super Rugby'] },

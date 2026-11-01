@@ -24,6 +24,16 @@ const MAX_NAME = 80;
 const MAX_SPORTS = 20;
 const MAX_TEAMS = 20;
 
+// #195: "UEFA" (one league to 0394) is now the Champions League and the Europa League.
+const RENAMED = { uefa: ['Champions League', 'Europa League'] };
+/** The canonical leagues a stored or sent name stands for: one, or the leagues an old name became. */
+function leaguesOf(name) {
+    if (typeof name !== 'string') return [];
+    const renamed = RENAMED[name.trim().toLowerCase()];
+    if (renamed) return renamed;
+    const league = canonicalLeague(name);
+    return league ? [league] : [];
+}
 const cleanName = (name) => name.replace(/\s+/g, ' ').trim();
 const sameName = (a, b) => a.toLowerCase() === b.toLowerCase();
 function addName(list, name) { if (name && !list.some(n => sameName(n, name))) list.push(name); }
@@ -79,7 +89,7 @@ function sanitise(stored) {
     for (const s of Array.isArray(stored?.sports) ? stored.sports : []) {
         const def = catalog.sport(s?.sport);
         if (!def || state.sports.some(x => x.sport === def.sport) || state.sports.length >= MAX_SPORTS) continue;
-        const leagues = (Array.isArray(s.leagues) ? s.leagues : []).filter((l, i, all) => def.leagues.includes(l) && all.indexOf(l) === i);
+        const leagues = [...new Set((Array.isArray(s.leagues) ? s.leagues : []).flatMap(leaguesOf))].filter(l => def.leagues.includes(l));
         if (!leagues.length && def.leagues.length === 1) leagues.push(def.leagues[0]);
         if (!leagues.length) continue;
         const teams = [];
@@ -103,10 +113,10 @@ function fromHousehold(db) {
         if (entry && clean && clean.length <= MAX_NAME && entry.teams.length < MAX_TEAMS) addName(entry.teams, clean);
     };
     if (stored && Array.isArray(stored.sports)) {
-        for (const l of stored.sports) { const league = typeof l === 'string' ? canonicalLeague(l) : null; if (league) addLeague(state, league); }
+        for (const l of stored.sports) for (const league of leaguesOf(l)) addLeague(state, league);
         const teams = stored.teams && typeof stored.teams === 'object' ? stored.teams : {};
         for (const [key, names] of Object.entries(teams)) {
-            const league = canonicalLeague(key);
+            const league = leaguesOf(key)[0];
             if (league && Array.isArray(names)) for (const n of names) addTeam(league, n);
         }
         return state;
@@ -120,8 +130,8 @@ function fromHousehold(db) {
     try { rows = db.prepare('SELECT keyword FROM sports_follow ORDER BY position').all(); } catch { rows = []; }
     for (const { keyword } of rows) {
         const team = teamFollow(keyword);
-        const league = canonicalLeague(keyword) || team?.league || null;
-        if (league && addLeague(state, league) && team) addTeam(team.league, team.team);
+        const leagues = team ? [team.league] : leaguesOf(keyword);
+        for (const league of leagues) if (addLeague(state, league) && team) addTeam(team.league, team.team);
     }
     return state;
 }
@@ -238,9 +248,9 @@ function setFollows(userId, patch, db = getDb()) {
             if ('leagues' in s) {
                 if (!Array.isArray(s.leagues)) throw bad('leagues must be a list');
                 for (const l of s.leagues) {
-                    const league = typeof l === 'string' ? canonicalLeague(l) : null;
-                    if (!league || !def.leagues.includes(league)) throw bad('A league is not part of its sport');
-                    if (!leagues.includes(league)) leagues.push(league);
+                    const named = leaguesOf(l);
+                    if (!named.length || named.some(league => !def.leagues.includes(league))) throw bad('A league is not part of its sport');
+                    for (const league of named) if (!leagues.includes(league)) leagues.push(league);
                 }
             }
             if (!leagues.length && def.leagues.length === 1) leagues.push(def.leagues[0]);
@@ -272,9 +282,9 @@ function update(userId, patch, db = getDb()) {
         if (!Array.isArray(patch.sports)) throw bad('sports must be a list of leagues');
         leagues = [];
         for (const s of patch.sports) {
-            const league = typeof s === 'string' ? canonicalLeague(s) : null;
-            if (!league || !catalog.sportOf(league)) throw bad('Unknown sports league');
-            if (!leagues.includes(league)) leagues.push(league);
+            const named = leaguesOf(s);
+            if (!named.length || named.some(l => !catalog.sportOf(l))) throw bad('Unknown sports league');
+            for (const league of named) if (!leagues.includes(league)) leagues.push(league);
         }
     }
     let teams = null;
@@ -283,7 +293,7 @@ function update(userId, patch, db = getDb()) {
         if (!t || typeof t !== 'object' || Array.isArray(t)) throw bad('teams must be an object');
         teams = [];
         for (const [key, names] of Object.entries(t)) {
-            const league = canonicalLeague(key);
+            const league = leaguesOf(key)[0];
             if (!league || !catalog.sportOf(league)) throw bad('Unknown sports league');
             if (!Array.isArray(names)) throw bad('A league\'s teams must be a list');
             teams.push([league, checkNames(names)]);

@@ -36,8 +36,9 @@ function stub(overrides = {}) {
 beforeEach(() => { lp.reset(); stub(); });
 
 test('the leagues: every ESPN team league but F1, NFL and cricket\'s IPL and BBL, by canonical name', () => {
-    assert.deepEqual(lp.LEAGUES, ['AFL', 'NBA', 'MLB', 'NHL', 'WNBA', 'NBL', 'NRL', 'Super Rugby', 'EPL', 'Championship', 'FA Cup', 'UEFA',
-        'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1', 'MLS', 'A-League']);
+    assert.deepEqual(lp.LEAGUES, ['AFL', 'NBA', 'MLB', 'NHL', 'WNBA', 'NBL', 'NRL', 'Super Rugby', 'EPL', 'Championship', 'FA Cup',
+        'League Cup', 'Champions League', 'Europa League', 'Conference League', 'Scottish Premiership', 'Eredivisie', 'WSL', 'A-League Women',
+        'Internationals', "Women's Internationals", 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1', 'MLS', 'A-League']);
     assert.equal(lp.leagueOf('Super Rugby'), 'Super Rugby');
     assert.equal(lp.leagueOf('afl'), 'AFL');
     for (const no of ['NFL', 'F1', 'IPL', 'BBL', 'Cricket', 'Quidditch', '', null]) assert.equal(lp.leagueOf(no), null, String(no));
@@ -233,8 +234,9 @@ test('#191: a live game keeps an overrun channel only while the last good ESPN a
     assert.deepEqual(await channelsAt(at + 16 * 60e3), [], 'the cached live status is too old to keep renewing Watch');
 });
 
-// UEFA merges two competitions, whose clubs can share an abbreviation: teams are keyed by ESPN's id, so both survive.
-test('two teams sharing an abbreviation (UEFA): both survive, each game and table row names its own by id', async () => {
+// A merged league (#195: the International groups) can hold two teams sharing an abbreviation: teams are keyed by ESPN's
+// id, so both survive.
+test('two teams sharing an abbreviation (a merged league): both survive, each game and table row names its own by id', async () => {
     const team = (id, abbr, name) => ({ id, abbreviation: abbr, displayName: name, shortDisplayName: name, name, location: name, color: '112233',
         logo: `https://a.espncdn.com/i/teamlogos/soccer/500/${id}.png` });
     const sb = (comp, home, away) => ({ day: { date: '2026-10-31' }, season: { type: 1, year: 2026 }, leagues: [{ season: { year: 2026, displayName: '2026-27' } }],
@@ -244,15 +246,15 @@ test('two teams sharing an abbreviation (UEFA): both survive, each game and tabl
         stats: [{ name: 'rank', value: i + 1, displayValue: String(i + 1) }, { name: 'points', value: 9 - i, displayValue: String(9 - i) }] })) } }] });
     const marseille = team('176', 'MAR', 'Marseille'), maribor = team('2604', 'MAR', 'Maribor');
     const psg = team('160', 'PSG', 'Paris Saint-Germain'), roma = team('104', 'ROM', 'Roma');
-    stub({ 'champions/scoreboard$': { ok: true, json: sb('cl1', marseille, psg) }, 'europa/scoreboard$': { ok: true, json: sb('el1', maribor, roma) },
-        'champions/standings': { ok: true, json: table([psg, marseille]) }, 'europa/standings': { ok: true, json: table([maribor, roma]) } });
-    const p = (await lp.build('UEFA', NOW, { zone: ZONE })).value;
+    stub({ 'fifa.world/scoreboard$': { ok: true, json: sb('cl1', marseille, psg) }, 'uefa.nations/scoreboard$': { ok: true, json: sb('el1', maribor, roma) },
+        'fifa.world/standings': { ok: true, json: table([psg, marseille]) }, 'uefa.nations/standings': { ok: true, json: table([maribor, roma]) } });
+    const p = (await lp.build('Internationals', NOW, { zone: ZONE })).value;
     assert.equal(p.teams['176'].full, 'Marseille');
     assert.equal(p.teams['2604'].full, 'Maribor');
     assert.deepEqual(Object.values(p.teams).filter(t => t.abbr === 'MAR').map(t => t.id).sort(), ['176', '2604']);
     const games = p.rounds.flatMap(r => r.games);
-    assert.deepEqual(games.map(g => [g.competition, g.home.id, g.home.abbr]).sort(), [['Champions League', '176', 'MAR'], ['Europa League', '2604', 'MAR']]);
-    assert.deepEqual(p.standings.groups.map(g => [g.name, g.rows.map(r => r.id)]), [['Champions League', ['160', '176']], ['Europa League', ['2604', '104']]]);
+    assert.deepEqual(games.map(g => [g.competition, g.home.id, g.home.abbr]).sort(), [['Nations League', '2604', 'MAR'], ['World Cup', '176', 'MAR']]);
+    assert.deepEqual(p.standings.groups.map(g => [g.name, g.rows.map(r => r.id)]), [['World Cup', ['160', '176']], ['Nations League', ['2604', '104']]]);
     assert.equal(lp.followingOf(p.teams, ['Maribor']), '2604');
 });
 
