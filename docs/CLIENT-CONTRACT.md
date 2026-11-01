@@ -453,6 +453,10 @@ They answer `Cache-Control: private, no-store`; no shared response cache or clie
   airings that did not join the game, are never extended, so Watch goes within 10 minutes of the feed saying anything
   but ongoing. Ended airings are not added to `events`. C-I's own answer is unchanged (it still drops ended events).
   The sport pages (C-P, C-Q, C-S) extend only while their status comes from an ESPN answer at most 15 minutes old.
+- Since 0423 (#203, D-42 point 5, additive): **coverage before play.** A card whose projected `status` is `scheduled`,
+  whose `start` is at most 30 minutes away, and one of whose matched airings is on a channel whose own airing (C-I
+  channel `start`/`end`) has begun and not ended carries `onAir: true`. `status` stays `scheduled` and `start` is
+  unchanged (the play start); `canWatch`/`broadcastStatus` follow the airing as before. Every sport. Absent otherwise.
 
 Collection is separate from C-I's 30-minute fixtures: at most 12 public ESPN network attempts per 30-second tick across
 all dashboard sources/dates, with two in flight, including dated cricket discovery. Known in-play/near-start source
@@ -615,6 +619,13 @@ on a race weekend, 1 h otherwise; nothing is fetched unless the page is asked fo
 - Spoilers are the client's: the server always sends results, `top` and standings; with the global spoiler-free switch
   on, the client hides them (PRODUCT.md › Sport). Watch/Record on a session use its channel's own times (C-I, #20).
 - Since 0386 (#191): a `live` session's channels keep an airing that ended up to 4 h ago, `overrun: true`, as C-O.
+- Since 0422 (#202, additive): `drivers`, the whole current grid to follow a driver from: every car in the newest
+  finished session (this weekend's qualifying once done, else the last race), `[{ name, team, teamColor }]` in a
+  neutral order (by `team`, then `name`; an unknown `team` null and last), never the standings' order (#164). Null or
+  absent when unknown (an older server): fall back to the standings and results.
+- Since 0423 (#203, D-42 point 5, additive): a `scheduled` session whose start is at most 30 min away while one of its
+  `channels` is on air (that channel's own `start` passed, `end` not) carries `onAir: true`; `start` and `status` are
+  unchanged. Show it with the live dot and Watch, worded "On air · starts 3:10", never as a result.
 - Since 0346 (#68, #67): `GET /api/sports/pages/preferences` (any user) → `{ spoilerFree, following: { F1 } }`, one
   for the whole household (every account and device; D-37). `PUT` the same path (any user) with `spoilerFree`
   (strict boolean) and/or `following: { F1: name | null }` (a driver's name as the page gives it, ≤ 80 characters);
@@ -689,6 +700,10 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
   null) and writing it still works. On the first read after 0381 the server derives `sports` and `teams` from the admin
   follow list ("NFL", "NFL: Green Bay Packers") once. The follow list and sport categories still decide which guide
   programmes are sport (C-I); the household's `sports` also decide which leagues the collector fetches.
+- Since 0423 (#203, D-42 point 5): a card with `onAir: true` (C-O) counts among live on the front page: in
+  `sports[].live` (and so `line: "live"`), `follows[].state`, the hero's `follow-live`/`league-live`, and the rails' live-first order (its
+  league moves up; it sorts with the live cards). Its `status` stays `scheduled`: the client words it "On air · starts
+  3:10" with the live dot and Watch, never as a result. A follow whose game or session is on air reads `state: "live"`.
 - Since 0390 (#194, D-41) every card is a fixture's game: a guide listing never becomes a card (no `guide:` ids,
   `dataSource: "guide"`); the guide only adds channels. A game whose airing the join cannot match has `channels: []`
   (the client says "No TV listing found"). The legacy C-O `/dashboard` is unchanged.

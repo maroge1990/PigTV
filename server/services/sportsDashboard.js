@@ -4,6 +4,7 @@ const fixtures = require('./sportsFixtures');
 const espn = require('./sportsScoresEspn');
 const { createStore } = require('./sportsDashboardStore');
 const { overrunEnd } = require('./sportOverrun');
+const onAir = require('./sportOnAir');
 const { isCricket, CRICKET_GROUPS } = require('./sportCatalog');
 const { cricketGroupOf } = require('./sportsFixturesEspn');
 const { isTournament } = require('./sportGroups');
@@ -286,6 +287,8 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
             // Upcoming event references retain the existing details/record workflow without inventing channels.
             events:airings.map(e=>({id:e.id,start:e.start,end:e.end})),
             canWatch:liveChannels.length>0 && !['finished','cancelled','postponed'].includes(state)};
+        // #203 (D-42 point 5): coverage on air with play within 30 min; status stays scheduled (sportOnAir.js).
+        if(onAir.onAir({status:projectedState,start:g.start,now,airings:onAir.channelAirings(airings)})) card.onAir=true;
         if(!hidden && shown && selected.data.scores!==null) card.scores=selected.data.scores;
         if(!hidden && shown && selected.data.situation) card.situation=selected.data.situation;
         if(followMatches) {

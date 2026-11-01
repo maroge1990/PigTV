@@ -21,6 +21,7 @@
 const espn = require('./sportsFixturesEspn');
 const { f1Session } = require('./sportsFixtures');
 const overrun = require('./sportOverrun');
+const onAir = require('./sportOnAir');
 
 const SITE = 'https://site.api.espn.com/apis/site/v2/sports/racing/f1';
 const STANDINGS = 'https://site.api.espn.com/apis/v2/sports/racing/f1/standings';
@@ -299,7 +300,11 @@ async function page(now = Date.now(), deps = {}) {
     if (!value.available || !deps.channelsFor) return value;
     let channels = new Map();
     try { channels = await deps.channelsFor(value.weekend.sessions, value.updatedAt); } catch (err) { console.warn('[Sport] F1 page channels:', err.message); }
-    return { ...value, weekend: { ...value.weekend, sessions: value.weekend.sessions.map(s => ({ ...s, channels: channels.get(s.id) || [] })) } };
+    // #203 (D-42 point 5): a scheduled session whose coverage is on air, starting within 30 min, is `onAir` (sportOnAir.js).
+    return { ...value, weekend: { ...value.weekend, sessions: value.weekend.sessions.map(s => {
+        const list = channels.get(s.id) || [];
+        return { ...s, channels: list, ...(onAir.onAir({ status: s.status, start: s.start, now, airings: list }) ? { onAir: true } : {}) };
+    }) } };
 }
 
 async function espnPart(now, deps) {

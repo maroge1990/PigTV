@@ -18,6 +18,9 @@
  * #194 (D-41): every card is a fixture's game. The guide only adds channels to one; it never makes a card of its own.
  */
 const ONGOING = new Set(['live', 'break', 'suspended']);
+// #203 (D-42 point 5): a card whose coverage is on air before play (`onAir`, status still scheduled) counts among live
+// for the tiles' live counts, the follows' state, the hero's live reasons and the rails' live-first order.
+const isLive = g => ONGOING.has(g.status) || g.onAir === true;
 const byStart = (a, b) => a.start - b.start || a.id.localeCompare(b.id);
 const HOUR = 3600000;
 const FOOTBALL = new Set(require('./sportCatalog').sport('Football').leagues);
@@ -54,7 +57,7 @@ function arrange(response, prefs) {
 
     const sports = order.map(league => {
         const list = inLeague(league);
-        const live = list.filter(g => ONGOING.has(g.status)).length;
+        const live = list.filter(isLive).length;
         const nextCard = firstScheduled(list);
         const next = nextCard ? { gameId: nextCard.id, start: nextCard.start } : null;
         return { league, sport: sportOf.get(league), live, next, line: live ? 'live' : next ? 'next' : 'quiet' };
@@ -63,30 +66,30 @@ function arrange(response, prefs) {
     const follows = [], followed = [];
     for (const { sport, leagues, teams } of prefs.sports) for (const name of teams) {
         const cards = games.filter(g => leagues.includes(g.league) && (matches[g.id] || []).some(m => m.name === name));
-        const pick = cards.filter(g => ONGOING.has(g.status)).sort(byFinish)[0] || firstScheduled(cards);
+        const pick = cards.filter(isLive).sort(byFinish)[0] || firstScheduled(cards);
         const logoOf = card => {
             const index = (matches[card.id] || []).find(m => m.name === name)?.competitor;
             return Number.isInteger(index) ? card.competitors[index]?.logo || null : null;
         };
         const league = pick?.league ?? leagues[0];
         const logo = ['F1', 'MotoGP', 'Supercars'].includes(league) ? null : (pick && logoOf(pick)) || cards.map(logoOf).find(Boolean) || null;
-        follows.push({ league, sport, name, logo, state: !pick ? 'none' : ONGOING.has(pick.status) ? 'live' : 'next',
+        follows.push({ league, sport, name, logo, state: !pick ? 'none' : isLive(pick) ? 'live' : 'next',
             gameId: pick?.id ?? null, start: pick?.start ?? null });
         followed.push(new Set(cards.map(g => g.id)));
     }
     const followIndexOf = card => { const i = followed.findIndex(ids => ids.has(card.id)); return i >= 0 ? i : null; };
 
     let hero = { reason: 'none', followIndex: null, gameId: null };
-    const followLive = games.filter(g => g.followed && ONGOING.has(g.status)).sort(byFinish)[0];
-    const leagueLive = order.map(l => inLeague(l).filter(g => ONGOING.has(g.status)).sort(byFinish)[0]).find(Boolean);
+    const followLive = games.filter(g => g.followed && isLive(g)).sort(byFinish)[0];
+    const leagueLive = order.map(l => inLeague(l).filter(isLive).sort(byFinish)[0]).find(Boolean);
     const followNext = games.filter(g => g.followed && g.status === 'scheduled').sort(byStart)[0];
     if (followLive) hero = { reason: 'follow-live', followIndex: followIndexOf(followLive), gameId: followLive.id };
     else if (leagueLive) hero = { reason: 'league-live', followIndex: null, gameId: leagueLive.id };
     else if (followNext) hero = { reason: 'follow-next', followIndex: followIndexOf(followNext), gameId: followNext.id };
 
-    const rank = g => ONGOING.has(g.status) ? 0 : g.status === 'finished' ? 1 : 2;
+    const rank = g => isLive(g) ? 0 : g.status === 'finished' ? 1 : 2;
     // #193 (D-41 point 10): a league with a game on now moves above the rest until it ends; otherwise the account's order.
-    const liveFirst = [...order.filter(l => inLeague(l).some(g => ONGOING.has(g.status))), ...order.filter(l => !inLeague(l).some(g => ONGOING.has(g.status)))];
+    const liveFirst = [...order.filter(l => inLeague(l).some(isLive)), ...order.filter(l => !inLeague(l).some(isLive))];
     const rails = liveFirst.map(league => ({ league, sport: sportOf.get(league), gameIds: inLeague(league).sort((a, b) => rank(a) - rank(b) ||
         (rank(a) === 1 ? (b.end ?? b.start) - (a.end ?? a.start) || a.id.localeCompare(b.id) : byStart(a, b))).map(g => g.id) }));
 
