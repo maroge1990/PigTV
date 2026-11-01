@@ -525,8 +525,12 @@ function outranks(a, b) {
  * a backup could have helped), every schedule then wanted lists those on other connections. One sweep over the
  * windows' boundaries (#134), padding included.
  */
-function clashOutcome(rows, settings) {
+function clashOutcome(rows, settings, { hard = false } = {}) {
     const sharing = ingest.enabled(settings);
+    // 0411 (0410 Codex round 1, high): a hold must be certain, so only the recording limit decides who waits (`hard`),
+    // as it alone decides starts between recordings: a backup may carry what the primary has no room for, and the
+    // coordinator does not count recordings against a provider's limit. The advisory list stays cautious (#136).
+    const poolsBind = !hard;
     const keyOf = new Map(rows.map(r => [r.id, sharing ? channelKeyOf(r) : `own:${r.id}`]));
     const poolOfKey = new Map();
     const limitOf = new Map();
@@ -536,7 +540,7 @@ function clashOutcome(rows, settings) {
         poolOfKey.set(keyOf.get(r.id), pool);
         if (!limitOf.has(pool)) {
             let limit = Infinity;
-            try { limit = coordinator.providerLimit(r.source_id, settings); } catch (e) { /* unknown: the cap alone */ }
+            try { if (poolsBind) limit = coordinator.providerLimit(r.source_id, settings); } catch (e) { /* unknown: the cap alone */ }
             limitOf.set(pool, Math.max(1, limit));
         }
     }
@@ -631,6 +635,7 @@ function chooseScheduled(id, settings = null) {
     const row = scheduledDb.getById(id);
     if (!row || !['scheduled', 'waiting'].includes(row.status)) return null;
     scheduledDb.choose(id);
+    choiceEpoch++; // 0411: a start already under way re-checks that it still wins (startStillWanted)
     if (row.status === 'waiting' && String(row.error || '').startsWith(CLASH_PREFIX)) setScheduleStatus(id, 'scheduled', { error: null });
     console.log(`[Recordings] Schedule #${id} "${row.title}": chosen over its clashes`);
     return listScheduled({ settings }).find(r => r.id === id) || null;
@@ -641,8 +646,11 @@ function listScheduled({ includeRecent = false, settings = null } = {}) {
     // #12 (C-M, additive): `conflictsWith` lists the schedules this one clashes with, when there are any.
     // #12 (D-42, additive): `beatenBy` lists those that win its clashes: this one waits for them (clashReason).
     const rows = scheduledDb.listUpcoming();
-    const { conflicts: found, beatenBy } = clashOutcome(rows, settings || knownSettings || {});
-    const upcoming = rows.map(r => found.has(r.id) ? { ...r, conflictsWith: found.get(r.id), ...(beatenBy.has(r.id) ? { beatenBy: beatenBy.get(r.id) } : {}) } : r).map(withImage);
+    const known = settings || knownSettings || {};
+    const found = clashOutcome(rows, known).conflicts;
+    const beatenBy = holds(rows, known);
+    const upcoming = rows.map(r => found.has(r.id) || beatenBy.has(r.id)
+        ? { ...r, conflictsWith: found.get(r.id) || beatenBy.get(r.id), ...(beatenBy.has(r.id) ? { beatenBy: beatenBy.get(r.id) } : {}) } : r).map(withImage);
     if (!includeRecent) return upcoming;
     const recent = scheduledDb.findRecentProblems(Date.now() - RECENT_PROBLEMS_MS).map(withImage);
     return [...upcoming, ...recent];
@@ -915,6 +923,7 @@ async function startRecording(schedule, choice = null) {
     return startPart(schedule, route, choice ? choice.index : 0, 1, {
         lease,
         mustJoin: choice ? choice.mustJoin || null : null,
+        epoch: choice ? choice.epoch : undefined,
         refuse: (msg) => setScheduleStatus(schedule.id, 'failed', { error: msg })
     });
 }
@@ -942,8 +951,20 @@ async function startPart(schedule, route, index, part, opts = {}) {
  * wanted? Not after the schedule was cancelled or deleted, its connection taken by a viewer, or
  * stopAllActive (shutdown) - and never for a schedule that is already running.
  */
-function startStillWanted(schedule, { lease, generation, stillWanted }) {
+function startStillWanted(schedule, owner) {
+    const { lease, generation, stillWanted } = owner;
     if (generation !== stopAllGeneration) return false;
+    // 0411 (0410 Codex round 1, high): someone chose another schedule while this one was starting: go on only if it
+    // still wins (waiting again otherwise, with the winner named).
+    if (owner.epoch !== undefined && owner.epoch !== choiceEpoch) {
+        const winner = holderOf(schedule.id, knownSettings || {});
+        if (winner) {
+            console.log(`[Recordings] Schedule #${schedule.id}: another schedule was chosen while it started; waiting`);
+            waitForSlot(schedule, clashReason(winner), winner.id);
+            return false;
+        }
+        owner.epoch = choiceEpoch;
+    }
     if (lease && !coordinator.leaseAlive(lease)) {
         console.log(`[Recordings] Schedule #${schedule.id}: its connection was taken before it started; waiting`);
         return false;
@@ -967,17 +988,45 @@ function joinedAsPromised(schedule, owner, feed, candidate) {
     return false;
 }
 
-function waitForSlot(schedule, reason = SLOT_REASON) {
+function waitForSlot(schedule, reason = SLOT_REASON, winnerId = null) {
     const now = scheduledDb.getById(schedule.id) || schedule;
-    if (now.status !== 'waiting' || now.error !== reason) setScheduleStatus(now, 'waiting', { error: reason });
+    if (now.status !== 'waiting' || now.error !== reason || (now.clash_winner ?? null) !== winnerId) {
+        setScheduleStatus(now, 'waiting', { error: reason, clash_winner: winnerId });
+    }
 }
 
 /** #12 (D-42): why a schedule that loses its clash waits, naming the one that wins it. */
 function clashReason(winner) {
-    const how = winner.status === 'recording' ? 'which is recording' : winner.chosen_at ? 'which was chosen instead' : 'which was scheduled first';
+    const how = winner.status === 'recording' ? 'which is recording' : winner.status === 'completed' ? 'which recorded instead'
+        : winner.chosen_at ? 'which was chosen instead' : 'which was scheduled first';
     return `Clashes with “${winner.title || 'another recording'}”, ${how}.`;
 }
 const CLASH_PREFIX = 'Clashes with ';
+let choiceEpoch = 0;
+
+/**
+ * 0411 (0410 Codex round 1, high): the schedules each one waits for, by id: those that win its clash now (clashOutcome,
+ * `hard`), else the winner it already lost to (`clash_winner`), for as long as that one holds: until it is cancelled,
+ * deleted or never started (missed), or their windows no longer overlap. A winner that recorded or failed keeps the
+ * hold, so a loser never records the part after the winner (D-42: it waits until someone chooses it).
+ */
+function holds(rows, settings) {
+    const out = new Map(clashOutcome(rows, settings, { hard: true }).beatenBy);
+    const windowOf = (r) => [r.program_start - (r.pre_buffer_min || 0) * 60000, r.program_end + (r.post_buffer_min || 0) * 60000];
+    for (const r of rows) {
+        if (out.has(r.id) || !r.clash_winner || r.status !== 'waiting') continue;
+        const w = scheduledDb.getById(r.clash_winner);
+        if (!w || ['cancelled', 'missed'].includes(w.status)) continue;
+        const [a0, a1] = windowOf(r), [b0, b1] = windowOf(w);
+        if (a0 < b1 && b0 < a1) out.set(r.id, [w.id]);
+    }
+    return out;
+}
+/** The schedule `id` waits for now, or null. */
+function holderOf(id, settings) {
+    const winner = (holds(scheduledDb.listUpcoming(), settings).get(id) || [])[0];
+    return winner ? scheduledDb.getById(winner) : null;
+}
 
 function abandonStart(schedule, feed) {
     if (feed) { try { feed.leave(); } catch (e) { /* gone */ } }
@@ -985,8 +1034,8 @@ function abandonStart(schedule, feed) {
     return false;
 }
 
-async function startPartLeased(schedule, route, index, part, { gapMs = 0, refuse, lease = null, stillWanted = null, mustJoin = null } = {}) {
-    const owner = { lease, generation: stopAllGeneration, stillWanted, mustJoin };
+async function startPartLeased(schedule, route, index, part, { gapMs = 0, refuse, lease = null, stillWanted = null, mustJoin = null, epoch } = {}) {
+    const owner = { lease, generation: stopAllGeneration, stillWanted, mustJoin, epoch };
     const settings = await getSettings();
     // A viewer that forced the stream while this start was getting ready took the lease with it:
     // the connection is theirs, so this recording waits for the next tick instead.
@@ -1910,13 +1959,12 @@ async function tick() {
             const joins = await sharedRecordingKey(schedule, settings);
             // D-42: a schedule that loses its clash waits for the winner, even when a connection is free now (it would
             // otherwise hold the connection the winner needs later). Joining a running recording costs no connection.
+            const epoch = choiceEpoch;
             if (!joins) {
-                if (!outcome) {
-                    const upcoming = scheduledDb.listUpcoming();
-                    outcome = { ...clashOutcome(upcoming, settings), byId: new Map(upcoming.map(r => [r.id, r])) };
-                }
-                const winner = (outcome.beatenBy.get(schedule.id) || []).map(id => outcome.byId.get(id)).find(Boolean);
-                if (winner) { waitForSlot(schedule, clashReason(winner)); continue; }
+                if (!outcome) outcome = holds(scheduledDb.listUpcoming(), settings);
+                const winnerId = (outcome.get(schedule.id) || [])[0];
+                const winner = winnerId ? scheduledDb.getById(winnerId) : null;
+                if (winner) { waitForSlot(schedule, clashReason(winner), winner.id); continue; }
             }
             const atCap = recordingConnections() >= recordingSlots(settings);
             if (!joins && atCap) {
@@ -1940,6 +1988,7 @@ async function tick() {
             }
 
             if (joins && atCap) choice.mustJoin = joins; // past the cap only by joining (#133)
+            if (!joins) choice.epoch = epoch; // 0411: re-checked against a choice made while it starts
             await startRecording(schedule, choice);
         }
 

@@ -28,6 +28,9 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   then chosen (`chosen_at`), then earliest made); a schedule on one that does not fit gets `beatenBy` and, when due,
   waits whole with the winner named (`clashReason()`), even if a connection is free then, so it never holds the
   connection the winner needs later. `chooseScheduled()` ("Record this one instead") never stops a running recording.
+  0411: holds count the recording limit only (`hard`; the advisory `conflictsWith` keeps the provider pools); a loser
+  keeps its winner (`clash_winner`) until that is cancelled, deleted or missed, so it never records the part after it;
+  a choice made while another start is under way makes that start re-check (`choiceEpoch`, `startStillWanted()`).
 - File names use the server's local time, so **`TZ` must be set** (verified).
 - Native playback is a `.native.mp4` remux of the file: `hvc1`, MP2→AAC, shared across concurrent requests, written atomically,
   sidecars deleted with the recording. `?async=1` answers 202 while preparing. Old HEVC sidecars are `hev1`: delete

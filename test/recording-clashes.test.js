@@ -384,3 +384,57 @@ test('D-42: POST /api/recordings/scheduled/:id/choose answers the schedule, 404 
         web.close();
     }
 });
+
+// 0411 (0410 Codex round 1, three high).
+test('0411: with a backup enabled, the provider limit alone never holds a recording (a backup may carry it)', async () => {
+    await db.settings.update({ maxConcurrentRecordings: 2, maxProviderStreams: 1 });
+    const backup = await db.sources.create({ type: 'm3u', name: 'Spare', url: 'http://backup.invalid/list.m3u', role: 'backup' });
+    try {
+        const first = schedule('pos_1', 'ff', { startIn: 3600000 });
+        const later = schedule('pos_2', 'fl', { startIn: 3600000 });
+        const list = new Map(engine.listScheduled({ settings: await db.settings.get() }).map(r => [r.id, r]));
+        assert.deepEqual(list.get(later.id).conflictsWith, [first.id], 'still said, as a warning (#136)');
+        assert.equal(list.get(later.id).beatenBy, undefined, 'but never held: the backup may have room');
+        // the recording limit still holds it
+        await db.settings.update({ maxConcurrentRecordings: 1 });
+        const capped = engine.listScheduled({ settings: await db.settings.get() }).find(r => r.id === later.id);
+        assert.deepEqual(capped.beatenBy, [first.id]);
+    } finally {
+        await db.sources.delete(backup.id);
+    }
+});
+
+test('0411: a winner that finishes before the loser\'s window ends does not release it into a part recording', async () => {
+    const first = schedule('pos_1', 'ff', { startIn: -1000, lengthMs: 1800 });
+    const later = schedule('pos_2', 'fl', { startIn: -500, lengthMs: 5000 });
+    await until(() => recordings.listBySchedule(first.id)[0]?.status === 'recording', 'the first one records');
+    await until(() => statusOf(later) === 'waiting', 'the later one waits');
+    await until(() => ['completed', 'failed'].includes(statusOf(first)), 'the first one ends', 8000);
+    await engine.tick();
+    assert.equal(statusOf(later), 'waiting', 'still waiting: it never records the part after the winner');
+    assert.equal(connections['/fl.ts'] || 0, 0);
+    assert.match(scheduled.getById(later.id).error, /^Clashes with “Show \d+”, which (?:recorded instead|was scheduled first)\.$/);
+    await until(() => statusOf(later) === 'missed', 'missed when its window passes', 8000);
+    assert.equal(connections['/fl.ts'] || 0, 0);
+});
+
+test('0411: choosing the other schedule while one is starting stops that start; the chosen one records', async () => {
+    const first = schedule('pos_1', 'ff', { startIn: -1000 });
+    const later = schedule('pos_2', 'fl', { startIn: 1000 });
+    // choose `later` at the moment `first`'s start reads the settings inside startPartLeased (after the tick decided)
+    const real = db.settings.get;
+    let chose = false;
+    db.settings.get = async function (...a) {
+        if (!chose && /startPartLeased/.test(new Error().stack)) { chose = true; engine.chooseScheduled(later.id); }
+        return real.apply(this, a);
+    };
+    try {
+        await engine.tick();
+    } finally { db.settings.get = real; }
+    assert.ok(chose, 'the start was paused where intended');
+    assert.equal(recordings.listBySchedule(first.id).length, 0, 'the start was abandoned');
+    assert.equal(statusOf(first), 'waiting');
+    assert.equal(scheduled.getById(first.id).error, `Clashes with “${later.title}”, which was chosen instead.`);
+    await until(() => recordings.listBySchedule(later.id)[0]?.status === 'recording', 'the chosen one records', 6000);
+    assert.equal(statusOf(first), 'waiting');
+});

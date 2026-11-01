@@ -201,6 +201,11 @@ function initSchema() {
     try {
         db.exec('ALTER TABLE scheduled_recordings ADD COLUMN chosen_at INTEGER');
     } catch (e) { /* already present */ }
+    // #12 (0411): the schedule this one lost its clash to, kept while it waits so the hold outlasts the winner's own
+    // window (released by choosing this one, or the winner being cancelled, deleted or never starting).
+    try {
+        db.exec('ALTER TABLE scheduled_recordings ADD COLUMN clash_winner INTEGER');
+    } catch (e) { /* already present */ }
 
     // Pending schedules only: a completed or cancelled one never resolves again,
     // and rewriting history would be dishonest about what was recorded.
@@ -325,6 +330,7 @@ const scheduled = {
         const params = { id, status, ...extra };
         if ('recording_id' in extra) fields.push('recording_id = @recording_id');
         if ('error' in extra) fields.push('error = @error');
+        if ('clash_winner' in extra) fields.push('clash_winner = @clash_winner');
         db.prepare(`UPDATE scheduled_recordings SET ${fields.join(', ')} WHERE id = @id`).run(params);
         return this.getById(id);
     },
@@ -335,7 +341,7 @@ const scheduled = {
 
     /** #12 (D-42): this schedule wins its clashes from now on (the latest choice wins). */
     choose(id, at = Date.now()) {
-        getDb().prepare('UPDATE scheduled_recordings SET chosen_at = ? WHERE id = ?').run(at, id);
+        getDb().prepare('UPDATE scheduled_recordings SET chosen_at = ?, clash_winner = NULL WHERE id = ?').run(at, id);
         return this.getById(id);
     },
 

@@ -317,9 +317,10 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   recording is using the recording slot.").
 - **Who wins a clash (0410, additive; #12, D-42).** The recording scheduled first wins and keeps the connection: a
   recording already running first (a choice never stops one), then a schedule someone chose, then the earliest made.
-  A row that loses carries `beatenBy: [id]` (those that win, at most ten) and, once due, waits whole (never a part)
-  with `error` "Clashes with “<title>”, which was scheduled first." (or "which is recording." / "which was chosen
-  instead."); if its window passes it is `missed` with "Not recorded. " before that reason. `POST
+  A row that loses carries `beatenBy: [id]` (those that win, at most ten; only for the recording limit, never a
+  provider's, since a backup may have room: 0411) and, once due, waits whole (never a part, even after the winner
+  ends) with `error` "Clashes with “<title>”, which was scheduled first." (or "which is recording." / "which recorded
+  instead." / "which was chosen instead."); if its window passes it is `missed` with "Not recorded. " before that. `POST
   /api/recordings/scheduled/:id/choose` ("Record this one instead") makes a schedule that has not started win its
   clashes from then on → the row as listed; 404 when unknown or already started. Cancelling the winner lets it record.
 - **What a cancel holds against (0245, 0253, 0254, 0259; not durable identity).** The guide gives no lasting id, so a
