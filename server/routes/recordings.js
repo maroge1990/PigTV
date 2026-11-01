@@ -261,6 +261,19 @@ router.get('/scheduled', async (req, res) => {
     }
 });
 
+// #12 (D-42): "Record this one instead": the schedule wins its clashes from now on. 404 when it is unknown or has
+// already started (a running recording is never stopped by a choice).
+router.post('/scheduled/:id/choose', async (req, res) => {
+    try {
+        const settings = await require('../db').settings.get();
+        const chosen = recordingEngine.chooseScheduled(parseInt(req.params.id), settings);
+        if (!chosen) return res.status(404).json({ error: 'No upcoming schedule with that id' });
+        res.json(chosen);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Cancel (or stop, if currently recording) a scheduled recording. 0207: for a failed or
 // missed one (the "Recent problems" list) this deletes it instead, with its failed
 // recordings and their files, and answers { deleted: true }.

@@ -20,10 +20,14 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   the feed it gets is not that one (`joinedAsPromised()`, 0325, #133). Clashes
   are shown when scheduling: `listScheduled()` adds `conflictsWith` (up to ten ids) to each upcoming schedule that, at
   some moment of its window (with pre/post padding), is one of more connections than the cap or than its source's
-  provider pool allows (`clashes()`, one sweep over the windows' boundaries with live schedules grouped by connection, #134, #138). With shared ingest on a channel's
+  provider pool allows (`clashOutcome()`, one sweep over the windows' boundaries with live schedules grouped by connection, #134, #138). With shared ingest on a channel's
   schedules share one connection; with it off each needs its own (#135). Backups are not counted (#136), so it may warn
   when a backup could have carried one. `POST /recordings/schedule` answers with it too; the web guide's toast and
   Recordings list say it.
+  **Who wins (0410, D-42):** at each overloaded moment connections are given out in rank order (`outranks()`: running,
+  then chosen (`chosen_at`), then earliest made); a schedule on one that does not fit gets `beatenBy` and, when due,
+  waits whole with the winner named (`clashReason()`), even if a connection is free then, so it never holds the
+  connection the winner needs later. `chooseScheduled()` ("Record this one instead") never stops a running recording.
 - File names use the server's local time, so **`TZ` must be set** (verified).
 - Native playback is a `.native.mp4` remux of the file: `hvc1`, MP2→AAC, shared across concurrent requests, written atomically,
   sidecars deleted with the recording. `?async=1` answers 202 while preparing. Old HEVC sidecars are `hev1`: delete

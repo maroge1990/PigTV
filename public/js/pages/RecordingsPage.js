@@ -154,11 +154,17 @@ class RecordingsPage {
             return;
         }
 
-        // #12: a clash is shown on each schedule involved, never silent (D-28).
+        // #12: a clash is shown on each schedule involved, never silent (D-28). D-42: the one scheduled first records
+        // (`beatenBy` names who wins); the other waits until someone chooses it instead or cancels the winner.
         const titles = new Map(items.map(i => [i.id, `${i.title} (${i.channel_name || 'unknown channel'})`]));
-        const clash = (item) => (Array.isArray(item.conflictsWith) && item.conflictsWith.length)
-            ? `<div class="recording-error" data-clash>Clashes with ${this.escape(item.conflictsWith.map(id => titles.get(id) || `schedule #${id}`).join(', '))}: more channels at once than the provider connections or the recording limit allow, so one will wait or be missed.</div>`
-            : '';
+        const names = (ids) => this.escape(ids.map(id => titles.get(id) || `schedule #${id}`).join(', '));
+        const clash = (item) => {
+            if (!Array.isArray(item.conflictsWith) || !item.conflictsWith.length) return '';
+            if (Array.isArray(item.beatenBy) && item.beatenBy.length) {
+                return `<div class="recording-error" data-clash>Clashes with ${names(item.beatenBy)}, which records instead: this one waits and is not recorded unless you choose it.</div>`;
+            }
+            return `<div class="recording-error" data-clash>Clashes with ${names(item.conflictsWith)}: this one records${item.status === 'recording' ? '' : ' (scheduled first)'}; the other waits.</div>`;
+        };
         this.scheduledList.innerHTML = items.map(item => `
             <div class="recording-item" data-id="${item.id}">
                 <img class="recording-thumb" src="${this.escape(this.proxiedLogo(item.image || item.channel_logo))}" alt=""
@@ -170,6 +176,8 @@ class RecordingsPage {
                     ${clash(item)}
                 </div>
                 <div class="recording-actions">
+                    ${Array.isArray(item.beatenBy) && item.beatenBy.length && item.status !== 'recording'
+                        ? `<button class="btn btn-sm btn-primary" data-action="choose" data-id="${item.id}">Record this one instead</button>` : ''}
                     <button class="btn btn-sm btn-secondary" data-action="cancel" data-id="${item.id}">
                         ${item.status === 'recording' ? 'Stop' : 'Cancel'}
                     </button>
@@ -179,6 +187,9 @@ class RecordingsPage {
 
         this.scheduledList.querySelectorAll('[data-action="cancel"]').forEach(btn => {
             btn.addEventListener('click', () => this.cancelScheduled(btn.dataset.id));
+        });
+        this.scheduledList.querySelectorAll('[data-action="choose"]').forEach(btn => {
+            btn.addEventListener('click', () => this.chooseScheduled(btn.dataset.id));
         });
     }
 
@@ -319,6 +330,16 @@ class RecordingsPage {
             await this.refresh();
         } catch (err) {
             alert(`Failed to cancel: ${err.message}`);
+        }
+    }
+
+    // #12 (D-42): this schedule wins its clashes; the one it beats waits instead.
+    async chooseScheduled(id) {
+        try {
+            await API.recordings.chooseScheduled(id);
+            await this.refresh();
+        } catch (err) {
+            alert(`Could not choose it: ${err.message}`);
         }
     }
 

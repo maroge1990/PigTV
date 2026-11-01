@@ -197,6 +197,10 @@ function initSchema() {
     try {
         db.exec('ALTER TABLE scheduled_recordings ADD COLUMN image_url TEXT');
     } catch (e) { /* already present */ }
+    // #12 (D-42): when someone chose this schedule over the ones it clashes with (null: never chosen).
+    try {
+        db.exec('ALTER TABLE scheduled_recordings ADD COLUMN chosen_at INTEGER');
+    } catch (e) { /* already present */ }
 
     // Pending schedules only: a completed or cancelled one never resolves again,
     // and rewriting history would be dishonest about what was recorded.
@@ -327,6 +331,12 @@ const scheduled = {
 
     cancel(id) {
         return this.setStatus(id, 'cancelled');
+    },
+
+    /** #12 (D-42): this schedule wins its clashes from now on (the latest choice wins). */
+    choose(id, at = Date.now()) {
+        getDb().prepare('UPDATE scheduled_recordings SET chosen_at = ? WHERE id = ?').run(at, id);
+        return this.getById(id);
     },
 
     /** 0207: a failed or missed schedule removed from "Recent problems". */

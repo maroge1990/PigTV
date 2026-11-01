@@ -138,12 +138,13 @@ test('at the default cap of one, a second recording of the same channel joins th
     assert.equal(connections['/ff.ts'], 1, 'one provider connection for both');
 });
 
-test('another channel at the cap waits, saying the recording slot is in use', async () => {
+test('another channel at the cap waits, naming the recording it clashes with', async () => {
     const one = schedule();
     await until(() => recordings.listBySchedule(one.id)[0]?.status === 'recording', 'first');
     const other = schedule('pos_2', 'fl');
     await until(() => statusOf(other) === 'waiting', 'waiting, not silently scheduled', 3000);
-    assert.equal(scheduled.getById(other.id).error, 'Another recording is using the recording slot.');
+    // D-42 (0410): the reason names the one that wins (before 0410: "Another recording is using the recording slot.")
+    assert.equal(scheduled.getById(other.id).error, `Clashes with “${one.title}”, which is recording.`);
     assert.equal(connections['/fl.ts'] || 0, 0);
     await engine.cancelScheduled(one.id);
     await until(() => recordings.listBySchedule(other.id)[0]?.status === 'recording', 'starts once the slot is free');
@@ -155,7 +156,7 @@ test('a recording held for the slot all programme is missed with that reason', a
     const other = schedule('pos_2', 'fl', { lengthMs: 1500 });
     await until(() => statusOf(other) === 'waiting', 'waiting');
     await until(() => statusOf(other) === 'missed', 'missed when its window passes', 6000);
-    assert.match(scheduled.getById(other.id).error, /recording slot/);
+    assert.equal(scheduled.getById(other.id).error, `Not recorded. Clashes with “${one.title}”, which is recording.`);
 });
 
 test('the schedule list names clashes: other channels at once over the limit, back-to-back padding too; not one channel', async () => {
@@ -315,5 +316,71 @@ test('#137: a join-only start is given the running recording\'s ingest, not a vi
         for (const f of subs) { try { f.leave(); } catch { /* gone */ } }
         d.prepare('DELETE FROM channel_links WHERE backup_source_id = ?').run(B.id);
         await db.sources.delete(B.id);
+    }
+});
+
+// #12 (D-42, 0410): in a clash the recording scheduled first wins and keeps the connection; the other waits, flagged,
+// until someone chooses it instead or cancels the winner. Before 0410 whichever started first took the connection.
+test('D-42: the one scheduled first wins, even when the other one starts earlier', async () => {
+    const first = schedule('pos_1', 'ff', { startIn: 1500 });
+    const later = schedule('pos_2', 'fl', { startIn: -1000 });
+    await engine.tick();
+    assert.equal(statusOf(later), 'waiting', 'a free connection now is not taken from the one scheduled first');
+    assert.equal(scheduled.getById(later.id).error, `Clashes with “${first.title}”, which was scheduled first.`);
+    assert.equal(connections['/fl.ts'] || 0, 0);
+    const listed = new Map(engine.listScheduled({ settings: await db.settings.get() }).map(r => [r.id, r]));
+    assert.deepEqual(listed.get(later.id).beatenBy, [first.id]);
+    assert.equal(listed.get(first.id).beatenBy, undefined);
+    await until(() => recordings.listBySchedule(first.id)[0]?.status === 'recording', 'the first one records when due');
+    assert.equal(statusOf(later), 'waiting');
+});
+
+test('D-42: choosing the other one makes it win; a running recording is never stopped by a choice', async () => {
+    const first = schedule('pos_1', 'ff', { startIn: 1500 });
+    const later = schedule('pos_2', 'fl', { startIn: -1000 });
+    await engine.tick();
+    assert.equal(statusOf(later), 'waiting');
+    const chosen = engine.chooseScheduled(later.id, await db.settings.get());
+    assert.equal(chosen.beatenBy, undefined);
+    assert.equal(chosen.status, 'scheduled', 'no longer waiting on the clash');
+    await until(() => recordings.listBySchedule(later.id)[0]?.status === 'recording', 'the chosen one records');
+    await until(() => statusOf(first) === 'waiting', 'the first one now waits', 4000);
+    assert.equal(scheduled.getById(first.id).error, `Clashes with “${later.title}”, which is recording.`);
+    assert.equal(engine.chooseScheduled(later.id), null, 'a started recording cannot be chosen');
+    // choosing the waiting one back does not stop the one recording
+    engine.chooseScheduled(first.id, await db.settings.get());
+    await engine.tick();
+    assert.equal(recordings.listBySchedule(later.id)[0]?.status, 'recording');
+    assert.equal(statusOf(first), 'waiting');
+});
+
+test('D-42: a schedule that loses its clash all programme is missed, saying which one won', async () => {
+    const first = schedule('pos_1', 'ff', { startIn: 500, lengthMs: 120000 });
+    const later = schedule('pos_2', 'fl', { startIn: -1000, lengthMs: 2500 });
+    await until(() => statusOf(later) === 'missed', 'missed when its window passes', 8000);
+    assert.equal(scheduled.getById(later.id).error, `Not recorded. Clashes with “${first.title}”, which is recording.`, 'the reason follows the winner');
+    assert.equal(connections['/fl.ts'] || 0, 0);
+});
+
+test('D-42: POST /api/recordings/scheduled/:id/choose answers the schedule, 404 for one unknown', async () => {
+    const express = require(path.join(sandbox, 'node_modules', 'express'));
+    const app = express();
+    app.use(express.json());
+    app.use('/api/recordings', load('routes/recordings'));
+    const token = load('auth').generateToken(await db.users.create({ username: `chooser${n}`, role: 'admin' }));
+    const web = app.listen(0, '127.0.0.1');
+    await once(web, 'listening');
+    try {
+        const first = schedule('pos_1', 'ff', { startIn: 3600000 });
+        const later = schedule('pos_2', 'fl', { startIn: 3600000 });
+        const post = (id) => fetch(`http://127.0.0.1:${web.address().port}/api/recordings/scheduled/${id}/choose`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+        const r = await post(later.id);
+        assert.equal(r.status, 200);
+        const body = await r.json();
+        assert.deepEqual([body.id, body.beatenBy, body.conflictsWith], [later.id, undefined, [first.id]]);
+        assert.deepEqual(engine.listScheduled({ settings: await db.settings.get() }).find(x => x.id === first.id).beatenBy, [later.id]);
+        assert.equal((await post(999999)).status, 404);
+    } finally {
+        web.close();
     }
 });

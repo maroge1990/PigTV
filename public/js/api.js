@@ -264,6 +264,7 @@ const API = {
         // Cancels an upcoming/running schedule; for a failed or missed one (0207) deletes it
         // with its failed recordings, answering { deleted: true }.
         cancelScheduled: (id) => API.request('DELETE', `/recordings/scheduled/${id}`),
+        chooseScheduled: (id) => API.request('POST', `/recordings/scheduled/${id}/choose`), // #12 (D-42)
         // 0207: where this login stopped watching. position_sec in seconds.
         getPosition: (id) => API.request('GET', `/recordings/${id}/position`),
         setPosition: (id, positionSec, watched) => API.request('PUT', `/recordings/${id}/position`,

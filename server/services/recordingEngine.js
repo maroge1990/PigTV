@@ -504,14 +504,28 @@ function recordingSlots(settings) {
 const CLASH_LIST_MAX = 10; // ids per schedule in conflictsWith
 
 /**
+ * #12 (D-42: the recording scheduled first wins): which of two clashing schedules keeps the connection. A recording
+ * already running keeps it (the rule never stops one); then a schedule someone chose (the latest choice first); then
+ * the one scheduled first. -1 when a outranks b.
+ */
+function outranks(a, b) {
+    const key = (r) => [r.status === 'recording' ? 0 : 1, r.chosen_at ? 0 : 1, -(r.chosen_at || 0), r.created_at || 0, r.id];
+    const x = key(a), y = key(b);
+    for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1;
+    return 0;
+}
+
+/**
  * #12 (D-28: clashes are shown when scheduling, never silent): for each schedule, up to CLASH_LIST_MAX ids of the
- * others it clashes with. Each schedule needs a connection (its channel's, shared by that channel's schedules when
+ * others it clashes with; and (D-42, `beatenBy`) for each that loses a clash, the ids of those that win it: at an
+ * overloaded moment the connections are given out in rank order (outranks, by each connection's best schedule), and
+ * every schedule on a connection that does not fit is beaten by those given one. Each schedule needs a connection (its channel's, shared by that channel's schedules when
  * recordings share an ingest; its own when they do not, #135); at a moment when more connections are wanted than the
  * cap, or than a provider pool's limit for the schedules on it (#136: a backup is not counted, so this may warn when
  * a backup could have helped), every schedule then wanted lists those on other connections. One sweep over the
  * windows' boundaries (#134), padding included.
  */
-function clashes(rows, settings) {
+function clashOutcome(rows, settings) {
     const sharing = ingest.enabled(settings);
     const keyOf = new Map(rows.map(r => [r.id, sharing ? channelKeyOf(r) : `own:${r.id}`]));
     const poolOfKey = new Map();
@@ -548,6 +562,12 @@ function clashes(rows, settings) {
     // Live schedules grouped by the connection they need: a row is only ever compared with other groups (#138).
     const byKey = new Map();
     const found = new Map();
+    const beaten = new Map();
+    const bestOf = new Map(); // a connection's best schedule now; dropped when it leaves, found again when asked
+    const best = (key) => {
+        if (!bestOf.has(key)) { let top = null; for (const r of byKey.get(key)) if (!top || outranks(r, top) < 0) top = r; bestOf.set(key, top); }
+        return bestOf.get(key);
+    };
     for (let i = 0; i < events.length;) {
         const t = events[i][0];
         for (; i < events.length && events[i][0] === t; i++) {
@@ -556,10 +576,12 @@ function clashes(rows, settings) {
             if (starts) {
                 if (!byKey.has(key)) byKey.set(key, new Set());
                 byKey.get(key).add(r);
+                if (bestOf.has(key) && outranks(r, bestOf.get(key)) < 0) bestOf.set(key, r);
                 continue;
             }
             const group = byKey.get(key);
             group.delete(r);
+            if (bestOf.get(key) === r) bestOf.delete(key);
             if (!group.size) byKey.delete(key);
         }
         if (byKey.size < 2 || !overloaded(byKey)) continue;
@@ -583,16 +605,44 @@ function clashes(rows, settings) {
                 found.set(r.id, ids);
             }
         }
+        // D-42: connections in rank order while they fit; the rest are beaten by those that got one.
+        const admitted = new Map();
+        for (const key of [...byKey.keys()].sort((a, b) => outranks(best(a), best(b)))) {
+            admitted.set(key, byKey.get(key));
+            if (!overloaded(admitted)) continue;
+            admitted.delete(key);
+            const winners = [...admitted.keys()].map(k => best(k).id).slice(0, CLASH_LIST_MAX);
+            for (const r of byKey.get(key)) {
+                const ids = beaten.get(r.id) || new Set();
+                for (const id of winners) if (ids.size < CLASH_LIST_MAX) ids.add(id);
+                beaten.set(r.id, ids);
+            }
+        }
     }
-    return new Map([...found].filter(([, ids]) => ids.size).map(([id, ids]) => [id, [...ids].sort((a, b) => a - b)]));
+    const sorted = (map) => new Map([...map].filter(([, ids]) => ids.size).map(([id, ids]) => [id, [...ids].sort((a, b) => a - b)]));
+    return { conflicts: sorted(found), beatenBy: sorted(beaten) };
+}
+
+/**
+ * #12 (D-42): choose a schedule over the ones it clashes with ("Record this one instead"). Only one that has not
+ * started; a running recording is never stopped by a choice. -> the schedule as listed, or null (unknown or started).
+ */
+function chooseScheduled(id, settings = null) {
+    const row = scheduledDb.getById(id);
+    if (!row || !['scheduled', 'waiting'].includes(row.status)) return null;
+    scheduledDb.choose(id);
+    if (row.status === 'waiting' && String(row.error || '').startsWith(CLASH_PREFIX)) setScheduleStatus(id, 'scheduled', { error: null });
+    console.log(`[Recordings] Schedule #${id} "${row.title}": chosen over its clashes`);
+    return listScheduled({ settings }).find(r => r.id === id) || null;
 }
 
 function listScheduled({ includeRecent = false, settings = null } = {}) {
     // R6 (additive): `image` in place of image_url, the only change to these rows.
     // #12 (C-M, additive): `conflictsWith` lists the schedules this one clashes with, when there are any.
+    // #12 (D-42, additive): `beatenBy` lists those that win its clashes: this one waits for them (clashReason).
     const rows = scheduledDb.listUpcoming();
-    const found = clashes(rows, settings || knownSettings || {});
-    const upcoming = rows.map(r => found.has(r.id) ? { ...r, conflictsWith: found.get(r.id) } : r).map(withImage);
+    const { conflicts: found, beatenBy } = clashOutcome(rows, settings || knownSettings || {});
+    const upcoming = rows.map(r => found.has(r.id) ? { ...r, conflictsWith: found.get(r.id), ...(beatenBy.has(r.id) ? { beatenBy: beatenBy.get(r.id) } : {}) } : r).map(withImage);
     if (!includeRecent) return upcoming;
     const recent = scheduledDb.findRecentProblems(Date.now() - RECENT_PROBLEMS_MS).map(withImage);
     return [...upcoming, ...recent];
@@ -917,10 +967,17 @@ function joinedAsPromised(schedule, owner, feed, candidate) {
     return false;
 }
 
-function waitForSlot(schedule) {
+function waitForSlot(schedule, reason = SLOT_REASON) {
     const now = scheduledDb.getById(schedule.id) || schedule;
-    if (now.status !== 'waiting' || now.error !== SLOT_REASON) setScheduleStatus(now, 'waiting', { error: SLOT_REASON });
+    if (now.status !== 'waiting' || now.error !== reason) setScheduleStatus(now, 'waiting', { error: reason });
 }
+
+/** #12 (D-42): why a schedule that loses its clash waits, naming the one that wins it. */
+function clashReason(winner) {
+    const how = winner.status === 'recording' ? 'which is recording' : winner.chosen_at ? 'which was chosen instead' : 'which was scheduled first';
+    return `Clashes with “${winner.title || 'another recording'}”, ${how}.`;
+}
+const CLASH_PREFIX = 'Clashes with ';
 
 function abandonStart(schedule, feed) {
     if (feed) { try { feed.leave(); } catch (e) { /* gone */ } }
@@ -1839,6 +1896,8 @@ async function tick() {
         const now = Date.now();
 
         const due = scheduledDb.findDueToStart(now);
+        // #12 (D-42): who wins each clash, once per tick (only when something is due).
+        let outcome = null;
         for (const schedule of due) {
             // Skip if its window already fully passed (findMissed handles the log/status)
             if (schedule.program_end + (schedule.post_buffer_min * 60000) < now) continue;
@@ -1849,6 +1908,16 @@ async function tick() {
             // already being recorded joins that recording's shared ingest, so the cap never holds it back.
             // #133: only when the start really reads that recording's ingest (checked again once the feed is had).
             const joins = await sharedRecordingKey(schedule, settings);
+            // D-42: a schedule that loses its clash waits for the winner, even when a connection is free now (it would
+            // otherwise hold the connection the winner needs later). Joining a running recording costs no connection.
+            if (!joins) {
+                if (!outcome) {
+                    const upcoming = scheduledDb.listUpcoming();
+                    outcome = { ...clashOutcome(upcoming, settings), byId: new Map(upcoming.map(r => [r.id, r])) };
+                }
+                const winner = (outcome.beatenBy.get(schedule.id) || []).map(id => outcome.byId.get(id)).find(Boolean);
+                if (winner) { waitForSlot(schedule, clashReason(winner)); continue; }
+            }
             const atCap = recordingConnections() >= recordingSlots(settings);
             if (!joins && atCap) {
                 waitForSlot(schedule);
@@ -1901,6 +1970,7 @@ async function tick() {
             const wasWaiting = schedule.status === 'waiting';
             setScheduleStatus(schedule.id, 'missed', {
                 error: wasWaiting && schedule.error === SLOT_REASON ? SLOT_MISSED
+                    : wasWaiting && String(schedule.error || '').startsWith(CLASH_PREFIX) ? `Not recorded. ${schedule.error}`
                     : wasWaiting ? 'Playback continued for the whole programme, so the provider stream was never free.'
                         : 'Recording window passed without starting.'
             });
@@ -2053,6 +2123,7 @@ module.exports = {
     stopAllActive,
     scheduleFromProgram,
     listScheduled,
+    chooseScheduled,
     listActive,
     stopForViewer,
     listRecordings,
