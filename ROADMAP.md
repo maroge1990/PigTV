@@ -5,12 +5,11 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 1 Nov 2026, morning (design session: the following model, D-41; no code).*
+*Overwritten at the end of every session. 1 Nov 2026 (the following model, D-41, and its first server batch 0390–0393).*
 
-- **Server:** production runs **0387** (Mark deployed 31 Oct evening; healthy, score collector on). On GitHub, CI green:
-  **0386–0387** (#191: a live game overrunning its guide slot keeps Watch; pages only while their ESPN answer is ≤ 15 min
-  old) and **0388–0389** (C-T: a general page for every ESPN team league, `/api/sports/pages/league/:league`,
-  `sportPageLeagues` in `/api/info`; no client yet). Next build **0390**.
+- **Server:** production runs **0387**. On GitHub, CI green: **0390–0393** (D-41's first server batch: #194 games only
+  from fixtures; #193 per-account follows grouped by sport, C-U `/api/sports/follows` and `/catalog`, live leagues first;
+  Codex round 1's two Cricket fixes). Before that 0388–0389 (C-T). Next build **0394**.
 - **Apple:** on GitHub **89** (the Sport front page, opens on Sport, TV tab second) and **90** (the Cricket page on C-S;
   every sport page and the front page fail closed on spoiler-free, #192). **Build 90 is uploaded to TestFlight** (tvOS
   and iOS, 31 Oct 21:03), processing. Next **91**.
@@ -21,7 +20,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   as issues once he lists them (the duplicate card is #194, the WBBL-led Cricket page is in #195).
 - **Process (D-38):** unchanged. Apple 90 used both Codex rounds; the round-2 highs were fixed with failing-before tests
   and pushed without a third round. Evidence: `docs/evidence/2026-10-31-{overrun-191,league-page,apple-90}`.
-- **Issues:** 69 open. #191 and #192 wait for Mark's device check (Test Round checks 25 and 28).
+- **Issues:** 73 open (#201–#204: Mark's F1 and front-page bugs). #193, #194 wait for a T3 check on the rig. #191 and #192 wait for Mark's device check (Test Round checks 25 and 28).
 - **TestFlight:** works. `ssh -t mac '... security unlock-keychain ... && sh Tools/testflight.sh both'` from the Terminal
   panel (Mark types the Mac password); internal testers are added in App Store Connect › TestFlight.
 - **Not done:** the Apple page for C-T (after the device check); production's 7 favourites (needs Mark's yes); the web
