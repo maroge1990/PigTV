@@ -99,7 +99,7 @@ function normalize(json, league, source) {
     }
     return out;
 }
-async function fetchJson(url, { signal, maxBytes = 2 * 1024 * 1024 } = {}) {
+async function fetchJson(url, { signal, maxBytes = 2 * 1024 * 1024, onParsed } = {}) {
     const u = new URL(url);
     if (u.origin !== 'https://site.api.espn.com' || !u.pathname.startsWith('/apis/site/v2/sports/')) throw new Error('Invalid score source');
     if (requestPolicy.blocked()) throw new Error('Score host cooling down');
@@ -117,6 +117,10 @@ async function fetchJson(url, { signal, maxBytes = 2 * 1024 * 1024 } = {}) {
             chunks.push(Buffer.from(value));
         }
     } finally { reader.releaseLock(); }
-    return JSON.parse(Buffer.concat(chunks,bytes).toString('utf8'));
+    // #29: the parse is one uninterrupted block of the event loop; onParsed(bytes, ms) reports it (sportCollectorCost.js)
+    const started = performance.now();
+    const json = JSON.parse(Buffer.concat(chunks,bytes).toString('utf8'));
+    onParsed?.(bytes, performance.now() - started);
+    return json;
 }
 module.exports = { BASE, normalize, fetchJson, teamAliases };

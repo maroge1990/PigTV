@@ -328,11 +328,12 @@ function utcDates(now) {
     return out;
 }
 const requestPolicy = require('./espnRequestPolicy');
+const cost = require('./sportCollectorCost');
 const REQUESTS_PER_TICK = 12;
 const CATALOG_RESERVE = 3;
 function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.neededLeagues(),clock=Date.now,enabled:isEnabled=collectorEnabled,
     feedGames=(league,o)=>feeds.games(league,{...o,registerImage:require('./logoCache').registerLogo}),recordFeed=fixtures.recordFeed}={}) {
-    let running = null, timer = null, stopped = false, remaining = 0, deadline = 0, coldRequests = 0;
+    let running = null, timer = null, stopped = false, remaining = 0, deadline = 0, coldRequests = 0, current = null;
     const cache = new Map(), controller = new AbortController(), recordedFeeds = new WeakSet();
     // ESPN groups scoreboards by US Eastern date, so a game after 00:00Z is listed under the previous
     // UTC date's URL. Remember which query date returned each game and poll that one while it is hot.
@@ -352,7 +353,8 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         remaining--;
         if (cold) coldRequests++;
         try {
-            const data = await fetchJson(url, {signal: controller.signal, ...(maxBytes ? {maxBytes} : {})});
+            const counting = current; // #29: this tick's counters, whichever tick reads the answer
+            const data = await fetchJson(url, {signal: controller.signal, ...(maxBytes ? {maxBytes} : {}), onParsed: (bytes, ms) => counting && cost.parsed(counting, bytes, ms)});
             if (!(url.includes('/scorepanel?') ? Array.isArray(data?.scores) : Array.isArray(data?.events))) throw new Error('Malformed score feed');
             const result = {json: data, observedAt: clock()};
             cache.set(url, {data: result, attemptAt: now, nextAt: clock() + ttl, failures: 0});
@@ -365,6 +367,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         }
     }
     async function collect() {
+        const started = performance.now(), counting = current = cost.tick();
         const now = clock(), days = utcDates(now), wanted = leagues(), jobs = [];
         remaining = REQUESTS_PER_TICK; coldRequests = 0; deadline = now + 20000;
         const previous = new Date(now - 24 * H).toISOString().slice(0,10).replaceAll('-', '');
@@ -441,7 +444,9 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                     const done = `${job.league}|${job.url}`;
                     if (stopped || !Array.isArray(data?.json.events) || processed.get(done) === data.observedAt) continue;
                     processed.set(done, data.observedAt);
+                    const t0 = performance.now();
                     const games = individual.has(job.league) ? individual.normalize(data.json, job.league, job.source) : espn.normalize(data.json, job.league, job.source);
+                    counting.normalizeMs += performance.now() - t0;
                     for (const game of games) {
                         const priority = queryDays.indexOf(job.date), old = candidates.get(game.id);
                         if (!old || priority < old.priority) {
@@ -472,8 +477,12 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         }
         if (!stopped) {
             const entries = [...candidates.values()].filter(e => !known.has(e.game.id) || e.observedAt > known.get(e.game.id).observedAt);
+            const t0 = performance.now();
             if (entries.length) store.ingestBatch(entries);
             store.prune(clock());
+            counting.ingestMs += performance.now() - t0;
+            counting.tickMs = performance.now() - started;
+            cost.record(counting);
         }
         for (const [key,value] of cache) if (value.nextAt < clock() - H) cache.delete(key);
     }

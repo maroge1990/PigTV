@@ -343,6 +343,8 @@ router.get('/', async (req, res) => {
             // finished, waiting for the recordings folder, or failed with its segments kept).
             segmentedRecordings: (() => { try { return { enabled: settings.segmentedRecordings === true, ...require('../services/recordingSegments').status() }; } catch (e) { return null; } })(),
             loopDelay: detail(() => require('../services/loopDelay').summary()),
+            // #29: the score collector's time on the event loop and bytes per tick (timing and sizes only).
+            sportCollector: detail(() => require('../services/sportCollectorCost').summary()),
             sync: await syncStatus(),
             // Plan B1 (0216): catch-up as each provider flags it (tv_archive), from the last raw fetch.
             catchup: detail(() => {

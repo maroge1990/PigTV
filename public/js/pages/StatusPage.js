@@ -305,6 +305,13 @@ class StatusPage {
             const row = (name, h) => h ? metric(name, `p50 ${ms(h.p50)} · p99 ${ms(h.p99)} · max ${ms(h.max)}`) : '';
             html.push(`<h4>Server event loop (lateness)</h4><div class="status-metrics">${row('Last minute', ld.lastMinute)}${row('Since start', ld.sinceStart)}</div>`);
         }
+        // #29: the sport score collector's cost per tick (last hour)
+        const sc = status.sportCollector;
+        if (sc && sc.ticks) {
+            const kb = (v) => `${Math.round(Number(v) / 1024)} KB`;
+            const row = (name, t) => metric(name, `${ms(t.busyMs)} on the loop (longest parse ${ms(t.maxParseMs)}) · ${e(t.requests)} fetched · ${kb(t.bytes)}`);
+            html.push(`<h4>Sport score collector (per tick, last ${e(sc.ticks)})</h4><div class="status-metrics">${row('Last', sc.last)}${row('p95', sc.p95)}${row('Worst', sc.max)}</div>`);
+        }
         const prep = status.preparation;
         if (prep && prep.counts) {
             const c = prep.counts;
