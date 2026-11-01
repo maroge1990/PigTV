@@ -5,29 +5,23 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 1 Nov 2026 (D-41, D-42 and the revamp's server batches 0390–0401).*
+*Overwritten at the end of every session. 1 Nov 2026 (D-41, D-42 and the sport revamp's server batches 0390–0403).*
 
-- **Server:** production runs **0387**. On GitHub, CI green: **0390–0401**, the sport revamp's server work so far (D-41,
-  D-42): #194 games only from fixtures; #193 per-account follows (C-U); #195 the keyword list retired, the curated
-  catalogue, International groups, the Cricket page on followed competitions; four Codex rounds' fixes. Next build
-  **0402**. Deployed and tested as a whole once the revamp is complete (D-42).
-- **Apple:** on GitHub **89** (the Sport front page, opens on Sport, TV tab second) and **90** (the Cricket page on C-S;
-  every sport page and the front page fail closed on spoiler-free, #192). **Build 90 is uploaded to TestFlight** (tvOS
-  and iOS, 31 Oct 21:03), processing. Next **91**.
-- **Decisions:** D-41 (1 Nov, Mark): following becomes sport → leagues → teams, per account, set in Settings › Sport on
-  every platform; games come only from fixtures (new feeds for AFLW, NRLW, Super Netball, MotoGP, Supercars); groups
-  for international cricket and football; majors leagues for tennis and golf. Build issues #193–#200. D-40 before it.
-- **Mark's overnight testing (1 Nov):** the Live dashboard looks right; sport pages show promise; usability bugs to come
-  as issues once he lists them (the duplicate card is #194, the WBBL-led Cricket page is in #195).
-- **Process (D-38):** unchanged. Apple 90 used both Codex rounds; the round-2 highs were fixed with failing-before tests
-  and pushed without a third round. Evidence: `docs/evidence/2026-10-31-{overrun-191,league-page,apple-90}`.
-- **Issues:** 73 open (#201–#204: Mark's F1 and front-page bugs). #193, #194 wait for a T3 check on the rig. #191 and #192 wait for Mark's device check (Test Round checks 25 and 28).
-- **TestFlight:** works. `ssh -t mac '... security unlock-keychain ... && sh Tools/testflight.sh both'` from the Terminal
-  panel (Mark types the Mac password); internal testers are added in App Store Connect › TestFlight.
-- **Not done:** the Apple page for C-T (after the device check); production's 7 favourites (needs Mark's yes); the web
-  Following page and brand fixes W1–W9; the Apple brand batch (#190, #116) and its simulator screenshots; PR #189 waits
-  for Mark's read. #111 parked.
-- **Waiting for Mark (T5):** the Test Round page, now with the front page (checks 22–28) on TestFlight build 90.
+- **Server:** production runs **0387** (unchanged). On GitHub: **0390–0403**, the sport revamp's server work (D-41,
+  D-42): #194 games only from fixtures; #193 per-account follows (C-U `/api/sports/follows`, `/catalog`); #195 the
+  keyword list retired, the curated catalogue (50 leagues) with headings, International groups, the followed-nations
+  rule, the Cricket page on followed competitions; #196 AFLW, NRLW, Super Netball, MotoGP and Supercars from their own
+  feeds (`sportFeeds.js`). Six Codex rounds; every high fixed; one medium left as #206. Next build **0404**.
+- **Deploy rule (D-42):** the revamp is deployed and tested as a whole once complete, not batch by batch.
+- **Apple:** on GitHub and TestFlight **90**. Next **91**. No Apple work yet on the revamp (#200 is the Apple batch).
+- **Decisions:** D-41 (the following model) and D-42 (scope; keyword list retired; clashes: first scheduled wins; "On
+  air · starts 3:10"; iPhone sport pages in sections, mock-ups first; Record every game keeps everything).
+- **Issues:** 75 open. Mark's bugs from 1 Nov: #201–#205 (F1 map, F1 drivers, F1 On air, front-page Record channel,
+  NFL logos). #193–#196 stay open for the combined test. #206 (MotoGP Q1/Q2 join) is a Codex finding.
+- **Paused at Mark's request:** the walkthrough of the 19 issues waiting on his device check, one at a time, starting
+  at #192 (check 30 on the Test Round page).
+- **Not done:** Super Netball's eight badges (#196); production's 7 favourites (needs Mark's yes); PR #189 waits for
+  Mark's read; #111 parked.
 
 ## Now
 
@@ -36,7 +30,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 2. **Every other team sport on Apple** (D-40): one page design on C-T (the server side is 0388–0389), after step 1;
    then sports without two teams.
 3. **The sport revamp (D-41), before more pages; deployed and tested as a whole once complete (Mark, 1 Nov):**
-   - Server: #193, #194 (0390–0393) and #195 (0394–0401) built; next #196 new feeds and
+   - Server: #193, #194 (0390–0393), #195 (0394–0401) and #196 (0402–0403) built; next #206, then
      #197 tennis/golf/UFC/IndyCar/NASCAR, with #29 (collector cost) measured before deploy; #12 (overlapping
      recordings) before #198 (suggestions, Record every game); #201–#203 server halves.
    - Web: #199 Settings › Sport as its own module (a first step on #64).
