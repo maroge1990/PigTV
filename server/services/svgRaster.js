@@ -10,11 +10,27 @@
  * then). One draw at a time; a second request for the same key shares the first's; at most `limits.maxQueue` wait,
  * and beyond that `draw` rejects with code BUSY (the caller answers 503 and remembers nothing).
  *
- * `draw(key, buffer, width)` -> PNG bytes, or rejects: code TOO_LARGE, TIMEOUT, BUSY, or a draw error.
+ * 0426 (0425 Codex round 2, high): what an SVG embeds is decoded in WASM memory too, outside every bound above, so an
+ * SVG that embeds or points at anything (an image, a foreign object, a data: or external link, an entity) or is larger
+ * than MAX_SVG_BYTES is refused before a worker starts. The maps are plain paths, a few KB.
+ *
+ * `draw(key, buffer, width)` -> PNG bytes, or rejects: code UNSAFE, TOO_LARGE, TIMEOUT, BUSY, or a draw error.
  */
 const { Worker } = require('worker_threads');
 
 const MAX_WIDTH = 3840, MAX_HEIGHT = 4320, MAX_PIXELS = 3840 * 4320;
+const MAX_SVG_BYTES = 512 * 1024;
+// 0426: anything an SVG could pull in or expand. A `href` is allowed only as a same-document reference ("#id").
+const UNSAFE = [/<\s*image\b/i, /<\s*foreignObject\b/i, /<\s*feImage\b/i, /<!ENTITY/i, /<!DOCTYPE/i, /data\s*:/i,
+    /\bhref\s*=\s*["'](?!#)/i, /url\(\s*["']?(?!#)/i, /@import/i];
+
+/** 0426: why this SVG is not drawn, or null. */
+function unsafe(buffer) {
+    if (buffer.length > MAX_SVG_BYTES) return `larger than ${MAX_SVG_BYTES} bytes`;
+    const text = buffer.toString('utf8');
+    const hit = UNSAFE.find(re => re.test(text));
+    return hit ? `embeds or links content (${hit.source})` : null;
+}
 const limits = { timeoutMs: 10000, maxQueue: 4, heapMb: 256 }; // settable by tests
 const stats = { workers: 0 };                                    // tests: how many draws actually ran
 
@@ -68,6 +84,8 @@ let waiting = 0;            // draws queued or running
 function draw(key, buffer, width = MAX_WIDTH) {
     const known = inFlight.get(key);
     if (known) return known;
+    const why = unsafe(Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer));
+    if (why) return Promise.reject(failure('UNSAFE', `refused: ${why}`));
     if (waiting >= limits.maxQueue) return Promise.reject(failure('BUSY', 'too many images waiting to be drawn'));
     waiting++;
     const mine = chain.then(() => run(buffer, Math.min(width, MAX_WIDTH)));
@@ -77,4 +95,4 @@ function draw(key, buffer, width = MAX_WIDTH) {
     return shared;
 }
 
-module.exports = { draw, limits, stats, MAX_WIDTH, MAX_HEIGHT, MAX_PIXELS };
+module.exports = { draw, unsafe, limits, stats, MAX_WIDTH, MAX_HEIGHT, MAX_PIXELS, MAX_SVG_BYTES };

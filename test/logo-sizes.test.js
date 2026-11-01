@@ -306,3 +306,23 @@ test('0425: two requests at once for the same key draw once; too many waiting is
         assert.equal(fs.existsSync(path.join(logosDir, `${keyForUrl(`${imageBase}/refused.svg`)}.3840.fail`)), false);
     } finally { raster.limits.maxQueue = saved; }
 });
+
+// 0426 (0425 Codex round 2, high): an embedded bitmap is decoded in WASM memory, outside the worker's heap limit and
+// the canvas bound (a 64 KB SVG holding a 6000 x 6000 PNG grew the process by ~230 MB), so such an SVG is never drawn.
+test('0426: an SVG that embeds or links content is refused before any worker starts', async () => {
+    const raster = load('services/svgRaster');
+    const inner = png(20, 10).toString('base64');
+    const embedded = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="160" height="96">'
+        + `<image width="160" height="96" xlink:href="data:image/png;base64,${inner}"/></svg>`);
+    const before = raster.stats.workers;
+    const p = logo('embedded.svg', embedded, 'image/svg+xml');
+    assert.equal((await get(`${p}?size=3840`)).status, 404);
+    assert.equal(raster.stats.workers, before, 'no worker ran');
+    assert.ok(fs.existsSync(path.join(logosDir, `${keyForUrl(`${imageBase}/embedded.svg`)}.3840.fail`)), 'remembered as failed');
+    for (const svg of ['<svg><use href="http://x/y.svg#a"/></svg>', '<svg><rect fill="url(http://x/p)"/></svg>',
+        '<!DOCTYPE svg [<!ENTITY a "b">]><svg/>', '<svg><foreignObject/></svg>', `<svg>${' '.repeat(raster.MAX_SVG_BYTES)}</svg>`]) {
+        assert.ok(raster.unsafe(Buffer.from(svg)), svg.slice(0, 40));
+    }
+    assert.equal(raster.unsafe(TRACK), null, 'a plain map is drawn');
+    assert.equal(raster.unsafe(Buffer.from('<svg><defs><path id="a"/></defs><use href="#a"/><rect fill="url(#g)"/></svg>')), null, 'same-document references are fine');
+});
