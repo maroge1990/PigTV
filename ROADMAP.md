@@ -5,23 +5,19 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 1 Nov 2026 (D-41, D-42 and the sport revamp's server batches 0390–0403).*
+*Overwritten at the end of every session. 1 Nov 2026 (sport revamp server batches 0390–0408).*
 
-- **Server:** production runs **0387** (unchanged). On GitHub: **0390–0403**, the sport revamp's server work (D-41,
-  D-42): #194 games only from fixtures; #193 per-account follows (C-U `/api/sports/follows`, `/catalog`); #195 the
-  keyword list retired, the curated catalogue (50 leagues) with headings, International groups, the followed-nations
-  rule, the Cricket page on followed competitions; #196 AFLW, NRLW, Super Netball, MotoGP and Supercars from their own
-  feeds (`sportFeeds.js`). Six Codex rounds; every high fixed; one medium left as #206. Next build **0404**.
+- **Server:** production runs **0387** (unchanged). On GitHub: **0390–0408**, the sport revamp's server work (D-41,
+  D-42): #193–#196 as before; 0404 MotoGP Q1/Q2 and Warm Up joins (#206); 0405 Super Netball's badges (#196);
+  0406–0408 tennis, golf, UFC, IndyCar and NASCAR Cup, one card per event, majors under their majors league, followed
+  players by draw/field/entry list (#197, Codex rounds 1–2, every finding fixed). Next build **0409**.
 - **Deploy rule (D-42):** the revamp is deployed and tested as a whole once complete, not batch by batch.
 - **Apple:** on GitHub and TestFlight **90**. Next **91**. No Apple work yet on the revamp (#200 is the Apple batch).
-- **Decisions:** D-41 (the following model) and D-42 (scope; keyword list retired; clashes: first scheduled wins; "On
-  air · starts 3:10"; iPhone sport pages in sections, mock-ups first; Record every game keeps everything).
-- **Issues:** 75 open. Mark's bugs from 1 Nov: #201–#205 (F1 map, F1 drivers, F1 On air, front-page Record channel,
-  NFL logos). #193–#196 stay open for the combined test. #206 (MotoGP Q1/Q2 join) is a Codex finding.
-- **Paused at Mark's request:** the walkthrough of the 19 issues waiting on his device check, one at a time, starting
-  at #192 (check 30 on the Test Round page).
-- **Not done:** Super Netball's eight badges (#196); production's 7 favourites (needs Mark's yes); PR #189 waits for
-  Mark's read; #111 parked.
+- **Decisions:** D-41, D-42. Golf's Majors are the four men's; the women's stay under LPGA (PRODUCT.md).
+- **Issues:** #193–#197 and #206 stay open for the combined test. Rest of #197: the new leagues' pages.
+- **Paused at Mark's request:** the walkthrough of the 19 issues waiting on his device check, starting at #192.
+- **Not done:** #197's league pages; #29 needs a pilot (Mark's go-ahead); production's 7 favourites (needs Mark's
+  yes); PR #189 waits for Mark's read; #111 parked.
 
 ## Now
 
@@ -30,8 +26,8 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 2. **Every other team sport on Apple** (D-40): one page design on C-T (the server side is 0388–0389), after step 1;
    then sports without two teams.
 3. **The sport revamp (D-41), before more pages; deployed and tested as a whole once complete (Mark, 1 Nov):**
-   - Server: #193, #194 (0390–0393), #195 (0394–0401) and #196 (0402–0403) built; next #206, then
-     #197 tennis/golf/UFC/IndyCar/NASCAR, with #29 (collector cost) measured before deploy; #12 (overlapping
+   - Server: #193–#196, #206 and #197's cards (0390–0408) built; next #197's league pages, with #29 (collector cost)
+     measured before deploy; #12 (overlapping
      recordings) before #198 (suggestions, Record every game); #201–#203 server halves.
    - Web: #199 Settings › Sport as its own module (a first step on #64).
    - Apple: #200 Settings › Sport with #201–#205, #187, #186 and #177 (iPhone layout), #190 (brand), #18, and #52
