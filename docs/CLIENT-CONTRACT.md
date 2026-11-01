@@ -306,6 +306,12 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   - `series`: `match` is the programme title, on the channel `sourceId` + `channelId` (bare or composite id). Every airing
     in the guide (7 days); `newOnly` skips airings the guide flags as previously shown. Episodes are told apart by the
     guide's episode number or subtitle.
+  - `team` (0414, #198, D-41 point 11, "Record every game"): `match` a followed team's name and `sport` its catalogue
+    sport (required; 400 otherwise). Records the team's games from the fixture (never guide titles, never a replay),
+    in the leagues of that sport the rule's maker follows (all of them if none), each on the channel the guide airs it
+    on, once it appears in the next 72 h. Recordings are kept until deleted (D-42). Rules add `sport`, `createdBy` and
+    `createdByName` (who set it, for Recordings). Unfollowing a team does not remove its rule: ask whether to keep it,
+    then `DELETE` it if not.
 - `PUT /api/recordings/rules/:id` `{enabled?, newOnly?, preBufferMin?, postBufferMin?}` → the rule; 404 unknown.
 - `DELETE /api/recordings/rules/:id` → `{success, cancelled}`: its schedules that have not started are cancelled; one
   recording now, and everything recorded, stays.

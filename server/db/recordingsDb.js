@@ -153,7 +153,7 @@ function initSchema() {
     db.exec(`
         CREATE TABLE IF NOT EXISTS recording_rules (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            kind TEXT NOT NULL,            -- 'sport' (a team, league or word, as the follow list) | 'series' (a title on one channel)
+            kind TEXT NOT NULL,            -- 'sport' (a team, league or word, as the follow list) | 'series' (a title on one channel) | 'team' (#198)
             match TEXT NOT NULL,
             source_id INTEGER,             -- series: the channel
             channel_item_id TEXT,
@@ -196,6 +196,10 @@ function initSchema() {
     // R6: the programme's image from the guide, found when the schedule is made.
     try {
         db.exec('ALTER TABLE scheduled_recordings ADD COLUMN image_url TEXT');
+    } catch (e) { /* already present */ }
+    // #198 (D-41 point 11): a 'team' rule's sport (catalogue name): the team's games in that sport's leagues.
+    try {
+        db.exec('ALTER TABLE recording_rules ADD COLUMN sport TEXT');
     } catch (e) { /* already present */ }
     // #12 (D-42): when someone chose this schedule over the ones it clashes with (null: never chosen).
     try {

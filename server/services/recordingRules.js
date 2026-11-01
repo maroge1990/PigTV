@@ -7,6 +7,10 @@
  *           in the next 72 h, recorded on the event's best channel (channels[0]).
  *   series  a programme title on one channel: every airing of it there in the guide (7 days),
  *           or only the ones not flagged "previously shown" (new_only).
+ *   team    #198 (D-41 point 11, "Record every game"): a followed team's games from the fixture (the score
+ *           collector's cards, never guide titles) in the leagues of `sport` its maker follows (every league of
+ *           the sport once they follow none), each recorded on the channel the guide airs it on (the dashboard's
+ *           game-to-airing join: never a replay) in the next 72 h. Kept until deleted (D-42).
  *
  * De-duplicated three ways, because guides nudge times between syncs: by identity (the Sport
  * event; the series episode - its episode number or subtitle - else the airing's channel and
@@ -21,7 +25,7 @@
 const { getDb } = require('../db/sqlite');
 const { scheduled: scheduledDb, initSchema } = require('../db/recordingsDb');
 
-const KINDS = ['sport', 'series'];
+const KINDS = ['sport', 'series', 'team'];
 const SPORT_HOURS = 72;
 const SERIES_DAYS = 7;
 const NEAR_MS = 15 * 60 * 1000;
@@ -35,6 +39,11 @@ const PREVIOUSLY_SHOWN = 1; // epgParser.PROGRAMME_FLAGS
 const db = () => { initSchema(); return getDb(); };
 const fold = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
+function makerName(id) {
+    if (id === null || id === undefined) return null;
+    try { return db().prepare('SELECT username FROM app_users WHERE id = ?').get(id)?.username || null; } catch (e) { return null; }
+}
+
 function shape(r) {
     if (!r) return null;
     const pending = db().prepare(`SELECT COUNT(*) AS n FROM scheduled_recordings WHERE rule_id = ? AND status IN ('scheduled', 'waiting', 'recording')`).get(r.id).n;
@@ -43,7 +52,9 @@ function shape(r) {
         sourceId: r.source_id ?? null, channelId: r.channel_item_id ?? null, stableId: r.channel_stable_id ?? null,
         channelName: r.channel_name ?? null,
         preBufferMin: r.pre_buffer_min ?? null, postBufferMin: r.post_buffer_min ?? null,
-        newOnly: r.new_only === 1, enabled: r.enabled === 1, createdAt: r.created_at, upcoming: pending
+        newOnly: r.new_only === 1, enabled: r.enabled === 1, createdAt: r.created_at, upcoming: pending,
+        // #198 (additive): a team rule's sport, and who set the rule (shown in Recordings)
+        sport: r.sport ?? null, createdBy: r.created_by ?? null, createdByName: makerName(r.created_by)
     };
 }
 
@@ -61,14 +72,19 @@ const minutes = (v, max) => (v === undefined || v === null ? null
 /** A rule from a request body, or { error } (a 400). */
 function validate(body = {}) {
     const kind = body.kind;
-    if (!KINDS.includes(kind)) return { error: 'kind must be "sport" or "series"' };
+    if (!KINDS.includes(kind)) return { error: 'kind must be "sport", "series" or "team"' };
     const match = typeof body.match === 'string' ? body.match.replace(/\s+/g, ' ').trim() : '';
     if (!match || match.length > MAX_MATCH) return { error: `match must be 1 to ${MAX_MATCH} characters` };
     const pre = minutes(body.preBufferMin, 60);
     const post = minutes(body.postBufferMin, 180);
     if (pre === undefined || post === undefined) return { error: 'preBufferMin (0-60) and postBufferMin (0-180) must be whole minutes' };
     const rule = { kind, match, pre_buffer_min: pre, post_buffer_min: post, new_only: body.newOnly === true ? 1 : 0,
-        source_id: null, channel_item_id: null, channel_stable_id: null, channel_name: null };
+        source_id: null, channel_item_id: null, channel_stable_id: null, channel_name: null, sport: null };
+    if (kind === 'team') {
+        const sport = require('./sportCatalog').sport(body.sport);
+        if (!sport) return { error: 'a team rule needs sport, a catalogue sport' };
+        rule.sport = sport.sport;
+    }
     if (kind === 'series') {
         const sourceId = Number(body.sourceId);
         const channelId = body.channelId === undefined || body.channelId === null ? '' : String(body.channelId).replace(/^(?:m3u|xtream)_\d+_/, '');
@@ -87,13 +103,14 @@ function create(body, userId = null) {
     if (error) return { error };
     if (db().prepare('SELECT COUNT(*) AS n FROM recording_rules').get().n >= MAX_RULES) return { error: `at most ${MAX_RULES} rules` };
     const same = db().prepare(`SELECT id FROM recording_rules WHERE kind = ? AND lower(match) = lower(?) AND
-        COALESCE(source_id, 0) = COALESCE(?, 0) AND COALESCE(channel_stable_id, channel_item_id, '') = COALESCE(?, ?, '')`)
-        .get(rule.kind, rule.match, rule.source_id, rule.channel_stable_id, rule.channel_item_id);
+        COALESCE(source_id, 0) = COALESCE(?, 0) AND COALESCE(channel_stable_id, channel_item_id, '') = COALESCE(?, ?, '')
+        AND COALESCE(sport, '') = COALESCE(?, '')`)
+        .get(rule.kind, rule.match, rule.source_id, rule.channel_stable_id, rule.channel_item_id, rule.sport);
     if (same) return { rule: get(same.id), existing: true };
     const info = db().prepare(`INSERT INTO recording_rules (kind, match, source_id, channel_item_id, channel_stable_id, channel_name,
-            pre_buffer_min, post_buffer_min, new_only, enabled, created_by, created_at)
+            pre_buffer_min, post_buffer_min, new_only, enabled, created_by, created_at, sport)
         VALUES (@kind, @match, @source_id, @channel_item_id, @channel_stable_id, @channel_name, @pre_buffer_min, @post_buffer_min,
-            @new_only, 1, @created_by, @created_at)`).run({ ...rule, created_by: userId, created_at: Date.now() });
+            @new_only, 1, @created_by, @created_at, @sport)`).run({ ...rule, created_by: userId, created_at: Date.now() });
     console.log(`[Rules] Rule #${info.lastInsertRowid} added: ${rule.kind} "${rule.match}"${rule.channel_name ? ` on ${rule.channel_name}` : ''}`);
     return { rule: get(info.lastInsertRowid) };
 }
@@ -146,6 +163,38 @@ async function sportCandidates(rule, now) {
         if (!sportsEvents.followedKeyword(follow, ev.title, ev.aliases || [], leagues)) continue;
         const ch = ev.channels[0];
         out.push({ identity: `event:${ev.id}`, title: ev.title, titles: [ev.title, ...(ev.aliases || [])], anyChannel: true, start: ev.start, end: ev.end,
+            sourceId: ch.sourceId, channelId: String(ch.id), channelName: ch.name, channelLogo: ch.logo || null, description: null });
+    }
+    return out;
+}
+
+/**
+ * #198 Team: the team's games in the fixture, each on the channel the guide airs it on. Leagues: those of the rule's
+ * sport its maker follows, else all of the sport's. A game without a matched airing yet is left for a later evaluation.
+ */
+async function teamCandidates(rule, now, { games = null, events = null } = {}) {
+    const offered = require('./sportCatalog').sport(rule.sport)?.leagues || [];
+    let leagues = offered;
+    try {
+        const mine = rule.created_by === null || rule.created_by === undefined ? null
+            : require('./sportPagePrefs').follows(rule.created_by).sports.find(s => s.sport === rule.sport)?.leagues;
+        if (mine && mine.length) leagues = mine.filter(l => offered.includes(l));
+    } catch (e) { /* every league of the sport */ }
+    const dashboard = require('./sportsDashboard');
+    const person = (v) => String(v || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const wanted = person(rule.match);
+    const mine = (games || dashboard.store().catalog()).filter(g => leagues.includes(g.league) && g.start > now - 12 * 3600 * 1000 &&
+        (g.competitors || []).some(c => [c.name, ...(c.aliases || [])].some(a => person(a) === wanted)));
+    if (!mine.length) return [];
+    const airings = events || (await require('./sportsEvents').eventsFor({ hours: SPORT_HOURS, now })).events;
+    const joined = dashboard.matchBroadcasts(mine, airings);
+    const out = [];
+    for (const g of mine) {
+        const on = (joined.get(g.id) || []).filter(e => e.start > now && (e.channels || []).length)
+            .sort((a, b) => Math.abs(a.start - g.start) - Math.abs(b.start - g.start))[0];
+        if (!on) continue;
+        const ch = on.channels[0];
+        out.push({ identity: `game:${g.id}`, title: on.title, titles: [on.title, g.title], anyChannel: true, start: on.start, end: on.end,
             sourceId: ch.sourceId, channelId: String(ch.id), channelName: ch.name, channelLogo: ch.logo || null, description: null });
     }
     return out;
@@ -366,15 +415,17 @@ function evaluate({ now = Date.now() } = {}) {
         for (const rule of rules) {
             let candidates = [];
             try {
-                candidates = rule.kind === 'sport' ? await sportCandidates(rule, now) : seriesCandidates(rule, now);
+                candidates = rule.kind === 'sport' ? await sportCandidates(rule, now) : rule.kind === 'team' ? await teamCandidates(rule, now)
+                    : seriesCandidates(rule, now);
             } catch (err) {
                 console.warn(`[Rules] Rule #${rule.id} could not be evaluated: ${err.message}`);
                 continue;
             }
             // Episodes first (their identity), then everything else by instance (pairInstances).
             const episodes = rule.kind === 'series' ? resolveEpisodes(rule.id, candidates, now) : { resolved: new Map(), taken: new Set(), ownerOf: new Map(), namedBy: new Map() };
-            const { pairs: events, declined } = rule.kind === 'sport' ? pairEvents(candidates, now) : pairAirings(candidates, now, episodes.taken);
-            const paired = (c) => (rule.kind === 'sport' || !c.episode);
+            const byEvent = rule.kind === 'sport' || rule.kind === 'team';
+            const { pairs: events, declined } = byEvent ? pairEvents(candidates, now) : pairAirings(candidates, now, episodes.taken);
+            const paired = (c) => (byEvent || !c.episode);
             for (const c of candidates) {
                 // D3 (0253): an existing schedule is reconciled first, so a correction back to a time
                 // seen before (A -> B -> A, its identity already a hit) still moves it; the hit only
@@ -433,4 +484,4 @@ function evaluateIfDue(now = Date.now()) {
     return evaluate({ now });
 }
 
-module.exports = { list, get, create, update, remove, validate, evaluate, evaluateIfDue, KINDS, NEAR_MS };
+module.exports = { list, get, create, update, remove, validate, evaluate, evaluateIfDue, teamCandidates, KINDS, NEAR_MS };
