@@ -17,7 +17,7 @@ with failing-before tests (`test/sport-feeds.test.js` › 0403):
 2. *High: no size limit on answers.* Bodies are read through the stream up to 5 MB, aborted past it.
 3. *Medium: any airing in a Supercars weekend joined it.* It must name the event's track or town.
 
-Round 2: below.
+Round 2: the fixes hold, no high. One medium left open as an issue (MotoGP Q1/Q2 share one join identity; Warm Up never joins).
 
 **Not covered:** Super Netball's eight badges (by hand, still to add); T3 on the rig; live-score freshness of the
 new feeds (fixtures and results only, as Mark asked).
