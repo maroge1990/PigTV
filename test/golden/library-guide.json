@@ -40,11 +40,11 @@
       "tvgId": "abcnews.au"
     }
   ],
-  "end": 1793502960000,
+  "end": 1793503320000,
   "limit": 4,
   "nextCursor": "eyJzayI6OTk5OTk5OTk5LCJuYW1lIjoiQVV8IEZPWCBDUklDS0VUIEhEIiwiaWQiOiIxOjEwMTEifQ==",
-  "now": 1793492160000,
+  "now": 1793492520000,
   "offset": 0,
-  "start": 1793492160000,
+  "start": 1793492520000,
   "total": 27
 }

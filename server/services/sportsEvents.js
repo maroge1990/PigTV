@@ -693,11 +693,22 @@ const yieldToLoop = () => new Promise(resolve => setImmediate(resolve));
 const DECORATE_SLICE = 100; // channels per slice: ~1 ms of logo lookups each, then back to the loop
 
 /**
+ * Channel logos go through the logo cache (/api/logo/<key>), as the library hands them out: the EPG's icon when the
+ * playlist has none, then the cache's path. The routes pass this same decoration; a build started before any request
+ * passed one (a sync's or the timer's rebuild) uses this. A logo that cannot be registered is null.
+ */
+function defaultDecorateChannels(channels) {
+    try { require('../routes/library').fillMissingLogos(channels); } catch (e) { /* the EPG's icons are only a fallback */ }
+    try { require('./logoCache').applyLogoCache(channels); }
+    catch (e) { for (const ch of channels) if (ch.logo && !String(ch.logo).startsWith('/api/logo/')) ch.logo = null; }
+}
+
+/**
  * Run the route's decorateChannels (logos: it writes the logo cache, so it can only run here) over
  * the channels the events name - each once, they are shared between events - a slice at a time.
  */
 async function decorateBuilt(built, decorateChannels) {
-    if (!decorateChannels) return;
+    decorateChannels = decorateChannels || defaultDecorateChannels;
     const channels = new Set();
     for (const ev of built.events) for (const ch of ev.channels) channels.add(ch);
     const all = [...channels];

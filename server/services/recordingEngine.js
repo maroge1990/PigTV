@@ -395,16 +395,26 @@ function programmeImage(sourceId, channelItemId, programStart) {
 }
 
 /** R6: a row as the API lists it: `image` is /api/logo/<key> (never the URL itself), or null. */
+/** A channel logo as clients get it: through the logo cache (/api/logo/<key>), or null when it cannot be registered. */
+function channelLogo(url) {
+    if (!url) return null;
+    try { return require('./logoCache').registerLogo(url); } catch (e) { return null; }
+}
+/** A schedule or recording row's channel logo through the logo cache (rows stored before it went through it too). */
+function withChannelLogo(row) {
+    return row && 'channel_logo' in row ? { ...row, channel_logo: channelLogo(row.channel_logo) } : row;
+}
+
 function withImage(row) {
     if (!row) return row;
-    const { image_url: url, ...rest } = row;
+    const { image_url: url, ...rest } = withChannelLogo(row);
     let image = null;
     try { image = url ? require('./logoCache').registerLogo(url) : null; } catch (e) { image = null; }
     return { ...rest, image };
 }
 
 async function scheduleFromProgram({
-    sourceId, channelItemId, channelName, channelLogo,
+    sourceId, channelItemId, channelName, channelLogo: channelLogoUrl,
     title, description, programStart, programEnd,
     preBufferMin, postBufferMin, createdBy, exclude = null
 }) {
@@ -433,7 +443,7 @@ async function scheduleFromProgram({
         // where this channel is; by the time it records, the position may not.
         channel_stable_id: channelIdentity(sourceId, channelItemId),
         channel_name: channelName || null,
-        channel_logo: channelLogo || null,
+        channel_logo: channelLogo(channelLogoUrl),
         program_start: programStart,
         program_end: programEnd,
         pre_buffer_min: pre,
@@ -796,7 +806,7 @@ async function cancelScheduled(id) {
         scheduledDb.delete(id);
         return { deleted: true };
     }
-    return scheduledDb.getById(id);
+    return withChannelLogo(scheduledDb.getById(id));
 }
 
 /**
@@ -2177,6 +2187,7 @@ module.exports = {
     listScheduled,
     chooseScheduled,
     listActive,
+    withChannelLogo,
     stopForViewer,
     listRecordings,
     cancelScheduled,

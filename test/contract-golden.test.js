@@ -152,7 +152,7 @@ function normalise(value, delta, key = '') {
     if (['sessionId', 'id'].includes(key) && /^[0-9a-f-]{16,}$/i.test(value)) return '<session>';
     if (/^[0-9a-f]{16,}$/.test(value)) return '<hex>';
     if (['build', 'commit', 'display', 'version', 'timezone', 'builtAt'].includes(key)) return `<${key}>`;
-    let s = value.split(sandbox).join('<sandbox>').split(providerBase).join('http://provider.invalid');
+    let s = value.split(sandbox).join('<sandbox>');
     for (const [re, to] of STRING_RULES) s = s.replace(re, to);
     if (/^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(s) && delta) { const t = RealDate.parse(s); if (Number.isFinite(t)) s = new RealDate(t + delta).toISOString(); }
     return s;
@@ -218,8 +218,8 @@ function serialShape(s) {
 // ---- the goldens ---------------------------------------------------------------------------------------------------
 
 const index = {};
-// A provider's stream URL carries its login: neither may appear. (Its host may, in a channel logo the provider serves.)
-const SECRETS = () => [LOGIN.pass, LOGIN.user, `${providerBase}/live/`];
+// Neither the provider's address nor its login may appear: channel logos go through the logo cache (/api/logo/<key>).
+const SECRETS = () => [providerBase, new URL(providerBase).host, LOGIN.pass, LOGIN.user];
 
 /** Check (or, with GOLDEN_UPDATE=1, write) one answer. `delta` moves its times (real-clock answers). */
 function golden(name, method, route, r, { status, delta = FIXED - T0 } = {}) {
@@ -257,11 +257,12 @@ test('info, and the fallback a client gets when a feature check throws', async (
 test('a guide page and the sport events from a real sync of the fake provider', async () => {
     const page = await get('library-guide', '/api/library/guide?limit=4');
     assert.ok(page.channels.length && page.channels.some(c => c.programmes.length), 'channels with their programmes');
-    // The build the sync started had no logo decoration (no request had passed it yet): start from one that has.
-    await call('GET', '/api/sports/events?hours=72');
-    sportsEvents.reset();
+    // The first answer after the sync comes from the build the sync started, before any request passed its logo step.
     const events = await get('sports-events', '/api/sports/events?hours=72');
     assert.ok(events.events.length > 0);
+    const logos = events.events.flatMap(e => e.channels.map(c => c.logo));
+    assert.ok(logos.some(Boolean), 'the fake provider serves channel logos');
+    assert.deepEqual(logos.filter(l => l !== null && !l.startsWith('/api/logo/')), [], 'every channel logo through the logo cache');
 });
 
 // ---- recordings (C-L, C-M, C-N, #12) ----------------------------------------------------------------------------
@@ -289,6 +290,11 @@ test('recordings: a finished and a recording-in-progress row; the schedule list 
     golden('recordings-rule-series', 'POST', '/api/recordings/rules', series, { status: 201 });
     assert.equal((await call('POST', '/api/recordings/rules', { body: { kind: 'sport', match: 'AFL' } })).status, 201);
     assert.equal((await call('POST', '/api/recordings/rules', { body: { kind: 'team', match: 'Green Bay Packers', sport: 'American football' } })).status, 201);
+    const made = (await call('GET', '/api/recordings/scheduled')).body.filter(r => r.rule_id === series.body.id);
+    assert.ok(made.length && made.every(r => typeof r.channel_logo === 'string' && r.channel_logo.startsWith('/api/logo/')),
+        `a rule-made schedule's channel logo through the logo cache: ${JSON.stringify(made.map(r => r.channel_logo))}`);
+    const stored = sqlite.getDb().prepare('SELECT channel_logo FROM scheduled_recordings WHERE id = ?').get(made[0].id).channel_logo;
+    assert.match(stored, /^\/api\/logo\//, 'and stored that way, so the recording made from it carries it too');
     const rules = await get('recordings-rules', '/api/recordings/rules');
     assert.deepEqual(rules.map(r => r.kind).sort(), ['series', 'sport', 'team']);
 

@@ -229,7 +229,8 @@ router.post('/schedule', async (req, res) => {
         // #12 (D-28): a clash is said when scheduling (additive `conflictsWith`, as on the schedule list).
         const settings = await require('../db').settings.get();
         const listed = schedule && recordingEngine.listScheduled({ settings }).find(r => r.id === schedule.id);
-        res.status(201).json(listed && listed.conflictsWith ? { ...schedule, conflictsWith: listed.conflictsWith } : schedule);
+        const answer = recordingEngine.withChannelLogo(schedule);
+        res.status(201).json(listed && listed.conflictsWith ? { ...answer, conflictsWith: listed.conflictsWith } : answer);
     } catch (err) {
         console.error('[Recordings] Schedule error:', err);
         res.status(500).json({ error: err.message });
@@ -241,7 +242,7 @@ router.post('/schedule', async (req, res) => {
 router.get('/active', (req, res) => {
     try {
         // R6: the artwork's address stays on the server (the other lists give /api/logo/<key>).
-        res.json(recordingEngine.listActive().map(({ image_url, ...row }) => row));
+        res.json(recordingEngine.listActive().map(({ image_url, ...row }) => recordingEngine.withChannelLogo(row)));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
