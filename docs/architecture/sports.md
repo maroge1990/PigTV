@@ -319,7 +319,8 @@ Majors are the four men's by name, from PGA Tour's feed. A tennis tournament's o
 Masters said "Final" on its second day), so its matches decide it; a golf round says "Play Complete" each evening, so
 the event's status decides it. A card lists its `players` (in name order, never a result's) for following; they stay
 on the server. Guide airings join by the event's name words, like a Supercars weekend; a tour's common words ("Open",
-"Masters") count only for a majors league. A card is polled hot only while something is live.
+"Masters") count only for a majors league; a UFC night or a race only by its title (never its city), and a replay
+never joins (0407). A card is polled hot only while something is live, every 5 min between matches or rounds.
 
 ## Spoilers and delay
 

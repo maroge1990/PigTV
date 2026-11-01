@@ -142,3 +142,34 @@ test('#197: the collector asks tennis and golf for this week (one answer serving
     assert.ok(ids.includes('PGA Tour|espn:golf/pga:401850978') && !ids.some(id => id.startsWith('Majors|')));
     assert.ok(ids.includes('UFC|espn:mma/ufc:600061420'));
 });
+
+// 0407 (0406 Codex round 1, high): a UFC airing joined by its city alone ("Las Vegas" hosts every Fight Night).
+test('0407: a UFC airing never joins by the city, nor when it names other fighters, nor as a replay', () => {
+    const [night] = individual.normalize(json('ufc-2026-10-31.json'), 'UFC', 'mma/ufc');
+    const ev = (id, title) => ({ id, league: 'UFC', kind: 'event', title, start: night.start + H, end: night.start + 3 * H, channels: [] });
+    const found = dashboard.matchBroadcasts([night], [ev('vegas', 'UFC Fight Night: Other vs Different - Las Vegas'),
+        ev('other', 'UFC Fight Night: Moicano vs Different'), ev('replay', 'UFC Fight Night: Moicano vs Nolan Replay'),
+        ev('right', 'UFC Fight Night: Moicano vs Nolan - Main Card')]);
+    assert.deepEqual(found.get(night.id).map(e => e.id), ['right']);
+});
+
+// 0407 (0406 Codex round 1, medium): between rounds a tournament was polled every 15 minutes but went stale after 3.5.
+test('0407: a tournament between rounds is asked again every 5 minutes and its break stays fresh in between', async () => {
+    const s = store(), calls = [];
+    let time = NOW;
+    const c = dashboard.createCollector({ store: s, clock: () => time, enabled: () => true, leagues: () => new Set(['PGA Tour']),
+        feedGames: async () => ({ ok: true, games: [] }), fetchJson: async (url) => { calls.push(time); return json('golf-pga-2026-11-01.json'); } });
+    await c.refresh();
+    const [card] = s.catalog();
+    const view = (at) => dashboard.buildDashboard(s, { now: at, userId: '1', timezone: 'Australia/Melbourne', events: [], league: 'PGA Tour' }).games[0];
+    for (const minutes of [2, 4]) {
+        time = NOW + minutes * 60000;
+        await c.refresh();
+        const shown = view(time);
+        assert.deepEqual([shown.id, shown.status, shown.breakLabel], [card.id, 'break', 'Round 3 complete'], `${minutes} min on`);
+    }
+    assert.equal(calls.length, 1, 'not asked again before 5 minutes');
+    time = NOW + 5 * 60000 + 1000; await c.refresh();
+    assert.equal(calls.length, 2, 'asked again after 5 minutes');
+    c.stop();
+});

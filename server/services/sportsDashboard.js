@@ -23,14 +23,18 @@ const WEEKEND_STOP = new Set(['supercars', 'repco', 'itm', 'bp', 'super', 'sprin
 const TOUR_STOP = new Set(['open', 'masters', 'championship', 'championships', 'classic', 'invitational', 'international', 'finals', 'ladies',
     'womens', 'mens', 'rolex', 'pga', 'lpga', 'atp', 'wta', 'liv', 'world', 'stroke', 'play', 'tournament']);
 const MAJORS = new Set(['Grand Slams', 'Majors']);
+// 0407 (0406 Codex round 1, high): a UFC night or a race is named by its title alone (fighters, number, track): its city
+// hosts other nights and races ("Las Vegas").
+const TITLE_ONLY = new Set(['UFC', 'IndyCar', 'NASCAR']);
 function weekendWords(game) {
-    const words = classify.normText(`${game.title} ${game.circuit?.city || ''}`).split(' ');
+    const words = classify.normText(`${game.title} ${TITLE_ONLY.has(game.league) ? '' : game.circuit?.city || ''}`).split(' ');
     // a UFC night is often aired by its number alone ("UFC 334")
     const number = game.league === 'UFC' ? words.filter(w => /^\d{3}$/.test(w)) : [];
     return [...new Set([...number, ...words.filter(w => w.length >= 4 && !/^\d+$/.test(w) && !WEEKEND_STOP.has(w)
         && (MAJORS.has(game.league) || !individual.has(game.league) || !TOUR_STOP.has(w)))])];
 }
 const H = 3600000;
+const BREAK_POLL = 5 * 60000; // 0407: how often a tournament between matches or rounds is asked again
 // 0381 (D-39): the score collector runs by default (PIGTV_SPORTS_DASHBOARD=0 turns it off) whenever ESPN fixtures are on,
 // for the Sport front page; the legacy /dashboard and /preferences routes stay opt-in (=1) for the current Apple app.
 const collectorEnabled = () => process.env.PIGTV_SPORTS_DASHBOARD !== '0' && fixtures.enabled();
@@ -91,7 +95,15 @@ function sameGame(prepared, parsed) {
         // when it names the event's track or town (0403, Codex round 1: never another round's replay, nor a bare title).
         if (!(Number.isFinite(game.end) && event.start < game.end && event.end > game.start)) return false;
         const said = ` ${classify.normText(event.title)} `;
-        return weekendWords(game).some(w => said.includes(` ${w} `));
+        const words = weekendWords(game);
+        if (individual.has(game.league)) {
+            // 0407 (0406 Codex round 1, high): never a replay or highlights, and a fight that names its two fighters must be
+            // this night's: each side a name on its title
+            const p = classify.parseTitle(event.title);
+            if (p.replayWord || p.highlightsWord) return false;
+            if (game.league === 'UFC' && p.teams && !p.teams.every(side => side.tokens.some(t => words.includes(t)))) return false;
+        }
+        return words.some(w => said.includes(` ${w} `));
     } else if (event.end < game.start || Math.abs(event.start - game.start) > 90 * 60000) return false;
     if (SESSIONS.has(game.league)) {
         return Boolean(parsed.title.session && prepared.session && parsed.title.session.id === prepared.session.id &&
@@ -232,7 +244,10 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
         }
         const selected=view.selected.get(g.id);
         const at=selected?.observedAt ?? null;
-        const fresh=at!==null && now-at <= prefs.scoreDelaySeconds*1000+120000;
+        // 0407 (0406 Codex round 1, medium): a tournament between matches or rounds is polled every BREAK_POLL, not hot:
+        // its break stays fresh that long (plus the usual two minutes).
+        const allowance=individual.has(g.league) && selected?.data.state==='break' ? BREAK_POLL+120000 : 120000;
+        const fresh=at!==null && now-at <= prefs.scoreDelaySeconds*1000+allowance;
         const state=selected?.data.state || 'unknown';
         const ongoing=['live','break','suspended'].includes(state);
         const airings=matches.get(g.id);
@@ -354,7 +369,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         const queryDays = [days[0], previous, ...days.slice(1)];
         const catalog = store.catalog(), known = new Map(catalog.map(g => [g.id, g]));
         for (const id of listedOn.keys()) if (!known.has(id)) listedOn.delete(id);
-        const hot = new Set();
+        const hot = new Set(), warm = new Set();
         for (const g of catalog) {
             const source = /^espn:([^:]+):/.exec(g.id)?.[1];
             if (!source) continue;
@@ -365,6 +380,8 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                 : state?.state === 'live' || state?.state === 'suspended' || (state?.state === 'break' && state.breakLabel !== 'Stumps');
             const maxAge = isCricket(g.league) ? ({t20:4.5,odi:9,'list-a':9,test:120,'first-class':120})[g.format] || 12 : 24;
             const inWindow = individual.has(g.league) && Number.isFinite(g.end) ? now <= g.end + H : now - g.start <= maxAge * H;
+            // 0407: ...but every BREAK_POLL, so its break stays fresh and play resuming shows within minutes
+            if (individual.has(g.league) && state?.state === 'break' && inWindow) warm.add(`${source}|current`);
             if (!nearStart && !(inPlay && inWindow)) continue;
             hot.add(`${source}|${days[0]}`);
             hot.add(`${source}|current`);
@@ -376,7 +393,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         function add(league, source, date) {
             // #197: tennis and golf ask for this week's events ('current'), without a date
             const url = date === 'current' ? `${espn.BASE}${source}/scoreboard` : `${espn.BASE}${source}/scoreboard?dates=${date}&limit=1000`;
-            jobs.push({league,source,date,url,hot:hot.has(`${source}|${date}`)});
+            jobs.push({league,source,date,url,hot:hot.has(`${source}|${date}`),warm:warm.has(`${source}|${date}`)});
         }
         for (const league of wanted) {
             const spec = individual.LEAGUES[league];
@@ -416,7 +433,8 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                     const job = batch[index++];
                     const existing = cache.get(job.url);
                     if (job.hot && existing?.data) existing.nextAt = Math.min(existing.nextAt, existing.data.observedAt + 30000);
-                    const data = await read(job.url, job.hot ? 30000 : 900000, {cold:!job.hot,maxCold,maxBytes:individual.has(job.league) ? individual.MAX_BYTES : undefined});
+                    else if (job.warm && existing?.data) existing.nextAt = Math.min(existing.nextAt, existing.data.observedAt + BREAK_POLL);
+                    const data = await read(job.url, job.hot ? 30000 : job.warm ? BREAK_POLL : 900000, {cold:!job.hot,maxCold,maxBytes:individual.has(job.league) ? individual.MAX_BYTES : undefined});
                     // #197: one answer can serve two leagues (ATP's feed: Grand Slams and ATP Tour)
                     const done = `${job.league}|${job.url}`;
                     if (stopped || !Array.isArray(data?.json.events) || processed.get(done) === data.observedAt) continue;

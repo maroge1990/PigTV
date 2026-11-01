@@ -812,7 +812,8 @@ account follows nothing; only the server's owner (its first admin account) takes
   card is one whole event: a tennis or golf tournament (`start` its first day, `end` its last), a UFC night (first bout
   to last bout plus 4 h) or an IndyCar/NASCAR race (`session` `Race`, `end` 4 h on), ids `espn:<feed>:<event>`, no
   `competitors` and never a score or leader. While a tournament has matches or rounds still to come but none on, it is
-  `break` with `breakLabel` "Between matches" or "Round 3 complete"; a golf card's `progress.period` is its round. A
+  `break` with `breakLabel` "Between matches" or "Round 3 complete" (asked again every 5 min and fresh that long, 0407); a golf
+  card's `progress.period` is its round. A
   tournament is on today's front page every day it runs. A major appears only under `Grand Slams` (men's and women's
   draws together) or `Majors` (the four men's majors; the women's stay under `LPGA`). The sport's followed names mark a
   card `followed` only when the name is in its draw, field, fight card or entry list (F1 sessions too); a MotoGP or
