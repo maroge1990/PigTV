@@ -83,6 +83,13 @@ const LEAGUES = [
     ['BBL', ['bbl', 'big bash']],
     ['NBL', ['nbl']],
     ['Super Rugby', ['super rugby']],
+    // #195 (D-41): the curated rugby union competitions. Never the bare "premiership" (AFL broadcasts say it).
+    ['Rugby World Cup', ['rugby world cup', 'rwc']],
+    ['Rugby Championship', ['rugby championship', 'the rugby championship']],
+    ['Six Nations', ['six nations', 'guinness six nations', '6 nations']],
+    ['Premiership Rugby', ['premiership rugby', 'gallagher premiership', 'gallagher prem', 'gallagher premiership rugby']],
+    ['Top 14', ['top 14', 'top14']],
+    ['Champions Cup', ['champions cup', 'investec champions cup', 'european rugby champions cup', 'heineken champions cup']],
     // 0161: international cricket (Tests, ODIs, T20Is) has no fixed competition name the way
     // IPL/BBL do, so it is caught by the sport itself, most specific spellings first - never the
     // bare word "test" on its own (far too common outside cricket: "screen test", "field test").
@@ -431,6 +438,10 @@ const LIVE_HOURS = {
     MLS: US_EVENING,
     EPL: UK_DAY,
     Championship: UK_DAY,
+    'Six Nations': { tz: 'Europe/London', from: '11:00', to: '21:30' },
+    'Premiership Rugby': UK_DAY,
+    'Top 14': { tz: 'Europe/Paris', from: '11:00', to: '22:30' },
+    'Champions Cup': UK_DAY,
     'Champions League': UK_DAY,
     'Europa League': UK_DAY,
     'Conference League': UK_DAY,

@@ -36,7 +36,8 @@ function stub(overrides = {}) {
 beforeEach(() => { lp.reset(); stub(); });
 
 test('the leagues: every ESPN team league but F1, NFL and cricket\'s IPL and BBL, by canonical name', () => {
-    assert.deepEqual(lp.LEAGUES, ['AFL', 'NBA', 'MLB', 'NHL', 'WNBA', 'NBL', 'NRL', 'Super Rugby', 'EPL', 'Championship', 'FA Cup',
+    assert.deepEqual(lp.LEAGUES, ['AFL', 'NBA', 'MLB', 'NHL', 'WNBA', 'NBL', 'NRL', 'Super Rugby', 'Rugby World Cup', 'Rugby Championship',
+        'Six Nations', 'Premiership Rugby', 'Top 14', 'Champions Cup', 'EPL', 'Championship', 'FA Cup',
         'League Cup', 'Champions League', 'Europa League', 'Conference League', 'Scottish Premiership', 'Eredivisie', 'WSL', 'A-League Women',
         'Internationals', "Women's Internationals", 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1', 'MLS', 'A-League']);
     assert.equal(lp.leagueOf('Super Rugby'), 'Super Rugby');

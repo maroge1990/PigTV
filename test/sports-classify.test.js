@@ -414,3 +414,16 @@ test('#195: guide titles name the new football leagues and groups', () => {
     }
     assert.equal(canonicalLeague('UEFA'), null, 'UEFA alone is no longer one league (followers get both, sportPagePrefs)');
 });
+
+test('#195: guide titles name the rugby union competitions; AFL\'s "Premiership" stays AFL', () => {
+    const { detectLeague } = require('../server/services/sportsClassify');
+    for (const [title, league] of [
+        ['Guinness Six Nations: England v France', 'Six Nations'],
+        ['The Rugby Championship: Wallabies v All Blacks', 'Rugby Championship'],
+        ['Rugby World Cup 2027: Australia v Wales', 'Rugby World Cup'],
+        ['Gallagher Premiership: Bath v Saracens', 'Premiership Rugby'],
+        ['Top 14: Toulouse v Racing 92', 'Top 14'],
+        ['Investec Champions Cup: Leinster v Toulouse', 'Champions Cup'],
+        ['AFL Premiership Football: Cats v Swans', 'AFL']
+    ]) assert.equal(detectLeague(title), league, title);
+});

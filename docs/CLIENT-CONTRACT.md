@@ -787,5 +787,6 @@ account follows nothing; only the server's owner (its first admin account) takes
 - Since 0395 (#195): `UEFA` is three leagues, `Champions League`, `Europa League` and `Conference League` (a stored or
   sent `UEFA` means the first two); new football leagues `League Cup`, `Scottish Premiership`, `Eredivisie`, `WSL`,
   `A-League Women`, and the groups `Internationals` and `Women's Internationals` (every national-team competition ESPN
-  lists). Each also has a C-T page (`sportPageLeagues`).
+  lists). Each also has a C-T page (`sportPageLeagues`). Since 0396 rugby union adds `Rugby Championship`, `Six Nations`,
+  `Rugby World Cup`, `Premiership Rugby`, `Top 14` and `Champions Cup`.
 - A server before 0391 answers 404 to `/api/sports/follows` and `/catalog`: send them only with this flag.

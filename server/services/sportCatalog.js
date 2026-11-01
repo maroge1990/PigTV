@@ -11,7 +11,7 @@ const SPORTS = [
         'A-League Women', 'Internationals', "Women's Internationals"] },
     { sport: 'Cricket', leagues: ['Cricket', 'IPL', 'BBL'] },
     { sport: 'Rugby league', leagues: ['NRL'] },
-    { sport: 'Rugby union', leagues: ['Super Rugby'] },
+    { sport: 'Rugby union', leagues: ['Super Rugby', 'Rugby Championship', 'Six Nations', 'Rugby World Cup', 'Premiership Rugby', 'Top 14', 'Champions Cup'] },
     { sport: 'Basketball', leagues: ['NBA', 'NBL', 'WNBA'] },
     { sport: 'American football', leagues: ['NFL'] },
     { sport: 'Ice hockey', leagues: ['NHL'] },
