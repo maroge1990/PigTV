@@ -240,6 +240,31 @@ router.put('/follows', (req, res) => {
     try { res.json(require('../services/sportPagePrefs').setFollows(req.user.id, req.body)); }
     catch (err) { res.status(err.status === 400 ? 400 : 500).json({ error: err.status === 400 ? err.message : 'Could not save what you follow' }); }
 });
+// #199 (C-U): the names that can be followed in one league, for Settings › Sport's search: its teams (ESPN's roster, read
+// once and kept; the International groups' stored roster) and whoever the collector's cards list (feed leagues' sides,
+// players, fighters and drivers). { league, kind: 'team'|'person', names } in name order.
+router.get('/names', async (req, res) => {
+    try {
+        const catalog = require('../services/sportCatalog');
+        const league = typeof req.query.league === 'string' ? req.query.league : '';
+        const sport = catalog.sportOf(league);
+        if (!sport) return res.status(400).json({ error: 'league must be a catalogue league (GET /api/sports/catalog)' });
+        const fixtures = require('../services/sportsFixtures');
+        const names = new Set();
+        const roster = fixtures.ESPN_LEAGUE_PATHS[league] && !catalog.isCricket(league) ? await fixtures.rosterFor(league) : fixtures.teamsOf(league);
+        for (const t of roster) if (t?.displayName) names.add(t.displayName);
+        for (const g of require('../services/sportsDashboard').store().catalog()) {
+            if (g.league !== league) continue;
+            for (const c of g.competitors || []) if (c.name) names.add(c.name);
+            for (const p of g.players || []) names.add(p);
+        }
+        res.json({ league, kind: catalog.followsOf(sport), names: [...names].filter(n => n && n !== 'TBD').sort((a, b) => a.localeCompare(b)).slice(0, 2000) });
+    } catch (err) {
+        console.error('[Sports] names failed:', err.message);
+        res.status(500).json({ error: 'Could not list the names' });
+    }
+});
+
 // #198 (D-41 point 2): the other competitions this account's followed teams play in, and "No thanks".
 router.get('/suggestions', async (req, res) => {
     try { res.json({ suggestions: await require('../services/sportSuggestions').suggestions(req.user.id) }); }

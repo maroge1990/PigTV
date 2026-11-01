@@ -124,3 +124,20 @@ test('the owner takes over the household\'s follows once; a corrupt stored value
     d.prepare('UPDATE sport_follows SET value = \'{not json\' WHERE user_id = (SELECT MIN(id) FROM app_users)').run();
     assert.deepEqual((await call('/api/sports/follows', owner)).body, { spoilerFree: false, sports: [] });
 });
+
+// #199 (0418, C-U): the names Settings › Sport can follow in a league: its roster and whoever the collector's cards list.
+test('#199: GET /api/sports/names lists a league\'s teams or people for following; a league outside the catalogue is 400', async () => {
+    const store = load('services/sportsDashboard').store();
+    const snapshot = { state: 'scheduled', progress: {}, scores: null, situation: null };
+    const side = (name) => ({ id: name, name, aliases: [name], logo: null });
+    const T = Date.now() + 3600000;
+    store.ingest([
+        { id: 'aflw:1', league: 'AFLW', start: T, end: null, title: 'Carlton v Richmond', session: null, circuit: null, format: null,
+            competitors: [side('Richmond'), side('Carlton')], snapshot },
+        { id: 'espn:tennis/atp:1', league: 'ATP Tour', start: T, end: T + 86400000, title: 'Paris Masters', session: null, circuit: null, format: null,
+            competitors: [], players: ['Jannik Sinner', 'Alex de Minaur', 'TBD'], snapshot }], Date.now());
+    assert.deepEqual((await call('/api/sports/names?league=AFLW')).body, { league: 'AFLW', kind: 'team', names: ['Carlton', 'Richmond'] });
+    assert.deepEqual((await call('/api/sports/names?league=ATP%20Tour')).body, { league: 'ATP Tour', kind: 'person', names: ['Alex de Minaur', 'Jannik Sinner'] });
+    assert.equal((await call('/api/sports/names?league=Quidditch')).status, 400);
+    assert.equal((await call('/api/sports/names?league=AFLW', null)).status, 401, 'signed in only');
+});

@@ -58,4 +58,9 @@ function publicCatalog() {
     return CATALOG.map(s => ({ sport: s.sport, leagues: s.groups.flatMap(g => g.leagues.map(league => ({ league, label: labelOf(league), heading: g.heading }))) }));
 }
 
-module.exports = { SPORTS, sport, sportOf, isCricket, labelOf, publicCatalog, CRICKET_GROUPS };
+// #199: the sports whose followed names are people (D-41 point 5: players, fighters, drivers and riders), not teams.
+const PERSON_SPORTS = new Set(['Tennis', 'Golf', 'Combat', 'Motorsport']);
+/** 'person' or 'team': what a sport's followed names are. */
+function followsOf(sportName) { return PERSON_SPORTS.has(sportName) ? 'person' : 'team'; }
+
+module.exports = { SPORTS, sport, sportOf, isCricket, labelOf, publicCatalog, followsOf, CRICKET_GROUPS };
