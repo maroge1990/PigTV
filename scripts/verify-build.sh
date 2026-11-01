@@ -1229,7 +1229,10 @@ check_absent server/services/sportsEvents.js "FROM epg_programs" "never the raw 
 echo "=== 0149: web Settings -> Sports (C-I) ==="
 check public/index.html 'data-tab="sports">Sports</button>' "a Sports tab"
 check public/index.html 'id="sports-preview-list"' "with the preview table"
-check public/js/pages/Settings.js "if (panel === 'sports') this.loadSports();" "loaded when the tab opens"
+check public/js/pages/Settings.js "if (this.isAdmin()) this.loadSports();" "loaded when the tab opens (the preview is admin-only)"
+# #199: every account's own "Your sport" panel opens with the tab.
+check public/index.html '<script src="/js/pages/SportSettings.js' "Settings › Your sport is loaded"
+check public/js/pages/Settings.js "this.sportFollow.load();" "and filled when the tab opens"
 check public/js/pages/Settings.js "await this.loadSportsPreview();" "the preview loads with the tab"
 # D-42 (0394): the admin keyword list is retired; the web shows the followed leagues read-only and never writes them.
 check_absent public/js/api.js "API.request('PUT', '/sports/follow'" "no keyword list to save (D-42)"

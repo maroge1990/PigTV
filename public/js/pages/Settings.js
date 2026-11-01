@@ -39,6 +39,8 @@ class SettingsPage {
         this.initSports();
         this.providers = new ProvidersSettings();
         this.backupLinks = new BackupLinksSettings();
+        // #199 (D-41): what this account follows, a panel of its own (#64)
+        this.sportFollow = new SportFollowSettings(document.getElementById('sport-follow-settings'), { currentUser: () => this.app.currentUser });
         document.getElementById('links-back')?.addEventListener('click', () => this.switchTab('providers'));
     }
 
@@ -1358,7 +1360,7 @@ class SettingsPage {
         if (panel === 'ui') this.loadUiSettings();
         if (panel === 'lineup' && !this.lineupEdits?.size) this.loadLineup(); // #128: typed numbers survive a tab switch
         if (panel === 'epg') this.loadEpgMatching();
-        if (panel === 'sports') this.loadSports();
+        if (panel === 'sports') { this.sportFollow.load(); if (this.isAdmin()) this.loadSports(); }
         if (panel === 'providers') { this.providers.load(); if (this.isAdmin()) this.loadImportExclusions(); }
         if (panel === 'backuplinks') { if (this.backupLinks.stale) this.backupLinks.load(); else this.backupLinks.reload(); }
         if (panel === 'content') this.app.sourceManager.loadContentSources();
