@@ -8,18 +8,27 @@ const { isCricket, CRICKET_GROUPS } = require('./sportCatalog');
 const { cricketGroupOf } = require('./sportsFixturesEspn');
 const { isTournament } = require('./sportGroups');
 // #196: motorsport follows riders and drivers, who race in every session; F1 and MotoGP cards are sessions (joined by
-// session and place), a Supercars card the event weekend.
-const MOTOR = new Set(['F1', 'MotoGP', 'Supercars']);
+// session and place), a Supercars card the event weekend. #197: a tennis or golf tournament, a UFC night and an IndyCar
+// or NASCAR race are one card each too (sportIndividual.js), joined like a Supercars weekend.
+const individual = require('./sportIndividual');
+const MOTOR = new Set(['F1', 'MotoGP', 'Supercars', 'IndyCar', 'NASCAR']);
 const SESSIONS = new Set(['F1', 'MotoGP']);
-const WEEKENDS = new Set(['Supercars']);
+const WEEKENDS = new Set(['Supercars', ...Object.keys(individual.LEAGUES)]);
 const feeds = require('./sportFeeds');
-// The words that name a Supercars event: its title's and its town's, without the year, numbers, sponsors' common words
-// and the series' own.
+// The words that name an event: its title's and its town's, without the year, numbers, sponsors' common words and the
+// series' own. A tour's events share words ("Open", "Masters", "Championship") the majors are named by: a major keeps them.
 const WEEKEND_STOP = new Set(['supercars', 'repco', 'itm', 'bp', 'super', 'sprint', 'supersprint', 'grand', 'final', 'the', 'at', 'and', 'race', 'oil', 'power', 'tools',
-    'batteries', 'mobile', 'boost', 'nsw', 'vic', 'qld', 'sa', 'wa', 'tas', 'nt', 'nz', 'act', 'triple', 'crown', 'cup']);
+    'batteries', 'mobile', 'boost', 'nsw', 'vic', 'qld', 'sa', 'wa', 'tas', 'nt', 'nz', 'act', 'triple', 'crown', 'cup',
+    'nascar', 'series', 'indycar', 'prix', 'speedway', 'ufc', 'fight', 'night', 'tennis', 'golf', 'tour', 'presented', 'with']);
+const TOUR_STOP = new Set(['open', 'masters', 'championship', 'championships', 'classic', 'invitational', 'international', 'finals', 'ladies',
+    'womens', 'mens', 'rolex', 'pga', 'lpga', 'atp', 'wta', 'liv', 'world', 'stroke', 'play', 'tournament']);
+const MAJORS = new Set(['Grand Slams', 'Majors']);
 function weekendWords(game) {
-    return [...new Set(classify.normText(`${game.title} ${game.circuit?.city || ''}`).split(' ')
-        .filter(w => w.length >= 4 && !/^\d+$/.test(w) && !WEEKEND_STOP.has(w)))];
+    const words = classify.normText(`${game.title} ${game.circuit?.city || ''}`).split(' ');
+    // a UFC night is often aired by its number alone ("UFC 334")
+    const number = game.league === 'UFC' ? words.filter(w => /^\d{3}$/.test(w)) : [];
+    return [...new Set([...number, ...words.filter(w => w.length >= 4 && !/^\d+$/.test(w) && !WEEKEND_STOP.has(w)
+        && (MAJORS.has(game.league) || !individual.has(game.league) || !TOUR_STOP.has(w)))])];
 }
 const H = 3600000;
 // 0381 (D-39): the score collector runs by default (PIGTV_SPORTS_DASHBOARD=0 turns it off) whenever ESPN fixtures are on,
@@ -163,16 +172,34 @@ function progressFor(game,progress,hidden) {
     return rest;
 }
 // 0381 (D-39): which followed names (teams[league]) a card's competitors are. F1: a followed driver races in every session.
-function followMatchesFor(g,teams) {
+// #197: a card that lists its players (a draw, field, fight card or entry list) is followed only for the names in it; a
+// motorsport card without one (MotoGP, Supercars) for every name no other series lists (`listedBy`: name -> leagues),
+// since the sport's names are one list under each of its leagues.
+function followMatchesFor(g,teams,listedBy=new Map()) {
     const names=(teams?.[g.league] || []).filter(n=>typeof n==='string' && n);
     if(!names.length) return [];
-    if(MOTOR.has(g.league)) return names.map(name=>({name,competitor:null}));
+    if(Array.isArray(g.players)) {
+        const listed=new Set(g.players.map(individual.personKey));
+        return names.filter(name=>listed.has(individual.personKey(name))).map(name=>({name,competitor:null}));
+    }
+    if(MOTOR.has(g.league)) return names.filter(name=>![...(listedBy.get(individual.personKey(name)) || [])].some(l=>l!==g.league))
+        .map(name=>({name,competitor:null}));
     const out=[];
     for(const name of names) {
         const wanted=norm(name);
         if(!wanted) continue;
         const competitor=g.competitors.findIndex(c=>[c.name,...(c.aliases || [])].some(a=>typeof a==='string' && norm(a)===wanted));
         if(competitor>=0) out.push({name,competitor});
+    }
+    return out;
+}
+// #197: which motorsport series list each driver or rider (by personKey) in the catalogue's entry lists.
+function driversListed(catalog) {
+    const out=new Map();
+    for(const g of catalog) if(MOTOR.has(g.league) && Array.isArray(g.players)) for(const name of g.players) {
+        const key=individual.personKey(name);
+        if(!out.has(key)) out.set(key,new Set());
+        out.get(key).add(g.league);
     }
     return out;
 }
@@ -192,13 +219,13 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
     const view=store.view(now,prefs.scoreDelaySeconds);
     const endedAt=new Map([...view.selected].filter(([,s])=>s.data.state==='finished')
         .map(([id,s])=>[id,s.finishedAt===null ? null : s.finishedAt+prefs.scoreDelaySeconds*1000]));
-    const catalog=view.catalog,represented=new Set(),unresolved=new Set(),matches=matchBroadcasts(catalog,events,represented,unresolved,endedAt),games=[];
+    const catalog=view.catalog,listedBy=driversListed(catalog),represented=new Set(),unresolved=new Set(),matches=matchBroadcasts(catalog,events,represented,unresolved,endedAt),games=[];
     // #191: airings that have already ended (sportsEvents.endedEvents), joined exactly as the current ones but on their own,
     // so they never change a card's `events`, nor which guide listings count as represented or unresolved.
     const endedMatches=matchBroadcasts(catalog,endedEvents.filter(e=>e.end<=now),new Set(),new Set(),endedAt);
     for(const g of catalog) {
         if(league && league!==g.league || leagues && !leagues.has(g.league)) continue;
-        if(narrowed.has(g.league) && !isTournament(g) && !followMatchesFor(g,teams).length) continue;
+        if(narrowed.has(g.league) && !isTournament(g) && !followMatchesFor(g,teams,listedBy).length) continue;
         if(follow && !broadLeagues.has(g.league) && !follow.some(k=>classify.canonicalLeague(k)===g.league)) {
             const teams=follow.map(classify.teamFollow).filter(t=>t?.league===g.league);
             if(teams.length && !teams.some(t=>g.competitors.some(c=>c.aliases.some(a=>norm(a)===norm(t.team))))) continue;
@@ -220,8 +247,10 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
         const finalToday=keepFinishedToday && state==='finished' && localDay(g.start,zone)===today;
         if(state==='finished' && !recent && !finalToday) continue;
         const upcoming=upcomingHours>0 && ['scheduled','unknown'].includes(state) && g.start>now && g.start<=now+upcomingHours*H;
-        if(g.start>horizon || (!league && localDay(g.start,zone)!==today && !ongoing && !recent && !pending && !onGuide && !upcoming)) continue;
-        if(g.start<now-8*24*H || (g.start<now-12*H && !ongoing && !recent && !finalToday && !pending && !onGuide && (!g.end || g.end<now))) continue;
+        // #197: a tournament spans days: it is today's on every day it runs, whatever day it began.
+        const running=individual.has(g.league) && Number.isFinite(g.end) && g.start<=now && now<g.end && !['finished','cancelled','postponed'].includes(state);
+        if(g.start>horizon || (!league && localDay(g.start,zone)!==today && !ongoing && !recent && !pending && !onGuide && !upcoming && !running)) continue;
+        if(g.start<now-8*24*H && !running || (g.start<now-12*H && !ongoing && !recent && !finalToday && !pending && !onGuide && (!g.end || g.end<now))) continue;
         const terminal=['finished','cancelled','postponed'].includes(state);
         const shown=fresh || finalToday; // a final does not go stale
         const scheduled=g.start>now && (state==='scheduled' || !selected);
@@ -243,7 +272,7 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
         if(!hidden && shown && selected.data.scores!==null) card.scores=selected.data.scores;
         if(!hidden && shown && selected.data.situation) card.situation=selected.data.situation;
         if(followMatches) {
-            const found=followMatchesFor(g,teams);
+            const found=followMatchesFor(g,teams,listedBy);
             card.followed=found.length>0;
             if(found.length) followMatches[g.id]=found;
         }
@@ -291,7 +320,14 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
     // ESPN groups scoreboards by US Eastern date, so a game after 00:00Z is listed under the previous
     // UTC date's URL. Remember which query date returned each game and poll that one while it is hot.
     const listedOn = new Map();
-    async function read(url, ttl, { cold = false, maxCold = Infinity } = {}) {
+    // #197: one URL can serve two leagues (ATP's feed: Grand Slams and ATP Tour): a second read while the first is in
+    // flight waits for it rather than asking again.
+    const inFlight = new Map();
+    function read(url, ttl, options = {}) {
+        if (!inFlight.has(url)) inFlight.set(url, fetchOnce(url, ttl, options).finally(() => inFlight.delete(url)));
+        return inFlight.get(url);
+    }
+    async function fetchOnce(url, ttl, { cold = false, maxCold = Infinity, maxBytes } = {}) {
         if (stopped) return null;
         const old = cache.get(url), now = clock();
         if (old && now < old.nextAt) return old.data;
@@ -299,7 +335,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         remaining--;
         if (cold) coldRequests++;
         try {
-            const data = await fetchJson(url, {signal: controller.signal});
+            const data = await fetchJson(url, {signal: controller.signal, ...(maxBytes ? {maxBytes} : {})});
             if (!(url.includes('/scorepanel?') ? Array.isArray(data?.scores) : Array.isArray(data?.events))) throw new Error('Malformed score feed');
             const result = {json: data, observedAt: clock()};
             cache.set(url, {data: result, attemptAt: now, nextAt: clock() + ttl, failures: 0});
@@ -324,20 +360,27 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
             if (!source) continue;
             const state = store.latest(g.id)?.data;
             const nearStart = Math.abs(g.start - now) <= H && !['finished','cancelled','postponed'].includes(state?.state);
-            const inPlay = state?.state === 'live' || state?.state === 'suspended' || (state?.state === 'break' && state.breakLabel !== 'Stumps');
+            // #197: a tournament between matches or rounds is not polled hot (its feed is large and changes slowly).
+            const inPlay = individual.has(g.league) ? state?.state === 'live'
+                : state?.state === 'live' || state?.state === 'suspended' || (state?.state === 'break' && state.breakLabel !== 'Stumps');
             const maxAge = isCricket(g.league) ? ({t20:4.5,odi:9,'list-a':9,test:120,'first-class':120})[g.format] || 12 : 24;
-            if (!nearStart && !(inPlay && now - g.start <= maxAge * H)) continue;
+            const inWindow = individual.has(g.league) && Number.isFinite(g.end) ? now <= g.end + H : now - g.start <= maxAge * H;
+            if (!nearStart && !(inPlay && inWindow)) continue;
             hot.add(`${source}|${days[0]}`);
+            hot.add(`${source}|current`);
             const startDay = new Date(g.start).toISOString().slice(0,10).replaceAll('-', '');
             if (nearStart && g.start > now) hot.add(`${source}|${startDay}`);
             if (!isCricket(g.league) && inPlay && startDay === previous) hot.add(`${source}|${previous}`);
             if (listedOn.has(g.id)) hot.add(`${source}|${listedOn.get(g.id)}`);
         }
         function add(league, source, date) {
-            const url = `${espn.BASE}${source}/scoreboard?dates=${date}&limit=1000`;
+            // #197: tennis and golf ask for this week's events ('current'), without a date
+            const url = date === 'current' ? `${espn.BASE}${source}/scoreboard` : `${espn.BASE}${source}/scoreboard?dates=${date}&limit=1000`;
             jobs.push({league,source,date,url,hot:hot.has(`${source}|${date}`)});
         }
         for (const league of wanted) {
+            const spec = individual.LEAGUES[league];
+            if (spec) { for (const date of spec.dated ? queryDays : ['current']) add(league, spec.path, date); continue; }
             if (CRICKET_GROUPS.includes(league) || feeds.has(league)) continue;
             for (const source of [fixtures.ESPN_LEAGUE_PATHS[league]].flat().filter(Boolean)) for (const date of queryDays) add(league, source, date);
         }
@@ -373,10 +416,13 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                     const job = batch[index++];
                     const existing = cache.get(job.url);
                     if (job.hot && existing?.data) existing.nextAt = Math.min(existing.nextAt, existing.data.observedAt + 30000);
-                    const data = await read(job.url, job.hot ? 30000 : 900000, {cold:!job.hot,maxCold});
-                    if (stopped || !Array.isArray(data?.json.events) || processed.get(job.url) === data.observedAt) continue;
-                    processed.set(job.url, data.observedAt);
-                    for (const game of espn.normalize(data.json, job.league, job.source)) {
+                    const data = await read(job.url, job.hot ? 30000 : 900000, {cold:!job.hot,maxCold,maxBytes:individual.has(job.league) ? individual.MAX_BYTES : undefined});
+                    // #197: one answer can serve two leagues (ATP's feed: Grand Slams and ATP Tour)
+                    const done = `${job.league}|${job.url}`;
+                    if (stopped || !Array.isArray(data?.json.events) || processed.get(done) === data.observedAt) continue;
+                    processed.set(done, data.observedAt);
+                    const games = individual.has(job.league) ? individual.normalize(data.json, job.league, job.source) : espn.normalize(data.json, job.league, job.source);
+                    for (const game of games) {
                         const priority = queryDays.indexOf(job.date), old = candidates.get(game.id);
                         if (!old || priority < old.priority) {
                             candidates.set(game.id, {game,priority,observedAt:data.observedAt});

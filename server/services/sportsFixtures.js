@@ -145,7 +145,7 @@ function categoryLeagues(db = getDb()) {
 function neededLeagues(db = getDb()) {
     const wanted = new Set([...followedLeagues(db), ...categoryLeagues(db)]);
     const out = new Set();
-    for (const l of wanted) if (ESPN_LEAGUE_PATHS[l] || CRICKET_GROUPS.includes(l) || require('./sportFeeds').has(l)) out.add(l);
+    for (const l of wanted) if (ESPN_LEAGUE_PATHS[l] || CRICKET_GROUPS.includes(l) || require('./sportFeeds').has(l) || require('./sportIndividual').has(l)) out.add(l);
     return out;
 }
 

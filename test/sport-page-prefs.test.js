@@ -105,7 +105,7 @@ test('C-U: sports hold their leagues and one list of teams, shown under every le
     assert.deepEqual(cricket.slice(0, 3), [{ league: 'Cricket', label: 'International (men)', heading: 'International' },
         { league: "Women's Cricket", label: 'International (women)', heading: 'International' }, { league: 'IPL', label: 'IPL', heading: 'Franchise' }]);
     assert.deepEqual(catalog.sports.find(s => s.sport === 'American football').leagues, [{ league: 'NFL', label: 'NFL', heading: null }]);
-    assert.equal(catalog.sports.flatMap(s => s.leagues).length, 50, 'every league with a fixture source; #197 adds the rest');
+    assert.equal(catalog.sports.flatMap(s => s.leagues).length, 61, 'every league with a fixture source (#197: tennis, golf, UFC, IndyCar, NASCAR)');
     assert.deepEqual(catalog.sports.find(s => s.sport === 'Netball').leagues.map(l => l.league), ['Super Netball'], '#196');
     assert.ok(load('services/sportsFixtures').neededLeagues().has('NBA'), 'any account\'s leagues are fetched');
 });

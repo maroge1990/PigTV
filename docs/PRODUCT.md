@@ -127,7 +127,7 @@ The curated list (no search beyond it):
 | Rugby union | Super Rugby, Rugby Championship, Six Nations, Rugby World Cup, Premiership, Top 14, Champions Cup | ESPN |
 | Basketball · American football · Ice hockey · Baseball | NBA, NBL, WNBA · NFL · NHL · MLB | ESPN |
 | Motorsport | F1, IndyCar, NASCAR Cup, MotoGP, Supercars | ESPN; MotoGP's API; Supercars' calendar page |
-| Tennis · Golf | Grand Slams, ATP Tour, WTA Tour · Majors, PGA Tour, DP World Tour, LIV, LPGA | ESPN |
+| Tennis · Golf | Grand Slams, ATP Tour, WTA Tour · Majors (the four men's; the women's stay under LPGA), PGA Tour, DP World Tour, LIV, LPGA | ESPN |
 | Combat · Netball | UFC · Super Netball | ESPN; Champion Data |
 
 ### Scope and order

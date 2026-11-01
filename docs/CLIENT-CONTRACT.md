@@ -807,4 +807,14 @@ account follows nothing; only the server's owner (its first admin account) takes
   feed publishes none), `status` `unknown` while it is on. Motorsport follows riders and drivers: every session of a
   followed name's series is `followed`. They have no C-T page. Since 0405 Super Netball's eight clubs carry a `logo`
   (`/api/logo/…`) like any other side; a club without one shows its monogram.
+- Since 0406 (#197) new sports and leagues: `Tennis` (`Grand Slams`, `ATP Tour`, `WTA Tour`), `Golf` (`Majors`, `PGA Tour`,
+  `DP World Tour`, `LIV`, `LPGA`), `Combat` (`UFC`), and in Motorsport `IndyCar` and `NASCAR` (label "NASCAR Cup"). A C-R
+  card is one whole event: a tennis or golf tournament (`start` its first day, `end` its last), a UFC night (first bout
+  to last bout plus 4 h) or an IndyCar/NASCAR race (`session` `Race`, `end` 4 h on), ids `espn:<feed>:<event>`, no
+  `competitors` and never a score or leader. While a tournament has matches or rounds still to come but none on, it is
+  `break` with `breakLabel` "Between matches" or "Round 3 complete"; a golf card's `progress.period` is its round. A
+  tournament is on today's front page every day it runs. A major appears only under `Grand Slams` (men's and women's
+  draws together) or `Majors` (the four men's majors; the women's stay under `LPGA`). The sport's followed names mark a
+  card `followed` only when the name is in its draw, field, fight card or entry list (F1 sessions too); a MotoGP or
+  Supercars card, which has none, for each name no other series lists. No C-T page yet.
 - A server before 0391 answers 404 to `/api/sports/follows` and `/catalog`: send them only with this flag.

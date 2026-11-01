@@ -85,7 +85,10 @@ function normalize(json, league, source) {
                     for (const key of ['onFirst','onSecond','onThird','isTopInning']) if (typeof c.situation[key] === 'boolean') situation[key] = c.situation[key];
                 }
             }
-            out.push({ id:`espn:${source}:${c.id}`, league, start, end:Number.isFinite(parsedEnd) ? parsedEnd : null,
+            // #197: an F1 session's entry list by name (never its order: a result), what a followed driver is found by
+            // (sportsDashboard.followMatchesFor)
+            const players = league === 'F1' ? [...new Set(raw.map(t => text(t?.athlete?.displayName, 80)).filter(Boolean))].sort((a, b) => a.localeCompare(b)) : [];
+            out.push({ id:`espn:${source}:${c.id}`, league, start, end:Number.isFinite(parsedEnd) ? parsedEnd : null, ...(players.length ? { players } : {}),
                 // #195: an International cricket group's series name, which says whether it is an ICC event (sportGroups.js).
                 ...(league === 'Cricket' || league === "Women's Cricket" ? { competition: text(json.leagues?.[0]?.name, 120) || null } : {}),
                 format, title:league === 'F1' ? text(e.name) : competitors.map(t => t.name).join(' v '), competitors, session,
@@ -96,7 +99,7 @@ function normalize(json, league, source) {
     }
     return out;
 }
-async function fetchJson(url, { signal } = {}) {
+async function fetchJson(url, { signal, maxBytes = 2 * 1024 * 1024 } = {}) {
     const u = new URL(url);
     if (u.origin !== 'https://site.api.espn.com' || !u.pathname.startsWith('/apis/site/v2/sports/')) throw new Error('Invalid score source');
     if (requestPolicy.blocked()) throw new Error('Score host cooling down');
@@ -110,7 +113,7 @@ async function fetchJson(url, { signal } = {}) {
             const {value,done}=await reader.read();
             if(done) break;
             bytes+=value.byteLength;
-            if(bytes>2*1024*1024) { await reader.cancel();throw new Error('Score response too large'); }
+            if(bytes>maxBytes) { await reader.cancel();throw new Error('Score response too large'); }
             chunks.push(Buffer.from(value));
         }
     } finally { reader.releaseLock(); }

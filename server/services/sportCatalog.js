@@ -2,6 +2,7 @@
  * #193 (D-41): the sports an account can follow and the leagues inside each, in the order Settings offers them. Only
  * leagues with a fixture source are listed (D-41 point 8: games come only from fixtures); #195 widens the list to the
  * curated catalogue (PRODUCT.md › Sport › Following) and #196/#197 add the leagues whose feeds are still to come.
+ * #197 adds tennis, golf, UFC, IndyCar and NASCAR Cup.
  * Leagues are sportsClassify's canonical names, as everywhere else; #195 groups them under headings, and a few show a
  * label of their own (the two "International (men)" are cricket's 'Cricket' and football's 'Internationals').
  */
@@ -27,11 +28,15 @@ const CATALOG = [
     { sport: 'American football', groups: [{ heading: null, leagues: ['NFL'] }] },
     { sport: 'Ice hockey', groups: [{ heading: null, leagues: ['NHL'] }] },
     { sport: 'Baseball', groups: [{ heading: null, leagues: ['MLB'] }] },
-    { sport: 'Motorsport', groups: [{ heading: null, leagues: ['F1', 'MotoGP', 'Supercars'] }] },
+    { sport: 'Motorsport', groups: [{ heading: null, leagues: ['F1', 'IndyCar', 'NASCAR', 'MotoGP', 'Supercars'] }] },
+    // #197 (D-41 point 6): a major appears only under Grand Slams or Majors (sportIndividual.js).
+    { sport: 'Tennis', groups: [{ heading: null, leagues: ['Grand Slams', 'ATP Tour', 'WTA Tour'] }] },
+    { sport: 'Golf', groups: [{ heading: null, leagues: ['Majors', 'PGA Tour', 'DP World Tour', 'LIV', 'LPGA'] }] },
+    { sport: 'Combat', groups: [{ heading: null, leagues: ['UFC'] }] },
     { sport: 'Netball', groups: [{ heading: null, leagues: ['Super Netball'] }] }
 ];
 const LABELS = { Cricket: 'International (men)', "Women's Cricket": 'International (women)',
-    Internationals: 'International (men)', "Women's Internationals": 'International (women)' };
+    Internationals: 'International (men)', "Women's Internationals": 'International (women)', NASCAR: 'NASCAR Cup' };
 
 /** Every sport with its leagues in order (the headings dropped): what the rest of the server reads. */
 const SPORTS = CATALOG.map(s => ({ sport: s.sport, leagues: s.groups.flatMap(g => g.leagues) }));

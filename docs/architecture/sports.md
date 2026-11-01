@@ -311,6 +311,16 @@ client buffering, stalls or timeshifted recordings. Automatic broadcast alignmen
 playhead would require additional evidence/data and are out of scope. Recommend increasing delay or Avoid spoilers
 when watching further behind. Do not change the current playback holdback to solve scoreboard timing.
 
+**Sports followed by individuals (#197, `sportIndividual.js`):** tennis, golf, UFC, IndyCar and NASCAR come from ESPN as
+one card per event, never per match: a tournament, a fight night, a race. Tennis and golf ask for this week's events (no
+date; a Grand Slam's answer is ~1.9 MB, so their size cap is 6 MB), UFC and racing by date. ATP's feed serves both
+Grand Slams (events marked `major`) and ATP Tour; WTA's feed repeats each major, which is never taken from it. Golf's
+Majors are the four men's by name, from PGA Tour's feed. A tennis tournament's own status is unreliable (the Paris
+Masters said "Final" on its second day), so its matches decide it; a golf round says "Play Complete" each evening, so
+the event's status decides it. A card lists its `players` (in name order, never a result's) for following; they stay
+on the server. Guide airings join by the event's name words, like a Supercars weekend; a tour's common words ("Open",
+"Masters") count only for a majors league. A card is polled hot only while something is live.
+
 ## Spoilers and delay
 
 Today the dashboard keeps "hide scores" and a score delay per account. The approved vision replaces them with **one global

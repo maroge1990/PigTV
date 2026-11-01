@@ -46,7 +46,10 @@ test('F1 is one session card per competition, with no driver positions, scores o
         assert.equal(g.snapshot.scores, null);
         assert.deepEqual(g.snapshot.progress, {});
         assert.ok(g.circuit.name);
-        assert.ok(!JSON.stringify(g).includes('Antonelli'));
+        const { players, ...shown } = g;
+        assert.ok(!JSON.stringify(shown).includes('Antonelli'));
+        // #197: the entry list (what a followed driver is found by) is in name order, never the session's result order
+        assert.deepEqual(players, [...players].sort((a, b) => a.localeCompare(b)));
     }
 });
 
