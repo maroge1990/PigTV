@@ -180,7 +180,8 @@ router.get('/pages/cricket', async (req, res) => {
         const cricket = require('../services/sportPageCricket');
         const now = Date.now();
         const page = await cricket.page(now, {
-            followed: require('../services/sportPagePrefs').get(req.user.id).teams.Cricket || [],
+            // The Cricket sport's names, whichever of its leagues are followed (0393, Codex round 1).
+            followed: require('../services/sportPagePrefs').follows(req.user.id).sports.find(s => s.sport === 'Cricket')?.teams || [],
             registerImage: require('../services/logoCache').registerLogo,
             // Only cricket's events around the matches' days are ordered and built, as for F1 (#160), for each league a
             // cricket programme can be filed under; #191 as F1.

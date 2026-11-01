@@ -250,6 +250,17 @@ test('GET /api/sports/pages/cricket: 401 signed out, the page signed in, /api/in
     assert.ok(Array.isArray(r.body.others) && r.body.others.every(o => Array.isArray(o.channels)));
     assert.ok(!JSON.stringify(r.body).includes('espncdn'), 'team logos go through the logo cache');
     assert.ok(leagues.includes('Cricket') && leagues.includes('BBL'), 'the guide is asked for each league cricket is filed under');
+    // #193 (0393, Codex round 1): an account following Cricket through the BBL alone still leads with its followed team.
+    assert.equal((await call('/api/sports/follows', { body: { sports: [{ sport: 'Cricket', leagues: ['BBL'], teams: ['Australia'] }] } })).status, 200);
+    load('services/sportPageCricket').reset();
+    assert.equal((await call('/api/sports/pages/cricket')).body.lead.id, '1525661', 'the sport\'s followed team, whichever cricket leagues');
+});
+
+test('#193 (0393, Codex round 1): a follow list whose first refresh fails never gets another follow list\'s page', async () => {
+    await cricket.page(NOW, { followed: ['Australia'] });
+    assert.equal((await cricket.page(NOW, { followed: ['Australia'] })).lead.id, '1525661');
+    cricket.fetcher.get = async () => ({ ok: false, error: 'HTTP 503' });
+    assert.deepEqual(await cricket.page(NOW, { followed: ['India'] }), { available: false });
 });
 
 after(() => { cricket.reset(); });

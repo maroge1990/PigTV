@@ -426,7 +426,7 @@ function channelsForMatches(airings, events, { now, observedAt } = {}) {
 
 /**
  * C-S's answer at `now`: the cached ESPN part (refreshed in the background once stale), or, the first time (or after
- * the household's followed teams change), the result of a refresh; `{ available: false }` while nothing has been
+ * the account's followed teams change), the result of a refresh; `{ available: false }` while nothing has been
  * fetched. The channels are this request's (`deps.channelsFor(airings)`: the current guide, this user's order).
  */
 async function page(now = Date.now(), deps = {}) {
@@ -459,8 +459,8 @@ async function espnPart(now, deps) {
         await Promise.race([refreshing.get(key), new Promise(resolve => { timer = setTimeout(resolve, COLD_WAIT_MS); })]);
         clearTimeout(timer);
     }
-    // Until this key's first refresh answers: the most recent page (another follow list's lead), as before #193.
-    const own = caches.get(key) || [...caches.values()].pop();
+    // Only this follow list's own page: another's lead and series were chosen for someone else (0393, Codex round 1).
+    const own = caches.get(key);
     return own ? own.value : { available: false };
 }
 
