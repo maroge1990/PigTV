@@ -5,11 +5,12 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 1 Nov 2026 (the following model, D-41, and its first server batch 0390–0393).*
+*Overwritten at the end of every session. 1 Nov 2026 (D-41, D-42 and the revamp's server batches 0390–0401).*
 
-- **Server:** production runs **0387**. On GitHub, CI green: **0390–0393** (D-41's first server batch: #194 games only
-  from fixtures; #193 per-account follows grouped by sport, C-U `/api/sports/follows` and `/catalog`, live leagues first;
-  Codex round 1's two Cricket fixes). Before that 0388–0389 (C-T). Next build **0394**.
+- **Server:** production runs **0387**. On GitHub, CI green: **0390–0401**, the sport revamp's server work so far (D-41,
+  D-42): #194 games only from fixtures; #193 per-account follows (C-U); #195 the keyword list retired, the curated
+  catalogue, International groups, the Cricket page on followed competitions; four Codex rounds' fixes. Next build
+  **0402**. Deployed and tested as a whole once the revamp is complete (D-42).
 - **Apple:** on GitHub **89** (the Sport front page, opens on Sport, TV tab second) and **90** (the Cricket page on C-S;
   every sport page and the front page fail closed on spoiler-free, #192). **Build 90 is uploaded to TestFlight** (tvOS
   and iOS, 31 Oct 21:03), processing. Next **91**.
@@ -35,11 +36,11 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 2. **Every other team sport on Apple** (D-40): one page design on C-T (the server side is 0388–0389), after step 1;
    then sports without two teams.
 3. **The sport revamp (D-41), before more pages; deployed and tested as a whole once complete (Mark, 1 Nov):**
-   - Server: #193, #194 built (0390–0393); next #195 curated catalogue and International groups, then #196 new feeds and
+   - Server: #193, #194 (0390–0393) and #195 (0394–0401) built; next #196 new feeds and
      #197 tennis/golf/UFC/IndyCar/NASCAR, with #29 (collector cost) measured before deploy; #12 (overlapping
      recordings) before #198 (suggestions, Record every game); #201–#203 server halves.
    - Web: #199 Settings › Sport as its own module (a first step on #64).
-   - Apple: #200 Settings › Sport with #201–#204, #187, #186 and #177 (iPhone layout), #190 (brand), #18, and #52
+   - Apple: #200 Settings › Sport with #201–#205, #187, #186 and #177 (iPhone layout), #190 (brand), #18, and #52
      (contract fixtures from real answers).
    - Combined test (T3 then T5): all of the above plus #20, #22–#24, #191, #192.
    The web brand fixes W1–W9 (PR #189's README) follow.
