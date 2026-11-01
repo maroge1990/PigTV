@@ -1230,8 +1230,9 @@ echo "=== 0149: web Settings -> Sports (C-I) ==="
 check public/index.html 'data-tab="sports">Sports</button>' "a Sports tab"
 check public/index.html 'id="sports-preview-list"' "with the preview table"
 check public/js/pages/Settings.js "if (panel === 'sports') this.loadSports();" "loaded when the tab opens"
-check public/js/pages/Settings.js "await this.loadSportsPreview();" "the preview reloads after a save"
-check public/js/api.js "setFollow: (keywords) => API.request('PUT', '/sports/follow', { keywords })" "saves the follow list"
+check public/js/pages/Settings.js "await this.loadSportsPreview();" "the preview loads with the tab"
+# D-42 (0394): the admin keyword list is retired; the web shows the followed leagues read-only and never writes them.
+check_absent public/js/api.js "API.request('PUT', '/sports/follow'" "no keyword list to save (D-42)"
 check_absent public/js/components/SourceManager.js "Sport on now row" "the Sport toggle no longer promises the old Home row"
 
 echo "=== 0150: sport programme kinds and merging by meaning (C-I) ==="
