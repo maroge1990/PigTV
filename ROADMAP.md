@@ -34,10 +34,15 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
    build 90, then the iPad layout check and the iPhone question (#177); #186, #187, #191, #192 fold in.
 2. **Every other team sport on Apple** (D-40): one page design on C-T (the server side is 0388–0389), after step 1;
    then sports without two teams.
-3. **The following model (D-41), before more pages:** #193 the per-account store, #194 games only from fixtures, #195
-   the curated catalogue and International groups (one server batch); then #199 web Settings › Sport and #200 Apple
-   Settings › Sport; then #196 new fixture feeds, #197 tennis/golf/UFC/IndyCar/NASCAR, #198 suggestions and Record every
-   game. The web brand fixes W1–W9 (PR #189's README) and the Apple brand batch (#190, #116) follow.
+3. **The sport revamp (D-41), before more pages; deployed and tested as a whole once complete (Mark, 1 Nov):**
+   - Server: #193, #194 built (0390–0393); next #195 curated catalogue and International groups, then #196 new feeds and
+     #197 tennis/golf/UFC/IndyCar/NASCAR, with #29 (collector cost) measured before deploy; #12 (overlapping
+     recordings) before #198 (suggestions, Record every game); #201–#203 server halves.
+   - Web: #199 Settings › Sport as its own module (a first step on #64).
+   - Apple: #200 Settings › Sport with #201–#204, #187, #186 and #177 (iPhone layout), #190 (brand), #18, and #52
+     (contract fixtures from real answers).
+   - Combined test (T3 then T5): all of the above plus #20, #22–#24, #191, #192.
+   The web brand fixes W1–W9 (PR #189's README) follow.
 3. Batch 8: #4 relay renewal (capture first, a device test with renewal on, released alone): waits for Mark.
 4. #29 (collector cost) before the Live now data is on by default; #20 per-channel airing times inside the sport work.
 
