@@ -104,7 +104,8 @@ test('front: shape, rails in the household order, a followed team live leads (fo
         assert.deepEqual(f.hero, { reason: 'follow-live', followIndex: 1, gameId: 'espn:football/nfl:401' });
         assert.deepEqual(f.rails.map(r => r.league), ['F1', 'NFL', 'NBA', 'Cricket']);
         assert.deepEqual(f.rails.map(r => r.gameIds), [['espn:racing/f1:1'],
-            ['espn:football/nfl:401', 'espn:football/nfl:405', 'espn:football/nfl:406'], ['espn:basketball/nba:1'], ['guide:ev-cricket']]);
+            ['espn:football/nfl:401', 'espn:football/nfl:405', 'espn:football/nfl:406'], ['espn:basketball/nba:1'], []],
+            'a guide listing without a fixture game makes no card (#194, D-41)');
         assert.deepEqual(f.follows.map(x => [x.league, x.name, x.state, x.gameId]),
             [['F1', 'Oscar Piastri', 'next', 'espn:racing/f1:1'], ['NFL', 'Green Bay Packers', 'live', 'espn:football/nfl:401']]);
         assert.equal(f.follows[0].logo, null, 'a driver has no logo');
@@ -116,11 +117,10 @@ test('front: shape, rails in the household order, a followed team live leads (fo
         assert.equal(byId['espn:football/nfl:401'].followed, true);
         assert.equal(byId['espn:racing/f1:1'].followed, true, 'a followed driver races in every session');
         assert.equal(byId['espn:basketball/nba:1'].followed, false);
-        assert.equal(byId['guide:ev-cricket'].followed, false);
         assert.equal(byId['espn:football/nfl:405'].status, 'finished');
         assert.deepEqual(byId['espn:football/nfl:405'].scores, ['27', '20']);
         assert.deepEqual(byId['espn:football/nfl:406'].channels.map(c => [c.start, c.end]), [[now + 50 * MIN, now + 4 * H + 5 * MIN]]);
-        assert.equal(f.games.length, 6);
+        assert.equal(f.games.length, 5);
         assert.equal(f.followMatches, undefined, 'internal matching stays internal');
         // The Apple client's tests decode this real answer (PigTV-Swift PigTVTests/Fixtures/sport-front-0381.json).
         if (process.env.PIGTV_WRITE_FIXTURES === '1') fs.writeFileSync(path.join(__dirname, 'fixtures', 'sport-front-0381.json'), JSON.stringify(f, null, 2) + '\n');
@@ -178,6 +178,22 @@ test('front: each channel carries its own airing start and end', async () => {
     guideEvents = [];
 });
 
+// #194 (D-41): Mark saw one game twice, its fixture card and a card made from a guide listing the join could not match.
+test('front: a guide listing the join cannot match never becomes a second card of the same game', async () => {
+    const now = Date.now();
+    const id = 'espn:football/nfl:408';
+    removeGame('espn:football/nfl:404'); // the previous test's game
+    dashboard.store().ingest([game(id, 'NFL', now - 30 * MIN, [packers, team('3', 'Bears')], live())], now - 100000);
+    guideEvents = [{ id: 'ev-gb-odd', league: 'NFL', title: 'NFL Football: Green Bay at Chicago', kind: 'event', start: now - 30 * MIN,
+        end: now + 3 * H, live: true, channels: [{ sourceId: 1, id: 'pos_9', stableId: 's9', name: 'ESPN2', quality: 'HD', start: now - 30 * MIN, end: now + 3 * H }] }];
+    try {
+        const f = await front();
+        assert.deepEqual(f.games.filter(g => g.league === 'NFL' && g.status === 'live').map(g => g.id), [id], 'one card: the fixture\'s');
+        assert.equal(f.games.some(g => g.id.startsWith('guide:')), false);
+        assert.deepEqual(f.games.find(g => g.id === id).channels, [], 'an unmatched airing adds no channel ("No TV listing found")');
+    } finally { guideEvents = []; removeGame(id); }
+});
+
 // #191 (0386): a live game past its guide slot keeps its channel on the front page, its end rolled on (sportOverrun.js).
 test('front: a live game whose only airing ended 30 min ago keeps its channel, overrun, end now + 10 min, and Watch', async () => {
     const now = Date.now();
@@ -202,7 +218,7 @@ test('front: a live game whose only airing ended 30 min ago keeps its channel, o
     } finally { events.endedEvents = realEnded; removeGame(id); }
 });
 
-test('front: no scores, one guide listing on now: scores unavailable, the guide card leads and sits in its rail', async () => {
+test('front: no fixture games, one guide listing on now: scores unavailable, no card and no hero (#194, D-41)', async () => {
     clearGames();
     const now = Date.now();
     await call('/api/sports/pages/preferences', { sports: ['F1', 'NFL', 'AFL'] });
@@ -210,9 +226,9 @@ test('front: no scores, one guide listing on now: scores unavailable, the guide 
         channels: [{ sourceId: 1, id: 'pos_4', stableId: 's4', name: 'Seven', quality: 'HD', start: now - 30 * MIN, end: now + H }] }];
     const f = await front();
     assert.equal(f.scores, 'unavailable');
-    assert.deepEqual(f.hero, { reason: 'guide', followIndex: null, gameId: 'guide:ev-afl' });
-    assert.deepEqual(f.rails.find(r => r.league === 'AFL').gameIds, ['guide:ev-afl']);
-    assert.equal(f.games.find(g => g.id === 'guide:ev-afl').followed, false);
+    assert.deepEqual(f.hero, { reason: 'none', followIndex: null, gameId: null });
+    assert.deepEqual(f.rails.find(r => r.league === 'AFL').gameIds, []);
+    assert.deepEqual(f.games, []);
     guideEvents = [];
     await call('/api/sports/pages/preferences', { sports: [] });
     const empty = await front();

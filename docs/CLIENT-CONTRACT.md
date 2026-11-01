@@ -648,14 +648,14 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
 
 - `GET /api/sports/front` (any user) → `{ now, timezone, spoilerFree, scores, sports, follows, hero, rails, games }`
   - `scores`: `"fresh"` (at least one score card is current) | `"stale"` (cards exist, none current) | `"unavailable"`
-    (no score data at all: the page says so once and shows the guide's channels and times, no scores or results).
+    (no score data at all: the page says so once; since 0390 there are then no cards, #194).
   - `sports[]`, in the household's order: `{ league, live (count), next: { gameId, start } | null, line }`; `line`
     is `"live"` | `"next"` | `"quiet"` (the client words it: "Race live", "2 live", a start time, "Nothing scheduled").
   - `follows[]`, one per followed team or driver in the household's order: `{ league, name, logo, state, gameId,
     start }`; `state` `"live"` | `"next"` | `"none"`; `logo` the competitor's logo-cache path or null (drivers: null).
   - `hero`: `{ reason, followIndex, gameId }`. `reason`: `"follow-live"` (a follow is live; the one closest to
     finishing wins a tie: the card's `end`, else its start plus a typical duration for the sport) | `"league-live"` (a live game in the highest-ranked followed sport) | `"follow-next"` (the
-    next start for a follow) | `"guide"` (without scores, the guide's live sport channel) | `"none"`. The client keeps
+    next start for a follow) | `"none"` (`"guide"` is no longer sent since 0390, #194). The client keeps
     the hero until its event ends unless a follow goes live, and lets a long press on any card make it the hero.
   - `rails[]`, in the household's order: `{ league, gameIds }`: live first (earliest start first), then today's finished
     games (results), then upcoming by start. Upcoming games reach 72 hours ahead (the collector's horizon): a follow whose
@@ -675,6 +675,9 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
   null) and writing it still works. On the first read after 0381 the server derives `sports` and `teams` from the admin
   follow list ("NFL", "NFL: Green Bay Packers") once. The follow list and sport categories still decide which guide
   programmes are sport (C-I); the household's `sports` also decide which leagues the collector fetches.
+- Since 0390 (#194, D-41) every card is a fixture's game: a guide listing never becomes a card (no `guide:` ids,
+  `dataSource: "guide"`); the guide only adds channels. A game whose airing the join cannot match has `channels: []`
+  (the client says "No TV listing found"). The legacy C-O `/dashboard` is unchanged.
 - A server before 0381 answers 404 to `/api/sports/front` and 400 to `sports`/`teams`: send them only with this flag.
 
 ### C-S. Sport pages: Cricket. Flag: `sportPageCricket` (0383, #21)

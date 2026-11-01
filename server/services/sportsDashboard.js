@@ -144,8 +144,9 @@ function followMatchesFor(g,teams) {
 // Front-page options (0381), all off for /dashboard: keepFinishedToday keeps today's finals, `teams` marks followed
 // cards, `spoilerFree` (the household switch) overrides the account's avoidSpoilers, channelTimes projects airing bounds,
 // upcomingHours keeps what starts within that many hours whatever its local day (tomorrow's fixtures; 0382).
+// guideCards (#194, D-41): false makes the fixture the only source of games, the guide only adding channels to them.
 function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagues=null,follow=null,broadLeagues=new Set(),timezone:zone=timezone(),
-    keepFinishedToday=false,teams=null,spoilerFree,channelTimes=false,upcomingHours=0,endedEvents=[]}={}) {
+    keepFinishedToday=false,teams=null,spoilerFree,channelTimes=false,upcomingHours=0,endedEvents=[],guideCards=true}={}) {
     const prefs=store.preferences(userId),today=localDay(now,zone);
     const hidden=typeof spoilerFree==='boolean' ? spoilerFree : prefs.avoidSpoilers;
     const followMatches=teams ? {} : null;
@@ -212,7 +213,7 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
     // C-I has already selected configured follows/categories. Preserve guide-only coverage,
     // including leagues without a score adapter. Never treat guide airtime as confirmed play.
     const seenGuide = new Set();
-    for (const e of events) {
+    for (const e of guideCards ? events : []) {
         if ((e.kind && e.kind !== 'event') || represented.has(e.id) || seenGuide.has(e.id) ||
             (league && league !== e.league) || !Number.isFinite(e.start) || !Number.isFinite(e.end) ||
             e.end <= now || e.end <= e.start || e.start > now+72*H) continue;

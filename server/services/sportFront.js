@@ -11,8 +11,10 @@
  *   games   every card once, each with `followed`; the other parts point at their ids
  *
  * Hero, first match wins: a followed card live now ('follow-live'); a live card in the highest-ranked followed sport
- * ('league-live'); the followed card that starts first ('follow-next'); a guide-only listing on now that can be
- * watched ('guide'); else 'none'. Between live cards, the one closest to finishing wins (D-39, C-R; finishEstimate).
+ * ('league-live'); the followed card that starts first ('follow-next'); else 'none'. Between live cards, the one closest
+ * to finishing wins (D-39, C-R; finishEstimate).
+ *
+ * #194 (D-41): every card is a fixture's game. The guide only adds channels to one; it never makes a card of its own.
  */
 const ONGOING = new Set(['live', 'break', 'suspended']);
 const byStart = (a, b) => a.start - b.start || a.id.localeCompare(b.id);
@@ -40,8 +42,7 @@ function arrange(response, prefs) {
     const order = prefs.sports;
     const matches = response.followMatches || {};
     const games = response.games.filter(g => order.includes(g.league));
-    const espnCards = games.filter(g => g.dataSource !== 'guide');
-    const scores = espnCards.some(g => g.freshness === 'fresh') ? 'fresh' : espnCards.length ? 'stale' : 'unavailable';
+    const scores = games.some(g => g.freshness === 'fresh') ? 'fresh' : games.length ? 'stale' : 'unavailable';
     const inLeague = league => games.filter(g => g.league === league);
     const firstScheduled = list => list.filter(g => g.status === 'scheduled').sort(byStart)[0] || null;
 
@@ -72,12 +73,9 @@ function arrange(response, prefs) {
     const followLive = games.filter(g => g.followed && ONGOING.has(g.status)).sort(byFinish)[0];
     const leagueLive = order.map(l => inLeague(l).filter(g => ONGOING.has(g.status)).sort(byFinish)[0]).find(Boolean);
     const followNext = games.filter(g => g.followed && g.status === 'scheduled').sort(byStart)[0];
-    const guide = order.map(l => inLeague(l).filter(g => g.dataSource === 'guide' && g.canWatch &&
-        g.start <= response.now && response.now < g.end).sort(byStart)[0]).find(Boolean);
     if (followLive) hero = { reason: 'follow-live', followIndex: followIndexOf(followLive), gameId: followLive.id };
     else if (leagueLive) hero = { reason: 'league-live', followIndex: null, gameId: leagueLive.id };
     else if (followNext) hero = { reason: 'follow-next', followIndex: followIndexOf(followNext), gameId: followNext.id };
-    else if (guide) hero = { reason: 'guide', followIndex: null, gameId: guide.id };
 
     const rank = g => ONGOING.has(g.status) ? 0 : g.status === 'finished' ? 1 : 2;
     const rails = order.map(league => ({ league, gameIds: inLeague(league).sort((a, b) => rank(a) - rank(b) ||
@@ -101,7 +99,7 @@ async function front({ userId, events, ended = null, now = Date.now() }) {
     const endedEvents = ended ? await ended(new Set(prefs.sports)) : [];
     const response = await dashboard.response({ eventsBody: cached.body, options: { now, userId, timezone,
         league: null, leagues: new Set(prefs.sports), follow: null, broadLeagues: new Set(),
-        keepFinishedToday: true, teams: prefs.teams, spoilerFree: prefs.spoilerFree, channelTimes: true, upcomingHours: 72, endedEvents } });
+        keepFinishedToday: true, teams: prefs.teams, spoilerFree: prefs.spoilerFree, channelTimes: true, upcomingHours: 72, endedEvents, guideCards: false } });
     require('./logoCache').applyLogoCache(response.games.flatMap(g => g.competitors));
     return arrange(response, prefs);
 }
