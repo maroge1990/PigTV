@@ -1,100 +1,171 @@
 /**
- * #68, #67 (0346, C-P): the sport pages' preferences, one for the whole household (D-30, D-37): every account and
- * device reads and changes the same spoiler-free switch and followed driver.
+ * #193 (D-41): what each account follows, kept per account (table `sport_follows`), synced to every device signed in
+ * to it. A sport (sportCatalog) holds the leagues followed inside it, at least one, in the account's order, and the
+ * teams or individuals followed in that sport: each name once, highlighted in every followed league it plays in. The
+ * spoiler-free switch is the account's too.
  *
- * 0381 (D-39): also what the household follows for the Sport front page: `sports` (canonical leagues, in the order
- * the household ranks them) and `teams` (per league, the followed team or driver names). `following` is now derived
- * from `teams` (the first name of F1 and NFL), kept for the clients that read it; writing it writes `teams`.
- * A stored value from before 0381 (no `sports`) is migrated once from the admin follow list (`sports_follow`).
+ *   follows(userId)   { spoilerFree, sports: [{ sport, leagues: [league], teams: [name] }] }   (C-U)
+ *   get(userId)       the C-P / C-R view the Apple apps up to 90 read: { spoilerFree, sports: [league], teams:
+ *                     { [league]: [name] }, following: { F1, NFL } }, the leagues flattened in the account's order and a
+ *                     sport's teams listed under each of its leagues; update(userId, patch) writes through it.
  *
- * Kept in `meta`, not the settings object: the web saves that whole object back from a copy (#9), which would undo a
- * change made on the Apple TV. A missing or unreadable value is the defaults.
+ * A new account starts with nothing followed. Only the server's owner (the first admin account) takes over what the
+ * household followed before 0391 (the 0381 store in `meta`, else the admin follow list), once, on its first read.
+ *
+ * Kept apart from the settings object: the web saves that whole object back from a copy (#9).
  */
 const { getDb } = require('../db/sqlite');
 const { canonicalLeague, teamFollow } = require('./sportsClassify');
+const catalog = require('./sportCatalog');
 
-const KEY = 'sport_page_prefs';
-const PAGES = ['F1', 'NFL']; // #21 (0379): the NFL page's followed team (its abbreviation, "GB")
+const HOUSEHOLD_KEY = 'sport_page_prefs'; // the 0381 household store, read once for the owner's migration
+const PAGES = ['F1', 'NFL']; // C-P / C-Q: the pages whose followed name `following` carries
 const MAX_NAME = 80;
 const MAX_SPORTS = 20;
-const MAX_TEAMS = 10;
+const MAX_TEAMS = 20;
 
 const cleanName = (name) => name.replace(/\s+/g, ' ').trim();
 const sameName = (a, b) => a.toLowerCase() === b.toLowerCase();
 function addName(list, name) { if (name && !list.some(n => sameName(n, name))) list.push(name); }
+const bad = (message) => Object.assign(new Error(message), { status: 400 });
+const empty = () => ({ spoilerFree: false, sports: [] });
 
-/** The public shape: the stored `sports`/`teams` with `following` derived from them. */
-function view(state) {
-    const teams = {};
-    for (const league of state.sports) if (state.teams[league]?.length) teams[league] = [...state.teams[league]];
-    return { spoilerFree: state.spoilerFree, sports: [...state.sports], teams,
-        following: Object.fromEntries(PAGES.map(p => [p, teams[p]?.[0] ?? null])) };
+// ---- storage ------------------------------------------------------------------------------------
+
+function ensureTable(db) {
+    db.exec('CREATE TABLE IF NOT EXISTS sport_follows (user_id INTEGER PRIMARY KEY, value TEXT NOT NULL)');
+}
+function readRow(db, userId) {
+    try { return db.prepare('SELECT value FROM sport_follows WHERE user_id = ?').get(userId)?.value ?? null; }
+    catch { return null; } // no table yet (a read-only connection before the first write)
+}
+function write(db, userId, state) {
+    ensureTable(db);
+    db.prepare('INSERT INTO sport_follows (user_id, value) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET value = excluded.value')
+        .run(userId, JSON.stringify(state));
 }
 
-/** A stored value read defensively: anything unreadable is dropped. */
-function sanitise(stored) {
-    const state = { spoilerFree: typeof stored.spoilerFree === 'boolean' ? stored.spoilerFree : false, sports: [], teams: {} };
-    for (const s of Array.isArray(stored.sports) ? stored.sports : []) {
-        const league = typeof s === 'string' ? canonicalLeague(s) : null;
-        if (league && !state.sports.includes(league) && state.sports.length < MAX_SPORTS) state.sports.push(league);
+/** The server's owner: the admin account with the lowest id, or null. */
+function ownerId(db) {
+    let rows = [];
+    try { rows = db.prepare('SELECT id, data FROM app_users ORDER BY id').all(); } catch { return null; }
+    for (const r of rows) {
+        try { if (JSON.parse(r.data)?.role === 'admin') return r.id; } catch { /* an unreadable account is not the owner */ }
     }
-    const teams = stored.teams && typeof stored.teams === 'object' && !Array.isArray(stored.teams) ? stored.teams : {};
-    for (const [key, names] of Object.entries(teams)) {
-        const league = canonicalLeague(key);
-        if (!league || !state.sports.includes(league) || !Array.isArray(names)) continue;
-        const list = state.teams[league] || [];
-        for (const n of names) if (typeof n === 'string' && list.length < MAX_TEAMS) addName(list, cleanName(n).slice(0, MAX_NAME));
-        if (list.length) state.teams[league] = list;
+    return null;
+}
+
+// ---- reading -----------------------------------------------------------------------------------
+
+/** Add `league` to `state` under its sport (appending the sport when new). False when the catalogue lacks it. */
+function addLeague(state, league) {
+    const sport = catalog.sportOf(league);
+    if (!sport) return false;
+    let entry = state.sports.find(s => s.sport === sport);
+    if (!entry) {
+        if (state.sports.length >= MAX_SPORTS) return false;
+        entry = { sport, leagues: [], teams: [] };
+        state.sports.push(entry);
+    }
+    if (!entry.leagues.includes(league)) entry.leagues.push(league);
+    return true;
+}
+
+/** A stored value read defensively: anything unreadable is dropped; a sport left without a league goes. */
+function sanitise(stored) {
+    const state = { spoilerFree: stored?.spoilerFree === true, sports: [] };
+    for (const s of Array.isArray(stored?.sports) ? stored.sports : []) {
+        const def = catalog.sport(s?.sport);
+        if (!def || state.sports.some(x => x.sport === def.sport) || state.sports.length >= MAX_SPORTS) continue;
+        const leagues = (Array.isArray(s.leagues) ? s.leagues : []).filter((l, i, all) => def.leagues.includes(l) && all.indexOf(l) === i);
+        if (!leagues.length && def.leagues.length === 1) leagues.push(def.leagues[0]);
+        if (!leagues.length) continue;
+        const teams = [];
+        for (const n of Array.isArray(s.teams) ? s.teams : []) {
+            if (typeof n === 'string' && teams.length < MAX_TEAMS) addName(teams, cleanName(n).slice(0, MAX_NAME));
+        }
+        state.sports.push({ sport: def.sport, leagues, teams });
     }
     return state;
 }
 
-/** Before 0381 (or nothing stored): the leagues and teams the admin follow list names, plus the legacy followed names. */
-function migrate(stored, db) {
-    const state = { spoilerFree: typeof stored?.spoilerFree === 'boolean' ? stored.spoilerFree : false, sports: [], teams: {} };
-    const addSport = (league) => { if (league && !state.sports.includes(league) && state.sports.length < MAX_SPORTS) state.sports.push(league); };
+/** The household's follows before 0391 (the 0381 store, else the admin follow list), as the owner's first state. */
+function fromHousehold(db) {
+    let stored = null;
+    try { stored = JSON.parse(db.prepare('SELECT value FROM meta WHERE key = ?').get(HOUSEHOLD_KEY)?.value ?? 'null'); } catch { stored = null; }
+    if (!stored || typeof stored !== 'object' || Array.isArray(stored)) stored = null;
+    const state = { spoilerFree: stored?.spoilerFree === true, sports: [] };
     const addTeam = (league, name) => {
+        const entry = state.sports.find(s => s.leagues.includes(league));
         const clean = typeof name === 'string' ? cleanName(name) : '';
-        if (!clean || clean.length > MAX_NAME || !state.sports.includes(league)) return;
-        const list = state.teams[league] || (state.teams[league] = []);
-        if (list.length < MAX_TEAMS) addName(list, clean);
+        if (entry && clean && clean.length <= MAX_NAME && entry.teams.length < MAX_TEAMS) addName(entry.teams, clean);
     };
-    // The legacy followed names first, so `following` (what the F1 and NFL pages show) does not change.
+    if (stored && Array.isArray(stored.sports)) {
+        for (const l of stored.sports) { const league = typeof l === 'string' ? canonicalLeague(l) : null; if (league) addLeague(state, league); }
+        const teams = stored.teams && typeof stored.teams === 'object' ? stored.teams : {};
+        for (const [key, names] of Object.entries(teams)) {
+            const league = canonicalLeague(key);
+            if (league && Array.isArray(names)) for (const n of names) addTeam(league, n);
+        }
+        return state;
+    }
+    // Before 0381: the legacy followed names, then the admin follow list in its order.
     for (const page of PAGES) {
         const name = stored?.following?.[page];
-        if (typeof name === 'string' && name) { addSport(page); addTeam(page, name); }
+        if (typeof name === 'string' && name) { addLeague(state, page); addTeam(page, name); }
     }
     let rows = [];
     try { rows = db.prepare('SELECT keyword FROM sports_follow ORDER BY position').all(); } catch { rows = []; }
     for (const { keyword } of rows) {
         const team = teamFollow(keyword);
-        addSport(canonicalLeague(keyword) || team?.league || null);
-        if (team) addTeam(team.league, team.team);
+        const league = canonicalLeague(keyword) || team?.league || null;
+        if (league && addLeague(state, league) && team) addTeam(team.league, team.team);
     }
-    // Keep the household's ranking: the follow list's order, then a legacy-only page.
-    const ranked = rows.map(r => canonicalLeague(r.keyword) || teamFollow(r.keyword)?.league).filter(Boolean);
-    state.sports.sort((a, b) => (ranked.includes(a) ? ranked.indexOf(a) : Infinity) - (ranked.includes(b) ? ranked.indexOf(b) : Infinity));
     return state;
 }
 
-function write(db, state) {
-    db.prepare(`INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
-        .run(KEY, JSON.stringify(view(state)));
+function readState(db, userId) {
+    const raw = readRow(db, userId);
+    if (raw !== null) {
+        let stored = null;
+        try { stored = JSON.parse(raw); } catch { stored = null; }
+        return sanitise(stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : null);
+    }
+    if (userId === ownerId(db)) {
+        const state = fromHousehold(db);
+        try { write(db, userId, state); } catch { /* a read-only connection migrates again next time */ }
+        return state;
+    }
+    return empty();
 }
 
-function readState(db) {
-    let stored;
-    try { stored = JSON.parse(db.prepare('SELECT value FROM meta WHERE key = ?').get(KEY)?.value ?? 'null'); } catch { stored = null; }
-    if (!stored || typeof stored !== 'object' || Array.isArray(stored)) stored = null;
-    if (stored && Array.isArray(stored.sports)) return sanitise(stored);
-    const state = migrate(stored, db);
-    try { write(db, state); } catch { /* a read-only connection migrates again next time */ }
-    return state;
+const copy = (state) => ({ spoilerFree: state.spoilerFree,
+    sports: state.sports.map(s => ({ sport: s.sport, leagues: [...s.leagues], teams: [...s.teams] })) });
+
+/** The C-P / C-R view of a state. */
+function view(state) {
+    const sports = state.sports.flatMap(s => s.leagues);
+    const teams = {};
+    for (const s of state.sports) if (s.teams.length) for (const l of s.leagues) teams[l] = [...s.teams];
+    return { spoilerFree: state.spoilerFree, sports, teams,
+        following: Object.fromEntries(PAGES.map(p => [p, teams[p]?.[0] ?? null])) };
 }
 
-function get(db = getDb()) { return view(readState(db)); }
+function follows(userId, db = getDb()) { return copy(readState(db, userId)); }
+function get(userId, db = getDb()) { return view(readState(db, userId)); }
 
-const bad = (message) => Object.assign(new Error(message), { status: 400 });
+/** Every league some account follows (the owner's migration included): what the collector and fixtures fetch. */
+function allLeagues(db = getDb()) {
+    const out = new Set();
+    let ids = [];
+    try { ids = db.prepare('SELECT user_id FROM sport_follows').all().map(r => r.user_id); } catch { ids = []; }
+    const owner = ownerId(db);
+    if (owner !== null && !ids.includes(owner)) ids.push(owner);
+    for (const id of ids) for (const s of readState(db, id).sports) for (const l of s.leagues) out.add(l);
+    return out;
+}
+
+// ---- writing -----------------------------------------------------------------------------------
 
 function checkName(name) {
     if (typeof name !== 'string') throw bad('A followed name must be text or null');
@@ -102,82 +173,128 @@ function checkName(name) {
     if (clean.length > MAX_NAME) throw bad('A followed name is too long');
     return clean;
 }
+function checkNames(names) {
+    if (!Array.isArray(names)) throw bad('teams must be a list of names');
+    const list = [];
+    for (const n of names) {
+        const clean = checkName(n);
+        if (!clean) throw bad('A followed name must not be empty');
+        addName(list, clean);
+    }
+    if (list.length > MAX_TEAMS) throw bad('Too many teams for one sport');
+    return list;
+}
+function checkObject(patch) {
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw bad('Expected an object');
+    if (!Object.keys(patch).length) throw bad('Nothing to change');
+    if ('spoilerFree' in patch && typeof patch.spoilerFree !== 'boolean') throw bad('spoilerFree must be true or false');
+}
 
 /**
- * Apply `{ spoilerFree?, sports?: [league], teams?: { [league]: [name] }, following?: { F1?: name | null, NFL?: team | null } }`;
- * anything else is a 400 and changes nothing. `sports` replaces the list (a league dropped from it loses its teams);
- * `teams` replaces the names of each league it names (an empty list unfollows them); `following.X` replaces X's names
- * with that one (null removes them) and adds X to `sports` when missing.
+ * C-U: `{ spoilerFree?, sports?: [{ sport, leagues?, teams? }] }`. `sports` replaces the whole list, in its order. Each
+ * sport is a catalogue name with at least one of its own leagues (a one-league sport may leave `leagues` out); anything
+ * else is a 400 and changes nothing. Answers the account's follows.
  */
-function update(patch, db = getDb()) {
-    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw bad('Expected an object');
-    const keys = Object.keys(patch);
-    if (!keys.length) throw bad('Nothing to change');
-    if (keys.some(k => !['spoilerFree', 'sports', 'teams', 'following'].includes(k))) throw bad('Unknown preference');
-    if ('spoilerFree' in patch && typeof patch.spoilerFree !== 'boolean') throw bad('spoilerFree must be true or false');
+function setFollows(userId, patch, db = getDb()) {
+    checkObject(patch);
+    if (Object.keys(patch).some(k => !['spoilerFree', 'sports'].includes(k))) throw bad('Unknown preference');
     let sports = null;
     if ('sports' in patch) {
-        if (!Array.isArray(patch.sports)) throw bad('sports must be a list of leagues');
+        if (!Array.isArray(patch.sports)) throw bad('sports must be a list');
+        if (patch.sports.length > MAX_SPORTS) throw bad('Too many sports');
         sports = [];
         for (const s of patch.sports) {
-            const league = typeof s === 'string' ? canonicalLeague(s) : null;
-            if (!league) throw bad('Unknown sports league');
-            if (!sports.includes(league)) sports.push(league);
+            if (!s || typeof s !== 'object' || Array.isArray(s)) throw bad('Each sport must be an object');
+            if (Object.keys(s).some(k => !['sport', 'leagues', 'teams'].includes(k))) throw bad('Unknown sport field');
+            const def = catalog.sport(s.sport);
+            if (!def) throw bad('Unknown sport');
+            if (sports.some(x => x.sport === def.sport)) throw bad('A sport is listed twice');
+            const leagues = [];
+            if ('leagues' in s) {
+                if (!Array.isArray(s.leagues)) throw bad('leagues must be a list');
+                for (const l of s.leagues) {
+                    const league = typeof l === 'string' ? canonicalLeague(l) : null;
+                    if (!league || !def.leagues.includes(league)) throw bad('A league is not part of its sport');
+                    if (!leagues.includes(league)) leagues.push(league);
+                }
+            }
+            if (!leagues.length && def.leagues.length === 1) leagues.push(def.leagues[0]);
+            if (!leagues.length) throw bad('Choose at least one league');
+            sports.push({ sport: def.sport, leagues, teams: 'teams' in s ? checkNames(s.teams) : [] });
         }
-        if (sports.length > MAX_SPORTS) throw bad('Too many sports');
+    }
+    return db.transaction(() => {
+        const next = readState(db, userId);
+        if ('spoilerFree' in patch) next.spoilerFree = patch.spoilerFree;
+        if (sports) next.sports = sports;
+        write(db, userId, next);
+        return copy(next);
+    })();
+}
+
+/**
+ * C-P / C-R, for the Apple apps up to 90: `{ spoilerFree?, sports?: [league], teams?: { [league]: [name] }, following?:
+ * { F1?, NFL? } }`. `sports` replaces the followed leagues (grouped into their sports, in first-seen order; a sport
+ * keeps its teams while one of its leagues stays); `teams[league]` replaces the names of that league's sport;
+ * `following.X` replaces X's names with that one (null removes them) and follows X when it was not. Answers the view.
+ */
+function update(userId, patch, db = getDb()) {
+    checkObject(patch);
+    const keys = Object.keys(patch);
+    if (keys.some(k => !['spoilerFree', 'sports', 'teams', 'following'].includes(k))) throw bad('Unknown preference');
+    let leagues = null;
+    if ('sports' in patch) {
+        if (!Array.isArray(patch.sports)) throw bad('sports must be a list of leagues');
+        leagues = [];
+        for (const s of patch.sports) {
+            const league = typeof s === 'string' ? canonicalLeague(s) : null;
+            if (!league || !catalog.sportOf(league)) throw bad('Unknown sports league');
+            if (!leagues.includes(league)) leagues.push(league);
+        }
     }
     let teams = null;
     if ('teams' in patch) {
         const t = patch.teams;
         if (!t || typeof t !== 'object' || Array.isArray(t)) throw bad('teams must be an object');
-        teams = {};
+        teams = [];
         for (const [key, names] of Object.entries(t)) {
             const league = canonicalLeague(key);
-            if (!league) throw bad('Unknown sports league');
+            if (!league || !catalog.sportOf(league)) throw bad('Unknown sports league');
             if (!Array.isArray(names)) throw bad('A league\'s teams must be a list');
-            const list = [];
-            for (const n of names) {
-                const clean = checkName(n);
-                if (!clean) throw bad('A followed name must not be empty');
-                addName(list, clean);
-            }
-            if (list.length > MAX_TEAMS) throw bad('Too many teams for one league');
-            teams[league] = list;
+            teams.push([league, checkNames(names)]);
         }
     }
-    const following = {};
+    const following = [];
     if ('following' in patch) {
         const f = patch.following;
         if (!f || typeof f !== 'object' || Array.isArray(f)) throw bad('following must be an object');
         for (const [page, name] of Object.entries(f)) {
             if (!PAGES.includes(page)) throw bad('Unknown sport page');
-            following[page] = name === null ? null : (checkName(name) || null);
+            following.push([page, name === null ? null : (checkName(name) || null)]);
         }
     }
     return db.transaction(() => {
-        const next = readState(db);
+        const next = readState(db, userId);
         if ('spoilerFree' in patch) next.spoilerFree = patch.spoilerFree;
-        if (sports) {
-            next.sports = sports;
-            for (const league of Object.keys(next.teams)) if (!sports.includes(league)) delete next.teams[league];
+        if (leagues) {
+            const before = next.sports;
+            next.sports = [];
+            for (const league of leagues) if (!addLeague(next, league)) throw bad('Too many sports');
+            for (const s of next.sports) s.teams = before.find(b => b.sport === s.sport)?.teams || [];
         }
-        if (teams) {
-            for (const [league, list] of Object.entries(teams)) {
-                if (!next.sports.includes(league)) throw bad('A league with teams must be one of the followed sports');
-                if (list.length) next.teams[league] = list; else delete next.teams[league];
-            }
+        for (const [league, names] of teams || []) {
+            const entry = next.sports.find(s => s.leagues.includes(league));
+            if (!entry) throw bad('A league with teams must be one of the followed sports');
+            entry.teams = names;
         }
-        for (const [page, name] of Object.entries(following)) {
-            if (name === null) { delete next.teams[page]; continue; }
-            if (!next.sports.includes(page)) {
-                if (next.sports.length >= MAX_SPORTS) throw bad('Too many sports');
-                next.sports.push(page);
-            }
-            next.teams[page] = [name];
+        for (const [page, name] of following) {
+            if (name === null) { const entry = next.sports.find(s => s.leagues.includes(page)); if (entry) entry.teams = []; continue; }
+            if (!next.sports.some(s => s.leagues.includes(page)) && !addLeague(next, page)) throw bad('Too many sports');
+            next.sports.find(s => s.leagues.includes(page)).teams = [name];
         }
-        write(db, next);
+        write(db, userId, next);
         return view(next);
     })();
 }
 
-module.exports = { get, update, PAGES };
+module.exports = { get, follows, update, setFollows, allLeagues, view, PAGES, MAX_TEAMS };

@@ -15,7 +15,10 @@
  *       -> { now, events } for the next 72 hours (0153), every kind, each also with `rule`
  *          ("keyword" | "category" | "sportChannel"), `match` (what matched) and
  *          `kindRule` (why it is that kind, e.g. "placeholder: ends in a bare \":\"")
- *   GET/PUT /api/sports/pages/preferences (any user; 0346) -> { spoilerFree, sports, teams, following: { F1, NFL } }, one for the household
+ *   GET/PUT /api/sports/pages/preferences (any user; 0346) -> { spoilerFree, sports, teams, following: { F1, NFL } }, the
+ *       account's own since 0391 (#193; the household's before)
+ *   GET/PUT /api/sports/follows      (any user; 0391, C-U) -> { spoilerFree, sports: [{ sport, leagues, teams }] }, the account's
+ *   GET /api/sports/catalog          (any user; 0391, C-U) -> { sports: [{ sport, leagues }] } what can be followed
  *   GET /api/sports/front            (any user; 0381, D-39) -> the Sport front page (services/sportFront.js)
  *   GET /api/sports/pages/cricket    (any user; 0383, C-S) -> the Cricket page (services/sportPageCricket.js)
  *   GET /api/sports/pages/league/:league (any user; 0388, C-T) -> any other team league's page (services/sportPageLeague.js)
@@ -177,6 +180,7 @@ router.get('/pages/cricket', async (req, res) => {
         const cricket = require('../services/sportPageCricket');
         const now = Date.now();
         const page = await cricket.page(now, {
+            followed: require('../services/sportPagePrefs').get(req.user.id).teams.Cricket || [],
             registerImage: require('../services/logoCache').registerLogo,
             // Only cricket's events around the matches' days are ordered and built, as for F1 (#160), for each league a
             // cricket programme can be filed under; #191 as F1.
@@ -202,7 +206,7 @@ router.get('/pages/league/:league', async (req, res) => {
         const now = Date.now();
         const page = await leaguePage.page(league, now, {
             registerImage: require('../services/logoCache').registerLogo,
-            followed: () => require('../services/sportPagePrefs').get().teams[league] || [],
+            followed: () => require('../services/sportPagePrefs').get(req.user.id).teams[league] || [],
             // Only this league's events around the page's games are ordered and built, as for F1 (#160); #191 as F1.
             channelsFor: async (games, observedAt) => !games.length ? new Map() : leaguePage.channelsForGames(games,
                 await sportsEvents.leagueEvents({ league, ...leaguePage.spanOf(games), userId: req.user.id, now, decorateChannels, ended: true }), { now, observedAt })
@@ -214,14 +218,27 @@ router.get('/pages/league/:league', async (req, res) => {
     }
 });
 
-// #68, #67 (0346, C-P): the sport pages' spoiler-free switch and followed driver, one for the household.
+// #68, #67 (0346, C-P): the sport pages' spoiler-free switch and followed names; the account's own since 0391 (#193, D-41).
 router.get('/pages/preferences', (req, res) => {
-    try { res.json(require('../services/sportPagePrefs').get()); }
+    try { res.json(require('../services/sportPagePrefs').get(req.user.id)); }
     catch { res.status(500).json({ error: 'Could not read the sport page preferences' }); }
 });
 router.put('/pages/preferences', (req, res) => {
-    try { res.json(require('../services/sportPagePrefs').update(req.body)); }
+    try { res.json(require('../services/sportPagePrefs').update(req.user.id, req.body)); }
     catch (err) { res.status(err.status === 400 ? 400 : 500).json({ error: err.status === 400 ? err.message : 'Could not save the sport page preferences' }); }
+});
+
+// #193 (0391, C-U, D-41): what this account follows, sport by sport, and what can be followed.
+router.get('/follows', (req, res) => {
+    try { res.json(require('../services/sportPagePrefs').follows(req.user.id)); }
+    catch { res.status(500).json({ error: 'Could not read what you follow' }); }
+});
+router.put('/follows', (req, res) => {
+    try { res.json(require('../services/sportPagePrefs').setFollows(req.user.id, req.body)); }
+    catch (err) { res.status(err.status === 400 ? 400 : 500).json({ error: err.status === 400 ? err.message : 'Could not save what you follow' }); }
+});
+router.get('/catalog', (req, res) => {
+    res.json({ sports: require('../services/sportCatalog').SPORTS.map(s => ({ sport: s.sport, leagues: [...s.leagues] })) });
 });
 
 router.get('/preview', requireAdmin, async (req, res) => {

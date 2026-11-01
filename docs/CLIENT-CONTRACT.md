@@ -759,3 +759,27 @@ Championship, FA Cup, UEFA, La Liga, Bundesliga, Serie A, Ligue 1, MLS, A-League
   `status`, `start` and the teams stay. Watch/Record use a channel's own times (C-I, #20).
 - A `live` or `break` game's channels keep an airing that ended up to 4 h ago, `overrun: true`, while the page's
   `updatedAt` is at most 15 min old (#191, as C-Q).
+
+### C-U. Following, per account: sport → leagues → teams. Flag: `sportFollows` (0391, #193, D-41)
+
+What each account follows, synced to every device signed in to it (D-41 replaces D-39's household store). A new
+account follows nothing; only the server's owner (its first admin account) takes over the household's follows once.
+
+- `GET /api/sports/catalog` (any user) → `{ sports: [{ sport, leagues: [league] }] }`: what can be followed, in the
+  order Settings offers it. Leagues are canonical names (C-I); only leagues with a fixture source are listed, and the
+  list grows (#195, #196, #197).
+- `GET /api/sports/follows` (any user) → `{ spoilerFree, sports: [{ sport, leagues, teams }] }` in the account's order:
+  each sport its followed leagues (at least one, in order) and its followed teams or individuals (at most 20 names of
+  at most 80 characters), one list for the whole sport: a team is highlighted in every followed league it plays in.
+- `PUT /api/sports/follows` (any user) with `spoilerFree` and/or `sports` (the whole list, replaced): each sport a
+  catalogue name (any case) with `leagues` from that sport only (a one-league sport may leave them out) and optional
+  `teams`. Anything else (an unknown sport or field, a league of another sport, no league, a sport twice, too many
+  names) is 400 and changes nothing. Answers the follows.
+- The C-P/C-R preferences (`/api/sports/pages/preferences`) are the account's own since 0391: `sports` the followed
+  leagues in order, `teams[league]` the league's sport's names (the same list under each of its leagues), `following`
+  as before. Writing them still works: `sports` regroups the leagues into their sports (a sport keeps its teams while one
+  of its leagues stays), `teams[league]` replaces that sport's names. A league outside the catalogue is a 400.
+- C-R since 0391: `sports[]` and `rails[]` entries add `sport`; `follows[]` is one per followed name per sport (its
+  `league` the league of the game it points at, else the sport's first) and adds `sport`. The Cricket page's lead and
+  C-T's `following` use the requesting account's follows.
+- A server before 0391 answers 404 to `/api/sports/follows` and `/catalog`: send them only with this flag.

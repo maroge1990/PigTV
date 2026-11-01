@@ -41,12 +41,14 @@ const LIMITED = new Set(['t20', 'odi', 'list-a']);
 const LEAGUES = ['Cricket', 'BBL', 'IPL'];
 
 // Test seams: `fetcher.get(url) -> { ok, json } | { ok: false, error }` (as sportsFixturesEspn.getJson); `prefs.get()`
-// as sportPagePrefs.get (required lazily: it opens the database).
+// the followed names when a request names none (#193: the route passes the account's own, `deps.followed`).
 const fetcher = { get: (url) => espn.getJson(url, TIMEOUT_MS) };
-const prefs = { get: () => require('./sportPagePrefs').get() };
+const prefs = { get: () => ({ teams: {} }) };
 
-let cache = null;        // { value, at, ttl, key }
-let refreshing = null;
+// #193 (D-41): one entry per followed-teams key (each account follows its own), the most recent last; at most CACHE_KEYS.
+const CACHE_KEYS = 4;
+const caches = new Map();     // key -> { value, at, ttl }
+const refreshing = new Map(); // key -> the refresh in flight
 let generation = 0;
 const pastDays = new Map(); // series-day URL -> json, for days before yesterday (UTC)
 const AIRINGS = new WeakMap(); // page value -> [{ id, start, end, teams }]: each match's airing window, for channels
@@ -438,26 +440,32 @@ async function page(now = Date.now(), deps = {}) {
 }
 
 async function espnPart(now, deps) {
-    const followed = followedTeams();
+    const followed = Array.isArray(deps.followed) ? deps.followed.filter(n => typeof n === 'string') : followedTeams();
     const key = JSON.stringify(followed.map(n => n.toLowerCase()));
-    const fresh = cache && cache.key === key && now - cache.at < cache.ttl;
-    if (!fresh && !refreshing) {
+    const cached = caches.get(key);
+    const fresh = cached && now - cached.at < cached.ttl;
+    if (!fresh && !refreshing.has(key)) {
         const mine = generation;
-        refreshing = build(now, { ...deps, followed }).then((value) => {
-            if (value && mine === generation) cache = { value, at: now, ttl: ttlOf(value, now), key };
+        refreshing.set(key, build(now, { ...deps, followed }).then((value) => {
+            if (!value || mine !== generation) return;
+            caches.delete(key);
+            caches.set(key, { value, at: now, ttl: ttlOf(value, now) });
+            while (caches.size > CACHE_KEYS) caches.delete(caches.keys().next().value);
         }).catch((err) => console.warn('[Sport] Cricket page refresh failed:', err.message))
-            .finally(() => { refreshing = null; });
+            .finally(() => { if (mine === generation) refreshing.delete(key); }));
     }
-    if ((!cache || cache.key !== key) && refreshing) {
+    if (!cached && refreshing.has(key)) {
         let timer;
-        await Promise.race([refreshing, new Promise(resolve => { timer = setTimeout(resolve, COLD_WAIT_MS); })]);
+        await Promise.race([refreshing.get(key), new Promise(resolve => { timer = setTimeout(resolve, COLD_WAIT_MS); })]);
         clearTimeout(timer);
     }
-    return cache ? cache.value : { available: false };
+    // Until this key's first refresh answers: the most recent page (another follow list's lead), as before #193.
+    const own = caches.get(key) || [...caches.values()].pop();
+    return own ? own.value : { available: false };
 }
 
 /** Tests: forget everything. */
-function reset() { cache = null; refreshing = null; generation++; pastDays.clear(); }
+function reset() { caches.clear(); refreshing.clear(); generation++; pastDays.clear(); }
 
 /** The span of the airings, for asking C-I for the events around them. */
 const spanOf = (airings) => ({ from: Math.min(...airings.map(a => a.start)), to: Math.max(...airings.map(a => a.end)) });

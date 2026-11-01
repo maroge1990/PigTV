@@ -20,10 +20,12 @@ let offset = 10 - new Date().getUTCHours(); // UTC+offset, from -12 to +14 (Etc/
 if (offset < -12) offset += 24;
 process.env.TZ = offset === 0 ? 'Etc/GMT' : `Etc/GMT${offset > 0 ? '-' : '+'}${Math.abs(offset)}`;
 const auth = load('auth'), db = load('db'), dashboard = load('services/sportsDashboard');
-let server, base, token, guideEvents = [];
+let server, base, token, viewer, guideEvents = [];
 
 before(async () => {
-    token = auth.generateToken(await db.users.create({ username: 'viewer', role: 'viewer' }));
+    // #193 (D-41): the server's owner (its first admin) takes over the household's follows; other accounts start empty.
+    token = auth.generateToken(await db.users.create({ username: 'owner', role: 'admin' }));
+    viewer = auth.generateToken(await db.users.create({ username: 'viewer', role: 'viewer' }));
     load('services/sportsEvents').eventsResponse = async () => ({ body: Buffer.from(JSON.stringify({ events: guideEvents })) });
     load('db/recordingsDb').initSchema();
     const app = express(); app.use(express.json());
@@ -39,9 +41,9 @@ after(async () => {
     load('db/sqlite').getDb().close();
     fs.rmSync(sandbox, { recursive: true, force: true });
 });
-async function call(url, body) {
+async function call(url, body, as = token) {
     const r = await fetch(base + url, { method: body ? 'PUT' : 'GET',
-        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
+        headers: { authorization: `Bearer ${as}`, 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
     const text = await r.text();
     let parsed = null;
     try { parsed = JSON.parse(text); } catch { parsed = text; }
@@ -58,13 +60,16 @@ const live = (scores = ['7', '3']) => ({ state: 'live', progress: { clock: '5:00
 const scheduled = { state: 'scheduled', progress: {}, scores: null, situation: null };
 const front = async () => { const r = await call('/api/sports/front'); assert.equal(r.status, 200, JSON.stringify(r.body)); assert.match(r.cache, /private.*no-store/); return r.body; };
 
-test('prefs: migrated once from the follow list; following still writes; bad sports or teams are a 400', async () => {
+test('prefs: the owner\'s migrated once from the follow list; another account starts empty; following still writes; bad sports or teams are a 400', async () => {
     const ins = sql().prepare('INSERT INTO sports_follow (position, keyword) VALUES (?, ?)');
     ['NFL', 'NFL: Green Bay Packers', 'F1'].forEach((k, i) => ins.run(i, k));
     const got = (await call('/api/sports/pages/preferences')).body;
     assert.deepEqual(got.sports, ['NFL', 'F1']);
     assert.deepEqual(got.teams, { NFL: ['Green Bay Packers'] });
     assert.equal(got.following.NFL, 'Green Bay Packers');
+    assert.deepEqual((await call('/api/sports/pages/preferences', null, viewer)).body,
+        { spoilerFree: false, sports: [], teams: {}, following: { F1: null, NFL: null } }, 'only the owner takes over the household\'s');
+    assert.deepEqual((await call('/api/sports/front', null, viewer)).body.sports, []);
     const put = await call('/api/sports/pages/preferences', { following: { F1: 'Oscar Piastri' } });
     assert.equal(put.status, 200);
     assert.deepEqual(put.body.teams.F1, ['Oscar Piastri']);
@@ -260,7 +265,8 @@ test('arrange: between live followed cards the one closest to finishing leads, b
     const now = Date.now();
     const card = (id, league, start, extra) => ({ id, league, start, end: null, status: 'live', followed: true, freshness: 'fresh',
         competitors: [], channels: [], canWatch: true, ...extra });
-    const prefs = { spoilerFree: false, sports: ['Cricket', 'NFL'], teams: { Cricket: ['Australia'], NFL: ['Green Bay Packers'] } };
+    const prefs = { spoilerFree: false, sports: [{ sport: 'Cricket', leagues: ['Cricket'], teams: ['Australia'] },
+        { sport: 'American football', leagues: ['NFL'], teams: ['Green Bay Packers'] }] };
     const respond = games => ({ now, timezone: 'Etc/GMT', games, followMatches: {
         'espn:cricket/1:1': [{ name: 'Australia', competitor: null }], 'espn:football/nfl:9': [{ name: 'Green Bay Packers', competitor: null }] } });
     const testMatch = card('espn:cricket/1:1', 'Cricket', now - 6 * H, { format: 'test' });
@@ -268,6 +274,22 @@ test('arrange: between live followed cards the one closest to finishing leads, b
     assert.deepEqual(f.hero, { reason: 'follow-live', followIndex: 1, gameId: 'espn:football/nfl:9' });
     f = arrange(respond([testMatch, card('espn:football/nfl:9', 'NFL', now - 3 * H)]), prefs);
     assert.equal(f.hero.gameId, 'espn:football/nfl:9', 'NFL (3.25 h) before a Test (120 h) without an end on either');
+});
+
+test('arrange: a team followed in a sport is one follow across its leagues, and every tile and rail names its sport (#193)', () => {
+    const { arrange } = load('services/sportFront');
+    const now = Date.now();
+    const card = (id, league, start, status) => ({ id, league, start, end: null, status, followed: true, freshness: 'fresh',
+        competitors: [{ name: 'Arsenal', logo: '/api/logo/ars' }, { name: 'Other', logo: null }], channels: [], canWatch: false });
+    const prefs = { spoilerFree: false, sports: [{ sport: 'Football', leagues: ['EPL', 'UEFA'], teams: ['Arsenal'] }] };
+    const games = [card('espn:soccer/eng.1:1', 'EPL', now + 5 * H, 'scheduled'), card('espn:soccer/uefa.champions:2', 'UEFA', now + 2 * H, 'scheduled')];
+    const followMatches = Object.fromEntries(games.map(g => [g.id, [{ name: 'Arsenal', competitor: 0 }]]));
+    const f = arrange({ now, timezone: 'Etc/GMT', games, followMatches }, prefs);
+    assert.deepEqual(f.follows, [{ league: 'UEFA', sport: 'Football', name: 'Arsenal', logo: '/api/logo/ars', state: 'next',
+        gameId: 'espn:soccer/uefa.champions:2', start: now + 2 * H }], 'one follow, its next game in either league');
+    assert.deepEqual(f.sports.map(s => [s.league, s.sport]), [['EPL', 'Football'], ['UEFA', 'Football']]);
+    assert.deepEqual(f.rails.map(r => [r.league, r.sport]), [['EPL', 'Football'], ['UEFA', 'Football']]);
+    assert.deepEqual(f.hero, { reason: 'follow-next', followIndex: 0, gameId: 'espn:soccer/uefa.champions:2' });
 });
 
 test('features: sportFront on by default, the legacy dashboard off; PIGTV_SPORTS_DASHBOARD=0 turns the front page off', async () => {

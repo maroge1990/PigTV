@@ -87,8 +87,8 @@ function followedLeagues(db) {
         const l = sportsClassify.canonicalLeague(r.keyword) || sportsClassify.teamFollow(r.keyword)?.league;
         if (l) out.add(l);
     }
-    // 0381 (D-39): and the sports the household follows on the Sport front page.
-    try { for (const l of require('./sportPagePrefs').get(db).sports) out.add(l); } catch { /* the follow list alone */ }
+    // 0381 (D-39): and the leagues followed on the Sport front page, by any account since 0391 (#193, D-41).
+    try { for (const l of require('./sportPagePrefs').allLeagues(db)) out.add(l); } catch { /* the follow list alone */ }
     return out;
 }
 
