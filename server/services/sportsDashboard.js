@@ -6,6 +6,7 @@ const { createStore } = require('./sportsDashboardStore');
 const { overrunEnd } = require('./sportOverrun');
 const { isCricket, CRICKET_GROUPS } = require('./sportCatalog');
 const { cricketGroupOf } = require('./sportsFixturesEspn');
+const { isTournament } = require('./sportGroups');
 const H = 3600000;
 // 0381 (D-39): the score collector runs by default (PIGTV_SPORTS_DASHBOARD=0 turns it off) whenever ESPN fixtures are on,
 // for the Sport front page; the legacy /dashboard and /preferences routes stay opt-in (=1) for the current Apple app.
@@ -147,8 +148,11 @@ function followMatchesFor(g,teams) {
 // cards, `spoilerFree` (the household switch) overrides the account's avoidSpoilers, channelTimes projects airing bounds,
 // upcomingHours keeps what starts within that many hours whatever its local day (tomorrow's fixtures; 0382).
 // guideCards (#194, D-41): false makes the fixture the only source of games, the guide only adding channels to them.
+// nations (#195, D-41): the International groups in which the account follows a nation: there, a game that is not a
+// tournament's shows only when a followed name plays in it (sportGroups.js).
 function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagues=null,follow=null,broadLeagues=new Set(),timezone:zone=timezone(),
-    keepFinishedToday=false,teams=null,spoilerFree,channelTimes=false,upcomingHours=0,endedEvents=[],guideCards=true}={}) {
+    keepFinishedToday=false,teams=null,spoilerFree,channelTimes=false,upcomingHours=0,endedEvents=[],guideCards=true,nations=[]}={}) {
+    const narrowed=new Set(nations);
     const prefs=store.preferences(userId),today=localDay(now,zone);
     const hidden=typeof spoilerFree==='boolean' ? spoilerFree : prefs.avoidSpoilers;
     const followMatches=teams ? {} : null;
@@ -162,6 +166,7 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
     const endedMatches=matchBroadcasts(catalog,endedEvents.filter(e=>e.end<=now),new Set(),new Set(),endedAt);
     for(const g of catalog) {
         if(league && league!==g.league || leagues && !leagues.has(g.league)) continue;
+        if(narrowed.has(g.league) && !isTournament(g) && !followMatchesFor(g,teams).length) continue;
         if(follow && !broadLeagues.has(g.league) && !follow.some(k=>classify.canonicalLeague(k)===g.league)) {
             const teams=follow.map(classify.teamFollow).filter(t=>t?.league===g.league);
             if(teams.length && !teams.some(t=>g.competitors.some(c=>c.aliases.some(a=>norm(a)===norm(t.team))))) continue;

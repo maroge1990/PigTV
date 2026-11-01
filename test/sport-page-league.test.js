@@ -257,6 +257,11 @@ test('two teams sharing an abbreviation (a merged league): both survive, each ga
     assert.deepEqual(games.map(g => [g.competition, g.home.id, g.home.abbr]).sort(), [['Nations League', '2604', 'MAR'], ['World Cup', '176', 'MAR']]);
     assert.deepEqual(p.standings.groups.map(g => [g.name, g.rows.map(r => r.id)]), [['World Cup', ['160', '176']], ['Nations League', ['2604', '104']]]);
     assert.equal(lp.followingOf(p.teams, ['Maribor']), '2604');
+    // #195 (D-41): following a nation narrows the Nations League to its games; the World Cup (a tournament) stays.
+    const shown = async (names) => (await lp.page('Internationals', NOW, { zone: ZONE, followed: () => names })).rounds.flatMap(r => r.games).map(g => g.competition).sort();
+    assert.deepEqual(await shown(['Marseille']), ['World Cup']);
+    assert.deepEqual(await shown(['Roma']), ['Nations League', 'World Cup']);
+    assert.deepEqual(await shown([]), ['Nations League', 'World Cup'], 'no followed nation: every game');
 });
 
 // 0389 (0388 Codex round 1, medium): the cached table kept only the teams the games had not already named, so a team that

@@ -86,6 +86,8 @@ function normalize(json, league, source) {
                 }
             }
             out.push({ id:`espn:${source}:${c.id}`, league, start, end:Number.isFinite(parsedEnd) ? parsedEnd : null,
+                // #195: an International cricket group's series name, which says whether it is an ICC event (sportGroups.js).
+                ...(league === 'Cricket' || league === "Women's Cricket" ? { competition: text(json.leagues?.[0]?.name, 120) || null } : {}),
                 format, title:league === 'F1' ? text(e.name) : competitors.map(t => t.name).join(' v '), competitors, session,
                 circuit:league === 'F1' ? { name:text(e.circuit?.fullName), city:text(e.circuit?.address?.city), country:text(e.circuit?.address?.country) } : null,
                 snapshot:{ state, ...(breakLabel ? { breakLabel } : {}), progress, scores, situation:Object.keys(situation).length ? situation : null }

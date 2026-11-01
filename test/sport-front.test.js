@@ -260,6 +260,26 @@ test('front: a followed team\'s game tomorrow is its sport\'s next and leads wit
     clearGames();
 });
 
+// #195 (D-41, D-42): an International group shows tournaments in full, and qualifiers and friendlies only for followed
+// nations; everything when the account follows none of its nations.
+test('front: Internationals: a followed nation narrows qualifiers and friendlies to its own; tournaments stay; none followed shows all', async () => {
+    clearGames();
+    const now = Date.now();
+    sql().prepare('INSERT OR REPLACE INTO sport_fixture_teams (league, data, updated_at) VALUES (?, ?, ?)').run('Internationals',
+        JSON.stringify([{ displayName: 'Australia', abbreviation: 'AUS' }, { displayName: 'England' }, { displayName: 'Japan' }]), now);
+    dashboard.store().ingest([
+        game('espn:soccer/fifa.worldq.afc:1', 'Internationals', now + H, [team('628', 'Australia'), team('627', 'Japan')], scheduled),
+        game('espn:soccer/fifa.friendly:2', 'Internationals', now + 2 * H, [team('448', 'England'), team('580', 'Wales')], scheduled),
+        game('espn:soccer/fifa.world:3', 'Internationals', now + 3 * H, [team('205', 'Brazil'), team('478', 'France')], scheduled)
+    ], now - 100000);
+    const ids = async () => (await front()).games.map(g => g.id).sort();
+    await call('/api/sports/follows', { sports: [{ sport: 'Football', leagues: ['Internationals'], teams: ['Australia'] }] });
+    assert.deepEqual(await ids(), ['espn:soccer/fifa.world:3', 'espn:soccer/fifa.worldq.afc:1'], 'Australia\'s qualifier and the World Cup, not England v Wales');
+    await call('/api/sports/follows', { sports: [{ sport: 'Football', leagues: ['Internationals'], teams: ['Arsenal'] }] });
+    assert.equal((await ids()).length, 3, 'no followed nation: every game');
+    clearGames();
+});
+
 test('arrange: between live followed cards the one closest to finishing leads, by its end or the league\'s typical length', () => {
     const { arrange } = load('services/sportFront');
     const now = Date.now();

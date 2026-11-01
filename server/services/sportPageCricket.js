@@ -312,9 +312,15 @@ function followedTeams() {
 }
 
 /** The page's ESPN part at `now` (channels empty; page() attaches them). Never rejects; null on failure. */
-async function build(now, { registerImage = (u) => u, followed = followedTeams(), leagues: competitions = ['Cricket'] } = {}) {
+async function build(now, { registerImage = (u) => u, followed = followedTeams(), leagues: competitions = ['Cricket'], rosters = {} } = {}) {
     // #195 (D-41): only the account's followed cricket competitions (the men's internationals when it follows none).
     const wanted = new Set(competitions.length ? competitions : ['Cricket']);
+    // #195 (D-41): in a group whose nations the account follows, a tour's match shows only for them; ICC events in full.
+    const groups = require('./sportGroups');
+    const names = (followed || []).map(n => String(n).trim().toLowerCase()).filter(Boolean);
+    const narrowed = new Set([...wanted].filter(l => groups.isGroup(l) && groups.followsNation(l, followed, rosters[l] ?? groups.storedRoster(l))));
+    const shown = (m) => !narrowed.has(m.league) || groups.isTournament({ league: m.league, competition: m.competition })
+        || m.keys.some(ks => names.some(n => ks.includes(n)));
     const today = utcDay(now);
     const panels = await Promise.all([today, today + DAY_MS].map(d => fetcher.get(`${BASE}/scorepanel?dates=${ymd(d)}`)));
     if (!panels[0]?.ok || !Array.isArray(panels[0].json?.scores)) return null;
@@ -330,7 +336,7 @@ async function build(now, { registerImage = (u) => u, followed = followedTeams()
             for (const e of Array.isArray(block.events) ? block.events : []) {
                 const m = matchOf(e, league, registerImage);
                 if (!m || raws.has(m.id)) continue; // today's copy first: the fresher listing
-                if (!wanted.has(m.league)) continue;
+                if (!wanted.has(m.league) || !shown(m)) continue;
                 raws.set(m.id, e);
                 matches.push(m);
             }

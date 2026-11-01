@@ -108,7 +108,10 @@ async function front({ userId, events, ended = null, now = Date.now() }) {
     dashboard.store(); // the tables exist before the read-only worker opens them
     const cached = await events();
     const endedEvents = ended ? await ended(leagues) : [];
-    const response = await dashboard.response({ eventsBody: cached.body, options: { now, userId, timezone,
+    // #195: the International groups in which a followed name is one of the group's nations.
+    const groups = require('./sportGroups');
+    const nations = prefs.sports.flatMap(s => s.leagues.filter(l => groups.isGroup(l) && groups.followsNation(l, s.teams)));
+    const response = await dashboard.response({ eventsBody: cached.body, options: { now, userId, timezone, nations,
         league: null, leagues, follow: null, broadLeagues: new Set(),
         keepFinishedToday: true, teams: store.view(prefs).teams, spoilerFree: prefs.spoilerFree, channelTimes: true, upcomingHours: 72, endedEvents, guideCards: false } });
     require('./logoCache').applyLogoCache(response.games.flatMap(g => g.competitors));

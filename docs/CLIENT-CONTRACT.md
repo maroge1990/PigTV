@@ -793,4 +793,9 @@ account follows nothing; only the server's owner (its first admin account) takes
   class), `Women's Cricket` (the women's), `IPL`, `BBL`, `WBBL`, `SA20`, `The Hundred`, `Sheffield Shield`, `One-Day Cup`,
   `WNCL`. The Cricket page (C-S) holds only the requesting account's followed cricket leagues (the men's internationals
   when it follows none): its `lead` and `others` never come from another competition. No cricket league has a C-T page.
+- Since 0398 (D-41): in an International group (`Internationals`, `Women's Internationals`, `Cricket`, `Women's Cricket`)
+  where the account follows one of the group's nations, a game that is not a tournament's (World Cups, continental
+  championships, ICC events) is shown only when a followed nation plays in it: on the front page (C-R), the C-T page
+  and the Cricket page. Following no nation of the group shows every game. A C-R cricket card of a group may carry
+  `competition` (the series name).
 - A server before 0391 answers 404 to `/api/sports/follows` and `/catalog`: send them only with this flag.

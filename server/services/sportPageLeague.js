@@ -482,6 +482,19 @@ function channelsForGames(joinGames, events, { now, observedAt } = {}) {
     return out;
 }
 
+// #195 (D-41): an International group's tournaments, by the competition its games are named by.
+const TOURNAMENT_COMPETITIONS = new Set(Object.entries(COMPETITIONS)
+    .filter(([path]) => require('./sportsFixtures').INTERNATIONAL_PATHS.tournaments.has(path)).map(([, label]) => label));
+
+/** #195: in a group whose nations the account follows, a game that is not a tournament's shows only for those nations. */
+function narrowRounds(league, value, names) {
+    const groups = require('./sportGroups');
+    const roster = [...groups.storedRoster(league), ...Object.values(value.teams).map(t => ({ displayName: t.full, name: t.name, abbreviation: t.abbr }))];
+    if (!groups.isGroup(league) || !groups.followsNation(league, names, roster)) return value.rounds;
+    const followedId = (id) => Boolean(id) && followingOf({ [id]: value.teams[id] }, names) === id;
+    return value.rounds.map(r => ({ ...r, games: r.games.filter(g => TOURNAMENT_COMPETITIONS.has(g.competition) || followedId(g.home?.id) || followedId(g.away?.id)) }));
+}
+
 /**
  * C-T's answer for `league` at `now`: the cached ESPN part (refreshed in the background once stale), or, the first time,
  * the result of a refresh; `{ available: false }` while nothing has been fetched. Channels (`deps.channelsFor(joinGames,
@@ -492,8 +505,9 @@ async function page(league, now = Date.now(), deps = {}) {
     if (!entry) return { available: false };
     let value = entry.value;
     let following = null;
-    try { following = followingOf(value.teams, deps.followed ? deps.followed() : []); } catch (err) { console.warn('[Sport] league page following:', err.message); }
-    value = { ...value, following };
+    let names = [];
+    try { names = deps.followed ? deps.followed() : []; following = followingOf(value.teams, names); } catch (err) { console.warn('[Sport] league page following:', err.message); }
+    value = { ...value, following, rounds: narrowRounds(league, value, names) };
     if (!deps.channelsFor) return value;
     let channels = new Map();
     try { channels = (await deps.channelsFor(entry.join, value.updatedAt)) || new Map(); } catch (err) { console.warn('[Sport] league page channels:', err.message); }

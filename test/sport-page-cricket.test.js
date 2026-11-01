@@ -272,6 +272,20 @@ test('GET /api/sports/pages/cricket: 401 signed out, the page signed in, /api/in
     assert.notEqual((await call('/api/sports/pages/cricket')).body.lead?.id, '1525661');
 });
 
+test('#195: following a nation narrows the men\'s internationals to its tours (ICC events stay); following none shows them all', async () => {
+    const all = await cricket.build(NOW, { followed: [], leagues: ['Cricket'] });
+    const ours = await cricket.build(NOW, { followed: ['India'], leagues: ['Cricket'], rosters: { Cricket: [{ displayName: 'India' }, { displayName: 'Australia' }] } });
+    assert.equal(all.lead.id, '1525661', 'the Test leads with no nation followed');
+    assert.equal(ours.lead.competition, 'India in New Zealand', 'India follows: their tour leads');
+    assert.ok([ours.lead, ...ours.others].every(m => m.teams.some(t => /india/i.test(t.name))), 'and nothing else: no ICC event is on that day');
+    assert.ok(all.others.some(m => !m.teams.some(t => /india/i.test(t.name))) || all.lead.teams.every(t => !/india/i.test(t.name)), 'with none followed, other tours too');
+    const { isTournament } = require('../server/services/sportGroups');
+    assert.equal(isTournament({ league: 'Cricket', competition: "ICC Men's T20 World Cup" }), true);
+    assert.equal(isTournament({ league: 'Cricket', competition: 'Australia tour of India 2026/27' }), false);
+    assert.equal(isTournament({ league: 'Internationals', id: 'espn:soccer/fifa.world:1' }), true);
+    assert.equal(isTournament({ league: 'Internationals', id: 'espn:soccer/fifa.friendly:1' }), false);
+});
+
 test('#193 (0393, Codex round 1): a follow list whose first refresh fails never gets another follow list\'s page', async () => {
     await cricket.page(NOW, { followed: ['Australia'] });
     assert.equal((await cricket.page(NOW, { followed: ['Australia'] })).lead.id, '1525661');
