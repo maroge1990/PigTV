@@ -5,26 +5,25 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 1 Nov 2026, evening (sport revamp server and web 0390–0421, Apple 91–94; D-43).*
+*Overwritten at the end of every session. 1 Nov 2026, late (sport revamp server 0390–0432, Apple 91–101; D-43).*
 
-- **Server:** production runs **0387** (unchanged). On GitHub, CI green: **0390–0421**, the sport revamp (D-41, D-42):
-  #193–#196 and #206 (0390–0405); #197's cards: tennis, golf, UFC, IndyCar, NASCAR Cup (0406–0408); #29 collector cost
-  counters and rig measurement (0409: no effect on HLS with 61 leagues; production pilot at the combined deploy); #12
-  clashes, first scheduled wins (0410–0412); #198 suggestions, "Record every game", recordings on cards (0413–0417);
-  #199 web Settings › Sports › Your sport and `GET /api/sports/names` (0418–0421). Every batch had its Codex rounds;
-  every high fixed; #207 (keyword rules' merged airing times) left as a finding. Next build **0422**.
+- **Server:** production runs **0387** (unchanged). On GitHub, CI green: **0390–0432**, the sport revamp (D-41, D-42):
+  #193–#196, #206 (0390–0405); #197's cards (0406–0408) and pages' data (0427–0429, C-V); #29 measurement (0409); #12
+  clashes (0410–0412); #198 suggestions and "Record every game" (0413–0417); #199 web Your sport (0418–0421); #201–#203
+  F1 grid, on-air sessions, circuit maps (0422–0426); #52 golden answers and cached images (0430–0431); the fallback
+  `/api/info` keeps `version` (0432). Every batch had its Codex rounds; every high fixed. Next build **0433**.
 - **Deploy rule (D-42):** the revamp is deployed and tested as a whole once complete, not batch by batch.
-- **Apple:** TestFlight **90**; on GitHub **91–94** (#200 part 1: Settings › Sport on C-U, clash choices and card
-  recordings; two Codex rounds, both highs fixed; web twin #208). Next **95**: the rest of #200 (#201–#205, #187, #190,
-  #18, #52), then the Apple TV sport pages to D-43.
-- **Decisions:** D-41, D-42, **D-43** (Apple TV sport pages: one banner on the front page and every sport page, a
-  layout per sport, no sport tiles; build and device-test on Apple TV first, then iPad and iPhone mock-ups together; web
-  parked). Golf's Majors are the four men's; the women's stay under LPGA.
-- **Issues:** #12, #29, #193–#199, #206 stay open for the combined test; #197 still needs its league pages (now to
-  D-43's layouts). New: #207, #208 (findings, P2).
-- **Paused at Mark's request:** the walkthrough of the 19 issues waiting on his device check, starting at #192.
-- **Not done:** #197's pages; #201–#203 server halves; production's 7 favourites (needs Mark's yes); PR #189 waits
-  for Mark's read; #111 parked.
+- **Apple:** TestFlight **90**; on GitHub **91–101**: #200 Settings › Sport, clash choices, card recordings (91–94);
+  channel choice and badges (95–96, #205, #187); the Apple TV Sport front page and every sport page to D-43 (97–100);
+  brand kit 1.7.0 (101, #190); the contract checks decode the server's golden answers (#52). Next: the TestFlight
+  build for Mark's combined device test.
+- **Decisions:** D-41, D-42, **D-43** (Apple TV sport pages: one banner, a layout per sport, no sport tiles; Apple TV
+  first, then iPad and iPhone mock-ups together; web parked).
+- **Issues:** #12, #29, #193–#203, #205, #206, #187, #190 stay open for the combined test. New findings (P2): #207,
+  #208, #209, #210 (C-S should name each match's league).
+- **Paused at Mark's request:** the walkthrough of the issues waiting on his device check, starting at #192.
+- **Not done:** the combined T3 on the rig and the deploy (Mark's go-ahead); iPad/iPhone mock-ups (#186, #177);
+  production's 7 favourites (needs Mark's yes); PR #189 waits for Mark's read; #111 parked.
 
 ## Now
 
@@ -33,12 +32,10 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 2. **Every other team sport on Apple** (D-40): one page design on C-T (the server side is 0388–0389), after step 1;
    then sports without two teams.
 3. **The sport revamp (D-41), before more pages; deployed and tested as a whole once complete (Mark, 1 Nov):**
-   - Server: built 0390–0421 (#193–#199, #206, #12, #29's measurement); next #201–#203 server halves and #197's league
-     pages to D-43's layouts.
+   - Server: built 0390–0432 (#193–#203, #206, #12, #29's measurement, #52).
    - Web: #199 built (0418–0421); the web's sport pages are parked (D-43).
-   - Apple (next): #200 Settings › Sport with #201–#205, #187, #190 (brand), #18, #52 (contract fixtures from real
-     answers), and the Apple TV sport pages to D-43 (DESIGN.md › Apple TV sport pages); iPad/iPhone (#186, #177) after
-     the Apple TV device check.
+   - Apple: built 91–101 (#200 with #201–#205, #187, #190, #52; the Apple TV sport pages to D-43); iPad/iPhone
+     (#186, #177) after the Apple TV device check.
    - Combined test (T3 then T5): all of the above plus #20, #22–#24, #191, #192.
    The web brand fixes W1–W9 (PR #189's README) follow.
 3. Batch 8: #4 relay renewal (capture first, a device test with renewal on, released alone): waits for Mark.
