@@ -119,6 +119,19 @@ test('guide airings join a MotoGP session by session and place, and a Supercars 
     assert.equal(r.games[0].followed, true);
 });
 
+// 0405 (#196): Super Netball's eight clubs carry Champion Data's own badges (by squad id, checked 1 Nov 2026); a squad not
+// on the list keeps its monogram (no logo), never a guessed address.
+test('0405: Super Netball sides carry their club badge by squad id; an unknown squad has none', () => {
+    const games = feeds.championGames('Super Netball', json('championdata-12949-supernetball.json'), (u) => `cached:${u}`);
+    const logos = Object.fromEntries(games.flatMap(g => g.competitors).map(c => [c.name, c.logo]));
+    assert.equal(Object.keys(logos).length, 8);
+    for (const [name, logo] of Object.entries(logos)) assert.match(logo, /^cached:https:\/\/mc\.championdata\.com\/global\/images\/teams\/scoreboard\/\d+\.png$/, name);
+    assert.equal(logos['Melbourne Mavericks'], 'cached:https://mc.championdata.com/global/images/teams/scoreboard/9698.png');
+    const fx = json('championdata-12949-supernetball.json');
+    fx.fixture.match = [{ ...fx.fixture.match[0], homeSquadId: 99999, homeSquadName: 'New Club' }];
+    assert.equal(feeds.championGames('Super Netball', fx)[0].competitors[0].logo, null);
+});
+
 // 0404 (#206): MotoGP's two qualifying sessions are 25 minutes apart, so the session's number decides the join; Warm Up is a
 // session of its own. Every airing of the Qatar weekend joins its one card, and F1's session reading is unchanged.
 test('0404: a MotoGP airing joins only its own session of the whole weekend: Qualifying 1 and 2 apart, Warm Up recognised', () => {

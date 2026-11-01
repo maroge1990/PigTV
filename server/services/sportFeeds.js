@@ -8,8 +8,9 @@
  *   MotoGP          MotoGP's results API (api.motogp.pulselive.com): each MotoGP-class session of the events ahead
  *   Supercars       the calendar page of supercars.com: one card per event weekend (no session times are published)
  *
- * Logos: AFLW and NRLW sides are their clubs' (ESPN's AFL badges, NRL's own); netball's are added later; motorsport
- * follows riders and drivers, so none. Each answer is kept for a minute while a game is live, else 15 minutes.
+ * Logos: AFLW and NRLW sides are their clubs' (ESPN's AFL badges, NRL's own); Super Netball's are Champion Data's own, by
+ * squad id, for the eight clubs listed by hand (a new club keeps its monogram); motorsport follows riders and drivers,
+ * so none. Each answer is kept for a minute while a game is live, else 15 minutes.
  */
 const TIMEOUT_MS = 10000;
 const MAX_BYTES = 5 * 1024 * 1024; // 0403 (Codex round 1): the largest answer read (the Supercars page is ~150 KB)
@@ -113,9 +114,13 @@ async function aflw({ registerImage } = {}) {
 const CD = 'https://mc.championdata.com/data';
 const CD_STATE = { complete: 'finished', playing: 'live', live: 'live', inprogress: 'live', scheduled: 'scheduled', upcoming: 'scheduled',
     postponed: 'postponed', cancelled: 'cancelled' };
+// 0405: Super Netball's clubs by Champion Data squad id (Thunderbirds, Vixens, Swifts, Firebirds, Fever, Lightning, GIANTS,
+// Mavericks; checked 1 Nov 2026), whose match centre serves each badge by that id.
+const NETBALL_SQUADS = new Set([801, 804, 806, 807, 810, 8117, 8118, 9698]);
 const CHAMPION = {
-    NRLW: { season: /^(\d{4}) NRLW(?: Finals)?$/, badge: (nickname) => `https://www.nrl.com/.theme/${nickname.toLowerCase().replace(/[^a-z]+/g, '-')}/badge.png` },
-    'Super Netball': { season: /^(\d{4}) Super Netball(?: Finals)?$/, badge: null }
+    NRLW: { season: /^(\d{4}) NRLW(?: Finals)?$/, badge: (nickname) => nickname && `https://www.nrl.com/.theme/${nickname.toLowerCase().replace(/[^a-z]+/g, '-')}/badge.png` },
+    'Super Netball': { season: /^(\d{4}) Super Netball(?: Finals)?$/,
+        badge: (nickname, id) => NETBALL_SQUADS.has(id) ? `https://mc.championdata.com/global/images/teams/scoreboard/${id}.png` : null }
 };
 
 /** The newest season's competitions (regular and finals) whose names fit `re`. */
@@ -128,13 +133,14 @@ function championComps(json, re) {
 
 function championGames(league, json, registerImage = (u) => u) {
     const out = [];
-    const badge = CHAMPION[league].badge;
+    const { badge } = CHAMPION[league];
     for (const m of Array.isArray(json?.fixture?.match) ? json.fixture.match : []) {
         const start = ms(m?.utcStartTime);
         if (!m?.matchId || start === null || !str(m.homeSquadName) || !str(m.awaySquadName)) continue;
         const competitors = ['home', 'away'].map(h => {
             const nick = str(m[`${h}SquadNickname`]);
-            return side(m[`${h}SquadId`], str(m[`${h}SquadName`]), [nick, str(m[`${h}SquadShortCode`])], badge && nick ? registerImage(badge(nick)) : null);
+            const logo = badge(nick, m[`${h}SquadId`]);
+            return side(m[`${h}SquadId`], str(m[`${h}SquadName`]), [nick, str(m[`${h}SquadShortCode`])], logo ? registerImage(logo) : null);
         });
         const state = CD_STATE[String(m.matchStatus || '').toLowerCase()] || 'unknown';
         const scores = [m.homeSquadScore, m.awaySquadScore].map(score);

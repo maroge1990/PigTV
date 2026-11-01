@@ -805,5 +805,6 @@ account follows nothing; only the server's owner (its first admin account) takes
   the usual shape, ids `aflw:…`, `cd:…`, `motogp:…`, `supercars:…`. AFLW and NRLW carry scores once played (no live
   clock); a MotoGP card is a session as F1's; a Supercars card is the event weekend (`end` set, no sessions: the
   feed publishes none), `status` `unknown` while it is on. Motorsport follows riders and drivers: every session of a
-  followed name's series is `followed`. They have no C-T page.
+  followed name's series is `followed`. They have no C-T page. Since 0405 Super Netball's eight clubs carry a `logo`
+  (`/api/logo/…`) like any other side; a club without one shows its monogram.
 - A server before 0391 answers 404 to `/api/sports/follows` and `/catalog`: send them only with this flag.
