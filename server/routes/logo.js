@@ -21,8 +21,9 @@
  * cache lifetime and cache-version handling apply; each size has its own ETag.
  *
  * #201: `?size=3840` is a copy at most 3840 px wide (`<key>.3840`) for a 4K screen; an SVG original (ESPN's circuit
- * maps) is drawn to a transparent PNG 3840 px wide (services/svgRaster.js). A draw that fails is remembered for a
- * day (`<key>.3840.fail`) and answered 404, so a broken SVG is not drawn again on every request.
+ * maps) is drawn to a transparent PNG 3840 px wide (services/svgRaster.js). A draw that fails (a broken SVG, one
+ * too large to draw, or past the deadline) is remembered for a day (`<key>.3840.fail`) and answered 404, so it is not
+ * drawn again on every request; with too many draws waiting, 503 and nothing remembered.
  */
 const express = require('express');
 const router = express.Router();
@@ -278,11 +279,13 @@ async function serveSize(req, res, row, size) {
                 return res.status(404).json({ error: 'Could not draw the image' });
             }
             try {
-                const png = await require('../services/svgRaster').svgToPng(original, 3840);
+                // 0425: bounded (size, heap, deadline), one at a time, a second request for this key sharing the first.
+                const png = await require('../services/svgRaster').draw(row.key, original, 3840);
                 if (!isPng(png)) throw new Error('not a PNG');
                 fs.writeFileSync(file, png);
                 fs.rmSync(failed, { force: true });
             } catch (err) {
+                if (err.code === 'BUSY') return res.status(503).json({ error: 'Busy drawing other images; try again shortly' });
                 fs.writeFileSync(failed, '');
                 console.warn('[Logo] Could not draw an SVG:', err.message);
                 return res.status(404).json({ error: 'Could not draw the image' });

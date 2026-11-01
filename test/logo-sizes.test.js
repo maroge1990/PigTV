@@ -251,11 +251,58 @@ test('#201: a raster at ?size=3840 is never upscaled; a broken SVG is a 404, not
     assert.equal(first.status, 404);
     const marker = path.join(logosDir, `${keyForUrl(`${imageBase}/broken.svg`)}.3840.fail`);
     assert.ok(fs.existsSync(marker), 'the failure is remembered');
-    const raster = load('services/svgRaster'), real = raster.svgToPng;
+    const raster = load('services/svgRaster'), real = raster.draw;
     let draws = 0;
-    raster.svgToPng = async (...a) => { draws++; return real(...a); };
+    raster.draw = async (...a) => { draws++; return real(...a); };
     try {
         assert.equal((await get(`${p}?size=3840`)).status, 404);
         assert.equal(draws, 0, 'not drawn again within a day');
-    } finally { raster.svgToPng = real; }
+    } finally { raster.draw = real; }
+});
+
+// 0425 (0424 Codex round 1, high): any registered SVG, a provider's channel logo too, reaches the draw; only its width
+// was bounded, so width="1" height="100" asked for a 3840 x 384000 RGBA render (~5.9 GB) on the main thread.
+test('0425: an extreme aspect-ratio SVG is refused before rendering, fast, and the server keeps answering', async () => {
+    const raster = load('services/svgRaster');
+    // 1 x 2: 3840 x 7680, taller than 4320 (drawable, so the old code answered it 200 after rendering 118 MB of pixels).
+    const p = logo('tall.svg', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="2"><rect width="1" height="2"/></svg>'), 'image/svg+xml');
+    const began = Date.now();
+    const pending = get(`${p}?size=3840`);
+    const other = await get(`${logo('other.png', png(20, 10))}?size=full`);
+    assert.equal(other.status, 200, 'another request is answered meanwhile');
+    const tall = await pending;
+    assert.equal(tall.status, 404);
+    assert.ok(Date.now() - began < 5000, `took ${Date.now() - began} ms`);
+    assert.ok(fs.existsSync(path.join(logosDir, `${keyForUrl(`${imageBase}/tall.svg`)}.3840.fail`)), 'remembered as failed');
+    await assert.rejects(raster.draw('direct-tall', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="100"/>')), { code: 'TOO_LARGE' });
+});
+
+test('0425: a draw past the deadline is terminated and answers 404', async () => {
+    const raster = load('services/svgRaster');
+    const saved = raster.limits.timeoutMs;
+    raster.limits.timeoutMs = 1; // shorter than a worker takes to start
+    try {
+        const p = logo('slow.svg', TRACK, 'image/svg+xml');
+        assert.equal((await get(`${p}?size=3840`)).status, 404);
+        await assert.rejects(raster.draw('direct-slow', TRACK), { code: 'TIMEOUT' });
+    } finally { raster.limits.timeoutMs = saved; }
+});
+
+test('0425: two requests at once for the same key draw once; too many waiting is 503 and not remembered', async () => {
+    const raster = load('services/svgRaster');
+    const p = logo('twice.svg', TRACK, 'image/svg+xml');
+    const before = raster.stats.workers;
+    const [a, b] = await Promise.all([get(`${p}?size=3840`), get(`${p}?size=3840`)]);
+    assert.deepEqual([a.status, b.status], [200, 200]);
+    assert.ok(a.body.equals(b.body));
+    assert.equal(raster.stats.workers - before, 1, 'one draw');
+    const saved = raster.limits.maxQueue;
+    raster.limits.maxQueue = 1;
+    try {
+        const q = logo('queued.svg', TRACK, 'image/svg+xml'), r = logo('refused.svg', TRACK, 'image/svg+xml');
+        const [first, second] = await Promise.all([get(`${q}?size=3840`), (async () => { await new Promise(res => setTimeout(res, 50)); return get(`${r}?size=3840`); })()]);
+        assert.equal(first.status, 200);
+        assert.equal(second.status, 503);
+        assert.equal(fs.existsSync(path.join(logosDir, `${keyForUrl(`${imageBase}/refused.svg`)}.3840.fail`)), false);
+    } finally { raster.limits.maxQueue = saved; }
 });
