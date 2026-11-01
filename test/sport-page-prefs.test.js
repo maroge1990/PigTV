@@ -141,3 +141,17 @@ test('#199: GET /api/sports/names lists a league\'s teams or people for followin
     assert.equal((await call('/api/sports/names?league=Quidditch')).status, 400);
     assert.equal((await call('/api/sports/names?league=AFLW', null)).status, 401, 'signed in only');
 });
+
+// 0420 (0419 Codex round 1, medium): an empty or failed roster was asked of ESPN again on every request.
+test('0420: a league\'s roster is asked once at a time, and an empty answer is not asked again for an hour', async () => {
+    const fixtures = load('services/sportsFixtures');
+    const real = fixtures.rosterFor;
+    let asked = 0;
+    fixtures.rosterFor = async () => { asked++; await new Promise(r => setTimeout(r, 50)); return []; };
+    try {
+        await Promise.all([call('/api/sports/names?league=NBA'), call('/api/sports/names?league=NBA'), call('/api/sports/names?league=NBA')]);
+        assert.equal(asked, 1, 'one request for three at once');
+        assert.equal((await call('/api/sports/names?league=NBA')).status, 200);
+        assert.equal(asked, 1, 'an empty answer is kept a while');
+    } finally { fixtures.rosterFor = real; }
+});

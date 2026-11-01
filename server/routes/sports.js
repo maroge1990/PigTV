@@ -240,6 +240,23 @@ router.put('/follows', (req, res) => {
     try { res.json(require('../services/sportPagePrefs').setFollows(req.user.id, req.body)); }
     catch (err) { res.status(err.status === 400 ? 400 : 500).json({ error: err.status === 400 ? err.message : 'Could not save what you follow' }); }
 });
+// 0420 (0419 Codex round 1, medium): a league's roster is asked of ESPN once at a time, and an empty or failed answer is not
+// asked again for ROSTER_RETRY (rosterFor keeps only a roster that has teams).
+const ROSTER_RETRY = 60 * 60 * 1000;
+const rosterAsks = new Map(); // league -> { at, pending }
+async function rosterOnce(league, now = Date.now()) {
+    const fixtures = require('../services/sportsFixtures');
+    const kept = fixtures.teamsOf(league);
+    if (kept.length) return kept;
+    const ask = rosterAsks.get(league);
+    if (ask?.pending) return ask.pending;
+    if (ask && now - ask.at < ROSTER_RETRY) return [];
+    const pending = fixtures.rosterFor(league).catch(() => []).finally(() => { rosterAsks.set(league, { at: Date.now(), pending: null }); });
+    rosterAsks.set(league, { at: now, pending });
+    return pending;
+}
+router._rosterAsks = rosterAsks; // tests
+
 // #199 (C-U): the names that can be followed in one league, for Settings › Sport's search: its teams (ESPN's roster, read
 // once and kept; the International groups' stored roster) and whoever the collector's cards list (feed leagues' sides,
 // players, fighters and drivers). { league, kind: 'team'|'person', names } in name order.
@@ -251,7 +268,7 @@ router.get('/names', async (req, res) => {
         if (!sport) return res.status(400).json({ error: 'league must be a catalogue league (GET /api/sports/catalog)' });
         const fixtures = require('../services/sportsFixtures');
         const names = new Set();
-        const roster = fixtures.ESPN_LEAGUE_PATHS[league] && !catalog.isCricket(league) ? await fixtures.rosterFor(league) : fixtures.teamsOf(league);
+        const roster = fixtures.ESPN_LEAGUE_PATHS[league] && !catalog.isCricket(league) ? await rosterOnce(league) : fixtures.teamsOf(league);
         for (const t of roster) if (t?.displayName) names.add(t.displayName);
         for (const g of require('../services/sportsDashboard').store().catalog()) {
             if (g.league !== league) continue;

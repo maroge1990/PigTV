@@ -49,7 +49,7 @@ function panel(responses, { answer = true } = {}) {
         API: { request: async (method, url, body) => {
             calls.push([method, url, body]);
             const key = `${method} ${url.split('?')[0]}`;
-            const r = typeof responses[key] === 'function' ? responses[key](body, url) : responses[key];
+            const r = await (typeof responses[key] === 'function' ? responses[key](body, url) : responses[key]);
             if (r instanceof Error) throw r;
             return JSON.parse(JSON.stringify(r ?? {}));
         } } });
@@ -63,7 +63,7 @@ test('#199: the panel shows the account\'s sports, leagues under headings, names
         { sport: 'Tennis', leagues: ['ATP Tour'], teams: ['Jannik Sinner'] }] };
     const { settings, root } = panel({
         'GET /sports/catalog': { sports: catalog }, 'GET /sports/follows': follows,
-        'GET /recordings/rules': [{ id: 9, kind: 'team', sport: 'Football', match: 'Arsenal', createdByName: 'sam' }],
+        'GET /recordings/rules': [{ id: 9, kind: 'team', sport: 'Football', match: 'Arsenal', enabled: true, createdByName: 'sam' }],
         'GET /sports/suggestions': { suggestions: [{ sport: 'Football', team: 'Arsenal', league: 'Champions League', label: 'Champions League', start: Date.parse('2026-11-04T20:00Z') }] },
         'GET /sports/names': (b, url) => ({ names: url.includes('EPL') ? ['Arsenal', 'Chelsea'] : ['Jannik Sinner'] }) });
     await settings.load();
@@ -85,7 +85,7 @@ test('#199: changes save the whole list; unfollowing a team with "Record every g
         let stored = { spoilerFree: false, sports: [{ sport: 'Football', leagues: ['EPL', 'Champions League'], teams: ['Arsenal'] }] };
         const { settings, root, calls } = panel({
             'GET /sports/catalog': { sports: catalog }, 'GET /sports/follows': () => stored, 'PUT /sports/follows': (body) => (stored = plain(body)),
-            'GET /recordings/rules': [{ id: 9, kind: 'team', sport: 'Football', match: 'Arsenal' }], 'DELETE /recordings/rules/9': { success: true },
+            'GET /recordings/rules': [{ id: 9, kind: 'team', sport: 'Football', match: 'Arsenal', enabled: true }], 'DELETE /recordings/rules/9': { success: true },
             'GET /sports/suggestions': { suggestions: [] }, 'GET /sports/names': { names: ['Arsenal'] } }, { answer });
         await settings.load();
         const click = (data) => root.listeners.click({ target: { closest: () => ({ dataset: data }) } });
@@ -95,4 +95,41 @@ test('#199: changes save the whole list; unfollowing a team with "Record every g
         assert.deepEqual(stored.sports[0].teams, []);
         assert.equal(calls.some(c => c[0] === 'DELETE' && c[1] === '/recordings/rules/9'), !answer, answer ? 'OK keeps the rule' : 'Cancel stops it');
     }
+});
+
+// 0420 (0419 Codex round 1): two high, two medium.
+test('0420: two quick changes both land: each save is built from what the one before left (high)', async () => {
+    let stored = { spoilerFree: false, sports: [{ sport: 'Football', leagues: ['EPL'], teams: [] }] };
+    const pending = [];
+    const { settings, root } = panel({
+        'GET /sports/catalog': { sports: catalog }, 'GET /sports/follows': () => stored,
+        'PUT /sports/follows': (body) => new Promise(resolve => pending.push(() => resolve((stored = JSON.parse(JSON.stringify(body)))))),
+        'GET /recordings/rules': [], 'GET /sports/suggestions': { suggestions: [] }, 'GET /sports/names': { names: [] } });
+    await settings.load();
+    const change = (league) => root.listeners.change({ target: { dataset: { addLeague: 'Football' }, value: league } });
+    const a = change('FA Cup'), b = change('Champions League');
+    while (pending.length < 1) await new Promise(r => setImmediate(r));
+    pending.shift()();
+    while (pending.length < 1) await new Promise(r => setImmediate(r));
+    pending.shift()();
+    await Promise.all([a, b]);
+    assert.deepEqual(stored.sports[0].leagues, ['EPL', 'FA Cup', 'Champions League']);
+});
+
+test('0420: a rule that could not be stopped is said, never "Unfollowed" alone (high); a rule switched off shows off and is switched back on (medium)', async () => {
+    let stored = { spoilerFree: false, sports: [{ sport: 'Football', leagues: ['EPL'], teams: ['Arsenal', 'Chelsea'] }] };
+    const rules = [{ id: 9, kind: 'team', sport: 'Football', match: 'Arsenal', enabled: true }, { id: 10, kind: 'team', sport: 'Football', match: 'Chelsea', enabled: false }];
+    const { settings, root, calls } = panel({
+        'GET /sports/catalog': { sports: catalog }, 'GET /sports/follows': () => stored, 'PUT /sports/follows': (body) => (stored = JSON.parse(JSON.stringify(body))),
+        'GET /recordings/rules': rules, 'DELETE /recordings/rules/9': new Error('Server unavailable'), 'PUT /recordings/rules/10': { id: 10, enabled: true },
+        'GET /sports/suggestions': { suggestions: [] }, 'GET /sports/names': { names: ['Arsenal', 'Chelsea'] } }, { answer: false });
+    await settings.load();
+    assert.match(root.innerHTML, /data-record-every="Arsenal" data-sport="Football" checked>/);
+    assert.match(root.innerHTML, /data-record-every="Chelsea" data-sport="Football" > Record every game/, 'switched off in Recordings: shown off');
+    await root.listeners.change({ target: { dataset: { recordEvery: 'Chelsea', sport: 'Football' }, checked: true } });
+    assert.ok(calls.some(c => c[0] === 'PUT' && c[1] === '/recordings/rules/10' && c[2].enabled === true), 'switched back on, not a second rule');
+    assert.ok(!calls.some(c => c[0] === 'POST' && c[1] === '/recordings/rules'));
+    await root.listeners.click({ target: { closest: () => ({ dataset: { act: 'name-remove', sport: 'Football', name: 'Arsenal' } }) } });
+    assert.deepEqual(stored.sports[0].teams, ['Chelsea']);
+    assert.match(root.innerHTML, /Unfollowed Arsenal\. But every Arsenal game is still being recorded/);
 });

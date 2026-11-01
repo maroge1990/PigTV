@@ -113,6 +113,7 @@ class SportFollowSettings {
         this.rules = [];
         this.suggestions = [];
         this.message = '';
+        this.queue = Promise.resolve(); // 0420: one change at a time, each built from the state the last one left
         root?.addEventListener('click', (e) => this.onClick(e));
         root?.addEventListener('change', (e) => this.onChange(e));
     }
@@ -143,11 +144,20 @@ class SportFollowSettings {
         }));
     }
 
-    /** Save the whole list (PUT replaces it), then show what the server kept; on failure, what it has. */
-    async save(next, done = '') {
+    /**
+     * Save the whole list (PUT replaces it), then show what the server kept; on failure, what it has. 0420 (0419 Codex
+     * round 1, high): changes run one at a time, and `next` may be a function of the state when its turn comes, so two
+     * quick changes never build on the same old list.
+     */
+    save(next, done = '') {
+        const run = this.queue.then(() => this.saveNow(typeof next === 'function' ? next(this.state) : next, done));
+        this.queue = run.catch(() => {});
+        return run;
+    }
+    async saveNow(next, done) {
         try {
             this.state = await API.request('PUT', '/sports/follows', next);
-            this.message = done;
+            this.message = typeof done === 'function' ? done() : done;
             await Promise.all([this.loadNames(), this.loadSuggestions()]);
         } catch (err) {
             this.message = `Not saved: ${err.message}`;
@@ -158,8 +168,8 @@ class SportFollowSettings {
 
     async onChange(e) {
         const t = e.target;
-        if (t.id === 'sport-follow-spoilers') return this.save({ ...SportFollowModel.copy(this.state), spoilerFree: t.checked }, t.checked ? 'Scores are hidden.' : 'Scores are shown.');
-        if (t.dataset.addLeague !== undefined && t.value) return this.save(SportFollowModel.addLeague(this.state, t.dataset.addLeague, t.value), `Added ${this.label(t.value)}.`);
+        if (t.id === 'sport-follow-spoilers') { const on = t.checked; return this.save(s => ({ ...SportFollowModel.copy(s), spoilerFree: on }), on ? 'Scores are hidden.' : 'Scores are shown.'); }
+        if (t.dataset.addLeague !== undefined && t.value) { const sport = t.dataset.addLeague, league = t.value; return this.save(s => SportFollowModel.addLeague(s, sport, league), `Added ${this.label(league)}.`); }
         if (t.dataset.recordEvery !== undefined) return this.toggleRecording(t.dataset.sport, t.dataset.recordEvery, t.checked, t);
     }
 
@@ -170,37 +180,40 @@ class SportFollowSettings {
         const M = SportFollowModel;
         const index = this.state.sports.findIndex(s => s.sport === sport);
         if (act === 'sport-up' || act === 'sport-down') {
-            return this.save({ ...M.copy(this.state), sports: M.move(this.state.sports, index, act === 'sport-up' ? -1 : 1) });
+            return this.save(st => ({ ...M.copy(st), sports: M.move(st.sports, st.sports.findIndex(s => s.sport === sport), act === 'sport-up' ? -1 : 1) }));
         }
         if (act === 'league-up' || act === 'league-down') {
-            const next = M.copy(this.state), s = next.sports[index];
-            s.leagues = M.move(s.leagues, s.leagues.indexOf(league), act === 'league-up' ? -1 : 1);
-            return this.save(next);
+            return this.save(st => {
+                const next = M.copy(st), s = next.sports.find(x => x.sport === sport);
+                if (s) s.leagues = M.move(s.leagues, s.leagues.indexOf(league), act === 'league-up' ? -1 : 1);
+                return next;
+            });
         }
         if (act === 'league-remove') {
             const { state, orphans, error } = M.removeLeague(this.state, sport, league, this.namesOf);
             if (error) { this.message = error; return this.render(); }
             if (orphans.length && !confirm(`${orphans.join(', ')} ${orphans.length === 1 ? 'plays' : 'play'} in no other league you follow in ${sport}, so ${orphans.length === 1 ? 'it' : 'they'} will be unfollowed too. Remove ${this.label(league)}?`)) return;
-            await this.forgetRules(sport, orphans);
-            return this.save(M.removeNames(state, sport, orphans), `Removed ${this.label(league)}.`);
+            const left = await this.forgetRules(sport, orphans);
+            return this.save(st => M.removeNames(M.removeLeague(st, sport, league).state, sport, orphans), this.after(`Removed ${this.label(league)}.`, left));
         }
         if (act === 'sport-add') {
             const pick = this.root.querySelector('#sport-follow-add');
-            if (pick?.value) return this.save(M.addSport(this.state, pick.value, this.catalog), `Following ${pick.value}. Choose its leagues below.`);
+            const value = pick?.value;
+            if (value) return this.save(st => M.addSport(st, value, this.catalog), `Following ${value}. Choose its leagues below.`);
             return;
         }
         if (act === 'sport-remove') {
             const entry = this.state.sports[index];
             if (!confirm(`Stop following ${sport}${entry.teams.length ? ` and ${entry.teams.join(', ')}` : ''}?`)) return;
-            await this.forgetRules(sport, entry.teams);
-            return this.save({ ...M.copy(this.state), sports: this.state.sports.filter(s => s.sport !== sport) }, `Stopped following ${sport}.`);
+            const left = await this.forgetRules(sport, entry.teams);
+            return this.save(st => ({ ...M.copy(st), sports: st.sports.filter(s => s.sport !== sport) }), this.after(`Stopped following ${sport}.`, left));
         }
         if (act === 'name-add') return this.addName(sport);
         if (act === 'name-remove') {
-            await this.forgetRules(sport, [name]);
-            return this.save(M.removeNames(this.state, sport, [name]), `Unfollowed ${name}.`);
+            const left = await this.forgetRules(sport, [name]);
+            return this.save(st => M.removeNames(st, sport, [name]), this.after(`Unfollowed ${name}.`, left));
         }
-        if (act === 'suggest-add') return this.save(M.addLeague(this.state, sport, league), `Added ${this.label(league)}.`);
+        if (act === 'suggest-add') return this.save(st => M.addLeague(st, sport, league), `Added ${this.label(league)}.`);
         if (act === 'suggest-no') {
             try { await API.request('POST', '/sports/suggestions/decline', { team: name, league }); } catch (err) { this.message = `Not saved: ${err.message}`; }
             await this.loadSuggestions();
@@ -215,28 +228,37 @@ class SportFollowSettings {
         const offered = SportFollowModel.offered(entry, this.namesOf);
         const known = offered.find(n => SportFollowModel.same(n, value));
         if (offered.length && !known) { this.message = `${value.trim() || 'That'} is not in the leagues you follow in ${sport}.`; return this.render(); }
-        const { state, error } = SportFollowModel.addName(this.state, sport, known || value);
+        const { error } = SportFollowModel.addName(this.state, sport, known || value);
         if (error) { this.message = error; return this.render(); }
-        return this.save(state, `Following ${known || value.trim()}.`);
+        return this.save(st => SportFollowModel.addName(st, sport, known || value).state, `Following ${known || value.trim()}.`);
     }
 
-    /** D-41 point 11: unfollowing a team asks whether to keep its "Record every game"; not kept, it is deleted. */
+    /**
+     * D-41 point 11: unfollowing a team asks whether to keep its "Record every game"; not kept, it is deleted. -> the
+     * names whose rule could not be stopped (0420, 0419 Codex round 1, high: said, never hidden behind "Unfollowed").
+     */
     async forgetRules(sport, names) {
+        const failed = [];
         for (const name of names) {
             const rule = SportFollowModel.ruleFor(this.rules, sport, name);
-            if (!rule || confirm(`Keep recording every ${name} game? (Cancel stops it; recordings already made stay.)`)) continue;
-            try { await API.request('DELETE', `/recordings/rules/${rule.id}`); } catch (err) { this.message = `Could not stop it: ${err.message}`; }
+            if (!rule || !rule.enabled || confirm(`Keep recording every ${name} game? (Cancel stops it; recordings already made stay.)`)) continue;
+            try { await API.request('DELETE', `/recordings/rules/${rule.id}`); } catch (err) { failed.push(name); }
         }
         await this.loadRules();
+        return failed;
+    }
+
+    /** A save's message, with any rule that could not be stopped. */
+    after(done, failed) {
+        return failed.length ? `${done} But every ${failed.join(', ')} game is still being recorded: stop it in Recordings › Recording rules.` : done;
     }
 
     async toggleRecording(sport, name, on, box) {
         try {
-            if (on) await API.request('POST', '/recordings/rules', { kind: 'team', match: name, sport });
-            else {
-                const rule = SportFollowModel.ruleFor(this.rules, sport, name);
-                if (rule && confirm(`Stop recording every ${name} game? Recordings already made stay.`)) await API.request('DELETE', `/recordings/rules/${rule.id}`);
-            }
+            const rule = SportFollowModel.ruleFor(this.rules, sport, name);
+            // 0420 (0419 Codex round 1, medium): a rule switched off in Recordings is switched back on, keeping its settings
+            if (on) await (rule ? API.request('PUT', `/recordings/rules/${rule.id}`, { enabled: true }) : API.request('POST', '/recordings/rules', { kind: 'team', match: name, sport }));
+            else if (rule && confirm(`Stop recording every ${name} game? Recordings already made stay.`)) await API.request('DELETE', `/recordings/rules/${rule.id}`);
             this.message = on ? `Recording every ${name} game.` : '';
         } catch (err) {
             this.message = `Not saved: ${err.message}`;
@@ -280,7 +302,7 @@ class SportFollowSettings {
             const names = s.teams.map(t => {
                 const rule = M.ruleFor(this.rules, s.sport, t);
                 const by = rule?.createdByName && rule.createdByName !== me ? ` (set by ${e(rule.createdByName)})` : '';
-                const record = person ? '' : `<label class="sport-follow-record"><input type="checkbox" data-record-every="${e(t)}" data-sport="${e(s.sport)}" ${rule ? 'checked' : ''}> Record every game${by}</label>`;
+                const record = person ? '' : `<label class="sport-follow-record"><input type="checkbox" data-record-every="${e(t)}" data-sport="${e(s.sport)}" ${rule?.enabled ? 'checked' : ''}> Record every game${by}</label>`;
                 return `<li class="sport-follow-row"><span>${e(t)}</span><span class="sport-follow-actions">${record}
                     <button class="btn btn-sm btn-secondary" data-act="name-remove" data-sport="${e(s.sport)}" data-name="${e(t)}" aria-label="Unfollow ${e(t)}">✕</button></span></li>`;
             }).join('');
