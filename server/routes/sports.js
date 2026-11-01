@@ -270,6 +270,14 @@ router.get('/names', async (req, res) => {
         const names = new Set();
         const roster = fixtures.ESPN_LEAGUE_PATHS[league] && !catalog.isCricket(league) ? await rosterOnce(league) : fixtures.teamsOf(league);
         for (const t of roster) if (t?.displayName) names.add(t.displayName);
+        // #202: F1's whole grid from its page (kept there; fetched once if cold), not only the drivers the collected
+        // sessions list (a session before it runs lists none).
+        if (league === 'F1' && fixtures.enabled()) {
+            try {
+                const page = await require('../services/sportPageF1').page(Date.now(), { registerImage: require('../services/logoCache').registerLogo });
+                for (const d of page.drivers || []) if (d?.name) names.add(d.name);
+            } catch (err) { console.warn('[Sports] F1 grid for the names:', err.message); }
+        }
         for (const g of require('../services/sportsDashboard').store().catalog()) {
             if (g.league !== league) continue;
             for (const c of g.competitors || []) if (c.name) names.add(c.name);

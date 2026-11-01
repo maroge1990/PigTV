@@ -839,7 +839,8 @@ account follows nothing; only the server's owner (its first admin account) takes
   what Settings › Sport offers to follow in one catalogue league, in name order: its teams (ESPN's roster; the
   International groups' stored one) and whoever the collected fixtures list (feed leagues' sides, players, fighters,
   drivers). `kind` is `team`, or `person` for Tennis, Golf, Combat and Motorsport. 400 outside the catalogue. A name
-  may be missing until a league's fixtures have been collected once (someone follows it).
+  may be missing until a league's fixtures have been collected once (someone follows it). Since 0422 (#202) `F1` also
+  lists the F1 page's whole grid (C-P `drivers`).
 - **Suggestions (0413, #198, D-41 point 2).** `GET /api/sports/suggestions` (any user) → `{ suggestions: [{ sport, team,
   league, label, start }] }`: for each followed team, the catalogue leagues of its sport it has a fixture in (`start`
   its first there) that the account does not follow and has not declined, in the account's order. Ask when a team is

@@ -3,7 +3,8 @@
  *
  * What the page shows (PRODUCT.md › Sport, the F1 mock-up reviewed 30 Oct): the current race weekend (else the next
  * one) with its circuit and every session, the last race's top ten (a starting grid during a weekend once qualifying
- * is done), and the top ten of both championships. Sessions carry PigTV's own C-I channels for their airing.
+ * is done), the top ten of both championships, and the whole grid to follow a driver from (#202). Sessions carry
+ * PigTV's own C-I channels for their airing.
  *
  * Sources (verified 30 Oct 2026, no key):
  *   site …/racing/f1/scoreboard                 the season calendar (round order, event ids) and the next event
@@ -161,6 +162,25 @@ function standingsOf(json, teams) {
     return { drivers, constructors };
 }
 
+/**
+ * #202 (C-P `drivers`): the whole grid, every car in the newest finished session (the one the team map is for), as
+ * { name, team, teamColor } in a neutral order (by team, then name; an unknown team last), never the standings' order
+ * (#164). Null when no session has a finishing order.
+ */
+function gridOf(session, teams) {
+    const seen = new Set();
+    const out = [];
+    for (const x of session?.order || []) {
+        const name = str(x?.athlete?.displayName);
+        if (!name || seen.has(name.toLowerCase())) continue;
+        seen.add(name.toLowerCase());
+        const t = teams.get(String(x.id)) || null;
+        out.push({ name, team: t?.team ?? null, teamColor: t?.teamColor ?? null });
+    }
+    if (!out.length) return null;
+    return out.sort((a, b) => (a.team === null) - (b.team === null) || (a.team || '').localeCompare(b.team || '') || a.name.localeCompare(b.name));
+}
+
 /** #158: points only as the feed gives them (the scoreboard's results carry none today: null), never a guessed scale. */
 function rowsOf(session, teams) {
     return session.order.slice(0, 10).map((x, i) => {
@@ -264,7 +284,8 @@ async function build(now, { registerImage = (u) => u } = {}) {
                 channels: [] }))
         },
         results,
-        standings
+        standings,
+        drivers: teamSource ? gridOf(teamSource.session, teams) : null
     };
 }
 
@@ -304,4 +325,4 @@ async function espnPart(now, deps) {
 /** Tests: forget everything. */
 function reset() { cache = null; refreshing = null; generation++; teamsByCompetition.clear(); }
 
-module.exports = { page, build, reset, fetcher, tuning, TUNING, calendarOf, weekendIndex, sessionsOf, channelsForSessions };
+module.exports = { page, build, reset, fetcher, tuning, TUNING, calendarOf, weekendIndex, sessionsOf, channelsForSessions, gridOf };

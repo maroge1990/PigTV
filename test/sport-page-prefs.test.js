@@ -142,6 +142,24 @@ test('#199: GET /api/sports/names lists a league\'s teams or people for followin
     assert.equal((await call('/api/sports/names?league=AFLW', null)).status, 401, 'signed in only');
 });
 
+// #202: F1's names were only the drivers the collected sessions list; a session before it runs lists none.
+test('#202: GET /api/sports/names?league=F1 lists the F1 page\'s whole grid', async () => {
+    const fixtures = load('services/sportsFixtures'), f1 = load('services/sportPageF1');
+    const realRoster = fixtures.rosterFor, realPage = f1.page;
+    const grid = Array.from({ length: 22 }, (_, i) => ({ name: `Driver ${String(i + 1).padStart(2, '0')}`, team: `Team ${i % 11}`, teamColor: null }));
+    fixtures.rosterFor = async () => [];
+    f1.page = async (now, deps) => { assert.equal(typeof deps.registerImage, 'function', 'the shared page keeps its maps in the logo cache');
+        return { available: true, drivers: grid }; };
+    try {
+        const got = await call('/api/sports/names?league=F1');
+        assert.equal(got.status, 200);
+        assert.equal(got.body.kind, 'person');
+        assert.deepEqual(got.body.names, grid.map(d => d.name).sort());
+        f1.page = async () => { throw new Error('ESPN down'); };
+        assert.equal((await call('/api/sports/names?league=F1')).status, 200, 'without the grid, the names the cards list');
+    } finally { fixtures.rosterFor = realRoster; f1.page = realPage; }
+});
+
 // 0420 (0419 Codex round 1, medium): an empty or failed roster was asked of ESPN again on every request.
 test('0420: a league\'s roster is asked once at a time, and an empty answer is not asked again for an hour', async () => {
     const fixtures = load('services/sportsFixtures');

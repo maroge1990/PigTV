@@ -161,3 +161,47 @@ test('#161: a failed weekend fetch keeps the last good page; cold, it is not ava
     assert.deepEqual(await f1.page(NOW, { registerImage }), { available: false }, 'cold: not an empty weekend');
     f1.fetcher.get = real;
 });
+
+// #202: the Follow a driver list held only the top ten (standings and results); the page now sends the whole grid.
+test('#202: the whole grid of 22, with teams, in a neutral order (team, then name), from a 10-row standings sample', async () => {
+    const grid = structuredClone(answers);
+    grid.standings.children.forEach(c => { c.standings.entries = c.standings.entries.slice(0, 10); });
+    const race = grid['/scoreboard?dates=20261022-20261026'].events[0].competitions.find(c => c.type.abbreviation === 'Race');
+    const extra = [['Zed Rookie', 'Haas', 'B6BABD'], ['Alex Backmarker', 'Sauber', '52E252'], ['Mia Midfield', 'Haas', 'B6BABD'],
+        ['Noah Ninth', 'Williams', '64C4FF'], ['Olly Other', 'Alpine', '0093CC'], ['Pat Pace', 'Sauber', '52E252'],
+        ['Quinn Quick', 'Williams', '64C4FF'], ['Ray Rapid', 'Alpine', '0093CC'], ['Sam Slow', 'Racing Bulls', '6692FF'],
+        ['Tia Tenth', 'Racing Bulls', '6692FF']];
+    extra.forEach(([name, team, color], i) => {
+        const id = String(9000 + i);
+        race.competitors.push({ id, order: race.competitors.length + 1, winner: false, athlete: { displayName: name } });
+        grid[`core/events/600057446/competitions/401839122/competitors/${id}`] = { id, vehicle: { manufacturer: team, teamColor: color } };
+    });
+    assert.equal(race.competitors.length, 22);
+    f1.fetcher.get = async (url) => {
+        const u = new URL(url), p = u.pathname;
+        const key = p.endsWith('/racing/f1/scoreboard') ? (u.searchParams.get('dates') ? `/scoreboard?dates=${u.searchParams.get('dates')}` : '/scoreboard')
+            : p.endsWith('/racing/f1/standings') ? 'standings' : `core${p.split('/leagues/f1')[1]}`;
+        return key in grid ? { ok: true, json: grid[key] } : { ok: false, error: 'HTTP 404' };
+    };
+    const page = await f1.page(NOW, { registerImage });
+    assert.equal(page.standings.drivers.length, 10);
+    assert.equal(page.drivers.length, 22, 'every car on the grid, not the top ten');
+    assert.ok(page.drivers.every(d => Object.keys(d).join() === 'name,team,teamColor'));
+    assert.ok(page.drivers.every(d => d.team && d.teamColor), 'each with its team');
+    for (const d of page.standings.drivers) assert.ok(page.drivers.some(x => x.name === d.name), d.name);
+    for (const [name] of extra) assert.ok(page.drivers.some(x => x.name === name), name);
+    const key = (d) => `${d.team}\u0000${d.name}`;
+    assert.deepEqual(page.drivers.map(key), [...page.drivers].sort((a, b) => a.team.localeCompare(b.team) || a.name.localeCompare(b.name)).map(key),
+        'by team, then name');
+    assert.notDeepEqual(page.drivers.slice(0, 10).map(d => d.name), page.standings.drivers.map(d => d.name), 'not the standings order (#164)');
+    assert.deepEqual(page.drivers.filter(d => d.team === 'Haas').map(d => d.name), ['Mia Midfield', 'Zed Rookie']);
+});
+
+test('#202: the grid is null when no session has finished; an unknown team sorts last', async () => {
+    assert.equal(f1.gridOf(null, new Map()), null);
+    assert.equal(f1.gridOf({ order: [] }, new Map()), null);
+    const order = [{ id: '1', athlete: { displayName: 'B Driver' } }, { id: '2', athlete: { displayName: 'A Driver' } }, { id: '3', athlete: { displayName: 'C Driver' } }];
+    assert.deepEqual(f1.gridOf({ order }, new Map([['1', { team: 'Mercedes', teamColor: '00D2BE' }], ['3', { team: 'Alpine', teamColor: null }]])), [
+        { name: 'C Driver', team: 'Alpine', teamColor: null }, { name: 'B Driver', team: 'Mercedes', teamColor: '00D2BE' },
+        { name: 'A Driver', team: null, teamColor: null }]);
+});
