@@ -10,6 +10,11 @@
 #   scripts/unraid-rig.sh sync     copy the working tree to the box (no .git, node_modules or ignored files)
 #   scripts/unraid-rig.sh up       sync, (re)start the fake provider(s) and the staging server, seed and re-sync it
 #   scripts/unraid-rig.sh check    staging smoke test: channels, guide, sport events, one channel to HLS
+#   scripts/unraid-rig.sh measure-collector [minutes]   #29: follow every catalogue league on staging, play one channel
+#                                  over HLS for that long (default 10) timing each playlist and segment, sample the event
+#                                  loop and the sport collector's counters each minute, and time one Grand Slam's ESPN
+#                                  answer (parse and normalise). Timings and sizes only. Run once with the collector on
+#                                  and once off (PIGTV_RIG_SPORTS_DASHBOARD=0 up) to compare.
 #   scripts/unraid-rig.sh status   what is running, resource use, disk, production's uptime and image (read only)
 #   scripts/unraid-rig.sh test     sync, then npm test (PIGTV_SKIP_PERF=1) and verify-build.sh in a throwaway runner
 #   scripts/unraid-rig.sh down     stop and remove the rig's containers (data kept)
@@ -25,6 +30,7 @@
 #   PIGTV_RIG_CREDS       local file for the staging admin made by `up` (~/.local/state/pigtv-rig/staging-admin.env).
 #                         A throwaway login for the staging server only, generated on first `up`; keep it out of the repo.
 #   PIGTV_RIG_FAKE_FLAGS  extra fake-provider flags (default: a CPU-frugal picture)
+#   PIGTV_RIG_SPORTS_DASHBOARD  0 turns staging's sport score collector off (#29's comparison); default on, as the server's.
 #   PIGTV_RIG_SPORT_FIXTURES  1 lets staging fetch ESPN's free sport feeds (the sport pages, C-P); default 0. ESPN is
 #                         not a provider: no provider connection is opened either way.
 #
@@ -127,7 +133,7 @@ cmd_up() {
     rsh "set -e; mkdir -p '$ROOT/staging/data' '$ROOT/staging/recordings'
          chown $RUNTIME_UID '$ROOT/staging/data' '$ROOT/staging/recordings'
          docker run -d --name $STAGING ${CAPS[*]} --cpus 3 --memory 4g -p $PORT:3000 \
-           -e TZ=$TZ_RIG -e PUID=99 -e PGID=100 -e NODE_ENV=production -e PIGTV_SPORT_FIXTURES=${PIGTV_RIG_SPORT_FIXTURES:-0} \
+           -e TZ=$TZ_RIG -e PUID=99 -e PGID=100 -e NODE_ENV=production -e PIGTV_SPORT_FIXTURES=${PIGTV_RIG_SPORT_FIXTURES:-0} -e PIGTV_SPORTS_DASHBOARD=${PIGTV_RIG_SPORTS_DASHBOARD:-} \
            -e PIGTV_COMMIT='rig-$rev' -e PIGTV_BUILT_AT=\$(date -u +%FT%TZ) \
            -v '$SRC/server':/app/server:ro -v '$SRC/public':/app/public:ro \
            -v '$SRC/scripts':/app/scripts:ro -v '$SRC/docker':/app/docker:ro \
@@ -142,12 +148,13 @@ cmd_up() {
 
 # Runs a Node program inside the staging container against http://localhost:3000 only. The program
 # text (with the throwaway admin login in it) goes over stdin: nothing is written on the box.
-staging_node() { # mode
-    local user pass
+staging_node() { # mode [minutes]
+    local user pass minutes="${2:-10}"
+    [[ "$minutes" =~ ^[0-9]{1,3}$ ]] || die "minutes must be a number"
     # shellcheck disable=SC1090
     . "$CREDS"
     user="$PIGTV_RIG_ADMIN_USER"; pass="$PIGTV_RIG_ADMIN_PASS"
-    { printf 'const CFG = {"mode":"%s","user":"%s","pass":"%s","fakes":[%s]};\n' "$1" "$user" "$pass" "$(fakes_json)"
+    { printf 'const CFG = {"mode":"%s","user":"%s","pass":"%s","minutes":%s,"fakes":[%s]};\n' "$1" "$user" "$pass" "$minutes" "$(fakes_json)"
       cat <<'JS'
 const BASE = 'http://localhost:3000';
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -267,7 +274,71 @@ async function check() {
     if (fail.length) { console.log(`   CHECK FAILED: ${fail.join('; ')}`); process.exit(1); }
     console.log('   check passed');
 }
-(CFG.mode === 'seed' ? seed() : check()).catch(e => { console.error(`   ${e.message}`); process.exit(1); });
+// #29: the sport score collector's cost while HLS is served. Timings and sizes only (no URL, token or payload printed).
+async function measure() {
+    await waitHealthy();
+    await signIn();
+    const stats = (list) => {
+        const s = [...list].sort((a, b) => a - b), at = (p) => s.length ? Math.round(s[Math.min(s.length - 1, Math.ceil(p / 100 * s.length) - 1)]) : null;
+        return { n: s.length, p50: at(50), p95: at(95), p99: at(99), max: s.length ? Math.round(s[s.length - 1]) : null };
+    };
+    const { sports } = await api('GET', '/api/sports/catalog');
+    await api('PUT', '/api/sports/follows', { sports: sports.map(s => ({ sport: s.sport, leagues: s.leagues.map(l => l.league) })) });
+    const status0 = await api('GET', '/api/status');
+    console.log(`   version ${(await api('GET', '/api/version')).display}; following ${sports.reduce((n, s) => n + s.leagues.length, 0)} leagues;`
+        + ` collector ${status0.sportCollector === undefined ? 'not in this build' : status0.sportCollector.ticks ? 'on' : 'no ticks yet'}`);
+    // the worst single answer: a Grand Slam's (25 Jan 2026, the Australian Open in ATP's feed)
+    try {
+        const t0 = performance.now();
+        const r = await fetch('https://site.api.espn.com/apis/site/v2/sports/tennis/atp/scoreboard?dates=20260125');
+        const text = await r.text();
+        const t1 = performance.now(), json = JSON.parse(text), t2 = performance.now();
+        let normalizeMs = null;
+        try { const ind = require('/app/server/services/sportIndividual'); const t3 = performance.now(); ind.normalize(json, 'Grand Slams', 'tennis/atp'); normalizeMs = Math.round(performance.now() - t3); } catch { /* an older build */ }
+        console.log(`   a Grand Slam's answer: ${Math.round(text.length / 1024)} KB, fetched in ${Math.round(t1 - t0)} ms, parse ${Math.round(t2 - t1)} ms, normalise ${normalizeMs ?? '-'} ms (in a separate process)`);
+    } catch (e) { console.log(`   the Grand Slam answer could not be timed: ${e.message}`); }
+    const ch = await api('GET', '/api/library/channels?limit=200');
+    const pick = ch.channels.find(c => /BBC ONE/.test(c.name)) || ch.channels.find(c => !/TEST|#/.test(c.name));
+    const d = await api('POST', '/api/playback/resolve', { sourceId: pick.sourceId, channelId: pick.id, capabilities: { hls: true, fmp4: true, heaac: true, segmentedDelivery: true } });
+    const signed = (u, base) => { const x = new URL(u, base); if (!x.searchParams.has('token')) x.searchParams.set('token', token); return x; };
+    let playlist = signed(d.playbackURL || d.url, BASE);
+    const timed = async (u) => { const t = performance.now(); const r = await fetch(u); const body = await r.arrayBuffer(); return { ms: performance.now() - t, ok: r.ok, bytes: body.byteLength, text: Buffer.from(body).toString('utf8') }; };
+    const first = await timed(playlist);
+    const variant = first.text.split('\n').find(l => l && !l.startsWith('#'));
+    if (variant && /\.m3u8/.test(variant)) playlist = signed(variant, playlist);
+    const lists = [], segments = [], loop = [], collector = [];
+    const listed = (await timed(playlist)).text.split('\n').filter(x => x && !x.startsWith('#'));
+    const seen = new Set(listed.slice(0, -1)); // start at the live edge, as a player does
+    let failures = 0;
+    const end = Date.now() + CFG.minutes * 60000;
+    let nextSample = Date.now() + 60000;
+    console.log(`   playing one channel over HLS for ${CFG.minutes} min...`);
+    while (Date.now() < end) {
+        const l = await timed(playlist);
+        lists.push(l.ms);
+        if (!l.ok) failures++;
+        for (const seg of l.text.split('\n').filter(x => x && !x.startsWith('#'))) {
+            if (seen.has(seg)) continue;
+            seen.add(seg);
+            const s = await timed(signed(seg, playlist));
+            segments.push(s.ms);
+            if (!s.ok || !s.bytes) failures++;
+        }
+        if (Date.now() >= nextSample) {
+            nextSample += 60000;
+            const st = await api('GET', '/api/status');
+            if (st.loopDelay?.lastMinute) loop.push(st.loopDelay.lastMinute);
+            if (st.sportCollector?.last) collector.push(st.sportCollector);
+        }
+        await sleep(1000);
+    }
+    if (d.sessionId) await api('DELETE', `/api/playback/${d.sessionId}`).catch(() => {});
+    const last = collector[collector.length - 1];
+    console.log(JSON.stringify({ minutes: CFG.minutes, playlistMs: stats(lists), segmentMs: stats(segments), failures,
+        loopLastMinute: { p99: stats(loop.map(x => x.p99)), max: stats(loop.map(x => x.max)) },
+        collector: last ? { ticks: last.ticks, p95: last.p95, max: last.max } : null }));
+}
+(CFG.mode === 'seed' ? seed() : CFG.mode === 'measure' ? measure() : check()).catch(e => { console.error(`   ${e.message}`); process.exit(1); });
 JS
     } | rsh "docker exec -i -u $RUNTIME_UID $STAGING node -"
 }
@@ -359,6 +430,7 @@ case "${1:-}" in
     sync) cmd_sync ;;
     up) cmd_up ;;
     check) cmd_check ;;
+    measure-collector) [ -f "$CREDS" ] || die "no $CREDS: run '$0 up' first"; say "measure the sport collector (#29)"; staging_node measure "${2:-10}" ;;
     status) cmd_status ;;
     test) cmd_test ;;
     down) cmd_down ;;
