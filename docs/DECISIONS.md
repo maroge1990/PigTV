@@ -441,3 +441,27 @@ reviews.
      three mock-up options for Mark before any build; Apple TV and iPad keep the full page.
   7. **"Record every game" recordings are kept** until deleted by hand; retention stays with #40.
 - **Consequence:** the issues named; ROADMAP › Now; PRODUCT.md › Sport › Following.
+
+### D-43. Apple TV sport pages: one banner everywhere, and a layout per sport (1 Nov 2026)
+
+- **Context:** with tennis, golf, UFC, IndyCar and NASCAR cards built (0406–0408, #197) but no pages, Mark asked for
+  three to five mock-up options for every kind of sport page, the existing F1, NFL and Cricket pages included, so the
+  whole platform feels like one experience: Apple TV first, then iPad, then iPhone. That reverses D-40 point 1. The
+  options are on the canvas "PigTV Sport mock-ups" (rounds 1–3); each draws only what the sport's feed supplies.
+- **Choice (Mark, 1 Nov):**
+  1. **Bespoke mock-ups again** for every page type, before the device check D-40 point 1 waited for (supersedes it).
+  2. **One banner on the front page and every sport page:** the hero and a list in one header (follows on the front
+     page, the sport's leagues on a sport page). It grew out of a league banner Mark liked (shell C), merged with the
+     front page's hero so the two never look alike but mean different things.
+  3. **The list shows four items and scrolls in place;** it keeps the account's order, with anything playing moved to
+     the top (as D-41 point 10 does for leagues), replacing "live first, then soonest".
+  4. **A sport with one league, or only one picked, gets a full-width banner** with no list.
+  5. **The front page loses its sport tiles** (D-39's tiles); rail headers open the sport pages.
+  6. **Per sport:** motorsport, fixture leagues, cricket and UFC take the lead-and-columns layout (DESIGN.md › Apple TV
+     sport pages); tennis takes rails, its Your players rail only when a followed player plays; golf takes the
+     leaderboard with your players' cards and Also this week beside it, no rounds column.
+- **Choice (Claude, recorded):** a sport page's hero follows C-R's order within that sport, and with nothing live or next
+  for you shows the league's next game; followed teams keep the pink tint and star; tennis set scores and golf round
+  strokes are confirmed on a live event before the build relies on them.
+- **Consequence:** DESIGN.md › Sport pages › Apple TV sport pages; C-R's follow order and tiles change through
+  `docs/CLIENT-CONTRACT.md` when the build lands; iPad mock-ups next, then iPhone (D-42 point 6).

@@ -95,10 +95,49 @@ From the F1 mock-up review (30 Oct), for the sport rebuild (#21):
   three); a rail per followed sport below, live cards first. Team badges beside every score; the monogram disc only as
   a fallback. Spoiler-free keeps neutral progress (Q4, 2nd session) and hides scores, situations and results; without
   the scores feed the page says so once and shows the guide's channels and start times. Never invent a clock, a leader
-  or 0–0.
+  or 0–0. Since 1 Nov the tiles are gone and the hero band is the banner below (D-43).
 - Channel quality labels: today the server reads UHD / HD / SD from the channel's name (FHD counts as HD). The build
   should distinguish FHD from HD and, where a channel has been played, confirm the label from the measured stream
   (resolution, frame rate, HDR), never by probing channels in the background.
+
+### Apple TV sport pages, chosen 1 Nov (D-43)
+
+Mark chose these from the canvas "PigTV Sport mock-ups" (rounds 1–3, 1 Nov). They supersede the page layouts above
+where they differ; iPad comes next, then iPhone (D-42 point 6), and the web is parked.
+
+- **One banner on every page.** The front page and every sport page open with the same banner, 250 pt high, under the
+  app's tabs: the hero on the left (kicker, title, one line, Watch / Record or Remind me, over the faded badge or the
+  circuit map) and a list on the right inside the same banner, split by a thin line. The front page lists your follows;
+  a sport page lists that sport's leagues. Selecting an item flips the hero (front page) or the league (sport page).
+- **The hero:** a follow live, else the sport's league live, else your next game (C-R's order), on a sport page within
+  that sport. With nothing live or next for you it shows the league's next game with Remind me, never an empty banner.
+- **The list:** four items, then a "5 more · …" line; moving down scrolls the list inside the banner, which never grows.
+  Items are in your order of sports and leagues, and anything playing now moves to the top until it ends (D-41 point
+  10). This replaces the front page's "live first, then soonest".
+- **One league:** when a sport has one league (NFL, UFC) or you picked only one (Motorsport with only F1), the banner
+  runs full width with no list and no line, and the badge or map moves to the right.
+- **Front page:** no sport tiles. Each rail's header ("Football ›") opens its sport page; sports with nothing in the
+  next 72 hours, and so no rail, sit as small buttons on the last line ("Also in your sports"). A follow in the banner
+  opens its sport too.
+- **Your team or player:** a pink tint and a star on rows, a pink outline on cards, on every page.
+- **Under the banner, per sport:**
+  - *Motorsport:* the sessions as five tiles plus a circuit-stats tile, then the starting grid (or last race), drivers
+    and constructors side by side, ten each. IndyCar and NASCAR, whose feed has the race only: the entry list
+    (alphabetical, not a running order), the last winner, the next race, and no standings.
+  - *Fixture leagues* (NFL, AFL, EPL, NBA …): the round as a three-column grid with the last and current round to switch
+    between; standings on the right (Division / Conference / Overall where the league has them, else one table).
+  - *Cricket:* the lead match's scoreboard (innings by column, the lead, who is batting, the five days) beside the whole
+    tour; other leagues' matches today below.
+  - *Tennis:* rails: Your players (only when someone you follow plays this week), Live now, Tonight, Results today, then
+    the draws.
+  - *Golf:* the leaderboard (top 11, rounds 1–3) on the left; on the right your players' cards (position, to par, rounds
+    1–3, the gap to the lead) with Also this week below them as slim rows. With no followed player in the event, the right
+    column holds Also this week only. No rounds column.
+  - *UFC:* the main card and the prelims as two lists, each finished bout with its winner, round and clock. The two are
+    told apart by the bouts' start times.
+- **What the feeds do not give, so the pages never show:** a NASCAR or IndyCar running order, practice or standings; a
+  UFC method or record; golf tee times or the hole a player is on; a tennis point score or server. Tennis set scores and
+  golf round strokes come from ESPN's linescores, to confirm on a live event before the build relies on them.
 
 ## Sport: Live now cards
 
