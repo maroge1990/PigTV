@@ -219,7 +219,7 @@ function leagueFromCategories(categories) {
 function classify({ title, categories = [], sportChannel = false, channelName = '' }, follow) {
     const text = String(title || '');
     const titleLeague = sportsClassify.detectLeague(text)
-        || (/\bcricket\b/i.test(channelName) && sportsClassify.parseMatchup(text) ? 'Cricket' : null);
+        || (/\bcricket\b/i.test(channelName) && sportsClassify.parseMatchup(text) ? (/\bwomen\b/i.test(text) ? "Women's Cricket" : 'Cricket') : null);
     const leagues = [titleLeague, ...categories.map(c => sportsClassify.detectLeague(c))].filter(Boolean);
     // A stored roster recognises team-only titles; two different teams of a followed league
     // must resolve uniquely by a full name, nickname or stored abbreviation, across all followed

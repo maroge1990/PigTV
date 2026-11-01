@@ -37,9 +37,9 @@ const GAME_MS = 3.5 * HOUR_MS; // a game's length when nothing better is known
 const COLD_WAIT_MS = 8000;
 const MAX_DAYS = 4;            // US-Eastern days asked for per path (a day league)
 
-// F1 and NFL have their own pages (C-P, C-Q); IPL and BBL are on the Cricket page (C-S).
-const EXCLUDED = new Set(['F1', 'NFL', 'IPL', 'BBL']);
-const LEAGUES = Object.keys(ESPN_LEAGUE_PATHS).filter(l => !EXCLUDED.has(l));
+// F1 and NFL have their own pages (C-P, C-Q); every cricket league is on the Cricket page (C-S; #195).
+const EXCLUDED = new Set(['F1', 'NFL']);
+const LEAGUES = Object.keys(ESPN_LEAGUE_PATHS).filter(l => !EXCLUDED.has(l) && !require('./sportCatalog').isCricket(l));
 // #195: a merged league's games and tables are named by their competition (the International groups).
 const COMPETITIONS = {
     'soccer/fifa.world': 'World Cup', 'soccer/uefa.euro': 'Euro', 'soccer/afc.asian.cup': 'Asian Cup', 'soccer/conmebol.america': 'Copa América',

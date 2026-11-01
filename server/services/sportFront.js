@@ -27,7 +27,7 @@ const CRICKET_HOURS = { t20: 4.5, odi: 9, test: 120, 'first-class': 120 };
 /** When a card should end: its own `end`, else its start plus the league's typical length (0382). */
 function finishEstimate(card) {
     if (Number.isFinite(card.end)) return card.end;
-    const hours = card.league === 'Cricket' ? CRICKET_HOURS[card.format] || 12
+    const hours = require('./sportCatalog').isCricket(card.league) ? CRICKET_HOURS[card.format] || 12
         : FOOTBALL.has(card.league) ? 2 : TYPICAL_HOURS[card.league] || 3;
     return card.start + hours * HOUR;
 }

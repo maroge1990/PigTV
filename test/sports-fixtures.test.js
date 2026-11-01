@@ -40,6 +40,14 @@ after(() => {
 
 const FX = path.join(__dirname, 'fixtures/espn');
 const readFx = (name) => JSON.parse(fs.readFileSync(path.join(FX, `${name}.json`), 'utf8'));
+// #195 (D-41): the International cricket groups take a series by its matches' international class; the captured panel
+// kept no events, so its first series (24377) is given a men's T20I here, as an international tour's would have.
+const intl = (id, classId = 3) => ({ leagues: [{ id, name: `Series ${id}` }], events: [{ competitions: [{ class: { internationalClassId: String(classId) } }] }] });
+function cricketPanel() {
+    const panel = readFx('cricket-scorepanel');
+    panel.scores[0].events = intl('24377').events;
+    return panel;
+}
 const H = 60 * 60 * 1000;
 const M = 60 * 1000;
 
@@ -133,7 +141,7 @@ test('fetchTeams: the /teams shape; a cricket league 404s there (real ESPN behav
 });
 
 test('discoverCricketSeries: today\'s active series and their league ids, from the scorepanel', async () => {
-    await withEspn({ scorepanel: readFx('cricket-scorepanel') }, async () => {
+    await withEspn({ scorepanel: cricketPanel() }, async () => {
         const r = await espn.discoverCricketSeries();
         assert.equal(r.ok, true);
         assert.ok(r.series.some(s => s.id === '24377'));
@@ -202,7 +210,7 @@ test('F1: sessions from the ESPN abbreviation, location from the event name via 
 
 test('international cricket: series discovered from the scorepanel, merged under the league \'Cricket\'', async () => {
     await withEspn({
-        scorepanel: readFx('cricket-scorepanel'),
+        scorepanel: cricketPanel(),
         'cricket/24377/scoreboard': readFx('cricket-24377-20260927'),
         // the other series in the fixture's scorepanel answer 404 (never fetched by this test) or empty
         'cricket/22547/scoreboard': { events: [] }, 'cricket/18479/scoreboard': { events: [] }, 'cricket/8656/scoreboard': { events: [] }
@@ -406,7 +414,7 @@ test('0185: more leagues have ESPN fixtures; a league with several feeds (#195: 
 test('a multi-day cricket Test: day 3 of a still-running match is live, not a replay', async () => {
     const refreshedAt = Date.parse('2026-09-27T12:00Z');
     await withEspn({
-        scorepanel: readFx('cricket-scorepanel'),
+        scorepanel: cricketPanel(),
         'cricket/24377/scoreboard': readFx('cricket-24377-20260927'),
         'cricket/22547/scoreboard': { events: [] }, 'cricket/18479/scoreboard': { events: [] }, 'cricket/8656/scoreboard': { events: [] }
     }, () => fixtures.refreshCricket({ now: refreshedAt }));
@@ -425,7 +433,7 @@ test('a multi-day cricket Test: day 3 of a still-running match is live, not a re
     // so an airing well after it can be told a replay - matched-branch logic, no recency needed
     const laterRefresh = Date.parse('2026-09-30T12:00Z');
     await withEspn({
-        scorepanel: readFx('cricket-scorepanel'),
+        scorepanel: cricketPanel(),
         'cricket/24377/scoreboard': readFx('cricket-24377-20260927'),
         'cricket/22547/scoreboard': { events: [] }, 'cricket/18479/scoreboard': { events: [] }, 'cricket/8656/scoreboard': { events: [] }
     }, () => fixtures.refreshCricket({ now: laterRefresh }));
@@ -496,7 +504,7 @@ test('S5: a complete answer that no longer lists the game does remove it (a real
 test('S5: a cricket series that fails keeps its games; the league\'s coverage is not renewed', async () => {
     const at = Date.parse('2026-09-27T12:00Z');
     const handlers = {
-        scorepanel: readFx('cricket-scorepanel'),
+        scorepanel: cricketPanel(),
         'cricket/24377/scoreboard': readFx('cricket-24377-20260927'),
         'cricket/22547/scoreboard': { events: [] }, 'cricket/18479/scoreboard': { events: [] }, 'cricket/8656/scoreboard': { events: [] }
     };
@@ -511,7 +519,7 @@ test('S5: a cricket series that fails keeps its games; the league\'s coverage is
 // ---- R-S5 (0255): the discovery step must not turn a bad answer into "no cricket" ----------------
 
 const cricketHandlers = () => ({
-    scorepanel: readFx('cricket-scorepanel'),
+    scorepanel: cricketPanel(),
     'cricket/24377/scoreboard': readFx('cricket-24377-20260927'),
     'cricket/22547/scoreboard': { events: [] }, 'cricket/18479/scoreboard': { events: [] }, 'cricket/8656/scoreboard': { events: [] }
 });
@@ -544,8 +552,8 @@ test('R-S5: more series than are fetched (the cap) is a partial refresh - a seri
     const at = Date.parse('2026-09-27T12:00Z');
     await withEspn(cricketHandlers(), () => fixtures.refreshCricket({ now: at }));
     // 20 other series first, so the one that has the known match is past the cap.
-    const others = Array.from({ length: 20 }, (_, i) => ({ leagues: [{ id: String(90000 + i), name: `Series ${i}` }] }));
-    const handlers = { scorepanel: { scores: [...others, ...readFx('cricket-scorepanel').scores] } };
+    const others = Array.from({ length: 20 }, (_, i) => intl(String(90000 + i)));
+    const handlers = { scorepanel: { scores: [...others, ...cricketPanel().scores] } };
     for (let i = 0; i < 20; i++) handlers[`cricket/${90000 + i}/scoreboard`] = { events: [] };
     await withEspn(handlers, () => fixtures.refreshCricket({ now: at + 1000 }));
     const cricket = fixtures.snapshot(new Set(['Cricket'])).get('Cricket');
@@ -587,3 +595,22 @@ test('R4-S1: a discovery with readable and unreadable entries is partial - a ser
     assert.match(status.last_error, /^partial: .*unreadable/);
 });
 
+
+test('#195 (D-41): the International cricket groups split ESPN\'s series by class; a fixed or domestic series is neither\'s', async () => {
+    const espn = load('services/sportsFixturesEspn');
+    assert.equal(espn.cricketGroupOf(intl('1', 1).events), 'Cricket');
+    assert.equal(espn.cricketGroupOf(intl('1', 9).events), "Women's Cricket");
+    assert.equal(espn.cricketGroupOf([{ competitions: [{ class: { internationalClassId: '0' } }] }]), null);
+    const at = Date.parse('2026-11-01T02:00Z');
+    const match = (id, home, away) => ({ events: [{ id, date: '2026-11-02T03:00Z', competitions: [{ id, date: '2026-11-02T03:00Z',
+        competitors: [{ team: { displayName: home } }, { team: { displayName: away } }] }] }] });
+    const panel = { scores: [intl('24273', 3), intl('24563', 10), intl('21284', 0), { leagues: [{ id: '8043' }], events: [] }] };
+    await withEspn({ scorepanel: panel, 'cricket/24273/scoreboard': match('1', 'Australia', 'England'),
+        'cricket/24563/scoreboard': match('2', 'Australia Women', 'South Africa Women'), 'cricket/21284/scoreboard': match('3', 'Sydney Thunder Women', 'Brisbane Heat Women') }, async () => {
+        await fixtures.refreshCricket({ now: at });
+        await fixtures.refreshCricket({ now: at, league: "Women's Cricket" });
+    });
+    const snap = fixtures.snapshot(new Set(['Cricket', "Women's Cricket"]));
+    assert.equal(snap.get('Cricket').fixtures.length, 1, 'the men\'s tour only: not the WBBL (its own league) nor the Shield');
+    assert.equal(snap.get("Women's Cricket").fixtures.length, 1, 'the women\'s tour');
+});

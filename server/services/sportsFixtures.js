@@ -29,6 +29,7 @@
 const { getDb } = require('../db/sqlite');
 const sportsClassify = require('./sportsClassify');
 const espn = require('./sportsFixturesEspn');
+const { CRICKET_GROUPS } = require('./sportCatalog');
 const requestPolicy = require('./espnRequestPolicy');
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -66,6 +67,13 @@ const ESPN_LEAGUE_PATHS = {
     MLB: 'baseball/mlb',
     IPL: 'cricket/8048',
     BBL: 'cricket/8044',
+    // #195 (D-41): the curated cricket competitions with a fixed ESPN series (checked 1 Nov 2026).
+    WBBL: 'cricket/21284',
+    SA20: 'cricket/21275',
+    'The Hundred': 'cricket/19601',
+    'Sheffield Shield': 'cricket/8043',
+    'One-Day Cup': 'cricket/8626',
+    WNCL: 'cricket/8897',
     NHL: 'hockey/nhl',
     WNBA: 'basketball/wnba',
     NBL: 'basketball/nbl',
@@ -137,7 +145,7 @@ function categoryLeagues(db = getDb()) {
 function neededLeagues(db = getDb()) {
     const wanted = new Set([...followedLeagues(db), ...categoryLeagues(db)]);
     const out = new Set();
-    for (const l of wanted) if (ESPN_LEAGUE_PATHS[l] || l === 'Cricket') out.add(l);
+    for (const l of wanted) if (ESPN_LEAGUE_PATHS[l] || CRICKET_GROUPS.includes(l)) out.add(l);
     return out;
 }
 
@@ -300,16 +308,22 @@ async function refreshLeague(league, { now = Date.now(), db = getDb() } = {}) {
     }
 }
 
-/** International cricket: discover today's active series, then fetch each one's window and merge under 'Cricket'. */
-async function refreshCricket({ now = Date.now(), db = getDb() } = {}) {
-    saveStatus(db, 'Cricket', { last_attempt_at: now });
+/**
+ * International cricket: discover today's active series, then fetch each one's window and merge under its group (#195,
+ * D-41: 'Cricket' the men's internationals, "Women's Cricket" the women's; a series with a fixed league or none is
+ * neither's).
+ */
+async function refreshCricket({ now = Date.now(), db = getDb(), league = 'Cricket' } = {}) {
+    saveStatus(db, league, { last_attempt_at: now });
     const discovery = await espn.discoverCricketSeries();
     if (!discovery.ok) {
-        logStateChange('Cricket', false, discovery.error);
-        saveStatus(db, 'Cricket', { last_error: discovery.error || 'failed', last_error_at: now });
+        logStateChange(league, false, discovery.error);
+        saveStatus(db, league, { last_error: discovery.error || 'failed', last_error_at: now });
         return;
     }
-    const series = discovery.series.slice(0, MAX_CRICKET_SERIES);
+    const fixed = new Set(Object.values(ESPN_LEAGUE_PATHS).flat().filter(p => typeof p === 'string' && p.startsWith('cricket/')).map(p => p.slice(8)));
+    const mine = discovery.series.filter(s => s.group === league && !fixed.has(s.id));
+    const series = mine.slice(0, MAX_CRICKET_SERIES);
     const records = [];
     const teams = new Map();
     let anyOk = false;
@@ -320,11 +334,11 @@ async function refreshCricket({ now = Date.now(), db = getDb() } = {}) {
         complete = false;
         lastError = discovery.error || 'cricket discovery incomplete';
     }
-    if (discovery.series.length > series.length) {
+    if (mine.length > series.length) {
         // R-S5 (0255): series past the cap were not fetched, so this cannot be the whole league:
         // a partial refresh, which keeps what they had.
         complete = false;
-        lastError = `${discovery.series.length - series.length} of ${discovery.series.length} series not fetched (limit ${MAX_CRICKET_SERIES})`;
+        lastError = `${mine.length - series.length} of ${mine.length} series not fetched (limit ${MAX_CRICKET_SERIES})`;
     }
     for (const s of series) {
         const result = await espn.fetchScoreboard(`cricket/${s.id}`, now - LOOKBACK_MS, now + WINDOW_MS);
@@ -336,25 +350,25 @@ async function refreshCricket({ now = Date.now(), db = getDb() } = {}) {
     }
     if (!series.length) anyOk = true; // nothing active is a legitimate, successful answer
     if (!anyOk) {
-        logStateChange('Cricket', false, lastError);
-        saveStatus(db, 'Cricket', { last_error: lastError || 'failed', last_error_at: now });
+        logStateChange(league, false, lastError);
+        saveStatus(db, league, { last_error: lastError || 'failed', last_error_at: now });
         return;
     }
-    logStateChange('Cricket', true);
+    logStateChange(league, true);
     if (!complete) {
-        savePartial(db, 'Cricket', records, now, lastError);
-        if (teams.size) saveTeams(db, 'Cricket', [...teams.values()]);
+        savePartial(db, league, records, now, lastError);
+        if (teams.size) saveTeams(db, league, [...teams.values()]);
         return;
     }
     // Every refresh re-discovers and re-fetches every currently active series from scratch, so
     // this is already the WHOLE league's fixture set for this cycle - a full replace (like any
     // other league) rather than a merge, so a series that finished or was postponed drops out.
-    saveFixtures(db, 'Cricket', records);
-    saveStatus(db, 'Cricket', {
+    saveFixtures(db, league, records);
+    saveStatus(db, league, {
         last_success_at: now, last_error: null, fixture_count: records.length,
         covered_from: now - LOOKBACK_MS, covered_to: now + WINDOW_MS
     });
-    if (teams.size) saveTeams(db, 'Cricket', [...teams.values()]);
+    if (teams.size) saveTeams(db, league, [...teams.values()]);
 }
 
 // A dashboard-enabled host cooldown defers the rest of a pass without marking those leagues
@@ -379,7 +393,7 @@ async function refreshAll(now = Date.now()) {
         for (const league of leagues) {
             if (sharedCooldown()) break;
             try {
-                if (league === 'Cricket') await refreshCricket({ now, db });
+                if (CRICKET_GROUPS.includes(league)) await refreshCricket({ now, db, league });
                 else await refreshLeague(league, { now, db });
             } catch (err) {
                 logStateChange(league, false, err.message);
@@ -494,7 +508,7 @@ function snapshot(leagues) {
     const db = getDb();
     const out = new Map();
     for (const league of leagues) {
-        if (!ESPN_LEAGUE_PATHS[league] && league !== 'Cricket') continue;
+        if (!ESPN_LEAGUE_PATHS[league] && !CRICKET_GROUPS.includes(league)) continue;
         const status = db.prepare('SELECT covered_from, covered_to, last_success_at FROM sport_fixture_status WHERE league = ?').get(league);
         if (!status || !Number.isFinite(status.covered_from) || !Number.isFinite(status.covered_to)) continue;
         const rows = db.prepare('SELECT data FROM sport_fixtures WHERE league = ?').all(league);

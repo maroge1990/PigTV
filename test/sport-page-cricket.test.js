@@ -87,33 +87,45 @@ test('the page is not available until ESPN answers; then the lead is the Test on
     assert.equal(cricket.ttlOf(p, NOW), 2 * 60e3, 'kept 2 min while the lead is in play');
 });
 
+// #195 (D-41): the page holds only the followed cricket competitions; these tests follow the three the capture has.
+const ALL = ['Cricket', 'Sheffield Shield', 'WBBL'];
+
 test('the followed team decides the lead; with none (or one not playing), the first live match ESPN lists', async () => {
-    assert.equal((await cricket.build(NOW, { followed: ['Australia'] })).lead.id, '1525661');
-    assert.equal((await cricket.build(NOW, { followed: ['australia'] })).lead.id, '1525661', 'any case');
-    const none = await cricket.build(NOW, { followed: [] });
+    assert.equal((await cricket.build(NOW, { followed: ['Australia'], leagues: ALL })).lead.id, '1525661');
+    assert.equal((await cricket.build(NOW, { followed: ['australia'], leagues: ALL })).lead.id, '1525661', 'any case');
+    const none = await cricket.build(NOW, { followed: [], leagues: ALL });
     assert.deepEqual([none.lead.id, none.lead.competition, none.lead.status], ['1544870', 'Sheffield Shield', 'live'],
         'the Shield\'s South Australia v Western Australia: live, and first in the panel (the Test is at stumps)');
     assert.deepEqual(none.lead.teams.map(t => t.name), ['Western Australia', 'South Australia'], 'never "Australia" by the location field');
     assert.equal(none.lead.seriesLine, null, 'no tally for a domestic competition');
-    assert.equal((await cricket.build(NOW, { followed: ['England'] })).lead.id, '1544870');
+    assert.equal((await cricket.build(NOW, { followed: ['England'], leagues: ALL })).lead.id, '1544870');
 
-    // page(): the household's follow is read each request, and a change is not served from the old answer.
+    // page(): the follow is read each request, and a change is not served from the old answer.
     followed = [];
-    assert.equal((await cricket.page(NOW)).lead.id, '1544870');
+    assert.equal((await cricket.page(NOW, { leagues: ALL })).lead.id, '1544870');
     followed = ['Australia'];
-    assert.equal((await cricket.page(NOW + 1000)).lead.id, '1525661');
+    assert.equal((await cricket.page(NOW + 1000, { leagues: ALL })).lead.id, '1525661');
+});
+
+// #195 (D-41, Mark 1 Nov): the page was led by the WBBL, which he does not follow. Only followed competitions appear.
+test('#195: nothing from a competition the account does not follow: the WBBL and the Shield are not on a men\'s internationals page', async () => {
+    const p = await cricket.build(NOW, { followed: [] });
+    assert.equal(p.lead.id, '1525661', 'the men\'s internationals only (followed by default): the Test, though at stumps');
+    assert.deepEqual(p.others.filter(o => ['WBBL', 'Sheffield Shield'].includes(o.competition)), []);
+    const wbbl = await cricket.build(NOW, { followed: [], leagues: ['WBBL'] });
+    assert.ok(wbbl.lead && wbbl.lead.competition === 'WBBL' && wbbl.others.every(o => o.competition === 'WBBL'), 'the WBBL when it is followed');
 });
 
 // 0383 Codex round 1 (medium): a followed team's finished match stayed the lead while other matches were in play.
 test('a followed team\'s finished match gives way to a live one, and leads only when every match is finished', async () => {
     const finish = (c, summary) => { c.status.type = { id: '28', description: 'Result', detail: 'Result', shortDetail: 'Result', state: 'post', completed: true }; c.status.summary = summary; };
     stub((name, json) => { if (name === 'scorepanel-20261031') finish(eventIn(json, '1525661').competitions[0], 'South Africa won by 150 runs'); });
-    const p = await cricket.build(NOW, { followed: ['Australia'] });
+    const p = await cricket.build(NOW, { followed: ['Australia'], leagues: ALL });
     assert.ok(['1544870', '1544871'].includes(p.lead.id), `a live match leads, not the finished Test (got ${p.lead.id})`);
     assert.equal(p.lead.status, 'live');
 
     stub((name, json) => { if (/^scorepanel-/.test(name)) for (const e of json.scores.flatMap(b => b.events)) finish(e.competitions[0], 'Result'); });
-    const all = await cricket.build(NOW, { followed: ['Australia'] });
+    const all = await cricket.build(NOW, { followed: ['Australia'], leagues: ALL });
     assert.deepEqual([all.lead.id, all.lead.status], ['1525661', 'done'], 'nothing in play or to come: the followed team\'s match');
 });
 
@@ -174,7 +186,7 @@ test('others: the other competitions today and tomorrow, live and at stumps, wit
         ev('Test Cricket: South Africa v Australia, Day 4', '2026-10-30T08:00Z', '2026-10-30T16:00Z', 'fox-test-day4')
     ];
     let windows;
-    const p = await cricket.page(NOW, { channelsFor: async (airings) => { windows = airings; return cricket.channelsForMatches(airings, events); } });
+    const p = await cricket.page(NOW, { leagues: ALL, channelsFor: async (airings) => { windows = airings; return cricket.channelsForMatches(airings, events); } });
     const o = (id) => p.others.find(x => x.id === id);
     assert.ok(!p.others.some(x => x.seriesId === '24203'), 'the lead\'s series is shown as the series');
     assert.ok(!p.others.some(x => x.teams.every(t => t.name === 'TBC')), 'no TBC v TBC');
@@ -194,7 +206,7 @@ test('others: the other competitions today and tomorrow, live and at stumps, wit
     assert.ok(windows.every(w => w.end > w.start && Array.isArray(w.teams)));
     // #191: the overrun rule's `inPlay`: the WBBL game live, the Shield at stumps not.
     assert.deepEqual([windows.find(w => w.id === '1543947').inPlay, windows.find(w => w.id === '1544871').inPlay], [true, false]);
-    const cached = await cricket.page(NOW + 1000);
+    const cached = await cricket.page(NOW + 1000, { leagues: ALL });
     assert.ok(cached.others.every(x => Array.isArray(x.channels) && !x.channels.length), 'channels belong to the request, not the cache');
 });
 
@@ -250,10 +262,14 @@ test('GET /api/sports/pages/cricket: 401 signed out, the page signed in, /api/in
     assert.ok(Array.isArray(r.body.others) && r.body.others.every(o => Array.isArray(o.channels)));
     assert.ok(!JSON.stringify(r.body).includes('espncdn'), 'team logos go through the logo cache');
     assert.ok(leagues.includes('Cricket') && leagues.includes('BBL'), 'the guide is asked for each league cricket is filed under');
-    // #193 (0393, Codex round 1): an account following Cricket through the BBL alone still leads with its followed team.
-    assert.equal((await call('/api/sports/follows', { body: { sports: [{ sport: 'Cricket', leagues: ['BBL'], teams: ['Australia'] }] } })).status, 200);
+    // #193 (0393, Codex round 1): the Cricket sport's followed team, whichever of its leagues come first.
+    assert.equal((await call('/api/sports/follows', { body: { sports: [{ sport: 'Cricket', leagues: ['BBL', 'Cricket'], teams: ['Australia'] }] } })).status, 200);
     load('services/sportPageCricket').reset();
     assert.equal((await call('/api/sports/pages/cricket')).body.lead.id, '1525661', 'the sport\'s followed team, whichever cricket leagues');
+    // #195: following the BBL alone, the Test is not on the page at all.
+    assert.equal((await call('/api/sports/follows', { body: { sports: [{ sport: 'Cricket', leagues: ['BBL'], teams: ['Australia'] }] } })).status, 200);
+    load('services/sportPageCricket').reset();
+    assert.notEqual((await call('/api/sports/pages/cricket')).body.lead?.id, '1525661');
 });
 
 test('#193 (0393, Codex round 1): a follow list whose first refresh fails never gets another follow list\'s page', async () => {

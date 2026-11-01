@@ -178,10 +178,12 @@ router.get('/pages/cricket', async (req, res) => {
     try {
         channelNumbers.ensureChannelNumbers();
         const cricket = require('../services/sportPageCricket');
+        const cricketFollow = require('../services/sportPagePrefs').follows(req.user.id).sports.find(s => s.sport === 'Cricket');
         const now = Date.now();
         const page = await cricket.page(now, {
-            // The Cricket sport's names, whichever of its leagues are followed (0393, Codex round 1).
-            followed: require('../services/sportPagePrefs').follows(req.user.id).sports.find(s => s.sport === 'Cricket')?.teams || [],
+            // The Cricket sport's names, whichever of its leagues are followed (0393, Codex round 1), and those leagues (#195).
+            followed: cricketFollow?.teams || [],
+            leagues: cricketFollow?.leagues || [],
             registerImage: require('../services/logoCache').registerLogo,
             // Only cricket's events around the matches' days are ordered and built, as for F1 (#160), for each league a
             // cricket programme can be filed under; #191 as F1.
@@ -258,7 +260,7 @@ router.get('/follow', requireAdmin, (req, res) => {
         const { LEAGUES } = require('../services/sportsClassify');
         const { ESPN_LEAGUE_PATHS } = require('../services/sportsFixtures');
         const NO_ROSTER = new Set(['F1', 'IPL', 'BBL']); // sessions, or cricket ids with no team list
-        const leagues = LEAGUES.map(l => ({ name: l.name, fixtures: Boolean(ESPN_LEAGUE_PATHS[l.name]) || l.name === 'Cricket',
+        const leagues = LEAGUES.map(l => ({ name: l.name, fixtures: Boolean(ESPN_LEAGUE_PATHS[l.name]) || require('../services/sportCatalog').CRICKET_GROUPS.includes(l.name),
             teams: Boolean(ESPN_LEAGUE_PATHS[l.name]) && !NO_ROSTER.has(l.name) }))
             .sort((a, b) => a.name.localeCompare(b.name));
         res.json({ keywords: sportsEvents.getFollow(), leagues });

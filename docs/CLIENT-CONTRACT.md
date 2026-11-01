@@ -789,4 +789,8 @@ account follows nothing; only the server's owner (its first admin account) takes
   `A-League Women`, and the groups `Internationals` and `Women's Internationals` (every national-team competition ESPN
   lists). Each also has a C-T page (`sportPageLeagues`). Since 0396 rugby union adds `Rugby Championship`, `Six Nations`,
   `Rugby World Cup`, `Premiership Rugby`, `Top 14` and `Champions Cup`.
+- Since 0397 cricket's leagues: `Cricket` (the men's internationals: every tour and ICC event, by ESPN's international
+  class), `Women's Cricket` (the women's), `IPL`, `BBL`, `WBBL`, `SA20`, `The Hundred`, `Sheffield Shield`, `One-Day Cup`,
+  `WNCL`. The Cricket page (C-S) holds only the requesting account's followed cricket leagues (the men's internationals
+  when it follows none): its `lead` and `others` never come from another competition. No cricket league has a C-T page.
 - A server before 0391 answers 404 to `/api/sports/follows` and `/catalog`: send them only with this flag.

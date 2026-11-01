@@ -173,6 +173,20 @@ async function fetchTeams(leaguePath, { timeoutMs = TIMEOUT_MS } = {}) {
  * international cricket has no fixed one, unlike IPL (8048) and Big Bash (8044), so this is how
  * a Test/ODI/T20I series is found at all. Bounded to a sane number of series by the caller.
  */
+/**
+ * #195 (D-41): which International cricket group a scorepanel series belongs to, from its matches' international class
+ * (ESPN: 1-3 men's Test, ODI, T20I; 8-10 women's): 'Cricket', "Women's Cricket", or null (domestic, franchise, A teams,
+ * youth), which no group takes.
+ */
+function cricketGroupOf(events) {
+    for (const e of Array.isArray(events) ? events : []) {
+        const id = Number(e?.competitions?.[0]?.class?.internationalClassId);
+        if ([1, 2, 3].includes(id)) return 'Cricket';
+        if ([8, 9, 10].includes(id)) return "Women's Cricket";
+    }
+    return null;
+}
+
 async function discoverCricketSeries({ timeoutMs = TIMEOUT_MS } = {}) {
     const { ok, json, error } = await getJson(`${BASE}/cricket/scorepanel`, timeoutMs);
     if (!ok) return { ok: false, error };
@@ -190,7 +204,7 @@ async function discoverCricketSeries({ timeoutMs = TIMEOUT_MS } = {}) {
         for (const lg of s.leagues) {
             const id = lg && typeof lg === 'object' && lg.id != null && String(lg.id) !== '' ? String(lg.id) : null;
             if (!id) { unreadable++; continue; }
-            if (!seen.has(id)) { seen.add(id); out.push({ id, name: lg.name || null }); }
+            if (!seen.has(id)) { seen.add(id); out.push({ id, name: lg.name || null, group: cricketGroupOf(s.events) }); }
         }
     }
     if (unreadable && !out.length) return { ok: false, error: `cricket scorepanel unreadable (${unreadable} entries)` };
@@ -198,4 +212,4 @@ async function discoverCricketSeries({ timeoutMs = TIMEOUT_MS } = {}) {
     return { ok: true, series: out, complete: true };
 }
 
-module.exports = { name: 'espn', getJson, fetchScoreboard, fetchTeams, discoverCricketSeries, datesFor, recordsFromScoreboard, teamsFromScoreboard };
+module.exports = { name: 'espn', getJson, fetchScoreboard, fetchTeams, discoverCricketSeries, cricketGroupOf, datesFor, recordsFromScoreboard, teamsFromScoreboard };

@@ -164,12 +164,15 @@ test('unmatched and stale games remain visible; stale data loses clock/score, ol
 
 test('collector is opt-in, uses single UTC days, deduplicates overlapping refreshes and discovers future cricket series', async () => {
     const s=store();const calls=[];
-    const fetchJson=async url=>{calls.push(url);if(url.includes('scorepanel'))return {scores:[{leagues:[{id:url.includes('20261031')?'999':'24203'}]}]};
+    // #195: a series joins the International group by its matches' international class (here a men's Test).
+    const fetchJson=async url=>{calls.push(url);if(url.includes('scorepanel'))return {scores:[{leagues:[{id:url.includes('20261031')?'999':'24203'}],
+        events:[{competitions:[{class:{internationalClassId:'1'}}]}]},{leagues:[{id:'21284'}],events:[{competitions:[{class:{internationalClassId:'0'}}]}]}]};
         return sample('Cricket-international');};
     const c=dashboard.createCollector({store:s,fetchJson,leagues:()=>new Set(['Cricket']),clock:()=>NOW,enabled:()=>true});
     await Promise.all([c.refresh(),c.refresh()]);
     assert.equal(calls.filter(u=>u.includes('scorepanel')).length,4);
     assert.ok(calls.some(u=>u.includes('/cricket/999/scoreboard')));
+    assert.ok(!calls.some(u=>u.includes('/cricket/21284/')),'the WBBL is its own league, never the International group\'s (#195)');
     assert.ok(!calls.some(u=>/dates=\d+-\d+/.test(u)));
     const off=dashboard.createCollector({store:s,fetchJson,leagues:()=>new Set(['NFL']),clock:()=>NOW,enabled:()=>false});
     const n=calls.length;await off.refresh();assert.equal(calls.length,n);off.stop();c.stop();

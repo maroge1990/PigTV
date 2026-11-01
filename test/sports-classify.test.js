@@ -228,13 +228,17 @@ test('the Prime Vision alt cast stays its own item when it does not overlap the 
 
 // 0293: real Fox Cricket titles, captured before changing the recognition rule.
 test('Fox Cricket format titles and channel match-ups are cricket without a cricket keyword', () => {
-    const follow = sportsEvents.compileFollow(['Cricket']);
+    // #195 (D-41): a women's international ("W T20 ...") is Women's Cricket, the women's International group.
+    const follow = sportsEvents.compileFollow(['Cricket', "Women's Cricket"]);
     const evidence = require('./fixtures/sports-export.json').foxCricket501;
     for (const row of evidence.programmes) {
+        const league = /^\s*W\s/.test(row.title) ? "Women's Cricket" : 'Cricket';
         const result = sportsEvents.classify({ title: row.title, channelName: evidence.channel }, follow);
-        assert.equal(result?.league, 'Cricket', row.title);
-        assert.equal(sportsEvents.classify({ title: row.title, channelName: 'General' }, follow)?.league, 'Cricket', 'the format works on a non-cricket channel');
+        assert.equal(result?.league, league, row.title);
+        assert.equal(sportsEvents.classify({ title: row.title, channelName: 'General' }, follow)?.league, league, 'the format works on a non-cricket channel');
     }
+    assert.equal(sportsEvents.classify({ title: 'W T20 Mini : Australia v New Zealand G3', channelName: 'General' }, sportsEvents.compileFollow(['Cricket'])), null,
+        'not when only the men\'s internationals are followed');
     assert.equal(sportsEvents.classify({ title: 'South Africa v Australia', channelName: 'Willow Cricket' }, follow)?.league, 'Cricket');
     for (const title of ['screen test v Australia', 'Test : Coverage tonight', 'Test :', 'Test: the camera']) {
         assert.equal(sportsEvents.classify({ title, channelName: 'General' }, follow), null, title);

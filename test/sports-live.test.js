@@ -288,7 +288,7 @@ test('Fox Cricket 501 evidence is live during play and replay overnight', () => 
     const data = new Map([['Cricket', { fixtures: [fixture, { start: start - 48 * H, end: start - 42 * H, teamsAliases: [aliases('Pakistan'), aliases('Sri Lanka')] }], teamsAliases: [], coverage: { from: start - 48 * H, to: start + 7 * 24 * H, at: start } }]]);
     const channels = [{ key: '8:fox', order: 0, tvgId: 'fox', name: fx.channel, sportChannel: false }];
     const rows = fx.programmes.map(r => ({ channel_id: 'fox', title: r.title, start_time: Date.parse(r.start), end_time: Date.parse(r.end), flags: r.flags }));
-    const events = sportsEvents.eventsFromProgrammes(channels, rows, ['Cricket'], data);
+    const events = sportsEvents.eventsFromProgrammes(channels, rows, ['Cricket', "Women's Cricket"], data); // #195: the women's games too
     for (const row of fx.programmes) {
         const event = events.find(e => e.aliases.includes(row.title) && e.start === Date.parse(row.start));
         assert.equal(event?.kind, row.kind, `${row.start}: ${row.title}`);
@@ -316,7 +316,7 @@ function foxCricketDay2(issue) {
     const data = new Map([['Cricket', { fixtures, teamsAliases, coverage: { from: at - 48 * H, to: at + 7 * 24 * H, at } }]]);
     const channels = [{ key: '8:fox', order: 0, tvgId: 'fox', name: fx.channel, sportChannel: false }];
     const rows = fx.programmes.map(r => ({ channel_id: 'fox', title: r.title, start_time: Date.parse(r.start), end_time: Date.parse(r.end), flags: r.flags }));
-    const events = sportsEvents.eventsFromProgrammes(channels, rows, ['Cricket'], data);
+    const events = sportsEvents.eventsFromProgrammes(channels, rows, ['Cricket', "Women's Cricket"], data); // #195: the women's games too
     return fx.programmes.filter(r => r.issue === issue).map(row => {
         const event = events.find(e => e.aliases.includes(row.title) && e.start <= Date.parse(row.start) && e.end >= Date.parse(row.end));
         return { row, kind: event?.kind, why: event?.kindRule };

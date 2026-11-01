@@ -4,6 +4,8 @@ const fixtures = require('./sportsFixtures');
 const espn = require('./sportsScoresEspn');
 const { createStore } = require('./sportsDashboardStore');
 const { overrunEnd } = require('./sportOverrun');
+const { isCricket, CRICKET_GROUPS } = require('./sportCatalog');
+const { cricketGroupOf } = require('./sportsFixturesEspn');
 const H = 3600000;
 // 0381 (D-39): the score collector runs by default (PIGTV_SPORTS_DASHBOARD=0 turns it off) whenever ESPN fixtures are on,
 // for the Sport front page; the legacy /dashboard and /preferences routes stay opt-in (=1) for the current Apple app.
@@ -39,7 +41,7 @@ function sameGame(prepared, parsed) {
     const { game } = prepared, { event } = parsed;
     if ((event.kind && event.kind !== 'event') || game.league !== event.league) return false;
     if (!Number.isFinite(event.start) || !Number.isFinite(event.end)) return false;
-    if (game.league === 'Cricket') {
+    if (isCricket(game.league)) {
         const maximum = ({ t20: 4.5, odi: 9, 'list-a': 9, test: 120, 'first-class': 120 })[game.format] || 12;
         const limit = game.start + maximum * H;
         const end = limit; // Cricket endDate is an envelope in the captures, not trusted match duration.
@@ -73,12 +75,12 @@ function matchBroadcasts(games, events, represented = new Set(), unresolved = ne
         const leagueGames = byLeague.get(event.league) || [];
         // Unknown-format cricket may be a later day OR a rematch. Keep the guide listing visible,
         // but never let fallback turn an uncertain identity into wider playback permission (L2).
-        if (!candidates.length && event.league === 'Cricket' && leagueGames.some(g => !g.game.format &&
+        if (!candidates.length && isCricket(event.league) && leagueGames.some(g => !g.game.format &&
             event.start >= g.game.start && event.start < g.game.start + 120*H &&
             sameGame(prepareGame({...g.game,start:event.start}),parsed))) unresolved.add(event.id);
         // Short-format windows normally decide the join. For cricket only, use a clearly nearest start
         // if a broad listing overlaps multiple games; ties and near-ties remain unmatched.
-        if (candidates.length > 1 && event.league === 'Cricket') {
+        if (candidates.length > 1 && isCricket(event.league)) {
             candidates.sort((a, b) => Math.abs(a.game.start - event.start) - Math.abs(b.game.start - event.start));
             const first = Math.abs(candidates[0].game.start - event.start), second = Math.abs(candidates[1].game.start - event.start);
             if (second - first >= H) candidates.splice(1);
@@ -173,7 +175,7 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
         const onGuide=airings.some(e=>e.start<=now && now<e.end);
         // A just-started cross-midnight game must not vanish while delayed history is unknown.
         // Keep neutral pending cards within conservative sport bounds; never inspect an undelayed final.
-        const pendingHours=g.league==='Cricket' ? ({t20:4.5,odi:9,'list-a':9,test:120,'first-class':120})[g.format] || 12 : 12;
+        const pendingHours=isCricket(g.league) ? ({t20:4.5,odi:9,'list-a':9,test:120,'first-class':120})[g.format] || 12 : 12;
         const pending=['unknown','scheduled'].includes(state) && g.start<=now && now-g.start<=pendingHours*H;
         const horizon=league ? now+72*H : Infinity;
         const recent=state==='finished' && selected.finishedAt!==null && now<selected.finishedAt+prefs.scoreDelaySeconds*1000+H;
@@ -285,12 +287,12 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
             const state = store.latest(g.id)?.data;
             const nearStart = Math.abs(g.start - now) <= H && !['finished','cancelled','postponed'].includes(state?.state);
             const inPlay = state?.state === 'live' || state?.state === 'suspended' || (state?.state === 'break' && state.breakLabel !== 'Stumps');
-            const maxAge = g.league === 'Cricket' ? ({t20:4.5,odi:9,'list-a':9,test:120,'first-class':120})[g.format] || 12 : 24;
+            const maxAge = isCricket(g.league) ? ({t20:4.5,odi:9,'list-a':9,test:120,'first-class':120})[g.format] || 12 : 24;
             if (!nearStart && !(inPlay && now - g.start <= maxAge * H)) continue;
             hot.add(`${source}|${days[0]}`);
             const startDay = new Date(g.start).toISOString().slice(0,10).replaceAll('-', '');
             if (nearStart && g.start > now) hot.add(`${source}|${startDay}`);
-            if (g.league !== 'Cricket' && inPlay && startDay === previous) hot.add(`${source}|${previous}`);
+            if (!isCricket(g.league) && inPlay && startDay === previous) hot.add(`${source}|${previous}`);
             if (listedOn.has(g.id)) hot.add(`${source}|${listedOn.get(g.id)}`);
         }
         function add(league, source, date) {
@@ -298,25 +300,29 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
             jobs.push({league,source,date,url,hot:hot.has(`${source}|${date}`)});
         }
         for (const league of wanted) {
-            if (league === 'Cricket') continue;
+            if (CRICKET_GROUPS.includes(league)) continue;
             for (const source of [fixtures.ESPN_LEAGUE_PATHS[league]].flat().filter(Boolean)) for (const date of queryDays) add(league, source, date);
         }
-        if (wanted.has('Cricket')) {
-            const series = new Set();
+        // #195 (D-41): the International cricket groups take ESPN's active series by their international class; a series
+        // with a fixed league (BBL, WBBL, Shield...) or none (domestic, youth) is never theirs.
+        if (CRICKET_GROUPS.some(l => wanted.has(l))) {
+            const series = new Map(); // series id -> its group
+            const fixed = new Set(Object.values(fixtures.ESPN_LEAGUE_PATHS).flat().filter(p => typeof p === 'string' && p.startsWith('cricket/')).map(p => p.slice(8)));
+            const take = (id, group) => { if (group && wanted.has(group) && !fixed.has(id) && !series.has(id)) series.set(id, group); };
             const discoveryDays = days.slice().sort((a,b) => (cache.get(`${espn.BASE}cricket/scorepanel?dates=${a}`)?.attemptAt || 0) - (cache.get(`${espn.BASE}cricket/scorepanel?dates=${b}`)?.attemptAt || 0));
             for (const date of discoveryDays) {
                 const panel = await read(`${espn.BASE}cricket/scorepanel?dates=${date}`, 900000, {cold:true,maxCold:hot.size ? CATALOG_RESERVE : Infinity});
                 if (!Array.isArray(panel?.json.scores)) continue;
                 for (const block of panel.json.scores) for (const l of Array.isArray(block?.leagues) ? block.leagues : []) {
-                    if (/^\d{1,12}$/.test(String(l?.id))) series.add(String(l.id));
+                    if (/^\d{1,12}$/.test(String(l?.id))) take(String(l.id), cricketGroupOf(block.events));
                 }
             }
             // Retain already-discovered series when discovery is partial, throttled or temporarily unavailable.
-            for (const g of catalog) if (g.league === 'Cricket') {
+            for (const g of catalog) if (CRICKET_GROUPS.includes(g.league)) {
                 const seriesId = /^espn:cricket\/(\d+):/.exec(g.id)?.[1];
-                if (seriesId) series.add(seriesId);
+                if (seriesId) take(seriesId, g.league);
             }
-            for (const seriesId of [...series].slice(0,40)) for (const date of queryDays) add('Cricket', `cricket/${seriesId}`, date);
+            for (const [seriesId, group] of [...series].slice(0,40)) for (const date of queryDays) add(group, `cricket/${seriesId}`, date);
         }
         // Rotate least-recently-attempted URLs within each class; reserve cold progress below.
         jobs.sort((a,b) => Number(b.hot)-Number(a.hot) || (cache.get(a.url)?.attemptAt || 0)-(cache.get(b.url)?.attemptAt || 0)

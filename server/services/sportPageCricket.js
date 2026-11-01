@@ -37,8 +37,8 @@ const MAX_OTHERS = 20;
 const DAY_HOURS = { t20: 4.5, odi: 9, 'list-a': 9, test: 6.5, 'first-class': 6.5 };
 const DAYS = { test: 5, 'first-class': 4 };
 const LIMITED = new Set(['t20', 'odi', 'list-a']);
-// The C-I leagues a cricket programme can be filed under (sportsClassify).
-const LEAGUES = ['Cricket', 'BBL', 'IPL'];
+// The C-I leagues a cricket programme can be filed under (sportsClassify): every cricket league (#195).
+const LEAGUES = require('./sportCatalog').sport('Cricket').leagues;
 
 // Test seams: `fetcher.get(url) -> { ok, json } | { ok: false, error }` (as sportsFixturesEspn.getJson); `prefs.get()`
 // the followed names when a request names none (#193: the route passes the account's own, `deps.followed`).
@@ -100,6 +100,15 @@ function competitionOf(league) {
     return (name && name.length <= 20 ? name : abbr || name) || null;
 }
 
+/**
+ * #195 (D-41): the followable cricket league a match belongs to: its series' fixed league (BBL, WBBL, Shield...), else
+ * the International group its international class says, else null (a competition nobody can follow).
+ */
+function leagueOfMatch(seriesId, event) {
+    const fixed = Object.entries(require('./sportsFixtures').ESPN_LEAGUE_PATHS).find(([, p]) => p === `cricket/${seriesId}`)?.[0];
+    return fixed || espn.cricketGroupOf([event]);
+}
+
 /** One scoreboard/scorepanel event as a match (internal: the page picks its public fields). Null when unreadable. */
 function matchOf(event, league, registerImage) {
     const c = event?.competitions?.[0];
@@ -130,7 +139,8 @@ function matchOf(event, league, registerImage) {
         scores: raw.map(x => text(x.score)),
         summary: text(c.status?.summary),
         winner: raw.findIndex(x => isTrue(x.winner)),
-        international: String(c.class?.internationalClassId ?? '0') !== '0'
+        international: String(c.class?.internationalClassId ?? '0') !== '0',
+        league: leagueOfMatch(seriesId, event)
     };
 }
 
@@ -302,7 +312,9 @@ function followedTeams() {
 }
 
 /** The page's ESPN part at `now` (channels empty; page() attaches them). Never rejects; null on failure. */
-async function build(now, { registerImage = (u) => u, followed = followedTeams() } = {}) {
+async function build(now, { registerImage = (u) => u, followed = followedTeams(), leagues: competitions = ['Cricket'] } = {}) {
+    // #195 (D-41): only the account's followed cricket competitions (the men's internationals when it follows none).
+    const wanted = new Set(competitions.length ? competitions : ['Cricket']);
     const today = utcDay(now);
     const panels = await Promise.all([today, today + DAY_MS].map(d => fetcher.get(`${BASE}/scorepanel?dates=${ymd(d)}`)));
     if (!panels[0]?.ok || !Array.isArray(panels[0].json?.scores)) return null;
@@ -318,6 +330,7 @@ async function build(now, { registerImage = (u) => u, followed = followedTeams()
             for (const e of Array.isArray(block.events) ? block.events : []) {
                 const m = matchOf(e, league, registerImage);
                 if (!m || raws.has(m.id)) continue; // today's copy first: the fresher listing
+                if (!wanted.has(m.league)) continue;
                 raws.set(m.id, e);
                 matches.push(m);
             }
@@ -441,12 +454,13 @@ async function page(now = Date.now(), deps = {}) {
 
 async function espnPart(now, deps) {
     const followed = Array.isArray(deps.followed) ? deps.followed.filter(n => typeof n === 'string') : followedTeams();
-    const key = JSON.stringify(followed.map(n => n.toLowerCase()));
+    const leagues = Array.isArray(deps.leagues) ? deps.leagues.filter(l => LEAGUES.includes(l)) : ['Cricket'];
+    const key = JSON.stringify([followed.map(n => n.toLowerCase()), [...leagues].sort()]);
     const cached = caches.get(key);
     const fresh = cached && now - cached.at < cached.ttl;
     if (!fresh && !refreshing.has(key)) {
         const mine = generation;
-        refreshing.set(key, build(now, { ...deps, followed }).then((value) => {
+        refreshing.set(key, build(now, { ...deps, followed, leagues }).then((value) => {
             if (!value || mine !== generation) return;
             caches.delete(key);
             caches.set(key, { value, at: now, ttl: ttlOf(value, now) });

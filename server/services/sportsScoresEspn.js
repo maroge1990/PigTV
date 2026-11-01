@@ -1,3 +1,4 @@
+const { isCricket } = require('./sportCatalog'); // #195: every cricket league, not only internationals
 /** Dashboard-only ESPN adapter. Never changes the fixture/live-replay classifier. */
 const { f1Session } = require('./sportsFixtures');
 const requestPolicy = require('./espnRequestPolicy');
@@ -17,7 +18,7 @@ function statusOf(c, league) {
     if (/postpon/i.test(description)) return ['postponed'];
     if (/suspend/i.test(description)) return ['suspended'];
     if (t.completed === true || t.state === 'post') return ['finished'];
-    if (t.state === 'pre' || (league === 'Cricket' && /^Starts (?:at|in)/i.test(s.summary || ''))) return ['scheduled'];
+    if (t.state === 'pre' || (isCricket(league) && /^Starts (?:at|in)/i.test(s.summary || ''))) return ['scheduled'];
     for (const [re, label] of [[/stumps/i,'Stumps'],[/half.?time/i,'Half-time'],[/rain/i,'Rain delay'],[/lunch/i,'Lunch'],[/tea\b/i,'Tea'],[/innings.?break/i,'Innings break'],[/intermission/i,'Intermission'],[/delay/i,'Delayed']]) {
         if (re.test(description)) return ['break', label];
     }
@@ -35,12 +36,12 @@ function normalize(json, league, source) {
         if (!e || !Array.isArray(e.competitions)) continue;
         for (const c of e.competitions.slice(0, 12)) {
             if (!c || !id(c.id)) continue;
-            const start = Date.parse(c.date || e.date), parsedEnd = Date.parse(league === 'Cricket' ? '' : c.endDate || '');
+            const start = Date.parse(c.date || e.date), parsedEnd = Date.parse(isCricket(league) ? '' : c.endDate || '');
             if (!Number.isFinite(start)) continue;
             // Captured cricket endDate values include day/series envelopes, not reliable match ends.
             // Prefer class card over eventType (first-class matches may say eventType=Test).
             const formatKey=text(c.class?.generalClassCard || c.class?.eventType).toLowerCase().replace(/^(?:women'?s|men'?s)\s+/, '');
-            const format=league==='Cricket' ? ({test:'test',odi:'odi',t20:'t20',t20i:'t20','first-class':'first-class',fc:'first-class','list a':'list-a',lista:'list-a'}[formatKey] || null) : null;
+            const format=isCricket(league) ? ({test:'test',odi:'odi',t20:'t20',t20i:'t20','first-class':'first-class',fc:'first-class','list a':'list-a',lista:'list-a'}[formatKey] || null) : null;
             const session = league === 'F1' ? f1Session(c.type?.abbreviation)?.label : null;
             if (league === 'F1' && !session) continue;
             const raw = Array.isArray(c.competitors) ? c.competitors : [];
@@ -57,9 +58,9 @@ function normalize(json, league, source) {
             let scores = null;
             if (league !== 'F1' && !['scheduled','unknown'].includes(state)) {
                 const values = sides.map(t => text(t.score, 80));
-                if (values.every(s => league === 'Cricket' ? /^[\d\s/&().ovad]+$/i.test(s) : /^\d{1,4}$/.test(s))) scores = values;
+                if (values.every(s => isCricket(league) ? /^[\d\s/&().ovad]+$/i.test(s) : /^\d{1,4}$/.test(s))) scores = values;
                 const clock = safeClock(c.status?.displayClock, source.startsWith('soccer/'));
-                if (clock !== undefined && league !== 'Cricket' && league !== 'MLB') progress.clock = clock;
+                if (clock !== undefined && !isCricket(league) && league !== 'MLB') progress.clock = clock;
                 const period = number(c.status?.period);
                 if (period !== undefined) progress.period = period;
                 if (league === 'MLB') {
@@ -67,7 +68,7 @@ function normalize(json, league, source) {
                     if(half) progress.half=half[1].toLowerCase();
                     else if(typeof c.situation?.isTopInning==='boolean') progress.half=c.situation.isTopInning?'top':'bottom';
                 }
-                if (league === 'Cricket') {
+                if (isCricket(league)) {
                     const day = text(c.status?.session, 24);
                     if (/^Day \d{1,2}$/i.test(day)) progress.day = day;
                     situation.innings = sides.map(t => (Array.isArray(t.linescores) ? t.linescores : [])

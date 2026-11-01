@@ -80,7 +80,14 @@ const LEAGUES = [
     ['NASCAR', ['nascar']],
     ['IndyCar', ['indycar']],
     ['Supercars', ['supercars']],
+    // #195 (D-41): the women's Big Bash before the men's ("Women's Big Bash" contains "Big Bash").
+    ['WBBL', ['wbbl', 'womens big bash', 'womens big bash league', 'weber wbbl']],
     ['BBL', ['bbl', 'big bash']],
+    ['SA20', ['sa20', 'betway sa20']],
+    ['The Hundred', ['the hundred', 'hundred mens', 'the hundred mens']],
+    ['Sheffield Shield', ['sheffield shield', 'marsh sheffield shield']],
+    ['One-Day Cup', ['one day cup', 'marsh one day cup']],
+    ['WNCL', ['wncl', 'womens national cricket league']],
     ['NBL', ['nbl']],
     ['Super Rugby', ['super rugby']],
     // #195 (D-41): the curated rugby union competitions. Never the bare "premiership" (AFL broadcasts say it).
@@ -96,6 +103,8 @@ const LEAGUES = [
     // "Australia v India - 1st Test" needs none of these: its match-up ("Australia v India")
     // already parses without a keyword at all (parseMatchup); this is what gives it a LEAGUE, so
     // sportsFixtures.js's international-cricket fixtures (services/sportsFixtures.js) apply.
+    ["Women's Cricket", ['womens cricket', 'womens test', 'womens odi', 'womens t20i', 'womens t20 international', 'womens ashes',
+        'womens t20 world cup', 'womens cricket world cup', 'icc womens t20 world cup', 'icc womens cricket world cup']],
     ['Cricket', ['test cricket', 'twenty20 international', 't20i', 'odi cricket', 'one day international', 'the ashes', 'cricket']],
     // 0152: leagues the live-hours table (LIVE_HOURS) names
     ['Championship', ['efl championship', 'sky bet championship']],
@@ -127,7 +136,8 @@ function teamFollow(keyword) {
 function detectLeague(text) {
     const t = normText(text);
     if (!t) return null;
-    if (/^\s*(?:w\s+)?(?:test|odi|t20i?)(?:\s+(?:mini|classic))?\s*:/i.test(String(text)) && parseMatchup(text)) return 'Cricket';
+    const format = /^\s*(w\s+)?(?:test|odi|t20i?)(?:\s+(?:mini|classic))?\s*:/i.exec(String(text));
+    if (format && parseMatchup(text)) return format[1] ? "Women's Cricket" : 'Cricket';
     for (const l of LEAGUES) if (l.re.test(t) && !(l.not && l.not.test(t))) return l.name;
     return null;
 }
@@ -722,7 +732,7 @@ const teamIsKnown = (side, teamsAliases) => teamsAliases.some(aliases => aliasHi
 function fixtureLiveVerdict(a, best, kind) {
     const tz = liveHoursFor(a.league)?.tz;
     const near = a.start <= best.start + ESPN_GRACE_MS && a.end > best.start;
-    const multiDaySpan = a.league === 'Cricket' && best.end && best.end > best.start + DAY_MS
+    const multiDaySpan = require('./sportCatalog').isCricket(a.league) && best.end && best.end > best.start + DAY_MS
         && a.start >= best.start && a.start < best.end;
     const dayStart = best.start + Math.round((a.start - best.start) / DAY_MS) * DAY_MS;
     const dailyPlay = a.start < dayStart + 8 * 60 * 60 * 1000 && a.end > dayStart - ESPN_GRACE_MS;
