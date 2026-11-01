@@ -826,4 +826,11 @@ account follows nothing; only the server's owner (its first admin account) takes
   draws together) or `Majors` (the four men's majors; the women's stay under `LPGA`). The sport's followed names mark a
   card `followed` only when the name is in its draw, field, fight card or entry list (F1 sessions too); a MotoGP or
   Supercars card, which has none, for each name no other series lists. No C-T page yet.
+- **Suggestions (0413, #198, D-41 point 2).** `GET /api/sports/suggestions` (any user) → `{ suggestions: [{ sport, team,
+  league, label, start }] }`: for each followed team, the catalogue leagues of its sport it has a fixture in (`start`
+  its first there) that the account does not follow and has not declined, in the account's order. Ask when a team is
+  followed and when the Sport section opens; offer "Add <label>?" (add it through `PUT /follows`) or "No thanks":
+  `POST /api/sports/suggestions/decline` `{ team, league }` → `{ success }`, remembered per account (400 for a league
+  outside the catalogue). Football knows every competition a club has fixtures in; other sports only those some
+  account follows.
 - A server before 0391 answers 404 to `/api/sports/follows` and `/catalog`: send them only with this flag.

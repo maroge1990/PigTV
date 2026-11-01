@@ -240,6 +240,15 @@ router.put('/follows', (req, res) => {
     try { res.json(require('../services/sportPagePrefs').setFollows(req.user.id, req.body)); }
     catch (err) { res.status(err.status === 400 ? 400 : 500).json({ error: err.status === 400 ? err.message : 'Could not save what you follow' }); }
 });
+// #198 (D-41 point 2): the other competitions this account's followed teams play in, and "No thanks".
+router.get('/suggestions', async (req, res) => {
+    try { res.json({ suggestions: await require('../services/sportSuggestions').suggestions(req.user.id) }); }
+    catch (err) { console.error('[Sports] suggestions failed:', err.message); res.status(500).json({ error: 'Could not read the suggestions' }); }
+});
+router.post('/suggestions/decline', (req, res) => {
+    try { require('../services/sportSuggestions').decline(req.user.id, req.body || {}); res.json({ success: true }); }
+    catch (err) { res.status(err.status === 400 ? 400 : 500).json({ error: err.status === 400 ? err.message : 'Could not save that' }); }
+});
 router.get('/catalog', (req, res) => {
     res.json({ sports: require('../services/sportCatalog').publicCatalog() });
 });

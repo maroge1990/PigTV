@@ -1,0 +1,323 @@
+{
+"team": {
+"id": "359",
+"displayName": "Arsenal"
+},
+"events": [
+{
+"id": "401879246",
+"date": "2026-11-01T16:30Z",
+"name": "Arsenal at Liverpool",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401915381",
+"date": "2026-11-04T20:00Z",
+"name": "Arsenal at Slavia Prague",
+"league": {
+"slug": "uefa.champions",
+"name": "UEFA Champions League"
+}
+},
+{
+"id": "401878760",
+"date": "2026-11-07T15:00Z",
+"name": "Hull City at Arsenal",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401879232",
+"date": "2026-11-21T17:30Z",
+"name": "Arsenal at Newcastle United",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401915295",
+"date": "2026-11-24T20:00Z",
+"name": "Borussia Dortmund at Arsenal",
+"league": {
+"slug": "uefa.champions",
+"name": "UEFA Champions League"
+}
+},
+{
+"id": "401878753",
+"date": "2026-11-29T16:30Z",
+"name": "Manchester City at Arsenal",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401878750",
+"date": "2026-12-02T20:15Z",
+"name": "Arsenal at Brentford",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401879209",
+"date": "2026-12-06T16:30Z",
+"name": "Arsenal at Tottenham Hotspur",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401915367",
+"date": "2026-12-09T20:00Z",
+"name": "Real Madrid at Arsenal",
+"league": {
+"slug": "uefa.champions",
+"name": "UEFA Champions League"
+}
+},
+{
+"id": "401878746",
+"date": "2026-12-13T14:00Z",
+"name": "AFC Bournemouth at Arsenal",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401879204",
+"date": "2026-12-20T16:30Z",
+"name": "Manchester United at Arsenal",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401878735",
+"date": "2026-12-27T19:00Z",
+"name": "Arsenal at Crystal Palace",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401879191",
+"date": "2026-12-30T19:30Z",
+"name": "Arsenal at Fulham",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401879185",
+"date": "2027-01-02T15:00Z",
+"name": "Ipswich Town at Arsenal",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401879177",
+"date": "2027-01-05T19:30Z",
+"name": "Brentford at Arsenal",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401878723",
+"date": "2027-01-16T15:00Z",
+"name": "Arsenal at Hull City",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401915275",
+"date": "2027-01-20T20:00Z",
+"name": "Arsenal at Real Betis",
+"league": {
+"slug": "uefa.champions",
+"name": "UEFA Champions League"
+}
+},
+{
+"id": "401878720",
+"date": "2027-01-23T15:00Z",
+"name": "Newcastle United at Arsenal",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401915346",
+"date": "2027-01-27T20:00Z",
+"name": "Sabah FK at Arsenal",
+"league": {
+"slug": "uefa.champions",
+"name": "UEFA Champions League"
+}
+},
+{
+"id": "401879154",
+"date": "2027-01-30T15:00Z",
+"name": "Arsenal at Manchester City",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401878712",
+"date": "2027-02-06T15:00Z",
+"name": "Liverpool at Arsenal",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401878706",
+"date": "2027-02-10T20:00Z",
+"name": "Arsenal at Ipswich Town",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401878705",
+"date": "2027-02-20T15:00Z",
+"name": "Fulham at Arsenal",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401878697",
+"date": "2027-02-27T15:00Z",
+"name": "Arsenal at Manchester United",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401878696",
+"date": "2027-03-03T20:00Z",
+"name": "Crystal Palace at Arsenal",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401878693",
+"date": "2027-03-13T15:00Z",
+"name": "Arsenal at Chelsea",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401879115",
+"date": "2027-03-20T15:00Z",
+"name": "Sunderland at Arsenal",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401879103",
+"date": "2027-04-10T14:00Z",
+"name": "Arsenal at Coventry City",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401878686",
+"date": "2027-04-17T14:00Z",
+"name": "Aston Villa at Arsenal",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401878680",
+"date": "2027-04-24T14:00Z",
+"name": "Arsenal at AFC Bournemouth",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401878676",
+"date": "2027-05-01T14:00Z",
+"name": "Tottenham Hotspur at Arsenal",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401879081",
+"date": "2027-05-08T14:00Z",
+"name": "Arsenal at Leeds United",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401879079",
+"date": "2027-05-15T14:00Z",
+"name": "Nottingham Forest at Arsenal",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401879070",
+"date": "2027-05-23T14:00Z",
+"name": "Arsenal at Everton",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+},
+{
+"id": "401878660",
+"date": "2027-05-30T15:00Z",
+"name": "Brighton & Hove Albion at Arsenal",
+"league": {
+"slug": "eng.1",
+"name": "English Premier League"
+}
+}
+]
+}
