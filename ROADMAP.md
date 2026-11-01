@@ -5,7 +5,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 1 Nov 2026, evening (sport revamp server and web 0390–0421; D-43).*
+*Overwritten at the end of every session. 1 Nov 2026, evening (sport revamp server and web 0390–0421, Apple 91–94; D-43).*
 
 - **Server:** production runs **0387** (unchanged). On GitHub, CI green: **0390–0421**, the sport revamp (D-41, D-42):
   #193–#196 and #206 (0390–0405); #197's cards: tennis, golf, UFC, IndyCar, NASCAR Cup (0406–0408); #29 collector cost
@@ -14,12 +14,14 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   #199 web Settings › Sports › Your sport and `GET /api/sports/names` (0418–0421). Every batch had its Codex rounds;
   every high fixed; #207 (keyword rules' merged airing times) left as a finding. Next build **0422**.
 - **Deploy rule (D-42):** the revamp is deployed and tested as a whole once complete, not batch by batch.
-- **Apple:** on GitHub and TestFlight **90**. Next **91**. No Apple work yet on the revamp: #200 is next.
+- **Apple:** TestFlight **90**; on GitHub **91–94** (#200 part 1: Settings › Sport on C-U, clash choices and card
+  recordings; two Codex rounds, both highs fixed; web twin #208). Next **95**: the rest of #200 (#201–#205, #187, #190,
+  #18, #52), then the Apple TV sport pages to D-43.
 - **Decisions:** D-41, D-42, **D-43** (Apple TV sport pages: one banner on the front page and every sport page, a
   layout per sport, no sport tiles; build and device-test on Apple TV first, then iPad and iPhone mock-ups together; web
   parked). Golf's Majors are the four men's; the women's stay under LPGA.
 - **Issues:** #12, #29, #193–#199, #206 stay open for the combined test; #197 still needs its league pages (now to
-  D-43's layouts). New: #207 (finding, P2).
+  D-43's layouts). New: #207, #208 (findings, P2).
 - **Paused at Mark's request:** the walkthrough of the 19 issues waiting on his device check, starting at #192.
 - **Not done:** #197's pages; #201–#203 server halves; production's 7 favourites (needs Mark's yes); PR #189 waits
   for Mark's read; #111 parked.
