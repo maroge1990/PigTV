@@ -33,7 +33,7 @@ const auth = load('auth');
 const sqlite = load('db/sqlite');
 const sync = load('services/syncService');
 
-let server, base, adminToken, viewerToken, viewer, source;
+let server, base, adminToken, viewerToken, viewer, adminUser, source;
 const H = 60 * 60 * 1000;
 const M = 60 * 1000;
 const NOW = Date.now();
@@ -114,10 +114,11 @@ const events = async (query = '', token = adminToken) => {
 const titles = (body) => body.events.map(e => e.title);
 // 0150: an event's title is its cleanest form ("Chiefs v Bills"); the raw titles are its aliases.
 const find = (body, prefix) => body.events.filter(e => [e.title, ...(e.aliases || [])].some(t => t.startsWith(prefix)));
-const follow = (keywords) => call('PUT', '/api/sports/follow', { body: { keywords } });
+// D-42 (#195): the admin keyword list is retired; tests still set it directly (it stands for the followed leagues).
+const follow = async (keywords) => ({ status: 200, body: { keywords: load('services/sportsEvents').setFollow(keywords) } });
 
 before(async () => {
-    const admin = await db.users.create({ username: 'owner', role: 'admin' });
+    const admin = adminUser = await db.users.create({ username: 'owner', role: 'admin' });
     adminToken = auth.generateToken(admin);
     viewer = await db.users.create({ username: 'viewer', role: 'viewer' });
     viewerToken = auth.generateToken(viewer);
@@ -460,35 +461,43 @@ test('0185: a followed team ("NFL: Arizona Cardinals") follows its games by full
     const bare = ev.compileFollow(['EPL: Arsenal']);
     assert.equal(ev.classify({ title: 'Premier League: Arsenal v Leeds United', categories: [] }, bare).league, 'EPL');
     // The team's league gets its fixtures fetched, and the team list is served to the admin.
-    await call('PUT', '/api/sports/follow', { body: { keywords: ['NFL: Arizona Cardinals'] } });
+    ev.setFollow(['NFL: Arizona Cardinals']);
     assert.deepEqual([...load('services/sportsFixtures').neededLeagues()], ['NFL']);
     const teams = await call('GET', '/api/sports/teams?league=nfl');
     assert.deepEqual(teams.body, { league: 'NFL', teams: ['Arizona Cardinals', 'New York Giants', 'New York Jets', 'Seattle Seahawks'] });
     assert.equal((await call('GET', '/api/sports/teams?league=Quidditch')).status, 400);
     assert.equal((await call('GET', '/api/sports/teams?league=NFL', { token: viewerToken })).status, 403);
-    await call('PUT', '/api/sports/follow', { body: { keywords: [] } });
+    ev.setFollow([]);
     sqlite.getDb().prepare('DELETE FROM sport_fixture_teams').run();
 });
 
-test('the follow list: admin only, trimmed and de-duplicated, at most 100', async () => {
-    const saved = await follow([' NFL ', 'nfl', 'Chiefs', '', '  AFL  ']);
-    assert.equal(saved.status, 200);
-    assert.deepEqual(saved.body, { keywords: ['NFL', 'Chiefs', 'AFL'] });
+test('D-42 (#195): the follow list is retired: read-only for the admin, PUT is 410, the followed leagues count', async () => {
+    await follow(['NFL', 'Chiefs']);
     const read = (await call('GET', '/api/sports/follow')).body;
-    assert.deepEqual(read.keywords, ['NFL', 'Chiefs', 'AFL']);
-    // 0185: with the leagues the Sports tab offers, and whether each has real fixture times
+    assert.deepEqual(read.keywords, ['NFL', 'Chiefs']);
     assert.deepEqual(read.leagues.find(l => l.name === 'EPL'), { name: 'EPL', fixtures: true, teams: true });
-    assert.deepEqual(read.leagues.find(l => l.name === 'MotoGP'), { name: 'MotoGP', fixtures: false, teams: false });
-    assert.deepEqual(read.leagues.find(l => l.name === 'Cricket'), { name: 'Cricket', fixtures: true, teams: false });
-    assert.deepEqual(read.leagues.find(l => l.name === 'F1'), { name: 'F1', fixtures: true, teams: false });
-    assert.equal((await call('PUT', '/api/sports/follow', { body: { keywords: 'NFL' } })).status, 400);
-    assert.equal((await call('PUT', '/api/sports/follow', { body: { keywords: [3] } })).status, 400);
-    assert.equal((await follow(Array.from({ length: 101 }, (_, i) => `k${i}`))).status, 400);
-    assert.equal((await follow(Array.from({ length: 100 }, (_, i) => `k${i}`))).status, 200);
+    assert.equal((await call('PUT', '/api/sports/follow', { body: { keywords: ['F1'] } })).status, 410);
     assert.equal((await call('GET', '/api/sports/follow', { token: viewerToken })).status, 403);
     assert.equal((await call('PUT', '/api/sports/follow', { token: viewerToken, body: { keywords: [] } })).status, 403);
+    // An account following a league makes it count, without any keyword (D-42).
     await follow([]);
-    assert.deepEqual((await call('GET', '/api/sports/follow')).body.keywords, []);
+    const prefs = load('services/sportPagePrefs');
+    prefs.setFollows(viewer.id, { sports: [{ sport: 'Basketball', leagues: ['NBA'] }] });
+    assert.deepEqual(load('services/sportsEvents').getFollow(), ['NBA']);
+    prefs.setFollows(viewer.id, { sports: [] });
+    assert.deepEqual(load('services/sportsEvents').getFollow(), [], 'an unfollowed league stops counting');
+    // Once at start: the owner takes the old list over and it is emptied.
+    const d = sqlite.getDb();
+    await follow(['AFL', 'NFL: Green Bay Packers']);
+    d.prepare("DELETE FROM meta WHERE key IN ('sport_page_prefs', 'sports_follow_retired')").run();
+    d.prepare('DELETE FROM sport_follows').run();
+    assert.equal(prefs.retireKeywordList(), true);
+    assert.equal(prefs.retireKeywordList(), false, 'only once');
+    assert.equal(d.prepare('SELECT COUNT(*) AS n FROM sports_follow').get().n, 0);
+    assert.deepEqual(prefs.follows(adminUser.id).sports.map(s => [s.sport, s.leagues, s.teams]),
+        [['Australian football', ['AFL'], []], ['American football', ['NFL'], ['Green Bay Packers']]]);
+    assert.deepEqual(load('services/sportsEvents').getFollow(), ['AFL', 'NFL']);
+    prefs.setFollows(adminUser.id, { sports: [] });
 });
 
 test('the preview is admin only and says which rule matched', async () => {

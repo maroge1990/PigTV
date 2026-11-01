@@ -724,43 +724,16 @@ class SettingsPage {
 
     // ---- Sports tab (0149, contract C-I) --------------------------------
     //
-    // The follow list (GET/PUT /api/sports/follow) as chips: Add puts one in,
-    // x takes one out, Save sends the whole list. Below it, the events the
-    // server recognises in the next 72 hours (GET /api/sports/preview; 24 before 0153), with the
-    // rule that matched and the channels (expandable), reloaded after a save.
-    // 0151: the preview is grouped by kind (0150): Events, then Replays, then
-    // Shows and Placeholders collapsed (a click on the heading opens one); each
-    // row says why it is that kind and lists the guide titles merged into it.
+    // The leagues that count as sport (GET /api/sports/follow: since D-42 the leagues any account follows, read-only; the
+    // admin keyword list is retired) and, below, the events the server recognises in the next 72 hours (GET
+    // /api/sports/preview) with the rule that matched and the channels (expandable). 0151: the preview is grouped by kind
+    // (0150): Events, then Replays, then Shows and Placeholders collapsed (a click on the heading opens one); each row
+    // says why it is that kind and lists the guide titles merged into it.
 
     initSports() {
         this.sportsKeywords = [];
-        this.sportsSaved = [];
         this.sportsEvents = [];
         this.sportsOpenKinds = new Set(['event', 'replay']);
-        const input = document.getElementById('sports-follow-input');
-        document.getElementById('sports-follow-add')?.addEventListener('click', () => this.addSportsKeyword(input?.value));
-        input?.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') { e.preventDefault(); this.addSportsKeyword(input.value); }
-        });
-        document.getElementById('sports-follow-save')?.addEventListener('click', () => this.saveSportsFollow());
-        // 0185: leagues are picked from a list, so they are spelt the way the server knows them.
-        const leagueSelect = document.getElementById('sports-league-select');
-        leagueSelect?.addEventListener?.('change', () => {
-            if (leagueSelect.value) this.addSportsKeyword(leagueSelect.value);
-            leagueSelect.value = '';
-        });
-        // ...and so are teams: a league first, then one of its teams ("NFL: Arizona Cardinals").
-        const teamLeague = document.getElementById('sports-team-league');
-        const teamSelect = document.getElementById('sports-team-select');
-        teamLeague?.addEventListener?.('change', () => this.loadSportsTeams(teamLeague.value));
-        teamSelect?.addEventListener?.('change', () => {
-            if (teamSelect.value && teamLeague.value) this.addSportsKeyword(`${teamLeague.value}: ${teamSelect.value}`);
-            teamSelect.value = '';
-        });
-        document.getElementById('sports-follow-chips')?.addEventListener('click', (e) => {
-            const button = e.target?.closest?.('button[data-sports-remove]');
-            if (button) this.removeSportsKeyword(Number(button.dataset.sportsRemove));
-        });
         document.getElementById('sports-preview-list')?.addEventListener('click', (e) => {
             const button = e.target?.closest?.('button[data-sports-kind]');
             if (button) this.toggleSportsKind(button.dataset.sportsKind);
@@ -784,11 +757,9 @@ class SettingsPage {
         try {
             const follow = await API.sports.follow();
             this.sportsKeywords = [...(follow?.keywords || [])];
-            this.sportsSaved = [...this.sportsKeywords];
-            this.sportsLeagues = Array.isArray(follow?.leagues) ? follow.leagues : [];
             this.renderSportsFollow();
         } catch (err) {
-            this.setSportsStatus(`Could not load the follow list: ${err.message}`, true);
+            this.setSportsStatus(`Could not load the followed leagues: ${err.message}`, true);
         }
         await this.loadSportsPreview();
     }
@@ -804,96 +775,13 @@ class SettingsPage {
         }
     }
 
-    /** Fill the team list for a league (GET /api/sports/teams); hidden until a league is chosen. */
-    async loadSportsTeams(league) {
-        const select = document.getElementById('sports-team-select');
-        if (!select) return;
-        select.classList.toggle('hidden', !league);
-        if (!league) return;
-        select.innerHTML = '<option value="">Loading...</option>';
-        try {
-            const reply = await API.sports.teams(league);
-            const e = (v) => this.escapeLineup(v);
-            const teams = reply?.teams || [];
-            select.innerHTML = teams.length
-                ? '<option value="">Choose a team...</option>' + teams.map(t => `<option value="${e(t)}">${e(t)}</option>`).join('')
-                : '<option value="">No team list for this league</option>';
-        } catch (err) {
-            select.innerHTML = '<option value="">Could not load the teams</option>';
-            this.setSportsStatus(err.message || 'Could not load the teams', true);
-        }
-    }
-
-    sportsDirty() {
-        return JSON.stringify(this.sportsKeywords) !== JSON.stringify(this.sportsSaved);
-    }
-
-    addSportsKeyword(value) {
-        const text = String(value || '').replace(/\s+/g, ' ').trim();
-        const input = document.getElementById('sports-follow-input');
-        if (input) input.value = '';
-        if (!text) return;
-        if (this.sportsKeywords.some(k => k.toLowerCase() === text.toLowerCase())) {
-            this.setSportsStatus(`Already following ${text}`);
-            return;
-        }
-        this.sportsKeywords.push(text.slice(0, 60));
-        this.renderSportsFollow();
-    }
-
-    removeSportsKeyword(index) {
-        if (!Number.isInteger(index) || index < 0 || index >= this.sportsKeywords.length) return;
-        this.sportsKeywords.splice(index, 1);
-        this.renderSportsFollow();
-    }
-
     renderSportsFollow() {
         const e = (v) => this.escapeLineup(v);
         const chips = document.getElementById('sports-follow-chips');
         if (chips) {
             chips.innerHTML = this.sportsKeywords.length
-                ? this.sportsKeywords.map((k, i) => `<span class="btn btn-secondary epg-candidate sports-chip">${e(k)}
-                    <button type="button" class="sports-chip-remove" data-sports-remove="${i}" title="Stop following ${e(k)}" aria-label="Remove ${e(k)}">&times;</button></span>`).join('')
-                : '<span class="setting-hint">No keywords yet</span>';
-        }
-        // The leagues not followed yet; those with real fixture times first.
-        const select = document.getElementById('sports-league-select');
-        if (select) {
-            const followed = new Set(this.sportsKeywords.map(k => k.toLowerCase()));
-            const left = (this.sportsLeagues || []).filter(l => !followed.has(l.name.toLowerCase()));
-            const options = (list) => list.map(l => `<option value="${e(l.name)}">${e(l.name)}</option>`).join('');
-            const withTimes = left.filter(l => l.fixtures);
-            const without = left.filter(l => !l.fixtures);
-            select.innerHTML = '<option value="">Add a league...</option>'
-                + (withTimes.length ? `<optgroup label="With real fixture times">${options(withTimes)}</optgroup>` : '')
-                + (without.length ? `<optgroup label="From the guide only">${options(without)}</optgroup>` : '');
-        }
-        // Teams come from the leagues with a roster (not the motor sports or cricket).
-        const teamLeague = document.getElementById('sports-team-league');
-        if (teamLeague && !teamLeague.value) {
-            const withTeams = (this.sportsLeagues || []).filter(l => l.teams);
-            teamLeague.innerHTML = '<option value="">Add a team from...</option>'
-                + withTeams.map(l => `<option value="${e(l.name)}">${e(l.name)}</option>`).join('');
-        }
-        const save = document.getElementById('sports-follow-save');
-        if (save) save.disabled = !this.sportsDirty();
-        if (this.sportsDirty()) this.setSportsStatus('Not saved yet');
-    }
-
-    async saveSportsFollow() {
-        const save = document.getElementById('sports-follow-save');
-        if (save) save.disabled = true;
-        this.setSportsStatus('Saving...');
-        try {
-            const res = await API.sports.setFollow(this.sportsKeywords);
-            this.sportsKeywords = [...(res?.keywords || [])];
-            this.sportsSaved = [...this.sportsKeywords];
-            this.renderSportsFollow();
-            this.setSportsStatus('Saved');
-            await this.loadSportsPreview();
-        } catch (err) {
-            if (save) save.disabled = false;
-            this.setSportsStatus(err.message || 'Could not save the follow list', true);
+                ? this.sportsKeywords.map(k => `<span class="btn btn-secondary epg-candidate sports-chip">${e(k)}</span>`).join('')
+                : '<span class="setting-hint">No account follows a league yet</span>';
         }
     }
 

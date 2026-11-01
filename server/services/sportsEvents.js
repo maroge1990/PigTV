@@ -297,11 +297,27 @@ const healthRank = (h) => (h === 'ok' ? 0 : h === 'flaky' ? 2 : 1);
 let followCache = null; // [keyword]
 let followVersion = 0;
 
+/**
+ * D-42 (#195): what decides which guide programmes are sport is the leagues any account follows (sportPagePrefs), not
+ * an admin keyword list. `sports_follow` is read only until the owner's first read takes it over and empties it
+ * (sportPagePrefs.fromHousehold); tests still fill it through setFollow.
+ */
 function getFollow() {
     if (!followCache) {
-        followCache = getDb().prepare('SELECT keyword FROM sports_follow ORDER BY position').all().map(r => r.keyword);
+        const stored = getDb().prepare('SELECT keyword FROM sports_follow ORDER BY position').all().map(r => r.keyword);
+        let leagues = [];
+        try { leagues = [...require('./sportPagePrefs').allLeagues()].sort(); } catch { leagues = []; }
+        const named = new Set(stored.map(k => sportsClassify.canonicalLeague(k)).filter(Boolean));
+        followCache = [...stored, ...leagues.filter(l => !named.has(l))];
     }
     return followCache;
+}
+
+/** An account's follows changed (sportPagePrefs): rebuild what counts as sport. */
+function followsChanged() {
+    followCache = null;
+    followVersion++;
+    scheduleRebuild();
 }
 
 /**
@@ -1157,7 +1173,7 @@ module.exports = {
     classify, compileFollow, followedKeyword, normaliseTitle, qualityFromName, leagueFromCategories,
     // R5: recording rules match events the way the follow list does, and find a series' channel
     visibleChannels,
-    getFollow, setFollow, cleanFollow, eventsFor, leagueEvents, endedEvents, buildEvents, clampHours, stats, eventsResponse,
+    getFollow, setFollow, cleanFollow, followsChanged, eventsFor, leagueEvents, endedEvents, buildEvents, clampHours, stats, eventsResponse,
     // for tests: what the response cache holds, and an empty one
     responseCacheSize: () => ({ entries: responses.size, bytes: responseBytes }),
     clearResponses: () => { responses.clear(); responseBytes = 0; },

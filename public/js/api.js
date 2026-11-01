@@ -177,7 +177,6 @@ const API = {
         savePreferences: (data) => API.request('PUT', '/sports/preferences', data),
         categories: () => API.request('GET', '/sports/categories'), // 0147
         follow: () => API.request('GET', '/sports/follow'), // 0148
-        setFollow: (keywords) => API.request('PUT', '/sports/follow', { keywords }),
         teams: (league) => API.request('GET', `/sports/teams?league=${encodeURIComponent(league)}`), // 0185
         preview: () => API.request('GET', '/sports/preview')
     },

@@ -254,6 +254,8 @@ app.listen(PORT, async (err) => {
     // the event loop it would block also serves live HLS segments.
     // R09: the build itself runs on a worker thread (services/sportsEventsWorker.js), so
     // it no longer blocks that loop at all.
+    // D-42 (#195): the admin keyword list is retired, once: the owner takes it over, then it is emptied.
+    require('./services/sportPagePrefs').retireKeywordList();
     try {
         require('./services/sportsEvents').startBackgroundRebuilds();
     } catch (err) {

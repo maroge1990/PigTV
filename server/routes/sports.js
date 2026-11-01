@@ -9,8 +9,8 @@
  *          (live, then upcoming, each by start), then replays (on now first), then the
  *          rest; channels best first
  *          Answered from a per-minute cache with an ETag (If-None-Match -> 304); `now` is the minute's start
- *   GET /api/sports/follow           (admin; 0148) -> { keywords }
- *   PUT /api/sports/follow {keywords} (admin; 0148) -> { keywords } (trimmed, de-duplicated, max 100)
+ *   GET /api/sports/follow           (admin; 0148) -> { keywords, leagues }: since D-42 (0394) the leagues accounts follow, read-only
+ *   PUT /api/sports/follow           (admin) -> 410 since 0394: the keyword list is retired (D-42)
  *   GET /api/sports/preview          (admin; 0148)
  *       -> { now, events } for the next 72 hours (0153), every kind, each also with `rule`
  *          ("keyword" | "category" | "sportChannel"), `match` (what matched) and
@@ -268,15 +268,9 @@ router.get('/follow', requireAdmin, (req, res) => {
     }
 });
 
+// D-42 (#195): the admin keyword list is retired; the leagues accounts follow decide what is sport.
 router.put('/follow', requireAdmin, (req, res) => {
-    const cleaned = sportsEvents.cleanFollow(req.body?.keywords);
-    if (cleaned.error) return res.status(400).json({ error: cleaned.error });
-    try {
-        res.json({ keywords: sportsEvents.setFollow(cleaned.keywords) });
-    } catch (err) {
-        console.error('[Sports] saving the follow list failed:', err.message);
-        res.status(500).json({ error: 'Could not save the follow list' });
-    }
+    res.status(410).json({ error: 'The Sports follow list is retired: each account follows its own sports and leagues' });
 });
 
 /**

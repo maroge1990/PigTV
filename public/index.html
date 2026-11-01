@@ -898,32 +898,20 @@
             </div>
           </div>
 
-          <!-- Sports (0149, C-I): GET/PUT /api/sports/follow, GET /api/sports/preview -->
+          <!-- Sports (0149, C-I): GET /api/sports/follow (read-only since D-42), GET /api/sports/preview -->
           <div id="tab-sports" class="tab-content">
             <div class="settings-section">
               <h3>Sports</h3>
               <p class="setting-hint">A programme counts as sport when its guide category is a sport, when its title or category
-                contains a keyword you follow, or when it is on a channel in a Sport category (Manage Content) and its title
+                names a league an account follows, or when it is on a channel in a Sport category (Manage Content) and its title
                 reads like a live event ("Live", "vs", "v"). Each is then an event (a match-up or a session), a replay of a game,
                 a show (magazines, highlights, pre and post shows) or a placeholder (empty PPV slots, old listings, 24/7 replay
                 channels). Listings of the same game on different channels are merged. The Apple TV lists events and replays.</p>
-              <h4>What you follow</h4>
+              <h4>Leagues that count as sport</h4>
+              <p class="setting-hint">Since D-42 these are the leagues any account follows (each account chooses its own sports
+                and leagues); the old keyword list is retired.</p>
               <div id="sports-follow-chips" class="epg-candidates sports-chips"></div>
-              <div class="lineup-toolbar">
-                <select id="sports-league-select" class="source-select" aria-label="Add a league">
-                  <option value="">Add a league...</option>
-                </select>
-                <select id="sports-team-league" class="source-select" aria-label="League of a team to add">
-                  <option value="">Add a team from...</option>
-                </select>
-                <select id="sports-team-select" class="source-select hidden" aria-label="Team to add"></select>
-                <div class="search-wrapper">
-                  <input type="text" id="sports-follow-input" placeholder="Or any other keyword" class="search-input" maxlength="60">
-                </div>
-                <button id="sports-follow-add" class="btn btn-secondary">Add</button>
-                <button id="sports-follow-save" class="btn btn-primary" disabled>Save</button>
-                <span id="sports-status" class="lineup-status"></span>
-              </div>
+              <span id="sports-status" class="lineup-status"></span>
               <h4>Recognised in the next 72 hours</h4>
               <div class="user-list-container lineup-table-container">
                 <table class="user-table lineup-table">

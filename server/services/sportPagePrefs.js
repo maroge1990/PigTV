@@ -43,6 +43,8 @@ function write(db, userId, state) {
     ensureTable(db);
     db.prepare('INSERT INTO sport_follows (user_id, value) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET value = excluded.value')
         .run(userId, JSON.stringify(state));
+    // D-42: the followed leagues decide which guide programmes are sport (sportsEvents.getFollow).
+    try { require('./sportsEvents').followsChanged(); } catch { /* not loaded here (a worker, a test) */ }
 }
 
 /** The server's owner: the admin account with the lowest id, or null. */
@@ -124,7 +126,7 @@ function fromHousehold(db) {
     return state;
 }
 
-function readState(db, userId) {
+function readState(db, userId, migrate = true) {
     const raw = readRow(db, userId);
     if (raw !== null) {
         let stored = null;
@@ -133,10 +135,32 @@ function readState(db, userId) {
     }
     if (userId === ownerId(db)) {
         const state = fromHousehold(db);
-        try { write(db, userId, state); } catch { /* a read-only connection migrates again next time */ }
+        if (migrate) try { write(db, userId, state); } catch { /* a read-only connection migrates again next time */ }
         return state;
     }
     return empty();
+}
+
+/**
+ * D-42 (#195): the admin keyword list is retired. Once, at server start: the owner takes over the household's follows
+ * (if not yet), then `sports_follow` is emptied, so only the leagues accounts follow decide what is sport.
+ */
+function retireKeywordList(db = getDb()) {
+    const DONE = 'sports_follow_retired';
+    try {
+        if (db.prepare('SELECT value FROM meta WHERE key = ?').get(DONE)) return false;
+        db.transaction(() => {
+            const owner = ownerId(db);
+            if (owner !== null) readState(db, owner);
+            db.prepare('DELETE FROM sports_follow').run();
+            db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(DONE, '1');
+        })();
+        try { require('./sportsEvents').followsChanged(); } catch { /* not loaded */ }
+        return true;
+    } catch (err) {
+        console.warn('[Sport] retiring the keyword list:', err.message);
+        return false;
+    }
 }
 
 const copy = (state) => ({ spoilerFree: state.spoilerFree,
@@ -161,7 +185,8 @@ function allLeagues(db = getDb()) {
     try { ids = db.prepare('SELECT user_id FROM sport_follows').all().map(r => r.user_id); } catch { ids = []; }
     const owner = ownerId(db);
     if (owner !== null && !ids.includes(owner)) ids.push(owner);
-    for (const id of ids) for (const s of readState(db, id).sports) for (const l of s.leagues) out.add(l);
+    // The owner's not-yet-migrated follows count without migrating them: only the owner's own read takes them over.
+    for (const id of ids) for (const s of readState(db, id, false).sports) for (const l of s.leagues) out.add(l);
     return out;
 }
 
@@ -297,4 +322,4 @@ function update(userId, patch, db = getDb()) {
     })();
 }
 
-module.exports = { get, follows, update, setFollows, allLeagues, view, PAGES, MAX_TEAMS };
+module.exports = { get, follows, update, setFollows, allLeagues, retireKeywordList, view, PAGES, MAX_TEAMS };
