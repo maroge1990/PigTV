@@ -34,6 +34,9 @@ const words = (list) => new RegExp(`(?:^| )(?:${list.join('|')})(?= |$)`);
 
 // [canonical name, aliases as normText() spells them]. Most specific first: AFLW is looked for
 // before AFL ("Women's AFL" contains "AFL"), NRLW before NRL.
+// 0400 (Codex round 1, medium): a title that names another sport is never football's internationals ("ICC Women's Cricket
+// World Cup Qualifier", "Rugby League World Cup qualifier").
+const OTHER_SPORT_RE = /(?:^| )(?:cricket|icc|t20i?|odi|rugby|league world cup|hockey|netball|basketball|fiba)(?= |$)/;
 const LEAGUES = [
     ['F1', ['f1', 'formula 1', 'formula one', 'formula1', 'fia f1']],
     ['AFLW', ['aflw', 'womens afl', 'afl womens', 'afl women', 'afl w']],
@@ -71,10 +74,10 @@ const LEAGUES = [
     // have theirs), nor bare "friendly".
     ["Women's Internationals", ['womens internationals', 'fifa womens world cup', 'womens world cup qualifier', 'womens world cup qualifiers',
         'womens international friendly', 'womens nations league', 'uefa womens nations league', 'womens euro', 'uefa womens euro',
-        'womens asian cup', 'afc womens asian cup', 'matildas']],
+        'womens asian cup', 'afc womens asian cup', 'matildas'], OTHER_SPORT_RE],
     ['Internationals', ['internationals', 'fifa world cup', 'world cup qualifier', 'world cup qualifiers', 'world cup qualifying',
         'international friendly', 'uefa nations league', 'nations league', 'euro qualifier', 'euro qualifiers', 'uefa euro',
-        'asian cup', 'afc asian cup', 'copa america', 'africa cup of nations', 'afcon', 'gold cup', 'concacaf gold cup', 'socceroos']],
+        'asian cup', 'afc asian cup', 'copa america', 'africa cup of nations', 'afcon', 'gold cup', 'concacaf gold cup', 'socceroos'], OTHER_SPORT_RE],
     ['UFC', ['ufc']],
     ['MotoGP', ['motogp', 'moto gp']],
     ['NASCAR', ['nascar']],

@@ -431,3 +431,14 @@ test('#195: guide titles name the rugby union competitions; AFL\'s "Premiership"
         ['AFL Premiership Football: Cats v Swans', 'AFL']
     ]) assert.equal(detectLeague(title), league, title);
 });
+
+// 0400 (0395 Codex round 1, medium): cricket's qualifiers were filed as football's internationals.
+test('0400: a World Cup qualifier that names cricket or rugby is never football\'s', () => {
+    const { detectLeague } = require('../server/services/sportsClassify');
+    for (const title of ["Cricket: ICC Women's World Cup Qualifier: Scotland v Ireland", "ICC Women's Cricket World Cup Qualifier: Scotland v Ireland",
+        'ICC Cricket World Cup Qualifier: Scotland v Netherlands', 'Rugby League World Cup Qualifier: Fiji v Samoa']) {
+        assert.ok(!['Internationals', "Women's Internationals"].includes(detectLeague(title)), title);
+    }
+    assert.equal(detectLeague("ICC Women's Cricket World Cup Qualifier: Scotland v Ireland"), "Women's Cricket");
+    assert.equal(detectLeague('FIFA World Cup Qualifier: Australia v Japan'), 'Internationals');
+});

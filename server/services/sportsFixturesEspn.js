@@ -179,12 +179,18 @@ async function fetchTeams(leaguePath, { timeoutMs = TIMEOUT_MS } = {}) {
  * youth), which no group takes.
  */
 function cricketGroupOf(events) {
+    let known = false;
     for (const e of Array.isArray(events) ? events : []) {
-        const id = Number(e?.competitions?.[0]?.class?.internationalClassId);
+        const raw = e?.competitions?.[0]?.class?.internationalClassId;
+        if (raw === undefined || raw === null || raw === '' || !Number.isFinite(Number(raw))) continue;
+        known = true;
+        const id = Number(raw);
         if ([1, 2, 3].includes(id)) return 'Cricket';
         if ([8, 9, 10].includes(id)) return "Women's Cricket";
     }
-    return null;
+    // 0400 (Codex round 1, high): no class at all is unknown (undefined), not "no group" (null): discovery is then
+    // incomplete, so the groups keep their stored games rather than replacing them with a partial answer.
+    return known ? null : undefined;
 }
 
 async function discoverCricketSeries({ timeoutMs = TIMEOUT_MS } = {}) {
@@ -199,16 +205,22 @@ async function discoverCricketSeries({ timeoutMs = TIMEOUT_MS } = {}) {
     const out = [];
     const seen = new Set();
     let unreadable = 0;
+    let unclassified = 0;
     for (const s of json.scores) {
         if (!s || typeof s !== 'object' || !Array.isArray(s.leagues)) { unreadable++; continue; }
         for (const lg of s.leagues) {
             const id = lg && typeof lg === 'object' && lg.id != null && String(lg.id) !== '' ? String(lg.id) : null;
             if (!id) { unreadable++; continue; }
-            if (!seen.has(id)) { seen.add(id); out.push({ id, name: lg.name || null, group: cricketGroupOf(s.events) }); }
+            if (seen.has(id)) continue;
+            seen.add(id);
+            const group = cricketGroupOf(s.events);
+            if (group === undefined) unclassified++;
+            out.push({ id, name: lg.name || null, group: group ?? null });
         }
     }
     if (unreadable && !out.length) return { ok: false, error: `cricket scorepanel unreadable (${unreadable} entries)` };
     if (unreadable) return { ok: true, series: out, complete: false, error: `${unreadable} cricket scorepanel entries unreadable` };
+    if (unclassified) return { ok: true, series: out, complete: false, error: `${unclassified} cricket series without an international class` };
     return { ok: true, series: out, complete: true };
 }
 

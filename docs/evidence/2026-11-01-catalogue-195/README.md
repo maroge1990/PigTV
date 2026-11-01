@@ -18,7 +18,17 @@ The Hundred's (19601) answered. Six months of cricket series (#195 issue) set th
 on the WSL box (ffmpeg without HE-AAC, `recording-segments-media`). `verify-build.sh` passes; its keyword-save check
 became "never present" and was proven by reintroducing the call.
 
-**Codex round:** below, once run.
+**Codex adversarial review, round 1** (`--base 37802b0`): needs-attention, one high and one medium, both fixed in 0400
+with failing-before tests:
+
+1. *High: missing cricket class metadata counted as "no group"* (`sportsFixturesEspn.js`): a scorepanel entry without
+   its international class made discovery complete, so a refresh could replace a group's stored games. Unknown class is
+   now an incomplete discovery: the games and coverage are kept (`test/sports-fixtures.test.js` › 0400).
+2. *Medium: football's qualifier aliases took cricket titles* (`sportsClassify.js`): "ICC Women's Cricket World Cup
+   Qualifier" filed as football. A title naming another sport (cricket, ICC, rugby…) is never football's internationals
+   (`test/sports-classify.test.js` › 0400).
+
+One high in round 1, so a second round runs (D-38).
 
 **Not covered:** T3 on the rig; real guide titles for the new leagues (spellings come from broadcasters' usual
 names, to be checked in the combined test); The Hundred and WNCL are off-season.

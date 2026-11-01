@@ -46,6 +46,7 @@ const intl = (id, classId = 3) => ({ leagues: [{ id, name: `Series ${id}` }], ev
 function cricketPanel() {
     const panel = readFx('cricket-scorepanel');
     panel.scores[0].events = intl('24377').events;
+    for (const block of panel.scores.slice(1)) block.events = intl('0', 0).events; // the others: domestic, so neither group's
     return panel;
 }
 const H = 60 * 60 * 1000;
@@ -604,7 +605,7 @@ test('#195 (D-41): the International cricket groups split ESPN\'s series by clas
     const at = Date.parse('2026-11-01T02:00Z');
     const match = (id, home, away) => ({ events: [{ id, date: '2026-11-02T03:00Z', competitions: [{ id, date: '2026-11-02T03:00Z',
         competitors: [{ team: { displayName: home } }, { team: { displayName: away } }] }] }] });
-    const panel = { scores: [intl('24273', 3), intl('24563', 10), intl('21284', 0), { leagues: [{ id: '8043' }], events: [] }] };
+    const panel = { scores: [intl('24273', 3), intl('24563', 10), intl('21284', 0), intl('8043', 0)] };
     await withEspn({ scorepanel: panel, 'cricket/24273/scoreboard': match('1', 'Australia', 'England'),
         'cricket/24563/scoreboard': match('2', 'Australia Women', 'South Africa Women'), 'cricket/21284/scoreboard': match('3', 'Sydney Thunder Women', 'Brisbane Heat Women') }, async () => {
         await fixtures.refreshCricket({ now: at });
@@ -613,4 +614,18 @@ test('#195 (D-41): the International cricket groups split ESPN\'s series by clas
     const snap = fixtures.snapshot(new Set(['Cricket', "Women's Cricket"]));
     assert.equal(snap.get('Cricket').fixtures.length, 1, 'the men\'s tour only: not the WBBL (its own league) nor the Shield');
     assert.equal(snap.get("Women's Cricket").fixtures.length, 1, 'the women\'s tour');
+});
+
+// 0400 (0397 Codex round 1, high): a discovery entry without its class made the refresh replace the group's games.
+test('0400: a series whose class is missing makes the discovery partial: the group keeps its stored games', async () => {
+    const at = Date.parse('2026-11-01T02:00Z');
+    const match = (id) => ({ events: [{ id, date: '2026-11-02T03:00Z', competitions: [{ id, date: '2026-11-02T03:00Z',
+        competitors: [{ team: { displayName: 'Australia' } }, { team: { displayName: 'England' } }] }] }] });
+    await withEspn({ scorepanel: { scores: [intl('24273', 3)] }, 'cricket/24273/scoreboard': match('1') }, () => fixtures.refreshCricket({ now: at }));
+    assert.equal(fixtures.snapshot(new Set(['Cricket'])).get('Cricket').fixtures.length, 1);
+    await withEspn({ scorepanel: { scores: [{ leagues: [{ id: '24273', name: 'England tour of Australia' }] }] } },
+        () => fixtures.refreshCricket({ now: at + H }));
+    const after = fixtures.snapshot(new Set(['Cricket'])).get('Cricket');
+    assert.equal(after.fixtures.length, 1, 'kept');
+    assert.equal(after.coverage.at, at, 'coverage not renewed by a partial answer');
 });
