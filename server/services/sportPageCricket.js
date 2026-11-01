@@ -327,6 +327,7 @@ async function build(now, { registerImage = (u) => u, followed = followedTeams()
     const leagues = new Map();
     const raws = new Map();
     const matches = [];
+    let unclassified = 0;
     for (const panel of panels) {
         for (const block of panel?.ok && Array.isArray(panel.json?.scores) ? panel.json.scores : []) {
             const league = (block?.leagues || [])[0];
@@ -336,12 +337,16 @@ async function build(now, { registerImage = (u) => u, followed = followedTeams()
             for (const e of Array.isArray(block.events) ? block.events : []) {
                 const m = matchOf(e, league, registerImage);
                 if (!m || raws.has(m.id)) continue; // today's copy first: the fresher listing
+                if (m.league === undefined) { unclassified++; continue; }
                 if (!wanted.has(m.league) || !shown(m)) continue;
                 raws.set(m.id, e);
                 matches.push(m);
             }
         }
     }
+    // 0401 (0400 Codex round 2, medium): matches whose international class ESPN left out may be the followed ones; with
+    // nothing else to show, this is a failed refresh (the last page stays), not an empty one.
+    if (unclassified && !matches.length) return null;
     const pick = pickLead(matches, followed);
     let lead = null, series = null, airings = [];
     if (pick) {

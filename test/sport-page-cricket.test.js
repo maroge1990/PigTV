@@ -286,6 +286,15 @@ test('#195: following a nation narrows the men\'s internationals to its tours (I
     assert.equal(isTournament({ league: 'Internationals', id: 'espn:soccer/fifa.friendly:1' }), false);
 });
 
+// 0401 (0400 Codex round 2, medium): a refresh whose matches all lack their class kept nothing and replaced the page.
+test('0401: a refresh whose matches lack their international class keeps the last page', async () => {
+    const first = await cricket.page(NOW, { followed: ['Australia'] });
+    assert.equal(first.lead.id, '1525661');
+    stub((name, json) => { if (/^scorepanel-/.test(name)) for (const e of json.scores.flatMap(b => b.events)) delete e.competitions[0].class; });
+    assert.equal(await cricket.build(NOW + 2 * 3600e3, { followed: ['Australia'] }), null, 'a failed refresh, not an empty page');
+    assert.equal((await cricket.page(NOW + 2 * 3600e3, { followed: ['Australia'] })).lead.id, '1525661', 'the last page stays');
+});
+
 test('#193 (0393, Codex round 1): a follow list whose first refresh fails never gets another follow list\'s page', async () => {
     await cricket.page(NOW, { followed: ['Australia'] });
     assert.equal((await cricket.page(NOW, { followed: ['Australia'] })).lead.id, '1525661');

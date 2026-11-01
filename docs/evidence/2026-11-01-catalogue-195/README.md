@@ -28,7 +28,9 @@ with failing-before tests:
    Qualifier" filed as football. A title naming another sport (cricket, ICC, rugby…) is never football's internationals
    (`test/sports-classify.test.js` › 0400).
 
-One high in round 1, so a second round runs (D-38).
+One high in round 1, so a second round ran (D-38): needs-attention, no high; one medium, fixed in 0401 with a
+failing-before test (`test/sport-page-cricket.test.js` › 0401): a Cricket page refresh whose matches all lacked their
+class published an empty page; it is now a failed refresh and the last page stays. Pushed after round 2 (D-34).
 
 **Not covered:** T3 on the rig; real guide titles for the new leagues (spellings come from broadcasters' usual
 names, to be checked in the combined test); The Hundred and WNCL are off-season.
