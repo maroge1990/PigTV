@@ -41,6 +41,7 @@ before(async () => {
     const item = d.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, sort_order, stable_id, tvg_id, is_hidden, stream_url)
                             VALUES (?, ?, ?, 'live', ?, 'Sport', ?, ?, ?, 0, ?)`);
     item.run(`${source.id}:pos_1`, source.id, 'pos_1', 'Fox Footy', 1, 'ff', 'ff', 'http://provider.invalid/1.ts');
+    item.run(`${source.id}:pos_2`, source.id, 'pos_2', 'Fox Footy 2', 2, 'ff2', 'ff2', 'http://provider.invalid/2.ts');
     const prog = d.prepare(`INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, categories, flags, data)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
     const sport = '["Sport"]';
@@ -56,7 +57,9 @@ before(async () => {
     store.ingest([game('espn:australian-football/afl:1', 'AFL', NOW + 2 * H + 10 * 60000, 'Collingwood', 'Carlton'),
         game('espn:australian-football/afl:2', 'AFL', NOW + 50 * H, 'Collingwood', 'Essendon'), // no airing in the guide yet
         game('espn:australian-football/afl:3', 'AFL', NOW + 60 * H, 'Richmond', 'Geelong'),
-        game('aflw:9', 'AFLW', NOW + 40 * H, 'Collingwood', 'Carlton')], NOW - 1000); // a league the maker does not follow
+        game('aflw:9', 'AFLW', NOW + 40 * H, 'Collingwood', 'Carlton'), // a league the maker does not follow
+        game('espn:australian-football/afl:5', 'AFL', NOW + 20 * H, 'Hawthorn', 'Geelong'),
+        game('aflw:10', 'AFLW', NOW + 20 * H + 30 * 60000, 'Hawthorn', 'Geelong')], NOW - 1000);
 
     const app = express();
     app.use(express.json());
@@ -105,4 +108,28 @@ test('#198: "Record every game" records the team\'s fixture games on their airin
     await load('services/recordingRules').evaluate();
     assert.deepEqual(scheduled.listUpcoming().filter(s => s.rule_id === made.body.id).map(s => s.program_start).sort((a, b) => a - b),
         [NOW + 2 * H, NOW + 40 * H]);
+});
+
+// 0416 (0415 Codex round 1, high): team rules paired schedules by title, so one game's schedule could be taken over by
+// another game of the same name (here when the guide drops the AFL airing as the AFLW one appears): moved to the other
+// game's time but left on the first game's channel.
+test('0416: a game of the same name in another league never takes over a schedule: each game its own, on its own channel', async () => {
+    prefs.setFollows(user.id, { sports: [{ sport: 'Australian football', leagues: ['AFL', 'AFLW'], teams: ['Collingwood', 'Sydney'] }] });
+    const d = sqlite.getDb();
+    d.prepare(`INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, categories, flags, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run('ff', source.id, NOW + 26 * H, NOW + 29 * H, 'AFL: Sydney v Fremantle', '["Sport"]', 8, null);
+    dashboard.store().ingest([game('espn:australian-football/afl:7', 'AFL', NOW + 26 * H, 'Sydney', 'Fremantle'),
+        game('aflw:11', 'AFLW', NOW + 27 * H, 'Sydney', 'Fremantle')], NOW);
+    sportsEvents.reset();
+    const made = await call('POST', '/api/recordings/rules', { kind: 'team', match: 'Sydney', sport: 'Australian football' });
+    assert.equal(made.status, 201);
+    const rows = () => scheduled.listUpcoming().filter(s => s.rule_id === made.body.id).map(s => [s.channel_name, s.program_start]).sort((x, y) => x[1] - y[1]);
+    assert.deepEqual(rows(), [['Fox Footy', NOW + 26 * H]]);
+    // the guide drops the AFL airing; the AFLW game's appears on another channel an hour later
+    d.prepare(`DELETE FROM epg_programs WHERE title = 'AFL: Sydney v Fremantle'`).run();
+    d.prepare(`INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, categories, flags, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run('ff2', source.id, NOW + 27 * H, NOW + 30 * H, 'AFLW: Sydney v Fremantle', '["Sport"]', 8, null);
+    sportsEvents.reset();
+    await load('services/recordingRules').evaluate();
+    assert.deepEqual(rows(), [['Fox Footy', NOW + 26 * H], ['Fox Footy 2', NOW + 27 * H]], 'the AFL schedule stays; the AFLW game gets its own');
 });

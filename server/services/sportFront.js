@@ -104,9 +104,14 @@ function annotateRecordings(games, schedules) {
     for (const g of games) {
         const times = (g.events || []).filter(e => Number.isFinite(e.start) && Number.isFinite(e.end));
         if (!times.length || !(g.channels || []).length) continue;
+        // 0416 (0415 Codex round 1, medium): each channel's own airing (C-R's channel `start`/`end`), never the span of
+        // all of them: a recording between two staggered broadcasts is not the game's.
         const from = Math.min(...times.map(e => e.start)), to = Math.max(...times.map(e => e.end));
-        const s = schedules.find(r => ['scheduled', 'waiting', 'recording'].includes(r.status) && r.program_start < to && r.program_end > from &&
-            g.channels.some(c => c.sourceId === r.source_id && (r.channel_stable_id && c.stableId ? c.stableId === r.channel_stable_id : bare(c.id) === bare(r.channel_item_id))));
+        const during = (c, r) => (Number.isFinite(c.start) && Number.isFinite(c.end) ? r.program_start < c.end && r.program_end > c.start
+            : r.program_start < to && r.program_end > from);
+        const s = schedules.find(r => ['scheduled', 'waiting', 'recording'].includes(r.status) &&
+            g.channels.some(c => c.sourceId === r.source_id && during(c, r) &&
+                (r.channel_stable_id && c.stableId ? c.stableId === r.channel_stable_id : bare(c.id) === bare(r.channel_item_id))));
         if (!s) continue;
         g.recording = { scheduleId: s.id, status: s.status, ruleId: s.rule_id ?? null,
             ...(Array.isArray(s.beatenBy) && s.beatenBy.length ? { clashesWith: s.beatenBy.map(id => byId.get(id)?.title).filter(Boolean) } : {}) };

@@ -194,10 +194,34 @@ async function teamCandidates(rule, now, { games = null, events = null } = {}) {
             .sort((a, b) => Math.abs(a.start - g.start) - Math.abs(b.start - g.start))[0];
         if (!on) continue;
         const ch = on.channels[0];
-        out.push({ identity: `game:${g.id}`, title: on.title, titles: [on.title, g.title], anyChannel: true, start: on.start, end: on.end,
-            sourceId: ch.sourceId, channelId: String(ch.id), channelName: ch.name, channelLogo: ch.logo || null, description: null });
+        out.push({ identity: `game:${g.id}`, title: on.title, titles: [on.title, g.title], anyChannel: false, start: on.start, end: on.end,
+            sourceId: ch.sourceId, channelId: String(ch.id).replace(/^(?:m3u|xtream)_\d+_/, ''), stableId: ch.stableId || null,
+            channelName: ch.name, channelLogo: ch.logo || null, description: null });
     }
     return out;
+}
+
+/**
+ * 0416 (0415 Codex round 1, high): a team rule's game is its schedule by the game's identity alone (the hit), never by
+ * title (two leagues' "Collingwood v Carlton" are two games): the schedule its hit names is the game's, cancelled by the
+ * viewer or not; moved with the game when it is pending on the same channel, else (a different channel) cancelled and
+ * made again. -> { pairs: Map(candidate -> schedule), declined: Map(candidate -> Set(schedule id)) } as pairInstances.
+ */
+async function pairGames(rule, candidates, priorHit) {
+    const pairs = new Map(), declined = new Map();
+    for (const c of candidates) {
+        const prior = priorHit.get(rule.id, c.identity);
+        const s = prior && scheduledDb.getById(prior.schedule_id);
+        if (!s) continue;
+        if (['scheduled', 'waiting'].includes(s.status) && s.rule_id === rule.id && !sameChannel(c, s)) {
+            await require('./recordingEngine').cancelScheduled(s.id).catch(() => {});
+            db().prepare('UPDATE scheduled_recordings SET rule_id = NULL WHERE id = ?').run(s.id);
+            declined.set(c, new Set([s.id]));
+            continue;
+        }
+        pairs.set(c, s);
+    }
+    return { pairs, declined };
 }
 
 /** Series: the title's airings on its channel, through the channel's guide id. */
@@ -424,7 +448,8 @@ function evaluate({ now = Date.now() } = {}) {
             // Episodes first (their identity), then everything else by instance (pairInstances).
             const episodes = rule.kind === 'series' ? resolveEpisodes(rule.id, candidates, now) : { resolved: new Map(), taken: new Set(), ownerOf: new Map(), namedBy: new Map() };
             const byEvent = rule.kind === 'sport' || rule.kind === 'team';
-            const { pairs: events, declined } = byEvent ? pairEvents(candidates, now) : pairAirings(candidates, now, episodes.taken);
+            const { pairs: events, declined } = rule.kind === 'team' ? await pairGames(rule, candidates, priorHit)
+                : byEvent ? pairEvents(candidates, now) : pairAirings(candidates, now, episodes.taken);
             const paired = (c) => (byEvent || !c.episode);
             for (const c of candidates) {
                 // D3 (0253): an existing schedule is reconciled first, so a correction back to a time

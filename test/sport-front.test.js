@@ -351,3 +351,15 @@ test('#198: a recording on the card\'s channel during its airing is on the card;
     assert.equal(cards[2].recording, undefined, 'another time on that channel');
     assert.equal(cards[3].recording, undefined);
 });
+
+// 0416 (0415 Codex round 1, medium): a recording between two staggered broadcasts of a game is not the game's.
+test('0416: a card\'s recording is matched against each channel\'s own airing, not the span of all of them', () => {
+    const { annotateRecordings } = require('../server/services/sportFront');
+    const T = Date.parse('2026-11-01T09:00Z'), H = 3600000;
+    const card = { id: 'a', channels: [{ sourceId: 1, id: 'pos_1', stableId: 'ff', start: T, end: T + 2 * H },
+        { sourceId: 1, id: 'pos_1', stableId: 'ff', start: T + 6 * H, end: T + 8 * H }],
+    events: [{ id: 'e1', start: T, end: T + 2 * H }, { id: 'e2', start: T + 6 * H, end: T + 8 * H }] };
+    annotateRecordings([card], [{ id: 1, title: 'The News', status: 'scheduled', rule_id: null, source_id: 1, channel_item_id: 'pos_1',
+        channel_stable_id: 'ff', program_start: T + 3 * H, program_end: T + 4 * H }]);
+    assert.equal(card.recording, undefined);
+});
