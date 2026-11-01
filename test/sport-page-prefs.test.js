@@ -98,7 +98,14 @@ test('C-U: sports hold their leagues and one list of teams, shown under every le
     assert.deepEqual((await call('/api/sports/follows', other)).body.sports.map(s => [s.sport, s.leagues]),
         [['Football', ['EPL']], ['American football', ['NFL']], ['Basketball', ['NBA']]]);
     const catalog = (await call('/api/sports/catalog', other)).body;
-    assert.deepEqual(catalog.sports.find(s => s.sport === 'Football').leagues.slice(0, 2), ['EPL', 'Championship']);
+    assert.deepEqual(catalog.sports.find(s => s.sport === 'Football').leagues.slice(0, 2), [{ league: 'EPL', label: 'EPL', heading: 'Domestic leagues' },
+        { league: 'Championship', label: 'Championship', heading: 'Domestic leagues' }]);
+    // #195: the curated catalogue's headings and labels (PRODUCT.md › Sport › Following).
+    const cricket = catalog.sports.find(s => s.sport === 'Cricket').leagues;
+    assert.deepEqual(cricket.slice(0, 3), [{ league: 'Cricket', label: 'International (men)', heading: 'International' },
+        { league: "Women's Cricket", label: 'International (women)', heading: 'International' }, { league: 'IPL', label: 'IPL', heading: 'Franchise' }]);
+    assert.deepEqual(catalog.sports.find(s => s.sport === 'American football').leagues, [{ league: 'NFL', label: 'NFL', heading: null }]);
+    assert.equal(catalog.sports.flatMap(s => s.leagues).length, 45, 'every league with a fixture source; #196 and #197 add the rest');
     assert.ok(load('services/sportsFixtures').neededLeagues().has('NBA'), 'any account\'s leagues are fetched');
 });
 

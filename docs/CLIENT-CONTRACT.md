@@ -765,9 +765,11 @@ Championship, FA Cup, UEFA, La Liga, Bundesliga, Serie A, Ligue 1, MLS, A-League
 What each account follows, synced to every device signed in to it (D-41 replaces D-39's household store). A new
 account follows nothing; only the server's owner (its first admin account) takes over the household's follows once.
 
-- `GET /api/sports/catalog` (any user) → `{ sports: [{ sport, leagues: [league] }] }`: what can be followed, in the
-  order Settings offers it. Leagues are canonical names (C-I); only leagues with a fixture source are listed, and the
-  list grows (#195, #196, #197).
+- `GET /api/sports/catalog` (any user) → `{ sports: [{ sport, leagues: [{ league, label, heading }] }] }`: what can be
+  followed, in the order Settings offers it (0399: objects; 0391–0398 plain league names). `league` is the canonical
+  name (C-I), what `follows` stores; `label` what Settings shows ("International (men)" for cricket's `Cricket` and
+  football's `Internationals`); `heading` the group it sits under ("Domestic leagues", "Franchise"…) or null. Only
+  leagues with a fixture source are listed, and the list grows (#196, #197).
 - `GET /api/sports/follows` (any user) → `{ spoilerFree, sports: [{ sport, leagues, teams }] }` in the account's order:
   each sport its followed leagues (at least one, in order) and its followed teams or individuals (at most 20 names of
   at most 80 characters), one list for the whole sport: a team is highlighted in every followed league it plays in.

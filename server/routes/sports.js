@@ -18,7 +18,7 @@
  *   GET/PUT /api/sports/pages/preferences (any user; 0346) -> { spoilerFree, sports, teams, following: { F1, NFL } }, the
  *       account's own since 0391 (#193; the household's before)
  *   GET/PUT /api/sports/follows      (any user; 0391, C-U) -> { spoilerFree, sports: [{ sport, leagues, teams }] }, the account's
- *   GET /api/sports/catalog          (any user; 0391, C-U) -> { sports: [{ sport, leagues }] } what can be followed
+ *   GET /api/sports/catalog          (any user; 0391, C-U) -> { sports: [{ sport, leagues: [{ league, label, heading }] }] } what can be followed
  *   GET /api/sports/front            (any user; 0381, D-39) -> the Sport front page (services/sportFront.js)
  *   GET /api/sports/pages/cricket    (any user; 0383, C-S) -> the Cricket page (services/sportPageCricket.js)
  *   GET /api/sports/pages/league/:league (any user; 0388, C-T) -> any other team league's page (services/sportPageLeague.js)
@@ -241,7 +241,7 @@ router.put('/follows', (req, res) => {
     catch (err) { res.status(err.status === 400 ? 400 : 500).json({ error: err.status === 400 ? err.message : 'Could not save what you follow' }); }
 });
 router.get('/catalog', (req, res) => {
-    res.json({ sports: require('../services/sportCatalog').SPORTS.map(s => ({ sport: s.sport, leagues: [...s.leagues] })) });
+    res.json({ sports: require('../services/sportCatalog').publicCatalog() });
 });
 
 router.get('/preview', requireAdmin, async (req, res) => {
