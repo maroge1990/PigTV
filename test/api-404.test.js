@@ -129,7 +129,10 @@ const APPLE_CLIENT_ROUTES = [
     ['GET', '/api/recordings/1/live/stream.m3u8'], ['GET', '/api/recordings/1/live/e1/init.mp4'],
     // 0219 (C-M, R5): recording rules.
     ['GET', '/api/recordings/rules'], ['POST', '/api/recordings/rules'],
-    ['PUT', '/api/recordings/rules/1'], ['DELETE', '/api/recordings/rules/1']
+    ['PUT', '/api/recordings/rules/1'], ['DELETE', '/api/recordings/rules/1'],
+    // Apple 91–92 (#200): Settings › Sport (C-U names, suggestions) and "Record this one instead" (C-M, 0410).
+    ['GET', '/api/sports/names'], ['GET', '/api/sports/suggestions'], ['POST', '/api/sports/suggestions/decline'],
+    ['POST', '/api/recordings/scheduled/1/choose']
 ];
 
 test('every route the Apple client calls still reaches its real handler', async () => {
