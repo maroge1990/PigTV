@@ -782,4 +782,6 @@ account follows nothing; only the server's owner (its first admin account) takes
 - C-R since 0391: `sports[]` and `rails[]` entries add `sport`; `follows[]` is one per followed name per sport (its
   `league` the league of the game it points at, else the sport's first) and adds `sport`. The Cricket page's lead and
   C-T's `following` use the requesting account's follows.
+- C-R since 0392: `rails[]` puts the leagues with a game on now (`live`, `break`, `suspended`) first, then the rest, each
+  part in the account's order (D-41); `sports[]` keeps the account's order.
 - A server before 0391 answers 404 to `/api/sports/follows` and `/catalog`: send them only with this flag.

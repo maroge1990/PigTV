@@ -107,9 +107,9 @@ test('front: shape, rails in the household order, a followed team live leads (fo
         const f = await front();
         assert.equal(f.scores, 'fresh');
         assert.deepEqual(f.hero, { reason: 'follow-live', followIndex: 1, gameId: 'espn:football/nfl:401' });
-        assert.deepEqual(f.rails.map(r => r.league), ['F1', 'NFL', 'NBA', 'Cricket']);
-        assert.deepEqual(f.rails.map(r => r.gameIds), [['espn:racing/f1:1'],
-            ['espn:football/nfl:401', 'espn:football/nfl:405', 'espn:football/nfl:406'], ['espn:basketball/nba:1'], []],
+        assert.deepEqual(f.rails.map(r => r.league), ['NFL', 'NBA', 'F1', 'Cricket'], 'leagues with a game on now first (D-41)');
+        assert.deepEqual(f.rails.map(r => r.gameIds), [['espn:football/nfl:401', 'espn:football/nfl:405', 'espn:football/nfl:406'],
+            ['espn:basketball/nba:1'], ['espn:racing/f1:1'], []],
             'a guide listing without a fixture game makes no card (#194, D-41)');
         assert.deepEqual(f.follows.map(x => [x.league, x.name, x.state, x.gameId]),
             [['F1', 'Oscar Piastri', 'next', 'espn:racing/f1:1'], ['NFL', 'Green Bay Packers', 'live', 'espn:football/nfl:401']]);
@@ -289,6 +289,11 @@ test('arrange: a team followed in a sport is one follow across its leagues, and 
         gameId: 'espn:soccer/uefa.champions:2', start: now + 2 * H }], 'one follow, its next game in either league');
     assert.deepEqual(f.sports.map(s => [s.league, s.sport]), [['EPL', 'Football'], ['UEFA', 'Football']]);
     assert.deepEqual(f.rails.map(r => [r.league, r.sport]), [['EPL', 'Football'], ['UEFA', 'Football']]);
+    // A league with a game on now moves to the top of the rails (D-41 point 10); the tiles keep the account's order.
+    const onNow = arrange({ now, timezone: 'Etc/GMT', followMatches, games: [games[0], { ...games[1], status: 'live' }] },
+        { ...prefs, sports: [{ sport: 'Football', leagues: ['EPL', 'UEFA'], teams: [] }] });
+    assert.deepEqual(onNow.rails.map(r => r.league), ['UEFA', 'EPL']);
+    assert.deepEqual(onNow.sports.map(r => r.league), ['EPL', 'UEFA']);
     assert.deepEqual(f.hero, { reason: 'follow-next', followIndex: 0, gameId: 'espn:soccer/uefa.champions:2' });
 });
 

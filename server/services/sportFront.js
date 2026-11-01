@@ -7,7 +7,8 @@
  *           ('live' | 'next' | 'quiet'; the client words and formats it)
  *   follows one per followed team or driver: live now, next, or nothing (`state`), with the card it points at
  *   hero    the one card the page leads with (rule below); stickiness and the long-press override are the client's
- *   rails   per followed sport, card ids: live first (earliest start), then today's finals (latest first), then the rest
+ *   rails   per followed league, leagues with a game on now first (D-41), then the account's order; card ids: live first
+ *           (earliest start), then today's finals (latest first), then the rest
  *   games   every card once, each with `followed`; the other parts point at their ids
  *
  * Hero, first match wins: a followed card live now ('follow-live'); a live card in the highest-ranked followed sport
@@ -84,7 +85,9 @@ function arrange(response, prefs) {
     else if (followNext) hero = { reason: 'follow-next', followIndex: followIndexOf(followNext), gameId: followNext.id };
 
     const rank = g => ONGOING.has(g.status) ? 0 : g.status === 'finished' ? 1 : 2;
-    const rails = order.map(league => ({ league, sport: sportOf.get(league), gameIds: inLeague(league).sort((a, b) => rank(a) - rank(b) ||
+    // #193 (D-41 point 10): a league with a game on now moves above the rest until it ends; otherwise the account's order.
+    const liveFirst = [...order.filter(l => inLeague(l).some(g => ONGOING.has(g.status))), ...order.filter(l => !inLeague(l).some(g => ONGOING.has(g.status)))];
+    const rails = liveFirst.map(league => ({ league, sport: sportOf.get(league), gameIds: inLeague(league).sort((a, b) => rank(a) - rank(b) ||
         (rank(a) === 1 ? (b.end ?? b.start) - (a.end ?? a.start) || a.id.localeCompare(b.id) : byStart(a, b))).map(g => g.id) }));
 
     return { now: response.now, timezone: response.timezone, spoilerFree: prefs.spoilerFree, scores, sports, follows, hero, rails, games };
