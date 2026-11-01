@@ -118,3 +118,30 @@ test('guide airings join a MotoGP session by session and place, and a Supercars 
         leagues: new Set(['MotoGP']), teams: { MotoGP: ['Jorge Martin'] } });
     assert.equal(r.games[0].followed, true);
 });
+
+// 0403 (0402 Codex round 1, two high): a redirect could lead off the allowed hosts, and an answer had no size limit.
+test('0403: a redirect is refused, never followed; an answer past the size limit is dropped, whatever its length header', async () => {
+    const real = global.fetch;
+    try {
+        let opts;
+        global.fetch = async (url, o) => { opts = o; return new Response(null, { status: 302, headers: { location: 'http://169.254.169.254/' } }); };
+        assert.deepEqual(await feeds.getUrl('https://mc.championdata.com/data/competitions.json'), { ok: false, error: 'redirected' });
+        assert.equal(opts.redirect, 'manual');
+        const chunk = new Uint8Array(1024 * 1024).fill(32);
+        let sent = 0;
+        global.fetch = async () => new Response(new ReadableStream({ pull(c) { if (sent++ < 8) c.enqueue(chunk); else c.close(); } }), { status: 200 });
+        assert.deepEqual(await feeds.getUrl('https://www.supercars.com/calendar', { as: 'text' }), { ok: false, error: 'answer too large' });
+        assert.ok(sent <= 7, `stopped reading at the limit (${sent} MB asked for)`);
+        global.fetch = async () => new Response('{"a":1}', { status: 200 });
+        assert.deepEqual(await feeds.getUrl('https://mc.championdata.com/data/x.json'), { ok: true, json: { a: 1 } });
+    } finally { global.fetch = real; }
+});
+
+// 0403 (0402 Codex round 1, medium): any airing inside a Supercars weekend joined it, another round's replay included.
+test('0403: a Supercars airing joins its weekend only when it names the event\'s track or town', () => {
+    const [sandown] = feeds.supercarsGames(read('supercars-calendar.html'), NOW).filter(w => /Sandown/.test(w.title));
+    const ev = (id, title) => ({ id, league: 'Supercars', kind: 'event', title, start: sandown.start + 30 * H, end: sandown.start + 33 * H, channels: [] });
+    const found = dashboard.matchBroadcasts([sandown], [ev('own', 'Repco Supercars: Penrite Oil Sandown 500 Race'), ev('replay', 'Repco Supercars Classic: Bathurst 1000'),
+        ev('bare', 'Repco Supercars Championship')]);
+    assert.deepEqual(found.get(sandown.id).map(e => e.id), ['own']);
+});

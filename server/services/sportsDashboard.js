@@ -13,6 +13,14 @@ const MOTOR = new Set(['F1', 'MotoGP', 'Supercars']);
 const SESSIONS = new Set(['F1', 'MotoGP']);
 const WEEKENDS = new Set(['Supercars']);
 const feeds = require('./sportFeeds');
+// The words that name a Supercars event: its title's and its town's, without the year, numbers, sponsors' common words
+// and the series' own.
+const WEEKEND_STOP = new Set(['supercars', 'repco', 'itm', 'bp', 'super', 'sprint', 'supersprint', 'grand', 'final', 'the', 'at', 'and', 'race', 'oil', 'power', 'tools',
+    'batteries', 'mobile', 'boost', 'nsw', 'vic', 'qld', 'sa', 'wa', 'tas', 'nt', 'nz', 'act', 'triple', 'crown', 'cup']);
+function weekendWords(game) {
+    return [...new Set(classify.normText(`${game.title} ${game.circuit?.city || ''}`).split(' ')
+        .filter(w => w.length >= 4 && !/^\d+$/.test(w) && !WEEKEND_STOP.has(w)))];
+}
 const H = 3600000;
 // 0381 (D-39): the score collector runs by default (PIGTV_SPORTS_DASHBOARD=0 turns it off) whenever ESPN fixtures are on,
 // for the Sport front page; the legacy /dashboard and /preferences routes stay opt-in (=1) for the current Apple app.
@@ -58,8 +66,11 @@ function sameGame(prepared, parsed) {
             if (format !== game.format) return false;
         }
     } else if (WEEKENDS.has(game.league)) {
-        // #196: a Supercars card is the whole event weekend (no session times are published): an airing inside it joins.
-        return Number.isFinite(game.end) && event.start < game.end && event.end > game.start;
+        // #196: a Supercars card is the whole event weekend (no session times are published): an airing inside it joins
+        // when it names the event's track or town (0403, Codex round 1: never another round's replay, nor a bare title).
+        if (!(Number.isFinite(game.end) && event.start < game.end && event.end > game.start)) return false;
+        const said = ` ${classify.normText(event.title)} `;
+        return weekendWords(game).some(w => said.includes(` ${w} `));
     } else if (event.end < game.start || Math.abs(event.start - game.start) > 90 * 60000) return false;
     if (SESSIONS.has(game.league)) {
         return Boolean(parsed.title.session && prepared.session && parsed.title.session.id === prepared.session.id &&
