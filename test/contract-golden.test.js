@@ -249,10 +249,15 @@ const get = async (name, route, opts = {}) => golden(name, 'GET', route, await c
 // ---- /api/info --------------------------------------------------------------------------------------------------
 
 test('info, and the fallback a client gets when a feature check throws', async () => {
-    await get('info', '/api/info', { token: null });
+    const info = await get('info', '/api/info', { token: null });
     const realCheck = dashboard.dashboardEnabled;
     dashboard.dashboardEnabled = () => { throw new Error('a feature check failed'); };
-    try { await get('info-fallback', '/api/info', { token: null }); } finally { dashboard.dashboardEnabled = realCheck; }
+    let fallback;
+    try { fallback = await get('info-fallback', '/api/info', { token: null }); } finally { dashboard.dashboardEnabled = realCheck; }
+    // A client decodes both with one model, so the fallback keeps every identity field (0432: `version` was missing).
+    for (const key of ['name', 'version', 'build', 'display', 'apiVersion']) {
+        assert.equal(typeof fallback[key], typeof info[key], `the fallback's ${key}`);
+    }
 });
 
 // ---- the guide and C-I -----------------------------------------------------------------------------------------

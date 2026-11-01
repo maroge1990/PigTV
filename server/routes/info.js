@@ -146,8 +146,10 @@ router.get('/', async (req, res) => {
         console.error('[Info] failed:', err.message);
         if (res.headersSent) return;
         let build = {};
+        let version = null;
         try { build = require('../version'); } catch { /* identity unknown */ }
-        res.json({ name: 'PigTV', build: build.build || null, display: build.display || null, apiVersion: API_VERSION, features: {} });
+        try { version = require('../../package.json').version; } catch { /* identity unknown */ }
+        res.json({ name: 'PigTV', version, build: build.build || null, display: build.display || null, apiVersion: API_VERSION, features: {} });
     }
 });
 

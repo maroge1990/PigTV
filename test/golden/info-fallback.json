@@ -3,5 +3,6 @@
   "build": "<build>",
   "display": "<display>",
   "features": {},
-  "name": "PigTV"
+  "name": "PigTV",
+  "version": "<version>"
 }
