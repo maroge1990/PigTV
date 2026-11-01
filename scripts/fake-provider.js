@@ -18,6 +18,7 @@
  *   /<u>/<p>/<id>              started on the first reader and stopped when the last has gone
  *   /live/<u>/<p>/<id>.m3u8    HLS remuxed from that same generator (no second encode)
  *   /logos/<id>.png            a plain coloured square per channel
+ *   /art/<key>.png             a programme's artwork (the guide's <icon> on sport programmes)
  *   GET /fake/status           what is running (readers, ffmpeg pids, bytes); no login
  *   POST /fake/fail?stream=<id>&mode=close|stall|404|ok   break a channel while it plays
  *
@@ -234,6 +235,8 @@ function xmltvDocument(lineup, base, anchor, now) {
             parts.push(`  <programme start="${xmltvTime(p.start)}" stop="${xmltvTime(p.stop)}" channel="${xml(id)}">` +
                 `<title lang="en">${xml(p.title)}</title><desc lang="en">${xml(p.desc)}</desc>` +
                 p.categories.map(c => `<category lang="en">${xml(c)}</category>`).join('') +
+                // Artwork as real guides give it, on sport programmes (a recording's image, C-N).
+                (p.categories.includes('Sport') ? `<icon src="${xml(`${base}/art/${hash(`${id}|${p.start}`).toString(16)}.png`)}"/>` : '') +
                 (p.episode ? `<episode-num system="onscreen">${p.episode}</episode-num>` : '') +
                 (p.flag ? `<${p.flag}/>` : '') + '</programme>\n');
         }
@@ -693,6 +696,8 @@ function createFakeProvider(options = {}) {
         if (p === '/fake/fail') return req.method === 'POST' ? fail(res, q) : send(res, 405, 'text/plain', 'POST only');
         let m = /^\/logos\/(\d+)\.png$/.exec(p);
         if (m) return byId.has(m[1]) ? send(res, 200, 'image/png', logoPng(m[1])) : send(res, 404, 'text/plain', 'Not Found');
+        m = /^\/art\/([0-9a-f]{1,16})\.png$/.exec(p);
+        if (m) return send(res, 200, 'image/png', logoPng(m[1]));
         m = /^\/hls\/([^/]+)\/([^/]+)\/(\d+)\/([^/]+)$/.exec(p);
         if (m) return hlsSegment(res, decodeURIComponent(m[1]), decodeURIComponent(m[2]), m[3], m[4]);
         m = /^\/(?:live\/)?([^/]+)\/([^/]+)\/([^/]+)$/.exec(p);

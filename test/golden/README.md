@@ -10,7 +10,8 @@ handles, tokens, logo keys and build fields replaced by `<placeholders>`, arrays
 key and type the whole array has. No provider URL, login or token appears (the test asserts it).
 
 - `npm test` compares each fresh answer's **shape** to its file: keys and value types, recursively; an array by the
-  merged shape of its elements; `null` fits any type and `[]` any array. A changed shape fails, naming the route and path.
+  merged shape of its elements; `null` fits the golden's type and `[]` any array, but a field the golden only has as
+  `null` takes no other type (so the goldens send every field). A changed shape fails, naming the route and path.
 - After an intended change: `GOLDEN_UPDATE=1 node --test test/contract-golden.test.js`, commit the files with the change,
   and write it into `docs/CLIENT-CONTRACT.md`.
 - The Apple repo's contract checks (`PigTV-Swift` `Tools/test-contracts.sh`) decode these files from this folder, so a

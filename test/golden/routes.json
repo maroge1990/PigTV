@@ -59,9 +59,19 @@
     "route": "/api/recordings/schedule",
     "status": 201
   },
+  "recordings-schedule-existing": {
+    "method": "POST",
+    "route": "/api/recordings/schedule",
+    "status": 201
+  },
   "recordings-scheduled": {
     "method": "GET",
     "route": "/api/recordings/scheduled?include=recent",
+    "status": 200
+  },
+  "recordings-scheduled-cancel": {
+    "method": "DELETE",
+    "route": "/api/recordings/scheduled/:id",
     "status": 200
   },
   "recordings-watch-200": {

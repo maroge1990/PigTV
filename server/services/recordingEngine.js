@@ -405,6 +405,8 @@ function withChannelLogo(row) {
     return row && 'channel_logo' in row ? { ...row, channel_logo: channelLogo(row.channel_logo) } : row;
 }
 
+// Every schedule and recording row a route answers with goes through this (listed, scheduled, a duplicate, cancelled,
+// chosen, active): `image` in place of the stored image_url, the channel logo through the logo cache.
 function withImage(row) {
     if (!row) return row;
     const { image_url: url, ...rest } = withChannelLogo(row);
@@ -806,7 +808,7 @@ async function cancelScheduled(id) {
         scheduledDb.delete(id);
         return { deleted: true };
     }
-    return withChannelLogo(scheduledDb.getById(id));
+    return withImage(scheduledDb.getById(id));
 }
 
 /**
@@ -2188,6 +2190,7 @@ module.exports = {
     chooseScheduled,
     listActive,
     withChannelLogo,
+    withImage,
     stopForViewer,
     listRecordings,
     cancelScheduled,

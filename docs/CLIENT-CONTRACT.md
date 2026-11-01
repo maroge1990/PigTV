@@ -369,7 +369,9 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
 `/api/recordings` and `/api/recordings/scheduled` rows carry `image`: the programme's own image from the guide
 (XMLTV `<icon>`), as a logo-cache path `/api/logo/<key>` (fetch it like a `logo`, `?size=640` or `?size=full` for a
 larger copy), or null when the guide has none. Found when the schedule is made, so it appears for schedules made after
-a guide sync on 0220 or later. The image's own address is never listed. Apple: shown on recording tiles in place of
+a guide sync on 0220 or later. The image's own address is never listed. Since 0431 every answer that carries a
+schedule or recording row has `image` and a logo-cache `channel_logo` the same way (`POST /recordings/schedule`, a
+cancel, `choose`, `GET /recordings/active`), never `image_url`. Apple: shown on recording tiles in place of
 the channel logo, filling the tile; the channel logo stays the fallback.
 
 ---

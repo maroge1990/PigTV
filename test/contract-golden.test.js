@@ -10,7 +10,8 @@ const jwt = require('jsonwebtoken');
 // emits (test/golden/README.md). The real routers on a sandboxed database, a real Xtream sync of the fake provider
 // (scripts/fake-provider.js), and ESPN through the sport pages' fetcher seams with the stored samples in test/fixtures.
 // GOLDEN_UPDATE=1 rewrites test/golden/; otherwise each answer's SHAPE (keys and value types, recursively; an array by
-// the merged shape of its elements; null fits any type; an empty array any array) must equal the committed file's.
+// the merged shape of its elements; a null fits the golden's type, but a field the golden only had as null takes no
+// other type; an empty array fits any array) must equal the committed file's.
 const UPDATE = process.env.GOLDEN_UPDATE === '1';
 const GOLDEN = path.join(__dirname, 'golden');
 const hasFfmpeg = spawnSync('ffmpeg', ['-version']).status === 0 && spawnSync('ffprobe', ['-version']).status === 0;
@@ -183,6 +184,8 @@ function diff(golden, fresh, at = '$') {
     const out = [];
     const g = typesOf(golden), f = typesOf(fresh);
     if (g.length && f.length && g.join('|') !== f.join('|')) return [`${at}: was ${g.join('|')}, now ${f.join('|')}`];
+    // A field the golden only ever had as null says nothing about its type: a value there must be in the golden first.
+    if (!g.length && f.length) return [`${at}: was always null, now ${f.join('|')} (regenerate with a fixture that sends it)`];
     if (golden.keys && fresh.keys) {
         for (const k of Object.keys(golden.keys)) if (!(k in fresh.keys)) out.push(`${at}.${k}: no longer sent`);
         for (const k of Object.keys(fresh.keys)) if (!(k in golden.keys)) out.push(`${at}.${k}: new`);
@@ -278,8 +281,38 @@ test('recordings: a finished and a recording-in-progress row; the schedule list 
     const schedule = (ch, title) => call('POST', '/api/recordings/schedule', { body: { sourceId: source.id, channelItemId: ch.item_id,
         channelName: ch.name, title, programStart: start, programEnd: end } });
     const first = await schedule(footy, 'AFL: Collingwood v Carlton (golden)');
-    golden('recordings-schedule', 'POST', '/api/recordings/schedule', first, { status: 201 });
+    assert.equal(first.status, 201);
     clashFirst = first.body;
+
+    // C-N: a guide programme with its artwork (the fake guide's <icon>), scheduled anew; then one stored with its
+    // artwork's address by an earlier server, asked for again (the duplicate answer) and cancelled. Each answer gives
+    // `image` as /api/logo/<key>, never the address itself (golden() asserts the provider's host is in none).
+    const programme = (ch, after) => {
+        const tvg = sqlite.getDb().prepare('SELECT tvg_id FROM playlist_items WHERE source_id = ? AND item_id = ?').get(source.id, ch.item_id).tvg_id;
+        return sqlite.getDb().prepare(`SELECT title, start_time, end_time, data FROM epg_live WHERE channel_id = ? AND start_time > ?
+            AND data LIKE '%"img"%' ORDER BY start_time LIMIT 1`).get(tvg, after);
+    };
+    const art = programme(footy, T0 + 20 * H);
+    assert.ok(art && JSON.parse(art.data).img.startsWith(providerBase), 'the fake guide gives sport programmes artwork');
+    const scheduleProgramme = (ch, p) => call('POST', '/api/recordings/schedule', { body: { sourceId: source.id, channelItemId: ch.item_id,
+        channelName: ch.name, title: p.title, programStart: p.start_time, programEnd: p.end_time } });
+    const fresh = await scheduleProgramme(footy, art);
+    golden('recordings-schedule', 'POST', '/api/recordings/schedule', fresh, { status: 201 });
+    assert.match(fresh.body.image, /^\/api\/logo\//);
+    assert.equal('image_url' in fresh.body, false);
+    const older = programme(cricket, T0 + 20 * H);
+    const earlier = load('db/recordingsDb').scheduled.create({ title: older.title, description: null, source_id: source.id, channel_item_id: cricket.item_id,
+        channel_name: cricket.name, channel_logo: null, program_start: older.start_time, program_end: older.end_time, pre_buffer_min: 0, post_buffer_min: 0,
+        created_by: owner, created_at: Date.now() });
+    sqlite.getDb().prepare('UPDATE scheduled_recordings SET image_url = ? WHERE id = ?').run(JSON.parse(older.data).img, earlier.id);
+    const again = await scheduleProgramme(cricket, older);
+    golden('recordings-schedule-existing', 'POST', '/api/recordings/schedule', again, { status: 201 });
+    assert.deepEqual([again.body.id, 'image_url' in again.body], [earlier.id, false], 'the stored schedule, without its address');
+    assert.match(again.body.image, /^\/api\/logo\//);
+    const cancelled = await call('DELETE', `/api/recordings/scheduled/${earlier.id}`);
+    golden('recordings-scheduled-cancel', 'DELETE', '/api/recordings/scheduled/:id', cancelled, { status: 200 });
+    assert.deepEqual([cancelled.body.status, 'image_url' in cancelled.body], ['cancelled', false]);
+    assert.match(cancelled.body.image, /^\/api\/logo\//);
     const later = await schedule(cricket, 'Australia v India - golden');
     golden('recordings-schedule-clash', 'POST', '/api/recordings/schedule', later, { status: 201 });
     clashLater = later.body;
@@ -310,6 +343,7 @@ test('recordings: a finished and a recording-in-progress row; the schedule list 
         channel_item_id: footy.item_id, file_path: path.join(sandbox, 'recordings', 'Fox Footy', `${title}.ts`), started_at: now - 2 * H, ...extra });
     const done = row('Finished golden');
     recordingsDb.finish(done.id, { status: 'completed', ended_at: now - H, file_size_bytes: 123456789, duration_sec: 3600, error: null });
+    recordingsDb.setSegmentFields(done.id, { image_url: JSON.parse(art.data).img }); // its programme's artwork (C-N)
     const live = row('Recording golden');
     const work = (id, { view }) => {
         const dir = path.join(sandbox, 'work', `rec-${id}`), e1 = path.join(dir, 'e1');
