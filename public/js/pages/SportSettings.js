@@ -135,7 +135,10 @@ class SportFollowSettings {
         this.render();
     }
 
-    async loadRules() { try { this.rules = await API.request('GET', '/recordings/rules'); } catch { this.rules = []; } }
+    // 0421 (0420 Codex round 2, high): a list that could not be read is unknown, never taken as "no rules"
+    async loadRules() {
+        try { this.rules = await API.request('GET', '/recordings/rules'); this.rulesKnown = true; } catch { this.rules = []; this.rulesKnown = false; }
+    }
     async loadSuggestions() { try { this.suggestions = (await API.request('GET', '/sports/suggestions')).suggestions || []; } catch { this.suggestions = []; } }
     async loadNames() {
         const wanted = [...new Set(this.state.sports.flatMap(s => s.leagues))].filter(l => !this.names.has(l));
@@ -239,6 +242,9 @@ class SportFollowSettings {
      */
     async forgetRules(sport, names) {
         const failed = [];
+        if (!names.length) return failed;
+        await this.loadRules(); // what is set now, not when the page opened
+        if (!this.rulesKnown) { failed.unknown = true; return failed; }
         for (const name of names) {
             const rule = SportFollowModel.ruleFor(this.rules, sport, name);
             if (!rule || !rule.enabled || confirm(`Keep recording every ${name} game? (Cancel stops it; recordings already made stay.)`)) continue;
@@ -250,6 +256,7 @@ class SportFollowSettings {
 
     /** A save's message, with any rule that could not be stopped. */
     after(done, failed) {
+        if (failed.unknown) return `${done} The recording rules could not be read, so any "Record every game" on it is still on: check Recordings › Recording rules.`;
         return failed.length ? `${done} But every ${failed.join(', ')} game is still being recorded: stop it in Recordings › Recording rules.` : done;
     }
 

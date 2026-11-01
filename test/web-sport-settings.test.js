@@ -133,3 +133,15 @@ test('0420: a rule that could not be stopped is said, never "Unfollowed" alone (
     assert.deepEqual(stored.sports[0].teams, ['Chelsea']);
     assert.match(root.innerHTML, /Unfollowed Arsenal\. But every Arsenal game is still being recorded/);
 });
+
+// 0421 (0420 Codex round 2, high): rules that could not be read were taken as none, so unfollowing said nothing of them.
+test('0421: when the recording rules cannot be read, unfollowing says any "Record every game" is still on', async () => {
+    let stored = { spoilerFree: false, sports: [{ sport: 'Football', leagues: ['EPL'], teams: ['Arsenal'] }] };
+    const { settings, root } = panel({
+        'GET /sports/catalog': { sports: catalog }, 'GET /sports/follows': () => stored, 'PUT /sports/follows': (body) => (stored = JSON.parse(JSON.stringify(body))),
+        'GET /recordings/rules': new Error('Server unavailable'), 'GET /sports/suggestions': { suggestions: [] }, 'GET /sports/names': { names: ['Arsenal'] } });
+    await settings.load();
+    await root.listeners.click({ target: { closest: () => ({ dataset: { act: 'name-remove', sport: 'Football', name: 'Arsenal' } }) } });
+    assert.deepEqual(stored.sports[0].teams, []);
+    assert.match(root.innerHTML, /Unfollowed Arsenal\. The recording rules could not be read, so any &quot;Record every game&quot; on it is still on/);
+});
