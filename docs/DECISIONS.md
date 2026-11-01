@@ -464,4 +464,5 @@ reviews.
   for you shows the league's next game; followed teams keep the pink tint and star; tennis set scores and golf round
   strokes are confirmed on a live event before the build relies on them.
 - **Consequence:** DESIGN.md › Sport pages › Apple TV sport pages; C-R's follow order and tiles change through
-  `docs/CLIENT-CONTRACT.md` when the build lands; iPad mock-ups next, then iPhone (D-42 point 6).
+  `docs/CLIENT-CONTRACT.md` when the build lands. Order (Mark, 1 Nov): build and test on the Apple TV first, then
+  the iPad and iPhone mock-ups together (D-42 point 6).

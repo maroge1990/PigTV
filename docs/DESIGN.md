@@ -103,7 +103,8 @@ From the F1 mock-up review (30 Oct), for the sport rebuild (#21):
 ### Apple TV sport pages, chosen 1 Nov (D-43)
 
 Mark chose these from the canvas "PigTV Sport mock-ups" (rounds 1–3, 1 Nov). They supersede the page layouts above
-where they differ; iPad comes next, then iPhone (D-42 point 6), and the web is parked.
+where they differ. They are built and checked on the Apple TV first; the iPad and iPhone mock-ups (D-42 point 6) follow
+  that device check, and the web is parked.
 
 - **One banner on every page.** The front page and every sport page open with the same banner, 250 pt high, under the
   app's tabs: the hero on the left (kicker, title, one line, Watch / Record or Remind me, over the faded badge or the
