@@ -422,3 +422,22 @@ reviews.
   section on every platform; Super Netball's eight badges are added by hand, AFLW and NRLW reuse their clubs' logos.
 - **Consequence:** PRODUCT.md › Sport › Following; build issues #193–#200 (ROADMAP › Now); C-R's household
   preferences and C-O's guide-only cards are replaced through `docs/CLIENT-CONTRACT.md` when each issue lands.
+
+### D-42. Sport revamp: scope and five clarifications (1 Nov 2026)
+
+- **Context:** after D-41, Mark asked which open issues belong to the revamp and for every open question to be asked
+  before the build.
+- **Choice (Mark, 1 Nov):**
+  1. **Deployed and tested as a whole** once the revamp is complete, not batch by batch, unless a deploy is needed.
+  2. **Fifteen open issues join the revamp:** #29, #12, #52 (server), #187, #186, #177, #190, #18 (Apple), #64 (web),
+     and #20, #22–#24, #191, #192 in the combined test (ROADMAP › Now).
+  3. **The admin Sports keyword list is retired.** The leagues any account follows (and marked sport categories)
+     decide which guide programmes are sport.
+  4. **Recording clashes (#12): the first scheduled wins** and keeps the connection; the other is flagged ("Clashes
+     with …") in Recordings and on the game's card until someone chooses. Clashes show when scheduling (D of 30 Oct).
+  5. **Coverage before play (#203):** while a game's coverage is on and play starts within about 30 minutes, it reads
+     **"On air · starts 3:10"** with the live dot, Watch and a place among live leagues; every sport, not only F1.
+  6. **iPhone sport pages (#177) split into sections** (Games · Results · Table; F1 Weekend · Results · Championship),
+     three mock-up options for Mark before any build; Apple TV and iPad keep the full page.
+  7. **"Record every game" recordings are kept** until deleted by hand; retention stays with #40.
+- **Consequence:** the issues named; ROADMAP › Now; PRODUCT.md › Sport › Following.

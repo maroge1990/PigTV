@@ -110,7 +110,11 @@ a person sees; recording rules and guide sport detection stay household-wide.
   the Live dashboard a league with a live game moves to the top until it ends.
 - **Games come only from the fixture.** The guide attaches channels to a game and never creates one; a game without a
   matched airing says "No TV listing found".
-- **"Record every game"** on a followed team makes a household recording rule on that team's fixture.
+- **"Record every game"** on a followed team makes a household recording rule on that team's fixture; its recordings
+  are kept until deleted (D-42). In a clash the recording scheduled first wins and the other is flagged.
+- **Coverage before play** reads "On air · starts 3:10" (live dot, Watch) from the coverage's start when play is within
+  about 30 minutes (D-42).
+- The leagues followed by any account decide which guide programmes are sport; the admin keyword list is retired (D-42).
 
 The curated list (no search beyond it):
 
