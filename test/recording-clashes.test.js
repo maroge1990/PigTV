@@ -438,3 +438,21 @@ test('0411: choosing the other schedule while one is starting stops that start; 
     await until(() => recordings.listBySchedule(later.id)[0]?.status === 'recording', 'the chosen one records', 6000);
     assert.equal(statusOf(first), 'waiting');
 });
+
+// 0412 (0411 Codex round 2, high): both due in one tick, the second chosen while the first starts: the tick's earlier
+// decision was reused and the two held each other, so neither recorded.
+test('0412: both due, the other chosen during a start: the chosen one records; they never hold each other', async () => {
+    const first = schedule('pos_1', 'ff', { startIn: -2000 });
+    const later = schedule('pos_2', 'fl', { startIn: -1000 });
+    const real = db.settings.get;
+    let chose = false;
+    db.settings.get = async function (...a) {
+        if (!chose && /startPartLeased/.test(new Error().stack)) { chose = true; engine.chooseScheduled(later.id); }
+        return real.apply(this, a);
+    };
+    try { await engine.tick(); } finally { db.settings.get = real; }
+    assert.ok(chose);
+    await until(() => recordings.listBySchedule(later.id)[0]?.status === 'recording', 'the chosen one records', 6000);
+    assert.equal(statusOf(first), 'waiting');
+    assert.equal(scheduled.getById(later.id).clash_winner ?? null, null, 'no hold left on the chosen one');
+});

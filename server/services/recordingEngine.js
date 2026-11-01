@@ -1017,6 +1017,8 @@ function holds(rows, settings) {
         if (out.has(r.id) || !r.clash_winner || r.status !== 'waiting') continue;
         const w = scheduledDb.getById(r.clash_winner);
         if (!w || ['cancelled', 'missed'].includes(w.status)) continue;
+        // 0412: never a hold back on one this schedule now beats (two waiting on each other would both be missed)
+        if ((out.get(w.id) || []).includes(r.id)) continue;
         const [a0, a1] = windowOf(r), [b0, b1] = windowOf(w);
         if (a0 < b1 && b0 < a1) out.set(r.id, [w.id]);
     }
@@ -1961,7 +1963,8 @@ async function tick() {
             // otherwise hold the connection the winner needs later). Joining a running recording costs no connection.
             const epoch = choiceEpoch;
             if (!joins) {
-                if (!outcome) outcome = holds(scheduledDb.listUpcoming(), settings);
+                // 0412 (0411 Codex round 2, high): a choice made during an earlier start of this tick changes who wins
+                if (!outcome || outcome.epoch !== epoch) { outcome = holds(scheduledDb.listUpcoming(), settings); outcome.epoch = epoch; }
                 const winnerId = (outcome.get(schedule.id) || [])[0];
                 const winner = winnerId ? scheduledDb.getById(winnerId) : null;
                 if (winner) { waitForSlot(schedule, clashReason(winner), winner.id); continue; }
