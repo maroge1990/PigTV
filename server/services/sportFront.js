@@ -94,6 +94,26 @@ function arrange(response, prefs) {
 }
 
 /**
+ * #198 (D-42 point 4): a game's recording on its card: the upcoming schedule on one of the card's channels whose window
+ * overlaps the game's airings, as `recording: { scheduleId, status, ruleId, clashesWith }`; `clashesWith` (titles) only
+ * when this recording loses its clash and waits (recordingEngine `beatenBy`). Pure; `schedules` as listScheduled gives.
+ */
+function annotateRecordings(games, schedules) {
+    const byId = new Map(schedules.map(s => [s.id, s]));
+    const bare = (id) => String(id ?? '').replace(/^(?:m3u|xtream)_\d+_/, '');
+    for (const g of games) {
+        const times = (g.events || []).filter(e => Number.isFinite(e.start) && Number.isFinite(e.end));
+        if (!times.length || !(g.channels || []).length) continue;
+        const from = Math.min(...times.map(e => e.start)), to = Math.max(...times.map(e => e.end));
+        const s = schedules.find(r => ['scheduled', 'waiting', 'recording'].includes(r.status) && r.program_start < to && r.program_end > from &&
+            g.channels.some(c => c.sourceId === r.source_id && (r.channel_stable_id && c.stableId ? c.stableId === r.channel_stable_id : bare(c.id) === bare(r.channel_item_id))));
+        if (!s) continue;
+        g.recording = { scheduleId: s.id, status: s.status, ruleId: s.rule_id ?? null,
+            ...(Array.isArray(s.beatenBy) && s.beatenBy.length ? { clashesWith: s.beatenBy.map(id => byId.get(id)?.title).filter(Boolean) } : {}) };
+    }
+}
+
+/**
  * The front page for a signed-in user. `events()` answers C-I's cached 72-hour events ({ body }); `ended(leagues)`, if
  * given, the airings of those leagues that ended within the overrun window (#191, sportsEvents.endedEvents). Throws on a
  * worker failure.
@@ -115,7 +135,11 @@ async function front({ userId, events, ended = null, now = Date.now() }) {
         league: null, leagues, follow: null, broadLeagues: new Set(),
         keepFinishedToday: true, teams: store.view(prefs).teams, spoilerFree: prefs.spoilerFree, channelTimes: true, upcomingHours: 72, endedEvents, guideCards: false } });
     require('./logoCache').applyLogoCache(response.games.flatMap(g => g.competitors));
+    try {
+        const settings = await require('../db').settings.get();
+        annotateRecordings(response.games, require('./recordingEngine').listScheduled({ settings }));
+    } catch (err) { console.warn('[Sports] recordings on the front page:', err.message); } // the page without them
     return arrange(response, prefs);
 }
 
-module.exports = { front, arrange, finishEstimate };
+module.exports = { front, arrange, finishEstimate, annotateRecordings };

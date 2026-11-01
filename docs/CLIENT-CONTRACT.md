@@ -798,6 +798,9 @@ account follows nothing; only the server's owner (its first admin account) takes
 - C-R since 0391: `sports[]` and `rails[]` entries add `sport`; `follows[]` is one per followed name per sport (its
   `league` the league of the game it points at, else the sport's first) and adds `sport`. The Cricket page's lead and
   C-T's `following` use the requesting account's follows.
+- C-R since 0415 (#198, D-42): a card with an upcoming recording on one of its channels during its airing carries
+  `recording: { scheduleId, status, ruleId, clashesWith? }` (`ruleId` set when "Record every game" made it);
+  `clashesWith` (titles) only when that recording loses its clash and waits: show "Clashes with …" on the card.
 - C-R since 0392: `rails[]` puts the leagues with a game on now (`live`, `break`, `suspended`) first, then the rest, each
   part in the account's order (D-41); `sports[]` keeps the account's order.
 - Since 0395 (#195): `UEFA` is three leagues, `Champions League`, `Europa League` and `Conference League` (a stored or

@@ -328,3 +328,26 @@ test('features: sportFront on by default, the legacy dashboard off; PIGTV_SPORTS
         assert.equal((await call('/api/sports/front')).status, 404);
     } finally { delete process.env.PIGTV_SPORTS_DASHBOARD; }
 });
+
+// #198 (D-42 point 4): a game's recording rides on its card, flagged when it loses a clash and waits.
+test('#198: a recording on the card\'s channel during its airing is on the card; clashesWith only when it waits', () => {
+    const { annotateRecordings } = require('../server/services/sportFront');
+    const T = Date.parse('2026-11-01T09:00Z'), H = 3600000;
+    const cards = [
+        { id: 'a', channels: [{ sourceId: 1, id: 'pos_1', stableId: 'ff' }], events: [{ id: 'e1', start: T, end: T + 3 * H }] },
+        { id: 'b', channels: [{ sourceId: 1, id: 'm3u_1_pos_2', stableId: null }], events: [{ id: 'e2', start: T, end: T + 2 * H }] },
+        { id: 'c', channels: [{ sourceId: 1, id: 'pos_3', stableId: 'abc' }], events: [{ id: 'e3', start: T, end: T + H }] },
+        { id: 'd', channels: [], events: [] }];
+    const schedules = [
+        { id: 1, title: 'Collingwood v Carlton', status: 'waiting', rule_id: 4, source_id: 1, channel_item_id: 'pos_1', channel_stable_id: 'ff',
+            program_start: T, program_end: T + 3 * H, beatenBy: [2] },
+        { id: 2, title: 'Arsenal v Liverpool', status: 'scheduled', rule_id: null, source_id: 1, channel_item_id: 'pos_2', channel_stable_id: null,
+            program_start: T + 30 * 60000, program_end: T + 2 * H, conflictsWith: [1] },
+        { id: 3, title: 'Later', status: 'scheduled', rule_id: null, source_id: 1, channel_item_id: 'pos_3', channel_stable_id: 'abc',
+            program_start: T + 5 * H, program_end: T + 6 * H }];
+    annotateRecordings(cards, schedules);
+    assert.deepEqual(cards[0].recording, { scheduleId: 1, status: 'waiting', ruleId: 4, clashesWith: ['Arsenal v Liverpool'] });
+    assert.deepEqual(cards[1].recording, { scheduleId: 2, status: 'scheduled', ruleId: null }, 'the winner: no flag');
+    assert.equal(cards[2].recording, undefined, 'another time on that channel');
+    assert.equal(cards[3].recording, undefined);
+});
