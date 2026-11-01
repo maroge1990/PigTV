@@ -1,0 +1,19 @@
+{
+  "channelId": "1010",
+  "channelName": "AU| FOX FOOTY HD",
+  "createdAt": 1793492160000,
+  "createdBy": 2,
+  "createdByName": "owner",
+  "enabled": true,
+  "id": 1,
+  "kind": "series",
+  "match": "AFL 360",
+  "newOnly": false,
+  "postBufferMin": null,
+  "preBufferMin": null,
+  "scheduled": 1,
+  "sourceId": 1,
+  "sport": null,
+  "stableId": "s1010",
+  "upcoming": 1
+}

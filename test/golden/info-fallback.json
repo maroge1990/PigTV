@@ -1,0 +1,7 @@
+{
+  "apiVersion": 1,
+  "build": "<build>",
+  "display": "<display>",
+  "features": {},
+  "name": "PigTV"
+}

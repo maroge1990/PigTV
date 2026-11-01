@@ -1,0 +1,40 @@
+{
+  "container": "hls",
+  "info": {
+    "aacLabelBlocked": false,
+    "aacObjectType": 2,
+    "audio": "aac",
+    "audioChannels": 2,
+    "audioOk": true,
+    "audioProfile": "LC",
+    "compatible": false,
+    "container": "mpegts",
+    "dtsUneven": false,
+    "durationSec": null,
+    "finite": false,
+    "fps": "25/1",
+    "height": 360,
+    "isHeAac": false,
+    "needsRemux": true,
+    "needsTranscode": false,
+    "subtitles": [],
+    "video": "h264",
+    "videoIsHevc": false,
+    "videoOk": true,
+    "videoRange": null,
+    "width": 640
+  },
+  "provider": {
+    "failover": false,
+    "id": 1,
+    "name": "FakeTV",
+    "role": "primary",
+    "via": "primary"
+  },
+  "reason": "Codecs are fine; only the container changes, into HLS segments",
+  "segmentType": "fmp4",
+  "sessionId": "<session>",
+  "strategy": "transcode",
+  "url": "/api/transcode/<session>/master.m3u8",
+  "videoMode": "copy"
+}

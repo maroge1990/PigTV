@@ -1,0 +1,50 @@
+{
+  "channels": [
+    {
+      "category": "101",
+      "health": null,
+      "id": "1001",
+      "logo": null,
+      "name": "##### SKY SPORTS #####",
+      "number": 1,
+      "programmes": [],
+      "sourceId": 1,
+      "stableId": "s1001",
+      "tvgId": null
+    },
+    {
+      "category": "105",
+      "health": null,
+      "id": "1019",
+      "logo": "/api/logo/<key>",
+      "name": "AU| ABC NEWS HD",
+      "number": 2,
+      "programmes": [
+        {
+          "description": "Morning News on ABC News.",
+          "endTime": 1793492700000,
+          "isNow": true,
+          "startTime": 1793490900000,
+          "title": "Morning News"
+        },
+        {
+          "description": "Weather Watch on ABC News.",
+          "endTime": 1793494500000,
+          "isNow": false,
+          "startTime": 1793492700000,
+          "title": "Weather Watch"
+        }
+      ],
+      "sourceId": 1,
+      "stableId": "s1019",
+      "tvgId": "abcnews.au"
+    }
+  ],
+  "end": 1793502960000,
+  "limit": 4,
+  "nextCursor": "eyJzayI6OTk5OTk5OTk5LCJuYW1lIjoiQVV8IEZPWCBDUklDS0VUIEhEIiwiaWQiOiIxOjEwMTEifQ==",
+  "now": 1793492160000,
+  "offset": 0,
+  "start": 1793492160000,
+  "total": 27
+}

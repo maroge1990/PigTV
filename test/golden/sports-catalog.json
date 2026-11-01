@@ -1,0 +1,34 @@
+{
+  "sports": [
+    {
+      "leagues": [
+        {
+          "heading": null,
+          "label": "AFL",
+          "league": "AFL"
+        },
+        {
+          "heading": null,
+          "label": "AFLW",
+          "league": "AFLW"
+        }
+      ],
+      "sport": "Australian football"
+    },
+    {
+      "leagues": [
+        {
+          "heading": "Domestic leagues",
+          "label": "EPL",
+          "league": "EPL"
+        },
+        {
+          "heading": "Domestic leagues",
+          "label": "Championship",
+          "league": "Championship"
+        }
+      ],
+      "sport": "Football"
+    }
+  ]
+}

@@ -1,0 +1,434 @@
+{
+  "available": true,
+  "season": {
+    "type": "regular",
+    "year": 2026
+  },
+  "standings": {
+    "divisions": [
+      {
+        "conference": "AFC",
+        "name": "AFC East",
+        "teams": [
+          {
+            "abbr": "BUF",
+            "losses": 1,
+            "pointsAgainst": 171,
+            "pointsFor": 197,
+            "record": "5-1",
+            "seed": 2,
+            "streak": "W2",
+            "ties": 0,
+            "wins": 5
+          },
+          {
+            "abbr": "NE",
+            "losses": 3,
+            "pointsAgainst": 143,
+            "pointsFor": 160,
+            "record": "4-3",
+            "seed": 8,
+            "streak": "L1",
+            "ties": 0,
+            "wins": 4
+          }
+        ]
+      },
+      {
+        "conference": "AFC",
+        "name": "AFC North",
+        "teams": [
+          {
+            "abbr": "CLE",
+            "losses": 2,
+            "pointsAgainst": 146,
+            "pointsFor": 133,
+            "record": "5-2",
+            "seed": 3,
+            "streak": "W2",
+            "ties": 0,
+            "wins": 5
+          },
+          {
+            "abbr": "PIT",
+            "losses": 2,
+            "pointsAgainst": 138,
+            "pointsFor": 153,
+            "record": "5-2",
+            "seed": 6,
+            "streak": "W3",
+            "ties": 0,
+            "wins": 5
+          }
+        ]
+      }
+    ]
+  },
+  "teams": {
+    "ARI": {
+      "abbr": "ARI",
+      "color": "A40227",
+      "full": "Arizona Cardinals",
+      "location": "Arizona",
+      "logo": "/api/logo/<key>",
+      "name": "Cardinals"
+    },
+    "ATL": {
+      "abbr": "ATL",
+      "color": "A71930",
+      "full": "Atlanta Falcons",
+      "location": "Atlanta",
+      "logo": "/api/logo/<key>",
+      "name": "Falcons"
+    },
+    "BAL": {
+      "abbr": "BAL",
+      "color": "29126F",
+      "full": "Baltimore Ravens",
+      "location": "Baltimore",
+      "logo": "/api/logo/<key>",
+      "name": "Ravens"
+    },
+    "BUF": {
+      "abbr": "BUF",
+      "color": "00338D",
+      "full": "Buffalo Bills",
+      "location": "Buffalo",
+      "logo": "/api/logo/<key>",
+      "name": "Bills"
+    },
+    "CAR": {
+      "abbr": "CAR",
+      "color": "0085CA",
+      "full": "Carolina Panthers",
+      "location": "Carolina",
+      "logo": "/api/logo/<key>",
+      "name": "Panthers"
+    },
+    "CHI": {
+      "abbr": "CHI",
+      "color": "0B1C3A",
+      "full": "Chicago Bears",
+      "location": "Chicago",
+      "logo": "/api/logo/<key>",
+      "name": "Bears"
+    },
+    "CIN": {
+      "abbr": "CIN",
+      "color": "FB4F14",
+      "full": "Cincinnati Bengals",
+      "location": "Cincinnati",
+      "logo": "/api/logo/<key>",
+      "name": "Bengals"
+    },
+    "CLE": {
+      "abbr": "CLE",
+      "color": "472A08",
+      "full": "Cleveland Browns",
+      "location": "Cleveland",
+      "logo": "/api/logo/<key>",
+      "name": "Browns"
+    },
+    "DAL": {
+      "abbr": "DAL",
+      "color": "002A5C",
+      "full": "Dallas Cowboys",
+      "location": "Dallas",
+      "logo": "/api/logo/<key>",
+      "name": "Cowboys"
+    },
+    "DEN": {
+      "abbr": "DEN",
+      "color": "0A2343",
+      "full": "Denver Broncos",
+      "location": "Denver",
+      "logo": "/api/logo/<key>",
+      "name": "Broncos"
+    },
+    "DET": {
+      "abbr": "DET",
+      "color": "0076B6",
+      "full": "Detroit Lions",
+      "location": "Detroit",
+      "logo": "/api/logo/<key>",
+      "name": "Lions"
+    },
+    "GB": {
+      "abbr": "GB",
+      "color": "204E32",
+      "full": "Green Bay Packers",
+      "location": "Green Bay",
+      "logo": "/api/logo/<key>",
+      "name": "Packers"
+    },
+    "HOU": {
+      "abbr": "HOU",
+      "color": "021018",
+      "full": "Houston Texans",
+      "location": "Houston",
+      "logo": "/api/logo/<key>",
+      "name": "Texans"
+    },
+    "IND": {
+      "abbr": "IND",
+      "color": "003B75",
+      "full": "Indianapolis Colts",
+      "location": "Indianapolis",
+      "logo": "/api/logo/<key>",
+      "name": "Colts"
+    },
+    "JAX": {
+      "abbr": "JAX",
+      "color": "007487",
+      "full": "Jacksonville Jaguars",
+      "location": "Jacksonville",
+      "logo": "/api/logo/<key>",
+      "name": "Jaguars"
+    },
+    "KC": {
+      "abbr": "KC",
+      "color": "E31837",
+      "full": "Kansas City Chiefs",
+      "location": "Kansas City",
+      "logo": "/api/logo/<key>",
+      "name": "Chiefs"
+    },
+    "LAC": {
+      "abbr": "LAC",
+      "color": "0080C6",
+      "full": "Los Angeles Chargers",
+      "location": "Los Angeles",
+      "logo": "/api/logo/<key>",
+      "name": "Chargers"
+    },
+    "LAR": {
+      "abbr": "LAR",
+      "color": "003594",
+      "full": "Los Angeles Rams",
+      "location": "Los Angeles",
+      "logo": "/api/logo/<key>",
+      "name": "Rams"
+    },
+    "LV": {
+      "abbr": "LV",
+      "color": "000000",
+      "full": "Las Vegas Raiders",
+      "location": "Las Vegas",
+      "logo": "/api/logo/<key>",
+      "name": "Raiders"
+    },
+    "MIA": {
+      "abbr": "MIA",
+      "color": "008E97",
+      "full": "Miami Dolphins",
+      "location": "Miami",
+      "logo": "/api/logo/<key>",
+      "name": "Dolphins"
+    },
+    "MIN": {
+      "abbr": "MIN",
+      "color": "4F2683",
+      "full": "Minnesota Vikings",
+      "location": "Minnesota",
+      "logo": "/api/logo/<key>",
+      "name": "Vikings"
+    },
+    "NE": {
+      "abbr": "NE",
+      "color": "002A5C",
+      "full": "New England Patriots",
+      "location": "New England",
+      "logo": "/api/logo/<key>",
+      "name": "Patriots"
+    },
+    "NO": {
+      "abbr": "NO",
+      "color": "D3BC8D",
+      "full": "New Orleans Saints",
+      "location": "New Orleans",
+      "logo": "/api/logo/<key>",
+      "name": "Saints"
+    },
+    "NYG": {
+      "abbr": "NYG",
+      "color": "003C7F",
+      "full": "New York Giants",
+      "location": "New York",
+      "logo": "/api/logo/<key>",
+      "name": "Giants"
+    },
+    "NYJ": {
+      "abbr": "NYJ",
+      "color": "115740",
+      "full": "New York Jets",
+      "location": "New York",
+      "logo": "/api/logo/<key>",
+      "name": "Jets"
+    },
+    "PHI": {
+      "abbr": "PHI",
+      "color": "06424D",
+      "full": "Philadelphia Eagles",
+      "location": "Philadelphia",
+      "logo": "/api/logo/<key>",
+      "name": "Eagles"
+    },
+    "PIT": {
+      "abbr": "PIT",
+      "color": "000000",
+      "full": "Pittsburgh Steelers",
+      "location": "Pittsburgh",
+      "logo": "/api/logo/<key>",
+      "name": "Steelers"
+    },
+    "SEA": {
+      "abbr": "SEA",
+      "color": "002A5C",
+      "full": "Seattle Seahawks",
+      "location": "Seattle",
+      "logo": "/api/logo/<key>",
+      "name": "Seahawks"
+    },
+    "SF": {
+      "abbr": "SF",
+      "color": "AA0000",
+      "full": "San Francisco 49ers",
+      "location": "San Francisco",
+      "logo": "/api/logo/<key>",
+      "name": "49ers"
+    },
+    "TB": {
+      "abbr": "TB",
+      "color": "BD1C36",
+      "full": "Tampa Bay Buccaneers",
+      "location": "Tampa Bay",
+      "logo": "/api/logo/<key>",
+      "name": "Buccaneers"
+    },
+    "TEN": {
+      "abbr": "TEN",
+      "color": "4495D2",
+      "full": "Tennessee Titans",
+      "location": "Tennessee",
+      "logo": "/api/logo/<key>",
+      "name": "Titans"
+    },
+    "WSH": {
+      "abbr": "WSH",
+      "color": "5A1414",
+      "full": "Washington Commanders",
+      "location": "Washington",
+      "logo": "/api/logo/<key>",
+      "name": "Commanders"
+    }
+  },
+  "updatedAt": 1793396520000,
+  "weeks": [
+    {
+      "byes": [
+        "BUF",
+        "LAC"
+      ],
+      "current": false,
+      "games": [
+        {
+          "away": {
+            "abbr": "NE",
+            "record": "4-3",
+            "score": 24
+          },
+          "broadcasts": [
+            "Prime Video"
+          ],
+          "channels": [],
+          "detail": "Final",
+          "home": {
+            "abbr": "CHI",
+            "record": "5-2",
+            "score": 30
+          },
+          "id": "401873010",
+          "situation": null,
+          "start": 1792714500000,
+          "status": "done"
+        },
+        {
+          "away": {
+            "abbr": "PIT",
+            "record": "5-2",
+            "score": 16
+          },
+          "broadcasts": [
+            "NFL Net"
+          ],
+          "channels": [],
+          "detail": "Final",
+          "home": {
+            "abbr": "NO",
+            "record": "2-5",
+            "score": 10
+          },
+          "id": "401873011",
+          "situation": null,
+          "start": 1792935000000,
+          "status": "done"
+        }
+      ],
+      "label": "Week 7",
+      "number": 7
+    },
+    {
+      "byes": [
+        "NO",
+        "NYG"
+      ],
+      "current": true,
+      "games": [
+        {
+          "away": {
+            "abbr": "CAR",
+            "record": "3-4",
+            "score": 19
+          },
+          "broadcasts": [
+            "Prime Video"
+          ],
+          "channels": [],
+          "detail": "Final",
+          "home": {
+            "abbr": "GB",
+            "record": "5-3",
+            "score": 27
+          },
+          "id": "401873023",
+          "situation": null,
+          "start": 1793319300000,
+          "status": "done"
+        },
+        {
+          "away": {
+            "abbr": "BAL",
+            "record": "4-3",
+            "score": 0
+          },
+          "broadcasts": [
+            "CBS"
+          ],
+          "channels": [],
+          "detail": null,
+          "home": {
+            "abbr": "BUF",
+            "record": "5-1",
+            "score": 0
+          },
+          "id": "401873026",
+          "situation": null,
+          "start": 1793556000000,
+          "status": "scheduled"
+        }
+      ],
+      "label": "Week 8",
+      "number": 8
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "following": {
+    "F1": "Oscar Piastri",
+    "NFL": "Green Bay Packers"
+  },
+  "spoilerFree": false,
+  "sports": [
+    "NFL",
+    "AFL"
+  ],
+  "teams": {
+    "AFL": [
+      "Collingwood"
+    ],
+    "Cricket": [
+      "Australia"
+    ],
+    "F1": [
+      "Oscar Piastri"
+    ],
+    "NFL": [
+      "Green Bay Packers"
+    ],
+    "Six Nations": [
+      "Ireland"
+    ]
+  }
+}

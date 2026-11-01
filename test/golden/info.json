@@ -1,0 +1,67 @@
+{
+  "apiVersion": 1,
+  "build": "<build>",
+  "builtAt": null,
+  "commit": "<commit>",
+  "comskipAvailable": false,
+  "display": "<display>",
+  "features": {
+    "adDetection": true,
+    "channelHealth": true,
+    "channelHistory": true,
+    "channelNumbers": true,
+    "clientEvents": true,
+    "devicePairing": true,
+    "epgLogoFallback": true,
+    "guide": true,
+    "guideCursor": true,
+    "guideVersion": true,
+    "library": true,
+    "logoCache": true,
+    "playbackHandles": true,
+    "playbackResolve": true,
+    "playbackTerminalStatus": true,
+    "providerReminders": true,
+    "providers": true,
+    "recordingArtwork": true,
+    "recordingCompression": true,
+    "recordingPlaybackPolling": true,
+    "recordingPositions": true,
+    "recordingRules": true,
+    "recordingWatchLive": true,
+    "recordings": true,
+    "scheduleHistory": true,
+    "scheduledWaiting": true,
+    "sportCategories": true,
+    "sportFollows": true,
+    "sportFront": true,
+    "sportPageCricket": true,
+    "sportPageEvents": true,
+    "sportPageLeagues": [
+      "AFL",
+      "NBA"
+    ],
+    "sportPageNfl": true,
+    "sportPages": true,
+    "sportsDashboard": false,
+    "sportsEvents": true,
+    "streamCoordination": true,
+    "streamTokenAuth": true,
+    "viewerConflict": true,
+    "warming": true
+  },
+  "name": "PigTV",
+  "playback": {
+    "hlsSegmentDuration": 4,
+    "segmentTypes": [
+      "mpegts",
+      "fmp4"
+    ],
+    "strategies": [
+      "direct",
+      "transcode"
+    ]
+  },
+  "version": "<version>",
+  "warmingEnabled": false
+}

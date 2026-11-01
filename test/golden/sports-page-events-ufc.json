@@ -1,0 +1,117 @@
+{
+  "available": true,
+  "events": [
+    {
+      "bouts": [
+        {
+          "card": "prelims",
+          "fighters": [
+            {
+              "name": "Lucia Szabová",
+              "winner": true
+            },
+            {
+              "name": "Tainara Lisboa",
+              "winner": false
+            }
+          ],
+          "id": "401914105",
+          "result": {
+            "clock": "3:20",
+            "round": 3
+          },
+          "start": 1793480400000,
+          "status": "finished",
+          "weightClass": "W Flyweight"
+        },
+        {
+          "card": "prelims",
+          "fighters": [
+            {
+              "name": "Talita Alencar",
+              "winner": false
+            },
+            {
+              "name": "Piera Rodriguez",
+              "winner": true
+            }
+          ],
+          "id": "401928105",
+          "result": {
+            "clock": "5:00",
+            "round": 3
+          },
+          "start": 1793480400000,
+          "status": "finished",
+          "weightClass": "W Strawweight"
+        }
+      ],
+      "end": 1793505600000,
+      "followed": [],
+      "id": "espn:mma/ufc:600061420",
+      "name": "UFC Fight Night: Moicano vs. Nolan",
+      "start": 1793480400000,
+      "status": "finished",
+      "venue": {
+        "city": "Las Vegas",
+        "country": "USA",
+        "name": "Meta APEX"
+      }
+    },
+    {
+      "bouts": [
+        {
+          "card": "prelims",
+          "fighters": [
+            {
+              "name": "Jonny Parsons",
+              "winner": null
+            },
+            {
+              "name": "Jose Henrique",
+              "winner": null
+            }
+          ],
+          "id": "401928118",
+          "result": null,
+          "start": 1794088800000,
+          "status": "scheduled",
+          "weightClass": "Welterweight"
+        },
+        {
+          "card": "main",
+          "fighters": [
+            {
+              "name": "Waldo Cortes Acosta",
+              "winner": null
+            },
+            {
+              "name": "Johnny Walker",
+              "winner": null
+            }
+          ],
+          "id": "401932715",
+          "result": null,
+          "start": 1794099600000,
+          "status": "scheduled",
+          "weightClass": "Heavyweight"
+        }
+      ],
+      "end": 1794114000000,
+      "followed": [],
+      "id": "espn:mma/ufc:600061268",
+      "name": "UFC Fight Night: Cortes Acosta vs. Walker",
+      "start": 1794088800000,
+      "status": "scheduled",
+      "venue": {
+        "city": "Las Vegas",
+        "country": "USA",
+        "name": "Meta APEX"
+      }
+    }
+  ],
+  "kind": "fight",
+  "league": "UFC",
+  "sport": "Combat",
+  "updatedAt": 1793525400000
+}

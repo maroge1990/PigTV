@@ -1,0 +1,27 @@
+{
+  "channel_item_id": "1011",
+  "channel_logo": null,
+  "channel_name": "AU| FOX CRICKET HD",
+  "channel_stable_id": "s1011",
+  "chosen_at": null,
+  "clash_winner": null,
+  "conflictsWith": [
+    1
+  ],
+  "created_at": 1793492160000,
+  "created_by": 2,
+  "description": null,
+  "error": null,
+  "id": 2,
+  "image_url": null,
+  "post_buffer_min": 5,
+  "pre_buffer_min": 1,
+  "program_end": 1793505600000,
+  "program_end_original": null,
+  "program_start": 1793502000000,
+  "recording_id": null,
+  "rule_id": null,
+  "source_id": 1,
+  "status": "scheduled",
+  "title": "Australia v India - golden"
+}

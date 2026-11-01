@@ -1,0 +1,294 @@
+{
+  "available": true,
+  "following": "17",
+  "league": "AFL",
+  "rounds": [
+    {
+      "current": false,
+      "games": [
+        {
+          "away": {
+            "abbr": "FRE",
+            "id": "1",
+            "score": "83"
+          },
+          "channels": [],
+          "competition": null,
+          "detail": "Final",
+          "home": {
+            "abbr": "SYD",
+            "id": "4",
+            "score": "71"
+          },
+          "id": "1133710",
+          "start": 1789724400000,
+          "status": "done",
+          "venue": "SCG"
+        },
+        {
+          "away": {
+            "abbr": "BL",
+            "id": "11",
+            "score": "131"
+          },
+          "channels": [],
+          "competition": null,
+          "detail": "Final",
+          "home": {
+            "abbr": "HAW",
+            "id": "13",
+            "score": "122"
+          },
+          "id": "1133709",
+          "start": 1789802100000,
+          "status": "done",
+          "venue": "MCG"
+        }
+      ],
+      "key": "3:4",
+      "label": "Preliminary Finals"
+    },
+    {
+      "current": true,
+      "games": [
+        {
+          "away": {
+            "abbr": "BL",
+            "id": "11",
+            "score": "96"
+          },
+          "channels": [],
+          "competition": null,
+          "detail": "Final",
+          "home": {
+            "abbr": "FRE",
+            "id": "1",
+            "score": "89"
+          },
+          "id": "1133711",
+          "start": 1790397000000,
+          "status": "done",
+          "venue": "MCG"
+        }
+      ],
+      "key": "3:5",
+      "label": "Grand Final"
+    }
+  ],
+  "season": {
+    "label": "2026",
+    "type": "postseason",
+    "year": 2026
+  },
+  "sport": "australian-football",
+  "standings": {
+    "groups": [
+      {
+        "columns": [
+          {
+            "key": "played",
+            "label": "P"
+          },
+          {
+            "key": "wins",
+            "label": "W"
+          }
+        ],
+        "name": null,
+        "rows": [
+          {
+            "abbr": "FRE",
+            "id": "1",
+            "rank": 1,
+            "values": {
+              "draws": "0",
+              "losses": "4",
+              "percentage": "137.200",
+              "played": "23",
+              "points": "76",
+              "wins": "19"
+            }
+          },
+          {
+            "abbr": "SYD",
+            "id": "4",
+            "rank": 2,
+            "values": {
+              "draws": "0",
+              "losses": "5",
+              "percentage": "136.100",
+              "played": "23",
+              "points": "72",
+              "wins": "18"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "teams": {
+    "1": {
+      "abbr": "FRE",
+      "color": "5D368F",
+      "full": "Fremantle",
+      "id": "1",
+      "location": null,
+      "logo": "/api/logo/<key>",
+      "name": "Fremantle"
+    },
+    "2": {
+      "abbr": "MELB",
+      "color": null,
+      "full": "Melbourne",
+      "id": "2",
+      "location": null,
+      "logo": "/api/logo/<key>",
+      "name": "Melbourne"
+    },
+    "3": {
+      "abbr": "WCE",
+      "color": null,
+      "full": "West Coast Eagles",
+      "id": "3",
+      "location": null,
+      "logo": "/api/logo/<key>",
+      "name": "West Coast Eagles"
+    },
+    "4": {
+      "abbr": "SYD",
+      "color": "B61300",
+      "full": "Sydney Swans",
+      "id": "4",
+      "location": null,
+      "logo": "/api/logo/<key>",
+      "name": "Sydney Swans"
+    },
+    "5": {
+      "abbr": "NMFC",
+      "color": null,
+      "full": "North Melbourne",
+      "id": "5",
+      "location": null,
+      "logo": "/api/logo/<key>",
+      "name": "North Melbourne"
+    },
+    "6": {
+      "abbr": "WB",
+      "color": null,
+      "full": "Western Bulldogs",
+      "id": "6",
+      "location": null,
+      "logo": "/api/logo/<key>",
+      "name": "Western Bulldogs"
+    },
+    "7": {
+      "abbr": "PORT",
+      "color": null,
+      "full": "Port Adelaide",
+      "id": "7",
+      "location": null,
+      "logo": "/api/logo/<key>",
+      "name": "Port Adelaide"
+    },
+    "8": {
+      "abbr": "GWS",
+      "color": null,
+      "full": "GWS GIANTS",
+      "id": "8",
+      "location": null,
+      "logo": "/api/logo/<key>",
+      "name": "GWS GIANTS"
+    },
+    "9": {
+      "abbr": "CARL",
+      "color": null,
+      "full": "Carlton",
+      "id": "9",
+      "location": null,
+      "logo": "/api/logo/<key>",
+      "name": "Carlton"
+    },
+    "10": {
+      "abbr": "SUNS",
+      "color": null,
+      "full": "Gold Coast SUNS",
+      "id": "10",
+      "location": null,
+      "logo": "/api/logo/<key>",
+      "name": "Gold Coast SUNS"
+    },
+    "11": {
+      "abbr": "BL",
+      "color": "6D144A",
+      "full": "Brisbane Lions",
+      "id": "11",
+      "location": null,
+      "logo": "/api/logo/<key>",
+      "name": "Brisbane Lions"
+    },
+    "12": {
+      "abbr": "RICH",
+      "color": null,
+      "full": "Richmond",
+      "id": "12",
+      "location": null,
+      "logo": "/api/logo/<key>",
+      "name": "Richmond"
+    },
+    "13": {
+      "abbr": "HAW",
+      "color": "462D22",
+      "full": "Hawthorn",
+      "id": "13",
+      "location": null,
+      "logo": "/api/logo/<key>",
+      "name": "Hawthorn"
+    },
+    "14": {
+      "abbr": "GEEL",
+      "color": null,
+      "full": "Geelong Cats",
+      "id": "14",
+      "location": null,
+      "logo": "/api/logo/<key>",
+      "name": "Geelong Cats"
+    },
+    "15": {
+      "abbr": "ADEL",
+      "color": null,
+      "full": "Adelaide Crows",
+      "id": "15",
+      "location": null,
+      "logo": "/api/logo/<key>",
+      "name": "Adelaide Crows"
+    },
+    "16": {
+      "abbr": "ESS",
+      "color": null,
+      "full": "Essendon",
+      "id": "16",
+      "location": null,
+      "logo": "/api/logo/<key>",
+      "name": "Essendon"
+    },
+    "17": {
+      "abbr": "COLL",
+      "color": null,
+      "full": "Collingwood",
+      "id": "17",
+      "location": null,
+      "logo": "/api/logo/<key>",
+      "name": "Collingwood"
+    },
+    "18": {
+      "abbr": "STK",
+      "color": null,
+      "full": "St Kilda",
+      "id": "18",
+      "location": null,
+      "logo": "/api/logo/<key>",
+      "name": "St Kilda"
+    }
+  },
+  "updatedAt": 1793432400000
+}

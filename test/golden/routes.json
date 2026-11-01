@@ -1,0 +1,177 @@
+{
+  "info": {
+    "method": "GET",
+    "route": "/api/info",
+    "status": 200
+  },
+  "info-fallback": {
+    "method": "GET",
+    "route": "/api/info",
+    "status": 200
+  },
+  "library-guide": {
+    "method": "GET",
+    "route": "/api/library/guide?limit=4",
+    "status": 200
+  },
+  "playback-resolve-200": {
+    "method": "POST",
+    "route": "/api/playback/resolve",
+    "status": 200
+  },
+  "playback-resolve-404": {
+    "method": "POST",
+    "route": "/api/playback/resolve",
+    "status": 404
+  },
+  "playback-resolve-409": {
+    "method": "POST",
+    "route": "/api/playback/resolve",
+    "status": 409
+  },
+  "playback-resolve-error": {
+    "method": "POST",
+    "route": "/api/playback/resolve",
+    "status": 500
+  },
+  "recordings": {
+    "method": "GET",
+    "route": "/api/recordings",
+    "status": 200
+  },
+  "recordings-rule-series": {
+    "method": "POST",
+    "route": "/api/recordings/rules",
+    "status": 201
+  },
+  "recordings-rules": {
+    "method": "GET",
+    "route": "/api/recordings/rules",
+    "status": 200
+  },
+  "recordings-schedule": {
+    "method": "POST",
+    "route": "/api/recordings/schedule",
+    "status": 201
+  },
+  "recordings-schedule-clash": {
+    "method": "POST",
+    "route": "/api/recordings/schedule",
+    "status": 201
+  },
+  "recordings-scheduled": {
+    "method": "GET",
+    "route": "/api/recordings/scheduled?include=recent",
+    "status": 200
+  },
+  "recordings-watch-200": {
+    "method": "GET",
+    "route": "/api/recordings/2/watch",
+    "status": 200
+  },
+  "recordings-watch-202": {
+    "method": "GET",
+    "route": "/api/recordings/3/watch",
+    "status": 202
+  },
+  "recordings-watch-409": {
+    "method": "GET",
+    "route": "/api/recordings/1/watch",
+    "status": 409
+  },
+  "sports-catalog": {
+    "method": "GET",
+    "route": "/api/sports/catalog",
+    "status": 200
+  },
+  "sports-events": {
+    "method": "GET",
+    "route": "/api/sports/events?hours=72",
+    "status": 200
+  },
+  "sports-follows": {
+    "method": "GET",
+    "route": "/api/sports/follows",
+    "status": 200
+  },
+  "sports-follows-put": {
+    "method": "PUT",
+    "route": "/api/sports/follows",
+    "status": 200
+  },
+  "sports-front": {
+    "method": "GET",
+    "route": "/api/sports/front",
+    "status": 200
+  },
+  "sports-names": {
+    "method": "GET",
+    "route": "/api/sports/names?league=AFL",
+    "status": 200
+  },
+  "sports-page-cricket": {
+    "method": "GET",
+    "route": "/api/sports/pages/cricket",
+    "status": 200
+  },
+  "sports-page-events-400": {
+    "method": "GET",
+    "route": "/api/sports/pages/events?league=Quidditch",
+    "status": 400
+  },
+  "sports-page-events-atp-tour": {
+    "method": "GET",
+    "route": "/api/sports/pages/events?league=ATP%20Tour",
+    "status": 200
+  },
+  "sports-page-events-majors": {
+    "method": "GET",
+    "route": "/api/sports/pages/events?league=Majors",
+    "status": 200
+  },
+  "sports-page-events-nascar": {
+    "method": "GET",
+    "route": "/api/sports/pages/events?league=NASCAR",
+    "status": 200
+  },
+  "sports-page-events-pga-tour": {
+    "method": "GET",
+    "route": "/api/sports/pages/events?league=PGA%20Tour",
+    "status": 200
+  },
+  "sports-page-events-ufc": {
+    "method": "GET",
+    "route": "/api/sports/pages/events?league=UFC",
+    "status": 200
+  },
+  "sports-page-events-wta-tour": {
+    "method": "GET",
+    "route": "/api/sports/pages/events?league=WTA%20Tour",
+    "status": 200
+  },
+  "sports-page-f1": {
+    "method": "GET",
+    "route": "/api/sports/pages/f1",
+    "status": 200
+  },
+  "sports-page-league-afl": {
+    "method": "GET",
+    "route": "/api/sports/pages/league/AFL",
+    "status": 200
+  },
+  "sports-page-nfl": {
+    "method": "GET",
+    "route": "/api/sports/pages/nfl",
+    "status": 200
+  },
+  "sports-pages-preferences": {
+    "method": "GET",
+    "route": "/api/sports/pages/preferences",
+    "status": 200
+  },
+  "sports-suggestions": {
+    "method": "GET",
+    "route": "/api/sports/suggestions",
+    "status": 200
+  }
+}

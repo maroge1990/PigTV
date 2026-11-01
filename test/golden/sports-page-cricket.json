@@ -1,0 +1,163 @@
+{
+  "available": true,
+  "lead": {
+    "breakLabel": "Stumps",
+    "channels": [],
+    "city": "Cape Town",
+    "competition": "Australia in South Africa",
+    "crease": null,
+    "day": "Day 4",
+    "days": [
+      {
+        "date": 1793055600000,
+        "number": 1,
+        "state": "done"
+      },
+      {
+        "date": 1793142000000,
+        "number": 2,
+        "state": "done"
+      }
+    ],
+    "end": 1793458800000,
+    "format": "test",
+    "id": "1525661",
+    "innings": [
+      [
+        {
+          "current": false,
+          "declared": false,
+          "overs": "82.3",
+          "runs": 329,
+          "wickets": 10
+        },
+        {
+          "current": true,
+          "declared": false,
+          "overs": "134.4",
+          "runs": 387,
+          "wickets": 10
+        }
+      ],
+      [
+        {
+          "current": false,
+          "declared": false,
+          "overs": "125.1",
+          "runs": 429,
+          "wickets": 10
+        }
+      ]
+    ],
+    "label": "3rd Test",
+    "nextStart": 1793435400000,
+    "seriesId": "24203",
+    "seriesLine": "Series level 1–1 · third of three Tests",
+    "session": null,
+    "start": 1793089800000,
+    "status": "break",
+    "summary": "South Africa lead by 287 runs",
+    "teams": [
+      {
+        "abbr": "SA",
+        "logo": "/api/logo/<key>",
+        "name": "South Africa"
+      },
+      {
+        "abbr": "AUS",
+        "logo": "/api/logo/<key>",
+        "name": "Australia"
+      }
+    ],
+    "venue": "Newlands, Cape Town"
+  },
+  "others": [
+    {
+      "channels": [],
+      "competition": "West Indies in Bangladesh",
+      "id": "1553295",
+      "line": "Bangladesh lead by 106 runs",
+      "nextStart": 1793417400000,
+      "scores": [
+        "272 & 79/6 (29 ov)",
+        "245"
+      ],
+      "seriesId": "24756",
+      "start": 1793158200000,
+      "status": "break",
+      "teams": [
+        {
+          "abbr": "BAN",
+          "logo": "/api/logo/<key>",
+          "name": "Bangladesh"
+        },
+        {
+          "abbr": "WI",
+          "logo": "/api/logo/<key>",
+          "name": "West Indies"
+        }
+      ]
+    },
+    {
+      "channels": [],
+      "competition": "India in New Zealand",
+      "id": "1539436",
+      "line": "Starts at 20:00 local time",
+      "nextStart": 1793516400000,
+      "scores": [
+        null,
+        null
+      ],
+      "seriesId": "24469",
+      "start": 1793516400000,
+      "status": "scheduled",
+      "teams": [
+        {
+          "abbr": "NZ",
+          "logo": "/api/logo/<key>",
+          "name": "New Zealand"
+        },
+        {
+          "abbr": "IND",
+          "logo": "/api/logo/<key>",
+          "name": "India"
+        }
+      ]
+    }
+  ],
+  "series": {
+    "id": "24203",
+    "matches": [
+      {
+        "current": false,
+        "end": 1790269200000,
+        "id": "1525655",
+        "label": "1st ODI",
+        "result": "South Africa won by 67 runs",
+        "start": 1790236800000,
+        "status": "done"
+      },
+      {
+        "current": false,
+        "end": 1790528400000,
+        "id": "1525656",
+        "label": "2nd ODI",
+        "result": "South Africa won by 32 runs",
+        "start": 1790496000000,
+        "status": "done"
+      },
+      {
+        "current": true,
+        "end": 1793458800000,
+        "id": "1525661",
+        "label": "3rd Test",
+        "result": null,
+        "start": 1793089800000,
+        "status": "break"
+      }
+    ],
+    "name": "Australia in South Africa",
+    "season": "2026/27"
+  },
+  "updatedAt": 1793411760000
+}

@@ -1,0 +1,117 @@
+{
+  "available": true,
+  "drivers": [
+    {
+      "name": "Pierre Gasly",
+      "team": "Alpine",
+      "teamColor": "FFF500"
+    },
+    {
+      "name": "Nico Hülkenberg",
+      "team": "Audi",
+      "teamColor": "FF2D00"
+    }
+  ],
+  "results": {
+    "date": 1792958400000,
+    "kind": "race",
+    "rows": [
+      {
+        "driver": "Kimi Antonelli",
+        "points": null,
+        "pos": 1,
+        "team": "Mercedes",
+        "teamColor": "00D2BE"
+      },
+      {
+        "driver": "Charles Leclerc",
+        "points": null,
+        "pos": 2,
+        "team": "Ferrari",
+        "teamColor": "DC0000"
+      }
+    ],
+    "title": "Last race · United States GP"
+  },
+  "standings": {
+    "afterRound": 20,
+    "constructors": [
+      {
+        "name": "Mercedes",
+        "points": 607,
+        "pos": 1,
+        "team": null,
+        "teamColor": "00D2BE"
+      },
+      {
+        "name": "Ferrari",
+        "points": 474,
+        "pos": 2,
+        "team": null,
+        "teamColor": "DC0000"
+      },
+      {
+        "name": "Haas",
+        "points": 30,
+        "pos": 7,
+        "team": null,
+        "teamColor": null
+      }
+    ],
+    "drivers": [
+      {
+        "name": "Kimi Antonelli",
+        "points": 365,
+        "pos": 1,
+        "team": "Mercedes",
+        "teamColor": "00D2BE"
+      },
+      {
+        "name": "George Russell",
+        "points": 242,
+        "pos": 2,
+        "team": "Mercedes",
+        "teamColor": "00D2BE"
+      }
+    ]
+  },
+  "updatedAt": 1793361600000,
+  "weekend": {
+    "circuit": "Autodromo Hermanos Rodriguez",
+    "city": "Mexico city",
+    "country": "Mexico",
+    "info": {
+      "lapRecord": "1:17.774",
+      "lapRecordYear": 2021,
+      "laps": 71,
+      "length": "4.304 km",
+      "map": "/api/logo/<key>?size=3840",
+      "mapDark": "/api/logo/<key>?size=3840",
+      "turns": 17
+    },
+    "name": "Mexico City Grand Prix",
+    "phase": "before",
+    "round": 21,
+    "rounds": 25,
+    "sessions": [
+      {
+        "channels": [],
+        "end": 1793388600000,
+        "id": "practice 1",
+        "name": "Practice 1",
+        "start": 1793385000000,
+        "status": "scheduled",
+        "top": null
+      },
+      {
+        "channels": [],
+        "end": 1793401200000,
+        "id": "practice 2",
+        "name": "Practice 2",
+        "start": 1793397600000,
+        "status": "scheduled",
+        "top": null
+      }
+    ]
+  }
+}

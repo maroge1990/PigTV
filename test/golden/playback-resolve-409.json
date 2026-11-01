@@ -1,0 +1,10 @@
+{
+  "conflict": {
+    "lastActiveSec": 0,
+    "message": "Another device is watching. Your provider allows one stream at a time, so watching here will stop it.",
+    "streamId": "<hex>",
+    "type": "viewer-in-progress"
+  },
+  "error": "Provider stream is in use",
+  "resolution": "Repeat this request with \"force\": true to stop the other stream and watch."
+}

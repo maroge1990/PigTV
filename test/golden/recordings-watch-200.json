@@ -1,0 +1,8 @@
+{
+  "container": "hls",
+  "durationSec": 4,
+  "fps": null,
+  "recording": true,
+  "url": "/api/recordings/2/live/master.m3u8",
+  "videoRange": "SDR"
+}

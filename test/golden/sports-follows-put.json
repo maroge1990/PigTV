@@ -1,0 +1,23 @@
+{
+  "spoilerFree": false,
+  "sports": [
+    {
+      "leagues": [
+        "NFL"
+      ],
+      "sport": "American football",
+      "teams": [
+        "Green Bay Packers"
+      ]
+    },
+    {
+      "leagues": [
+        "AFL"
+      ],
+      "sport": "Australian football",
+      "teams": [
+        "Collingwood"
+      ]
+    }
+  ]
+}

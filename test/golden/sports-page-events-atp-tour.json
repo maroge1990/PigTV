@@ -1,0 +1,139 @@
+{
+  "available": true,
+  "events": [
+    {
+      "breakLabel": "Between matches",
+      "draws": [
+        {
+          "name": "Men's Singles",
+          "rounds": [
+            {
+              "matchIds": [
+                "187334"
+              ],
+              "name": "Qualifying 1st Round"
+            },
+            {
+              "matchIds": [
+                "186445"
+              ],
+              "name": "Round 1"
+            }
+          ]
+        },
+        {
+          "name": "Men's Doubles",
+          "rounds": [
+            {
+              "matchIds": [
+                "187294"
+              ],
+              "name": "Round 1"
+            },
+            {
+              "matchIds": [
+                "186506"
+              ],
+              "name": "Round 2"
+            }
+          ]
+        }
+      ],
+      "end": 1794200340000,
+      "followed": [],
+      "id": "espn:tennis/atp:13-2026",
+      "matches": [
+        {
+          "court": "Court 1",
+          "draw": "Men's Singles",
+          "id": "187334",
+          "players": [
+            {
+              "country": "Spain",
+              "name": "Pablo Carreno Busta",
+              "seed": null,
+              "winner": false
+            },
+            {
+              "country": "Italy",
+              "name": "Mattia Bellucci",
+              "seed": null,
+              "winner": true
+            }
+          ],
+          "round": "Qualifying 1st Round",
+          "sets": [
+            [
+              1,
+              6
+            ],
+            [
+              6,
+              7
+            ]
+          ],
+          "start": 1793441100000,
+          "status": "finished"
+        },
+        {
+          "court": null,
+          "draw": "Men's Singles",
+          "id": "186445",
+          "players": [
+            {
+              "country": "USA",
+              "name": "Tommy Paul",
+              "seed": 12,
+              "winner": null
+            },
+            {
+              "country": "Denmark",
+              "name": "Holger Rune",
+              "seed": null,
+              "winner": null
+            }
+          ],
+          "round": "Round 1",
+          "sets": null,
+          "start": 1793595600000,
+          "status": "scheduled"
+        },
+        {
+          "court": null,
+          "draw": "Men's Singles",
+          "id": "186476",
+          "players": [
+            {
+              "country": null,
+              "name": null,
+              "seed": null,
+              "winner": null
+            },
+            {
+              "country": null,
+              "name": null,
+              "seed": null,
+              "winner": null
+            }
+          ],
+          "round": "Round 2",
+          "sets": null,
+          "start": 1793768400000,
+          "status": "scheduled"
+        }
+      ],
+      "name": "Rolex Paris Masters",
+      "start": 1793419200000,
+      "status": "break",
+      "venue": {
+        "city": "Paris",
+        "country": "France",
+        "name": "Paris, France"
+      }
+    }
+  ],
+  "kind": "tennis",
+  "league": "ATP Tour",
+  "sport": "Tennis",
+  "updatedAt": 1793525400000
+}

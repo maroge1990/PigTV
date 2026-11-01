@@ -1,0 +1,78 @@
+{
+  "events": [
+    {
+      "aliases": [
+        "Australia v India - 1st Test, Day 2"
+      ],
+      "channels": [
+        {
+          "end": 1793505300000,
+          "id": "1011",
+          "logo": "/api/logo/<key>",
+          "name": "AU| FOX CRICKET HD",
+          "number": 4,
+          "quality": "HD",
+          "sourceId": 1,
+          "stableId": "s1011",
+          "start": 1793480100000
+        },
+        {
+          "end": 1793505300000,
+          "id": "1007",
+          "logo": "/api/logo/<key>",
+          "name": "UK| SKY SPORTS CRICKET HD",
+          "number": 11,
+          "quality": "HD",
+          "sourceId": 1,
+          "stableId": "s1007",
+          "start": 1793480100000
+        }
+      ],
+      "end": 1793505300000,
+      "id": "<session>",
+      "kind": "event",
+      "league": "Cricket",
+      "live": true,
+      "start": 1793480100000,
+      "title": "Australia v India"
+    },
+    {
+      "aliases": [
+        "Formula 1: Mexico City Grand Prix - Race",
+        "Live F1: Mexico City Grand Prix Race"
+      ],
+      "channels": [
+        {
+          "end": 1793496300000,
+          "id": "1002",
+          "logo": "/api/logo/<key>",
+          "name": "UK| SKY SPORTS F1 UHD/4K",
+          "number": 15,
+          "quality": "UHD",
+          "sourceId": 1,
+          "stableId": "s1002",
+          "start": 1793487300000
+        },
+        {
+          "end": 1793496300000,
+          "id": "1003",
+          "logo": "/api/logo/<key>",
+          "name": "UK| SKY SPORTS F1 FHD",
+          "number": 12,
+          "quality": "HD",
+          "sourceId": 1,
+          "stableId": "s1003",
+          "start": 1793487300000
+        }
+      ],
+      "end": 1793496300000,
+      "id": "<session>",
+      "kind": "event",
+      "league": "Formula 1",
+      "live": true,
+      "start": 1793487300000,
+      "title": "Mexico City Grand Prix"
+    }
+  ],
+  "now": 1793492100000
+}

@@ -1,0 +1,260 @@
+{
+  "follows": [
+    {
+      "gameId": "espn:football/nfl:401",
+      "league": "NFL",
+      "logo": null,
+      "name": "Green Bay Packers",
+      "sport": "American football",
+      "start": 1793488560000,
+      "state": "live"
+    },
+    {
+      "gameId": "espn:australian-football/afl:1",
+      "league": "AFL",
+      "logo": null,
+      "name": "Collingwood",
+      "sport": "Australian football",
+      "start": 1793502000000,
+      "state": "next"
+    },
+    {
+      "gameId": null,
+      "league": "Six Nations",
+      "logo": null,
+      "name": "Ireland",
+      "sport": "Rugby union",
+      "start": null,
+      "state": "none"
+    }
+  ],
+  "games": [
+    {
+      "availability": "unmatched",
+      "broadcastStatus": "unavailable",
+      "canWatch": false,
+      "channels": [],
+      "circuit": null,
+      "competitors": [
+        {
+          "id": "9",
+          "logo": null,
+          "name": "Packers"
+        },
+        {
+          "id": "3",
+          "logo": null,
+          "name": "Bears"
+        }
+      ],
+      "end": null,
+      "events": [],
+      "followed": true,
+      "format": null,
+      "freshness": "fresh",
+      "id": "espn:football/nfl:401",
+      "league": "NFL",
+      "observedAt": 1793492040000,
+      "progress": {
+        "clock": "5:00",
+        "period": 2
+      },
+      "scores": [
+        "7",
+        "3"
+      ],
+      "session": null,
+      "situation": {
+        "down": 3
+      },
+      "start": 1793488560000,
+      "status": "live",
+      "title": "Packers v Bears"
+    },
+    {
+      "availability": "matched",
+      "broadcastStatus": "on-tv",
+      "canWatch": true,
+      "channels": [
+        {
+          "end": 1793506560000,
+          "id": "1013",
+          "logo": null,
+          "name": "US| NFL NETWORK HD",
+          "number": 12,
+          "quality": "HD",
+          "sourceId": 1,
+          "stableId": "s1013",
+          "start": 1793490960000
+        }
+      ],
+      "circuit": null,
+      "competitors": [
+        {
+          "id": "12",
+          "logo": null,
+          "name": "Kansas City Chiefs"
+        },
+        {
+          "id": "2",
+          "logo": null,
+          "name": "Buffalo Bills"
+        }
+      ],
+      "end": null,
+      "events": [
+        {
+          "end": 1793506560000,
+          "id": "ev-kc",
+          "start": 1793490960000
+        }
+      ],
+      "followed": false,
+      "format": null,
+      "freshness": "fresh",
+      "id": "espn:football/nfl:406",
+      "league": "NFL",
+      "observedAt": 1793492040000,
+      "onAir": true,
+      "progress": {},
+      "session": null,
+      "start": 1793492760000,
+      "status": "scheduled",
+      "title": "Kansas City Chiefs v Buffalo Bills"
+    },
+    {
+      "availability": "matched",
+      "broadcastStatus": "scheduled",
+      "canWatch": false,
+      "channels": [
+        {
+          "end": 1793505600000,
+          "id": "1011",
+          "logo": null,
+          "name": "AU| FOX CRICKET HD",
+          "number": 9,
+          "quality": "HD",
+          "sourceId": 1,
+          "stableId": "s1011",
+          "start": 1793502000000
+        }
+      ],
+      "circuit": null,
+      "competitors": [
+        {
+          "id": "1",
+          "logo": null,
+          "name": "Collingwood"
+        },
+        {
+          "id": "2",
+          "logo": null,
+          "name": "Carlton"
+        }
+      ],
+      "end": null,
+      "events": [
+        {
+          "end": 1793505600000,
+          "id": "ev-afl",
+          "start": 1793502000000
+        }
+      ],
+      "followed": true,
+      "format": null,
+      "freshness": "fresh",
+      "id": "espn:australian-football/afl:1",
+      "league": "AFL",
+      "observedAt": 1793492040000,
+      "progress": {},
+      "recording": {
+        "clashesWith": [
+          "AFL: Collingwood v Carlton (golden)"
+        ],
+        "ruleId": null,
+        "scheduleId": 2,
+        "status": "scheduled"
+      },
+      "session": null,
+      "start": 1793502000000,
+      "status": "scheduled",
+      "title": "Collingwood v Carlton"
+    },
+    {
+      "availability": "unmatched",
+      "broadcastStatus": "unavailable",
+      "canWatch": false,
+      "channels": [],
+      "circuit": null,
+      "competitors": [],
+      "end": null,
+      "events": [],
+      "followed": true,
+      "format": null,
+      "freshness": "fresh",
+      "id": "espn:racing/f1:1",
+      "league": "F1",
+      "observedAt": 1793492040000,
+      "progress": {},
+      "session": "Race",
+      "start": 1793585760000,
+      "status": "scheduled",
+      "title": "Grand Prix"
+    }
+  ],
+  "hero": {
+    "followIndex": 0,
+    "gameId": "espn:football/nfl:401",
+    "reason": "follow-live"
+  },
+  "now": 1793492160000,
+  "rails": [
+    {
+      "gameIds": [
+        "espn:football/nfl:401",
+        "espn:football/nfl:406"
+      ],
+      "league": "NFL",
+      "sport": "American football"
+    },
+    {
+      "gameIds": [
+        "espn:australian-football/afl:1"
+      ],
+      "league": "AFL",
+      "sport": "Australian football"
+    }
+  ],
+  "scores": "fresh",
+  "spoilerFree": false,
+  "sports": [
+    {
+      "league": "NFL",
+      "line": "live",
+      "live": 2,
+      "next": {
+        "gameId": "espn:football/nfl:406",
+        "start": 1793492760000
+      },
+      "sport": "American football"
+    },
+    {
+      "league": "AFL",
+      "line": "next",
+      "live": 0,
+      "next": {
+        "gameId": "espn:australian-football/afl:1",
+        "start": 1793502000000
+      },
+      "sport": "Australian football"
+    },
+    {
+      "league": "Six Nations",
+      "line": "quiet",
+      "live": 0,
+      "next": null,
+      "sport": "Rugby union"
+    }
+  ],
+  "timezone": "<timezone>"
+}

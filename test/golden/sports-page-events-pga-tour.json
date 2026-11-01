@@ -1,0 +1,58 @@
+{
+  "available": true,
+  "events": [
+    {
+      "breakLabel": "Round 3 complete",
+      "end": 1793592000000,
+      "followed": [],
+      "id": "espn:golf/pga:401850978",
+      "leaderboard": [
+        {
+          "country": "USA",
+          "name": "Andrew Novak",
+          "pos": "1",
+          "rounds": [
+            67,
+            61,
+            null
+          ],
+          "status": null,
+          "toPar": "-23"
+        },
+        {
+          "country": "France",
+          "name": "Matthieu Pavon",
+          "pos": "2",
+          "rounds": [
+            65,
+            66,
+            null
+          ],
+          "status": null,
+          "toPar": "-17"
+        },
+        {
+          "country": "USA",
+          "name": "Eli Ortego",
+          "pos": null,
+          "rounds": [
+            71,
+            75,
+            null
+          ],
+          "status": "cut",
+          "toPar": "+4"
+        }
+      ],
+      "name": "VidantaWorld Mexico Open",
+      "round": 3,
+      "start": 1793246400000,
+      "status": "break",
+      "venue": null
+    }
+  ],
+  "kind": "golf",
+  "league": "PGA Tour",
+  "sport": "Golf",
+  "updatedAt": 1793525400000
+}

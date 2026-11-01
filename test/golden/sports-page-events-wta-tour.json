@@ -1,0 +1,319 @@
+{
+  "available": true,
+  "events": [
+    {
+      "draws": [
+        {
+          "name": "Women's Singles",
+          "rounds": [
+            {
+              "matchIds": [
+                "185706"
+              ],
+              "name": "Round 2"
+            },
+            {
+              "matchIds": [
+                "185729"
+              ],
+              "name": "Quarterfinal"
+            }
+          ]
+        },
+        {
+          "name": "Women's Doubles",
+          "rounds": [
+            {
+              "matchIds": [
+                "185747"
+              ],
+              "name": "Quarterfinal"
+            },
+            {
+              "matchIds": [
+                "185749"
+              ],
+              "name": "Semifinal"
+            }
+          ]
+        }
+      ],
+      "end": 1793595540000,
+      "followed": [],
+      "id": "espn:tennis/wta:232-2026",
+      "matches": [
+        {
+          "court": "Court 2",
+          "draw": "Women's Doubles",
+          "id": "185747",
+          "players": [
+            {
+              "country": null,
+              "name": "Mariia Kozyreva / Maia Lumsden",
+              "seed": 1,
+              "winner": false
+            },
+            {
+              "country": null,
+              "name": "Isabelle Haverlag / Zhibek Kulambayeva",
+              "seed": null,
+              "winner": true
+            }
+          ],
+          "round": "Quarterfinal",
+          "sets": [
+            [
+              6,
+              3
+            ],
+            [
+              3,
+              6
+            ]
+          ],
+          "start": 1793175900000,
+          "status": "finished"
+        },
+        {
+          "court": null,
+          "draw": "Women's Singles",
+          "id": "185706",
+          "players": [
+            {
+              "country": "USA",
+              "name": "Claire Liu",
+              "seed": null,
+              "winner": true
+            },
+            {
+              "country": "Czechia",
+              "name": "Katerina Siniakova",
+              "seed": null,
+              "winner": false
+            }
+          ],
+          "round": "Round 2",
+          "sets": null,
+          "start": 1793250000000,
+          "status": "finished"
+        },
+        {
+          "court": "Center Court",
+          "draw": "Women's Singles",
+          "id": "185735",
+          "players": [
+            {
+              "country": "Austria",
+              "name": "Lilli Tagger",
+              "seed": 4,
+              "winner": null
+            },
+            {
+              "country": "Great Britain",
+              "name": "Harriet Dart",
+              "seed": null,
+              "winner": null
+            }
+          ],
+          "round": "Final",
+          "sets": [
+            [
+              5,
+              4
+            ]
+          ],
+          "start": 1793522100000,
+          "status": "live"
+        }
+      ],
+      "name": "Guangzhou Open",
+      "start": 1792728000000,
+      "status": "live",
+      "venue": {
+        "city": "Guangzhou",
+        "country": "China PR",
+        "name": "Guangzhou, China PR"
+      }
+    },
+    {
+      "draws": [
+        {
+          "name": "Women's Singles",
+          "rounds": [
+            {
+              "matchIds": [
+                "187324"
+              ],
+              "name": "Qualifying 1st Round"
+            },
+            {
+              "matchIds": [
+                "187332",
+                "187333"
+              ],
+              "name": "Qualifying Final"
+            }
+          ]
+        },
+        {
+          "name": "Women's Doubles",
+          "rounds": [
+            {
+              "matchIds": [
+                "186608",
+                "186612"
+              ],
+              "name": "Round 1"
+            }
+          ]
+        }
+      ],
+      "end": 1794200340000,
+      "followed": [],
+      "id": "espn:tennis/wta:889-2026",
+      "matches": [
+        {
+          "court": "Centre Court",
+          "draw": "Women's Singles",
+          "id": "187324",
+          "players": [
+            {
+              "country": "Russia",
+              "name": "Mariia Tkacheva",
+              "seed": null,
+              "winner": false
+            },
+            {
+              "country": "Russia",
+              "name": "Rada Zolotareva",
+              "seed": null,
+              "winner": true
+            }
+          ],
+          "round": "Qualifying 1st Round",
+          "sets": [
+            [
+              1,
+              6
+            ],
+            [
+              1,
+              2
+            ]
+          ],
+          "start": 1793439300000,
+          "status": "finished"
+        },
+        {
+          "court": "Centre Court",
+          "draw": "Women's Singles",
+          "id": "187332",
+          "players": [
+            {
+              "country": "Japan",
+              "name": "Kyoka Okamura",
+              "seed": null,
+              "winner": null
+            },
+            {
+              "country": "Japan",
+              "name": "Momoko Kobori",
+              "seed": null,
+              "winner": null
+            }
+          ],
+          "round": "Qualifying Final",
+          "sets": [
+            [
+              3,
+              5
+            ]
+          ],
+          "start": 1793521800000,
+          "status": "live"
+        },
+        {
+          "court": "Centre Court",
+          "draw": "Women's Singles",
+          "id": "187333",
+          "players": [
+            {
+              "country": "Japan",
+              "name": "Mei Yamaguchi",
+              "seed": null,
+              "winner": null
+            },
+            {
+              "country": "Kazakhstan",
+              "name": "Zhibek Kulambayeva",
+              "seed": null,
+              "winner": null
+            }
+          ],
+          "round": "Qualifying Final",
+          "sets": null,
+          "start": 1793526000000,
+          "status": "scheduled"
+        },
+        {
+          "court": null,
+          "draw": "Women's Singles",
+          "id": "186569",
+          "players": [
+            {
+              "country": "Thailand",
+              "name": "Mananchaya Sawangkaew",
+              "seed": 5,
+              "winner": null
+            },
+            {
+              "country": "Japan",
+              "name": "Mai Hontama",
+              "seed": null,
+              "winner": null
+            }
+          ],
+          "round": "Round 1",
+          "sets": null,
+          "start": 1793595600000,
+          "status": "scheduled"
+        },
+        {
+          "court": null,
+          "draw": "Women's Doubles",
+          "id": "186608",
+          "players": [
+            {
+              "country": null,
+              "name": "Momoko Kobori / Peangtarn Plipuech",
+              "seed": 1,
+              "winner": null
+            },
+            {
+              "country": "Great Britain",
+              "name": "Freya Christie / Eden Silva",
+              "seed": null,
+              "winner": null
+            }
+          ],
+          "round": "Round 1",
+          "sets": null,
+          "start": 1793595600000,
+          "status": "scheduled"
+        }
+      ],
+      "name": "Chennai Open",
+      "start": 1793419200000,
+      "status": "live",
+      "venue": {
+        "city": "Chennai",
+        "country": "India",
+        "name": "Chennai, India"
+      }
+    }
+  ],
+  "kind": "tennis",
+  "league": "WTA Tour",
+  "sport": "Tennis",
+  "updatedAt": 1793525400000
+}

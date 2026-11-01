@@ -1,0 +1,35 @@
+{
+  "available": true,
+  "events": [
+    {
+      "end": 1793574000000,
+      "entryList": [
+        {
+          "name": "Austin Cindric"
+        },
+        {
+          "name": "Denny Hamlin"
+        }
+      ],
+      "followed": [],
+      "id": "espn:racing/nascar-premier:202611010020",
+      "name": "NASCAR Cup Series at Martinsville",
+      "start": 1793559600000,
+      "status": "scheduled",
+      "venue": null
+    }
+  ],
+  "kind": "race",
+  "lastWinner": {
+    "date": 1792951200000,
+    "name": "Kyle Larson",
+    "race": "NASCAR Cup Series at Talladega"
+  },
+  "league": "NASCAR",
+  "next": {
+    "name": "NASCAR Cup Series at Martinsville",
+    "start": 1793559600000
+  },
+  "sport": "Motorsport",
+  "updatedAt": 1793525400000
+}
