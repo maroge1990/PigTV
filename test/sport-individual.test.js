@@ -173,3 +173,13 @@ test('0407: a tournament between rounds is asked again every 5 minutes and its b
     assert.equal(calls.length, 2, 'asked again after 5 minutes');
     c.stop();
 });
+
+// 0408 (0407 Codex round 2, medium): a qualifying airing overlapping the race's start joined the race card.
+test('0408: an IndyCar or NASCAR airing that names another session never joins the race, however it overlaps', () => {
+    const [race] = individual.normalize(json('nascar-2026-11-01.json'), 'NASCAR', 'racing/nascar-premier');
+    const ev = (id, title) => ({ id, league: 'NASCAR', kind: 'event', title, start: race.start - H, end: race.start + 10 * 60000, channels: [] });
+    const found = dashboard.matchBroadcasts([race], [ev('q', 'NASCAR Cup Series: Martinsville Qualifying'), ev('p', 'NASCAR Cup Series: Martinsville Practice 1')]);
+    assert.deepEqual(found.get(race.id), []);
+    const ok = dashboard.matchBroadcasts([race], [ev('r', 'NASCAR Cup Series: Martinsville Race')]);
+    assert.deepEqual(ok.get(race.id).map(e => e.id), ['r']);
+});

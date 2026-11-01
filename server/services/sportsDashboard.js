@@ -102,6 +102,8 @@ function sameGame(prepared, parsed) {
             const p = classify.parseTitle(event.title);
             if (p.replayWord || p.highlightsWord) return false;
             if (game.league === 'UFC' && p.teams && !p.teams.every(side => side.tokens.some(t => words.includes(t)))) return false;
+            // 0408 (0407 Codex round 2, medium): a race card is the race: an airing naming another session never joins it
+            if (game.session === 'Race' && p.session && p.session.id !== 'race') return false;
         }
         return words.some(w => said.includes(` ${w} `));
     } else if (event.end < game.start || Math.abs(event.start - game.start) > 90 * 60000) return false;
