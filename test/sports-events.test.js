@@ -212,6 +212,9 @@ test('/api/sports/pages/f1 answers the F1 page to any user, and /api/info advert
         return key in answers ? { ok: true, json: answers[key] } : { ok: false, error: 'HTTP 404' };
     };
     f1.reset();
+    // The fixture's weekends end on 2 Nov 2026: the page is asked as of 28 Oct, so it does not depend on today's date.
+    const realNow = Date.now;
+    Date.now = () => Date.UTC(2026, 9, 28, 12);
     try {
         const r = await call('GET', '/api/sports/pages/f1', { token: viewerToken });
         assert.equal(r.status, 200);
@@ -220,6 +223,7 @@ test('/api/sports/pages/f1 answers the F1 page to any user, and /api/info advert
         assert.ok(Array.isArray(r.body.weekend.sessions));
         assert.equal((await call('GET', '/api/sports/pages/f1', { token: null })).status, 401);
     } finally {
+        Date.now = realNow;
         f1.fetcher.get = realGet;
         f1.reset();
     }
