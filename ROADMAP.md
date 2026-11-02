@@ -5,25 +5,21 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 1 Nov 2026, late (sport revamp server 0390–0432, Apple 91–101; D-43).*
+*Overwritten at the end of every session. 2 Nov 2026 (the revamp deployed and in test; D-44 every screen chosen).*
 
-- **Server:** production runs **0387** (unchanged). On GitHub, CI green: **0390–0432**, the sport revamp (D-41, D-42):
-  #193–#196, #206 (0390–0405); #197's cards (0406–0408) and pages' data (0427–0429, C-V); #29 measurement (0409); #12
-  clashes (0410–0412); #198 suggestions and "Record every game" (0413–0417); #199 web Your sport (0418–0421); #201–#203
-  F1 grid, on-air sessions, circuit maps (0422–0426); #52 golden answers and cached images (0430–0431); the fallback
-  `/api/info` keeps `version` (0432). Every batch had its Codex rounds; every high fixed. Next build **0433**.
-- **Deploy rule (D-42):** the revamp is deployed and tested as a whole once complete, not batch by batch.
-- **Apple:** TestFlight **90**; on GitHub **91–101**: #200 Settings › Sport, clash choices, card recordings (91–94);
-  channel choice and badges (95–96, #205, #187); the Apple TV Sport front page and every sport page to D-43 (97–100);
-  brand kit 1.7.0 (101, #190); the contract checks decode the server's golden answers (#52). Next: the TestFlight
-  build for Mark's combined device test.
-- **Decisions:** D-41, D-42, **D-43** (Apple TV sport pages: one banner, a layout per sport, no sport tiles; Apple TV
-  first, then iPad and iPhone mock-ups together; web parked).
-- **Issues:** #12, #29, #193–#203, #205, #206, #187, #190 stay open for the combined test. New findings (P2): #207,
-  #208, #209, #210 (C-S should name each match's league).
-- **Paused at Mark's request:** the walkthrough of the issues waiting on his device check, starting at #192.
-- **Not done:** the combined T3 on the rig and the deploy (Mark's go-ahead); iPad/iPhone mock-ups (#186, #177);
-  production's 7 favourites (needs Mark's yes); PR #189 waits for Mark's read; #111 parked.
+- **Deployed (Mark, 2 Nov):** server **0432** and the Apple TV app (TestFlight **101**), the sport revamp (D-41–D-43) as
+  a whole (D-42). Mark's device testing has started. Next builds: server **0433**, Apple **102**.
+- **From the first day of testing:** #212 (International men's cricket lists all cricket), #213 (no logos for followed
+  cricket/AFL teams), #214 (the Sport tab should return to the front page); features #215 (follows by next event),
+  #216 (retire the TV tab), #217 (recordings end when ESPN says), #218 (next round beyond 72 h).
+- **Design, D-44 (chosen 2 Nov):** every other Apple TV screen and menu, consolidated (one long-press menu, one record
+  flow, Undo instead of confirms, no recordings library), the iPad and iPhone versions of every screen including Sport,
+  and the brand check against Pig family 1.7.0. Canvas "PigTV Apple TV app mock-ups", page "All chosen"; DESIGN.md ›
+  Apple TV app screens. Answers #177.
+- **Next:** the implementation, in the batches D-44's brief sets out (server sport data, server recording end, then
+  Apple shell and brand, guide, recording, settings and start-up, sport on iPad and iPhone); Mark's T5 continues.
+- **Still open from before:** #12, #29, #193–#203, #205, #206, #187, #190 wait on the combined device test; findings
+  #207–#211. Waiting on Mark: production's 7 favourites; PR #189's read; the device-check walkthrough from #192.
 
 ## Now
 

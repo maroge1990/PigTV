@@ -466,3 +466,45 @@ reviews.
 - **Consequence:** DESIGN.md › Sport pages › Apple TV sport pages; C-R's follow order and tiles change through
   `docs/CLIENT-CONTRACT.md` when the build lands. Order (Mark, 1 Nov): build and test on the Apple TV first, then
   the iPad and iPhone mock-ups together (D-42 point 6).
+
+### D-44. Apple TV app screens beyond Sport: one menu, one record flow, the TV tab retired (2 Nov 2026)
+
+- **Context:** with the Sport pages chosen (D-43), Mark asked for 3–5 mock-up options for every other Apple TV screen
+  and menu, with one option per screen in the Sport design, on a new canvas "PigTV Apple TV app mock-ups" (round 1:
+  every screen; round 2: the consolidated set). He also asked to retire the TV tab (formerly Home, #216).
+- **Consolidation (Mark agreed):** one long-press menu with Record first, on the Guide and Sport alike; one record flow
+  (that menu, then a full-screen record page for anything more); "Channel and favourites" folded into the channel page;
+  Scheduled, Recording rules and Needs attention on one page; one confirmation style; Search and Jump to on one page;
+  Spoilers & delay moved into Settings › Sport; the recording tile menu dropped (long press opens the recording).
+- **Choices (Mark, 2 Nov):**
+  1. Tabs: Sport · TV Guide · Recordings · Settings, opening on Sport. Recently watched is dropped, not re-homed.
+  2. TV Guide: the full grid with a slim focus strip (round 1, B).
+  3. Recordings: no library; one featured recording across the top, the other recordings as large cards, Coming up
+     as a slim strip along the bottom (round 2, row 10 C). Scheduled opens from the strip: two columns (round 2, A).
+  4. Long-press menu: a card beside the focused programme or Sport card (round 2, A/D).
+  5. Record page: the centred sheet (round 2, A; round 1 screen 9 A), shared with Sport.
+  6. Programme details stays a page: hero card (round 1, A). Channel page: hero and day list (round 2, A).
+  7. Search with Jump to: side by side (round 2, A).
+  8. View recording: full-screen art with an info bar, real team logos for sport (round 1, C).
+  9. Delete, cancel and remove-rule act at once with Undo for 10 s; no confirm dialogs. Sign out keeps a confirm,
+     inside its row (round 1, Account C), as it cannot be undone.
+  10. Settings: a menu beside the page (round 1, A); Settings › Sport in the same frame (round 2, A).
+  11. Sign in: two steps, server then two big tiles (round 1, C). Server unreachable: the retry ring (round 1, C).
+  12. iPad and iPhone (same canvas, page "iPad and iPhone"): the iPad follows each Apple TV choice closely (top tabs,
+      split view in Settings). The iPhone takes the one-column version (A) of every screen, except Recordings: a
+      swipeable card stack with Coming up as a pull-up sheet (C). The iPhone guide keeps today's behaviour: upright it
+      lists what is on now; sideways it is the scrollable grid.
+      The tabs stay the system TabView, so the iPhone keeps its Liquid Glass bottom bar and the iPad its floating
+      top bar (Mark, 2 Nov): no custom-drawn tab bar.
+  13. Sport on iPad and iPhone (D-43's pages): the iPad follows each Apple TV page; on the iPhone the front page is a
+      short swipeable carousel of follows (212 pt cards) then Now and next, and every sport page uses the same pattern
+      (its leagues as chips, its items in the carousel, its own lists below). Below the carousel, each group (a sport on
+      the front page; Live, Later today, the grid, the leaderboard on a sport page) is one card under a "Name ›"
+      header, rows on one grid with the time and channel on a second line. Fixture rows: logo, Team v Team, logo,
+      left-aligned, with the score right-aligned on the same line.
+  14. Brand check against Pig family 1.7.0 (Mark: apply all, 2 Nov): brand tokens only (canvas #15111A, surface
+      #1E1925, danger #EF4444, warning #F59E0B); the corner bloom on every page; Apple TV focus is the pink ring over a
+      22% pink fill (as TVActionStyle today), not the white fill of the D-43 mock-ups; one rose primary action per
+      screen; the PigTV mark on tab pages and the stacked lockup on sign-in; figures in SF Pro Rounded with tabular
+      digits; no ticks for app-owned state; Apple TV heroes 32 pt.
+- **Consequence:** DESIGN.md › Apple TV app screens; #216 carries the tab change. Next: the build, Apple TV first.

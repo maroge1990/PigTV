@@ -140,6 +140,33 @@ where they differ. They are built and checked on the Apple TV first; the iPad an
   UFC method or record; golf tee times or the hole a player is on; a tennis point score or server. Tennis set scores and
   golf round strokes come from ESPN's linescores, to confirm on a live event before the build relies on them.
 
+### Apple TV app screens, chosen 2 Nov (D-44)
+
+From the canvas "PigTV Apple TV app mock-ups" (rounds 1–2). Every screen keeps the Sport pages' palette, type and white
+focus; only the Sport pages and the long-press menu on a Sport card use the banner.
+
+- **Tabs:** Sport · TV Guide · Recordings · Settings, opening on Sport; the TV tab is gone (#216).
+- **One long-press menu** everywhere: a card beside the focused item, Record first (this one; every episode or every
+  game; More options…), then Watch from start, details, Channel schedule, favourites. More options… opens the
+  **record page**, a centred sheet: What · When it stops (ESPN for sport, else the guide plus Start early / Finish
+  late) · Record on (only when several channels carry it).
+- **TV Guide:** the full grid, a slim focus strip above it, chips and Now / Earlier / Later / Search / Jump to.
+  Programme details (hero card) and the channel page (hero, favourite, Up next, then the days) are pages. Search and
+  Jump to share one page, side by side.
+- **Recordings:** no library. A featured recording across the top, the rest as large cards, Coming up as a slim strip
+  at the bottom whose "All ›" opens Scheduled (coming up with clash choices, rules, needs attention; two columns).
+  View recording is full-screen art with an info bar, team logos for sport.
+- **Destructive actions** happen at once with a 10-second Undo; only Sign out confirms, inside its row.
+- **Settings:** a menu beside the page; Sport holds Hide scores, Score delay and your sports. Sign in: server, then two
+  big tiles (Pair with browser, Username and password). Offline: the pig in a retry ring.
+- **iPad and iPhone:** the iPad is the Apple TV layout at touch size (top tabs, pink outline for the selection, split
+  view in Settings). The iPhone is one column with bottom tabs; Recordings is a swipeable card stack with Coming up in a
+  pull-up sheet; the guide lists what is on now when upright and becomes the scrollable grid when turned sideways.
+  The tabs are the system TabView on both (Liquid Glass on iOS 26); never replace them with a custom bar.
+- **Brand (D-44 point 14):** the Sport pages follow the same rules as everything else: brand tokens, the corner bloom,
+  the pink focus ring on Apple TV (the white focus fill in the D-43 mock-ups is not built), one rose primary action per
+  screen, the PigTV mark on tab pages, rounded tabular figures, no ticks for app-owned state.
+
 ## Sport: Live now cards
 
 Use the selected sport-shelf layout (live, upcoming, recently finished); retain the match grid for comparison. The inline mockup uses invented
