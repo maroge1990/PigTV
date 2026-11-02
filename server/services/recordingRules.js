@@ -203,7 +203,7 @@ async function teamCandidates(rule, now, { games = null, events = null } = {}) {
             .sort((a, b) => Math.abs(a.start - g.start) - Math.abs(b.start - g.start))[0];
         if (!pick) continue;
         const { e: on, ch } = pick;
-        out.push({ identity: `game:${g.id}`, title: on.title, titles: [on.title, g.title], anyChannel: false, start: pick.start, end: pick.end,
+        out.push({ identity: `game:${g.id}`, gameId: g.id, title: on.title, titles: [on.title, g.title], anyChannel: false, start: pick.start, end: pick.end,
             sourceId: ch.sourceId, channelId: String(ch.id).replace(/^(?:m3u|xtream)_\d+_/, ''), stableId: ch.stableId || null,
             channelName: ch.name, channelLogo: ch.logo || null, description: null });
     }
@@ -259,7 +259,7 @@ function seriesCandidates(rule, now) {
 
 // Schedules a candidate may already be: not cancelled, or cancelled but made by a rule (what the
 // viewer cancelled must not come back - from any rule).
-const SCHEDULE_COLUMNS = 'id, source_id, channel_item_id, channel_stable_id, title, program_start, program_end, status, rule_id';
+const SCHEDULE_COLUMNS = 'id, source_id, channel_item_id, channel_stable_id, title, program_start, program_end, status, rule_id, sport_game_id';
 const LIVE_OR_RULE = `(status <> 'cancelled' OR rule_id IS NOT NULL)`;
 
 /**
@@ -473,6 +473,10 @@ function evaluate({ now = Date.now() } = {}) {
                             .run(c.start, c.end, existing.id);
                         console.log(`[Rules] Rule #${rule.id}: "${c.title}" moved in the guide; schedule #${existing.id} follows it`);
                     }
+                    // #217: a team rule's schedule records until its game ends (an older one is linked now)
+                    if (c.gameId && !existing.sport_game_id && ['scheduled', 'waiting', 'recording'].includes(existing.status)) {
+                        db().prepare('UPDATE scheduled_recordings SET sport_game_id = ? WHERE id = ? AND sport_game_id IS NULL').run(c.gameId, existing.id);
+                    }
                     hit(rule.id, c.identity, existing.id);
                     continue;
                 }
@@ -494,7 +498,7 @@ function evaluate({ now = Date.now() } = {}) {
                         sourceId: c.sourceId, channelItemId: c.channelId, channelName: c.channelName, channelLogo: c.channelLogo,
                         title: c.title, description: c.description, programStart: c.start, programEnd: c.end,
                         preBufferMin: rule.pre_buffer_min ?? undefined, postBufferMin: rule.post_buffer_min ?? undefined,
-                        createdBy: rule.created_by, exclude
+                        createdBy: rule.created_by, exclude, gameId: c.gameId || null
                     });
                     db().prepare('UPDATE scheduled_recordings SET rule_id = ? WHERE id = ? AND rule_id IS NULL').run(rule.id, schedule.id);
                     hit(rule.id, c.identity, schedule.id);

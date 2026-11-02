@@ -17,9 +17,17 @@
  *
  * An unchanged guide cannot know about an overrun the provider never published: the post-buffer
  * (Settings -> Recording, or per schedule) stays the manual way to add time.
+ *
+ * #217: a sport recording also follows its event. A schedule is linked to a fixture game (the score collector's id) when
+ * it was made from one (`sport_game_id`: a team rule's game, or a client naming `gameId`), else by the dashboard's own
+ * game-to-airing join (both teams named in the title, play within 90 min of its start; never a replay) when its stop is
+ * decided. While it records, eventStop() applies sportOverrun.recordingEnd to the collector's stored answer for that
+ * game (never a request to ESPN): `event_stop`, when set, is where it stops instead of the guide end + post-padding,
+ * which stays the floor. Unlinked, or with no fresh answer: exactly as before.
  */
 const { getDb } = require('../db/sqlite');
 const epgMapping = require('./epgMapping');
+const overrun = require('./sportOverrun');
 
 const MATCH_WINDOW_MS = 30 * 60 * 1000;
 const SAME_START_MS = 2 * 60 * 1000;
@@ -75,7 +83,7 @@ function apply({ now = Date.now(), db = getDb() } = {}) {
     const schedules = db.prepare(`
         SELECT * FROM scheduled_recordings
         WHERE status IN ('scheduled', 'waiting', 'recording')
-          AND program_end + post_buffer_min * 60000 > ?
+          AND MAX(program_end + post_buffer_min * 60000, COALESCE(event_stop, 0)) > ?
     `).all(now);
     const changes = [];
     const update = db.prepare(`UPDATE scheduled_recordings SET program_end = ?, program_end_original = COALESCE(program_end_original, ?) WHERE id = ?`);
@@ -95,4 +103,75 @@ function apply({ now = Date.now(), db = getDb() } = {}) {
     return changes;
 }
 
-module.exports = { apply, guideEndFor, normTitle, MATCH_WINDOW_MS, SAME_START_MS, MAX_EXTENSION_MS };
+// ---- #217: the event's end ------------------------------------------------------------------
+
+const JOIN_WINDOW_MS = 90 * 60 * 1000;
+const EARLY_MS = 60 * 1000; // decided from just before the floor, so the hard stop firing at it finds the answer made
+const SESSION_LEAGUES = new Set(['F1', 'MotoGP', 'Supercars']); // sessions and weekends, not two sides
+
+/** Where a schedule's window ends without its event: the guide end + post-padding. */
+const floorOf = (s) => s.program_end + (s.post_buffer_min || 0) * 60000;
+
+/**
+ * The fixture game a schedule records, or null. Its stored link first; else the dashboard's join (matchBroadcasts), only
+ * for a game of two sides whose play starts within JOIN_WINDOW_MS of the schedule, and only when exactly one game joins.
+ */
+function gameFor(schedule, catalog) {
+    if (!schedule || !Array.isArray(catalog)) return null;
+    if (schedule.sport_game_id) return catalog.find(g => g.id === schedule.sport_game_id) || null;
+    const classify = require('./sportsClassify');
+    const individual = require('./sportIndividual');
+    const parsed = classify.parseTitle(schedule.title);
+    if (!parsed.teams || parsed.replayWord || parsed.highlightsWord) return null;
+    const near = catalog.filter(g => Array.isArray(g.competitors) && g.competitors.length === 2 && !individual.has(g.league)
+        && !SESSION_LEAGUES.has(g.league) && Number.isFinite(g.start) && Math.abs(g.start - schedule.program_start) <= JOIN_WINDOW_MS);
+    if (!near.length) return null;
+    const { matchBroadcasts } = require('./sportsDashboard');
+    const hits = new Set();
+    for (const league of new Set(near.map(g => g.league))) {
+        const airing = { id: `schedule:${schedule.id}`, kind: 'event', league, title: schedule.title,
+            start: schedule.program_start, end: schedule.program_end, channels: [] };
+        for (const [id, on] of matchBroadcasts(near.filter(g => g.league === league), [airing])) if (on.length) hits.add(id);
+    }
+    return hits.size === 1 ? near.find(g => hits.has(g.id)) : null;
+}
+
+/**
+ * The event stop a recording should have at `now` (the schedule's `event_stop` unchanged when there is nothing new):
+ * a number, or null for none (it stops at the floor). Never throws; a failure is no change.
+ * `store` is the score collector's store (sportsDashboard.store()); `catalog` its catalog, when already read.
+ */
+function eventStop(schedule, { now = Date.now(), store = null, catalog = null } = {}) {
+    const current = Number.isFinite(schedule?.event_stop) ? schedule.event_stop : null;
+    try {
+        const floor = floorOf(schedule);
+        if (current === null && now < floor - EARLY_MS) return null;
+        const scores = store || require('./sportsDashboard').store();
+        const game = gameFor(schedule, catalog || scores.catalog());
+        if (!game) return current;
+        const next = overrun.recordingEnd({ floor, postMs: (schedule.post_buffer_min || 0) * 60000, now,
+            latest: scores.latest(game.id), gameStart: game.start, individual: require('./sportIndividual').has(game.league) });
+        return next === undefined ? current : next;
+    } catch (e) {
+        return current;
+    }
+}
+
+/**
+ * C-M (#217, additive): how a listed schedule ends. `endsWith` "event" when it is linked to a fixture game, else
+ * "guide"; `stopsAt` the effective stop (ms): max(floor, event_stop), at most floor + OVERRUN_MAX; `overrun: true`
+ * while it records past the guide end + post-padding because its event has not ended.
+ */
+function endView(schedule, catalog, now = Date.now()) {
+    let linked = Boolean(schedule.sport_game_id);
+    if (!linked) { try { linked = Boolean(gameFor(schedule, catalog)); } catch (e) { linked = false; } }
+    const extended = schedule.status === 'recording' && Number.isFinite(schedule.event_stop)
+        && schedule.event_stop > floorOf(schedule) && schedule.event_stop > now;
+    const floor = floorOf(schedule);
+    const stopsAt = Number.isFinite(schedule.event_stop) && schedule.event_stop > floor
+        ? Math.min(schedule.event_stop, floor + overrun.OVERRUN_MAX) : floor;
+    return { endsWith: linked ? 'event' : 'guide', stopsAt, ...(extended ? { overrun: true } : {}) };
+}
+
+module.exports = { apply, guideEndFor, normTitle, gameFor, eventStop, endView, floorOf,
+    MATCH_WINDOW_MS, SAME_START_MS, MAX_EXTENSION_MS, JOIN_WINDOW_MS, EARLY_MS };

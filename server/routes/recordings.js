@@ -205,7 +205,7 @@ router.post('/schedule', async (req, res) => {
         const {
             sourceId, channelItemId, channelName, channelLogo,
             title, description, programStart, programEnd,
-            preBufferMin, postBufferMin
+            preBufferMin, postBufferMin, gameId
         } = req.body;
 
         if (!sourceId || !channelItemId || !programStart || !programEnd) {
@@ -223,13 +223,15 @@ router.post('/schedule', async (req, res) => {
             programEnd: Number(programEnd),
             preBufferMin: preBufferMin !== undefined ? Number(preBufferMin) : undefined,
             postBufferMin: postBufferMin !== undefined ? Number(postBufferMin) : undefined,
-            createdBy: req.user?.id
+            createdBy: req.user?.id,
+            // #217 (C-M, additive): the fixture game (a C-O/C-R card's `id`) it records: it then stops when that game ends
+            gameId: typeof gameId === 'string' ? gameId : null
         });
 
         // #12 (D-28): a clash is said when scheduling (additive `conflictsWith`, as on the schedule list).
         const settings = await require('../db').settings.get();
         const listed = schedule && recordingEngine.listScheduled({ settings }).find(r => r.id === schedule.id);
-        const answer = recordingEngine.withImage(schedule);
+        const answer = { ...recordingEngine.withImage(schedule), ...(listed ? { endsWith: listed.endsWith, stopsAt: listed.stopsAt } : {}) };
         res.status(201).json(listed && listed.conflictsWith ? { ...answer, conflictsWith: listed.conflictsWith } : answer);
     } catch (err) {
         console.error('[Recordings] Schedule error:', err);

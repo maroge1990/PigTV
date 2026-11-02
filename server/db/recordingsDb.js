@@ -211,6 +211,15 @@ function initSchema() {
         db.exec('ALTER TABLE scheduled_recordings ADD COLUMN clash_winner INTEGER');
     } catch (e) { /* already present */ }
 
+    // #217: the fixture game a schedule records (the score collector's id: a team rule's game, or a client's `gameId`),
+    // and where it stops instead of program_end + post-buffer while that game runs past it (recordingGuideEnd.eventStop);
+    // both NULL for every schedule before 0434 and every non-sport one.
+    for (const col of ['sport_game_id TEXT', 'event_stop INTEGER']) {
+        try {
+            db.exec(`ALTER TABLE scheduled_recordings ADD COLUMN ${col}`);
+        } catch (e) { /* already present */ }
+    }
+
     // Pending schedules only: a completed or cancelled one never resolves again,
     // and rewriting history would be dishonest about what was recorded.
     try {

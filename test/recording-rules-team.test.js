@@ -100,6 +100,7 @@ test('#198: "Record every game" records the team\'s fixture games on their airin
     const mine = scheduled.listUpcoming().filter(s => s.rule_id === made.body.id);
     assert.deepEqual(mine.map(s => [s.title, s.channel_name, s.program_start]), [['Collingwood v Carlton', 'Fox Footy', NOW + 2 * H]],
         'never the replay, nor the AFLW game (a league the maker does not follow), nor another team\'s');
+    assert.equal(mine[0].sport_game_id, 'espn:australian-football/afl:1', '#217: linked to its game, so it records until the game ends');
     // again: nothing more
     assert.equal((await call('POST', '/api/recordings/rules', { kind: 'team', match: 'collingwood', sport: 'Australian football' })).body.scheduled, 0);
     // once the maker follows AFLW too, its game is recorded
@@ -148,4 +149,21 @@ test('0417: a game whose coverage has begun on one channel is recorded on anothe
     assert.equal(made.status, 201);
     assert.deepEqual(scheduled.listUpcoming().filter(s => s.rule_id === made.body.id).map(s => [s.channel_name, s.program_start, s.program_end]),
         [['Fox Footy 2', NOW + H, NOW + 3 * H + 30 * 60000]]);
+});
+
+// #217 (C-M): a schedule made from a sport card names its game (`gameId`) and then ends with it; rows say how they end.
+test('#217: POST /schedule with gameId links the schedule to its game; listed rows say endsWith', async () => {
+    const made = await call('POST', '/api/recordings/schedule', { sourceId: source.id, channelItemId: 'pos_2', channelName: 'Fox Footy 2',
+        title: 'Saturday Night Footy', programStart: NOW + 20 * H, programEnd: NOW + 23 * H, gameId: 'espn:australian-football/afl:5' });
+    assert.equal(made.status, 201, JSON.stringify(made.body));
+    assert.equal(made.body.endsWith, 'event');
+    assert.equal(made.body.stopsAt, NOW + 23 * H + made.body.post_buffer_min * 60000, 'stopsAt: the guide end + post-padding until the game runs past it');
+    assert.ok(!('sport_game_id' in made.body) && !('event_stop' in made.body), 'internal columns are not answered');
+    assert.equal(scheduled.getById(made.body.id).sport_game_id, 'espn:australian-football/afl:5');
+    const plain = await call('POST', '/api/recordings/schedule', { sourceId: source.id, channelItemId: 'pos_2', title: 'The Late Show',
+        programStart: NOW + 26 * H, programEnd: NOW + 27 * H });
+    assert.equal(plain.body.endsWith, 'guide');
+    const listed = (await call('GET', '/api/recordings/scheduled')).body;
+    assert.deepEqual([made.body.id, plain.body.id].map(id => listed.find(r => r.id === id)?.endsWith), ['event', 'guide']);
+    assert.ok(listed.every(r => r.endsWith === 'event' || r.endsWith === 'guide'));
 });

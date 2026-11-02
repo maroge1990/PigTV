@@ -109,6 +109,15 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   series pair by the channel's stable identity.
   A name-derived event-slot programme belongs to its slot only (0247).
 
+- **A sport recording ends with its event** (0440, #217; C-M). `scheduled_recordings.sport_game_id` (a team rule's game, a
+  client's `gameId`) or, failing it, the dashboard's join (`recordingGuideEnd.gameFor`) links a schedule to a fixture game.
+  From a minute before its guide end + post-padding (the floor), each tick and the hard stop read the score collector's
+  stored answer (never ESPN itself) through `sportOverrun.recordingEnd`: still being played on an answer ≤15 min old rolls
+  `event_stop` to now + 10 min; a final stops it at the final + post-padding; never before the floor, never past floor + 4 h.
+  The collector polls a game in play every 30 s (hot), so the final is seen within about a minute.
+  Limitations: the join only finds games in the collector's catalogue (followed leagues), and a recording waiting
+  between parts for a free provider (failover) when the floor passes is not extended: it stops at the floor.
+
 ## Artwork
 
 - **Artwork** (R6, 0220; C-N): the programme's `<icon>` is kept as `epg_programs.data.img`; a schedule takes it when made

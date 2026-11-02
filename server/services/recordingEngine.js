@@ -409,7 +409,8 @@ function withChannelLogo(row) {
 // chosen, active): `image` in place of the stored image_url, the channel logo through the logo cache.
 function withImage(row) {
     if (!row) return row;
-    const { image_url: url, ...rest } = withChannelLogo(row);
+    // #217: a schedule's link to its game and its event stop stay internal (C-M lists `endsWith`/`overrun` instead).
+    const { image_url: url, sport_game_id: _game, event_stop: _stop, ...rest } = withChannelLogo(row);
     let image = null;
     try { image = url ? require('./logoCache').registerLogo(url) : null; } catch (e) { image = null; }
     return { ...rest, image };
@@ -418,7 +419,7 @@ function withImage(row) {
 async function scheduleFromProgram({
     sourceId, channelItemId, channelName, channelLogo: channelLogoUrl,
     title, description, programStart, programEnd,
-    preBufferMin, postBufferMin, createdBy, exclude = null
+    preBufferMin, postBufferMin, createdBy, exclude = null, gameId = null
 }) {
     if (!sourceId || !channelItemId) throw new Error('sourceId and channelItemId are required');
     // Store the bare item_id, not the client's composite m3u_<source>_<item>
@@ -434,7 +435,7 @@ async function scheduleFromProgram({
     // One schedule per programme - unless the caller says that one is not this programme's
     // (`exclude`: recordingRules, another episode's schedule in the same slot; 0269).
     const existing = scheduledDb.findByProgram(sourceId, String(channelItemId), programStart);
-    if (existing && !(exclude && exclude.has(existing.id))) return existing;
+    if (existing && !(exclude && exclude.has(existing.id))) return linkGame(existing, gameId);
 
     const created = scheduledDb.create({
         title: title || 'Untitled Program',
@@ -457,9 +458,17 @@ async function scheduleFromProgram({
     const image = programmeImage(sourceId, channelItemId, programStart);
     if (image) {
         getDb().prepare('UPDATE scheduled_recordings SET image_url = ? WHERE id = ?').run(image, created.id);
-        return scheduledDb.getById(created.id);
+        return linkGame(scheduledDb.getById(created.id), gameId);
     }
-    return created;
+    return linkGame(created, gameId);
+}
+
+/** #217: a schedule made for a fixture game (`gameId`) records until that game ends (recordingGuideEnd.eventStop). */
+const GAME_ID_RE = /^[\x21-\x7e]{1,200}$/; // a collector id ("espn:soccer/eng.1:123", "aflw:…"): printable, no spaces
+function linkGame(schedule, gameId) {
+    if (!schedule || schedule.sport_game_id || typeof gameId !== 'string' || !GAME_ID_RE.test(gameId)) return schedule;
+    getDb().prepare('UPDATE scheduled_recordings SET sport_game_id = ? WHERE id = ? AND sport_game_id IS NULL').run(gameId, schedule.id);
+    return scheduledDb.getById(schedule.id);
 }
 
 const RECENT_PROBLEMS_MS = 7 * 24 * 60 * 60 * 1000; // how long a missed/failed schedule stays visible (0156)
@@ -653,6 +662,23 @@ function chooseScheduled(id, settings = null) {
     return listScheduled({ settings }).find(r => r.id === id) || null;
 }
 
+/**
+ * #217 (C-M, additive): each listed schedule's `endsWith` ("event" | "guide") and, while it records past its guide end
+ * because its event is still on, `overrun: true`. The internal columns are not listed. The score catalog is read once,
+ * only when a row has no stored link to try the join on.
+ */
+function withEndView(rows) {
+    let catalog = null;
+    if (rows.some(r => !r.sport_game_id)) {
+        try { catalog = require('./sportsDashboard').store().catalog(); } catch (e) { catalog = null; }
+    }
+    const guideEnd = require('./recordingGuideEnd');
+    const now = Date.now();
+    return (r) => {
+        return { ...r, ...guideEnd.endView(r, catalog, now) }; // the internal columns go in withImage
+    };
+}
+
 function listScheduled({ includeRecent = false, settings = null } = {}) {
     // R6 (additive): `image` in place of image_url, the only change to these rows.
     // #12 (C-M, additive): `conflictsWith` lists the schedules this one clashes with, when there are any.
@@ -662,9 +688,11 @@ function listScheduled({ includeRecent = false, settings = null } = {}) {
     const found = clashOutcome(rows, known).conflicts;
     const beatenBy = holds(rows, known);
     const upcoming = rows.map(r => found.has(r.id) || beatenBy.has(r.id)
-        ? { ...r, conflictsWith: found.get(r.id) || beatenBy.get(r.id), ...(beatenBy.has(r.id) ? { beatenBy: beatenBy.get(r.id) } : {}) } : r).map(withImage);
+        ? { ...r, conflictsWith: found.get(r.id) || beatenBy.get(r.id), ...(beatenBy.has(r.id) ? { beatenBy: beatenBy.get(r.id) } : {}) } : r)
+        .map(withEndView(rows)).map(withImage);
     if (!includeRecent) return upcoming;
-    const recent = scheduledDb.findRecentProblems(Date.now() - RECENT_PROBLEMS_MS).map(withImage);
+    const problems = scheduledDb.findRecentProblems(Date.now() - RECENT_PROBLEMS_MS);
+    const recent = problems.map(withEndView(problems)).map(withImage);
     return [...upcoming, ...recent];
 }
 
@@ -1332,6 +1360,7 @@ function armHardStop(scheduleId, entry) {
     const msUntilStop = Math.max(0, currentStopTime(scheduleId) - Date.now());
     entry.hardStopTimer = setTimeout(() => {
         entry.hardStopTimer = null;
+        followEvent(scheduleId); // #217: a sport event still on keeps it recording
         if (currentStopTime(scheduleId) > Date.now() + 1000) { armHardStop(scheduleId, entry); return; }
         console.log(`[Recordings] Scheduled stop time reached for schedule ${scheduleId}`);
         stopRecording(scheduleId, 'completed').catch(err =>
@@ -1944,9 +1973,47 @@ async function enforceFreeSpaceDuringRecording() {
     }
 }
 
-/** Where a recording's window ends (program end + post-buffer). */
+/**
+ * Where a recording's window ends: program end + post-buffer, or (#217) later while its sport event runs past that
+ * (`event_stop`, never earlier: recordingGuideEnd.eventStop).
+ */
 function stopTimeOf(schedule) {
-    return schedule.program_end + (schedule.post_buffer_min || 0) * 60000;
+    const floor = schedule.program_end + (schedule.post_buffer_min || 0) * 60000;
+    return Number.isFinite(schedule.event_stop) && schedule.event_stop > floor ? schedule.event_stop : floor;
+}
+
+/**
+ * #217: decide a running recording's event stop (recordingGuideEnd.eventStop: the score collector's stored answer for
+ * its game, never a request to ESPN) and store it. True when it changed (the caller re-arms the hard stop).
+ */
+function followEvent(scheduleId, now = Date.now(), { store = null, catalog = null } = {}) {
+    try {
+        const s = scheduledDb.getById(scheduleId);
+        if (!s || s.status !== 'recording') return false;
+        const current = Number.isFinite(s.event_stop) ? s.event_stop : null;
+        const next = require('./recordingGuideEnd').eventStop(s, { now, store, catalog });
+        if (next === current) return false;
+        getDb().prepare('UPDATE scheduled_recordings SET event_stop = ? WHERE id = ?').run(next, s.id);
+        if (current === null) console.log(`[Recordings] Schedule #${s.id} "${s.title}": its event is still on; recording past the guide end, until ${new Date(next).toISOString()}`);
+        else if (next === null || next < current) console.log(`[Recordings] Schedule #${s.id} "${s.title}": its event has ended; stopping at ${new Date(stopTimeOf({ ...s, event_stop: next })).toISOString()}`);
+        return true;
+    } catch (err) {
+        console.warn('[Recordings] Following the event failed:', err.message);
+        return false;
+    }
+}
+
+/** #217: each tick, every running recording near or past its guide end checks its event (one catalog read). */
+function followEvents(now = Date.now()) {
+    const due = [...active.keys()].map(id => scheduledDb.getById(id)).filter(s => s && s.status === 'recording'
+        && (Number.isFinite(s.event_stop) || now >= stopTimeOf(s) - require('./recordingGuideEnd').EARLY_MS));
+    if (!due.length) return;
+    let store = null, catalog = null;
+    try { store = require('./sportsDashboard').store(); catalog = store.catalog(); } catch (e) { return; }
+    for (const s of due) {
+        const entry = active.get(s.id);
+        if (followEvent(s.id, now, { store, catalog }) && entry && !entry.stopRequested) armHardStop(s.id, entry);
+    }
 }
 
 async function tick() {
@@ -2010,6 +2077,7 @@ async function tick() {
         // 0177: a part whose provider died and that waits for a free one, and
         // recordings whose file has stopped growing (default path, with backups).
         for (const scheduleId of [...continuations.keys()]) await continuePart(scheduleId, now);
+        followEvents(now); // #217
         await checkRecordingStalls(now);
         await startLiveDetections();
 
@@ -2183,6 +2251,8 @@ async function stopAllActive(timeoutMs = 6000) {
 module.exports = {
     init,
     followGuide,
+    followEvent,
+    followEvents,
     shutdown,
     stopAllActive,
     scheduleFromProgram,

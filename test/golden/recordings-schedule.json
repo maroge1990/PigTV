@@ -8,6 +8,7 @@
   "created_at": 1793491140000,
   "created_by": 2,
   "description": null,
+  "endsWith": "guide",
   "error": null,
   "id": 2,
   "image": "/api/logo/<key>",
@@ -20,5 +21,6 @@
   "rule_id": null,
   "source_id": 1,
   "status": "scheduled",
+  "stopsAt": 1793588400000,
   "title": "AFL: Brisbane Lions v Geelong Cats"
 }

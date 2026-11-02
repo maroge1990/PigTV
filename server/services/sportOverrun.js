@@ -6,6 +6,8 @@
  * pushes it on, and it lapses within OVERRUN_STEP of the feed saying anything else (or of the client not refreshing).
  * The one rule every surface uses (C-O, C-P, C-Q, C-R, C-S). Pure.
  */
+const { ON_AIR_LEAD } = require('./sportOnAir');
+
 const OVERRUN_MAX = 4 * 60 * 60 * 1000;
 const OVERRUN_STEP = 10 * 60 * 1000;
 // A sport page's status counts as ongoing for the rule only while its ESPN answer is at most this old (F1's 10 min
@@ -32,4 +34,36 @@ function keep(ch, event, ongoing, now, observedAt) {
     return event.end <= now ? null : ch;
 }
 
-module.exports = { OVERRUN_MAX, OVERRUN_STEP, PAGE_FRESH_MS, overrunEnd, keep };
+/**
+ * #217: the same rule for a recording of a sport event (recordingGuideEnd.eventStop links the schedule to its game and
+ * reads the score collector's stored answer, `latest` = sportsDashboardStore.latest(): { observedAt, finishedAt, data }).
+ * `floor` is the guide end + post-padding: a recording never stops before it, and never more than OVERRUN_MAX after it.
+ *   - The feed says finished: stop at max(floor, the moment it first said so + `postMs`). A final whose moment was never
+ *     seen (the game was already over when first read) gives the floor.
+ *   - A fresh answer (at most PAGE_FRESH_MS old) says the game is being played (live, suspended, a break within play;
+ *     never stumps, nor a tournament between matches, as the collector's inPlay), or still `scheduled` with play due
+ *     within ON_AIR_LEAD (coverage on air, 0423): stop at now + OVERRUN_STEP (from the floor), rolled on at each check.
+ *   - Anything else (stale, unknown, cancelled...): no change. Before any extension that is the floor, as before #217;
+ *     an extension lapses within OVERRUN_STEP.
+ * -> the event stop (ms), null for none (stop at the floor), or undefined for no change. Pure.
+ */
+function recordingEnd({ floor, postMs = 0, now, latest, gameStart = null, individual = false }) {
+    if (!Number.isFinite(floor) || !Number.isFinite(now) || !latest || !latest.data) return undefined;
+    const cap = floor + OVERRUN_MAX;
+    const { state, breakLabel } = latest.data;
+    if (state === 'finished') {
+        if (!Number.isFinite(latest.finishedAt)) return null;
+        const end = Math.min(cap, latest.finishedAt + (Number.isFinite(postMs) ? postMs : 0));
+        return end > floor ? end : null;
+    }
+    const at = latest.observedAt;
+    if (!(Number.isFinite(at) && at <= now && now - at <= PAGE_FRESH_MS)) return undefined;
+    const playing = individual ? state === 'live'
+        : state === 'live' || state === 'suspended' || (state === 'break' && breakLabel !== 'Stumps');
+    const coverage = state === 'scheduled' && Number.isFinite(gameStart) && gameStart > now && gameStart - now <= ON_AIR_LEAD;
+    if (!playing && !coverage) return undefined;
+    const rolled = overrunEnd(floor, true, Math.max(now, floor));
+    return rolled === null ? undefined : Math.min(cap, rolled);
+}
+
+module.exports = { OVERRUN_MAX, OVERRUN_STEP, PAGE_FRESH_MS, overrunEnd, keep, recordingEnd };

@@ -12,6 +12,7 @@
     "created_at": 1793491140000,
     "created_by": 2,
     "description": "AFL 360. A made-up listing from the fake provider.",
+    "endsWith": "guide",
     "error": null,
     "id": 5,
     "image": "/api/logo/<key>",
@@ -24,6 +25,7 @@
     "rule_id": 1,
     "source_id": 1,
     "status": "scheduled",
+    "stopsAt": 1793503800000,
     "title": "AFL 360"
   },
   {
@@ -39,6 +41,7 @@
     "created_at": 1793491140000,
     "created_by": 2,
     "description": null,
+    "endsWith": "guide",
     "error": null,
     "id": 1,
     "image": null,
@@ -51,6 +54,7 @@
     "rule_id": null,
     "source_id": 1,
     "status": "scheduled",
+    "stopsAt": 1793505900000,
     "title": "AFL: Collingwood v Carlton (golden)"
   },
   {
@@ -70,6 +74,7 @@
     "created_at": 1793491140000,
     "created_by": 2,
     "description": null,
+    "endsWith": "guide",
     "error": null,
     "id": 4,
     "image": null,
@@ -82,6 +87,7 @@
     "rule_id": null,
     "source_id": 1,
     "status": "scheduled",
+    "stopsAt": 1793505900000,
     "title": "Australia v India - golden"
   }
 ]

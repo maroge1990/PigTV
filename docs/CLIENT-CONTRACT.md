@@ -330,6 +330,17 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   instead." / "which was chosen instead."); if its window passes it is `missed` with "Not recorded. " before that. `POST
   /api/recordings/scheduled/:id/choose` ("Record this one instead") makes a schedule that has not started win its
   clashes from then on → the row as listed; 404 when unknown or already started. Cancelling the winner lets it record.
+- **Since 0440 (#217, additive): a sport recording ends with its event.** Every `recordings/scheduled` row (and the
+  `POST /recordings/schedule` answer) carries `endsWith: "event" | "guide"` and `stopsAt` (ms: when it stops, as it
+  stands now; it moves). `"event"`: the schedule is linked to a fixture game (a "Record every game" rule's game;
+  `POST /recordings/schedule` with the optional `gameId`; else a guide title naming both teams whose play starts within
+  90 min of it, never a replay). **A client recording from a sport card (C-O/C-R/C-T) sends that card's `id` as
+  `gameId`**: the title join is only the fallback. It then
+  stops when the score feed says the game is over, plus its `post_buffer_min`, never before `program_end` +
+  `post_buffer_min` (the guide end, still the fallback) and at most 4 h after it; with no answer from the feed in the
+  last 15 min it stops at the guide end + `post_buffer_min` as before. While it records past that point because the game
+  is still on, the row adds `overrun: true` (re-read the list: the stop rolls on 10 min at a time). `"guide"`: as
+  before. Wording: "When it stops: when ESPN says it's over (or the guide end + Finish late)".
 - C-M since 0439 (#207): a keyword `sport` rule records the best channel whose own airing (C-I channel `start`/`end`)
   is still to start, on that airing's times (as `team` rules since 0417), not the event's merged bounds.
 - **What a cancel holds against (0245, 0253, 0254, 0259; not durable identity).** The guide gives no lasting id, so a
