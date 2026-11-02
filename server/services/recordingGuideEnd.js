@@ -20,7 +20,7 @@
  *
  * #217: a sport recording also follows its event. A schedule is linked to a fixture game (the score collector's id) when
  * it was made from one (`sport_game_id`: a team rule's game, or a client naming `gameId`), else by the dashboard's own
- * game-to-airing join (both teams named in the title, play within 90 min of its start; never a replay) when its stop is
+ * game-to-airing join (both teams named in the title, play within 90 min of its start, the league it names if any; never a replay) when its stop is
  * decided. While it records, eventStop() applies sportOverrun.recordingEnd to the collector's stored answer for that
  * game (never a request to ESPN): `event_stop`, when set, is where it stops instead of the guide end + post-padding,
  * which stays the floor. Unlinked, or with no fresh answer: exactly as before.
@@ -134,8 +134,12 @@ function gameFor(schedule, catalog) {
     const individual = require('./sportIndividual');
     const parsed = classify.parseTitle(schedule.title);
     if (!parsed.teams || parsed.replayWord || parsed.highlightsWord) return null;
+    // 0443 (0440 Codex round 2, medium): only a game of the schedule's own league ("AFL: ..." never the AFLW game of the
+    // same clubs): the league its title names, else its guide programme's categories; unknown, any league.
+    const league = scheduleLeague(schedule, classify);
     const near = catalog.filter(g => Array.isArray(g.competitors) && g.competitors.length === 2 && !individual.has(g.league)
-        && !SESSION_LEAGUES.has(g.league) && Number.isFinite(g.start) && Math.abs(g.start - schedule.program_start) <= JOIN_WINDOW_MS);
+        && !SESSION_LEAGUES.has(g.league) && Number.isFinite(g.start) && Math.abs(g.start - schedule.program_start) <= JOIN_WINDOW_MS
+        && (!league || g.league === league));
     if (!near.length) return null;
     const { matchBroadcasts } = require('./sportsDashboard');
     const hits = new Set();
@@ -145,6 +149,25 @@ function gameFor(schedule, catalog) {
         for (const [id, on] of matchBroadcasts(near.filter(g => g.league === league), [airing])) if (on.length) hits.add(id);
     }
     return hits.size === 1 ? near.find(g => hits.has(g.id)) : null;
+}
+
+/** The league a schedule names: its title's, else its guide programme's categories' (one league only), else null. */
+function scheduleLeague(schedule, classify) {
+    const own = classify.detectLeague(schedule.title);
+    if (own) return own;
+    try {
+        const db = getDb();
+        const tvg = tvgIdFor(db, schedule);
+        if (!tvg) return null;
+        const row = db.prepare(`SELECT categories FROM epg_live WHERE channel_id = ? AND start_time BETWEEN ? AND ?
+            ORDER BY ABS(start_time - ?) LIMIT 1`).get(tvg, schedule.program_start - SAME_START_MS, schedule.program_start + SAME_START_MS, schedule.program_start);
+        let categories = [];
+        try { categories = JSON.parse(row?.categories || '[]'); } catch (e) { categories = []; }
+        const found = new Set((Array.isArray(categories) ? categories : []).map(c => classify.detectLeague(c)).filter(Boolean));
+        return found.size === 1 ? [...found][0] : null;
+    } catch (e) {
+        return null;
+    }
 }
 
 /**

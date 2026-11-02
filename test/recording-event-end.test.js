@@ -125,6 +125,19 @@ test('#217 eventStop: linked by id or by the join; stale, unlinked or not yet ne
     assert.deepEqual(guideEnd.endView(sched({ title: 'Footy Live', sport_game_id: 'espn:afl:9' }), [], FLOOR), { endsWith: 'event', stopsAt: FLOOR });
 });
 
+// 0443 (0440 Codex round 2, medium): the join built its airing in each candidate game's league, so "AFL: Collingwood v
+// Carlton" followed the AFLW game of the same clubs and start. A schedule links only to a game of its own league.
+test('#217 join: an AFL broadcast never links to the AFLW game of the same clubs; the AFL game is its own', () => {
+    const afl = game('espn:afl:1', T), aflw = { ...game('aflw:1', T), league: 'AFLW' };
+    const stop = (s, games) => guideEnd.eventStop(s, { now: FLOOR, store: fakeStore(games, { 'espn:afl:1': live(FLOOR), 'aflw:1': live(FLOOR) }) });
+    assert.equal(guideEnd.gameFor(sched(), [aflw]), null, 'only the AFLW game: no link');
+    assert.equal(stop(sched(), [aflw]), null, 'so it stops at the floor');
+    assert.equal(guideEnd.gameFor(sched(), [afl, aflw])?.id, 'espn:afl:1', 'the AFL game present: linked to it');
+    assert.equal(stop(sched(), [afl, aflw]), FLOOR + overrun.OVERRUN_STEP);
+    assert.equal(guideEnd.gameFor(sched({ title: 'AFLW: Collingwood v Carlton' }), [afl, aflw])?.id, 'aflw:1', 'and the AFLW broadcast its own');
+    assert.equal(guideEnd.gameFor(sched({ title: 'Collingwood v Carlton' }), [aflw])?.id, 'aflw:1', 'a title naming no league: the one game, as before');
+});
+
 // ---- the engine ---------------------------------------------------------------------
 
 const scores = () => dashboard.store();
