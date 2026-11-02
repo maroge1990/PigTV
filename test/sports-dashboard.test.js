@@ -181,6 +181,41 @@ test('collector is opt-in, uses single UTC days, deduplicates overlapping refres
     const n=calls.length;await off.refresh();assert.equal(calls.length,n);off.stop();c.stop();
 });
 
+// #212 (Mark, Apple TV): following only the men's internationals (`Cricket`), its rail held domestic and women's matches:
+// series filed under `Cricket` before 0397 (every scorepanel series was) are kept by the retention above, re-fetched
+// under `Cricket` and re-ingested as `Cricket` cards on every tick; a men's tour's own tour match is `Cricket` too. Now a
+// match is a group's only by its own international class, and a stored card its class contradicts is forgotten.
+test('#212: an International cricket group\'s cards are only its own class\'s; misfiled stored cards are forgotten', async () => {
+    const s=store();
+    const match=(id,cls,a,b,start=NOW+H)=>({id,competitions:[{id,date:new Date(start).toISOString(),class:{internationalClassId:cls},
+        status:{type:{state:'pre'}},competitors:[{order:1,team:{id:`${id}a`,displayName:a}},{order:2,team:{id:`${id}b`,displayName:b}}]}]});
+    const boards={
+        '24203':{leagues:[{name:'Australia tour of South Africa 2026/27'}],events:[match('1525661','1','South Africa','Australia'),
+            match('1525650','0','South Africa A','Australians')]}, // the tour's own tour match is not a men's international
+        '777':{leagues:[{name:'Ranji Trophy 2026/27'}],events:[match('7771','0','Mumbai','Delhi')]},
+        '888':{leagues:[{name:'England Women tour of India 2026/27'}],events:[match('8881','9','India Women','England Women')]}
+    };
+    // Cards filed under `Cricket` before 0397: a domestic and a women's international series.
+    const legacy=(series,eventId,a,b)=>game({id:`espn:cricket/${series}:${eventId}`,league:'Cricket',start:NOW+H,title:`${a} v ${b}`,format:null,
+        competitors:[{id:'1',name:a,aliases:[a],logo:null},{id:'2',name:b,aliases:[b],logo:null}],snapshot:{state:'scheduled',progress:{},scores:null,situation:null}});
+    s.ingest([legacy('777','7771','Mumbai','Delhi'),legacy('888','8881','India Women','England Women')],NOW-60000);
+    const fetchJson=async url=>{
+        if(url.includes('scorepanel'))return {scores:[{leagues:[{id:'24203'}],events:[{competitions:[{class:{internationalClassId:'1'}}]}]},
+            {leagues:[{id:'888'}],events:[{competitions:[{class:{internationalClassId:'9'}}]}]}]};
+        const series=/\/cricket\/(\d+)\/scoreboard/.exec(url)?.[1];
+        return structuredClone(boards[series] || {events:[]});
+    };
+    const c=dashboard.createCollector({store:s,fetchJson,leagues:()=>new Set(['Cricket']),clock:()=>NOW,enabled:()=>true});
+    await c.refresh();c.stop();
+    const shown=dashboard.buildDashboard(s,{now:NOW,userId:'1',timezone:'UTC',leagues:new Set(['Cricket']),events:[]}).games;
+    assert.deepEqual(shown.map(g=>g.id),['espn:cricket/24203:1525661'],'only the men\'s international on the Cricket rail');
+    assert.deepEqual(s.catalog().filter(g=>g.league==='Cricket').map(g=>g.id),['espn:cricket/24203:1525661'],'the misfiled cards are forgotten');
+    // Following the women's too, their tour is theirs.
+    const both=dashboard.createCollector({store:s,fetchJson,leagues:()=>new Set(['Cricket',"Women's Cricket"]),clock:()=>NOW+H,enabled:()=>true});
+    await both.refresh();both.stop();
+    assert.deepEqual(s.catalog().filter(g=>g.league==="Women's Cricket").map(g=>g.id),['espn:cricket/888:8881']);
+    assert.deepEqual(espn.normalize(boards['24203'],'Sheffield Shield','cricket/8043').length,2,'a fixed league keeps every match its series lists');
+});
 
 test('cached future payloads never become new score observations, and malformed success retries quickly', async () => {
     const s=store();let time=NOW;let calls=0;

@@ -98,6 +98,10 @@ function createStore(db, { readOnly = false } = {}) {
         }
     });
     result.ingest = (games, at) => result.ingestBatch(games.map(game => ({ game, observedAt: at })));
+    // #212: cards that turned out not to be their league's (sportsDashboard's collector), with their history.
+    const forgetHistory = db.prepare('DELETE FROM sports_score_history WHERE game_id=?');
+    const forgetCatalog = db.prepare('DELETE FROM sports_dashboard_catalog WHERE id=?');
+    result.forget = db.transaction(ids => { for (const id of ids) { forgetHistory.run(id); forgetCatalog.run(id); } });
     // Also keep each game's newest row at or before now - max delay: a slowly polled game's only
     // delayed-eligible snapshot can be older than the window, and losing it buffers or revives a final.
     const pruneHistory = db.prepare(`DELETE FROM sports_score_history WHERE observed_at<? AND (game_id,observed_at) NOT IN

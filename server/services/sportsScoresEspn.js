@@ -1,4 +1,5 @@
-const { isCricket } = require('./sportCatalog'); // #195: every cricket league, not only internationals
+const { isCricket, CRICKET_GROUPS } = require('./sportCatalog'); // #195: every cricket league, not only internationals
+const { cricketGroupOf } = require('./sportsFixturesEspn');
 /** Dashboard-only ESPN adapter. Never changes the fixture/live-replay classifier. */
 const { f1Session } = require('./sportsFixtures');
 const requestPolicy = require('./espnRequestPolicy');
@@ -29,13 +30,29 @@ function safeClock(v, football) {
     const s = text(v, 24);
     return (football ? /^\d{1,3}['′]?(?:\+\d{1,2}['′]?)?$/ : /^\d{1,3}(?::\d{2})?(?:\.\d{1,2})?$/).test(s) ? s : undefined;
 }
+/**
+ * #212: a match an International cricket group's series lists that is not the group's by its own international class
+ * (a tour match against an A side or a domestic XI, a women's match under the men's group, a series filed under the
+ * group before 0397): never the group's card. A match without a class is the series' (the class is unknown).
+ */
+function misfiled(c, league) {
+    if (!CRICKET_GROUPS.includes(league)) return false;
+    const group = cricketGroupOf([{ competitions: [c] }]);
+    return group !== undefined && group !== league;
+}
+/** #212: the card ids of a group's answer that are not the group's (misfiled), which the collector forgets. */
+function misfiledIds(json, league, source) {
+    if (!CRICKET_GROUPS.includes(league) || !Array.isArray(json?.events)) return [];
+    return json.events.slice(0, 1000).flatMap(e => (Array.isArray(e?.competitions) ? e.competitions.slice(0, 12) : [])
+        .filter(c => c && id(c.id) && misfiled(c, league)).map(c => `espn:${source}:${c.id}`));
+}
 function normalize(json, league, source) {
     if (!Array.isArray(json?.events) || !/^[a-z-]+\/[a-z0-9._-]+$/i.test(source)) return [];
     const out = [];
     for (const e of json.events.slice(0, 1000)) {
         if (!e || !Array.isArray(e.competitions)) continue;
         for (const c of e.competitions.slice(0, 12)) {
-            if (!c || !id(c.id)) continue;
+            if (!c || !id(c.id) || misfiled(c, league)) continue;
             const start = Date.parse(c.date || e.date), parsedEnd = Date.parse(isCricket(league) ? '' : c.endDate || '');
             if (!Number.isFinite(start)) continue;
             // Captured cricket endDate values include day/series envelopes, not reliable match ends.
@@ -123,4 +140,4 @@ async function fetchJson(url, { signal, maxBytes = 2 * 1024 * 1024, onParsed } =
     onParsed?.(bytes, performance.now() - started);
     return json;
 }
-module.exports = { BASE, normalize, fetchJson, teamAliases };
+module.exports = { BASE, normalize, misfiledIds, fetchJson, teamAliases };

@@ -434,6 +434,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         jobs.sort((a,b) => Number(b.hot)-Number(a.hot) || (cache.get(a.url)?.attemptAt || 0)-(cache.get(b.url)?.attemptAt || 0)
             || queryDays.indexOf(a.date)-queryDays.indexOf(b.date));
         const candidates = new Map(), processed = new Map();
+        const misfiled = new Map(); // #212: card id -> the International cricket group whose series listed it, not its own
         async function runJobs(batch, maxCold = Infinity) {
             let index = 0;
             async function worker() {
@@ -449,6 +450,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                     processed.set(done, data.observedAt);
                     const t0 = performance.now();
                     const games = individual.has(job.league) ? individual.normalize(data.json, job.league, job.source) : espn.normalize(data.json, job.league, job.source);
+                    if (CRICKET_GROUPS.includes(job.league)) for (const id of espn.misfiledIds(data.json, job.league, job.source)) misfiled.set(id, job.league);
                     counting.normalizeMs += performance.now() - t0;
                     for (const game of games) {
                         const priority = queryDays.indexOf(job.date), old = candidates.get(game.id);
@@ -481,6 +483,11 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         if (!stopped) {
             const entries = [...candidates.values()].filter(e => !known.has(e.game.id) || e.observedAt > known.get(e.game.id).observedAt);
             const t0 = performance.now();
+            // #212: a card a group's series listed that its own class says is not the group's (a domestic or women's match,
+            // or one filed under the group before 0397) is forgotten, so it leaves the group's rail and its series is no
+            // longer kept on the group's behalf (the retention above) once none of its cards are left.
+            const forget = [...misfiled].filter(([id, group]) => known.get(id)?.league === group && !candidates.has(id)).map(([id]) => id);
+            if (forget.length) store.forget(forget);
             if (entries.length) store.ingestBatch(entries);
             store.prune(clock());
             counting.ingestMs += performance.now() - t0;

@@ -852,6 +852,9 @@ account follows nothing; only the server's owner (its first admin account) takes
   championships, ICC events) is shown only when a followed nation plays in it: on the front page (C-R), the C-T page
   and the Cricket page. Following no nation of the group shows every game. A C-R cricket card of a group may carry
   `competition` (the series name).
+- Since 0433 (#212): a C-R card is in `Cricket` or `Women's Cricket` only when its own match's international class is
+  that group's, as on the Cricket page: a domestic match, a tour's match against an A side or XI, or the other group's
+  match, is never one, and cards filed under a group before 0397 leave it.
 - Since 0402 (#196) the leagues ESPN does not cover come from their own feeds: `AFLW` (Australian football), `NRLW`
   (Rugby league), `Super Netball` (a new sport, Netball), `MotoGP` and `Supercars` (Motorsport). Their C-R cards have
   the usual shape, ids `aflw:…`, `cd:…`, `motogp:…`, `supercars:…`. AFLW and NRLW carry scores once played (no live
