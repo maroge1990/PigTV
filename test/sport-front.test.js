@@ -349,6 +349,42 @@ test('0427 (D-43 points 3 and 5): sports and follows keep the account\'s order, 
     assert.deepEqual(later.sports.map(s => s.league), ['ATP Tour', 'NFL', 'AFL', 'NBA', 'NBL', 'PGA Tour']);
 });
 
+test('#213: a followed cricket nation and AFL club with no card in range carry their ESPN badge (catalogue, then roster)', async () => {
+    clearGames();
+    const now = Date.now();
+    // AFL off-season: no card at all; the league's roster (ESPN /teams, saved by the fixtures refresh) has the badge.
+    const afl = require('./fixtures/espn/teams-afl.json');
+    const teams = JSON.parse(JSON.stringify(afl));
+    for (const e of teams.sports[0].leagues[0].teams) e.team.logos = [{ href: `https://a.espncdn.com/i/teamlogos/afl/500/${e.team.id}.png` }];
+    const realFetch = global.fetch;
+    global.fetch = async url => String(url).includes('/australian-football/afl/teams')
+        ? { ok: true, status: 200, headers: { get: () => null }, json: async () => teams } : realFetch(url);
+    let roster;
+    try { roster = await load('services/sportsFixturesEspn').fetchTeams('australian-football/afl'); } finally { global.fetch = realFetch; }
+    assert.equal(roster.ok, true);
+    assert.ok(roster.teams.every(t => /^https:\/\/a\.espncdn\.com\//.test(t.logo)), 'the roster keeps each badge');
+    const club = roster.teams[0].displayName;
+    sql().prepare('INSERT OR REPLACE INTO sport_fixture_teams (league, data, updated_at) VALUES (?, ?, ?)').run('AFL', JSON.stringify(roster.teams), now);
+    // Cricket between series: Australia's last match (6 days ago, out of the front page's range) is in the catalogue.
+    const { teamsFromScoreboard } = load('services/sportsFixturesEspn');
+    const day = Object.values(require('./fixtures/sport-page-cricket/scoreboard-24203.json'))[0];
+    const aus = teamsFromScoreboard(day).find(t => t.displayName === 'Australia');
+    assert.equal(aus.logo, 'https://a.espncdn.com/i/teamlogos/cricket/500/2.png', 'a cricket scoreboard\'s team keeps its badge');
+    dashboard.store().ingest([game('espn:cricket/24203:1', 'Cricket', now - 6 * 24 * H,
+        [{ id: '2', name: 'Australia', aliases: ['Australia', 'AUS'], logo: aus.logo }, { id: '3', name: 'South Africa', aliases: ['South Africa'], logo: null }],
+        { state: 'finished', progress: {}, scores: null, situation: null })], now - 6 * 24 * H);
+    assert.equal((await call('/api/sports/follows', { sports: [{ sport: 'Cricket', leagues: ['Cricket'], teams: ['Australia'] },
+        { sport: 'Australian football', leagues: ['AFL'], teams: [club] }] })).status, 200);
+    const f = await front();
+    const byName = Object.fromEntries(f.follows.map(x => [x.name, x]));
+    assert.equal(byName.Australia.state, 'none');
+    assert.equal(byName[club].state, 'none');
+    for (const name of ['Australia', club]) assert.match(byName[name].logo || '', /^\/api\/logo\/[0-9a-f]{32}$/, `${name} has its badge`);
+    const keys = sql().prepare('SELECT url FROM logo_cache WHERE key IN (?, ?)').all(...f.follows.map(x => x.logo.slice(10))).map(r => r.url).sort();
+    assert.deepEqual(keys, [aus.logo, roster.teams[0].logo].sort());
+    clearGames();
+});
+
 test('features: sportFront on by default, the legacy dashboard off; PIGTV_SPORTS_DASHBOARD=0 turns the front page off', async () => {
     let features = (await call('/api/info')).body.features;
     assert.equal(features.sportFront, true);

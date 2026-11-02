@@ -60,7 +60,16 @@ function datesFor(fromMs, toMs) {
     return out;
 }
 
-/** A team/athlete-competitor's name fields, as far as they exist. */
+/** #213: a team's ESPN badge (`logo`, else the first of `logos`), only an https a.espncdn.com address; else null. */
+function teamLogo(team) {
+    for (const v of [team.logo, Array.isArray(team.logos) ? team.logos[0]?.href : null]) {
+        if (typeof v !== 'string') continue;
+        try { const u = new URL(v); if (u.protocol === 'https:' && u.hostname === 'a.espncdn.com') return u.href; } catch { /* not a URL */ }
+    }
+    return null;
+}
+
+/** A team/athlete-competitor's name fields, as far as they exist, and (#213) its badge for a follow without a card. */
 function teamFields(team) {
     if (!team || typeof team !== 'object') return null;
     const out = {
@@ -68,7 +77,8 @@ function teamFields(team) {
         shortDisplayName: typeof team.shortDisplayName === 'string' ? team.shortDisplayName : null,
         name: typeof team.name === 'string' ? team.name : null,
         location: typeof team.location === 'string' ? team.location : null,
-        abbreviation: typeof team.abbreviation === 'string' ? team.abbreviation : null
+        abbreviation: typeof team.abbreviation === 'string' ? team.abbreviation : null,
+        logo: teamLogo(team)
     };
     return out.displayName || out.shortDisplayName || out.name || out.abbreviation ? out : null;
 }
@@ -116,6 +126,7 @@ function teamsFromScoreboard(json) {
         if (!t) return;
         const key = (t.displayName || t.abbreviation || '').toLowerCase();
         if (key && !byKey.has(key)) byKey.set(key, t);
+        else if (key && !byKey.get(key).logo && t.logo) byKey.get(key).logo = t.logo; // #213: a badge from either list
     };
     for (const t of Array.isArray(json && json.teams) ? json.teams : []) add(t);
     for (const event of Array.isArray(json && json.events) ? json.events : []) {

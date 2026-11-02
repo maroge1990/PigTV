@@ -720,6 +720,9 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
   `live`, `break`, `suspended` or `onAir`). Each part, playing and not, stays in the account's order. `hero.followIndex`
   points into the reordered `follows[]`. Draw both lists in the order sent (the banner's list on the front page and a
   sport page's leagues); the sport tiles are gone (D-43 point 5). Replaces C-U's "`sports[]` keeps the account's order".
+- Since 0433 (#213): a follow with no card in range (`state: "none"`, or a card without a badge) still carries `logo`
+  when ESPN has one for that team: from the score catalogue's earlier or later games of its leagues, else the league's
+  ESPN roster. Only drivers and riders (F1, MotoGP, Supercars) and teams ESPN has no badge for stay null (monogram).
 - A server before 0381 answers 404 to `/api/sports/front` and 400 to `sports`/`teams`: send them only with this flag.
 
 ### C-S. Sport pages: Cricket. Flag: `sportPageCricket` (0383, #21)

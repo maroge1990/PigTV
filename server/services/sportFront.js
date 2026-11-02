@@ -6,7 +6,8 @@
  *   sports  one row per followed league, in the account's order with those playing now first (D-43): how many are
  *           live, the next start, and `line` ('live' | 'next' | 'quiet'; the client words and formats it)
  *   follows one per followed team or driver, in the account's order with those playing now first (D-43): live now,
- *           next, or nothing (`state`), with the card it points at
+ *           next, or nothing (`state`), with the card it points at and its badge (#213: from the catalogue or roster
+ *           when no card has one)
  *   hero    the one card the page leads with (rule below); stickiness and the long-press override are the client's
  *   rails   per followed league, leagues with a game on now first (D-41), then the account's order; card ids: live first
  *           (earliest start), then today's finals (latest first), then the rest
@@ -49,7 +50,7 @@ function emptyFront({ now, timezone, spoilerFree }) {
  * `{ spoilerFree, sports: [{ sport, leagues, teams }] }`). Pure. #193 (D-41): a sport's followed name is one follow
  * however many of its leagues it plays in; tiles and rails stay one per league, each naming its `sport`.
  */
-function arrange(response, prefs) {
+function arrange(response, prefs, { logoFor = () => null } = {}) {
     const order = prefs.sports.flatMap(s => s.leagues);
     const sportOf = new Map(prefs.sports.flatMap(s => s.leagues.map(l => [l, s.sport])));
     const matches = response.followMatches || {};
@@ -75,7 +76,10 @@ function arrange(response, prefs) {
             return Number.isInteger(index) ? card.competitors[index]?.logo || null : null;
         };
         const league = pick?.league ?? leagues[0];
-        const logo = ['F1', 'MotoGP', 'Supercars'].includes(league) ? null : (pick && logoOf(pick)) || cards.map(logoOf).find(Boolean) || null;
+        // #213: a follow with no card in range (off-season AFL, cricket between series) takes its badge from the stored
+        // catalogue or the league's roster (`logoFor`, front()); a card's own badge comes first.
+        const logo = ['F1', 'MotoGP', 'Supercars'].includes(league) ? null
+            : (pick && logoOf(pick)) || cards.map(logoOf).find(Boolean) || logoFor(leagues, name) || null;
         follows.push({ league, sport, name, logo, state: !pick ? 'none' : isLive(pick) ? 'live' : 'next',
             gameId: pick?.id ?? null, start: pick?.start ?? null });
         followed.push(new Set(cards.map(g => g.id)));
@@ -153,7 +157,54 @@ async function front({ userId, events, ended = null, now = Date.now() }) {
         const settings = await require('../db').settings.get();
         annotateRecordings(response.games, require('./recordingEngine').listScheduled({ settings }));
     } catch (err) { console.warn('[Sports] recordings on the front page:', err.message); } // the page without them
-    return arrange(response, prefs);
+    return arrange(response, prefs, { logoFor: followLogos(dashboard.store()) });
 }
 
-module.exports = { front, arrange, finishEstimate, annotateRecordings };
+/**
+ * #213: a followed name's badge when no card in range has one: the first league (in the follow's order) whose stored
+ * catalogue games (8 days back to the collector's horizon) or ESPN roster name it, as a logo-cache path. Read once, on
+ * the first follow that needs it; never throws (null).
+ */
+function followLogos(store) {
+    const norm = v => (typeof v === 'string' && require('./sportsClassify').parseSide(v)?.tokens.join(' ')) || '';
+    const add = (map, names, logo) => {
+        if (!logo || typeof logo !== 'string') return;
+        for (const n of names) { const k = norm(n); if (k && !map.has(k)) map.set(k, logo); }
+    };
+    let catalogue = null;
+    const fromCatalogue = (league, key) => {
+        if (!catalogue) {
+            catalogue = new Map();
+            try {
+                for (const g of store.catalog()) {
+                    if (!catalogue.has(g.league)) catalogue.set(g.league, new Map());
+                    for (const c of g.competitors || []) add(catalogue.get(g.league), [c.name, ...(c.aliases || [])], c.logo);
+                }
+            } catch (err) { console.warn('[Sports] follow logos (catalogue):', err.message); }
+        }
+        return catalogue.get(league)?.get(key) || null;
+    };
+    const rosters = new Map();
+    const fromRoster = (league, key) => {
+        if (!rosters.has(league)) {
+            const map = new Map();
+            try {
+                for (const t of require('./sportsFixtures').teamsOf(league)) add(map, [t?.displayName, t?.name, t?.shortDisplayName, t?.abbreviation], t?.logo);
+            } catch (err) { console.warn('[Sports] follow logos (roster):', err.message); }
+            rosters.set(league, map);
+        }
+        return rosters.get(league).get(key) || null;
+    };
+    return (leagues, name) => {
+        const key = norm(name);
+        if (!key) return null;
+        for (const league of leagues) {
+            const logo = fromCatalogue(league, key) || fromRoster(league, key);
+            if (!logo) continue;
+            try { return require('./logoCache').registerLogo(logo); } catch { return null; }
+        }
+        return null;
+    };
+}
+
+module.exports = { front, arrange, followLogos, finishEstimate, annotateRecordings };
