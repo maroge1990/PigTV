@@ -72,7 +72,8 @@ test('M2: measured worst-case ticks obey a 12-request ceiling including cricket 
 
 test('M2: inactive sources use the slow cadence; only active/starting-soon sources poll after 30 seconds',async()=>{
     const {store:s}=makeStore();let now=NOW;const calls=[];
-    const c=dashboard.createCollector({store:s,leagues:()=>new Set(['NFL']),clock:()=>now,enabled:()=>true,fetchJson:async u=>{calls.push(u);return {events:[]};}});
+    // #218: the look-ahead's days (after 20261101, kept 6 hours) are not the window's sources this checks
+    const c=dashboard.createCollector({store:s,leagues:()=>new Set(['NFL']),clock:()=>now,enabled:()=>true,fetchJson:async u=>{if(/dates=(\d{8})/.exec(u)?.[1]<='20261101')calls.push(u);return {events:[]};}});
     try{await c.refresh();const first=calls.length;now+=31000;await c.refresh();assert.equal(calls.length,first,'inactive source refetched');
         s.ingest([game()],now);now+=31000;await c.refresh();assert.ok(calls.length>first,'active source must refresh');}finally{c.stop();}
 });

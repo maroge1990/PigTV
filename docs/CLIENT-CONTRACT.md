@@ -691,8 +691,9 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
     next start for a follow) | `"none"` (`"guide"` is no longer sent since 0390, #194). The client keeps
     the hero until its event ends unless a follow goes live, and lets a long press on any card make it the hero.
   - `rails[]`, in the household's order: `{ league, gameIds }`: live first (earliest start first), then today's finished
-    games (results), then upcoming by start. Upcoming games reach 72 hours ahead (the collector's horizon): a follow whose
-    next game is later than that has `state: "none"` and the client says so ("Nothing in the next three days").
+    games (results), then upcoming by start. Upcoming games reach 72 hours ahead (the collector's horizon), except a
+    league's next round (since 0433, below): a follow with no game in either has `state: "none"` and the client says so
+    ("Nothing in the next three days").
   - `games[]`: C-O cards (each once; rails, follows and the hero point at ids), with additive `followed` (boolean) and
     per-channel `start`/`end` on `channels[]`. Finished games from today are kept (status `finished`) so the page can
     show results. With the household's `spoilerFree` on, no card carries `scores` or `situation`, and `progress` keeps
@@ -727,6 +728,15 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
 - Since 0433 (#213): a follow with no card in range (`state: "none"`, or a card without a badge) still carries `logo`
   when ESPN has one for that team: from the score catalogue's earlier or later games of its leagues, else the league's
   ESPN roster. Only drivers and riders (F1, MotoGP, Supercars) and teams ESPN has no badge for stay null (monogram).
+- Since 0437 (#218, additive): a followed league with nothing on and nothing starting within the 72 hours (weekly
+  sports: NFL, AFL, EPL…) shows its next round instead: the first game later than that, up to 14 days ahead, and every
+  game of the league starting within 4 days of it. They are ordinary cards (`status: "scheduled"`) with `nextRound: true`
+  and, as the guide does not reach that far, normally `channels: []` (a guide airing that does reach joins as usual).
+  They sort by start after the league's other games; `sports[].next`, a follow's `state: "next"` (with its `gameId` and
+  `start`) and `follow-next` may point at one. Whole-event leagues (tennis, golf, UFC, IndyCar, NASCAR) and the
+  International groups are unchanged. The server looks for the round in the background (at most every 6 hours), so it
+  can appear a few minutes after a league goes quiet. A daily league always has a game within 72 hours, so it never has `nextRound` cards. The legacy C-O `/dashboard` is
+  unchanged.
 - A server before 0381 answers 404 to `/api/sports/front` and 400 to `sports`/`teams`: send them only with this flag.
 
 ### C-S. Sport pages: Cricket. Flag: `sportPageCricket` (0383, #21)

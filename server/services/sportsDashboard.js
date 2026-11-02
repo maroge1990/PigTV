@@ -218,6 +218,26 @@ function driversListed(catalog) {
     }
     return out;
 }
+// #218: a weekly league (NFL, AFL, EPL...) with nothing on or due within the front page's `hours` shows its next round
+// instead of nothing: the first game later than that (up to ROUND_AHEAD, what the collector looks ahead) and every game of
+// the league within ROUND_SPAN of it. Whole-event leagues (tennis, golf, UFC, IndyCar, NASCAR) are not rounds.
+const ROUND_AHEAD = 14 * 24 * H, ROUND_SPAN = 4 * 24 * H;
+function nextRounds(catalog, selected, now, hours) {
+    const byLeague = new Map(), out = new Set();
+    for (const g of catalog) {
+        if (individual.has(g.league)) continue;
+        if (!byLeague.has(g.league)) byLeague.set(g.league, []);
+        byLeague.get(g.league).push(g);
+    }
+    for (const list of byLeague.values()) {
+        const state = g => selected.get(g.id)?.data.state || 'unknown';
+        const open = g => ['scheduled', 'unknown'].includes(state(g));
+        if (list.some(g => ['live', 'break', 'suspended'].includes(state(g)) || (open(g) && g.start > now - 12 * H && g.start <= now + hours * H))) continue;
+        const later = list.filter(g => open(g) && g.start > now + hours * H && g.start <= now + ROUND_AHEAD).sort((a, b) => a.start - b.start);
+        for (const g of later) if (g.start <= later[0].start + ROUND_SPAN) out.add(g.id);
+    }
+    return out;
+}
 // Front-page options (0381), all off for /dashboard: keepFinishedToday keeps today's finals, `teams` marks followed
 // cards, `spoilerFree` (the household switch) overrides the account's avoidSpoilers, channelTimes projects airing bounds,
 // upcomingHours keeps what starts within that many hours whatever its local day (tomorrow's fixtures; 0382).
@@ -238,6 +258,7 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
     // #191: airings that have already ended (sportsEvents.endedEvents), joined exactly as the current ones but on their own,
     // so they never change a card's `events`, nor which guide listings count as represented or unresolved.
     const endedMatches=matchBroadcasts(catalog,endedEvents.filter(e=>e.end<=now),new Set(),new Set(),endedAt);
+    const rounds=upcomingHours>0 && !league ? nextRounds(catalog,view.selected,now,upcomingHours) : new Set();
     for(const g of catalog) {
         if(league && league!==g.league || leagues && !leagues.has(g.league)) continue;
         if(narrowed.has(g.league) && !isTournament(g) && !followMatchesFor(g,teams,listedBy).length) continue;
@@ -267,7 +288,8 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
         const upcoming=upcomingHours>0 && ['scheduled','unknown'].includes(state) && g.start>now && g.start<=now+upcomingHours*H;
         // #197: a tournament spans days: it is today's on every day it runs, whatever day it began.
         const running=individual.has(g.league) && Number.isFinite(g.end) && g.start<=now && now<g.end && !['finished','cancelled','postponed'].includes(state);
-        if(g.start>horizon || (!league && localDay(g.start,zone)!==today && !ongoing && !recent && !pending && !onGuide && !upcoming && !running)) continue;
+        const nextRound=rounds.has(g.id);
+        if(g.start>horizon || (!league && localDay(g.start,zone)!==today && !ongoing && !recent && !pending && !onGuide && !upcoming && !running && !nextRound)) continue;
         if(g.start<now-8*24*H && !running || (g.start<now-12*H && !ongoing && !recent && !finalToday && !pending && !onGuide && (!g.end || g.end<now))) continue;
         const terminal=['finished','cancelled','postponed'].includes(state);
         const shown=fresh || finalToday; // a final does not go stale
@@ -286,7 +308,7 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
             broadcastStatus:liveChannels.length ? 'on-tv' : channels.length ? 'scheduled' : 'unavailable',channels,
             // Upcoming event references retain the existing details/record workflow without inventing channels.
             events:airings.map(e=>({id:e.id,start:e.start,end:e.end})),
-            canWatch:liveChannels.length>0 && !['finished','cancelled','postponed'].includes(state)};
+            canWatch:liveChannels.length>0 && !['finished','cancelled','postponed'].includes(state),...(nextRound ? {nextRound:true} : {})};
         // #203 (D-42 point 5): coverage on air with play within 30 min; status stays scheduled (sportOnAir.js).
         if(onAir.onAir({status:projectedState,start:g.start,now,airings:onAir.channelAirings(airings)})) card.onAir=true;
         if(!hidden && shown && selected.data.scores!==null) card.scores=selected.data.scores;
@@ -333,6 +355,8 @@ function utcDates(now) {
 const requestPolicy = require('./espnRequestPolicy');
 const cost = require('./sportCollectorCost');
 const REQUESTS_PER_TICK = 12;
+// #218: how far ahead, and how often, a league with nothing within the 72-hour window is asked for its next round.
+const AHEAD_TTL = 6 * H, AHEAD_DAYS = 11;
 const CATALOG_RESERVE = 3;
 function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.neededLeagues(),clock=Date.now,enabled:isEnabled=collectorEnabled,
     feedGames=(league,o)=>feeds.games(league,{...o,registerImage:require('./logoCache').registerLogo}),recordFeed=fixtures.recordFeed}={}) {
@@ -435,6 +459,48 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
             || queryDays.indexOf(a.date)-queryDays.indexOf(b.date));
         const candidates = new Map(), processed = new Map();
         const misfiled = new Map(); // #212: card id -> the International cricket group whose series listed it, not its own
+        const ymd = ms => new Date(ms).toISOString().slice(0,10).replaceAll('-', '');
+        const closed = state => ['finished','cancelled','postponed'].includes(state);
+        // on or due: playing, or not over and starting between 12 hours ago and the end of the window
+        const due = (g, state) => ['live','break','suspended'].includes(state) || (!closed(state) && g.start > now - 12 * H && g.start <= now + 72 * H);
+        const later = g => ['scheduled','unknown'].includes(g.snapshot?.state) && g.start > now + 72 * H && g.start <= now + 14 * 24 * H;
+        // #218: ESPN's date ranges answer HTTP 400 on team leagues (sportPageLeague.js), so the days after the window are
+        // read one at a time, each kept AHEAD_TTL: up to the first with games, then the 3 after it (the round's 4 days),
+        // never past 14 days ahead: at most AHEAD_DAYS requests per path per 6 hours. A day not answered (budget, cooldown,
+        // failure) stops the scan until a later tick.
+        async function scanAhead(league, source) {
+            const found = [];
+            let hit = null;
+            for (let d = 0, day = (Math.floor((now + 72 * H) / (24 * H)) + 1) * 24 * H; d < AHEAD_DAYS && day <= now + 14 * 24 * H; d++, day += 24 * H) {
+                if (hit !== null && day > hit + 3 * 24 * H) break;
+                const data = await read(`${espn.BASE}${source}/scoreboard?dates=${ymd(day)}&limit=1000`, AHEAD_TTL, {cold:true});
+                if (stopped || !Array.isArray(data?.json.events)) return [];
+                const t0 = performance.now();
+                const games = espn.normalize(data.json, league, source).filter(later).map(game => ({game, observedAt: data.observedAt}));
+                counting.normalizeMs += performance.now() - t0;
+                if (games.length && hit === null) hit = day;
+                found.push(...games);
+            }
+            const first = Math.min(...found.map(e => e.game.start));
+            return found.filter(e => e.game.start <= first + 4 * 24 * H);
+        }
+        // a team league with at most 2 ESPN paths (never the International groups), its every window day answered, and
+        // nothing on or due within 72 hours
+        async function lookAhead() {
+            const seen = [...candidates.values()].map(e => [e.game, e.game.snapshot?.state])
+                .concat(catalog.filter(g => !candidates.has(g.id)).map(g => [g, store.latest(g.id)?.data.state]));
+            for (const league of wanted) {
+                const paths = [fixtures.ESPN_LEAGUE_PATHS[league]].flat().filter(Boolean);
+                if (stopped || !paths.length || paths.length > 2 || individual.has(league) || CRICKET_GROUPS.includes(league) || feeds.has(league)) continue;
+                const own = jobs.filter(j => j.league === league);
+                if (!own.length || !own.every(j => cache.get(j.url)?.data)) continue; // the window is not known yet
+                if (seen.some(([g, state]) => g.league === league && due(g, state))) continue;
+                for (const source of paths) for (const {game, observedAt} of await scanAhead(league, source)) {
+                    // a window day's answer is fresher than the look-ahead's, so it always wins
+                    if (!candidates.has(game.id)) candidates.set(game.id, {game, priority: queryDays.length, observedAt});
+                }
+            }
+        }
         async function runJobs(batch, maxCold = Infinity) {
             let index = 0;
             async function worker() {
@@ -469,6 +535,8 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         await runJobs(coldJobs, hotJobs.length ? CATALOG_RESERVE : Infinity);
         await runJobs(hotJobs);
         if (remaining > 0) await runJobs(coldJobs);
+        // #218: a league with nothing on or due within 72 hours: its next round, from the days after the window
+        await lookAhead();
         // #196 (D-41): the leagues ESPN does not cover, from their own feeds (sportFeeds.js keeps each answer a while).
         for (const league of wanted) {
             if (!feeds.has(league) || stopped) continue;

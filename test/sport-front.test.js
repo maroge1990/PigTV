@@ -262,6 +262,20 @@ test('front: a followed team\'s game tomorrow is its sport\'s next and leads wit
     clearGames();
 });
 
+test('front: #218: a followed team with nothing within 72 hours reads its next round\'s game (nextRound, no channels)', async () => {
+    clearGames();
+    const now = Date.now(), id = 'espn:football/nfl:430', other = 'espn:football/nfl:431';
+    await call('/api/sports/pages/preferences', { sports: ['NFL'], teams: { NFL: ['Green Bay Packers'] } });
+    dashboard.store().ingest([game(id, 'NFL', now + 5 * 24 * H, [packers, team('8', 'Lions')], scheduled),
+        game(other, 'NFL', now + 4 * 24 * H, [team('12', 'Chiefs'), team('2', 'Bills')], scheduled)], now - 100000);
+    const f = await front();
+    assert.deepEqual(f.games.map(g => [g.id, g.nextRound, g.channels]), [[other, true, []], [id, true, []]]);
+    assert.deepEqual(f.rails[0].gameIds, [other, id]);
+    assert.deepEqual(f.sports[0].next, { gameId: other, start: now + 4 * 24 * H });
+    assert.deepEqual([f.follows[0].state, f.follows[0].gameId, f.follows[0].start], ['next', id, now + 5 * 24 * H]);
+    clearGames();
+});
+
 // #195 (D-41, D-42): an International group shows tournaments in full, and qualifiers and friendlies only for followed
 // nations; everything when the account follows none of its nations.
 test('front: Internationals: a followed nation narrows qualifiers and friendlies to its own; tournaments stay; none followed shows all', async () => {

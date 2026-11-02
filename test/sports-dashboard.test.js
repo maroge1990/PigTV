@@ -225,7 +225,9 @@ test('cached future payloads never become new score observations, and malformed 
     await c.refresh();const first=s.catalog()[0].observedAt;
     time+=1000;await c.refresh();assert.equal(s.catalog()[0].observedAt,first,'cache hits cannot extend data freshness');
     time+=30000;await c.refresh();assert.equal(s.catalog()[0].observedAt,first,'inactive catalog uses the slow cadence');
-    time+=900000;await c.refresh();assert.equal(s.catalog()[0].observedAt,time);assert.equal(calls,10);c.stop();
+    time+=900000;await c.refresh();assert.equal(s.catalog()[0].observedAt,time);
+    // five window days twice, and (#218: nothing due within 72 hours) the 11 days after the window once, kept 6 hours
+    assert.equal(calls,21);c.stop();
 });
 
 test('future scheduled cards keep their scheduled label between the slower catalog polls', () => {
@@ -329,4 +331,66 @@ test('a partially malformed status cannot replace known completion and revive an
     s.ingest([game({snapshot:{state:'unknown',progress:{},scores:null,situation:null}})],NOW+2000);
     assert.equal(s.latest(game().id).data.state,'finished');
     assert.equal(dashboard.buildDashboard(s,{now:NOW+100000,userId:'1',events:[airing()]}).games[0].canWatch,false);
+});
+
+// #218: a weekly league with nothing within the 72-hour window shows its next round, asked ahead once every 6 hours.
+const D = 24 * H;
+const espnEvent = (id, start, home, away, state = 'pre') => ({ id, date: new Date(start).toISOString(), competitions: [{ id, date: new Date(start).toISOString(),
+    status: { type: { state } }, competitors: [home, away].map(([tid, name]) => ({ score: '0', team: { id: tid, displayName: name, abbreviation: name.slice(0, 3).toUpperCase() } })) }] });
+// the window's days at NOW are 20261028 to 20261101; a later day is the look-ahead's
+const aheadUrls = calls => calls.filter(u => (/dates=(\d{8})/.exec(u)?.[1] || '') >= '20261102');
+const day = u => /dates=(\d{8})/.exec(u)?.[1];
+test('#218: a league with nothing within 72 hours scans ahead day by day to its next round, then 3 more days, once in 6 h', async () => {
+    const s = store(), calls = []; let time = NOW;
+    const byDay = { 20261105: [espnEvent('501', Date.parse('2026-11-05T18:00Z'), ['9', 'Packers'], ['8', 'Lions'])],
+        20261106: [espnEvent('502', Date.parse('2026-11-06T18:00Z'), ['12', 'Chiefs'], ['2', 'Bills'])],
+        20261109: [espnEvent('503', Date.parse('2026-11-09T18:00Z'), ['9', 'Packers'], ['2', 'Bills'])] };
+    const c = dashboard.createCollector({ store: s, leagues: () => new Set(['NFL']), clock: () => time, enabled: () => true,
+        fetchJson: async url => { calls.push(url); return { events: byDay[day(url)] || [] }; } });
+    await c.refresh();
+    assert.deepEqual(aheadUrls(calls), ['20261102', '20261103', '20261104', '20261105', '20261106', '20261107', '20261108']
+        .map(d => `${espn.BASE}football/nfl/scoreboard?dates=${d}&limit=1000`), 'one day at a time to the first with games, then 3 more');
+    assert.deepEqual(s.catalog().map(g => g.id).sort(), ['espn:football/nfl:501', 'espn:football/nfl:502'], 'the next round only');
+    time += 31000; await c.refresh();
+    time += 5 * H; await c.refresh();
+    assert.equal(aheadUrls(calls).length, 7, 'not asked again within 6 hours');
+    time = NOW + 6 * H + 1000; await c.refresh();
+    assert.equal(aheadUrls(calls).length, 14, 'asked again after 6 hours');
+    c.stop();
+});
+
+test('#218: a daily league with a game tomorrow, or a window not yet answered, makes no look-ahead request', async () => {
+    const s = store(), calls = [];
+    const c = dashboard.createCollector({ store: s, leagues: () => new Set(['NBA']), clock: () => NOW, enabled: () => true,
+        fetchJson: async url => { calls.push(url); return { events: url.includes('dates=20261029') ? [espnEvent('601', NOW + 20 * H, ['1', 'Lakers'], ['2', 'Celtics'])] : [] }; } });
+    await c.refresh(); c.stop();
+    assert.ok(calls.length >= 5, 'the window was read');
+    assert.equal(s.catalog().length, 1);
+    assert.deepEqual(aheadUrls(calls), []);
+    const s2 = store(), calls2 = [];
+    const failing = dashboard.createCollector({ store: s2, leagues: () => new Set(['NFL']), clock: () => NOW, enabled: () => true,
+        fetchJson: async url => { calls2.push(url); if (url.includes('dates=20261030')) throw new Error('down'); return { events: [] }; } });
+    await failing.refresh(); failing.stop();
+    assert.ok(calls2.length >= 5);
+    assert.deepEqual(aheadUrls(calls2), [], 'a window day that failed is not "nothing"');
+    const s3 = store(), calls3 = [];
+    const group = dashboard.createCollector({ store: s3, leagues: () => new Set(['Internationals']), clock: () => NOW, enabled: () => true,
+        fetchJson: async url => { calls3.push(url); return { events: [] }; } });
+    for (let i = 0; i < 10; i++) await group.refresh();
+    group.stop();
+    assert.ok(calls3.length >= 12);
+    assert.deepEqual(aheadUrls(calls3), [], 'a group of many paths never looks ahead');
+});
+
+test('#218: the front page\'s options show a league\'s next round past 72 hours as cards with nextRound, channels []', () => {
+    const s = store(), sched = { state: 'scheduled', progress: {}, scores: null, situation: null };
+    s.ingest([game({ id: 'espn:football/nfl:501', start: NOW + 5 * D, snapshot: sched }), game({ id: 'espn:football/nfl:502', start: NOW + 6 * D, snapshot: sched }),
+        game({ id: 'espn:football/nfl:503', start: NOW + 10 * D, snapshot: sched })], NOW - 1000);
+    const opts = { now: NOW, userId: '1', events: [], leagues: new Set(['NFL']), keepFinishedToday: true, channelTimes: true, upcomingHours: 72, guideCards: false };
+    const r = dashboard.buildDashboard(s, opts);
+    assert.deepEqual(r.games.map(g => [g.id, g.nextRound, g.channels]), [['espn:football/nfl:501', true, []], ['espn:football/nfl:502', true, []]]);
+    assert.equal(dashboard.buildDashboard(s, { now: NOW, userId: '1', events: [] }).games.length, 0, 'the legacy dashboard is unchanged');
+    s.ingest([game({ id: 'espn:football/nfl:500', start: NOW + 2 * D, snapshot: sched })], NOW - 1000);
+    assert.deepEqual(dashboard.buildDashboard(s, opts).games.map(g => [g.id, g.nextRound]), [['espn:football/nfl:500', undefined]],
+        'a game within 72 hours: no next round');
 });
