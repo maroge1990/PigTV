@@ -115,8 +115,9 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   stored answer (never ESPN itself) through `sportOverrun.recordingEnd`: still being played on an answer ≤15 min old rolls
   `event_stop` to now + 10 min; a final stops it at the final + post-padding; never before the floor, never past floor + 4 h.
   The collector polls a game in play every 30 s (hot), so the final is seen within about a minute.
-  Limitations: the join only finds games in the collector's catalogue (followed leagues), and a recording waiting
-  between parts for a free provider (failover) when the floor passes is not extended: it stops at the floor.
+  A part waiting for a free provider (failover) and a segmented recording restored after a restart check the game
+  the same way before their stored stop ends them (0441). Limitation: the join only finds games in the collector's
+  catalogue (followed leagues).
 
 ## Artwork
 

@@ -1570,6 +1570,9 @@ async function continuePart(scheduleId, now = Date.now()) {
     const cont = continuations.get(scheduleId);
     if (!cont || cont.starting) return;
     const schedule = cont.schedule;
+    // #217 (0440 Codex round 1, high): a part waiting for a provider checks its game before its stored stop is taken as
+    // the end (followEvents sees running captures only), so a game still on keeps it waiting and then recording.
+    followEvent(scheduleId, now);
     if (now >= currentStopTime(schedule)) {
         continuations.delete(scheduleId);
         if (cont.resume) endSegmentCapture(scheduleId, cont.resume.recordingId);
@@ -1858,6 +1861,8 @@ function resumeSegmentedOnStartup(schedule) {
     if (!rec || !rec.work_dir || rec.segment_state !== 'capturing') return false;
     segments.sealAll(rec.work_dir);
     const now = Date.now();
+    // #217 (0440 Codex round 1, high): its game is checked before its stored stop decides whether it resumes.
+    if (followEvent(schedule.id, now)) schedule = scheduledDb.getById(schedule.id) || schedule;
     if (now < stopTimeOf(schedule) - failoverTuning.endGraceMs) {
         let lostAt = now;
         try {

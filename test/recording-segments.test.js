@@ -935,6 +935,24 @@ test('server restart after the recording\'s time: what it recorded becomes its M
     assert.equal(captures().length, 0, 'not resumed');
 });
 
+// #217 (0440 Codex round 1, high): a restart decided from the stored stop alone, so a sport recording whose last
+// extension had just expired was finished while the score feed still said its game was on.
+test('#217: server restart after a stored extension has expired, its game still live: it resumes', async () => {
+    tuning.endGraceMs = 0;
+    const { s, rec } = leftByACrash({ windowMs: -60000 });
+    const now = Date.now();
+    sqlite.getDb().prepare('UPDATE scheduled_recordings SET sport_game_id = ?, event_stop = ? WHERE id = ?').run('espn:afl:restart', now - 1000, s.id);
+    load('services/sportsDashboard').store().ingest([{ id: 'espn:afl:restart', league: 'AFL', title: 'Collingwood v Carlton', start: now - 60 * 60000,
+        end: null, session: null, circuit: null, format: null, competitors: [],
+        snapshot: { state: 'live', progress: {}, scores: null, situation: null } }], now);
+    engine._reconcileOnStartup();
+    assert.equal(scheduled.getById(s.id).status, 'recording', 'resumed, not finished');
+    assert.notEqual(recordings.getById(rec.id).segment_state, 'finishing');
+    await until(() => captures().length === 1, 'resumed in a new epoch');
+    await engine.cancelScheduled(s.id);
+    await until(() => recordings.getById(rec.id).status === 'completed', 'finished', 10000);
+});
+
 test('deleting a segmented recording stops it and deletes its appdata folder', async () => {
     const s = due();
     await until(() => rowsOf(s.id).length === 1 && captures().length === 1, 'recording');

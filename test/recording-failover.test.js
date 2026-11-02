@@ -613,3 +613,27 @@ test('#152: a cancel while a failed part 2\'s file is being removed is honoured:
         if (release) release();
     }
 });
+
+// #217 (0440 Codex round 1, high): a part waiting for a provider ended the recording once its stored stop passed,
+// though the score feed still said the game was on (only running captures checked their game). It must check first.
+test('#217: a part waiting for a provider past the guide end keeps waiting while its game is live, then continues', async () => {
+    tuning.startFailoverMs = 200;
+    tuning.endGraceMs = 0;
+    setBehaviour(url.A(101), 'dies');
+    const now = Date.now();
+    const s = due({ windowMs: 2000 });
+    sqlite.getDb().prepare('UPDATE scheduled_recordings SET sport_game_id = ? WHERE id = ?').run('espn:afl:wait', s.id);
+    const scores = load('services/sportsDashboard').store();
+    const live = () => scores.ingest([{ id: 'espn:afl:wait', league: 'AFL', title: 'Collingwood v Carlton', start: now - 30 * 60000, end: null,
+        session: null, circuit: null, format: null, competitors: [],
+        snapshot: { state: 'live', progress: {}, scores: null, situation: null } }], Date.now());
+    const onB = await viewerOn(B.id);
+    const onC = await viewerOn(C.id);
+    await until(() => partsOf(s.id)[0]?.status === 'completed', 'part 1 over');
+    assert.equal(scheduled.getById(s.id).event_stop, null, 'no answer yet while it ran: the feed is first heard while it waits');
+    while (Date.now() < s.program_end + 1500) { live(); await engine.tick(); await sleep(100); }
+    assert.equal(scheduled.getById(s.id).status, 'recording', 'still waiting past the guide end: the game is on');
+    await transcodeSession.removeSession(onC.id);
+    await until(() => partsOf(s.id).length === 2, 'part 2 once Dream4K is free');
+    void onB;
+});
