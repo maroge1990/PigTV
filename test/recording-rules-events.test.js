@@ -502,3 +502,19 @@ for (const after of ['completed', 'cancelled and passed']) {
         clearAirings();
     });
 }
+
+// #207: C-I merges overlapping broadcasts into one event whose bounds are the widest. A keyword Sport rule went by the
+// merged `start`/`end`, so once one channel's airing had begun it skipped the event, even though another channel's own
+// airing was still to start; it must take that channel's own airing and its times (as team rules do since 0417).
+test('#207: between two channels\' staggered starts, the rule records the channel whose own airing is still to start, on its times', async () => {
+    const r = rule();
+    events = [{ id: `${TITLE}@staggered`, kind: 'event', title: TITLE, aliases: [], league: 'AFL', start: NOW - 30 * 60000, end: NOW + 3.5 * H,
+        channels: [
+            { sourceId: source.id, id: 'pos_1', name: 'Fox Footy', start: NOW - 30 * 60000, end: NOW + 2.5 * H },
+            { sourceId: source.id, id: 'pos_2', name: 'Seven', start: NOW + 30 * 60000, end: NOW + 3.5 * H }
+        ] }];
+    assert.equal((await rules.evaluate({ now: NOW })).length, 1, 'the later channel is recorded');
+    const [s] = ofRule(r.id);
+    assert.deepEqual([s.channel_item_id, s.program_start, s.program_end], ['pos_2', NOW + 30 * 60000, NOW + 3.5 * H]);
+    events = [];
+});

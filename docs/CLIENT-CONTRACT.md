@@ -330,6 +330,8 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   instead." / "which was chosen instead."); if its window passes it is `missed` with "Not recorded. " before that. `POST
   /api/recordings/scheduled/:id/choose` ("Record this one instead") makes a schedule that has not started win its
   clashes from then on → the row as listed; 404 when unknown or already started. Cancelling the winner lets it record.
+- C-M since 0439 (#207): a keyword `sport` rule records the best channel whose own airing (C-I channel `start`/`end`)
+  is still to start, on that airing's times (as `team` rules since 0417), not the event's merged bounds.
 - **What a cancel holds against (0245, 0253, 0254, 0259; not durable identity).** The guide gives no lasting id, so a
   rule decides per evaluation whether a programme is one it has already scheduled (policy accepted by Mark, 25 Oct):
   - *Present:* a schedule of the same title within 15 minutes is that programme (for a series, on its channel: the

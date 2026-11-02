@@ -158,11 +158,16 @@ async function sportCandidates(rule, now) {
     const out = [];
     for (const ev of events) {
         if (ev.kind && ev.kind !== 'event') continue;
-        if (ev.start <= now || !ev.channels.length) continue; // only what is still to start
         const leagues = ev.league ? [ev.league] : [];
         if (!sportsEvents.followedKeyword(follow, ev.title, ev.aliases || [], leagues)) continue;
-        const ch = ev.channels[0];
-        out.push({ identity: `event:${ev.id}`, title: ev.title, titles: [ev.title, ...(ev.aliases || [])], anyChannel: true, start: ev.start, end: ev.end,
+        // #207 (as teamCandidates since 0417): C-I merges overlapping broadcasts into one event whose bounds are the
+        // widest, so each channel goes by its own airing: the best channel whose own airing is still to start, on
+        // that airing's times.
+        const pick = (ev.channels || []).map(ch => ({ ch, start: Number.isFinite(ch.start) ? ch.start : ev.start,
+            end: Number.isFinite(ch.end) ? ch.end : ev.end })).find(a => a.start > now && a.end > a.start);
+        if (!pick) continue; // only what is still to start
+        const { ch } = pick;
+        out.push({ identity: `event:${ev.id}`, title: ev.title, titles: [ev.title, ...(ev.aliases || [])], anyChannel: true, start: pick.start, end: pick.end,
             sourceId: ch.sourceId, channelId: String(ch.id), channelName: ch.name, channelLogo: ch.logo || null, description: null });
     }
     return out;
