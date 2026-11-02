@@ -762,6 +762,10 @@ on demand (kept 2 min while the lead is in play, 10 min on a match day, 1 h othe
   channel's own times (C-I, #20).
 - Since 0386 (#191): a match whose day is in play (`live`, or a `break` other than stumps) keeps an airing that ended up
   to 4 h ago in its `channels`, `overrun: true`, as C-O.
+- Since 0433 (#210): `lead` and each `others[]` entry carry `league`: the C-U catalogue league the match is on the page
+  for (`Cricket`, `Women's Cricket`, `BBL`, `Sheffield Shield`...), always one of the account's followed cricket leagues;
+  null only if it matches none. Additive; a client files each match under its followed league by it, before
+  `competition`.
 
 ### C-T. Sport pages: any team league. Flag: `sportPageLeagues` (0388, #21)
 

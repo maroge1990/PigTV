@@ -50,6 +50,7 @@
       ]
     ],
     "label": "3rd Test",
+    "league": "Cricket",
     "nextStart": 1793435400000,
     "seriesId": "24203",
     "seriesLine": "Series level 1–1 · third of three Tests",
@@ -76,6 +77,7 @@
       "channels": [],
       "competition": "West Indies in Bangladesh",
       "id": "1553295",
+      "league": "Cricket",
       "line": "Bangladesh lead by 106 runs",
       "nextStart": 1793417400000,
       "scores": [
@@ -102,6 +104,7 @@
       "channels": [],
       "competition": "India in New Zealand",
       "id": "1539436",
+      "league": "Cricket",
       "line": "Starts at 20:00 local time",
       "nextStart": 1793516400000,
       "scores": [

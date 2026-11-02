@@ -358,7 +358,8 @@ async function build(now, { registerImage = (u) => u, followed = followedTeams()
         const summary = summaryAnswer?.ok && summaryAnswer.json && typeof summaryAnswer.json === 'object' ? summaryAnswer.json : null;
         const n = dayCount(pick, summaryDays(summary));
         lead = {
-            id: pick.id, seriesId: pick.seriesId, competition: pick.competition, label: pick.label, format: pick.format,
+            // #210: `league` the followed catalogue league the match is the page's for (C-U), so a client files it there.
+            id: pick.id, seriesId: pick.seriesId, competition: pick.competition, league: pick.league ?? null, label: pick.label, format: pick.format,
             venue: pick.venue, city: pick.city, start: pick.start, end: dayStart(pick, n) + dayLength(pick),
             status: pick.status, breakLabel: pick.breakLabel, day: n > 1 ? pick.day : null, session: sessionOf(pick, summary, now),
             teams: pick.teams, innings: pick.innings, summary: pick.summary, crease: creaseOf(pick, raws.get(pick.id), summary),
@@ -379,7 +380,7 @@ async function build(now, { registerImage = (u) => u, followed = followedTeams()
             const n = dayCount(m);
             const air = airingOf(m, n, now);
             if (air) airings.push(air);
-            return { id: m.id, seriesId: m.seriesId, competition: m.competition, teams: m.teams, scores: m.scores,
+            return { id: m.id, seriesId: m.seriesId, competition: m.competition, league: m.league ?? null, teams: m.teams, scores: m.scores,
                 line: m.summary, status: m.status, start: m.start, nextStart: nextStartOf(m, n, now), channels: [] };
         });
     const value = { available: true, updatedAt: now, lead, series, others };

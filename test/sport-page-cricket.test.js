@@ -257,7 +257,7 @@ test('GET /api/sports/pages/cricket: 401 signed out, the page signed in, /api/in
     assert.equal(r.status, 200);
     assert.deepEqual(Object.keys(r.body).sort(), ['available', 'lead', 'others', 'series', 'updatedAt']);
     assert.equal(r.body.lead.id, '1525661', 'the household\'s followed team, from the stored preferences');
-    for (const k of ['id', 'seriesId', 'competition', 'label', 'format', 'venue', 'city', 'start', 'end', 'status', 'breakLabel', 'day', 'session',
+    for (const k of ['id', 'seriesId', 'competition', 'league', 'label', 'format', 'venue', 'city', 'start', 'end', 'status', 'breakLabel', 'day', 'session',
         'teams', 'innings', 'summary', 'crease', 'seriesLine', 'days', 'nextStart', 'channels']) assert.ok(k in r.body.lead, k);
     assert.ok(Array.isArray(r.body.others) && r.body.others.every(o => Array.isArray(o.channels)));
     assert.ok(!JSON.stringify(r.body).includes('espncdn'), 'team logos go through the logo cache');
@@ -284,6 +284,37 @@ test('#195: following a nation narrows the men\'s internationals to its tours (I
     assert.equal(isTournament({ league: 'Cricket', competition: 'Australia tour of India 2026/27' }), false);
     assert.equal(isTournament({ league: 'Internationals', id: 'espn:soccer/fifa.world:1' }), true);
     assert.equal(isTournament({ league: 'Internationals', id: 'espn:soccer/fifa.friendly:1' }), false);
+});
+
+// #212 (Mark, Apple TV): following only `Cricket`, its International (men's) league held domestic and women's matches.
+// The page itself holds only the men's internationals; #210: each match says which followed league it is the page's
+// for (`league`), so the client never has to guess it from `competition`.
+test('#212/#210: following only Cricket, only the men\'s internationals, each with its `league`', async () => {
+    const womens = (name, json) => {
+        if (!/^scorepanel-/.test(name)) return;
+        const block = structuredClone(json.scores.find(b => b.events?.[0]?.competitions?.[0]?.class?.internationalClassId !== '0'));
+        block.leagues[0] = { ...block.leagues[0], id: '24999', name: 'England Women tour of Australia 2026/27', abbreviation: 'Eng W in Aus' };
+        const e = block.events[0];
+        e.id = e.competitions[0].id = `9${name.slice(-4)}`;
+        e.leagueId = '24999';
+        e.competitions[0].class = { ...e.competitions[0].class, internationalClassId: '9', generalClassCard: "Women's ODI" };
+        e.competitions[0].competitors.forEach((x, i) => { x.team = { ...x.team, displayName: ['Australia Women', 'England Women'][i], name: ['Australia Women', 'England Women'][i] }; });
+        json.scores.push(block);
+    };
+    stub(womens);
+    const p = await cricket.build(NOW, { followed: [], leagues: ['Cricket'] });
+    const all = [p.lead, ...p.others];
+    assert.ok(all.length >= 2, 'the Tests and the T20I are there');
+    assert.deepEqual(all.filter(m => !m.teams.every(t => !/women/i.test(t.name)) || ['Sheffield Shield', 'WBBL'].includes(m.competition)), [],
+        'no domestic or women\'s match');
+    assert.deepEqual([...new Set(all.map(m => m.league))], ['Cricket'], 'every match is the men\'s internationals\'');
+    cricket.reset(); stub(womens);
+    const every = await cricket.build(NOW, { followed: [], leagues: [...ALL, "Women's Cricket"] });
+    const byCompetition = Object.fromEntries([every.lead, ...every.others].map(m => [m.competition, m.league]));
+    assert.equal(byCompetition['Sheffield Shield'], 'Sheffield Shield');
+    assert.equal(byCompetition.WBBL, 'WBBL');
+    assert.equal(byCompetition['Eng W in Aus'], "Women's Cricket");
+    for (const tour of ['Australia in South Africa', 'West Indies in Bangladesh']) assert.equal(byCompetition[tour], 'Cricket', tour);
 });
 
 // 0401 (0400 Codex round 2, medium): a refresh whose matches all lack their class kept nothing and replaced the page.
