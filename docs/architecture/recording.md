@@ -31,6 +31,11 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   0411: holds count the recording limit only (`hard`; the advisory `conflictsWith` keeps the provider pools); a loser
   keeps its winner (`clash_winner`) until that is cancelled, deleted or missed, so it never records the part after it;
   a choice made while another start is under way makes that start re-check (`choiceEpoch`, `startStillWanted()`).
+- **Start and stop are never stored** (0444, #49): every reader works them out from `program_start`/`program_end` and
+  `pre_buffer_min`/`post_buffer_min` (`findDueToStart`, `stopTimeOf()` with the event stop and its cap). So
+  `editScheduled()` ("Change recording", `PUT /recordings/scheduled/:id`) only changes those two columns; for a running
+  recording only finish-late, then `armHardStop()` re-reads the stop (as `followGuide()` does). A stop at or before now
+  is refused.
 - File names use the server's local time, so **`TZ` must be set** (verified).
 - Native playback is a `.native.mp4` remux of the file: `hvc1`, MP2→AAC, shared across concurrent requests, written atomically,
   sidecars deleted with the recording. `?async=1` answers 202 while preparing. Old HEVC sidecars are `hev1`: delete

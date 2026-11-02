@@ -132,7 +132,9 @@ const APPLE_CLIENT_ROUTES = [
     ['PUT', '/api/recordings/rules/1'], ['DELETE', '/api/recordings/rules/1'],
     // Apple 91–92 (#200): Settings › Sport (C-U names, suggestions) and "Record this one instead" (C-M, 0410).
     ['GET', '/api/sports/names'], ['GET', '/api/sports/suggestions'], ['POST', '/api/sports/suggestions/decline'],
-    ['POST', '/api/recordings/scheduled/1/choose']
+    ['POST', '/api/recordings/scheduled/1/choose'],
+    // 0444 (C-M, #49): "Change recording": a schedule's start-early / finish-late minutes.
+    ['PUT', '/api/recordings/scheduled/1']
 ];
 
 test('every route the Apple client calls still reaches its real handler', async () => {

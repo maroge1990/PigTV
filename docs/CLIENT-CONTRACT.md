@@ -344,6 +344,13 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   before. Wording: "When it stops: when ESPN says it's over (or the guide end + Finish late)".
 - C-M since 0439 (#207): a keyword `sport` rule records the best channel whose own airing (C-I channel `start`/`end`)
   is still to start, on that airing's times (as `team` rules since 0417), not the event's merged bounds.
+- **Since 0444 (#49): "Change recording".** `PUT /api/recordings/scheduled/:id` `{preBufferMin?, postBufferMin?}` (any
+  signed-in user or paired device, as `DELETE`; whole minutes, 0-60 and 0-180 as a rule's, else 400; a field left out
+  is unchanged) → 200 the row as `GET /recordings/scheduled` lists it (with its new `stopsAt`). Not started (`scheduled`,
+  `waiting`): both change, and it starts and stops at the new times. `recording`: only `postBufferMin`, and the running
+  recording's stop moves at once (shorter or longer); `preBufferMin` in the body, or a stop at or before now, is 409
+  `{error}` (stopping now is `DELETE`). A sport schedule's event stop still applies, capped at the new guide end +
+  `postBufferMin` + 4 h. 404 when unknown, finished, failed, cancelled or missed. `rule_id` is kept.
 - **What a cancel holds against (0245, 0253, 0254, 0259; not durable identity).** The guide gives no lasting id, so a
   rule decides per evaluation whether a programme is one it has already scheduled (policy accepted by Mark, 25 Oct):
   - *Present:* a schedule of the same title within 15 minutes is that programme (for a series, on its channel: the

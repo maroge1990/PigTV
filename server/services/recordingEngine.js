@@ -697,6 +697,36 @@ function listScheduled({ includeRecent = false, settings = null } = {}) {
 }
 
 /**
+ * #49 (0444): "Change recording": a schedule's start-early / finish-late minutes. `pre`/`post` are whole minutes or
+ * null (unchanged); the caller has validated them. Start and stop are never stored: every reader works them out from
+ * program_start/program_end and these two columns (findDueToStart, stopTimeOf with its event stop and 4 h cap), so
+ * changing the columns is the whole edit. Not started (`scheduled`, `waiting`): both may change. Recording: only `post`,
+ * and the hard stop is re-armed from the database (armHardStop), as when the guide moves an end. A change that puts the
+ * stop at or before now is refused (stopping now is the Stop action's job). A rule's schedule keeps its `rule_id`.
+ * Returns { row } (as listed) or { status, error }.
+ */
+function editScheduled(id, { pre = null, post = null } = {}, { now = Date.now(), settings = null } = {}) {
+    const schedule = scheduledDb.getById(id);
+    if (!schedule || !['scheduled', 'waiting', 'recording'].includes(schedule.status)) {
+        return { status: 404, error: 'No upcoming or running schedule with that id' };
+    }
+    if (schedule.status === 'recording' && pre !== null) {
+        return { status: 409, error: 'This recording has started, so it cannot start earlier or later.' };
+    }
+    const next = { ...schedule, ...(pre !== null ? { pre_buffer_min: pre } : {}), ...(post !== null ? { post_buffer_min: post } : {}) };
+    if (post !== null && stopTimeOf(next) <= now) {
+        return { status: 409, error: 'That would end the recording now. Use Stop instead.' };
+    }
+    getDb().prepare('UPDATE scheduled_recordings SET pre_buffer_min = ?, post_buffer_min = ? WHERE id = ?')
+        .run(next.pre_buffer_min, next.post_buffer_min, id);
+    console.log(`[Recordings] Schedule #${id} "${schedule.title}": start early ${next.pre_buffer_min} min, finish late ${next.post_buffer_min} min`);
+    const entry = active.get(id);
+    if (schedule.status === 'recording' && entry && !entry.stopRequested) armHardStop(id, entry);
+    const row = listScheduled({ settings }).find(r => r.id === id) || withImage(scheduledDb.getById(id));
+    return { row };
+}
+
+/**
  * scheduledDb.setStatus, plus one log line per actual status change (0156).
  *
  * `schedule` is either the row already in hand (its `.status` is trusted as
@@ -2262,6 +2292,7 @@ module.exports = {
     scheduleFromProgram,
     listScheduled,
     chooseScheduled,
+    editScheduled,
     listActive,
     withChannelLogo,
     withImage,

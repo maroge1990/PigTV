@@ -522,4 +522,4 @@ function evaluateIfDue(now = Date.now()) {
     return evaluate({ now });
 }
 
-module.exports = { list, get, create, update, remove, validate, evaluate, evaluateIfDue, teamCandidates, KINDS, NEAR_MS };
+module.exports = { list, get, create, update, remove, validate, evaluate, evaluateIfDue, teamCandidates, minutes, KINDS, NEAR_MS };

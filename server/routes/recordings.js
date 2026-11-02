@@ -277,6 +277,27 @@ router.post('/scheduled/:id/choose', async (req, res) => {
     }
 });
 
+// #49 (0444, C-M): "Change recording": `{ preBufferMin?, postBufferMin? }` (whole minutes, 0-60 and 0-180, as a rule's).
+// Not started: both; recording: only postBufferMin (409 for preBufferMin, and for a stop at or before now). 404 when
+// unknown or finished, failed, cancelled or missed. Answers the row as GET /scheduled lists it.
+router.put('/scheduled/:id', async (req, res) => {
+    try {
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const { minutes } = require('../services/recordingRules');
+        const pre = minutes(body.preBufferMin, 60);
+        const post = minutes(body.postBufferMin, 180);
+        if (pre === undefined || post === undefined) {
+            return res.status(400).json({ error: 'preBufferMin (0-60) and postBufferMin (0-180) must be whole minutes' });
+        }
+        const settings = await require('../db').settings.get();
+        const result = recordingEngine.editScheduled(parseInt(req.params.id), { pre, post }, { settings });
+        if (result.error) return res.status(result.status).json({ error: result.error });
+        res.json(result.row);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Cancel (or stop, if currently recording) a scheduled recording. 0207: for a failed or
 // missed one (the "Recent problems" list) this deletes it instead, with its failed
 // recordings and their files, and answers { deleted: true }.
