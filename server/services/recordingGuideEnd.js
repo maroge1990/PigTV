@@ -83,7 +83,8 @@ function apply({ now = Date.now(), db = getDb() } = {}) {
     const schedules = db.prepare(`
         SELECT * FROM scheduled_recordings
         WHERE status IN ('scheduled', 'waiting', 'recording')
-          AND MAX(program_end + post_buffer_min * 60000, COALESCE(event_stop, 0)) > ?
+          AND MAX(program_end + post_buffer_min * 60000,
+                  MIN(COALESCE(event_stop, 0), program_end + post_buffer_min * 60000 + ${overrun.OVERRUN_MAX})) > ?
     `).all(now);
     const changes = [];
     const update = db.prepare(`UPDATE scheduled_recordings SET program_end = ?, program_end_original = COALESCE(program_end_original, ?) WHERE id = ?`);
@@ -111,6 +112,16 @@ const SESSION_LEAGUES = new Set(['F1', 'MotoGP', 'Supercars']); // sessions and 
 
 /** Where a schedule's window ends without its event: the guide end + post-padding. */
 const floorOf = (s) => s.program_end + (s.post_buffer_min || 0) * 60000;
+
+/**
+ * Where a schedule stops, the one reading of it (the hard stop, the stop checks, `stopsAt`): its event stop, never
+ * before the floor and (0442, 0440 Codex round 1, medium) never past the CURRENT floor + OVERRUN_MAX, so a guide
+ * correction downwards cannot leave a stop decided against a later floor beyond the cap.
+ */
+function stopOf(s) {
+    const floor = floorOf(s);
+    return Number.isFinite(s.event_stop) && s.event_stop > floor ? Math.min(s.event_stop, floor + overrun.OVERRUN_MAX) : floor;
+}
 
 /**
  * The fixture game a schedule records, or null. Its stored link first; else the dashboard's join (matchBroadcasts), only
@@ -165,13 +176,10 @@ function eventStop(schedule, { now = Date.now(), store = null, catalog = null } 
 function endView(schedule, catalog, now = Date.now()) {
     let linked = Boolean(schedule.sport_game_id);
     if (!linked) { try { linked = Boolean(gameFor(schedule, catalog)); } catch (e) { linked = false; } }
-    const extended = schedule.status === 'recording' && Number.isFinite(schedule.event_stop)
-        && schedule.event_stop > floorOf(schedule) && schedule.event_stop > now;
-    const floor = floorOf(schedule);
-    const stopsAt = Number.isFinite(schedule.event_stop) && schedule.event_stop > floor
-        ? Math.min(schedule.event_stop, floor + overrun.OVERRUN_MAX) : floor;
+    const stopsAt = stopOf(schedule);
+    const extended = schedule.status === 'recording' && stopsAt > floorOf(schedule) && stopsAt > now;
     return { endsWith: linked ? 'event' : 'guide', stopsAt, ...(extended ? { overrun: true } : {}) };
 }
 
-module.exports = { apply, guideEndFor, normTitle, gameFor, eventStop, endView, floorOf,
+module.exports = { apply, guideEndFor, normTitle, gameFor, eventStop, endView, floorOf, stopOf,
     MATCH_WINDOW_MS, SAME_START_MS, MAX_EXTENSION_MS, JOIN_WINDOW_MS, EARLY_MS };

@@ -1983,8 +1983,7 @@ async function enforceFreeSpaceDuringRecording() {
  * (`event_stop`, never earlier: recordingGuideEnd.eventStop).
  */
 function stopTimeOf(schedule) {
-    const floor = schedule.program_end + (schedule.post_buffer_min || 0) * 60000;
-    return Number.isFinite(schedule.event_stop) && schedule.event_stop > floor ? schedule.event_stop : floor;
+    return require('./recordingGuideEnd').stopOf(schedule); // 0442: capped at the current floor + 4 h
 }
 
 /**
@@ -2298,6 +2297,7 @@ module.exports = {
     _reconcileJobsOnStartup: reconcileJobsOnStartup,
     _reconcileOnStartup: reconcileOnStartup, // R3: what a restart does to a recording in progress
     _failoverTuning: failoverTuning,
+    _stopTimeOf: stopTimeOf, // #217: the stop the hard stop and the stop checks read
     _chooseProvider: chooseProvider, // #137: which candidate a join-only start is given
     segments
 };

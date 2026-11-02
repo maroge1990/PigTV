@@ -155,3 +155,31 @@ test('the hard stop re-reads the end when it fires (an end moved without a re-ar
     for (let i = 0; i < 60 && scheduled.getById(s.id).status === 'recording'; i++) await sleep(50);
     assert.equal(scheduled.getById(s.id).status, 'completed');
 });
+
+// 0442 (0440 Codex round 1, medium): an event stop decided against a later guide end was read uncapped after the guide
+// corrected that end downwards, so with stale scores the hard stop ran past the current guide end + 4 h, and differed
+// from the `stopsAt` the list gave.
+test('#217: a guide extension, then a correction down while scores are stale: the stop and stopsAt agree, capped at the new end + 4 h', () => {
+    const now = Date.now();
+    const end = now + H;
+    const s = schedule({ start: now - 30 * MIN, end, title: 'AFL: Collingwood v Carlton' });
+    scheduled.setStatus(s.id, 'recording');
+    guide([{ title: 'AFL: Collingwood v Carlton', start: now - 30 * MIN, end: end + 2 * H }]);
+    engine.followGuide();
+    assert.equal(scheduled.getById(s.id).program_end, end + 2 * H, 'the guide extended it');
+    const OVERRUN_MAX = load('services/sportOverrun').OVERRUN_MAX;
+    sqlite.getDb().prepare('UPDATE scheduled_recordings SET sport_game_id = ?, event_stop = ? WHERE id = ?')
+        .run('espn:afl:corrected', end + 2 * H + OVERRUN_MAX, s.id); // the cap of the later end
+    load('services/sportsDashboard').store().ingest([{ id: 'espn:afl:corrected', league: 'AFL', title: 'Collingwood v Carlton',
+        start: now - 30 * MIN, end: null, session: null, circuit: null, format: null, competitors: [],
+        snapshot: { state: 'live', progress: {}, scores: null, situation: null } }], now - 20 * MIN); // stale
+    guide([{ title: 'AFL: Collingwood v Carlton', start: now - 30 * MIN, end }]);
+    engine.followGuide();
+    assert.equal(scheduled.getById(s.id).program_end, end, 'the guide corrected it back');
+    engine.followEvent(s.id, now);
+    const row = scheduled.getById(s.id);
+    const listed = engine.listScheduled().find(r => r.id === s.id);
+    assert.equal(engine._stopTimeOf(row), end + OVERRUN_MAX, 'the stop: capped at the current end + 4 h');
+    assert.equal(listed.stopsAt, engine._stopTimeOf(row), 'stopsAt is the stop');
+    scheduled.setStatus(s.id, 'cancelled');
+});
