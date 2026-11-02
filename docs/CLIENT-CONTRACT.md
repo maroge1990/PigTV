@@ -721,7 +721,7 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
   `live`, `break`, `suspended` or `onAir`). Each part, playing and not, stays in the account's order. `hero.followIndex`
   points into the reordered `follows[]`. Draw both lists in the order sent (the banner's list on the front page and a
   sport page's leagues); the sport tiles are gone (D-43 point 5). Replaces C-U's "`sports[]` keeps the account's order".
-- Since 0433 (#215): `follows[]` no longer keeps the account's order. Those playing now (`state: "live"`) still come
+- Since 0434 (#215): `follows[]` no longer keeps the account's order. Those playing now (`state: "live"`) still come
   first, in the account's order; then every `"next"` follow by its `start`, soonest first; then the `"none"` ones. Equal
   starts and the `"none"` group go by name (case-insensitive). `sports[]` is unchanged (the account's order, playing now
   first), and `hero.followIndex` points into the reordered `follows[]`.
@@ -772,7 +772,7 @@ on demand (kept 2 min while the lead is in play, 10 min on a match day, 1 h othe
   channel's own times (C-I, #20).
 - Since 0386 (#191): a match whose day is in play (`live`, or a `break` other than stumps) keeps an airing that ended up
   to 4 h ago in its `channels`, `overrun: true`, as C-O.
-- Since 0433 (#210): `lead` and each `others[]` entry carry `league`: the C-U catalogue league the match is on the page
+- Since 0436 (#210): `lead` and each `others[]` entry carry `league`: the C-U catalogue league the match is on the page
   for (`Cricket`, `Women's Cricket`, `BBL`, `Sheffield Shield`...), always one of the account's followed cricket leagues;
   null only if it matches none. Additive; a client files each match under its followed league by it, before
   `competition`.
@@ -866,7 +866,7 @@ account follows nothing; only the server's owner (its first admin account) takes
   championships, ICC events) is shown only when a followed nation plays in it: on the front page (C-R), the C-T page
   and the Cricket page. Following no nation of the group shows every game. A C-R cricket card of a group may carry
   `competition` (the series name).
-- Since 0433 (#212): a C-R card is in `Cricket` or `Women's Cricket` only when its own match's international class is
+- Since 0435 (#212): a C-R card is in `Cricket` or `Women's Cricket` only when its own match's international class is
   that group's, as on the Cricket page: a domestic match, a tour's match against an A side or XI, or the other group's
   match, is never one, and cards filed under a group before 0397 leave it.
 - Since 0402 (#196) the leagues ESPN does not cover come from their own feeds: `AFLW` (Australian football), `NRLW`
