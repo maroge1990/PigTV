@@ -465,14 +465,14 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         const due = (g, state) => ['live','break','suspended'].includes(state) || (!closed(state) && g.start > now - 12 * H && g.start <= now + 72 * H);
         const later = g => ['scheduled','unknown'].includes(g.snapshot?.state) && g.start > now + 72 * H && g.start <= now + 14 * 24 * H;
         // #218: ESPN's date ranges answer HTTP 400 on team leagues (sportPageLeague.js), so the days after the window are
-        // read one at a time, each kept AHEAD_TTL: up to the first with games, then the 3 after it (the round's 4 days),
+        // read one at a time, each kept AHEAD_TTL: up to the first with games, then every day its 96 hours reach (the round),
         // never past 14 days ahead: at most AHEAD_DAYS requests per path per 6 hours. A day not answered (budget, cooldown,
         // failure) stops the scan until a later tick.
         async function scanAhead(league, source) {
             const found = [];
             let hit = null;
             for (let d = 0, day = (Math.floor((now + 72 * H) / (24 * H)) + 1) * 24 * H; d < AHEAD_DAYS && day <= now + 14 * 24 * H; d++, day += 24 * H) {
-                if (hit !== null && day > hit + 3 * 24 * H) break;
+                if (hit !== null && day > hit + 4 * 24 * H) break; // the first game's day + 4: a Thursday's round reaches Monday
                 const data = await read(`${espn.BASE}${source}/scoreboard?dates=${ymd(day)}&limit=1000`, AHEAD_TTL, {cold:true});
                 if (stopped || !Array.isArray(data?.json.events)) return [];
                 const t0 = performance.now();

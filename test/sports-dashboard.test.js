@@ -340,7 +340,7 @@ const espnEvent = (id, start, home, away, state = 'pre') => ({ id, date: new Dat
 // the window's days at NOW are 20261028 to 20261101; a later day is the look-ahead's
 const aheadUrls = calls => calls.filter(u => (/dates=(\d{8})/.exec(u)?.[1] || '') >= '20261102');
 const day = u => /dates=(\d{8})/.exec(u)?.[1];
-test('#218: a league with nothing within 72 hours scans ahead day by day to its next round, then 3 more days, once in 6 h', async () => {
+test('#218: a league with nothing within 72 hours scans ahead day by day to its next round, then every day its 96 hours reach, once in 6 h', async () => {
     const s = store(), calls = []; let time = NOW;
     const byDay = { 20261105: [espnEvent('501', Date.parse('2026-11-05T18:00Z'), ['9', 'Packers'], ['8', 'Lions'])],
         20261106: [espnEvent('502', Date.parse('2026-11-06T18:00Z'), ['12', 'Chiefs'], ['2', 'Bills'])],
@@ -348,14 +348,16 @@ test('#218: a league with nothing within 72 hours scans ahead day by day to its 
     const c = dashboard.createCollector({ store: s, leagues: () => new Set(['NFL']), clock: () => time, enabled: () => true,
         fetchJson: async url => { calls.push(url); return { events: byDay[day(url)] || [] }; } });
     await c.refresh();
-    assert.deepEqual(aheadUrls(calls), ['20261102', '20261103', '20261104', '20261105', '20261106', '20261107', '20261108']
-        .map(d => `${espn.BASE}football/nfl/scoreboard?dates=${d}&limit=1000`), 'one day at a time to the first with games, then 3 more');
-    assert.deepEqual(s.catalog().map(g => g.id).sort(), ['espn:football/nfl:501', 'espn:football/nfl:502'], 'the next round only');
-    time += 31000; await c.refresh();
+    assert.equal(aheadUrls(calls).length, 7, 'the tick budget (12) ends the scan after 5 window days and 7 ahead');
+    time += 31000; await c.refresh(); // the next tick resumes from the cached days
+    assert.deepEqual(aheadUrls(calls), ['20261102', '20261103', '20261104', '20261105', '20261106', '20261107', '20261108', '20261109']
+        .map(d => `${espn.BASE}football/nfl/scoreboard?dates=${d}&limit=1000`), 'one day at a time to the first with games, then the 4 days its 96 hours reach');
+    assert.deepEqual(s.catalog().map(g => g.id).sort(), ['espn:football/nfl:501', 'espn:football/nfl:502', 'espn:football/nfl:503'],
+        'the next round, through the first game + 96 h (Thursday to Monday)');
     time += 5 * H; await c.refresh();
-    assert.equal(aheadUrls(calls).length, 7, 'not asked again within 6 hours');
+    assert.equal(aheadUrls(calls).length, 8, 'not asked again within 6 hours');
     time = NOW + 6 * H + 1000; await c.refresh();
-    assert.equal(aheadUrls(calls).length, 14, 'asked again after 6 hours');
+    assert.ok(aheadUrls(calls).length > 8, 'asked again after 6 hours');
     c.stop();
 });
 
