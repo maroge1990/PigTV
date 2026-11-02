@@ -5,9 +5,9 @@
  *
  *   sports  one row per followed league, in the account's order with those playing now first (D-43): how many are
  *           live, the next start, and `line` ('live' | 'next' | 'quiet'; the client words and formats it)
- *   follows one per followed team or driver, in the account's order with those playing now first (D-43): live now,
- *           next, or nothing (`state`), with the card it points at and its badge (#213: from the catalogue or roster
- *           when no card has one)
+ *   follows one per followed team or driver: those playing now first (D-43, in the account's order), then by next
+ *           start, then those with nothing in range, ties by name (#215): live now, next, or nothing (`state`), with
+ *           the card it points at and its badge (#213: from the catalogue or roster when no card has one)
  *   hero    the one card the page leads with (rule below); stickiness and the long-press override are the client's
  *   rails   per followed league, leagues with a game on now first (D-41), then the account's order; card ids: live first
  *           (earliest start), then today's finals (latest first), then the rest
@@ -84,8 +84,17 @@ function arrange(response, prefs, { logoFor = () => null } = {}) {
             gameId: pick?.id ?? null, start: pick?.start ?? null });
         followed.push(new Set(cards.map(g => g.id)));
     }
-    // 0427 (D-43): a follow playing now moves to the top; `followed` keeps step, so the hero's followIndex points into it.
-    const moved = playingFirst(follows.map((f, i) => i), i => follows[i].state === 'live');
+    // 0427 (D-43): a follow playing now moves to the top, in the account's order; #215: then the rest by their next
+    // start (soonest first), then those with nothing in range, ties and that last group by name. `followed` keeps step,
+    // so the hero's followIndex points into it.
+    const byName = (a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || a.name.localeCompare(b.name);
+    const soonest = (i, j) => {
+        const a = follows[i], b = follows[j];
+        if ((a.state === 'none') !== (b.state === 'none')) return a.state === 'none' ? 1 : -1;
+        return (a.state === 'none' ? 0 : a.start - b.start) || byName(a, b) || i - j;
+    };
+    const all = follows.map((f, i) => i), isOn = i => follows[i].state === 'live';
+    const moved = [...all.filter(isOn), ...all.filter(i => !isOn(i)).sort(soonest)];
     [follows, followed] = [moved.map(i => follows[i]), moved.map(i => followed[i])];
     const followIndexOf = card => { const i = followed.findIndex(ids => ids.has(card.id)); return i >= 0 ? i : null; };
 

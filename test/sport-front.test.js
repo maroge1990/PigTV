@@ -319,7 +319,7 @@ test('arrange: a team followed in a sport is one follow across its leagues, and 
     assert.deepEqual(f.hero, { reason: 'follow-next', followIndex: 0, gameId: 'espn:soccer/uefa.champions:2' });
 });
 
-test('0427 (D-43 points 3 and 5): sports and follows keep the account\'s order, with what plays now (live, break, suspended, on air) first', () => {
+test('0427 (D-43 points 3 and 5): sports keep the account\'s order and follows theirs while playing, with what plays now (live, break, suspended, on air) first', () => {
     const { arrange } = load('services/sportFront');
     const now = Date.now();
     const card = (id, league, status, extra) => ({ id, league, start: now - H, end: null, status, followed: true, freshness: 'fresh',
@@ -340,13 +340,45 @@ test('0427 (D-43 points 3 and 5): sports and follows keep the account\'s order, 
     const f = arrange({ now, timezone: 'Etc/GMT', games, followMatches }, prefs);
     assert.deepEqual(f.sports.map(s => s.league), ['NBA', 'ATP Tour', 'NFL', 'AFL', 'NBL', 'PGA Tour']);
     assert.deepEqual(f.follows.map(x => [x.name, x.state]), [['Boston Celtics', 'live'], ['Jannik Sinner', 'live'], ['Green Bay Packers', 'live'],
-        ['Carlton', 'next'], ['Melbourne United', 'next'], ['Scottie Scheffler', 'none']]);
+        ['Melbourne United', 'next'], ['Carlton', 'next'], ['Scottie Scheffler', 'none']]); // #215: the rest by next start
     // The hero's followIndex points into the reordered list: the follow-live card closest to finishing (NFL's, typical 3.25 h).
     assert.equal(f.follows[f.hero.followIndex].gameId, f.hero.gameId);
     // Once it ends, a follow goes back to its place.
     const later = arrange({ now, timezone: 'Etc/GMT', followMatches, games: games.map(g => g.id === 'espn:nba:1' ? { ...g, status: 'finished' } : g) }, prefs);
-    assert.deepEqual(later.follows.map(x => x.name).slice(2), ['Carlton', 'Boston Celtics', 'Melbourne United', 'Scottie Scheffler']);
+    assert.deepEqual(later.follows.map(x => x.name).slice(2), ['Melbourne United', 'Carlton', 'Boston Celtics', 'Scottie Scheffler']);
     assert.deepEqual(later.sports.map(s => s.league), ['ATP Tour', 'NFL', 'AFL', 'NBA', 'NBL', 'PGA Tour']);
+});
+
+test('#215: follows run live (account order), then soonest next start, then no fixture, ties and the last group by name', () => {
+    const { arrange } = load('services/sportFront');
+    const now = Date.now();
+    const card = (id, league, status, start) => ({ id, league, start, end: null, status, followed: true, freshness: 'fresh',
+        competitors: [], channels: [], canWatch: false });
+    const prefs = { spoilerFree: false, sports: [
+        { sport: 'Australian football', leagues: ['AFL'], teams: ['carlton', 'Richmond', 'Adelaide Crows'] },
+        { sport: 'Basketball', leagues: ['NBA'], teams: ['Utah Jazz', 'Boston Celtics', 'Chicago Bulls', 'Atlanta Hawks'] },
+        { sport: 'American football', leagues: ['NFL'], teams: ['Green Bay Packers', 'Buffalo Bills'] }] };
+    const games = [card('afl:r', 'AFL', 'scheduled', now + 30 * H), card('nba:u', 'NBA', 'live', now - H),
+        card('nba:b', 'NBA', 'scheduled', now + 2 * H), card('nba:c', 'NBA', 'scheduled', now + 2 * H),
+        card('nfl:p', 'NFL', 'scheduled', now + 5 * H), card('nfl:b', 'NFL', 'break', now - 2 * H)];
+    const followMatches = { 'afl:r': [{ name: 'Richmond', competitor: null }], 'nba:u': [{ name: 'Utah Jazz', competitor: null }],
+        'nba:b': [{ name: 'Boston Celtics', competitor: null }], 'nba:c': [{ name: 'Chicago Bulls', competitor: null }],
+        'nfl:p': [{ name: 'Green Bay Packers', competitor: null }], 'nfl:b': [{ name: 'Buffalo Bills', competitor: null }] };
+    const f = arrange({ now, timezone: 'Etc/GMT', games, followMatches }, prefs);
+    assert.deepEqual(f.follows.map(x => [x.name, x.state]), [
+        ['Utah Jazz', 'live'], ['Buffalo Bills', 'live'], // playing now, in the account's order
+        ['Boston Celtics', 'next'], ['Chicago Bulls', 'next'], // +2 h, a tie, by name
+        ['Green Bay Packers', 'next'], ['Richmond', 'next'], // +5 h, +30 h
+        ['Adelaide Crows', 'none'], ['Atlanta Hawks', 'none'], ['carlton', 'none']]); // no fixture, by name (any case)
+    assert.equal(f.hero.reason, 'follow-live');
+    assert.equal(f.follows[f.hero.followIndex].gameId, f.hero.gameId);
+    // With nothing live the hero is the soonest follow, the first of the list.
+    const quiet = arrange({ now, timezone: 'Etc/GMT', followMatches, games: games.filter(g => g.status === 'scheduled') }, prefs);
+    assert.equal(quiet.hero.reason, 'follow-next');
+    assert.equal(quiet.follows[quiet.hero.followIndex].gameId, quiet.hero.gameId);
+    assert.equal(quiet.follows[quiet.hero.followIndex].name, 'Boston Celtics');
+    // sports[] keeps the account's order, playing now first (unchanged).
+    assert.deepEqual(f.sports.map(s => s.league), ['NBA', 'NFL', 'AFL']);
 });
 
 test('#213: a followed cricket nation and AFL club with no card in range carry their ESPN badge (catalogue, then roster)', async () => {

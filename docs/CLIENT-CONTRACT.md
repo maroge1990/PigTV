@@ -684,8 +684,8 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
     (no score data at all: the page says so once; since 0390 there are then no cards, #194).
   - `sports[]`, in the household's order: `{ league, live (count), next: { gameId, start } | null, line }`; `line`
     is `"live"` | `"next"` | `"quiet"` (the client words it: "Race live", "2 live", a start time, "Nothing scheduled").
-  - `follows[]`, one per followed team or driver in the household's order: `{ league, name, logo, state, gameId,
-    start }`; `state` `"live"` | `"next"` | `"none"`; `logo` the competitor's logo-cache path or null (drivers: null).
+  - `follows[]`, one per followed team or driver (order: the 0427 and 0433 bullets below): `{ league, name, logo, state,
+    gameId, start }`; `state` `"live"` | `"next"` | `"none"`; `logo` the competitor's logo-cache path or null (drivers: null).
   - `hero`: `{ reason, followIndex, gameId }`. `reason`: `"follow-live"` (a follow is live; the one closest to
     finishing wins a tie: the card's `end`, else its start plus a typical duration for the sport) | `"league-live"` (a live game in the highest-ranked followed sport) | `"follow-next"` (the
     next start for a follow) | `"none"` (`"guide"` is no longer sent since 0390, #194). The client keeps
@@ -720,6 +720,10 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
   `live`, `break`, `suspended` or `onAir`). Each part, playing and not, stays in the account's order. `hero.followIndex`
   points into the reordered `follows[]`. Draw both lists in the order sent (the banner's list on the front page and a
   sport page's leagues); the sport tiles are gone (D-43 point 5). Replaces C-U's "`sports[]` keeps the account's order".
+- Since 0433 (#215): `follows[]` no longer keeps the account's order. Those playing now (`state: "live"`) still come
+  first, in the account's order; then every `"next"` follow by its `start`, soonest first; then the `"none"` ones. Equal
+  starts and the `"none"` group go by name (case-insensitive). `sports[]` is unchanged (the account's order, playing now
+  first), and `hero.followIndex` points into the reordered `follows[]`.
 - Since 0433 (#213): a follow with no card in range (`state: "none"`, or a card without a badge) still carries `logo`
   when ESPN has one for that team: from the score catalogue's earlier or later games of its leagues, else the league's
   ESPN roster. Only drivers and riders (F1, MotoGP, Supercars) and teams ESPN has no badge for stay null (monogram).
