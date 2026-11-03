@@ -27,3 +27,6 @@ Checks (T1–T3, all on the Mac's simulators):
   server opens the same sign-out confirmation, then Sign in at the server. "Try now" as the board says.
 - Not checked: device (T5): the TV's focus moving between the menu and the page; Sign in's Continue against a real
   server; pairing end to end.
+
+**Codex** (base 88b48e3): round 1, no high; one medium (Score delay hidden on a default server, though the front page applies
+the delay) fixed in server 0446 and Apple 134. No round 2.
