@@ -15,6 +15,9 @@
 #                                  loop and the sport collector's counters each minute, and time one Grand Slam's ESPN
 #                                  answer (parse and normalise). Timings and sizes only. Run once with the collector on
 #                                  and once off (PIGTV_RIG_SPORTS_DASHBOARD=0 up) to compare.
+#   scripts/unraid-rig.sh overrun-t3   #217's T3 (needs PIGTV_RIG_SCORES=fake up): follow the EPL, record the scripted game
+#                                  from ITV1's guide, follow its C-M endsWith/overrun/stopsAt each 30 s while it plays past the
+#                                  guide end, then check it stopped at final + post-padding. Timings and API answers only.
 #   scripts/unraid-rig.sh status   what is running, resource use, disk, production's uptime and image (read only)
 #   scripts/unraid-rig.sh test     sync, then npm test (PIGTV_SKIP_PERF=1) and verify-build.sh in a throwaway runner
 #   scripts/unraid-rig.sh down     stop and remove the rig's containers (data kept)
@@ -33,6 +36,14 @@
 #   PIGTV_RIG_SPORTS_DASHBOARD  0 turns staging's sport score collector off (#29's comparison); default on, as the server's.
 #   PIGTV_RIG_SPORT_FIXTURES  1 lets staging fetch ESPN's free sport feeds (the sport pages, C-P); default 0. ESPN is
 #                         not a provider: no provider connection is opened either way.
+#   PIGTV_RIG_SCORES      fake: staging reads its sport scores from scripts/fake-scores.js (pigtv-test-scores) instead of
+#                         ESPN, one scripted Premier League game that the fakes' guide airs on ITV1 (#217's T3). It runs
+#                         on the private network pigtv-test-net under ESPN's and the sport feeds' host names, over HTTPS
+#                         with a rig-only CA that only staging trusts (NODE_EXTRA_CA_CERTS), so nothing in the server
+#                         changes; staging's fixtures are on (as PIGTV_RIG_SPORT_FIXTURES=1) and touch no real feed.
+#                         Unset: as before (real ESPN with PIGTV_RIG_SPORT_FIXTURES=1, else none).
+#   PIGTV_RIG_GAME_LEAD_MIN  minutes from `up` to the scripted kick-off (8); PIGTV_RIG_GAME_GUIDE_MIN its guide slot (8);
+#                         PIGTV_RIG_GAME_FINAL_MIN when it goes final, minutes after kick-off (20)
 #
 # Limits on every container (Mark, 30 Oct): <= 3 CPUs, cpu-shares 256, <= 6 GB, --restart no, names pigtv-test-*,
 # data only under PIGTV_RIG_ROOT (keep it under 20 GB).
@@ -49,6 +60,10 @@ CREDS="${PIGTV_RIG_CREDS:-${XDG_STATE_HOME:-$HOME/.local/state}/pigtv-rig/stagin
 FAKE_FLAGS="${PIGTV_RIG_FAKE_FLAGS:---fps 15 --size 480x270 --uhd-size 640x360 --video-kbps 400}"
 PROD="${PIGTV_RIG_PROD:-PigTV}"
 TZ_RIG="${PIGTV_RIG_TZ:-Australia/Sydney}"
+SCORES="${PIGTV_RIG_SCORES:-}"
+GAME_LEAD_MIN="${PIGTV_RIG_GAME_LEAD_MIN:-8}"
+GAME_GUIDE_MIN="${PIGTV_RIG_GAME_GUIDE_MIN:-8}"
+GAME_FINAL_MIN="${PIGTV_RIG_GAME_FINAL_MIN:-20}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Container names and caps. Fixed on purpose: these are the agreed limits.
@@ -56,6 +71,10 @@ STAGING=pigtv-test-staging
 FAKE_A=pigtv-test-fake-a
 FAKE_B=pigtv-test-fake-b
 RUNNER=pigtv-test-runner
+SCORES_C=pigtv-test-scores
+NET=pigtv-test-net
+# PIGTV_RIG_SCORES=fake: every sport host the server reads (sportsScoresEspn, sportPage*, sportFeeds) is the fake
+SCORE_HOSTS=(site.api.espn.com sports.core.api.espn.com aflapi.afl.com.au mc.championdata.com api.motogp.pulselive.com www.supercars.com)
 CAPS=(--restart no --pull never --cpu-shares 256)
 RUNTIME_UID=99:100
 
@@ -63,9 +82,11 @@ die() { echo "unraid-rig: $*" >&2; exit 1; }
 say() { echo "== $*"; }
 
 # Every value that is pasted into a remote command line must be plain.
-for v in "$HOST" "$ROOT" "$IMAGE" "$PORT" "$FAKE_PORT" "$FAKE_B_PORT" "$PROD" "$TZ_RIG" "$LAN_IP"; do
+for v in "$HOST" "$ROOT" "$IMAGE" "$PORT" "$FAKE_PORT" "$FAKE_B_PORT" "$PROD" "$TZ_RIG" "$LAN_IP" "$SCORES"; do
     [[ "$v" =~ ^[A-Za-z0-9_./:@+-]*$ ]] || die "unsafe setting: '$v'"
 done
+[[ "$SCORES" =~ ^(|fake)$ ]] || die "PIGTV_RIG_SCORES must be fake or unset"
+for v in "$GAME_LEAD_MIN" "$GAME_GUIDE_MIN" "$GAME_FINAL_MIN"; do [[ "$v" =~ ^[0-9]{1,3}$ ]] || die "game minutes must be numbers"; done
 [[ "$FAKE_FLAGS" =~ ^[A-Za-z0-9_.=x\ -]*$ ]] || die "unsafe PIGTV_RIG_FAKE_FLAGS"
 [[ "$ROOT" == /mnt/*/appdata/pigtv-test* ]] || die "PIGTV_RIG_ROOT must be under /mnt/*/appdata/pigtv-test"
 
@@ -104,16 +125,57 @@ cmd_sync() {
 
 # -------------------------------------------------------------------- up ---
 run_fake() { # name port profile
-    local name="$1" port="$2" profile="$3"
+    local name="$1" port="$2" profile="$3" game=""
+    [ -z "$GAME_AT" ] || game="--game-at $GAME_AT --game-guide-min $GAME_GUIDE_MIN"
     rsh "docker run -d --name $name ${CAPS[*]} --no-healthcheck --cpus 1.5 --memory 512m --user $RUNTIME_UID \
            -e HOME=/tmp -e TZ=$TZ_RIG -p $port:$port -v '$SRC':/src:ro -w /src --entrypoint node '$IMAGE' \
-           scripts/fake-provider.js --host 0.0.0.0 --port $port --profile $profile $FAKE_FLAGS >/dev/null"
+           scripts/fake-provider.js --host 0.0.0.0 --port $port --profile $profile $FAKE_FLAGS $game >/dev/null"
+}
+
+# PIGTV_RIG_SCORES=fake: a CA made here for the rig alone (its key is thrown away) and a certificate for SCORE_HOSTS,
+# kept in $ROOT/scores; only the staging container trusts the CA.
+score_certs() {
+    rsh "test -s '$ROOT/scores/leaf.pem' && test -s '$ROOT/scores/ca.pem'" && return 0
+    command -v openssl >/dev/null || die "openssl is needed to make the rig's score certificate"
+    local d; d="$(mktemp -d)"
+    local san; san="$(printf 'DNS:%s,' "${SCORE_HOSTS[@]}")"
+    ( cd "$d"
+      openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj "/CN=PigTV rig test CA (not trusted anywhere else)" \
+          -addext basicConstraints=critical,CA:TRUE -addext keyUsage=critical,keyCertSign -keyout ca.key -out ca.pem 2>/dev/null
+      openssl req -newkey rsa:2048 -nodes -subj "/CN=pigtv-test-scores" -keyout leaf.key -out leaf.csr 2>/dev/null
+      printf 'subjectAltName=%s\nextendedKeyUsage=serverAuth\nbasicConstraints=CA:FALSE\n' "${san%,}" > ext
+      openssl x509 -req -in leaf.csr -CA ca.pem -CAkey ca.key -CAcreateserial -days 3650 -extfile ext -out leaf.pem 2>/dev/null )
+    [ -s "$d/leaf.pem" ] || die "could not make the score certificate"
+    rsh "mkdir -p '$ROOT/scores'"
+    tar -C "$d" -cf - ca.pem leaf.pem leaf.key | rsh "tar -C '$ROOT/scores' -xf - && chown -R $RUNTIME_UID '$ROOT/scores' && chmod 600 '$ROOT/scores/leaf.key'"
+    rm -rf "$d"
+    echo "   made the rig's score certificate in $ROOT/scores"
+}
+
+run_scores() {
+    score_certs
+    local aliases; aliases="$(printf -- '--network-alias %s ' "${SCORE_HOSTS[@]}")"
+    rsh "docker network inspect $NET >/dev/null 2>&1 || docker network create $NET >/dev/null
+         docker run -d --name $SCORES_C ${CAPS[*]} --no-healthcheck --cpus 0.5 --memory 128m --user $RUNTIME_UID \
+           --network $NET $aliases --sysctl net.ipv4.ip_unprivileged_port_start=0 \
+           -e HOME=/tmp -e TZ=$TZ_RIG -v '$SRC':/src:ro -v '$ROOT/scores':/certs:ro -w /src --entrypoint node '$IMAGE' \
+           scripts/fake-scores.js --host 0.0.0.0 --port 443 --cert /certs/leaf.pem --key /certs/leaf.key \
+           --game-at $GAME_AT --guide-min $GAME_GUIDE_MIN --final-min $GAME_FINAL_MIN >/dev/null"
 }
 
 cmd_up() {
     cmd_sync
     lan_ip
-    rsh "docker rm -f $STAGING $FAKE_A $FAKE_B >/dev/null 2>&1 || true"
+    rsh "docker rm -f $STAGING $FAKE_A $FAKE_B $SCORES_C >/dev/null 2>&1 || true"
+    GAME_AT="" STAGING_NET="" FIXTURES="${PIGTV_RIG_SPORT_FIXTURES:-0}"
+    if [ "$SCORES" = fake ]; then
+        GAME_AT="$(date -u -d "+$GAME_LEAD_MIN min" +%FT%TZ)"
+        say "fake scores (pigtv-test-scores on $NET): Premier League: Everton v Fulham on ITV1, kick-off $GAME_AT,"
+        echo "   guide slot $GAME_GUIDE_MIN min, final $GAME_FINAL_MIN min after kick-off"
+        run_scores
+        STAGING_NET="--network $NET -v '$ROOT/scores/ca.pem':/rig-ca.pem:ro -e NODE_EXTRA_CA_CERTS=/rig-ca.pem"
+        FIXTURES=1
+    fi
     for p in "$PORT" "$FAKE_PORT" "$FAKE_B_PORT"; do
         [ "$p" = 0 ] && continue
         [ -z "$(rsh "ss -ltnH 'sport = :$p'")" ] || die "port $p is already in use on $HOST"
@@ -133,7 +195,7 @@ cmd_up() {
     rsh "set -e; mkdir -p '$ROOT/staging/data' '$ROOT/staging/recordings'
          chown $RUNTIME_UID '$ROOT/staging/data' '$ROOT/staging/recordings'
          docker run -d --name $STAGING ${CAPS[*]} --cpus 3 --memory 4g -p $PORT:3000 \
-           -e TZ=$TZ_RIG -e PUID=99 -e PGID=100 -e NODE_ENV=production -e PIGTV_SPORT_FIXTURES=${PIGTV_RIG_SPORT_FIXTURES:-0} -e PIGTV_SPORTS_DASHBOARD=${PIGTV_RIG_SPORTS_DASHBOARD:-} \
+           -e TZ=$TZ_RIG -e PUID=99 -e PGID=100 -e NODE_ENV=production $STAGING_NET -e PIGTV_SPORT_FIXTURES=$FIXTURES -e PIGTV_SPORTS_DASHBOARD=${PIGTV_RIG_SPORTS_DASHBOARD:-} \
            -e PIGTV_COMMIT='rig-$rev' -e PIGTV_BUILT_AT=\$(date -u +%FT%TZ) \
            -v '$SRC/server':/app/server:ro -v '$SRC/public':/app/public:ro \
            -v '$SRC/scripts':/app/scripts:ro -v '$SRC/docker':/app/docker:ro \
@@ -338,7 +400,80 @@ async function measure() {
         loopLastMinute: { p99: stats(loop.map(x => x.p99)), max: stats(loop.map(x => x.max)) },
         collector: last ? { ticks: last.ticks, p95: last.p95, max: last.max } : null }));
 }
-(CFG.mode === 'seed' ? seed() : CFG.mode === 'measure' ? measure() : check()).catch(e => { console.error(`   ${e.message}`); process.exit(1); });
+// #217's T3 (PIGTV_RIG_SCORES=fake): record the scripted game from the guide, follow C-M while it plays past the guide
+// end, then check where it stopped. Times are minutes from kick-off; only timings and API fields are printed.
+async function overrunT3() {
+    await waitHealthy();
+    await signIn();
+    const fakeGame = async () => (await fetch('https://site.api.espn.com/fake/game')).json(); // the fake, by ESPN's name
+    let game;
+    try { game = await fakeGame(); } catch (e) { throw new Error(`no fake score source (up with PIGTV_RIG_SCORES=fake): ${e.cause?.code || e.message}`); }
+    const POST_MIN = 2, rel = (t) => t == null ? null : +((t - game.start) / 60000).toFixed(2);
+    const iso = (t) => new Date(t).toISOString();
+    console.log(`   game "${game.title}" ${game.id}: kick-off ${iso(game.start)}, guide end +${rel(game.guideEnd)}, final +${rel(game.finalAt)} (minutes from kick-off)`);
+    if (Date.now() > game.start - 30000) throw new Error('kick-off has passed: "up" again for a new scripted game');
+    // follow the EPL (the collector only reads followed or categorised leagues)
+    const { sports } = await api('GET', '/api/sports/catalog');
+    const soccer = sports.find(s => s.leagues.some(l => l.league === 'EPL'));
+    const mine = await api('GET', '/api/sports/follows');
+    const follows = (mine.sports || []).map(s => ({ sport: s.sport, leagues: [...s.leagues], ...(s.teams ? { teams: s.teams } : {}) }));
+    const entry = follows.find(s => s.sport === soccer.sport) || (follows.push({ sport: soccer.sport, leagues: [] }), follows[follows.length - 1]);
+    if (!entry.leagues.includes('EPL')) entry.leagues.push('EPL');
+    await api('PUT', '/api/sports/follows', { sports: follows });
+    // the guide's programme on Fake A's ITV1, as a client schedules it (no gameId: the title join links it)
+    const sources = await api('GET', '/api/sources');
+    const fakeA = sources.find(x => x.name === 'Fake A');
+    const g = await api('GET', '/api/library/guide?limit=200');
+    const ch = g.channels.find(c => Number(c.sourceId) === fakeA.id && /ITV1/.test(c.name));
+    const prog = ch && (ch.programmes || []).find(p => p.title === game.title);
+    if (!prog) throw new Error('the scripted programme is not in the guide (re-sync, or "up" again)');
+    const pStart = prog.startTime, pEnd = prog.endTime;
+    console.log(`   guide: "${prog.title}" on ${ch.name}, +${rel(pStart)} to +${rel(pEnd)}`);
+    const made = await api('POST', '/api/recordings/schedule', { sourceId: fakeA.id, channelItemId: ch.id, channelName: ch.name,
+        title: prog.title, programStart: pStart, programEnd: pEnd, preBufferMin: 0, postBufferMin: POST_MIN });
+    console.log(`   scheduled #${made.id}: answer endsWith=${made.endsWith} stopsAt=+${rel(made.stopsAt)} (post-padding ${POST_MIN} min)`);
+    const floor = pEnd + POST_MIN * 60000;
+    const samples = [], fail = [];
+    let last = '';
+    const deadline = game.finalAt + 20 * 60000;
+    let row;
+    while (Date.now() < deadline) {
+        const now = Date.now();
+        row = (await api('GET', '/api/recordings/scheduled?include=recent')).find(r => r.id === made.id);
+        const fg = await fakeGame();
+        // a schedule that has finished leaves the list (include=recent keeps only failed and missed ones)
+        const s = { at: rel(now), espn: fg.state, status: row ? row.status : 'not listed', endsWith: row?.endsWith, overrun: row?.overrun === true, stopsAt: rel(row?.stopsAt) };
+        samples.push({ ...s, now, stopsAtMs: row?.stopsAt });
+        const key = `${s.espn}|${s.status}|${s.endsWith}|${s.overrun}`;
+        if (key !== last || samples.length % 4 === 0) console.log(`   +${s.at.toFixed(1)}: espn ${s.espn}, ${s.status}, endsWith ${s.endsWith}, overrun ${s.overrun}, stopsAt +${s.stopsAt}`);
+        last = key;
+        if (row ? !['scheduled', 'waiting', 'recording'].includes(row.status) : samples.some(x => x.status === 'recording')) break;
+        await sleep(30000);
+    }
+    const rec = (await api('GET', '/api/recordings')).find(r => r.scheduled_id === made.id);
+    const fg = await fakeGame();
+    const stopTarget = fg.finalAt + POST_MIN * 60000;
+    console.log(`   schedule #${made.id} ended ${row ? row.status : '(no longer listed)'}; recording #${rec?.id} ${rec?.status}: +${rel(rec?.started_at)} to +${rel(rec?.ended_at)},`
+        + ` ${rec?.duration_sec} s, ${Math.round((rec?.file_size_bytes || 0) / 1048576)} MB; final + post-padding = +${rel(stopTarget)}, floor +${rel(floor)}`);
+    // the checks (C-M, #217)
+    const linked = samples.filter(x => x.status === 'recording');
+    if (!linked.length) fail.push('it never recorded');
+    if (linked.some(x => x.endsWith !== 'event')) fail.push('a recording sample was not endsWith "event"');
+    const over = samples.filter(x => x.status === 'recording' && x.espn === 'in' && x.now > floor + 60000);
+    if (!over.length) fail.push('no sample while live past the guide end + post-padding');
+    if (over.some(x => !x.overrun || !(x.stopsAtMs > x.now))) fail.push('live past the floor without overrun:true and a stopsAt ahead');
+    if (samples.some(x => x.status === 'recording' && x.now < floor - 60000 && x.overrun)) fail.push('overrun before the floor');
+    if (!rec || !['completed', 'recording'].includes(rec.status) || rec.status === 'recording') fail.push(`recording not completed (${rec?.status})`);
+    const late = rec?.ended_at ? (rec.ended_at - stopTarget) / 1000 : NaN;
+    console.log(`   stopped ${Number.isFinite(late) ? late.toFixed(0) : '?'} s after final + post-padding (the collector polls a hot game every 30 s)`);
+    if (!(late >= -5 && late <= 120)) fail.push(`stop ${late} s from final + post-padding (allowed -5..120)`);
+    console.log(JSON.stringify({ game: { start: iso(game.start), guideEndMin: rel(game.guideEnd), finalMin: rel(fg.finalAt) }, postMin: POST_MIN,
+        floorMin: rel(floor), stopTargetMin: rel(stopTarget), recording: rec ? { status: rec.status, startMin: rel(rec.started_at), endMin: rel(rec.ended_at), durationSec: rec.duration_sec } : null,
+        samples: samples.map(({ now, stopsAtMs, ...x }) => x) }));
+    if (fail.length) { console.log(`   T3 FAILED: ${fail.join('; ')}`); process.exit(1); }
+    console.log('   T3 passed');
+}
+(CFG.mode === 'seed' ? seed() : CFG.mode === 'measure' ? measure() : CFG.mode === 'overrun' ? overrunT3() : check()).catch(e => { console.error(`   ${e.message}`); process.exit(1); });
 JS
     } | rsh "docker exec -i -u $RUNTIME_UID $STAGING node -"
 }
@@ -416,7 +551,8 @@ cmd_status() {
 
 cmd_down() {
     say "remove the rig's containers"
-    rsh "docker rm -f $STAGING $FAKE_A $FAKE_B $RUNNER 2>/dev/null | sed 's/^/   removed /' || true"
+    rsh "docker rm -f $STAGING $FAKE_A $FAKE_B $SCORES_C $RUNNER 2>/dev/null | sed 's/^/   removed /' || true
+         docker network rm $NET >/dev/null 2>&1 || true"
 }
 
 cmd_reset() {
@@ -430,10 +566,11 @@ case "${1:-}" in
     sync) cmd_sync ;;
     up) cmd_up ;;
     check) cmd_check ;;
+    overrun-t3) [ -f "$CREDS" ] || die "no $CREDS: run '$0 up' first"; say "#217 T3: a recording follows its game past the guide end"; staging_node overrun "${2:-60}" ;;
     measure-collector) [ -f "$CREDS" ] || die "no $CREDS: run '$0 up' first"; say "measure the sport collector (#29)"; staging_node measure "${2:-10}" ;;
     status) cmd_status ;;
     test) cmd_test ;;
     down) cmd_down ;;
     reset) cmd_reset ;;
-    *) sed -n '3,30p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+    *) sed -n '3,/^# Limits/p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

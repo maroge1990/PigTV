@@ -180,12 +180,14 @@ function hash(s) {
 /**
  * Programmes for one guide id between `from` and `to` (ms): the anchored events, filler in
  * between (30 or 60 min, aligned, never the same title twice running). -> [{ start, stop, title,
- * desc, categories, flag, episode }]
+ * desc, categories, flag, episode }]. `scripted`: [{ tvgs, start, stop, title, categories, flag }] at absolute times.
  */
-function programmesFor(tvg, anchor, from, to) {
+function programmesFor(tvg, anchor, from, to, scripted = []) {
     const events = EVENTS.filter(e => e[0].includes(tvg))
-        .map(([, s, len, title, categories, flag]) => ({ start: anchor + s * MIN, stop: anchor + (s + len) * MIN, title, categories, flag,
-            desc: `${title}. A made-up listing from the fake provider.` }))
+        .map(([, s, len, title, categories, flag]) => ({ start: anchor + s * MIN, stop: anchor + (s + len) * MIN, title, categories, flag }))
+        // --game-at: fake-scores.js's scripted game, at absolute times (it replaces nothing: ITV1 carries no other event)
+        .concat(scripted.filter(e => e.tvgs.includes(tvg)).map(({ tvgs, ...e }) => e))
+        .map(e => ({ ...e, desc: `${e.title}. A made-up listing from the fake provider.` }))
         .filter(e => e.stop > from && e.start < to)
         .sort((x, y) => x.start - y.start);
     const pool = fillerPool(tvg);
@@ -221,7 +223,7 @@ function guideWindow(now) {
     return { from: Math.floor((now - 24 * HOUR) / HOUR) * HOUR, to: Math.ceil((now + 72 * HOUR) / HOUR) * HOUR };
 }
 
-function xmltvDocument(lineup, base, anchor, now) {
+function xmltvDocument(lineup, base, anchor, now, scripted = []) {
     const { from, to } = guideWindow(now);
     const ids = [...new Set(lineup.map(c => c.tvg).filter(Boolean))];
     const logoOf = new Map();
@@ -231,7 +233,7 @@ function xmltvDocument(lineup, base, anchor, now) {
         parts.push(`  <channel id="${xml(id)}"><display-name>${xml(GUIDE_NAMES[id] || id)}</display-name><icon src="${xml(logoOf.get(id))}"/></channel>\n`);
     }
     for (const id of ids) {
-        for (const p of programmesFor(id, anchor, from, to)) {
+        for (const p of programmesFor(id, anchor, from, to, scripted)) {
             parts.push(`  <programme start="${xmltvTime(p.start)}" stop="${xmltvTime(p.stop)}" channel="${xml(id)}">` +
                 `<title lang="en">${xml(p.title)}</title><desc lang="en">${xml(p.desc)}</desc>` +
                 p.categories.map(c => `<category lang="en">${xml(c)}</category>`).join('') +
@@ -456,7 +458,7 @@ class HlsSession {
 const DEFAULTS = {
     profile: 'a', user: 'pigtv', pass: 'fake', channels: 4, maxConnections: 4, enforceLimit: true, expiresDays: 365,
     size: '640x360', uhdSize: '960x540', fps: 25, videoKbps: 600, lingerMs: 5000, stallAfter: 20, closeAfter: 20,
-    reanchorHours: 3, ffmpegPath: 'ffmpeg', fontFile: null, publicUrl: null, quiet: false, anchor: null,
+    reanchorHours: 3, ffmpegPath: 'ffmpeg', fontFile: null, publicUrl: null, quiet: false, anchor: null, gameAt: null, gameGuideMin: 10,
     heaacFile: path.join(__dirname, '..', 'test', 'fixtures', 'synthetic-heaac.aac')
 };
 
@@ -479,6 +481,8 @@ function createFakeProvider(options = {}) {
         if (!o.anchor && o.reanchorHours > 0 && now - anchor >= o.reanchorHours * HOUR) anchor = halfHour(now);
         return anchor;
     };
+    // --game-at: the scripted game of scripts/fake-scores.js in the guide (the rig's PIGTV_RIG_SCORES=fake, #217's T3)
+    const scripted = o.gameAt ? [require('./fake-scores').scriptedGame({ at: o.gameAt, guideMin: o.gameGuideMin }).programme()] : [];
     const heaacOk = fs.existsSync(o.heaacFile);
     let aacMainFile = null;
     if (heaacOk) {
@@ -544,7 +548,7 @@ function createFakeProvider(options = {}) {
         if (!c || !c.tvg) return { epg_listings: [] };
         const now = Date.now();
         const b64 = (s) => Buffer.from(String(s)).toString('base64');
-        return { epg_listings: programmesFor(c.tvg, currentAnchor(now), now - 4 * HOUR, now + 24 * HOUR).filter(p => p.stop > now).slice(0, limit)
+        return { epg_listings: programmesFor(c.tvg, currentAnchor(now), now - 4 * HOUR, now + 24 * HOUR, scripted).filter(p => p.stop > now).slice(0, limit)
             .map((p, i) => ({ id: String(p.start / 1000 + i), epg_id: '1', title: b64(p.title), lang: 'en', start: sqlTime(p.start), end: sqlTime(p.stop),
                 description: b64(p.desc), channel_id: c.tvg, start_timestamp: String(p.start / 1000), stop_timestamp: String(p.stop / 1000) })) };
     }
@@ -658,6 +662,7 @@ function createFakeProvider(options = {}) {
             profile: o.profile, title: profile.title, uptimeSec: Math.round((Date.now() - startedAt) / 1000), anchor: new Date(anchor).toISOString(),
             ffmpeg: caps, channels: lineup.length, maxConnections: o.maxConnections, connections: connectionCount(), requests,
             overrides: Object.fromEntries(overrides),
+            game: scripted.length ? { title: scripted[0].title, tvg: scripted[0].tvgs[0], start: new Date(scripted[0].start).toISOString(), guideEnd: new Date(scripted[0].stop).toISOString() } : null,
             generators: [...feeds.values()].filter(f => f.proc).map(f => ({ id: f.channel.id, name: f.channel.name, pid: f.proc.pid,
                 readers: f.readers.size, runningSec: Math.round((Date.now() - f.startedAt) / 1000), bytes: f.bytes, starts: f.starts })),
             readers: [...tsConnections].map(c => ({ id: c.channel, sec: Math.round((Date.now() - c.since) / 1000), bytes: c.bytes, stalled: !!c.reader?.stalled })),
@@ -690,7 +695,7 @@ function createFakeProvider(options = {}) {
             requests.xmltv++;
             if (!authed(q.get('username'), q.get('password'))) return send(res, 401, 'text/plain', 'Unauthorized');
             const now = Date.now();
-            return send(res, 200, 'application/xml; charset=utf-8', xmltvDocument(lineup, baseOf(req), currentAnchor(now), now));
+            return send(res, 200, 'application/xml; charset=utf-8', xmltvDocument(lineup, baseOf(req), currentAnchor(now), now, scripted));
         }
         if (p === '/fake/status') return json(res, status());
         if (p === '/fake/fail') return req.method === 'POST' ? fail(res, q) : send(res, 405, 'text/plain', 'POST only');
@@ -747,6 +752,8 @@ const USAGE = `Usage: node scripts/fake-provider.js [options]
   --stall-after S      the stalling test channel stops sending after S s (20); --close-after S (20)
   --reanchor H         move the sport schedule to the current half hour every H hours (3; 0 = never)
   --anchor ISO         fix the sport schedule's anchor (implies no re-anchoring)
+  --game-at ISO        add scripts/fake-scores.js's scripted game (Premier League: Everton v Fulham) to ITV1's guide at
+                       this kick-off; --game-guide-min N its guide slot (10). Give fake-scores.js the same values
   --public-url URL     the address written into listings (default: the request's Host)
   --ffmpeg PATH        ffmpeg binary (ffmpeg); --font FILE a TTF for drawtext if ffmpeg has no default
   --quiet              no log lines`;
@@ -758,6 +765,7 @@ function parseArgs(argv) {
         '--channels': ['channels', num], '--max-connections': ['maxConnections', num], '--expires-days': ['expiresDays', num],
         '--size': ['size'], '--uhd-size': ['uhdSize'], '--fps': ['fps', num], '--video-kbps': ['videoKbps', num], '--linger-ms': ['lingerMs', num],
         '--stall-after': ['stallAfter', num], '--close-after': ['closeAfter', num], '--reanchor': ['reanchorHours', num], '--anchor': ['anchor'],
+        '--game-at': ['gameAt'], '--game-guide-min': ['gameGuideMin', num],
         '--public-url': ['publicUrl'], '--ffmpeg': ['ffmpegPath'], '--font': ['fontFile'] };
     for (let i = 0; i < argv.length; i++) {
         const a = argv[i];

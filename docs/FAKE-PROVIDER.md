@@ -24,6 +24,23 @@ carries the channel name and a clock; Homebrew's has none, so channels alternate
 race (four F1 channels plus Main Event) and a cricket Test and an AFL game are live; an EPL and an NFL game start
 within 30 minutes; replays, a delayed "(Live)" airing, magazines and filler fill the rest. Re-sync to pick up a move.
 
+## Scripted game (fake scores)
+
+`scripts/fake-scores.js` is a made-up ESPN score source for one game, so a test can steer a game past its guide slot
+(#217: a recording rolls on while the game plays and stops at final + post-padding). It answers the paths the server's
+score collector and fixtures read: the game on `soccer/eng.1/scoreboard` (any `?dates=`), its two teams on `/teams`,
+an empty scoreboard for every other league and an empty cricket scorepanel; anything else is 404.
+
+```bash
+node scripts/fake-scores.js --game-at 2026-11-04T09:00:00Z --guide-min 10 --final-min 25   # http://127.0.0.1:8443
+node scripts/fake-provider.js --game-at 2026-11-04T09:00:00Z --game-guide-min 10          # the same game on ITV1's guide
+```
+
+"Premier League: Everton v Fulham" kicks off at `--game-at`. ESPN says scheduled before then, live from then on (past
+its `--guide-min` slot) and final `--final-min` minutes after kick-off. `GET /fake/game` shows the timeline;
+`POST /fake/game?final=now|<minutes after kick-off>|<ISO>` moves the final. The server reads ESPN at fixed `https://`
+addresses, so it is pointed at the fake from outside (the rig below): no server setting exists for it.
+
 ## Channels (profile a)
 
 | Channels | For |
@@ -70,15 +87,26 @@ at 3 CPUs (1.5 for a fake), `--cpu-shares 256`, ≤ 6 GB and `--restart no`; eve
 |---|---|---|
 | `pigtv-test-fake-a` / `-fake-b` | 8290 / 8291 | Profiles a and b (b is the backup), `--fps 15 --size 480x270 --uhd-size 640x360 --video-kbps 400` |
 | `pigtv-test-staging` | 3100 | The synced `server/`, `public/`, `scripts/`, `docker/` mounted over the image's; data in `staging/`, HLS in a 1 GB tmpfs; `PIGTV_SPORT_FIXTURES=0` |
+| `pigtv-test-scores` | none | Only with `PIGTV_RIG_SCORES=fake`: `fake-scores.js` on the network `pigtv-test-net`, named as ESPN and the sport feeds (HTTPS, a rig-only CA that only staging trusts) |
 | `pigtv-test-runner` | none | Made and removed by `test`: `npm test` (`PIGTV_SKIP_PERF=1`) and `verify-build.sh`, with `node_modules` from `npm ci` cached in `runner/deps-<lockfile>-<image>` |
 
 ```bash
 scripts/unraid-rig.sh up       # sync, (re)start fakes and staging, seed, re-sync, smoke check (~15 s)
 scripts/unraid-rig.sh check    # channels, guide, sport events, one channel played to HLS
 scripts/unraid-rig.sh test     # sync + full suite on the box (~4 min; the first run adds ~10 s for npm ci)
+PIGTV_RIG_SCORES=fake scripts/unraid-rig.sh up   # staging reads scripts/fake-scores.js, not ESPN: a game kicks off 8 min later
+scripts/unraid-rig.sh overrun-t3   # #217's T3 on that game (~30 min): record it, check C-M while it overruns, check the stop
 scripts/unraid-rig.sh status   # containers, docker stats, disk, production's uptime and image (read only)
 scripts/unraid-rig.sh down     # remove the containers (data kept);  reset = down + wipe staging data
 ```
+
+**Fake scores** (`PIGTV_RIG_SCORES=fake up`): the scripted game kicks off `PIGTV_RIG_GAME_LEAD_MIN` (8) minutes after
+`up`, its guide slot is `PIGTV_RIG_GAME_GUIDE_MIN` (8) and it goes final `PIGTV_RIG_GAME_FINAL_MIN` (20) minutes after
+kick-off. Staging's fixtures are on and every sport host it reads is the fake, so no real feed is touched. `overrun-t3`
+follows the EPL, schedules ITV1's programme (post-padding 2 min, no `gameId`: the title join links it), samples
+`GET /recordings/scheduled` every 30 s and passes when, live past the guide end + padding, the row says `endsWith`
+"event", `overrun: true` and a `stopsAt` ahead, and the recording stops 0–120 s after final + padding. Each run needs a
+fresh `up` (a new kick-off). `up` without the setting goes back to real ESPN (or none).
 
 `up` again after editing code (the server only reads it at start). The staging server is `http://<box>:3100` for the
 web app and the simulators. `up` creates a throwaway staging admin on first run and keeps its login in `PIGTV_RIG_CREDS`

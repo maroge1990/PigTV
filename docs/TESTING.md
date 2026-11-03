@@ -53,7 +53,8 @@ internals stay out of Git (local disk or the Unraid test share), referenced by p
   copy of the server (stall, flap and reconnect scenarios); paces a sample through `pace-pcr.js` from the A/V harness
   folder below.
 - **Fake provider** (`scripts/fake-provider.js`): an Xtream look-alike with test-pattern streams, failure channels and a
-  backup profile. See [`FAKE-PROVIDER.md`](FAKE-PROVIDER.md).
+  backup profile; **fake scores** (`scripts/fake-scores.js`, the rig's `PIGTV_RIG_SCORES=fake`) script one ESPN game
+  for sport T3s such as a recording overrun. See [`FAKE-PROVIDER.md`](FAKE-PROVIDER.md).
 - **Playback report** (`scripts/playback-report.js <saved log>`): first-picture time, client wait, stalls per hour and
   failures from a server log.
 - **Fixtures:** `test/fixtures/` (the HE-AAC fixture's note is
