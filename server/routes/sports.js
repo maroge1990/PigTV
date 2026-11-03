@@ -41,12 +41,16 @@ router.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); }
 const dashboard = require('../services/sportsDashboard');
 // 0381: these legacy routes stay opt-in (PIGTV_SPORTS_DASHBOARD=1); the collector itself runs by default (front page).
 const dashboardEnabled = (req, res, next) => dashboard.dashboardEnabled() ? next() : res.status(404).json({ error: 'Sports dashboard disabled' });
-router.get('/preferences', dashboardEnabled, (req, res) => {
+// 0446 (#49, Codex Apple batch 6): the front page applies each account's score delay, and it runs by default, so its
+// preferences are open whenever the collector is (or the dashboard flag), not only with PIGTV_SPORTS_DASHBOARD=1.
+const preferencesEnabled = (req, res, next) => dashboard.collectorEnabled() || dashboard.dashboardEnabled() ? next()
+    : res.status(404).json({ error: 'Sports dashboard disabled' });
+router.get('/preferences', preferencesEnabled, (req, res) => {
     res.set('Cache-Control', 'private, no-store');
     try { res.json(dashboard.store().preferences(req.user.id)); }
     catch { res.status(500).json({ error: 'Could not read sports preferences' }); }
 });
-router.put('/preferences', dashboardEnabled, (req, res) => {
+router.put('/preferences', preferencesEnabled, (req, res) => {
     res.set('Cache-Control', 'private, no-store');
     try { res.json(dashboard.store().updatePreferences(req.user.id, req.body)); }
     catch (err) { res.status([400,409].includes(err.status) ? err.status : 500).json({ error: err.status ? err.message : 'Could not save sports preferences' }); }

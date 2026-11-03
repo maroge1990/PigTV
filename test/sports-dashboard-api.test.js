@@ -34,7 +34,8 @@ test('legacy routes authenticate and are off by default; with PIGTV_SPORTS_DASHB
     delete process.env.PIGTV_SPORTS_DASHBOARD;
     assert.equal(dashboard.collectorEnabled(),true);
     assert.equal(dashboard.dashboardEnabled(),false);
-    assert.equal((await request('/api/sports/preferences')).status,404);
+    // 0446: the front page applies the score delay, so its preferences are open whenever the collector runs.
+    assert.equal((await request('/api/sports/preferences')).status,200);
     assert.equal((await request('/api/sports/dashboard')).status,404);
     process.env.PIGTV_SPORTS_DASHBOARD='0';
     // Count every kind of work start() or a request could begin: score fetches, the 30 s timer and the worker.

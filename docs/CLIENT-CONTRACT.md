@@ -419,6 +419,9 @@ the channel logo, filling the tile; the channel logo stays the fallback.
 
 **Server foundation, Apple 59 dashboard slice and web 0317 consumption (locally validated; review/device acceptance pending).** The flag is false unless the server explicitly sets
 `PIGTV_SPORTS_DASHBOARD=1`. All routes below require a signed-in user or valid paired device and answer 404 while disabled.
+**Since 0446 (#49):** `GET`/`PUT /api/sports/preferences` are also open whenever `sportFront` is true (the collector,
+on by default), since the front page applies each account's `scoreDelaySeconds`; Settings › Sport (Apple 134) shows
+Score delay when `sportFront` or `sportsDashboard` is true.
 They answer `Cache-Control: private, no-store`; no shared response cache or client-supplied profile ID is used.
 
 - `GET /api/sports/preferences` → `{avoidSpoilers: boolean, scoreDelaySeconds: integer, revision: integer}`. Defaults:
