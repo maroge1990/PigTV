@@ -5,21 +5,19 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 2 Nov 2026 (the revamp deployed and in test; D-44 every screen chosen).*
+*Overwritten at the end of every session. 3 Nov 2026 (D-44 implemented on all three Apple platforms; not yet deployed).*
 
-- **Deployed (Mark, 2 Nov):** server **0432** and the Apple TV app (TestFlight **101**), the sport revamp (D-41–D-43) as
-  a whole (D-42). Mark's device testing has started. Next builds: server **0433**, Apple **102**.
-- **From the first day of testing:** #212 (International men's cricket lists all cricket), #213 (no logos for followed
-  cricket/AFL teams), #214 (the Sport tab should return to the front page); features #215 (follows by next event),
-  #216 (retire the TV tab), #217 (recordings end when ESPN says), #218 (next round beyond 72 h).
-- **Design, D-44 (chosen 2 Nov):** every other Apple TV screen and menu, consolidated (one long-press menu, one record
-  flow, Undo instead of confirms, no recordings library), the iPad and iPhone versions of every screen including Sport,
-  and the brand check against Pig family 1.7.0. Canvas "PigTV Apple TV app mock-ups", page "All chosen"; DESIGN.md ›
-  Apple TV app screens. Answers #177.
-- **Next:** the implementation, in the batches D-44's brief sets out (server sport data, server recording end, then
-  Apple shell and brand, guide, recording, settings and start-up, sport on iPad and iPhone); Mark's T5 continues.
-- **Still open from before:** #12, #29, #193–#203, #205, #206, #187, #190 wait on the combined device test; findings
-  #207–#211. Waiting on Mark: production's 7 favourites; PR #189's read; the device-check walkthrough from #192.
+- **Deployed:** still server **0432** and TestFlight **101** (Mark, 2 Nov). On `main`, not released: server **0446**,
+  Apple **143**. Next builds: server **0447**, Apple **144**.
+- **Built 3 Nov (D-44, seven batches, each Codex-reviewed, CI green):** server 0433–0438 sport data (#212, #213, #215,
+  #210, #218), 0439–0443 recordings end with the game (#207 closed, #217), 0444–0445 Change recording, 0446 sport
+  preferences with the front page; Apple 102–105 shell, 106–113 TV Guide, 114–118 one record page, 119–128 Recordings
+  and Undo, 129–134 Settings, Sign in, Offline, 135–143 Sport on Apple TV, iPad and iPhone (#177 answered). Evidence:
+  `docs/evidence/2026-11-03-*`.
+- **T3:** offline simulator suites on every batch; `StagingSportTVUITests` passed on the rig (staging 0446, Apple 143).
+  Not run: #217's overrun (the rig has no score source a test can steer) and the iPhone/iPad on real data.
+- **Next:** Mark's release of 0446 + Apple 143 and the device pass (T5) per platform; then the findings #220 and #221 and
+  the P1 list below. **Still open from before:** #12, #29, #193–#203, #205, #206, #187, #190 wait on the device pass.
 
 ## Now
 
