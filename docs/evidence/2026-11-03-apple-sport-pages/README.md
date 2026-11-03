@@ -32,4 +32,8 @@ league panel now ORs the page's decision with its own preference (`testLeaguePag
 failing on 142: the AFL page showed Geelong's 101 under "Scores hidden").
 
 **Not covered:** the NFL page (the offline fixture has no NFL in C-R and its page answers unavailable, as in batch 7a's
-shots); real data on the rig (T3, `StagingSportTVUITests`); the devices (T5); iPad landscape (side by side, as the TV).
+shots); the devices (T5); iPad landscape (side by side, as the TV); the iPhone and iPad on real data.
+
+**T3 on the rig** (Apple 143, staging 0446 with ESPN's free feeds, fake providers, no real provider):
+`StagingSportTVUITests` passed (sign in, the front page, all seven sport pages, Cricket's second league, Settings › Sport);
+`t3-tv-*.jpg`. It needed a test-only update for D-44's two-step Sign in and Settings beside its page.
