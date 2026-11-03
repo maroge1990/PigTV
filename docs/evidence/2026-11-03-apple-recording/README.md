@@ -1,4 +1,4 @@
-# Apple recording batch 5b (Apple 119–125): Recordings, Scheduled, View recording, Undo
+# Apple recording batch 5b (Apple 119–127): Recordings, Scheduled, View recording, Undo
 
 Simulator screenshots (T3) of the offline fixtures, dark, JPEG at most 1400 px. Apple TV 4K (3rd generation),
 iPad Pro 13-inch (M5), iPhone 17; tvOS/iOS 27.0. The record page was covered in 5a (`2026-11-03-schedule-edit`).
@@ -27,6 +27,11 @@ confirmed or gone (`testACommittedRemovalSurvivesAKilledProcessAndIsSentOnce`, `
 medium, a stale or failed refresh brought a confirmed removal back: 125 keeps a tombstone until a later refresh loads
 (`testADeletedRecordingStaysGoneThroughAStaleRefreshAndAFailedOne`, fails on 124).
 
-Gates: `Tools/test.sh push` passed on 125; the iOS build passed at every build; `BrandDepthUITests` and
-`TabFlashUITests` (visual tier) passed on 125 (the player checks skip without the review movie); `RecordPageUITests`
+Codex round 2, fixed in the batch: high, a failed removal stayed logged and a later Undo did not cancel it: 126 drops
+a failed one from the log, Undo clears its item's, replay skips an open Undo (`testUndoAfterAFailedRemoval…`, fails
+on 125); medium, an older overlapping rules answer resurrected a removed rule: 127 drops answers older than the last
+published (`testAStaleRulesAnswer…`, fails on 126).
+
+Gates: `Tools/test.sh push` passed on 127; the iOS build passed at every build; `BrandDepthUITests` and
+`TabFlashUITests` (visual tier) passed on 127 (the player checks skip without the review movie); `RecordPageUITests`
 passed on 122. Not run: Codex review (the lead runs it), device checks (T5).
