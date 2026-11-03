@@ -350,7 +350,9 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   `waiting`): both change, and it starts and stops at the new times. `recording`: only `postBufferMin`, and the running
   recording's stop moves at once (shorter or longer); `preBufferMin` in the body, or a stop at or before now, is 409
   `{error}` (stopping now is `DELETE`). A sport schedule's event stop still applies, capped at the new guide end +
-  `postBufferMin` + 4 h. 404 when unknown, finished, failed, cancelled or missed. `rule_id` is kept.
+  `postBufferMin` + 4 h. 404 when unknown, finished, failed, cancelled or missed. `rule_id` is kept. Change recording
+  (Apple 114) shows a row's current `pre_buffer_min` and `post_buffer_min` (whole minutes, always present on `GET
+  /recordings/scheduled` rows).
 - **What a cancel holds against (0245, 0253, 0254, 0259; not durable identity).** The guide gives no lasting id, so a
   rule decides per evaluation whether a programme is one it has already scheduled (policy accepted by Mark, 25 Oct):
   - *Present:* a schedule of the same title within 15 minutes is that programme (for a series, on its channel: the
