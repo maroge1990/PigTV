@@ -294,6 +294,62 @@ test('DVR-4: a viewer takes the connection while the feed is awaited - the recor
     }
 });
 
+// 0445 (Codex 0444 round 1, high): "Change recording" (editScheduled) while a start awaits its feed. The tick started
+// from its snapshot of the due row; the start must re-read the row's times and who wins its clashes.
+test('0445: start-early cut while the feed is awaited, so the start is in the future - no capture, the feed and lease are given back', async () => {
+    const held = holdSubscribe();
+    try {
+        const now = Date.now();
+        const s = scheduled.create({ title: `Show ${++n}`, description: null, source_id: A.id, channel_item_id: 'pos_1', channel_stable_id: 'ff',
+            channel_name: 'pos_1', channel_logo: null, program_start: now + 2 * 60000, program_end: now + 60 * 60000,
+            pre_buffer_min: 5, post_buffer_min: 0, created_by: 1, created_at: now }); // due: starts 3 min ago with 5 min early
+        const { ticking } = await startsWaiting(s, held);
+        const edit = engine.editScheduled(s.id, { pre: 0, post: null });
+        assert.ok(edit.row, 'the edit is taken');
+        const feed = fakeFeed();
+        held.resolve(feed);
+        await ticking;
+        await sleep(200);
+        assert.equal(captures().length, 0, 'no capture started');
+        assert.equal(feed.left, 1, 'the feed is given back');
+        assert.equal(scheduled.getById(s.id).status, 'scheduled', 'still scheduled, for its new start');
+        assert.equal(recordings.listBySchedule(s.id).length, 0, 'no recording row');
+        assert.equal([...coordinator._leases.values()].filter(l => l.scheduleId === s.id).length, 0, 'its lease is released');
+    } finally {
+        held.restore();
+    }
+});
+
+test('0445: finish-late made longer while the feed is awaited, so it now loses a clash - it waits for the winner instead', async () => {
+    await db.settings.update({ maxConcurrentRecordings: 1 });
+    const held = holdSubscribe();
+    try {
+        const now = Date.now();
+        // The winner: another channel, made first, starting after this one's current end.
+        const w = scheduled.create({ title: 'The winner', description: null, source_id: A.id, channel_item_id: 'pos_2', channel_stable_id: 'fl',
+            channel_name: 'pos_2', channel_logo: null, program_start: now + 10 * 60000, program_end: now + 60 * 60000,
+            pre_buffer_min: 0, post_buffer_min: 0, created_by: 1, created_at: now - 60000 });
+        const s = due('pos_1', 'ff', 5 * 60000); // ends in 5 min: no clash yet
+        const { ticking } = await startsWaiting(s, held);
+        assert.ok(engine.editScheduled(s.id, { pre: null, post: 20 }).row, 'the edit is taken'); // now ends after w starts
+        const feed = fakeFeed();
+        held.resolve(feed);
+        await ticking;
+        await sleep(200);
+        assert.equal(captures().length, 0, 'no capture started');
+        assert.equal(feed.left, 1, 'the feed is given back');
+        const row = scheduled.getById(s.id);
+        assert.equal(row.status, 'waiting');
+        assert.equal(row.clash_winner, w.id, 'waiting for the winner');
+        assert.match(row.error, /^Clashes with “The winner”/);
+        assert.equal([...coordinator._leases.values()].filter(l => l.scheduleId === s.id).length, 0, 'its lease is released');
+        scheduled.setStatus(w.id, 'cancelled');
+    } finally {
+        held.restore();
+        await db.settings.update({ maxConcurrentRecordings: 5 });
+    }
+});
+
 test('DVR-4: shutdown while the feed is awaited - nothing starts after stopAllActive', async () => {
     const held = holdSubscribe();
     try {

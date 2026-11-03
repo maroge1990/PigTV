@@ -719,6 +719,7 @@ function editScheduled(id, { pre = null, post = null } = {}, { now = Date.now(),
     }
     getDb().prepare('UPDATE scheduled_recordings SET pre_buffer_min = ?, post_buffer_min = ? WHERE id = ?')
         .run(next.pre_buffer_min, next.post_buffer_min, id);
+    choiceEpoch++; // 0445 (Codex 0444 round 1, high): new times can change who wins a clash; a start under way re-checks
     console.log(`[Recordings] Schedule #${id} "${schedule.title}": start early ${next.pre_buffer_min} min, finish late ${next.post_buffer_min} min`);
     const entry = active.get(id);
     if (schedule.status === 'recording' && entry && !entry.stopRequested) armHardStop(id, entry);
@@ -1040,9 +1041,16 @@ function startStillWanted(schedule, owner) {
         return false;
     }
     if (active.has(schedule.id)) return false;
+    // (A continuation's `stillWanted` is for a recording already running, whose start-early cannot change: 0445.)
     if (stillWanted) return stillWanted();
     const now = scheduledDb.getById(schedule.id);
-    return !!now && (now.status === 'scheduled' || now.status === 'waiting');
+    if (!now || (now.status !== 'scheduled' && now.status !== 'waiting')) return false;
+    // 0445 (Codex 0444 round 1, high): its start-early was cut while it got ready (editScheduled), so it is not due yet.
+    if (now.program_start - (now.pre_buffer_min || 0) * 60000 > Date.now()) {
+        console.log(`[Recordings] Schedule #${schedule.id}: its start moved later while it got ready; not started yet`);
+        return false;
+    }
+    return true;
 }
 
 /** DVR-4: an abandoned start gives back the feed it was handed (the caller releases its lease). */
