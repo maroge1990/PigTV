@@ -21,6 +21,11 @@ game" on the second follow's carousel card made a rule for the first (the reques
 Now the card, and the TV hero, name their follow's team ("Record every Man City game"); without a named team nothing is
 guessed: a card's long-press menu offers no team rule and the record page offers both teams.
 
+**Codex round 2 (base Apple 134): one high, fixed in-batch as 141 (#49).** 140 kept any named follow, so a driver
+follow (Oscar Piastri on an F1 session, no competitors) offered "Record every Oscar Piastri game", a team rule the
+server can never match. Now a named team counts only when it is a side of that two-sided game; a driver's card and hero
+offer Record and the league rule only (`testADriverFollowOffersNoTeamRule`, failing on 140).
+
 **Tests:** each new test failed on the commit before it (135–138 with the change's logic reverted; 139's
 `SportPhoneFrontUITests` on Apple 138, no carousel) and passes after. `Tools/test.sh push` passed at 139; the iOS build at
 every commit; tvOS `BrandDepthUITests` and `PigTVUITests` (visual) passed.
