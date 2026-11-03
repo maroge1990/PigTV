@@ -5,10 +5,9 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 3 Nov 2026 (D-44 implemented on all three Apple platforms; not yet deployed).*
+*Overwritten at the end of every session. 4 Nov 2026 (D-44 released: server 0446 deployed, Apple 143 on TestFlight).*
 
-- **Deployed:** still server **0432** and TestFlight **101** (Mark, 2 Nov). On `main`, not released: server **0446**,
-  Apple **143**. Next builds: server **0447**, Apple **144**.
+- **Deployed:** server **0446** (Mark, 4 Nov) and Apple **143** uploaded to TestFlight (tvOS and iOS, 4 Nov). Next builds: server **0447**, Apple **144**.
 - **Built 3 Nov (D-44, seven batches, each Codex-reviewed, CI green):** server 0433–0438 sport data (#212, #213, #215,
   #210, #218), 0439–0443 recordings end with the game (#207 closed, #217), 0444–0445 Change recording, 0446 sport
   preferences with the front page; Apple 102–105 shell, 106–113 TV Guide, 114–118 one record page, 119–128 Recordings
@@ -16,7 +15,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   `docs/evidence/2026-11-03-*`.
 - **T3:** offline simulator suites on every batch; `StagingSportTVUITests` passed on the rig (staging 0446, Apple 143).
   Not run: #217's overrun (the rig has no score source a test can steer) and the iPhone/iPad on real data.
-- **Next:** Mark's release of 0446 + Apple 143 and the device pass (T5) per platform; then the findings #220 and #221 and
+- **Next:** the device pass (T5) per platform; then the findings #220 and #221 and
   the P1 list below. **Still open from before:** #12, #29, #193–#203, #205, #206, #187, #190 wait on the device pass.
 
 ## Now
