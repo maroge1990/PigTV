@@ -27,5 +27,9 @@ the iPad test fails on 141 (the standings ended at x 1064 in a 1033 pt window); 
 `Tools/test.sh push` passed at 142; the iOS build at 141 and 142; tvOS `BrandDepthUITests` and `PigTVUITests` (visual)
 passed.
 
+**Codex round 1: one high (league pages ignored the page's spoiler-free decision), fixed in Apple 143** (#192): every
+league panel now ORs the page's decision with its own preference (`testLeaguePagesHideScoresWhenTheAnswerIsSpoilerFree`,
+failing on 142: the AFL page showed Geelong's 101 under "Scores hidden").
+
 **Not covered:** the NFL page (the offline fixture has no NFL in C-R and its page answers unavailable, as in batch 7a's
 shots); real data on the rig (T3, `StagingSportTVUITests`); the devices (T5); iPad landscape (side by side, as the TV).
