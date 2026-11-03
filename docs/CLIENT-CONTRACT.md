@@ -383,6 +383,9 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   for it before it answers (0264), so it can take a few seconds longer - at most 30 s: a writer stuck on a share that
   stopped answering is left, and what it made is removed when it ends or at the next start (0270). A native-playback request waiting for it then
   fails (`playback?async=1`: 500 `{status: "failed", reason: "file-missing"}`); the recording is 404 from then on.
+- The Apple client (124) treats a `DELETE` of `recordings/:id`, `recordings/scheduled/:id` or `recordings/rules/:id`
+  that answers 404, or 500 with `error` exactly "Recording not found" / "Scheduled recording not found", as already
+  done (it replays removals committed before the app was stopped). Keep those texts.
 - A delete while the recordings share is not answering is refused (0330, #141): 500 `{error: "The recordings folder is
   not responding, so the recording was not deleted. Try again once it is back."}`; the recording stays as it was. (Any
   delete failure was already a 500 with `error`; only the text is new.)
