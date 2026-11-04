@@ -45,3 +45,19 @@ test('#60: a 401 sends the browser to sign-in', async () => {
     assert.equal(location.href, '/login.html');
     assert.equal(storage.authToken, undefined);
 });
+
+// #60 (0475 Codex round 1, medium): showError wrote its text into innerHTML, so a server sentence with markup in it
+// would have become markup. It is set as text.
+test('#60: an error is shown as text, never as markup', () => {
+    const { VideoPlayer } = playerWith(() => ({ status: 200, body: {} }));
+    const content = { innerHTML: '', textContent: '', children: [], replaceChildren(...nodes) { this.children = nodes; } };
+    const overlay = { classList: { remove() {} }, querySelector: () => content };
+    const made = [];
+    const fakeDocument = { createElement: (tag) => { const el = { tag, style: {}, textContent: '' }; made.push(el); return el; } };
+    const player = Object.assign(Object.create(VideoPlayer.prototype), { overlay });
+    VideoPlayer.prototype.showError.call(Object.assign(player, { _document: fakeDocument }), '<img src=x onerror=alert(1)>');
+    assert.equal(content.innerHTML, '', 'no markup written');
+    assert.equal(made.length, 1);
+    assert.equal(made[0].textContent, '<img src=x onerror=alert(1)>', 'the text as it is');
+    assert.deepEqual(content.children, [made[0]]);
+});

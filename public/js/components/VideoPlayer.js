@@ -1579,7 +1579,12 @@ class VideoPlayer {
      */
     showError(message) {
         this.overlay.classList.remove('hidden');
-        this.overlay.querySelector('.overlay-content').innerHTML = `<p style="color: var(--color-error);">${message}</p>`;
+        // #60 (0475 Codex round 1): the message can be the server's own sentence: set as text, never as markup.
+        const doc = this._document || document;
+        const p = doc.createElement('p');
+        p.style.color = 'var(--color-error)';
+        p.textContent = String(message ?? '');
+        this.overlay.querySelector('.overlay-content').replaceChildren(p);
     }
 
     /**
