@@ -25,7 +25,9 @@
 const { getDb } = require('../db/sqlite');
 const { scheduled: scheduledDb, initSchema } = require('../db/recordingsDb');
 
-const KINDS = ['sport', 'series', 'team'];
+const KINDS = ['sport', 'series', 'team', 'game'];
+const GAME_ID_RE = /^espn:[a-z-]+\/[a-z0-9._-]+:\d{1,15}$/; // #234: a C-R card id
+const GAME_KEEP_MS = 36 * 3600 * 1000; // #234: a game rule is spent this long after its game's start
 const SPORT_HOURS = 72;
 const SERIES_DAYS = 7;
 const NEAR_MS = 15 * 60 * 1000;
@@ -54,7 +56,9 @@ function shape(r) {
         preBufferMin: r.pre_buffer_min ?? null, postBufferMin: r.post_buffer_min ?? null,
         newOnly: r.new_only === 1, enabled: r.enabled === 1, createdAt: r.created_at, upcoming: pending,
         // #198 (additive): a team rule's sport, and who set the rule (shown in Recordings)
-        sport: r.sport ?? null, createdBy: r.created_by ?? null, createdByName: makerName(r.created_by)
+        sport: r.sport ?? null, createdBy: r.created_by ?? null, createdByName: makerName(r.created_by),
+        // #234 (additive): a 'game' rule's game (the C-R card id)
+        ...(r.kind === 'game' ? { gameId: r.game_id ?? null } : {})
     };
 }
 
@@ -72,14 +76,24 @@ const minutes = (v, max) => (v === undefined || v === null ? null
 /** A rule from a request body, or { error } (a 400). */
 function validate(body = {}) {
     const kind = body.kind;
-    if (!KINDS.includes(kind)) return { error: 'kind must be "sport", "series" or "team"' };
-    const match = typeof body.match === 'string' ? body.match.replace(/\s+/g, ' ').trim() : '';
+    if (!KINDS.includes(kind)) return { error: 'kind must be "sport", "series", "team" or "game"' };
+    let match = typeof body.match === 'string' ? body.match.replace(/\s+/g, ' ').trim() : '';
+    let game = null;
+    if (kind === 'game') {
+        // #234 (Mark, 4 Nov): Record on a game the guide does not list yet: that one game, scheduled once it is listed,
+        // as "Record every game" does. `match` is its readable name (what any client shows), from the card.
+        if (typeof body.gameId !== 'string' || !GAME_ID_RE.test(body.gameId)) return { error: 'a game rule needs gameId, a sport card\'s id' };
+        game = require('./sportsDashboard').store().catalog().find(g => g.id === body.gameId) || null;
+        if (!game) return { error: 'that game is not known (yet): try again once it is on the Sport page' };
+        match = match || String(game.title || '').slice(0, MAX_MATCH);
+    }
     if (!match || match.length > MAX_MATCH) return { error: `match must be 1 to ${MAX_MATCH} characters` };
     const pre = minutes(body.preBufferMin, 60);
     const post = minutes(body.postBufferMin, 180);
     if (pre === undefined || post === undefined) return { error: 'preBufferMin (0-60) and postBufferMin (0-180) must be whole minutes' };
     const rule = { kind, match, pre_buffer_min: pre, post_buffer_min: post, new_only: body.newOnly === true ? 1 : 0,
-        source_id: null, channel_item_id: null, channel_stable_id: null, channel_name: null, sport: null };
+        source_id: null, channel_item_id: null, channel_stable_id: null, channel_name: null, sport: null, game_id: game ? game.id : null };
+    if (game) rule.sport = require('./sportCatalog').sportOf(game.league);
     if (kind === 'team') {
         const sport = require('./sportCatalog').sport(body.sport);
         if (!sport) return { error: 'a team rule needs sport, a catalogue sport' };
@@ -104,13 +118,13 @@ function create(body, userId = null) {
     if (db().prepare('SELECT COUNT(*) AS n FROM recording_rules').get().n >= MAX_RULES) return { error: `at most ${MAX_RULES} rules` };
     const same = db().prepare(`SELECT id FROM recording_rules WHERE kind = ? AND lower(match) = lower(?) AND
         COALESCE(source_id, 0) = COALESCE(?, 0) AND COALESCE(channel_stable_id, channel_item_id, '') = COALESCE(?, ?, '')
-        AND COALESCE(sport, '') = COALESCE(?, '')`)
-        .get(rule.kind, rule.match, rule.source_id, rule.channel_stable_id, rule.channel_item_id, rule.sport);
+        AND COALESCE(sport, '') = COALESCE(?, '') AND COALESCE(game_id, '') = COALESCE(?, '')`)
+        .get(rule.kind, rule.match, rule.source_id, rule.channel_stable_id, rule.channel_item_id, rule.sport, rule.game_id);
     if (same) return { rule: get(same.id), existing: true };
     const info = db().prepare(`INSERT INTO recording_rules (kind, match, source_id, channel_item_id, channel_stable_id, channel_name,
-            pre_buffer_min, post_buffer_min, new_only, enabled, created_by, created_at, sport)
+            pre_buffer_min, post_buffer_min, new_only, enabled, created_by, created_at, sport, game_id)
         VALUES (@kind, @match, @source_id, @channel_item_id, @channel_stable_id, @channel_name, @pre_buffer_min, @post_buffer_min,
-            @new_only, 1, @created_by, @created_at, @sport)`).run({ ...rule, created_by: userId, created_at: Date.now() });
+            @new_only, 1, @created_by, @created_at, @sport, @game_id)`).run({ ...rule, created_by: userId, created_at: Date.now() });
     console.log(`[Rules] Rule #${info.lastInsertRowid} added: ${rule.kind} "${rule.match}"${rule.channel_name ? ` on ${rule.channel_name}` : ''}`);
     return { rule: get(info.lastInsertRowid) };
 }
@@ -177,7 +191,14 @@ async function sportCandidates(rule, now) {
  * #198 Team: the team's games in the fixture, each on the channel the guide airs it on. Leagues: those of the rule's
  * sport its maker follows, else all of the sport's. A game without a matched airing yet is left for a later evaluation.
  */
-async function teamCandidates(rule, now, { games = null, events = null } = {}) {
+/** #234: a 'game' rule's one game, joined to its listings exactly as a team rule's games are (teamCandidates). */
+async function gameCandidates(rule, now, { games = null, events = null } = {}) {
+    const game = (games || require('./sportsDashboard').store().catalog()).find(g => g.id === rule.game_id);
+    if (!game || game.start <= now - 12 * 3600 * 1000) return [];
+    return teamCandidates(rule, now, { games: [game], events, only: game.id });
+}
+
+async function teamCandidates(rule, now, { games = null, events = null, only = null } = {}) {
     const offered = require('./sportCatalog').sport(rule.sport)?.leagues || [];
     let leagues = offered;
     try {
@@ -188,8 +209,9 @@ async function teamCandidates(rule, now, { games = null, events = null } = {}) {
     const dashboard = require('./sportsDashboard');
     const person = (v) => String(v || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
     const wanted = person(rule.match);
-    const mine = (games || dashboard.store().catalog()).filter(g => leagues.includes(g.league) && g.start > now - 12 * 3600 * 1000 &&
-        (g.competitors || []).some(c => [c.name, ...(c.aliases || [])].some(a => person(a) === wanted)));
+    const mine = only ? (games || []).filter(g => g.id === only)
+        : (games || dashboard.store().catalog()).filter(g => leagues.includes(g.league) && g.start > now - 12 * 3600 * 1000 &&
+            (g.competitors || []).some(c => [c.name, ...(c.aliases || [])].some(a => person(a) === wanted)));
     if (!mine.length) return [];
     const airings = events || (await require('./sportsEvents').eventsFor({ hours: SPORT_HOURS, now })).events;
     const joined = dashboard.matchBroadcasts(mine, airings);
@@ -439,6 +461,18 @@ function evaluate({ now = Date.now() } = {}) {
         const made = [];
         let rules = [];
         try { rules = db().prepare('SELECT * FROM recording_rules WHERE enabled = 1 ORDER BY id').all(); } catch (e) { return made; }
+        // #234: a game rule is spent once its game is long over (or gone from the catalogue a week on): removed, its
+        // recording kept (nothing pending is left by then).
+        const catalog = new Map(require('./sportsDashboard').store().catalog().map(g => [g.id, g]));
+        for (const r of rules.filter(x => x.kind === 'game')) {
+            const g = catalog.get(r.game_id);
+            if (g ? g.start < now - GAME_KEEP_MS : r.created_at < now - 8 * 24 * 3600 * 1000) {
+                db().prepare('DELETE FROM recording_rule_hits WHERE rule_id = ?').run(r.id);
+                db().prepare('DELETE FROM recording_rules WHERE id = ?').run(r.id);
+                console.log(`[Rules] Rule #${r.id} (one game, "${r.match}") is spent: removed`);
+            }
+        }
+        rules = rules.filter(r => r.kind !== 'game' || db().prepare('SELECT 1 FROM recording_rules WHERE id = ?').get(r.id));
         const engine = require('./recordingEngine');
         // A hit names the schedule that last acted for its identity (R5-F1: a new one replaces a declined one).
         const hitStmt = db().prepare(`INSERT INTO recording_rule_hits (rule_id, identity, schedule_id, created_at) VALUES (?, ?, ?, ?)
@@ -449,15 +483,15 @@ function evaluate({ now = Date.now() } = {}) {
             let candidates = [];
             try {
                 candidates = rule.kind === 'sport' ? await sportCandidates(rule, now) : rule.kind === 'team' ? await teamCandidates(rule, now)
-                    : seriesCandidates(rule, now);
+                    : rule.kind === 'game' ? await gameCandidates(rule, now) : seriesCandidates(rule, now);
             } catch (err) {
                 console.warn(`[Rules] Rule #${rule.id} could not be evaluated: ${err.message}`);
                 continue;
             }
             // Episodes first (their identity), then everything else by instance (pairInstances).
             const episodes = rule.kind === 'series' ? resolveEpisodes(rule.id, candidates, now) : { resolved: new Map(), taken: new Set(), ownerOf: new Map(), namedBy: new Map() };
-            const byEvent = rule.kind === 'sport' || rule.kind === 'team';
-            const { pairs: events, declined } = rule.kind === 'team' ? await pairGames(rule, candidates, priorHit)
+            const byEvent = rule.kind === 'sport' || rule.kind === 'team' || rule.kind === 'game';
+            const { pairs: events, declined } = rule.kind === 'team' || rule.kind === 'game' ? await pairGames(rule, candidates, priorHit)
                 : byEvent ? pairEvents(candidates, now) : pairAirings(candidates, now, episodes.taken);
             const paired = (c) => (byEvent || !c.episode);
             for (const c of candidates) {
@@ -522,4 +556,4 @@ function evaluateIfDue(now = Date.now()) {
     return evaluate({ now });
 }
 
-module.exports = { list, get, create, update, remove, validate, evaluate, evaluateIfDue, teamCandidates, minutes, KINDS, NEAR_MS };
+module.exports = { list, get, create, update, remove, validate, evaluate, evaluateIfDue, teamCandidates, gameCandidates, minutes, KINDS, NEAR_MS };

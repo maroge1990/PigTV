@@ -201,6 +201,10 @@ function initSchema() {
     try {
         db.exec('ALTER TABLE recording_rules ADD COLUMN sport TEXT');
     } catch (e) { /* already present */ }
+    // #234: a 'game' rule's ESPN game (C-R card id): that one game, scheduled once the guide lists it.
+    try {
+        db.exec('ALTER TABLE recording_rules ADD COLUMN game_id TEXT');
+    } catch (e) { /* already present */ }
     // #12 (D-42): when someone chose this schedule over the ones it clashes with (null: never chosen).
     try {
         db.exec('ALTER TABLE scheduled_recordings ADD COLUMN chosen_at INTEGER');

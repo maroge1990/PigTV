@@ -165,6 +165,9 @@ async function front({ userId, events, ended = null, now = Date.now() }) {
     try {
         const settings = await require('../db').settings.get();
         annotateRecordings(response.games, require('./recordingEngine').listScheduled({ settings }));
+        // #234: a game waiting for its listing to be recorded (a 'game' rule, nothing scheduled yet) says so on its card.
+        const waiting = new Map(require('./recordingRules').list().filter(r => r.kind === 'game' && r.enabled && r.gameId).map(r => [r.gameId, r.id]));
+        for (const g of response.games) if (!g.recording && waiting.has(g.id)) g.recordWhenListed = { ruleId: waiting.get(g.id) };
     } catch (err) { console.warn('[Sports] recordings on the front page:', err.message); } // the page without them
     return arrange(response, prefs, { logoFor: followLogos(dashboard.store()) });
 }

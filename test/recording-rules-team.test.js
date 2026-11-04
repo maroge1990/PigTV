@@ -167,3 +167,30 @@ test('#217: POST /schedule with gameId links the schedule to its game; listed ro
     assert.deepEqual([made.body.id, plain.body.id].map(id => listed.find(r => r.id === id)?.endsWith), ['event', 'guide']);
     assert.ok(listed.every(r => r.endsWith === 'event' || r.endsWith === 'guide'));
 });
+
+// #234 (Mark, 4 Nov): Record on a game the guide does not list yet (Monday's Cardinals game) did nothing. A 'game' rule
+// holds that one game and schedules it once a listing joins it, as "Record every game" does; then it is spent.
+test('#234: a game rule waits for its game\'s listing, then schedules that game alone; spent a day and a half after it', async () => {
+    const rules = load('services/recordingRules');
+    const id = 'espn:australian-football/afl:2'; // Collingwood v Essendon: no airing in the guide yet
+    assert.equal((await call('POST', '/api/recordings/rules', { kind: 'game', gameId: 'espn:x/y:not-a-number' })).status, 400);
+    assert.equal((await call('POST', '/api/recordings/rules', { kind: 'game', gameId: 'espn:australian-football/afl:999' })).status, 400, 'an unknown game');
+    const made = await call('POST', '/api/recordings/rules', { kind: 'game', gameId: id });
+    assert.equal(made.status, 201, JSON.stringify(made.body));
+    assert.deepEqual([made.body.kind, made.body.match, made.body.gameId, made.body.sport, made.body.scheduled],
+        ['game', 'Collingwood v Essendon', id, 'Australian football', 0], 'nothing to record yet: no listing');
+    // the guide lists it
+    sqlite.getDb().prepare(`INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, categories, flags, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run('ff2', source.id, NOW + 50 * H, NOW + 53 * H, 'AFL: Collingwood v Essendon', '["Sport"]', 8, null);
+    sportsEvents.reset();
+    await rules.evaluate();
+    // that one game, on its listing (by this rule, or by an earlier "Record every Collingwood game" rule: never twice)
+    const mine = scheduled.listUpcoming().filter(s => s.sport_game_id === id);
+    assert.deepEqual(mine.map(s => [s.title, s.channel_name, s.program_start]), [['Collingwood v Essendon', 'Fox Footy 2', NOW + 50 * H]]);
+    await rules.evaluate();
+    assert.equal(scheduled.listUpcoming().filter(s => s.sport_game_id === id).length, 1, 'once');
+    // a day and a half after the game it is spent: the rule goes, the recording stays
+    await rules.evaluate({ now: NOW + 50 * H + 37 * H });
+    assert.equal(rules.get(made.body.id), null);
+    assert.ok(scheduled.getById(mine[0].id), 'its schedule stays');
+});

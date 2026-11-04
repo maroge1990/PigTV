@@ -316,6 +316,10 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
     on, once it appears in the next 72 h. Recordings are kept until deleted (D-42). Rules add `sport`, `createdBy` and
     `createdByName` (who set it, for Recordings). Unfollowing a team does not remove its rule: ask whether to keep it,
     then `DELETE` it if not.
+  - `game` (0465, #234): `gameId` a C-R card's `id` (400 if malformed or not a known game); records that one game, as
+    `team` does its games, once a listing joins it (the next 72 h): Record on a card with no `channels` yet. `match` is
+    the game's title (what older clients show); the rule carries `gameId` and its game's `sport`. It removes itself
+    36 h after the game's start (its recording stays).
 - `PUT /api/recordings/rules/:id` `{enabled?, newOnly?, preBufferMin?, postBufferMin?}` → the rule; 404 unknown.
 - `DELETE /api/recordings/rules/:id` → `{success, cancelled}`: its schedules that have not started are cancelled; one
   recording now, and everything recorded, stays.
@@ -897,6 +901,8 @@ account follows nothing; only the server's owner (its first admin account) takes
 - C-R since 0415 (#198, D-42): a card with an upcoming recording on one of its channels during its airing carries
   `recording: { scheduleId, status, ruleId, clashesWith? }` (`ruleId` set when "Record every game" made it);
   `clashesWith` (titles) only when that recording loses its clash and waits: show "Clashes with …" on the card.
+  Since 0465 (#234) a card whose game waits on a `game` rule, with nothing scheduled yet, carries
+  `recordWhenListed: { ruleId }`: say "Records when it's listed" (and offer to cancel: `DELETE` the rule).
 - C-R since 0392: `rails[]` puts the leagues with a game on now (`live`, `break`, `suspended`) first, then the rest, each
   part in the account's order (D-41); `sports[]` keeps the account's order (until 0427: C-R, D-43, moves them up too).
 - Since 0395 (#195): `UEFA` is three leagues, `Champions League`, `Europa League` and `Conference League` (a stored or

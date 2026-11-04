@@ -298,6 +298,22 @@ test('front: a followed team\'s game 4.5 days ahead shows the channels its guide
     clearGames();
 });
 
+// #234: a game Record was chosen for before the guide lists it says so on its card (recordWhenListed), until scheduled.
+test('front: #234: a game waiting for its listing to be recorded carries recordWhenListed', async () => {
+    clearGames();
+    const now = Date.now(), id = 'espn:football/nfl:433';
+    await call('/api/sports/pages/preferences', { sports: ['NFL'], teams: { NFL: ['Green Bay Packers'] } });
+    dashboard.store().ingest([game(id, 'NFL', now + 100 * H, [packers, team('8', 'Lions')], scheduled)], now - 100000);
+    const rules = load('services/recordingRules');
+    const made = rules.create({ kind: 'game', gameId: id }, null);
+    assert.ok(made.rule, JSON.stringify(made));
+    const card = (await front()).games.find(c => c.id === id);
+    assert.deepEqual(card.recordWhenListed, { ruleId: made.rule.id });
+    rules.remove(made.rule.id);
+    assert.equal((await front()).games.find(c => c.id === id).recordWhenListed, undefined);
+    clearGames();
+});
+
 // #195 (D-41, D-42): an International group shows tournaments in full, and qualifiers and friendlies only for followed
 // nations; everything when the account follows none of its nations.
 test('front: Internationals: a followed nation narrows qualifiers and friendlies to its own; tournaments stay; none followed shows all', async () => {
