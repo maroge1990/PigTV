@@ -120,7 +120,7 @@ function compileFollow(keywords, rosters = new Map()) {
     return {
         list,
         // #24: every stored roster, followed or not: a pairing two leagues share infers neither.
-        rosters: new Map([...rosters].map(([league, teams]) => [league, teams.map(rosterAliases)])),
+        rosters: new Map([...rosters].map(([league, teams]) => [league, teams.map(t => rosterAliases(t, league))])),
         leagues: new Set(list.filter(k => k.league).map(k => k.league)),
         any: literal.length ? wordRegExp(literal.join('|')) : null
     };
@@ -139,12 +139,22 @@ const OTHER_COMPETITION_RE = /\b(?:eredivisie|la ?liga|serie a|bundesliga|ligue 
 const ROUND_RE = /\b(?:round|rd)\s*\d{1,2}\b|\br\d{1,2}\b/i;
 const bareCode = side => side.abbr || /^[A-Z]{2,4}$/.test(String(side.name).replace(/[^\p{L}\p{N}]+$/u, ''));
 const rosterSideKey = side => side.tokens.filter(t => t !== 'de').sort().join(' ');
-function rosterAliases(team) {
+// #222: a football club competition, whose clubs ESPN names by their place alone (Lille, Celtic, Bodø/Glimt). Never a
+// national-team one: "Australia v England" may be any code.
+function clubFootball(league) {
+    const espnPath = sportsFixtures.ESPN_LEAGUE_PATHS[league];
+    const national = [...sportsFixtures.INTERNATIONAL_PATHS.men, ...sportsFixtures.INTERNATIONAL_PATHS.women];
+    return typeof espnPath === 'string' && espnPath.startsWith('soccer/') && !national.includes(espnPath);
+}
+function rosterAliases(team, league) {
     const location = sportsClassify.normText(team?.location);
+    // #222: a football club named only by its place is known by it; elsewhere the place is left out (Sydney Swans,
+    // the Melbourne Demons: "Sydney v Melbourne" names no one team).
+    const placeIsName = clubFootball(league) && sportsClassify.normText(team?.name) === location;
     const names = {};
     for (const field of ['displayName', 'shortDisplayName', 'name', 'abbreviation']) {
         const value = team?.[field];
-        if (typeof value === 'string' && sportsClassify.normText(value) !== location) names[field] = value;
+        if (typeof value === 'string' && (placeIsName || sportsClassify.normText(value) !== location)) names[field] = value;
     }
     return (sportsFixtures.teamAliasSides(names) || []).map(rosterSideKey);
 }

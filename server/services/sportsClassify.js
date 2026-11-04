@@ -28,6 +28,11 @@ function normText(s) {
         .replace(/[^\p{L}\p{N}]+/gu, ' ')
         .trim();
 }
+// #222: letters a guide spells plainly and ESPN with marks ("Bodo/Glimt" ~ "Bodø/Glimt", "Malmo" ~ "Malmö"). Team
+// names only (parseSide): normText itself is unchanged, since session keys are hashed from it.
+const FOLD = { ø: 'o', æ: 'ae', œ: 'oe', ß: 'ss', ł: 'l', đ: 'd', ð: 'd', þ: 'th', ı: 'i' };
+const foldText = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')
+    .replace(/[øæœßłđðþı]/g, c => FOLD[c]);
 const words = (list) => new RegExp(`(?:^| )(?:${list.join('|')})(?= |$)`);
 
 // ---- leagues ------------------------------------------------------------------------
@@ -240,8 +245,9 @@ function parseSide(raw) {
     }
     parts = kept;
     if (parts.length < 1 || parts.length > 5) return null;
-    if (!parts.every(p => /^[\p{L}\p{N}.&'’-]+$/u.test(p)) || !parts.some(p => /\p{L}/u.test(p))) return null;
-    const tokens = parts.map(normText).filter(Boolean);
+    // #222: a slash joins one club's name ("Bodø/Glimt"); its halves are words of it.
+    if (!parts.every(p => /^[\p{L}\p{N}.&'’/-]+$/u.test(p)) || !parts.some(p => /\p{L}/u.test(p))) return null;
+    const tokens = parts.flatMap(p => normText(foldText(p)).split(' ')).filter(Boolean);
     const abbr = parts.length === 1 && /^[A-Z]{2,4}$/.test(parts[0]);
     // The first letters of its words as bits: teamMatch() needs one side's within the other's.
     const mask = tokens.reduce((m, t) => m | (1 << (t.charCodeAt(0) % 31)), 0);
@@ -254,6 +260,10 @@ function parseMatchup(title) {
         .replace(/\[[^\]]*\]/g, ' ')
         .replace(/\b(?:19|20)\d{2}\/\d{2,4}\b/g, ' ')
         .replace(/\b(?:start|stop):\s*\S+(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?/gi, ' ')
+        // #222: an event slot's kick-off time ("Lille 8:00pm", "20:00", "7pm") is not part of a team's name, and its
+        // colon would split the match-up in two.
+        .replace(/(?<![\p{L}\p{N}])\d{1,2}(?::\d{2}){1,2}\s*(?:[ap]\.?m\.?)?(?![\p{L}\p{N}])/giu, ' ')
+        .replace(/(?<![\p{L}\p{N}])\d{1,2}\s*[ap]\.?m\.?(?![\p{L}\p{N}])/giu, ' ')
         // Cricket stage labels belong to the game, never to the second team's name ("Day 2 Session 1", and Fox's
         // "D2 S1", #23).
         .replace(/\s+(?:(?:(?:\d+(?:st|nd|rd|th)|first|second|third|fourth|fifth)\s+)?test(?:\s+(?:day\s+\d+|d\d+))?(?:\s+(?:session\s+\d+|s\d+))?|g[1-5])\s*$/i, '');

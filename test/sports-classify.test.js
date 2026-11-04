@@ -442,3 +442,49 @@ test('0400: a World Cup qualifier that names cricket or rugby is never football\
     assert.equal(detectLeague("ICC Women's Cricket World Cup Qualifier: Scotland v Ireland"), "Women's Cricket");
     assert.equal(detectLeague('FIFA World Cup Qualifier: Australia v Japan'), 'Internationals');
 });
+
+test('#222: slash names, folded letters and a trailing kick-off time still read as the two teams', () => {
+    const { teamAliasSides } = load('services/sportsFixtures');
+    const espn = (displayName, abbreviation) => teamAliasSides({ displayName, shortDisplayName: displayName, abbreviation });
+    const cases = [
+        ['UEFA | 06 - Bodo/Glimt vs Lille 8:00pm', ['Bodo/Glimt', 'Lille'], ['Bodø/Glimt', 'BOD'], ['Lille', 'LIL']],
+        ['Champions League: Atletico Madrid v Paris Saint-Germain 20:00', ['Atletico Madrid', 'Paris Saint-Germain'],
+            ['Atlético Madrid', 'ATM'], ['Paris Saint-Germain', 'PSG']],
+        ['UEL 03: Malmo FF vs FC Kobenhavn 5:45 PM', ['Malmo FF', 'Kobenhavn'], ['Malmö FF', 'MAL'], ['FC København', 'FCK']],
+        ['Soccer 12: Brighton & Hove Albion vs Fenerbahce 7pm', ['Brighton Hove Albion', 'Fenerbahce'],
+            ['Brighton & Hove Albion', 'BHA'], ['Fenerbahçe', 'FEN']]
+    ];
+    for (const [title, names, a, b] of cases) {
+        const teams = classify.parseMatchup(title);
+        assert.ok(teams, title);
+        assert.deepEqual(teams.map(t => t.name), names, title);
+        const sides = [espn(...a), espn(...b)];
+        assert.ok(sides.every(Boolean), `${title}: ESPN names parse`);
+        assert.ok(sides[0].some(s => classify.teamMatch(teams[0], s)), `${title}: ${a[0]}`);
+        assert.ok(sides[1].some(s => classify.teamMatch(teams[1], s)), `${title}: ${b[0]}`);
+    }
+    // Neither a time nor a slash makes two different teams the same.
+    assert.ok(!classify.teamMatch(classify.parseMatchup('X: Bodo/Glimt v Lille')[0], espn('Molde', 'MOL')[0]));
+});
+
+test('#222: an event slot "UEFA | 06 - Bodo/Glimt vs Lille 8:00pm" gets its league from the roster and joins the ESPN card', () => {
+    const dashboard = load('services/sportsDashboard');
+    // ESPN's football clubs: name, display name and location are all the club's name (36 of 36 in uefa.europa, 4 Nov).
+    const team = (displayName, abbreviation) => ({ displayName, shortDisplayName: displayName, name: displayName, location: displayName, abbreviation });
+    const rosters = new Map([['Europa League', [team('Bodø/Glimt', 'BOD'), team('Lille', 'LIL'), team('Celtic', 'CEL'),
+        team('Midtjylland', 'FCM')]], ['Ligue 1', [team('Lille', 'LIL'), team('Lens', 'RCL')]]]);
+    const follow = sportsEvents.compileFollow(['Europa League'], rosters);
+    const title = 'UEFA | 06 - Bodo/Glimt vs Lille 8:00pm';
+    const rule = sportsEvents.classify({ title }, follow);
+    assert.equal(rule?.league, 'Europa League');
+    assert.equal(sportsEvents.classify({ title: 'Lille v Lens' }, follow), null, 'Ligue 1 is not followed');
+    // A national team is never inferred by its place: "Australia v England" may be any code.
+    const nations = new Map([['Internationals', [team('Australia', 'AUS'), team('England', 'ENG')]]]);
+    assert.equal(sportsEvents.classify({ title: 'Australia v England' }, sportsEvents.compileFollow(['Internationals'], nations)), null);
+    const kickOff = Date.parse('2026-11-06T20:00Z');
+    const card = { id: 'espn:soccer/uefa.europa:1', league: 'Europa League', title: 'Bodø/Glimt v Lille', start: kickOff, end: null,
+        format: null, session: null, competitors: [{ id: 'a', name: 'Bodø/Glimt', aliases: ['Bodø/Glimt', 'BOD'] },
+            { id: 'b', name: 'Lille', aliases: ['Lille', 'LIL'] }] };
+    const airing = { id: 'slot6', league: rule.league, title, kind: 'event', start: kickOff, end: kickOff + 2 * 3600000 };
+    assert.deepEqual(dashboard.matchBroadcasts([card], [airing]).get(card.id).map(e => e.id), ['slot6']);
+});
