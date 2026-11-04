@@ -39,6 +39,7 @@ const DAYS = { test: 5, 'first-class': 4 };
 const LIMITED = new Set(['t20', 'odi', 'list-a']);
 // The C-I leagues a cricket programme can be filed under (sportsClassify): every cricket league (#195).
 const LEAGUES = require('./sportCatalog').sport('Cricket').leagues;
+const { OTHER_CRICKET } = require('./sportCatalog'); // #230
 
 // Test seams: `fetcher.get(url) -> { ok, json } | { ok: false, error }` (as sportsFixturesEspn.getJson); `prefs.get()`
 // the followed names when a request names none (#193: the route passes the account's own, `deps.followed`).
@@ -102,11 +103,14 @@ function competitionOf(league) {
 
 /**
  * #195 (D-41): the followable cricket league a match belongs to: its series' fixed league (BBL, WBBL, Shield...), else
- * the International group its international class says, else null (a competition nobody can follow).
+ * the International group its international class says, else (#230) "Other cricket" when its class is known and not
+ * international; undefined when its class is unknown.
  */
 function leagueOfMatch(seriesId, event) {
     const fixed = Object.entries(require('./sportsFixtures').ESPN_LEAGUE_PATHS).find(([, p]) => p === `cricket/${seriesId}`)?.[0];
-    return fixed || espn.cricketGroupOf([event]);
+    if (fixed) return fixed;
+    const group = espn.cricketGroupOf([event]);
+    return group === null ? OTHER_CRICKET : group; // undefined (class unknown) is counted as unclassified, as before
 }
 
 /** One scoreboard/scorepanel event as a match (internal: the page picks its public fields). Null when unreadable. */

@@ -235,6 +235,32 @@ test('#212: a stored International group card from a fixed league\'s series (WBB
     assert.deepEqual(s.catalog().filter(g=>g.league==='Cricket').map(g=>g.id),['espn:cricket/24469:1539437'],'the stray cards are forgotten');
 });
 
+// #230 (Mark, 4 Nov): "All other cricket" follows every match no listed league or International group owns, taken from
+// ESPN's daily list the collector already reads (no request of its own): never a fixed league's (WBBL) nor an
+// international (NZ v India), and nothing at all unless it is followed.
+test('#230: Other cricket takes the daily list\'s non-international matches of unlisted series, and nothing else', async () => {
+    const match = (id, cls, a, b) => ({ id, competitions: [{ id, date: new Date(NOW + H).toISOString(), class: { internationalClassId: cls },
+        status: { type: { state: 'pre' } }, competitors: [{ order: 1, team: { id: `${id}a`, displayName: a } }, { order: 2, team: { id: `${id}b`, displayName: b } }] }] });
+    const panelAnswer = { scores: [
+        { leagues: [{ id: '8880', name: 'The Ford Trophy' }], events: [match('1550287', '0', 'Northern Districts', 'Auckland')] },
+        { leagues: [{ id: '21284', name: "Women's Big Bash League" }], events: [match('1543952', '0', 'Hobart Hurricanes Women', 'Melbourne Renegades Women')] },
+        { leagues: [{ id: '24469', name: 'India tour of New Zealand' }], events: [match('1539437', '2', 'New Zealand', 'India')] },
+        { leagues: [{ id: '1558428', name: 'Under-19s Asia Cup' }], events: [match('1558500', '15', 'Afghanistan U19', 'Bangladesh U19'), match('1558501', undefined, 'Malaysia U19', 'Sri Lanka U19')] }] };
+    for (const followed of [['Other cricket'], ['Cricket']]) {
+        const s = store(), calls = [];
+        const fetchJson = async url => { calls.push(url); return url.includes('scorepanel') ? structuredClone(panelAnswer) : { events: [] }; };
+        const c = dashboard.createCollector({ store: s, fetchJson, leagues: () => new Set(followed), clock: () => NOW, enabled: () => true });
+        await c.refresh(); c.stop();
+        const others = s.catalog().filter(g => g.league === 'Other cricket');
+        if (followed[0] === 'Other cricket') {
+            assert.deepEqual(others.map(g => g.id).sort(), ['espn:cricket/1558428:1558500', 'espn:cricket/8880:1550287'],
+                'the Ford Trophy and the U19 match of known class; never WBBL, the international or an unknown class');
+            assert.equal(others.find(g => g.id.includes('8880')).competition, 'The Ford Trophy');
+            assert.ok(!calls.some(u => /\/cricket\/(8880|1558428)\/scoreboard/.test(u)), 'no request of its own');
+        } else assert.deepEqual(others, [], 'not followed: nothing');
+    }
+});
+
 test('cached future payloads never become new score observations, and malformed success retries quickly', async () => {
     const s=store();let time=NOW;let calls=0;
     const payload=sample('NFL-final');

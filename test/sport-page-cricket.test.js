@@ -334,3 +334,20 @@ test('#193 (0393, Codex round 1): a follow list whose first refresh fails never 
 });
 
 after(() => { cricket.reset(); });
+
+// #230 (Mark, 4 Nov): "All other cricket": a match no listed league or International group owns shows on the page only
+// when that choice is followed; never under International (men).
+test('#230: Other cricket: an unlisted series\' match shows only when "All other cricket" is followed', async () => {
+    stub((name, json) => {
+        if (name !== 'scorepanel-20261031') return;
+        const copy = JSON.parse(JSON.stringify(json.scores.find(b => b.leagues[0].id === '8043')));
+        copy.leagues[0] = { ...copy.leagues[0], id: '8880', name: 'The Ford Trophy', abbreviation: 'The Ford Trophy' };
+        copy.events = copy.events.slice(0, 1).map(e => ({ ...e, id: '1550287', competitions: [{ ...e.competitions[0], id: '1550287' }] }));
+        json.scores.push(copy);
+    });
+    const ids = (p) => [p.lead, ...p.others].filter(Boolean).map(m => [m.id, m.league]);
+    const other = await cricket.build(NOW, { followed: [], leagues: ['Other cricket'] });
+    assert.deepEqual(ids(other), [['1550287', 'Other cricket']]);
+    const men = await cricket.build(NOW, { followed: [], leagues: ['Cricket'] });
+    assert.ok(!ids(men).some(([id]) => id === '1550287'), 'never on International (men)');
+});

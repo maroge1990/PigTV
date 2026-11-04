@@ -109,6 +109,8 @@ const LEAGUES = [
     ['Sheffield Shield', ['sheffield shield', 'marsh sheffield shield']],
     ['One-Day Cup', ['one day cup', 'marsh one day cup']],
     ['WNCL', ['wncl', 'womens national cricket league']],
+    // #230: every cricket match no listed league or International group owns (ESPN's daily list); only its own names.
+    ['Other cricket', ['other cricket', 'all other cricket']],
     ['NBL', ['nbl']],
     ['Super Rugby', ['super rugby']],
     // #195 (D-41): the curated rugby union competitions. Never the bare "premiership" (AFL broadcasts say it).

@@ -874,7 +874,11 @@ account follows nothing; only the server's owner (its first admin account) takes
   followed, in the order Settings offers it (0399: objects; 0391–0398 plain league names). `league` is the canonical
   name (C-I), what `follows` stores; `label` what Settings shows ("International (men)" for cricket's `Cricket` and
   football's `Internationals`); `heading` the group it sits under ("Domestic leagues", "Franchise"…) or null. Only
-  leagues with a fixture source are listed, and the list grows (#196, #197).
+  leagues with a fixture source are listed, and the list grows (#196, #197). Since 0461 (#230) cricket ends with
+  `{ league: "Other cricket", label: "All other cricket", heading: "Other" }`: every match no listed cricket league or
+  International group owns (other tours' warm-ups, other countries' domestic and youth cricket), shown only when chosen.
+  Its cards (C-R, `league: "Other cricket"`) and Cricket page matches (C-S) come from ESPN's daily list; their scores
+  refresh about every 15 minutes, not every 30 s.
 - `GET /api/sports/follows` (any user) → `{ spoilerFree, sports: [{ sport, leagues, teams }] }` in the account's order:
   each sport its followed leagues (at least one, in order) and its followed teams or individuals (at most 20 names of
   at most 80 characters), one list for the whole sport: a team is highlighted in every followed league it plays in.

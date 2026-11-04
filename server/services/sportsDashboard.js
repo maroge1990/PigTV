@@ -5,7 +5,7 @@ const espn = require('./sportsScoresEspn');
 const { createStore } = require('./sportsDashboardStore');
 const { overrunEnd } = require('./sportOverrun');
 const onAir = require('./sportOnAir');
-const { isCricket, CRICKET_GROUPS } = require('./sportCatalog');
+const { isCricket, CRICKET_GROUPS, OTHER_CRICKET } = require('./sportCatalog');
 const { cricketGroupOf } = require('./sportsFixturesEspn');
 const { isTournament } = require('./sportGroups');
 // #196: motorsport follows riders and drivers, who race in every session; F1 and MotoGP cards are sessions (joined by
@@ -480,7 +480,10 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         }
         // #195 (D-41): the International cricket groups take ESPN's active series by their international class; a series
         // with a fixed league (BBL, WBBL, Shield...) or none (domestic, youth) is never theirs.
-        if (CRICKET_GROUPS.some(l => wanted.has(l))) {
+        // #230: "Other cricket" takes its cards straight from this daily list (no request of its own): every match of a
+        // series no fixed league owns whose own class is known and not international.
+        const others = [];
+        if (CRICKET_GROUPS.some(l => wanted.has(l)) || wanted.has(OTHER_CRICKET)) {
             const series = new Map(); // series id -> its group
             const fixed = fixedCricketSeries();
             const take = (id, group) => { if (group && wanted.has(group) && !fixed.has(id) && !series.has(id)) series.set(id, group); };
@@ -490,6 +493,13 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                 if (!Array.isArray(panel?.json.scores)) continue;
                 for (const block of panel.json.scores) for (const l of Array.isArray(block?.leagues) ? block.leagues : []) {
                     if (/^\d{1,12}$/.test(String(l?.id))) take(String(l.id), cricketGroupOf(block.events));
+                }
+                if (wanted.has(OTHER_CRICKET)) for (const block of panel.json.scores) {
+                    const id = String(block?.leagues?.[0]?.id ?? '');
+                    if (!/^\d{1,12}$/.test(id) || fixed.has(id) || !Array.isArray(block.events)) continue;
+                    const own = block.events.slice(0, 1000).filter(e => cricketGroupOf([e]) === null);
+                    if (own.length) for (const game of espn.normalize({ leagues: block.leagues, events: own }, OTHER_CRICKET, `cricket/${id}`))
+                        others.push({ game, date, observedAt: panel.observedAt });
                 }
             }
             // Retain already-discovered series when discovery is partial, throttled or temporarily unavailable.
@@ -503,6 +513,10 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         jobs.sort((a,b) => Number(b.hot)-Number(a.hot) || (cache.get(a.url)?.attemptAt || 0)-(cache.get(b.url)?.attemptAt || 0)
             || queryDays.indexOf(a.date)-queryDays.indexOf(b.date));
         const candidates = new Map(), processed = new Map();
+        for (const { game, date, observedAt } of others) { // #230: today's listing first (the fresher), as the jobs below
+            const priority = Math.max(0, queryDays.indexOf(date)), old = candidates.get(game.id);
+            if (!old || priority < old.priority) candidates.set(game.id, { game, priority, observedAt });
+        }
         const misfiled = new Map(); // #212: card id -> the International cricket group whose series listed it, not its own
         const ymd = ms => new Date(ms).toISOString().slice(0,10).replaceAll('-', '');
         const closed = state => ['finished','cancelled','postponed'].includes(state);

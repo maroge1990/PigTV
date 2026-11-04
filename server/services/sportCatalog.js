@@ -19,7 +19,9 @@ const CATALOG = [
     { sport: 'Cricket', groups: [
         { heading: 'International', leagues: ['Cricket', "Women's Cricket"] },
         { heading: 'Franchise', leagues: ['IPL', 'BBL', 'WBBL', 'SA20', 'The Hundred'] },
-        { heading: 'Domestic', leagues: ['Sheffield Shield', 'One-Day Cup', 'WNCL'] }] },
+        { heading: 'Domestic', leagues: ['Sheffield Shield', 'One-Day Cup', 'WNCL'] },
+        // #230 (Mark, 4 Nov): everything else (other tours' warm-ups, other countries' domestic cricket, youth), chosen alone.
+        { heading: 'Other', leagues: ['Other cricket'] }] },
     { sport: 'Rugby league', groups: [{ heading: null, leagues: ['NRL', 'NRLW'] }] },
     { sport: 'Rugby union', groups: [
         { heading: 'Club', leagues: ['Super Rugby', 'Premiership Rugby', 'Top 14', 'Champions Cup'] },
@@ -36,7 +38,8 @@ const CATALOG = [
     { sport: 'Netball', groups: [{ heading: null, leagues: ['Super Netball'] }] }
 ];
 const LABELS = { Cricket: 'International (men)', "Women's Cricket": 'International (women)',
-    Internationals: 'International (men)', "Women's Internationals": 'International (women)', NASCAR: 'NASCAR Cup' };
+    Internationals: 'International (men)', "Women's Internationals": 'International (women)', NASCAR: 'NASCAR Cup',
+    'Other cricket': 'All other cricket' };
 
 /** Every sport with its leagues in order (the headings dropped): what the rest of the server reads. */
 const SPORTS = CATALOG.map(s => ({ sport: s.sport, leagues: s.groups.flatMap(g => g.leagues) }));
@@ -51,6 +54,8 @@ function sportOf(league) { return SPORT_OF.get(league) || null; }
 function isCricket(league) { return SPORT_OF.get(league) === 'Cricket'; }
 /** #195: the two International cricket groups, filled from ESPN's series list by its international class. */
 const CRICKET_GROUPS = ['Cricket', "Women's Cricket"];
+/** #230: every cricket match of a series no listed league owns whose own class is not international. */
+const OTHER_CRICKET = 'Other cricket';
 /** The name Settings shows for a league. */
 function labelOf(league) { return LABELS[league] || league; }
 /** C-U's catalogue: `[{ sport, leagues: [{ league, label, heading }] }]` (`heading` null where a sport has none). */
@@ -63,4 +68,4 @@ const PERSON_SPORTS = new Set(['Tennis', 'Golf', 'Combat', 'Motorsport']);
 /** 'person' or 'team': what a sport's followed names are. */
 function followsOf(sportName) { return PERSON_SPORTS.has(sportName) ? 'person' : 'team'; }
 
-module.exports = { SPORTS, sport, sportOf, isCricket, labelOf, publicCatalog, followsOf, CRICKET_GROUPS };
+module.exports = { SPORTS, sport, sportOf, isCricket, labelOf, publicCatalog, followsOf, CRICKET_GROUPS, OTHER_CRICKET };
