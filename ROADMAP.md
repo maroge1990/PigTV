@@ -5,19 +5,20 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 4 Nov 2026 (Mark's test round of 0446/143 opened; Batch 1 of four built).*
+*Overwritten at the end of every session. 4 Nov 2026 (Mark's test round of 0446/143; Batches 1–4 built while he was away).*
 
-- **Deployed:** server **0446** and Apple **143** on TestFlight (4 Nov). **On main, not deployed:** server **0447–0449**
-  (Batch 1, #222 football event slots match their ESPN game; Codex rounds 1–2, both highs fixed). Next builds: server
-  **0450**, Apple **144**.
-- **Mark's test of 0446/143 (4 Nov)** raised #222, #223, #225–#229 and reopened #212 (an Apple page design point: the
-  server is right on live data) and #213 (MLB logos); #224 (F1) was not a bug.
-- **Batches agreed 4 Nov:** 1 server sport matching (done); 2 server followed teams (#223 beyond 72 h, #213 logos, #215,
-  #202); 3 Apple sport layout (#228, #225, #213 client, #205, #204, #192, #212's "Your other cricket today", awaiting
-  Mark's choice); 4 Apple consistent look (#226 headers with the Sport page's pig and a lighter title, #227, #229, #190).
-- **T3:** Batch 1 not run on the rig (its fake provider has no event-slot football titles). Evidence:
-  `docs/evidence/2026-11-04-sport-matching/`.
-- **Still open from before:** the D-44 device pass (T5) per platform; #12, #29, #193–#203, #205, #206, #187, #190, #210.
+- **Deployed:** server **0446**, Apple **143** (TestFlight). Mark asked for **no releases while away** (no deploy, no
+  TestFlight). **On main, not deployed:** server **0447–0451** (Batch 1 #222 football event slots; Batch 2 #223 a
+  followed team's next game at any date, #213 roster badges), CI green. **Committed, not pushed:** Apple **144–149**
+  (Batch 3 #212, #225, #228; Batch 4 #226, #227, #229), waiting for one large Codex review (usage ran out 4 Nov).
+  Next builds: server **0452**, Apple **150**.
+- **Mark's design picks (4 Nov):** next game at any date (#223); standings trimmed beside the games (#228); one header,
+  Sport's pig, 22 pt semibold title (#226); a cricket league page shows only that league; "All other cricket" is #230.
+- **Already built, waiting on Mark's device checks:** #215, #202, #205, #204, #192, #222, #223, #213.
+- **Evidence:** `docs/evidence/2026-11-04-sport-matching/`, `…-followed-teams/`, `…-apple-layout/`. T3 rig not run for
+  Batches 1–2 (its fakes lack event-slot titles and team schedules).
+- **Next:** the Codex review of Apple 144–149 (base 747da01), then push; #190 brand gaps (not started); deploy 0451 and
+  TestFlight 149 when Mark says so; #230.
 
 ## Now
 
