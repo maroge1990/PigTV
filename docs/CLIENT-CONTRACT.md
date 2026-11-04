@@ -319,8 +319,10 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
     then `DELETE` it if not.
   - `game` (0465, #234): `gameId` a C-R card's `id` (400 if malformed or not a known game); records that one game, as
     `team` does its games, once a listing joins it (the next 72 h): Record on a card with no `channels` yet. `match` is
-    the game's title (what older clients show); the rule carries `gameId` and its game's `sport`. It removes itself
-    36 h after the game's start (its recording stays).
+    the game's title from the catalogue (what older clients show; a sent `match` is ignored); the rule carries `gameId`
+    and its game's `sport`. One rule per game: a second POST for it answers 200 with the same rule. Its listing is
+    judged against the league's whole catalogue (0467). It removes itself 36 h after the game's start (its recording
+    stays).
 - `PUT /api/recordings/rules/:id` `{enabled?, newOnly?, preBufferMin?, postBufferMin?}` → the rule; 404 unknown.
 - `DELETE /api/recordings/rules/:id` → `{success, cancelled}`: its schedules that have not started are cancelled; one
   recording now, and everything recorded, stays.

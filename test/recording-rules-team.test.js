@@ -194,3 +194,26 @@ test('#234: a game rule waits for its game\'s listing, then schedules that game 
     assert.equal(rules.get(made.body.id), null);
     assert.ok(scheduled.getById(mine[0].id), 'its schedule stays');
 });
+
+// #234 (0465 Codex round 1): high, a one-game rule joined listings against that game alone, so a later same-team game's
+// listing inside its window was taken for it (the full catalogue's matcher gives it to the later game); medium, game
+// rules were told apart by their display text, so one game could gather several rules.
+test('#234: a game rule joins against the whole catalogue (never a later same-team game\'s listing) and is one rule per game', async () => {
+    const rules = load('services/recordingRules');
+    const d = sqlite.getDb();
+    const early = 'espn:australian-football/afl:20', late = 'espn:australian-football/afl:21';
+    dashboard.store().ingest([game(early, 'AFL', NOW + 64 * H, 'Hawthorn', 'Sydney'), game(late, 'AFL', NOW + 65 * H, 'Hawthorn', 'Sydney')], NOW);
+    // only the later game is listed, starting within the earlier one's join window
+    d.prepare(`INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, categories, flags, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run('ff2', source.id, NOW + 65 * H, NOW + 68 * H, 'AFL: Hawthorn v Sydney', '["Sport"]', 8, null);
+    sportsEvents.reset();
+    const made = await call('POST', '/api/recordings/rules', { kind: 'game', gameId: early, match: 'anything' });
+    assert.equal(made.status, 201, JSON.stringify(made.body));
+    assert.equal(made.body.match, 'Hawthorn v Sydney', 'the title from the catalogue, never the caller\'s text');
+    assert.equal(made.body.scheduled, 0, 'the later game\'s listing is not the earlier game\'s');
+    assert.ok(!scheduled.listUpcoming().some(s => s.sport_game_id === early));
+    const again = await call('POST', '/api/recordings/rules', { kind: 'game', gameId: early, match: 'something else' });
+    assert.equal(again.status, 200, 'the same game: the same rule');
+    assert.equal(again.body.id, made.body.id);
+    rules.remove(made.body.id);
+});

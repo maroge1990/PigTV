@@ -85,7 +85,8 @@ function validate(body = {}) {
         if (typeof body.gameId !== 'string' || !GAME_ID_RE.test(body.gameId)) return { error: 'a game rule needs gameId, a sport card\'s id' };
         game = require('./sportsDashboard').store().catalog().find(g => g.id === body.gameId) || null;
         if (!game) return { error: 'that game is not known (yet): try again once it is on the Sport page' };
-        match = match || String(game.title || '').slice(0, MAX_MATCH);
+        // 0467 (0465 Codex round 1, medium): always the catalogue's title; a game is one rule (by game_id, below)
+        match = String(game.title || game.id).replace(/\s+/g, ' ').trim().slice(0, MAX_MATCH);
     }
     if (!match || match.length > MAX_MATCH) return { error: `match must be 1 to ${MAX_MATCH} characters` };
     const pre = minutes(body.preBufferMin, 60);
@@ -115,6 +116,10 @@ function validate(body = {}) {
 function create(body, userId = null) {
     const { rule, error } = validate(body);
     if (error) return { error };
+    if (rule.kind === 'game') {
+        const one = db().prepare(`SELECT id FROM recording_rules WHERE kind = 'game' AND game_id = ?`).get(rule.game_id);
+        if (one) return { rule: get(one.id), existing: true };
+    }
     if (db().prepare('SELECT COUNT(*) AS n FROM recording_rules').get().n >= MAX_RULES) return { error: `at most ${MAX_RULES} rules` };
     const same = db().prepare(`SELECT id FROM recording_rules WHERE kind = ? AND lower(match) = lower(?) AND
         COALESCE(source_id, 0) = COALESCE(?, 0) AND COALESCE(channel_stable_id, channel_item_id, '') = COALESCE(?, ?, '')
@@ -193,9 +198,12 @@ async function sportCandidates(rule, now) {
  */
 /** #234: a 'game' rule's one game, joined to its listings exactly as a team rule's games are (teamCandidates). */
 async function gameCandidates(rule, now, { games = null, events = null } = {}) {
-    const game = (games || require('./sportsDashboard').store().catalog()).find(g => g.id === rule.game_id);
+    const all = games || require('./sportsDashboard').store().catalog();
+    const game = all.find(g => g.id === rule.game_id);
     if (!game || game.start <= now - 12 * 3600 * 1000) return [];
-    return teamCandidates(rule, now, { games: [game], events, only: game.id });
+    // 0467 (0465 Codex round 1, high): joined against its league's whole catalogue (the matcher rejects ambiguous joins
+    // and gives a listing to the nearest game only when it sees the others), then only this game is kept.
+    return teamCandidates(rule, now, { games: all.filter(g => g.league === game.league), events, only: game.id });
 }
 
 async function teamCandidates(rule, now, { games = null, events = null, only = null } = {}) {
@@ -209,14 +217,14 @@ async function teamCandidates(rule, now, { games = null, events = null, only = n
     const dashboard = require('./sportsDashboard');
     const person = (v) => String(v || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
     const wanted = person(rule.match);
-    const mine = only ? (games || []).filter(g => g.id === only)
+    const mine = only ? (games || []).filter(g => g.start > now - 12 * 3600 * 1000)
         : (games || dashboard.store().catalog()).filter(g => leagues.includes(g.league) && g.start > now - 12 * 3600 * 1000 &&
             (g.competitors || []).some(c => [c.name, ...(c.aliases || [])].some(a => person(a) === wanted)));
     if (!mine.length) return [];
     const airings = events || (await require('./sportsEvents').eventsFor({ hours: SPORT_HOURS, now })).events;
     const joined = dashboard.matchBroadcasts(mine, airings);
     const out = [];
-    for (const g of mine) {
+    for (const g of only ? mine.filter(x => x.id === only) : mine) {
         // 0417 (0416 Codex round 2, high): each channel by its own airing (C-I merges overlapping broadcasts into one
         // event, its bounds the widest): the best channel whose own airing is still to start, on that airing's times.
         const airingsOf = (e) => (e.channels || []).map(ch => ({ e, ch, start: Number.isFinite(ch.start) ? ch.start : e.start,
