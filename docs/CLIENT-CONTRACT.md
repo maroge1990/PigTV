@@ -48,6 +48,7 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 | `providers` | 0174 | Resolve carries `provider` (C-J) | Shown in Stream info |
 | `warming` | R12 (0198) | `POST /api/playback/warm`; `warmingEnabled` beside `features` says whether the admin switched it on | Warms the likely next channel when both are true |
 | `recordingPositions` | 0207 | `GET/PUT /api/recordings/:id/position`; recording rows carry `position_sec`, `watched` | Per-login resume |
+| `recordGameRules` | 0466 | C-M rule kind `game` (`gameId`), C-R `recordWhenListed` (#234) | Record on a game the guide does not list yet |
 | `recordingWatchLive` | 0218 | `GET /api/recordings/:id/watch`; recording rows carry `watch_live` (C-L) | "Watch from start" on a recording in progress |
 | `recordingRules` | 0219 | `/api/recordings/rules` (C-M); `recordings/scheduled` rows carry `rule_id` | "Record every game" / "Record series", rules in Recordings |
 | `recordingArtwork` | 0220 | `recordings` and `recordings/scheduled` rows carry `image` (C-N) | Programme artwork on recording tiles |

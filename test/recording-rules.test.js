@@ -210,6 +210,7 @@ test('switching a rule off stops it; deleting one cancels what it scheduled that
 test('/api/info lists recordingRules; scheduled rows carry rule_id', async () => {
     const info = await call('GET', '/api/info');
     assert.equal(info.body.features.recordingRules, true);
+    assert.equal(info.body.features.recordGameRules, true, "#234: a client offers Record on a game not listed yet only with this");
     const rows = (await call('GET', '/api/recordings/scheduled')).body;
     assert.ok(rows.some(r => Number.isInteger(r.rule_id)));
     assert.ok(rows.every(r => 'rule_id' in r));

@@ -114,6 +114,7 @@ async function sendInfo(req, res) {
             // R5: GET/POST/PUT/DELETE /api/recordings/rules ("record my team", "record this series");
             // scheduled rows carry `rule_id`.
             recordingRules: true,
+            recordGameRules: true, // 0466 (#234, C-M `game`): Record on a game not listed yet; C-R `recordWhenListed`
             // R6: /api/recordings and /api/recordings/scheduled rows carry `image` (the programme's
             // artwork from the guide, /api/logo/<key>, or null).
             recordingArtwork: true
