@@ -826,10 +826,12 @@ let stopAllGeneration = 0;
 // continuation, so this is what a cancel, delete (D2) or shutdown in that wait finds: schedule id ->
 // { recordingId, outputPath, generation, cancelled }.
 const failingOver = new Map();
+/** #220: a recording or schedule that is not there: the route answers 404 (the text stays, C-M). */
+const notFound = (message) => Object.assign(new Error(message), { status: 404 });
 
 async function cancelScheduled(id) {
     const schedule = scheduledDb.getById(id);
-    if (!schedule) throw new Error('Scheduled recording not found');
+    if (!schedule) throw notFound('Scheduled recording not found');
 
     if (schedule.status === 'recording' && active.has(id)) {
         await stopRecording(id, 'cancelled');
@@ -884,7 +886,7 @@ function deleteRecording(id) {
 
 async function deleteRecordingOnce(id) {
     let rec = recordingsDb.getById(id);
-    if (!rec) throw new Error('Recording not found');
+    if (!rec) throw notFound('Recording not found');
     // #141: a share that is not answering refuses the deletion before anything of it is retired,
     // stopped or removed (its files would stay behind, unlisted, under a recording that is gone).
     // #149: before retire(), which cannot be undone: a refused deletion leaves the recording as it
@@ -895,7 +897,7 @@ async function deleteRecordingOnce(id) {
             if (err.code === 'SHARE_UNRESPONSIVE') throw new Error('The recordings folder is not responding, so the recording was not deleted. Try again once it is back.');
         }
         rec = recordingsDb.getById(id);
-        if (!rec) throw new Error('Recording not found');
+        if (!rec) throw notFound('Recording not found');
     }
     // R4-D2 (0257), R5-D1: from here, before any await, nothing being published for it - by any
     // job - may record itself or stay.

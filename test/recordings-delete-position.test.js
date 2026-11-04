@@ -119,6 +119,16 @@ test('cancelling an upcoming schedule is unchanged: it stays, marked cancelled',
     assert.ok(scheduled.getById(s.id));
 });
 
+// #220: the Apple client's Undo replay tells "already gone" (done) from a real failure; a 500 made it match error texts.
+test('#220: deleting a recording or a schedule that is already gone answers 404, with the same text', async () => {
+    const rec = await request('DELETE', '/api/recordings/987654', tokenA);
+    assert.equal(rec.status, 404);
+    assert.deepEqual(rec.data, { error: 'Recording not found' });
+    const sched = await request('DELETE', '/api/recordings/scheduled/987654', tokenA);
+    assert.equal(sched.status, 404);
+    assert.deepEqual(sched.data, { error: 'Scheduled recording not found' });
+});
+
 // ---- resume position ----------------------------------------------------------
 
 test('no position yet: zeros, and 404 for a recording that does not exist', async () => {

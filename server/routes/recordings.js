@@ -306,7 +306,7 @@ router.delete('/scheduled/:id', async (req, res) => {
         const result = await recordingEngine.cancelScheduled(parseInt(req.params.id));
         res.json(result);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(err.status === 404 ? 404 : 500).json({ error: err.message });
     }
 });
 
@@ -595,7 +595,7 @@ router.delete('/:id', async (req, res) => {
         await recordingEngine.deleteRecording(parseInt(req.params.id));
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(err.status === 404 ? 404 : 500).json({ error: err.message });
     }
 });
 

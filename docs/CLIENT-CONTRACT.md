@@ -385,7 +385,9 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   fails (`playback?async=1`: 500 `{status: "failed", reason: "file-missing"}`); the recording is 404 from then on.
 - The Apple client (124) treats a `DELETE` of `recordings/:id`, `recordings/scheduled/:id` or `recordings/rules/:id`
   that answers 404, or 500 with `error` exactly "Recording not found" / "Scheduled recording not found", as already
-  done (it replays removals committed before the app was stopped). Keep those texts.
+  done (it replays removals committed before the app was stopped). Keep those texts. Since 0453 (#220) a `DELETE` of
+  `recordings/:id` or `recordings/scheduled/:id` that is not there answers **404** with the same `error` text (it was
+  500); any other failure stays 500.
 - A delete while the recordings share is not answering is refused (0330, #141): 500 `{error: "The recordings folder is
   not responding, so the recording was not deleted. Try again once it is back."}`; the recording stays as it was. (Any
   delete failure was already a 500 with `error`; only the text is new.)
