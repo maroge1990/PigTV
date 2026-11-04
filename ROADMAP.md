@@ -5,19 +5,20 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 4 Nov 2026 (evening; Mark away, "continue through logical batches", no releases).*
+*Overwritten at the end of every session. 5 Nov 2026 (Mark away overnight, "continue through logical batches", no releases).*
 
-- **Deployed:** server **0451**, Apple **149** (TestFlight). **On main, not deployed:** server **0452–0470** (cricket
-  leftovers #212, #220, #209, #48, #38, Play from live #17, the TNF listing #231, listings a week ahead, #208, "All
-  other cricket" #230, cricket and today's final scores #235, Record a game not listed yet #234, live pause #37) and
-  Apple **150–158** (Play from live, Record when it's listed, the follows focus #233, live pause). Every batch had its
-  Codex rounds (highs fixed with failing-before tests). Next builds: server **0471**, Apple **159**.
-- **Mark's decisions (4 Nov):** release only on his go-ahead; the providers may be used for tests; recordings are never
-  deleted automatically (#40); a future game records once listed (#234); Top Shelf live sport: follows first, opens
-  the channel (#232, waits on mock-ups and the sign-in-sharing question).
-- **Checklist:** `TEST-ROUND-0457-151.md` (worktree root) covers up to 0457/151; to be extended for the release.
-- **Next:** the rest of the playback batch (#34 watch-copy restarts, #30, #25, #27, #4: capture first), then running
-  unattended (#44, #43, #45), Apple foundations, web.
+- **Deployed:** server **0451**, Apple **149** (TestFlight). **On main, not deployed:** server **0452–0474** and Apple
+  **150–163**: cricket leftovers (#212, #230 All other cricket, #235 scores), listings (#231, a week ahead), Play from
+  live (#17), Record a game not listed yet (#234), live pause (#37), watch-copy restarts (#34), small fixes (#220,
+  #209, #48, #38, #208, #47), the follows focus (#233), sign-in kept on a 401 (#54), faster launch (#55), the flaky
+  cache test (#221). Every batch had its Codex rounds; highs fixed with failing-before tests. Next builds: server
+  **0475**, Apple **164**.
+- **Mark's decisions (4 Nov):** release only on his go-ahead; providers usable for tests; recordings never deleted
+  automatically (#40); a future game records once listed (#234); Top Shelf live sport follows-first (#232: waits on
+  mock-ups and whether to share the sign-in with the extension).
+- **Checklist:** `TEST-ROUND-0474-163.md` (worktree root, 35 steps) for the release.
+- **Next:** captures on the real feeds for #4, #27, #30 (in the production container: Mark's OK) and #25 (Xcode on the
+  Apple TV); running unattended (#44, #43, #45: each needs a choice from Mark); web (#60–#64); #54's mid-session 401.
 
 ## Now
 
