@@ -1,7 +1,7 @@
-# Apple layout fixes (Batches 3–4, Apple 144–149): committed, not pushed
+# Apple layout fixes (Batches 3–4, Apple 144–149)
 
-From Mark's test of Apple 143 (4 Nov). Committed in PigTV-Swift 7bfa333..1279cd8; **held off main** until Codex
-is available (it hit its usage limit; Mark: commit, hold the push, one large review later).
+From Mark's test of Apple 143 (4 Nov). PigTV-Swift 7bfa333..1279cd8. Held off main while Codex was out of usage
+(Mark: commit, hold the push); one Codex round on 4 Nov approved all six with no findings, then pushed.
 
 | Build | Issue | Change | Proof (fails on the build before) |
 |---|---|---|---|
@@ -12,7 +12,7 @@ is available (it hit its usage limit; Mark: commit, hold the push, one large rev
 | 148 | #227 | iPad Settings: no page title beside the menu; first rows level | UI: 224.5 vs 160 pt before; 160/160 after (`227-…`) |
 | 149 | #229 | iPhone Recordings: cards at one 16 pt edge; placeholder while loading, fade-in | UI on iPhone 17 (`229-…`) |
 
-Gates: `Tools/test.sh fast` and the iOS build passed after each; `push` passed for 144–146 and runs again before the
-push. Not checked on a simulator: Recordings' empty state and loading placeholder (the fixture always has
+Gates: `Tools/test.sh fast` and the iOS build passed after each; `push` passed for 144–146 and again for 144–149
+together before the push. Not checked on a simulator: Recordings' empty state and loading placeholder (the fixture always has
 recordings); the iPad standings screenshot is clipped by the simulator in landscape (the test's frame checks passed).
 T5 (Mark, on TestFlight once released): each issue's own steps in its comment.

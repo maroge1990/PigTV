@@ -9,15 +9,15 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 - **Deployed:** server **0446**, Apple **143** (TestFlight). Mark asked for **no releases while away** (no deploy, no
   TestFlight). **On main, not deployed:** server **0447–0451** (Batch 1 #222 football event slots; Batch 2 #223 a
-  followed team's next game at any date, #213 roster badges), CI green. **Committed, not pushed:** Apple **144–149**
-  (Batch 3 #212, #225, #228; Batch 4 #226, #227, #229), waiting for one large Codex review (usage ran out 4 Nov).
+  followed team's next game at any date, #213 roster badges), CI green. **On main, not released:** Apple **144–149**
+  (Batch 3 #212, #225, #228; Batch 4 #226, #227, #229), Codex approved with no findings.
   Next builds: server **0452**, Apple **150**.
 - **Mark's design picks (4 Nov):** next game at any date (#223); standings trimmed beside the games (#228); one header,
   Sport's pig, 22 pt semibold title (#226); a cricket league page shows only that league; "All other cricket" is #230.
 - **Already built, waiting on Mark's device checks:** #215, #202, #205, #204, #192, #222, #223, #213.
 - **Evidence:** `docs/evidence/2026-11-04-sport-matching/`, `…-followed-teams/`, `…-apple-layout/`. T3 rig not run for
   Batches 1–2 (its fakes lack event-slot titles and team schedules).
-- **Next:** the Codex review of Apple 144–149 (base 747da01), then push; #190 brand gaps (not started); deploy 0451 and
+- **Next:** a release (deploy 0451, TestFlight 149) and one Test Round checklist for the built issues; #190 brand gaps (not started); deploy 0451 and
   TestFlight 149 when Mark says so; #230.
 
 ## Now
