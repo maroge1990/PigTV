@@ -258,7 +258,8 @@ function classify({ title, categories = [], sportChannel = false, channelName = 
                 const places = follow.places?.get(league) || new Set();
                 if (keys.every((k, i) => (i ? second : first).length || places.has(k))) possible.add(league);
             }
-            const otherCode = clubFootball(matches[0]) && categories.some(c => OTHER_CODE_RE.test(String(c)));
+            // 0449 (0448 Codex round 2, high): the title and the slot's name too ("Rugby: Toulouse v Lyon", "Rugby 4: ...").
+            const otherCode = clubFootball(matches[0]) && [text, channelName, ...categories].some(c => OTHER_CODE_RE.test(String(c)));
             if (matches.length === 1 && possible.size === 1 && !otherCode && follow.leagues.has(matches[0])) leagues.unshift(matches[0]);
         }
     }

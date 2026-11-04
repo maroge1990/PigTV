@@ -501,3 +501,14 @@ test('#222 (0447 Codex round 1): a football club named by its town never takes a
     const alone = sportsEvents.compileFollow(['Ligue 1'], new Map([['Ligue 1', rosters.get('Ligue 1')]]));
     assert.notEqual(sportsEvents.classify({ title: 'Toulouse v Lyon', categories: ['Rugby Union'] }, alone)?.league, 'Ligue 1');
 });
+
+test('#222 (0448 Codex round 2): a title or slot that names another code is never a club football league\'s by roster', () => {
+    const club = (n, a) => ({ displayName: n, shortDisplayName: n, name: n, location: n, abbreviation: a });
+    const alone = sportsEvents.compileFollow(['Ligue 1'], new Map([['Ligue 1', [club('Toulouse', 'TFC'), club('Lyon', 'OL')]]]));
+    for (const p of [{ title: 'Rugby: Toulouse v Lyon' }, { title: 'Rugby Union | Toulouse v Lyon 20:00' },
+        { title: 'Toulouse v Lyon 8:00pm', channelName: 'Rugby 4: Toulouse v Lyon 8:00pm' }]) {
+        assert.notEqual(sportsEvents.classify(p, alone)?.league, 'Ligue 1', p.title);
+    }
+    assert.equal(sportsEvents.classify({ title: 'Ligue 1 | 04 - Toulouse v Lyon 8:00pm' }, alone)?.league, 'Ligue 1');
+    assert.equal(sportsEvents.classify({ title: 'Soccer 04: Toulouse v Lyon 8:00pm' }, alone)?.league, 'Ligue 1');
+});
