@@ -145,3 +145,38 @@ test('0421: when the recording rules cannot be read, unfollowing says any "Recor
     assert.deepEqual(stored.sports[0].teams, []);
     assert.match(root.innerHTML, /Unfollowed Arsenal\. The recording rules could not be read, so any &quot;Record every game&quot; on it is still on/);
 });
+
+// #208 (as Apple 93): a change the server kept whose answer was lost, with the re-read failing too, left the old list
+// on show; the next queued change was built from it and its whole-list PUT undid the kept one. Now the panel goes
+// read-only and drops queued changes until a load reads the server again.
+test('#208: a lost answer that cannot be read again stops queued changes until the panel loads again', async () => {
+    let stored = { spoilerFree: false, sports: [{ sport: 'Football', leagues: ['EPL'], teams: [] }] };
+    let reads = 'ok', puts = 0, release;
+    const { settings, root } = panel({
+        'GET /sports/catalog': { sports: catalog },
+        'GET /sports/follows': () => (reads === 'fail' ? new Error('offline') : stored),
+        'PUT /sports/follows': (body) => {
+            puts++;
+            stored = JSON.parse(JSON.stringify(body)); // kept...
+            if (puts === 1) return new Promise(r => { release = () => r(new Error('the answer was lost')); }); // ...answer lost
+            return stored;
+        },
+        'GET /recordings/rules': [], 'GET /sports/suggestions': { suggestions: [] }, 'GET /sports/names': { names: [] } });
+    await settings.load();
+    const change = (league) => root.listeners.change({ target: { dataset: { addLeague: 'Football' }, value: league } });
+    const a = change('FA Cup');
+    while (!release) await new Promise(r => setImmediate(r));
+    const b = change('Champions League'); // queued behind the first
+    reads = 'fail';
+    release();
+    await Promise.all([a, b]);
+    assert.deepEqual(stored.sports[0].leagues, ['EPL', 'FA Cup'], 'the kept change is never undone');
+    assert.equal(puts, 1, 'the queued change was dropped');
+    assert.match(root.innerHTML, /could not be read again/i);
+    await change('Champions League');
+    assert.equal(puts, 1, 'read-only until it loads again');
+    reads = 'ok';
+    await settings.load();
+    await change('Champions League');
+    assert.deepEqual(stored.sports[0].leagues, ['EPL', 'FA Cup', 'Champions League'], 'after a load, changes save again');
+});

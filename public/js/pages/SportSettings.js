@@ -126,6 +126,7 @@ class SportFollowSettings {
             const [catalog, follows] = await Promise.all([API.request('GET', '/sports/catalog'), API.request('GET', '/sports/follows')]);
             this.catalog = catalog.sports || [];
             this.state = follows;
+            this.unknown = false; // #208: read again: changes save again
             this.message = '';
         } catch (err) {
             this.message = `Could not load what you follow: ${err.message}`;
@@ -153,7 +154,9 @@ class SportFollowSettings {
      * quick changes never build on the same old list.
      */
     save(next, done = '') {
-        const run = this.queue.then(() => this.saveNow(typeof next === 'function' ? next(this.state) : next, done));
+        // #208: while what the server holds is unknown, a change (queued or new) is dropped, never built on a stale list.
+        if (this.unknown) { this.render(); return Promise.resolve(); }
+        const run = this.queue.then(() => (this.unknown ? undefined : this.saveNow(typeof next === 'function' ? next(this.state) : next, done)));
         this.queue = run.catch(() => {});
         return run;
     }
@@ -164,7 +167,11 @@ class SportFollowSettings {
             await Promise.all([this.loadNames(), this.loadSuggestions()]);
         } catch (err) {
             this.message = `Not saved: ${err.message}`;
-            try { this.state = await API.request('GET', '/sports/follows'); } catch { /* keep what is shown */ }
+            try { this.state = await API.request('GET', '/sports/follows'); } catch {
+                // #208: the PUT may have been kept: what is shown may be stale, so nothing more is saved until a load.
+                this.unknown = true;
+                this.message = 'Not saved, and what you follow could not be read again. Reload this page before changing anything.';
+            }
         }
         this.render();
     }
@@ -331,12 +338,14 @@ class SportFollowSettings {
         }).join('');
         this.root.innerHTML = `<h3>Your sport</h3>
             <p class="setting-hint">For your account only, on every device you sign in on: the sports you follow, in your order, their leagues and your teams.</p>
+            <fieldset class="sport-follow-body" ${this.unknown ? 'disabled' : ''}>
             <div class="setting-item"><label class="setting-toggle"><input type="checkbox" id="sport-follow-spoilers" ${this.state.spoilerFree ? 'checked' : ''}><span class="toggle-slider"></span></label>
                 <div class="setting-info"><span class="setting-label">Spoiler-free</span><span class="setting-hint">Hide scores and results everywhere in Sport.</span></div></div>
             ${suggestions ? `<ul class="sport-follow-suggestions">${suggestions}</ul>` : ''}
             ${cards || '<p class="setting-hint">You follow no sport yet.</p>'}
             ${unfollowed.length ? `<div class="sport-follow-add"><select id="sport-follow-add" class="sport-follow-select" aria-label="Add a sport">${unfollowed.map(c => `<option value="${e(c.sport)}">${e(c.sport)}</option>`).join('')}</select>
                 <button class="btn btn-sm btn-primary" data-act="sport-add">Follow this sport</button></div>` : ''}
+            </fieldset>
             <p class="lineup-status" role="status">${e(this.message)}</p>`;
     }
 }

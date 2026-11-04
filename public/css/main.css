@@ -4570,3 +4570,7 @@ kbd {
 .sport-follow-suggestion { display: flex; align-items: center; gap: var(--space-sm, 8px); flex-wrap: wrap; padding: var(--space-sm, 8px);
   border-radius: var(--radius-md, 10px); background: var(--color-accent-dim); margin-bottom: var(--space-xs, 4px); }
 .sport-follow-suggestion span { flex: 1 1 220px; }
+
+/* #208: the panel's controls, disabled while what the server holds is unknown */
+.sport-follow-body { border: 0; padding: 0; margin: 0; min-width: 0; }
+.sport-follow-body:disabled { opacity: 0.55; }
