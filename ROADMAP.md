@@ -7,12 +7,12 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 *Overwritten at the end of every session. 5 Nov 2026 (Mark away overnight, "continue through logical batches", no releases).*
 
-- **Deployed:** server **0451**, Apple **149** (TestFlight). **On main, not deployed:** server **0452–0474** and Apple
+- **Deployed:** server **0451**, Apple **149** (TestFlight). **On main, not deployed:** server **0452–0476** and Apple
   **150–163**: cricket leftovers (#212, #230 All other cricket, #235 scores), listings (#231, a week ahead), Play from
   live (#17), Record a game not listed yet (#234), live pause (#37), watch-copy restarts (#34), small fixes (#220,
-  #209, #48, #38, #208, #47), the follows focus (#233), sign-in kept on a 401 (#54), faster launch (#55), the flaky
+  #209, #48, #38, #208, #47), the follows focus (#233), sign-in kept on a 401 (#54), faster launch (#55), web player errors (#60), the flaky
   cache test (#221). Every batch had its Codex rounds; highs fixed with failing-before tests. Next builds: server
-  **0475**, Apple **164**.
+  **0477**, Apple **164**.
 - **Mark's decisions (4 Nov):** release only on his go-ahead; providers usable for tests; recordings never deleted
   automatically (#40); a future game records once listed (#234); Top Shelf live sport follows-first (#232: waits on
   mock-ups and whether to share the sign-in with the extension).
