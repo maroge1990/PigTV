@@ -463,7 +463,8 @@ They answer `Cache-Control: private, no-store`; no shared response cache or clie
 - `freshness`: `buffering` until an old-enough snapshot exists, `fresh` when eligible, `stale` after the configured
   delay plus two minutes of observation age. Stale/unknown progress is `{}`; never animate a clock locally. A known
   future scheduled event retains its scheduled label between the slower catalog polls. Observation age is receipt
-  age, not proof of upstream freshness or video alignment.
+  age, not proof of upstream freshness or video alignment. Since 0464 (#235) a final from today (the front page's,
+  `keepFinishedToday`) is `fresh` with its result however long ago it was read: a result does not change.
 - A complete observed snapshot becomes eligible at `observedAt + scoreDelaySeconds * 1000`. Scores, clock, period,
   breaks and final status come from that snapshot together. `progress` contains available clock/period, MLB half-inning,
   or cricket day/overs. No missing clock, base situation, innings score or 0–0 is fabricated. With `avoidSpoilers`

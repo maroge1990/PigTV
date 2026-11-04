@@ -344,7 +344,8 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
         const card={id:g.id,league:g.league,title:g.title,start:g.start,end:g.end,session:g.session,circuit:g.circuit,format:g.format || null,
             competitors:g.competitors.map(({id,name,logo})=>({id,name,logo})),
             status:projectedState, ...(fresh && selected.data.breakLabel ? {breakLabel:selected.data.breakLabel}:{}),
-            freshness:!selected ? 'buffering' : fresh ? 'fresh' : 'stale',observedAt:at,
+            // 0464 (#235): a final from today is fresh: its result does not change, and clients draw scores only when fresh.
+            freshness:!selected ? 'buffering' : shown ? 'fresh' : 'stale',observedAt:at,
             progress:shown ? progressFor(g,selected.data.progress,hidden) : {},
             availability:liveChannels.length || (g.start>now && channels.length) ? 'matched' : airings.length ? 'unavailable' : 'unmatched',
             broadcastStatus:liveChannels.length ? 'on-tv' : channels.length ? 'scheduled' : 'unavailable',channels,

@@ -301,6 +301,18 @@ test('#235: cricket scores with overs, a target or a side yet to bat are kept; o
     assert.equal(card('<b>99</b>', '12'), null, 'anything else is refused');
 });
 
+// #235 (Mark, 4 Nov: football too): a final from today kept its result on the card ("a final does not go stale") but
+// was labelled `stale` once its last reading was a few minutes old, and both clients draw scores only when `fresh`:
+// the result vanished minutes after full time. A final from today is fresh: a result does not change.
+test('#235: a final from today is fresh, with its result, however long ago it was last read', () => {
+    const s = store();
+    s.ingest([game({ start: NOW - 50 * 60000, snapshot: { state: 'finished', progress: {}, scores: ['24', '21'], situation: null } })], NOW - 20 * 60000);
+    const card = dashboard.buildDashboard(s, { now: NOW, userId: '1', timezone: 'UTC', events: [], keepFinishedToday: true }).games[0];
+    assert.equal(card.status, 'finished');
+    assert.deepEqual(card.scores, ['24', '21']);
+    assert.equal(card.freshness, 'fresh', 'clients draw the result');
+});
+
 test('cached future payloads never become new score observations, and malformed success retries quickly', async () => {
     const s=store();let time=NOW;let calls=0;
     const payload=sample('NFL-final');
