@@ -123,6 +123,24 @@ test('the provider closing a live response mid-play counts as a provider reason'
     assert.equal(ts.providerFailureIn(['[libx264 @ 0x1] some encoder complaint']), false);
 });
 
+// #38: a full transcode tmpfs (two UHD plays, a standby) makes ffmpeg fail writing its segments: "No space left on device",
+// often beside "Input/output error", and the watchdog then sees no new files (a stall). Both read as the provider's fault,
+// quarantining a channel that is fine. A full local disk is never a provider reason.
+test('#38: a session that ran out of local disk is never the provider\'s fault', () => {
+    const full = ['[hls @ 0x1] Failed to open file \'/transcode/abc/seg00042.ts\' for writing: No space left on device',
+        '[out#0/hls @ 0x2] Error muxing a packet', 'Error writing trailer: Input/output error'];
+    assert.equal(ts.providerFailureIn(full), false, 'an I/O error beside a full disk is the disk');
+    assert.equal(ts.localDiskFull(full), true);
+    assert.equal(ts.localDiskFull(['[http @ 0x1] Stream ends prematurely']), false);
+    for (const how of ['exit', 'stall']) {
+        const lost = [];
+        const session = Object.assign(Object.create(ts.TranscodeSession.prototype), { stderrTail: full, _lostNoted: false,
+            emit: (name, data) => lost.push(data) });
+        session.noteLost(how);
+        assert.equal(lost[0].providerReason, false, how);
+    }
+});
+
 test('the routing log and Status page name the new loss', () => {
     const relay = fs.readFileSync(path.join(sandbox, 'server/services/streamRelay.js'), 'utf8');
     assert.match(relay, /broke its timestamps after a reconnect/);

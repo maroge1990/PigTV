@@ -504,7 +504,10 @@ class TranscodeSession extends EventEmitter {
     noteLost(how) {
         if (this._lostNoted) return;
         this._lostNoted = true;
-        const providerReason = how === 'stall' || how === 'timestamps' || !!providerFailureIn(this.stderrTail) || this.feedLost?.providerReason === true;
+        // #38: a full local disk also stops the segments (a stall to the watchdog): never the provider's fault.
+        const diskFull = localDiskFull(this.stderrTail);
+        if (diskFull) console.warn(`[TranscodeSession ${this.id}] Ended: the transcode folder is full (no space left on device)`);
+        const providerReason = !diskFull && (how === 'stall' || how === 'timestamps' || !!providerFailureIn(this.stderrTail) || this.feedLost?.providerReason === true);
         try {
             this.emit('lost', { how, providerReason });
         } catch (err) {
@@ -1759,6 +1762,14 @@ function classifyInputFailure(lines) {
 const NETWORK_FAILURE_RE = /Stream ends prematurely|Connection timed out|Operation timed out|Connection reset by peer|Network is unreachable|No route to host|Failed to resolve hostname|Name or service not known|Input\/output error|I\/O error|Invalid data found when processing input|End of file/i;
 
 /**
+ * #38: ffmpeg could not write its output because the local disk (the transcode tmpfs, appdata) is full. Never the
+ * provider's fault: a session or recording ending so must not quarantine its channel or count toward its breaker.
+ */
+function localDiskFull(lines) {
+    return Array.isArray(lines) && lines.some(line => /No space left on device|Disk quota exceeded/i.test(String(line)));
+}
+
+/**
  * True when ffmpeg's stderr tail says the input failed for a provider reason
  * (multi-provider failover, 0174): an HTTP 4xx/5xx or refused connection
  * (classifyInputFailure), or a network error reading the stream. False for
@@ -1766,6 +1777,7 @@ const NETWORK_FAILURE_RE = /Stream ends prematurely|Connection timed out|Operati
  */
 function providerFailureIn(lines) {
     if (!Array.isArray(lines)) return false;
+    if (localDiskFull(lines)) return false; // #38: the I/O errors beside it are the disk's
     if (classifyInputFailure(lines)) return true;
     return lines.some(line => NETWORK_FAILURE_RE.test(String(line)));
 }
@@ -1805,6 +1817,7 @@ module.exports = {
     buildMasterPlaylist,
     classifyInputFailure,
     providerFailureIn,
+    localDiskFull,
     REFUSED_RETRY_DELAYS_MS,
     paceArgs,
     readrateBurstSec,
