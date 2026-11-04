@@ -717,10 +717,15 @@ async function requestForRecording(schedule, settings = {}, providerId = undefin
     const stale = streams.filter(s => recordIdle(s) >= cutoff); // #37: a paused play gives way to a recording
     const live = streams.filter(s => recordIdle(s) < cutoff);
 
-    if (live.length === 0 && stale.length > 0) {
+    // 0470 (#37, 0469 Codex round 2, high): enough abandoned or paused streams to fit the recording are taken, even
+    // when someone else is watching (before, only when nobody was: a recording then asked, and after the prompt's
+    // timeout stopped the watched stream instead of the paused one).
+    const needed = streams.length - limit + 1;
+    if (stale.length > 0 && stale.length >= needed) {
         const verdict = leased({ allowed: true, reason: 'Reclaimed an abandoned stream' });
-        for (const s of stale) {
-            console.log(`[Coordinator] Reclaiming idle stream ${s.id} (${Math.round(s.idleMs / 1000)}s silent) for recording #${schedule.id}`);
+        const going = live.length === 0 ? stale : stale.slice().sort((a, b) => recordIdle(b) - recordIdle(a)).slice(0, needed);
+        for (const s of going) {
+            console.log(`[Coordinator] Reclaiming ${s.paused ? 'paused' : 'idle'} stream ${s.id} (${Math.round(s.idleMs / 1000)}s silent) for recording #${schedule.id}`);
             await releaseStream(s);
         }
         prompts.delete(schedule.id);

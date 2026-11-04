@@ -298,8 +298,23 @@ test('#37: a recording that needs the connection still takes a paused play\'s st
     const theirs = await holding('device:apple-tv', 0);
     assert.equal((await pause(tvToken(), theirs.id)).status, 200);
     const coordinator = load('services/streamCoordinator');
-    const verdict = await coordinator.requestForRecording({ id: 9901, title: 'Due', program_start: Date.now(), pre_buffer_min: 0 }, { maxConnections: 1 });
+    const verdict = await coordinator.requestForRecording({ id: 9901, title: 'Due', program_start: Date.now(), pre_buffer_min: 0 }, { maxProviderStreams: 1 });
     assert.equal(verdict.allowed, true, verdict.reason);
     assert.ok(!stillRegistered(theirs), 'the recording took it, unasked');
+    verdict.lease?.release?.();
+});
+
+// #37 (0469 Codex round 2, high): with two connections, one paused and one watched stream, a recording found the
+// paused one reclaimable but took it only when nobody else watched, so it asked (and after the prompt's timeout
+// stopped the watched one). It now takes just enough of the reclaimable streams, and asks only if that is not enough.
+test('#37: in a full pool, a recording takes the paused stream and leaves the watched one alone', async () => {
+    const watched = await holding('device:ipad', 0);
+    const pausedOne = await holding('device:apple-tv', 0);
+    assert.equal((await pause(tvToken(), pausedOne.id)).status, 200);
+    const coordinator = load('services/streamCoordinator');
+    const verdict = await coordinator.requestForRecording({ id: 9902, title: 'Due', program_start: Date.now(), pre_buffer_min: 0 }, { maxProviderStreams: 2 });
+    assert.equal(verdict.allowed, true, verdict.reason);
+    assert.ok(!stillRegistered(pausedOne), 'the paused stream gave way');
+    assert.ok(stillRegistered(watched), 'the watched one stays');
     verdict.lease?.release?.();
 });
