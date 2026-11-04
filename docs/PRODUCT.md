@@ -124,7 +124,7 @@ The curated list (no search beyond it):
 |---|---|---|
 | Australian football | AFL, AFLW | ESPN; AFL's own API |
 | Football | Domestic leagues: EPL, Championship, Scottish Premiership, La Liga, Bundesliga, Serie A, Ligue 1, Eredivisie, MLS, A-League · Domestic cups: FA Cup, League Cup · European club competitions: Champions League, Europa League, Conference League · Women's: WSL, A-League Women · International (men), International (women) | ESPN |
-| Cricket | International (men), International (women) · Franchise: IPL, BBL, WBBL, SA20, The Hundred · Domestic: Sheffield Shield, One-Day Cup, WNCL · Other: All other cricket (#230; scores every ~15 min) | ESPN |
+| Cricket | International (men), International (women) · Franchise: IPL, BBL, WBBL, SA20, The Hundred · Domestic: Sheffield Shield, One-Day Cup, WNCL · Other: All other cricket (#230) | ESPN |
 | Rugby league | NRL (with State of Origin), NRLW | ESPN; Champion Data |
 | Rugby union | Super Rugby, Rugby Championship, Six Nations, Rugby World Cup, Premiership, Top 14, Champions Cup | ESPN |
 | Basketball · American football · Ice hockey · Baseball | NBA, NBL, WNBA · NFL · NHL · MLB | ESPN |
