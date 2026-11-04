@@ -447,6 +447,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         const catalog = store.catalog(), known = new Map(catalog.map(g => [g.id, g]));
         for (const id of listedOn.keys()) if (!known.has(id)) listedOn.delete(id);
         const hot = new Set(), warm = new Set();
+        const otherHot = new Set(); // 0462 (#230): the days whose daily list carries an Other cricket match in play or about to start
         for (const g of catalog) {
             const source = /^espn:([^:]+):/.exec(g.id)?.[1];
             if (!source) continue;
@@ -462,6 +463,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
             if (!nearStart && !(inPlay && inWindow)) continue;
             hot.add(`${source}|${days[0]}`);
             hot.add(`${source}|current`);
+            if (g.league === OTHER_CRICKET) otherHot.add(listedOn.get(g.id) || days[0]);
             const startDay = new Date(g.start).toISOString().slice(0,10).replaceAll('-', '');
             if (nearStart && g.start > now) hot.add(`${source}|${startDay}`);
             if (!isCricket(g.league) && inPlay && startDay === previous) hot.add(`${source}|${previous}`);
@@ -489,7 +491,12 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
             const take = (id, group) => { if (group && wanted.has(group) && !fixed.has(id) && !series.has(id)) series.set(id, group); };
             const discoveryDays = days.slice().sort((a,b) => (cache.get(`${espn.BASE}cricket/scorepanel?dates=${a}`)?.attemptAt || 0) - (cache.get(`${espn.BASE}cricket/scorepanel?dates=${b}`)?.attemptAt || 0));
             for (const date of discoveryDays) {
-                const panel = await read(`${espn.BASE}cricket/scorepanel?dates=${date}`, 900000, {cold:true,maxCold:hot.size ? CATALOG_RESERVE : Infinity});
+                // 0462 (0461 Codex round 1, medium): Other cricket's cards come only from this list, and a live score is
+                // trusted for a few minutes: while one of them plays, its day's list is polled as a live source (30 s).
+                const url = `${espn.BASE}cricket/scorepanel?dates=${date}`, live = otherHot.has(date);
+                const existing = cache.get(url);
+                if (live && existing?.data) existing.nextAt = Math.min(existing.nextAt, existing.data.observedAt + 30000);
+                const panel = await read(url, live ? 30000 : 900000, live ? {} : {cold:true,maxCold:hot.size ? CATALOG_RESERVE : Infinity});
                 if (!Array.isArray(panel?.json.scores)) continue;
                 for (const block of panel.json.scores) for (const l of Array.isArray(block?.leagues) ? block.leagues : []) {
                     if (/^\d{1,12}$/.test(String(l?.id))) take(String(l.id), cricketGroupOf(block.events));
@@ -515,7 +522,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         const candidates = new Map(), processed = new Map();
         for (const { game, date, observedAt } of others) { // #230: today's listing first (the fresher), as the jobs below
             const priority = Math.max(0, queryDays.indexOf(date)), old = candidates.get(game.id);
-            if (!old || priority < old.priority) candidates.set(game.id, { game, priority, observedAt });
+            if (!old || priority < old.priority) { candidates.set(game.id, { game, priority, observedAt }); listedOn.set(game.id, date); }
         }
         const misfiled = new Map(); // #212: card id -> the International cricket group whose series listed it, not its own
         const ymd = ms => new Date(ms).toISOString().slice(0,10).replaceAll('-', '');

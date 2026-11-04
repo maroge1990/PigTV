@@ -261,6 +261,32 @@ test('#230: Other cricket takes the daily list\'s non-international matches of u
     }
 });
 
+// #230 (0461 Codex round 1, medium): Other cricket's cards come from the daily list, read every 15 min, while a live
+// score is trusted for ~3.5 min: a live match went unknown between reads. While one plays, its day's list is live-polled.
+test('#230: a live Other cricket match keeps its day\'s list polled every 30 s, so its card stays fresh', async () => {
+    let time = NOW, panels = 0;
+    const live = { id: '1550287', competitions: [{ id: '1550287', date: new Date(NOW - H).toISOString(), class: { internationalClassId: '0' },
+        status: { type: { state: 'in' }, summary: 'Auckland need 40 runs' }, competitors: [
+            { order: 1, score: '210/4', team: { id: 'a', displayName: 'Northern Districts' } }, { order: 2, score: '170/3', team: { id: 'b', displayName: 'Auckland' } }] }] };
+    const s = store();
+    const fetchJson = async url => {
+        if (!url.includes('scorepanel')) return { events: [] };
+        panels++;
+        return { scores: [{ leagues: [{ id: '8880', name: 'The Ford Trophy' }], events: [structuredClone(live)] }] };
+    };
+    const c = dashboard.createCollector({ store: s, fetchJson, leagues: () => new Set(['Other cricket']), clock: () => time, enabled: () => true });
+    await c.refresh();
+    const id = 'espn:cricket/8880:1550287', first = s.latest(id).observedAt;
+    const before = panels;
+    time += 40000; await c.refresh();
+    assert.ok(panels > before, 'the day\'s list read again within a minute');
+    assert.ok(s.latest(id).observedAt > first, 'a newer observation');
+    time += 200000; await c.refresh();
+    const card = dashboard.buildDashboard(s, { now: time, userId: '1', timezone: 'UTC', leagues: new Set(['Other cricket']), events: [] }).games.find(g => g.id === id);
+    assert.equal(card.freshness, 'fresh', 'still fresh four minutes on');
+    c.stop();
+});
+
 test('cached future payloads never become new score observations, and malformed success retries quickly', async () => {
     const s=store();let time=NOW;let calls=0;
     const payload=sample('NFL-final');
