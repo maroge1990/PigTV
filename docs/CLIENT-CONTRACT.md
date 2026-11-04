@@ -766,6 +766,11 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
   International groups are unchanged. The server looks for the round in the background (at most every 6 hours), so it
   can appear a few minutes after a league goes quiet. A daily league always has a game within 72 hours, so it never has `nextRound` cards. The legacy C-O `/dashboard` is
   unchanged.
+- Since 0450 (#223, additive): a followed team (not a driver, rider or player) with nothing on and nothing starting
+  within the 72 hours also gets its own next game, however far ahead, even when its league has other games inside the
+  window (a bye week): the same `nextRound: true` card, `channels: []` past the guide, which its follow's `state: "next"`
+  points at. Only that one game, not the team's later ones. The server reads it from ESPN's schedule for that team in
+  the background (at most every 6 hours). A team ESPN lists no game for (off-season) stays `state: "none"`.
 - A server before 0381 answers 404 to `/api/sports/front` and 400 to `sports`/`teams`: send them only with this flag.
 
 ### C-S. Sport pages: Cricket. Flag: `sportPageCricket` (0383, #21)

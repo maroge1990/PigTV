@@ -69,10 +69,12 @@ function teamLogo(team) {
     return null;
 }
 
-/** A team/athlete-competitor's name fields, as far as they exist, and (#213) its badge for a follow without a card. */
+/** A team/athlete-competitor's name fields, as far as they exist, (#213) its badge for a follow without a card and (#223) its id. */
 function teamFields(team) {
     if (!team || typeof team !== 'object') return null;
     const out = {
+        // #223: ESPN's team id, what the collector asks a followed team's own schedule by
+        id: /^\d{1,12}$/.test(String(team.id ?? '')) ? String(team.id) : null,
         displayName: typeof team.displayName === 'string' ? team.displayName : null,
         shortDisplayName: typeof team.shortDisplayName === 'string' ? team.shortDisplayName : null,
         name: typeof team.name === 'string' ? team.name : null,

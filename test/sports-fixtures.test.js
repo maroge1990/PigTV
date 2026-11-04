@@ -629,3 +629,22 @@ test('0400: a series whose class is missing makes the discovery partial: the gro
     assert.equal(after.fixtures.length, 1, 'kept');
     assert.equal(after.coverage.at, at, 'coverage not renewed by a partial answer');
 });
+
+// #213/#223: a roster an older build saved (no team ids, and before 0433 no badges) is read again at once, not a day later
+// (production on 4 Nov: NFL, AFL, NBA, MLB, EPL rosters saved 3 Nov with no badge, so a followed team showed a monogram).
+test('#213/#223: a stored roster without team ids is fetched again on the next refresh; the new one keeps ids and badges', async () => {
+    const now = Date.parse('2026-09-27T12:00Z');
+    const old = readFx('teams-nfl').sports[0].leagues[0].teams.map(e => ({ displayName: e.team.displayName, name: e.team.name, abbreviation: e.team.abbreviation, logo: null }));
+    sqlite.getDb().prepare('INSERT OR REPLACE INTO sport_fixture_teams (league, data, updated_at) VALUES (?, ?, ?)').run('NFL', JSON.stringify(old), now - H);
+    const teams = readFx('teams-nfl');
+    for (const e of teams.sports[0].leagues[0].teams) e.team.logos = [{ href: `https://a.espncdn.com/i/teamlogos/nfl/500/${e.team.abbreviation}.png` }];
+    await withEspn({ 'football/nfl/scoreboard': readFx('nfl-20260927'), 'football/nfl/teams': teams }, () => fixtures.refreshLeague('NFL', { now }));
+    const roster = fixtures.teamsOf('NFL');
+    assert.ok(roster.length >= 30);
+    assert.ok(roster.every(t => /^\d+$/.test(t.id)), 'each team has its ESPN id');
+    assert.ok(roster.every(t => /^https:\/\/a\.espncdn\.com\//.test(t.logo)), 'and its badge');
+    // a roster with ids is kept for its day, as before
+    await withEspn({ 'football/nfl/scoreboard': readFx('nfl-20260927'), 'football/nfl/teams': { sports: [{ leagues: [{ teams: [] }] }] } },
+        () => fixtures.refreshLeague('NFL', { now: now + H }));
+    assert.equal(fixtures.teamsOf('NFL').length, roster.length);
+});

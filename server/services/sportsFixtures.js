@@ -220,7 +220,7 @@ function loadTeams(db, league) {
     try { return { teams: JSON.parse(row.data), updatedAt: row.updated_at }; } catch { return null; }
 }
 
-/** The cached roster of a league ([{ displayName, shortDisplayName, name, location, abbreviation }]), or []. */
+/** The cached roster of a league ([{ id, displayName, shortDisplayName, name, location, abbreviation, logo }]), or []. */
 function teamsOf(league, db = getDb()) {
     return loadTeams(db, league)?.teams || [];
 }
@@ -304,7 +304,10 @@ async function refreshLeague(league, { now = Date.now(), db = getDb() } = {}) {
     }
 
     const cachedTeams = loadTeams(db, league);
-    if (!cachedTeams || now - cachedTeams.updatedAt >= TEAMS_MAX_AGE_MS) {
+    // #213/#223: a roster an older build saved (no team ids; before 0433 no badges either) is read again at once, not a
+    // day later: a follow's badge and its team's own schedule come from it.
+    const olderBuild = cachedTeams && !cachedTeams.teams.some(t => t?.id);
+    if (!cachedTeams || olderBuild || now - cachedTeams.updatedAt >= TEAMS_MAX_AGE_MS) {
         const rosters = [];
         for (const path of paths) {
             const teamsResult = await espn.fetchTeams(path);

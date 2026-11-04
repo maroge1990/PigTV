@@ -238,6 +238,26 @@ function nextRounds(catalog, selected, now, hours) {
     }
     return out;
 }
+// #223: a followed team with nothing on or due within the front page's `hours` shows its own next game, however far ahead
+// (the collector reads it from the team's schedule, teamsAhead), as a next-round card: a team on a bye, or whose league
+// has games inside the window (so no next round, nextRounds) but not its own. Whole-event leagues and motorsport are not
+// teams. `teams` as buildDashboard's (league -> names).
+function followNext(catalog, selected, now, hours, teams) {
+    const out = new Set();
+    const state = g => selected.get(g.id)?.data.state || 'unknown';
+    const open = g => ['scheduled', 'unknown'].includes(state(g));
+    for (const [league, names] of Object.entries(teams || {})) {
+        if (individual.has(league) || MOTOR.has(league) || !Array.isArray(names)) continue;
+        const list = catalog.filter(g => g.league === league);
+        for (const name of names) {
+            const own = list.filter(g => followMatchesFor(g, { [league]: [name] }).length);
+            if (own.some(g => ['live', 'break', 'suspended'].includes(state(g)) || (open(g) && g.start > now - 12 * H && g.start <= now + hours * H))) continue;
+            const next = own.filter(g => open(g) && g.start > now + hours * H).sort((a, b) => a.start - b.start || a.id.localeCompare(b.id))[0];
+            if (next) out.add(next.id);
+        }
+    }
+    return out;
+}
 // Front-page options (0381), all off for /dashboard: keepFinishedToday keeps today's finals, `teams` marks followed
 // cards, `spoilerFree` (the household switch) overrides the account's avoidSpoilers, channelTimes projects airing bounds,
 // upcomingHours keeps what starts within that many hours whatever its local day (tomorrow's fixtures; 0382).
@@ -258,7 +278,7 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
     // #191: airings that have already ended (sportsEvents.endedEvents), joined exactly as the current ones but on their own,
     // so they never change a card's `events`, nor which guide listings count as represented or unresolved.
     const endedMatches=matchBroadcasts(catalog,endedEvents.filter(e=>e.end<=now),new Set(),new Set(),endedAt);
-    const rounds=upcomingHours>0 && !league ? nextRounds(catalog,view.selected,now,upcomingHours) : new Set();
+    const rounds=upcomingHours>0 && !league ? new Set([...nextRounds(catalog,view.selected,now,upcomingHours),...followNext(catalog,view.selected,now,upcomingHours,teams)]) : new Set();
     for(const g of catalog) {
         if(league && league!==g.league || leagues && !leagues.has(g.league)) continue;
         if(narrowed.has(g.league) && !isTournament(g) && !followMatchesFor(g,teams,listedBy).length) continue;
@@ -357,8 +377,11 @@ const cost = require('./sportCollectorCost');
 const REQUESTS_PER_TICK = 12;
 // #218: how far ahead, and how often, a league with nothing within the 72-hour window is asked for its next round.
 const AHEAD_TTL = 6 * H, AHEAD_DAYS = 11;
+// #223: how often a followed team with no game ahead in the catalogue is asked for its own schedule.
+const TEAM_TTL = 6 * H;
 const CATALOG_RESERVE = 3;
 function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.neededLeagues(),clock=Date.now,enabled:isEnabled=collectorEnabled,
+    followed=()=>require('./sportPagePrefs').allTeams(),roster=league=>fixtures.teamsOf(league),
     feedGames=(league,o)=>feeds.games(league,{...o,registerImage:require('./logoCache').registerLogo}),recordFeed=fixtures.recordFeed}={}) {
     let running = null, timer = null, stopped = false, remaining = 0, deadline = 0, coldRequests = 0, current = null;
     const cache = new Map(), controller = new AbortController(), recordedFeeds = new WeakSet();
@@ -501,6 +524,47 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                 }
             }
         }
+        // #223: a followed team (of a team league with at most 2 ESPN paths, its window answered) with no game on or ahead
+        // in the catalogue asks ESPN for its own schedule (football: its fixture list), by its roster id, each answer kept
+        // TEAM_TTL; the first game it has not played joins the catalogue, however far ahead (followNext shows it).
+        async function teamsAhead() {
+            let byLeague;
+            try { byLeague = followed(); } catch { return; }
+            if (!byLeague?.size) return;
+            const seen = [...candidates.values()].map(e => [e.game, e.game.snapshot?.state])
+                .concat(catalog.filter(g => !candidates.has(g.id)).map(g => [g, store.latest(g.id)?.data.state]));
+            for (const league of wanted) {
+                const names = [...(byLeague.get(league) || [])];
+                const paths = [fixtures.ESPN_LEAGUE_PATHS[league]].flat().filter(Boolean);
+                if (stopped || !names.length || !paths.length || paths.length > 2 || individual.has(league) || MOTOR.has(league)
+                    || CRICKET_GROUPS.includes(league) || feeds.has(league)) continue;
+                const own = jobs.filter(j => j.league === league);
+                if (!own.length || !own.every(j => cache.get(j.url)?.data)) continue; // the window is not known yet
+                let teams;
+                try { teams = roster(league) || []; } catch { continue; }
+                for (const name of names) {
+                    const mine = g => followMatchesFor(g, { [league]: [name] }).length > 0;
+                    if (seen.some(([g, state]) => g.league === league && (['live','break','suspended'].includes(state) || (!closed(state) && g.start > now - 12 * H)) && mine(g))) continue;
+                    const key = norm(name);
+                    const team = key && teams.find(t => /^\d{1,12}$/.test(String(t?.id ?? '')) && [t.displayName, t.name, t.shortDisplayName, t.abbreviation].some(a => typeof a === 'string' && norm(a) === key));
+                    if (!team) continue;
+                    for (const source of paths) {
+                        const football = source.startsWith('soccer/');
+                        const data = await read(`${espn.BASE}${source}/teams/${team.id}/schedule${football ? '?fixture=true' : ''}`, TEAM_TTL, {cold:true});
+                        if (stopped || !Array.isArray(data?.json.events)) continue;
+                        // a club's fixture list under one competition's path is that competition's; never another's
+                        const slug = source.slice(source.indexOf('/') + 1);
+                        const events = data.json.events.filter(e => !football || !e?.league?.slug || e.league.slug === slug);
+                        const t0 = performance.now();
+                        const next = espn.normalize({ events }, league, source).filter(g => g.snapshot.state === 'scheduled' && g.start > now && mine(g))
+                            .sort((a, b) => a.start - b.start)[0];
+                        counting.normalizeMs += performance.now() - t0;
+                        // a window day's or the round's answer is fresher, so it always wins
+                        if (next && !candidates.has(next.id)) candidates.set(next.id, {game: next, priority: queryDays.length, observedAt: data.observedAt});
+                    }
+                }
+            }
+        }
         async function runJobs(batch, maxCold = Infinity) {
             let index = 0;
             async function worker() {
@@ -537,6 +601,8 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         if (remaining > 0) await runJobs(coldJobs);
         // #218: a league with nothing on or due within 72 hours: its next round, from the days after the window
         await lookAhead();
+        // #223: a followed team with nothing ahead: its own next game, from its schedule
+        await teamsAhead();
         // #196 (D-41): the leagues ESPN does not cover, from their own feeds (sportFeeds.js keeps each answer a while).
         for (const league of wanted) {
             if (!feeds.has(league) || stopped) continue;

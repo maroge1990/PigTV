@@ -103,6 +103,8 @@ a person sees; recording rules and guide sport detection stay household-wide.
   a warning, the teams that play in no other chosen league.
 - **What is followed:** teams in team sports; drivers in motorsport (a constructor means following both its drivers);
   players in tennis and golf; fighters in UFC. Men's and women's sides are separate teams.
+- **A followed team always shows its next game**, however far ahead (Mark, 4 Nov 2026, #223), from ESPN's schedule
+  for that team; off-season, when ESPN lists none, it shows nothing.
 - **Groups** where the feed has no fixed league: *International (men)* and *International (women)* in cricket and
   football take in tours, qualifiers, friendlies and World Cups by themselves. Tournaments show in full; tours,
   qualifiers and friendlies only for followed nations (all of them when none is followed).

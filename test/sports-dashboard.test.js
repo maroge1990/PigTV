@@ -396,3 +396,51 @@ test('#218: the front page\'s options show a league\'s next round past 72 hours 
     assert.deepEqual(dashboard.buildDashboard(s, opts).games.map(g => [g.id, g.nextRound]), [['espn:football/nfl:500', undefined]],
         'a game within 72 hours: no next round');
 });
+
+// #223: a followed team with no game within 72 hours, in a league that has games inside the window (so no next round),
+// gets its own next game from ESPN's team schedule, however far ahead.
+const schedule = events => ({ team: {}, events });
+test('#223: a followed team with nothing ahead asks its own schedule (by roster id; football: fixture list, its competition only), once in 6 h', async () => {
+    const s = store(), calls = []; let time = NOW;
+    const cards = espnEvent('701', NOW + 40 * H, ['9', 'Green Bay Packers'], ['8', 'Detroit Lions']); // a game inside the window: no next round
+    const ari = [espnEvent('700', NOW - 3 * D, ['22', 'Arizona Cardinals'], ['26', 'Seattle Seahawks'], 'post'),
+        espnEvent('702', NOW + 18 * D, ['26', 'Seattle Seahawks'], ['22', 'Arizona Cardinals']),
+        espnEvent('703', NOW + 25 * D, ['22', 'Arizona Cardinals'], ['9', 'Green Bay Packers'])];
+    const arsenal = [{ ...espnEvent('801', NOW + 20 * D, ['359', 'Arsenal'], ['306', 'Hull City']), league: { slug: 'uefa.champions' } },
+        { ...espnEvent('802', NOW + 30 * D, ['359', 'Arsenal'], ['382', 'Manchester City']), league: { slug: 'eng.1' } }];
+    const c = dashboard.createCollector({ store: s, leagues: () => new Set(['NFL', 'EPL']), clock: () => time, enabled: () => true,
+        followed: () => new Map([['NFL', new Set(['Arizona Cardinals', 'Green Bay Packers'])], ['EPL', new Set(['Arsenal'])]]),
+        roster: league => league === 'NFL' ? [{ id: '22', displayName: 'Arizona Cardinals', abbreviation: 'ARI' }, { id: '9', displayName: 'Green Bay Packers' }]
+            : [{ id: '359', displayName: 'Arsenal', name: 'Arsenal', location: 'Arsenal' }],
+        fetchJson: async url => {
+            calls.push(url);
+            if (url.includes('/teams/22/schedule')) return schedule(ari);
+            if (url.includes('/teams/359/schedule')) return schedule(arsenal);
+            if (url.includes('/teams/')) return schedule([]);
+            return { events: url.includes('football/nfl/scoreboard?dates=20261030') ? [cards] : [] };
+        } });
+    for (let i = 0; i < 4; i++) { await c.refresh(); time += 31000; }
+    const teamCalls = () => calls.filter(u => u.includes('/teams/'));
+    assert.deepEqual(teamCalls(), [`${espn.BASE}football/nfl/teams/22/schedule`, `${espn.BASE}soccer/eng.1/teams/359/schedule?fixture=true`],
+        'only the teams with nothing ahead (the Packers play inside the window), each once');
+    assert.deepEqual(s.catalog().map(g => g.id).sort(), ['espn:football/nfl:701', 'espn:football/nfl:702', 'espn:soccer/eng.1:802'],
+        'the Cardinals\' next unplayed game (18 days ahead), Arsenal\'s next league game (not the Champions League one)');
+    time = NOW + 5 * H; await c.refresh();
+    assert.equal(teamCalls().length, 2, 'a team whose next game is in the catalogue is not asked again');
+    c.stop();
+});
+
+test('#223: the front page shows a followed team\'s next game past 72 hours (nextRound) when its league has other games inside the window', () => {
+    const s = store(), sched = { state: 'scheduled', progress: {}, scores: null, situation: null };
+    const g = (id, start, home, away) => game({ id: `espn:football/nfl:${id}`, start, snapshot: sched, title: `${home} v ${away}`,
+        competitors: [{ id: 'h', name: home, aliases: [home], logo: null }, { id: 'a', name: away, aliases: [away], logo: null }] });
+    s.ingest([g('701', NOW + 40 * H, 'Green Bay Packers', 'Detroit Lions'), g('702', NOW + 18 * D, 'Seattle Seahawks', 'Arizona Cardinals'),
+        g('703', NOW + 25 * D, 'Arizona Cardinals', 'Green Bay Packers'), g('704', NOW + 9 * D, 'Chicago Bears', 'Detroit Lions')], NOW - 1000);
+    const opts = teams => ({ now: NOW, userId: '1', events: [], leagues: new Set(['NFL']), keepFinishedToday: true, channelTimes: true,
+        upcomingHours: 72, guideCards: false, teams });
+    assert.deepEqual(dashboard.buildDashboard(s, opts({ NFL: ['Arizona Cardinals'] })).games.map(x => [x.id, x.nextRound]),
+        [['espn:football/nfl:701', undefined], ['espn:football/nfl:702', true]], 'its next game only, not the one after; no other team\'s');
+    assert.deepEqual(dashboard.buildDashboard(s, opts(null)).games.map(x => x.id), ['espn:football/nfl:701'], 'nobody follows it: unchanged');
+    assert.deepEqual(dashboard.buildDashboard(s, opts({ NFL: ['Green Bay Packers'] })).games.map(x => [x.id, x.nextRound]),
+        [['espn:football/nfl:701', undefined]], 'a team playing inside the window: nothing more');
+});

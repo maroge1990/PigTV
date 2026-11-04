@@ -188,15 +188,30 @@ function view(state) {
 function follows(userId, db = getDb()) { return copy(readState(db, userId)); }
 function get(userId, db = getDb()) { return view(readState(db, userId)); }
 
-/** Every league some account follows (the owner's migration included): what the collector and fixtures fetch. */
-function allLeagues(db = getDb()) {
-    const out = new Set();
+/** Every account's followed sports (the owner's not-yet-migrated follows included, without migrating them). */
+function allSports(db) {
     let ids = [];
     try { ids = db.prepare('SELECT user_id FROM sport_follows').all().map(r => r.user_id); } catch { ids = []; }
     const owner = ownerId(db);
     if (owner !== null && !ids.includes(owner)) ids.push(owner);
-    // The owner's not-yet-migrated follows count without migrating them: only the owner's own read takes them over.
-    for (const id of ids) for (const s of readState(db, id, false).sports) for (const l of s.leagues) out.add(l);
+    // only the owner's own read takes the household's follows over
+    return ids.flatMap(id => readState(db, id, false).sports);
+}
+
+/** Every league some account follows (the owner's migration included): what the collector and fixtures fetch. */
+function allLeagues(db = getDb()) {
+    const out = new Set();
+    for (const s of allSports(db)) for (const l of s.leagues) out.add(l);
+    return out;
+}
+
+/** #223: every followed team or name by league, across accounts (as allLeagues): Map league -> Set of names. */
+function allTeams(db = getDb()) {
+    const out = new Map();
+    for (const s of allSports(db)) for (const l of s.leagues) for (const name of s.teams) {
+        if (!out.has(l)) out.set(l, new Set());
+        out.get(l).add(name);
+    }
     return out;
 }
 
@@ -332,4 +347,4 @@ function update(userId, patch, db = getDb()) {
     })();
 }
 
-module.exports = { get, follows, update, setFollows, allLeagues, retireKeywordList, view, PAGES, MAX_TEAMS };
+module.exports = { get, follows, update, setFollows, allLeagues, allTeams, retireKeywordList, view, PAGES, MAX_TEAMS };

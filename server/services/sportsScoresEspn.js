@@ -67,7 +67,8 @@ function normalize(json, league, source) {
             const competitors = league === 'F1' ? [] : sides.map(t => ({
                 id: id(t.team.id ?? t.id), name: text(t.team.displayName || t.team.name),
                 aliases: teamAliases(t.team),
-                logo: logo(t.team.logo)
+                // #223: a team schedule's competitors carry `logos`, not `logo`
+                logo: logo(t.team.logo) || (Array.isArray(t.team.logos) ? logo(t.team.logos[0]?.href) : null)
             }));
             if (competitors.some(t => !t.name) || (competitors.length && competitors[0].id === competitors[1].id)) continue;
             const [state, breakLabel] = statusOf(c, league);
