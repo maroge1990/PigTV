@@ -186,6 +186,8 @@ function activeStreams() {
         type: 'transcode',
         url: s.url,
         idleMs: s.idleMs,
+        // #37: its player paused it (up to 30 min): another viewer is asked, a recording still takes it
+        paused: s.paused === true,
         startTime: s.startTime,
         owner: s.owner || null,
         providerId: s.providerId ?? null,
@@ -201,7 +203,8 @@ function activeStreams() {
 }
 
 /** Abandoned: silent for the idle timeout, or a standby (0189) or a warm session (R12), which never have a viewer. */
-const isStale = (s, cutoffMs) => s.standby === true || s.warm === true || s.idleMs >= cutoffMs;
+// #37: for a recording a paused play's stream is as good as abandoned (Mark: a recording that needs it takes it).
+const isStale = (s, cutoffMs) => s.standby === true || s.warm === true || s.paused === true || s.idleMs >= cutoffMs;
 const idleText = (s) => (s.warm ? 'a warm session' : s.standby ? 'a standby' : `${Math.round(s.idleMs / 1000)}s idle`);
 
 // ---------------------------------------------------------------------------
@@ -705,8 +708,8 @@ async function requestForRecording(schedule, settings = {}, providerId = undefin
     // Reclaim anything registered but abandoned, without asking: there is
     // nobody to ask.
     const cutoff = idleTimeout * 1000;
-    const stale = streams.filter(s => s.idleMs >= cutoff);
-    const live = streams.filter(s => s.idleMs < cutoff);
+    const stale = streams.filter(s => s.paused || s.idleMs >= cutoff); // #37: a paused play gives way to a recording
+    const live = streams.filter(s => !s.paused && s.idleMs < cutoff);
 
     if (live.length === 0 && stale.length > 0) {
         const verdict = leased({ allowed: true, reason: 'Reclaimed an abandoned stream' });
@@ -927,7 +930,7 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
     };
     take(streams.filter(s => s.warm), 'warm');
     take(streams.filter(s => s.standby), 'standby');
-    take(streams.filter(s => s.idleMs >= idleMs), 'idle');
+    take(streams.filter(s => !s.paused && s.idleMs >= idleMs), 'idle'); // #37: a paused play is asked about, never taken
     take(streams.filter(s => owner && s.owner === owner), 'replacement');
     if (need <= 0) return { allowed: true, release: [...release, ...ownHere(release), ...elsewhere()] };
 

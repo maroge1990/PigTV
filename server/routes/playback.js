@@ -641,6 +641,24 @@ router.post('/client-event', requireToken, (req, res) => {
  * started the session (or a device paired to it) or an admin may end it; anyone
  * else gets a 403 and the session keeps running (services/sessionAccess.js).
  */
+/**
+ * #37 (Mark, 30 Oct): POST /api/playback/:sessionId/pause { paused: Bool } -> { pausedUntil }. The player says a live
+ * play is paused (or resumed): its stream then keeps its provider connection up to 30 minutes (the sweep leaves it,
+ * another device is asked rather than given it, a recording that needs it still takes it), and is idle as usual after.
+ * Only its own viewer (or an admin) may say so; a relay's id means its playing leg.
+ */
+router.post('/:sessionId/pause', requireToken, (req, res) => {
+    const { sessionId } = req.params;
+    if (typeof req.body?.paused !== 'boolean') return res.status(400).json({ error: 'paused must be true or false' });
+    if (!require('../services/sessionAccess').mayEnd(req.user, sessionId)) {
+        return res.status(403).json({ error: 'Only the viewer who started this stream, or an admin, can pause it' });
+    }
+    const transcodeSession = require('../services/transcodeSession');
+    const session = transcodeSession.peekSession(require('../services/streamRelay').playingSessionId(sessionId));
+    if (!session) return res.status(404).json({ error: 'Stream not found' });
+    res.json({ pausedUntil: session.setPaused(req.body.paused) || null });
+});
+
 router.delete('/:sessionId', requireToken, async (req, res) => {
     const { sessionId } = req.params;
     try {

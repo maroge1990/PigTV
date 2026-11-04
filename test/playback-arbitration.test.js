@@ -267,3 +267,39 @@ test('it says nothing to anyone who cannot prove the session was theirs', async 
     assert.deepEqual(Object.keys(body), ['status']);
     assert.ok(['taken-over', 'none'].includes(body.status));
 });
+
+// #37 (Mark's decision, 30 Oct): a paused live play keeps its provider connection up to 30 minutes. Before, a paused
+// player fetched nothing, so after 60 s any admission took its stream silently and after 5 min the sweep ended it.
+// The player says it paused (POST /api/playback/:id/pause); another device then asks (409) instead of taking it, the
+// sweep leaves it, a recording that needs the connection still takes it, and 30 minutes on it is idle again.
+async function pause(token, id, paused = true) {
+    const r = await fetch(`${base}/api/playback/${id}/pause`, { method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ paused }) });
+    return { status: r.status, body: await r.json().catch(() => null) };
+}
+test('#37: a paused live play is asked about, never taken silently, and outlives the 5-minute sweep up to 30 minutes', async () => {
+    const tv = tvToken();
+    const theirs = await holding('device:apple-tv', 4 * 60);
+    const paused = await pause(tv, theirs.id);
+    assert.equal(paused.status, 200, JSON.stringify(paused.body));
+    assert.ok(paused.body.pausedUntil > Date.now() + 29 * 60000, 'thirty minutes');
+    const other = await resolve(ipadToken());
+    assert.equal(other.status, 409, 'the iPad is asked, not given the paused stream');
+    assert.ok(stillRegistered(theirs));
+    theirs.lastAccess = Date.now() - 20 * 60000;
+    await transcodeSession.cleanupStaleSessions();
+    assert.ok(stillRegistered(theirs), 'twenty minutes paused: still there');
+    theirs.pausedUntil = Date.now() - 1;
+    await transcodeSession.cleanupStaleSessions();
+    assert.ok(!stillRegistered(theirs), 'past thirty minutes: swept');
+});
+
+test('#37: a recording that needs the connection still takes a paused play\'s stream', async () => {
+    const theirs = await holding('device:apple-tv', 0);
+    assert.equal((await pause(tvToken(), theirs.id)).status, 200);
+    const coordinator = load('services/streamCoordinator');
+    const verdict = await coordinator.requestForRecording({ id: 9901, title: 'Due', program_start: Date.now(), pre_buffer_min: 0 }, { maxConnections: 1 });
+    assert.equal(verdict.allowed, true, verdict.reason);
+    assert.ok(!stillRegistered(theirs), 'the recording took it, unasked');
+    verdict.lease?.release?.();
+});

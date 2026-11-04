@@ -17,6 +17,7 @@
     "guideCursor": true,
     "guideVersion": true,
     "library": true,
+    "livePause": true,
     "logoCache": true,
     "playbackHandles": true,
     "playbackResolve": true,

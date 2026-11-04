@@ -43,6 +43,9 @@ const LIVE_SESSION_TIMEOUT_MS = (() => {
     return (Number.isFinite(sec) && sec > 0 ? sec : 5 * 60) * 1000;
 })();
 const SEGMENT_DURATION = 4; // seconds per HLS segment
+// #37 (Mark, 30 Oct; D-decisions): a paused live play keeps its provider connection this long (its player says so);
+// the sweep leaves it, another viewer is asked rather than given it, and a recording that needs it still takes it.
+const PAUSE_MAX_MS = 30 * 60 * 1000;
 
 // ffmpeg keeps ONE timestamp offset per input and, whenever a packet's DTS jumps
 // by more than -dts_delta_threshold (default 10 s), assumes a discontinuity and
@@ -1185,6 +1188,13 @@ class TranscodeSession extends EventEmitter {
     /**
      * Update last access time (prevents cleanup)
      */
+    /** #37: paused by its player (until `pausedUntil`), or resumed. */
+    setPaused(paused, now = Date.now()) {
+        this.pausedUntil = paused ? now + PAUSE_MAX_MS : 0;
+        if (!paused) this.lastAccess = now;
+        return this.pausedUntil;
+    }
+
     touch() {
         this.lastAccess = Date.now();
     }
@@ -1645,6 +1655,7 @@ async function cleanupStaleSessions() {
     for (const [id, session] of sessions) {
         // 0189: a standby has no client of its own; its relay ends it.
         if (session.options.standby === true) continue;
+        if (session.pausedUntil > now) continue; // #37: paused by its player, up to 30 min
         const limit = session.options.live === true ? LIVE_SESSION_TIMEOUT_MS : SESSION_TIMEOUT_MS;
         if (now - session.lastAccess > limit) {
             console.log(`[TranscodeSession] Cleaning up stale session ${id}`);
@@ -1705,6 +1716,7 @@ function getAllSessions() {
         startTime: s.startTime,
         lastAccess: s.lastAccess,
         idleMs: Date.now() - s.lastAccess,
+        paused: s.pausedUntil > Date.now(), // #37
         owner: s.options.owner || null,
         // The provider (a source id) whose connection this session holds (0173); null when the
         // resolve named no source (a bare url), which counts against the primary's pool.
@@ -1831,6 +1843,7 @@ module.exports = {
     peekSession,
     removeSession,
     cleanupStaleSessions,
+    PAUSE_MAX_MS,
     sweepOrphanedCache,
     startCleanupInterval,
     getAllSessions,

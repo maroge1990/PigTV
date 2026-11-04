@@ -118,6 +118,8 @@ const APPLE_CLIENT_ROUTES = [
     ['GET', '/api/library/recent'], ['GET', '/api/recordings/1/position'], ['PUT', '/api/recordings/1/position'],
     ['POST', '/api/recordings/1/detect-ads'], ['DELETE', '/api/recordings/scheduled/1'], ['DELETE', '/api/recordings/1'],
     ['POST', '/api/playback/warm'],
+    // #37 (0468): the player says a live play is paused or resumed.
+    ['POST', '/api/playback/abc/pause'],
     ['GET', '/api/proxy/stream'],
     ['GET', '/api/transcode/abc/stream.m3u8'], ['GET', '/api/transcode/abc/master.m3u8'],
     ['DELETE', '/api/playback/abc'],

@@ -115,6 +115,7 @@ async function sendInfo(req, res) {
             // scheduled rows carry `rule_id`.
             recordingRules: true,
             recordGameRules: true, // 0466 (#234, C-M `game`): Record on a game not listed yet; C-R `recordWhenListed`
+            livePause: true, // 0468 (#37): POST /api/playback/:id/pause keeps a paused live play's stream up to 30 min
             // R6: /api/recordings and /api/recordings/scheduled rows carry `image` (the programme's
             // artwork from the guide, /api/logo/<key>, or null).
             recordingArtwork: true
