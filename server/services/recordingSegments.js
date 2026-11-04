@@ -242,37 +242,55 @@ function viewArgs(epochDir, codecs = {}, { part = 0, from = 0, input = 'archive.
     return args;
 }
 
+/** #34: the archive piece a part started at (part 0 at the first; a later one records it in viewN.from). */
+function partFrom(epochDir, k) {
+    if (k === 0) return 0;
+    try { const n = Number(fs.readFileSync(path.join(epochDir, `view${k}.from`), 'utf8')); return Number.isInteger(n) && n >= 0 ? n : 0; }
+    catch (e) { return 0; }
+}
+
 /**
- * #34: where a new part of an epoch's watch copy starts: after the parts so far (a new part number) at the first
- * archive piece they have not covered (by duration: a piece cut short at the death is copied again rather than lost).
+ * #34: where a new part of an epoch's watch copy starts: a new part number, at the first archive piece the LAST part
+ * did not finish (its start piece, plus the pieces its duration covers in full; 0471 Codex round 1, high: summing
+ * every part counted re-copied overlap twice). A piece cut short at the death is copied again rather than lost.
  */
 function nextPart(epochDir) {
     const view = viewOf(epochDir);
     if (!view.parts.length) return { part: 0, from: 0 };
-    const copied = view.segments.reduce((t, s) => t + s.duration, 0);
-    let from = 0, t = 0;
-    for (const s of archiveOf(epochDir).segments) {
-        if (t + s.duration > copied + 0.5) break;
-        t += s.duration;
-        from++;
-    }
-    return { part: view.parts[view.parts.length - 1].k + 1, from };
+    const last = view.parts[view.parts.length - 1];
+    const covered = last.parsed.segments.reduce((t, s) => t + s.duration, 0);
+    const pieces = archiveOf(epochDir).segments;
+    let from = partFrom(epochDir, last.k), t = 0;
+    while (from < pieces.length && t + pieces[from].duration <= covered + 0.5) { t += pieces[from].duration; from++; }
+    return { part: last.k + 1, from };
+}
+
+/** #34: the restart's list of the archive's pieces from `from` on, ENDLIST once the archive has it (written whole). */
+function refreshPartInput(epochDir, input, from) {
+    const archive = archiveOf(epochDir);
+    const rest = archive.segments.slice(from);
+    const target = Math.max(1, ...rest.map(s => Math.ceil(s.duration)));
+    const text = ['#EXTM3U', '#EXT-X-VERSION:3', `#EXT-X-TARGETDURATION:${target}`, `#EXT-X-MEDIA-SEQUENCE:${from}`,
+        '#EXT-X-PLAYLIST-TYPE:EVENT', ...rest.flatMap(s => [`#EXTINF:${s.duration.toFixed(6)},`, s.name]),
+        ...(archive.ended ? ['#EXT-X-ENDLIST'] : []), ''].join('\n');
+    const file = path.join(epochDir, input);
+    fs.writeFileSync(`${file}.tmp`, text);
+    fs.renameSync(`${file}.tmp`, file);
+    return archive.ended;
 }
 
 /**
- * #34: ffmpeg honours -live_start_index only while the archive playlist is still open (measured: a closed one is read
- * from its first piece). A part that starts after the archive was sealed reads a playlist of the pieces still to copy.
+ * #34: every restart (a part after the first) reads its own list of the rest of the archive, never the archive with
+ * -live_start_index: ffmpeg ignores that index on a closed playlist (measured, ffmpeg 8), and the archive can be sealed
+ * between choosing and ffmpeg opening it (0471 Codex round 1, high). The list is kept up to date while the follower
+ * runs (startFollower) and closed when the archive is. The part records where it started.
  */
 function partInput(epochDir, plan) {
-    const archive = archiveOf(epochDir);
-    if (plan.from === 0 || !archive.ended) return plan;
-    const rest = archive.segments.slice(plan.from);
-    const target = Math.max(1, ...rest.map(s => Math.ceil(s.duration)));
-    const text = ['#EXTM3U', '#EXT-X-VERSION:3', `#EXT-X-TARGETDURATION:${target}`, `#EXT-X-MEDIA-SEQUENCE:${plan.from}`,
-        '#EXT-X-PLAYLIST-TYPE:VOD', ...rest.flatMap(s => [`#EXTINF:${s.duration.toFixed(6)},`, s.name]), '#EXT-X-ENDLIST', ''].join('\n');
+    if (plan.part === 0) return plan;
     const input = `archive-from${plan.part}.m3u8`;
-    fs.writeFileSync(path.join(epochDir, input), text);
-    return { ...plan, from: 0, input };
+    fs.writeFileSync(path.join(epochDir, `view${plan.part}.from`), String(plan.from));
+    refreshPartInput(epochDir, input, plan.from);
+    return { part: plan.part, from: 0, input, mirrorFrom: plan.from };
 }
 
 async function startFollower(recordingId, epoch) {
@@ -286,18 +304,28 @@ async function startFollower(recordingId, epoch) {
     const codecs = await media.nativeTools.codecs(path.join(epoch.dir, first.name));
     let proc;
     try {
-        proc = spawn(media.tools.ffmpegPath, viewArgs(epoch.dir, codecs, partInput(epoch.dir, nextPart(epoch.dir))), { stdio: ['ignore', 'ignore', 'pipe'] });
+        var plan = partInput(epoch.dir, nextPart(epoch.dir));
+        proc = spawn(media.tools.ffmpegPath, viewArgs(epoch.dir, codecs, plan), { stdio: ['ignore', 'ignore', 'pipe'] });
     } catch (err) {
         entry.proc = null;
         entry.failures++;
         return false;
     }
     entry.proc = proc;
+    // #34: a restart's own list follows the archive (every second) until the archive is sealed or the follower ends.
+    let mirror = null;
+    if (plan.input && plan.input !== 'archive.m3u8') {
+        mirror = setInterval(() => {
+            try { if (refreshPartInput(epoch.dir, plan.input, plan.mirrorFrom)) { clearInterval(mirror); mirror = null; } } catch (e) { /* next second */ }
+        }, 1000);
+        mirror.unref?.();
+    }
     const tail = [];
     proc.stderr.on('data', d => { for (const l of String(d).split('\n')) if (l.trim()) { tail.push(l.trim()); if (tail.length > 10) tail.shift(); } });
     proc.on('error', () => { /* reported on close */ });
     proc.on('close', (code) => {
         entry.proc = null;
+        if (mirror) { clearInterval(mirror); mirror = null; }
         if (code !== 0 && !viewOf(epoch.dir).ended) {
             entry.failures++;
             console.warn(`[Recordings] The watch copy of #${recordingId} (part ${epoch.n}) stopped (exit ${code}): ${tail.slice(-2).join(' | ')}`);
@@ -769,6 +797,7 @@ module.exports = {
     sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount,
     viewArgs,
     _partInput: partInput,
+    _refreshPartInput: refreshPartInput,
     _nextPart: nextPart, ensureView, stopFollowers, viewPlaylist, probeVideoInfo, isWatchable,
     configure, processQueue, finishOne, moveOne, removeWork, status, keptOriginalPath, recoverLegacyOriginals,
     _setWorkRoot, _followers: followers
