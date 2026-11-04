@@ -5,18 +5,19 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 4 Nov 2026 (D-44 released: server 0446 deployed, Apple 143 on TestFlight).*
+*Overwritten at the end of every session. 4 Nov 2026 (Mark's test round of 0446/143 opened; Batch 1 of four built).*
 
-- **Deployed:** server **0446** (Mark, 4 Nov) and Apple **143** uploaded to TestFlight (tvOS and iOS, 4 Nov). Next builds: server **0447**, Apple **144**.
-- **Built 3 Nov (D-44, seven batches, each Codex-reviewed, CI green):** server 0433–0438 sport data (#212, #213, #215,
-  #210, #218), 0439–0443 recordings end with the game (#207 closed, #217), 0444–0445 Change recording, 0446 sport
-  preferences with the front page; Apple 102–105 shell, 106–113 TV Guide, 114–118 one record page, 119–128 Recordings
-  and Undo, 129–134 Settings, Sign in, Offline, 135–143 Sport on Apple TV, iPad and iPhone (#177 answered). Evidence:
-  `docs/evidence/2026-11-03-*`.
-- **T3:** offline simulator suites on every batch; `StagingSportTVUITests` passed on the rig (staging 0446, Apple 143).
-  Not run: #217's overrun (the rig has no score source a test can steer) and the iPhone/iPad on real data.
-- **Next:** the device pass (T5) per platform; then the findings #220 and #221 and
-  the P1 list below. **Still open from before:** #12, #29, #193–#203, #205, #206, #187, #190 wait on the device pass.
+- **Deployed:** server **0446** and Apple **143** on TestFlight (4 Nov). **On main, not deployed:** server **0447–0449**
+  (Batch 1, #222 football event slots match their ESPN game; Codex rounds 1–2, both highs fixed). Next builds: server
+  **0450**, Apple **144**.
+- **Mark's test of 0446/143 (4 Nov)** raised #222, #223, #225–#229 and reopened #212 (an Apple page design point: the
+  server is right on live data) and #213 (MLB logos); #224 (F1) was not a bug.
+- **Batches agreed 4 Nov:** 1 server sport matching (done); 2 server followed teams (#223 beyond 72 h, #213 logos, #215,
+  #202); 3 Apple sport layout (#228, #225, #213 client, #205, #204, #192, #212's "Your other cricket today", awaiting
+  Mark's choice); 4 Apple consistent look (#226 headers with the Sport page's pig and a lighter title, #227, #229, #190).
+- **T3:** Batch 1 not run on the rig (its fake provider has no event-slot football titles). Evidence:
+  `docs/evidence/2026-11-04-sport-matching/`.
+- **Still open from before:** the D-44 device pass (T5) per platform; #12, #29, #193–#203, #205, #206, #187, #190, #210.
 
 ## Now
 
