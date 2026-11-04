@@ -264,6 +264,17 @@ function followNext(catalog, selected, now, hours, teams) {
 // guideCards (#194, D-41): false makes the fixture the only source of games, the guide only adding channels to them.
 // nations (#195, D-41): the International groups in which the account follows a nation: there, a game that is not a
 // tournament's shows only when a followed name plays in it (sportGroups.js).
+/** The ESPN cricket series a fixed league owns (BBL, WBBL, Sheffield Shield...): never an International group's (#195). */
+const fixedCricketSeries = () => new Set(Object.values(fixtures.ESPN_LEAGUE_PATHS).flat()
+    .filter(p => typeof p === 'string' && p.startsWith('cricket/')).map(p => p.slice(8)));
+/**
+ * #212 (server 0451): an International group card from a fixed league's series, stored by a build before 0435. The group
+ * never reads those series again, so nothing corrects it: never shown, and the collector forgets it.
+ */
+function strayGroupCard(g, fixed = fixedCricketSeries()) {
+    return CRICKET_GROUPS.includes(g.league) && fixed.has(/^espn:cricket\/(\d+):/.exec(g.id)?.[1]);
+}
+
 function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagues=null,follow=null,broadLeagues=new Set(),timezone:zone=timezone(),
     keepFinishedToday=false,teams=null,spoilerFree,channelTimes=false,upcomingHours=0,endedEvents=[],guideCards=true,nations=[]}={}) {
     const narrowed=new Set(nations);
@@ -279,8 +290,9 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
     // so they never change a card's `events`, nor which guide listings count as represented or unresolved.
     const endedMatches=matchBroadcasts(catalog,endedEvents.filter(e=>e.end<=now),new Set(),new Set(),endedAt);
     const rounds=upcomingHours>0 && !league ? new Set([...nextRounds(catalog,view.selected,now,upcomingHours),...followNext(catalog,view.selected,now,upcomingHours,teams)]) : new Set();
+    const fixedSeries=fixedCricketSeries();
     for(const g of catalog) {
-        if(league && league!==g.league || leagues && !leagues.has(g.league)) continue;
+        if(league && league!==g.league || leagues && !leagues.has(g.league) || strayGroupCard(g,fixedSeries)) continue;
         if(narrowed.has(g.league) && !isTournament(g) && !followMatchesFor(g,teams,listedBy).length) continue;
         if(follow && !broadLeagues.has(g.league) && !follow.some(k=>classify.canonicalLeague(k)===g.league)) {
             const teams=follow.map(classify.teamFollow).filter(t=>t?.league===g.league);
@@ -460,7 +472,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         // with a fixed league (BBL, WBBL, Shield...) or none (domestic, youth) is never theirs.
         if (CRICKET_GROUPS.some(l => wanted.has(l))) {
             const series = new Map(); // series id -> its group
-            const fixed = new Set(Object.values(fixtures.ESPN_LEAGUE_PATHS).flat().filter(p => typeof p === 'string' && p.startsWith('cricket/')).map(p => p.slice(8)));
+            const fixed = fixedCricketSeries();
             const take = (id, group) => { if (group && wanted.has(group) && !fixed.has(id) && !series.has(id)) series.set(id, group); };
             const discoveryDays = days.slice().sort((a,b) => (cache.get(`${espn.BASE}cricket/scorepanel?dates=${a}`)?.attemptAt || 0) - (cache.get(`${espn.BASE}cricket/scorepanel?dates=${b}`)?.attemptAt || 0));
             for (const date of discoveryDays) {
@@ -627,7 +639,8 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
             // or one filed under the group before 0397) is forgotten, so it leaves the group's rail and its series is no
             // longer kept on the group's behalf (the retention above) once none of its cards are left.
             const forget = [...misfiled].filter(([id, group]) => known.get(id)?.league === group && !candidates.has(id)).map(([id]) => id)
-                .concat([...dropped].filter(id => !candidates.has(id)));
+                .concat([...dropped].filter(id => !candidates.has(id)))
+                .concat(catalog.filter(g => strayGroupCard(g) && !candidates.has(g.id)).map(g => g.id));
             if (forget.length) store.forget(forget);
             if (entries.length) store.ingestBatch(entries);
             store.prune(clock());

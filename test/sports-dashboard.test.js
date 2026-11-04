@@ -217,6 +217,24 @@ test('#212: an International cricket group\'s cards are only its own class\'s; m
     assert.deepEqual(espn.normalize(boards['24203'],'Sheffield Shield','cricket/8043').length,2,'a fixed league keeps every match its series lists');
 });
 
+// #212 (Mark, iPhone, server 0451 / Apple 149): the International (men) page still listed a WBBL match and a Sheffield
+// Shield match. Production's catalogue held them as `Cricket` cards stored by a build before 0435 (observed 1 Nov); their
+// series are fixed leagues', which the group never reads again, so the misfiled check above never saw them. A card of a
+// fixed league's series is never a group's: not shown, and forgotten by the next tick.
+test('#212: a stored International group card from a fixed league\'s series (WBBL, Shield) is never shown, and is forgotten', async () => {
+    const s=store();
+    const card=(series,eventId,a,b,start)=>game({id:`espn:cricket/${series}:${eventId}`,league:'Cricket',start,title:`${a} v ${b}`,format:null,
+        competitors:[{id:'1',name:a,aliases:[a],logo:null},{id:'2',name:b,aliases:[b],logo:null}],snapshot:{state:'scheduled',progress:{},scores:null,situation:null}});
+    s.ingest([card('21284','1543952','Hobart Hurricanes Women','Melbourne Renegades Women',NOW+7*H),
+        card('8043','1544872','Queensland','Victoria',NOW-12*H),card('24469','1539437','New Zealand','India',NOW+H)],NOW-3*24*H);
+    const args={now:NOW,userId:'1',timezone:'UTC',leagues:new Set(['Cricket']),events:[]};
+    assert.deepEqual(dashboard.buildDashboard(s,args).games.map(g=>g.id),['espn:cricket/24469:1539437'],'only the men\'s international is shown');
+    const fetchJson=async url=>url.includes('scorepanel') ? {scores:[{leagues:[{id:'24469'}],events:[{competitions:[{class:{internationalClassId:'2'}}]}]}]} : {events:[]};
+    const c=dashboard.createCollector({store:s,fetchJson,leagues:()=>new Set(['Cricket']),clock:()=>NOW,enabled:()=>true});
+    await c.refresh();c.stop();
+    assert.deepEqual(s.catalog().filter(g=>g.league==='Cricket').map(g=>g.id),['espn:cricket/24469:1539437'],'the stray cards are forgotten');
+});
+
 test('cached future payloads never become new score observations, and malformed success retries quickly', async () => {
     const s=store();let time=NOW;let calls=0;
     const payload=sample('NFL-final');
