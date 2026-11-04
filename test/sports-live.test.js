@@ -382,3 +382,14 @@ test('multi-day Tests keep unflagged lunch, tea and delayed-start blocks live on
         }
     }
 });
+
+// #231: a merged event took the wordiest team names: RDS's "Jaguars de Jacksonville v Ravens de Baltimore" over the
+// "Jacksonville Jaguars at Baltimore Ravens" that most of its listings used. The names most listings give win.
+test('#231: a merged game is titled with the team names most of its listings use', () => {
+    const at = Date.parse('2026-11-06T01:15:00Z');
+    const nfl = (ch, title) => ({ channel_id: `c${ch}`, title, start_time: at, end_time: at + 3 * H, categories: null, flags: null });
+    const merged = sportsEvents.eventsFromProgrammes(CHANNELS, [nfl(0, 'NFL Football - Jacksonville Jaguars at Baltimore Ravens'),
+        nfl(1, 'NFL Football - Jacksonville Jaguars at Baltimore Ravens'), nfl(2, 'Football NFL - Jaguars de Jacksonville c. Ravens de Baltimore')],
+    ['NFL']).filter(e => e.kind === 'event');
+    assert.deepEqual(merged.map(e => [e.title, e.channels.length]), [['Jacksonville Jaguars v Baltimore Ravens', 3]]);
+});

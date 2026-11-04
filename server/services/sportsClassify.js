@@ -951,14 +951,16 @@ function mergeAirings(airings, normalise) {
     return items;
 }
 
+const LINK_WORDS = new Set(['de', 'du', 'des', 'di', 'del', 'da']); // #231: "Jaguars de Jacksonville"
 /** The display title and aliases of a merged item. */
 function finishItem(item) {
     const aliases = [];
     for (const a of item.airings) if (!aliases.includes(a.title)) aliases.push(a.title);
     item.aliases = aliases;
     if (item.type === 'matchup') {
-        // The fullest names, abbreviations last; in the order that listing gave them.
-        const score = (p) => p.reduce((n, t) => n + (t.abbr ? -10 : t.tokens.length), 0);
+        // The fullest names, abbreviations last; in the order that listing gave them. #231: another language's linking
+        // word ("Jaguars de Jacksonville", RDS) is no fuller a name: it costs a word rather than adding one.
+        const score = (p) => p.reduce((n, t) => n + (t.abbr ? -10 : t.tokens.reduce((m, w) => m + (LINK_WORDS.has(w) ? -1 : 1), 0)), 0);
         const best = item.pairs.reduce((b, p) => (score(p) > score(b) ? p : b));
         const name = (t) => (t.name === t.name.toUpperCase() && !t.abbr ? titleCase(t.name) : t.name);
         item.title = `${name(best[0])} v ${name(best[1])}${item.session ? ` · ${item.session.label}` : ''}`;

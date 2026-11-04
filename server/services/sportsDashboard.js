@@ -74,7 +74,16 @@ function prepareGame(game) {
         session: SESSIONS.has(game.league) ? sessionTitle(game.league, game.session).session : null };
 }
 function prepareEvent(event) {
-    return { event, pair: classify.parseMatchup(event.title),
+    // #231: the merged event's display title can be one listing's wording (RDS's "Jaguars de Jacksonville"); its other
+    // listings' titles (aliases) may name the teams as ESPN does. Each distinct pair is tried.
+    const titles = [event.title, ...(Array.isArray(event.aliases) ? event.aliases.slice(0, 20) : [])];
+    const pairs = [], seen = new Set();
+    for (const t of titles) {
+        const pair = typeof t === 'string' ? classify.parseMatchup(t) : null;
+        const key = pair && pair.map(side => side.tokens.join(' ')).join('\u0001');
+        if (pair && !seen.has(key)) { seen.add(key); pairs.push(pair); }
+    }
+    return { event, pair: pairs[0] || null, pairs,
         title: SESSIONS.has(event.league) ? sessionTitle(event.league, event.title) : null,
         format: /\b(test|odi|t20i?|first.class|list a)\b/i.exec(event.title)?.[1]?.toLowerCase() };
 }
@@ -112,10 +121,11 @@ function sameGame(prepared, parsed) {
         return Boolean(parsed.title.session && prepared.session && parsed.title.session.id === prepared.session.id &&
             prepared.title.location.length && parsed.title.location.length && classify.locationMatch(parsed.title.location, prepared.title.location));
     }
-    const pair = parsed.pair;
-    if (!pair || prepared.sides.length !== 2) return false;
-    const a = pair[0].tokens.join(' '), b = pair[1].tokens.join(' ');
-    return (prepared.sides[0].has(a) && prepared.sides[1].has(b)) || (prepared.sides[0].has(b) && prepared.sides[1].has(a));
+    if (prepared.sides.length !== 2) return false;
+    return (parsed.pairs || (parsed.pair ? [parsed.pair] : [])).some(pair => {
+        const a = pair[0].tokens.join(' '), b = pair[1].tokens.join(' ');
+        return (prepared.sides[0].has(a) && prepared.sides[1].has(b)) || (prepared.sides[0].has(b) && prepared.sides[1].has(a));
+    });
 }
 function matchBroadcasts(games, events, represented = new Set(), unresolved = new Set(), endedAt = new Map()) {
     const found = new Map(games.map(g => [g.id, []])), byLeague = new Map();

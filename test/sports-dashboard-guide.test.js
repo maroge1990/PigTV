@@ -131,3 +131,23 @@ test('selection eligibility rechecks airing bounds instead of the cached C-I liv
         assert.equal(expired?.canWatch || false,false,'a cached true flag cannot extend an expired airing');
     } finally {localDb.close();}
 });
+
+// #231 (Mark, 4 Nov, server 0451): Thursday Night Football said "No TV listing found". RDS 2's French listing ("Jaguars de
+// Jacksonville c. Ravens de Baltimore") gave the merged event its title, and the join read only the title: none of
+// ESPN's aliases. Any of the event's listings that names the teams as ESPN does now joins it.
+test('#231: an event joins its card through any of its listings\' titles, not only the display title', () => {
+    const at = now + 36 * H;
+    const tnf = game('tnf', { start: at, title: 'Jacksonville Jaguars at Baltimore Ravens',
+        competitors: [{ id: 'bal', name: 'Baltimore Ravens', aliases: ['Baltimore Ravens', 'Ravens', 'BAL'], logo: null },
+            { id: 'jax', name: 'Jacksonville Jaguars', aliases: ['Jacksonville Jaguars', 'Jaguars', 'JAX'], logo: null }],
+        snapshot: { state: 'scheduled', progress: {}, scores: null, situation: null } });
+    store.ingest([tnf], now - 60000);
+    const listing = event('tnf-guide', { title: 'Jaguars de Jacksonville v Ravens de Baltimore', start: at - 15 * 60000, end: at + 3 * H,
+        live: false, aliases: ['NFL Jaguars @ Ravens', 'NFL Football - Jacksonville Jaguars at Baltimore Ravens',
+            'Football NFL - Jaguars de Jacksonville c. Ravens de Baltimore'] });
+    const card = response([listing], { leagues: new Set(['NFL']), upcomingHours: 72, channelTimes: true, guideCards: false })
+        .games.find(g => g.id === 'tnf');
+    assert.ok(card, 'the card');
+    assert.equal(card.availability, 'matched');
+    assert.equal(card.channels.length, 1, 'its channel');
+});
