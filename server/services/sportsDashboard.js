@@ -524,9 +524,13 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                 }
             }
         }
-        // #223: a followed team (of a team league with at most 2 ESPN paths, its window answered) with no game on or ahead
-        // in the catalogue asks ESPN for its own schedule (football: its fixture list), by its roster id, each answer kept
-        // TEAM_TTL; the first game it has not played joins the catalogue, however far ahead (followNext shows it).
+        // #223: a followed team (of a team league with at most 2 ESPN paths, its window answered) with no game on or due
+        // within the window asks ESPN for its own schedule (football: its fixture list), by its roster id, each answer
+        // kept TEAM_TTL, so asked again every 6 hours until its next game is inside the window (0450 Codex round 1,
+        // medium: a stored distant game never stops the asking). The first game it has not played joins the catalogue,
+        // however far ahead (followNext shows it), the answer's other stored games are renewed, and a stored game of the
+        // team past the window that the answer no longer lists (moved off, removed) is forgotten.
+        const dropped = new Set();
         async function teamsAhead() {
             let byLeague;
             try { byLeague = followed(); } catch { return; }
@@ -544,7 +548,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                 try { teams = roster(league) || []; } catch { continue; }
                 for (const name of names) {
                     const mine = g => followMatchesFor(g, { [league]: [name] }).length > 0;
-                    if (seen.some(([g, state]) => g.league === league && (['live','break','suspended'].includes(state) || (!closed(state) && g.start > now - 12 * H)) && mine(g))) continue;
+                    if (seen.some(([g, state]) => g.league === league && due(g, state) && mine(g))) continue;
                     const key = norm(name);
                     const team = key && teams.find(t => /^\d{1,12}$/.test(String(t?.id ?? '')) && [t.displayName, t.name, t.shortDisplayName, t.abbreviation].some(a => typeof a === 'string' && norm(a) === key));
                     if (!team) continue;
@@ -556,11 +560,13 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                         const slug = source.slice(source.indexOf('/') + 1);
                         const events = data.json.events.filter(e => !football || !e?.league?.slug || e.league.slug === slug);
                         const t0 = performance.now();
-                        const next = espn.normalize({ events }, league, source).filter(g => g.snapshot.state === 'scheduled' && g.start > now && mine(g))
-                            .sort((a, b) => a.start - b.start)[0];
+                        const listed = espn.normalize({ events }, league, source).filter(mine);
                         counting.normalizeMs += performance.now() - t0;
+                        const next = listed.filter(g => g.snapshot.state === 'scheduled' && g.start > now).sort((a, b) => a.start - b.start)[0];
+                        const ids = new Set(listed.map(g => g.id));
                         // a window day's or the round's answer is fresher, so it always wins
-                        if (next && !candidates.has(next.id)) candidates.set(next.id, {game: next, priority: queryDays.length, observedAt: data.observedAt});
+                        for (const g of listed) if ((g === next || known.has(g.id)) && !candidates.has(g.id)) candidates.set(g.id, {game: g, priority: queryDays.length, observedAt: data.observedAt});
+                        for (const g of catalog) if (g.league === league && g.id.startsWith(`espn:${source}:`) && g.start > now + 72 * H && !ids.has(g.id) && !candidates.has(g.id) && mine(g)) dropped.add(g.id);
                     }
                 }
             }
@@ -620,7 +626,8 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
             // #212: a card a group's series listed that its own class says is not the group's (a domestic or women's match,
             // or one filed under the group before 0397) is forgotten, so it leaves the group's rail and its series is no
             // longer kept on the group's behalf (the retention above) once none of its cards are left.
-            const forget = [...misfiled].filter(([id, group]) => known.get(id)?.league === group && !candidates.has(id)).map(([id]) => id);
+            const forget = [...misfiled].filter(([id, group]) => known.get(id)?.league === group && !candidates.has(id)).map(([id]) => id)
+                .concat([...dropped].filter(id => !candidates.has(id)));
             if (forget.length) store.forget(forget);
             if (entries.length) store.ingestBatch(entries);
             store.prune(clock());

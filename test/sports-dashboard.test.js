@@ -426,7 +426,31 @@ test('#223: a followed team with nothing ahead asks its own schedule (by roster 
     assert.deepEqual(s.catalog().map(g => g.id).sort(), ['espn:football/nfl:701', 'espn:football/nfl:702', 'espn:soccer/eng.1:802'],
         'the Cardinals\' next unplayed game (18 days ahead), Arsenal\'s next league game (not the Champions League one)');
     time = NOW + 5 * H; await c.refresh();
-    assert.equal(teamCalls().length, 2, 'a team whose next game is in the catalogue is not asked again');
+    assert.equal(teamCalls().length, 2, 'not asked again within 6 hours');
+    c.stop();
+});
+
+// 0450 Codex round 1 (medium): a stored distant game must not stop the asking, or a moved, removed or newly earlier
+// fixture would show as the team's next game for weeks.
+test('#223: a team whose next game is past the window is asked again after 6 hours; a game it no longer lists is forgotten, an earlier one shown', async () => {
+    const s = store(), calls = []; let time = NOW;
+    let ari = [espnEvent('702', NOW + 18 * D, ['26', 'Seattle Seahawks'], ['22', 'Arizona Cardinals'])];
+    const c = dashboard.createCollector({ store: s, leagues: () => new Set(['NFL']), clock: () => time, enabled: () => true,
+        followed: () => new Map([['NFL', new Set(['Arizona Cardinals'])]]), roster: () => [{ id: '22', displayName: 'Arizona Cardinals' }],
+        fetchJson: async url => {
+            calls.push(url);
+            if (url.includes('/teams/22/schedule')) return schedule(ari);
+            return { events: url.includes('dates=20261030') ? [espnEvent('701', NOW + 40 * H, ['9', 'Green Bay Packers'], ['8', 'Detroit Lions'])] : [] };
+        } });
+    for (let i = 0; i < 3; i++) { await c.refresh(); time += 31000; }
+    assert.deepEqual(s.catalog().map(g => g.id).sort(), ['espn:football/nfl:701', 'espn:football/nfl:702']);
+    ari = [espnEvent('704', NOW + 9 * D, ['22', 'Arizona Cardinals'], ['8', 'Detroit Lions'])]; // 702 moved off, 704 added earlier
+    time = NOW + 6 * H + 60000; await c.refresh();
+    assert.equal(calls.filter(u => u.includes('/teams/22/schedule')).length, 2, 'asked again after 6 hours');
+    assert.deepEqual(s.catalog().map(g => g.id).sort(), ['espn:football/nfl:701', 'espn:football/nfl:704'], 'the unlisted game is forgotten');
+    const r = dashboard.buildDashboard(s, { now: time, userId: '1', events: [], leagues: new Set(['NFL']), keepFinishedToday: true, channelTimes: true,
+        upcomingHours: 72, guideCards: false, teams: { NFL: ['Arizona Cardinals'] } });
+    assert.deepEqual(r.games.filter(g => g.nextRound).map(g => g.id), ['espn:football/nfl:704']);
     c.stop();
 });
 
