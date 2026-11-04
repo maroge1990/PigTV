@@ -2,7 +2,12 @@
   "apiVersion": 1,
   "build": "<build>",
   "display": "<display>",
-  "features": {},
+  "features": {
+    "devicePairing": true,
+    "guide": true,
+    "library": true,
+    "playbackResolve": true
+  },
   "name": "PigTV",
   "version": "<version>"
 }

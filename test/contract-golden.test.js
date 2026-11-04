@@ -258,6 +258,8 @@ test('info, and the fallback a client gets when a feature check throws', async (
     for (const key of ['name', 'version', 'build', 'display', 'apiVersion']) {
         assert.equal(typeof fallback[key], typeof info[key], `the fallback's ${key}`);
     }
+    // #47 (AUD-APL-5): the client refuses a server without these, so the fallback keeps the flags that are always on.
+    assert.deepEqual(fallback.features, { library: true, playbackResolve: true, guide: true, devicePairing: true });
 });
 
 // ---- the guide and C-I -----------------------------------------------------------------------------------------

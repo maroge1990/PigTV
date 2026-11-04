@@ -143,15 +143,18 @@ router.get('/', async (req, res) => {
     } catch (err) {
         // 0138: a client checks this before anything else, so it must get an
         // answer that identifies the server even when a feature check (a
-        // settings or database read behind it) failed. No flags: a client then
-        // uses none of the optional features, which is the safe reading.
+        // settings or database read behind it) failed. Only the base flags: a client
+        // then uses none of the optional features, which is the safe reading.
         console.error('[Info] failed:', err.message);
         if (res.headersSent) return;
         let build = {};
         let version = null;
         try { build = require('../version'); } catch { /* identity unknown */ }
         try { version = require('../../package.json').version; } catch { /* identity unknown */ }
-        res.json({ name: 'PigTV', version, build: build.build || null, display: build.display || null, apiVersion: API_VERSION, features: {} });
+        // #47 (AUD-APL-5): the flags that are always on stay (the Apple client refuses a server without library and
+        // playbackResolve); every optional flag is absent, which a client reads as off.
+        res.json({ name: 'PigTV', version, build: build.build || null, display: build.display || null, apiVersion: API_VERSION,
+            features: { library: true, playbackResolve: true, guide: true, devicePairing: true } });
     }
 });
 

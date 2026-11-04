@@ -7,7 +7,7 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 **Rules**
 - Ask the server, don't guess. `GET /api/info` (no token) returns `name`, `version`, `build`, `display`, `apiVersion` and `features`. New
   behaviour is announced with a flag; an older server lacks it, so **gate on the flag** and treat a missing flag as off.
-  `/api/info` still answers if a feature check fails: the same identity fields (`version` too since 0432) with no flags.
+  `/api/info` still answers if a feature check fails: the same identity fields (`version` too since 0432; null if unreadable) with only the base flags (`library`, `playbackResolve`, `guide`, `devicePairing`: since 0474, #47) and no optional ones.
 - Every change is **additive** unless both sides change together. Anything in §2 changes only with a matching client change.
 - A change the client can see (including anything in `transcodeSession.js` / `playbackStrategy.js`) is written into this
   file in the same commit.
