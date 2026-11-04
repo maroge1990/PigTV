@@ -26,7 +26,11 @@ before(async () => {
     // #193 (D-41): the server's owner (its first admin) takes over the household's follows; other accounts start empty.
     token = auth.generateToken(await db.users.create({ username: 'owner', role: 'admin' }));
     viewer = auth.generateToken(await db.users.create({ username: 'viewer', role: 'viewer' }));
-    load('services/sportsEvents').eventsResponse = async () => ({ body: Buffer.from(JSON.stringify({ events: guideEvents })) });
+    // As the real one: the events that start within the asked span (C-I's `hours`, at most 72; `reach`: as far as the guide).
+    load('services/sportsEvents').eventsResponse = async (opts = {}) => {
+        const span = (opts.reach ? 8 * 24 : Math.min(72, Number(opts.hours) || 6)) * H, at = opts.now ?? Date.now();
+        return { body: Buffer.from(JSON.stringify({ events: guideEvents.filter(e => e.start < at + span) })) };
+    };
     load('db/recordingsDb').initSchema();
     const app = express(); app.use(express.json());
     app.use('/api/info', load('routes/info'));
@@ -273,6 +277,24 @@ test('front: #218: a followed team with nothing within 72 hours reads its next r
     assert.deepEqual(f.rails[0].gameIds, [other, id]);
     assert.deepEqual(f.sports[0].next, { gameId: other, start: now + 4 * 24 * H });
     assert.deepEqual([f.follows[0].state, f.follows[0].gameId, f.follows[0].start], ['next', id, now + 5 * 24 * H]);
+    clearGames();
+});
+
+// Mark (4 Nov): the Cardinals' next game, 4.5 days ahead, said "No TV listing found" though ten channels in the guide
+// (which runs a week) listed it: the front page asked for 72 hours of listings. A followed game reads them as far ahead
+// as the guide goes.
+test('front: a followed team\'s game 4.5 days ahead shows the channels its guide already lists', async () => {
+    clearGames();
+    const now = Date.now(), id = 'espn:football/nfl:432';
+    await call('/api/sports/pages/preferences', { sports: ['NFL'], teams: { NFL: ['Green Bay Packers'] } });
+    const start = now + 108 * H;
+    dashboard.store().ingest([game(id, 'NFL', start, [packers, team('8', 'Lions')], scheduled)], now - 100000);
+    guideEvents = [{ id: 'ev-far', league: 'NFL', title: 'Lions v Packers', kind: 'event', start, end: start + 3 * H, live: false,
+        channels: [{ sourceId: 1, id: 'pos_9', stableId: 's9', name: 'KSAZ', quality: 'HD', start, end: start + 3 * H }] }];
+    const card = (await front()).games.find(c => c.id === id);
+    assert.ok(card, 'the followed team\'s next game');
+    assert.deepEqual(card.channels.map(c => c.name), ['KSAZ']);
+    guideEvents = [];
     clearGames();
 });
 

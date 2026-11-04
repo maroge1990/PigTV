@@ -776,6 +776,9 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
   window (a bye week): the same `nextRound: true` card, `channels: []` past the guide, which its follow's `state: "next"`
   points at. Only that one game, not the team's later ones. The server reads it from ESPN's schedule for that team in
   the background (at most every 6 hours). A team ESPN lists no game for (off-season) stays `state: "none"`.
+- Since 0459 a card's `channels` come from the guide as far ahead as it runs (about a week), not only 72 hours: a
+  followed team's or next round's game days away lists the channels already showing it (empty only past the guide).
+  Which cards appear is unchanged.
 - A server before 0381 answers 404 to `/api/sports/front` and 400 to `sports`/`teams`: send them only with this flag.
 
 ### C-S. Sport pages: Cricket. Flag: `sportPageCricket` (0383, #21)

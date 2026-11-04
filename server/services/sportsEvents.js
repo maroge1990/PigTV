@@ -53,7 +53,12 @@ const HOUR_MS = 60 * 60 * 1000;
 // takes about a second), and covers 72 h (a whole weekend) plus those 5 minutes, so a request
 // late in the bucket still sees its full `hours`. `live` and the time filter are per request.
 const BUILD_EVERY_MS = 5 * 60 * 1000;
-const WINDOW_MS = 72 * HOUR_MS + BUILD_EVERY_MS;
+// 0459 (Mark, 4 Nov): the build reads as far ahead as a provider's guide runs (about a week), so the Sport front page can
+// show the channels of a followed game days away (the Cardinals, 4.5 days ahead, said "No TV listing found" though ten
+// channels listed it). C-I's own answers stay within MAX_HOURS; only the front page asks for `reach`. On production's
+// guide that is about 1.5x the rows of 72 h (97k against 63k: a guide thins out further ahead).
+const REACH_HOURS = 8 * 24;
+const WINDOW_MS = REACH_HOURS * HOUR_MS + BUILD_EVERY_MS;
 // 0152: a build also reads the 36 h before its minute, so a later airing of a game can be
 // told from its first (live) airing (sportsClassify.resolveLive). epg_live holds what the
 // provider's feed carries, usually the previous day too; the sync trims nothing by time.
@@ -1116,8 +1121,8 @@ function trimResponses(rev, minute) {
  * The /events answer, serialised: { body: Buffer, etag, gzip(): Promise<Buffer>, cached }.
  * Same JSON as `JSON.stringify(await eventsFor({ hours, userId, include, now: <the minute's start> }))`.
  */
-async function eventsResponse({ hours, userId, now = Date.now(), include, decorateChannels } = {}) {
-    const hrs = clampHours(hours);
+async function eventsResponse({ hours, userId, now = Date.now(), include, decorateChannels, reach = false } = {}) {
+    const hrs = reach ? REACH_HOURS : clampHours(hours); // 0459: `reach` only from the server's own front page, never a query
     const all = include === 'all';
     const minute = Math.floor(now / MINUTE_MS) * MINUTE_MS;
     const built = await cachedEvents(now, decorateChannels);
@@ -1213,7 +1218,7 @@ module.exports = {
     clearResponses: () => { responses.clear(); responseBytes = 0; },
     // 0150
     eventsFromProgrammes,
-    DEFAULT_HOURS, MAX_HOURS, MAX_KEYWORDS,
+    DEFAULT_HOURS, MAX_HOURS, REACH_HOURS, MAX_KEYWORDS,
     reset,
     // 0159: builds run in the background instead of blocking a request
     scheduleRebuild, startBackgroundRebuilds, stopBackgroundRebuilds,

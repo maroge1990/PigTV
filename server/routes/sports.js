@@ -85,7 +85,8 @@ router.get('/front', async (req, res) => {
         channelNumbers.ensureChannelNumbers();
         const now = Date.now();
         res.json(await require('../services/sportFront').front({ userId: req.user.id, now,
-            events: () => sportsEvents.eventsResponse({ hours: 72, userId: req.user.id, now, decorateChannels }),
+            // 0459: as far ahead as the guide runs, so a followed game days away shows its channels (cards stay 72 h)
+            events: () => sportsEvents.eventsResponse({ reach: true, userId: req.user.id, now, decorateChannels }),
             // #191: the followed sports' airings that ended within the overrun window (sportOverrun.js)
             ended: (leagues) => sportsEvents.endedEvents({ leagues, userId: req.user.id, now, decorateChannels }) }));
     } catch (err) {
