@@ -5,20 +5,18 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 4 Nov 2026 (Mark's test round of 0446/143; Batches 1–4 built while he was away).*
+*Overwritten at the end of every session. 4 Nov 2026 (release of Batches 1–4 for Mark's Test Round).*
 
-- **Deployed:** server **0446**, Apple **143** (TestFlight). Mark asked for **no releases while away** (no deploy, no
-  TestFlight). **On main, not deployed:** server **0447–0451** (Batch 1 #222 football event slots; Batch 2 #223 a
-  followed team's next game at any date, #213 roster badges), CI green. **On main, not released:** Apple **144–149**
-  (Batch 3 #212, #225, #228; Batch 4 #226, #227, #229), Codex approved with no findings.
+- **Deployed:** server **0451** (Force Update 4 Nov, `/api/version` and `/api/health` checked), Apple **149**
+  (TestFlight, uploaded 4 Nov). Batches 1–4 (#222, #223, #213, #212, #225–#229) are all out; Codex approved each.
   Next builds: server **0452**, Apple **150**.
+- **Mark's Test Round:** one numbered checklist (23 steps) for this release and the earlier built sport issues
+  (#18, #191, #200–#205, #212–#216, #222–#229); he replies with the failed step numbers. Issues close as he reports.
 - **Mark's design picks (4 Nov):** next game at any date (#223); standings trimmed beside the games (#228); one header,
   Sport's pig, 22 pt semibold title (#226); a cricket league page shows only that league; "All other cricket" is #230.
-- **Already built, waiting on Mark's device checks:** #215, #202, #205, #204, #192, #222, #223, #213.
-- **Evidence:** `docs/evidence/2026-11-04-sport-matching/`, `…-followed-teams/`, `…-apple-layout/`. T3 rig not run for
-  Batches 1–2 (its fakes lack event-slot titles and team schedules).
-- **Next:** a release (deploy 0451, TestFlight 149) and one Test Round checklist for the built issues; #190 brand gaps (not started); deploy 0451 and
-  TestFlight 149 when Mark says so; #230.
+- **Evidence:** `docs/evidence/2026-11-04-sport-matching/`, `…-followed-teams/`, `…-apple-layout/`.
+- **Next:** Mark's Test Round results; then run the register to zero by batch (playback robustness first, then
+  recording, operations, Apple foundations with #190 brand gaps, web, guide and search).
 
 ## Now
 
