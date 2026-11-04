@@ -220,11 +220,6 @@ async function streamUrlForChannel(sourceId, channelId) {
     // `detail` keeps what actually went wrong for the log.
     if (!source) throw Object.assign(new Error(FAILURE_TEXT.notInPlaylist()), { status: 404, detail: `Source ${sourceId} not found` });
 
-    if (source.type === 'xtream') {
-        const api = xtreamApi.createFromSource(source);
-        return api.buildStreamUrl(channelId, 'live', 'ts');
-    }
-
     const raw = String(channelId);
     const stripped = raw.replace(/^(?:m3u|xtream)_\d+_/, '');
 
@@ -235,7 +230,13 @@ async function streamUrlForChannel(sourceId, channelId) {
         LIMIT 1
     `).get(sourceId, raw, stripped, `${sourceId}:${stripped}`);
 
+    // #209: an Xtream source built the address for any id and asked the provider (a 500 "not available from the
+    // provider"); an id its channel list does not hold is gone, said without contacting it.
     if (!item) throw Object.assign(new Error(FAILURE_TEXT.notInPlaylist()), { status: 404, detail: `Channel ${channelId} not found` });
+    if (source.type === 'xtream') {
+        const api = xtreamApi.createFromSource(source);
+        return api.buildStreamUrl(channelId, 'live', 'ts');
+    }
     const url = urlOfItem(item);
     if (url) return url;
 

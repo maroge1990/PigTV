@@ -64,6 +64,8 @@ before(async () => {
     A = await db.sources.create({ type: 'xtream', name: 'Strong8K', url: 'http://strong.invalid', username: 'u', password: 'p' });
     B = await db.sources.create({ type: 'xtream', name: 'Trex', url: 'http://trex.invalid', username: 'u', password: 'p', role: 'backup', priority: 1 });
     C = await db.sources.create({ type: 'm3u', name: 'Dream4K', url: 'http://dream.invalid/list.m3u', role: 'backup', priority: 2 });
+    // #209 (0454): a channel is played only when its source's channel list holds it.
+    sqlite.getDb().prepare("INSERT INTO playlist_items (id, source_id, item_id, type, name) VALUES (?, ?, '505', 'live', 'Fox')").run(`${A.id}:505`, A.id);
 
     realListActive = recordingEngine.listActive; // listActive is stubbed for the route
     recordingEngine.listActive = () => [];

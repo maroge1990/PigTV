@@ -522,6 +522,16 @@ test('resolve: a C-B error for a channel not in the playlist', async () => {
     assert.match(r.body.error, /^This channel is not available/);
 });
 
+// #209: an Xtream source built the stream URL for any id and asked the provider, answering 500 "not available from the
+// provider (HTTP 404)". An id the source's channel list does not hold answers the C-B 404 without contacting the provider.
+test('#209: resolve of an id an Xtream source does not have is a 404, and the provider is never asked', async () => {
+    const before = fake.status().requests.live;
+    const r = await call('POST', '/api/playback/resolve', { body: { sourceId: source.id, channelId: 'pos_424242', capabilities: { segmentedDelivery: true, heaac: true } } });
+    assert.equal(r.status, 404, r.text);
+    assert.match(r.body.error, /^This channel is not available/);
+    assert.equal(fake.status().requests.live, before, 'no stream request reached the provider');
+});
+
 test('resolve: 200 on the fake provider, a C-B provider error, and the 409 another device gets while it plays', { skip: !hasFfmpeg && 'needs ffmpeg' }, async () => {
     const caps = { segmentedDelivery: true, heaac: true };
     const offline = channelOf('UK| TEST OFFLINE 404');
