@@ -52,3 +52,16 @@ test('PB2: still counted once - without force it is one recording conflict, and 
     assert.equal(asked.conflict.type, 'recording-in-progress');
     assert.equal(asked.sacrificed, undefined);
 });
+
+// #37 (0468 Codex round 1, high): sessions on one shared ingest are grouped, and the group never said a member was
+// paused, so a paused viewer's connection was taken silently once idle, and a recording could not see it as free.
+test('#37: a shared ingest with a paused viewer is asked about, never taken silently; a recording takes it only if every reader is paused or idle', () => {
+    const paused = { id: 'paused', owner: 'tv', ingestKey: 'shared', providerId: null, idleMs: 10 * 60000, paused: true, startTime: Date.now() };
+    const c = loadCoordinator([paused]);
+    const asked = c.requestForViewer({ force: false, activeRecordings: [], settings, owner: 'ipad' });
+    assert.equal(asked.allowed, false, 'the iPad is asked');
+    assert.equal(asked.conflict.type, 'viewer-in-progress');
+    assert.equal(c.canRecordFreely(null, settings, []), true, 'a recording may take a paused reader\'s connection');
+    const watching = { id: 'watching', owner: 'phone', ingestKey: 'shared', providerId: null, idleMs: 0, startTime: Date.now() };
+    assert.equal(loadCoordinator([paused, watching]).canRecordFreely(null, settings, []), false, 'not while another reader watches');
+});

@@ -278,6 +278,23 @@ test('a cold switch: the lost leg is quarantined by its own listener, the next p
     assert.deepEqual(segs(await r.getPlaylist()).slice(-2), ['L1-seg0002.m4s', 'L1-seg0003.m4s']);
 });
 
+// #37 (0468 Codex round 1, high): a pause was kept on the playing leg only, so a switch to another provider (or a
+// renewal) during it dropped the protection. The new leg keeps the original deadline, never a new one.
+test('#37: a relay switch during a pause carries the pause deadline to the new leg, unchanged', async () => {
+    const s = fakeSession();
+    write(s, 0, 3);
+    const r = await silently(() => relay.adopt(s, ctx()));
+    await silently(() => r.tick());
+    const until = Date.now() + 20 * 60000;
+    s.pausedUntil = until;
+    write(s, 0, 4, { ended: true, duration: 4 });
+    s.emit('lost', { how: 'exit', providerReason: true });
+    await silently(() => r.tick());
+    assert.notEqual(r.active.session.id, s.id, 'switched');
+    assert.equal(r.active.session.pausedUntil, until);
+    await silently(() => r.close('test'));
+});
+
 test('the window slides: media sequence continues, a join that leaves the list is counted, an unlisted leg\'s folder goes', async () => {
     const s = fakeSession();
     write(s, 0, 1);

@@ -448,6 +448,8 @@ class Relay {
             }
 
             if (planned) this.retire(old).catch(() => { /* logged in retire */ });
+            // #37 (0468 Codex round 1, high): a pause carries over to the new leg with its original deadline.
+            if (old?.session?.pausedUntil > Date.now() && next?.session) next.session.pausedUntil = old.session.pausedUntil;
             this.active = next;
             // Under sustained flapping, a startup epoch may have been closed cleanly at EOF.
             // Publish its valid segment, then follow the live ingest again without a new wait.

@@ -203,8 +203,10 @@ function activeStreams() {
 }
 
 /** Abandoned: silent for the idle timeout, or a standby (0189) or a warm session (R12), which never have a viewer. */
-// #37: for a recording a paused play's stream is as good as abandoned (Mark: a recording that needs it takes it).
-const isStale = (s, cutoffMs) => s.standby === true || s.warm === true || s.paused === true || s.idleMs >= cutoffMs;
+// #37: for a recording a paused play's stream is as good as abandoned (Mark: a recording that needs it takes it). A
+// shared ingest's group is, when every reader is paused or idle (recordIdleMs).
+const recordIdle = (s) => (typeof s.recordIdleMs === 'number' ? s.recordIdleMs : s.paused === true ? Infinity : s.idleMs);
+const isStale = (s, cutoffMs) => s.standby === true || s.warm === true || recordIdle(s) >= cutoffMs;
 const idleText = (s) => (s.warm ? 'a warm session' : s.standby ? 'a standby' : `${Math.round(s.idleMs / 1000)}s idle`);
 
 // ---------------------------------------------------------------------------
@@ -522,12 +524,16 @@ function streamsInPool(pool, dir, recordings = undefined) {
         let g = groups.get(s.ingestKey);
         if (!g) {
             g = { id: s.id, type: 'ingest', ingestKey: s.ingestKey, members: [], idleMs: Infinity, startTime: s.startTime,
-                owner: s.owner, providerId: s.providerId, standby: true, warm: true };
+                owner: s.owner, providerId: s.providerId, standby: true, warm: true, paused: false, recordIdleMs: Infinity };
             groups.set(s.ingestKey, g);
             out.push(g);
         }
         g.members.push(s);
         g.idleMs = Math.min(g.idleMs, s.idleMs);
+        // #37 (0468 Codex round 1, high): one paused reader protects the group from a silent take by a viewer; for a
+        // recording, a paused reader counts as abandoned, so the group is free only when every reader is paused or idle.
+        g.paused = g.paused || s.paused === true;
+        g.recordIdleMs = Math.min(g.recordIdleMs, s.paused === true ? Infinity : s.idleMs);
         if (g.owner !== s.owner) g.owner = null;
         g.standby = g.standby && s.standby;
         g.warm = g.warm && s.warm;
@@ -708,8 +714,8 @@ async function requestForRecording(schedule, settings = {}, providerId = undefin
     // Reclaim anything registered but abandoned, without asking: there is
     // nobody to ask.
     const cutoff = idleTimeout * 1000;
-    const stale = streams.filter(s => s.paused || s.idleMs >= cutoff); // #37: a paused play gives way to a recording
-    const live = streams.filter(s => !s.paused && s.idleMs < cutoff);
+    const stale = streams.filter(s => recordIdle(s) >= cutoff); // #37: a paused play gives way to a recording
+    const live = streams.filter(s => recordIdle(s) < cutoff);
 
     if (live.length === 0 && stale.length > 0) {
         const verdict = leased({ allowed: true, reason: 'Reclaimed an abandoned stream' });
