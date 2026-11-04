@@ -2066,11 +2066,18 @@ function followEvents(now = Date.now()) {
  * about 25x real time: minutes behind on a long game). Costs a second copy in appdata until the recording finishes.
  * ensureView is idempotent (a running or failed-out copy is left alone) and never throws.
  */
-async function keepWatchCopies() {
+// 0457 (0456 Codex round 1, medium): started beside the tick, never awaited by it: a watch copy's codec probe can take
+// 30 s on a bad first segment, and the tick must go on starting recordings and enforcing free space meanwhile. One start
+// in flight per recording at a time.
+const watchCopyStarting = new Set();
+function keepWatchCopies() {
     for (const entry of active.values()) {
-        if (!entry.segmented || entry.stopRequested) continue;
+        if (!entry.segmented || entry.stopRequested || watchCopyStarting.has(entry.recordingId)) continue;
         const rec = recordingsDb.getById(entry.recordingId);
-        if (rec && rec.status === 'recording' && rec.segment_state === 'capturing') await segments.ensureView(rec);
+        if (!rec || rec.status !== 'recording' || rec.segment_state !== 'capturing') continue;
+        watchCopyStarting.add(rec.id);
+        Promise.resolve().then(() => segments.ensureView(rec)).catch(() => { /* tried again next tick */ })
+            .finally(() => watchCopyStarting.delete(rec.id));
     }
 }
 
@@ -2137,7 +2144,7 @@ async function tick() {
         for (const scheduleId of [...continuations.keys()]) await continuePart(scheduleId, now);
         followEvents(now); // #217
         await checkRecordingStalls(now);
-        await keepWatchCopies();
+        keepWatchCopies(); // #17: beside the tick (0457)
         await startLiveDetections();
 
         // Give a viewer notice before a recording is actually due, rather than

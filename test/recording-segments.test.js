@@ -978,6 +978,28 @@ test('#17: a segmented recording keeps its watch copy running from the start, wi
     await until(() => recordings.getById(rec.id).status === 'completed', 'finished', 10000);
 });
 
+// #17 (0456 Codex round 1, medium): the tick awaited each watch copy's start, whose codec probe can take 30 s on a bad
+// first segment: no other recording started (and no free-space stop ran) meanwhile. The copies start beside the tick.
+test('#17: a watch copy whose codec probe hangs never holds up the next recording', async () => {
+    const real = engine._nativeTools.codecs;
+    let release;
+    engine._nativeTools.codecs = () => new Promise(r => { release = () => r({ video: 'h264', audio: 'aac', audioChannels: 2 }); });
+    try {
+        const first = due();
+        await until(() => rowsOf(first.id).length === 1 && captures().length === 1, 'the first recording');
+        engine.tick(); // its watch copy's probe now hangs (not awaited: on the old code it never returns)
+        await sleep(100);
+        const second = due();
+        await until(() => rowsOf(second.id).length === 1 && captures().length === 2, 'the second recording starts anyway');
+        await engine.cancelScheduled(first.id);
+        await engine.cancelScheduled(second.id);
+    } finally {
+        engine._nativeTools.codecs = real;
+        release?.();
+    }
+    await until(() => !engine.listActive().length, 'both finished', 10000);
+});
+
 // --------------------------------------------------------------------------- routes --
 
 test('watch from the start: auth, the master and media playlists (token on every URI), the pieces, and the allow-list', async () => {
