@@ -1097,6 +1097,34 @@ test('#34: a restart reads its own list of the rest, kept growing with the archi
     assert.equal(fs.readFileSync(path.join(dir, 'view1.from'), 'utf8'), '3', 'the part records where it started');
 });
 
+// #34 (0472 Codex round 2, high): a copy that died after its last piece, its archive then sealed, was restarted on an
+// empty list, which ffmpeg refuses: the copy never ended and later epochs never showed. Nothing is left to copy: a
+// sealed archive's copy is ended there without ffmpeg; an open one waits for its next piece (no failure counted).
+test('#34: a copy that died after the last piece ends without ffmpeg once the archive is sealed; open, it waits', async () => {
+    const work = fs.mkdtempSync(path.join(sandbox, 'whole-'));
+    const e1 = path.join(work, 'e1'), e2 = path.join(work, 'e2');
+    fs.mkdirSync(e1); fs.mkdirSync(e2);
+    const list = (n, ended, prefix = 'a', ext = 'ts') => '#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:0\n'
+        + [...Array(n)].map((_, i) => `#EXTINF:4.000000,\n${prefix}${String(i).padStart(6, '0')}.${ext}\n`).join('') + (ended ? '#EXT-X-ENDLIST\n' : '');
+    for (let i = 0; i < 3; i++) { fs.writeFileSync(path.join(e1, `a00000${i}.ts`), 'a'); fs.writeFileSync(path.join(e1, `v00000${i}.m4s`), 'v'); }
+    fs.writeFileSync(path.join(e1, 'view.m3u8'), list(3, false, 'v', 'm4s')); // every piece copied, then the follower died
+    fs.writeFileSync(path.join(e2, 'archive.m3u8'), list(1, true)); fs.writeFileSync(path.join(e2, 'a000000.ts'), 'a');
+    fs.writeFileSync(path.join(e2, 'view.m3u8'), list(1, true, 'v', 'm4s')); fs.writeFileSync(path.join(e2, 'v000000.m4s'), 'v');
+    const before = starts().length;
+    fs.writeFileSync(path.join(e1, 'archive.m3u8'), list(3, false));
+    await segments.ensureView({ id: 777001, work_dir: work });
+    await sleep(300);
+    assert.equal(starts().length, before, 'open, nothing left to copy: no ffmpeg (it waits for the next piece)');
+    assert.ok(!segments._followers.get('777001:1')?.failures, 'no failure counted');
+    fs.writeFileSync(path.join(e1, 'archive.m3u8'), list(3, true)); // sealed
+    await segments.ensureView({ id: 777001, work_dir: work });
+    await sleep(300);
+    assert.equal(starts().length, before, 'sealed: still no ffmpeg on an empty list');
+    const view = segments.viewPlaylist(work, { captureOver: true });
+    assert.equal(view.ended, true, 'the copy is ended');
+    assert.equal(view.segments, 4, 'and the next epoch shows');
+});
+
 // --------------------------------------------------------------------------- routes --
 
 test('watch from the start: auth, the master and media playlists (token on every URI), the pieces, and the allow-list', async () => {

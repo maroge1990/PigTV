@@ -299,6 +299,22 @@ async function startFollower(recordingId, epoch) {
     if (!first) return false;
     const entry = followers.get(key) || { proc: null, failures: 0 };
     if (entry.proc || entry.failures >= MAX_FOLLOWER_FAILURES) return false;
+    // 0473 (#34, 0472 Codex round 2, high): nothing left to copy (the last part has every piece): ffmpeg would refuse
+    // an empty list. A sealed archive's copy is ended here (ENDLIST on the last part, written by no running process);
+    // an open one waits for its next piece, no failure counted.
+    const ahead = nextPart(epoch.dir);
+    const archive = archiveOf(epoch.dir);
+    if (ahead.part > 0 && ahead.from >= archive.segments.length) {
+        if (archive.ended) {
+            const last = viewOf(epoch.dir).parts.pop();
+            const file = path.join(epoch.dir, PART_FILES(last.k).playlist);
+            try {
+                const text = fs.readFileSync(file, 'utf8');
+                if (!/#EXT-X-ENDLIST/.test(text)) { fs.writeFileSync(`${file}.tmp`, text.replace(/\s*$/, '\n#EXT-X-ENDLIST\n')); fs.renameSync(`${file}.tmp`, file); }
+            } catch (e) { /* tried again on the next request */ }
+        }
+        return false;
+    }
     followers.set(key, entry);
     entry.proc = 'starting';
     const codecs = await media.nativeTools.codecs(path.join(epoch.dir, first.name));
