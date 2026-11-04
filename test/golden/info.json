@@ -23,6 +23,7 @@
     "playbackTerminalStatus": true,
     "providerReminders": true,
     "providers": true,
+    "recordGameRules": true,
     "recordingArtwork": true,
     "recordingCompression": true,
     "recordingPlaybackPolling": true,
