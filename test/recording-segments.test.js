@@ -964,6 +964,20 @@ test('deleting a segmented recording stops it and deletes its appdata folder', a
     assert.equal(segments.isWorkDir(path.join(workRoot, '..')), false, 'never anything above a recording\'s own folder');
 });
 
+// #17 (Mark, 4 Nov: "Copy from the start"): the watch copy started only on the first /watch and read the archive from
+// its first segment, about 25x real time (measured: 15 min of 720p in 37 s on 4 cores), so "Play from live" on a game
+// two hours in would land minutes behind. Every segmented recording now keeps its watch copy running while it captures.
+test('#17: a segmented recording keeps its watch copy running from the start, without anyone watching', async () => {
+    const s = due();
+    await until(() => rowsOf(s.id).length === 1 && captures().length === 1, 'recording');
+    const [rec] = rowsOf(s.id);
+    await until(() => starts().some(a => a.includes('-live_start_index') && a.includes(path.join(rec.work_dir, 'e1', 'archive.m3u8'))),
+        'its watch copy, with no request');
+    await until(() => segments.viewPlaylist(rec.work_dir).segments > 0, 'the copy has pieces');
+    await engine.cancelScheduled(s.id);
+    await until(() => recordings.getById(rec.id).status === 'completed', 'finished', 10000);
+});
+
 // --------------------------------------------------------------------------- routes --
 
 test('watch from the start: auth, the master and media playlists (token on every URI), the pieces, and the allow-list', async () => {

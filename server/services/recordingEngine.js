@@ -2060,6 +2060,20 @@ function followEvents(now = Date.now()) {
     }
 }
 
+/**
+ * #17 (Mark, 4 Nov): every segmented recording keeps its watch copy running while it captures, so "Play from live"
+ * and "Watch from start" open at the live edge at once (a copy started on demand reads the archive from its start at
+ * about 25x real time: minutes behind on a long game). Costs a second copy in appdata until the recording finishes.
+ * ensureView is idempotent (a running or failed-out copy is left alone) and never throws.
+ */
+async function keepWatchCopies() {
+    for (const entry of active.values()) {
+        if (!entry.segmented || entry.stopRequested) continue;
+        const rec = recordingsDb.getById(entry.recordingId);
+        if (rec && rec.status === 'recording' && rec.segment_state === 'capturing') await segments.ensureView(rec);
+    }
+}
+
 async function tick() {
     // Guard against overlap: if a previous tick is still resolving stream
     // URLs / spawning ffmpeg when the next interval fires, skip this one
@@ -2123,6 +2137,7 @@ async function tick() {
         for (const scheduleId of [...continuations.keys()]) await continuePart(scheduleId, now);
         followEvents(now); // #217
         await checkRecordingStalls(now);
+        await keepWatchCopies();
         await startLiveDetections();
 
         // Give a viewer notice before a recording is actually due, rather than

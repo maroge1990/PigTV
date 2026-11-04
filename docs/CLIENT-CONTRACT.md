@@ -292,6 +292,9 @@ unchanged, including every recording made before or with the switch off.
   audio now also uses that safe fallback. Shapes are unchanged.
 - Once the recording is finished its playlists answer 404: the client then plays the finished recording (`/:id/playback`),
   at the same position.
+- Since 0456 (#17) the watch copy runs from the start of every segmented recording, not from the first `/watch`, so the
+  media playlist is at (or within a piece of) the live edge whenever it is asked for. Apple 150's **Play from live** uses
+  this: the same `url`, joined at the last seekable range's end less 30 s (the live player's hold). Shapes are unchanged.
 
 ### C-M. Recording rules. Flag: `recordingRules`
 
