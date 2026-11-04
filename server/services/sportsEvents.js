@@ -121,6 +121,10 @@ function compileFollow(keywords, rosters = new Map()) {
         list,
         // #24: every stored roster, followed or not: a pairing two leagues share infers neither.
         rosters: new Map([...rosters].map(([league, teams]) => [league, teams.map(t => rosterAliases(t, league))])),
+        // #222 (0447 Codex round 1, high): every team's place, which may not name it but still makes a pairing ambiguous
+        // ("Toulouse v Lyon": Ligue 1's clubs, and Top 14's teams from the same towns).
+        places: new Map([...rosters].map(([league, teams]) => [league, new Set(teams.map(t => sportsClassify.parseSide(String(t?.location || '')))
+            .filter(Boolean).map(rosterSideKey))])),
         leagues: new Set(list.filter(k => k.league).map(k => k.league)),
         any: literal.length ? wordRegExp(literal.join('|')) : null
     };
@@ -137,6 +141,8 @@ const OTHER_COMPETITION_RE = /\b(?:eredivisie|la ?liga|serie a|bundesliga|ligue 
 // league from abbreviations another code may share; named teams in a round are inferred as usual. #155: every round
 // marker parseSide drops (round 21, rd 21, rd21, r21), and a code is bare whatever punctuation follows it.
 const ROUND_RE = /\b(?:round|rd)\s*\d{1,2}\b|\br\d{1,2}\b/i;
+// #222 (0447 Codex round 1): a programme the guide files under another code is never a club football league's by roster.
+const OTHER_CODE_RE = /\b(?:rugby|aussie rules|australian (?:rules )?football|afl|nrl|cricket|basketball|baseball|hockey|american football|nfl|netball)\b/i;
 const bareCode = side => side.abbr || /^[A-Z]{2,4}$/.test(String(side.name).replace(/[^\p{L}\p{N}]+$/u, ''));
 const rosterSideKey = side => side.tokens.filter(t => t !== 'de').sort().join(' ');
 // #222: a football club competition, whose clubs ESPN names by their place alone (Lille, Celtic, Bodø/Glimt). Never a
@@ -241,13 +247,19 @@ function classify({ title, categories = [], sportChannel = false, channelName = 
         const pair = sportsClassify.parseMatchup(text);
         if (pair && !pair.some(sharedNickname) && !(ROUND_RE.test(text) && pair.every(bareCode))) {
             const matches = [];
+            const possible = new Set();
+            const keys = pair.map(rosterSideKey);
             for (const [league, teams] of follow.rosters) {
-                const hit = side => teams.map((aliases, i) => aliases.includes(rosterSideKey(side)) ? i : -1).filter(i => i >= 0);
-                const first = hit(pair[0]);
-                const second = hit(pair[1]);
+                const hit = key => teams.map((aliases, i) => aliases.includes(key) ? i : -1).filter(i => i >= 0);
+                const first = hit(keys[0]);
+                const second = hit(keys[1]);
                 if (first.length === 1 && second.length === 1 && first[0] !== second[0]) matches.push(league);
+                // #222: a league whose teams' names or places both sides could be is a reading too.
+                const places = follow.places?.get(league) || new Set();
+                if (keys.every((k, i) => (i ? second : first).length || places.has(k))) possible.add(league);
             }
-            if (matches.length === 1 && follow.leagues.has(matches[0])) leagues.unshift(matches[0]);
+            const otherCode = clubFootball(matches[0]) && categories.some(c => OTHER_CODE_RE.test(String(c)));
+            if (matches.length === 1 && possible.size === 1 && !otherCode && follow.leagues.has(matches[0])) leagues.unshift(matches[0]);
         }
     }
     const keyword = followedKeyword(follow, text, categories, leagues);

@@ -488,3 +488,16 @@ test('#222: an event slot "UEFA | 06 - Bodo/Glimt vs Lille 8:00pm" gets its leag
     const airing = { id: 'slot6', league: rule.league, title, kind: 'event', start: kickOff, end: kickOff + 2 * 3600000 };
     assert.deepEqual(dashboard.matchBroadcasts([card], [airing]).get(card.id).map(e => e.id), ['slot6']);
 });
+
+test('#222 (0447 Codex round 1): a football club named by its town never takes a pairing another code\'s towns also make', () => {
+    const club = (n, a) => ({ displayName: n, shortDisplayName: n, name: n, location: n, abbreviation: a });
+    const rugby = (location, nickname, a) => ({ displayName: `${location} ${nickname}`, shortDisplayName: location, name: nickname, location, abbreviation: a });
+    const rosters = new Map([['Ligue 1', [club('Toulouse', 'TFC'), club('Lyon', 'OL'), club('Lille', 'LIL'), club('Lens', 'RCL')]],
+        ['Top 14', [rugby('Toulouse', 'Stade', 'ST'), rugby('Lyon', 'LOU', 'LOU')]]]);
+    const follow = sportsEvents.compileFollow(['Ligue 1'], rosters);
+    assert.equal(sportsEvents.classify({ title: 'Toulouse v Lyon' }, follow), null, 'Top 14 towns make it ambiguous');
+    assert.equal(sportsEvents.classify({ title: 'Lille v Lens' }, follow)?.league, 'Ligue 1');
+    // Without the rugby roster stored, the guide's own category still says it is not football.
+    const alone = sportsEvents.compileFollow(['Ligue 1'], new Map([['Ligue 1', rosters.get('Ligue 1')]]));
+    assert.notEqual(sportsEvents.classify({ title: 'Toulouse v Lyon', categories: ['Rugby Union'] }, alone)?.league, 'Ligue 1');
+});
