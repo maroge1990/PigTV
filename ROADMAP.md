@@ -5,18 +5,19 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 4 Nov 2026 (release of Batches 1–4 for Mark's Test Round).*
+*Overwritten at the end of every session. 4 Nov 2026 (evening; Mark away, "continue through logical batches", no releases).*
 
-- **Deployed:** server **0451** (Force Update 4 Nov, `/api/version` and `/api/health` checked), Apple **149**
-  (TestFlight, uploaded 4 Nov). Batches 1–4 (#222, #223, #213, #212, #225–#229) are all out; Codex approved each.
-  Next builds: server **0452**, Apple **150**.
-- **Mark's Test Round:** one numbered checklist (23 steps) for this release and the earlier built sport issues
-  (#18, #191, #200–#205, #212–#216, #222–#229); he replies with the failed step numbers. Issues close as he reports.
-- **Mark's design picks (4 Nov):** next game at any date (#223); standings trimmed beside the games (#228); one header,
-  Sport's pig, 22 pt semibold title (#226); a cricket league page shows only that league; "All other cricket" is #230.
-- **Evidence:** `docs/evidence/2026-11-04-sport-matching/`, `…-followed-teams/`, `…-apple-layout/`.
-- **Next:** Mark's Test Round results; then run the register to zero by batch (playback robustness first, then
-  recording, operations, Apple foundations with #190 brand gaps, web, guide and search).
+- **Deployed:** server **0451**, Apple **149** (TestFlight). **On main, not deployed:** server **0452–0470** (cricket
+  leftovers #212, #220, #209, #48, #38, Play from live #17, the TNF listing #231, listings a week ahead, #208, "All
+  other cricket" #230, cricket and today's final scores #235, Record a game not listed yet #234, live pause #37) and
+  Apple **150–158** (Play from live, Record when it's listed, the follows focus #233, live pause). Every batch had its
+  Codex rounds (highs fixed with failing-before tests). Next builds: server **0471**, Apple **159**.
+- **Mark's decisions (4 Nov):** release only on his go-ahead; the providers may be used for tests; recordings are never
+  deleted automatically (#40); a future game records once listed (#234); Top Shelf live sport: follows first, opens
+  the channel (#232, waits on mock-ups and the sign-in-sharing question).
+- **Checklist:** `TEST-ROUND-0457-151.md` (worktree root) covers up to 0457/151; to be extended for the release.
+- **Next:** the rest of the playback batch (#34 watch-copy restarts, #30, #25, #27, #4: capture first), then running
+  unattended (#44, #43, #45), Apple foundations, web.
 
 ## Now
 
