@@ -84,7 +84,24 @@ function readPlaylist(file) {
 }
 
 const archiveOf = (epochDir) => readPlaylist(path.join(epochDir, 'archive.m3u8'));
-const viewOf = (epochDir) => readPlaylist(path.join(epochDir, 'view.m3u8'));
+// #34: the watch copy is made in parts: part 0 is view.m3u8 + init.mp4 + v000000.m4s…, a part k made after its
+// follower died is viewk.m3u8 + initk.mp4 + vk-000000.m4s…, going on from the first archive piece not yet copied, so
+// nothing already served is ever rewritten.
+const PART_FILES = (k) => (k === 0 ? { playlist: 'view.m3u8', init: 'init.mp4', pattern: 'v%06d.m4s' }
+    : { playlist: `view${k}.m3u8`, init: `init${k}.mp4`, pattern: `v${k}-%06d.m4s` });
+/** The parts of an epoch's watch copy, in order: [{ k, init, parsed }]. */
+function viewParts(epochDir) {
+    let names = [];
+    try { names = fs.readdirSync(epochDir); } catch (e) { return []; }
+    return names.map(n => /^view(\d{0,3})\.m3u8$/.exec(n)).filter(Boolean).map(m => Number(m[1] || 0)).sort((a, b) => a - b)
+        .map(k => ({ k, init: PART_FILES(k).init, parsed: readPlaylist(path.join(epochDir, PART_FILES(k).playlist)) }));
+}
+/** The epoch's whole watch copy so far: its parts' segments (each with its part), ended when the last part is. */
+function viewOf(epochDir) {
+    const parts = viewParts(epochDir);
+    const segments = parts.flatMap(p => p.parsed.segments.map(s => ({ ...s, part: p.k, init: p.init })));
+    return { segments, ended: parts.length > 0 && parts[parts.length - 1].parsed.ended, parts };
+}
 const lengthOf = (parsed) => parsed.segments.reduce((t, s) => t + s.duration, 0);
 
 /** Seconds recorded so far, over every epoch. */
@@ -196,10 +213,11 @@ const MAX_FOLLOWER_FAILURES = 3;
  * Video copied (HEVC tagged hvc1, which AVPlayer needs). As in the finished MP4,
  * only AC-3/E-AC-3 audio is copied; everything else is encoded as AAC-LC.
  */
-function viewArgs(epochDir, codecs = {}) {
+function viewArgs(epochDir, codecs = {}, { part = 0, from = 0, input = 'archive.m3u8' } = {}) {
     const video = (codecs.video || '').toLowerCase();
     const audio = (codecs.audio || '').toLowerCase();
-    const args = ['-nostdin', '-y', '-live_start_index', '0', '-i', path.join(epochDir, 'archive.m3u8'),
+    const files = PART_FILES(part);
+    const args = ['-nostdin', '-y', '-live_start_index', String(from), '-i', path.join(epochDir, input),
         '-map', '0:v:0?', '-map', '0:a:0?', '-c', 'copy'];
     if (video === 'hevc' || video === 'h265') args.push('-tag:v', 'hvc1');
     // ADTS can label HE-AAC as Main, which Apple rejects after an ASC copy.
@@ -217,11 +235,44 @@ function viewArgs(epochDir, codecs = {}) {
         '-hls_playlist_type', 'event',
         '-hls_flags', 'independent_segments+temp_file',
         '-hls_segment_type', 'fmp4',
-        '-hls_fmp4_init_filename', 'init.mp4',
-        '-hls_segment_filename', path.join(epochDir, 'v%06d.m4s'),
-        path.join(epochDir, 'view.m3u8')
+        '-hls_fmp4_init_filename', files.init,
+        '-hls_segment_filename', path.join(epochDir, files.pattern),
+        path.join(epochDir, files.playlist)
     );
     return args;
+}
+
+/**
+ * #34: where a new part of an epoch's watch copy starts: after the parts so far (a new part number) at the first
+ * archive piece they have not covered (by duration: a piece cut short at the death is copied again rather than lost).
+ */
+function nextPart(epochDir) {
+    const view = viewOf(epochDir);
+    if (!view.parts.length) return { part: 0, from: 0 };
+    const copied = view.segments.reduce((t, s) => t + s.duration, 0);
+    let from = 0, t = 0;
+    for (const s of archiveOf(epochDir).segments) {
+        if (t + s.duration > copied + 0.5) break;
+        t += s.duration;
+        from++;
+    }
+    return { part: view.parts[view.parts.length - 1].k + 1, from };
+}
+
+/**
+ * #34: ffmpeg honours -live_start_index only while the archive playlist is still open (measured: a closed one is read
+ * from its first piece). A part that starts after the archive was sealed reads a playlist of the pieces still to copy.
+ */
+function partInput(epochDir, plan) {
+    const archive = archiveOf(epochDir);
+    if (plan.from === 0 || !archive.ended) return plan;
+    const rest = archive.segments.slice(plan.from);
+    const target = Math.max(1, ...rest.map(s => Math.ceil(s.duration)));
+    const text = ['#EXTM3U', '#EXT-X-VERSION:3', `#EXT-X-TARGETDURATION:${target}`, `#EXT-X-MEDIA-SEQUENCE:${plan.from}`,
+        '#EXT-X-PLAYLIST-TYPE:VOD', ...rest.flatMap(s => [`#EXTINF:${s.duration.toFixed(6)},`, s.name]), '#EXT-X-ENDLIST', ''].join('\n');
+    const input = `archive-from${plan.part}.m3u8`;
+    fs.writeFileSync(path.join(epochDir, input), text);
+    return { ...plan, from: 0, input };
 }
 
 async function startFollower(recordingId, epoch) {
@@ -235,7 +286,7 @@ async function startFollower(recordingId, epoch) {
     const codecs = await media.nativeTools.codecs(path.join(epoch.dir, first.name));
     let proc;
     try {
-        proc = spawn(media.tools.ffmpegPath, viewArgs(epoch.dir, codecs), { stdio: ['ignore', 'ignore', 'pipe'] });
+        proc = spawn(media.tools.ffmpegPath, viewArgs(epoch.dir, codecs, partInput(epoch.dir, nextPart(epoch.dir))), { stdio: ['ignore', 'ignore', 'pipe'] });
     } catch (err) {
         entry.proc = null;
         entry.failures++;
@@ -285,9 +336,10 @@ function viewPlaylist(workDir, { captureOver = false } = {}) {
         const archive = archiveOf(e.dir);
         if (archive.segments.length === 0 && archive.ended) continue; // an epoch that recorded nothing
         const view = viewOf(e.dir);
+        // #34: each part has its own init; a discontinuity before each epoch and each part after the first
         view.segments.forEach((s, i) => segments.push({
-            name: `${e.name}/${s.name}`, duration: s.duration, map: `${e.name}/init.mp4`,
-            discontinuity: i === 0 && segments.length > 0
+            name: `${e.name}/${s.name}`, duration: s.duration, map: `${e.name}/${s.init}`,
+            discontinuity: segments.length > 0 && (i === 0 || s.part !== view.segments[i - 1].part)
         }));
         if (!view.ended) { complete = false; break; }
     }
@@ -715,7 +767,9 @@ function status() {
 module.exports = {
     SEGMENT_SEC, workRoot, workDirFor, isWorkDir, epochs, nextEpoch, captureArgs, captureBytes,
     sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount,
-    viewArgs, ensureView, stopFollowers, viewPlaylist, probeVideoInfo, isWatchable,
+    viewArgs,
+    _partInput: partInput,
+    _nextPart: nextPart, ensureView, stopFollowers, viewPlaylist, probeVideoInfo, isWatchable,
     configure, processQueue, finishOne, moveOne, removeWork, status, keptOriginalPath, recoverLegacyOriginals,
     _setWorkRoot, _followers: followers
 };

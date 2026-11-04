@@ -162,7 +162,7 @@ router.get('/:id/live/stream.m3u8', async (req, res) => {
 
 router.get('/:id/live/:epoch/:file', async (req, res) => {
     const { epoch, file } = req.params;
-    if (!/^e\d{1,4}$/.test(epoch) || !/^(init\.mp4|v\d{6,}\.m4s)$/.test(file)) {
+    if (!/^e\d{1,4}$/.test(epoch) || !/^(init(\d{1,3})?\.mp4|v(\d{1,3}-)?\d{6,}\.m4s)$/.test(file)) { // #34: a part's files
         return res.status(404).json({ error: 'Invalid segment' });
     }
     const rec = watchableRecording(req);

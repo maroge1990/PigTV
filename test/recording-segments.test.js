@@ -60,14 +60,26 @@ const out = args[args.length - 1];
 const putPlaylist = (text) => { fs.writeFileSync(out + '.tmp', text); fs.renameSync(out + '.tmp', out); };
 fs.appendFileSync(${JSON.stringify(startsFile)}, JSON.stringify(args) + '\\n');
 if (args.includes('-live_start_index')) {
-  // The watch copy: one piece per archive segment, ended when the archive is.
+  // The watch copy: one piece per archive segment from -live_start_index, named as asked (-hls_segment_filename,
+  // -hls_fmp4_init_filename), ended when the archive is. #34: behaviour "follower" = "dies-after-3" exits 1 after three.
   const dir = path.dirname(out);
+  const from = Number(args[args.indexOf('-live_start_index') + 1]) || 0;
+  const initName = args[args.indexOf('-hls_fmp4_init_filename') + 1];
+  const segPattern = path.basename(args[args.indexOf('-hls_segment_filename') + 1]);
+  let behave = {};
+  try { behave = JSON.parse(fs.readFileSync(${JSON.stringify(behaviourFile)}, 'utf8')); } catch (e) {}
+  let made = 0;
   const pieces = () => {
     const text = fs.existsSync(input) ? fs.readFileSync(input, 'utf8') : '';
     const n = (text.match(/^a\\d+\\.ts$/mg) || []).length;
-    fs.writeFileSync(path.join(dir, 'init.mp4'), 'init');
-    let pl = '#EXTM3U\\n#EXT-X-VERSION:7\\n#EXT-X-TARGETDURATION:4\\n#EXT-X-MEDIA-SEQUENCE:0\\n#EXT-X-PLAYLIST-TYPE:EVENT\\n#EXT-X-MAP:URI="init.mp4"\\n';
-    for (let i = 0; i < n; i++) { const name = 'v' + String(i).padStart(6, '0') + '.m4s'; fs.writeFileSync(path.join(dir, name), 'm4s'); pl += '#EXTINF:4.000000,\\n' + name + '\\n'; }
+    fs.writeFileSync(path.join(dir, initName), 'init:' + initName);
+    let pl = '#EXTM3U\\n#EXT-X-VERSION:7\\n#EXT-X-TARGETDURATION:4\\n#EXT-X-MEDIA-SEQUENCE:0\\n#EXT-X-PLAYLIST-TYPE:EVENT\\n#EXT-X-MAP:URI="' + initName + '"\\n';
+    for (let i = 0; i < Math.max(0, n - from); i++) {
+      if (behave.follower === 'dies-after-3' && i >= 3) { putPlaylist(pl); process.exit(1); }
+      const name = segPattern.replace('%06d', String(i).padStart(6, '0'));
+      if (!fs.existsSync(path.join(dir, name))) fs.writeFileSync(path.join(dir, name), 'piece of archive ' + (from + i));
+      pl += '#EXTINF:4.000000,\\n' + name + '\\n';
+    }
     if (text.includes('#EXT-X-ENDLIST')) { putPlaylist(pl + '#EXT-X-ENDLIST\\n'); process.exit(0); }
     putPlaylist(pl);
   };
@@ -998,6 +1010,56 @@ test('#17: a watch copy whose codec probe hangs never holds up the next recordin
         release?.();
     }
     await until(() => !engine.listActive().length, 'both finished', 10000);
+});
+
+// #34 (AUD-PB-6): a watch copy whose ffmpeg died was started again with -y from the archive's first piece, rewriting
+// view.m3u8 and the pieces already served (a shrinking EVENT playlist, which AVPlayer refuses). A restart now goes on
+// from the first piece not yet copied, into a part of its own behind a discontinuity: what was served never changes.
+test('#34: a watch copy that dies goes on from where it stopped; the served playlist only grows and its pieces never change', async () => {
+    setBehaviour('follower', 'dies-after-3');
+    try {
+        const s = due();
+        await until(() => rowsOf(s.id).length === 1 && captures().length === 1, 'recording');
+        const [rec] = rowsOf(s.id);
+        const seen = [];
+        const served = new Map();
+        await until(() => {
+            const pl = segments.viewPlaylist(rec.work_dir).text;
+            const names = pl.split('\n').filter(l => l && !l.startsWith('#'));
+            seen.push(names);
+            for (const n of names) {
+                const body = fs.readFileSync(path.join(rec.work_dir, n), 'utf8');
+                if (served.has(n)) assert.equal(body, served.get(n), `${n} never rewritten`);
+                served.set(n, body);
+            }
+            return names.length >= 7 && /#EXT-X-DISCONTINUITY/.test(pl);
+        }, 'the copy goes on past its first death', 10000);
+        for (let i = 1; i < seen.length; i++) assert.deepEqual(seen[i].slice(0, seen[i - 1].length), seen[i - 1], 'the playlist only grows');
+        const pl = segments.viewPlaylist(rec.work_dir).text;
+        assert.match(pl, /#EXT-X-MAP:URI="e1\/init1\.mp4"/, 'the restarted part has its own init');
+        assert.equal(fs.readFileSync(path.join(rec.work_dir, 'e1', 'v1-000000.m4s'), 'utf8'), 'piece of archive 3', 'it goes on from the fourth piece');
+        await engine.cancelScheduled(s.id);
+        await until(() => recordings.getById(rec.id).status === 'completed', 'finished', 10000);
+    } finally { setBehaviour('follower', 'ok'); }
+});
+
+// #34: ffmpeg ignores -live_start_index on a closed playlist (measured with ffmpeg 8: a sealed 225-piece archive was
+// copied whole from piece 200), so a part that starts after the archive is sealed reads its own list of the rest.
+test('#34: a part started on a sealed archive reads a playlist of the pieces still to copy; an open archive keeps its index', () => {
+    const dir = fs.mkdtempSync(path.join(sandbox, 'part-'));
+    const archive = (ended) => fs.writeFileSync(path.join(dir, 'archive.m3u8'), '#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:0\n'
+        + [0, 1, 2, 3, 4].map(i => `#EXTINF:4.000000,\na00000${i}.ts\n`).join('') + (ended ? '#EXT-X-ENDLIST\n' : ''));
+    archive(false);
+    assert.deepEqual(segments._partInput(dir, { part: 1, from: 3 }), { part: 1, from: 3 }, 'open: the archive itself, from piece 3');
+    archive(true);
+    const plan = segments._partInput(dir, { part: 1, from: 3 });
+    assert.deepEqual(plan, { part: 1, from: 0, input: 'archive-from1.m3u8' });
+    const text = fs.readFileSync(path.join(dir, plan.input), 'utf8');
+    assert.deepEqual(text.split('\n').filter(l => l && !l.startsWith('#')), ['a000003.ts', 'a000004.ts']);
+    assert.match(text, /#EXT-X-ENDLIST/);
+    const args = segments.viewArgs(dir, {}, plan);
+    assert.equal(args[args.indexOf('-i') + 1], path.join(dir, 'archive-from1.m3u8'));
+    assert.equal(args[args.length - 1], path.join(dir, 'view1.m3u8'));
 });
 
 // --------------------------------------------------------------------------- routes --
