@@ -287,6 +287,20 @@ test('#230: a live Other cricket match keeps its day\'s list polled every 30 s, 
     c.stop();
 });
 
+// #235 (Mark, 4 Nov): cricket cards showed no score. ESPN's text carries overs and a target ("283 (45.5/50 ov, target
+// 358)") and a side yet to bat has none (""); either made the whole match's score null. Both are kept, the target dropped.
+test('#235: cricket scores with overs, a target or a side yet to bat are kept; other text is still refused', () => {
+    const card = (a, b, state = 'in') => espn.normalize({ leagues: [{ name: 'Ford Trophy' }], events: [{ id: '9', competitions: [{ id: '9',
+        date: new Date(NOW).toISOString(), class: { internationalClassId: '0' }, status: { type: { state } }, competitors: [
+            { order: 1, score: a, team: { id: 'x', displayName: 'Auckland' } }, { order: 2, score: b, team: { id: 'y', displayName: 'Central Districts' } }] }] }] },
+    'Other cricket', 'cricket/8880')[0].snapshot.scores;
+    assert.deepEqual(card('357/7', '283 (45.5/50 ov, target 358)', 'post'), ['357/7', '283 (45.5/50 ov)']);
+    assert.deepEqual(card('214/3 (38.2 ov)', ''), ['214/3 (38.2 ov)', ''], 'a side yet to bat');
+    assert.deepEqual(card('312 & 145/2d', '201'), ['312 & 145/2d', '201']);
+    assert.equal(card('', ''), null, 'nothing yet');
+    assert.equal(card('<b>99</b>', '12'), null, 'anything else is refused');
+});
+
 test('cached future payloads never become new score observations, and malformed success retries quickly', async () => {
     const s=store();let time=NOW;let calls=0;
     const payload=sample('NFL-final');

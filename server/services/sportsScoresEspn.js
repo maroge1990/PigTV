@@ -76,7 +76,12 @@ function normalize(json, league, source) {
             let scores = null;
             if (league !== 'F1' && !['scheduled','unknown'].includes(state)) {
                 const values = sides.map(t => text(t.score, 80));
-                if (values.every(s => isCricket(league) ? /^[\d\s/&().ovad]+$/i.test(s) : /^\d{1,4}$/.test(s))) scores = values;
+                if (isCricket(league)) {
+                    // #235: ESPN adds the chase's target ("283 (45.5/50 ov, target 358)") and a side yet to bat has no score;
+                    // either made the whole score null. The target is dropped, an empty side kept; nothing else passes.
+                    const kept = values.map(s => s.replace(/,?\s*target\s+\d{1,4}/i, '').replace(/\(\s*\)/g, '').trim());
+                    if (kept.every(s => s === '' || /^[\d\s/&().ovad]+$/i.test(s)) && kept.some(Boolean)) scores = kept;
+                } else if (values.every(s => /^\d{1,4}$/.test(s))) scores = values;
                 const clock = safeClock(c.status?.displayClock, source.startsWith('soccer/'));
                 if (clock !== undefined && !isCricket(league) && league !== 'MLB') progress.clock = clock;
                 const period = number(c.status?.period);
