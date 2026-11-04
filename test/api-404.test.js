@@ -114,8 +114,10 @@ const APPLE_CLIENT_ROUTES = [
     ['GET', '/api/playback/some-session-id/terminal-status'],
     ['GET', '/api/recordings'], ['GET', '/api/recordings/scheduled'], ['POST', '/api/recordings/schedule'],
     ['GET', '/api/recordings/1/playback'], ['GET', '/api/recordings/1/media.mp4'], ['GET', '/api/recordings/1/markers'],
-    // 0127 (C-E): an HLS recording's playlist and the files it references.
-    ['GET', '/api/recordings/1/index.m3u8'], ['GET', '/api/recordings/1/init.mp4'], ['GET', '/api/recordings/1/seg00000.m4s'],
+    // #48: what Apple 149 calls that the list had missed (resume position, ad detection, removals, warming, recents).
+    ['GET', '/api/library/recent'], ['GET', '/api/recordings/1/position'], ['PUT', '/api/recordings/1/position'],
+    ['POST', '/api/recordings/1/detect-ads'], ['DELETE', '/api/recordings/scheduled/1'], ['DELETE', '/api/recordings/1'],
+    ['POST', '/api/playback/warm'],
     ['GET', '/api/proxy/stream'],
     ['GET', '/api/transcode/abc/stream.m3u8'], ['GET', '/api/transcode/abc/master.m3u8'],
     ['DELETE', '/api/playback/abc'],
@@ -137,11 +139,19 @@ const APPLE_CLIENT_ROUTES = [
     ['PUT', '/api/recordings/scheduled/1']
 ];
 
+// #48: asked with the sandbox admin's token, as the removed routes below are: without one, a router that authenticates
+// first (recordings, library, playback, sports) answered 401 whatever the path, so a removed route still passed. The
+// C-E files removed in 0204 (`/api/recordings/1/index.m3u8`, `init.mp4`, `seg00000.m4s`) passed that way; now they fail.
 test('every route the Apple client calls still reaches its real handler', async () => {
+    const token = await adminToken();
+    assert.ok(token, 'the sandbox admin');
     const swallowed = [];
     for (const [method, route] of APPLE_CLIENT_ROUTES) {
-        const r = await call(method, route);
-        if (r.body && r.body.error === 'No such API endpoint') swallowed.push(`${method} ${route}`);
+        const r = await fetch(`${base}${route}`, { method, redirect: 'manual',
+            headers: { Authorization: `Bearer ${token}`, ...(method === 'GET' ? {} : { 'Content-Type': 'application/json' }) },
+            body: method === 'GET' ? undefined : '{}' });
+        const body = await r.json().catch(() => null);
+        if (r.status === 404 && body?.error === 'No such API endpoint') swallowed.push(`${method} ${route}`);
     }
     assert.deepEqual(swallowed, []);
 });
