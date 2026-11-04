@@ -827,7 +827,18 @@ class VideoPlayer {
             // 0180: the server stopped this start because a newer play from this viewer took
             // over. Not a failure: the newer play owns the screen, so this one says nothing.
             if (res.status === 499) return VideoPlayer.SUPERSEDED;
-            if (!res.ok) return null;
+            // #60 (AUD-WEB-5): a sign-in that has run out goes to the sign-in page (as API.request does); any other
+            // failure keeps the server's own sentence (C-B), and says whether asking again can help.
+            if (res.status === 401) {
+                localStorage.removeItem('authToken');
+                window.location.href = '/login.html';
+                return VideoPlayer.SIGNED_OUT;
+            }
+            if (!res.ok) {
+                const answer = await res.json().catch(() => null);
+                const message = answer && typeof answer.error === 'string' && answer.error.trim() ? answer.error.trim().slice(0, 300) : null;
+                return { failed: true, status: res.status, message, retry: VideoPlayer.retryable(res.status) };
+            }
             const decision = await res.json();
             if (stale()) {
                 if (decision && decision.sessionId) this.releaseSession(decision.sessionId);
@@ -1067,11 +1078,12 @@ class VideoPlayer {
                 return;
             }
             // 0180: overtaken by a newer play; leave the screen, the spinner and the retry alone.
-            if (decision === VideoPlayer.SUPERSEDED) return;
-            if (!decision) {
-                if (this.recoverPlayback('The server could not start this channel')) return;
+            if (decision === VideoPlayer.SUPERSEDED || decision === VideoPlayer.SIGNED_OUT) return;
+            if (!decision || decision.failed) {
+                // #60: asked again only when that can help (never for a channel that is not available)
+                if ((!decision || decision.retry) && this.recoverPlayback('The server could not start this channel')) return;
                 this.loadingSpinner?.classList.remove('show');
-                this.showError('This channel could not be started. Try again, or pick another channel.');
+                this.showError(decision?.message || 'This channel could not be started. Try again, or pick another channel.');
                 return;
             }
             await this.playDecision(decision, channel);
@@ -1692,6 +1704,10 @@ class VideoPlayer {
 // path and took the stream regardless.
 VideoPlayer.CANCELLED = Symbol('playback-cancelled');
 VideoPlayer.SUPERSEDED = Symbol('playback-superseded');
+// #60: the sign-in ran out and the page is going to sign-in.
+VideoPlayer.SIGNED_OUT = Symbol('playback-signed-out');
+/** #60: whether asking again can help: a provider that refused or did not answer (5xx, 429, 408), never "not available" (404) or a bad request. */
+VideoPlayer.retryable = (status) => status >= 500 || status === 429 || status === 408;
 
 // Export
 window.VideoPlayer = VideoPlayer;

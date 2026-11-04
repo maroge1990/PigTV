@@ -24,7 +24,7 @@ const CONFLICT = {
 
 // The real player script in a bare context. `answer` is what the person clicks;
 // `unavailable` models an older server with no resolve endpoint.
-function makePlayer({ answer = false, unavailable = false } = {}) {
+function makePlayer({ answer = false, unavailable = false, status = 404 } = {}) {
     const resolveCalls = [];
     const context = vm.createContext({
         window: {}, URL, console: { ...console, error() {}, warn() {}, log() {} },
@@ -33,7 +33,7 @@ function makePlayer({ answer = false, unavailable = false } = {}) {
         fetch: async (url, opts) => {
             const body = JSON.parse(opts.body);
             resolveCalls.push(body);
-            if (unavailable) return { status: 404, ok: false, json: async () => ({ error: 'No such API endpoint' }) };
+            if (unavailable) return { status, ok: false, json: async () => ({ error: status === 404 ? 'No such API endpoint' : 'The provider did not respond' }) };
             // The server answers 409 until the caller says force:true.
             if (!body.force) return { status: 409, ok: false, json: async () => CONFLICT };
             return { status: 200, ok: true, json: async () => ({ strategy: 'transcode', container: 'hls', url: '/api/transcode/abc/stream.m3u8', sessionId: 'abc' }) };
@@ -107,17 +107,20 @@ test('confirming still takes over, exactly as before', async () => {
     assert.equal(resolveCalls[1].force, true, 'the second ask carries force:true');
 });
 
-test('a failed resolve is null, not the cancel sentinel', async () => {
+// #60: a failed resolve keeps the server's sentence (it was null).
+test('a failed resolve is a failure with the server\'s sentence, not the cancel sentinel', async () => {
     const { player, context } = makePlayer({ unavailable: true });
 
     const decision = await player.resolvePlayback(CHANNEL, 'http://provider.invalid/live/u/p/1.ts');
 
-    assert.equal(decision, null);
+    assert.equal(decision.failed, true);
+    assert.equal(decision.message, 'No such API endpoint');
     assert.notEqual(decision, context.window.VideoPlayer.CANCELLED);
 });
 
+// #60: asked again only when that can help: a provider that did not respond (503) once; a 404 never.
 test('a play the server could not start is asked for once more, then shown as failed - never a local strategy', async () => {
-    const { player, played, localStrategy, resolveCalls, shown, loadingSpinner } = makePlayer({ unavailable: true });
+    const { player, played, localStrategy, resolveCalls, shown, loadingSpinner } = makePlayer({ unavailable: true, status: 503 });
 
     await player.play(CHANNEL, 'http://provider.invalid/live/u/p/1.ts');
     for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));   // the retry is not awaited by the first play
@@ -127,4 +130,13 @@ test('a play the server could not start is asked for once more, then shown as fa
     assert.deepEqual(localStrategy, []);
     assert.equal(shown.length, 1, 'and the failure is shown');
     assert.equal(loadingSpinner.contains('show'), false, 'without a spinner left over it');
+});
+
+test('#60: a channel that is not available (404) is shown at once with the server\'s sentence, never asked again', async () => {
+    const { player, resolveCalls, shown } = makePlayer({ unavailable: true, status: 404 });
+    await player.play(CHANNEL, 'http://provider.invalid/live/u/p/1.ts');
+    for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+    assert.equal(resolveCalls.length, 1, 'no second provider attempt');
+    assert.equal(shown.length, 1);
+    assert.equal(shown[0], 'No such API endpoint');
 });
