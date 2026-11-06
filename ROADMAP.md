@@ -13,7 +13,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   live pause (#37), watch-copy restarts (#34), small fixes (#220, #209, #48, #38, #208, #47), the follows focus (#233),
   sign-in kept on a 401 (#54), faster launch (#55), web player errors (#60), the flaky cache test (#221).
 - **Release gate (D-45, #236):** CI's `:latest` is now the rig's only; production is to follow `:release`, moved by
-  `release.yml`. Waiting on Mark: release 0476 as the first `:release` (or roll back to 0451), then point the Unraid
+  `release.yml`. **v0476** released 7 Nov (Mark's choice; `:release` = `sha-3b9c701`). Waiting on Mark: point the Unraid
   template at `:release`. Next builds: server **0477**, Apple **164**.
 - **Audit follow-up order** (the 6 Nov audit's brief): batch 2 server idle work (#237, #238), 3 Apple foundations (#243,
   #190), 4 Apple pages onto one design (#243, #225–#229), 5 web shell (#241, #64), 6 playback start (#36, #240), 7
