@@ -283,6 +283,11 @@ async function* fetchAndParseStreaming(url, batchSize = 500) {
     yield* parseStreaming(stream, batchSize);
 }
 
+/** #237: the same parse over a playlist already downloaded to `file` (feedCheck.js). */
+async function* parseFileStreaming(file, batchSize = 500) {
+    yield* parseStreaming(require('fs').createReadStream(file), batchSize);
+}
+
 /**
  * Fast count of entries in an M3U playlist (for size estimation)
  * Streams the file and counts #EXTINF lines without full parsing
@@ -320,5 +325,5 @@ async function countEntries(url) {
     });
 }
 
-module.exports = { parse, parseExtinf, fetchAndParse, parseStreaming, fetchAndParseStreaming, countEntries };
+module.exports = { parse, parseExtinf, fetchAndParse, parseStreaming, fetchAndParseStreaming, parseFileStreaming, countEntries };
 

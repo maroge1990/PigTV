@@ -27,7 +27,10 @@ fs.mkdirSync(path.join(sandbox, 'data'));
 const load = p => require(path.join(sandbox, 'server', p));
 const { getDb } = load('db/sqlite');
 const epgParser = load('services/epgParser');
+const feedCheck = load('services/feedCheck');
 const sync = load('services/syncService');
+// #237: the sync downloads the feed first (feedCheck), then parses the file; both stand in here.
+feedCheck.fetchFeed = async () => ({ unchanged: false, file: null, contentType: '', commit() {}, discard() {} });
 
 const live = (sourceId) => getDb().prepare('SELECT title FROM epg_live WHERE source_id = ? ORDER BY start_time').all(sourceId).map(r => r.title);
 const stored = (sourceId) => getDb().prepare('SELECT COUNT(*) n FROM epg_programs WHERE source_id = ?').get(sourceId).n;
@@ -37,7 +40,7 @@ const prog = (title, i) => ({ channelId: 'bbc1', start: new Date(5000 + i), stop
 // Stand in for the feed: yield the given batches, optionally pausing between the
 // first and second so the test can look at the database mid-sync.
 function feed(batches, { gate, failAfterFirst } = {}) {
-    epgParser.fetchAndParseStreaming = async function* () {
+    epgParser.parseFileStreaming = async function* () {
         for (let i = 0; i < batches.length; i++) {
             if (i === 1 && gate) await gate;
             if (i === 1 && failAfterFirst) throw new Error('feed dropped mid-stream');

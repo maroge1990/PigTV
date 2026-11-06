@@ -10,6 +10,15 @@ const m3uParser = require('./m3uParser');
 const backupChannels = require('./backupChannels');
 const hiddenChannels = require('./hiddenChannels');
 const epgParser = require('./epgParser');
+const feedCheck = require('./feedCheck');
+
+// #237: the heap readings and "so far" progress lines (hundreds a day) only with PIGTV_DEBUG_SYNC=1.
+const debugSync = () => process.env.PIGTV_DEBUG_SYNC === '1';
+const logMemory = () => {
+    if (debugSync()) console.log(`[Sync] Memory: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB heap`);
+};
+// #237: what a sync that found its playlist or guide unchanged returns.
+const UNCHANGED = Object.freeze({ unchanged: true });
 
 // Sync tracking
 const activeSyncs = new Set(); // sourceId
@@ -167,7 +176,7 @@ class SyncService {
             console.log(`[Sync] Next scheduled sync at: ${new Date(next).toLocaleString()} (every ${intervalHours} h from 04:30)`);
             this._syncTimer = setTimeout(async () => {
                 console.log('[Sync] Scheduled sync triggered');
-                try { await this.syncAll({ retry: true }); } finally { if (this._syncTimer) schedule(); }
+                try { await this.syncAll({ retry: true, ifChanged: true }); } finally { if (this._syncTimer) schedule(); }
             }, Math.max(1000, next - Date.now()));
             if (this._syncTimer.unref) this._syncTimer.unref();
         };
@@ -193,15 +202,15 @@ class SyncService {
      * #11: sync a source; when its playlist or guide failed (or was held), try again after 15 min, 1 h and 3 h.
      * A later success, or a new scheduled run, ends the series.
      */
-    async syncWithRetry(sourceId, attempt = 0) {
+    async syncWithRetry(sourceId, attempt = 0, options = {}) {
         const pending = this._retries.get(sourceId);
         if (pending) { clearTimeout(pending.timer); this._retries.delete(sourceId); }
-        await this.syncSource(sourceId);
+        await this.syncSource(sourceId, options);
         const failed = this.failedFeeds(sourceId);
         if (!failed.length || attempt >= SCHEDULE.retriesMs.length) return;
         const delay = SCHEDULE.retriesMs[attempt];
         console.warn(`[Sync] Source ${sourceId}: ${failed.map(f => `${f.type} ${f.status}`).join(', ')}; trying again in ${Math.round(delay / 60e3)} min`);
-        const timer = setTimeout(() => { this.syncWithRetry(sourceId, attempt + 1).catch(console.error); }, delay);
+        const timer = setTimeout(() => { this.syncWithRetry(sourceId, attempt + 1, options).catch(console.error); }, delay);
         if (timer.unref) timer.unref();
         this._retries.set(sourceId, { attempt: attempt + 1, timer });
     }
@@ -251,19 +260,52 @@ class SyncService {
     }
 
     /**
-     * Sync all enabled sources
+     * #237: the channel linker runs once, after the last source, however many sources `work` syncs (it ran once per
+     * backup and again per primary, 2.4-3.3 s each). A sync that ends after `work` relinks on its own, as before.
      */
-    async syncAll({ retry = false } = {}) {
+    async withOneRelink(work) {
+        const outer = !this._relinkDeferred;
+        if (outer) this._relinkDeferred = { pending: false };
+        const deferred = this._relinkDeferred;
+        try {
+            return await work();
+        } finally {
+            if (outer) {
+                this._relinkDeferred = null;
+                if (deferred.pending) await this.relink(null);
+            }
+        }
+    }
+
+    /** Relink one backup (`backupId`) or every one (null) now, or once at the end of a global sync. */
+    async relink(backupId) {
+        if (this._relinkDeferred) { this._relinkDeferred.pending = true; return; }
+        try {
+            const links = require('./channelLinks');
+            if (backupId == null && typeof links.relinkAll === 'function') await links.relinkAll();
+            else if (backupId != null && typeof links.relinkSource === 'function') await links.relinkSource(backupId);
+        } catch (e) {
+            if (e && e.code !== 'MODULE_NOT_FOUND') console.warn('[Sync] Relink failed:', redact(e.message));
+        }
+    }
+
+    /**
+     * Sync all enabled sources. `ifChanged` (#237, the scheduled run): a playlist or guide unchanged since its last
+     * good sync is not rewritten. "Sync all" from Settings leaves it off, so it always does the whole work.
+     */
+    async syncAll({ retry = false, ifChanged = false } = {}) {
         console.log('[Sync] Starting global sync...');
         try {
             const allSources = await sources.getAll();
-            for (const source of allSources) {
-                if (source.enabled) {
-                    // Run sequentially to not overload
-                    if (retry) await this.syncWithRetry(source.id);
-                    else await this.syncSource(source.id);
+            await this.withOneRelink(async () => {
+                for (const source of allSources) {
+                    if (source.enabled) {
+                        // Run sequentially to not overload
+                        if (retry) await this.syncWithRetry(source.id, 0, { ifChanged });
+                        else await this.syncSource(source.id, { ifChanged });
+                    }
                 }
-            }
+            });
             this.checkGuide().catch(() => {});
             this.lastSyncTime = new Date();
             console.log('[Sync] Global sync completed at', this.lastSyncTime.toISOString());
@@ -285,7 +327,7 @@ class SyncService {
             const db = getDb();
             let synced = 0;
 
-            for (const source of allSources) {
+            await this.withOneRelink(async () => { for (const source of allSources) {
                 if (!source.enabled) continue;
 
                 // Check if we have any data at all for this source
@@ -296,7 +338,7 @@ class SyncService {
 
                 if (!hasData || hasData.c === 0) {
                     console.log(`[Sync] Source "${source.name}" has no data, syncing...`);
-                    await this.syncWithRetry(source.id);
+                    await this.syncWithRetry(source.id, 0, { ifChanged: true });
                     synced++;
                     continue;
                 }
@@ -314,12 +356,12 @@ class SyncService {
                     const desc = bad ? `its ${bad.type} sync ${bad.status === 'success' ? 'is old' : `is ${bad.status}`}`
                         : oldest ? `${Math.round(age / 3600000)}h old` : 'never synced';
                     console.log(`[Sync] Source "${source.name}" is stale (${desc}), syncing...`);
-                    await this.syncWithRetry(source.id);
+                    await this.syncWithRetry(source.id, 0, { ifChanged: true });
                     synced++;
                 } else {
                     console.log(`[Sync] Source "${source.name}" is fresh (${Math.round(age / 3600000)}h old), skipping`);
                 }
-            }
+            } });
 
             // #61 (0368): only a check that synced something is a sync ("Just now" after every restart misled).
             if (synced === 0) console.log('[Sync] All sources are fresh, no sync needed');
@@ -362,8 +404,9 @@ class SyncService {
             const isBackup = source.role === 'backup' && source.type !== 'epg';
             // #42: a held playlist keeps the last good one; the rest of the sync (the guide) still runs.
             let held = null;
+            let unchanged = false; // #237: an M3U playlist or a guide source found as it was: nothing moved
             const holding = async (work) => {
-                try { await work(); } catch (e) { if (!e || !e.held) throw e; held = e.message; }
+                try { unchanged = (await work()) === UNCHANGED; } catch (e) { if (!e || !e.held) throw e; held = e.message; }
             };
             if (isBackup) {
                 await this.syncBackup(source);
@@ -390,13 +433,13 @@ class SyncService {
             // which currentGuideVersion() reads on its own - this bump covers the
             // playlist/category side, which has nothing else recording a change.
             // 0170: a backup provider is not library-facing: nothing it does moves the library.
-            if (!isBackup) bumpLibraryRev();
+            if (!isBackup && !unchanged) bumpLibraryRev();
             // 0117: number any channel that is new, refresh the reservations of
             // the ones still here, release numbers reserved for 30 days.
             if (source.type !== 'epg' && !isBackup) refreshChannelNumbers();
             // 0171: the primary's channels may have changed: relink them to the backups (a no-op
             // with no backup provider). After the numbers, so it sees what is visible now.
-            if (source.type !== 'epg' && !isBackup) await this.relinkAfterPrimarySync(source);
+            if (source.type !== 'epg' && !isBackup) await this.relinkAfterPrimarySync(source, { changed: !unchanged });
             // 0168: the provider's account (expiry, connections) is re-read after a good sync,
             // in the background: it never slows or fails the sync.
             if (source.type !== 'epg') {
@@ -544,6 +587,7 @@ class SyncService {
         const db = getDb();
         const had = db.prepare('SELECT 1 FROM epg_programs WHERE source_id = ? LIMIT 1').get(sourceId);
         db.prepare(`DELETE FROM sync_status WHERE source_id = ? AND type = 'epg'`).run(sourceId);
+        feedCheck.forget(sourceId, 'guide');
         if (!had) return;
         const removed = await this.purgeEpgRows(sourceId, '<>', -1);
         db.prepare('DELETE FROM epg_state WHERE source_id = ?').run(sourceId);
@@ -555,7 +599,7 @@ class SyncService {
      * 0171: relink every backup after a primary sync. Guarded like the backup side: a failure
      * is logged and never fails the sync.
      */
-    async relinkAfterPrimarySync(source) {
+    async relinkAfterPrimarySync(source, { changed = true } = {}) {
         try {
             // 0178 (P9): with a backup configured, this provider's raw Xtream rows are read too
             // (one more API call); with none, nothing is fetched and nothing changes.
@@ -565,12 +609,8 @@ class SyncService {
         } catch (e) {
             console.warn('[Sync] Raw list fetch failed:', redact(e && e.message));
         }
-        try {
-            const links = require('./channelLinks');
-            if (typeof links.relinkAll === 'function') await links.relinkAll();
-        } catch (e) {
-            if (e && e.code !== 'MODULE_NOT_FOUND') console.warn('[Sync] Relink after primary sync failed:', redact(e.message));
-        }
+        // #237: an unchanged playlist moved no channel, so there is nothing to relink for it.
+        if (changed) await this.relink(null);
     }
 
     /**
@@ -589,6 +629,7 @@ class SyncService {
         const db = getDb();
         const items = db.prepare('DELETE FROM playlist_items WHERE source_id = ?').run(sourceId).changes;
         const cats = db.prepare('DELETE FROM categories WHERE source_id = ?').run(sourceId).changes;
+        feedCheck.forget(sourceId, 'playlist');
         if (items + cats === 0) return false;
         console.log(`[Sync] Removed ${items} channels and ${cats} categories of source ${sourceId} from the library (it is a backup now)`);
         return true;
@@ -677,12 +718,7 @@ class SyncService {
             console.warn('[Sync] Raw rows after backup sync failed:', redact(e && e.message));
         }
 
-        try {
-            const links = require('./channelLinks');
-            if (typeof links.relinkSource === 'function') await links.relinkSource(source.id);
-        } catch (e) {
-            if (e && e.code !== 'MODULE_NOT_FOUND') console.warn('[Sync] Relink after backup sync failed:', redact(e.message));
-        }
+        await this.relink(source.id);
     }
 
     /**
@@ -979,29 +1015,38 @@ class SyncService {
      * Sync EPG from URL (Streaming - Memory Efficient)
      * Processes EPG files in batches to avoid OOM on large EPG data
      */
-    async syncEpgFromUrl(sourceId, url, { acceptSmaller = false } = {}) {
+    async syncEpgFromUrl(sourceId, url, { acceptSmaller = false, ifChanged = false } = {}) {
         console.log(`[Sync] Fetching EPG from: ${redact(url).slice(0, 80)}...`);
-
-        // Temporary memory logging for verification
-        const logMemory = () => {
-            const used = process.memoryUsage();
-            console.log(`[Sync] Memory: ${Math.round(used.heapUsed / 1024 / 1024)}MB heap`);
-        };
-
         logMemory();
 
+        const db = getDb();
+        // The guide stays live while the new feed loads. Programmes are written
+        // as the *next* generation, which readers (the epg_live view) cannot
+        // see, and only once the whole feed is in does epg_state flip to it.
+        const activeGen = db.prepare('SELECT active_gen FROM epg_state WHERE source_id = ?').get(sourceId)?.active_gen ?? 0;
+        // #237: downloaded and fingerprinted first; on a scheduled run, a guide as it was is not rewritten.
+        const hasRows = !!db.prepare('SELECT 1 FROM epg_programs WHERE source_id = ? AND gen = ? LIMIT 1').get(sourceId, activeGen);
+        const feed = await feedCheck.fetchFeed({ sourceId, kind: 'guide', url, compare: ifChanged, hasRows });
+        if (feed.unchanged) {
+            console.log(`[Sync] Guide unchanged (${feed.how}): the current guide is kept, nothing rewritten`);
+            return UNCHANGED;
+        }
+        try {
+            return await this.loadEpgFile(sourceId, url, feed, activeGen, { acceptSmaller });
+        } finally {
+            feed.discard();
+        }
+    }
+
+    /** The guide `feed` (downloaded by feedCheck) written as the next generation, then swapped in. */
+    async loadEpgFile(sourceId, url, feed, activeGen, { acceptSmaller = false } = {}) {
         const db = getDb();
         let allChannels = [];
         let totalProgrammes = 0;
         let batchCount = 0;
         let lastStop = 0; // 0153: how far ahead the feed reaches (the Sport list looks 72 h ahead)
-
-        // The guide stays live while the new feed loads. Programmes are written
-        // as the *next* generation, which readers (the epg_live view) cannot
-        // see, and only once the whole feed is in does epg_state flip to it.
-        // Anything not live at this point is debris from an interrupted sync.
-        const activeGen = db.prepare('SELECT active_gen FROM epg_state WHERE source_id = ?').get(sourceId)?.active_gen ?? 0;
         const newGen = activeGen + 1;
+        // Anything not live at this point is debris from an interrupted sync.
         await this.purgeEpgRows(sourceId, '<>', activeGen);
 
         const programmeStmt = db.prepare(`
@@ -1028,7 +1073,7 @@ class SyncService {
 
         // Stream and process in batches (default 1000 programmes per batch)
         try {
-            for await (const batch of epgParser.fetchAndParseStreaming(url)) {
+            for await (const batch of epgParser.parseFileStreaming(feed.file, url, feed.contentType)) {
                 batchCount++;
 
                 // Collect channels from first batch
@@ -1047,7 +1092,7 @@ class SyncService {
                 }
 
                 // Log progress every 10 batches
-                if (batchCount % 10 === 0) {
+                if (batchCount % 10 === 0 && debugSync()) {
                     console.log(`[Sync] Processed ${totalProgrammes} programmes so far...`);
                     logMemory();
                 }
@@ -1092,6 +1137,7 @@ class SyncService {
                 INSERT INTO epg_state (source_id, active_gen) VALUES (?, ?)
                 ON CONFLICT(source_id) DO UPDATE SET active_gen = excluded.active_gen
             `).run(sourceId, newGen);
+            feed.commit(); // #237: this guide is now the last good one
 
             // 0159: the Sport tab's event list is keyed on the guide version (among
             // other things), which just moved - rebuild it now in the background
@@ -1188,8 +1234,9 @@ class SyncService {
         };
         let ok = false;
         try {
-            await work(publish);
+            const result = await work(publish);
             ok = true;
+            return result;
         } finally {
             publish(ok);
         }
@@ -1201,15 +1248,33 @@ class SyncService {
 
     async syncM3uRows(source, options = {}) {
         console.log(`[Sync] Fetching M3U playlist for ${source.name}`);
-
-        // Temporary memory logging for verification
-        const logMemory = () => {
-            const used = process.memoryUsage();
-            console.log(`[Sync] Memory: ${Math.round(used.heapUsed / 1024 / 1024)}MB heap`);
-        };
-
         logMemory();
 
+        // R8: groups never imported. Filtered after the positions are given out, so every
+        // other line keeps its pos_N id whatever is excluded.
+        const importFilters = require('./importFilters');
+        const { excluded } = importFilters.applicable(source.id, await importFilters.excludedFor(source.id));
+        const skipped = new Map();
+
+        // #237: downloaded and fingerprinted first (with the groups never imported, which decide the rows too); on a
+        // scheduled run, a playlist as it was is not rewritten.
+        const hasRows = !!getDb().prepare(`SELECT 1 FROM playlist_items WHERE source_id = ? AND type = 'live' LIMIT 1`).get(source.id);
+        const feed = await feedCheck.fetchFeed({ sourceId: source.id, kind: 'playlist', url: source.url,
+            scope: JSON.stringify([...(excluded || [])].sort()), compare: !!options.ifChanged, hasRows });
+        if (feed.unchanged) {
+            console.log(`[Sync] Playlist for ${source.name} unchanged (${feed.how}): nothing rewritten`);
+            return UNCHANGED;
+        }
+        try {
+            await this.loadM3uFile(source, options, feed, { excluded, skipped, importFilters });
+            feed.commit();
+        } finally {
+            feed.discard();
+        }
+    }
+
+    /** The playlist `feed` (downloaded by feedCheck) written; held (#42) when much smaller than the last. */
+    async loadM3uFile(source, options, feed, { excluded, skipped, importFilters }) {
         const allGroups = new Set();
         const pending = []; // #42: the parsed batches, written once the size is known
         // Just the URLs, for the identity tally below - not the rows.
@@ -1217,15 +1282,8 @@ class SyncService {
         const allSyncedIds = new Set(); // Collect IDs across all batches
         let totalChannels = 0;
         let batchCount = 0;
-        // R8: groups never imported. Filtered after the positions are given out, so every
-        // other line keeps its pos_N id whatever is excluded.
-        const importFilters = require('./importFilters');
-        const { excluded } = importFilters.applicable(source.id, await importFilters.excludedFor(source.id));
-        const skipped = new Map();
-
-        // Stream and process in batches (default 500 channels per batch)
         let credentialsLine = null; // 0168: the playlist's #EXT-X-CREDENTIALS header, if any
-        for await (const batch of m3uParser.fetchAndParseStreaming(source.url)) {
+        for await (const batch of m3uParser.parseFileStreaming(feed.file)) {
             batchCount++;
             if (batch.credentials) credentialsLine = batch.credentials;
 
@@ -1257,7 +1315,7 @@ class SyncService {
             batch.groups.forEach(g => allGroups.add(g));
 
             // Log progress every 10 batches
-            if (batchCount % 10 === 0) {
+            if (batchCount % 10 === 0 && debugSync()) {
                 console.log(`[Sync] Processed ${totalChannels} channels so far...`);
                 logMemory();
             }
@@ -1315,7 +1373,7 @@ class SyncService {
      */
     async syncEpg(source, options = {}) {
         console.log(`[Sync] Fetching standalone EPG for ${source.name}`);
-        await this.syncEpgFromUrl(source.id, source.url, options);
+        return this.syncEpgFromUrl(source.id, source.url, options);
     }
 }
 

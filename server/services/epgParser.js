@@ -255,6 +255,21 @@ async function* fetchAndParseStreaming(url, batchSize = 1000) {
 }
 
 /**
+ * #237: the same parse over a guide already downloaded to `file` (feedCheck.js), with the same gzip rule as above.
+ */
+async function* parseFileStreaming(file, url, contentType = '', batchSize = 1000) {
+    let stream = require('fs').createReadStream(file);
+    if (url.endsWith('.gz') || contentType.includes('gzip')) {
+        const gunzip = zlib.createGunzip();
+        const body = stream;
+        body.on('error', (err) => gunzip.destroy(err));
+        body.pipe(gunzip);
+        stream = gunzip;
+    }
+    yield* parseStreaming(stream, batchSize);
+}
+
+/**
  * Parse XMLTV as streaming async generator
  * @param {Readable} input - XMLTV stream
  * @param {number} batchSize - Number of programmes per batch
@@ -486,6 +501,7 @@ module.exports = {
     parseXmltvDate,
     fetchAndParse,
     fetchAndParseStreaming,
+    parseFileStreaming,
     parseStreaming,
 };
 

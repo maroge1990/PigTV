@@ -18,10 +18,13 @@ async function userAgent() {
     }
 }
 
-/** `kind`: 'playlist' | 'guide' | 'api'. The deadline covers the whole download, body included. */
-async function providerFetch(url, kind) {
+/**
+ * `kind`: 'playlist' | 'guide' | 'api'. The deadline covers the whole download, body included. `extraHeaders`: #237's
+ * conditional request (If-None-Match / If-Modified-Since).
+ */
+async function providerFetch(url, kind, extraHeaders = {}) {
     const timeoutMs = TIMEOUTS[kind] || TIMEOUTS.api;
-    return fetch(url, { headers: { 'User-Agent': await userAgent() }, signal: AbortSignal.timeout(timeoutMs) });
+    return fetch(url, { headers: { ...extraHeaders, 'User-Agent': await userAgent() }, signal: AbortSignal.timeout(timeoutMs) });
 }
 
 module.exports = { providerFetch, TIMEOUTS, userAgent };

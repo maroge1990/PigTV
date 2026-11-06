@@ -93,7 +93,9 @@ test('an EPG sync landing schedules a background rebuild of the sport event list
     await sportsEvents.eventsFor({ hours: 72 }); // seed a cached result
     const builds = sportsEvents.stats.builds;
 
-    epgParser.fetchAndParseStreaming = async function* () {
+    // #237: the sync downloads the feed first (feedCheck), then parses the file; both stand in here.
+    load('services/feedCheck').fetchFeed = async () => ({ unchanged: false, file: null, contentType: '', commit() {}, discard() {} });
+    epgParser.parseFileStreaming = async function* () {
         yield {
             channels: [],
             programmes: [{ channelId: 'bbc1', start: new Date(Date.now() + 1000), stop: new Date(Date.now() + 2000), title: 'A Programme' }]

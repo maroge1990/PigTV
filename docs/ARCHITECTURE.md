@@ -114,6 +114,10 @@ The `channelNumbers` flag is always sent (its off switch went in 0204).
 **Guide and library.**
 - Query **`epg_live`**, never `epg_programs`. A sync loads generation active+1, flips it in one statement, then deletes the old
   one in slices; a failed feed leaves the guide untouched.
+- **An unchanged feed is not rewritten** (#237, `feedCheck.js`): the playlist (M3U) and guide are downloaded to a temp file
+  and fingerprinted first (the host's ETag / Last-Modified, asked back as a conditional request, and a SHA-256), stored in
+  `meta` `feed:<id>:<kind>` after a good write. The scheduled and start-up syncs skip a feed that matches, with one log line;
+  **Sync now** and **Sync all** always write. A global sync relinks backups once, after the last source.
 - **A shrunken answer is held** (0348, #42): a playlist with fewer than 70% of the last good sync's lines (kept in `meta`
   `playlist_lines:<id>`; the whole M3U is parsed before any row is written), or a guide with under half the programmes or
   reaching under half as far ahead, is not applied. The sync row says `held` with the counts (Status, Providers); the next

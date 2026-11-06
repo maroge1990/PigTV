@@ -169,9 +169,9 @@ test('S2: a schedule made while the sync is running protects its group at the pu
     await filters.setExcluded(source.id, ['Adult']);
     const adult = rows().find(r => r.name === 'Adult 1');
     const parser = load('services/m3uParser');
-    const real = parser.fetchAndParseStreaming;
-    parser.fetchAndParseStreaming = async function* (url) {
-        for await (const batch of real.call(parser, url)) yield batch;
+    const real = parser.parseFileStreaming; // #237: the sync parses the downloaded file
+    parser.parseFileStreaming = async function* (...args) {
+        for await (const batch of real.apply(parser, args)) yield batch;
         // The guide records "Adult 1" while the sync is still working.
         const { scheduled, initSchema } = load('db/recordingsDb');
         initSchema();
@@ -182,7 +182,7 @@ test('S2: a schedule made while the sync is running protects its group at the pu
     try {
         await sync.syncM3u(source);
     } finally {
-        parser.fetchAndParseStreaming = real;
+        parser.parseFileStreaming = real;
     }
     assert.ok(rows().some(r => r.item_id === adult.item_id), 'the scheduled channel is not purged');
 });
