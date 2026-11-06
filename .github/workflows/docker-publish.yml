@@ -5,9 +5,8 @@ on:
     branches: [ main ]
     # A push that changes only docs builds nothing (D-38): no code, no image. Tags are not filtered.
     paths-ignore: [ 'docs/**', '**.md', '.github/ISSUE_TEMPLATE/**' ]
-    tags: [ 'v*' ]
-  release:
-    types: [ published ]
+  # No tag or release trigger: :latest and :sha-* are for the rig. Production follows :release, which
+  # only release.yml moves, on a v* tag or a manual run, to an image built here (#236).
   workflow_dispatch:
 
 jobs:
@@ -47,15 +46,14 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/pigtv
+          # Never a release tag here (release.yml owns it). type=sha is what release.yml promotes.
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
             type=sha
             type=ref,event=branch
             type=raw,value=latest,enable={{is_default_branch}}
 
       # Computed here rather than taken from the event payload: the workflow also runs
-      # on release and workflow_dispatch, where the push-only fields are absent, and
+      # on workflow_dispatch, where the push-only fields are absent, and
       # the short SHA is what version.js renders into the badge.
       - name: Work out what is being built
         id: stamp

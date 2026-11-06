@@ -1,0 +1,103 @@
+name: Release
+
+# Production's container follows ghcr.io/maroge1990/pigtv:release; the rig follows :latest (#236).
+# docker-publish.yml builds, tests and pushes :latest and :sha-<commit> for every green push to main.
+# A release never rebuilds: it points :release (and :<version>) at an image that workflow already
+# built and tested, so production gets exactly the bytes the rig ran. Two ways in, nothing else:
+#   - push a git tag v* on a built commit of main      (git tag v0477 <sha> && git push origin v0477)
+#   - Actions > Release > Run workflow, or gh workflow run release.yml -f version=v0476 -f commit=3b9c701
+# Rollback is the same: release the earlier version again, then Force Update (docs/OPERATIONS.md).
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release name, v + build number (e.g. v0477). Becomes an image tag and a git tag.'
+        required: true
+      commit:
+        description: 'Commit or tag on main to release (its image must already be built by CI).'
+        required: true
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write   # records a dispatched release as a git tag
+      packages: write   # moves :release
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Inputs travel through env, never interpolated into the script.
+      - name: Work out what is being released
+        id: what
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_COMMIT: ${{ inputs.commit }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            version="$GITHUB_REF_NAME"; commit="$GITHUB_SHA"
+          else
+            version="$INPUT_VERSION"; commit="$INPUT_COMMIT"
+          fi
+          if ! [[ "$version" =~ ^v[0-9][0-9A-Za-z._-]*$ ]]; then
+            echo "::error::The release name must be v followed by the build number, e.g. v0477."; exit 1
+          fi
+          if ! [[ "$commit" =~ ^[0-9A-Za-z._/-]+$ ]] || ! full=$(git rev-parse --verify --quiet "${commit}^{commit}"); then
+            echo "::error::Unknown commit or tag."; exit 1
+          fi
+          if ! git merge-base --is-ancestor "$full" origin/main; then
+            echo "::error::Only a commit on main can be released."; exit 1
+          fi
+          if existing=$(git rev-parse --verify --quiet "refs/tags/${version}^{commit}") && [ "$existing" != "$full" ]; then
+            echo "::error::Tag $version already names another commit."; exit 1
+          fi
+          {
+            echo "version=$version"
+            echo "commit=$full"
+            echo "short=${full:0:7}"
+            echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/pigtv"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Point release at the image CI built for that commit
+        env:
+          IMAGE: ${{ steps.what.outputs.image }}
+          SHORT: ${{ steps.what.outputs.short }}
+          VERSION: ${{ steps.what.outputs.version }}
+        run: |
+          source="$IMAGE:sha-$SHORT"
+          if ! docker buildx imagetools inspect "$source" > /dev/null; then
+            echo "::error::No image $source: CI builds none for a docs-only push or a red one. Release the last commit that built."; exit 1
+          fi
+          docker buildx imagetools create --tag "$IMAGE:release" --tag "$IMAGE:$VERSION" "$source"
+          docker buildx imagetools inspect "$IMAGE:release"
+          echo "Released $source as $VERSION. Production picks it up on its next Force Update." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record a dispatched release as a git tag
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ steps.what.outputs.version }}
+          COMMIT: ${{ steps.what.outputs.commit }}
+        run: |
+          git rev-parse --verify --quiet "refs/tags/$VERSION" > /dev/null && exit 0
+          git tag "$VERSION" "$COMMIT"
+          git push origin "refs/tags/$VERSION"

@@ -57,8 +57,9 @@ The story of a change goes in its commit message, not the docs.
    CI then runs the tests (Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass**: watch it; if it
    goes red, fix it or `git revert` at once (`gh run view <id> --log-failed`). A push that changes only docs skips CI (D-38).
 5. Tell Mark what is committed, the build number, and numbered T5 steps ([`docs/TESTING.md`](docs/TESTING.md)) for
-   anything that needs the real feed or a device. Nothing is *Verified* until he reports back. A release to production
-   (deploy, rollback) needs Mark's go-ahead each time ([`docs/OPERATIONS.md`](docs/OPERATIONS.md) › Deployment).
+   anything that needs the real feed or a device. Nothing is *Verified* until he reports back. CI's `:latest` is the rig's;
+   production follows `:release`, which moves only by `release.yml` and only on Mark's go-ahead each time (D-45,
+   [`docs/OPERATIONS.md`](docs/OPERATIONS.md) › Deployment).
 
 ## Work in batches (D-35)
 

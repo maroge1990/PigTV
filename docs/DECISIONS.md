@@ -508,3 +508,13 @@ reviews.
       screen; the PigTV mark on tab pages and the stacked lockup on sign-in; figures in SF Pro Rounded with tabular
       digits; no ticks for app-owned state; Apple TV heroes 32 pt.
 - **Consequence:** DESIGN.md › Apple TV app screens; #216 carries the tab change. Next: the build, Apple TV first.
+
+### D-45. Production follows a release tag, never `latest` (7 Nov 2026; mechanism Claude's, rule Mark's of 4 Nov)
+
+- **Context:** production's template followed `:latest`, so a Force Update shipped whatever CI built last: 0476 went
+  live on 4 Nov with 0452–0476 untested on the devices (#236).
+- **Choice:** `:latest` stays the rig's. Production follows `:release`, moved only by `release.yml` on a `v*` git tag or
+  a manual run, and only to an image CI already built and tested for a commit on `main` (promotion, not a rebuild). A
+  release is named `v<build>`.
+- **Consequence:** a release is a deliberate step on Mark's go-ahead; rollback is releasing the earlier version again.
+  `verify-build.sh` fails if `docker-publish.yml` gains a tag or release trigger or publishes `:release`, or `release.yml` gains another trigger.

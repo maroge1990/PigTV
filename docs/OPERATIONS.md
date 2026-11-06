@@ -6,9 +6,19 @@ Running the container on Unraid (or anywhere else). Image: `ghcr.io/maroge1990/p
 
 Unraid box "PassyFlix", `http://192.168.1.235:3000`, container **`PigTV`**, reached over Tailscale only. Data folder on the host: `/mnt/user/appdata/pigtv/data` (→ `/app/data`; back it up before a risky deploy). **Recordings:** host path `/mnt/remotes` → container `/app/recordings`, Access Mode **Read/Write - Slave** (an SMB share that mounts late or reconnects then appears inside the container); the recordings folder setting is `/app/recordings/SERVER01_Video/Recordings`. A plain bind of the share's subfolder went stale and showed Unraid's 1 MB tmpfs. Mark deploys (Unraid → Docker → PigTV → **Force Update**); env vars are set on the same Edit page.
 
-**Deploy (Mark):** Unraid → Docker → PigTV → Force Update, then `curl -s http://192.168.1.235:3000/api/version`. A redeploy
-ends every session. Rollback: point the container at `ghcr.io/maroge1990/pigtv:sha-<short>` of the last good build, then
-`git revert`.
+**Image tags (D-45).** CI builds, tests and pushes `:latest` and `:sha-<commit>` for every green push to `main`; the
+rig follows `:latest`. Production's template points at **`ghcr.io/maroge1990/pigtv:release`**, which only
+`.github/workflows/release.yml` moves: on a `v*` git tag or a manual run, it points `:release` (and `:v<build>`) at the
+image CI already built for that commit of `main`. Nothing is rebuilt, so production gets the bytes the rig ran.
+
+**Release (Claude, on Mark's go-ahead):** `gh workflow run release.yml -f version=v0477 -f commit=<sha>` (or push the
+tag `v0477` on that commit); the run's summary names the image. A docs-only commit has no image: release the last one
+that built. **Deploy (Mark):** Unraid → Docker → PigTV → Force Update, then `curl -s http://192.168.1.235:3000/api/version`
+shows the released build. A redeploy ends every session. With nothing released since the last Force Update, a Force
+Update changes nothing.
+
+**Rollback:** release the previous version again (`gh workflow run release.yml -f version=v0476 -f commit=v0476`), then
+Force Update; `git revert` the bad commits on `main`. In a hurry, the template can point at `:v<build>` directly.
 
 ## Running as a normal user (PUID / PGID)
 

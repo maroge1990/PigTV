@@ -969,6 +969,46 @@ check .github/workflows/docker-publish.yml "needs: test" "and the image build wa
 echo "=== D-38: a docs-only push builds no image ==="
 check .github/workflows/docker-publish.yml "paths-ignore: \[ 'docs/\*\*', '\*\*.md'" "docker-publish.yml ignores pushes that change only docs"
 
+echo "=== #236: only a v* tag or a manual run moves production's :release ==="
+python3 - <<'RELEASE_GATE' || FAIL=1
+import sys
+# Text, not PyYAML: CI's system python3 is not promised to have it. Comments are dropped first.
+def triggers(path):
+    lines = [l.split('#')[0].rstrip() for l in open(path)]
+    i = lines.index('on:') + 1
+    block = []
+    while i < len(lines) and (not lines[i] or lines[i].startswith(' ')):
+        block.append(lines[i]); i += 1
+    events, current = {}, None
+    for l in block:
+        if l.startswith('  ') and not l.startswith('   ') and l.strip().endswith(':'):
+            current = l.strip()[:-1]; events[current] = {}
+        elif l.startswith('    ') and not l.startswith('     ') and current and ':' in l:
+            key, value = l.strip().split(':', 1); events[current][key] = value.strip()
+    return events, '\n'.join(lines)
+problems = []
+publish, publish_code = triggers('.github/workflows/docker-publish.yml')
+if set(publish) - {'push', 'workflow_dispatch'}:
+    problems.append('docker-publish.yml runs on ' + ', '.join(sorted(set(publish) - {'push', 'workflow_dispatch'})))
+if 'tags' in publish.get('push', {}):
+    problems.append('docker-publish.yml builds on a tag push')
+if 'release' in publish_code:
+    problems.append('docker-publish.yml publishes a release tag')
+release, release_code = triggers('.github/workflows/release.yml')
+if set(release) != {'push', 'workflow_dispatch'}:
+    problems.append('release.yml triggers are ' + ', '.join(sorted(release)))
+if release.get('push') != {'tags': "[ 'v*' ]"}:
+    problems.append('release.yml runs on a push other than a v* tag')
+if 'imagetools create --tag "$IMAGE:release"' not in release_code or 'sha-$SHORT' not in release_code:
+    problems.append('release.yml no longer promotes the built sha image to :release')
+if 'merge-base --is-ancestor' not in release_code:
+    problems.append('release.yml no longer refuses a commit off main')
+if problems:
+    for pr in problems: print('  ✗ ' + pr)
+    sys.exit(1)
+print('  ✓ :latest follows main; :release moves only on a v* tag or a manual run, to an image already built')
+RELEASE_GATE
+
 echo "=== 0099: strip the small-caps LIVE badge at ingest (SR-2) ==="
 python3 - <<'PYCHK'
 import subprocess, sys
