@@ -5,14 +5,19 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 5 Nov 2026 (Mark away overnight, "continue through logical batches", no releases).*
+*Overwritten at the end of every session. 7 Nov 2026 (audit follow-up, batch 1 of 7: the release gate, #236).*
 
-- **Deployed:** server **0451**, Apple **149** (TestFlight). **On main, not deployed:** server **0452–0476** and Apple
-  **150–163**: cricket leftovers (#212, #230 All other cricket, #235 scores), listings (#231, a week ahead), Play from
-  live (#17), Record a game not listed yet (#234), live pause (#37), watch-copy restarts (#34), small fixes (#220,
-  #209, #48, #38, #208, #47), the follows focus (#233), sign-in kept on a 401 (#54), faster launch (#55), web player errors (#60), the flaky
-  cache test (#221). Every batch had its Codex rounds; highs fixed with failing-before tests. Next builds: server
-  **0477**, Apple **164**.
+- **Deployed:** server **0476** since 4 Nov (a Force Update pulled `:latest`; found by the 6 Nov audit), Apple **149**
+  (TestFlight). **Running without their Test Round:** server **0452–0476**; Apple **150–163** are on main only. They
+  hold cricket leftovers (#212, #230, #235), listings (#231), Play from live (#17), Record a game not listed yet (#234),
+  live pause (#37), watch-copy restarts (#34), small fixes (#220, #209, #48, #38, #208, #47), the follows focus (#233),
+  sign-in kept on a 401 (#54), faster launch (#55), web player errors (#60), the flaky cache test (#221).
+- **Release gate (D-45, #236):** CI's `:latest` is now the rig's only; production is to follow `:release`, moved by
+  `release.yml`. Waiting on Mark: release 0476 as the first `:release` (or roll back to 0451), then point the Unraid
+  template at `:release`. Next builds: server **0477**, Apple **164**.
+- **Audit follow-up order** (the 6 Nov audit's brief): batch 2 server idle work (#237, #238), 3 Apple foundations (#243,
+  #190), 4 Apple pages onto one design (#243, #225–#229), 5 web shell (#241, #64), 6 playback start (#36, #240), 7
+  docs (#242); #239 rides with 4 and 5.
 - **Mark's decisions (4 Nov):** release only on his go-ahead; providers usable for tests; recordings never deleted
   automatically (#40); a future game records once listed (#234); Top Shelf live sport follows-first (#232: waits on
   mock-ups and whether to share the sign-in with the extension).
