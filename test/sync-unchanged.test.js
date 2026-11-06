@@ -144,6 +144,46 @@ test('a guide import that fails after its swap is not remembered: the next sched
     assert.equal(status('epg').status, 'success');
 });
 
+/** Make the next statement whose SQL matches `pattern` throw, once. */
+function failOnce(pattern) {
+    const conn = d();
+    const prepare = conn.prepare;
+    conn.prepare = function (sql) {
+        if (pattern.test(sql)) { conn.prepare = prepare; throw new Error('disk I/O error (test)'); }
+        return prepare.call(this, sql);
+    };
+    return () => { conn.prepare = prepare; };
+}
+
+test('A, a failed B, then A again: the scheduled sync writes A again, for the guide and the playlist (Codex round 2, high)', async () => {
+    const guideA = guide(104), listA = playlist(210);
+    feeds.xml = guideA; feeds.m3u = listA;
+    await sync.syncAll({ ifChanged: true }); // A is the last good one for both
+    const liveChannels = () => d().prepare(`SELECT COUNT(*) AS n FROM playlist_items WHERE source_id = ? AND type = 'live'`).get(primary.id).n;
+
+    // the guide: B swaps in, then its channel write fails; then A comes back
+    feeds.xml = guide(105);
+    let restore = failOnce(/INSERT INTO playlist_items/); // the playlist is unchanged, so this is the guide's channel write
+    try { await sync.syncSource(primary.id, { ifChanged: true }); } finally { restore(); }
+    assert.equal(programmes(), 4200, 'B\'s programmes went live before the failure');
+    feeds.xml = guideA;
+    lines = [];
+    await sync.syncAll({ ifChanged: true });
+    assert.ok(!lines.some(l => /Guide unchanged/.test(l)), 'A is not taken for what the rows hold');
+    assert.equal(programmes(), 4160, 'A\'s guide is live again');
+
+    // the playlist: B writes its channels, then its groups fail; then A comes back
+    feeds.m3u = playlist(220);
+    restore = failOnce(/INSERT INTO categories/);
+    try { await sync.syncSource(primary.id, { ifChanged: true }); } finally { restore(); }
+    assert.equal(liveChannels(), 220, 'B\'s channels were written before the failure');
+    feeds.m3u = listA;
+    lines = [];
+    await sync.syncAll({ ifChanged: true });
+    assert.ok(!lines.some(l => /Playlist .* unchanged/.test(l)), 'A is not taken for what the rows hold');
+    assert.equal(liveChannels(), 210, 'A\'s playlist is back');
+});
+
 test('a global sync with two backups relinks once, after the last source', async () => {
     await db.sources.create({ type: 'm3u', name: 'Backup A', role: 'backup', url: `${base}/backup/a.m3u` });
     await db.sources.create({ type: 'm3u', name: 'Backup B', role: 'backup', url: `${base}/backup/b.m3u` });

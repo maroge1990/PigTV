@@ -83,6 +83,9 @@ async function fetchFeed({ sourceId, kind, url, scope = '', compare = false, has
         discard();
         return { unchanged: true, how: 'the same bytes as the last good sync' };
     }
+    // The caller is about to write this feed: whatever it had is no longer known to be what the rows hold, so a write
+    // that fails part-way can never be mistaken for the last good one when its bytes come back (0477 Codex round 2).
+    forget(sourceId, kind);
     return {
         unchanged: false,
         file,
