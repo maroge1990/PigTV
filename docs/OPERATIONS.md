@@ -20,6 +20,10 @@ Update changes nothing.
 **Rollback:** release the previous version again (`gh workflow run release.yml -f version=v0476 -f commit=v0476`), then
 Force Update; `git revert` the bad commits on `main`. In a hurry, the template can point at `:v<build>` directly.
 
+**Sync interval (Mark's setting, Settings → "Sync channels and guide every"):** 12 h is enough. A scheduled sync skips a
+playlist or guide that has not changed (#237), so a shorter interval mostly costs downloads; `PIGTV_DEBUG_SYNC=1` brings
+back the sync's heap and progress lines for a fault.
+
 ## Running as a normal user (PUID / PGID)
 
 The server no longer runs as root. The entrypoint (`docker/entrypoint.sh`) starts as root only to

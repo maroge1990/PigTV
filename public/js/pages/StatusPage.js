@@ -307,10 +307,16 @@ class StatusPage {
         }
         // #29: the sport score collector's cost per tick (last hour)
         const sc = status.sportCollector;
+        // #238: how often it fetches now, and why
+        const pace = sc && sc.cadence && sc.cadence.everySec
+            ? metric('Fetching', `every ${sc.cadence.everySec >= 60 ? `${e(sc.cadence.everySec / 60)} min` : `${e(sc.cadence.everySec)} s`} (${e({ looking: 'someone is looking at sport', recording: 'a recording is running', 'nobody looking': 'nobody is looking' }[sc.cadence.why] || sc.cadence.why)})`)
+            : '';
         if (sc && sc.ticks) {
             const kb = (v) => `${Math.round(Number(v) / 1024)} KB`;
             const row = (name, t) => metric(name, `${ms(t.busyMs)} on the loop (longest parse ${ms(t.maxParseMs)}) · ${e(t.requests)} fetched · ${kb(t.bytes)}`);
-            html.push(`<h4>Sport score collector (per tick, last ${e(sc.ticks)})</h4><div class="status-metrics">${row('Last', sc.last)}${row('p95', sc.p95)}${row('Worst', sc.max)}</div>`);
+            html.push(`<h4>Sport score collector (per tick, last ${e(sc.ticks)})</h4><div class="status-metrics">${pace}${row('Last', sc.last)}${row('p95', sc.p95)}${row('Worst', sc.max)}</div>`);
+        } else if (pace) {
+            html.push(`<h4>Sport score collector</h4><div class="status-metrics">${pace}</div>`);
         }
         const prep = status.preparation;
         if (prep && prep.counts) {

@@ -224,7 +224,10 @@ measurement (#29); decision D-29 in [`../DECISIONS.md`](../DECISIONS.md).
 **Sports dashboard foundation (0309):** `sportsScoresEspn.js` is a separate defensive adapter; the old fixture classifier
 is unchanged. `sportsDashboardStore.js` persists catalog metadata, observed whole-score snapshots and per-login preferences
 in SQLite (created on opt-in use). The collector polls current/prior UTC days, caches future days, discovers cricket per
-requested date, and does no request-path network access. Delays use server observation time, not an inferred play time.
+requested date, and does no request-path network access. **Pace (#238, 0478):** a 30 s heartbeat that fetches only while
+a client asked for `/api/sports/front`, `/dashboard` or a score page (`/pages/*`, not `/pages/preferences`) in the last 5
+minutes, or a recording is running (#217's event end); otherwise every 5 minutes. The first such request after a quiet spell
+starts a fetch at once (the request itself never waits). Status shows the pace (`sportCollector.cadence`). Delays use server observation time, not an inferred play time.
 Cache hits never become new observations. Since 0313, projection runs on a read-only worker from cached C-I events;
 statements/date formatters are reused, writes batch per tick, and the entire delayed state controls broadcast fields
 and retention. Network attempts are capped at 12/tick; 429/5xx cooldown is shared with fixture fetches. Cricket endDate

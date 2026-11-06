@@ -43,6 +43,12 @@ const dashboard = require('../services/sportsDashboard');
 const dashboardEnabled = (req, res, next) => dashboard.dashboardEnabled() ? next() : res.status(404).json({ error: 'Sports dashboard disabled' });
 // 0446 (#49, Codex Apple batch 6): the front page applies each account's score delay, and it runs by default, so its
 // preferences are open whenever the collector is (or the dashboard flag), not only with PIGTV_SPORTS_DASHBOARD=1.
+// #238: the pages that show live scores keep the score collector at its 30 s pace for 5 minutes (sportsDashboard.noteLook).
+const SCORE_PAGE = /^\/(front|dashboard|pages\/(?!preferences$)[^/]+(\/[^/]+)?)$/;
+router.use((req, res, next) => {
+    if (req.method === 'GET' && SCORE_PAGE.test(req.path)) { try { dashboard.noteLook(); } catch { /* never fails a page */ } }
+    next();
+});
 const preferencesEnabled = (req, res, next) => dashboard.collectorEnabled() || dashboard.dashboardEnabled() ? next()
     : res.status(404).json({ error: 'Sports dashboard disabled' });
 router.get('/preferences', preferencesEnabled, (req, res) => {

@@ -344,7 +344,9 @@ router.get('/', async (req, res) => {
             segmentedRecordings: (() => { try { return { enabled: settings.segmentedRecordings === true, ...require('../services/recordingSegments').status() }; } catch (e) { return null; } })(),
             loopDelay: detail(() => require('../services/loopDelay').summary()),
             // #29: the score collector's time on the event loop and bytes per tick (timing and sizes only).
-            sportCollector: detail(() => require('../services/sportCollectorCost').summary()),
+            // #238: and how often it fetches now, and why ({ everySec, why }).
+            sportCollector: detail(() => ({ ...require('../services/sportCollectorCost').summary(),
+                cadence: require('../services/sportsDashboard').cadence() })),
             sync: await syncStatus(),
             // Plan B1 (0216): catch-up as each provider flags it (tv_archive), from the last raw fetch.
             catchup: detail(() => {

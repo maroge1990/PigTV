@@ -403,10 +403,37 @@ const AHEAD_TTL = 6 * H, AHEAD_DAYS = 11;
 // #223: how often a followed team with no game ahead in the catalogue is asked for its own schedule.
 const TEAM_TTL = 6 * H;
 const CATALOG_RESERVE = 3;
+// #238: the collector fetched every 30 s day and night (~1.9 GB a day on production) whether or not anyone looked. It
+// keeps that pace only while someone has asked for a sport page in the last 5 minutes, or a recording is running (its
+// end can follow the game's, #217); otherwise it fetches every 5 minutes, enough for Top Shelf and the first request.
+const BUSY_TICK_MS = 30000, QUIET_TICK_MS = 5 * 60000, LOOK_WINDOW_MS = 5 * 60000;
+let lookedAt = -Infinity;
+function recordingNow() {
+    try { return !!require('../db/sqlite').getDb().prepare(`SELECT 1 FROM scheduled_recordings WHERE status = 'recording' LIMIT 1`).get(); }
+    catch { return false; }
+}
+/** Why the collector is at its busy pace now ('looking' | 'recording'), or null when nobody needs it. */
+function demand(now = Date.now()) {
+    if (now - lookedAt < LOOK_WINDOW_MS) return 'looking';
+    return recordingNow() ? 'recording' : null;
+}
+/** A client asked for a sport page: the busy pace for 5 minutes, and after a quiet spell a fetch at once. */
+function noteLook(now = Date.now()) {
+    const quiet = now - lookedAt >= LOOK_WINDOW_MS && !recordingNow();
+    lookedAt = now;
+    if (quiet && runtime) runtime.refresh().catch(() => {});
+}
+/** For Status: how often the collector fetches now, and why. */
+function cadence(now = Date.now()) {
+    if (!collectorEnabled()) return { everySec: null, why: 'off' };
+    const why = demand(now);
+    return { everySec: (why ? BUSY_TICK_MS : QUIET_TICK_MS) / 1000, why: why || 'nobody looking' };
+}
 function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.neededLeagues(),clock=Date.now,enabled:isEnabled=collectorEnabled,
     followed=()=>require('./sportPagePrefs').allTeams(),roster=league=>fixtures.teamsOf(league),
-    feedGames=(league,o)=>feeds.games(league,{...o,registerImage:require('./logoCache').registerLogo}),recordFeed=fixtures.recordFeed}={}) {
-    let running = null, timer = null, stopped = false, remaining = 0, deadline = 0, coldRequests = 0, current = null;
+    feedGames=(league,o)=>feeds.games(league,{...o,registerImage:require('./logoCache').registerLogo}),recordFeed=fixtures.recordFeed,
+    busy=()=>demand(clock())!==null,every=(fn,ms)=>setInterval(fn,ms)}={}) {
+    let running = null, timer = null, stopped = false, remaining = 0, deadline = 0, coldRequests = 0, current = null, lastRun = -Infinity;
     const cache = new Map(), controller = new AbortController(), recordedFeeds = new WeakSet();
     // ESPN groups scoreboards by US Eastern date, so a game after 00:00Z is listed under the previous
     // UTC date's URL. Remember which query date returned each game and poll that one while it is hot.
@@ -685,13 +712,14 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
     return {
         refresh() {
             if (stopped || !isEnabled()) return Promise.resolve();
-            if (!running) running=collect().finally(()=>{running=null;});
+            if (!running) { lastRun = clock(); running=collect().finally(()=>{running=null;}); }
             return running;
         },
         start() {
             if (timer || !isEnabled() || stopped) return;
-            const tick=()=>this.refresh().catch(()=>{});
-            tick();timer=setInterval(tick,30000);timer.unref();
+            // #238: a 30 s heartbeat that fetches only when someone needs the busy pace, else every 5 minutes
+            const tick=()=>{ if (busy() || clock() - lastRun >= QUIET_TICK_MS) this.refresh().catch(()=>{}); };
+            tick();timer=every(tick,BUSY_TICK_MS);timer?.unref?.();
         },
         stop() {stopped=true;controller.abort();clearInterval(timer);timer=null;}
     };
@@ -703,6 +731,6 @@ function store() {
     if(!stores.has(db)) stores.set(db,createStore(db));
     return stores.get(db);
 }
-function start() { if(collectorEnabled() && !runtime) {runtime=createCollector({store:store()});runtime.start();} }
+function start(options = {}) { if(collectorEnabled() && !runtime) {runtime=createCollector({store:store(),...options});runtime.start();} } // options: tests only
 function stop() {runtime?.stop();runtime=null;require('./sportsDashboardResponse').close();}
-module.exports={enabled,collectorEnabled,dashboardEnabled,localDay,timezone,matchBroadcasts,buildDashboard,createCollector,store,start,stop,response: options => require('./sportsDashboardResponse').response(options)};
+module.exports={enabled,collectorEnabled,dashboardEnabled,localDay,timezone,matchBroadcasts,buildDashboard,createCollector,store,start,stop,noteLook,cadence,response: options => require('./sportsDashboardResponse').response(options)};
