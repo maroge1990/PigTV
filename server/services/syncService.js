@@ -1032,7 +1032,9 @@ class SyncService {
             return UNCHANGED;
         }
         try {
-            return await this.loadEpgFile(sourceId, url, feed, activeGen, { acceptSmaller });
+            // #237 (Codex round 1, high): the last good guide only once every write of it is done, the old generation's
+            // removal and the guide channels included, so a scheduled retry repairs a half-finished import.
+            if (await this.loadEpgFile(sourceId, url, feed, activeGen, { acceptSmaller })) feed.commit();
         } finally {
             feed.discard();
         }
@@ -1110,7 +1112,7 @@ class SyncService {
             if (totalProgrammes === 0) {
                 console.warn('[Sync] EPG feed contained no programmes; keeping the existing guide');
                 await this.purgeEpgRows(sourceId, '=', newGen);
-                return;
+                return false;
             }
 
             // #42: a guide much smaller, or reaching much less far ahead, than the one on screen is held.
@@ -1137,7 +1139,6 @@ class SyncService {
                 INSERT INTO epg_state (source_id, active_gen) VALUES (?, ?)
                 ON CONFLICT(source_id) DO UPDATE SET active_gen = excluded.active_gen
             `).run(sourceId, newGen);
-            feed.commit(); // #237: this guide is now the last good one
 
             // 0159: the Sport tab's event list is keyed on the guide version (among
             // other things), which just moved - rebuild it now in the background
@@ -1200,6 +1201,7 @@ class SyncService {
         }
 
         console.log(`[Sync] Saved ${totalProgrammes} programmes`);
+        return true;
     }
 
     /**

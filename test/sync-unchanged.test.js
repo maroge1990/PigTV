@@ -122,6 +122,28 @@ test('a guide whose rows are gone is fetched in full, whatever its fingerprint s
     assert.equal(programmes(), 4040);
 });
 
+test('a guide import that fails after its swap is not remembered: the next scheduled sync finishes it (Codex round 1, high)', async () => {
+    feeds.xml = guide(102);
+    const conn = d();
+    const prepare = conn.prepare;
+    conn.prepare = function (sql) {
+        if (/INSERT INTO playlist_items/.test(sql) && /epg_channel|stream_icon, \s*stream_url, category_id, data/.test(sql)) {
+            conn.prepare = prepare;
+            throw new Error('disk I/O error (test)');
+        }
+        return prepare.call(this, sql);
+    };
+    const g = gen();
+    try { await sync.syncAll({ ifChanged: true }); } finally { conn.prepare = prepare; }
+    assert.equal(gen(), g + 1, 'the programmes were swapped in before the channel write failed');
+    assert.equal(status('epg').status, 'error');
+    lines = [];
+    await sync.syncAll({ ifChanged: true }); // the same bytes
+    assert.ok(!lines.some(l => /Guide unchanged/.test(l)), 'not skipped: the last import never finished');
+    assert.equal(gen(), g + 2);
+    assert.equal(status('epg').status, 'success');
+});
+
 test('a global sync with two backups relinks once, after the last source', async () => {
     await db.sources.create({ type: 'm3u', name: 'Backup A', role: 'backup', url: `${base}/backup/a.m3u` });
     await db.sources.create({ type: 'm3u', name: 'Backup B', role: 'backup', url: `${base}/backup/b.m3u` });
