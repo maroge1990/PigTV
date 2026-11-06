@@ -49,7 +49,8 @@ jobs:
           else
             version="$INPUT_VERSION"; commit="$INPUT_COMMIT"
           fi
-          if ! [[ "$version" =~ ^v[0-9][0-9A-Za-z._-]*$ ]]; then
+          # Digits only: always a valid git ref and image tag, so nothing can fail after :release moves.
+          if ! [[ "$version" =~ ^v[0-9]{1,6}$ ]]; then
             echo "::error::The release name must be v followed by the build number, e.g. v0477."; exit 1
           fi
           if ! [[ "$commit" =~ ^[0-9A-Za-z._/-]+$ ]] || ! full=$(git rev-parse --verify --quiet "${commit}^{commit}"); then
@@ -78,19 +79,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Point release at the image CI built for that commit
+      # Order matters: check the image, then record the git tag, and only then move :release, so a run
+      # that fails leaves production's tag where it was.
+      - name: Check CI built an image for that commit
         env:
           IMAGE: ${{ steps.what.outputs.image }}
           SHORT: ${{ steps.what.outputs.short }}
-          VERSION: ${{ steps.what.outputs.version }}
         run: |
-          source="$IMAGE:sha-$SHORT"
-          if ! docker buildx imagetools inspect "$source" > /dev/null; then
-            echo "::error::No image $source: CI builds none for a docs-only push or a red one. Release the last commit that built."; exit 1
+          if ! docker buildx imagetools inspect "$IMAGE:sha-$SHORT" > /dev/null; then
+            echo "::error::No image sha-$SHORT: CI builds none for a docs-only push or a red one. Release the last commit that built."; exit 1
           fi
-          docker buildx imagetools create --tag "$IMAGE:release" --tag "$IMAGE:$VERSION" "$source"
-          docker buildx imagetools inspect "$IMAGE:release"
-          echo "Released $source as $VERSION. Production picks it up on its next Force Update." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Record a dispatched release as a git tag
         if: github.event_name == 'workflow_dispatch'
@@ -101,3 +99,13 @@ jobs:
           git rev-parse --verify --quiet "refs/tags/$VERSION" > /dev/null && exit 0
           git tag "$VERSION" "$COMMIT"
           git push origin "refs/tags/$VERSION"
+
+      - name: Point release at the image CI built for that commit
+        env:
+          IMAGE: ${{ steps.what.outputs.image }}
+          SHORT: ${{ steps.what.outputs.short }}
+          VERSION: ${{ steps.what.outputs.version }}
+        run: |
+          docker buildx imagetools create --tag "$IMAGE:release" --tag "$IMAGE:$VERSION" "$IMAGE:sha-$SHORT"
+          docker buildx imagetools inspect "$IMAGE:release"
+          echo "Released sha-$SHORT as $VERSION. Production picks it up on its next Force Update." >> "$GITHUB_STEP_SUMMARY"

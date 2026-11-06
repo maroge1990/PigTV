@@ -1003,6 +1003,14 @@ if 'imagetools create --tag "$IMAGE:release"' not in release_code or 'sha-$SHORT
     problems.append('release.yml no longer promotes the built sha image to :release')
 if 'merge-base --is-ancestor' not in release_code:
     problems.append('release.yml no longer refuses a commit off main')
+if '^v[0-9]{1,6}$' not in release_code:
+    problems.append('release.yml accepts a release name other than v + digits')
+try:
+    if not (release_code.index('imagetools inspect "$IMAGE:sha-$SHORT"') < release_code.index('git push origin "refs/tags/$VERSION"')
+            < release_code.index('imagetools create --tag "$IMAGE:release"')):
+        problems.append('release.yml moves :release before checking the image and recording the git tag')
+except ValueError:
+    problems.append('release.yml lost its image check, git tag or promotion step')
 if problems:
     for pr in problems: print('  ✗ ' + pr)
     sys.exit(1)
