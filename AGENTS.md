@@ -109,7 +109,8 @@ test-only commits are exempt. **Claude launches it itself** in each repo touched
 `codex login`; if it cannot run, say so and give Mark the command and focus. **One round per batch; a second only if
 round one leaves a high finding** (D-38, D-19). A finding fixed inside the batch is listed in the batch's evidence README;
 a high, or anything left unfixed, becomes an issue labelled `finding` (security ones a private advisory), each fix with
-its own failing-before test. After round two only **high** findings block the push. The handoff lists each finding.
+its own failing-before test. After round two only **high** findings block the push; the fix for a round-two high gets one narrow Codex check of the
+fix alone, and another high from it goes to Mark (D-46). The handoff lists each finding.
 
 ## Gotchas
 

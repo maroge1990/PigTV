@@ -518,3 +518,13 @@ reviews.
   release is named `v<build>`.
 - **Consequence:** a release is a deliberate step on Mark's go-ahead; rollback is releasing the earlier version again.
   `verify-build.sh` fails if `docker-publish.yml` gains a tag or release trigger or publishes `:release`, or `release.yml` gains another trigger.
+
+### D-46. A fix for a round-two high gets a narrow Codex check of its own (7 Nov 2026)
+
+- **Context:** D-38 allows a second Codex round when round one leaves a high, and after round two only highs block the
+  push. It said nothing about the fix for a round-two high, which is the batch's newest code and was written to close a
+  hole a reviewer had just found; read literally, it shipped on its failing-before test alone (batch 2, 0480).
+- **Choice (Mark, 7 Nov):** the commits that fix a round-two high get one narrow Codex check (`--base` the commit before
+  the fix, focus: the fix only). Clean: push. Another high: it goes to Mark rather than another round. Medium and low
+  findings from the check are handled as in D-38. Amends D-38 point 1; D-19's cap otherwise stands.
+- **Consequence:** AGENTS.md › Reviews says so; the batch's evidence README lists the check and its verdict.
