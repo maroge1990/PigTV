@@ -46,6 +46,14 @@ function steps(phases) {
     return out;
 }
 
+/** The middle value; the mean of the two middle ones for an even count (0488, 0487 Codex round 1). */
+function median(values) {
+    const s = values.slice().sort((a, b) => a - b);
+    if (!s.length) return null;
+    const mid = Math.floor(s.length / 2);
+    return s.length % 2 ? s[mid] : Math.round(((s[mid - 1] + s[mid]) / 2) * 10) / 10;
+}
+
 function percentile(values, p) {
     const s = values.slice().sort((a, b) => a - b);
     if (!s.length) return null;
@@ -57,9 +65,9 @@ function summary(events, max = 50) {
     const plays = (events || []).filter(e => e && e.type === 'play-start' && e.phases).slice(0, max);
     const rows = STEPS.map(([key, label]) => {
         const values = plays.map(e => steps(e.phases)[key]).filter(v => v != null);
-        return { key, label, count: values.length, median: percentile(values, 50), p90: percentile(values, 90) };
+        return { key, label, count: values.length, median: median(values), p90: percentile(values, 90) };
     });
     return { plays: plays.length, steps: rows };
 }
 
-module.exports = { PHASES, STEPS, clean, logText, steps, summary, percentile };
+module.exports = { PHASES, STEPS, clean, logText, steps, summary, median, percentile };

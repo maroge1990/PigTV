@@ -83,5 +83,23 @@ test('playback-report.js reads the phases from the log and prints the steps', ()
     assert.deepEqual(parsed.plays[0].phases, { resolve: 4.3, ready: 5, mode: 5.2, frame: 5.4 });
     const text = report.report(parsed);
     assert.match(text, /Where a start goes, by step .* 2 plays that sent their phases/);
-    assert.match(text, /Display mode switch\s+0\.2 \/ 9\.9/);
+    assert.match(text, /Display mode switch\s+5\.1 \/ 9\.9/); // the mean of the two middle plays (0488)
 });
+
+test('the median of an even count is the mean of the middle two (0487 Codex round 1)', () => {
+    const plays = [1, 9].map(r => ({ type: 'play-start', phases: { resolve: r } }));
+    assert.equal(startPhases.summary(plays).steps.find(x => x.key === 'answer').median, 5);
+    assert.equal(startPhases.median([4.3, 4.5, 4.9]), 4.5);
+});
+
+test("an Apple start with origin and phases after its from= is still the Apple device's (0487 Codex round 1)", () => {
+    const report = require('../scripts/playback-report.js');
+    const parsed = report.parse([
+        '[Player] play-start via transcode(hls, video copy) hls-delivery=on resolve=4.3s first-picture=5.4s from=device:1 origin=sport-front phases=resolve:4.3,ready:5.0,frame:5.4',
+        '[Player] play-start via transcode(hls, video copy) hls-delivery=on resolve=4.2s first-picture=5.0s from=device:1',
+        '[Player] play-end via transcode(hls, video copy) hls-delivery=on watched=60s stalls=0 from=device:1'
+    ].join('\n'));
+    assert.deepEqual(parsed.plays.map(p => p.label), [parsed.ends[0].label, parsed.ends[0].label], 'starts and ends on one row');
+    assert.match(parsed.ends[0].label, /Apple\/device/);
+});
+

@@ -46,7 +46,8 @@ const MEDIA_ERROR = /\[Player\] media-error (\S+?)\((\S+?)\) via (\S+) path=(\S*
 const START_TIMEOUT = /\[Player\] start-timeout via (\S+)/;
 // Every client event ends with who sent it: `user:<id>` for a web login, `device:<id>` for a
 // paired device (the Apple client). Devices are reported on their own rows.
-const FROM = /\bfrom=(\S+)\s*$/;
+// 0488 (0487 Codex round 1): not anchored to the line's end, so origin= and phases= may follow it.
+const FROM = /\bfrom=(\S+)/;
 const DEVICE_SUFFIX = ' [Apple/device]';
 const fromDevice = (line) => { const m = FROM.exec(line); return !!m && m[1].startsWith('device:'); };
 
