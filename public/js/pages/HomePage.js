@@ -35,7 +35,7 @@ class HomePage {
         pageHome.innerHTML = `
             <div class="dashboard-content" id="home-content">
                 <section class="dashboard-section" id="favorite-channels-section">
-                    <div class="section-header">
+                    <div class="page-header">
                         <h2>Favourite channels</h2>
                     </div>
                     <div class="scroll-wrapper">

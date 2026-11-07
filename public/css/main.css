@@ -1069,14 +1069,6 @@ video::cue {
   border-radius: var(--radius-sm);
 }
 
-.guide-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-md) var(--space-lg);
-  background: var(--color-bg-secondary);
-  border-bottom: 1px solid var(--color-border);
-}
 
 .guide-controls {
   display: flex;
@@ -1216,9 +1208,6 @@ video::cue {
   overscroll-behavior: contain;
 }
 
-.settings-container h2 {
-  margin-bottom: var(--space-lg);
-}
 
 /* Tabs */
 .tabs {
@@ -2288,9 +2277,6 @@ kbd {
     padding: var(--space-sm);
   }
 
-  .guide-header h2 {
-    font-size: var(--text-lg);
-  }
 
   .guide-controls {
     gap: var(--space-xs);
@@ -2341,10 +2327,6 @@ kbd {
     height: calc(100vh - var(--navbar-height));
   }
 
-  .settings-container h2 {
-    font-size: var(--text-lg);
-    margin-bottom: var(--space-md);
-  }
 
   .settings-section h3 {
     font-size: var(--text-md);
@@ -2646,13 +2628,6 @@ kbd {
 }
 
 /* Status page (0124) */
-.status-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-md);
-  flex-wrap: wrap;
-}
 
 .status-section h4 {
   margin: var(--space-md) 0 var(--space-sm);
@@ -3509,19 +3484,6 @@ kbd {
   display: none;
 }
 
-.section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-lg);
-}
-
-.section-header h2 {
-  font-family: 'Outfit', sans-serif;
-  font-size: var(--text-xl);
-  color: var(--color-text-bright);
-}
-
 /* Scroll Wrapper with Navigation Arrows */
 .scroll-wrapper {
   position: relative;
@@ -3703,20 +3665,7 @@ kbd {
    Recordings (DVR) Page
    ========================================================================== */
 
-.recordings-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-md) var(--space-lg);
-  background: var(--color-bg-secondary);
-  border-bottom: 1px solid var(--color-border);
-}
 
-.recordings-header h2 {
-  margin: 0;
-  font-size: var(--text-xl);
-  font-weight: 600;
-}
 
 .recordings-section {
   padding: var(--space-lg);
@@ -4527,4 +4476,38 @@ kbd {
 
 .recording-actions .recording-note {
   margin-right: var(--space-sm);
+}
+
+/* #241: one page header on every page: the title (an h2) on the left, the page's controls on the right, no bar.
+   Pages in a centred container (Settings, Status) take its edges; full-width pages (Guide, Recordings) the page's. */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  padding: var(--space-md) var(--space-lg);
+}
+
+.page-header h2 {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 700;
+}
+
+.settings-container > .page-header,
+#page-sports > .page-header,
+#page-home .page-header {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+@media (max-width: 480px) {
+  .page-header {
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .page-header h2 {
+    font-size: var(--text-lg);
+  }
 }

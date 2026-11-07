@@ -211,7 +211,7 @@ class SportsPage {
         this.root?.replaceChildren(); this.cards.clear(); this.shelves.clear(); this.orders.clear();
     }
     setup() {
-        this.root.innerHTML='<h1>Sport</h1><div class="sports-toolbar"></div><p class="sports-message" role="status"></p><div class="sports-shelves"></div>';
+        this.root.innerHTML='<div class="page-header"><h2>Sport</h2></div><div class="sports-toolbar"></div><p class="sports-message" role="status"></p><div class="sports-shelves"></div>';
         const toolbar=this.root.querySelector('.sports-toolbar');
         const button=(text,fn)=> { const b=document.createElement('button'); b.className='btn btn-secondary'; b.textContent=text; b.onclick=fn; toolbar.append(b); return b; };
         button('Today',()=>this.changeLeague(null));
