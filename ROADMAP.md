@@ -14,10 +14,12 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   sign-in kept on a 401 (#54), faster launch (#55), web player errors (#60), the flaky cache test (#221).
 - **Release gate (D-45, #236):** CI's `:latest` is now the rig's only; production is to follow `:release`, moved by
   `release.yml`. **v0476** released 7 Nov (Mark's choice; `:release` = `sha-3b9c701`). Waiting on Mark: point the Unraid
-  template at `:release`. Next builds: server **0481**, Apple **164**.
+  template at `:release`. Next builds: server **0481**, Apple **167**.
 - **Batch 2 pushed (0477–0480):** a scheduled sync skips an unchanged playlist or guide and relinks once (#237); the sport
   score collector slows to every 5 min when nobody looks (#238). Rig numbers in `docs/evidence/2026-11-07-server-idle/`;
   production's (T4) after the next release.
+- **Batch 3 pushed (Apple 164–166, on main, not on TestFlight):** one spacing and type scale (`PigSpacing`, `PigType`),
+  a check against new literals, one secondary button style (#243 part 1). Waits on Mark's Apple TV look (T5).
 - **Audit follow-up order** (the 6 Nov audit's brief): batch 2 server idle work (#237, #238), 3 Apple foundations (#243,
   #190), 4 Apple pages onto one design (#243, #225–#229), 5 web shell (#241, #64), 6 playback start (#36, #240), 7
   docs (#242); #239 rides with 4 and 5.
