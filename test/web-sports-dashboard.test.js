@@ -179,7 +179,7 @@ test('global recording banner cannot expose raw programme result prose over the 
         API:{recordings:{getActive:async()=>[{title:'A defeats B 101-99',channel_name:'Sports',program_end:1000}]}}});
     vm.runInContext(fs.readFileSync('public/js/app.js','utf8'),c);
     const app=Object.create(vm.runInContext('App.prototype',c)); app.currentPage='sports';
-    await app.updateRecordingBanner();
+    app.updateRecordingBanner([{title:'A defeats B 101-99',channel_name:'Sports',program_end:1000}]); // #239: the feed's rows
     assert.doesNotMatch(text.textContent,/defeats|101-99/);
     assert.match(text.textContent,/Recording/);
 });

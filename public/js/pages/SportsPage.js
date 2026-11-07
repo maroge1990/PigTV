@@ -201,11 +201,12 @@ class SportsPage {
             this.rulesEnabled=info.features?.recordingRules===true;
             this.setup();
             await this.state.load(true);
-            await this.refreshRecordings(); this.poll();
+            this.watchRecordings(); this.poll();
         } catch { if (this.state.valid(serial,identity)) this.root.textContent='Sport unavailable. Try opening Sport again.'; }
     }
     hide() { this.suspend(); }
     suspend() {
+        this.unwatchRecordings?.(); this.unwatchRecordings=null;
         clearTimeout(this.timer); clearTimeout(this.waiting); this.waiting=null;
         this.state.active=false; this.recordings=[]; this.state.clear(); this.closeDialog();
         this.root?.replaceChildren(); this.cards.clear(); this.shelves.clear(); this.orders.clear();
@@ -224,15 +225,19 @@ class SportsPage {
     poll() {
         clearTimeout(this.timer);
         if (!this.state.active || document.hidden) return;
-        this.timer=setTimeout(async()=> { await this.state.load(); await this.refreshRecordings(); this.poll(); },this.state.legacy ? 60000 : 20000);
+        this.timer=setTimeout(async()=> { await this.state.load(); this.poll(); },this.state.legacy ? 60000 : 20000);
     }
-    async refreshRecordings() {
+    /** #239 (0485): the recordings in progress come from the app's one feed (RecordingsFeed), not a fetch of our own. */
+    watchRecordings() {
+        this.unwatchRecordings?.();
+        const feed=this.app.recordingsFeed;
+        if (!feed) return;
         const identity=this.state.identity(), serial=this.state.serial;
-        try {
-            const rows=await API.recordings.getActive();
+        this.unwatchRecordings=feed.subscribe(rows=> {
             if(this.state.valid(serial,identity)) { this.recordings=Array.isArray(rows)?rows:[]; this.render(); }
-        } catch { if(this.state.valid(serial,identity)) { this.recordings=[]; this.render(); } }
+        });
     }
+    async refreshRecordings() { await this.app.recordingsFeed?.refresh(); }
     changeLeague(league) {
         this.closeDialog(); this.state.league=league; this.orders.clear(); this.cards.clear(); this.shelves.clear();
         this.root.querySelector('.sports-shelves').replaceChildren();

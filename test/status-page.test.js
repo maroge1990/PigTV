@@ -156,7 +156,9 @@ test('bug 9: a shared use reads "· shared"; the recording banner drops its one-
             : id === 'recording-banner-text' ? el.text : null, addEventListener: () => {} }, API: { recordings: { getActive: async () => active } } });
         context.window = context;
         vm.runInContext(js('app.js') + '\nglobalThis.App = App;', context);
-        return context.App.prototype.updateRecordingBanner.call({}).then(() => el);
+        // #239 (0485): the banner is drawn from the shared feed's rows
+        context.App.prototype.updateRecordingBanner.call({}, active);
+        return Promise.resolve(el);
     };
     const row = { title: 'The Game', channel_name: 'Sky Sports', program_end: Date.now() + 3600000 };
     const shared = await banner([{ ...row, ingestKey: 'pool|abc' }]);
@@ -298,23 +300,28 @@ test('#129: Status asks for details only while they are shown', async () => {
 });
 
 // #129 (0371): the recordings banner asked /recordings/active every 30 s even in a hidden tab.
-test('#129: the recordings banner does not poll while the tab is hidden, and catches up when it is shown', () => {
+test('#129: the recordings banner does not poll while the tab is hidden, and catches up when it is shown', async () => {
+    // #239 (0485): through the shared feed (RecordingsFeed); the hidden-tab rule is the feed's now.
     const doc = { hidden: true, listeners: [], getElementById: () => null, addEventListener(t, fn) { this.listeners.push([t, fn]); } };
     const timers = { set: 0, cleared: 0 };
+    let asked = 0;
     const context = vm.createContext({ console, document: doc, localStorage: { getItem: () => null },
+        API: { recordings: { getActive: async () => { asked++; return []; } } },
         setInterval: () => ++timers.set, clearInterval: () => { timers.cleared++; } });
     context.window = context;
-    vm.runInContext(js('app.js') + '\nglobalThis.App = App;', context);
+    vm.runInContext(js('recordingsFeed.js') + '\n' + js('app.js') + '\nglobalThis.App = App;', context);
     let updates = 0;
     const app = { updateRecordingBanner: () => { updates++; } };
     context.App.prototype.startRecordingWatch.call(app);
-    assert.equal(updates, 0, 'hidden at start: nothing asked');
+    assert.equal(asked, 0, 'hidden at start: nothing asked');
     assert.equal(timers.set, 0);
     const watches = () => doc.listeners.filter(([t]) => t === 'visibilitychange');
     assert.equal(watches().length, 1);
     const [[, onChange]] = watches();
     doc.hidden = false; onChange();
-    assert.equal(updates, 1, 'shown: brought up to date at once');
+    await new Promise(r => setImmediate(r));
+    assert.equal(asked, 1, 'shown: asked at once');
+    assert.equal(updates, 1, 'and the banner brought up to date');
     assert.equal(timers.set, 1);
     doc.hidden = true; onChange();
     assert.ok(timers.cleared >= 1, 'hidden again: the timer stops');

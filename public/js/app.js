@@ -174,33 +174,19 @@ class App {
     }
 
     startRecordingWatch() {
-        const update = () => this.updateRecordingBanner();
-        const start = () => {
-            update();
-            if (this._recordingWatchTimer) clearInterval(this._recordingWatchTimer);
-            this._recordingWatchTimer = setInterval(update, 30000);
-        };
-        // #129 (0371): nothing is polled while the tab is hidden; on return the banner is brought up to date at once.
-        if (!this._recordingWatchVisibility) {
-            this._recordingWatchVisibility = () => {
-                if (document.hidden) { clearInterval(this._recordingWatchTimer); this._recordingWatchTimer = null; }
-                else start();
-            };
-            document.addEventListener?.('visibilitychange', this._recordingWatchVisibility);
+        // #239 (0485): the banner is one subscriber of the shared feed (RecordingsFeed: one request per 30 s for every
+        // page, none while the tab is hidden, at once on return; #129).
+        if (!this.recordingsFeed) this.recordingsFeed = new RecordingsFeed();
+        if (!this._bannerUnsubscribe) {
+            this._bannerUnsubscribe = this.recordingsFeed.subscribe((rows, err) => this.updateRecordingBanner(rows, err));
         }
-        if (document.hidden) return;
-        start();
     }
 
-    async updateRecordingBanner() {
+    updateRecordingBanner(activeRecordings = [], err = null) {
         const banner = document.getElementById('recording-conflict-banner');
         const text = document.getElementById('recording-banner-text');
         if (!banner || !text) return;
-
-        let activeRecordings = [];
-        try {
-            activeRecordings = await API.recordings.getActive();
-        } catch (err) {
+        if (err) {
             // Never let this break the page - just hide the banner.
             banner.style.display = 'none';
             return;

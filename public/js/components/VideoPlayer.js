@@ -884,7 +884,8 @@ class VideoPlayer {
     }
 
     async checkConflict() {
-        if (this.video.paused || !this.currentUrl) return;
+        // #239 (0485): nothing to ask while the player is paused or the tab is hidden
+        if (this.video.paused || document.hidden || !this.currentUrl) return;
         try {
             const res = await fetch('/api/playback/conflict', {
                 headers: localStorage.getItem('authToken')

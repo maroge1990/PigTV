@@ -24,7 +24,8 @@ class RecordingsPage {
         await this.refresh();
         // Keep the list reasonably fresh while the page is open (status changes
         // as scheduled recordings start/finish)
-        this._refreshTimer = setInterval(() => this.refresh(), 30000);
+        // #239 (0485): not while the tab is hidden (the compression watch below likewise)
+        this._refreshTimer = setInterval(() => { if (!document.hidden) this.refresh(); }, 30000);
     }
 
     hide() {
@@ -297,8 +298,8 @@ class RecordingsPage {
     startCompressionWatch() {
         if (this._compressTimer) clearInterval(this._compressTimer);
         this._compressTimer = setInterval(async () => {
-            // Only refresh while this page is actually on screen.
-            if (this.recordingsList && this.recordingsList.offsetParent === null) return;
+            // Only refresh while this page is actually on screen, in a visible tab (#239).
+            if (document.hidden || (this.recordingsList && this.recordingsList.offsetParent === null)) return;
             await this.refresh();
             const stillGoing = (this.recordings || []).some(
                 r => ['running', 'pending'].includes(r.compress_status)
