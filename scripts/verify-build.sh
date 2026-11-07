@@ -969,6 +969,25 @@ check .github/workflows/docker-publish.yml "needs: test" "and the image build wa
 echo "=== D-38: a docs-only push builds no image ==="
 check .github/workflows/docker-publish.yml "paths-ignore: \[ 'docs/\*\*', '\*\*.md'" "docker-publish.yml ignores pushes that change only docs"
 
+echo "=== #241: no selector is defined twice at the top level of main.css (the later one silently won) ==="
+python3 - <<'CSS_DUPES' || FAIL=1
+import re, sys, collections
+css = re.sub(r'/\*.*?\*/', '', open('public/css/main.css').read(), flags=re.S)
+depth, start, selectors = 0, 0, []
+for i, c in enumerate(css):
+    if c == '{':
+        if depth == 0: selectors.append(css[start:i].strip())
+        depth += 1
+    elif c == '}':
+        depth -= 1
+        if depth == 0: start = i + 1
+    elif c == ';' and depth == 0: start = i + 1
+twice = sorted(s for s, n in collections.Counter(x for x in selectors if not x.startswith('@')).items() if n > 1)
+if twice:
+    print('  ✗ defined twice at the top level: ' + '; '.join(twice)); sys.exit(1)
+print('  ✓ every top-level selector in main.css is defined once')
+CSS_DUPES
+
 echo "=== #236: only a v* tag or a manual run moves production's :release ==="
 python3 - <<'RELEASE_GATE' || FAIL=1
 import sys

@@ -77,6 +77,13 @@
   --safe-area-inset-right: env(safe-area-inset-right, 0px);
   --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
   --safe-area-inset-left: env(safe-area-inset-left, 0px);
+  --pig-canvas: var(--color-bg-primary);
+  --pig-surface: var(--color-bg-secondary);
+  --pig-accent: var(--color-accent);
+  --pig-on-accent: var(--color-on-accent);
+  --pig-text-accent: var(--color-accent-text);
+  --pig-border: var(--color-border);
+  --pig-control-border: var(--color-control-border);
 }
 
 /* ==========================================================================
@@ -411,15 +418,6 @@ h4 {
   display: none;
 }
 
-/* Sidebar */
-.channel-sidebar {
-  width: var(--sidebar-width);
-  display: flex;
-  flex-direction: column;
-  background: var(--color-bg-secondary);
-  border-right: 1px solid var(--color-border);
-}
-
 .sidebar-header {
   padding: var(--space-md);
   border-bottom: 1px solid var(--color-border);
@@ -516,6 +514,11 @@ h4 {
 
 /* Smooth transitions */
 .channel-sidebar {
+  width: var(--sidebar-width);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-secondary);
+  border-right: 1px solid var(--color-border);
   transition: width 0.2s ease, min-width 0.2s ease;
 }
 
@@ -768,17 +771,6 @@ h4 {
 .group-header.favorites-group .group-name {
   color: var(--color-error);
   font-weight: 600;
-}
-
-.favorite-btn {
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  font-size: 1.25rem;
-  padding: 0 var(--space-xs);
-  cursor: pointer;
-  opacity: 0;
-  transition: all var(--transition-fast);
 }
 
 .channel-item:hover .favorite-btn,
@@ -1083,12 +1075,6 @@ video::cue {
   gap: var(--space-md);
 }
 
-.guide-controls {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-}
-
 .guide-date {
   font-weight: 600;
 }
@@ -1150,6 +1136,7 @@ video::cue {
   border-right: 1px solid var(--color-border);
   cursor: pointer;
   transition: background var(--transition-fast);
+
 }
 
 .epg-channel-info:hover {
@@ -1193,35 +1180,8 @@ video::cue {
   flex: 1;
 }
 
-.epg-program {
-  padding: var(--space-sm);
-  background: var(--color-bg-tertiary);
-  border-right: 1px solid var(--color-border);
-  cursor: pointer;
-  overflow: hidden;
-  transition: background var(--transition-fast);
-}
-
 .epg-program:hover {
   background: var(--color-bg-hover);
-}
-
-.epg-program.current {
-  background: var(--color-accent-dim);
-  border-left: 3px solid var(--color-accent);
-}
-
-.epg-program-title {
-  font-weight: 500;
-  font-size: 0.875rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.epg-program-time {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
 }
 
 /* Current time indicator */
@@ -1290,13 +1250,6 @@ video::cue {
 /* Source Sections */
 .source-section {
   margin-bottom: var(--space-xl);
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-md);
 }
 
 .source-list {
@@ -1664,6 +1617,10 @@ kbd {
 }
 
 .epg-program {
+  border-right: 1px solid var(--color-border);
+  cursor: pointer;
+  overflow: hidden;
+  transition: background var(--transition-fast);
   padding: var(--space-sm);
   margin-bottom: var(--space-xs);
   background: var(--color-bg-tertiary);
@@ -1681,6 +1638,10 @@ kbd {
 }
 
 .epg-program-title {
+  font-size: 0.875rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: 500;
   color: var(--color-text-primary);
 }
@@ -1695,18 +1656,6 @@ kbd {
   color: var(--color-text-muted);
   text-align: center;
   padding: var(--space-lg);
-}
-
-/* Form Elements */
-.form-group {
-  margin-bottom: var(--space-md);
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: var(--space-xs);
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
 }
 
 .form-input {
@@ -2587,6 +2536,10 @@ kbd {
 /* Favorites Button */
 /* Favorites Button Base */
 .favorite-btn {
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 1.25rem;
+  opacity: 0;
   border: none;
   cursor: pointer;
   display: flex;
@@ -2901,11 +2854,14 @@ kbd {
 }
 
 .form-group {
+  margin-bottom: var(--space-md);
   display: flex;
   flex-direction: column;
 }
 
 .form-group label {
+  display: block;
+  font-size: 0.875rem;
   margin-bottom: var(--space-xs);
   color: var(--color-text-primary);
   font-weight: 500;
@@ -3118,25 +3074,8 @@ kbd {
   overflow-y: auto;
 }
 
-.captions-option {
-  display: block;
-  width: 100%;
-  padding: var(--space-sm) var(--space-md);
-  background: none;
-  border: none;
-  color: var(--color-text-primary);
-  text-align: left;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
 .captions-option:hover {
   background: rgba(255, 255, 255, 0.1);
-}
-
-.captions-option.active {
-  color: var(--color-accent);
 }
 
 .captions-option.active::before {
@@ -3884,14 +3823,6 @@ kbd {
   font-size: 0.9rem;
 }
 
-.record-options input[type="number"] {
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-primary);
-  padding: 2px 6px;
-}
-
 .recording-player-overlay {
   position: fixed;
   inset: 0;
@@ -3900,11 +3831,6 @@ kbd {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-}
-
-.recording-player-box {
-  position: relative;
-  width: min(90vw, 1100px);
 }
 
 .recording-player-box video {
@@ -4028,11 +3954,6 @@ kbd {
 .btn-close:hover {
   color: var(--color-text-primary);
 }
-
-/* The whole EPG channel cell tunes the channel */
-.epg-channel-info {
-  cursor: pointer;
-}
 .epg-channel-info:hover .epg-channel-name {
   color: var(--color-accent-hover);
 }
@@ -4073,7 +3994,10 @@ kbd {
    Commercial break markers and skipping
    ========================================================================== */
 
-.recording-player-box { position: relative; }
+.recording-player-box {
+  width: min(90vw, 1100px);
+ position: relative; 
+}
 
 /* Sits just above the native controls, so breaks can be seen against the
    timeline they correspond to. Positioned by eye against the default control
@@ -4438,22 +4362,25 @@ kbd {
   content: ''; position: absolute; width: 24px; height: 3px; border-radius: 2px;
   bottom: 2px; left: 50%; transform: translateX(-50%); background: currentColor; pointer-events: none;
 }
-.captions-option { position: relative; }
-.captions-option.active { background: var(--color-accent-dim); }
+.captions-option {
+  display: block;
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  background: none;
+  border: none;
+  color: var(--color-text-primary);
+  text-align: left;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+ position: relative; 
+}
+.captions-option.active {
+  color: var(--color-accent);
+ background: var(--color-accent-dim); 
+}
 @media (forced-colors: active) {
   .nav-link.active::after, .captions-option.active::before { background: Highlight; }
-}
-
-/* Pig family 1.6.0 bridge: the vendored pig-radiance.css / pig-glass.css read --pig-* roles;
-   map each onto the existing --color-* tokens so both follow the resolved theme. */
-:root {
-  --pig-canvas: var(--color-bg-primary);
-  --pig-surface: var(--color-bg-secondary);
-  --pig-accent: var(--color-accent);
-  --pig-on-accent: var(--color-on-accent);
-  --pig-text-accent: var(--color-accent-text);
-  --pig-border: var(--color-border);
-  --pig-control-border: var(--color-control-border);
 }
 
 /* The canvas behind the bar and content is the body (#app and .main-content are transparent), so
@@ -4497,7 +4424,14 @@ kbd {
   border-radius: var(--radius-sm);
 }
 .settings-section input::placeholder { color: var(--color-text-muted); }
-.record-options input[type="number"] { border-color: var(--color-control-border); }
+.record-options input[type="number"] {
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  padding: 2px 6px;
+ border-color: var(--color-control-border); 
+}
 
 /* R16: Status page - compact connection list, queue and loop-delay lines. */
 .status-uses { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
