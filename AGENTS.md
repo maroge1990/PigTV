@@ -35,19 +35,17 @@ Tests that need ffmpeg skip without one. `PIGTV_SKIP_PERF=1` skips speed budgets
 
 ## Session checklist
 
-**Start:** `git status`; `git pull --rebase origin main`; read `ROADMAP.md`'s current state;
-`gh issue list --label P0` and `gh issue list --label P1` before picking work. Tools that cannot read issues (Codex,
-offline agents) get the issue text pasted into their prompt.
+**Start:** `git status`; `git pull --rebase origin main`; read `ROADMAP.md`'s current state; `gh issue list --label P0`
+and `--label P1` before picking work. Tools that cannot read issues (Codex, offline agents) get the issue text pasted in.
 
 **End** (reported in every handover): docs touched (which); `ROADMAP.md` current state overwritten (yes/no); no new
-handover or status files (yes/no); issues updated (which, with a comment for item-level handover); commits waiting
-(`git log origin/main..main`); and, for every issue still waiting on a device check (T5), ask Mark whether it has been done.
-The story of a change goes in its commit message, not the docs.
+handover or status files (yes/no); issues updated (which, with a comment each); commits waiting (`git log
+origin/main..main`); and for every issue waiting on a device check (T5), ask Mark whether it is done. A change's story
+goes in its commit message, not the docs.
 
 ## How changes ship
 
 **Claude commits to `main` and pushes it once the batch has passed its reviews** (D-34). No feature branches.
-
 1. Make each fix with its test and run the targeted tests; the full gates (`npm test`, `verify-build.sh`) run once
    before the batch's review round and again before the push. If one can't run, say so in the commit and to Mark.
 2. A functional commit bumps `build` in `server/version.js` **and** this row, and its subject starts with the number
@@ -70,17 +68,14 @@ test. Never batch unrelated areas to save time; a fix whose live effect must be 
 ## Work tracking
 
 - Issues in `maroge1990/PigTV` for both repos. Labels: `bug` · `feature` · `finding`; `P0` (broken for real use) · `P1`
-  (next) · `P2` (soon) · `P3` (someday); `server` · `apple` · `web`; `needs-device-test`. Where an item came from goes in
-  its body, not a label.
-- Body (template in `.github/ISSUE_TEMPLATE/`): symptom · how to reproduce · evidence link · cause (once known) ·
-  acceptance with its test tier.
+  (next) · `P2` (soon) · `P3` (someday); `server` · `apple` · `web`; `needs-device-test`. Body (`.github/ISSUE_TEMPLATE/`):
+  symptom · how to reproduce · evidence · cause (once known) · acceptance with its test tier; where it came from.
 - **Claude closes an issue once its fix is pushed with T1–T3 evidence**, in a comment naming the build (D-38). An issue
   whose acceptance names T5, or labelled `needs-device-test`, stays open until Mark reports the device check (his Test
   Round checklist holds those steps), and a closed one is reopened if his check contradicts it.
 - Anything that would help someone attack an exposed server (auth or redaction bypass) is a **private security
   advisory**, never a public issue, commit text or doc.
-- Docs never list open work; they may link an issue. Size budgets warn, never fail (`verify-build.sh`): `AGENTS.md` 120
-  lines, `ROADMAP.md` 150, an evidence README 40, any other doc 600.
+- Docs never list open work; they may link an issue. Size budgets warn, never fail (`verify-build.sh`, D-22, D-47).
 
 ## Rules
 
@@ -96,32 +91,30 @@ test. Never batch unrelated areas to save time; a fix whose live effect must be 
 - Never return or log a provider URL, password or token (`redact()`, opaque handles, C-B error texts).
 - Ask Mark before changing the production container or opening a real provider connection (a capture, a probe, a play);
   read-only production status (T4) is fine.
-- **Questions to Mark: one at a time**, each with options and a marked recommendation.
-- The lead session may delegate to sub-agents and reviews every diff before committing.
+- **Questions to Mark: one at a time**, with options and a marked recommendation. The lead session may delegate to
+  sub-agents and reviews every diff before committing.
 
 ## Reviews (Codex adversarial review)
 
-Required before a batch is pushed (D-34) if it makes any functional change to recording/DVR, recording rules, the
-playback path, provider routing or admission, caches or other shared ownership/accounting, auth/redaction, or anything
-in `docs/CLIENT-CONTRACT.md`; fixes a review finding; or changes more than ~150 non-test lines (D-17). Docs-only and
-test-only commits are exempt. **Claude launches it itself** in each repo touched: `node ~/.claude/plugins/marketplaces/openai-codex/plugins/codex/scripts/codex-companion.mjs adversarial-review --wait
---base <the commit before the batch> "<focus: the batch, its issues, its first commit>"` (Bash in the background, output to the scratchpad). It needs
-`codex login`; if it cannot run, say so and give Mark the command and focus. **One round per batch; a second only if
-round one leaves a high finding** (D-38, D-19). A finding fixed inside the batch is listed in the batch's evidence README;
-a high, or anything left unfixed, becomes an issue labelled `finding` (security ones a private advisory), each fix with
-its own failing-before test. After round two only **high** findings block the push; the fix for a round-two high gets one narrow Codex check of the
-fix alone, and another high from it goes to Mark (D-46). The handoff lists each finding.
+Required before a batch is pushed (D-34) if it changes recording/DVR or its rules, the playback path, provider routing or
+admission, caches or shared ownership/accounting, auth/redaction, or anything in `docs/CLIENT-CONTRACT.md`; fixes a
+review finding; or changes over ~150 non-test lines (D-17). Docs- and test-only commits are exempt. **Claude launches it**
+in each repo touched (Bash in the background, output to the scratchpad): `node ~/.claude/plugins/marketplaces/openai-codex/plugins/codex/scripts/codex-companion.mjs
+adversarial-review --wait --base <commit before the batch> "<focus: the batch, its issues>"`; it needs `codex login`, else
+give Mark the command. **One round per batch; a second only if round one leaves a high** (D-38, D-19); a round-two high's
+fix gets one narrow check of the fix alone, and a high from that goes to Mark (D-46). Findings fixed in the batch are
+listed in its evidence README; a high, or anything unfixed, becomes a `finding` issue (security: a private advisory),
+each fix with a failing-before test. The handoff lists each finding.
 
 ## Gotchas
 
 - CI runs every test file at once on 2 vCPUs: keep timing margins ≥ 1 s, or poll.
 - Query `epg_live`, never `epg_programs`; a row that has a `stable_id` must never fall back to its stored `pos_N`
   ([`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) › Channel identity, Guide and EPG).
-- Ingest-time changes only show after a sync (Settings → the source's ⟳, "Sync now"); a redeploy skips sources synced in
-  the last 24 h.
+- Ingest-time changes show after a sync (Settings → ⟳, "Sync now"); a redeploy skips sources synced in the last 24 h.
 - `settings.get()` returns a deep-frozen object: copy before changing. Express 5: wildcards are `/{*splat}`;
   `res.sendFile` needs `dotfiles: 'allow'` under a dot-folder.
 - Some tests copy only `server/` into a sandbox, without `package.json`: anything `getDb()` requires at open must be
   fail-safe (`version.js` needs `package.json`).
-- No local Docker: the image is only built by CI. The tree is LF. `verify-build.sh` uses the system `python3`.
-- Never commit real values or secrets; environment variables are documented in `.env.example`.
+- No local Docker: CI builds the image. The tree is LF. `verify-build.sh` uses the system `python3`. Never commit real
+  values or secrets; environment variables are documented in `.env.example`.

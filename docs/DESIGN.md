@@ -72,38 +72,28 @@ PigTV uses its own product pig (a pig-shaped TV screen), never the generic famil
 
 ## Sport pages
 
-From the F1 mock-up review (30 Oct), for the sport rebuild (#21):
+The rules every sport page follows today, on every platform. The layouts are D-43 (Apple TV, below), D-44 (iPad and
+iPhone) and the web's parked pages; the October mock-up notes they replaced are in
+[`archive/DESIGN-SPORT-2026-10.md`](archive/DESIGN-SPORT-2026-10.md).
 
-- Stat values (lap length, lap record) never wrap onto a second line.
-- Lists that sit side by side are symmetric: ten results beside the top ten drivers and the top ten constructors.
-- Spacing and alignment are checked on the real screens at build time; the mock-ups are not pixel-final. Save
-  vertical space: paired actions (e.g. "Watch at kick-off" and "Record every Packers game") sit on one line.
-- No redundant labels: the current week or session is evident from its content ("Week 8", not "Week 8 · this week").
-- No section tabs on a sport page (Mark, 30 Oct): the championship already sits on the main page, so F1 has no
-  Race weekend / Championship / Calendar tabs, and no season calendar either: the next race weekend is enough. The
-  mock-ups' spacing and overlaps are fixed at build time, on the real screens.
-- Fixture sports open on the current round, with rounds in chronological order (last round, then this one). Standings
-  sit on the right with Division, Conference and Overall views: the whole column without a followed team, below the
-  team card with one.
-- Approved by Mark on 31 Oct (canvas "PigTV Sport mock-ups"): **Cricket · Apple TV** (the followed team's match leads:
-  day and session, both innings, the lead, who is batting, the five days, Watch / Channels / Record; the whole tour on the
-  right; other competitions today and next below), **Formula 1 · iPhone** (one scrolling column; whether it should be
-  split into pages is open, #177) and **· iPad** (the Apple TV layout in landscape, one column in portrait), and **Web ·
-  channel changes** (held smaller lists, New on the provider, Show all / Hide all with a confirm and Undo).
-- **Sport front page, approved 31 Oct (D-39, canvas "Blend 1"):** the app's tabs stay on screen; followed sports as
-  tiles at the top; a hero band (hero left, the followed teams and drivers as a flip list right, compact rows beyond
-  three); a rail per followed sport below, live cards first. Team badges beside every score; the monogram disc only as
-  a fallback. Spoiler-free keeps neutral progress (Q4, 2nd session) and hides scores, situations and results; without
-  the scores feed the page says so once and shows the guide's channels and start times. Never invent a clock, a leader
-  or 0–0. Since 1 Nov the tiles are gone and the hero band is the banner below (D-43).
-- Channel quality labels: today the server reads UHD / HD / SD from the channel's name (FHD counts as HD). The build
-  should distinguish FHD from HD and, where a channel has been played, confirm the label from the measured stream
-  (resolution, frame rate, HDR), never by probing channels in the background.
+- **What a page shows:** the banner (below), then the sport's own content. No section tabs and no season calendar: the
+  championship is on the page, and the next race weekend or round is enough.
+- **Fixture sports** open on the current round, with the last round to switch to (chronological order); standings sit on
+  the right with Division, Conference and Overall views where the league has them, the whole column without a followed
+  team, below the team card with one.
+- **Layout:** stat values (lap length, lap record) never wrap; lists side by side are symmetric (ten results beside the
+  top ten drivers and constructors); paired actions sit on one line ("Watch at kick-off", "Record every Packers game");
+  no redundant labels ("Week 8", not "Week 8 · this week"). Spacing and alignment are checked on the real screens.
+- **Scores:** a team's badge beside every score, the monogram disc only as a fallback. Spoiler-free keeps neutral
+  progress (Q4, 2nd session) and hides scores, situations and results; without the scores feed the page says so once
+  and shows the guide's channels and start times. Never invent a clock, a leader or 0–0.
+- **Channel quality labels:** UHD / HD / SD read from the channel's name today (FHD counts as HD); where a channel has
+  been played, the measured stream (resolution, frame rate, HDR) confirms it, never a background probe.
 
 ### Apple TV sport pages, chosen 1 Nov (D-43)
 
-Mark chose these from the canvas "PigTV Sport mock-ups" (rounds 1–3, 1 Nov). They supersede the page layouts above
-where they differ. They are built and checked on the Apple TV first; the iPad and iPhone mock-ups (D-42 point 6) follow
+Mark chose these from the canvas "PigTV Sport mock-ups" (rounds 1–3, 1 Nov). They are built and checked on the Apple
+TV first; the iPad and iPhone mock-ups (D-42 point 6) follow
   that device check, and the web is parked.
 
 - **One banner on every page.** The front page and every sport page open with the same banner, 250 pt high, under the

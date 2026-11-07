@@ -1546,7 +1546,8 @@ import glob
 def lines(p):
     with open(p, encoding='utf-8', errors='replace') as f:
         return sum(1 for _ in f)
-budget = {'AGENTS.md': 120, 'ROADMAP.md': 150}
+# D-47: the client contract is one reference read end to end (1,200); evidence from before 7 Nov 2026 is frozen history.
+budget = {'AGENTS.md': 120, 'ROADMAP.md': 150, 'docs/CLIENT-CONTRACT.md': 1200}
 docs = [f for f in glob.glob('*.md') + glob.glob('docs/**/*.md', recursive=True)
         if not f.startswith(('docs/archive/', 'docs/evidence/'))]
 warnings = []
@@ -1554,11 +1555,12 @@ for f in sorted(docs):
     n, limit = lines(f), budget.get(f, 600)
     if n > limit: warnings.append(f"{f}: {n} lines (budget {limit})")
 for f in sorted(glob.glob('docs/evidence/*/README.md')):
+    if f.split('/')[2][:10] < '2026-11-07': continue
     n = lines(f)
     if n > 40: warnings.append(f"{f}: {n} lines (budget 40)")
 for w in warnings:
     print(f"  ⚠ WARNING (not a failure): {w}")
-print(f"  ✓ size budgets checked ({len(warnings)} warning(s); AGENTS.md 120, ROADMAP.md 150, evidence README 40, other docs 600)")
+print(f"  ✓ size budgets checked ({len(warnings)} warning(s); AGENTS.md 120, ROADMAP.md 150, CLIENT-CONTRACT 1200, evidence README 40 from 7 Nov 2026, other docs 600)")
 PY
 
 # Every section must run before the summary below, or its failures cannot fail the script (0132's did not).

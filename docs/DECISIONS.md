@@ -528,3 +528,14 @@ reviews.
   the fix, focus: the fix only). Clean: push. Another high: it goes to Mark rather than another round. Medium and low
   findings from the check are handled as in D-38. Amends D-38 point 1; D-19's cap otherwise stands.
 - **Consequence:** AGENTS.md › Reviews says so; the batch's evidence README lists the check and its verdict.
+
+### D-47. Doc budgets: the client contract stays one file, old evidence is history (7 Nov 2026; Claude, from the audit)
+
+- **Context:** the 6 Nov audit (#242) found `CLIENT-CONTRACT.md` at 1,025 lines against the 600-line budget and 13
+  evidence READMEs from before the audit at 62–209 lines against 40, so `verify-build.sh` warned on every run.
+- **Choice:** the contract stays one file with its own budget of 1,200 lines: the Apple client and its reviews read it
+  end to end, and it is linked by section from both repos and the tests, so a split would cost more than it saves.
+  Evidence folders dated before 7 Nov 2026 are frozen history, like `docs/archive/`: the 40-line budget applies from
+  that date. D-22's other budgets stand.
+- **Consequence:** `verify-build.sh` › Doc size budgets; a contract nearing 1,200 lines is the signal to split by area.
+
