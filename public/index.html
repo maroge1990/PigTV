@@ -767,7 +767,7 @@
               </div>
               <div id="import-exclusions-list" class="import-exclusions-list"><p class="hint">Choose a provider.</p></div>
               <button id="import-exclusions-save" class="btn btn-primary">Save</button>
-              <span id="import-exclusions-status" role="status" style="margin-left: 8px; font-size: 0.85rem;"></span>
+              <span id="import-exclusions-status" role="status" class="inline-status"></span>
             </div>
           </div>
 
@@ -1048,7 +1048,7 @@
                 </div>
               </div>
               <button id="dvr-settings-save" class="btn btn-primary">Save Recording Settings</button>
-              <span id="dvr-settings-status" style="margin-left: 8px; font-size: 0.85rem;"></span>
+              <span id="dvr-settings-status" class="inline-status"></span>
             </div>
 
             <div class="settings-section">
@@ -1069,7 +1069,7 @@
               </div>
               <button id="notify-save" class="btn btn-primary">Save</button>
               <button id="notify-test" class="btn btn-secondary">Send a test</button>
-              <span id="notify-status" role="status" style="margin-left: 8px; font-size: 0.85rem;"></span>
+              <span id="notify-status" role="status" class="inline-status"></span>
             </div>
           </div>
 
@@ -1099,7 +1099,7 @@
                 <input type="text" id="pair-code" placeholder="e.g. 7KMQ2X" maxlength="8" style="text-transform: uppercase; letter-spacing: 0.12em;">
               </div>
               <button id="pair-approve" class="btn btn-primary">Approve device</button>
-              <span id="pair-status" style="margin-left: 8px; font-size: 0.85rem;"></span>
+              <span id="pair-status" class="inline-status"></span>
             </div>
 
             <div class="settings-section">
@@ -1220,7 +1220,7 @@
             <label for="edit-password">New Password</label>
             <input type="password" id="edit-password" name="password" class="form-input"
               placeholder="Leave blank to keep current">
-            <p class="hint" id="edit-password-hint" style="margin-top: 4px;">Optional. Leave blank to keep unchanged.
+            <p class="hint" id="edit-password-hint" style="margin-top: var(--space-xs);">Optional. Leave blank to keep unchanged.
             </p>
           </div>
         </form>

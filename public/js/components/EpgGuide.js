@@ -960,7 +960,7 @@ class EpgGuide {
       ${canRecord ? `
         <div class="record-options">
           <label>Start recording (min before): <input type="number" id="record-pre-buffer" min="0" max="60" value="${defaultPre}" style="width: 60px;"></label>
-          <label style="margin-left: 12px;">Stop recording (min after): <input type="number" id="record-post-buffer" min="0" max="120" value="${defaultPost}" style="width: 60px;"></label>
+          <label style="margin-left: var(--space-md);">Stop recording (min after): <input type="number" id="record-post-buffer" min="0" max="120" value="${defaultPost}" style="width: 60px;"></label>
         </div>
       ` : ''}
     `;

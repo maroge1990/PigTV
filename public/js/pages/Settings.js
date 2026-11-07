@@ -1126,7 +1126,7 @@ class SettingsPage {
                 return `
                 <tr>
                     <td>
-                        <div style="display:flex;align-items:center;gap:8px;">
+                        <div style="display:flex;align-items:center;gap:var(--space-sm);">
                             <strong>${e(user.username)}</strong>
                             ${typeBadge}
                         </div>

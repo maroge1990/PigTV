@@ -247,18 +247,18 @@ class RecordingsPage {
                     ${this.progressHtml(item)}
                 </div>
                 <div class="recording-actions">
-                    ${item.is_partial ? `<span class="small muted" style="margin-right:8px;" title="${
+                    ${item.is_partial ? `<span class="small muted recording-note" title="${
                         item.missed_start_ms > 30000
                             ? `Missing the first ${Math.round(item.missed_start_ms / 60000)} minutes`
                             : 'Stopped before the programme ended'
                     }">Partial</span>` : ''}
-                    ${item.ad_detect_status === 'running' ? '<span class="small muted" style="margin-right:8px;">Finding breaks…</span>' : ''}
-                    ${item.ad_detect_status === 'done' ? '<span class="small muted" style="margin-right:8px;">Breaks marked</span>' : ''}
-                    ${item.ad_detect_status === 'failed' ? `<span class="small muted" style="margin-right:8px;" title="${this.escape(item.ad_detect_error || '')}">Break detection failed</span>` : ''}
-                    ${item.compress_status === 'running' ? '<span class="small muted" style="margin-right:8px;">Compressing…</span>' : ''}
-                    ${item.compress_status === 'pending' ? '<span class="small muted" style="margin-right:8px;">Queued to compress</span>' : ''}
-                    ${item.compress_status === 'done' ? '<span class="small muted" style="margin-right:8px;">Compressed</span>' : ''}
-                    ${item.compress_status === 'failed' ? `<span class="small muted" style="margin-right:8px;" title="${this.escape(item.compress_error || '')}">Compression failed</span>` : ''}
+                    ${item.ad_detect_status === 'running' ? '<span class="small muted recording-note">Finding breaks…</span>' : ''}
+                    ${item.ad_detect_status === 'done' ? '<span class="small muted recording-note">Breaks marked</span>' : ''}
+                    ${item.ad_detect_status === 'failed' ? `<span class="small muted recording-note" title="${this.escape(item.ad_detect_error || '')}">Break detection failed</span>` : ''}
+                    ${item.compress_status === 'running' ? '<span class="small muted recording-note">Compressing…</span>' : ''}
+                    ${item.compress_status === 'pending' ? '<span class="small muted recording-note">Queued to compress</span>' : ''}
+                    ${item.compress_status === 'done' ? '<span class="small muted recording-note">Compressed</span>' : ''}
+                    ${item.compress_status === 'failed' ? `<span class="small muted recording-note" title="${this.escape(item.compress_error || '')}">Compression failed</span>` : ''}
                     ${item.status === 'completed' && !['running', 'pending', 'done'].includes(item.compress_status)
                         ? `<button class="btn btn-sm btn-secondary" data-action="compress" data-id="${item.id}">Compress</button>` : ''}
                     ${item.status === 'completed' ? `<button class="btn btn-sm btn-primary" data-action="play" data-id="${item.id}">Play</button>` : ''}

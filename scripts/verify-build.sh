@@ -988,6 +988,31 @@ if twice:
 print('  ✓ every top-level selector in main.css is defined once')
 CSS_DUPES
 
+echo "=== #241: one type scale, spacing from tokens, three breakpoints ==="
+python3 - <<'CSS_SCALE' || FAIL=1
+import re, sys, glob
+css = re.sub(r'/\*.*?\*/', '', open('public/css/main.css').read(), flags=re.S)
+rules = css.replace('\n', ' ')
+problems = []
+for v in re.findall(r'font-size:\s*([^;]+);', rules):
+    if not re.fullmatch(r'var\(--text-[a-z0-9]+\)|inherit|0|initial', v.strip()):
+        problems.append('font-size: ' + v.strip())
+for prop, v in re.findall(r'(?<![\w-])((?:padding|margin|gap|row-gap|column-gap)(?:-[a-z-]+)?):\s*([^;{}]+);', rules):
+    if 'env(' in v: continue
+    for n in re.findall(r'(?<![\w.-])(\d+)px', v):
+        if int(n) > 1: problems.append(f'{prop}: {v.strip()}')
+for w in re.findall(r'@media[^{]*?\((?:max|min)-(?:width|height):\s*(\d+)px', rules):
+    if w not in ('480', '768', '769', '1024'): problems.append(f'@media {w}px')
+for path in glob.glob('public/*.html') + glob.glob('public/js/**/*.js', recursive=True):
+    for m in re.finditer(r'style="([^"]*)"', open(path).read()):
+        for decl in m.group(1).split(';'):
+            if re.match(r'\s*(margin|padding|gap|font-size)', decl) and re.search(r'(?<![\w.$-])\d+(px|rem|em)\b', decl):
+                problems.append(f'{path}: inline {decl.strip()}')
+if problems:
+    print('  ✗ outside the scale: ' + '; '.join(sorted(set(problems))[:12])); sys.exit(1)
+print('  ✓ font sizes from --text-*, spacing from --space-*, breakpoints 480/768/1024, no raw inline sizes')
+CSS_SCALE
+
 echo "=== #236: only a v* tag or a manual run moves production's :release ==="
 python3 - <<'RELEASE_GATE' || FAIL=1
 import sys
