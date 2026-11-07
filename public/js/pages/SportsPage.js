@@ -179,7 +179,7 @@ class SportsPage {
         this.app=app; this.root=document.getElementById('page-sports'); this.orders=new Map(); this.cards=new Map(); this.shelves=new Map();
         this.state=new SportsDashboardState(API.sports,()=>localStorage.getItem('authToken'));
         this.state.changed=()=>this.render();
-        this.dialog=null; this.selection=null; this.timer=null; this.waiting=null; this.recordings=[];
+        this.dialog=null; this.selection=null; this.timer=null; this.waiting=null; this.recordings=[]; this.recordingsVisit=0;
         this.visibility=()=> {
             if (document.hidden) this.suspend();
             else if (this.app.currentPage==='sports') this.show();
@@ -206,7 +206,7 @@ class SportsPage {
     }
     hide() { this.suspend(); }
     suspend() {
-        this.unwatchRecordings?.(); this.unwatchRecordings=null;
+        this.unwatchRecordings?.(); this.unwatchRecordings=null; this.recordingsVisit++;
         clearTimeout(this.timer); clearTimeout(this.waiting); this.waiting=null;
         this.state.active=false; this.recordings=[]; this.state.clear(); this.closeDialog();
         this.root?.replaceChildren(); this.cards.clear(); this.shelves.clear(); this.orders.clear();
@@ -232,9 +232,12 @@ class SportsPage {
         this.unwatchRecordings?.();
         const feed=this.app.recordingsFeed;
         if (!feed) return;
-        const identity=this.state.identity(), serial=this.state.serial;
+        // Guarded by the account and this visit of the page, not the dashboard's request serial: that moves on every
+        // dashboard load (each 20 s), which left the recording marks stale (0485 Codex round 1).
+        const identity=this.state.identity(), visit=++this.recordingsVisit;
         this.unwatchRecordings=feed.subscribe(rows=> {
-            if(this.state.valid(serial,identity)) { this.recordings=Array.isArray(rows)?rows:[]; this.render(); }
+            if(this.recordingsVisit!==visit || !this.state.active || identity==null || this.state.identity()!==identity) return;
+            this.recordings=Array.isArray(rows)?rows:[]; this.render();
         });
     }
     async refreshRecordings() { await this.app.recordingsFeed?.refresh(); }
