@@ -1013,6 +1013,22 @@ if problems:
 print('  ✓ font sizes from --text-*, spacing from --space-*, breakpoints 480/768/1024, no raw inline sizes')
 CSS_SCALE
 
+echo "=== #241: status colours are the kit's roles, not Tailwind or Material literals ==="
+python3 - <<'CSS_STATUS' || FAIL=1
+import re, sys
+css = re.sub(r'/\*.*?\*/', '', open('public/css/main.css').read(), flags=re.S)
+# amber/orange, blue, green and red literals (Tailwind, Material) outside the token blocks
+banned = re.compile(r'#(f59e0b|f97316|4caf50|e76717|dc2626|ffe79c|694300|ffe0df|9b1717)\b|rgba\(\s*(245,\s*158,\s*11|251,\s*191,\s*36|255,\s*153,\s*0|59,\s*130,\s*246|76,\s*175,\s*80|16,\s*185,\s*129|239,\s*68,\s*68|255,\s*68,\s*68|198,\s*40,\s*40)\s*,', re.I)
+found = []
+for m in re.finditer(r'([^{}]+)\{([^{}]*)\}', css):
+    sel = m.group(1).strip()
+    if sel.startswith(':root') or ('data-theme' in sel and '--' in m.group(2)): continue
+    for hit in banned.finditer(m.group(2)): found.append(f'{sel.splitlines()[-1].strip()[:40]}: {hit.group(0)}')
+if found:
+    print('  ✗ a status colour typed in (use --color-success/warning/error/accent): ' + '; '.join(found[:8])); sys.exit(1)
+print("  ✓ status colours come from the kit's roles")
+CSS_STATUS
+
 echo "=== #236: only a v* tag or a manual run moves production's :release ==="
 python3 - <<'RELEASE_GATE' || FAIL=1
 import sys

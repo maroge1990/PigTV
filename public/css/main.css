@@ -773,7 +773,7 @@ h4 {
 
 /* Favorites */
 .group-header.favorites-group {
-  background: linear-gradient(to right, rgba(239, 68, 68, 0.1), transparent);
+  background: linear-gradient(to right, color-mix(in srgb, var(--color-error) 10%, transparent), transparent);
   border-left: 3px solid var(--color-error);
 }
 
@@ -1516,7 +1516,7 @@ kbd {
 }
 
 .btn-danger:hover {
-  background: #dc2626;
+  background: color-mix(in srgb, var(--color-error) 85%, black);
 }
 
 .btn-sm {
@@ -1867,7 +1867,7 @@ kbd {
 .checkbox-label.channel-item.is-hidden {
   opacity: 0.6;
   text-decoration: line-through;
-  background: rgba(251, 191, 36, 0.1);
+  background: color-mix(in srgb, var(--color-warning) 10%, transparent);
 }
 
 .checkbox-label.channel-item .channel-name {
@@ -3209,7 +3209,7 @@ kbd {
 
 .hw-info-item.hw-available {
   border-color: var(--color-success);
-  background: rgba(16, 185, 129, 0.1);
+  background: color-mix(in srgb, var(--color-success) 10%, transparent);
 }
 
 .hw-info-item.hw-unavailable {
@@ -3252,23 +3252,23 @@ kbd {
 }
 
 .transcode-status.transcoding {
-  background: rgba(255, 68, 68, 0.8);
+  background: color-mix(in srgb, var(--color-error) 80%, transparent);
   /* Red for Transcoding */
-  box-shadow: 0 0 10px rgba(255, 68, 68, 0.3);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--color-error) 30%, transparent);
 }
 
 .transcode-status.remuxing {
-  background: rgba(255, 153, 0, 0.8);
+  background: color-mix(in srgb, var(--color-warning) 80%, transparent);
   /* Orange for Remux */
 }
 
 .transcode-status.direct {
-  background: rgba(76, 175, 80, 0.8);
+  background: color-mix(in srgb, var(--color-success) 80%, transparent);
   /* Green for Direct */
 }
 
 .transcode-status.error {
-  background: rgba(198, 40, 40, 0.9);
+  background: color-mix(in srgb, var(--color-error) 90%, transparent);
   /* Dark red for a playback error */
 }
 
@@ -3467,9 +3467,10 @@ kbd {
 }
 
 .user-badge-admin {
-  background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
-  color: #000;
-  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+  /* #241: the kit's warning as a status pill (was a Tailwind amber-to-orange gradient) */
+  background: color-mix(in srgb, var(--color-warning) 18%, transparent);
+  color: var(--color-warning);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 40%, transparent);
 }
 
 .user-badge-viewer {
@@ -3787,7 +3788,7 @@ kbd {
 }
 
 .recording-status.status-recording {
-  background: rgba(239, 68, 68, 0.2);
+  background: color-mix(in srgb, var(--color-error) 20%, transparent);
   color: var(--color-error);
 }
 
@@ -3797,18 +3798,18 @@ kbd {
 }
 
 .recording-status.status-waiting {
-  background: rgba(245, 158, 11, 0.2);
+  background: color-mix(in srgb, var(--color-warning) 20%, transparent);
   color: var(--color-warning);
 }
 
 .recording-status.status-completed {
-  background: rgba(16, 185, 129, 0.2);
+  background: color-mix(in srgb, var(--color-success) 20%, transparent);
   color: var(--color-success);
 }
 
 .recording-status.status-failed,
 .recording-status.status-missed {
-  background: rgba(239, 68, 68, 0.15);
+  background: color-mix(in srgb, var(--color-error) 15%, transparent);
   color: var(--color-error);
 }
 
@@ -3909,7 +3910,7 @@ kbd {
   align-items: center;
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
-  background: rgba(245, 158, 11, 0.12);
+  background: color-mix(in srgb, var(--color-warning) 12%, transparent);
   border-bottom: 1px solid var(--color-warning);
   color: var(--color-text-primary);
   font-size: var(--text-sm);
@@ -3934,7 +3935,7 @@ kbd {
 .provider-reminder {
   justify-content: space-between;
   gap: var(--space-md);
-  background: rgba(59, 130, 246, 0.12);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
   border-bottom: 1px solid var(--color-accent);
 }
 
@@ -4304,7 +4305,7 @@ kbd {
   background: var(--color-bg-tertiary);
 }
 
-.link-badge.ok { color: var(--color-success, #4caf50); }
+.link-badge.ok { color: var(--color-success, var(--color-success)); }
 .link-badge.warn { color: var(--color-warning); }
 .link-badge.bad { color: var(--color-error); }
 
@@ -4473,8 +4474,8 @@ kbd {
 .sports-row article { flex: 0 0 min(310px, calc(100vw - 60px)); scroll-snap-align: start; min-width: 0; }
 .sports-card { position: relative; display: flex; flex-direction: column; gap: var(--space-md); width: 100%; height: 22rem; padding: var(--space-lg); border: 1px solid currentColor; border-radius: 18px; background: var(--bg-secondary, Canvas); color: var(--text-primary, CanvasText); text-align: left; font: inherit; overflow: auto; cursor: pointer; }
 .sports-status { font-weight: 700; padding-right: var(--space-xl); }
-.sports-availability { position: absolute; right: 14px; top: 14px; border: 2px solid currentColor; border-radius: 50%; width: 24px; height: 24px; text-align: center; font-weight: bold; line-height: 20px; background: #ffe79c; color: #694300; }
-.sports-availability.unavailable { background: #ffe0df; color: #9b1717; }
+.sports-availability { position: absolute; right: 14px; top: 14px; border: 2px solid currentColor; border-radius: 50%; width: 24px; height: 24px; text-align: center; font-weight: bold; line-height: 20px; background: color-mix(in srgb, var(--color-warning) 16%, transparent); color: var(--color-warning); }
+.sports-availability.unavailable { background: color-mix(in srgb, var(--color-error) 14%, transparent); color: var(--color-error); }
 .sports-team { display: flex; align-items: center; gap: var(--space-sm); min-height: 3.5em; }
 .sports-team > span:not(.sports-logo-fallback) { flex: 1; overflow-wrap: anywhere; }
 .sports-team img, .sports-logo-fallback { flex: 0 0 36px; width: 36px; height: 36px; object-fit: contain; }
@@ -4483,7 +4484,7 @@ kbd {
 .sports-time { font-variant-numeric: tabular-nums; }
 .sports-note { font-size: var(--text-sm); }
 .sports-options { margin-top: var(--space-sm); width: 100%; min-height: 44px; }
-.sports-card:focus-visible, #page-sports button:focus-visible { outline: 3px solid var(--accent-color, #e76717); outline-offset: 3px; }
+.sports-card:focus-visible, #page-sports button:focus-visible { outline: 3px solid var(--accent-color, var(--color-accent)); outline-offset: 3px; }
 .sports-dialog { color: var(--text-primary, CanvasText); background: var(--bg-secondary, Canvas); border-radius: 20px; padding: clamp(var(--space-md), 4vw, var(--space-2xl)); width: min(700px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); overflow: auto; }
 .sports-dialog::backdrop { background: #0009; }
 .sports-dialog label { display: block; margin-block: var(--space-lg); }
