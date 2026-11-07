@@ -5,24 +5,19 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 7 Nov 2026 (audit follow-up, batch 1 of 7: the release gate, #236).*
+*Overwritten at the end of every session. 7 Nov 2026 (audit follow-up: batches 1–7 done, one part waits on Mark).*
 
-- **Deployed:** server **0476** since 4 Nov (a Force Update pulled `:latest`; found by the 6 Nov audit), Apple **149**
-  (TestFlight). **Running without their Test Round:** server **0452–0476**; Apple **150–163** are on main only. They
-  hold cricket leftovers (#212, #230, #235), listings (#231), Play from live (#17), Record a game not listed yet (#234),
-  live pause (#37), watch-copy restarts (#34), small fixes (#220, #209, #48, #38, #208, #47), the follows focus (#233),
-  sign-in kept on a 401 (#54), faster launch (#55), web player errors (#60), the flaky cache test (#221).
-- **Release gate (D-45, #236):** CI's `:latest` is now the rig's only; production is to follow `:release`, moved by
-  `release.yml`. **v0476** released 7 Nov (Mark's choice; `:release` = `sha-3b9c701`). Waiting on Mark: point the Unraid
-  template at `:release`. Next builds: server **0481**, Apple **167**.
-- **Batch 2 pushed (0477–0480):** a scheduled sync skips an unchanged playlist or guide and relinks once (#237); the sport
-  score collector slows to every 5 min when nobody looks (#238). Rig numbers in `docs/evidence/2026-11-07-server-idle/`;
-  production's (T4) after the next release.
-- **Batch 3 pushed (Apple 164–166, on main, not on TestFlight):** one spacing and type scale (`PigSpacing`, `PigType`),
-  a check against new literals, one secondary button style (#243 part 1). Waits on Mark's Apple TV look (T5).
-- **Audit follow-up order** (the 6 Nov audit's brief): batch 2 server idle work (#237, #238), 3 Apple foundations (#243,
-  #190), 4 Apple pages onto one design (#243, #225–#229), 5 web shell (#241, #64), 6 playback start (#36, #240), 7
-  docs (#242); #239 rides with 4 and 5.
+- **Deployed:** server **0476** since 4 Nov, Apple **149** (TestFlight). **On main, not released:** server **0477–0488**,
+  Apple **150–175**. Production still follows `:latest` until Mark points its template at `:release` (D-45; `:release` is
+  v0476).
+- **Audit follow-up (6 Nov brief), all pushed with CI green:** 1 release gate (#236, D-45); 2 server idle work (#237 sync
+  skips unchanged feeds, #238 score collector rests, 0477–0480); 3 Apple scale (#243 part 1: `PigSpacing`, `PigType`,
+  one secondary button, 164–166); 4 Apple pages (#243 part 2, #239: 167–173); 5 web shell (#241, #239: 0481–0486);
+  6 start timing (#36 phases, 0487–0488, Apple 174–175); 7 docs (#242, D-47). D-46: a round-two high's fix gets its own
+  narrow Codex check.
+- **Waiting on Mark:** the Unraid template to `:release`; a release (v-tag) when he wants these builds live; the Apple TV
+  look at 164–175 (text size, pages, buttons); #240 (a shorter ffmpeg analysis for profiled channels) needs his OK to
+  bench the kept samples in production's data folder and capture a real feed. Next builds: server **0489**, Apple **176**.
 - **Mark's decisions (4 Nov):** release only on his go-ahead; providers usable for tests; recordings never deleted
   automatically (#40); a future game records once listed (#234); Top Shelf live sport follows-first (#232: waits on
   mock-ups and whether to share the sign-in with the extension).
