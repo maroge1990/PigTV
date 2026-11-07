@@ -8,14 +8,14 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 *Overwritten at the end of every session. 7 Nov 2026 (audit follow-up: batches 1–7 done, one part waits on Mark).*
 
 - **Deployed:** server **0476** since 4 Nov, Apple **149** (TestFlight). **On main, not released:** server **0477–0488**,
-  Apple **150–175**. Production still follows `:latest` until Mark points its template at `:release` (D-45; `:release` is
-  v0476).
+  Apple **150–175**. Production follows `:release` (v0476) since 7 Nov (D-45, #236 closed): nothing new goes live
+  until a release is run.
 - **Audit follow-up (6 Nov brief), all pushed with CI green:** 1 release gate (#236, D-45); 2 server idle work (#237 sync
   skips unchanged feeds, #238 score collector rests, 0477–0480); 3 Apple scale (#243 part 1: `PigSpacing`, `PigType`,
   one secondary button, 164–166); 4 Apple pages (#243 part 2, #239: 167–173); 5 web shell (#241, #239: 0481–0486);
   6 start timing (#36 phases, 0487–0488, Apple 174–175); 7 docs (#242, D-47). D-46: a round-two high's fix gets its own
   narrow Codex check.
-- **Waiting on Mark:** the Unraid template to `:release`; a release (v-tag) when he wants these builds live; the Apple TV
+- **Waiting on Mark:** a release (v-tag) when he wants these builds live; the Apple TV
   look at 164–175 (text size, pages, buttons); #240 (a shorter ffmpeg analysis for profiled channels) needs his OK to
   bench the kept samples in production's data folder and capture a real feed. Next builds: server **0489**, Apple **176**.
 - **Mark's decisions (4 Nov):** release only on his go-ahead; providers usable for tests; recordings never deleted
