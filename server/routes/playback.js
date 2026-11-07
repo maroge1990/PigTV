@@ -21,6 +21,7 @@ const playbackStrategy = require('../services/playbackStrategy');
 const { streamAuth } = require('../auth');
 const { createLimiter } = require('../services/rateLimit');
 const playbackEvents = require('../services/playbackEvents');
+const startPhases = require('../services/startPhases');
 const channelHealth = require('../services/channelHealth');
 
 // 0180: the newest resolve per owner. A play that finds a newer one from the same
@@ -593,10 +594,13 @@ router.post('/client-event', requireToken, (req, res) => {
             // 0384 (D-39): which part of the app the play started from ("sport-front", "tv", "guide"...; Apple 89),
             // so the TV tab's use can be measured. Optional: an older client sends none.
             const origin = typeof body.origin === 'string' && body.origin.trim() ? text(body.origin, 24).trim() || null : null;
-            console.log(`[Player] play-start via ${how} resolve=${secs(body.resolveMs)} first-picture=${secs(body.totalMs)} ${from}${origin ? ` origin=${origin}` : ''}`);
+            // #36 (0487): where the start went (resolve, ready, mode, frame; optional, an older client sends none)
+            const phases = startPhases.clean(body.phases);
+            const phaseText = startPhases.logText(phases);
+            console.log(`[Player] play-start via ${how} resolve=${secs(body.resolveMs)} first-picture=${secs(body.totalMs)} ${from}${origin ? ` origin=${origin}` : ''}${phaseText ? ` phases=${phaseText}` : ''}`);
             playbackEvents.record({ type: 'play-start', owner, channel: last.channel, start: last.start, provider: last.provider,
                 strategy: text(body.strategy, 20), videoMode: body.videoMode ? text(body.videoMode, 10) : last.videoMode,
-                firstPictureSec: sec(body.totalMs), resolveSec: sec(body.resolveMs), origin });
+                firstPictureSec: sec(body.totalMs), resolveSec: sec(body.resolveMs), origin, phases });
             channelHealth.clientStarted(owner, sec(body.totalMs));
         } else {
             console.log(`[Player] play-end via ${how} watched=${num(body.watchedSec)}s stalls=${num(body.stalls)} ${from}`);

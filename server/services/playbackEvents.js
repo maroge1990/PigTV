@@ -41,6 +41,10 @@ function record(event) {
         stalls: num(event.stalls),
         reason: clean(event.reason, 200),
         origin: clean(event.origin, 24), // 0384: where in the app a play started (play-start only)
+        // #36 (0487): the play-start's phases in seconds since the press (startPhases.clean), or null
+        phases: event.phases && typeof event.phases === 'object'
+            ? Object.fromEntries(Object.entries(event.phases).filter(([k, v]) => /^[a-z]{1,12}$/.test(k) && num(v) != null))
+            : null,
         // 0174: the provider's name (never a URL); play-start/end inherit the owner's last resolve's.
         provider: clean(event.provider, 60)
     });

@@ -317,6 +317,8 @@ router.get('/', async (req, res) => {
             recentProblems: recentProblems(),
             recordingsFolder: recordingsFolderHealth(),
             events: detail(() => playbackEvents.recent().map(withOwnerName(names))),
+            // #36 (0487): the median and p90 of each step of a start (the Apple client's phases)
+            startTiming: detail(() => require('../services/startPhases').summary(playbackEvents.recent())),
             // 0133 (C-G): the channels that failed to start most in the last 7 days.
             leastReliable: leastReliable(),
             // 0188: streams lost mid-play in the last 7 days, and how long they took to come back.

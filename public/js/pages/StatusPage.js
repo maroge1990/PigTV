@@ -521,6 +521,15 @@ class StatusPage {
             ]),
             'No plays since the server started')));
 
+        // #36 (0487): where starts go (the Apple client's phases), over the recent plays that carry them
+        const st = status.startTiming;
+        if (st && st.plays) {
+            const s = (v) => (v === null || v === undefined ? '–' : this.amt(`${Number(v).toFixed(1)}s`));
+            add('start-timing', this.section(`Where starts go (last ${e(st.plays)} plays)`, this.table(
+                ['Step', 'Median', 'Slowest 10 %', 'Plays'],
+                st.steps.map(r => [e(r.label), s(r.median), s(r.p90), e(r.count)]), '')));
+        }
+
         // Streams in detail: the session internals and in-stream recovery
         const sessions = status.sessions || [];
         add('streams', this.section('Streams in detail', (sessions.length ? this.table(

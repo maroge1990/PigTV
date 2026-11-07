@@ -40,6 +40,8 @@ const HOW = String.raw`(\S+?)\(([^,)]*)(?:, video ([^)]*))?\) hls-delivery=(on|o
 const PLAY_START = new RegExp(String.raw`\[Player\] play-start via ${HOW} resolve=(\S+) first-picture=(\S+)`);
 const PLAY_END = new RegExp(String.raw`\[Player\] play-end via ${HOW} watched=(\S+?)s stalls=(\S+)`);
 const RESOLVE_TIMING = /\[Playback\] resolve timing: (direct|remux|HLS session), probe (cached|profile \(age \d+d\)|[\d.]+s)(?:, first segment (?:after ([\d.]+)s|(NOT produced in time)|(NOT produced - ffmpeg ended[^,]*)))?/;
+// #36 (0487): the Apple client's phases on the play-start line (seconds since the press)
+const PHASES = /\bphases=(\S+)/;
 const MEDIA_ERROR = /\[Player\] media-error (\S+?)\((\S+?)\) via (\S+) path=(\S*) msg="([^"]*)"/;
 const START_TIMEOUT = /\[Player\] start-timeout via (\S+)/;
 // Every client event ends with who sent it: `user:<id>` for a web login, `device:<id>` for a
@@ -109,7 +111,11 @@ function parse(text) {
             const resolveSec = seconds(resolve);
             const firstPictureSec = seconds(first);
             const wait = resolveSec !== null && firstPictureSec !== null ? firstPictureSec - resolveSec : null;
+            const phaseMatch = PHASES.exec(line);
+            const phases = phaseMatch ? Object.fromEntries(phaseMatch[1].split(',').map(p => p.split(':'))
+                .filter(([k, v]) => k && Number.isFinite(Number(v))).map(([k, v]) => [k, Number(v)])) : null;
             plays.push({
+                phases,
                 label: pathLabel(strategy) + (fromDevice(line) ? DEVICE_SUFFIX : ''),
                 resolveSec,
                 firstPictureSec,
@@ -234,6 +240,17 @@ function report(parsed) {
     }
     out.push('  a steady client wait on every start is the player\'s own delay, not the server\'s');
     out.push('');
+
+    // #36 (0487): the Apple client's own split of the start, where it sent one
+    const timing = require('../server/services/startPhases').summary(parsed.plays.filter(p => p.phases)
+        .map(p => ({ type: 'play-start', phases: p.phases })), Infinity);
+    if (timing.plays) {
+        out.push(`Where a start goes, by step (seconds, median / p90; ${timing.plays} plays that sent their phases)`);
+        for (const r of timing.steps) {
+            out.push(`  ${pad(r.label, 22)}${padL(r.median == null ? '-' : `${fmt(r.median)} / ${fmt(r.p90)}`, 13)}${padL(`n=${r.count}`, 7)}`);
+        }
+        out.push('');
+    }
 
     out.push('How the plays went once they started (only plays watched for 10 s or more are counted)');
     out.push(`${pad('path', 28)}${padL('watched', 8)}${padL('total', 8)}${padL('stalls', 8)}${padL('per hour', 10)}${padL('longest', 9)}${padL(`>=${LONG_SESSION_SEC / 3600}h`, 6)}`);
