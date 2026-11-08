@@ -87,7 +87,8 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   4 s MPEG-TS HLS segments, one folder per ffmpeg run ("epoch"); the arguments are the usual capture's with `-f hls`,
   `make_non_negative` and `-output_ts_offset <seconds so far>` (make_zero would undo the offset), so the timeline runs on.
   A failover or a restart continues the **same row** in a new epoch (no part 2; ≤ 20 resumes; gaps noted in `error`); a
-  restart after the window finishes it. Not `append_list`: each run's playlist is ffmpeg's own and the server joins them.
+  restart after the window finishes it. A container stop (SIGTERM) before the end leaves it to resume, not finished
+  (0490). Not `append_list`: each run's playlist is ffmpeg's own and the server joins them.
   The Apple TV's watch copy (fMP4, `hvc1`) is made by a **local follower ffmpeg** per epoch, only when someone asks
   (`GET /:id/watch`); it never touches the provider. At the end the joined playlist is remuxed with preparation's own
   arguments straight onto the share under `.partial`, checked (`checkPrepared`), renamed, `native_status` ready; then the

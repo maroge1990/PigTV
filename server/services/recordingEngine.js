@@ -1537,6 +1537,13 @@ async function onSegmentExit(schedule, entry, exitCode) {
     segments.sealEpoch(entry.outputPath);
     if (active.get(schedule.id) === entry) active.delete(schedule.id);
     const now = Date.now();
+    // 0490: the server is stopping (a container stop, a backup, an update) before the recording's
+    // end: its row stays 'capturing' and its schedule 'recording', so the next start resumes it in a
+    // new epoch (resumeSegmentedOnStartup), the gap noted, instead of finishing it here as complete.
+    if (entry.leaveForRestart) {
+        console.log(`[Recordings] #${entry.recordingId}: the server is stopping; it continues in the same recording when the server is back`);
+        return;
+    }
     const unrequested = !entry.stopRequested && now < currentStopTime(schedule) - failoverTuning.endGraceMs;
     const providerReason = entry.stalled || providerFailureIn(entry.stderrTail) || entry.feedLost?.providerReason === true;
     if (entry.route.multi && unrequested && providerReason && entry.segmented.resumes < MAX_SEGMENT_RESUMES) {
@@ -2303,9 +2310,19 @@ function shutdown() {
  * the process is killed outright - so this doesn't wait as long as a normal
  * stopRecording() call.
  */
-async function stopAllActive(timeoutMs = 6000) {
+async function stopAllActive(timeoutMs = 6000, { forRestart = false } = {}) {
     stopAllGeneration++; // DVR-4: a start awaiting its feed now does not start
     const scheduledIds = [...active.keys()];
+    // 0490: the container's SIGTERM (forRestart): a segmented recording whose time is not over is
+    // left to resume at the next start, not finished. 7 Nov: the weekly appdata backup stopped the
+    // container 6 minutes into a 3-hour F1 recording, and it was kept as a complete 6 minutes.
+    if (forRestart) {
+        const now = Date.now();
+        for (const id of scheduledIds) {
+            const entry = active.get(id);
+            if (entry?.segmented && now < currentStopTime(entry.schedule) - failoverTuning.endGraceMs) entry.leaveForRestart = true;
+        }
+    }
     await Promise.all(scheduledIds.map(id =>
         Promise.race([
             stopRecording(id, 'completed'),

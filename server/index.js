@@ -126,7 +126,7 @@ process.on('SIGTERM', async () => {
     try { require('./services/sportsDashboard').stop(); } catch (err) { /* best-effort */ }
     try {
         const recordingEngine = require('./services/recordingEngine');
-        await recordingEngine.stopAllActive();
+        await recordingEngine.stopAllActive(undefined, { forRestart: true }); // 0490: in-progress ones resume at the next start
     } catch (err) {
         console.error('Error stopping active recordings:', err.message);
     }

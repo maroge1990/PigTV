@@ -906,6 +906,41 @@ test('server restart mid-recording: the same recording continues in a new epoch,
     assert.equal(scheduled.getById(s.id).status, 'cancelled');
 });
 
+// 0490: on 7 Nov the weekly appdata backup stopped the container (SIGTERM) 6 minutes into a 3-hour F1
+// recording. The shutdown finished it as complete, so the restart 7 minutes later had nothing to resume.
+test('0490: a container stop before the end leaves the recording to resume at the next start, not finished', async () => {
+    tuning.endGraceMs = 0;
+    const s = due({ windowMs: 20000 });
+    await until(() => engine.listActive().some(r => r.id === s.id) && captures().length === 1, 'recording');
+    const rec = rowsOf(s.id)[0];
+    await until(() => fs.existsSync(path.join(rec.work_dir, 'e1', 'archive.m3u8')), 'a segment written');
+    await engine.stopAllActive(3000, { forRestart: true });
+    assert.equal(scheduled.getById(s.id).status, 'recording', 'not completed by the shutdown');
+    assert.equal(recordings.getById(rec.id).segment_state, 'capturing');
+    assert.ok(fs.readFileSync(path.join(rec.work_dir, 'e1', 'archive.m3u8'), 'utf8').includes('#EXT-X-ENDLIST'), 'its epoch is sealed');
+    engine._reconcileOnStartup(); // the next start
+    await until(() => captures().length === 2, 'resumed');
+    const args = captures()[1];
+    assert.equal(args[args.length - 1], path.join(rec.work_dir, 'e2', 'archive.m3u8'), 'a new epoch of the same recording');
+    assert.match(recordings.getById(rec.id).error, /the server restarted/);
+    assert.equal(rowsOf(s.id).length, 1);
+    await engine.cancelScheduled(s.id);
+    await until(() => recordings.getById(rec.id).status === 'completed', 'finished', 10000);
+    assert.match(fs.readFileSync(path.join(__dirname, '../server/index.js'), 'utf8'), /stopAllActive\([^)]*forRestart: true/,
+        'the SIGTERM handler asks for it');
+});
+
+test('0490: a container stop after the recording\'s time finishes it as before', async () => {
+    tuning.endGraceMs = 0;
+    const s = due({ windowMs: 1500 });
+    await until(() => engine.listActive().some(r => r.id === s.id), 'recording');
+    const rec = rowsOf(s.id)[0];
+    sqlite.getDb().prepare('UPDATE scheduled_recordings SET program_end = ?, post_buffer_min = 0 WHERE id = ?').run(Date.now() - 1000, s.id);
+    await engine.stopAllActive(3000, { forRestart: true });
+    assert.equal(scheduled.getById(s.id).status, 'completed');
+    assert.equal(recordings.getById(rec.id).segment_state, 'finishing');
+});
+
 test('DVR-4: cancelled while a resumed segmented recording awaits its shared feed - no new epoch, the feed is given back', async () => {
     const ingest = load('services/ingest');
     const real = ingest.subscribe;
