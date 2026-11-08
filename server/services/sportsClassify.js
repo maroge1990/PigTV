@@ -727,16 +727,20 @@ const F1_PLACES = [
     ['monaco', 'monte carlo'], ['united states', 'austin', 'circuit of the americas', 'cota']
 ];
 const placeWords = (location) => location.map(w => foldText(w));
+// 0496 (Codex round 1, high): a sponsor is not a place. "Qatar Airways Azerbaijan Grand Prix" is Azerbaijan, never Qatar.
+const SPONSOR_RE = / (?:\S+ (?:airways|airlines|air)|saudi aramco|aramco) /g;
 function placeGroups(words) {
-    const said = ` ${words.join(' ')} `;
+    const said = ` ${words.join(' ')} `.replace(SPONSOR_RE, '  ').replace(SPONSOR_RE, '  ');
     return new Set(F1_PLACES.flatMap((names, i) => names.some(n => said.includes(` ${n} `)) ? [i] : []));
 }
 function samePlace(league, a, b) {
     const fa = placeWords(a), fb = placeWords(b);
-    if (locationMatch(fa, fb)) return true;
-    if (league !== 'F1') return false;
-    const ga = placeGroups(fa), gb = placeGroups(fb);
-    return [...ga].some(g => gb.has(g));
+    if (league === 'F1') {
+        // Both name a known weekend: those decide, so a shared stray word never joins two Grands Prix.
+        const ga = placeGroups(fa), gb = placeGroups(fb);
+        if (ga.size && gb.size) return [...ga].some(g => gb.has(g));
+    }
+    return locationMatch(fa, fb);
 }
 // ---- ESPN fixtures (0161): a ground-truth first rule for resolveLive -----------------------
 

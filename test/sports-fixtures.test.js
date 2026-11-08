@@ -669,4 +669,12 @@ test('0496: ESPN\'s F1 session matches a place spelt without accents or by its c
     assert.equal(classify.samePlace('F1', ['mexico', 'city'], ['sao', 'paulo']), false);
     assert.equal(classify.samePlace('F1', ['são', 'paulo'], ['brazil']), true);
     assert.equal(classify.samePlace('NFL', ['são', 'paulo'], ['brazil']), false, 'other names are F1\'s only');
+    // 0496 (Codex round 1, high): a sponsor's name is not the weekend's place
+    const place = (t) => classify.parseTitle(t).location;
+    assert.equal(classify.samePlace('F1', place('Qatar Airways Azerbaijan Grand Prix'), place('Lusail Grand Prix')), false);
+    assert.equal(classify.samePlace('F1', place('Qatar Airways Azerbaijan Grand Prix'), place('Qatar Grand Prix')), false);
+    assert.equal(classify.samePlace('F1', place('Qatar Airways British Grand Prix'), place('Formula 1: Silverstone Grand Prix')), true);
+    assert.equal(classify.samePlace('F1', place('Qatar Airways Qatar Grand Prix'), place('Lusail Grand Prix')), true);
+    assert.equal(classify.samePlace('F1', place('Heineken Silver Las Vegas Grand Prix'), place('United States Grand Prix')), false);
+    assert.equal(classify.samePlace('F1', place('Crypto.com Miami Grand Prix'), place('Miami Grand Prix')), true, 'a place not on the list: its words');
 });
