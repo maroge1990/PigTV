@@ -5,24 +5,37 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 7 Nov 2026 (audit follow-up: batches 1–7 done, one part waits on Mark).*
+*Overwritten at the end of every session. 8 Nov 2026 (F1 recording, appdata, Mark's bug list of 8 Nov).*
 
-- **Deployed (7 Nov):** server **0488** (`v0488`, `:release`; Mark's Force Update 08:18 UTC); Apple **175** uploaded to
-  TestFlight (tvOS and iOS). 0452–0488 and Apple 150–175 wait for Mark's device checks.
-- **Audit follow-up (6 Nov brief), all pushed with CI green:** 1 release gate (#236, D-45); 2 server idle work (#237 sync
-  skips unchanged feeds, #238 score collector rests, 0477–0480); 3 Apple scale (#243 part 1: `PigSpacing`, `PigType`,
-  one secondary button, 164–166); 4 Apple pages (#243 part 2, #239: 167–173); 5 web shell (#241, #239: 0481–0486);
-  6 start timing (#36 phases, 0487–0488, Apple 174–175); 7 docs (#242, D-47). D-46: a round-two high's fix gets its own
-  narrow Codex check.
-- **Waiting on Mark:** the device checks of 164–175 and the 0452–0476 Test Round; the Apple TV
-  look at 164–175 (text size, pages, buttons); #240 (a shorter ffmpeg analysis for profiled channels) needs his OK to
-  bench the kept samples in production's data folder and capture a real feed. Next builds: server **0489**, Apple **176**.
-- **Mark's decisions (4 Nov):** release only on his go-ahead; providers usable for tests; recordings never deleted
-  automatically (#40); a future game records once listed (#234); Top Shelf live sport follows-first (#232: waits on
-  mock-ups and whether to share the sign-in with the extension).
-- **Checklist:** `TEST-ROUND-0474-163.md` (worktree root, 35 steps) for the release.
-- **Next:** captures on the real feeds for #4, #27, #30 (in the production container: Mark's OK) and #25 (Xcode on the
-  Apple TV); running unattended (#44, #43, #45: each needs a choice from Mark); web (#60–#64); #54's mid-session 401.
+- **Deployed:** server **0488** (`:release`, 7 Nov); Apple **175** on TestFlight. Nothing below is released yet: a
+  release runs on Mark's go-ahead (D-45).
+- **8 Nov, pushed with CI green:**
+  - Server 0489–0493:
+    - 0489 compact nightly database copies (#247).
+    - 0490 and 0492: a recording carries on after a container stop (#246; the 7 Nov F1 qualifying recording kept 6 minutes because Unraid's Sunday 04:00 AEDT appdata backup stopped the container).
+    - 0491 F1 channels by place name (#248, closed).
+    - 0493 `followedSides` (#249).
+  - Apple 176–184: #249 star, #250 Settings line, #251 stream note, #252/#254 iPhone sport card (short score, Mark's pick), #253 Start early / Finish late menus (Mark's pick), #255 landscape guide menu, #256 Edit order drag, #258 iPad Settings header.
+  - Production appdata went from 6.9 to 2.7 GB: the old captures in `data/samples` were deleted on Mark's go-ahead.
+- **Decided, not built:** #257 "Watch on… (N channels)" in the long-press menu (Mark's pick; no player button).
+- **Waiting on Mark:**
+  - T5 of #246 (stop mid-recording, start again) and of the Apple fixes on the iPhone and iPad.
+  - The Appdata Backup setting: don't stop PigTV, or move it away from Sunday 04:00.
+  - Device checks of 164–175.
+  - #240.
+  - Next builds: server **0494**, Apple **185**.
+- **Mark's decisions (4 Nov):**
+  - Release only on his go-ahead.
+  - Providers may be used for tests.
+  - Recordings are never deleted automatically (#40).
+  - A future game records once listed (#234).
+  - Top Shelf live sport follows-first (#232).
+- **Next:**
+  - #257 Watch on….
+  - Captures for #4, #27, #30.
+  - #25.
+  - Running unattended: #43, #44, #45.
+  - Web: #60–#64.
 
 ## Now
 
