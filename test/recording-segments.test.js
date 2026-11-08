@@ -930,6 +930,32 @@ test('0490: a container stop before the end leaves the recording to resume at th
         'the SIGTERM handler asks for it');
 });
 
+// 0490 Codex round 1 (medium): a cancel and a shutdown at once. Neither order may leave the recording capturing for ever.
+test('0490: a cancel already stopping it when the container stops: it is finished, not left to resume', async () => {
+    tuning.endGraceMs = 0;
+    const s = due({ windowMs: 20000 });
+    await until(() => engine.listActive().some(r => r.id === s.id), 'recording');
+    const rec = rowsOf(s.id)[0];
+    await until(() => fs.existsSync(path.join(rec.work_dir, 'e1', 'archive.m3u8')), 'a segment written');
+    await Promise.all([engine.cancelScheduled(s.id), engine.stopAllActive(3000, { forRestart: true })]);
+    assert.equal(scheduled.getById(s.id).status, 'cancelled');
+    assert.notEqual(recordings.getById(rec.id).segment_state, 'capturing');
+    await until(() => recordings.getById(rec.id).status === 'completed', 'finished', 10000);
+});
+
+test('0490: cancelled after the container stop left it to resume: it is finished, not stranded', async () => {
+    tuning.endGraceMs = 0;
+    const s = due({ windowMs: 20000 });
+    await until(() => engine.listActive().some(r => r.id === s.id), 'recording');
+    const rec = rowsOf(s.id)[0];
+    await until(() => fs.existsSync(path.join(rec.work_dir, 'e1', 'archive.m3u8')), 'a segment written');
+    await engine.stopAllActive(3000, { forRestart: true });
+    assert.equal(recordings.getById(rec.id).segment_state, 'capturing');
+    await engine.cancelScheduled(s.id);
+    assert.equal(scheduled.getById(s.id).status, 'cancelled');
+    await until(() => recordings.getById(rec.id).status === 'completed', 'finished', 10000);
+});
+
 test('0490: a container stop after the recording\'s time finishes it as before', async () => {
     tuning.endGraceMs = 0;
     const s = due({ windowMs: 1500 });

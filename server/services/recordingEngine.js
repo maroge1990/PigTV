@@ -852,6 +852,12 @@ async function cancelScheduled(id) {
         // R3: what a segmented one recorded so far is still made into its MP4.
         if (cont.resume) endSegmentCapture(id, cont.resume.recordingId);
         setScheduleStatus(scheduledDb.getById(id) || schedule, 'cancelled');
+    } else if (schedule.status === 'recording' && schedule.recording_id &&
+               recordingsDb.getById(schedule.recording_id)?.segment_state === 'capturing') {
+        // 0490 Codex round 1 (medium): a segmented one the shutdown left to resume (nothing runs for it now):
+        // what it recorded is still made into its MP4, as for one between epochs.
+        endSegmentCapture(id, schedule.recording_id);
+        setScheduleStatus(scheduledDb.getById(id) || schedule, 'cancelled');
     } else if (schedule.status === 'scheduled' || schedule.status === 'waiting') {
         // A waiting recording is one held back for a viewer: cancelling it must also
         // withdraw the prompt that asks that viewer to stop watching.
@@ -1807,6 +1813,8 @@ async function stopRecording(scheduledId, reasonStatus = 'completed') {
     if (entry.hardStopTimer) clearTimeout(entry.hardStopTimer);
     // Asked for (0177): an exit that follows is never a provider failure to fail over from.
     entry.stopRequested = true;
+    // 0490 Codex round 1 (medium): a cancel during the shutdown wins over leaving it to resume.
+    if (reasonStatus === 'cancelled') entry.leaveForRestart = false;
 
     await new Promise((resolve) => {
         let resolved = false;
@@ -2320,7 +2328,8 @@ async function stopAllActive(timeoutMs = 6000, { forRestart = false } = {}) {
         const now = Date.now();
         for (const id of scheduledIds) {
             const entry = active.get(id);
-            if (entry?.segmented && now < currentStopTime(entry.schedule) - failoverTuning.endGraceMs) entry.leaveForRestart = true;
+            // 0490 Codex round 1 (medium): never one already being stopped (a cancel): that one finishes.
+            if (entry?.segmented && !entry.stopRequested && now < currentStopTime(entry.schedule) - failoverTuning.endGraceMs) entry.leaveForRestart = true;
         }
     }
     await Promise.all(scheduledIds.map(id =>
