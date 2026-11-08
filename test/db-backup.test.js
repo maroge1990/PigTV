@@ -104,3 +104,31 @@ test('S3: pruning leaves another copy\'s recent partial alone and removes only a
     assert.ok(!fs.existsSync(stale));
     assert.deepEqual(removed, [path.basename(stale)]);
 });
+
+test('0489: the nightly (online) copy is compact: it leaves the free pages a big delete left behind', async () => {
+    const { dbPath } = fixture({ rows: 0 });
+    const db = new Database(dbPath);
+    db.exec('CREATE TABLE big (b BLOB)');
+    const ins = db.prepare('INSERT INTO big VALUES (?)');
+    db.transaction(() => { for (let i = 0; i < 2000; i++) ins.run(Buffer.alloc(4000, i % 256)); })();
+    db.exec('DELETE FROM big');
+    db.pragma('wal_checkpoint(TRUNCATE)');
+    db.close();
+    const source = fs.statSync(dbPath).size;
+    const copy = await dbBackup.backup(dbPath, { reason: 'nightly', now: Date.UTC(2026, 10, 8) });
+    assert.ok(source > 4 * 1024 * 1024, 'the source keeps its free pages');
+    assert.ok(fs.statSync(copy).size < source / 10, `the copy (${fs.statSync(copy).size} B) is not the source's size (${source} B)`);
+});
+
+test('0489: a stale partial\'s -shm/-wal leftovers are removed with it; a recent one\'s are kept', () => {
+    const { dbPath } = fixture();
+    const dir = path.dirname(dbBackup.backupSync(dbPath, { reason: 'manual', now: Date.UTC(2026, 9, 1) }));
+    const stale = ['content-2026-10-20T02-50-09Z-nightly.db.1-1c05c384.partial-shm', 'content-2026-10-20T02-50-09Z-nightly.db.1-1c05c384.partial-wal'];
+    const live = 'content-2026-11-08T00-00-00Z-nightly.db.2-abcd1234.partial-shm';
+    const old = (Date.now() - 7 * 60 * 60 * 1000) / 1000;
+    for (const n of stale) { fs.writeFileSync(path.join(dir, n), ''); fs.utimesSync(path.join(dir, n), old, old); }
+    fs.writeFileSync(path.join(dir, live), '');
+    const removed = dbBackup.prune(dir);
+    assert.deepEqual(removed.sort(), stale.sort());
+    assert.ok(fs.existsSync(path.join(dir, live)));
+});

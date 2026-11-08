@@ -1,5 +1,5 @@
 // Application-consistent copy of the SQLite database, via better-sqlite3's
-// online backup API (a plain `cp` of a WAL database can miss committed data).
+// compact `VACUUM INTO` copy (a plain `cp` of a WAL database can miss committed data).
 // Run inside the container: docker exec PigTV sh scripts/backup-db.sh
 // The server also takes one nightly and one before a new build's migrations (R12,
 // services/dbBackup.js); this is the same copy, on demand, sharing the newest-7 rotation.

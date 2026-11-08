@@ -85,7 +85,7 @@ the container as healthy/unhealthy.
 docker exec PigTV sh scripts/backup-db.sh
 ```
 
-Writes an application-consistent copy (SQLite online backup, safe while the server runs) to
+Writes an application-consistent, compact copy (`VACUUM INTO`, safe while the server runs; 0489) to
 `/app/data/backups/content-<timestamp>-<reason>.db` and keeps the newest 7. On Unraid that is
 `/mnt/user/appdata/pigtv/data/backups/`.
 

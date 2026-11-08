@@ -8,7 +8,10 @@
  *     Synchronous (`VACUUM INTO` on a read-only connection), because nothing may touch the file
  *     before it.
  *   - nightly: startNightly() checks every hour and takes one when the newest backup of any kind
- *     is more than a day old. Asynchronous (better-sqlite3's online backup), safe while serving.
+ *     is more than a day old. Asynchronous: the same `VACUUM INTO`, run in a worker thread so the
+ *     event loop that serves streams never waits for it. Until 0489 this was better-sqlite3's
+ *     online backup, which copies every page, free ones included: production's nightly copies were
+ *     441 MB beside 210 MB pre-migration ones of the same database.
  *
  * Every copy is written to a partial of its own (`<name>.db.<pid>-<random>.partial`, S3), checked (`PRAGMA quick_check` on the copy: a backup
  * that can't be opened is not a backup) and only then renamed into place, so a crash or a full
@@ -22,6 +25,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { Worker } = require('worker_threads');
 const Database = require('better-sqlite3');
 
 const KEEP = 7;
@@ -100,9 +104,10 @@ function prune(dir, keep = KEEP, now = Date.now()) {
     try { names = fs.readdirSync(dir); } catch { return removed; }
     // S3: only partials nobody is writing: never this process's own, never a recent one (another
     // process's copy in progress), only those left behind long enough ago.
-    for (const n of names.filter(f => f.endsWith('.partial'))) {
+    // 0489: and what SQLite left beside one (-shm, -wal, -journal from opening it to check it).
+    for (const n of names.filter(f => /\.partial(?:-shm|-wal|-journal)?$/.test(f))) {
         const file = path.join(dir, n);
-        if (ours.has(file)) continue;
+        if (ours.has(file.replace(/-(?:shm|wal|journal)$/, ''))) continue;
         try {
             if (now - fs.statSync(file).mtimeMs < STALE_PARTIAL_MS) continue;
             fs.unlinkSync(file); removed.push(n);
@@ -130,12 +135,31 @@ function backupSync(dbPath, { reason = 'manual', now = Date.now(), keep = KEEP }
     return dest;
 }
 
-/** Asynchronous online backup (safe while the server writes). Resolves the backup's path. */
+// 0489: VACUUM INTO on a read-only connection of its own, in a worker thread (a read transaction
+// under WAL, so the server keeps writing meanwhile).
+const VACUUM_WORKER = `
+const { parentPort, workerData } = require('worker_threads');
+const Database = require(workerData.driver);
+const src = new Database(workerData.src, { readonly: true, fileMustExist: true });
+try { src.prepare('VACUUM INTO ?').run(workerData.dest); } finally { src.close(); }
+parentPort.postMessage('done');
+`;
+
+function vacuumIntoInWorker(src, dest) {
+    return new Promise((resolve, reject) => {
+        const worker = new Worker(VACUUM_WORKER, { eval: true, workerData: { src, dest, driver: require.resolve('better-sqlite3') } });
+        let done = false;
+        worker.once('message', () => { done = true; });
+        worker.once('error', reject);
+        worker.once('exit', code => (done && code === 0) ? resolve() : reject(new Error(`the copy stopped (exit ${code})`)));
+    });
+}
+
+/** Asynchronous compact copy (safe while the server writes). Resolves the backup's path. */
 async function backup(dbPath, { reason = 'manual', now = Date.now(), keep = KEEP } = {}) {
     const target = prepare(dbPath, reason, now);
     try {
-        const src = new Database(dbPath, { readonly: true, fileMustExist: true });
-        try { await src.backup(target.partial); } finally { src.close(); }
+        await vacuumIntoInWorker(dbPath, target.partial);
     } catch (err) {
         ours.delete(target.partial);
         try { fs.unlinkSync(target.partial); } catch { /* none */ }
