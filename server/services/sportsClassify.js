@@ -990,5 +990,6 @@ module.exports = {
     FLAGS, LIVE_HOURS, liveHoursFor, inLiveHours, localClock, resolveLive,
     // 0161: exported so services/sportsFixtures.js can build a snapshot resolveLive understands,
     // and so tests can exercise the matching/wording directly without a live ESPN fetch.
-    sessionMatch, locationMatch, fixtureVerdict, espnWhen
+    sessionMatch, locationMatch, fixtureVerdict, espnWhen,
+    foldText // 0491: the dashboard compares places without accents
 };

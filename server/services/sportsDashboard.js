@@ -87,6 +87,31 @@ function prepareEvent(event) {
         title: SESSIONS.has(event.league) ? sessionTitle(event.league, event.title) : null,
         format: /\b(test|odi|t20i?|first.class|list a)\b/i.exec(event.title)?.[1]?.toLowerCase() };
 }
+// #248 (0491): the Sao Paulo GP joined few of its airings. ESPN writes "São Paulo"; listings write "Sao Paulo",
+// "Brazil", "Brasil", "Brésil" or "Interlagos". Places are compared without accents, and an F1 weekend's other names
+// (its country, its circuit) count as its place. One name per weekend only: never a country with two races (Spain,
+// the United States).
+const F1_PLACES = [
+    ['sao paulo', 'brazil', 'brasil', 'bresil', 'brasilien', 'interlagos'], ['mexico city', 'mexico', 'mexique', 'hermanos rodriguez'],
+    ['las vegas', 'vegas'], ['abu dhabi', 'yas marina'], ['qatar', 'lusail'], ['great britain', 'british', 'silverstone'],
+    ['netherlands', 'dutch', 'zandvoort'], ['belgium', 'belgian', 'spa francorchamps'], ['hungary', 'hungarian', 'hungaroring'],
+    ['italy', 'italian', 'monza'], ['japan', 'japanese', 'suzuka'], ['saudi arabia', 'saudi', 'jeddah'],
+    ['azerbaijan', 'baku'], ['singapore', 'marina bay'], ['bahrain', 'sakhir'], ['australia', 'australian', 'melbourne', 'albert park'],
+    ['china', 'chinese', 'shanghai'], ['canada', 'canadian', 'montreal'], ['austria', 'austrian', 'spielberg', 'red bull ring'],
+    ['monaco', 'monte carlo'], ['united states', 'austin', 'circuit of the americas', 'cota']
+];
+const placeWords = (location) => location.map(w => classify.foldText(w));
+function placeGroups(words) {
+    const said = ` ${words.join(' ')} `;
+    return new Set(F1_PLACES.flatMap((names, i) => names.some(n => said.includes(` ${n} `)) ? [i] : []));
+}
+function samePlace(league, a, b) {
+    const fa = placeWords(a), fb = placeWords(b);
+    if (classify.locationMatch(fa, fb)) return true;
+    if (league !== 'F1') return false;
+    const ga = placeGroups(fa), gb = placeGroups(fb);
+    return [...ga].some(g => gb.has(g));
+}
 function sameGame(prepared, parsed) {
     const { game } = prepared, { event } = parsed;
     if ((event.kind && event.kind !== 'event') || game.league !== event.league) return false;
@@ -119,7 +144,7 @@ function sameGame(prepared, parsed) {
     } else if (event.end < game.start || Math.abs(event.start - game.start) > 90 * 60000) return false;
     if (SESSIONS.has(game.league)) {
         return Boolean(parsed.title.session && prepared.session && parsed.title.session.id === prepared.session.id &&
-            prepared.title.location.length && parsed.title.location.length && classify.locationMatch(parsed.title.location, prepared.title.location));
+            prepared.title.location.length && parsed.title.location.length && samePlace(game.league, parsed.title.location, prepared.title.location));
     }
     if (prepared.sides.length !== 2) return false;
     return (parsed.pairs || (parsed.pair ? [parsed.pair] : [])).some(pair => {

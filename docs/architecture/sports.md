@@ -71,7 +71,8 @@ that ended before now. The 0148 route tests switch `LIVE_HOURS` off (they use th
 (`site.api.espn.com/apis/site/v2/sports/{path}/scoreboard`) covers the airing's league and time, its answer is checked first -
 matched to a fixture (the existing fuzzy team matchers, extended with the fixture's own displayName/shortDisplayName/name/
 location/abbreviation as aliases, plus a few codes guides use for cricket nations: RSA, NZL, SRI, 0333; F1 by session +
-Grand Prix location, reusing `parseTitle`'s own location parsing on the event name; a fixture naming both teams word for word
+Grand Prix location, reusing `parseTitle`'s own location parsing on the event name (the dashboard's join compares places
+without accents and takes an F1 weekend's country or circuit as its place, `F1_PLACES`, 0491); a fixture naming both teams word for word
 beats a nearer loose match, 0334): live when the airing starts at/near the fixture's real kickoff (≤ 30 min after, and still running), else replay,
 worded with the real kickoff (`ESPN: the game started Sat 1:30 pm; this airing is 19 h later`); not matched, but both teams
 are known to the league and no such fixture exists: replay (`ESPN has no such game at this time`), unless the guide flags

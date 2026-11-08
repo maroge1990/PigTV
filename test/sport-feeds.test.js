@@ -187,3 +187,17 @@ test('0403: a Supercars airing joins its weekend only when it names the event\'s
         ev('bare', 'Repco Supercars Championship')]);
     assert.deepEqual(found.get(sandown.id).map(e => e.id), ['own']);
 });
+
+// #248 (0491): the Sao Paulo GP of 8 Nov 2026 joined few of its airings. ESPN's name carries "São Paulo"; these are
+// production's guide titles of the race (16:55 UTC), each on its own channel.
+test('0491: every listing of the Sao Paulo GP race joins it (accents, Brazil, Brésil); another Grand Prix does not', () => {
+    const start = Date.parse('2026-11-08T17:00:00Z');
+    const race = { id: 'f1r', league: 'F1', start, end: null, title: 'MSC Cruises São Paulo Grand Prix · Race', session: 'Race', competitors: [] };
+    const titles = ['Formula 1 : Brazil Race', 'FIA Formula 1: Brazil Grand Prix', 'Live Sao Paulo F1 Grand Prix',
+        'Formula 1 Racing - São Paulo Grand Prix', 'Formule 1 - Grand Prix du Brésil', 'Live: Formula 1 - Sao Paulo Grand Prix: Race',
+        'Formula 1 Main Race 2026: FORMULA 1 MSC CRUISES GRANDE PREMIO DE SAO PAULO 2026'];
+    const ev = (id, title) => ({ id, league: 'F1', kind: 'event', title, start: start - 5 * 60000, end: start + 2 * H, channels: [] });
+    const found = dashboard.matchBroadcasts([race], [...titles.map((t, i) => ev(`e${i}`, t)),
+        ev('other', 'Formula 1: Mexico City Grand Prix - Race'), ev('quali', 'Formula 1 : Brazil Qualifying')]);
+    assert.deepEqual(found.get(race.id).map(e => e.id).sort(), titles.map((t, i) => `e${i}`).sort());
+});
