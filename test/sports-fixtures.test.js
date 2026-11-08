@@ -677,4 +677,6 @@ test('0496: ESPN\'s F1 session matches a place spelt without accents or by its c
     assert.equal(classify.samePlace('F1', place('Qatar Airways Qatar Grand Prix'), place('Lusail Grand Prix')), true);
     assert.equal(classify.samePlace('F1', place('Heineken Silver Las Vegas Grand Prix'), place('United States Grand Prix')), false);
     assert.equal(classify.samePlace('F1', place('Crypto.com Miami Grand Prix'), place('Miami Grand Prix')), true, 'a place not on the list: its words');
+    assert.equal(classify.samePlace('F1', place('Qatar Airways Miami Grand Prix'), place('Qatar Grand Prix')), false, 'nor its sponsor\'s');
+    assert.equal(classify.samePlace('F1', place('Qatar Airways Miami Grand Prix'), place('Formula 1: Miami Grand Prix')), true);
 });

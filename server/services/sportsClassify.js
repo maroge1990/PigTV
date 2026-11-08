@@ -729,13 +729,16 @@ const F1_PLACES = [
 const placeWords = (location) => location.map(w => foldText(w));
 // 0496 (Codex round 1, high): a sponsor is not a place. "Qatar Airways Azerbaijan Grand Prix" is Azerbaijan, never Qatar.
 const SPONSOR_RE = / (?:\S+ (?:airways|airlines|air)|saudi aramco|aramco) /g;
+const unsponsored = (words) => ` ${words.join(' ')} `.replace(SPONSOR_RE, '  ').replace(SPONSOR_RE, '  ').split(' ').filter(Boolean);
 function placeGroups(words) {
-    const said = ` ${words.join(' ')} `.replace(SPONSOR_RE, '  ').replace(SPONSOR_RE, '  ');
+    const said = ` ${words.join(' ')} `;
     return new Set(F1_PLACES.flatMap((names, i) => names.some(n => said.includes(` ${n} `)) ? [i] : []));
 }
 function samePlace(league, a, b) {
-    const fa = placeWords(a), fb = placeWords(b);
+    let fa = placeWords(a), fb = placeWords(b);
     if (league === 'F1') {
+        // 0497 (0496 Codex round 1 and its check, high): sponsors dropped for both the weekend and the words.
+        fa = unsponsored(fa); fb = unsponsored(fb);
         // Both name a known weekend: those decide, so a shared stray word never joins two Grands Prix.
         const ga = placeGroups(fa), gb = placeGroups(fb);
         if (ga.size && gb.size) return [...ga].some(g => gb.has(g));
