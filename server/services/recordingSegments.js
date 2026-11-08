@@ -1,7 +1,7 @@
 /**
- * Segmented recordings (R3, Wave 4; approved by Mark on 16 Oct). Behind the
- * `segmentedRecordings` setting, off by default: with it off nothing here runs and a recording
- * is made exactly as before (one .ts per part on the share, recordingEngine.spawnPart).
+ * Segmented recordings (R3, Wave 4; approved by Mark on 16 Oct). Every recording since 0494 (D-48,
+ * `segmentedRecordings` on with no switch); `false`, set only by tests, records the old way (one .ts per
+ * part on the share, recordingEngine.spawnPart).
  *
  * With it on, a new recording is captured as HLS segments in appdata
  * (/app/data/recordings-work/rec-<id>/), never on the share, which has a history of going stale:

@@ -95,7 +95,7 @@ Writes an application-consistent, compact copy (`VACUUM INTO`, safe while the se
 `data/auth-secret` and the container settings too, and copy `backups/` off the box (a same-disk copy does not survive
 the disk).
 
-**Segmented recordings (0218, R3, off by default):** while on, recordings in progress live in
+**Segmented recordings (0218, R3; always on since 0494, D-48):** recordings in progress live in
 `/app/data/recordings-work/` (on Unraid `/mnt/user/appdata/pigtv/data/recordings-work/`) until their MP4 is on the
 share. Leave room in appdata for the longest recording (twice that while an HEVC one is watched from the start), and
 exclude `recordings-work/` from any appdata backup: it is large, short-lived, and remade by the next recording. Status →

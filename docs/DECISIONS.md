@@ -539,3 +539,11 @@ reviews.
   that date. D-22's other budgets stand.
 - **Consequence:** `verify-build.sh` › Doc size budgets; a contract nearing 1,200 lines is the signal to split by area.
 
+### D-48. Every recording is segmented (8 Nov 2026; Mark)
+
+- **Context:** the 7 Nov F1 qualifying recording kept 6 minutes when a weekly backup stopped the container; 0490 made a
+  segmented recording resume after a stop, which a part-based one cannot.
+- **Choice:** Mark: "we should always use segmented anyway at this point". From 0494 the switch is gone: a stored "off" is
+  dropped once, and the web no longer offers it.
+- **Consequence:** the part-based path stays in the code for its tests only; [`architecture/recording.md`](architecture/recording.md).
+

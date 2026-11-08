@@ -73,7 +73,8 @@ function getDefaultSettings() {
     defaultPostBufferMin: 5,       // Minutes to keep recording after the scheduled program end
     maxConcurrentRecordings: 1,    // Safety cap on simultaneous recordings
     minFreeSpaceGB: 10,            // Refuse to start (and stop) recordings below this much free space
-    segmentedRecordings: false,    // R3: record as segments in appdata (watch from the start), MP4 to the share at the end
+    segmentedRecordings: true,     // R3: record as segments in appdata (watch from the start), MP4 to the share at the end.
+                                   // Always on since 0494 (Mark, 8 Nov): no toggle; false is for tests of the old path only
     // Provider stream coordination
     maxProviderStreams: 1,         // How many simultaneous connections the provider allows
     viewerIdleTimeoutSec: 60,      // Silence after which a stream is treated as abandoned
@@ -127,11 +128,21 @@ function retireSettings(db) {
   if (gone) console.log(`[Settings] Removed ${gone} retired setting${gone === 1 ? '' : 's'} no code reads`);
 }
 
+// 0494 (Mark, 8 Nov): every recording is segmented (it resumes after a restart or failover, and can be watched from the
+// start). Once per database, a stored "off" is dropped so the default (on) applies; the web no longer offers the switch.
+function segmentedAlways(db) {
+  if (metaGet(db, 'segmented_always')) return;
+  const gone = db.prepare(`DELETE FROM app_settings WHERE key = 'segmentedRecordings'`).run().changes;
+  metaSet(db, 'segmented_always', new Date().toISOString());
+  if (gone) console.log('[Settings] Segmented recordings are always on now (the stored switch was removed)');
+}
+
 function store() {
   const db = require('./db/sqlite').getDb();
   if (!ready) {
     migrateLegacy(db);
     retireSettings(db);
+    segmentedAlways(db);
     ready = true;
   }
   return db;

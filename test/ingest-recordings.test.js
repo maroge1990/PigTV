@@ -98,7 +98,8 @@ before(async () => {
     item.run(`${A.id}:pos_2`, A.id, 'pos_2', 'Fox League', 2, 'fl', `${base}/fl.ts`);
     item.run(`${A.id}:pos_3`, A.id, 'pos_3', 'Odd', 3, 'odd', `${base}/html`);
     item.run(`${A.id}:pos_4`, A.id, 'pos_4', 'Shaky', 4, 'shaky', `${base}/dies.ts`);
-    await db.settings.update({ recordingsPath: path.join(sandbox, 'recordings'), minFreeSpaceGB: 0, maxConcurrentRecordings: 5,
+    // 0494: recordings are segmented by default; these tests cover the part-based (.ts) path, so they ask for it.
+    await db.settings.update({ segmentedRecordings: false, recordingsPath: path.join(sandbox, 'recordings'), minFreeSpaceGB: 0, maxConcurrentRecordings: 5,
         maxProviderStreams: 1, sharedIngestEnabled: true });
     engine.init({ ffmpegPath: FFMPEG, ffprobePath: 'ffprobe' });
     engine.shutdown();

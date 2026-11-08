@@ -99,7 +99,8 @@ before(async () => {
     link.run(A.id, B.id, '5001', Date.now());
     link.run(A.id, C.id, '7001', Date.now());
 
-    await db.settings.update({ recordingsPath: path.join(sandbox, 'recordings'), minFreeSpaceGB: 0, maxConcurrentRecordings: 5 });
+    // 0494: recordings are segmented by default; these tests cover the part-based (.ts) path, so they ask for it.
+    await db.settings.update({ segmentedRecordings: false, recordingsPath: path.join(sandbox, 'recordings'), minFreeSpaceGB: 0, maxConcurrentRecordings: 5 });
     engine.init({ ffmpegPath: FFMPEG, ffprobePath: 'ffprobe' });
     engine.shutdown(); // the test drives tick() itself
 });

@@ -56,7 +56,8 @@ async function loopFreeze(work) {
 let server, base, token;
 before(async () => {
     if (shareFs) shareFs.tuning.timeoutMs = 1500;
-    await db.settings.update({ recordingsPath, minFreeSpaceGB: 0 });
+    // 0494: recordings are segmented by default; these tests cover the part-based (.ts) path, so they ask for it.
+    await db.settings.update({ segmentedRecordings: false, recordingsPath, minFreeSpaceGB: 0 });
     token = auth.generateToken(await db.users.create({ username: 'owner', role: 'admin' }));
     load('db/recordingsDb').initSchema();
     const app = express();

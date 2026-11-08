@@ -272,8 +272,8 @@ A channel resolve (`sourceId` + `channelId`) carries
 
 ### C-L. Watch a recording from the start while it records. Flag: `recordingWatchLive`
 
-Only for recordings made with Settings → Recording → **Segmented recordings** on (off by default; R3). Everything else is
-unchanged, including every recording made before or with the switch off.
+For segmented recordings (R3): every new recording since server 0494 (D-48; before that, a switch that was off by
+default). Recordings made before, or with the old switch off, are unchanged.
 - `/api/recordings` rows carry `watch_live: Bool` (always present): true while the recording is still in progress
   (`status` `"recording"`) and can be played from its start. A segmented recording stays `"recording"` for a few minutes
   after its programme ends, while its MP4 is made; it is still watchable then. It becomes `"completed"` with the MP4, and
