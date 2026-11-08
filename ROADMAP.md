@@ -24,12 +24,16 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   - Waiting on the T5 checks: #246 (stop the container mid-recording and start it again), the iPhone and iPad fixes, and Watch on….
   - Server **v0498** (`:release`, Mark's go-ahead): 0496–0498 (#259), ESPN's F1 check shares the race card's place rule
     (accents, other names, sponsors dropped), so Sky Sports F1's live São Paulo race is no longer a replay. Codex: two
-    highs fixed (0497, 0498), final check approved. Waiting: Mark's Force Update, then T4 (the race card lists Sky Sports F1).
+    highs fixed (0497, 0498), final check approved.
+  - Server **v0499** (`:release`, Mark's go-ahead): #260, a capture that ends early for any reason (the race on 8 Nov
+    ended at 37 min during a guide sync, no backup provider) continues in the same recording, and why it ended is
+    logged. Codex approved. Production still ran 0495 on 9 Nov 08:30 AEDT: waiting on Mark's Force Update, then T4 (#259)
+    and T5 (#260).
 - **Waiting on Mark:**
   - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00.
   - Device checks of 164–175.
   - #240.
-  - Next builds: server **0499**, Apple **187**.
+  - Next builds: server **0500**, Apple **187**.
 - **Mark's decisions (4 Nov):**
   - Release only on his go-ahead.
   - Providers may be used for tests.
