@@ -5,25 +5,28 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 8 Nov 2026 (F1 recording, appdata, Mark's bug list of 8 Nov).*
+*Overwritten at the end of every session. 8 Nov 2026 (F1 recording, appdata, Mark's bug list, Watch on…).*
 
 - **Deployed:** server **0488** (`:release`, 7 Nov); Apple **175** on TestFlight. Nothing below is released yet: a
   release runs on Mark's go-ahead (D-45).
 - **8 Nov, pushed with CI green:**
-  - Server 0489–0493:
-    - 0489 compact nightly database copies (#247).
+  - Server 0489–0495:
+    - 0489 compact nightly copies (#247).
     - 0490 and 0492: a recording carries on after a container stop (#246; the 7 Nov F1 qualifying recording kept 6 minutes because Unraid's Sunday 04:00 AEDT appdata backup stopped the container).
-    - 0491 F1 channels by place name (#248, closed).
+    - 0491 F1 channels by place name (#248).
     - 0493 `followedSides` (#249).
-  - Apple 176–184: #249 star, #250 Settings line, #251 stream note, #252/#254 iPhone sport card (short score, Mark's pick), #253 Start early / Finish late menus (Mark's pick), #255 landscape guide menu, #256 Edit order drag, #258 iPad Settings header.
-  - Production appdata went from 6.9 to 2.7 GB: the old captures in `data/samples` were deleted on Mark's go-ahead.
-- **Decided, not built:** #257 "Watch on… (N channels)" in the long-press menu (Mark's pick; no player button).
+    - 0494 and 0495: every recording is segmented, with no switch (D-48, Mark).
+  - Apple 176–186: #249–#256 and #258 (Mark's picks: the short score in the middle; Start and Finish as menus); 185 and 186 add #257 "Watch on… (N channels)" in the long-press menu (Mark's pick).
+  - Production appdata went from 6.9 to 2.7 GB (old captures deleted, Mark's OK).
+- **Ready for Mark's go-ahead:**
+  - Release server **v0495** (`d9f9af1`), then his Force Update.
+  - TestFlight Apple **186**.
+  - Then the T5 checks: #246 (stop the container mid-recording and start it again), the iPhone and iPad fixes, and Watch on….
 - **Waiting on Mark:**
-  - T5 of #246 (stop mid-recording, start again) and of the Apple fixes on the iPhone and iPad.
-  - The Appdata Backup setting: don't stop PigTV, or move it away from Sunday 04:00.
+  - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00.
   - Device checks of 164–175.
   - #240.
-  - Next builds: server **0494**, Apple **185**.
+  - Next builds: server **0496**, Apple **187**.
 - **Mark's decisions (4 Nov):**
   - Release only on his go-ahead.
   - Providers may be used for tests.
@@ -31,7 +34,6 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   - A future game records once listed (#234).
   - Top Shelf live sport follows-first (#232).
 - **Next:**
-  - #257 Watch on….
   - Captures for #4, #27, #30.
   - #25.
   - Running unattended: #43, #44, #45.

@@ -23,4 +23,10 @@ Issues #249–#258. Simulators: iPhone 17e, iPad Pro 11-inch (M5), Apple TV 4K (
 - Apple round 1: one high. Each follow resolved the same side when both teams were followed by abbreviation. Fixed in 184.
 - Apple round 2 (narrow): approve.
 
-**Decided, not built:** #257. Mark chose a "Watch on… (N channels)" item in the long-press menu, with no player button.
+**Later the same day:**
+- #257 Watch on… (Mark's pick: the long-press menu, never the player): Apple 185. Its Codex round 1 found a high (a
+  channel no longer airing the event was offered) and a medium (a reused channel position could match the wrong
+  event); both were fixed in 186, and round 2 approved. Tests: `WatchOnTests` ×4; an iPhone UI test with a fixture event
+  on three channels.
+- Server 0494 makes segmented recording permanent (D-48). Its Codex round 1 found a high: a settings write could turn it
+  off again. Fixed in 0495; round 2 approved. Test: `test/segmented-always.test.js`.
