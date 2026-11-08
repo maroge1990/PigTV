@@ -1,4 +1,5 @@
 const { test, before, after } = require('node:test');
+process.env.PIGTV_PART_RECORDINGS = '1'; // 0494: the part-based path, for its tests
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -56,7 +57,8 @@ async function loopFreeze(work) {
 let server, base, token;
 before(async () => {
     if (shareFs) shareFs.tuning.timeoutMs = 1500;
-    // 0494: recordings are segmented by default; these tests cover the part-based (.ts) path, so they ask for it.
+    // 0494: recordings are always segmented; these tests cover the part-based (.ts) path, so they ask for it
+    // (PIGTV_PART_RECORDINGS, set at the top of this file).
     await db.settings.update({ segmentedRecordings: false, recordingsPath, minFreeSpaceGB: 0 });
     token = auth.generateToken(await db.users.create({ username: 'owner', role: 'admin' }));
     load('db/recordingsDb').initSchema();

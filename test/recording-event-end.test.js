@@ -1,4 +1,5 @@
 const { test, before, after } = require('node:test');
+process.env.PIGTV_PART_RECORDINGS = '1'; // 0494: the part-based path, for its tests
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -45,7 +46,8 @@ before(async () => {
     A = await db.sources.create({ type: 'm3u', name: 'Strong8K', url: 'http://strong.invalid/get.php?username=u&password=p' });
     sqlite.getDb().prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, is_hidden, sort_order, stable_id, tvg_id, stream_url)
                VALUES (?, ?, 'pos_1', 'live', 'Fox Footy 504', 'Sport', 0, 1, 's504', 'foxfooty.au', 'http://strong.invalid/live/u/p/504.ts')`).run(`${A.id}:pos_1`, A.id);
-    // 0494: recordings are segmented by default; these tests cover the part-based (.ts) path, so they ask for it.
+    // 0494: recordings are always segmented; these tests cover the part-based (.ts) path, so they ask for it
+    // (PIGTV_PART_RECORDINGS, set at the top of this file).
     await db.settings.update({ segmentedRecordings: false, recordingsPath: path.join(sandbox, 'recordings'), minFreeSpaceGB: 0, maxConcurrentRecordings: 5 });
     engine.init({ ffmpegPath: FFMPEG, ffprobePath: 'ffprobe' });
     engine.shutdown(); // the test drives tick() itself

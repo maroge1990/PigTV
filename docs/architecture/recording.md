@@ -83,7 +83,8 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 ## Segmented recordings
 
 - **Segmented recordings** (R3, 0218, `recordingSegments.js`; `segmentedRecordings`, **always on since 0494** (D-48):
-  no switch; `false` only in tests of the part-based path; contract C-L). A new recording is captured into `/app/data/recordings-work/rec-<id>/e<n>/` as
+  no switch: writes of it are ignored and a stored value never counts; only tests of the part-based path
+  (`PIGTV_PART_RECORDINGS=1`) turn it off; contract C-L). A new recording is captured into `/app/data/recordings-work/rec-<id>/e<n>/` as
   4 s MPEG-TS HLS segments, one folder per ffmpeg run ("epoch"); the arguments are the usual capture's with `-f hls`,
   `make_non_negative` and `-output_ts_offset <seconds so far>` (make_zero would undo the offset), so the timeline runs on.
   A failover or a restart continues the **same row** in a new epoch (no part 2; ≤ 20 resumes; gaps noted in `error`); a

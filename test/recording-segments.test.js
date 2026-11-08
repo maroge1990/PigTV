@@ -1,4 +1,5 @@
 const { test, before, after, afterEach } = require('node:test');
+process.env.PIGTV_PART_RECORDINGS = '1'; // 0494: lets these tests switch segmenting off to compare with the part-based path
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');

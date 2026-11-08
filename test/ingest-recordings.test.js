@@ -1,4 +1,5 @@
 const { test, before, after, afterEach } = require('node:test');
+process.env.PIGTV_PART_RECORDINGS = '1'; // 0494: the part-based path, for its tests
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -98,7 +99,8 @@ before(async () => {
     item.run(`${A.id}:pos_2`, A.id, 'pos_2', 'Fox League', 2, 'fl', `${base}/fl.ts`);
     item.run(`${A.id}:pos_3`, A.id, 'pos_3', 'Odd', 3, 'odd', `${base}/html`);
     item.run(`${A.id}:pos_4`, A.id, 'pos_4', 'Shaky', 4, 'shaky', `${base}/dies.ts`);
-    // 0494: recordings are segmented by default; these tests cover the part-based (.ts) path, so they ask for it.
+    // 0494: recordings are always segmented; these tests cover the part-based (.ts) path, so they ask for it
+    // (PIGTV_PART_RECORDINGS, set at the top of this file).
     await db.settings.update({ segmentedRecordings: false, recordingsPath: path.join(sandbox, 'recordings'), minFreeSpaceGB: 0, maxConcurrentRecordings: 5,
         maxProviderStreams: 1, sharedIngestEnabled: true });
     engine.init({ ffmpegPath: FFMPEG, ffprobePath: 'ffprobe' });

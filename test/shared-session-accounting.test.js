@@ -1,4 +1,5 @@
 const { test, before, after, afterEach } = require('node:test');
+process.env.PIGTV_PART_RECORDINGS = '1'; // 0494: the part-based path, for its tests
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -38,7 +39,8 @@ before(async () => {
     A = await db.sources.create({ type: 'm3u', name: 'A', url: 'http://a.invalid/list.m3u' });
     await db.sources.create({ type: 'm3u', name: 'B', role: 'backup', url: 'http://b.invalid/list.m3u' });
     sql.getDb().prepare(`INSERT INTO playlist_items (id,source_id,item_id,stable_id,type,name,stream_url) VALUES (?,?,? ,?,'live','Test',?)`).run(`${A.id}:pos_1`, A.id, 'pos_1', 's1', base);
-    // 0494: recordings are segmented by default; these tests cover the part-based (.ts) path, so they ask for it.
+    // 0494: recordings are always segmented; these tests cover the part-based (.ts) path, so they ask for it
+    // (PIGTV_PART_RECORDINGS, set at the top of this file).
     await db.settings.update({ segmentedRecordings: false, sharedIngestEnabled: true, maxProviderStreams: 1, recordingsPath: path.join(tmp, 'recordings'), minFreeSpaceGB: 0 });
     settings = await db.settings.get();
     const user = await db.users.create({ username: 'admin', role: 'admin' });

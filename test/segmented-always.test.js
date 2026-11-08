@@ -22,13 +22,18 @@ after(() => {
     fs.rmSync(sandbox, { recursive: true, force: true });
 });
 
-test('0494: a stored "off" is dropped once, so recordings are segmented; a later explicit change is kept', async () => {
+test('0494: a stored "off" is dropped once, and no later write or stored value turns segmenting off', async () => {
     const raw = sqlite.getDb();
     raw.prepare(`INSERT OR REPLACE INTO app_settings (key, value) VALUES ('segmentedRecordings', 'false')`).run();
     assert.equal((await db.settings.get()).segmentedRecordings, true, 'on, whatever an older build stored');
     assert.ok(raw.prepare(`SELECT value FROM meta WHERE key = 'segmented_always'`).get(), 'done once, remembered');
-    await db.settings.update({ segmentedRecordings: false }); // only tests of the old path do this
-    assert.equal((await db.settings.get()).segmentedRecordings, false);
+    // 0494 Codex round 1 (high): an old settings page, or a restored backup, sending "off" changes nothing.
+    await db.settings.update({ segmentedRecordings: false, minFreeSpaceGB: 3 });
+    assert.equal((await db.settings.get()).segmentedRecordings, true);
+    assert.equal((await db.settings.get()).minFreeSpaceGB, 3, 'the rest of the change is saved');
+    raw.prepare(`INSERT OR REPLACE INTO app_settings (key, value) VALUES ('segmentedRecordings', 'false')`).run();
+    await db.settings.update({ minFreeSpaceGB: 4 }); // a write rebuilds what get() hands out
+    assert.equal((await db.settings.get()).segmentedRecordings, true, 'a stored "off" never counts');
 });
 
 test('0494: the web no longer offers the switch', () => {
