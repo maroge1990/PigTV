@@ -18,10 +18,10 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
     - 0494 and 0495: every recording is segmented, with no switch (D-48, Mark).
   - Apple 176–186: #249–#256 and #258 (Mark's picks: the short score in the middle; Start and Finish as menus); 185 and 186 add #257 "Watch on… (N channels)" in the long-press menu (Mark's pick).
   - Production appdata went from 6.9 to 2.7 GB (old captures deleted, Mark's OK).
-- **Ready for Mark's go-ahead:**
-  - Release server **v0495** (`d9f9af1`), then his Force Update.
-  - TestFlight Apple **186**.
-  - Then the T5 checks: #246 (stop the container mid-recording and start it again), the iPhone and iPad fixes, and Watch on….
+- **Released 8 Nov (Mark's go-ahead):**
+  - Server **v0495** (`:release`), live after Mark's Force Update.
+  - Apple **186** uploaded to TestFlight (tvOS and iOS).
+  - Waiting on the T5 checks: #246 (stop the container mid-recording and start it again), the iPhone and iPad fixes, and Watch on….
 - **Waiting on Mark:**
   - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00.
   - Device checks of 164–175.
