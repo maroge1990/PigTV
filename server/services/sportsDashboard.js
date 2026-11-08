@@ -385,6 +385,10 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
             const found=followMatchesFor(g,teams,listedBy);
             card.followed=found.length>0;
             if(found.length) followMatches[g.id]=found;
+            // #249 (0493, C-R additive): which sides are followed, as the server matched them (aliases and
+            // abbreviations: a follow saved as "ARI" is the Arizona Cardinals), so a client never guesses from names.
+            const sides=[...new Set(found.map(m=>m.competitor).filter(Number.isInteger))].sort((a,b)=>a-b);
+            if(sides.length) card.followedSides=sides;
         }
         games.push(card);
     }

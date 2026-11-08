@@ -744,7 +744,9 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
     per-channel `start`/`end` on `channels[]`. Finished games from today are kept (status `finished`) so the page can
     show results. With the household's `spoilerFree` on, no card carries `scores` or `situation`, and `progress` keeps
     only neutral fields, as C-O does for `avoidSpoilers`. Since 0386 (#191) a live card past its guide slot keeps its
-    channels, `overrun: true` with `end` rolled on, as C-O.
+    channels, `overrun: true` with `end` rolled on, as C-O. Since 0493 (#249, additive) a followed game of two sides
+    carries `followedSides`: the competitor indices the household follows (`[1]`, or `[0, 1]`), matched as `followed`
+    is (names, aliases, abbreviations); absent for a driver or a game with no followed side. Clients star those sides.
 - Badges: `competitors[].logo` is a logo-cache path when the feed has one; the client shows it beside every score and
   team name, the monogram disc only as a fallback. The hero band's backdrop is the F1 circuit map (C-P `info.map`) for a
   race, else the hero team's badge, faded.

@@ -515,3 +515,21 @@ test('0416: a card\'s recording is matched against each channel\'s own airing, n
         channel_stable_id: 'ff', program_start: T + 3 * H, program_end: T + 4 * H }]);
     assert.equal(card.recording, undefined);
 });
+
+// #249 (0493): production follows the NFL's Arizona Cardinals as "ARI"; the card was `followed` but the app starred
+// neither side (it matched names by their endings). The server says which side.
+test('0493: followedSides names the followed side, matched by abbreviation on the away side', async () => {
+    clearGames();
+    const now = Date.now();
+    const ari = { id: '22', name: 'Arizona Cardinals', aliases: ['Arizona Cardinals', 'Cardinals', 'ARI'], logo: null };
+    dashboard.store().ingest([
+        game('espn:football/nfl:401873048', 'NFL', now + 3 * H, [team('26', 'Seattle Seahawks'), ari], scheduled),
+        game('espn:football/nfl:9', 'NFL', now + 4 * H, [team('12', 'Chiefs'), team('2', 'Bills')], scheduled)
+    ], now - 100000);
+    guideEvents = [];
+    assert.equal((await call('/api/sports/pages/preferences', { sports: ['NFL'], teams: { NFL: ['ARI'] } })).status, 200);
+    const byId = Object.fromEntries((await front()).games.map(g => [g.id, g]));
+    assert.equal(byId['espn:football/nfl:401873048'].followed, true);
+    assert.deepEqual(byId['espn:football/nfl:401873048'].followedSides, [1]);
+    assert.equal('followedSides' in byId['espn:football/nfl:9'], false, 'none on a game with no followed side');
+});
