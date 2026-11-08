@@ -713,6 +713,31 @@ const overlaps = (a, c) => a.start < c.end && a.end > c.start;
 const locationMatch = (a, b) => !a.length || !b.length || a.every(w => b.includes(w)) || b.every(w => a.includes(w));
 const sessionMatch = (a, b) => !a || !b || a.id === b.id;
 
+// #248 (0491): the Sao Paulo GP joined few of its airings. ESPN writes "São Paulo"; listings write "Sao Paulo",
+// "Brazil", "Brasil", "Brésil" or "Interlagos". Places are compared without accents, and an F1 weekend's other names
+// (its country, its circuit) count as its place. One name per weekend only: never a country with two races (Spain,
+// the United States).
+const F1_PLACES = [
+    ['sao paulo', 'brazil', 'brasil', 'bresil', 'brasilien', 'interlagos'], ['mexico city', 'mexico', 'mexique', 'hermanos rodriguez'],
+    ['las vegas', 'vegas'], ['abu dhabi', 'yas marina'], ['qatar', 'lusail'], ['great britain', 'british', 'silverstone'],
+    ['netherlands', 'dutch', 'zandvoort'], ['belgium', 'belgian', 'spa francorchamps'], ['hungary', 'hungarian', 'hungaroring'],
+    ['italy', 'italian', 'monza'], ['japan', 'japanese', 'suzuka'], ['saudi arabia', 'saudi', 'jeddah'],
+    ['azerbaijan', 'baku'], ['singapore', 'marina bay'], ['bahrain', 'sakhir'], ['australia', 'australian', 'melbourne', 'albert park'],
+    ['china', 'chinese', 'shanghai'], ['canada', 'canadian', 'montreal'], ['austria', 'austrian', 'spielberg', 'red bull ring'],
+    ['monaco', 'monte carlo'], ['united states', 'austin', 'circuit of the americas', 'cota']
+];
+const placeWords = (location) => location.map(w => foldText(w));
+function placeGroups(words) {
+    const said = ` ${words.join(' ')} `;
+    return new Set(F1_PLACES.flatMap((names, i) => names.some(n => said.includes(` ${n} `)) ? [i] : []));
+}
+function samePlace(league, a, b) {
+    const fa = placeWords(a), fb = placeWords(b);
+    if (locationMatch(fa, fb)) return true;
+    if (league !== 'F1') return false;
+    const ga = placeGroups(fa), gb = placeGroups(fb);
+    return [...ga].some(g => gb.has(g));
+}
 // ---- ESPN fixtures (0161): a ground-truth first rule for resolveLive -----------------------
 
 const ESPN_GRACE_MS = 30 * 60 * 1000; // "the airing started at/near the real kickoff"
@@ -816,7 +841,8 @@ function fixtureVerdict(a, leagueData, now) {
         return null;
     }
     if (p.session) {
-        const candidates = (leagueData.fixtures || []).filter(f => f.session && sessionMatch(f.session, p.session) && locationMatch(f.location, p.location));
+        // #259 (0496): ESPN writes "São Paulo", a guide "Sao Paulo" or "Brazil": the card's own place rule, not letter for letter.
+        const candidates = (leagueData.fixtures || []).filter(f => f.session && sessionMatch(f.session, p.session) && samePlace(a.league, f.location, p.location));
         if (!candidates.length) {
             // 0185: last weekend's grand prix shown again midweek. ESPN has no session of this
             // league anywhere near this airing, so it cannot be live. Trusted like "no such game":
@@ -991,5 +1017,6 @@ module.exports = {
     // 0161: exported so services/sportsFixtures.js can build a snapshot resolveLive understands,
     // and so tests can exercise the matching/wording directly without a live ESPN fetch.
     sessionMatch, locationMatch, fixtureVerdict, espnWhen,
-    foldText // 0491: the dashboard compares places without accents
+    foldText, // 0491: the dashboard compares places without accents
+    samePlace // 0496 (#259): one F1 place rule for the card's join and ESPN's live check
 };

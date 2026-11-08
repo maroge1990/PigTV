@@ -648,3 +648,25 @@ test('#213/#223: a stored roster without team ids is fetched again on the next r
         () => fixtures.refreshLeague('NFL', { now: now + H }));
     assert.equal(fixtures.teamsOf('NFL').length, roster.length);
 });
+
+// #259 (0496): production's guide on 8 Nov 2026. ESPN names the race "MSC Cruises São Paulo Grand Prix"; Sky Sports F1
+// lists "Live Sao Paulo F1 Grand Prix" at 16:55, and beIN a pre-race show titled like the race at 15:30. ESPN's check
+// compared places letter for letter, said nothing, and the first-airing rule made beIN's show the race and Sky's a replay.
+test('0496: ESPN\'s F1 session matches a place spelt without accents or by its country; another Grand Prix does not', () => {
+    const race = Date.parse('2026-11-08T17:00Z'), at = Date.parse('2026-11-08T08:00Z');
+    const fixture = (name, start) => ({ start, end: null, teamsAliases: null, session: { id: 'race', label: 'Race' },
+        location: classify.parseTitle(name).location });
+    const snap = new Map([['F1', { fixtures: [fixture('MSC Cruises São Paulo Grand Prix', race),
+        fixture('Mexico City Grand Prix', race - 7 * 24 * H)], teamsAliases: [],
+        coverage: { from: at - 36 * H, to: at + 72 * H, at } }]]);
+    const kinds = resolve(snap, at,
+        airing('Sunday Msc Cruises Grande Premio De Sao Paulo Grand Prix', race - 90 * 60000, { league: 'F1', channel: 'beIN Sports 1' }),
+        airing('Live Sao Paulo F1 Grand Prix', race - 5 * 60000, { league: 'F1', channel: 'Sky Sports F1' }),
+        airing('Formula 1: Brazil Grand Prix', race - 5 * 60000, { league: 'F1', channel: 'Fox Sports 506' }));
+    assert.doesNotMatch(kinds[1], /aired first/, 'the earlier show is no longer taken for the first airing');
+    assert.match(kinds[1], /^event: .*ESPN: the session started/, 'Sky\'s race is live');
+    assert.match(kinds[2], /^event: .*ESPN: the session started/, '"Brazil" is the São Paulo weekend');
+    assert.equal(classify.samePlace('F1', ['mexico', 'city'], ['sao', 'paulo']), false);
+    assert.equal(classify.samePlace('F1', ['são', 'paulo'], ['brazil']), true);
+    assert.equal(classify.samePlace('NFL', ['são', 'paulo'], ['brazil']), false, 'other names are F1\'s only');
+});
