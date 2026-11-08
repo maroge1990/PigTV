@@ -1532,12 +1532,25 @@ async function onPartExit(schedule, entry, exitCode) {
 // R3: how many times one segmented recording may start a new epoch after a failover (a provider
 // that keeps dropping must not restart ffmpeg for ever).
 const MAX_SEGMENT_RESUMES = 20;
+// #260 (0499): an epoch that ran at least this long before it ended is continued at once, a shorter one on the next tick.
+const RESUME_AT_ONCE_AFTER_MS = 60 * 1000;
+
+/** #260 (0499): why a capture ended, for the log: the feed's reason, the exit, ffmpeg's last line (redacted). */
+function captureEndWhy(entry, exitCode) {
+    const parts = [];
+    if (entry.stalled) parts.push('no data');
+    if (entry.feedLost?.reason) parts.push(`the shared feed ended: ${entry.feedLost.reason}`);
+    parts.push(exitCode === null || exitCode === undefined ? 'ffmpeg was stopped' : `ffmpeg exit ${exitCode}`);
+    const last = (entry.stderrTail || []).filter(l => l.trim()).slice(-1)[0];
+    if (last) parts.push(`"${redact(last.trim()).slice(0, 160)}"`);
+    return parts.join('; ');
+}
 
 /**
- * R3: an epoch's ffmpeg has exited. The same decision as onPartExit (a provider reason, not
- * asked for, before the end, with a backup configured), but instead of a part 2 the recording
- * goes on in a new epoch of the same folder and row - after a start failure too, since nothing
- * is deleted and the next run simply appends. Otherwise the capture is over and the MP4 is made.
+ * R3: an epoch's ffmpeg has exited. Not asked for and before the end (#260, 0499: for any reason, with or without a
+ * backup provider), the recording goes on in a new epoch of the same folder and row - after a start failure too, since
+ * nothing is deleted and the next run simply appends - up to MAX_SEGMENT_RESUMES times. Otherwise the capture is over
+ * and the MP4 is made.
  */
 async function onSegmentExit(schedule, entry, exitCode) {
     segments.sealEpoch(entry.outputPath);
@@ -1552,18 +1565,30 @@ async function onSegmentExit(schedule, entry, exitCode) {
     }
     const unrequested = !entry.stopRequested && now < currentStopTime(schedule) - failoverTuning.endGraceMs;
     const providerReason = entry.stalled || providerFailureIn(entry.stderrTail) || entry.feedLost?.providerReason === true;
-    if (entry.route.multi && unrequested && providerReason && entry.segmented.resumes < MAX_SEGMENT_RESUMES) {
+    // #260 (0499): why this capture ended, always logged (the São Paulo GP's said nothing).
+    const why = captureEndWhy(entry, exitCode);
+    if (unrequested && entry.segmented.resumes < MAX_SEGMENT_RESUMES) {
+        // #260 (0499): any early end continues the same recording (a new epoch, the gap noted), not only a provider's
+        // failure with a backup configured: one provider is tried again. It starts again at once after a provider's failure
+        // on a multi-provider route (as before) or a capture that had run a minute; one that ended sooner waits for the
+        // next tick, so a capture that keeps ending cannot spin.
+        const failover = entry.route.multi && providerReason;
+        const ranLong = now - entry.spawnedAt >= RESUME_AT_ONCE_AFTER_MS;
         const candidate = entry.route.candidates[entry.index];
-        providerRouting.noteFailure(candidate, entry.route.primaryKey);
-        console.warn(`[Recordings] #${entry.recordingId} ${entry.stalled ? 'stalled' : 'lost the stream'} on ${candidate.providerName}; ` +
-            'it continues in the same recording when a provider is free');
+        if (failover) providerRouting.noteFailure(candidate, entry.route.primaryKey);
+        console.warn(`[Recordings] #${entry.recordingId} ended early (${why})` +
+            (entry.route.multi && candidate?.providerName ? ` on ${candidate.providerName}` : '') +
+            '; it continues in the same recording');
         continuations.set(schedule.id, {
             schedule, nextPart: 1, lostAt: now, starting: false, waitingLogged: false,
-            resume: { recordingId: entry.recordingId, workDir: entry.segmented.workDir, resumes: entry.segmented.resumes + 1 }
+            resume: { recordingId: entry.recordingId, workDir: entry.segmented.workDir, resumes: entry.segmented.resumes + 1,
+                why: failover ? 'the provider dropped out' : `the capture ended (${why})` }
         });
+        if (!failover && !ranLong) return;
         return continuePart(schedule.id).catch(err =>
             console.error(`[Recordings] Could not continue schedule #${schedule.id}:`, err.message));
     }
+    if (unrequested) console.warn(`[Recordings] #${entry.recordingId} ended early (${why}) and has been continued ${entry.segmented.resumes} times; it ends here`);
     endSegmentCapture(schedule.id, entry.recordingId, { exitCode, stderrTail: entry.stderrTail });
 }
 

@@ -110,6 +110,13 @@ if (args.includes('hls')) {
     process.stderr.write('[tcp @ 0x1] Connection reset by peer\\n');
     process.exit(1);
   });
+  // #260: the São Paulo GP's capture ended by itself mid-race, with nothing that looks like the provider's fault.
+  const endedMarker = ${JSON.stringify(path.join(sandbox, 'ffmpeg-ended-once'))};
+  if (kind === 'ends-once' && !fs.existsSync(endedMarker)) setTimeout(() => {
+    fs.writeFileSync(endedMarker, '1');
+    putPlaylist(pl + '#EXT-X-ENDLIST\\n');
+    process.exit(0);
+  }, 400);
   if (kind === 'dies') setTimeout(() => {
     process.stderr.write('[tcp @ 0x1] Connection reset by peer\\nError during demuxing: Connection reset by peer\\n');
     process.exit(1);
@@ -184,6 +191,7 @@ afterEach(async () => {
     for (const k of Object.keys(behaviour)) delete behaviour[k];
     fs.writeFileSync(behaviourFile, '{}');
     try { fs.unlinkSync(startsFile); } catch { /* none */ }
+    try { fs.unlinkSync(path.join(sandbox, 'ffmpeg-ended-once')); } catch { /* none */ }
     remuxed.length = 0;
     fs.mkdirSync(share, { recursive: true });
     await db.settings.update({ recordingsPath: share, segmentedRecordings: true });
@@ -870,6 +878,27 @@ test('provider dies mid-recording with a backup: the same recording continues in
     } finally {
         await db.sources.update(B.id, { enabled: false });
     }
+});
+
+// #260 (0499): on 8 Nov the São Paulo GP's capture ended 37 minutes into the race, during a guide sync, with no provider
+// error and no backup provider configured. The recording was completed with what it had; nothing said why.
+test('0499: a capture that ends early for no provider reason, with one provider: the same recording continues, and why is logged', async () => {
+    tuning.endGraceMs = 0;
+    setBehaviour(url.A, 'ends-once');
+    const s = due({ windowMs: 20000 });
+    await until(() => captures().length === 2, 'continued after the capture ended');
+    const rows = rowsOf(s.id);
+    assert.equal(rows.length, 1, 'one recording');
+    const rec = rows[0];
+    assert.equal(scheduled.getById(s.id).status, 'recording', 'not completed');
+    assert.equal(rec.segment_state, 'capturing');
+    const second = captures()[1];
+    assert.equal(second[second.length - 1], path.join(rec.work_dir, 'e2', 'archive.m3u8'), 'a new epoch of the same recording');
+    assert.match(rec.error, /^Gaps: 1, \d+ s in all \(the last: the capture ended \(ffmpeg exit 0\)\)\.$/);
+    assert.ok(logLines.some(l => l.includes(`#${rec.id} ended early (ffmpeg exit 0); it continues in the same recording`)), 'why it ended is logged');
+    await engine.cancelScheduled(s.id);
+    await until(() => recordings.getById(rec.id).status === 'completed', 'finished', 10000);
+    assert.equal(captures().length, 2, 'a requested stop is not continued');
 });
 
 /** A schedule and a segmented row as a server that stopped mid-recording left them. */
