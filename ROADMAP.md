@@ -31,7 +31,8 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   - Server **v0501** and Apple **187** (Mark's go-ahead, 9 Nov): #261, live scores at once on opening Sport (a live or due
     game fetched every minute while nobody looks; the front page re-asks every 20 s near a start). Codex: 187 approved,
     0500's medium (non-ESPN feeds) fixed in 0501. Waiting: Force Update, TestFlight processing, T5.
-  - 9 Nov, pushed (not released): server **0502** (#265 quality labels, C-X) and Apple **188–191** (#263 the Sport header
+  - 9 Nov, released (Mark's go-ahead): server **v0502** (`:release`, waits for Force Update) and Apple **191** on
+    TestFlight (tvOS and iOS). Built: server **0502** (#265 quality labels, C-X) and Apple **188–191** (#263 the Sport header
     stays fixed, #264 the hero shrinks to a pinned strip, Mark's option B; #265 UHD/SD badges in the guide). Codex: server
     approved, Apple one medium fixed in 191. #266 (grouping in the pickers) held: the four Sky Sports F1 rows are likely
     four qualities, which stay separate (Mark). Evidence: `docs/evidence/2026-11-09-sport-header-quality/`.
