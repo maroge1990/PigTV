@@ -547,3 +547,38 @@ reviews.
   dropped once, and the web no longer offers it.
 - **Consequence:** the part-based path stays in the code for its tests only; [`architecture/recording.md`](architecture/recording.md).
 
+### D-49. Apple CI: a push runs build, contract, unit and playback; the full UI run gates TestFlight (10 Nov 2026; Mark)
+
+- **Context:** the 10 Nov audit (#269) measured an Apple push at about 23 minutes, most of it UI tiers that had also
+  just run on the Mac.
+- **Choice:** every push runs the build, the contract checks, the unit tests and the playback tests. The full UI tests
+  are a required step before a TestFlight upload, for that commit. No nightly run: releases are irregular and TestFlight
+  is the milestone. The regression UI tests run once per batch on the Mac before the push, not twice. Amends D-38.
+- **Consequence:** `PigTV-Swift` `ci.yml`, `Tools/testflight.sh` (refuses to upload without the pass), its `AGENTS.md`
+  and `TESTING.md`.
+
+### D-50. Server CI: a sport-only or web-only push skips the ffmpeg test files (10 Nov 2026; Mark)
+
+- **Context:** #269: a server push waited about 7 minutes whatever it touched, and ran the suite on two Node versions.
+- **Choice:** a push that touches only files on the workflow's listed sport or web paths skips the test files that need
+  ffmpeg. Any other change, and any path not on the list, runs the full suite; so does every release before it
+  promotes. No nightly run. Amends D-34.
+- **Consequence:** the safe paths are listed in `test.yml`, nowhere else; `release.yml` runs the full suite;
+  [`TESTING.md`](TESTING.md).
+
+### D-51. Codex: sport and web batches fix highs only, and every finding's fix goes back to Codex (10 Nov 2026; Mark)
+
+- **Context:** #269: review rounds on sport and web batches spent most of their time on mediums and lows; and under
+  D-38 and D-46 a fix for a round-one finding could ship on Claude's own say-so.
+- **Choice:** for sport and web batches only highs are fixed in the batch; mediums and lows are listed in the batch's
+  issue. Every fix made for a finding goes back to Codex for sign-off before the push, even as one narrow check: Claude
+  never signs off its own fix. Recording, playback, providers, sign-in and the client contract keep the full rule.
+  Amends D-17, D-19, D-38 and D-46.
+- **Consequence:** AGENTS.md › Reviews in both repos.
+
+### D-52. Node 24 is the only supported runtime (10 Nov 2026; Mark)
+
+- **Context:** CI ran every test on Node 22 and 24; the image and every deployment run 24.
+- **Choice:** Node 24 only. The Node 22 CI leg goes and `engines` is `>=24`.
+- **Consequence:** `test.yml`, `package.json`, AGENTS.md › Commands.
+
