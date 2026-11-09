@@ -5,58 +5,30 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 9 Nov 2026 (Sport header and strip, picture quality badges).*
+*Overwritten at the end of every session. 10 Nov 2026 (audit batch A: testing, CI and docs, #269).*
 
-- **Deployed:** server **0488** (`:release`, 7 Nov); Apple **175** on TestFlight. Nothing below is released yet: a
-  release runs on Mark's go-ahead (D-45).
-- **8 Nov, pushed with CI green:**
-  - Server 0489–0495:
-    - 0489 compact nightly copies (#247).
-    - 0490 and 0492: a recording carries on after a container stop (#246; the 7 Nov F1 qualifying recording kept 6 minutes because Unraid's Sunday 04:00 AEDT appdata backup stopped the container).
-    - 0491 F1 channels by place name (#248).
-    - 0493 `followedSides` (#249).
-    - 0494 and 0495: every recording is segmented, with no switch (D-48, Mark).
-  - Apple 176–186: #249–#256 and #258 (Mark's picks: the short score in the middle; Start and Finish as menus); 185 and 186 add #257 "Watch on… (N channels)" in the long-press menu (Mark's pick).
-  - Production appdata went from 6.9 to 2.7 GB (old captures deleted, Mark's OK).
-- **Released 8 Nov (Mark's go-ahead):**
-  - Server **v0495** (`:release`), live after Mark's Force Update.
-  - Apple **186** uploaded to TestFlight (tvOS and iOS).
-  - Waiting on the T5 checks: #246 (stop the container mid-recording and start it again), the iPhone and iPad fixes, and Watch on….
-  - Server **v0498** (`:release`, Mark's go-ahead): 0496–0498 (#259), ESPN's F1 check shares the race card's place rule
-    (accents, other names, sponsors dropped), so Sky Sports F1's live São Paulo race is no longer a replay. Codex: two
-    highs fixed (0497, 0498), final check approved.
-  - Server **v0499** (`:release`, Mark's go-ahead): #260, a capture that ends early for any reason (the race on 8 Nov
-    ended at 37 min during a guide sync, no backup provider) continues in the same recording, and why it ended is
-    logged. Codex approved. Production on 0499 from 9 Nov 11:42 AEDT. Waiting: T4 (#259) at the next race, T5 (#260).
-  - Server **v0501** and Apple **187** (Mark's go-ahead, 9 Nov): #261, live scores at once on opening Sport (a live or due
-    game fetched every minute while nobody looks; the front page re-asks every 20 s near a start). Codex: 187 approved,
-    0500's medium (non-ESPN feeds) fixed in 0501. Waiting: Force Update, TestFlight processing, T5.
-  - 9 Nov, released (Mark's go-ahead): server **v0502** (`:release`, waits for Force Update) and Apple **191** on
-    TestFlight (tvOS and iOS). Built: server **0502** (#265 quality labels, C-X) and Apple **188–191** (#263 the Sport header
-    stays fixed, #264 the hero shrinks to a pinned strip, Mark's option B; #265 UHD/SD badges in the guide). Codex: server
-    approved, Apple one medium fixed in 191. #266 (grouping in the pickers) held: the four Sky Sports F1 rows are likely
-    four qualities, which stay separate (Mark). Evidence: `docs/evidence/2026-11-09-sport-header-quality/`.
-  - Next: #262, iPadOS/iOS 17+ (now build 192, Mark's ask): three sites need fallbacks; an iPadOS 17 simulator to download.
-  - 9 Nov, #3 investigation (no code change): Mark's 34-minute Fox Sports 505 iPad play had one server event, a hot-standby
-    promotion Strong8K → Dream 4K at 13:52 behind an `EXT-X-DISCONTINUITY`; the relay rig shows the joined output in step
-    within 0.14 s, so the player's handling of the join or its 0.97× catch-up (Apple 72) is next to measure on the device.
-    Evidence: `docs/evidence/2026-11-09-avsync-fox505-timeline/`. Mark: no build; measurements filed as #267 (meter) and #268 (marker).
+- **Released:** server **v0502** (`:release`, 9 Nov) and Apple **191** on TestFlight (tvOS and iOS). A release runs on
+  Mark's go-ahead (D-45). No server or app code has changed since: next builds are server **0503**, Apple **192**.
+- **10 Nov, audit:** the simplification, brand 1.8, UX and testing audit is filed as batch issues #269–#280 and bug #281;
+  each issue's first comment holds the detail and a later comment Mark's decisions. Batch order after A: I (#277),
+  C (#271), B (#270), G (#275), K (#279), H (#276), L (#280), D (#272, with #281), E (#273), J (#278), F (#274).
+- **10 Nov, batch A pushed with CI green (#269; D-49 to D-52):**
+  - Server CI: one job runs `verify-build.sh` and the suite once, on Node 24, inside the candidate image; a web-only push
+    skips 7 ffmpeg test files; a release runs the full suite on the digest it promotes. First run: 4 min 28 s (was ~7).
+  - Apple CI: a push runs build, contract, unit and playback; the full UI run (`Tools/test.sh all`) is required by
+    `Tools/testflight.sh` for the commit it uploads. First run: 12 min 11 s (was ~23; the aim was 10).
+  - Tests: four server timing files on a mocked clock (46 s to 5 s); `AppFreshnessTests` 60 s to under 1 s.
+  - Docs: the next build number is read from `server/version.js`; the kit is PigBrand (guide 1.8.0, tokens 1.7.0);
+    Codex scope for sport and web batches (D-51).
+  - No Codex round (workflow, test and docs only); the CI change was reviewed and its fixes signed off by an Opus agent.
 - **Waiting on Mark:**
+  - T5 device checks: #246 (stop the container mid-recording), #260, the iPhone and iPad fixes in 176–191, Watch on…,
+    and T4 for #259 at the next race.
   - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00.
-  - Device checks of 164–175.
   - #240.
-  - Next builds: server **0503**, Apple **192**.
-- **Mark's decisions (4 Nov):**
-  - Release only on his go-ahead.
-  - Providers may be used for tests.
-  - Recordings are never deleted automatically (#40).
-  - A future game records once listed (#234).
-  - Top Shelf live sport follows-first (#232).
-- **Next:**
-  - Captures for #4, #27, #30.
-  - #25.
-  - Running unattended: #43, #44, #45.
-  - Web: #60–#64.
+- **Open investigation:** #3 (sound out of step on the iPad): the relay join measured clean; the device meter (#267)
+  and the marker (#268) are filed, not built (Mark).
+- **Next:** batch I (#277); then #262 (iPadOS/iOS 17+, three sites need fallbacks).
 
 ## Now
 
