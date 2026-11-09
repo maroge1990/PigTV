@@ -1,4 +1,4 @@
-const { test, before, after, afterEach } = require('node:test');
+const { test, before, after, afterEach, mock } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const { once } = require('node:events');
@@ -12,7 +12,24 @@ const { once } = require('node:events');
 const ingest = require('../server/services/ingest');
 const T = ingest.tuning;
 const TUNING = { ...T };
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// Mocked clock (node:test mock.timers: setTimeout, setInterval, Date) for everything that waits on
+// the feed's pace: the fake provider's send timers, the ingest's stall check and its retry timer.
+// Sockets stay real, so `sleep` advances the virtual clock in 100 ms steps and lets the loopback
+// I/O drain after each, which is what the wall clock did before. No wall time passes.
+const STEP = 100;
+const flush = async () => { for (let i = 0; i < 4; i++) await new Promise(r => setImmediate(r)); };
+mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: Date.now() }); // on for the whole file; its time only moves forward
+const sleep = async (ms) => {
+    for (let left = ms; left > 0; left -= STEP) { mock.timers.tick(Math.min(STEP, left)); await flush(); }
+};
+/** Advance the clock until the promise settles (at most `maxMs`). */
+async function until(promise, maxMs = 5000) {
+    let done = false;
+    promise.then(() => { done = true; }, () => { done = true; });
+    for (let waited = 0; !done && waited < maxMs; waited += 20) await sleep(20);
+    return promise;
+}
 
 function packet(pcrSec, n) {
     const b = Buffer.alloc(188, 0xff);
@@ -48,14 +65,14 @@ before(async () => {
     base = `http://127.0.0.1:${server.address().port}`;
 });
 afterEach(() => { ingest.closeAll('test over'); Object.assign(T, TUNING); });
-after(() => server.close());
+after(() => { server.close(); mock.timers.reset(); });
 
 const quiet = async (fn) => { const log = console.log; console.log = () => {}; try { return await fn(); } finally { console.log = log; } };
 
 test('a bursty feed that keeps up with real time is never reconnected, though it pauses for longer than the old limit', async () => {
     Object.assign(T, { stallMs: 2000, behindMs: 5000, reconnectMs: 20000 });
     await quiet(async () => {
-        const sub = await ingest.subscribe({ pool: 'p', url: `${base}/bursty`, purpose: 'viewer' });
+        const sub = await until(ingest.subscribe({ pool: 'p', url: `${base}/bursty`, purpose: 'viewer' }));
         sub.resume();
         await sleep(9500); // three pauses of 3 s
         const [i] = ingest.list();
@@ -69,7 +86,7 @@ test('a bursty feed that keeps up with real time is never reconnected, though it
 test('a feed that never stops sending but runs at half speed falls behind and is reconnected', async () => {
     Object.assign(T, { stallMs: 2000, behindMs: 3000, reconnectMs: 20000 });
     await quiet(async () => {
-        const sub = await ingest.subscribe({ pool: 'p', url: `${base}/trickle`, purpose: 'viewer' });
+        const sub = await until(ingest.subscribe({ pool: 'p', url: `${base}/trickle`, purpose: 'viewer' }));
         sub.resume();
         let waited = 0;
         while (ingest.list()[0].reconnects === 0 && waited < 12000) { await sleep(200); waited += 200; }
@@ -81,7 +98,7 @@ test('a feed that never stops sending but runs at half speed falls behind and is
 
 test('Status shows how far behind real time each ingest is', async () => {
     await quiet(async () => {
-        const sub = await ingest.subscribe({ pool: 'p', url: `${base}/bursty`, purpose: 'viewer' });
+        const sub = await until(ingest.subscribe({ pool: 'p', url: `${base}/bursty`, purpose: 'viewer' }));
         sub.resume();
         await sleep(300);
         const [i] = ingest.list();
@@ -95,14 +112,14 @@ test('Status shows how far behind real time each ingest is', async () => {
 test('FR-22: every subscription sees URL-free reconnect metadata, and new joins cannot replay the old connection tail', async () => {
     Object.assign(T, { backoffMs: [20] });
     await quiet(async () => {
-        const viewer = await ingest.subscribe({ pool: 'r', url: `${base}/bursty`, purpose: 'viewer' });
+        const viewer = await until(ingest.subscribe({ pool: 'r', url: `${base}/bursty`, purpose: 'viewer' }));
         const source = viewer.ingest;
         const readers = [viewer, ...['recording', 'probe', 'warm', 'standby'].map(purpose => source.subscribe({ purpose }))];
         const oldChunks = [...source.chunks];
         const events = readers.map(sub => { sub.resume(); return once(sub, 'reconnected', { signal: AbortSignal.timeout(2000) }); });
         source.dropRequest();
         source.onUpstreamGone('test lag', true);
-        for (const [info] of await Promise.all(events)) {
+        for (const [info] of await until(Promise.all(events))) {
             assert.deepEqual(Object.keys(info).sort(), ['forLag', 'gapSec']);
             assert.equal(info.forLag, true);
             assert.ok(info.gapSec >= 0);

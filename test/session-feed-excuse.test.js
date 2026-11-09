@@ -1,4 +1,4 @@
-const { test, before, after, afterEach } = require('node:test');
+const { test, before, after, afterEach, mock } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const { once } = require('node:events');
@@ -10,7 +10,23 @@ const ingest = require('../server/services/ingest');
 // feed caused - but (0283, Codex review of 0282) only while it has been handed less than the stall
 // limit's worth of media since its last output: recurring bursts must not hide an ffmpeg that reads
 // and writes nothing.
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// Mocked clock (node:test mock.timers: setTimeout, setInterval, Date), on for the whole file. Sockets
+// stay real, so `sleep` advances the virtual clock in 100 ms steps and lets the loopback I/O drain
+// after each, which is what the wall clock did before. No wall time passes.
+const STEP = 100;
+const flush = async () => { for (let i = 0; i < 4; i++) await new Promise(r => setImmediate(r)); };
+mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: Date.now() });
+const sleep = async (ms) => {
+    for (let left = ms; left > 0; left -= STEP) { mock.timers.tick(Math.min(STEP, left)); await flush(); }
+};
+/** Advance the clock until the promise settles (at most `maxMs`). */
+async function until(promise, maxMs = 5000) {
+    let done = false;
+    promise.then(() => { done = true; }, () => { done = true; });
+    for (let waited = 0; !done && waited < maxMs; waited += 20) await sleep(20);
+    return promise;
+}
 /** A session-shaped object on TranscodeSession's own methods, with its output and feed stubbed. */
 function session({ out, feed, stallMs = 4000 }) {
     const s = Object.create(TranscodeSession.prototype);
@@ -74,13 +90,13 @@ before(async () => {
     base = `http://127.0.0.1:${server.address().port}`;
 });
 afterEach(() => ingest.closeAll('test over'));
-after(() => server.close());
+after(() => { server.close(); mock.timers.reset(); });
 
 test('recurring healthy bursts do not hide a frozen ffmpeg: the watchdog fires', async () => {
     const log = console.log, warn = console.warn;
     console.log = console.warn = () => {};
     try {
-        const sub = await ingest.subscribe({ pool: 'p', url: `${base}/bursty`, purpose: 'viewer' });
+        const sub = await until(ingest.subscribe({ pool: 'p', url: `${base}/bursty`, purpose: 'viewer' }));
         sub.resume();
         let frozenAt = null;
         const s = session({ out: () => frozenAt, feed: sub, stallMs: 4000 });
@@ -103,7 +119,7 @@ test('a feed with no PCR excuses nothing: the watchdog fires on frozen output', 
     const log = console.log, warn = console.warn;
     console.log = console.warn = () => {};
     try {
-        const sub = await ingest.subscribe({ pool: 'p', url: `${base}/nopcr`, purpose: 'viewer' });
+        const sub = await until(ingest.subscribe({ pool: 'p', url: `${base}/nopcr`, purpose: 'viewer' }));
         sub.resume();
         await sleep(300);
         assert.equal(sub.mediaReceived(), null, 'unmeasured, not "nothing delivered"');

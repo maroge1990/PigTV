@@ -1,4 +1,4 @@
-const { test, before, after, afterEach } = require('node:test');
+const { test, before, after, afterEach, mock } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -21,7 +21,23 @@ const sqlite = load('db/sqlite');
 const ingest = load('services/ingest');
 const T = ingest.tuning;
 const TUNING = { ...T };
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// Mocked clock (node:test mock.timers: setTimeout, setInterval, Date), on for the whole file. Sockets
+// stay real, so `sleep` advances the virtual clock in 100 ms steps and lets the loopback I/O drain
+// after each, which is what the wall clock did before. No wall time passes.
+const STEP = 100;
+const flush = async () => { for (let i = 0; i < 4; i++) await new Promise(r => setImmediate(r)); };
+mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: Date.now() });
+const sleep = async (ms) => {
+    for (let left = ms; left > 0; left -= STEP) { mock.timers.tick(Math.min(STEP, left)); await flush(); }
+};
+/** Advance the clock until the promise settles (at most `maxMs`). */
+async function until(promise, maxMs = 5000) {
+    let done = false;
+    promise.then(() => { done = true; }, () => { done = true; });
+    for (let waited = 0; !done && waited < maxMs; waited += 20) await sleep(20);
+    return promise;
+}
 
 function packet(pcrSec, n) {
     const b = Buffer.alloc(188, 0xff);
@@ -55,6 +71,7 @@ before(async () => {
 afterEach(() => { ingest.closeAll('test over'); Object.assign(T, TUNING); feedLag.tuning.minLiveSec = 60; sqlite.getDb().prepare('DELETE FROM feed_lag').run(); });
 after(() => {
     server.close();
+    mock.timers.reset();
     try { sqlite.getDb().close(); } catch { /* closed */ }
     try { fs.rmdirSync(path.join(sandbox, 'node_modules')); } catch { /* gone */ }
     try { fs.rmSync(sandbox, { recursive: true, force: true }); } catch { /* left to the OS */ }
@@ -66,7 +83,7 @@ test('a closed ingest leaves a row: its channel and provider by name, its worst 
     Object.assign(T, { behindMs: 2000, reconnectMs: 20000 });
     feedLag.tuning.minLiveSec = 0;
     await quiet(async () => {
-        const sub = await ingest.subscribe({ pool: 'p', url: `${base}/trickle`, purpose: 'viewer', channel: 'NBC Sports Boston', providerName: 'Strong8K', providerId: 3 });
+        const sub = await until(ingest.subscribe({ pool: 'p', url: `${base}/trickle`, purpose: 'viewer', channel: 'NBC Sports Boston', providerName: 'Strong8K', providerId: 3 }));
         sub.resume();
         let waited = 0;
         while (ingest.list()[0].reconnects === 0 && waited < 12000) { await sleep(200); waited += 200; }
@@ -89,7 +106,7 @@ test('a closed ingest leaves a row: its channel and provider by name, its worst 
 
 test('an ingest that read for less than a minute leaves no row', async () => {
     await quiet(async () => {
-        const sub = await ingest.subscribe({ pool: 'p', url: `${base}/steady`, purpose: 'viewer', channel: 'Quick zap' });
+        const sub = await until(ingest.subscribe({ pool: 'p', url: `${base}/steady`, purpose: 'viewer', channel: 'Quick zap' }));
         sub.resume();
         await sleep(400);
         sub.leave();

@@ -1,14 +1,29 @@
-const { test, after } = require('node:test');
+const { test, after, afterEach, mock } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { createStallWatchdog } = require('../server/services/stallWatchdog');
 
-// Real timers with small limits and generous margins: the behaviour under test
-// is "decides after N ms of silence", not the precision of setInterval.
+// Mocked clock (node:test mock.timers: setInterval and Date). The behaviour under test is "decides
+// after N ms of silence", which the virtual clock states exactly; no wall time passes. The decision is
+// async (await getLastActivity), so time is advanced one check interval at a time with a flush between.
 const FAST = { checkIntervalMs: 10, stallMs: 150, startupMs: 400 };
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms)); // real time, for the child-process tests below
+const flush = () => new Promise(resolve => setImmediate(resolve));
+const T0 = 1_700_000_000_000;
+let clockOn = false;
+function clock() {
+    mock.timers.enable({ apis: ['setInterval', 'Date'], now: T0 });
+    clockOn = true;
+}
+afterEach(() => { if (clockOn) { mock.timers.reset(); clockOn = false; } });
+async function advance(ms) {
+    for (let t = 0; t < ms; t += FAST.checkIntervalMs) {
+        mock.timers.tick(FAST.checkIntervalMs);
+        await flush();
+    }
+}
 
 function watch(opts) {
     const calls = [];
@@ -22,11 +37,12 @@ function watch(opts) {
 }
 
 test('a process that never produces output is reaped after the startup grace, not before', async () => {
+    clock();
     const { watchdog, calls } = watch({ getLastActivity: () => null });
     try {
-        await sleep(250); // past stallMs, inside startupMs
+        await advance(250); // past stallMs, inside startupMs
         assert.equal(calls.length, 0, 'probing/connecting is allowed to be quiet');
-        await sleep(600);
+        await advance(600);
         assert.equal(calls.length, 1);
         assert.equal(calls[0].sawOutput, false);
         assert.ok(calls[0].quietMs >= FAST.startupMs);
@@ -34,52 +50,57 @@ test('a process that never produces output is reaped after the startup grace, no
 });
 
 test('a process that keeps producing output is never reaped', async () => {
+    clock();
     const { watchdog, calls } = watch({ getLastActivity: () => Date.now() });
     try {
-        await sleep(700);
+        await advance(700);
         assert.equal(calls.length, 0);
     } finally { watchdog.stop(); }
 });
 
 test('output followed by silence is reaped on the shorter stall limit', async () => {
+    clock();
     const started = Date.now();
     // Fixed timestamp just after the watchdog starts: output seen, then nothing.
     const { watchdog, calls } = watch({ getLastActivity: () => started + 30 });
     try {
-        await sleep(350); // past stallMs, still inside startupMs
+        await advance(350); // past stallMs, still inside startupMs
         assert.equal(calls.length, 1, 'once output has been seen, the startup grace no longer applies');
         assert.equal(calls[0].sawOutput, true);
     } finally { watchdog.stop(); }
 });
 
 test('activity from before the watchdog started is not mistaken for output', async () => {
+    clock();
     const { watchdog, calls } = watch({ getLastActivity: () => Date.now() - 60000 });
     try {
-        await sleep(250);
+        await advance(250);
         assert.equal(calls.length, 0, 'a stale leftover file must not shorten the startup grace');
-        await sleep(600);
+        await advance(600);
         assert.equal(calls.length, 1);
         assert.equal(calls[0].sawOutput, false);
     } finally { watchdog.stop(); }
 });
 
 test('a failing measurement never reaps anything', async () => {
+    clock();
     const { watchdog, calls } = watch({ getLastActivity: () => { throw new Error('EIO'); } });
     try {
-        await sleep(700);
+        await advance(700);
         assert.equal(calls.length, 0);
     } finally { watchdog.stop(); }
 });
 
 test('stop() cancels a pending decision, and onStall fires only once', async () => {
+    clock();
     const stopped = watch({ getLastActivity: () => null });
     stopped.watchdog.stop();
-    await sleep(600);
+    await advance(600);
     assert.equal(stopped.calls.length, 0);
 
     const once = watch({ getLastActivity: () => null });
     try {
-        await sleep(900);
+        await advance(900);
         assert.equal(once.calls.length, 1);
     } finally { once.watchdog.stop(); }
 });
