@@ -168,7 +168,7 @@ check public/index.html "favicon-dark.ico" "dark favicon fallback"
 check public/css/main.css "pig-canvas: var(--color-bg-primary)" "--pig-* aliases bridge the vendored CSS"
 check public/site.webmanifest '"scope": "/"' "manifest scope"
 check public/js/pages/StatusPage.js "pig-amount" "rounded numerals on Status figures"
-check docs/brand-tokens.json '1\.6\.0' "brand tokens are 1.6.0"
+check docs/brand-tokens.json '1\.7\.0' "brand tokens are 1.7.0"
 for f in pig-radiance.css pig-glass.css; do
     if [ -f "public/css/$f" ]; then :; else echo "  \u2717 MISSING: public/css/$f"; FAIL=1; fi
 done

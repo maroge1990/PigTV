@@ -81,7 +81,7 @@ bash scripts/verify-build.sh .    # asserts features live where they should
 npm start                         # http://localhost:3000
 ```
 
-Needs Node 22 or 24 (CI tests both; the image runs 24) and ffmpeg. Pushing to `main` runs the tests and publishes
+Needs Node 24 (CI and the image run 24, D-52) and ffmpeg. Pushing to `main` runs the tests and publishes
 `ghcr.io/maroge1990/pigtv:latest` (and a `sha-<short>` tag) only if they pass.
 
 ## Where to read next

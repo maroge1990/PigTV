@@ -13,10 +13,10 @@ The protocol for both repos: which tier proves what, who runs it, and the tools.
 | T4 Deployed, read-only | `/api/version`, health, logs; no provider connection | Claude | Diagnosing a live report |
 | T5 Device and real feed | Physical Apple TV / iPad / iPhone; real provider over time; A/V sync, picture, how the remote feels; deploy | Mark | Anything labelled `needs-device-test` |
 
-- **T3 is active once the Unraid test rig is live** (#73). It needs the fake provider (built: [`FAKE-PROVIDER.md`](FAKE-PROVIDER.md))
+- **T3 is active once the Unraid test rig is live.** It needs the fake provider (built: [`FAKE-PROVIDER.md`](FAKE-PROVIDER.md))
   and the Unraid test containers. Until both exist, UI acceptance stays with Mark, and handoffs say which T3 checks could
   not run.
-- **Machines:** this Mac runs Claude, Xcode and one simulator at a time. Heavy work (fake provider, staging server, full
+- **Machines:** Claude runs in WSL2 on Windows; the Mac is used only for Xcode builds and simulators, over ssh, one simulator at a time. Heavy work (fake provider, staging server, full
   test runs, real-media tests) runs in CPU-capped containers on the Unraid server (≤ 3 cores, low priority, ≤ 6 GB,
   ≤ 20 GB under `appdata/pigtv-test`). Claude may create, rebuild and remove those test containers and read production
   status; anything that changes the production container or opens a real provider connection still needs Mark's yes.
@@ -34,9 +34,8 @@ The protocol for both repos: which tier proves what, who runs it, and the tools.
 For a device run, note the app build (Settings → Version), the server build (`/api/version`), the device and OS, and for
 a fault the channel and roughly when; keep provider URLs and tokens out of anything shared. On-device diagnostics:
 Settings → Diagnostics (tvOS, the Top Shelf), and Console on the Mac filtered to subsystem `au.markrogers.PigTV.TopShelf`.
-Checks no simulator can settle carry the `needs-device-test` label. Until TestFlight, Claude installs a build on Mark's
-device with the Apple repo's `Tools/install-device.sh`, run in the desktop app's Terminal panel so Mark types the Mac
-password there (its `AGENTS.md` › Installing on Mark's devices).
+Checks no simulator can settle carry the `needs-device-test` label. Apple builds reach Mark's devices through TestFlight
+(the Apple repo's `AGENTS.md` › How changes ship).
 
 ## Evidence
 
@@ -109,8 +108,9 @@ What the Apple client relies on, and how a change to it is tested, is in
 
 ## CI and the media toolchain
 
-1. Node 22 and 24 CI use the pinned pair, cached by recipe/hash, before running the full suite and build verifier. Performance reporting
-   remains separate/non-blocking. The release tests run on Ubuntu 24.04 rather than moving `ubuntu-latest`.
+1. Node 24 CI (D-52) uses the pinned pair, cached by recipe/hash, before running the full suite and build verifier. Performance reporting
+   remains separate/non-blocking. A push that touches only the sport or web paths listed in `test.yml` skips the ffmpeg test
+   files (D-50); anything else, and every release before it promotes, runs the full suite. The release tests run on Ubuntu 24.04 rather than moving `ubuntu-latest`.
 2. The publish job builds **without pushing**, loads `pigtv:candidate`, verifies its actual binaries/capabilities and runs
    `npm test` inside that final runtime image as UID 99/GID 100. Only its data, transcode-cache and recordings paths are
    writable tmpfs mounts; `HOME=/tmp`, and the checked-out `.github` directory is read-only because it is excluded from
@@ -120,22 +120,19 @@ What the Apple client relies on, and how a change to it is tested, is in
    build identity. It does not rebuild after validation. Container smoke also checks exact versions/capabilities.
 4. Source archive hashes are checked by `build-media-tools.sh` whenever the source archive is consumed. A cache hit for
    the compiled tools skips compilation and does not independently validate source contents. The documented PGP
-   signature was not verified. No local push or CI dispatch was performed. These new Linux build/runtime checks cannot be claimed passed until
-   Mark's reviewed push runs them. A compiler, dependency, loader or codec regression fails closed before publication.
+   signature was not verified. A compiler, dependency, loader or codec regression fails closed before publication.
 
 For local acceptance, keep the system tools at the pinned release, then run:
 
 ```bash
-export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
 node scripts/check-media-tools.js
 npm test
 bash scripts/verify-build.sh .
 ```
 
-The software check works on macOS; `--hardware` is for the Linux production recipe. `npm test` alone still permits
+The software check works on any OS with the pinned tools; `--hardware` is for the Linux production recipe. `npm test` alone still permits
 machines without ffmpeg to run non-media tests and skip media checks, so it is not sufficient to establish parity.
-The npm fallback packages currently installed on this Mac contain ffmpeg **6.0** and ffprobe **4.4.1**; they are not the
-acceptance tools. The server's existing preference for the system pair remains unchanged; the image always supplies it.
+The npm fallback packages contain older ffmpeg and ffprobe builds; they are not the acceptance tools. The server's existing preference for the system pair remains unchanged; the image always supplies it.
 
 On an isolated Ubuntu 24.04 amd64 test machine, without touching deployed PigTV:
 
@@ -151,16 +148,8 @@ npm test
 shell build knobs, not server settings; the scripts do not load `.env`. Use a new or empty absolute install prefix; existing directories are rejected before compilation/cleanup. Release bumps require updating the pins, repeating
 media/device acceptance and reviewing the image change. Do not replace them with a moving PPA or download URL.
 
-## Running tests on a busy Mac
+## Running tests on a busy machine
 
-- The server suite's timing tests and speed budgets fail when the Mac is busy with other work (load 40–70 on 17 Oct):
-  rerun the failures alone, and use `PIGTV_SKIP_PERF=1` (CI's gate) for the full run.
-- Don't run the server suite and the Swift UI tier at the same time: under that load the guide-grid UI tests fail and a
-  real-ffmpeg test once hung (fixed in `bee5ff4`). Run them one after the other.
-
-- The tvOS/iPhone simulators can overload the MacBook (load average in the hundreds); then timing tests (e.g.
-  `ChannelWarmerTests`, the sports speed budget) fail spuriously: rerun them alone, and shut simulators down after a run.
-- `xcodebuild` can sit idle after a UI run has finished (collecting diagnostics); the results are already in the log.
-- Xcode re-saves `project.pbxproj` with reordered lines: `git checkout` it after test runs, but not over an uncommitted
-
-- CI runs every test file at once on 2 vCPUs: keep timing margins ≥ 1 s, or poll. Flaky tests are tracked in #77.
+- The suite's timing tests and speed budgets fail when the machine is busy with other work: rerun the failures alone,
+  and use `PIGTV_SKIP_PERF=1` (CI's gate) for the full run.
+- CI runs every test file at once on 2 vCPUs: keep timing margins ≥ 1 s, or poll.

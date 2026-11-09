@@ -1,7 +1,7 @@
 # PigTV design
 
 How PigTV should look and feel on each platform. The brand itself (artwork, tokens, the kit's tools) lives in
-**Pig-Branding** (`../Pig-Branding`); this page holds what PigTV takes from it and the UX rules that are PigTV's own.
+**PigBrand** (`../PigBrand`); this page holds what PigTV takes from it and the UX rules that are PigTV's own.
 Implementation detail stays with the code: the Apple client's `docs/ARCHITECTURE.md` › Branding implementation, the web
 app's `public/css/`.
 
@@ -35,15 +35,15 @@ app's `public/css/`.
 
 ## Brand
 
-### PigTV brand standard (Pig family 1.6.0)
+### PigTV brand standard (PigBrand guide 1.8.0, tokens 1.7.0)
 
-The source of truth is the Pig-Branding kit, version 1.6.0 (`Pig-Branding/docs/pig-family-brand-guide.md`, `docs/integration.md`, `tokens/brand-tokens.json`). This note only records what PigTV takes from it and where. When the kit changes, re-copy the files below rather than editing them here.
+The source of truth is the PigBrand kit: guide 1.8.0, token files 1.7.0 (`PigBrand/docs/pig-family-brand-guide.md`, `docs/integration.md`, `tokens/brand-tokens.json`). This note only records what PigTV takes from it and where. When the kit changes, re-copy the files below rather than editing them here.
 
 #### What PigTV vendors
 
 | PigTV path | From the kit |
 | --- | --- |
-| `docs/brand-tokens.json` | `tokens/brand-tokens.json` (1.6.0), copied verbatim. |
+| `docs/brand-tokens.json` | `tokens/brand-tokens.json` (1.7.0), copied verbatim. |
 | `public/css/pig-radiance.css`, `public/css/pig-glass.css` | `tokens/pig-radiance.css`, `tokens/pig-glass.css`, copied verbatim. Do not edit them. |
 | `public/img/brand/` | `assets/products/pigtv/`: `mark.svg`, `wordmark-{light,dark}.svg`, `lockup-{horizontal,stacked}-{light,dark}.svg`, and from `icons/`: `favicon-{light,dark}.ico`, `web-small-{light,dark}.svg`, `web-{light,dark}-{180,192,512}.png`. |
 | `public/site.webmanifest` | Based on `web-manifest.example.json`, with real URLs (`start_url` and `scope` are `/`). |
@@ -69,6 +69,14 @@ PigTV uses its own product pig (a pig-shaped TV screen), never the generic famil
 - Radiance is never behind forms or reading content. The sign-in halo sits only behind the pig of the lockup. With `prefers-reduced-transparency` the halo and bloom are removed and glass becomes a solid surface.
 - Only one primary action per screen is full-strength accent (`.btn-primary`).
 - Playback surfaces, channel artwork and programme artwork keep their own colours.
+
+#### Guide 1.8 product review (10 Nov 2026)
+
+The Apple client was reviewed against guide 1.8.0 ([#279](https://github.com/maroge1990/PigTV/issues/279)). Of the 12 rows of
+the 1.7 to 1.8 upgrade note, 4 pass, 7 fail and 1 cannot be told. On Apple TV, all 10 custom focus treatments suppress the
+system effect and none uses the system lift. Loading is a bare spinner on 12 of 17 screens, and the splash shows on every
+cold launch. There are 81 tvOS uses of text under 23 pt, and no Increase Contrast fallback. Apple TV fails identity, states,
+words, focus and minimums; iPad and iPhone are partial on most. The web app has not been reviewed against 1.8.
 
 ## Sport pages
 

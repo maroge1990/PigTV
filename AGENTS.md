@@ -14,7 +14,7 @@ Repos (public): `github.com/maroge1990/PigTV` and `…/PigTV-Swift` (its own `AG
 | [`docs/PRODUCT.md`](docs/PRODUCT.md) | What PigTV does per feature, where, status; non-goals; known limitations |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) + [`docs/architecture/`](docs/architecture/) | How it works and what to know before touching each area (playback, recording, ingest, sports) |
 | [`docs/CLIENT-CONTRACT.md`](docs/CLIENT-CONTRACT.md) | The API the Apple client relies on: read it before changing anything the client can see |
-| [`docs/DESIGN.md`](docs/DESIGN.md) | UX principles, platform patterns, brand (Pig-Branding is the source) |
+| [`docs/DESIGN.md`](docs/DESIGN.md) | UX principles, platform patterns, brand (PigBrand is the source) |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Numbered decisions; added to, never rewritten |
 | [`docs/TESTING.md`](docs/TESTING.md) | Test tiers T1–T5, who runs what, the tools, evidence rules |
 | [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | Deploy, rollback, PUID/PGID, health, backup, restore |
@@ -51,9 +51,9 @@ goes in its commit message, not the docs.
 2. A functional commit bumps `build` in `server/version.js`, and its subject starts with the number
    (`0208: what changed`). Docs-only and test-only commits have no number. Next build number: one more than `build` there (`grep "const BUILD" server/version.js`).
 3. Commits write `Refs #n`, **never** `Fixes`/`Closes` (that would close the issue on push, before Mark's check).
-4. **Push** (`git push origin main`) once the batch's gates and review rounds pass with no high finding left (D-34, D-35).
-   CI then runs the tests (Node 22 and 24) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass**: watch it; if it
-   goes red, fix it or `git revert` at once (`gh run view <id> --log-failed`). A push that changes only docs skips CI (D-38).
+4. **Push** once the gates and review rounds pass with no high finding left (D-34, D-35). CI runs the tests (Node 24 only,
+   D-52; sport-only or web-only pushes skip the ffmpeg test files, D-50) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass**:
+   watch it; if red, fix or `git revert` at once (`gh run view <id> --log-failed`). Docs-only pushes skip CI (D-38).
 5. Tell Mark what is committed, the build number, and numbered T5 steps ([`docs/TESTING.md`](docs/TESTING.md)) for
    anything that needs the real feed or a device. Nothing is *Verified* until he reports back. CI's `:latest` is the rig's;
    production follows `:release`, which moves only by `release.yml` and only on Mark's go-ahead each time (D-45,
@@ -96,15 +96,15 @@ test. Never batch unrelated areas to save time; a fix whose live effect must be 
 
 ## Reviews (Codex adversarial review)
 
-Required before a batch is pushed (D-34) if it changes recording/DVR or its rules, the playback path, provider routing or
-admission, caches or shared ownership/accounting, auth/redaction, or anything in `docs/CLIENT-CONTRACT.md`; fixes a
-review finding; or changes over ~150 non-test lines (D-17). Docs- and test-only commits are exempt. **Claude launches it**
-in each repo touched (Bash in the background, output to the scratchpad): `node ~/.claude/plugins/marketplaces/openai-codex/plugins/codex/scripts/codex-companion.mjs
-adversarial-review --wait --base <commit before the batch> "<focus: the batch, its issues>"`; it needs `codex login`, else
-give Mark the command. **One round per batch; a second only if round one leaves a high** (D-38, D-19); a round-two high's
-fix gets one narrow check of the fix alone, and a high from that goes to Mark (D-46). Findings fixed in the batch are
-listed in its evidence README; a high, or anything unfixed, becomes a `finding` issue (security: a private advisory),
-each fix with a failing-before test. The handoff lists each finding.
+Required before a batch is pushed (D-34) if it changes recording/DVR or its rules, the playback path, provider routing or admission,
+caches or shared ownership/accounting, auth/redaction, or anything in `docs/CLIENT-CONTRACT.md`; fixes a review finding; or changes
+over ~150 non-test lines (D-17). Docs- and test-only commits are exempt. **Claude launches it** in each repo touched (Bash in the
+background, output to the scratchpad): `node ~/.claude/plugins/marketplaces/openai-codex/plugins/codex/scripts/codex-companion.mjs adversarial-review --wait --base <commit before the batch> "<focus: the batch, its issues>"`; it needs `codex login`, else give Mark the command. **One round per batch; a second
+only if round one leaves a high** (D-38, D-19). Every fix made for a finding goes back to Codex for sign-off before the push (one
+narrow check; Claude never signs off its own fix); a high from that check goes to Mark (D-46, D-51). In a sport or web batch only
+highs are fixed, mediums and lows go in the batch's issue; recording, playback, providers, sign-in and the client contract keep the
+full rule. Fixed findings go in the batch's evidence README; a high or anything unfixed becomes a `finding` issue; each fix has a
+failing-before test.
 
 ## Gotchas
 

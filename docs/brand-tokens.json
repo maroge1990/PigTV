@@ -1,7 +1,7 @@
 {
-  "status": "final-1.6-seven-products-layered-2026-10-09",
-  "version": "1.6.0",
-  "date": "2026-10-09",
+  "status": "final-1.7-eight-products-layered-2026-10-10",
+  "version": "1.7.0",
+  "date": "2026-10-10",
   "logo": {
     "pink": "#F6B7D4",
     "rose": "#EF7AAE",
@@ -192,6 +192,10 @@
     "pig-finance": {
       "name": "PigFinance",
       "scope": "Personal finance and net worth."
+    },
+    "pig-menu": {
+      "name": "PigMenu",
+      "scope": "Family recipes."
     }
   },
   "identity": {
@@ -199,7 +203,7 @@
     "options": "Earlier badge, frame and crop studies are historical; the refined fused set is the base identity.",
     "naming": "Pig + a short descriptive noun for new products. PigTV is a retained legacy spelling.",
     "font": "ArialRoundedMTBold; distribute outlined wordmarks, not the font.",
-    "approval": "User approved the outlined four-icon original-nose preview as final on 6 October 2026. Use the exact approved raster source; no redraws. Optical lockup and icon placement approved 7 October 2026. PigDomain (bucket pig), PigBoard (wall board), halo icons, splash motion and top-left corner bloom approved as final 7 October 2026. Vector masters for all seven pigs (the original four traced from the approved raster at 99.8% silhouette agreement), layered Icon Composer sources, mono layers, glyphs, PigFinance (classic piggy bank) and Liquid Glass rules approved as final 9 October 2026.",
+    "approval": "User approved the outlined four-icon original-nose preview as final on 6 October 2026. Use the exact approved raster source; no redraws. Optical lockup and icon placement approved 7 October 2026. PigDomain (bucket pig), PigBoard (wall board), halo icons, splash motion and top-left corner bloom approved as final 7 October 2026. Vector masters for all seven pigs (the original four traced from the approved raster at 99.8% silhouette agreement), layered Icon Composer sources, mono layers, glyphs, PigFinance (classic piggy bank) and Liquid Glass rules approved as final 9 October 2026. PigMenu (chef\u2019s hat pig) approved as final 10 October 2026.",
     "nose": "Every pig uses the canonical nose (sources/approved/pig-nose.svg, traced from the approved PigTV artwork), placed by translation (PigVideo\u2019s is turned 6\u00b0 to match its original pose). Never resize, redraw or restyle it in pig artwork. Glyphs use the same path uniformly scaled to the 24-point glyph grid."
   },
   "spacing": [
@@ -273,7 +277,7 @@
     "native": "SwiftUI: system glass (.glassEffect / .buttonStyle(.glass)); primary action .buttonStyle(.glassProminent) tinted with PigAccent. UIKit: UIGlassEffect."
   },
   "ios": {
-    "appearances": "Default, dark, clear and tinted. Pig layers: body, optional coin, face on top; the halo is the background fill. Dedicated mono layers (white fills, #6B6B6B outline and features) for tinted and clear modes.",
+    "appearances": "Default, dark, clear and tinted. Pig layers: body, optional accessory (PigFinance coin, PigMenu hat), face on top; the halo is the background fill. Dedicated mono layers (white fills, #6B6B6B outline and features) for tinted and clear modes.",
     "glyphs": "One glyph per product plus the family nose glyph, 24-pt grid, outline and fill. Used for tab items, widgets, Lock Screen, Live Activities, Control Centre, never the full-colour pig at those sizes.",
     "shape": "Concentric corners: inner radius = container radius minus inset (minimum 6 pt); 16 pt fixed card radius only as the fallback.",
     "numerals": "SF Pro Rounded with tabular (monospaced) digits for amounts and figures (.fontDesign(.rounded).monospacedDigit()).",

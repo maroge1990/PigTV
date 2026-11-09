@@ -1,4 +1,4 @@
-// Pig family 1.6.0: every brand file the pages and CSS point at exists, the manifest is real,
+// Pig family brand (PigBrand guide 1.8.0, tokens 1.7.0): every brand file the pages and CSS point at exists, the manifest is real,
 // and the retired family-pig rasters stay gone.
 const test = require('node:test');
 const assert = require('node:assert/strict');
