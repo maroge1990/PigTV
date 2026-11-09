@@ -488,9 +488,9 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         for (const id of listedOn.keys()) if (!known.has(id)) listedOn.delete(id);
         const hot = new Set(), warm = new Set();
         const otherHot = new Set(); // 0462 (#230): the days whose daily list carries an Other cricket match in play or about to start
+        let gameOnOrDue = false; // #261: a game of any source (ESPN or a league's own feed) in play or near its start
         for (const g of catalog) {
             const source = /^espn:([^:]+):/.exec(g.id)?.[1];
-            if (!source) continue;
             const state = store.latest(g.id)?.data;
             const nearStart = Math.abs(g.start - now) <= H && !['finished','cancelled','postponed'].includes(state?.state);
             // #197: a tournament between matches or rounds is not polled hot (its feed is large and changes slowly).
@@ -499,6 +499,9 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
             const maxAge = isCricket(g.league) ? ({t20:4.5,odi:9,'list-a':9,test:120,'first-class':120})[g.format] || 12 : 24;
             const inWindow = individual.has(g.league) && Number.isFinite(g.end) ? now <= g.end + H : now - g.start <= maxAge * H;
             // 0407: ...but every BREAK_POLL, so its break stays fresh and play resuming shows within minutes
+            // 0500 (Codex round 1, medium): AFLW, NRLW, Super Netball, MotoGP and Supercars are not ESPN's, and count too
+            if (nearStart || (inPlay && inWindow)) gameOnOrDue = true;
+            if (!source) continue;
             if (individual.has(g.league) && state?.state === 'break' && inWindow) warm.add(`${source}|current`);
             if (!nearStart && !(inPlay && inWindow)) continue;
             hot.add(`${source}|${days[0]}`);
@@ -509,7 +512,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
             if (!isCricket(g.league) && inPlay && startDay === previous) hot.add(`${source}|${previous}`);
             if (listedOn.has(g.id)) hot.add(`${source}|${listedOn.get(g.id)}`);
         }
-        liveGames = hot.size > 0; // #261: the quiet pace is every minute while a game is on or due
+        liveGames = gameOnOrDue; // #261: the quiet pace is every minute while a game is on or due
         function add(league, source, date) {
             // #197: tennis and golf ask for this week's events ('current'), without a date
             const url = date === 'current' ? `${espn.BASE}${source}/scoreboard` : `${espn.BASE}${source}/scoreboard?dates=${date}&limit=1000`;

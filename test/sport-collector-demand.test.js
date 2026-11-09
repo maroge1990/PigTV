@@ -10,12 +10,12 @@ const { createStore } = require('../server/services/sportsDashboardStore');
 const databases = [];
 after(() => databases.forEach(db => db.close()));
 
-function collector({ busy, live = null }) {
+function collector({ busy, live = null, id = 'espn:football/nfl:1', league = 'NFL' }) {
     const db = new Database(':memory:'); databases.push(db);
     const clock = { now: Date.parse('2026-11-07T00:00Z') };
     const store = createStore(db);
     // #261: a game the catalogue holds as in play (or due) when the collector starts
-    if (live) store.ingest([{ id: 'espn:football/nfl:1', league: 'NFL', start: clock.now - 30 * 60000, end: null, title: 'Bears v Buccaneers',
+    if (live) store.ingest([{ id, league, start: clock.now - 30 * 60000, end: null, title: 'Bears v Buccaneers',
         competitors: [], snapshot: { state: live, progress: {}, scores: null, situation: null } }], clock.now - 60000);
     const fetches = [];
     let beat = null;
@@ -56,6 +56,12 @@ test('0500: nobody looking but a game in play: a fetch every minute; with none, 
     quiet.c.stop();
     assert.equal(quiet.c.liveGames(), false);
     assert.equal(quiet.fetches.length, 3, 'a finished game is not a reason to fetch');
+    // 0500 (Codex round 1, medium): a league read from its own feed, not ESPN (AFLW from the AFL's), counts the same
+    const feed = collector({ busy: () => false, live: 'live', id: 'aflw:2026:5:3', league: 'AFLW' });
+    feed.c.start(); await new Promise(r => setImmediate(r));
+    await feed.run(10);
+    feed.c.stop();
+    assert.equal(feed.fetches.length, 11, `a live AFLW game alone: every minute (${feed.fetches.length})`);
 });
 
 test('someone looking: every 30 s, as before', async () => {
