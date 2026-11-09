@@ -227,7 +227,8 @@ is unchanged. `sportsDashboardStore.js` persists catalog metadata, observed whol
 in SQLite (created on opt-in use). The collector polls current/prior UTC days, caches future days, discovers cricket per
 requested date, and does no request-path network access. **Pace (#238, 0478):** a 30 s heartbeat that fetches only while
 a client asked for `/api/sports/front`, `/dashboard` or a score page (`/pages/*`, not `/pages/preferences`) in the last 5
-minutes, or a recording is running (#217's event end); otherwise every 5 minutes. The first such request after a quiet spell
+minutes, or a recording is running (#217's event end); otherwise every minute while a catalogue game is in play or
+within an hour of its start (#261, 0500: so the score delay's snapshot is already live at the first look), else every 5 minutes. The first such request after a quiet spell
 starts a fetch at once (the request itself never waits). Status shows the pace (`sportCollector.cadence`). Delays use server observation time, not an inferred play time.
 Cache hits never become new observations. Since 0313, projection runs on a read-only worker from cached C-I events;
 statements/date formatters are reused, writes batch per tick, and the entire delayed state controls broadcast fields

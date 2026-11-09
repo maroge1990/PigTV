@@ -10,12 +10,16 @@ const { createStore } = require('../server/services/sportsDashboardStore');
 const databases = [];
 after(() => databases.forEach(db => db.close()));
 
-function collector({ busy }) {
+function collector({ busy, live = null }) {
     const db = new Database(':memory:'); databases.push(db);
     const clock = { now: Date.parse('2026-11-07T00:00Z') };
+    const store = createStore(db);
+    // #261: a game the catalogue holds as in play (or due) when the collector starts
+    if (live) store.ingest([{ id: 'espn:football/nfl:1', league: 'NFL', start: clock.now - 30 * 60000, end: null, title: 'Bears v Buccaneers',
+        competitors: [], snapshot: { state: live, progress: {}, scores: null, situation: null } }], clock.now - 60000);
     const fetches = [];
     let beat = null;
-    const c = dashboard.createCollector({ store: createStore(db), clock: () => clock.now, enabled: () => true,
+    const c = dashboard.createCollector({ store, clock: () => clock.now, enabled: () => true,
         leagues: () => new Set(['AFLW']), fetchJson: async () => ({ events: [] }),
         feedGames: async () => { fetches.push(clock.now); return { ok: true, observedAt: clock.now, games: [] }; },
         recordFeed: () => {}, busy, every: (fn) => { beat = fn; return null; } });
@@ -34,6 +38,24 @@ test('nobody looking: at most one fetch per 5 minutes', async () => {
     c.stop();
     assert.equal(fetches.length, 7, `once at start, then every 5 min over 30 min: ${fetches.length}`);
     for (let i = 1; i < fetches.length; i++) assert.ok(fetches[i] - fetches[i - 1] >= 5 * 60000);
+});
+
+// #261 (0500): on 9 Nov Mark opened the Sport page during the Sunday night NFL game and the live score took about two
+// minutes: the quiet pace had left its last snapshot minutes old, and the 90 s score delay then held the fresh one back.
+test('0500: nobody looking but a game in play: a fetch every minute; with none, every 5 minutes again', async () => {
+    const { c, fetches, run } = collector({ busy: () => false, live: 'live' });
+    c.start(); await new Promise(r => setImmediate(r));
+    await run(10);
+    assert.equal(fetches.length, 11, `once at start, then every minute over 10 min: ${fetches.length}`);
+    for (let i = 1; i < fetches.length; i++) assert.ok(fetches[i] - fetches[i - 1] >= 60000);
+    assert.equal(c.liveGames(), true);
+    c.stop();
+    const quiet = collector({ busy: () => false, live: 'finished' });
+    quiet.c.start(); await new Promise(r => setImmediate(r));
+    await quiet.run(10);
+    quiet.c.stop();
+    assert.equal(quiet.c.liveGames(), false);
+    assert.equal(quiet.fetches.length, 3, 'a finished game is not a reason to fetch');
 });
 
 test('someone looking: every 30 s, as before', async () => {

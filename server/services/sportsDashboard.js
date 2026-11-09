@@ -413,6 +413,10 @@ const CATALOG_RESERVE = 3;
 // keeps that pace only while someone has asked for a sport page in the last 5 minutes, or a recording is running (its
 // end can follow the game's, #217); otherwise it fetches every 5 minutes, enough for Top Shelf and the first request.
 const BUSY_TICK_MS = 30000, QUIET_TICK_MS = 5 * 60000, LOOK_WINDOW_MS = 5 * 60000;
+// #261 (0500): with nobody looking, a game in play or within an hour of its start is still fetched every minute, so the
+// first look after a quiet spell finds its score already older than the score delay (90 s by default) and shows it at
+// once. Only what is due is fetched (each URL keeps its own lifetime): the hot games' scoreboards, as at the busy pace.
+const LIVE_QUIET_TICK_MS = 60000;
 let lookedAt = -Infinity;
 function recordingNow() {
     try { return !!require('../db/sqlite').getDb().prepare(`SELECT 1 FROM scheduled_recordings WHERE status = 'recording' LIMIT 1`).get(); }
@@ -433,13 +437,15 @@ function noteLook(now = Date.now()) {
 function cadence(now = Date.now()) {
     if (!collectorEnabled()) return { everySec: null, why: 'off' };
     const why = demand(now);
-    return { everySec: (why ? BUSY_TICK_MS : QUIET_TICK_MS) / 1000, why: why || 'nobody looking' };
+    if (why) return { everySec: BUSY_TICK_MS / 1000, why };
+    if (runtime?.liveGames()) return { everySec: LIVE_QUIET_TICK_MS / 1000, why: 'a game is on or due' };
+    return { everySec: QUIET_TICK_MS / 1000, why: 'nobody looking' };
 }
 function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.neededLeagues(),clock=Date.now,enabled:isEnabled=collectorEnabled,
     followed=()=>require('./sportPagePrefs').allTeams(),roster=league=>fixtures.teamsOf(league),
     feedGames=(league,o)=>feeds.games(league,{...o,registerImage:require('./logoCache').registerLogo}),recordFeed=fixtures.recordFeed,
     busy=()=>demand(clock())!==null,every=(fn,ms)=>setInterval(fn,ms)}={}) {
-    let running = null, timer = null, stopped = false, remaining = 0, deadline = 0, coldRequests = 0, current = null, lastRun = -Infinity;
+    let running = null, timer = null, stopped = false, remaining = 0, deadline = 0, coldRequests = 0, current = null, lastRun = -Infinity, liveGames = false;
     const cache = new Map(), controller = new AbortController(), recordedFeeds = new WeakSet();
     // ESPN groups scoreboards by US Eastern date, so a game after 00:00Z is listed under the previous
     // UTC date's URL. Remember which query date returned each game and poll that one while it is hot.
@@ -503,6 +509,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
             if (!isCricket(g.league) && inPlay && startDay === previous) hot.add(`${source}|${previous}`);
             if (listedOn.has(g.id)) hot.add(`${source}|${listedOn.get(g.id)}`);
         }
+        liveGames = hot.size > 0; // #261: the quiet pace is every minute while a game is on or due
         function add(league, source, date) {
             // #197: tennis and golf ask for this week's events ('current'), without a date
             const url = date === 'current' ? `${espn.BASE}${source}/scoreboard` : `${espn.BASE}${source}/scoreboard?dates=${date}&limit=1000`;
@@ -724,9 +731,10 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         start() {
             if (timer || !isEnabled() || stopped) return;
             // #238: a 30 s heartbeat that fetches only when someone needs the busy pace, else every 5 minutes
-            const tick=()=>{ if (busy() || clock() - lastRun >= QUIET_TICK_MS) this.refresh().catch(()=>{}); };
+            const tick=()=>{ if (busy() || clock() - lastRun >= (liveGames ? LIVE_QUIET_TICK_MS : QUIET_TICK_MS)) this.refresh().catch(()=>{}); };
             tick();timer=every(tick,BUSY_TICK_MS);timer?.unref?.();
         },
+        liveGames() { return liveGames; },
         stop() {stopped=true;controller.abort();clearInterval(timer);timer=null;}
     };
 }
