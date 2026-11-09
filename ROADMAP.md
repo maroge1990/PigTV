@@ -5,7 +5,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 8 Nov 2026 (F1 recording, appdata, Mark's bug list, Watch on…).*
+*Overwritten at the end of every session. 9 Nov 2026 (Sport header and strip, picture quality badges).*
 
 - **Deployed:** server **0488** (`:release`, 7 Nov); Apple **175** on TestFlight. Nothing below is released yet: a
   release runs on Mark's go-ahead (D-45).
@@ -31,12 +31,16 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   - Server **v0501** and Apple **187** (Mark's go-ahead, 9 Nov): #261, live scores at once on opening Sport (a live or due
     game fetched every minute while nobody looks; the front page re-asks every 20 s near a start). Codex: 187 approved,
     0500's medium (non-ESPN feeds) fixed in 0501. Waiting: Force Update, TestFlight processing, T5.
-  - Next: #262, iPadOS/iOS 17+ (build 188, Mark's ask): three sites need fallbacks; an iPadOS 17 simulator to download.
+  - 9 Nov, pushed (not released): server **0502** (#265 quality labels, C-X) and Apple **188–191** (#263 the Sport header
+    stays fixed, #264 the hero shrinks to a pinned strip, Mark's option B; #265 UHD/SD badges in the guide). Codex: server
+    approved, Apple one medium fixed in 191. #266 (grouping in the pickers) held: the four Sky Sports F1 rows are likely
+    four qualities, which stay separate (Mark). Evidence: `docs/evidence/2026-11-09-sport-header-quality/`.
+  - Next: #262, iPadOS/iOS 17+ (now build 192, Mark's ask): three sites need fallbacks; an iPadOS 17 simulator to download.
 - **Waiting on Mark:**
   - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00.
   - Device checks of 164–175.
   - #240.
-  - Next builds: server **0502**, Apple **188**.
+  - Next builds: server **0503**, Apple **192**.
 - **Mark's decisions (4 Nov):**
   - Release only on his go-ahead.
   - Providers may be used for tests.
