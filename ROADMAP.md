@@ -27,13 +27,16 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
     highs fixed (0497, 0498), final check approved.
   - Server **v0499** (`:release`, Mark's go-ahead): #260, a capture that ends early for any reason (the race on 8 Nov
     ended at 37 min during a guide sync, no backup provider) continues in the same recording, and why it ended is
-    logged. Codex approved. Production still ran 0495 on 9 Nov 08:30 AEDT: waiting on Mark's Force Update, then T4 (#259)
-    and T5 (#260).
+    logged. Codex approved. Production on 0499 from 9 Nov 11:42 AEDT. Waiting: T4 (#259) at the next race, T5 (#260).
+  - Server **v0501** and Apple **187** (Mark's go-ahead, 9 Nov): #261, live scores at once on opening Sport (a live or due
+    game fetched every minute while nobody looks; the front page re-asks every 20 s near a start). Codex: 187 approved,
+    0500's medium (non-ESPN feeds) fixed in 0501. Waiting: Force Update, TestFlight processing, T5.
+  - Next: #262, iPadOS/iOS 17+ (build 188, Mark's ask): three sites need fallbacks; an iPadOS 17 simulator to download.
 - **Waiting on Mark:**
   - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00.
   - Device checks of 164–175.
   - #240.
-  - Next builds: server **0500**, Apple **187**.
+  - Next builds: server **0502**, Apple **188**.
 - **Mark's decisions (4 Nov):**
   - Release only on his go-ahead.
   - Providers may be used for tests.
