@@ -52,7 +52,7 @@ goes in its commit message, not the docs.
    (`0208: what changed`). Docs-only and test-only commits have no number. Next build number: one more than `build` there (`grep "const BUILD" server/version.js`).
 3. Commits write `Refs #n`, **never** `Fixes`/`Closes` (that would close the issue on push, before Mark's check).
 4. **Push** once the gates and review rounds pass with no high finding left (D-34, D-35). CI runs the tests (Node 24 only,
-   D-52; sport-only or web-only pushes skip the ffmpeg test files, D-50) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass**:
+   D-52; web-only pushes skip 7 ffmpeg test files, D-50) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass**:
    watch it; if red, fix or `git revert` at once (`gh run view <id> --log-failed`). Docs-only pushes skip CI (D-38).
 5. Tell Mark what is committed, the build number, and numbered T5 steps ([`docs/TESTING.md`](docs/TESTING.md)) for
    anything that needs the real feed or a device. Nothing is *Verified* until he reports back. CI's `:latest` is the rig's;

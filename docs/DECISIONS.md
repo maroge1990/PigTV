@@ -563,8 +563,12 @@ reviews.
 - **Choice:** a push that touches only files on the workflow's listed sport or web paths skips the test files that need
   ffmpeg. Any other change, and any path not on the list, runs the full suite; so does every release before it
   promotes. No nightly run. Amends D-34.
-- **Consequence:** the safe paths are listed in `test.yml`, nowhere else; `release.yml` runs the full suite;
-  [`TESTING.md`](TESTING.md).
+- **Consequence:** the safe paths are listed in `scripts/ci-test-plan.js`, nowhere else; `release.yml` runs the full
+  suite; [`TESTING.md`](TESTING.md).
+- **As built (10 Nov):** no sport file under `server/` is on the list, because recording, the sync or `server/index.js`
+  requires every one of them; a test fails if a listed server file is required by an unlisted one. So the short run
+  covers web-only pushes (`public/js`, `public/css`, the two HTML pages) and skips 7 files, and only when the commit
+  before the push already has a published image.
 
 ### D-51. Codex: sport and web batches fix highs only, and every finding's fix goes back to Codex (10 Nov 2026; Mark)
 
