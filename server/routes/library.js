@@ -21,6 +21,7 @@ const channelNumbers = require('../services/channelNumbers');
 const { NUMBER_JOIN, NUMBER_SENTINEL } = channelNumbers;
 const channelHealth = require('../services/channelHealth');
 const epgMapping = require('../services/epgMapping');
+const { qualityLabel } = require('../services/channelQuality');
 const sportCategories = require('../services/sportCategories');
 
 // The longest programme the guide will still show when it began before the
@@ -148,7 +149,9 @@ function decorate(items) {
             // know the field ignores it, and nothing existing changes shape.
             stableId: row.stable_id || null,
             // 0117 (C-A): the channel's number, or null if it has none.
-            number: row.channel_number ?? null
+            number: row.channel_number ?? null,
+            // #265 (C-X): 'UHD' | 'FHD' | 'HD' | 'SD' | null, from the name.
+            quality: qualityLabel(row.name)
         };
     });
 
@@ -448,6 +451,8 @@ router.get('/guide', (req, res) => {
                 stableId: row.stable_id || null,
                 // 0117 (C-A): the channel's number, or null if it has none.
                 number: row.channel_number ?? null,
+                // #265 (C-X): 'UHD' | 'FHD' | 'HD' | 'SD' | null, from the name.
+                quality: qualityLabel(row.name),
                 programmes: []
             };
         });

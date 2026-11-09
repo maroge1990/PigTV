@@ -10,6 +10,7 @@
     "channelHealth": true,
     "channelHistory": true,
     "channelNumbers": true,
+    "channelQuality": true,
     "clientEvents": true,
     "devicePairing": true,
     "epgLogoFallback": true,

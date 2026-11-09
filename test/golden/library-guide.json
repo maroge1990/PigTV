@@ -8,6 +8,7 @@
       "name": "##### SKY SPORTS #####",
       "number": 1,
       "programmes": [],
+      "quality": null,
       "sourceId": 1,
       "stableId": "s1001",
       "tvgId": null
@@ -21,30 +22,31 @@
       "number": 2,
       "programmes": [
         {
-          "description": "Weather Watch on ABC News.",
+          "description": "Morning News (S3E12) on ABC News.",
           "endTime": 1793492700000,
           "isNow": true,
-          "startTime": 1793490900000,
-          "title": "Weather Watch"
+          "startTime": 1793489100000,
+          "title": "Morning News"
         },
         {
           "description": "Business Today on ABC News.",
-          "endTime": 1793494500000,
+          "endTime": 1793496300000,
           "isNow": false,
           "startTime": 1793492700000,
           "title": "Business Today"
         }
       ],
+      "quality": "HD",
       "sourceId": 1,
       "stableId": "s1019",
       "tvgId": "abcnews.au"
     }
   ],
-  "end": 1793501940000,
+  "end": 1793503320000,
   "limit": 4,
   "nextCursor": "eyJzayI6OTk5OTk5OTk5LCJuYW1lIjoiQVV8IEZPWCBDUklDS0VUIEhEIiwiaWQiOiIxOjEwMTEifQ==",
-  "now": 1793491140000,
+  "now": 1793492520000,
   "offset": 0,
-  "start": 1793491140000,
+  "start": 1793492520000,
   "total": 27
 }

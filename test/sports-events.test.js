@@ -556,10 +556,10 @@ test('normalisation: case, live, channel tags, quality markers, punctuation and 
     assert.equal(normaliseTitle('Deliverance'), 'deliverance', 'only whole words');
 });
 
-test('quality comes from the channel name', () => {
+test('quality comes from the channel name: FHD is its own label, superscript tags count (#265)', () => {
     const { qualityFromName } = load('services/sportsEvents');
-    assert.deepEqual(['Sky Sports UHD', 'ESPN 4K', 'Fox 505 FHD', 'Kayo HD', 'ESPN SD', 'ESPN', 'HDTV'].map(qualityFromName),
-        ['UHD', 'UHD', 'HD', 'HD', 'SD', null, null]);
+    assert.deepEqual(['Sky Sports UHD', 'ESPN 4K', 'Fox 505 FHD', 'Kayo HD', 'ESPN SD', 'ESPN', 'HDTV', 'UK| SKY SPORTS F1 ᵁᴴᴰ'].map(qualityFromName),
+        ['UHD', 'UHD', 'FHD', 'HD', 'SD', null, null, 'UHD']);
 });
 
 // C-I asks for a request under ~100 ms warm on 1,000 channels x 30 programmes. Measured, and

@@ -34,6 +34,7 @@
  * only the very first one, with nothing cached, waits for a build. See "the cache and the
  * request" below.
  */
+const { qualityLabel, qualityRank } = require('./channelQuality');
 const crypto = require('crypto');
 const path = require('path');
 const { Worker } = require('worker_threads');
@@ -307,17 +308,6 @@ function normaliseTitle(title, channelName = '') {
     return t;
 }
 
-/** "UHD" | "HD" | "SD" | null, from the channel's name. */
-function qualityFromName(name) {
-    const n = String(name || '');
-    if (/(?:^|[^\p{L}\p{N}])(?:4k|uhd|2160p?)(?=$|[^\p{L}\p{N}])/iu.test(n)) return 'UHD';
-    if (/(?:^|[^\p{L}\p{N}])(?:fhd|hd|1080[pi]?|720p)(?=$|[^\p{L}\p{N}])/iu.test(n)) return 'HD';
-    if (/(?:^|[^\p{L}\p{N}])sd(?=$|[^\p{L}\p{N}])/iu.test(n)) return 'SD';
-    return null;
-}
-
-const QUALITY_RANK = { UHD: 0, HD: 1, SD: 3 };
-const qualityRank = (q) => QUALITY_RANK[q] ?? 2;       // unknown between HD and SD
 const healthRank = (h) => (h === 'ok' ? 0 : h === 'flaky' ? 2 : 1);
 
 // ---- the follow list -----------------------------------------------------------
@@ -421,7 +411,7 @@ function visibleChannels(db) {
             name: r.name,
             number: r.channel_number ?? null,
             logo: r.stream_icon || null,
-            quality: qualityFromName(r.name)
+            quality: qualityLabel(r.name)
         });
     }
     return [...byKey.values()];
@@ -1209,7 +1199,7 @@ module.exports = {
     // 0147
     categoryCounts, epgGenerations, CATEGORY_LIMIT,
     // 0148
-    classify, compileFollow, followedKeyword, normaliseTitle, qualityFromName, leagueFromCategories,
+    classify, compileFollow, followedKeyword, normaliseTitle, qualityFromName: qualityLabel, leagueFromCategories,
     // R5: recording rules match events the way the follow list does, and find a series' channel
     visibleChannels,
     getFollow, setFollow, cleanFollow, followsChanged, eventsFor, leagueEvents, endedEvents, buildEvents, clampHours, stats, eventsResponse,

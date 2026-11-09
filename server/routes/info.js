@@ -75,6 +75,9 @@ async function sendInfo(req, res) {
             // 0133 (C-G): library/guide and library/channels rows carry `health`
             // ("ok" | "flaky" | null) from the last 7 days' starts.
             channelHealth: true,
+            // #265 (C-X): library/guide, /channels, /favourites and /recent rows carry `quality`
+            // ('UHD' | 'FHD' | 'HD' | 'SD' | null) from the channel's name; C-I sport channels use the same rule.
+            channelQuality: true,
             // 0146 (C-H): library/categories rows carry `sport`; admins mark them
             // with PUT /api/library/categories/sport.
             sportCategories: true,

@@ -165,7 +165,7 @@ test('sport: live now and starting within the hour, quality-ordered channels, re
     assert.ok(race, `an F1 race among: ${events.map(e => e.title).join(' | ')}`);
     assert.equal(race.live, true);
     assert.equal(race.kind, 'event');
-    // UHD first, SD last (sportsEvents.qualityFromName: FHD counts as HD)
+    // UHD first, SD last (channelQuality: UHD, FHD, HD, untagged, SD)
     const qualities = race.channels.map(c => c.quality);
     assert.equal(qualities[0], 'UHD', JSON.stringify(race.channels.map(c => c.name)));
     assert.equal(qualities[qualities.length - 1], 'SD');

@@ -224,8 +224,9 @@ work is in `docs/architecture/sports.md` › Recognition; the shape the client r
   - Default: events and replays; `include=all` adds shows and placeholders after them.
   - Order: live events, upcoming events (by start), then replays (on-now first, then by start).
   - `league`: the canonical league ("F1", "AFLW", …), else the most specific EPG category, else "Sport".
-  - `live`: on now. `quality`: `"UHD"` | `"HD"` | `"SD"` | null from the channel name.
-  - `channels`: best first (quality, health ok, favourite, guide order). `channels[0]` plays through the ordinary resolve.
+  - `live`: on now. `quality`: `"UHD"` | `"FHD"` | `"HD"` | `"SD"` | null from the channel name (C-X's rule; `"FHD"` since
+    #265, an older client reads it as no label).
+  - `channels`: best first (quality UHD, FHD, HD, untagged, SD; health ok, favourite, guide order). `channels[0]` plays through the ordinary resolve.
   - Since 0337 (#20, additive) each channel also carries `start` and `end` (ms): when **that channel's** airing of the
     event runs. The event's own `start`/`end` span every channel's airing (merged), so Watch eligibility, Record and
     "Watch when it starts" on a chosen channel use the channel's times; absent from an older server (use the event's).
@@ -1025,3 +1026,10 @@ Mark's decision (30 Oct): a paused live play keeps its provider connection up to
   connection still takes it, unasked. At `pausedUntil` it is an idle stream as before (reclaimed, then swept).
 - The server keeps the last 6 minutes of the channel: the client warns 2 minutes before `pausedUntil`, returns to live
   when resuming after the paused point has rolled out, and says why if the stream ended (Play goes back to live).
+
+### C-X. Channel quality. Flag: `channelQuality`
+
+Since #265, `library/guide`, `/channels`, `/favourites` and `/recent` rows carry `quality`: `"UHD"` | `"FHD"` | `"HD"` |
+`"SD"` | null, read from the channel's name (`services/channelQuality.js`: superscript tags fold, the highest tag wins;
+untagged is null, not a guess). C-I's sport channels use the same rule. It is a label from the name, not a measurement.
+Apple: a badge on every channel picker; in the guide's channel column only UHD (accent) and SD (faint).

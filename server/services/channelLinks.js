@@ -33,6 +33,7 @@
 const { getDb } = require('../db/sqlite');
 const { LISTED_SQL, NUMBER_JOIN } = require('./channelNumbers');
 const providerFields = require('./providerFields');
+const { qualityLabel } = require('./channelQuality');
 
 const MAX_RANK = 3;
 const KEPT = new Set(['approved', 'rejected', 'manual', 'broken']);
@@ -191,13 +192,10 @@ function describeRaw(raw) {
     };
 }
 
-/** 'uhd' (UHD/4K/8K/2160/3840/HDR), 'hd', 'sd' or 'unknown', from the whole name. */
+/** 'uhd' (UHD/4K/8K/2160/3840/HDR), 'hd' (FHD and HD), 'sd' or 'unknown', from the whole name (#265: channelQuality's rule). */
+const QUALITY_CLASS = { UHD: 'uhd', FHD: 'hd', HD: 'hd', SD: 'sd' };
 function qualityOf(name) {
-    const s = fold(name);
-    if (/\b(?:uhd|4k|8k|2160[pi]?\d*|3840[pi]?\d*|hdr)\b/.test(s)) return 'uhd';
-    if (/\b(?:fhd|hd|1080[pi]?\d*|720[pi]?\d*|hevc)\b/.test(s)) return 'hd';
-    if (/\b(?:sd|576[pi]?\d*|540[pi]?\d*|480[pi]?\d*|360[pi]?\d*)\b/.test(s)) return 'sd';
-    return 'unknown';
+    return QUALITY_CLASS[qualityLabel(name)] || 'unknown';
 }
 
 /** A "(Backup)" / "[Backup]" / "(BK)" feed: the D5 sibling marker. */

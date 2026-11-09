@@ -59,7 +59,7 @@
           "logo": "/api/logo/<key>",
           "name": "UK| SKY SPORTS F1 FHD",
           "number": null,
-          "quality": "HD",
+          "quality": "FHD",
           "sourceId": 1,
           "stableId": "s1003",
           "start": 1793487300000
@@ -74,5 +74,5 @@
       "title": "Mexico City Grand Prix"
     }
   ],
-  "now": 1793491080000
+  "now": 1793492520000
 }
