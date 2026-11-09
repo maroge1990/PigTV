@@ -1422,11 +1422,10 @@ check_absent public/index.html 'data-tab="sources"' "the Sources tab is gone"
 check_absent public/index.html 'id="tab-debug"' "the Debug tab is gone"
 python3 - <<'PY' || FAIL=1
 import re, sys, subprocess
-build = re.search(r"const BUILD = '(\d{4})';", open('server/version.js').read()).group(1)
-nxt = re.search(r"Next build number: \*\*(\d{4})\*\*", open('AGENTS.md').read())
-if not nxt or int(nxt.group(1)) != int(build) + 1:
-    print(f"  ✗ version.js says build {build} but AGENTS.md's next build number is {nxt.group(1) if nxt else '?'} (0187: every build bumps both)"); sys.exit(1)
-print(f"  ✓ version.js ({build}) is one behind AGENTS.md's next build number")
+m = re.search(r"const BUILD = '(\d{4})';", open('server/version.js').read())
+if not m:
+    print("  ✗ server/version.js has no well-formed `const BUILD = 'NNNN';` (the next build number is read from it)"); sys.exit(1)
+print(f"  ✓ version.js has a well-formed build ({m.group(1)}); the next build is one more")
 PY
 
 echo "=== 0188-0189: interruptions, in-stream recovery and the standby (off by default) ==="
