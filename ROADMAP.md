@@ -40,7 +40,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   - 9 Nov, #3 investigation (no code change): Mark's 34-minute Fox Sports 505 iPad play had one server event, a hot-standby
     promotion Strong8K → Dream 4K at 13:52 behind an `EXT-X-DISCONTINUITY`; the relay rig shows the joined output in step
     within 0.14 s, so the player's handling of the join or its 0.97× catch-up (Apple 72) is next to measure on the device.
-    Evidence: `docs/evidence/2026-11-09-avsync-fox505-timeline/`.
+    Evidence: `docs/evidence/2026-11-09-avsync-fox505-timeline/`. Mark: no build; measurements filed as #267 (meter) and #268 (marker).
 - **Waiting on Mark:**
   - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00.
   - Device checks of 164–175.
