@@ -82,6 +82,7 @@ jobs:
       # Order matters: check the image, then record the git tag, and only then move :release, so a run
       # that fails leaves production's tag where it was.
       - name: Check CI built an image for that commit
+        id: image
         env:
           IMAGE: ${{ steps.what.outputs.image }}
           SHORT: ${{ steps.what.outputs.short }}
@@ -89,6 +90,29 @@ jobs:
           if ! docker buildx imagetools inspect "$IMAGE:sha-$SHORT" > /dev/null; then
             echo "::error::No image sha-$SHORT: CI builds none for a docs-only push or a red one. Release the last commit that built."; exit 1
           fi
+          # Resolve the digest once: the suite below tests these bytes, and these bytes are promoted.
+          digest=$(docker buildx imagetools inspect "$IMAGE:sha-$SHORT" --format '{{.Manifest.Digest}}')
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::Could not resolve the image digest."; exit 1; }
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      # A push to main may have skipped the ffmpeg tests (D-50). A release never does: run the FULL suite
+      # inside the very image about to be promoted, before a git tag is recorded or :release moves.
+      - name: Run the full test suite in that image
+        env:
+          IMAGE: ${{ steps.what.outputs.image }}
+          SHORT: ${{ steps.what.outputs.short }}
+          COMMIT: ${{ steps.what.outputs.commit }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/at-commit"
+          git archive "$COMMIT" .github | tar -x -C "$RUNNER_TEMP/at-commit"
+          docker run --rm --entrypoint bash --user 99:100 \
+            -e HOME=/tmp -e PIGTV_SKIP_PERF=1 \
+            --tmpfs /app/data:rw,uid=99,gid=100,mode=0700 \
+            --tmpfs /app/transcode-cache:rw,uid=99,gid=100,mode=0700 \
+            --tmpfs /app/recordings:rw,uid=99,gid=100,mode=0700 \
+            -v "$RUNNER_TEMP/at-commit/.github:/app/.github:ro" \
+            "$IMAGE@$DIGEST" -c 'node scripts/check-media-tools.js --hardware && node scripts/check-encoder-options.js && npm test'
 
       - name: Record a dispatched release as a git tag
         if: github.event_name == 'workflow_dispatch'
@@ -105,7 +129,8 @@ jobs:
           IMAGE: ${{ steps.what.outputs.image }}
           SHORT: ${{ steps.what.outputs.short }}
           VERSION: ${{ steps.what.outputs.version }}
+          DIGEST: ${{ steps.image.outputs.digest }}
         run: |
-          docker buildx imagetools create --tag "$IMAGE:release" --tag "$IMAGE:$VERSION" "$IMAGE:sha-$SHORT"
+          docker buildx imagetools create --tag "$IMAGE:release" --tag "$IMAGE:$VERSION" "$IMAGE@$DIGEST"
           docker buildx imagetools inspect "$IMAGE:release"
           echo "Released sha-$SHORT as $VERSION. Production picks it up on its next Force Update." >> "$GITHUB_STEP_SUMMARY"

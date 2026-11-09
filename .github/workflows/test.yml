@@ -1,11 +1,9 @@
 name: Regression tests
 
-# Pushes to main run these tests through docker-publish.yml, which calls this
-# workflow and only publishes the image when it passes. Listing push here as
-# well would run every test twice.
+# Pull requests only. A push to main runs the suite once, inside the candidate image, in
+# docker-publish.yml (#269, D-50), which publishes the image only when it passes.
 on:
   pull_request:
-  workflow_call:
 
 permissions:
   contents: read
@@ -13,14 +11,11 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        node: [22, 24]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 24
           cache: npm
       # One source recipe/release for Linux tests and the production image.
       - uses: ./.github/actions/setup-media-tools
@@ -34,8 +29,7 @@ jobs:
       - run: bash scripts/verify-build.sh .
 
   perf:
-    # Reports, never blocks: continue-on-error keeps a slow runner from failing the workflow
-    # that docker-publish.yml waits on.
+    # Reports, never blocks: continue-on-error keeps a slow runner from failing the check.
     runs-on: ubuntu-24.04
     continue-on-error: true
     steps:

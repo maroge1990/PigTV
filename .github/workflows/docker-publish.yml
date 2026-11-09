@@ -9,16 +9,16 @@ on:
   # only release.yml moves, on a v* tag or a manual run, to an image built here (#236).
   workflow_dispatch:
 
-jobs:
-  # The regression tests gate the image, so a
-  # commit that fails them must never become :latest. Mark pushes reviewed local commits.
-  test:
-    uses: ./.github/workflows/test.yml
-    permissions:
-      contents: read
+# One publishing run at a time, none cancelled: a partial test run trusts that its base commit was
+# built green, which only holds if runs finish in push order (#269, D-50).
+concurrency:
+  group: publish-main
+  cancel-in-progress: false
 
+jobs:
+  # One test run per push, inside the candidate image (the shipped Node 24, the pinned ffmpeg, UID 99),
+  # then the image is published only if it passed (#269, D-50). Pull requests run test.yml instead.
   build-and-push:
-    needs: test
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -27,9 +27,19 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the diff of the push, for ci-test-plan.js
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      # verify-build.sh requires modules from node_modules, and wants the shipped Node.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+
+      # What tests can't check: placement, things that must not come back, the image, CI, markup.
+      - name: Verify build
+        run: bash scripts/verify-build.sh .
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -40,6 +50,31 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      # A partial test run is allowed only when the commit it diffs from has a published image, i.e.
+      # it passed the full gate. Any doubt (no image, a registry error) means the full suite.
+      - name: Check the base commit has a published image
+        id: base
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          exists=false
+          if [[ "$BEFORE" =~ ^[0-9a-f]{40}$ ]] && [[ ! "$BEFORE" =~ ^0+$ ]] \
+              && docker buildx imagetools inspect "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/pigtv:sha-${BEFORE:0:7}" > /dev/null 2>&1; then
+            exists=true
+          fi
+          echo "exists=$exists" >> "$GITHUB_OUTPUT"
+
+      # Which test files this push runs (D-50). Fails open: anything it cannot judge runs them all.
+      - name: Plan the tests
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          FORCED: ${{ github.event.forced }}
+          BASE_IMAGE: ${{ steps.base.outputs.exists }}
+        run: |
+          node scripts/ci-test-plan.js --event "$EVENT" --base "$BEFORE" --head "$GITHUB_SHA" --forced "$FORCED" --base-image-exists "$BASE_IMAGE" --format github | tee -a "$GITHUB_OUTPUT"
 
       - name: Extract metadata (tags, labels) for Container image
         id: meta
@@ -83,14 +118,16 @@ jobs:
       # Test the actual final runtime binaries/libs before any tag is published.
       # .github is excluded from the image; mount it for infrastructure contract tests.
       - name: Test candidate runtime
+        env:
+          TEST_FILES: ${{ steps.plan.outputs.files }}   # empty = the full suite
         run: |
           docker run --rm --entrypoint bash --user 99:100 \
-            -e HOME=/tmp -e PIGTV_SKIP_PERF=1 \
+            -e HOME=/tmp -e PIGTV_SKIP_PERF=1 -e TEST_FILES \
             --tmpfs /app/data:rw,uid=99,gid=100,mode=0700 \
             --tmpfs /app/transcode-cache:rw,uid=99,gid=100,mode=0700 \
             --tmpfs /app/recordings:rw,uid=99,gid=100,mode=0700 \
             -v "$GITHUB_WORKSPACE/.github:/app/.github:ro" \
-            pigtv:candidate -c 'node scripts/check-media-tools.js --hardware && node scripts/check-encoder-options.js && npm test'
+            pigtv:candidate -c 'node scripts/check-media-tools.js --hardware && node scripts/check-encoder-options.js && { if [ -n "$TEST_FILES" ]; then node --test $TEST_FILES; else npm test; fi; }'
 
       - name: Publish validated candidate
         env:
@@ -101,3 +138,20 @@ jobs:
             docker tag pigtv:candidate "$image_tag"
             docker push "$image_tag"
           done <<< "$IMAGE_TAGS"
+
+  # Reports, never blocks: speed budgets are not part of the gate (test/helpers/perf.js), so a slow
+  # shared runner must not stop an image. It runs beside the build, so it adds no wait.
+  perf:
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm rebuild better-sqlite3
+      - run: node --test test/channel-links-perf.test.js test/sports-fixtures.test.js test/sports-events.test.js test/sports-worker.test.js
