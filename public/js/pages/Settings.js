@@ -1070,11 +1070,11 @@ class SettingsPage {
 
                 try {
                     await API.users.create({ username, password, role });
-                    alert('User created successfully!');
+                    UI.toast('User created.');
                     addUserForm.reset();
                     this.loadUsers();
                 } catch (err) {
-                    alert('Error creating user: ' + err.message);
+                    UI.toast('Could not create the user: ' + err.message, { kind: 'error' });
                 }
             });
         }
@@ -1150,7 +1150,7 @@ class SettingsPage {
         console.log('Modal element:', modal);
         if (!modal) {
             console.error('CRITICAL: Modal element #edit-user-modal not found in DOM!');
-            alert('Error: Modal not found. Please refresh the page.');
+            UI.toast('The edit window is missing. Refresh the page and try again.', { kind: 'error' });
             return;
         }
 
@@ -1186,7 +1186,7 @@ class SettingsPage {
             console.log('Modal should now be visible!');
         } catch (err) {
             console.error('Error populating modal:', err);
-            alert('Error opening edit modal: ' + err.message);
+            UI.toast('Could not open the edit window: ' + err.message, { kind: 'error' });
         }
     }
 
@@ -1222,11 +1222,10 @@ class SettingsPage {
 
             try {
                 await API.users.update(userId, updates);
-                // alert('User updated successfully!'); // Optional: Replace with toast?
                 closeModal();
                 this.loadUsers();
             } catch (err) {
-                alert('Error updating user: ' + err.message);
+                UI.toast('Could not update the user: ' + err.message, { kind: 'error' });
             }
         };
 
@@ -1243,7 +1242,7 @@ class SettingsPage {
             await API.users.delete(userId);
             this.loadUsers();
         } catch (err) {
-            alert('Error deleting user: ' + err.message);
+            UI.toast('Could not delete the user: ' + err.message, { kind: 'error' });
         }
     }
 

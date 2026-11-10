@@ -19,7 +19,7 @@ function makeManager({ groups, confirmAnswer = true, newGroups = [] } = {}) {
     const context = vm.createContext({
         window: { app: {}, confirm: (msg) => { confirms.push(msg); return confirmAnswer; } },
         console: { ...console, log() {}, warn() {}, error() {} },
-        alert() {}, setTimeout: () => 0,
+        setTimeout: () => 0,
         document: { getElementById: (id) => (id === 'content-new-groups' ? box : null), querySelector: () => null },
         Icons: { chevronDown: '' },
         CSS: { escape: (s) => s },

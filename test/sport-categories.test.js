@@ -144,7 +144,7 @@ test('the web Sources picker shows a Sport toggle per category and saves it', as
     const context = vm.createContext({
         window: { app: {} },
         console: { ...console, warn() {}, error() {} },
-        alert() {}, setTimeout: () => 0,
+        setTimeout: () => 0,
         document: { getElementById: () => null, querySelector: () => null },
         Icons: { chevronDown: '' },
         API: { library: { setCategorySport: async (...a) => { calls.push(a); return { success: true, sport: a[2] }; } } }

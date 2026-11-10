@@ -202,11 +202,13 @@ class SportsPage {
             this.setup();
             await this.state.load(true);
             this.watchRecordings(); this.poll();
+            if(this.watchCancelled) { this.watchCancelled=false; UI.toast('Scheduled watch cancelled because Sport was closed'); }
         } catch { if (this.state.valid(serial,identity)) this.root.textContent='Sport unavailable. Try opening Sport again.'; }
     }
     hide() { this.suspend(); }
     suspend() {
         this.unwatchRecordings?.(); this.unwatchRecordings=null; this.recordingsVisit++;
+        if(this.waiting) this.watchCancelled=true;
         clearTimeout(this.timer); clearTimeout(this.waiting); this.waiting=null;
         this.state.active=false; this.recordings=[]; this.state.clear(); this.closeDialog();
         this.root?.replaceChildren(); this.cards.clear(); this.shelves.clear(); this.orders.clear();

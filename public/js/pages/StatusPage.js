@@ -66,7 +66,7 @@ class StatusPage {
             if (all) await API.transcode.killAllSessions();
             else await API.transcode.killSession(button.dataset.killSession);
         } catch (err) {
-            alert(`Could not stop the stream: ${err.message}`);
+            UI.toast(`Could not stop the stream: ${err.message}`, { kind: 'error' });
         }
         await this.refresh();
     }

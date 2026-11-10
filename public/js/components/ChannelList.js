@@ -1002,20 +1002,35 @@ class ChannelList {
                 }
                 break;
             case 'hide':
-                if (type === 'channel') {
-                    try {
-                        await API.channels.hide(parseInt(sourceId), 'channel', itemId);
-                        // The library lists only visible channels: drop it here too.
-                        this.channels = this.channels.filter(c => !(c.id === itemId && String(c.sourceId) === String(sourceId)));
-                        this.render();
-                    } catch (err) {
-                        console.error('Error hiding channel:', err);
-                    }
-                }
+                if (type === 'channel') await this.hideChannel(sourceId, itemId);
                 break;
         }
 
         this.hideContextMenu();
+    }
+
+    /** Hide a channel from the list, and offer to undo it: Undo shows the same channel again (API.channels.show). */
+    async hideChannel(sourceId, itemId) {
+        const same = (c) => c.id === itemId && String(c.sourceId) === String(sourceId);
+        const index = this.channels.findIndex(same);
+        const channel = this.channels[index];
+        try {
+            await API.channels.hide(parseInt(sourceId), 'channel', itemId);
+        } catch (err) {
+            console.error('Error hiding channel:', err);
+            UI.toast(`Could not hide the channel: ${err.message}`, { kind: 'error' });
+            return;
+        }
+        // The library lists only visible channels: drop it here too.
+        this.channels = this.channels.filter(c => !same(c));
+        this.render();
+        UI.toast('Channel hidden', { action: { label: 'Undo', run: async () => {
+            await API.channels.show(parseInt(sourceId), 'channel', itemId);
+            if (channel && !this.channels.some(same)) {
+                this.channels.splice(Math.min(index, this.channels.length), 0, channel);
+                this.render();
+            }
+        } } });
     }
 
     /**

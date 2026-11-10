@@ -46,7 +46,7 @@ function context(elements, routes) {
     const ctx = vm.createContext({
         console: { ...console, log() {}, warn() {}, error() {} },
         localStorage: { getItem: () => 'tok', setItem() {}, removeItem() {} },
-        confirm: () => true, alert() {},
+        confirm: () => true,
         document: {
             getElementById: (id) => elements[id] || null, querySelectorAll: () => [], querySelector: () => null,
             createElement: () => {

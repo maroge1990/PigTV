@@ -974,10 +974,9 @@ class EpgGuide {
                 try {
                     const rule = await API.recordings.addRule({ kind: 'series', match: data.title, sourceId: parseInt(data.sourceId, 10),
                         channelId: data.channelId, channelName: data.channelName, preBufferMin, postBufferMin });
-                    const msg = `Series rule added: ${data.title} (${rule.scheduled || 0} scheduled)`;
-                    if (window.app?.showToast) window.app.showToast(msg); else alert(msg);
+                    UI.toast(`Series rule added: ${data.title} (${rule.scheduled || 0} scheduled)`);
                 } catch (err) {
-                    alert(`Could not add the series rule: ${err.message}`);
+                    UI.toast(`Could not add the series rule: ${err.message}`, { kind: 'error' });
                 }
                 close();
             };
@@ -1007,14 +1006,10 @@ class EpgGuide {
             const message = clashes
                 ? `Recording scheduled: ${data.title}. It clashes with ${clashes} other recording${clashes === 1 ? '' : 's'} (see Recordings): one will wait or be missed.`
                 : `Recording scheduled: ${data.title}`;
-            if (window.app?.showToast) {
-                window.app.showToast(message);
-            } else {
-                alert(message);
-            }
+            UI.toast(message);
         } catch (err) {
             console.error('Failed to schedule recording:', err);
-            alert(`Failed to schedule recording: ${err.message}`);
+            UI.toast(`Could not schedule the recording: ${err.message}`, { kind: 'error' });
         }
     }
 

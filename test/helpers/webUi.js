@@ -6,9 +6,19 @@ const vm = require('node:vm');
 // api.js. A test that runs another public/js file in a vm context loads it into that context first, through here.
 const SOURCE = fs.readFileSync(path.join(__dirname, '../../public/js/ui.js'), 'utf8');
 
-/** Load ui.js into a vm context (once: a second call does nothing). Returns the context. */
-function loadUi(context) {
-    if (vm.runInContext('typeof UI', context) === 'undefined') vm.runInContext(SOURCE, context);
+/**
+ * Load ui.js into a vm context (once: a second call does nothing). Returns the context.
+ * By default UI.toast is a recorder: the notices a page raised are in `context.toasts` as [message, options]
+ * (a page that used to alert() is observed here instead). `{ realToast: true }` keeps the real one, which needs a DOM.
+ */
+function loadUi(context, { realToast = false } = {}) {
+    if (vm.runInContext('typeof UI', context) === 'undefined') {
+        vm.runInContext(SOURCE, context);
+        if (!realToast) {
+            context.toasts = [];
+            vm.runInContext('UI.toast = (message, options) => { toasts.push([message, options]); return null; };', context);
+        }
+    }
     return context;
 }
 

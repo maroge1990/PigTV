@@ -173,7 +173,7 @@ class SourceManager {
             await this.loadNewGroups(sourceId);
             try { await window.app?.channelList?.loadChannels?.(); } catch { /* the list reloads on its own */ }
         } catch (err) {
-            alert(`Could not show the group: ${err.message || err}`);
+            UI.toast(`Could not show the group: ${err.message || err}`, { kind: 'error' });
             if (button) button.disabled = false;
         }
     }
@@ -197,7 +197,7 @@ class SourceManager {
             await API.channels.dismissNewGroups(sourceId);
             if (this.isCurrentSource(sourceId)) await this.loadNewGroups(sourceId);
         } catch (err) {
-            alert(`Could not clear the list: ${err.message || err}`);
+            UI.toast(`Could not clear the list: ${err.message || err}`, { kind: 'error' });
         }
     }
 
@@ -405,7 +405,7 @@ class SourceManager {
             group.sport = res && res.sport === true;
         } catch (err) {
             console.error('Error saving sport category:', err);
-            alert(`Could not save: ${err.message || err}`);
+            UI.toast(`Could not save: ${err.message || err}`, { kind: 'error' });
         }
         button.disabled = false;
         button.classList.toggle('active', group.sport);
@@ -602,7 +602,7 @@ class SourceManager {
      */
     async saveContentChanges({ confirmed = false, undo = false } = {}) {
         if (!this.treeData) {
-            alert('No content loaded to save');
+            UI.toast('No content loaded to save.', { kind: 'error' });
             return;
         }
         if (this.saving) return; // #175: one save at a time
@@ -776,7 +776,7 @@ class SourceManager {
 
         } catch (err) {
             console.error('Error saving content changes:', err);
-            alert('Failed to save changes: ' + err.message);
+            UI.toast('Could not save the changes: ' + err.message, { kind: 'error' });
             if (saveBtn) {
                 saveBtn.textContent = '💾 Save Changes';
                 saveBtn.disabled = false;

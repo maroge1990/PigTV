@@ -103,7 +103,7 @@ class RecordingsPage {
             await API.recordings.updateRule(id, { enabled });
             await this.refresh();
         } catch (err) {
-            alert('Could not change the rule: ' + err.message);
+            UI.toast('Could not change the rule: ' + err.message, { kind: 'error' });
         }
     }
 
@@ -113,7 +113,7 @@ class RecordingsPage {
             await API.recordings.deleteRule(id);
             await this.refresh();
         } catch (err) {
-            alert('Could not delete the rule: ' + err.message);
+            UI.toast('Could not delete the rule: ' + err.message, { kind: 'error' });
         }
     }
 
@@ -290,7 +290,7 @@ class RecordingsPage {
             await this.refresh();
             this.startCompressionWatch();
         } catch (err) {
-            alert('Could not start compression: ' + err.message);
+            UI.toast('Could not start compression: ' + err.message, { kind: 'error' });
             if (btn) { btn.disabled = false; btn.textContent = 'Compress'; }
         }
     }
@@ -330,7 +330,7 @@ class RecordingsPage {
             await API.recordings.cancelScheduled(id);
             await this.refresh();
         } catch (err) {
-            alert(`Failed to cancel: ${err.message}`);
+            UI.toast(`Could not cancel it: ${err.message}`, { kind: 'error' });
         }
     }
 
@@ -340,7 +340,7 @@ class RecordingsPage {
             await API.recordings.chooseScheduled(id);
             await this.refresh();
         } catch (err) {
-            alert(`Could not choose it: ${err.message}`);
+            UI.toast(`Could not choose it: ${err.message}`, { kind: 'error' });
         }
     }
 
@@ -352,7 +352,7 @@ class RecordingsPage {
             await API.recordings.cancelScheduled(id);
             await this.refresh();
         } catch (err) {
-            alert(`Failed to delete: ${err.message}`);
+            UI.toast(`Could not delete it: ${err.message}`, { kind: 'error' });
         }
     }
 
@@ -383,7 +383,7 @@ class RecordingsPage {
             await API.recordings.delete(id);
             await this.loadRecordings();
         } catch (err) {
-            alert(`Failed to delete: ${err.message}`);
+            UI.toast(`Could not delete it: ${err.message}`, { kind: 'error' });
         }
     }
 

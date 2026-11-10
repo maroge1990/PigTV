@@ -1432,6 +1432,114 @@ kbd {
 
 /* EPG Info Modal */
 
+/* The notice (UI.toast) */
+/* The notice: one pill at the bottom centre, above the Live TV player controls and the bottom safe area. */
+.ui-toast-host {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--space-2xl) + var(--space-lg) + var(--safe-area-inset-bottom));
+  z-index: 1100;
+  display: flex;
+  justify-content: center;
+  width: max-content;
+  max-width: min(36rem, calc(100vw - var(--space-lg)));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.ui-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  max-width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  opacity: 0;
+  transform: translateY(var(--space-sm));
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+  pointer-events: none;
+}
+
+.ui-toast-info {
+  background: var(--color-text-primary);
+  color: var(--color-bg-primary);
+}
+
+.ui-toast-error {
+  background: var(--color-error);
+  color: var(--color-bg-primary);
+}
+
+/* Not showing: still in the page (a live region must exist before its text changes), but empty and out of the way. */
+.ui-toast:not(.is-open) {
+  position: absolute;
+  bottom: 0;
+  max-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.ui-toast.is-open {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.ui-toast-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.ui-toast-action,
+.ui-toast-close {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 var(--space-sm);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ui-toast-action {
+  text-decoration: underline;
+}
+
+.ui-toast-close {
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+
+.ui-toast button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .ui-toast-action,
+  .ui-toast-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-toast {
+    transform: none;
+    transition: none;
+  }
+}
+
 .epg-program {
   border-right: 1px solid var(--color-border);
   cursor: pointer;

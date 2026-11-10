@@ -98,7 +98,6 @@ test('0156: the "Recent problems" section stays hidden when there is nothing to 
 function makeContextWithConfirm(elements, respond, confirmAnswer = true) {
     const made = makeContext(elements, respond);
     made.context.confirm = () => confirmAnswer;
-    made.context.alert = () => {};
     return made;
 }
 const withQuery = (el) => Object.assign(el, { querySelectorAll: () => [] });
