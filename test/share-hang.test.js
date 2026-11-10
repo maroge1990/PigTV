@@ -807,9 +807,10 @@ function stallingHelpers(hold, { exitOnRelease = false } = {}) {
                     // The helper's calls are not this process's: run with the real (unblocked) fs. Extra fields (a
                     // second path) are passed on.
                     try { result = real(() => run(op, String(file), rest)); } catch (err) {
-                        return helper.emit('message', { id, error: err.message, code: err.code || 'SHARE_ERROR' });
+                        if (helper.connected) helper.emit('message', { id, error: err.message, code: err.code || 'SHARE_ERROR' });
+                        return;
                     }
-                    helper.emit('message', { id, result });
+                    if (helper.connected) helper.emit('message', { id, result }); // a killed helper sends nothing back
                 };
                 if (String(file).startsWith(slowShare) && hold(op, String(file))) held.push(answer); else setImmediate(answer);
             }
@@ -1175,4 +1176,66 @@ test('#287: a removal that gets a definite answer frees its name at once: the ne
     } finally {
         for (const f of [name, partial]) { owners.forget(f); real(() => fs.rmSync(f, { force: true })); }
     }
+});
+
+test('#287: an unlink cut off because another call\'s deadline killed its helper frees its name once that helper is gone', async () => {
+    const owners = load('services/recordingOwners');
+    const { identityOfStat } = load('services/shareFsWorker');
+    const name = path.join(foxFooty, 'Cut off.mp4');
+    const other = path.join(foxFooty, 'Something else.mp4');
+    real(() => { fs.mkdirSync(foxFooty, { recursive: true }); fs.writeFileSync(name, 'an earlier attempt'); });
+    owners.published(name, 900014, real(() => identityOfStat(fs.statSync(name, { bigint: true }))));
+    let stuck = true;
+    // The share stops answering: take-back's unlink and another caller's check wait on one helper, which, killed for the
+    // other call's deadline, exits once its calls have run (in the kernel) without answering them.
+    const helpers = stallingHelpers((op, file) => stuck && ((op === 'unlink' && file === name) || file === other), { exitOnRelease: true });
+    const realFork = shareFs._spawner.fork;
+    shareFs.reset();
+    shareFs.tuning.timeoutMs = 20000; // take-back's own deadline is far off
+    shareFs._spawner.fork = helpers.fork;
+    const partial = path.join(foxFooty, 'Cut off.mp4.1-ef.partial');
+    let published = null;
+    try {
+        const taking = owners.takeBack(900014).catch(e => e);
+        assert.ok(await until(() => helpers.heldCount() === 1, 5000), 'the unlink is out');
+        await assert.rejects(() => shareFs.exists(other, { timeoutMs: 1000 }), { code: 'SHARE_UNRESPONSIVE' });
+        stuck = false;
+        helpers.release(); // its calls run (the unlink lands), then it exits
+        const err = await taking;
+        assert.equal(err.code, 'SHARE_UNRESPONSIVE', 'the unlink went unanswered');
+        assert.ok(await until(() => !owners.removalPending(name), 2000), 'its name is free once that helper is gone');
+        await owners.takeBack(900014);
+        assert.deepEqual(journalOf(900014), [], 'and take-back finishes the job');
+        real(() => fs.writeFileSync(partial, 'the new recording'));
+        published = await segments._publishNoReplace(partial, foxFooty, 'Cut off.mp4', n => `Cut off (${n}).mp4`, 900015);
+        assert.equal(published, name, 'a publish takes that name again, without a restart');
+    } finally {
+        helpers.release();
+        shareFs._spawner.fork = realFork;
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = 1500;
+        for (const f of [name, partial]) { owners.forget(f); real(() => fs.rmSync(f, { force: true })); }
+    }
+});
+
+test('#287: a withdraw while the share fails fast leaves no mark: once the share answers, take-back removes the copy', async () => {
+    const owners = load('services/recordingOwners');
+    const { identityOfStat } = load('services/shareFsWorker');
+    const file = path.join(foxFooty, 'Withdrawn fast.mp4');
+    real(() => { fs.mkdirSync(foxFooty, { recursive: true }); fs.writeFileSync(file, Buffer.alloc(1000)); });
+    // Its publication journalled it with its identity before the link, as publishNoReplace does.
+    owners.published(file, 900016, real(() => identityOfStat(fs.statSync(file, { bigint: true }))));
+    shareFs.reset();
+    shareFs._stuck.add({ stuck: 1 }); // two helpers stuck: every call fails at once, never sent
+    shareFs._stuck.add({ stuck: 2 });
+    try {
+        await owners.withdrawBounded(file, 900016, 'MP4');
+        assert.equal(owners.removalPending(file), false, 'nothing was sent that could land: no mark');
+        assert.deepEqual(journalOf(900016), [{ path: file, kind: 'published' }], 'journalled for later');
+    } finally {
+        shareFs.reset(); // the share answers again
+    }
+    assert.equal(await owners.takeBack(900016), 1);
+    assert.equal(real(() => fs.existsSync(file)), false, 'removed once the share answers');
+    assert.deepEqual(journalOf(900016), []);
 });

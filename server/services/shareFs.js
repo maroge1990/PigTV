@@ -40,21 +40,22 @@ function start() {
         clearTimeout(call.timer);
         idle(mine);
         unresponsiveSince = null;
-        if (msg.error) call.reject(Object.assign(new Error(msg.error), { code: msg.code || 'SHARE_ERROR' }));
+        if (msg.error) call.reject(Object.assign(new Error(msg.error), { code: msg.code || 'SHARE_ERROR', sent: true, settled: Promise.resolve() }));
         else call.resolve(msg.result);
     });
-    const gone = () => {
+    // `exited`: on 'exit' it has; on 'error' (a failed kill, say) it may not have.
+    const gone = (exited) => {
         stuck.delete(mine);
         if (child === mine) child = null;
         for (const [id, call] of pending) {
             if (call.child !== mine) continue;
             pending.delete(id);
             clearTimeout(call.timer);
-            call.reject(Object.assign(new Error('The recordings share helper stopped'), { code: 'SHARE_UNRESPONSIVE' }));
+            call.reject(unanswered('The recordings share helper stopped', exited ? Promise.resolve() : exitOf(mine)));
         }
     };
-    child.on('exit', gone);
-    child.on('error', gone);
+    child.on('exit', () => gone(true));
+    child.on('error', () => gone(false));
     // Keeps the process alive only while a call waits (idle()), so a test or a shutdown is never held by it.
     child.unref();
     idle(child);
@@ -67,10 +68,15 @@ function idle(which) {
 }
 
 /**
- * #287: settles once `which` has exited: from then on no call it was sent can still take effect. A SHARE_UNRESPONSIVE
- * rejection carries it as `settled` when the call was sent and may land late; without it, the call never reached a helper
- * that can still act.
+ * #287: settles once `which` has exited: from then on no call it was sent can still take effect. Every rejection says
+ * whether its call was `sent` to a helper; one that was carries `settled` (this, for the helper it was sent to), on every
+ * path: its own deadline, the helper killed for another call's, the helper's exit or error, an errno answer (settled at
+ * once). A call refused before it was sent (failing fast, or no helper to send it to) has sent: false and no `settled`.
  */
+const unanswered = (message, settled) => Object.assign(new Error(message), settled
+    ? { code: 'SHARE_UNRESPONSIVE', sent: true, settled }
+    : { code: 'SHARE_UNRESPONSIVE', sent: false });
+
 function exitOf(which) {
     if (which.exitCode !== null || which.signalCode !== null) return Promise.resolve();
     return new Promise((resolve) => { which.once('exit', () => resolve()); });
@@ -90,7 +96,7 @@ let inProcess = false;
 function call(op, file, { timeoutMs = tuning.timeoutMs } = {}, extra = {}) {
     if (inProcess) return runHere(op, file, extra);
     if (!(child && child.connected) && stuck.size >= MAX_STUCK) {
-        return Promise.reject(Object.assign(new Error('The recordings share is not answering (earlier calls are still stuck)'), { code: 'SHARE_UNRESPONSIVE' }));
+        return Promise.reject(unanswered('The recordings share is not answering (earlier calls are still stuck)', null));
     }
     return new Promise((resolve, reject) => {
         const worker = child && child.connected ? child : start();
@@ -101,7 +107,7 @@ function call(op, file, { timeoutMs = tuning.timeoutMs } = {}, extra = {}) {
             if (!unresponsiveSince) unresponsiveSince = Date.now();
             const settled = exitOf(worker); // #287: the call may still land until its helper has exited
             abandon(worker);
-            reject(Object.assign(new Error(`The recordings share did not answer within ${Math.round(timeoutMs / 1000)} s`), { code: 'SHARE_UNRESPONSIVE', settled }));
+            reject(unanswered(`The recordings share did not answer within ${Math.round(timeoutMs / 1000)} s`, settled));
         }, timeoutMs);
         pending.set(id, { resolve, reject, timer, child: worker });
         try { worker.channel?.ref?.(); } catch (e) { /* gone */ }
@@ -111,7 +117,7 @@ function call(op, file, { timeoutMs = tuning.timeoutMs } = {}, extra = {}) {
             pending.delete(id);
             clearTimeout(timer);
             abandon(worker);
-            reject(Object.assign(new Error('The recordings share helper could not be reached'), { code: 'SHARE_UNRESPONSIVE' }));
+            reject(unanswered('The recordings share helper could not be reached', null)); // never sent
         }
     });
 }

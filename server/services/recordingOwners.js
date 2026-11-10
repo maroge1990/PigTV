@@ -108,7 +108,7 @@ async function withdrawBounded(file, id, what, io = shareFs) {
         await io.unlink(file);
         forget(file);
     } catch (e) {
-        if (e.code === 'SHARE_UNRESPONSIVE') e.unlinkSent = true; // it may still land
+        if (e.code === 'SHARE_UNRESPONSIVE') e.fromUnlink = true; // the unlink's own error (shareFs says whether it was sent)
         outstanding = e;
         try {
             cleanupDb().prepare(`INSERT INTO recording_cleanup (path, recording_id, created_at, kind, identity) VALUES (?, ?, ?, 'published', ?)
@@ -302,18 +302,18 @@ async function retryOnce() {
         const mark = claimRemoval(p); // #287
         if (!mark) continue;
         let outstanding = null;
-        let sent = false;
+        let unlinking = false;
         try {
             const now = await shareFs.identity(p);
             if (now === null) { forget(p); continue; }
             if (identity === null) continue; // cannot tell which file it is: kept, still listed
             if (now !== identity) { forget(p); continue; } // another file at that name now
-            sent = true;
+            unlinking = true;
             await shareFs.unlink(p);
             forget(p);
             removed++;
         } catch (err) {
-            if (sent && err.code === 'SHARE_UNRESPONSIVE') err.unlinkSent = true;
+            if (unlinking && err.code === 'SHARE_UNRESPONSIVE') err.fromUnlink = true; // the unlink's error (shareFs says if it was sent)
             outstanding = err;
             if (err.code === 'SHARE_UNRESPONSIVE') break;
             console.warn(`[Recordings] Could not remove ${p} yet (${err.code || err.message}); it stays listed`);
@@ -438,8 +438,9 @@ function claimRemoval(p, { held = false } = {}) {
 function endRemoval(p, mark, outstanding) {
     const free = () => { if (removing.get(p) === mark) removing.delete(p); };
     if (!outstanding || outstanding.code !== 'SHARE_UNRESPONSIVE') return free();
-    if (!outstanding.unlinkSent) return free(); // nothing was sent that could still remove it
-    if (outstanding.settled) outstanding.settled.then(free); // else: kept while this process runs
+    // Only an unlink that shareFs says was sent can still land: until its helper has exited (`settled`).
+    if (!outstanding.fromUnlink || outstanding.sent === false) return free();
+    if (outstanding.sent && outstanding.settled) outstanding.settled.then(free); // else: kept while this process runs
 }
 const removalPending = (p) => removing.has(p);
 
@@ -463,7 +464,7 @@ async function takeBack(id, ioFor = () => shareFs) {
             async remove(p) {
                 if (busy(p)) return false; // in use since this began: left alone
                 try { await io.unlink(p); } catch (e) {
-                    if (e.code === 'SHARE_UNRESPONSIVE') e.unlinkSent = true; // it may still land
+                    if (e.code === 'SHARE_UNRESPONSIVE') e.fromUnlink = true; // the unlink's own error (shareFs says whether it was sent)
                     answer(e);
                     console.warn(`[Recordings] Could not remove ${p} yet (${e.code || e.message}); it stays listed`);
                     return false;

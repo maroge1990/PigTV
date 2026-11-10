@@ -50,3 +50,61 @@ test('#287: a link or nlink the share does not answer misses its deadline as SHA
     }
     assert.equal(fs.existsSync(path.join(hung, 'to.mp4')), false, 'nothing was linked');
 });
+
+// #287: every rejection says whether its call reached a helper (`sent`); one that did carries `settled`, which resolves once
+// that helper has exited (nothing it was sent can land after that).
+const settles = (p, ms) => Promise.race([p.then(() => true), new Promise(r => setTimeout(() => r(false), ms))]);
+
+test('#287: sent and settled on each way a call can fail', async () => {
+    const was = shareFs.tuning.timeoutMs;
+    const ok = path.join(dir, 'answered.partial');
+    fs.writeFileSync(ok, 'x');
+    try {
+        // An errno answer: sent, settled at once.
+        shareFs.reset();
+        fs.writeFileSync(path.join(dir, 'taken.mp4'), 'y');
+        const eexist = await shareFs.link(ok, path.join(dir, 'taken.mp4')).catch(e => e);
+        assert.deepEqual([eexist.code, eexist.sent], ['EEXIST', true]);
+        assert.equal(await settles(eexist.settled, 1000), true);
+
+        // Its own deadline: sent; settled once the killed helper has exited.
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = 1000;
+        const own = await shareFs.unlink(path.join(hung, 'a')).catch(e => e);
+        assert.deepEqual([own.code, own.sent], ['SHARE_UNRESPONSIVE', true]);
+        assert.equal(await settles(own.settled, 5000), true, 'the killed helper exits');
+
+        // Two calls on one helper: the other's deadline kills it, this one is rejected as the helper stops: sent, settled.
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = 20000;
+        const mine = shareFs.unlink(path.join(hung, 'b')).catch(e => e);
+        const other = shareFs.exists(path.join(hung, 'c'), { timeoutMs: 1000 }).catch(e => e);
+        assert.equal((await other).sent, true);
+        const stopped = await mine;
+        assert.deepEqual([stopped.code, stopped.sent], ['SHARE_UNRESPONSIVE', true], stopped.message);
+        assert.equal(await settles(stopped.settled, 1000), true, 'its helper has exited');
+
+        // Failing fast (two helpers stuck): never sent, nothing to wait for.
+        shareFs.reset();
+        shareFs._stuck.add({ stuck: 1 });
+        shareFs._stuck.add({ stuck: 2 });
+        const fast = await shareFs.unlink(path.join(hung, 'd')).catch(e => e);
+        assert.deepEqual([fast.code, fast.sent, fast.settled], ['SHARE_UNRESPONSIVE', false, undefined]);
+
+        // A helper that cannot be reached: never sent.
+        shareFs.reset();
+        const realFork = shareFs._spawner.fork;
+        const { EventEmitter } = require('node:events');
+        shareFs._spawner.fork = () => Object.assign(new EventEmitter(), { connected: true, exitCode: null, signalCode: null, unref() {},
+            channel: { ref() {}, unref() {} }, kill() {}, send() { throw new Error('channel closed'); } });
+        try {
+            const unreached = await shareFs.unlink(path.join(dir, 'e')).catch(e => e);
+            assert.deepEqual([unreached.code, unreached.sent, unreached.settled], ['SHARE_UNRESPONSIVE', false, undefined]);
+        } finally {
+            shareFs._spawner.fork = realFork;
+        }
+    } finally {
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = was;
+    }
+});
