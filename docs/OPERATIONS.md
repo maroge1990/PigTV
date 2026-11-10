@@ -111,9 +111,20 @@ exclude `recordings-work/` from any appdata backup: it is large, short-lived, an
 4. Start the container and check the log and Status page.
 
 **Oldest database (D-57):** this version opens a database last opened by build 0476 or later. An older backup, or a
-data folder from before 0213 or with a `db.json` from before 0135, stops the start with "[Database] Not started" and is
-left untouched. The way through: run the `v0502` image once with that data folder until the Status page loads (it
-upgrades the database), stop it, then start this version again.
+data folder from before 0213 or with a `db.json` from before 0135, stops the start: the log says `[Database] Not
+started` and what it found, and nothing in the data folder is changed. With auto-restart on, the container then starts
+and stops again in a loop: harmless, the log shows the same message each time. The way through, on Unraid:
+
+1. Stop the container (Unraid → Docker → PigTV).
+2. On its Edit page, change the repository from `ghcr.io/maroge1990/pigtv:release` to `ghcr.io/maroge1990/pigtv:v0502`
+   and apply.
+3. Start it once and wait until the Status page loads (v0502 upgrades the database).
+4. Stop it.
+5. Change the repository back to `ghcr.io/maroge1990/pigtv:release` and apply.
+6. Start it and check the log and Status page.
+
+`Not started` with "could not be opened" is not about age: check the file's owner (the `chown` in the restore steps
+above) and that no other PigTV uses the folder. "Not a database or is damaged" means: restore a backup as above.
 
 ## Media toolchain
 

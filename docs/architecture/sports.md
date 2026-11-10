@@ -49,7 +49,7 @@ version, follow-list version, 5 minutes; a minute before 0153) for 72 h + 5 min 
 and live/replay included (~0.3 s on 1,000 channels × 30 programmes; ~1.1 s on 1,000 channels × 108 hourly programmes, the
 whole 36 h + 72 h, where every programme is a match-up); a request filters and orders (warm ~20 ms, ~50 ms returning 10,000
 items). The sync logs `[Sync] EPG covers until …, N h ahead` and says when that is less than 72 h. `GET /api/sports/events?hours=[&include=all]` (any user,
-default 6, 1–72 since 0153; Apple route; events + replays, all kinds with `include=all`), admin `GET/PUT /api/sports/follow` (≤100) and
+default 6, 1–72 since 0153; Apple route; events + replays, all kinds with `include=all`), admin `GET /api/sports/follow` (read-only since 0394: the leagues accounts follow, D-42) and
 `GET /api/sports/preview` (next 72 h since 0153, every kind, with the rule and `kindRule`); web Settings → **Sports** (0149; grouped by
 kind since 0151). **Built off the request path (0159), on a worker thread since 0195 (`sportsEventsWorker.js`, with an automatic inline fallback):** a request is always served the last built result; a stale cache key
 triggers a background rebuild (`scheduleRebuild()`, `setImmediate`, never inline in a request) after an EPG sync, on a

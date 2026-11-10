@@ -622,10 +622,11 @@ reviews.
 
 ### D-57. The oldest database PigTV opens is one from build 0476 (10 Nov 2026; Mark)
 
-- **Context:** #270: about 330 lines of one-time migrations (db.json import, provider consolidation, stored badges,
+- **Context:** #270: about 280 lines of one-time migrations (db.json import, provider consolidation, stored badges,
   tvg_id fill, retired settings, the admin Sports keyword list) had run on every database in use; production was on 0502.
 - **Choice:** a database last opened by build 0476 (v0476) or later opens; anything older (a lower `schema_build`, data
   with no build recorded, a `db.json` never moved in) is refused at start, untouched, with one message: start v0502 once,
-  then this version. The one-time migrations go; the backfills that today's writers still need stay.
+  then this version. The one-time migrations go. Four start-up steps stay because today's code still writes rows they
+  fix: the stable-id, favourite and history backfills, and the favourite id clean-up.
 - **Consequence:** no upgrade straight from before 0476, and no restore of a backup older than 0476 without v0502 first;
   `services/dbMinimum.js`; [`OPERATIONS.md`](OPERATIONS.md) › Restore.

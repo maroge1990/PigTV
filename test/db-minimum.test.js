@@ -109,31 +109,82 @@ test('the verdicts, case by case', () => {
     assert.deepEqual(minimum.check(dbPath), { ok: true, kind: 'fresh' }, 'no data folder at all');
     assert.deepEqual(verdict({ db: false }), { ok: true, kind: 'fresh' });
     assert.deepEqual(verdict({ build: null, rows: false, migrated: true }), { ok: true, kind: 'fresh' });
-    // Supported: 0476 on, however it is written; something that is not a build number is not refused.
-    for (const build of ['0476', '0502', 'v0502', '0521', '521', '0521-dev', '1000']) assert.equal(verdict({ build }).ok, true, build);
-    const odd = verdict({ build: 'dev' });
-    assert.equal(odd.ok, true);
-    assert.match(odd.warning, /not a build number/);
+    // Supported: 0476 on. Only a stamp that is exactly a build number (4+ digits, an optional v) is compared;
+    // anything else opens with a warning and is never refused.
+    for (const build of ['0476', '0502', 'v0502', '0521', '1000']) assert.deepEqual(verdict({ build }), { ok: true, kind: 'supported' }, build);
+    for (const build of ['0123abc', '123', '475', 'dev', '0521-dev', '1.2.3', '']) {
+        const v = verdict({ build });
+        assert.equal(v.ok, true, build);
+        assert.match(v.warning, /not a build number/, build);
+    }
     // Too old.
-    for (const build of ['0475', 'v0475', '0213', '475', '0001']) assert.deepEqual(
+    for (const build of ['0475', 'v0475', '0213', '0001']) assert.deepEqual(
         [verdict({ build }).ok, minimum.check(dbPath).reason], [false, 'old'], build);
     assert.equal(verdict({ build: null }).reason, 'unstamped');
-    assert.equal(verdict({ build: '', rows: true }).reason, 'unstamped', 'an empty stamp is no stamp');
     // db.json: refused unless its contents were moved in before (then ignored, as since 0135).
     assert.equal(verdict({ db: false, json: true }).reason, 'db.json');
     assert.equal(verdict({ build: '0521', migrated: false, json: true }).reason, 'db.json');
     const moved = verdict({ build: '0521', migrated: true, json: true });
     assert.equal(moved.ok, true);
     assert.match(moved.warning, /db\.json is present but its contents were moved/);
-    // A file that is not a database cannot be classified: refused, untouched.
+});
+
+test('a file SQLite says is not a database: the damaged message, refused, untouched', () => {
+    const minimum = require(path.join(sandbox, 'server/services/dbMinimum'));
     fs.rmSync(dataDir, { recursive: true, force: true });
     fs.mkdirSync(dataDir);
     fs.writeFileSync(dbPath, 'not a database, but long enough to look like one at a glance '.repeat(20));
     const before = snapshot();
     const bad = minimum.check(dbPath);
-    assert.equal(bad.reason, 'unreadable');
-    assert.match(minimum.message(bad), /could not be read.*restore a backup/i);
+    assert.equal(bad.reason, 'damaged');
+    assert.match(minimum.message(bad), /SQLite says .* is not a database or is damaged \(SQLITE_NOTADB: .*Restore the newest backup/);
     assert.deepEqual(snapshot(), before);
+});
+
+test('a database that cannot be opened: says so with the error and the usual causes, never "restore a backup"',
+    { skip: process.getuid?.() === 0 ? 'root can open a chmod 000 file' : process.platform === 'win32' && 'no chmod' }, () => {
+        const minimum = require(path.join(sandbox, 'server/services/dbMinimum'));
+        dataFolder({ build: '0521' });
+        fs.chmodSync(dbPath, 0o000);
+        try {
+            const names = fs.readdirSync(dataDir).sort(); // the file cannot be hashed now: the listing instead
+            const v = minimum.check(dbPath);
+            assert.equal(v.reason, 'unopenable', JSON.stringify(v));
+            const text = minimum.message(v);
+            assert.match(text, /could not be opened \(SQLITE_CANTOPEN: /);
+            assert.match(text, /owner or permissions after a restore.*another PigTV still running/);
+            assert.doesNotMatch(text, /restore (a|the newest) backup/i);
+            assert.deepEqual(fs.readdirSync(dataDir).sort(), names);
+        } finally { fs.chmodSync(dbPath, 0o644); }
+    });
+
+test('a process that cannot know its own build opens an unstamped database with data, and writes no stamp', () => {
+    // A copy of server/ alone, without package.json: version.js cannot load (as in some tests' sandboxes).
+    const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-dbminimum-bare-'));
+    try {
+        fs.cpSync(path.join(sandbox, 'server'), path.join(bare, 'server'), { recursive: true });
+        fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(bare, 'node_modules'), 'junction');
+        fs.mkdirSync(path.join(bare, 'data'));
+        const file = path.join(bare, 'data', 'content.db');
+        const d = new Database(file);
+        d.exec('CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT); CREATE TABLE app_sources (id INTEGER PRIMARY KEY, data TEXT NOT NULL)');
+        d.prepare(`INSERT INTO app_sources VALUES (1, '{"name":"Household"}')`).run();
+        d.close();
+        const minimum = require(path.join(bare, 'server/services/dbMinimum'));
+        assert.deepEqual(minimum.check(file), { ok: true, kind: 'unchecked' });
+        const code = `try { require(${JSON.stringify(path.join(bare, 'server/db/sqlite'))}).getDb(); console.log('OPENED'); }
+            catch (e) { console.log('REFUSED', e.code); }`;
+        for (let run = 1; run <= 2; run++) {
+            const out = require('node:child_process').execFileSync(process.execPath, ['-e', code], { cwd: bare, encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'ignore'] });
+            assert.match(out, /OPENED/, `run ${run}`);
+        }
+        const r = new Database(file, { readonly: true });
+        try { assert.equal(r.prepare(`SELECT value FROM meta WHERE key = 'schema_build'`).get(), undefined, 'no stamp'); } finally { r.close(); }
+    } finally {
+        try { fs.rmdirSync(path.join(bare, 'node_modules')); } catch { /* gone */ }
+        fs.rmSync(bare, { recursive: true, force: true });
+    }
 });
 
 test('getDb() refuses the same databases, before the pre-migration copy (scripts and tests open through it too)', () => {
