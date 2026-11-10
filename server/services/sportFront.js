@@ -152,6 +152,12 @@ async function front({ userId, events, ended = null, now = Date.now() }) {
     const leagues = new Set(prefs.sports.flatMap(s => s.leagues));
     const timezone = dashboard.timezone();
     if (!leagues.size) return emptyFront({ now, timezone, spoilerFree: prefs.spoilerFree });
+    // 0503 (D-54): with the collector off, the follows and leagues alone: no card, and never the collector's catalogue
+    // (frozen when it was on before, with old scores); badges from the stored ESPN roster only. Nothing is fetched.
+    if (!dashboard.collectorEnabled()) {
+        const response = { now, timezone, games: [], followMatches: {} };
+        return { ...arrange(response, prefs, { logoFor: followLogos(null, { catalogue: false }) }), rails: [] };
+    }
     dashboard.store(); // the tables exist before the read-only worker opens them
     const cached = await events();
     const endedEvents = ended ? await ended(leagues) : [];
@@ -177,7 +183,7 @@ async function front({ userId, events, ended = null, now = Date.now() }) {
  * catalogue games (8 days back to the collector's horizon) or ESPN roster name it, as a logo-cache path. Read once, on
  * the first follow that needs it; never throws (null).
  */
-function followLogos(store) {
+function followLogos(store, { catalogue: useCatalogue = true } = {}) {
     const norm = v => (typeof v === 'string' && require('./sportsClassify').parseSide(v)?.tokens.join(' ')) || '';
     const add = (map, names, logo) => {
         if (!logo || typeof logo !== 'string') return;
@@ -185,6 +191,7 @@ function followLogos(store) {
     };
     let catalogue = null;
     const fromCatalogue = (league, key) => {
+        if (!useCatalogue) return null;
         if (!catalogue) {
             catalogue = new Map();
             try {

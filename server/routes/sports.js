@@ -83,10 +83,9 @@ router.get('/dashboard', dashboardEnabled, async (req, res) => {
 });
 
 // 0381 (D-39): the Sport front page, from the household's followed sports and teams (sportPagePrefs) and the collector's
-// scores. On whenever the collector is (sportsDashboard.collectorEnabled).
+// scores. 0503 (D-54): served with the collector off too, then without game cards (sportFront.front).
 router.get('/front', async (req, res) => {
     res.set('Cache-Control', 'private, no-store');
-    if (!dashboard.collectorEnabled()) return res.status(404).json({ error: 'The sport front page is off on this server' });
     try {
         channelNumbers.ensureChannelNumbers();
         const now = Date.now();

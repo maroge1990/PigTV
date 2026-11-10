@@ -39,7 +39,7 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 | `sportsEvents` | 0148 | `GET /api/sports/events` (C-I) | Sport tab, Home "Sport now & next", `hours=72` |
 | `sportPages` | 0340 | `GET /api/sports/pages/f1` (C-P), on whenever ESPN fixtures are | The Formula 1 page (sport rebuild, #21) |
 | `sportPageNfl` | 0379 | `GET /api/sports/pages/nfl` (C-Q), on whenever ESPN fixtures are | The NFL page (#21) |
-| `sportFront` | 0381 | `GET /api/sports/front` (C-R), on whenever ESPN fixtures are and `PIGTV_SPORTS_DASHBOARD` is not `0` | The Sport front page (D-39) |
+| `sportFront` | 0381 | Scores are collected for `GET /api/sports/front` (C-R): ESPN fixtures on and `PIGTV_SPORTS_DASHBOARD` not `0`. Since 0503 the route answers either way (C-R) | The Sport front page (D-39) |
 | `sportPageCricket` | 0383 | `GET /api/sports/pages/cricket` (C-S), on whenever ESPN fixtures are | The Cricket page (#21) |
 | `sportPageLeagues` | 0388 | **An array**, not a boolean: the leagues `GET /api/sports/pages/league/:league` (C-T) answers, by canonical name; `[]` when ESPN fixtures are off | One page design for any other team league (#21) |
 | `sportPageEvents` | 0428 | `GET /api/sports/pages/events?league=` (C-V), on whenever ESPN fixtures are | The tennis, golf, UFC, IndyCar and NASCAR pages (#197, D-43) |
@@ -795,6 +795,11 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
   followed team's or next round's game days away lists the channels already showing it (empty only past the guide).
   Which cards appear is unchanged.
 - A server before 0381 answers 404 to `/api/sports/front` and 400 to `sports`/`teams`: send them only with this flag.
+- Since 0503 (D-54) `/api/sports/front` also answers 200 when `sportFront` is false (scores off, or ESPN fixtures off),
+  in the same shape with no game cards: `scores: "unavailable"`, `games: []`, `rails: []`, `hero.reason: "none"`;
+  `sports[]` lists the followed leagues (`live: 0`, `next: null`, `line: "quiet"`) and `follows[]` the followed names
+  (`state: "none"`, `gameId`/`start` null; `logo` from the stored ESPN roster or null). `features.sportFront` still
+  says whether scores are collected. A server from 0381 to 0502 answers 404 there with `sportFront` false.
 
 ### C-S. Sport pages: Cricket. Flag: `sportPageCricket` (0383, #21)
 

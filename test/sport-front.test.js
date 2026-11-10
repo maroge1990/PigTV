@@ -469,7 +469,7 @@ test('#213: a followed cricket nation and AFL club with no card in range carry t
     clearGames();
 });
 
-test('features: sportFront on by default, the legacy dashboard off; PIGTV_SPORTS_DASHBOARD=0 turns the front page off', async () => {
+test('features: sportFront on by default, the legacy dashboard off; PIGTV_SPORTS_DASHBOARD=0 turns sportFront off (the page is still served, 0503)', async () => {
     let features = (await call('/api/info')).body.features;
     assert.equal(features.sportFront, true);
     assert.equal(features.sportsDashboard, false);
@@ -477,7 +477,7 @@ test('features: sportFront on by default, the legacy dashboard off; PIGTV_SPORTS
     try {
         features = (await call('/api/info')).body.features;
         assert.equal(features.sportFront, false);
-        assert.equal((await call('/api/sports/front')).status, 404);
+        assert.equal((await call('/api/sports/front')).status, 200, 'D-54: served without cards (sport-front-scores-off.test.js)');
     } finally { delete process.env.PIGTV_SPORTS_DASHBOARD; }
 });
 
