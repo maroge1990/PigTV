@@ -1,0 +1,14 @@
+version 200 {"version":"3.7.0","build":"0523","commit":"rig-0c96ef8","builtAt":"2026-11-10T10:13:20Z","display":"v3.7.0 · build 0523 (rig-0c96ef8)"}
+info has recordingCompression : false
+info has channelHistory : false
+info has adDetection : false
+info has streamCoordination : false
+info has streamTokenAuth : false
+info has playbackHandles : false
+info keys: name,version,build,commit,builtAt,display,apiVersion,features,warmingEnabled,comskipAvailable,playback
+/api/favorites 404 {"error":"No such API endpoint","endpoint":"GET /api/favorites"}
+/api/settings/defaults 404 {"error":"No such API endpoint","endpoint":"GET /api/settings/defaults"}
+/api/transcode/sessions 404 {"error":"No such API endpoint","endpoint":"GET /api/transcode/sessions"}
+/api/settings 200 {"arrowKeysChangeChannel":true,"overlayDuration":5,"defaultVolume":80,"rememberVolume":tru
+/api/sources 200 [{"id":2,"type":"xtream","name":"Fake A","enabled":true},{"id":3,"type":"xtream","name":"F
+channels before: 30 [ 'total', 'limit', 'offset', 'channels' ]

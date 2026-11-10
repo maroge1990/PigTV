@@ -1,0 +1,22 @@
+[Sync] Starting sync for source Fake A (ID: 2)
+[Sync] Fetching Live Categories for Fake A
+[Sync] Fetching Live Streams for Fake A
+[Sync] Starting sync for source Fake B (ID: 3)
+[Sync] Fetching backup live channels for Fake B
+[Sync] Saving 7 live categories for source 2...
+[Sync] Saved 7 live categories
+[Sync] Saved 30 live items
+[Sync] Fetching EPG for Fake A
+[Sync] Fetching EPG from: http://the-rig:8290/xmltv.php?username=***&password=***...
+[Sync] Backup Fake B: 25 channels
+[Links] Relinked 30 channels (3: 33 auto, 1 pending) in 6 ms
+[Sync] Completed sync for source Fake B
+[Sync] EPG Parsed: 24 channels, 3204 programmes
+[Sync] EPG covers until 2026-11-13T11:30:00.000Z, 73 h ahead
+[Sync] Removed 3204 superseded programmes
+[Sync] Saved 24 EPG channels
+[Sync] Saved 3204 programmes
+[Raw] Fake A: 30 raw rows
+[Links] Relinked 30 channels (3: 33 auto, 1 pending) in 5 ms
+[Sync] Completed sync for source Fake A
+[Sync] Starting sync for source Fake A (ID: 2)

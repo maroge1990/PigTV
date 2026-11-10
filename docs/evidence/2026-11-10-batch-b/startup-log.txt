@@ -1,0 +1,16 @@
+[entrypoint] fixing ownership of /app/config to 99:100
+[entrypoint] recordings folder /app/recordings is writable by 99:100
+[entrypoint] starting as 99:100
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 🔑 add access controls to secrets: https://dotenvx.com/ops
+FFmpeg binary configured at: ffmpeg (system)
+FFprobe binary configured at: ffprobe (system)
+[MediaTools] ffmpeg 9.0.2 (system)
+[MediaTools] ffprobe 9.0.2 (system)
+PigTV server running on http://localhost:3000
+[Backup] Build 0515 -> 0523: copied the database before migrations to content-2026-11-10T10-13-21Z-pre-migration.db
+[SQLite] Opening database at /app/data/content.db
+[SQLite] Schema initialized
+[SportFixtures] Off (PIGTV_SPORT_FIXTURES=0)
+[Sync] Starting sync for source Fake A (ID: 2)
+[Sync] Fetching Live Categories for Fake A
+[Sync] Starting sync for source Fake B (ID: 3)

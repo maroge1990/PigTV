@@ -1,0 +1,5 @@
+read-only open of staging content.db (node + better-sqlite3 inside the test container)
+playlist_items by type: epg_channel 24, live 30
+rows with type movie or series: 0
+meta schema_build = 0523
+meta films_series_cleanup = 1794305601630 (2026-11-10 10:13:21 UTC, the 0523 start-up)

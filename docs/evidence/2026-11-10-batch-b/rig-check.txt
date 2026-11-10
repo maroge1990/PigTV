@@ -1,0 +1,8 @@
+rig up + check at commit 0c96ef8 (build 0523), staging was on build 0515 with its existing database
+   version: v3.7.0 · build 0523 (rig-0c96ef8)
+   channels: 30
+   guide (next 3 h): 111 programmes on 28 of 30 channels
+   sport events (72 h): 15, live now 3
+   play "UK| BBC ONE HD": transcode in 4883 ms -> master.m3u8
+   HLS: 1 segments listed, last one 257549 bytes
+   check passed
