@@ -721,6 +721,13 @@ check_absent server/index.js "app.use('/api/subtitle'" "no /api/subtitle"
 echo "=== 0051: Drop the dead ffmpeg-static require ==="
 check_absent server/routes/proxy.js "require('ffmpeg-static')" "proxy.js no longer requires ffmpeg-static at load (would crash startup if the optional dep failed)"
 # index.js keeps its own guarded fallback require - that one is inside try/catch.
+# The image installs with `npm ci --omit=dev` and brings its own ffmpeg: the bundled binaries are dev-only.
+if node -e 'const p=require("./package.json");process.exit(["ffmpeg-static","@ffprobe-installer/ffprobe"].some(n=>(p.dependencies||{})[n]||(p.optionalDependencies||{})[n])?1:0)'; then
+    echo "  ✓ ffmpeg-static and @ffprobe-installer/ffprobe are not production dependencies"
+else
+    echo "  ✗ a bundled ffmpeg package is a production dependency (the image has its own ffmpeg)"
+    FAIL=1
+fi
 
 echo "=== 0052: Provider credential redaction (P1-4) ==="
 if node -e '
