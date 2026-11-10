@@ -138,6 +138,19 @@ test('the capture arguments of a segmented recording are exactly these (a refact
         '-hls_segment_type', 'mpegts', '-hls_segment_filename', path.join(epoch, 'a%06d.ts'), path.join(epoch, 'archive.m3u8')]);
 });
 
+test('0508: a capture\'s input is built in one place: from the provider, or from the shared feed on stdin', () => {
+    assert.deepEqual(segments.captureInput({ url: 'http://p.example/live/1.ts', userAgent: 'UA/1' }),
+        ['-user_agent', 'UA/1', '-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5', '-i', 'http://p.example/live/1.ts']);
+    assert.deepEqual(segments.captureInput({ url: 'http://p.example/live/1.ts', userAgent: 'UA/1', feed: true }), ['-i', 'pipe:0']);
+});
+
+test('0508: a capture from the shared feed never carries the provider URL, its user agent or a reconnect option', () => {
+    const url = 'http://p.example/live/1.ts';
+    const args = segments.captureArgs({ userAgent: 'UA/1', url, epochDir: '/tmp/e1', offsetSec: 8, feed: true });
+    assert.ok(!args.some(a => a.startsWith('-reconnect') || a === '-user_agent' || a === 'UA/1' || a.includes(url)), args.join(' '));
+    assert.equal(args[args.indexOf('-i') + 1], 'pipe:0');
+});
+
 // ---------------------------------------------------------- recording and finishing --
 
 test('switch on: segments in appdata under one row; watchable while recording; at the end one MP4 on the share and the work folder gone', async () => {

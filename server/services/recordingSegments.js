@@ -122,19 +122,31 @@ function nextEpoch(workDir) {
 }
 
 /**
- * The recording ffmpeg for one epoch. Input and mapping are today's (spawnPart); the output is
- * an HLS event playlist of 4 s MPEG-TS segments instead of one .ts file. make_non_negative rather
- * than make_zero: make_zero would undo -output_ts_offset (it shifts the first timestamp to 0).
- * temp_file: a segment only appears under its name once it is complete.
+ * The input half of a recording ffmpeg's arguments, built in one place. From the provider: its
+ * user agent and reconnect options, then the URL. From the shared feed (`feed` true): stdin only,
+ * since the ingest does the provider-facing part (user agent, reconnect) itself.
  */
-function captureArgs({ userAgent, url, epochDir, offsetSec = 0 }) {
+function captureInput({ url, userAgent, feed = false }) {
+    if (feed) return ['-i', 'pipe:0'];
     return [
-        '-y',
         '-user_agent', userAgent,
         '-reconnect', '1',
         '-reconnect_streamed', '1',
         '-reconnect_delay_max', '5',
-        '-i', url,
+        '-i', url
+    ];
+}
+
+/**
+ * The recording ffmpeg for one epoch: the input (captureInput), the mapping, and as output an HLS
+ * event playlist of 4 s MPEG-TS segments. make_non_negative rather than make_zero: make_zero would
+ * undo -output_ts_offset (it shifts the first timestamp to 0). temp_file: a segment only appears
+ * under its name once it is complete.
+ */
+function captureArgs({ userAgent, url, epochDir, offsetSec = 0, feed = false }) {
+    return [
+        '-y',
+        ...captureInput({ url, userAgent, feed }),
         '-map', '0:v?',
         '-map', '0:a?',
         '-ignore_unknown',
@@ -807,7 +819,7 @@ function status() {
 }
 
 module.exports = {
-    SEGMENT_SEC, workRoot, workDirFor, isWorkDir, epochs, nextEpoch, captureArgs, captureBytes,
+    SEGMENT_SEC, workRoot, workDirFor, isWorkDir, epochs, nextEpoch, captureInput, captureArgs, captureBytes,
     sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount,
     viewArgs,
     _partInput: partInput,

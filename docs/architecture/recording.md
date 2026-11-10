@@ -86,8 +86,10 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   no switch: writes of it are ignored and a stored value never counts; contract C-L). Every recording is captured this
   way; recordings made by the older part-based path (one `.ts` per part, "Part N" in the list) still play, list and
   delete, and one of them left in progress is finished at the next start. A new recording is captured into `/app/data/recordings-work/rec-<id>/e<n>/` as
-  4 s MPEG-TS HLS segments, one folder per ffmpeg run ("epoch"); the arguments are the usual capture's with `-f hls`,
+  4 s MPEG-TS HLS segments, one folder per ffmpeg run ("epoch"); the arguments (`captureArgs`) are a stream copy with `-f hls`,
   `make_non_negative` and `-output_ts_offset <seconds so far>` (make_zero would undo the offset), so the timeline runs on.
+  Their input half is built in one place, `captureInput`: the provider's user agent, reconnect options and URL, or, on a
+  shared feed, `-i pipe:0` alone (the ingest connects and reconnects).
   A failover or a restart continues the **same row** in a new epoch (no part 2; ≤ 20 resumes; gaps noted in `error`); a
   restart after the window finishes it. A container stop (SIGTERM) before the end leaves it to resume, not finished
   (0490). A capture that ends before its stop time unasked, for any reason and with one provider too, continues

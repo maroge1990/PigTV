@@ -280,22 +280,6 @@ async function feedFor(settings, candidate) {
     }
 }
 
-/**
- * The capture arguments reading the shared feed on stdin: the provider-facing input options
- * (user agent, reconnect: the ingest does both) go, and the input is pipe:0. Every output
- * argument is unchanged.
- */
-function onFeed(args, url) {
-    const out = [];
-    for (let i = 0; i < args.length; i++) {
-        const a = args[i];
-        if (a === '-user_agent' || a === '-reconnect' || a === '-reconnect_streamed' || a === '-reconnect_delay_max') { i++; continue; }
-        if (a === '-i' && args[i + 1] === url) { out.push('-i', 'pipe:0'); i++; continue; }
-        out.push(a);
-    }
-    return out;
-}
-
 /** End a capture gracefully: "q" on stdin, or (on a shared feed, where stdin is the data) end of input. */
 function askToStop(entry) {
     if (entry.feed) {
@@ -1181,10 +1165,10 @@ async function captureSize(entry) {
 /** Run ffmpeg for one part on its candidate. Its exit decides what happens next (onPartExit). */
 function spawnPart(schedule, settings, { recordingId, outputPath, route, index, lease = null, segmented = null, feed = null }) {
     const candidate = route.candidates[index];
-    const ownArgs = segments.captureArgs({
-        userAgent: getUserAgent(settings), url: candidate.url, epochDir: outputPath, offsetSec: segmented.offsetSec
+    // Wave 5: with a shared feed the capture reads it on stdin (recordingSegments.captureInput).
+    const args = segments.captureArgs({
+        userAgent: getUserAgent(settings), url: candidate.url, epochDir: outputPath, offsetSec: segmented.offsetSec, feed: !!feed
     });
-    const args = feed ? onFeed(ownArgs, candidate.url) : ownArgs;
 
     // The provider is named only when there is more than one to choose from (never its URL).
     const on = route.multi ? ` on ${candidate.providerName}` : '';
