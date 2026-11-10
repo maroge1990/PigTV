@@ -60,7 +60,7 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   provider stall (#143). Through it: the
   folder health check and the start pre-flight (`checkRecordingsFolderAsync`), `getRecordingsRoot`, the channel folder,
   segmented recordings' share folder, choosing a capture's file name and reading its size when it ends (#144), and each
-  tick's growth, live-detection and free-space checks. `/api/status`
+  tick's growth and free-space checks. `/api/status`
   shows a cached free-space line refreshed in the background (`shareFs.diskInfo`) and never touches the share. Deleting
   a recording (0330, #141): a share that is not answering refuses it before it is retired ("The recordings folder is not
   responding…"; it stays as it was, its jobs still its own: 0331, #149). A second delete of the same recording joins the

@@ -1537,6 +1537,14 @@ check_absent server/services/streamCoordinator.js "staleStreams" "retired staleS
 check_absent server/services/streamRelay.js "closeForOwner" "retired closeForOwner stays gone"
 check_absent server/services/dbBackup.js "stopNightly" "retired stopNightly stays gone"
 
+echo "=== 0506: no break detection during capture (#271) ==="
+# Every recording is segmented and live detection never ran for one: detection runs once the recording has finished.
+if grep -rn "detectLive\|startLiveDetection\|liveCaptureEnded" server | grep -q .; then
+    echo "  ✗ STILL PRESENT: live break detection is referred to under server/"; FAIL=1
+else
+    echo "  ✓ no live break detection under server/"
+fi
+
 # Documentation size budgets (30 Oct reset, decision D-22): warnings only, never a failure. A warning means
 # something probably belongs elsewhere; it is never a reason to cut useful detail.
 echo "=== Doc size budgets (warnings only) ==="

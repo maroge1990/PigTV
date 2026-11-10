@@ -218,7 +218,7 @@ Problems a user would notice. Technical limits are on each area's page under ARC
 ### Recordings
 
 - Segmented recordings (R3) need room in appdata for the longest recording (twice that while someone watches an HEVC one
-  from the start). Live break detection does not follow them; they are analysed from the MP4.
+  from the start). Ad breaks are detected after the recording finishes, from its MP4.
 - Rules (R5) see as far as the guide does (sport 72 h, series 7 days); a series rule is per channel.
 - The recordings folder must be on a volume Docker sees live (§1 Deployment). The server checks it at startup and every
   15 min and warns on Status, but it can't fix a Docker mapping.

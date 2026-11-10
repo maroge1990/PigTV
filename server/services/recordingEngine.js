@@ -53,10 +53,6 @@ const failoverTuning = {
     maxParts: 3
 };
 
-// 0207: live break detection starts once a part's file holds this much (a few seconds of
-// video), enough for Comskip to find the streams in it.
-const LIVE_DETECT_MIN_BYTES = 4 * 1024 * 1024;
-
 let tickTimer = null;
 let tickRunning = false;
 // scheduledId -> { proc, recordingId, hardStopTimer, stderrTail: [] }
@@ -909,8 +905,6 @@ async function deleteRecordingOnce(id) {
     // job - may record itself or stay.
     owners.retire(id);
 
-    // 0207: nor may a live break-detection run go on reading a file about to go.
-    post.abortLive(id);
     // 0264: every writer of it is stopped, and has ended and removed what it made, before anything of
     // it is removed: nothing is written for it once this deletion has completed.
     await owners.stopWriters(id);
@@ -1486,7 +1480,6 @@ async function onPartExit(schedule, entry, exitCode) {
             const nextCandidate = entry.route.candidates[next];
             console.warn(`[Recordings] #${entry.recordingId} ${how} on ${candidate.providerName} as it started; ` +
                 `starting again on ${nextCandidate.providerName}`);
-            post.abortLive(entry.recordingId); // 0207: it followed a file that is being rewritten
             await shareFs.unlink(entry.outputPath).catch(() => {}); // #141; the next part overwrites it anyway
             recordingsDb.setProvider(entry.recordingId, nextCandidate.providerId);
             const feed = await feedFor(settings, nextCandidate); // Wave 5
@@ -1768,10 +1761,6 @@ function finalizeRecording(scheduledId, recordingId, outputPath, exitCode, stder
 
     console.log(`[Recordings] Recording #${recordingId} finished (${success ? 'completed' : 'failed'}), ${fileSize} bytes`);
 
-    // 0207: a live detection run that followed this capture goes on to finish the file and
-    // writes the markers itself (the status stays 'running'); otherwise it is queued as ever.
-    const followedLive = post.liveCaptureEnded(recordingId, success);
-
     if (success) {
         // Marked pending regardless of the setting; the queue checks whether
         // compression is enabled, so turning it on later picks these up.
@@ -1780,7 +1769,7 @@ function finalizeRecording(scheduledId, recordingId, outputPath, exitCode, stder
             // before you sit down to watch. Compression is not: it is only
             // worth doing for a recording you have decided to keep, which is a
             // judgement made after watching, so it waits to be asked for.
-            if (!followedLive) recordingsDb.setAdDetectStatus(recordingId, 'pending');
+            recordingsDb.setAdDetectStatus(recordingId, 'pending');
         } catch (e) { /* columns may be missing on a very old database */ }
         // 0192 (audit R06): and prepared for the Apple client before anyone asks.
         recordingsDb.setNativeStatus(recordingId, 'pending');
@@ -1818,26 +1807,6 @@ async function checkRecordingStalls(now = Date.now()) {
         const proc = entry.proc;
         // A stalled ffmpeg may be blocked reading the input and never see the "q".
         setTimeout(() => { if (proc.exitCode === null && proc.signalCode === null) { try { proc.kill('SIGKILL'); } catch (e) { /* gone */ } } }, 5000).unref?.();
-    }
-}
-
-/**
- * 0207: follow each capture with Comskip once its file has data (see recordingPost.js). Each
- * part is its own run; a part is tried again on the next tick until a run has been started
- * (detection off, Comskip missing and the cap all just mean "not now"), and never again
- * after, so a run that ended early is not restarted over a stalled file.
- */
-async function startLiveDetections() {
-    for (const entry of [...active.values()]) {
-        // R3: a segmented recording is analysed once its MP4 exists (live detection follows one growing file).
-        if (entry.liveStarted || entry.stopRequested || entry.segmented) continue;
-        const size = await shareFs.sizeOf(entry.outputPath); // #8
-        if (size === null || size < LIVE_DETECT_MIN_BYTES) continue;
-        if (entry.liveStarted || entry.stopRequested || active.get(entry.schedule.id) !== entry) continue;
-        post.startLiveDetection({ id: entry.recordingId, file_path: entry.outputPath },
-            { stillCapturing: () => active.get(entry.schedule.id) === entry })
-            .then(started => { if (started) entry.liveStarted = true; })
-            .catch(err => console.error(`[Recordings] Live break detection could not start for #${entry.recordingId}:`, err.message));
     }
 }
 
@@ -1929,8 +1898,8 @@ function reconcileOnStartup() {
         setScheduleStatus(schedule.id, 'missed', { error: 'Server was not running when this recording was due.' });
     }
 
-    // 0207: a live detection run did not survive the restart. A recording it was following
-    // goes through the queue like any other; one that never completed has nothing to analyse.
+    // A break-detection run did not survive the restart. A completed recording goes back to the
+    // queue; one that never completed has nothing to analyse.
     try {
         getDb().prepare(`UPDATE recordings SET ad_detect_status = CASE WHEN status = 'completed' THEN 'pending' ELSE NULL END,
             ad_detect_error = NULL WHERE ad_detect_status = 'running'`).run();
@@ -2194,7 +2163,6 @@ async function tick() {
         followEvents(now); // #217
         await checkRecordingStalls(now);
         keepWatchCopies(); // #17: beside the tick (0457)
-        await startLiveDetections();
 
         // Give a viewer notice before a recording is actually due, rather than
         // at the moment it needs the stream.
