@@ -180,24 +180,31 @@ class ChannelList {
             }
         }, { rootMargin: '100px' });
 
-        // Start EPG refresh timer (updates visible program info every 60 seconds)
-        this.startEpgRefreshTimer();
+        // The now/next text is redrawn every 60 seconds, but only while Live TV is the page shown (LivePage
+        // show/hide) and the tab is visible.
+        document.addEventListener?.('visibilitychange', () => this.syncEpgRefreshTimer());
+    }
+
+    /** Live TV is now the page shown (true) or no longer is (false). */
+    setEpgRefreshActive(active) {
+        this._epgRefreshWanted = !!active;
+        this.syncEpgRefreshTimer();
     }
 
     /**
-     * Start timer to refresh EPG info in visible channel items
-     * Updates every 60 seconds to keep "Now Playing" program info current
+     * Run the 60-second redraw of the visible now/next text only while it can be seen; starting it (again)
+     * redraws at once, so a return to the page or the tab never shows text up to a minute old.
      */
-    startEpgRefreshTimer() {
-        // Clear any existing timer
-        if (this._epgRefreshTimer) {
-            clearInterval(this._epgRefreshTimer);
-        }
-
-        // Refresh every 60 seconds
-        this._epgRefreshTimer = setInterval(() => {
+    syncEpgRefreshTimer() {
+        const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+        const run = !!this._epgRefreshWanted && !hidden;
+        if (run && !this._epgRefreshTimer) {
+            this._epgRefreshTimer = setInterval(() => this.updateVisibleEpgInfo(), 60000);
             this.updateVisibleEpgInfo();
-        }, 60000);
+        } else if (!run && this._epgRefreshTimer) {
+            clearInterval(this._epgRefreshTimer);
+            this._epgRefreshTimer = null;
+        }
     }
 
     /**

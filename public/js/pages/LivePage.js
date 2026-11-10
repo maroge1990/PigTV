@@ -73,6 +73,7 @@ class LivePage {
 
     async show() {
         document.addEventListener('keydown', this.handleKeydown);
+        this.app.channelList.setEpgRefreshActive(true);
 
         // Only reload if channels aren't already loaded
         if (this.app.channelList.channels.length === 0) {
@@ -92,6 +93,7 @@ class LivePage {
 
     hide() {
         document.removeEventListener('keydown', this.handleKeydown);
+        this.app.channelList.setEpgRefreshActive(false);
     }
 }
 

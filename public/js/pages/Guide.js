@@ -12,6 +12,7 @@ class GuidePage {
     }
 
     async show() {
+        this.app.epgGuide.setNowIndicatorActive(true);
         // The guide reads its own channels from /api/library/guide (0121); the
         // channel list is only needed when a channel is played from it.
         // Only load EPG data if not already loaded
@@ -26,7 +27,7 @@ class GuidePage {
     }
 
     hide() {
-        // Page is hidden
+        this.app.epgGuide.setNowIndicatorActive(false);
     }
 }
 

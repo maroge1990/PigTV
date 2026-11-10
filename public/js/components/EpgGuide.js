@@ -65,6 +65,9 @@ class EpgGuide {
             this.render();
         });
 
+        // A hidden tab stops the now-line's timer; coming back moves the line at once
+        document.addEventListener?.('visibilitychange', () => this.syncNowIndicatorTimer());
+
         // Search input
         if (this.searchInput) {
             this.searchInput.addEventListener('input', UI.debounce(() => {
@@ -514,12 +517,31 @@ class EpgGuide {
         // Sync header corner width with actual sidebar width (handles CSS overrides)
         this.syncHeaderCornerWidth();
 
-        // Add now indicator and set up periodic refresh
+        // Add now indicator; the minute timer that moves it runs only while the Guide is shown
         this.updateNowIndicator();
-        if (this._nowIndicatorInterval) {
+        this.syncNowIndicatorTimer();
+    }
+
+    /** The Guide is now the page shown (true) or no longer is (false). */
+    setNowIndicatorActive(active) {
+        this._nowIndicatorWanted = !!active;
+        this.syncNowIndicatorTimer();
+    }
+
+    /**
+     * Keep the now-line's minute timer running only while the Guide page is shown and the tab is visible.
+     * Starting it (again) moves the line at once. A redraw never adds a second timer.
+     */
+    syncNowIndicatorTimer() {
+        const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+        const run = !!this._nowIndicatorWanted && !hidden;
+        if (run && !this._nowIndicatorInterval) {
+            this._nowIndicatorInterval = setInterval(() => this.updateNowIndicator(), 60000);
+            this.updateNowIndicator();
+        } else if (!run && this._nowIndicatorInterval) {
             clearInterval(this._nowIndicatorInterval);
+            this._nowIndicatorInterval = null;
         }
-        this._nowIndicatorInterval = setInterval(() => this.updateNowIndicator(), 60000);
     }
 
     /** W2: what has keyboard focus in the grid, by identity: it survives a redraw. Null when none. */
