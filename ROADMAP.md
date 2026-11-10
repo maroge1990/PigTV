@@ -5,30 +5,31 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 10 Nov 2026 (audit batch A: testing, CI and docs, #269).*
+*Overwritten at the end of every session. 10 Nov 2026 (audit batch I: Sport generations 1 and 2 and unused Apple code, #277).*
 
 - **Released:** server **v0502** (`:release`, 9 Nov) and Apple **191** on TestFlight (tvOS and iOS). A release runs on
-  Mark's go-ahead (D-45). No server or app code has changed since: next builds are server **0503**, Apple **192**.
+  Mark's go-ahead (D-45). Pushed since, not released: server **0503**, Apple **192 to 197**. Next builds: server
+  **0504**, Apple **198**.
 - **10 Nov, audit:** the simplification, brand 1.8, UX and testing audit is filed as batch issues #269–#280 and bug #281;
-  each issue's first comment holds the detail and a later comment Mark's decisions. Batch order after A: I (#277),
-  C (#271), B (#270), G (#275), K (#279), H (#276), L (#280), D (#272, with #281), E (#273), J (#278), F (#274).
-- **10 Nov, batch A pushed with CI green (#269; D-49 to D-52):**
-  - Server CI: one job runs `verify-build.sh` and the suite once, on Node 24, inside the candidate image; a web-only push
-    skips 7 ffmpeg test files; a release runs the full suite on the digest it promotes. First run: 4 min 28 s (was ~7).
-  - Apple CI: a push runs build, contract, unit and playback; the full UI run (`Tools/test.sh all`) is required by
-    `Tools/testflight.sh` for the commit it uploads. First run: 12 min 11 s (was ~23; the aim was 10).
-  - Tests: four server timing files on a mocked clock (46 s to 5 s); `AppFreshnessTests` 60 s to under 1 s.
-  - Docs: the next build number is read from `server/version.js`; the kit is PigBrand (guide 1.8.0, tokens 1.7.0);
-    Codex scope for sport and web batches (D-51).
-  - No Codex round (workflow, test and docs only); the CI change was reviewed and its fixes signed off by an Opus agent.
+  each issue's first comment holds the detail and a later comment Mark's decisions. Batch A (#269) is closed. Batch order
+  after I: C (#271), B (#270), G (#275), K (#279), H (#276), L (#280), D (#272, with #281), E (#273), J (#278), F (#274).
+- **10 Nov, batch I pushed with CI green (#277; D-53 to D-55):**
+  - Apple: the Sport front page is the only Sport tab (generations 1 and 2 and warming on focus removed); the app
+    requires server 0476 and has no second path for 16 always-on flags; the EPG artwork index, dead declarations, launch
+    migrations and two colour sets removed; catalogue colours read by symbol. The app is about 2,650 lines smaller and
+    the tests about 1,600.
+  - Server 0503: the Sport front page is served with scores off, without game cards.
+  - Codex: approve with no findings in both repos. Evidence: `docs/evidence/2026-11-10-batch-i/`.
+  - CI: server 4 min 6 s, Apple 10 min 1 s.
+  - Split out: #282 (future-style cards with scores off), #283 (test-only fixture flags in release models).
 - **Waiting on Mark:**
-  - T5 device checks: #246 (stop the container mid-recording), #260, the iPhone and iPad fixes in 176–191, Watch on…,
-    and T4 for #259 at the next race.
+  - T5 device checks: #277 (open Sport once on Apple TV, iPad and iPhone, on a build from 197), #246 (stop the container
+    mid-recording), #260, the iPhone and iPad fixes in 176–191, Watch on…, and T4 for #259 at the next race.
   - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00.
   - #240.
 - **Open investigation:** #3 (sound out of step on the iPad): the relay join measured clean; the device meter (#267)
   and the marker (#268) are filed, not built (Mark).
-- **Next:** batch I (#277); then #262 (iPadOS/iOS 17+, three sites need fallbacks).
+- **Next:** batch C (#271); then #262 (iPadOS/iOS 17+, three sites need fallbacks).
 
 ## Now
 
