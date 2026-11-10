@@ -1859,10 +1859,9 @@ kbd {
 
   /* Mobile portrait - phones */
   :root {
-    --navbar-height: 52px;
+    --navbar-height: 48px;
     --space-md: 12px;
     --space-lg: 16px;
-    --space-xl: 20px;
   }
 
   body {
@@ -1872,7 +1871,7 @@ kbd {
   /* Navigation - Compact with hamburger menu */
   .navbar {
     padding: 0 var(--space-sm);
-    height: 52px;
+    height: var(--navbar-height);
   }
 
   /* Show mobile menu toggle */
@@ -1883,7 +1882,7 @@ kbd {
   /* Mobile dropdown menu */
   .navbar-menu {
     position: fixed;
-    top: 52px;
+    top: var(--navbar-height);
     left: 0;
     right: 0;
     flex-direction: column;
@@ -1928,8 +1927,8 @@ kbd {
 
   /* Channel Sidebar - Drawer on mobile */
   .channel-sidebar {
-    width: 85%;
-    max-width: 320px;
+    width: 90%;
+    max-width: 300px;
   }
 
   .channel-toggle-btn {
@@ -1967,7 +1966,7 @@ kbd {
 
   /* Now Playing Overlay - Compact */
   .now-playing-overlay {
-    padding: var(--space-sm);
+    padding: var(--space-xs);
     bottom: 20px;
     left: var(--space-sm);
     right: var(--space-sm);
@@ -2006,7 +2005,7 @@ kbd {
   }
 
   .epg-channel-info {
-    width: 140px;
+    width: 120px;
     padding: var(--space-xs);
   }
 
@@ -2020,7 +2019,7 @@ kbd {
   }
 
   .epg-time-slot {
-    min-width: 140px;
+    min-width: 120px;
     padding: var(--space-xs) var(--space-sm);
     font-size: var(--text-xs);
   }
@@ -2125,41 +2124,6 @@ kbd {
   /* Keyboard shortcuts - Hide on mobile since they're not relevant */
   .shortcuts-grid {
     display: none;
-  }
-}
-
-@media (max-width: 480px) {
-
-  /* Extra small phones */
-  :root {
-    --navbar-height: 48px;
-  }
-
-  .navbar {
-    height: 48px;
-  }
-
-  .channel-sidebar {
-    width: 90%;
-    max-width: 300px;
-  }
-
-  /* Single column for very small screens */
-
-  .now-playing-overlay {
-    padding: var(--space-xs);
-  }
-
-  .now-playing-info .channel-name {
-    font-size: var(--text-md);
-  }
-
-  .epg-channel-info {
-    width: 120px;
-  }
-
-  .epg-time-slot {
-    min-width: 120px;
   }
 }
 
@@ -4056,7 +4020,7 @@ kbd {
 .sports-shelf { margin-block: var(--space-xl); }
 .sports-row { display: flex; gap: var(--space-lg); overflow-x: auto; padding: var(--space-sm) var(--space-xs) var(--space-lg); scroll-snap-type: x proximity; }
 .sports-row article { flex: 0 0 min(310px, calc(100vw - 60px)); scroll-snap-align: start; min-width: 0; }
-.sports-card { position: relative; display: flex; flex-direction: column; gap: var(--space-md); width: 100%; height: 22rem; padding: var(--space-lg); border: 1px solid currentColor; border-radius: 18px; background: var(--bg-secondary, Canvas); color: var(--text-primary, CanvasText); text-align: left; font: inherit; overflow: auto; cursor: pointer; }
+.sports-card { position: relative; display: flex; flex-direction: column; gap: var(--space-md); width: 100%; height: 22rem; padding: var(--space-lg); border: 1px solid currentColor; border-radius: 18px; background: var(--color-bg-secondary); color: var(--color-text-primary); text-align: left; font: inherit; overflow: auto; cursor: pointer; }
 .sports-status { font-weight: 700; padding-right: var(--space-xl); }
 .sports-availability { position: absolute; right: 14px; top: 14px; border: 2px solid currentColor; border-radius: 50%; width: 24px; height: 24px; text-align: center; font-weight: bold; line-height: 20px; background: color-mix(in srgb, var(--color-warning) 16%, transparent); color: var(--color-warning); }
 .sports-availability.unavailable { background: color-mix(in srgb, var(--color-error) 14%, transparent); color: var(--color-error); }
@@ -4068,8 +4032,8 @@ kbd {
 .sports-time { font-variant-numeric: tabular-nums; }
 .sports-note { font-size: var(--text-sm); }
 .sports-options { margin-top: var(--space-sm); width: 100%; min-height: 44px; }
-.sports-card:focus-visible, #page-sports button:focus-visible { outline: 3px solid var(--accent-color, var(--color-accent)); outline-offset: 3px; }
-.sports-dialog { color: var(--text-primary, CanvasText); background: var(--bg-secondary, Canvas); border-radius: 20px; padding: clamp(var(--space-md), 4vw, var(--space-2xl)); width: min(700px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); overflow: auto; }
+.sports-card:focus-visible, #page-sports button:focus-visible { outline: 3px solid var(--color-accent); outline-offset: 3px; }
+.sports-dialog { color: var(--color-text-primary); background: var(--color-bg-secondary); border-radius: 20px; padding: clamp(var(--space-md), 4vw, var(--space-2xl)); width: min(700px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); overflow: auto; }
 .sports-dialog::backdrop { background: #0009; }
 .sports-dialog label { display: block; margin-block: var(--space-lg); }
 .sports-dialog input[type=number] { display: block; width: 7em; min-height: 44px; }
@@ -4078,7 +4042,7 @@ kbd {
 .sports-detail-card { display: flex; flex-direction: column; gap: var(--space-md); position: relative; }
 .sports-channel-actions > div { border-top: 1px solid currentColor; padding-block: var(--space-md); }
 @media (prefers-reduced-motion: reduce) { .sports-row { scroll-behavior: auto; } }
-.sports-recording { color: var(--text-primary, CanvasText); font-weight: 700; }
+.sports-recording { color: var(--color-text-primary); font-weight: 700; }
 
 /* Settings → Sports → Your sport (#199) */
 .sport-follow-card { border: 1px solid var(--color-border, rgba(255,255,255,0.12)); border-radius: var(--radius-md, 10px);
