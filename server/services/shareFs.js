@@ -66,6 +66,16 @@ function idle(which) {
     try { which.channel?.unref?.(); } catch (e) { /* gone */ }
 }
 
+/**
+ * #287: settles once `which` has exited: from then on no call it was sent can still take effect. A SHARE_UNRESPONSIVE
+ * rejection carries it as `settled` when the call was sent and may land late; without it, the call never reached a helper
+ * that can still act.
+ */
+function exitOf(which) {
+    if (which.exitCode !== null || which.signalCode !== null) return Promise.resolve();
+    return new Promise((resolve) => { which.once('exit', () => resolve()); });
+}
+
 /** Kill the helper (it may be stuck in the kernel; it is left to the OS) so the next call gets a fresh one. */
 function abandon(which) {
     if (child === which) child = null;
@@ -89,8 +99,9 @@ function call(op, file, { timeoutMs = tuning.timeoutMs } = {}, extra = {}) {
             pending.delete(id);
             idle(worker);
             if (!unresponsiveSince) unresponsiveSince = Date.now();
+            const settled = exitOf(worker); // #287: the call may still land until its helper has exited
             abandon(worker);
-            reject(Object.assign(new Error(`The recordings share did not answer within ${Math.round(timeoutMs / 1000)} s`), { code: 'SHARE_UNRESPONSIVE' }));
+            reject(Object.assign(new Error(`The recordings share did not answer within ${Math.round(timeoutMs / 1000)} s`), { code: 'SHARE_UNRESPONSIVE', settled }));
         }, timeoutMs);
         pending.set(id, { resolve, reject, timer, child: worker });
         try { worker.channel?.ref?.(); } catch (e) { /* gone */ }

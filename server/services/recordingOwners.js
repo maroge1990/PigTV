@@ -95,18 +95,29 @@ function withdraw(file, id, what) {
  * (takeBack) or the start-up sweep removes it while that name is still that file.
  */
 async function withdrawBounded(file, id, what, io = shareFs) {
+    // #287: its own name (held by its publisher), so only another removal under way stops it.
+    const mark = claimRemoval(file, { held: true });
+    if (!mark) {
+        console.warn(`[Recordings] #${id} was deleted while its ${what} was published; that copy is already being removed`);
+        return;
+    }
+    let outstanding = null;
     let identity = null;
     try { identity = await io.identity(file); } catch (e) { /* unknown: kept until it can be told */ }
     try {
         await io.unlink(file);
         forget(file);
     } catch (e) {
+        if (e.code === 'SHARE_UNRESPONSIVE') e.unlinkSent = true; // it may still land
+        outstanding = e;
         try {
             cleanupDb().prepare(`INSERT INTO recording_cleanup (path, recording_id, created_at, kind, identity) VALUES (?, ?, ?, 'published', ?)
                 ON CONFLICT (path) DO UPDATE SET kind = 'published', identity = COALESCE(excluded.identity, recording_cleanup.identity)`).run(file, id, Date.now(), identity);
         } catch (err) { /* database closed */ }
         console.warn(`[Recordings] #${id} was deleted while its ${what} was published; that copy could not be removed yet (${e.code || e.message}) and is removed later`);
         return;
+    } finally {
+        endRemoval(file, mark, outstanding);
     }
     console.log(`[Recordings] #${id} was deleted while its ${what} was published; that copy is removed too`);
 }
@@ -174,7 +185,8 @@ function write(id, work) {
         entry.paths.add(p);
     };
     const run = Promise.resolve().then(() => work(controller.signal, made));
-    entry.ended = run.then(() => {}, () => {});
+    const end = () => { entry.done = true; }; // #287: no longer busy (set before its caller resumes)
+    entry.ended = run.then(end, end);
     if (!writers.has(id)) writers.set(id, new Set());
     writers.get(id).add(entry);
     entry.ended.then(() => {
@@ -287,17 +299,26 @@ async function retryOnce() {
     let removed = 0;
     for (const { path: p, identity } of rows) {
         if (recorded(p)) { forget(p); continue; } // a recording's file now: never ours to remove
+        const mark = claimRemoval(p); // #287
+        if (!mark) continue;
+        let outstanding = null;
+        let sent = false;
         try {
             const now = await shareFs.identity(p);
             if (now === null) { forget(p); continue; }
             if (identity === null) continue; // cannot tell which file it is: kept, still listed
             if (now !== identity) { forget(p); continue; } // another file at that name now
+            sent = true;
             await shareFs.unlink(p);
             forget(p);
             removed++;
         } catch (err) {
+            if (sent && err.code === 'SHARE_UNRESPONSIVE') err.unlinkSent = true;
+            outstanding = err;
             if (err.code === 'SHARE_UNRESPONSIVE') break;
             console.warn(`[Recordings] Could not remove ${p} yet (${err.code || err.message}); it stays listed`);
+        } finally {
+            endRemoval(p, mark, outstanding);
         }
     }
     if (removed) console.log(`[Recordings] Removed ${removed} file(s) of deleted recordings the share had not answered for`);
@@ -310,8 +331,23 @@ async function retryOnce() {
  *   otherNamesCleared(p) a partial's other names (a publication stopped after its link) dealt with: true to go on
  *   remove(p)            removeListed's meaning
  */
-async function clearListed({ path: p, kind, identity }, io) {
-    if (kind === 'deleted') return false; // #141: retryDeleted's, through shareFs
+async function clearListed(row, io) {
+    if (row.kind === 'deleted') return false; // #141: retryDeleted's, through shareFs
+    // #287: one removal of a name at a time, never of a name being published or written, and the mark holds from before
+    // its identity is read until its unlink has settled (see endRemoval).
+    const mark = claimRemoval(row.path);
+    if (!mark) return false;
+    let outstanding = null;
+    try {
+        return await clearClaimed(row, io);
+    } catch (e) {
+        outstanding = e;
+        throw e;
+    } finally {
+        endRemoval(row.path, mark, outstanding);
+    }
+}
+async function clearClaimed({ path: p, kind, identity }, io) {
     if (kind === 'published') {
         if (recorded(p)) { forget(p); return false; }
         const now = await io.identity(p);
@@ -346,7 +382,15 @@ async function sweepOnce() {
                 // Only "not there" is not this file; a name that cannot be inspected keeps the partial listed.
                 const o = await fs.promises.stat(other, { bigint: true }).catch((e) => { if (e.code !== 'ENOENT') cleared = false; return null; });
                 if (!o || o.ino !== st.ino || o.dev !== st.dev || recorded(other)) continue;
-                try { await fs.promises.unlink(other); removed++; } catch (e) { cleared = false; }
+                const mark = claimRemoval(other); // #287
+                if (!mark) { cleared = false; continue; }
+                try {
+                    // Looked at again under the mark: still this very file, and still nobody's.
+                    const again = await fs.promises.stat(other, { bigint: true }).catch(() => null);
+                    if (!again || again.ino !== st.ino || again.dev !== st.dev || recorded(other)) continue;
+                    await fs.promises.unlink(other);
+                    removed++;
+                } catch (e) { cleared = false; } finally { endRemoval(other, mark, null); }
             }
             return cleared;
         },
@@ -370,8 +414,34 @@ function release(p) {
     const n = publishing.get(p) - 1;
     if (n > 0) publishing.set(p, n); else publishing.delete(p);
 }
-/** Is `p` a file a writer (of any recording) has named, or a name being published, right now? */
-const busy = (p) => publishing.has(p) || [...writers.values()].some(set => [...set].some(w => w.paths.has(p)));
+/**
+ * Is `p` a file a writer (of any recording) has named, or a name being published, right now? Not an abandoned writer's
+ * (stopWriters gave up on it): its files are debris already, removed when it ends or by the sweep.
+ */
+const busy = (p) => publishing.has(p) || [...writers.values()].some(set => [...set].some(w => !w.abandoned && !w.done && w.paths.has(p)));
+
+/**
+ * #287: names being removed (the start-up sweep, takeBack, withdrawBounded, retryDeleted): marked from before the file's
+ * identity is read until its unlink has settled. Whoever marks a name first owns its removal (others skip it), and no
+ * publication takes a marked name (removalPending). An unlink that missed its deadline may still land: its mark stays
+ * until the helper it was sent to has exited (shareFs `settled`), and for the life of the process if that cannot be known.
+ */
+const removing = new Map(); // path -> mark
+/** The mark for removing `p`, or null when it is being removed already, or (unless `held`: its publisher's own withdraw) is in use. */
+function claimRemoval(p, { held = false } = {}) {
+    if (removing.has(p) || (!held && busy(p))) return null;
+    const mark = {};
+    removing.set(p, mark);
+    return mark;
+}
+/** `outstanding`: the error the removal ended with, if any. Released now, once its late call can no longer land, or never. */
+function endRemoval(p, mark, outstanding) {
+    const free = () => { if (removing.get(p) === mark) removing.delete(p); };
+    if (!outstanding || outstanding.code !== 'SHARE_UNRESPONSIVE') return free();
+    if (!outstanding.unlinkSent) return free(); // nothing was sent that could still remove it
+    if (outstanding.settled) outstanding.settled.then(free); // else: kept while this process runs
+}
+const removalPending = (p) => removing.has(p);
 
 /**
  * #287: before a new attempt to finish or move recording `id`, what an earlier one journalled and never committed is
@@ -393,6 +463,7 @@ async function takeBack(id, ioFor = () => shareFs) {
             async remove(p) {
                 if (busy(p)) return false; // in use since this began: left alone
                 try { await io.unlink(p); } catch (e) {
+                    if (e.code === 'SHARE_UNRESPONSIVE') e.unlinkSent = true; // it may still land
                     answer(e);
                     console.warn(`[Recordings] Could not remove ${p} yet (${e.code || e.message}); it stays listed`);
                     return false;
@@ -416,4 +487,4 @@ async function takeBack(id, ioFor = () => shareFs) {
 
 const DELETED = 'Recording was deleted';
 
-module.exports = { retire, owned, withdraw, withdrawBounded, takeBack, hold, release, forget, write, stopWriters, sweepCleanup, whenSwept, deferRemoval, retryDeleted, adoptable, partialFor, published, committed, DELETED, STOP_WAIT_MS, _setStopWaitMs, _setSweepWaitMs };
+module.exports = { retire, owned, withdraw, withdrawBounded, takeBack, hold, release, forget, removalPending, write, stopWriters, sweepCleanup, whenSwept, deferRemoval, retryDeleted, adoptable, partialFor, published, committed, DELETED, STOP_WAIT_MS, _setStopWaitMs, _setSweepWaitMs };

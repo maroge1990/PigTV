@@ -1740,6 +1740,38 @@ for (const [code, kept] of [['EOPNOTSUPP', false], ['EIO', true]]) {
     });
 }
 
+// #287 (Codex round 1): a start-up sweep that has read an old name's identity and is slow to unlink it must never remove
+// the recording a later attempt publishes at that name (the queue goes on after the sweep's bounded wait).
+test('#287: a sweep still removing an old name never removes the recording published there since', async () => {
+    const { rec, mp4 } = finishingRow();
+    fs.mkdirSync(path.dirname(mp4), { recursive: true });
+    fs.writeFileSync(mp4, 'an earlier attempt, never recorded');
+    engine._owners.published(mp4, rec.id, load('services/shareFsWorker').identityOfStat(fs.statSync(mp4, { bigint: true })));
+    const realUnlink = fs.promises.unlink;
+    let reached, resume;
+    const atUnlink = new Promise(r => { reached = r; });
+    const gate = new Promise(r => { resume = r; });
+    fs.promises.unlink = async (p, ...a) => { if (p === mp4) { reached(); await gate; } return realUnlink(p, ...a); };
+    engine._owners._setSweepWaitMs(1000);
+    let sweeping;
+    try {
+        sweeping = engine._owners.sweepCleanup(); // checks that file's identity, then waits at its unlink
+        await atUnlink;
+        await segments.finishOne(recordings.getById(rec.id)); // after the bounded wait: take-back, remux, publish
+    } finally {
+        resume();
+        await sweeping;
+        fs.promises.unlink = realUnlink;
+        engine._owners._setSweepWaitMs();
+    }
+    const row = recordings.getById(rec.id);
+    assert.equal(row.segment_state, 'done');
+    assert.ok(fs.existsSync(row.file_path), `its MP4 survives the late sweep: ${row.file_path}`);
+    assert.equal(fs.statSync(row.file_path).size, 5000);
+    assert.equal(fs.existsSync(mp4) && row.file_path !== mp4, false, 'the earlier attempt is gone');
+    await engine.deleteRecording(rec.id);
+});
+
 // ---- Codex review of 0279 (26 Oct): exact inode comparison, and a stuck sweep never stalls the queues
 // nor lets recovery adopt a file it may still remove.
 

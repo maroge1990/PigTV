@@ -528,6 +528,7 @@ async function publishNoReplace(partial, dir, first, alt, id) {
         if (!identity) throw new Error('the finished file is missing');
         for (let n = 1; ; n++) {
             const dest = path.join(dir, n === 1 ? first : alt(n));
+            if (owners.removalPending(dest)) continue; // #287: a removal of that name may still land: taken
             owners.hold(dest); // before it is journalled; the caller releases it once recorded (or withdrawn)
             let mine = false;
             try {
@@ -708,7 +709,7 @@ async function deliverLastResort(rec, stitched) {
 async function finishAttempt(rec, stitched, attempts) {
     const dir = await shareFolder(rec);
     const name = rec.segment_name || `Recording ${rec.id}`;
-    let target = dir ? await uniqueFilePathAsync(dir, name, '.mp4', (p) => shareFs.exists(p)) : path.join(rec.work_dir, 'final.mp4');
+    let target = dir ? await uniqueFilePathAsync(dir, name, '.mp4', async (p) => owners.removalPending(p) || shareFs.exists(p)) : path.join(rec.work_dir, 'final.mp4');
     const io = ioFor(target);
     try { await io.unlink(`${target}.partial`); } catch (e) { if (unresponsive(e)) throw e; } // the fixed name before 0273
     const partial = owners.partialFor(target); // 0273: its own name, journalled by its writer

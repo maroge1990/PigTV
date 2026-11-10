@@ -790,14 +790,16 @@ test('#287: a kept original an earlier build left unproven is checked without a 
  * call on the slow share that `hold(op, file)` picks: held past its deadline until release(), when it completes - late,
  * after its caller has given up on it. A share that stalls mid-publish and comes back.
  */
-function stallingHelpers(hold) {
+function stallingHelpers(hold, { exitOnRelease = false } = {}) {
     const { EventEmitter } = require('node:events');
     const { run } = load('services/shareFsWorker');
     const held = [];
+    const dying = []; // exitOnRelease: killed while stuck in the kernel, they exit only once their held call has run
+    const exit = (helper) => { helper.signalCode = 'SIGKILL'; helper.emit('exit', null, 'SIGKILL'); };
     const fork = () => {
         const helper = Object.assign(new EventEmitter(), {
             connected: true, exitCode: null, signalCode: null, unref() {}, channel: { ref() {}, unref() {} },
-            kill() { this.connected = false; this.signalCode = 'SIGKILL'; this.emit('exit', null, 'SIGKILL'); },
+            kill() { this.connected = false; if (exitOnRelease) dying.push(this); else exit(this); },
             send(msg) {
                 const { id, op, file, ...rest } = msg;
                 const answer = () => {
@@ -814,7 +816,7 @@ function stallingHelpers(hold) {
         });
         return helper;
     };
-    return { fork, release: () => { for (const a of held.splice(0)) a(); }, heldCount: () => held.length };
+    return { fork, release: () => { for (const a of held.splice(0)) a(); for (const h of dying.splice(0)) exit(h); }, heldCount: () => held.length };
 }
 
 const journalOf = (id) => load('db/sqlite').getDb().prepare('SELECT path, kind FROM recording_cleanup WHERE recording_id = ?').all(id);
@@ -1114,5 +1116,63 @@ test('#287: take-back leaves alone a partial that a writer of the recording name
         await writing;
         real(() => fs.rmSync(partial, { force: true }));
         owners.forget(partial);
+    }
+});
+
+test('#287: a take-back unlink that misses its deadline and lands late never removes a recording published at that name since', async () => {
+    const owners = load('services/recordingOwners');
+    const { identityOfStat } = load('services/shareFsWorker');
+    const name = path.join(foxFooty, 'Late unlink.mp4');
+    real(() => { fs.mkdirSync(foxFooty, { recursive: true }); fs.writeFileSync(name, 'an earlier attempt'); });
+    owners.published(name, 900010, real(() => identityOfStat(fs.statSync(name, { bigint: true }))));
+    let stuck = true;
+    // The share stops answering at that unlink; its helper, killed, stays stuck in the kernel until the call has run.
+    const helpers = stallingHelpers((op, file) => stuck && op === 'unlink' && file === name, { exitOnRelease: true });
+    const realFork = shareFs._spawner.fork;
+    shareFs.reset();
+    shareFs.tuning.timeoutMs = 1000;
+    shareFs._spawner.fork = helpers.fork;
+    const partial = path.join(foxFooty, 'Late unlink.mp4.1-ab.partial');
+    let published = null;
+    try {
+        await assert.rejects(() => owners.takeBack(900010), { code: 'SHARE_UNRESPONSIVE' });
+        stuck = false; // the share answers again (a fresh helper), while the old one still holds that unlink
+        await owners.takeBack(900010);
+        // A new recording is published under that name meanwhile.
+        real(() => fs.writeFileSync(partial, 'the new recording'));
+        published = await segments._publishNoReplace(partial, foxFooty, 'Late unlink.mp4', n => `Late unlink (${n}).mp4`, 900011);
+        helpers.release(); // the stuck unlink lands now, then its helper exits
+        await new Promise(r => setTimeout(r, 100));
+        assert.equal(real(() => fs.readFileSync(published, 'utf8')), 'the new recording', 'the new recording survives');
+        // Once that helper is gone the name is free again: nothing stays marked on a share that answers.
+        assert.ok(await until(() => !owners.removalPending(name), 2000), 'released once the late call can no longer land');
+        await owners.takeBack(900010);
+        assert.deepEqual(journalOf(900010), []);
+    } finally {
+        helpers.release();
+        shareFs._spawner.fork = realFork;
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = 1500;
+        for (const f of [name, partial, published]) if (f) { owners.forget(f); real(() => fs.rmSync(f, { force: true })); }
+    }
+});
+
+test('#287: a removal that gets a definite answer frees its name at once: the next publish takes it', async () => {
+    const owners = load('services/recordingOwners');
+    const { identityOfStat } = load('services/shareFsWorker');
+    const name = path.join(foxFooty, 'Freed.mp4');
+    real(() => { fs.mkdirSync(foxFooty, { recursive: true }); fs.writeFileSync(name, 'an earlier attempt'); });
+    owners.published(name, 900012, real(() => identityOfStat(fs.statSync(name, { bigint: true }))));
+    shareFs.reset();
+    const partial = path.join(foxFooty, 'Freed.mp4.1-cd.partial');
+    let published = null;
+    try {
+        assert.equal(await owners.takeBack(900012), 1);
+        assert.equal(owners.removalPending(name), false, 'not marked once the unlink has answered');
+        real(() => fs.writeFileSync(partial, 'the new recording'));
+        published = await segments._publishNoReplace(partial, foxFooty, 'Freed.mp4', n => `Freed (${n}).mp4`, 900013);
+        assert.equal(published, name, 'the name is used again');
+    } finally {
+        for (const f of [name, partial]) { owners.forget(f); real(() => fs.rmSync(f, { force: true })); }
     }
 });
