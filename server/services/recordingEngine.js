@@ -932,10 +932,12 @@ async function deleteRecordingOnce(id) {
         setScheduleStatus(scheduledId, 'cancelled');
     }
     // R3: a segmented one waiting to continue is not resumed, and its appdata folder goes.
+    // #285: its schedule ends as deleting it while it captures does (endSegmentCapture: completed with segments,
+    // failed without), not by finishSchedule, which counts only completed rows (this one is 'recording').
     for (const [scheduledId, cont] of continuations.entries()) {
         if (cont.resume && cont.resume.recordingId === id) {
             continuations.delete(scheduledId);
-            finishSchedule(scheduledId);
+            endSegmentCapture(scheduledId, id);
         }
     }
     if (rec.work_dir) await segments.removeWork(rec);

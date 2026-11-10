@@ -1,16 +1,17 @@
 const { test, before, after, afterEach } = require('node:test');
-process.env.PIGTV_PART_RECORDINGS = '1'; // 0494: the part-based path, for its tests
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { createFakeSegmentFfmpeg, stubNativeTools, drainSegmentQueue, until: untilWith } = require('./helpers/fakeSegmentFfmpeg');
 
-// 0177 (multi-provider P7): recordings choose a provider with a free connection, fail
-// over when ffmpeg cannot start on one, and continue in a new part when their provider
-// dies (or stalls) mid-recording. Default path only; with no backup configured nothing
-// changes. The real engine, coordinator and routing in a sandboxed database; ffmpeg is a
-// node script that behaves per stream URL.
-const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-rec-failover-'));
+// 0177 (multi-provider P7): recordings choose a provider with a free connection, move to the next provider when ffmpeg
+// cannot start on one, and continue when their provider dies (or stalls) mid-recording. #271 (D-48): every recording is
+// segmented, so a move is a new epoch of the same recording (one row, one work folder), never a part 2. The real engine,
+// coordinator and routing in a sandboxed database; ffmpeg is the shared fake (test/helpers/fakeSegmentFfmpeg.js),
+// which behaves per stream URL. What one recording's ends do with one provider, and the #284 pace of starts on a route
+// whose providers all refuse, are in recording-segments.test.js.
+const sandbox = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-rec-failover-')));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
 fs.cpSync(path.join(__dirname, '../package.json'), path.join(sandbox, 'package.json'));
 fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'node_modules'), 'junction');
@@ -22,57 +23,25 @@ const sqlite = load('db/sqlite');
 const transcodeSession = load('services/transcodeSession');
 const coordinator = load('services/streamCoordinator');
 const engine = load('services/recordingEngine');
-// 0193: the fake ffmpeg below counts every start; background preparation of the recordings
-// earlier tests finished would run it too and be counted (preparation: recording-prepare.test.js).
+// 0193: background preparation of earlier tests' recordings would run ffmpeg too (recording-prepare.test.js).
 engine._setPrepareQueue(false);
 const routing = load('services/providerRouting');
+const segments = load('services/recordingSegments');
 const { scheduled, recordings } = load('db/recordingsDb');
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const tuning = engine._failoverTuning;
 const TUNING = { ...tuning };
 
-// ---- fake ffmpeg: what each stream URL does --------------------------------------
-// ok     writes, keeps writing; on "q" (a stop) exits with a provider-looking error, so
-//        a requested stop that were taken for a provider failure would show.
-// 502    the provider's HTTP 502 at once, nothing written.
-// dies   writes for a moment, then the connection is reset.
-// stall  writes once, then nothing (the provider went silent); exits on "q".
-const behaviourFile = path.join(sandbox, 'ffmpeg-behaviour.json');
-const startsFile = path.join(sandbox, 'ffmpeg-starts.log');
-const behaviour = {};
-const setBehaviour = (u, kind) => { behaviour[u] = kind; fs.writeFileSync(behaviourFile, JSON.stringify(behaviour)); };
-const FFMPEG = path.join(sandbox, 'ffmpeg-fake');
-fs.writeFileSync(FFMPEG, `#!${process.execPath}
-const fs = require('fs');
-const args = process.argv.slice(2);
-const url = args[args.indexOf('-i') + 1];
-const out = args[args.length - 1];
-fs.appendFileSync(${JSON.stringify(startsFile)}, url + '\\n');
-let map = {};
-try { map = JSON.parse(fs.readFileSync(${JSON.stringify(behaviourFile)}, 'utf8')); } catch (e) {}
-const kind = map[url] || 'ok';
-const chunk = Buffer.alloc(4000);
-process.stdin.on('data', (d) => {
-  if (!String(d).includes('q')) return;
-  if (kind === 'stall') process.exit(0);
-  process.stderr.write('[tcp @ 0x1] Connection reset by peer\\n');
-  process.exit(1);
-});
-if (kind === '502') {
-  process.stderr.write('[in#0 @ 0x1] Error opening input: Server returned 5XX Server Error reply\\n');
-  process.exit(1);
-}
-fs.writeFileSync(out, chunk);
-if (kind !== 'stall') setInterval(() => fs.appendFileSync(out, chunk.subarray(0, 500)), 50);
-else setInterval(() => {}, 1000);
-if (kind === 'dies') setTimeout(() => {
-  process.stderr.write('[tcp @ 0x1] Connection reset by peer\\nError during demuxing: Connection reset by peer\\n');
-  process.exit(1);
-}, 400);
-`);
-fs.chmodSync(FFMPEG, 0o755);
-const startsOf = () => (fs.existsSync(startsFile) ? fs.readFileSync(startsFile, 'utf8').split('\n').filter(Boolean) : []);
+// ---- fake ffmpeg: what each stream URL does (the helper's header has the kinds) ----------------------
+// ok (default) writes segments; on "q" (a stop) exits with a provider-looking error, so a requested stop taken
+// for a provider failure would show. refuses: an HTTP 502 at once. dies: reset by peer after 400 ms. stall: one
+// segment, then nothing.
+const fake = createFakeSegmentFfmpeg(sandbox);
+const FFMPEG = fake.path;
+const { setBehaviour, captures } = fake;
+const remuxed = stubNativeTools(engine); // the remux and the preparation checks are stood in for
+const inputs = () => captures().map(a => a[a.indexOf('-i') + 1]);
 
 // ---- logs: kept, so no line this feature writes may carry a URL -------------------
 const logLines = [];
@@ -100,32 +69,33 @@ before(async () => {
     link.run(A.id, B.id, '5001', Date.now());
     link.run(A.id, C.id, '7001', Date.now());
 
-    // 0494: recordings are always segmented; these tests cover the part-based (.ts) path, so they ask for it
-    // (PIGTV_PART_RECORDINGS, set at the top of this file).
-    await db.settings.update({ segmentedRecordings: false, recordingsPath: path.join(sandbox, 'recordings'), minFreeSpaceGB: 0, maxConcurrentRecordings: 5 });
-    engine.init({ ffmpegPath: FFMPEG, ffprobePath: 'ffprobe' });
+    fs.mkdirSync(path.join(sandbox, 'recordings'), { recursive: true });
+    await db.settings.update({ recordingsPath: path.join(sandbox, 'recordings'), minFreeSpaceGB: 0, maxConcurrentRecordings: 5 });
+    engine.init({ ffmpegPath: FFMPEG, ffprobePath: path.join(sandbox, 'no-ffprobe') });
     engine.shutdown(); // the test drives tick() itself
 });
 
 afterEach(async () => {
+    await db.settings.update({ minFreeSpaceGB: 0 }); // first: the MP4 of a recording stopped for low space must be able to move
     await engine.stopAllActive(3000);
     for (const s of scheduled.listUpcoming()) {
         await engine.cancelScheduled(s.id);
         scheduled.setStatus(s.id, 'cancelled');
     }
+    // Whatever the test left to finish is finished (or moved) before the next one starts.
+    await drainSegmentQueue(segments, recordings);
     for (const s of transcodeSession.getAllSessions()) await transcodeSession.removeSession(s.id);
     for (const id of [...coordinator._prompts.keys()]) coordinator.clearPrompt(id);
     routing.reset();
     Object.assign(tuning, TUNING);
-    for (const k of Object.keys(behaviour)) delete behaviour[k];
-    fs.writeFileSync(behaviourFile, '{}');
-    try { fs.unlinkSync(startsFile); } catch { /* none */ }
+    fake.reset();
+    remuxed.length = 0;
     for (const src of [B, C]) await db.sources.update(src.id, { enabled: true });
-    await db.settings.update({ minFreeSpaceGB: 0 });
 });
 
 after(() => {
     Object.assign(console, realConsole);
+    for (const [, f] of segments._followers) { try { f.proc?.kill?.('SIGKILL'); } catch { /* gone */ } }
     try { sqlite.getDb().close(); } catch { /* already closed */ }
     process.chdir(os.tmpdir());
     try { fs.rmdirSync(path.join(sandbox, 'node_modules')); } catch { /* junction already gone */ }
@@ -144,16 +114,18 @@ async function viewerOn(providerId) {
     s.lastAccess = Date.now();
     return s;
 }
-async function until(cond, label, ms = 8000) {
+const until = (cond, label, ms) => untilWith(engine, cond, label, ms);
+/** Poll without ticking (a tick would start the next capture itself, or wait on a held start). */
+async function settle(cond, label, ms = 8000) {
     const end = Date.now() + ms;
-    while (Date.now() < end) {
-        if (await cond()) return;
-        await engine.tick();
-        await sleep(40);
-    }
+    while (Date.now() < end) { if (await cond()) return; await sleep(40); }
     assert.fail(`timed out waiting for: ${label}`);
 }
-const partsOf = (id) => recordings.listBySchedule(id);
+const rowsOf = (id) => recordings.listBySchedule(id);
+const activeFor = (id) => engine.listActive().some(r => r.id === id);
+/** The capture of epoch `n` of `rec` writes into its own folder of the recording's work folder. */
+const epochOut = (rec, n) => path.join(rec.work_dir, `e${n}`, 'archive.m3u8');
+const lastOut = (args) => args[args.length - 1];
 const noUrl = (text, label) => {
     assert.ok(!String(text).includes('://'), `${label}: carries a URL: ${text}`);
     assert.ok(!/\.invalid|\/u\/p\//.test(String(text)), `${label}: leaks a stream address: ${text}`);
@@ -164,9 +136,9 @@ const noUrl = (text, label) => {
 test('primary busy with a viewer, backup free: records on the backup, nobody is asked', async () => {
     await viewerOn(A.id);
     const s = due();
-    await until(() => scheduled.getById(s.id).status === 'recording' && startsOf().length === 1, 'recording');
-    assert.deepEqual(startsOf(), [url.B(5001)]);
-    const [rec] = partsOf(s.id);
+    await until(() => scheduled.getById(s.id).status === 'recording' && captures().length === 1, 'recording');
+    assert.deepEqual(inputs(), [url.B(5001)]);
+    const [rec] = rowsOf(s.id);
     assert.equal(rec.provider_id, B.id);
     assert.equal(rec.part, 1);
     assert.equal(coordinator._prompts.has(s.id), false, 'no prompt');
@@ -180,7 +152,7 @@ test('every provider busy: the prompt is put on the first candidate, as before',
     await engine.tick();
     assert.equal(scheduled.getById(s.id).status, 'waiting');
     assert.equal(coordinator._prompts.get(s.id).providerId, A.id);
-    assert.deepEqual(startsOf(), [], 'nothing started');
+    assert.deepEqual(captures(), [], 'nothing started');
 });
 
 test('no warning ahead of a recording when a provider has a free connection for it', async () => {
@@ -198,211 +170,177 @@ test('no warning ahead of a recording when a provider has a free connection for 
 });
 
 // ------------------------------------------------------------ start failover --
+// Every provider refusing (one immediate try each, then one per tick, failed at the cap) is recording-segments.test.js's
+// "#284: every provider of a multi-provider route refuses at the start".
 
-test('502 on the primary as it starts: the backup takes over the same recording row', async () => {
-    setBehaviour(url.A(101), '502');
-    const s = due();
-    await until(() => startsOf().length === 2 && engine.listActive().some(r => r.id === s.id && r.providerId === B.id), 'on the backup');
-    assert.deepEqual(startsOf(), [url.A(101), url.B(5001)]);
-    const parts = partsOf(s.id);
-    assert.equal(parts.length, 1, 'one recording, not a failed stub plus the real one');
-    assert.equal(parts[0].provider_id, B.id);
-    assert.equal(parts[0].status, 'recording');
+test('502 on the primary as it starts: the backup takes over the same recording, which carries on there to its end', async () => {
+    tuning.endGraceMs = 0;
+    setBehaviour(url.A(101), 'refuses');
+    const s = due({ windowMs: 3000 });
+    await until(() => captures().length === 2 && engine.listActive().some(r => r.id === s.id && r.providerId === B.id), 'on the backup');
+    assert.deepEqual(inputs(), [url.A(101), url.B(5001)]);
+    const rows = rowsOf(s.id);
+    assert.equal(rows.length, 1, 'one recording, not a failed stub plus the real one');
+    const [rec] = rows;
+    assert.equal(rec.provider_id, B.id);
+    assert.equal(rec.status, 'recording');
+    assert.equal(rec.segment_state, 'capturing');
     assert.equal(scheduled.getById(s.id).status, 'recording');
     assert.ok(routing.isQuarantined(A.id, 's101'), 'the primary is skipped for this channel for a while');
-    await until(() => fs.existsSync(parts[0].file_path) && fs.statSync(parts[0].file_path).size > 1024, 'the file is written');
-});
-
-test('502 everywhere: fails as before, with a plain reason', async () => {
-    for (const u of [url.A(101), url.B(5001), url.C(7001)]) setBehaviour(u, '502');
-    const s = due();
-    await until(() => scheduled.getById(s.id).status === 'failed', 'failed');
-    assert.equal(startsOf().length, 3);
-    assert.equal(partsOf(s.id).length, 1);
-    assert.equal(partsOf(s.id)[0].status, 'failed');
-    assert.match(scheduled.getById(s.id).error, /Dream4K did not deliver the stream, and no other provider had a free connection/);
-    noUrl(scheduled.getById(s.id).error, 'schedule error');
-    noUrl(partsOf(s.id)[0].error, 'recording error');
+    assert.ok(!routing.isQuarantined(B.id, 's101'), 'the backup is not');
+    assert.equal(lastOut(captures()[1]), epochOut(rec, 2), 'a new epoch of the same recording');
+    await until(() => segments.captureBytes(path.dirname(epochOut(rec, 2))) > 3000, 'the backup writes');
+    await until(() => scheduled.getById(s.id).status === 'completed', 'the stop time', 8000);
+    assert.equal(captures().length, 2, 'it stayed on the backup to the end');
+    await until(() => recordings.getById(rec.id).status === 'completed', 'its MP4', 10000);
+    assert.equal(rowsOf(s.id).length, 1);
+    assert.equal(recordings.getById(rec.id).provider_id, B.id);
 });
 
 // ------------------------------------------------------------ continuation --
+// A provider dying mid-recording with a backup (one row, a second epoch on the backup, the gap noted, completed) is
+// recording-segments.test.js's "provider dies mid-recording with a backup".
 
-test('provider dies mid-recording: part 2 on the next provider, part 1 kept and partial, completed at the stop time', async () => {
-    tuning.startFailoverMs = 200;
-    tuning.endGraceMs = 0;
-    setBehaviour(url.A(101), 'dies');
-    const s = due({ windowMs: 3000 });
-    await until(() => partsOf(s.id).length === 2 && engine.listActive().some(r => r.id === s.id && r.providerId === B.id), 'part 2');
-    const [one, two] = partsOf(s.id);
-    assert.equal(one.status, 'completed');
-    assert.equal(one.is_partial, 1);
-    assert.equal(one.part, 1);
-    assert.equal(one.provider_id, A.id);
-    assert.match(one.error, /Strong8K lost the stream; the recording continues in part 2/);
-    assert.equal(two.part, 2);
-    assert.equal(two.provider_id, B.id);
-    assert.equal(two.is_partial, 1, 'it is missing what went by between the parts');
-    assert.equal(path.dirname(two.file_path), path.dirname(one.file_path), 'same folder');
-    assert.equal(path.basename(two.file_path), path.basename(one.file_path, '.ts') + ' (part 2).ts'); // 0203: captures are MPEG-TS
-    assert.equal(scheduled.getById(s.id).status, 'recording', 'the schedule carries on');
-    assert.equal(scheduled.getById(s.id).recording_id, two.id);
+// 0177: an old part-based recording (before D-48) is two rows and two files: each is still listed and deleted on its own.
+test('an old two-part recording lists each part with its provider\'s name; deleting one part deletes only that part', async () => {
+    const now = Date.now();
+    const s = scheduled.create({ title: 'Old match', description: null, source_id: A.id, channel_item_id: 'pos_1', channel_stable_id: 's101',
+        channel_name: 'Fox Sports 505', channel_logo: null, program_start: now - 7200e3, program_end: now - 3600e3,
+        pre_buffer_min: 0, post_buffer_min: 0, created_by: 1, created_at: now - 7300e3 });
+    const dir = path.join(sandbox, 'recordings', 'Fox Sports 505');
+    fs.mkdirSync(dir, { recursive: true });
+    const part = (n, provider, name, error) => {
+        const file = path.join(dir, name);
+        fs.writeFileSync(file, Buffer.alloc(3000));
+        const r = recordings.create({ scheduled_id: s.id, title: s.title, channel_name: s.channel_name, channel_logo: null,
+            source_id: A.id, channel_item_id: 'pos_1', file_path: file, started_at: now - 7200e3, provider_id: provider.id, part: n });
+        recordings.finish(r.id, { status: 'completed', ended_at: now - 3600e3, file_size_bytes: 3000, duration_sec: 1800, error });
+        recordings.markPartial(r.id, 0);
+        return recordings.getById(r.id);
+    };
+    const one = part(1, A, 'Old match - 2026-10-01 19-30.ts', 'Stopped early: Strong8K lost the stream; the recording continues in part 2.');
+    const two = part(2, B, 'Old match - 2026-10-01 19-30 (part 2).ts', null);
+    scheduled.setStatus(s.id, 'completed', { recording_id: two.id });
 
-    await until(() => scheduled.getById(s.id).status === 'completed', 'the stop time', 8000);
-    assert.equal(recordings.getById(two.id).status, 'completed');
-    assert.equal(partsOf(s.id).length, 2, 'the stop ends it: no part 3');
-    assert.ok(fs.statSync(one.file_path).size > 1024 && fs.statSync(two.file_path).size > 1024, 'both files kept');
-    for (const r of partsOf(s.id)) assert.equal(r.ad_detect_status, 'pending', 'each part queued for break detection');
-
-    // The list: each part its own item, with part and the provider's name.
     const listed = engine.listRecordings().filter(r => r.scheduled_id === s.id).sort((a, b) => a.part - b.part);
     assert.deepEqual(listed.map(r => [r.part, r.provider_id, r.provider_name]), [[1, A.id, 'Strong8K'], [2, B.id, 'Trex']]);
     for (const r of listed) noUrl(JSON.stringify(r), 'list item');
 
-    // Deleting one part deletes only that part's files.
     await engine.deleteRecording(two.id);
-    assert.ok(fs.existsSync(one.file_path));
-    assert.ok(!fs.existsSync(two.file_path));
-    assert.deepEqual(partsOf(s.id).map(r => r.id), [one.id]);
+    assert.ok(fs.existsSync(one.file_path), 'part 1 kept');
+    assert.ok(!fs.existsSync(two.file_path), 'part 2 gone');
+    assert.deepEqual(rowsOf(s.id).map(r => r.id), [one.id]);
 });
 
-test('at most 3 parts', async () => {
-    tuning.startFailoverMs = 200;
-    tuning.endGraceMs = 0;
-    for (const u of [url.A(101), url.B(5001), url.C(7001)]) setBehaviour(u, 'dies');
-    const s = due();
-    await until(() => scheduled.getById(s.id).status === 'completed', 'completed after part 3');
-    const parts = partsOf(s.id);
-    assert.deepEqual(parts.map(r => [r.part, r.provider_id, r.status]), [[1, A.id, 'completed'], [2, B.id, 'completed'], [3, C.id, 'completed']]);
-    assert.ok(parts.every(r => r.is_partial === 1));
-    assert.deepEqual(startsOf(), [url.A(101), url.B(5001), url.C(7001)]);
-    assert.match(parts[2].error, /part 3 of at most 3/);
-});
-
-test('a stalled recording (file stops growing) continues in part 2', async () => {
-    tuning.startFailoverMs = 200;
+test('a stalled recording (no new segments) continues in the same recording on the next provider', async () => {
     tuning.endGraceMs = 0;
     tuning.stallMs = 300;
     setBehaviour(url.A(101), 'stall');
     const s = due();
-    await until(() => partsOf(s.id).length === 2 && engine.listActive().some(r => r.id === s.id && r.providerId === B.id), 'part 2');
-    const [one] = partsOf(s.id);
-    assert.equal(one.status, 'completed');
-    assert.match(one.error, /Strong8K stalled/);
-    assert.ok(logLines.some(l => /no data for \d+s from Strong8K/.test(l)));
+    await until(() => captures().length === 2 && engine.listActive().some(r => r.id === s.id && r.providerId === B.id), 'continued on Trex', 10000);
+    const rows = rowsOf(s.id);
+    assert.equal(rows.length, 1, 'one recording');
+    const [rec] = rows;
+    assert.equal(rec.provider_id, B.id);
+    assert.equal(rec.segment_state, 'capturing');
+    assert.equal(scheduled.getById(s.id).status, 'recording');
+    assert.equal(lastOut(captures()[1]), epochOut(rec, 2), 'a new epoch of the same recording');
+    assert.match(rec.error, /^Gaps: 1, \d+ s in all \(the last: the provider dropped out\)\.$/);
+    assert.ok(logLines.some(l => /no data for \d+s from Strong8K/.test(l)), 'the stall is logged with the provider\'s name');
+    assert.ok(routing.isQuarantined(A.id, 's101'), 'the stalled provider is skipped for this channel');
 });
 
-test('#143: a share that stops answering is not a provider stall: the healthy capture keeps going', async () => {
-    const shareFs = load('services/shareFs');
-    const { EventEmitter } = require('node:events');
-    tuning.startFailoverMs = 200;
-    tuning.endGraceMs = 0;
-    tuning.stallMs = 300;
-    const s = due();
-    await until(() => engine.listActive().some(r => r.id === s.id), 'recording');
-    await sleep(400);
-    await engine.tick(); // growth seen while the share answers
-    const realFork = shareFs._spawner.fork;
-    const timeout = shareFs.tuning.timeoutMs;
-    shareFs.reset();
-    shareFs.tuning.timeoutMs = 100;
-    const logged = logLines.length;
-    shareFs._spawner.fork = () => Object.assign(new EventEmitter(), {
-        connected: true, exitCode: null, signalCode: null, send() {}, kill() { this.connected = false; this.emit('exit', null, 'SIGKILL'); },
-        unref() {}, channel: { ref() {}, unref() {} }
-    });
-    try {
-        const end = Date.now() + 1500;
-        while (Date.now() < end) { await engine.tick(); await sleep(40); }
-        assert.equal(partsOf(s.id).length, 1, 'no part 2: the provider did not stall');
-        assert.ok(engine.listActive().some(r => r.id === s.id && r.providerId === A.id), 'still recording on the primary');
-        assert.ok(!logLines.slice(logged).some(l => /no data for \d+s/.test(l)), 'no stall was declared');
-    } finally {
-        shareFs._spawner.fork = realFork;
-        shareFs.reset();
-        shareFs.tuning.timeoutMs = timeout;
-    }
-});
-
-test('a part with no free provider waits (no prompt), then starts when one frees up', async () => {
-    tuning.startFailoverMs = 200;
+test('a recording whose provider died, with no other free, waits (no prompt, no connection held), then continues when one frees up', async () => {
     tuning.endGraceMs = 0;
     setBehaviour(url.A(101), 'dies');
     const s = due();
     const onB = await viewerOn(B.id);
     const onC = await viewerOn(C.id);
-    await until(() => partsOf(s.id)[0]?.status === 'completed', 'part 1 over');
+    await until(() => captures().length === 1 && rowsOf(s.id).length === 1 && !activeFor(s.id), 'its capture ended');
     await engine.tick();
-    assert.equal(partsOf(s.id).length, 1);
+    assert.equal(captures().length, 1, 'nothing started: no provider is free');
+    const [rec] = rowsOf(s.id);
+    assert.equal(rowsOf(s.id).length, 1);
+    assert.equal(rec.status, 'recording');
+    assert.equal(rec.segment_state, 'capturing', 'the recording is not ended');
     assert.equal(scheduled.getById(s.id).status, 'recording');
     assert.equal(coordinator._prompts.has(s.id), false, 'a continuation never asks');
-    assert.ok(!engine.listActive().some(r => r.id === s.id), 'it holds no connection while it waits');
+    assert.ok(!activeFor(s.id), 'it holds no connection while it waits');
     await transcodeSession.removeSession(onC.id);
-    await until(() => partsOf(s.id).length === 2, 'part 2 once Dream4K is free');
-    assert.equal(partsOf(s.id)[1].provider_id, C.id);
+    await until(() => captures().length === 2, 'continued once Dream4K is free');
+    assert.equal(inputs()[1], url.C(7001));
+    assert.equal(lastOut(captures()[1]), epochOut(rec, 2), 'in the same recording');
+    assert.equal(rowsOf(s.id).length, 1);
+    assert.equal(recordings.getById(rec.id).provider_id, C.id);
     void onB;
 });
 
 test('stop, a viewer taking the stream, and low disk space never start a continuation', async () => {
-    tuning.startFailoverMs = 0;
     tuning.endGraceMs = 0;
     // "ok" answers a stop with a provider-looking error: only a requested stop is ignored.
     const a = due();
-    await until(() => scheduled.getById(a.id).status === 'recording' && fs.existsSync(partsOf(a.id)[0].file_path), 'a records');
+    await until(() => scheduled.getById(a.id).status === 'recording' && captures().length === 1, 'a records');
     await sleep(100);
     await engine.cancelScheduled(a.id);
     assert.equal(scheduled.getById(a.id).status, 'cancelled');
-    assert.equal(partsOf(a.id).length, 1);
+    assert.equal(rowsOf(a.id).length, 1);
+    assert.notEqual(rowsOf(a.id)[0].segment_state, 'capturing', 'its capture is over');
 
     const b = due();
-    await until(() => scheduled.getById(b.id).status === 'recording', 'b records');
+    await until(() => scheduled.getById(b.id).status === 'recording' && captures().length === 2, 'b records');
     await sleep(100);
-    await engine.stopForViewer(b.id);
-    await engine.tick();
+    assert.equal(await engine.stopForViewer(b.id), true);
     assert.equal(scheduled.getById(b.id).status, 'completed');
-    assert.equal(partsOf(b.id).length, 1);
+    assert.equal(scheduled.getById(b.id).error, 'Stopped early: the provider stream was needed for live viewing.');
+    assert.ok(!activeFor(b.id), 'the connection is the viewer\'s');
+    await engine.tick();
+    assert.equal(rowsOf(b.id).length, 1);
+    assert.notEqual(rowsOf(b.id)[0].segment_state, 'capturing', 'its capture is over: what it recorded is kept');
+    assert.equal(rowsOf(b.id)[0].is_partial, 1);
 
     const c = due();
-    await until(() => scheduled.getById(c.id).status === 'recording', 'c records');
+    await until(() => scheduled.getById(c.id).status === 'recording' && captures().length === 3, 'c records');
     await sleep(100);
     await db.settings.update({ minFreeSpaceGB: 1e9 });
     await engine.tick();
-    assert.equal(scheduled.getById(c.id).status, 'failed');
-    assert.match(scheduled.getById(c.id).error, /Stopped early: only/);
+    // Segmented (R3): appdata is what fills; the recording ends with what it has, as a completed recording.
+    assert.equal(scheduled.getById(c.id).status, 'completed');
+    assert.ok(!activeFor(c.id));
     await engine.tick();
-    assert.equal(partsOf(c.id).length, 1);
-    assert.deepEqual(startsOf().length, 3, 'nothing restarted');
+    assert.equal(rowsOf(c.id).length, 1);
+    assert.notEqual(rowsOf(c.id)[0].segment_state, 'capturing', 'its capture is over');
+    assert.notEqual(rowsOf(c.id)[0].status, 'failed', 'what it recorded is kept');
+    assert.equal(captures().length, 3, 'nothing restarted');
     assert.ok(!routing.isQuarantined(A.id, 's101'), 'and nothing was held against the provider');
 });
 
 // ------------------------------------------------------------ no backup --
+// One provider refusing waits for the next tick each time (not at once): recording-segments.test.js's "#284: a
+// single-provider route that refuses at the start"; one dropping mid-recording continues (0499): its "0499" test.
 
-test('no backup configured: a 502 at start fails the recording exactly as before', async () => {
+test('no backup configured: a 502 at start is held against nobody; the recording is tried again, and nothing it stored carries a URL', async () => {
     for (const src of [B, C]) await db.sources.update(src.id, { enabled: false });
-    setBehaviour(url.A(101), '502');
-    const s = due();
-    await until(() => scheduled.getById(s.id).status === 'failed', 'failed');
-    await sleep(200);
-    await engine.tick();
-    assert.deepEqual(startsOf(), [url.A(101)], 'tried once, on the primary only');
-    const parts = partsOf(s.id);
-    assert.equal(parts.length, 1);
-    assert.equal(parts[0].status, 'failed');
-    assert.equal(parts[0].provider_id, A.id);
-    assert.equal(parts[0].part, 1);
-    assert.equal(scheduled.getById(s.id).error, 'Recording failed (exit code 1)');
-    assert.ok(!routing.isQuarantined(A.id, 's101'), 'nothing noted');
-});
-
-test('no backup configured: a provider dying mid-recording ends it as before (no part 2)', async () => {
-    for (const src of [B, C]) await db.sources.update(src.id, { enabled: false });
-    tuning.startFailoverMs = 0;
     tuning.endGraceMs = 0;
-    setBehaviour(url.A(101), 'dies');
+    setBehaviour(url.A(101), 'refuses');
     const s = due();
-    await until(() => scheduled.getById(s.id).status === 'completed', 'completed');
-    assert.equal(partsOf(s.id).length, 1);
-    assert.equal(partsOf(s.id)[0].is_partial, 0);
-    assert.equal(partsOf(s.id)[0].error, null);
+    await engine.tick();
+    await settle(() => captures().length === 1 && !activeFor(s.id), 'the first capture ended');
+    const rows = rowsOf(s.id);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].provider_id, A.id);
+    assert.equal(rows[0].part, 1);
+    assert.equal(scheduled.getById(s.id).status, 'recording', 'not failed at once (0499: it is tried again)');
+    await engine.tick();
+    await settle(() => captures().length === 2 && !activeFor(s.id), 'tried again');
+    assert.deepEqual(inputs(), [url.A(101), url.A(101)], 'on the only provider');
+    assert.ok(!routing.isQuarantined(A.id, 's101') && !routing.isQuarantined(A.id, null), 'nothing noted');
+    assert.equal(routing.snapshot().providers.find(p => p.id === A.id).recentFailures, 0, 'nor counted toward its breaker');
+    await engine.cancelScheduled(s.id);
+    assert.equal(scheduled.getById(s.id).status, 'cancelled');
+    const rec = recordings.getById(rows[0].id);
+    assert.equal(rec.status, 'failed', 'nothing was recorded');
+    noUrl(rec.error, 'recording error');
+    noUrl(scheduled.getById(s.id).error || '', 'schedule error');
 });
 
 test('no backup configured: a viewer on the only connection is asked, as before', async () => {
@@ -416,6 +354,7 @@ test('no backup configured: a viewer on the only connection is asked, as before'
 
 // ------------------------------------------------------------ restart --
 
+// An old part-based recording (before D-48) that a server stopped mid-part: the first start after the upgrade meets it.
 test('a restart mid-part finishes that part and keeps the earlier ones', async () => {
     const s = due();
     scheduled.setStatus(s.id, 'recording');
@@ -432,7 +371,7 @@ test('a restart mid-part finishes that part and keeps the earlier ones', async (
     const one = mk(1, 'completed');
     const two = mk(2, 'recording');
     scheduled.setStatus(s.id, 'recording', { recording_id: two.id });
-    await engine.init({ ffmpegPath: FFMPEG, ffprobePath: 'ffprobe' }); // #141: the part's size is read through shareFs
+    await engine.init({ ffmpegPath: FFMPEG, ffprobePath: path.join(sandbox, 'no-ffprobe') }); // #141: the part's size is read through shareFs
     engine.shutdown();
     assert.equal(recordings.getById(one.id).status, 'completed');
     assert.match(recordings.getById(one.id).error, /continues in part 2/, 'part 1 untouched');
@@ -446,13 +385,13 @@ test('a restart mid-part finishes that part and keeps the earlier ones', async (
         source_id: A.id, channel_item_id: 'pos_1', file_path: path.join(dir, 'between.mkv'), started_at: Date.now(), provider_id: A.id, part: 1 });
     recordings.finish(three.id, { status: 'completed', ended_at: Date.now(), file_size_bytes: 5000, duration_sec: 10, error: 'Stopped early: x' });
     scheduled.setStatus(t.id, 'recording', { recording_id: three.id });
-    engine.init({ ffmpegPath: FFMPEG, ffprobePath: 'ffprobe' });
+    engine.init({ ffmpegPath: FFMPEG, ffprobePath: path.join(sandbox, 'no-ffprobe') });
     engine.shutdown();
     assert.equal(recordings.getById(three.id).file_size_bytes, 5000);
     assert.equal(recordings.getById(three.id).error, 'Stopped early: x');
 });
 
-// ---- F3 (0244): the immediate move to the next provider is owned, and a cancel or shutdown stops it ----
+// ---- F3 (0244), D2: the move to the next provider after a 502 is owned; a cancel, shutdown or delete stops it ----
 
 /** The backup's shared feed held until the test settles it; the primary is not shared (its 502 fails as ever). */
 async function holdBackupFeed() {
@@ -476,151 +415,168 @@ function lateFeed() {
 }
 
 for (const how of ['cancel', 'shutdown']) {
-    test(`F3: ${how} while the start moves to the backup - no backup ffmpeg, the late feed is released, the schedule is settled`, async () => {
+    test(`F3: ${how} while the recording moves to the backup - no backup ffmpeg, the late feed is released, nothing is lost`, async () => {
         const held = await holdBackupFeed();
         try {
-            setBehaviour(url.A(101), '502');
+            setBehaviour(url.A(101), 'refuses');
             const s = due();
             await until(() => held.asked, 'the backup feed is awaited');
+            const [rec] = rowsOf(s.id);
             if (how === 'cancel') {
                 await engine.cancelScheduled(s.id);
                 assert.equal(scheduled.getById(s.id).status, 'cancelled', 'the cancel is seen at once');
             } else {
-                await engine.stopAllActive(200);
+                await engine.stopAllActive(200, { forRestart: true }); // the container's stop (server/index.js)
             }
             const feed = lateFeed();
             held.resolve(feed);
-            await sleep(400);
-            assert.deepEqual(startsOf(), [url.A(101)], 'nothing started on the backup');
+            await settle(() => feed.left > 0 || captures().length > 1, 'the move settles');
+            await sleep(300);
+            assert.deepEqual(inputs(), [url.A(101)], 'nothing started on the backup');
             assert.equal(feed.left, 1, 'the late subscription is given back');
-            assert.ok(!engine.listActive().some(r => r.id === s.id));
-            const [part] = partsOf(s.id);
-            assert.notEqual(part.status, 'recording', 'the part is not left recording');
-            assert.notEqual(scheduled.getById(s.id).status, 'recording');
-            if (how === 'cancel') assert.equal(scheduled.getById(s.id).status, 'cancelled', 'not overwritten later');
+            assert.ok(!activeFor(s.id));
+            if (how === 'cancel') {
+                assert.notEqual(recordings.getById(rec.id)?.segment_state, 'capturing', 'the recording is not left capturing');
+                assert.equal(scheduled.getById(s.id).status, 'cancelled', 'not overwritten later');
+            } else {
+                // 0490: a stop before the end leaves it to the next start, which continues it in a new epoch.
+                assert.equal(recordings.getById(rec.id).segment_state, 'capturing', 'left for the next start to resume');
+                assert.equal(scheduled.getById(s.id).status, 'recording');
+            }
         } finally {
             await held.restore();
         }
     });
 }
 
-test('D2: the recording is deleted while the start moves to the backup - nothing starts again, the late feed is released, the schedule is settled', async () => {
+test('D2: the recording is deleted while it moves to the backup - nothing starts again, the late feed is released, no row comes back', async () => {
     const held = await holdBackupFeed();
     try {
-        setBehaviour(url.A(101), '502');
+        setBehaviour(url.A(101), 'refuses');
         const s = due();
         await until(() => held.asked, 'the backup feed is awaited');
-        const [part] = partsOf(s.id);
-        await engine.deleteRecording(part.id);
-        assert.equal(recordings.getById(part.id), null);
-        assert.equal(scheduled.getById(s.id).status, 'cancelled', 'the schedule is settled at once');
+        const [rec] = rowsOf(s.id);
+        await engine.deleteRecording(rec.id);
+        assert.equal(recordings.getById(rec.id), null);
+        assert.notEqual(scheduled.getById(s.id).status, 'recording', 'the schedule is settled at once');
+        const settled = scheduled.getById(s.id).status;
         const feed = lateFeed();
         held.resolve(feed);
         // The move's outcome is either a release or a spawn: wait for one, not for a time.
-        await until(() => feed.left > 0 || startsOf().length > 1 || engine.listActive().some(r => r.id === s.id), 'the move settles');
-        assert.deepEqual(startsOf(), [url.A(101)], 'nothing started on the backup');
+        await settle(() => feed.left > 0 || captures().length > 1 || activeFor(s.id), 'the move settles');
+        await sleep(300);
+        assert.deepEqual(inputs(), [url.A(101)], 'nothing started on the backup');
         assert.equal(feed.left, 1, 'the late subscription is given back');
-        assert.ok(!engine.listActive().some(r => r.id === s.id));
-        assert.deepEqual(partsOf(s.id), [], 'no row comes back');
-        assert.equal(scheduled.getById(s.id).status, 'cancelled', 'not overwritten later');
+        assert.ok(!activeFor(s.id));
+        assert.deepEqual(rowsOf(s.id), [], 'no row comes back');
+        assert.equal(scheduled.getById(s.id).status, settled, 'not overwritten later');
+        assert.equal(fs.existsSync(rec.work_dir), false, 'its work folder is gone');
     } finally {
         await held.restore();
     }
 });
 
-test('D2: the recording is deleted while the move reads its settings - it starts nothing and is not finalised again', async () => {
-    const real = db.settings.get;
+/** Hold the settings read continuePart makes once the primary has failed; returns the release, once held. */
+async function holdTheMovesSettings(real) {
     let release = null;
-    setBehaviour(url.A(101), '502');
+    db.settings.get = function (...a) {
+        if (!release && new Error().stack.includes('continuePart')) {
+            return new Promise(resolve => { release = () => resolve(real.apply(this, a)); });
+        }
+        return real.apply(this, a);
+    };
+    await engine.tick();
+    // Not until(): a tick would await the held continuation itself.
+    await settle(() => release, 'the move is reading its settings');
+    return release;
+}
+
+test('D2: the recording is deleted while its move reads its settings - it starts nothing and no row comes back', async () => {
+    const real = db.settings.get;
+    setBehaviour(url.A(101), 'refuses');
     const s = due();
     try {
-        db.settings.get = function (...a) {
-            if (!release && new Error().stack.includes('onPartExit')) {
-                return new Promise(resolve => { release = () => resolve(real.apply(this, a)); });
-            }
-            return real.apply(this, a);
-        };
-        await engine.tick();
-        await until(() => release, 'the move is reading its settings');
-        const [part] = partsOf(s.id);
-        await engine.deleteRecording(part.id);
-        const seen = logLines.length;
+        const release = await holdTheMovesSettings(real);
+        const [rec] = rowsOf(s.id);
+        await engine.deleteRecording(rec.id);
+        const settled = scheduled.getById(s.id).status;
+        assert.notEqual(settled, 'recording');
         release();
-        await until(() => logLines.slice(seen).some(l => l.includes(`#${part.id}: not started on the next provider`)) || startsOf().length > 1, 'the move settles');
-        assert.deepEqual(startsOf(), [url.A(101)]);
-        assert.deepEqual(partsOf(s.id), []);
-        assert.equal(scheduled.getById(s.id).status, 'cancelled');
+        await sleep(1000);
+        assert.deepEqual(inputs(), [url.A(101)]);
+        assert.deepEqual(rowsOf(s.id), []);
+        assert.equal(scheduled.getById(s.id).status, settled);
     } finally {
         db.settings.get = real;
     }
+});
+
+// #285: a recording deleted while it waits to continue was settled by finishSchedule, which counts only 'completed' rows
+// (a segmented row is 'recording' until its MP4): its schedule failed, "no part recorded anything", with a failure notice,
+// even with segments recorded. It now ends as deleting it while it captures does (endSegmentCapture).
+/** Count the failure notices sent for schedule `id` while `run` runs. */
+async function failureNotices(id, run) {
+    const notify = load('services/notify');
+    const real = notify.recordingFailed;
+    let sent = 0;
+    notify.recordingFailed = (schedule, ...rest) => { if (schedule?.id === id) sent++; return real(schedule, ...rest); };
+    try { await run(); } finally { notify.recordingFailed = real; }
+    return sent;
+}
+/** A recording on Strong8K that ended early (as `kind`) and now waits for Trex or Dream4K, both busy. */
+async function waitingToContinue(kind) {
+    tuning.endGraceMs = 0;
+    setBehaviour(url.A(101), kind);
+    const s = due();
+    await viewerOn(B.id);
+    await viewerOn(C.id);
+    await until(() => captures().length === 1 && rowsOf(s.id).length === 1 && !activeFor(s.id), 'waiting to continue');
+    return { s, rec: rowsOf(s.id)[0] };
+}
+
+test('#285: a recording deleted while it waits to continue, with segments, completes its schedule as an active delete does', async () => {
+    const { s, rec } = await waitingToContinue('dies');
+    assert.ok(segments.archiveSegmentCount(rec.work_dir) > 0, 'it recorded something before its provider died');
+    const sent = await failureNotices(s.id, () => engine.deleteRecording(rec.id));
+    const now = scheduled.getById(s.id);
+    assert.equal(now.status, 'completed', `settled as: ${now.status}, "${now.error}"`);
+    assert.equal(now.error, null, 'no failure text');
+    assert.equal(sent, 0, 'no failure notice');
+    assert.equal(recordings.getById(rec.id), null);
+    await sleep(300);
+    assert.equal(captures().length, 1, 'nothing continues it');
+});
+
+test('#285: a recording deleted while it waits to continue, with nothing recorded, fails as an active delete does', async () => {
+    const { s, rec } = await waitingToContinue('refuses');
+    assert.equal(segments.archiveSegmentCount(rec.work_dir), 0);
+    const sent = await failureNotices(s.id, () => engine.deleteRecording(rec.id));
+    const now = scheduled.getById(s.id);
+    assert.equal(now.status, 'failed');
+    assert.match(now.error, /^Recording failed \(exit code [^)]*\)$/, 'endSegmentCapture\'s wording');
+    assert.equal(sent, 1, 'the failure notice, as for any failed recording');
+    assert.equal(recordings.getById(rec.id), null);
 });
 
 test('F3: cancel while the move reads its settings - it starts nothing', async () => {
     const real = db.settings.get;
-    let release = null;
-    setBehaviour(url.A(101), '502');
+    setBehaviour(url.A(101), 'refuses');
     const s = due();
     try {
-        // Hold the settings read that onPartExit makes once the primary has failed.
-        db.settings.get = function (...a) {
-            if (!release && new Error().stack.includes('onPartExit')) {
-                return new Promise(resolve => { release = () => resolve(real.apply(this, a)); });
-            }
-            return real.apply(this, a);
-        };
-        await engine.tick();
-        for (let i = 0; i < 200 && !release; i++) await sleep(20);
-        assert.ok(release, 'the move is reading its settings');
+        const release = await holdTheMovesSettings(real);
         await engine.cancelScheduled(s.id);
         release();
-        await sleep(400);
-        assert.deepEqual(startsOf(), [url.A(101)]);
+        await sleep(1000);
+        assert.deepEqual(inputs(), [url.A(101)]);
         assert.equal(scheduled.getById(s.id).status, 'cancelled');
     } finally {
         db.settings.get = real;
     }
 });
 
-test('nothing this feature logged or stored carries a URL', () => {
-    for (const line of logLines.filter(l => l.startsWith('[Recordings]') || l.startsWith('[Providers]'))) noUrl(line, 'log');
-    for (const r of engine.listRecordings()) noUrl(r.error || '', `recording #${r.id}`);
-    for (const s of scheduled.listAll()) noUrl(s.error || '', `schedule #${s.id}`);
-});
-
-test('#152: a cancel while a failed part 2\'s file is being removed is honoured: no part 3', async () => {
-    tuning.startFailoverMs = 200;
-    tuning.endGraceMs = 0;
-    setBehaviour(url.A(101), 'dies');
-    setBehaviour(url.B(5001), '502');
-    await db.sources.update(C.id, { enabled: false });
-    const shareFs = load('services/shareFs');
-    const realUnlink = shareFs.unlink;
-    let release = null;
-    shareFs.unlink = (file, ...rest) => {
-        if (!release && / \(part 2\)\.ts$/.test(String(file))) {
-            return new Promise(resolve => { release = () => resolve(realUnlink(file, ...rest)); });
-        }
-        return realUnlink(file, ...rest);
-    };
-    try {
-        const s = due({ windowMs: 30000 });
-        await until(() => release, 'part 2 refused on Trex, its file being removed');
-        await engine.cancelScheduled(s.id);
-        const starts = startsOf().length;
-        release();
-        for (let i = 0; i < 10; i++) { await engine.tick(); await sleep(40); }
-        assert.equal(startsOf().length, starts, 'nothing starts after the cancel');
-        assert.equal(scheduled.getById(s.id).status, 'cancelled');
-    } finally {
-        shareFs.unlink = realUnlink;
-        if (release) release();
-    }
-});
-
-// #217 (0440 Codex round 1, high): a part waiting for a provider ended the recording once its stored stop passed,
-// though the score feed still said the game was on (only running captures checked their game). It must check first.
-test('#217: a part waiting for a provider past the guide end keeps waiting while its game is live, then continues', async () => {
-    tuning.startFailoverMs = 200;
+// #217 (0440 Codex round 1, high): a recording waiting for a provider ended once its stored stop passed, though the score
+// feed still said the game was on (only running captures checked their game). It must check first.
+test('#217: a recording waiting for a provider past the guide end keeps waiting while its game is live, then continues', async () => {
     tuning.endGraceMs = 0;
     setBehaviour(url.A(101), 'dies');
     const now = Date.now();
@@ -632,11 +588,22 @@ test('#217: a part waiting for a provider past the guide end keeps waiting while
         snapshot: { state: 'live', progress: {}, scores: null, situation: null } }], Date.now());
     const onB = await viewerOn(B.id);
     const onC = await viewerOn(C.id);
-    await until(() => partsOf(s.id)[0]?.status === 'completed', 'part 1 over');
+    await until(() => captures().length === 1 && rowsOf(s.id).length === 1 && !activeFor(s.id), 'its capture ended');
+    const [rec] = rowsOf(s.id);
     assert.equal(scheduled.getById(s.id).event_stop, null, 'no answer yet while it ran: the feed is first heard while it waits');
     while (Date.now() < s.program_end + 1500) { live(); await engine.tick(); await sleep(100); }
     assert.equal(scheduled.getById(s.id).status, 'recording', 'still waiting past the guide end: the game is on');
+    assert.equal(recordings.getById(rec.id).segment_state, 'capturing', 'its capture is not ended');
     await transcodeSession.removeSession(onC.id);
-    await until(() => partsOf(s.id).length === 2, 'part 2 once Dream4K is free');
+    await until(() => captures().length === 2, 'continued once Dream4K is free');
+    assert.equal(inputs()[1], url.C(7001));
+    assert.equal(lastOut(captures()[1]), epochOut(rec, 2), 'in the same recording');
+    assert.equal(rowsOf(s.id).length, 1);
     void onB;
+});
+
+test('nothing this feature logged or stored carries a URL', () => {
+    for (const line of logLines.filter(l => l.startsWith('[Recordings]') || l.startsWith('[Providers]'))) noUrl(line, 'log');
+    for (const r of engine.listRecordings()) noUrl(r.error || '', `recording #${r.id}`);
+    for (const s of scheduled.listAll()) noUrl(s.error || '', `schedule #${s.id}`);
 });
