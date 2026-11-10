@@ -27,7 +27,7 @@ export PATH="/opt/homebrew/opt/node@24/bin:$PATH"   # Node 24: the default node 
 npm ci
 npm test                          # every test file, in parallel (~70 s; PIGTV_SKIP_PERF=1 on a busy Mac)
 node --test test/<name>.test.js   # one file
-bash scripts/verify-build.sh .    # what tests can't check: placement, things that must not come back, image, CI, markup, doc sizes
+bash scripts/verify-build.sh .    # what tests can't check: placement, things that must not come back, image, CI, doc sizes (web strings: test/web-static-strings.test.js)
 npm start                         # http://localhost:3000
 ```
 

@@ -28,10 +28,10 @@
 # ------------------------------------------------
 # Only what a test cannot say: something that must NOT come back (check_absent),
 # placement and structure (the Python blocks), the image and CI (Dockerfile,
-# workflows, package files), the web app's markup, and the docs' build numbering.
-# Behaviour belongs in a test under test/. This file used to assert ~780 strings
-# of server code and test names as well; they broke on every rewording and said
-# nothing the tests did not, so they went.
+# workflows, package files) and the docs' build numbering. Behaviour belongs in a
+# test under test/. This file used to assert ~780 strings of server code and test
+# names as well; they broke on every rewording and said nothing the tests did not,
+# so they went. The web app's plain string checks live in a test, not here.
 #
 # Adding checks
 # -------------
@@ -67,81 +67,23 @@ check_absent() {
 echo "=== Checking version ==="
 check package.json '"version"' "version field exists"
 
-echo "=== 0007: Recording banner ==="
-check public/js/app.js "updateRecordingBanner" "banner polling"
-check public/index.html "recording-conflict-banner" "banner markup"
-
-echo "=== 0008+0014: M3U sort order + ID fix ==="
-# 0182: stopping a stream moved from Settings -> Debug to the Status page.
-check public/js/pages/StatusPage.js "data-kill-all" "stop-all button (Status page)"
-check public/js/pages/StatusPage.js "killAllSessions" "stop button handler (Status page)"
-
 echo "=== 0009: Movies/Series toggle (removed with Movies/Series in 0122) ==="
-check public/js/pages/Settings.js "loadUiSettings" "UI load handler (theme)"
 check_absent server/db.js "showMovies" "no movies setting left"
-check_absent public/js/app.js "applyContentVisibility" "no movies/series visibility code left"
-
-echo "=== 0010: Guide → Live TV ==="
-check public/js/components/EpgGuide.js "navigateTo" "navigation call"
-check public/js/components/EpgGuide.js "channelId.*sourceId" "ID-based lookup"
 
 echo "=== 0011: EPG visible filter (0122: the whole-EPG route is gone; /api/library/guide lists visible channels) ==="
 check_absent server/routes/proxy.js "router.get('/epg/:sourceId'" "no whole-EPG dump"
 
-echo "=== 0017: settings reorganisation ==="
-check public/index.html "data-tab=\"recording\"" "Recording tab"
-# 0182: six tabs; the theme panel sits under System, Debug is on the Status page.
-check public/index.html "id=\"tab-ui\"" "UI panel (under System)"
-check public/index.html "data-tab=\"system\"" "System tab"
-check public/js/pages/Settings.js "loadRecordingSettings" "recording handlers"
-check public/js/pages/Settings.js "loadUiSettings" "ui handlers"
-check public/js/pages/StatusPage.js "data-kill-session" "per-stream stop (Status page)"
-check public/js/api.js "killAllSessions" "transcode api group"
-
-echo "=== 0017: guide cell + transcode + uncategorized ==="
-check public/js/components/EpgGuide.js "resize-handle" "whole-cell click guard"
-check public/css/main.css "epg-channel-info {" "whole-cell cursor"
-check public/js/components/ChannelList.js "categoryNames.get(\`\${row.sourceId}:\${row.category}\`) || row.category" "group name fallback (0121: from /api/library/categories, else the category id)"
-
-echo "=== 0018: transcode strategy ==="
-check public/js/components/VideoPlayer.js "getCodecCapabilities" "client caps detection"
-# (0102: the live player no longer probes or picks a segment type itself - the server does.
-#  0122: the movie/series page that still did went with VOD.)
-check public/index.html "setting-vaapi-hw-decode" "hw decode toggle"
-
 echo "=== 0019: category order preserved client-side ==="
-if grep -q "localeCompare" public/js/components/SourceManager.js; then
-    echo "  ✗ MISSING: SourceManager still sorts alphabetically"; FAIL=1
-else
-    echo "  ✓ SourceManager sorts removed"
-fi
-if grep -q "a.localeCompare(b)" public/js/components/ChannelList.js; then
-    echo "  ✗ MISSING: ChannelList still sorts groups"; FAIL=1
-else
-    echo "  ✓ ChannelList group sort removed"
-fi
 if grep -q "stripFlagEmoji\|stripFlags" server/routes/proxy.js; then
     echo "  ✗ MISSING: flag stripping not reverted"; FAIL=1
 else
     echo "  ✓ flag stripping reverted"
 fi
-check public/index.html "btn-stop" "stop button markup"
-check public/index.html "btn-go-live" "go-live button markup"
-check public/js/components/VideoPlayer.js "    stop() {" "stop implementation (0102 removed the unused async duplicate)"
-check public/js/components/VideoPlayer.js "goToLive" "go-live implementation"
-check public/js/components/VideoPlayer.js "updateLiveButton" "live indicator"
-check public/css/main.css "btn-go-live" "live button styles"
 
 echo "=== 0021: PigTV rebrand + recording fix ==="
 check package.json "pigtv" "package renamed"
-check public/index.html "brand-lockup" "product lockup in navbar"
-check public/css/main.css "lockup-horizontal-light.svg" "navbar lockup, light theme"
-check public/css/main.css "lockup-horizontal-dark.svg" "navbar lockup, dark theme"
-check public/login.html "lockup-stacked-light.svg" "stacked lockup on login, light theme"
-check public/login.html "lockup-stacked-dark.svg" "stacked lockup on login, dark theme"
 check .github/workflows/docker-publish.yml "/pigtv" "CI image renamed"
 check README.md "PigTV" "README rebranded"
-check public/css/main.css "EF7AAE" "accent retuned (the 3 Oct brand refresh)"
 for f in mark.svg wordmark-light.svg wordmark-dark.svg lockup-horizontal-light.svg lockup-horizontal-dark.svg \
          lockup-stacked-light.svg lockup-stacked-dark.svg favicon-light.ico favicon-dark.ico \
          web-small-light.svg web-small-dark.svg web-light-180.png web-light-192.png web-light-512.png \
@@ -153,21 +95,6 @@ for f in pigtv-logo.png pigtv-logo-master.png logo-banner.png pigtv-wordmark-dar
     if [ -f "public/img/$f" ]; then echo "  \u2717 STALE: public/img/$f (pre-1.6 family pig) should be gone"; FAIL=1; fi
 done
 if [ -f public/favicon.svg ]; then echo "  \u2717 STALE: public/favicon.svg should be gone"; FAIL=1; fi
-check public/index.html "pig-canvas-bloom" "corner bloom on the app canvas"
-check public/login.html "pig-canvas-bloom" "corner bloom on login"
-check public/index.html "pig-glass" "glass navbar"
-check public/index.html "pig-splash" "loading splash"
-check public/index.html "css/pig-radiance.css" "vendored radiance CSS linked (app)"
-check public/index.html "css/pig-glass.css" "vendored glass CSS linked (app)"
-check public/login.html "css/pig-radiance.css" "vendored radiance CSS linked (login)"
-check public/index.html "site.webmanifest" "web manifest linked (app)"
-check public/login.html "site.webmanifest" "web manifest linked (login)"
-check public/index.html "web-light-180.png" "apple-touch-icon (app)"
-check public/login.html "web-light-180.png" "apple-touch-icon (login)"
-check public/index.html "favicon-dark.ico" "dark favicon fallback"
-check public/css/main.css "pig-canvas: var(--color-bg-primary)" "--pig-* aliases bridge the vendored CSS"
-check public/site.webmanifest '"scope": "/"' "manifest scope"
-check public/js/pages/StatusPage.js "pig-amount" "rounded numerals on Status figures"
 check docs/brand-tokens.json '1\.7\.0' "brand tokens are 1.7.0"
 for f in pig-radiance.css pig-glass.css; do
     if [ -f "public/css/$f" ]; then :; else echo "  \u2717 MISSING: public/css/$f"; FAIL=1; fi
@@ -177,15 +104,6 @@ if grep -rqi "nodecast" package.json public/index.html public/login.html .github
 else
     echo "  \u2713 no nodecast references in branded files"
 fi
-
-echo "=== 0022: HE-AAC, categories, themes, compression ==="
-check public/js/components/SourceManager.js "groupItemType()" "group type helper"
-check public/js/components/ChannelList.js "Choose what to show under Settings" "empty state wording (0121: points at Manage Content when a source exists)"
-check public/js/theme.js "prefers-color-scheme" "theme follows system"
-check public/css/main.css "data-theme=.light" "light tokens"
-check public/index.html "js/theme.js" "theme loaded early"
-check public/index.html "setting-theme" "theme selector"
-check public/index.html "dvr-setting-bitrate" "compression tuning UI"
 
 echo "=== 0023: light theme fix + manual compress ==="
 python3 - <<'PYCHK'
@@ -198,9 +116,6 @@ print('  \u2713 light block outside :root' if light > root_end else '  \u2717 MI
 sys.exit(0 if light > root_end else 1)
 PYCHK
 [ $? -eq 0 ] || FAIL=1
-check public/js/api.js "compress:" "compress api method"
-check public/js/pages/RecordingsPage.js "startCompressionWatch" "compression polling"
-check public/js/pages/RecordingsPage.js "this.recordings = items" "recordings list stored"
 
 echo "=== 0024: compress helpers, EPG staleness, startup order ==="
 python3 - <<'PYCHK'
@@ -227,14 +142,6 @@ print('  \u2713 DVR engine starts before sync' if ok else '  \u2717 MISSING: DVR
 sys.exit(0 if ok else 1)
 PYCHK2
 [ $? -eq 0 ] || FAIL=1
-
-echo "=== 0025: CQP fallback + status ==="
-check public/js/pages/RecordingsPage.js "resumeCompressionWatchIfNeeded" "resumes watching"
-check public/js/pages/RecordingsPage.js "recordingsList.offsetParent" "pauses when off screen"
-
-echo "=== 0027: devices, library, history ==="
-check public/js/components/VideoPlayer.js "resolvePlayback" "client uses resolve"
-check public/index.html "pair-code" "pairing UI"
 
 echo "=== packaging ==="
 python3 - <<'PYCHK'
@@ -297,16 +204,10 @@ sys.exit(0 if ok else 1)
 PYCHK
 [ $? -eq 0 ] || FAIL=1
 
-echo "=== 0031: coordinator + favourites ==="
-check public/js/components/VideoPlayer.js "startConflictWatch" "client watches for conflicts"
-
 echo "=== 0032: ad detection ==="
 check Dockerfile "Comskip" "comskip built into image"
 check Dockerfile "comskip.ini" "tuning shipped"
 check docker/comskip.ini "detect_method" "tuning has detection methods"
-check public/js/pages/RecordingsPage.js "attachAdSkipping" "player skip support"
-check public/css/main.css "skip-ad-btn" "skip button styles"
-check public/index.html "dvr-setting-addetect" "detection setting"
 
 echo "=== compression is request-only ==="
 python3 - <<'PYCHK'
@@ -329,14 +230,6 @@ else:
 sys.exit(0 if ok else 1)
 PYCHK
 [ $? -eq 0 ] || FAIL=1
-
-echo "=== 0038: web client sends stream auth tokens ==="
-check public/js/api.js "withStreamToken" "shared token helper exists"
-check public/js/api.js "streamFetch" "authenticated fetch helper for transcode management calls"
-check public/js/components/VideoPlayer.js "API.withStreamToken(decision.url)" "resolved playback URL carries token"
-# The live player's own URL builders (proxy / legacy pipe / remux) went with those
-# paths in 0102: everything it loads is the server's decision.url, checked above.
-# (0122: the movie/series page, with its own session POST, is gone.)
 
 echo "=== 0034: native HLS delivery for segmented clients ==="
 python3 - <<'PYCHK'
@@ -571,8 +464,6 @@ PYCHK
 [ $? -eq 0 ] || FAIL=1
 
 echo "=== 0045: native recording playback contract ==="
-check public/js/api.js "streamUrl: (id) => API.withStreamToken" "web client sends token on recording stream URL"
-check public/js/api.js "downloadUrl: (id) => API.withStreamToken" "web client sends token on recording download URL"
 python3 - <<'PYCHK'
 import subprocess, sys
 # /:id/playback must sit below router.use(requireAuth) (JWT-gated, like
@@ -699,15 +590,9 @@ echo "=== 0048: Build identity surfaced ==="
 # The whole point is that a running server (and any client) can say which
 # build it is. Each check asserts the number reaches the surface it is read
 # from, not just that version.js exists.
-check public/js/app.js "data.display" "webapp badge renders the server's display string"
-check public/index.html "version-badge" "badge markup present in the header"
 check Dockerfile "PIGTV_COMMIT" "Dockerfile can stamp commit/builtAt at build time"
 check Dockerfile "net.unraid.docker.icon=\"https://raw.githubusercontent.com/maroge1990/PigTV/main/public/img/brand/web-dark-512.png\"" "0208: the image carries the Unraid icon label"
 check Dockerfile "net.unraid.docker.webui=" "0208: and the Unraid WebUI label"
-
-echo "=== 0049: Live HLS stability ==="
-# temp_file must be in the actual flag string, not just mentioned in a comment,
-# or the playlist is still rewritten in place under a live client.
 
 echo "=== 0050: Auth gate on state-changing routes (P0-3) ==="
 # The gate has to be on the mount, and the webapp callers have to actually
@@ -766,7 +651,6 @@ else
   echo "  ✗ MISSING: coordinator has duplicated definitions or export blocks"; FAIL=1
 fi
 check_absent server/services/streamCoordinator.js "soft" "no soft mode (0122: it existed only for the removed POST /api/transcode/session)"
-check public/js/components/VideoPlayer.js "viewer-in-progress" "web player words the prompt for another viewer"
 # (0102: the live player has no fallback sessions any more; resolve creates live sessions server-side.)
 
 echo "=== 0056: Atomic EPG swap (P1-5) ==="
@@ -826,19 +710,6 @@ check_absent server/index.js "50mb" "the 50 MB body limit is gone"
 # The key must not come from X-Forwarded-For (client-controlled under 'trust proxy: true').
 check_absent server/routes/auth.js "req.ip" "login limit never uses req.ip (spoofable via X-Forwarded-For)"
 
-echo "=== 0064: Remux codec identification ==="
-# The bug: with unknown codecs the remux started anyway and died on its first
-# audio packet. It must refuse instead.
-
-echo "=== 0065: Web player media-error reporting ==="
-check public/js/components/VideoPlayer.js "addEventListener('error', () => this.handleMediaError())" "the <video> error event is handled (it used to fail silently)"
-check public/js/components/VideoPlayer.js "handleMediaError()" "handler exists"
-# The URL's query string carries the provider login and the session token.
-check public/js/components/VideoPlayer.js "new URL(video.currentSrc, 'http://localhost').pathname" "only the URL path is logged/sent, never the query"
-check public/js/components/VideoPlayer.js "this.currentStrategy = decision.strategy" "the server's chosen strategy is recorded for the report"
-check public/js/components/VideoPlayer.js "if (this.isSourceCleared(video)) return;" "clearing the source (channel change) is not reported as a failure"
-check public/css/main.css ".transcode-status.error" "the error badge has a style"
-
 echo "=== 0067: EPG icon fallback in the library API ==="
 # Both places that build channel rows must apply it, or the guide and the channel
 # list disagree about what a channel looks like.
@@ -848,30 +719,7 @@ else
   echo "  ✗ MISSING: fillMissingLogos must be defined once and called from decorate() and the guide"; FAIL=1
 fi
 
-echo "=== 0068: Audio re-encode self-heal (remux path) ==="
-# The output of the re-encode is raw AAC: the ADTS->ASC filter would refuse it, and
-# delay_moov is only for AC-3/E-AC-3, which the re-encode replaces.
-# 'encode' must beat the smart-copy shortcuts or a stereo AAC source is copied again.
-check public/js/components/VideoPlayer.js "shouldRetryWithAudioEncode(details)" "the player retries a failed remux"
-check public/js/components/VideoPlayer.js "if (this._audioEncodeActive) return false;" "it never retries a play that was already re-encoding (no loop)"
-check public/js/components/VideoPlayer.js "            this._audioRetryKey = null;" "each fresh selection gets one retry, the retry itself does not"
-check public/js/components/VideoPlayer.js "this.rememberAudioEncode(this.currentChannel, false)" "a flag that did not help is forgotten"
-
-echo "=== 0069: cleared-source errors are not playback failures ==="
-check public/js/components/VideoPlayer.js "isSourceCleared(video)" "the handler asks whether the source was just cleared"
-check public/js/components/VideoPlayer.js "video.getAttribute('src')" "by the src attribute, which is reliable (currentSrc is not: Chrome keeps the old URL)"
-check public/js/components/VideoPlayer.js "empty src attribute" "with the browser's own message as a second check"
-# The bug: gating on currentSrc alone. It must not be the only guard again.
-check_absent public/js/components/VideoPlayer.js "if (!video || !video.currentSrc || !video.error) return;" "no currentSrc-only guard left (Chrome keeps the old URL there)"
-
-echo "=== 0070: diagnostics for silent 'nothing plays' failures ==="
-check public/js/components/VideoPlayer.js "addEventListener('loadstart', () => this.armStartWatch())" "the player watches for a load that never starts"
-check public/js/components/VideoPlayer.js "addEventListener('playing', () => { this.clearStartWatch();" "and stops watching once it plays"
-check public/js/components/VideoPlayer.js "event: 'start-timeout'" "and reports it"
-check public/js/components/VideoPlayer.js "if (video.paused || video.currentTime > 0) return;" "but not when paused or already moving"
-
 echo "=== 0072: Hide All / Show All update the group checkboxes ==="
-check public/js/components/SourceManager.js "const groupKey = \`\${groupItemType}:\${group.categoryId}\`;" "setAllVisibility updates the group key that the checkbox is drawn from"
 # The same key must be what getGroupHtml reads, or the two drift apart again.
 if [ "$(grep -c 'groupItemType}:${group.categoryId}' public/js/components/SourceManager.js)" -ge "3" ]; then
   echo "  ✓ the group key is built the same way where it is drawn, saved and bulk-changed"
@@ -886,12 +734,6 @@ if awk '/-dts_delta_threshold/{d=NR} /args.push\(.-i., this\.(url|feed)/{i=NR} E
 else
   echo "  ✗ MISSING: -dts_delta_threshold must come before -i in the session arguments"; FAIL=1
 fi
-
-echo "=== 0075: HLS delivery (beta) for the web player, and play-start / play-end measurement ==="
-# (0102: the opt-in became the only path - see the 0102 section.)
-check public/js/components/VideoPlayer.js "this.notePlaying(); });" "the first picture is measured on the element's 'playing' event"
-check public/js/components/VideoPlayer.js "this.reportPlayEnd();" "and the play is closed out when it stops"
-check public/js/components/VideoPlayer.js "handleHlsFatal(data)" "a fatal hls.js error is no longer swallowed"
 
 echo "=== 0076: inert files removed (review P2-1, batch a) ==="
 for f in server/routes/users.js server/services/m3uXtreamAdapter.js server/plugins/hello.js; do
@@ -910,8 +752,6 @@ check_absent server/auth.js "openidconnect" "auth.js no longer loads the OIDC st
 check_absent server/auth.js "configureSessionSerialization" "or the session (de)serialisation"
 check_absent server/routes/auth.js "oidc" "no OIDC routes"
 check_absent server/db.js "getByOidcId" "no OIDC lookup in the user store"
-check_absent public/login.html "btn-sso-login" "no SSO button on the login page"
-check_absent public/index.html "SSO token" "the page no longer stores a ?token= from the URL"
 check_absent package.json "express-session" "express-session is not a dependency"
 check_absent package.json "passport-openidconnect" "nor is passport-openidconnect"
 check_absent package-lock.json "node_modules/express-session" "and the lockfile agrees"
@@ -937,16 +777,8 @@ check scripts/playback-report.js "play-start via" "the report reads the play-sta
 check scripts/playback-report.js "resolve timing" "and the resolve timing line, to tell cold plays from warm ones"
 # The script parses log lines by their exact wording, so the server must still write them that way.
 
-echo "=== 0082: a recording waiting for a viewer is listed, cancellable and not duplicated ==="
-check public/js/pages/RecordingsPage.js "waiting: 'Waiting for viewer'" "the web page labels it instead of showing the raw status"
-
 echo "=== 0084: the playback report keeps Apple-device plays apart from the web trial ==="
 check scripts/playback-report.js "DEVICE_SUFFIX" "device plays get their own rows"
-
-echo "=== 0087: cancelling the takeover prompt stops the play instead of taking the stream anyway ==="
-check public/js/components/VideoPlayer.js "VideoPlayer.CANCELLED = Symbol" "a declined takeover has its own answer, distinct from null"
-check public/js/components/VideoPlayer.js "decision === VideoPlayer.CANCELLED" "and play() stops there rather than falling through to the local strategy"
-check public/js/components/VideoPlayer.js "abandonPlay()" "the screen goes back to how it was, with no play-start reported"
 
 echo "=== 0090: the timestamp diagnostics become a supported tool ==="
 check scripts/stream-doctor.js "capture <pos_N>" "one tool with the five subcommands, replacing four throwaway scripts"
@@ -1119,27 +951,6 @@ else:
 PYCHK
 [ $? -eq 0 ] || FAIL=1
 
-echo "=== 0102: the web player is on the one path (Phase 3) ==="
-check public/js/components/VideoPlayer.js "                segmentedDelivery: true" "every browser asks for HLS segments, as the Apple client does"
-check public/js/components/VideoPlayer.js "recoverPlayback(reason" "recovery is a fresh resolve, once per selection"
-check public/js/components/VideoPlayer.js "hls.recoverMediaError();" "a fatal media error is first recovered in place"
-check public/js/components/VideoPlayer.js "this.stopConflictWatch();" "stop() also ends the recording-conflict poll"
-python3 - <<'PYCHK'
-import sys
-# Grep can prove something is present, not that something is gone. The whole point of
-# 0102 is what is gone: any of these back in a player means a second delivery path.
-live = open('public/js/components/VideoPlayer.js', encoding='utf-8').read()
-html = open('public/index.html', encoding='utf-8').read()
-bad = [f'live player: {g}' for g in ['/api/remux', '/api/transcode?url=', '/api/probe', 'startTranscodeSession',
-                                     'forceRemux', 'autoTranscode', 'pigtv_hls_delivery'] if g in live]
-bad += [f'settings: {g}' for g in ['setting-force-remux-tc', 'setting-hls-delivery-tc', 'setting-auto-transcode-tc'] if g in html]
-if bad:
-    print('  \u2717 MISSING: a second delivery path is back: ' + ', '.join(bad))
-    sys.exit(1)
-print('  \u2713 no remux, legacy pipe, local probe or beta toggle left in the web player')
-PYCHK
-[ $? -eq 0 ] || FAIL=1
-
 echo "=== 0103: remux retired - one delivery path (Phase 4) ==="
 # The checks that pinned the remux route, its registry, watchdog wiring, codec probe,
 # argument builder and diagnostics were retired with it; their history is in git.
@@ -1214,10 +1025,6 @@ check scripts/playback-report.js "profile \\\\(age" "the playback report counts 
 
 echo "=== 0115: frame-rate-aware master playlist for every session ==="
 check_absent server/services/transcodeSession.js "CODECS=" "the master playlist still carries no CODECS"
-check_absent public/js/components/VideoPlayer.js "stream.m3u8" "the web player does not assume the media playlist name"
-
-echo "=== 0116: HE-AAC passthrough for clients that can decode it ==="
-check_absent public/js/components/VideoPlayer.js "heaac" "the web player never sends heaac (Chrome cannot decode HE-AAC)"
 
 echo "=== 0117: channel numbers (C-A) ==="
 check_absent server/routes/library.js "GUIDE_NUMBER_KEY" "dead number-keyed cursor code removed in 0164 (numbers are labels only since 0139)"
@@ -1234,21 +1041,6 @@ echo "=== 0120: source catalogue for the Sources picker ==="
 awk '/^router.use\(requireAdmin\);/{a=NR} /router.get\(.\/:id\/catalogue./{c=NR} END{exit !(a && c && a < c)}' server/routes/sources.js \
   && echo "  ✓ the catalogue is declared after router.use(requireAdmin) (admin only)" \
   || { echo "  ✗ MISSING: the catalogue route must come after router.use(requireAdmin)"; FAIL=1; }
-
-echo "=== 0121: the web reads /api/library (W2.1) ==="
-check public/js/api.js "API.request('GET', '/library/categories')" "api.js has the library helpers"
-check public/js/api.js "/sources/\${id}/catalogue?type=live" "and the Sources catalogue"
-check public/js/components/ChannelList.js "API.library.allChannels()" "the live sidebar pages /api/library/channels"
-check public/js/components/ChannelList.js "API.library.favourites()" "and reads /api/library/favourites"
-check public/js/components/ChannelList.js "window.app.player.play(channel, null)" "and plays by channel identity, never a stream URL"
-check public/js/components/EpgGuide.js "API.library.guide({ start, end, limit: 500, cursor })" "the guide pages /api/library/guide with a cursor"
-check public/js/components/SourceManager.js "API.sources.catalogue(sourceId)" "the Sources picker reads the catalogue"
-check public/js/pages/HomePage.js "window.API.library.favourites()" "the Home favourites row reads /api/library/favourites"
-for f in public/js/components/ChannelList.js public/js/components/EpgGuide.js public/js/components/SourceManager.js public/js/components/VideoPlayer.js public/js/pages/LivePage.js public/js/pages/Guide.js; do
-    check_absent "$f" "/proxy/xtream\|/proxy/epg\|API\.proxy" "$f no longer calls the Xtream-emulation or whole-EPG routes"
-done
-check_absent public/index.html "content-type-movies" "the picker's movie/series tabs are gone"
-check_absent public/js/components/VideoPlayer.js "!this.currentStreamUrl" "recovery replays a channel by identity, without a stream URL"
 
 echo "=== 0122: the fork's leftovers removed (W2.1) ==="
 for f in public/js/pages/MoviesPage.js public/js/pages/SeriesPage.js public/js/pages/WatchPage.js \
@@ -1268,24 +1060,9 @@ check_absent server/routes/proxy.js "router.get('/m3u/" "no /m3u"
 check_absent server/routes/proxy.js "pluto" "no Pluto header special case"
 check_absent server/routes/transcode.js "router.post('/session'" "no POST /api/transcode/session"
 check_absent server/routes/channels.js "router.get('/recent'" "no /api/channels/recent (movie/series only)"
-check_absent public/index.html 'data-page="movies"' "no Movies nav entry"
-check_absent public/index.html 'data-page="series"' "no Series nav entry"
-check_absent public/index.html 'id="page-watch"' "no VOD watch page markup"
-check_absent public/css/main.css ".movie-card" "no movie/series CSS"
-check_absent public/js/api.js "proxy: {" "api.js has no proxy helpers"
-
-echo "=== 0123: channel-number editor (Settings -> Channel numbers) ==="
-check public/index.html 'data-subtab="lineup"' "the Settings view exists (under Channels, 0182)"
-check public/index.html 'id="lineup-list"' "with its list"
-check public/js/api.js "API.request('PUT', '/lineup/numbers', { numbers })" "api.js saves through PUT /api/lineup/numbers"
-check public/js/pages/Settings.js "API.lineup.get()" "the panel reads GET /api/lineup"
-check public/js/pages/Settings.js "if (panel === 'lineup' && !this.lineupEdits?.size) this.loadLineup();" "and loads when the panel opens (unless numbers are typed but unsaved, #128)"
-check public/js/pages/Settings.js "this.setLineupStatus(err.message" "the server's validation error is shown"
 
 echo "=== 0124: admin status page (W2.2) ==="
 check_absent server/routes/status.js "url: summary.url" "a session's URL is never passed through"
-check public/js/pages/StatusPage.js "setInterval(() => this.refresh(), this.refreshMs)" "the page refreshes while shown"
-check public/index.html 'data-page="status"' "with an admin nav entry"
 
 echo "=== 0126: the tuner model, T1 (PIGTV_TUNER=1, off by default) ==="
 check_absent server/services/tuner.js "'independent_segments+delete_segments" "a tuner's ffmpeg never deletes segments (the server keeps the window)"
@@ -1296,12 +1073,8 @@ check_absent server/services/compressionFilter.js "'video/mp2t'" "never for segm
 echo "=== 0130: a recording's own tuner uses the Apple TV's default capabilities ==="
 check_absent server/services/playbackStrategy.js "ac3: true, eac3: true, flac: false, heaac: true" "no heaac in RECORDING_CAPABILITIES"
 
-echo "=== 0133: channel health (C-G) ==="
-check public/js/pages/StatusPage.js "Least reliable channels" "and the web Status page shows them"
 echo "=== 0134: EPG matching (S4.2) ==="
 check_absent server/services/syncService.js "epg_mappings" "the sync never touches the mappings"
-check public/index.html 'data-subtab="epg">EPG matching' "Settings has an EPG matching view (under Channels, 0182)"
-check public/js/pages/Settings.js "async loadEpgMatching()" "which loads the unmatched list"
 
 echo "=== 0135: sources, settings and users in SQLite (S4.3a) ==="
 check_absent server/db.js "structuredClone" "no clone of the store on reads"
@@ -1320,18 +1093,11 @@ check_absent server/index.js "app.get('\*'" "not the Express 4 '*'"
 echo "=== 0139: channel numbers are labels; the guide keeps the provider's order ==="
 check_absent server/routes/library.js "const numbered = false" "dead numbered variable removed in 0164 (kept guide in provider order per 0139)"
 
-echo "=== 0142: stalls count towards channel health ==="
-check public/js/pages/StatusPage.js "'Stalls', 'Watched'" "the Status page shows stalls and minutes watched"
-
 echo "=== 0145: the playback report shows the client wait ==="
 check scripts/playback-report.js "clientWaitSec: wait !== null && wait >= 0" "client wait = first picture minus resolve, per play"
 check scripts/playback-report.js "Where the time goes" "a per-path median / p90 table"
 
-echo "=== 0146: sport categories (C-H) ==="
-check public/js/components/SourceManager.js "sportToggleHtml(group)" "the web Sources picker has a Sport toggle"
-
 echo "=== 0147: EPG programme categories stored (C-I) ==="
-check public/js/pages/StatusPage.js "this.loadEpgCategories();" "the Status page shows the EPG categories"
 python3 - <<'PY2' || FAIL=1
 import sys
 s = open('server/db/sqlite.js').read()
@@ -1343,25 +1109,8 @@ PY2
 echo "=== 0148: sport events and the follow list (C-I) ==="
 check_absent server/services/sportsEvents.js "FROM epg_programs" "never the raw table"
 
-echo "=== 0149: web Settings -> Sports (C-I) ==="
-check public/index.html 'data-tab="sports">Sports</button>' "a Sports tab"
-check public/index.html 'id="sports-preview-list"' "with the preview table"
-check public/js/pages/Settings.js "if (this.isAdmin()) this.loadSports();" "loaded when the tab opens (the preview is admin-only)"
-# #199: every account's own "Your sport" panel opens with the tab.
-check public/index.html '<script src="/js/pages/SportSettings.js' "Settings › Your sport is loaded"
-check public/js/pages/Settings.js "this.sportFollow.load();" "and filled when the tab opens"
-check public/js/pages/Settings.js "await this.loadSportsPreview();" "the preview loads with the tab"
-# D-42 (0394): the admin keyword list is retired; the web shows the followed leagues read-only and never writes them.
-check_absent public/js/api.js "API.request('PUT', '/sports/follow'" "no keyword list to save (D-42)"
-check_absent public/js/components/SourceManager.js "Sport on now row" "the Sport toggle no longer promises the old Home row"
-
 echo "=== 0150: sport programme kinds and merging by meaning (C-I) ==="
 check_absent server/services/sportsEvents.js "if (EXCLUDE_RE.test(text) || categories.some" "non-events are classified, not dropped"
-
-echo "=== 0151: web Settings -> Sports preview grouped by kind ==="
-check public/js/pages/Settings.js "this.sportsOpenKinds = new Set(\['event', 'replay'\]);" "events and replays open, the rest collapsed"
-check public/js/pages/Settings.js "\['placeholder', 'Placeholders'\]" "grouped by kind"
-check public/js/pages/Settings.js "guide title" "the merged guide titles are listed"
 
 echo "=== 0152: live or replay from flags, the first airing and league hours (C-I) ==="
 python3 - <<'PY3' || FAIL=1
@@ -1372,24 +1121,11 @@ if not (s.index('ADD COLUMN flags') < s.index("DROP VIEW epg_live") < s.index('C
 print("  ✓ the flags column is added, and a stale view dropped, before epg_live is created")
 PY3
 
-echo "=== 0153: the sport horizon is a whole weekend (C-I) ==="
-check public/index.html "Recognised in the next 72 hours" "the web preview says so"
-
 echo "=== 0155: a viewer joins a running tuner whose output it can play ==="
 check_absent server/services/playbackStrategy.js "ac3: true, eac3: true, flac: false, heaac: true" "RECORDING_CAPABILITIES still without heaac"
 
 echo "=== 0156: schedule observability and recent problems ==="
 check_absent server/services/recordingEngine.js "scheduledDb.setStatus(schedule.id, 'missed'" "the missed paths go through it too, not straight to the db"
-check public/js/pages/RecordingsPage.js "renderRecentProblems(items)" "the web Recordings page has a Recent problems section"
-
-echo "=== 0157: the recordings folder is checked for real (missing, not writable, an unmounted share, low space) ==="
-check public/js/pages/StatusPage.js "renderRecordingsFolderWarning(folder)" "and shown as a warning banner on the web Status page"
-
-echo "=== 0158: an unanswered recording prompt no longer blocks a recording forever ==="
-check public/index.html "dvr-setting-prompt-timeout" "and a web Settings field"
-
-echo "=== 0161: cricket league recognition, ESPN fixtures, the ESPN live/replay rule (C-I) ==="
-check public/js/pages/StatusPage.js "renderSportFixtures(fx)" "and the web Status page shows it"
 
 echo "=== 0162: stale/out-of-window ESPN data must never manufacture a replay (C-I) ==="
 check_absent server/services/sportsFixtures.js "function mergeFixtures(" "cricket is a full replace too, so a postponed game does not linger"
@@ -1397,25 +1133,8 @@ check_absent server/services/sportsFixtures.js "function mergeFixtures(" "cricke
 echo "=== 0171: the channel linker (multi-provider P3) ==="
 check_absent server/services/channelLinks.js "url_data," "the linker never reads a backup's stream URL"
 
-echo "=== 0172: the provider admin pages (multi-provider P4) ==="
-check public/index.html 'id="tab-providers"' "the Providers tab has its section"
-check public/index.html 'id="tab-backuplinks"' "and so does Backup links"
-check public/index.html 'pages/BackupLinksSettings.js' "its script is loaded (before Settings.js builds it)"
-check public/js/pages/Settings.js "this.providers = new ProvidersSettings();" "Settings builds the Providers panel"
-check public/js/pages/Settings.js "this.backupLinks = new BackupLinksSettings();" "and the Backup links panel"
-check public/js/pages/ProvidersSettings.js "for (const k of \['epgUrl', 'idOverlayUrl'\]) if (v(k) !== String(saved\[k\] ?? '')) body\[k\] = v(k);" "0182: an emptied guide or overlay address is removed, an unchanged one is not sent"
-check_absent public/js/pages/ProvidersSettings.js "p.idOverlayUrl" "the page never reads the stored overlay address"
-
 echo "=== 0174: resolve failover, breaker, quarantine, C-J (multi-provider P6) ==="
 check docs/CLIENT-CONTRACT.md "### C-J. Provider on resolve" "C-J is written down"
-
-echo "=== 0177: recordings choose a free provider, fail over, continue in parts (multi-provider P7) ==="
-
-echo "=== 0180: a start stopped on request is not a provider failure (P10) ==="
-check public/js/components/VideoPlayer.js "if (res.status === 499) return VideoPlayer.SUPERSEDED;" "the web player ignores a superseded resolve"
-
-echo "=== 0181: the same account is one connection pool (P10) ==="
-check public/js/pages/ProvidersSettings.js "these count as one connection. Check this provider's settings." "Settings -> Providers warns"
 
 echo "=== 0182-0187: one Providers section, six tabs, sport lists, the build number ==="
 python3 - <<'PY' || FAIL=1
@@ -1425,10 +1144,6 @@ if s.index("router.put('/order'") > s.index("router.put('/:id'"):
     print("  ✗ PUT /order is registered after PUT /:id, which would swallow it"); sys.exit(1)
 print("  ✓ PUT /order is registered before PUT /:id")
 PY
-check public/index.html 'data-tab="channels">Channels' "six tabs: Channels"
-check public/index.html 'id="subtabs-channels"' "with its three views on a strip"
-check_absent public/index.html 'data-tab="sources"' "the Sources tab is gone"
-check_absent public/index.html 'id="tab-debug"' "the Debug tab is gone"
 python3 - <<'PY' || FAIL=1
 import re, sys, subprocess
 m = re.search(r"const BUILD = '(\d{4})';", open('server/version.js').read())
@@ -1437,15 +1152,10 @@ if not m:
 print(f"  ✓ version.js has a well-formed build ({m.group(1)}); the next build is one more")
 PY
 
-echo "=== 0188-0189: interruptions, in-stream recovery and the standby (off by default) ==="
-check public/index.html 'id="setting-relay-enabled"' "Settings has the In-stream recovery switch"
-check public/index.html 'id="setting-standby-enabled"' "Settings has the Hot standby switch"
-
 echo "=== R12: channel warming (off by default) ==="
 check scripts/relay-rig.js "relay-rig.js standby stall" "and a real-ffmpeg rig"
 
 echo "=== 0191: reconnect timestamp loop, blank pictures, raw captures ==="
-check public/js/pages/StatusPage.js "Blank picture" "Status shows it"
 check scripts/stream-doctor.js "function rawFetch(" "capture keeps the provider's raw bytes"
 
 echo "=== 0192: recording codec probe reads ffprobe JSON (audit R02) ==="
@@ -1466,9 +1176,6 @@ check_absent server/services/sportsEvents.js "runBuild(bucket, key, decorateChan
 echo "=== 0196: media always needs a signed-in user; handles only (audit R01) ==="
 check_absent server/auth.js "streamAuthFromSettings" "no setting turns it off"
 
-echo "=== R11: the warming switch is in Settings ==="
-check public/index.html 'id="setting-warm-next-channel"' "Settings has a Warm the next channel switch"
-check public/js/pages/Settings.js "bind('setting-warm-next-channel', 'warmNextChannel');" "and saves it"
 echo "=== R17: hardened image ==="
 check Dockerfile "FROM ubuntu:24.04 AS builder" "multi-stage build: compilers live in a builder stage"
 check Dockerfile "COPY --from=builder /app/node_modules" "runtime takes node_modules from the builder"
@@ -1496,7 +1203,6 @@ PY
 
 echo "=== 0203: TS captures; audio re-encoded and decode-checked ==="
 check_absent server/services/recordingEngine.js "'-f', 'matroska'," "not Matroska (one audio config per file)"
-check public/js/pages/Settings.js "standby.checked = s.standbyEnabled === true && s.relayEnabled === true;" "Hot standby never shows ticked while recovery is off"
 
 echo "=== simplification build ==="
 check_absent server/routes/info.js "safely(" "no switchable feature flags left to guard"
