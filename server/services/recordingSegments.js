@@ -38,10 +38,10 @@ const media = require('./recordingMedia');
 const { parseMediaPlaylist, renderMediaPlaylist } = require('./hlsPlaylist');
 const { checkRecordingsFolderAsync } = require('./recordingsFolder');
 const shareFs = require('./shareFs'); // #8
-const { uniqueFilePath } = require('./recordingNames');
+const { uniqueFilePathAsync } = require('./recordingNames');
 const { recordings: recordingsDb } = require('../db/recordingsDb');
 const owners = require('./recordingOwners');
-const { owned, withdraw, write } = owners; // R4-D2, 0264: recordings being deleted
+const { owned, write } = owners; // R4-D2, 0264: recordings being deleted
 
 const SEGMENT_SEC = 4;
 const MAX_FINISH_ATTEMPTS = 3;
@@ -455,16 +455,37 @@ function configure(d) { Object.assign(deps, d); }
 let finishing = false;
 const lastMoveTry = new Map();
 
-/** The share's channel folder for this recording, or null when the share cannot take it now. */
-async function shareFolder(rec) {
-    let root;
-    try { root = await deps.recordingsRoot(); } catch (e) { return null; }
-    const check = await checkRecordingsFolderAsync(root, await deps.minFreeGB()); // #8: never blocks on a hung share
-    if (!check.ok) return null;
-    const dir = path.join(root, rec.segment_folder || 'Unknown Channel');
-    try { if (!(await shareFs.exists(dir))) await shareFs.mkdir(dir); } catch (e) { return null; }
-    return dir;
+/**
+ * #287: file calls on `p` from the finishing queue: on the share through shareFs (a helper process with a deadline, never
+ * the event loop); in appdata (the work folder) the same calls made here. A share that misses a deadline rejects with
+ * SHARE_UNRESPONSIVE: the attempt ends there and the recording keeps its state (not a failed attempt).
+ */
+function ioFor(p) {
+    const rel = path.relative(path.resolve(workRoot()), path.resolve(p));
+    return rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? shareFs.local : shareFs;
 }
+const unresponsive = (err) => Boolean(err && err.code === 'SHARE_UNRESPONSIVE');
+const notResponding = () => Object.assign(new Error('the recordings folder is not responding'), { code: 'SHARE_UNRESPONSIVE' });
+/** The size of `file`, or null when it cannot be read (reported as unknown). */
+async function sizeOn(file) {
+    try { const s = await ioFor(file).stat(file); return s ? s.size : null; } catch (e) { return null; }
+}
+/** Remove a file this job made; one that cannot be removed now stays journalled (the next attempt or the sweep). */
+async function removeMade(file) {
+    try { await ioFor(file).unlink(file); } catch (e) { /* stays listed */ }
+}
+
+/** The share's channel folder for this recording ({ dir }), or { dir: null, problem } when the share cannot take it now. */
+async function shareFolderCheck(rec) {
+    let root;
+    try { root = await deps.recordingsRoot(); } catch (e) { return { dir: null, problem: shareFs.unresponsive() ? 'unresponsive' : 'missing' }; }
+    const check = await checkRecordingsFolderAsync(root, await deps.minFreeGB()); // #8: never blocks on a hung share
+    if (!check.ok) return { dir: null, problem: check.problem };
+    const dir = path.join(root, rec.segment_folder || 'Unknown Channel');
+    try { if (!(await shareFs.exists(dir))) await shareFs.mkdir(dir); } catch (e) { return { dir: null, problem: unresponsive(e) ? 'unresponsive' : 'missing' }; }
+    return { dir, problem: null };
+}
+const shareFolder = async (rec) => (await shareFolderCheck(rec)).dir;
 
 async function removeWork(rec) {
     stopFollowers(rec.id);
@@ -476,9 +497,8 @@ async function removeWork(rec) {
     }
 }
 
-function completed(rec, file, extra = {}) {
-    let size = null;
-    try { size = fs.statSync(file).size; } catch (e) { /* reported as unknown */ }
+/** `size`: read before (sizeOn), so nothing is awaited between the last owned() check and this. */
+function completed(rec, file, size, extra = {}) {
     recordingsDb.setSegmentFields(rec.id, { file_path: file, status: 'completed', file_size_bytes: size, ...extra });
     try { recordingsDb.setAdDetectStatus(rec.id, 'pending'); } catch (e) { /* very old database */ }
 }
@@ -486,22 +506,56 @@ function completed(rec, file, extra = {}) {
 /**
  * F1 (0242): put a finished file in place without ever replacing one that is there. link() fails
  * with EEXIST if the name is taken (atomic, unlike a check before rename), and then the next name
- * `alt(n)` is tried. Returns the path it was published at; the partial is gone. 0276: the new name is
- * journalled as published (for recording `id`) before the partial goes; the caller commits it once
- * the database points at it (owners.committed). A name that cannot be journalled is taken back.
+ * `alt(n)` is tried. Returns the path it was published at; the partial is gone. The caller commits
+ * the name once the database points at it (owners.committed).
+ * #287: through bounded calls, and journalled BEFORE the link, with the partial's identity: a link that misses its
+ * deadline may still land, and its name is then this code's to take back (owners.takeBack, the sweep). EEXIST at a name
+ * that is this very file (such a late link) adopts it; another file there frees the journal row and tries the next name.
+ * An errno answer that proves no link was made (NOT_LINKED) frees the row; any other (EIO, ESTALE...) keeps the row and
+ * the partial (keepPartial), so a link that did happen is taken back by the next attempt; either way it is a failed
+ * attempt. Only SHARE_UNRESPONSIVE (no answer in time) is a stall: row and partial kept, the attempt given back.
  */
-function publishNoReplace(partial, dir, first, alt, id) {
-    for (let n = 1; ; n++) {
-        const dest = path.join(dir, n === 1 ? first : alt(n));
-        try { fs.linkSync(partial, dest); } catch (err) { if (err.code === 'EEXIST') continue; throw err; }
-        try { owners.published(dest, id); } catch (err) {
-            // Not journalled: the name is taken back. If even that fails, the partial - journalled, the
-            // same file - is the only way back to it, so the caller must keep it (0279).
-            try { fs.unlinkSync(dest); } catch (e) { err.keepPartial = true; }
-            throw err;
+// #287: link answers that prove no link was made; any other (EIO, ESTALE, ETIMEDOUT...) may hide one that was.
+const NOT_LINKED = new Set(['ENOENT', 'EACCES', 'EPERM', 'ENOSPC', 'EROFS', 'EXDEV', 'EMLINK', 'ENAMETOOLONG', 'EDQUOT',
+    'EOPNOTSUPP', 'ENOTSUP', 'EINVAL', 'ENOTDIR', 'ELOOP']);
+
+async function publishNoReplace(partial, dir, first, alt, id) {
+    const io = ioFor(partial);
+    owners.hold(partial); // #287: never taken back while it is published
+    try {
+        let identity;
+        try { identity = await io.identity(partial); } catch (err) { if (unresponsive(err)) err.keepPartial = true; throw err; }
+        if (!identity) throw new Error('the finished file is missing');
+        for (let n = 1; ; n++) {
+            const dest = path.join(dir, n === 1 ? first : alt(n));
+            owners.hold(dest); // before it is journalled; the caller releases it once recorded (or withdrawn)
+            let mine = false;
+            try {
+                if (!owners.published(dest, id, identity)) continue; // the journal lists that name for something else
+                try {
+                    await io.link(partial, dest);
+                } catch (err) {
+                    if (unresponsive(err)) { err.keepPartial = true; throw err; }
+                    if (err.code !== 'EEXIST') {
+                        // Uncertain: the name stays journalled (taken back next attempt). Not a stall: the attempt counts.
+                        if (!NOT_LINKED.has(err.code)) { err.keepPartial = true; throw err; }
+                        owners.forget(dest);
+                        throw err;
+                    }
+                    let there = null;
+                    try { there = await io.identity(dest); } catch (e) { if (unresponsive(e)) { e.keepPartial = true; throw e; } }
+                    if (there !== identity) { owners.forget(dest); continue; }
+                    // This very file: an earlier link of it that landed late. That name is its own.
+                }
+                try { await io.unlink(partial); owners.forget(partial); } catch (e) { /* stays listed: taken back later */ }
+                mine = true;
+                return dest;
+            } finally {
+                if (!mine) owners.release(dest);
+            }
         }
-        try { fs.unlinkSync(partial); } catch (e) { /* already gone */ }
-        return dest;
+    } finally {
+        owners.release(partial);
     }
 }
 
@@ -522,9 +576,9 @@ async function joinSegments(rec, dir, first, alt, signal = null, made = () => {}
     }
     try {
         await pipeline(Readable.from(pieces(), { objectMode: false }), fs.createWriteStream(partial, { flags: 'wx' }), ...(signal ? [{ signal }] : []));
-        return publishNoReplace(partial, dir, first, alt, rec.id);
+        return await publishNoReplace(partial, dir, first, alt, rec.id);
     } catch (err) {
-        if (!err.keepPartial) { try { fs.unlinkSync(partial); } catch (e) { /* none */ } }
+        if (!err.keepPartial && !unresponsive(err)) await removeMade(partial);
         throw err;
     }
 }
@@ -533,8 +587,9 @@ async function joinSegments(rec, dir, first, alt, signal = null, made = () => {}
 async function sameBytesAsSegments(file, rec) {
     const files = segmentFiles(rec);
     let total = 0;
-    for (const f of files) total += fs.statSync(f).size;
-    if (fs.statSync(file).size !== total) return false;
+    for (const f of files) total += fs.statSync(f).size; // appdata
+    const st = await ioFor(file).stat(file); // #287
+    if (!st || st.size !== total) return false;
     const fh = await fsp.open(file, 'r');
     try {
         let at = 0;
@@ -562,25 +617,46 @@ const keptOriginalPath = (mp4) => path.join(path.dirname(mp4), `${path.basename(
  * recording has always been before preparation, and preparation then takes it from there.
  */
 async function deliverTs(rec, stitched) {
-    const dir = await shareFolder(rec);
-    if (!dir) throw new Error('the recordings folder is not usable');
+    const { dir, problem } = await shareFolderCheck(rec);
+    if (!dir) {
+        if (problem === 'unresponsive') throw notResponding(); // #287: a stall, not a failure
+        throw new Error('the recordings folder is not usable');
+    }
     const name = rec.segment_name || `Recording ${rec.id}`;
     // 0264: a writer of the recording (a deletion stops it and waits); deleted meanwhile, its copy goes.
-    const target = await write(rec.id, async (signal, made) => {
+    const done = await write(rec.id, async (signal, made) => {
         const t = await joinSegments(rec, dir, `${name}.ts`, n => `${name} (${n}).ts`, signal, made);
-        if (!owned(rec.id)) { withdraw(t, rec.id, 'recording'); return null; }
-        return t;
+        const size = await sizeOn(t);
+        if (!owned(rec.id)) {
+            try { await owners.withdrawBounded(t, rec.id, 'recording', ioFor(t)); } finally { owners.release(t); }
+            return null;
+        }
+        return { target: t, size };
     });
-    if (!target) return;
-    completed(rec, target, { duration_sec: Math.round(stitched.durationSec), segment_state: 'done' });
-    owners.committed(target);
+    if (!done) return;
+    const { target } = done;
+    try {
+        completed(rec, target, done.size, { duration_sec: Math.round(stitched.durationSec), segment_state: 'done' });
+        owners.committed(target);
+    } finally {
+        owners.release(target);
+    }
     recordingsDb.setNativeStatus(rec.id, 'pending');
     await removeWork(rec);
     console.warn(`[Recordings] #${rec.id} is on the share as ${path.basename(target)} (the MP4 could not be made; it will be prepared as usual)`);
 }
 
+// #287: recordings being finished or moved in this process: never two at once for one recording, whoever calls.
+const inFlight = new Set();
+async function exclusive(id, work) {
+    if (inFlight.has(id)) return;
+    inFlight.add(id);
+    try { return await work(); } finally { inFlight.delete(id); }
+}
+
 /** Remux the segments to the recording's MP4 and put it on the share (or in appdata while the share is down). */
-async function finishOne(rec) {
+const finishOne = (rec) => exclusive(rec.id, () => finishNow(rec));
+async function finishNow(rec) {
     await owners.whenSwept(); // 0279
     const stitched = stitchArchive(rec.work_dir);
     if (stitched.segments === 0) {
@@ -588,24 +664,65 @@ async function finishOne(rec) {
         await removeWork(rec);
         return;
     }
-    const attempts = (rec.segment_attempts || 0) + 1;
-    recordingsDb.setSegmentFields(rec.id, { segment_attempts: attempts });
+    // #287: what an earlier attempt left on the way (a link that landed after its deadline) goes first, so this one
+    // never publishes a second copy beside it.
+    try { await owners.takeBack(rec.id, ioFor); } catch (err) {
+        if (!unresponsive(err)) throw err;
+        console.warn(`[Recordings] #${rec.id} waits: the recordings folder is not responding`);
+        return;
+    }
+    const before = rec.segment_attempts || 0;
+    if (before >= MAX_FINISH_ATTEMPTS) {
+        // #287: its remux attempts are used up (the .ts that followed met a share that did not answer): only the .ts
+        // delivery is tried again, never another remux.
+        await deliverLastResort(rec, stitched);
+        return;
+    }
+    recordingsDb.setSegmentFields(rec.id, { segment_attempts: before + 1 });
+    try {
+        await finishAttempt(rec, stitched, before + 1);
+    } catch (err) {
+        if (!unresponsive(err)) throw err;
+        // #287: a share that stopped answering is not a failed attempt: it stays 'finishing' for the next tick.
+        if (owned(rec.id)) recordingsDb.setSegmentFields(rec.id, { segment_attempts: before });
+        console.warn(`[Recordings] #${rec.id} waits: the recordings folder stopped responding while its file was put there; it is tried again`);
+    }
+}
 
+/** The .ts once the remux has failed MAX_FINISH_ATTEMPTS times; a share that does not answer leaves it for the next tick. */
+async function deliverLastResort(rec, stitched) {
+    try {
+        if (!owned(rec.id)) return;
+        await deliverTs(recordingsDb.getById(rec.id), stitched);
+    } catch (err) {
+        if (!owned(rec.id)) return; // 0264: stopped by its deletion
+        if (unresponsive(err)) { // #287: tried again (the .ts only), not failed
+            console.warn(`[Recordings] #${rec.id}: its MP4 could not be made; its .ts waits for the recordings folder to respond`);
+            return;
+        }
+        recordingsDb.setSegmentFields(rec.id, { status: 'failed', segment_state: 'failed',
+            error: `The recording could not be finished (${err.message}); its segments are kept in appdata.` });
+    }
+}
+
+async function finishAttempt(rec, stitched, attempts) {
     const dir = await shareFolder(rec);
-    let target = dir ? uniqueFilePath(dir, rec.segment_name || `Recording ${rec.id}`, '.mp4') : path.join(rec.work_dir, 'final.mp4');
-    try { fs.unlinkSync(`${target}.partial`); } catch (e) { /* none (the fixed name before 0273) */ }
+    const name = rec.segment_name || `Recording ${rec.id}`;
+    let target = dir ? await uniqueFilePathAsync(dir, name, '.mp4', (p) => shareFs.exists(p)) : path.join(rec.work_dir, 'final.mp4');
+    const io = ioFor(target);
+    try { await io.unlink(`${target}.partial`); } catch (e) { if (unresponsive(e)) throw e; } // the fixed name before 0273
     const partial = owners.partialFor(target); // 0273: its own name, journalled by its writer
 
     const codecs = await media.nativeTools.codecs(stitched.file);
     console.log(`[Recordings] Making the MP4 of #${rec.id} from ${stitched.segments} segments -> ${dir ? target : 'the work folder (the share is not usable now)'}`);
     // 0264: the remux and its check are a writer of the recording: a deletion stops it and waits until
     // its partial is gone.
-    const { problem, keep } = await write(rec.id, async (signal, made) => {
+    const { problem, keep, removed } = await write(rec.id, async (signal, made) => {
         made(partial);
-        const result = await media.nativeTools.ffmpeg(media.buildNativeRemuxArgs(stitched.file, partial, codecs), { watchFile: partial, signal });
+        const result = await media.nativeTools.ffmpeg(media.buildNativeRemuxArgs(stitched.file, partial, codecs), { watchFile: partial, signal, sizeOf: io.sizeOf });
         let problem = null;
         let keep = null;
-        if (result.code !== 0 || !fs.existsSync(partial)) {
+        if (result.code !== 0 || !(await io.exists(partial))) {
             problem = result.tail.slice(-3).join(' | ') || `ffmpeg exited with code ${result.code}`;
         } else {
             const check = await media.checkPrepared(stitched.file, partial, { signal });
@@ -614,36 +731,36 @@ async function finishOne(rec) {
             // audio could not be read): the segments are its original and are kept, as preparation keeps one.
             else if (check.keepOriginal) keep = check.reason;
         }
-        if (!owned(rec.id)) { try { fs.unlinkSync(partial); } catch (e) { /* none */ } }
-        return { problem, keep };
+        if (!owned(rec.id)) { await removeMade(partial); return { problem, keep, removed: true }; }
+        return { problem, keep, removed: false };
     });
     if (!owned(rec.id)) { // deleted (or being deleted) meanwhile
-        try { fs.unlinkSync(partial); } catch (e) { /* none */ }
+        if (!removed) await removeMade(partial);
         return;
     }
     if (problem) {
-        try { fs.unlinkSync(partial); } catch (e) { /* none */ }
+        await removeMade(partial);
         console.error(`[Recordings] Could not make the MP4 of #${rec.id} (attempt ${attempts}): ${problem}`);
         if (attempts < MAX_FINISH_ATTEMPTS) return;
-        try {
-            if (!owned(rec.id)) return;
-            await deliverTs(recordingsDb.getById(rec.id), stitched);
-        } catch (err) {
-            if (!owned(rec.id)) return; // 0264: stopped by its deletion
-            recordingsDb.setSegmentFields(rec.id, { status: 'failed', segment_state: 'failed',
-                error: `The recording could not be finished (${err.message}); its segments are kept in appdata.` });
-        }
+        await deliverLastResort(rec, stitched); // the attempt stays counted: the remux did fail
         return;
     }
 
     // F1: published without replacing a file that appeared at its name meanwhile.
     const mp4Name = path.basename(target, '.mp4');
-    target = publishNoReplace(partial, path.dirname(target), `${mp4Name}.mp4`, n => `${mp4Name} (${n}).mp4`, rec.id);
-    media.verifiedNativeFiles.add(target);
-    // F2 (0243): with an original to keep the row says 'moving' until that original is published,
-    // so a restart mid-copy finds it in findSegmentWork() and finishes the move.
-    completed(rec, target, { duration_sec: Math.round(stitched.durationSec), segment_state: dir && !keep ? 'done' : 'moving', segment_keep: keep });
-    owners.committed(target);
+    target = await publishNoReplace(partial, path.dirname(target), `${mp4Name}.mp4`, n => `${mp4Name} (${n}).mp4`, rec.id);
+    try {
+        const size = await sizeOn(target);
+        // #287: deleted while it was published (the link is awaited now): that copy goes, nothing is recorded.
+        if (!owned(rec.id)) { await owners.withdrawBounded(target, rec.id, 'MP4', ioFor(target)); return; }
+        media.verifiedNativeFiles.add(target);
+        // F2 (0243): with an original to keep the row says 'moving' until that original is published,
+        // so a restart mid-copy finds it in findSegmentWork() and finishes the move.
+        completed(rec, target, size, { duration_sec: Math.round(stitched.durationSec), segment_state: dir && !keep ? 'done' : 'moving', segment_keep: keep });
+        owners.committed(target);
+    } finally {
+        owners.release(target); // #287: recorded or withdrawn: takeBack may see it again
+    }
     recordingsDb.setNativeStatus(rec.id, 'ready', keep ? { error: `Original kept: ${keep}` } : undefined);
     recordingsDb.setNativeVersion(rec.id, media.NATIVE_VERSION);
     if (dir && keep) {
@@ -676,8 +793,8 @@ async function keepOriginal(rec, dir) {
     const base = path.basename(rec.file_path, path.extname(rec.file_path));
     try {
         for (const known of [rec.segment_original, keptOriginalPath(path.join(dir, path.basename(rec.file_path)))]) {
-            // 0280: never a file the clean-up sweep may still remove (owners.adoptable).
-            if (known && fs.existsSync(known) && owners.adoptable(known) && await sameBytesAsSegments(known, rec)) {
+            // 0280: never a file the clean-up sweep may still remove (owners.adoptable). #287: bounded calls.
+            if (known && (await ioFor(known).exists(known)) && (await owners.adoptable(known, ioFor(known))) && await sameBytesAsSegments(known, rec)) {
                 if (!owned(rec.id)) return false; // R4-D2: a file found, not published here: left alone
                 recordingsDb.setSegmentFields(rec.id, { segment_original: known });
                 return true;
@@ -687,12 +804,19 @@ async function keepOriginal(rec, dir) {
         const published = await write(rec.id, async (signal, made) => {
             const p = await joinSegments(rec, dir, `${base}.ts`, n => `${base} (original${n > 2 ? ` ${n - 1}` : ''}).ts`, signal, made);
             // D1 (0251), R4-D2: deleted (or being deleted) while it was copied - this copy is its own, so it goes too.
-            if (!owned(rec.id)) { withdraw(p, rec.id, 'kept original'); return null; }
+            if (!owned(rec.id)) {
+                try { await owners.withdrawBounded(p, rec.id, 'kept original', ioFor(p)); } finally { owners.release(p); }
+                return null;
+            }
             return p;
         });
         if (!published) return false;
-        recordingsDb.setSegmentFields(rec.id, { segment_original: published });
-        owners.committed(published);
+        try {
+            recordingsDb.setSegmentFields(rec.id, { segment_original: published });
+            owners.committed(published);
+        } finally {
+            owners.release(published);
+        }
         return true;
     } catch (err) {
         console.warn(`[Recordings] #${rec.id}: its original could not be put on the share yet (${err.message}); its segments stay in appdata`);
@@ -703,9 +827,16 @@ async function keepOriginal(rec, dir) {
 const inWork = (rec) => Boolean(rec.work_dir && rec.file_path && rec.file_path.startsWith(rec.work_dir + path.sep));
 
 /** An MP4 left in appdata while the share was down goes to the share (and, DVR-1, a kept original with it). */
-async function moveOne(rec) {
+const moveOne = (rec) => exclusive(rec.id, () => moveNow(rec));
+async function moveNow(rec) {
     await owners.whenSwept(); // 0279
     lastMoveTry.set(rec.id, Date.now());
+    // #287: what an earlier attempt left on the way goes first (see finishOne).
+    try { await owners.takeBack(rec.id, ioFor); } catch (err) {
+        if (!unresponsive(err)) throw err;
+        console.warn(`[Recordings] #${rec.id} could not move to the recordings folder yet: it is not responding`);
+        return;
+    }
     const dir = await shareFolder(rec);
     if (!dir) return;
     if (inWork(rec)) {
@@ -723,21 +854,29 @@ async function moveOne(rec) {
                 if (signal.aborted) return null;
                 made(partial);
                 await pipeline(fs.createReadStream(source), fs.createWriteStream(partial, { flags: 'wx' }), { signal });
-                if (fs.statSync(partial).size !== fs.statSync(source).size) throw new Error('the copy is not the same size');
-                const t = publishNoReplace(partial, dir, `${name}.mp4`, n => `${name} (${n}).mp4`, rec.id); // F1
-                if (!owned(rec.id)) { withdraw(t, rec.id, 'MP4'); return null; }
+                const copied = await ioFor(partial).stat(partial); // #287
+                if (!copied || copied.size !== fs.statSync(source).size) throw new Error('the copy is not the same size');
+                const t = await publishNoReplace(partial, dir, `${name}.mp4`, n => `${name} (${n}).mp4`, rec.id); // F1
+                if (!owned(rec.id)) {
+                    try { await owners.withdrawBounded(t, rec.id, 'MP4', ioFor(t)); } finally { owners.release(t); }
+                    return null;
+                }
                 return t;
             });
             if (!target) return;
         } catch (err) {
-            if (!err.keepPartial) { try { fs.unlinkSync(partial); } catch (e) { /* none */ } }
+            if (!err.keepPartial && !unresponsive(err)) await removeMade(partial);
             console.warn(`[Recordings] #${rec.id} could not move to the recordings folder yet: ${err.message}`);
             return;
         }
         media.verifiedNativeFiles.delete(source);
         media.verifiedNativeFiles.add(target);
-        recordingsDb.setSegmentFields(rec.id, { file_path: target });
-        owners.committed(target);
+        try {
+            recordingsDb.setSegmentFields(rec.id, { file_path: target });
+            owners.committed(target);
+        } finally {
+            owners.release(target);
+        }
         rec = recordingsDb.getById(rec.id);
     }
     // Never delete the segments of a recording whose MP4 could not be fully checked until they
@@ -758,20 +897,22 @@ async function moveOne(rec) {
  *   - its segments are gone: 0227-0241 finished the copy, but they also accepted a same-size file
  *     already at that name, so ownership cannot be shown. Nothing is claimed: the file is left in
  *     place, also when the recording is deleted, and logged.
+ * #287: the share is read through bounded calls; one it does not answer ends the check, which runs again next time.
  */
 async function recoverLegacyOriginals() {
     for (const rec of recordingsDb.findUnprovenOriginals()) {
         const conventional = keptOriginalPath(rec.file_path);
+        const io = ioFor(conventional);
         const files = segmentFiles(rec);
-        if (files.length && files.every(f => fs.existsSync(f))) {
-            if (fs.existsSync(conventional) && owners.adoptable(conventional) && await sameBytesAsSegments(conventional, rec)) {
+        if (files.length && files.every(f => fs.existsSync(f))) { // appdata
+            if ((await io.exists(conventional)) && (await owners.adoptable(conventional, io)) && await sameBytesAsSegments(conventional, rec)) {
                 recordingsDb.setSegmentFields(rec.id, { segment_original: conventional });
                 console.log(`[Recordings] #${rec.id}: its kept original is ${path.basename(conventional)} (the same bytes as its segments)`);
             } else {
                 recordingsDb.setSegmentFields(rec.id, { segment_state: 'moving' });
                 console.warn(`[Recordings] #${rec.id}: its kept original was never finished; it is copied again under its own name`);
             }
-        } else if (fs.existsSync(conventional)) {
+        } else if (await io.exists(conventional)) {
             console.warn(`[Recordings] #${rec.id}: ${path.basename(conventional)} beside it may be the original an earlier build kept, ` +
                 'but that cannot be proven; it is left in place, also if the recording is deleted');
         }
@@ -781,23 +922,27 @@ let legacyChecked = false;
 
 /** One step of the queue: finish the oldest capture that has ended, else retry one waiting move. */
 async function processQueue(now = Date.now()) {
+    // #287: claimed before the first await, so two calls never run their bodies at once (the legacy check included).
     if (finishing) return;
-    await owners.whenSwept(); // 0279: never beside the start-up sweep
-    if (finishing) return; // another call started meanwhile
-    if (!legacyChecked) {
-        legacyChecked = true;
-        try { await recoverLegacyOriginals(); } catch (err) { console.error('[Recordings] Checking kept originals failed:', err.message); }
-    }
-    const pending = recordingsDb.findSegmentWork();
-    const next = pending.find(r => r.segment_state === 'finishing')
-        || pending.find(r => r.segment_state === 'moving' && now - (lastMoveTry.get(r.id) || 0) >= MOVE_RETRY_MS);
-    if (!next) return;
     finishing = true;
+    let next = null;
     try {
+        await owners.whenSwept(); // 0279: never beside the start-up sweep
+        if (!legacyChecked) {
+            legacyChecked = true;
+            try { await recoverLegacyOriginals(); } catch (err) {
+                if (err.code === 'SHARE_UNRESPONSIVE') legacyChecked = false; // #287: checked again (inside this guard) once the share answers
+                console.error('[Recordings] Checking kept originals failed:', err.message);
+            }
+        }
+        const pending = recordingsDb.findSegmentWork();
+        next = pending.find(r => r.segment_state === 'finishing')
+            || pending.find(r => r.segment_state === 'moving' && now - (lastMoveTry.get(r.id) || 0) >= MOVE_RETRY_MS);
+        if (!next) return;
         if (next.segment_state === 'finishing') await finishOne(next);
         else await moveOne(next);
     } catch (err) {
-        console.error(`[Recordings] Finishing #${next.id} failed:`, err.message);
+        console.error(`[Recordings] Finishing #${next ? next.id : '?'} failed:`, err.message);
     } finally {
         finishing = false;
     }
@@ -826,5 +971,6 @@ module.exports = {
     _refreshPartInput: refreshPartInput,
     _nextPart: nextPart, ensureView, stopFollowers, viewPlaylist, probeVideoInfo, isWatchable,
     configure, processQueue, finishOne, moveOne, removeWork, status, keptOriginalPath, recoverLegacyOriginals,
+    _publishNoReplace: publishNoReplace,
     _setWorkRoot, _followers: followers
 };

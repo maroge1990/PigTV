@@ -234,9 +234,12 @@ const FFMPEG_STALL_MS = 10 * 60 * 1000;
 /**
  * Run ffmpeg, resolving { code, tail } once it exits. With `watchFile`, it is also
  * killed if that file stops growing for `stallMs`, so one stuck job cannot hold
- * its queue (and the recording it belongs to) forever.
+ * its queue (and the recording it belongs to) forever. #287: a caller may pass `sizeOf`, an async
+ * size check (the finishing queue's: shareFs, bounded and off the event loop, for a file on the
+ * share); it runs one at a time, and a size it cannot read (null) counts as no growth. Without
+ * one, the size is read here as it always was.
  */
-function runFfmpegCollectingTail(args, { watchFile = null, stallMs = FFMPEG_STALL_MS, signal = null } = {}) {
+function runFfmpegCollectingTail(args, { watchFile = null, stallMs = FFMPEG_STALL_MS, signal = null, sizeOf = null } = {}) {
     return new Promise((resolve) => {
         // 0264: `signal` (recordingOwners.write) stops it - the recording is being deleted. Resolves
         // only once the process has exited, so nothing it writes outlives the deletion.
@@ -254,16 +257,26 @@ function runFfmpegCollectingTail(args, { watchFile = null, stallMs = FFMPEG_STAL
         };
         if (signal) signal.addEventListener('abort', onAbort, { once: true });
         let watchdog = null;
+        let ended = false;
         if (watchFile) {
             let lastSize = -1;
             let lastGrowth = Date.now();
-            watchdog = setInterval(() => {
-                const size = fileSizeOf(watchFile);
+            let checking = false;
+            const judge = (size) => {
                 if (size > lastSize) { lastSize = size; lastGrowth = Date.now(); return; }
                 if (Date.now() - lastGrowth < stallMs) return;
                 tail.push(`Stopped: ${path.basename(watchFile)} did not grow for ${Math.round(stallMs / 1000)}s`);
                 clearInterval(watchdog);
                 try { proc.kill('SIGKILL'); } catch (e) { /* already gone */ }
+            };
+            watchdog = setInterval(() => {
+                if (!sizeOf) return judge(fileSizeOf(watchFile));
+                if (checking) return; // never two checks at once
+                checking = true;
+                Promise.resolve().then(() => sizeOf(watchFile)).catch(() => null).then((read) => {
+                    checking = false;
+                    if (!ended) judge(read ?? 0);
+                });
             }, Math.min(30 * 1000, stallMs));
             if (watchdog.unref) watchdog.unref();
         }
@@ -273,6 +286,7 @@ function runFfmpegCollectingTail(args, { watchFile = null, stallMs = FFMPEG_STAL
             }
         });
         const done = (code) => {
+            ended = true;
             if (watchdog) clearInterval(watchdog);
             if (signal) signal.removeEventListener('abort', onAbort);
             resolve({ code, tail });

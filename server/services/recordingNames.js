@@ -38,4 +38,12 @@ function uniqueFilePath(dir, baseName, ext) {
     return candidate;
 }
 
-module.exports = { formatLocalStamp, sanitizeForFs, uniqueFilePath };
+/** #287: uniqueFilePath through `exists` (an async check, e.g. shareFs.exists: bounded, off the event loop). */
+async function uniqueFilePathAsync(dir, baseName, ext, exists) {
+    const path = require('path');
+    let candidate = path.join(dir, `${baseName}${ext}`);
+    for (let n = 2; await exists(candidate); n++) candidate = path.join(dir, `${baseName} (${n})${ext}`);
+    return candidate;
+}
+
+module.exports = { formatLocalStamp, sanitizeForFs, uniqueFilePath, uniqueFilePathAsync };

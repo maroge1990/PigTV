@@ -66,8 +66,14 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   `deleted`, with its identity, and removed through shareFs at the next folder check that finds the share answering (and
   at start), only while that name is still that file. At start, the size of a recording cut short by the restart (an
   unanswered one is kept as `completed`, size unknown) and the removal of what interrupted compressions and old MP4s left
-  go through it too; the queues wait for those as for the sweep. Still synchronous and rare: a segmented recording's final
-  MP4 on the share. `getRecordingsRoot()` only creates the final folder
+  go through it too; the queues wait for those as for the sweep. Putting a segmented recording's MP4 (or its .ts, or a
+  kept original) on the share goes through it as well (#287): the name is journalled as `published`, with the file's
+  identity, before the hard link, so a link that misses its deadline and lands later is still taken back. Each finish or
+  move attempt first takes back what an earlier one journalled and never committed (while each name is still that
+  file); EEXIST at a name that is the same file adopts it. A share that stops answering mid-publish leaves the recording
+  in its state for the next try and does not count as a failed attempt (once the remux has failed its last attempt, only
+  the .ts is retried). One finish or move per recording at a time. That remux's stall watchdog reads the file's size
+  through it too, one check at a time; compression and preparation still read it in-process. `getRecordingsRoot()` only creates the final folder
   when its parent already exists. Settings → Recording → Storage refuses an unusable `recordingsPath` with 400 instead of
   saving it silently (`services/recordingsFolder.js` `validateRecordingsPathSetting()`).
 - **An unanswered "give up the stream" prompt no longer blocks a recording forever** (0158): if a due recording finds a

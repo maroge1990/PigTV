@@ -407,13 +407,15 @@ test('F1: an identical copy left by an interrupted run is recognised by its byte
 test('F1: a file appearing at the original\'s name while it is copied is not replaced', async () => {
     await withTools({ duration: async (f) => (f.endsWith('recording.m3u8') ? null : 120) }, async () => {
         const { rec, mp4 } = finishingRow();
-        const real = fs.linkSync;
+        // #287: the link goes through shareFs (off the event loop); the file arrives just before it.
+        const shareFs = load('services/shareFs');
+        const real = shareFs.link;
         let raced = false;
-        fs.linkSync = function (from, to) {
+        shareFs.link = (from, to, ...rest) => {
             if (!raced && String(to).endsWith('.ts')) { raced = true; fs.writeFileSync(to, 'arrived meanwhile'); }
-            return real.call(this, from, to);
+            return real(from, to, ...rest);
         };
-        try { await segments.finishOne(rec); } finally { fs.linkSync = real; }
+        try { await segments.finishOne(rec); } finally { shareFs.link = real; }
         assert.ok(raced);
         assert.equal(fs.readFileSync(segments.keptOriginalPath(mp4), 'utf8'), 'arrived meanwhile');
         assert.deepEqual(fs.readFileSync(recordings.getById(rec.id).segment_original), joined);
@@ -1596,7 +1598,7 @@ test('R1: recovery never adopts a kept original the start-up sweep is about to r
         const ts = segments.keptOriginalPath(mp4);
         fs.mkdirSync(path.dirname(ts), { recursive: true });
         fs.writeFileSync(ts, joined);
-        engine._owners.published(ts, rec.id);
+        engine._owners.published(ts, rec.id, load('services/shareFsWorker').identityOfStat(fs.statSync(ts, { bigint: true }))); // #287: with its identity
         // The sweep is held while it inspects that file (a slow share at start-up).
         const realStat = fs.promises.stat;
         let reached, release;
@@ -1643,28 +1645,100 @@ test('R2: a partial the sweep cannot inspect stays listed with its other name, a
     recordings.setSegmentFields(rec.id, { status: 'failed', segment_state: 'failed' });
 });
 
-test('R3: a publication that can neither be journalled nor taken back keeps its partial listed, and the next start removes both', async () => {
-    await withTools({ ffmpeg: async () => ({ code: 1, tail: ['failed'] }) }, async () => {
-        const { rec, mp4 } = finishingRow();
-        recordings.setSegmentFields(rec.id, { segment_attempts: 2 }); // the last attempt: the .ts fallback
-        const ts = mp4.replace(/\.mp4$/, '.ts');
-        sqlite.getDb().exec(`CREATE TRIGGER r3_full BEFORE INSERT ON recording_cleanup WHEN NEW.kind = 'published' BEGIN SELECT RAISE(ABORT, 'database or disk is full'); END`);
-        const realUnlink = fs.unlinkSync;
-        fs.unlinkSync = (p) => { if (p === ts) throw Object.assign(new Error('EIO'), { code: 'EIO' }); return realUnlink(p); };
-        try { await segments.finishOne(recordings.getById(rec.id)).catch(() => {}); } finally {
-            fs.unlinkSync = realUnlink;
-            sqlite.getDb().exec('DROP TRIGGER IF EXISTS r3_full');
-        }
-        assert.ok(fs.existsSync(ts), 'the published name could not be taken back');
-        await new Promise(r => setTimeout(r, 20));
-        const partials = cleanupRows().filter(p => p.startsWith(`${ts}.`));
-        assert.equal(partials.length, 1, 'its partial stays listed - the way back to it');
-        await engine._owners.sweepCleanup();
-        assert.equal(fs.existsSync(ts), false);
-        assert.deepEqual(cleanupRows(), []);
-        recordings.setSegmentFields(rec.id, { status: 'failed', segment_state: 'failed' });
-    });
+// #287: the finishing queue never runs two finishes of one recording at once. Two of them interleaved let one attempt's
+// take-back remove the other's MP4 between its link and its row (the recording lost: completed, no file, no segments).
+test('#287: two queue runs at once (one held by the legacy check on a slow share) finish a recording once, and it keeps its MP4', async () => {
+    // An unproven kept original from an old build, so the first run awaits the share in the legacy check.
+    const s = due({ windowMs: -100 });
+    const legacy = recordings.create({ scheduled_id: s.id, title: 'legacy', channel_name: 'x', channel_logo: null,
+        source_id: A.id, channel_item_id: 'pos_1', file_path: '', started_at: Date.now() - 60000, part: 1 });
+    sqlite.getDb().prepare(`UPDATE recordings SET status = 'completed', file_path = ?, segment_state = 'done', segment_keep = 'x', segment_original = NULL WHERE id = ?`)
+        .run(path.join(share, 'Fox Sports 505', 'legacy.mp4'), legacy.id);
+    const { rec } = finishingRow();
+    const shareFs = load('services/shareFs');
+    const realExists = shareFs.exists;
+    const realStat = shareFs.stat;
+    // A fresh queue (its legacy check not yet run), as at start.
+    const modPath = require.resolve(path.join(sandbox, 'server', 'services/recordingSegments'));
+    const cached = require.cache[modPath];
+    delete require.cache[modPath];
+    const queue = require(modPath);
+    require.cache[modPath] = cached;
+    queue.configure({ recordingsRoot: async () => share, minFreeGB: async () => 0 });
+    let running = 0;
+    let most = 0;
+    let remuxes = 0;
+    const settled = [];
+    try {
+        shareFs.exists = async (f, ...r) => { if (String(f).includes('legacy')) await sleep(500); return realExists(f, ...r); };
+        shareFs.stat = async (f, ...r) => { if (String(f).endsWith('.mp4')) await sleep(500); return realStat(f, ...r); };
+        await withTools({ ffmpeg: async (args) => {
+            remuxes++;
+            running++;
+            most = Math.max(most, running);
+            await sleep(2000); // a remux well past the legacy check's 500 ms
+            fs.writeFileSync(args[args.length - 1], Buffer.alloc(5000));
+            running--;
+            return { code: 0, tail: [] };
+        } }, () => Promise.all([queue.processQueue().then(() => settled.push('first')), queue.processQueue().then(() => settled.push('second'))]));
+    } finally {
+        shareFs.exists = realExists;
+        shareFs.stat = realStat;
+    }
+    assert.equal(most, 1, 'never two finishes of one recording at once');
+    assert.deepEqual(settled, ['second', 'first'], 'the second run returned at once: the first had the queue');
+    const row = recordings.getById(rec.id);
+    assert.equal(row.segment_state, 'done');
+    assert.ok(fs.existsSync(row.file_path), `its MP4 is there: ${row.file_path}`);
+    assert.equal(remuxes, 1);
+    recordings.setSegmentFields(legacy.id, { segment_state: 'failed', segment_keep: null });
+    await engine.deleteRecording(rec.id);
 });
+
+test('#287: finishOne called twice at once for one recording runs once', async () => {
+    const { rec } = finishingRow();
+    let remuxes = 0;
+    await withTools({ ffmpeg: async (args) => {
+        remuxes++;
+        await sleep(1000);
+        fs.writeFileSync(args[args.length - 1], Buffer.alloc(5000));
+        return { code: 0, tail: [] };
+    } }, () => Promise.all([segments.finishOne(rec), segments.finishOne(rec)]));
+    assert.equal(remuxes, 1, 'one remux');
+    const row = recordings.getById(rec.id);
+    assert.equal(row.segment_state, 'done');
+    assert.ok(fs.existsSync(row.file_path));
+    assert.deepEqual(fs.readdirSync(path.dirname(row.file_path)).filter(n => n.startsWith(row.segment_name)), [path.basename(row.file_path)], 'one copy');
+    await engine.deleteRecording(rec.id);
+});
+
+// #287 (N1): a link the share refuses with an errno is a failed attempt, not a stall: three remuxes, then the .ts, then
+// 'failed' with the segments kept - never a remux every tick.
+for (const [code, kept] of [['EOPNOTSUPP', false], ['EIO', true]]) {
+    test(`#287: a share whose link always answers ${code} uses up the attempts and ends failed, its segments kept`, async () => {
+        const shareFs = load('services/shareFs');
+        const realLink = shareFs.link;
+        shareFs.link = async () => { throw Object.assign(new Error(code), { code }); };
+        const { rec, workDir, mp4 } = finishingRow();
+        let remuxes = 0;
+        const journal = () => sqlite.getDb().prepare('SELECT path FROM recording_cleanup WHERE recording_id = ? AND kind = \'published\'').all(rec.id).map(r => r.path);
+        try {
+            await withTools({ ffmpeg: async (args) => { remuxes++; fs.writeFileSync(args[args.length - 1], Buffer.alloc(5000)); return { code: 0, tail: [] }; } }, async () => {
+                // As processQueue does: a failed attempt rejects, and is logged.
+                await segments.finishOne(recordings.getById(rec.id)).catch(() => {});
+                assert.equal(recordings.getById(rec.id).segment_attempts, 1, 'the attempt counts');
+                assert.deepEqual(journal(), kept ? [mp4] : [], kept ? 'the name it may have made stays journalled' : 'no link was made: not journalled');
+                for (let i = 0; i < 5; i++) await segments.finishOne(recordings.getById(rec.id)).catch(() => {});
+            });
+        } finally { shareFs.link = realLink; }
+        const row = recordings.getById(rec.id);
+        assert.equal(remuxes, 3, 'three remuxes, no more');
+        assert.equal(row.segment_state, 'failed');
+        assert.equal(row.status, 'failed');
+        assert.ok(fs.existsSync(workDir), 'its segments are kept in appdata');
+        assert.deepEqual(fs.readdirSync(path.dirname(mp4)).filter(n => n.startsWith(row.segment_name) && !n.endsWith('.partial')), [], 'nothing published');
+    });
+}
 
 // ---- Codex review of 0279 (26 Oct): exact inode comparison, and a stuck sweep never stalls the queues
 // nor lets recovery adopt a file it may still remove.
@@ -1704,7 +1778,8 @@ test('S2: a sweep stuck on the share holds the queues for a bounded time only, a
         const ts = segments.keptOriginalPath(mp4);
         fs.mkdirSync(path.dirname(ts), { recursive: true });
         fs.writeFileSync(ts, joined); // published by a run that stopped before recording it
-        engine._owners.published(ts, rec.id);
+        const journalled = load('services/shareFsWorker').identityOfStat(fs.statSync(ts, { bigint: true }));
+        engine._owners.published(ts, rec.id, journalled); // #287: with its identity
         const realStat = fs.promises.stat;
         let unstick;
         const stuck = new Promise(r => { unstick = r; });
@@ -1717,7 +1792,10 @@ test('S2: a sweep stuck on the share holds the queues for a bounded time only, a
             const outcome = await Promise.race([moving.then(() => 'moved'), new Promise(r => setTimeout(() => r('still waiting'), 5000))]);
             assert.equal(outcome, 'moved', 'the queue goes on after its bounded wait');
             const done = recordings.getById(rec.id);
-            assert.notEqual(done.segment_original, ts, 'the file the sweep may still remove is not adopted');
+            // #287: the move takes that file back first (it is still the journalled one), so the name may be reused by a
+            // copy of its own: the file at it is not the journalled one.
+            const at = load('services/shareFsWorker').identityOfStat(fs.statSync(done.segment_original, { bigint: true }));
+            assert.notEqual(at, journalled, 'the file the sweep may still remove is not adopted');
             assert.ok(done.segment_original && fs.existsSync(done.segment_original));
         } finally { unstick(); fs.promises.stat = realStat; engine._owners._setSweepWaitMs?.(); }
         await sweeping;
