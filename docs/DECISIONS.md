@@ -586,3 +586,27 @@ reviews.
 - **Choice:** Node 24 only. The Node 22 CI leg goes and `engines` is `>=24`.
 - **Consequence:** `test.yml`, `package.json`, AGENTS.md › Commands.
 
+
+### D-53. The Apple app requires a server with the Sport front page (10 Nov 2026; Mark)
+
+- **Context:** #277: the app compiled three generations of the Sport tab and a second code path for every flag an
+  older server might not send, although the server has sent those flags as constants for many builds.
+- **Choice:** the app may require a server that has the Sport front page and the flags it now always sends. Sport
+  generations 1 (events list) and 2 (dashboard) and the old-server branches are removed.
+- **Consequence:** the Apple app's Sport files and `/api/info` handling; [`CLIENT-CONTRACT.md`](CLIENT-CONTRACT.md).
+
+### D-54. Scores switched off: the Sport tab is the front page without scores (10 Nov 2026; Mark)
+
+- **Context:** #277: with scores off on the server the app fell back to an older Sport screen.
+- **Choice:** no separate screen. The Sport tab shows the front page, without scores.
+- **Consequence:** the Apple app's Sport tab no longer chooses a screen by `sportFront` or `sportsDashboard`.
+- **As built (10 Nov, server 0503):** every game card, a future game's included, comes from the score collector, so
+  with it off the page carries the followed sports and the links to each sport's page and no game cards. Drawing the
+  games as future-style cards from the fixture list is #282. `features.sportFront` still says whether scores are collected.
+
+### D-55. Focus never warms a channel (10 Nov 2026; Mark)
+
+- **Context:** #277: the docs said a focused live Sport card warms its channel; only the generation 1 screen did it.
+- **Choice:** no warming when a live card has focus (brand 1.8: focus never takes a stream). The warming-on-focus code
+  goes with generation 1; only the player's channel-up/down target warms.
+- **Consequence:** the Apple repo's `docs/ARCHITECTURE.md` › Performance and its `ChannelWarmer`.
