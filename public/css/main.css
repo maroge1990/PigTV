@@ -66,15 +66,12 @@
   --radius-full: 9999px;
 
   /* Shadows */
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
   --shadow-glow: 0 0 20px rgba(239, 122, 174, 0.3);
 
   /* Transitions */
   --transition-fast: 150ms ease;
-  --transition-normal: 250ms ease;
-  --transition-slow: 350ms ease;
 
   /* Layout */
   --navbar-height: 60px;
@@ -134,7 +131,6 @@
 
   /* Shadows carry the elevation here, since surfaces no longer differ much
      in lightness from the background. */
-  --shadow-sm: 0 1px 2px rgba(28, 22, 32, 0.06);
   --shadow-md: 0 4px 12px rgba(28, 22, 32, 0.09);
   --shadow-lg: 0 12px 32px rgba(28, 22, 32, 0.13);
   --shadow-glow: 0 0 0 3px rgba(214, 51, 108, 0.22);
@@ -179,8 +175,7 @@ body {
   /* Allow text selection in inputs and content areas */
   input,
 textarea,
-.modal-body,
-.epg-program-desc {
+.modal-body {
     -webkit-user-select: text;
     user-select: text;
   }
@@ -606,19 +601,6 @@ h4 {
   font-size: var(--text-xs);
 }
 
-.toggle-hidden {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.toggle-hidden input {
-  accent-color: var(--color-accent);
-}
-
 /* Channel List */
 .channel-list {
   flex: 1;
@@ -816,89 +798,6 @@ h4 {
   }
 }
 
-/* Custom Video Controls */
-.video-controls {
-  position: absolute;
-  top: var(--space-md);
-  right: var(--space-md);
-  display: none;
-  flex-direction: column;
-  gap: var(--space-sm);
-  z-index: 50;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-}
-
-.video-controls.show {
-  pointer-events: auto;
-}
-
-.video-container:hover .video-controls,
-.video-controls.show {
-  opacity: 1;
-}
-
-.video-control-btn {
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
-  color: var(--color-text-primary);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  box-shadow: var(--shadow-md);
-}
-
-.video-control-btn:hover {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-  transform: scale(1.05);
-}
-
-.video-control-btn:active {
-  transform: scale(0.95);
-}
-
-.video-control-btn .icon {
-  width: 24px;
-  height: 24px;
-}
-
-.video-control-btn.muted .icon {
-  color: var(--color-error);
-}
-
-/* Show custom controls on mobile as supplementary */
-@media (max-width: 768px) {
-  .video-controls {
-    display: flex;
-  }
-
-  /* Make control buttons larger on mobile */
-  .video-control-btn {
-    width: 56px;
-    height: 56px;
-  }
-
-  .video-control-btn .icon {
-    width: 28px;
-    height: 28px;
-  }
-}
-
-/* Touch devices */
-@media (hover: none) and (pointer: coarse) {
-  .video-controls {
-    display: flex;
-  }
-}
-
 /* Closed Caption styling */
 video::cue {
   background-color: rgba(0, 0, 0, 0.8);
@@ -1006,12 +905,6 @@ video::cue {
   padding-top: calc(var(--space-lg) + env(safe-area-inset-top, 0px));
 }
 
-.channel-nav {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
 .now-playing-info {
   flex: 1;
 }
@@ -1058,17 +951,6 @@ video::cue {
 /* =====================================================
    EPG Guide
    ===================================================== */
-
-.epg-limit-warning {
-  background: var(--color-warning);
-  color: var(--color-bg);
-  padding: var(--space-sm) var(--space-md);
-  text-align: center;
-  font-weight: 500;
-  margin-bottom: var(--space-sm);
-  border-radius: var(--radius-sm);
-}
-
 
 .guide-controls {
   display: flex;
@@ -1208,7 +1090,6 @@ video::cue {
   overscroll-behavior: contain;
 }
 
-
 /* Tabs */
 .tabs {
   display: flex;
@@ -1243,54 +1124,6 @@ video::cue {
 
 .tab-content.active {
   display: block;
-}
-
-/* Source Sections */
-.source-section {
-  margin-bottom: var(--space-xl);
-}
-
-.source-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.source-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-md);
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-.source-item.disabled {
-  opacity: 0.5;
-}
-
-.source-icon {
-  font-size: var(--text-xl);
-}
-
-.source-info {
-  flex: 1;
-}
-
-.source-name {
-  font-weight: 500;
-}
-
-.source-url {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-  word-break: break-all;
-}
-
-.source-actions {
-  display: flex;
-  gap: var(--space-xs);
 }
 
 /* Settings Sections */
@@ -1579,40 +1412,6 @@ kbd {
 }
 
 /* EPG Info Modal */
-.epg-info-modal .channel-details {
-  display: flex;
-  gap: var(--space-md);
-  margin-bottom: var(--space-md);
-  padding-bottom: var(--space-md);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.epg-info-modal .channel-logo {
-  width: 64px;
-  height: 64px;
-  object-fit: contain;
-  background: var(--color-bg-tertiary);
-  border-radius: var(--radius-md);
-}
-
-.epg-info-modal .channel-meta p {
-  margin: var(--space-xs) 0;
-  font-size: var(--text-sm);
-  color: var(--color-text-secondary);
-}
-
-.epg-info-modal h4 {
-  margin: var(--space-md) 0 var(--space-sm);
-  font-size: var(--text-md);
-  color: var(--color-text-primary);
-}
-
-.epg-program-list {
-  max-height: 300px;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-}
 
 .epg-program {
   border-right: 1px solid var(--color-border);
@@ -1642,18 +1441,6 @@ kbd {
   text-overflow: ellipsis;
   font-weight: 500;
   color: var(--color-text-primary);
-}
-
-.epg-program-desc {
-  font-size: var(--text-xs);
-  color: var(--color-text-secondary);
-  margin-top: var(--space-xs);
-}
-
-.no-programs {
-  color: var(--color-text-muted);
-  text-align: center;
-  padding: var(--space-lg);
 }
 
 .form-input {
@@ -1725,21 +1512,6 @@ kbd {
   border-radius: var(--radius-md);
   margin-bottom: var(--space-md);
   flex-wrap: wrap;
-}
-
-.content-type-toggle {
-  display: flex;
-  gap: var(--space-xs);
-}
-
-.content-type-toggle .btn {
-  background: var(--color-bg-tertiary);
-  color: var(--color-text-secondary);
-}
-
-.content-type-toggle .btn.active {
-  background: var(--color-accent);
-  color: white;
 }
 
 .content-browser-header .source-select {
@@ -1829,34 +1601,6 @@ kbd {
 
 .checkbox-label.channel-item:hover {
   background: var(--color-bg-hover);
-}
-
-.content-categories {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
-.checkbox-label.category-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
-  background: var(--color-bg-tertiary);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--text-sm);
-  transition: background var(--transition-fast);
-}
-
-.checkbox-label.category-item:hover {
-  background: var(--color-bg-hover);
-}
-
-.checkbox-label.channel-item.is-hidden {
-  opacity: 0.6;
-  text-decoration: line-through;
-  background: color-mix(in srgb, var(--color-warning) 10%, transparent);
 }
 
 .checkbox-label.channel-item .channel-name {
@@ -2073,12 +1817,6 @@ kbd {
     width: 100%;
   }
 
-  .channel-nav {
-    flex-direction: row;
-    justify-content: center;
-    width: 100%;
-  }
-
   /* EPG Guide */
   .guide-header {
     flex-direction: column;
@@ -2107,25 +1845,6 @@ kbd {
   .tabs {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-  }
-
-  .source-item {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-sm);
-  }
-
-  .source-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-xs);
-    justify-content: stretch;
-  }
-
-  .source-actions .btn {
-    flex: 1;
-    min-width: 44px;
-    justify-content: center;
   }
 
   /* Modal */
@@ -2277,7 +1996,6 @@ kbd {
     padding: var(--space-sm);
   }
 
-
   .guide-controls {
     gap: var(--space-xs);
   }
@@ -2327,7 +2045,6 @@ kbd {
     height: calc(100vh - var(--navbar-height));
   }
 
-
   .settings-section h3 {
     font-size: var(--text-md);
   }
@@ -2363,18 +2080,6 @@ kbd {
     font-size: var(--text-xs);
   }
 
-  .source-item {
-    padding: var(--space-sm);
-  }
-
-  .source-name {
-    font-size: var(--text-sm);
-  }
-
-  .source-url {
-    font-size: var(--text-xs);
-  }
-
   .btn {
     font-size: var(--text-xs);
     padding: var(--space-xs) var(--space-sm);
@@ -2390,10 +2095,6 @@ kbd {
     flex-direction: column;
     align-items: stretch;
     gap: var(--space-sm);
-  }
-
-  .content-type-toggle {
-    justify-content: center;
   }
 
   .content-actions {
@@ -2486,10 +2187,6 @@ kbd {
     font-size: var(--text-xs);
   }
 
-  .channel-nav {
-    display: none;
-    /* Hide channel nav in landscape to save space */
-  }
 }
 
 /* Touch-friendly improvements */
@@ -2606,21 +2303,6 @@ kbd {
   color: var(--color-warning);
 }
 
-/* Animation Utilities */
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.spin {
-  animation: spin 1s linear infinite;
-}
-
 /* User Management Styles */
 .user-list-container {
   margin: var(--space-lg) 0;
@@ -2724,20 +2406,6 @@ kbd {
   align-items: center;
   gap: var(--space-xs);
   cursor: default;
-}
-
-.sports-chip-remove {
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font-size: var(--text-md);
-  line-height: 1;
-  padding: 0 var(--space-2xs);
-}
-
-.sports-chip-remove:hover {
-  color: var(--color-error);
 }
 
 .sports-channel-list {
@@ -2908,16 +2576,6 @@ kbd {
   justify-content: space-between;
 }
 
-.watch-title {
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: #fff;
-  margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 /* Center Play Button */
 .watch-center-play {
   position: absolute;
@@ -2973,12 +2631,6 @@ kbd {
   border-top-color: var(--color-accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 /* Bottom Bar */
@@ -3187,10 +2839,6 @@ kbd {
   background: color-mix(in srgb, var(--color-success) 10%, transparent);
 }
 
-.hw-info-item.hw-unavailable {
-  opacity: 0.6;
-}
-
 .hw-badge {
   font-weight: 600;
   font-size: var(--text-sm);
@@ -3198,10 +2846,6 @@ kbd {
 
 .hw-info-item.hw-available .hw-badge {
   color: var(--color-success);
-}
-
-.hw-info-item.hw-unavailable .hw-badge {
-  color: var(--color-text-muted);
 }
 
 .hw-name {
@@ -3230,11 +2874,6 @@ kbd {
   background: color-mix(in srgb, var(--color-error) 80%, transparent);
   /* Red for Transcoding */
   box-shadow: 0 0 10px color-mix(in srgb, var(--color-error) 30%, transparent);
-}
-
-.transcode-status.remuxing {
-  background: color-mix(in srgb, var(--color-warning) 80%, transparent);
-  /* Orange for Remux */
 }
 
 .transcode-status.direct {
@@ -3665,8 +3304,6 @@ kbd {
    Recordings (DVR) Page
    ========================================================================== */
 
-
-
 .recordings-section {
   padding: var(--space-lg);
 }
@@ -3947,7 +3584,6 @@ kbd {
 #btn-go-live.at-live .live-dot {
   background: var(--color-text-muted);
 }
-
 
 /* ==========================================================================
    Commercial break markers and skipping
@@ -4301,23 +3937,22 @@ kbd {
   font-size: var(--text-sm);
 }
 
-
 /* Pig family 1.0: visual state adapters. No control dimensions or routes change. */
-.btn-primary, .version-badge, .content-type-toggle .btn.active,
+.btn-primary, .version-badge,
 .content-group-header .sport-toggle.active, .btn-ghost.active { color: var(--color-on-accent); }
 .nav-link.active, .tab.active, .subtab.active { color: var(--color-accent-text); }
-.form-input, .search-input, .form-select { border-color: var(--color-control-border); }
+.form-input, .search-input { border-color: var(--color-control-border); }
 :where(button,a,input,select,textarea,[role="button"]):focus-visible {
   outline: 2px solid var(--color-accent); outline-offset: 3px;
 }
-.nav-link.active, .sport-toggle.active, .content-type-toggle .btn.active { position: relative; }
+.nav-link.active, .sport-toggle.active { position: relative; }
 /* R16: keyboard focus on the navbar is always visible: inside the box so no overflow clips it. */
 .nav-link:focus-visible, .mobile-menu-toggle:focus-visible {
   outline: 2px solid var(--color-accent); outline-offset: -2px; border-radius: var(--radius-sm);
   background: var(--color-accent-dim);
 }
 .nav-link[aria-current="page"] { color: var(--color-accent-text); }
-.nav-link.active::after, .sport-toggle.active::after, .content-type-toggle .btn.active::after {
+.nav-link.active::after, .sport-toggle.active::after {
   content: ''; position: absolute; width: 24px; height: 3px; border-radius: 2px;
   bottom: 2px; left: 50%; transform: translateX(-50%); background: currentColor; pointer-events: none;
 }
