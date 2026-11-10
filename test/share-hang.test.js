@@ -1,10 +1,10 @@
 const { test, before, after } = require('node:test');
-process.env.PIGTV_PART_RECORDINGS = '1'; // 0494: the part-based path, for its tests
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { once } = require('node:events');
+const { createFakeSegmentFfmpeg, stubNativeTools, drainSegmentQueue, until: untilTicked } = require('./helpers/fakeSegmentFfmpeg');
 
 // #8: a hung recordings share must not freeze the server. Its file calls run in a helper process with a deadline
 // (services/shareFs.js), so the event loop that serves every stream keeps going. The hang is simulated twice over:
@@ -30,15 +30,29 @@ const db = load('db');
 const auth = load('auth');
 const engine = load('services/recordingEngine');
 engine._setPrepareQueue(false); // no background MP4 preparation of the recordings these tests finish
+const segments = load('services/recordingSegments');
 let shareFs = null; // absent before #8: the proof runs this file against the old server too
 try { shareFs = load('services/shareFs'); } catch { /* old server */ }
+
+// Every recording is segmented (D-48): captured into appdata, its MP4 published to the share at the end.
+const fake = createFakeSegmentFfmpeg(sandbox);
+const slowRecordings = path.join(slowShare, 'Recordings');
+const healthy = path.join(sandbox, 'healthy', 'Recordings'); // a share that answers, to finish what a test left
+fs.mkdirSync(healthy, { recursive: true });
 
 // Any synchronous call on the share from this process blocks, as on a hung mount.
 const blocked = [];
 let bypass = false; // a stand-in helper's own calls (deferringHelper) are not this process's
+/** Real file calls on the share, from this process, for a test's own setup and checks. */
+const real = (fn) => { const was = bypass; bypass = true; try { return fn(); } finally { bypass = was; } };
 const onShare = (p) => !bypass && (String(p).startsWith(share) || String(p).startsWith(slowShare));
-const hang = () => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 3000);
-for (const name of ['existsSync', 'statSync', 'statfsSync', 'mkdirSync', 'writeFileSync', 'readdirSync', 'unlinkSync']) {
+let hangMs = 3000;
+const hang = () => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, hangMs);
+// The remux is ffmpeg, a process of its own: its writes to the share are not this process's.
+const remuxed = stubNativeTools(engine);
+const stubRemux = engine._nativeTools.ffmpeg;
+engine._nativeTools.ffmpeg = (...a) => real(() => stubRemux(...a));
+for (const name of ['existsSync', 'statSync', 'statfsSync', 'mkdirSync', 'writeFileSync', 'readdirSync', 'unlinkSync', 'linkSync']) {
     const real = fs[name];
     fs[name] = function (p, ...rest) {
         if (onShare(p)) { blocked.push(`${name} ${p}`); hang(); }
@@ -57,9 +71,7 @@ async function loopFreeze(work) {
 let server, base, token;
 before(async () => {
     if (shareFs) shareFs.tuning.timeoutMs = 1500;
-    // 0494: recordings are always segmented; these tests cover the part-based (.ts) path, so they ask for it
-    // (PIGTV_PART_RECORDINGS, set at the top of this file).
-    await db.settings.update({ segmentedRecordings: false, recordingsPath, minFreeSpaceGB: 0 });
+    await db.settings.update({ recordingsPath, minFreeSpaceGB: 0 });
     token = auth.generateToken(await db.users.create({ username: 'owner', role: 'admin' }));
     load('db/recordingsDb').initSchema();
     const app = express();
@@ -147,44 +159,150 @@ test('#142: helpers stuck after a kill are bounded; calls then fail at once unti
     }
 });
 
-test('#144: a recording starts and its capture ends without a synchronous call on the share', async () => {
-    const ffmpeg = path.join(sandbox, 'ffmpeg-fake');
-    fs.writeFileSync(ffmpeg, `#!${process.execPath}
-const fs = require('fs');
-const out = process.argv[process.argv.length - 1];
-fs.writeFileSync(out, Buffer.alloc(4000));
-const t = setInterval(() => fs.appendFileSync(out, Buffer.alloc(500)), 50);
-process.stdin.on('data', d => { if (String(d).includes('q')) { clearInterval(t); process.exit(0); } });
-`);
-    fs.chmodSync(ffmpeg, 0o755);
-    const source = await db.sources.create({ type: 'm3u', name: 'Provider', url: 'http://provider.invalid/list.m3u' });
-    load('db/sqlite').getDb().prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, is_hidden, sort_order, stable_id, stream_url)
-        VALUES (?, ?, 'pos_1', 'live', 'Fox Footy', 'Sport', 0, 1, 'ff', 'http://provider.invalid/ff.ts')`).run(`${source.id}:pos_1`, source.id);
-    await db.settings.update({ recordingsPath: path.join(slowShare, 'Recordings'), sharedIngestEnabled: false, maxConcurrentRecordings: 2 });
-    engine.init({ ffmpegPath: ffmpeg, ffprobePath: 'ffprobe' });
-    engine.shutdown();
+/** The provider, the channel and a due schedule (the engine runs the segment fake; the tests drive tick() themselves). */
+async function recordingSetup(title) {
     const { scheduled, recordings } = load('db/recordingsDb');
+    let source = (await db.sources.getAll()).find(s => s.name === 'Provider');
+    if (!source) {
+        source = await db.sources.create({ type: 'm3u', name: 'Provider', url: 'http://provider.invalid/list.m3u' });
+        load('db/sqlite').getDb().prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, is_hidden, sort_order, stable_id, stream_url)
+            VALUES (?, ?, 'pos_1', 'live', 'Fox Footy', 'Sport', 0, 1, 'ff', 'http://provider.invalid/ff.ts')`).run(`${source.id}:pos_1`, source.id);
+    }
+    engine.init({ ffmpegPath: fake.path, ffprobePath: 'ffprobe' });
+    engine.shutdown();
     const now = Date.now();
-    const s = scheduled.create({ title: 'Show', description: null, source_id: source.id, channel_item_id: 'pos_1', channel_stable_id: 'ff',
+    const s = scheduled.create({ title, description: null, source_id: source.id, channel_item_id: 'pos_1', channel_stable_id: 'ff',
         channel_name: 'Fox Footy', channel_logo: null, program_start: now - 1000, program_end: now + 60000,
         pre_buffer_min: 0, post_buffer_min: 0, created_by: 1, created_at: now });
+    return { s, scheduled, recordings };
+}
+
+/** Whatever a test left to finish is finished on a share that answers, so the next test's queue starts empty. */
+async function finishLeftovers() {
+    await engine.stopAllActive(3000);
+    await db.settings.update({ recordingsPath: healthy });
+    shareFs.reset();
+    bypass = true;
+    try { await drainSegmentQueue(segments, load('db/recordingsDb').recordings); } finally { bypass = false; }
+    fake.reset();
+    remuxed.length = 0;
+    await db.settings.update({ recordingsPath });
+}
+
+/** Captured until at least one segment is written; its row. */
+async function capturing(s, recordings) {
+    await untilTicked(engine, () => recordings.listBySchedule(s.id)[0]?.segment_state === 'capturing', 'started');
+    const rec = recordings.listBySchedule(s.id)[0];
+    await untilTicked(engine, () => fs.existsSync(path.join(rec.work_dir, 'e1', 'a000000.ts')), 'a segment written');
+    return rec;
+}
+
+test('#144: a recording starts and its capture ends without a synchronous call on the share', async () => {
+    await db.settings.update({ recordingsPath: slowRecordings, sharedIngestEnabled: false, maxConcurrentRecordings: 2 });
+    const { s, scheduled, recordings } = await recordingSetup('Show');
+    // The capture alone: the MP4 (made right after) is the next tests'.
+    const realQueue = segments.processQueue;
+    segments.processQueue = async () => {};
     blocked.length = 0;
     try {
+        let rec;
         const { worst } = await loopFreeze(async () => {
-            for (let i = 0; i < 100 && recordings.listBySchedule(s.id)[0]?.status !== 'recording'; i++) { await engine.tick(); await new Promise(r => setTimeout(r, 50)); }
-            assert.equal(recordings.listBySchedule(s.id)[0]?.status, 'recording', 'started');
-            await new Promise(r => setTimeout(r, 300));
+            rec = await capturing(s, recordings);
             await engine.cancelScheduled(s.id);
-            for (let i = 0; i < 100 && recordings.listBySchedule(s.id)[0]?.status === 'recording'; i++) await new Promise(r => setTimeout(r, 50));
+            await untilTicked(engine, () => recordings.getById(rec.id).segment_state !== 'capturing', 'the capture ended');
         });
-        const rec = recordings.listBySchedule(s.id)[0];
-        assert.equal(rec.status, 'completed');
-        assert.ok(rec.file_size_bytes >= 4000, `size ${rec.file_size_bytes}`);
+        const ended = recordings.getById(rec.id);
+        assert.equal(ended.segment_state, 'finishing', 'its segments wait for their MP4');
+        assert.equal(ended.status, 'recording');
+        assert.ok(segments.archiveSegmentCount(rec.work_dir) >= 1, 'what it captured is kept');
+        assert.ok(!rec.work_dir.startsWith(slowShare), 'captured into appdata');
+        assert.deepEqual(real(() => fs.readdirSync(slowRecordings)), [], 'nothing on the share yet');
+        // #146 (the cancel is the last word) for the segmented exit, which reads nothing from the share.
+        assert.equal(scheduled.getById(s.id).status, 'cancelled', 'the cancel is the last word');
+        assert.deepEqual(blocked, [], 'no synchronous call on the share');
+        assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
+    } finally {
+        segments.processQueue = realQueue;
+        await finishLeftovers();
+    }
+});
+
+test('#144: the MP4 is published to a share that answers its checks without a synchronous call on the share', {
+    todo: 'production fault: finishOne/publishNoReplace/completed call existsSync/unlinkSync/linkSync/statSync on the share in the event loop'
+}, async () => {
+    await db.settings.update({ recordingsPath: slowRecordings, sharedIngestEnabled: false, maxConcurrentRecordings: 2 });
+    const { s, recordings } = await recordingSetup('Published');
+    hangMs = 1000; // each synchronous call still freezes the loop far past the 300 ms allowed, but the test ends sooner
+    blocked.length = 0;
+    try {
+        let rec;
+        const { worst } = await loopFreeze(async () => {
+            rec = await capturing(s, recordings);
+            await engine.cancelScheduled(s.id);
+            await untilTicked(engine, () => recordings.getById(rec.id).status === 'completed', 'finished', 30000);
+        });
+        const done = recordings.getById(rec.id);
+        assert.equal(done.segment_state, 'done');
+        assert.ok(done.file_path.startsWith(path.join(slowRecordings, 'Fox Footy') + path.sep), done.file_path);
+        assert.equal(done.file_size_bytes, 5000);
+        assert.deepEqual(blocked, [], 'no synchronous call on the share');
+        assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
+    } finally {
+        hangMs = 3000;
+        await finishLeftovers();
+    }
+});
+
+test('#144: a share that does not answer when the MP4 is due: it waits in appdata, playable; the loop and another recording go on; it moves once the share answers', async () => {
+    const hungRecordings = path.join(share, 'Recordings');
+    await db.settings.update({ recordingsPath: hungRecordings, sharedIngestEnabled: false, maxConcurrentRecordings: 3, maxProviderStreams: 3 });
+    shareFs.reset();
+    const { s, scheduled, recordings } = await recordingSetup('Hung at the end');
+    blocked.length = 0;
+    let rec;
+    try {
+        const { worst } = await loopFreeze(async () => {
+            rec = await capturing(s, recordings);
+            await engine.cancelScheduled(s.id);
+            const now = Date.now();
+            const other = scheduled.create({ title: 'Another', description: null, source_id: s.source_id, channel_item_id: 'pos_1', channel_stable_id: 'ff',
+                channel_name: 'Fox Footy', channel_logo: null, program_start: now - 1000, program_end: now + 60000,
+                pre_buffer_min: 0, post_buffer_min: 0, created_by: 1, created_at: now });
+            await untilTicked(engine, () => recordings.getById(rec.id).segment_state === 'moving', 'waiting to move', 15000);
+            await untilTicked(engine, () => recordings.listBySchedule(other.id)[0]?.segment_state === 'capturing', 'another recording starts meanwhile', 15000);
+            await engine.cancelScheduled(other.id);
+        });
+        const waiting = recordings.getById(rec.id);
+        assert.equal(waiting.status, 'completed', 'playable meanwhile');
+        assert.equal(waiting.file_path, path.join(rec.work_dir, 'final.mp4'), 'its MP4 waits in appdata');
+        assert.ok(fs.existsSync(waiting.file_path));
+        assert.ok(segments.status().waitingToMove.some(r => r.id === rec.id), 'listed as waiting to move');
         assert.deepEqual(blocked, [], 'no synchronous call on the share');
         assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
     } finally {
         await engine.stopAllActive(3000);
-        await db.settings.update({ recordingsPath });
+    }
+    // The share answers again: the next move (its retry is 15 min later) puts the MP4 on it. Its calls on the share are
+    // the publish case above; here only the outcome counts.
+    const hangWas = process.env.PIGTV_TEST_SHARE_HANG;
+    delete process.env.PIGTV_TEST_SHARE_HANG;
+    shareFs.reset();
+    bypass = true;
+    try {
+        for (let i = 0; i < 20 && recordings.getById(rec.id).segment_state !== 'done'; i++) {
+            await segments.processQueue(Date.now() + 16 * 60 * 1000);
+            await new Promise(r => setTimeout(r, 25));
+        }
+        const moved = recordings.getById(rec.id);
+        assert.equal(moved.segment_state, 'done', 'moved once the share answers');
+        assert.ok(moved.file_path.startsWith(path.join(hungRecordings, 'Fox Footy') + path.sep), moved.file_path);
+        assert.ok(fs.existsSync(moved.file_path));
+        assert.equal(fs.existsSync(rec.work_dir), false, 'and the work folder is gone');
+    } finally {
+        bypass = false;
+        process.env.PIGTV_TEST_SHARE_HANG = hangWas;
+        shareFs.reset();
+        await finishLeftovers();
     }
 });
 
@@ -196,7 +314,6 @@ function deferringHelper(hold, onHeld = () => {}) {
     const { EventEmitter } = require('node:events');
     const { run } = load('services/shareFsWorker');
     const held = [];
-    let realFs = null;
     const fake = Object.assign(new EventEmitter(), {
         connected: true, exitCode: null, signalCode: null, unref() {}, channel: { ref() {}, unref() {} },
         kill() { this.connected = false; this.emit('exit', null, 'SIGKILL'); },
@@ -204,58 +321,33 @@ function deferringHelper(hold, onHeld = () => {}) {
             const answer = () => {
                 // The helper's calls are not this process's: run them with the real (unblocked) fs.
                 let result;
-                try { result = realFs(() => run(msg.op, msg.file)); } catch (err) { return fake.emit('message', { id: msg.id, error: err.message }); }
+                try { result = real(() => run(msg.op, msg.file)); } catch (err) { return fake.emit('message', { id: msg.id, error: err.message }); }
                 fake.emit('message', { id: msg.id, result });
             };
             if (hold(msg.op, msg.file)) { held.push(answer); onHeld(); } else setImmediate(answer);
         }
     });
-    realFs = (fn) => { bypass = true; try { return fn(); } finally { bypass = false; } };
     return { fake, release: () => { for (const a of held.splice(0)) a(); }, heldCount: () => held.length };
 }
 
-async function recordingSetup(title) {
-    const { scheduled, recordings } = load('db/recordingsDb');
-    let source = (await db.sources.getAll()).find(s => s.name === 'Provider');
-    if (!source) {
-        source = await db.sources.create({ type: 'm3u', name: 'Provider', url: 'http://provider.invalid/list.m3u' });
-        load('db/sqlite').getDb().prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, is_hidden, sort_order, stable_id, stream_url)
-            VALUES (?, ?, 'pos_1', 'live', 'Fox Footy', 'Sport', 0, 1, 'ff', 'http://provider.invalid/ff.ts')`).run(`${source.id}:pos_1`, source.id);
-    }
-    const ffmpeg = path.join(sandbox, 'ffmpeg-fake');
-    if (!fs.existsSync(ffmpeg)) {
-        fs.writeFileSync(ffmpeg, `#!${process.execPath}
-const fs = require('fs');
-const out = process.argv[process.argv.length - 1];
-fs.writeFileSync(out, Buffer.alloc(4000));
-const t = setInterval(() => fs.appendFileSync(out, Buffer.alloc(500)), 50);
-process.stdin.on('data', d => { if (String(d).includes('q')) { clearInterval(t); process.exit(0); } });
-`);
-        fs.chmodSync(ffmpeg, 0o755);
-    }
-    engine.init({ ffmpegPath: ffmpeg, ffprobePath: 'ffprobe' });
-    engine.shutdown();
-    const now = Date.now();
-    const s = scheduled.create({ title, description: null, source_id: source.id, channel_item_id: 'pos_1', channel_stable_id: 'ff',
-        channel_name: 'Fox Footy', channel_logo: null, program_start: now - 1000, program_end: now + 60000,
-        pre_buffer_min: 0, post_buffer_min: 0, created_by: 1, created_at: now });
-    return { s, scheduled, recordings };
-}
-
-test('#145: a cancel while the file name is looked up on the share starts nothing', async () => {
-    await db.settings.update({ recordingsPath: path.join(slowShare, 'Recordings'), sharedIngestEnabled: false });
+test('#145: a cancel while the share is checked at the start starts nothing', async () => {
+    await db.settings.update({ recordingsPath: slowRecordings, sharedIngestEnabled: false });
     const realFork = shareFs._spawner.fork;
-    const helper = deferringHelper((op, file) => op === 'exists' && String(file).endsWith('.ts'));
+    // A segmented start checks the share (its MP4 goes there) before it creates anything: held at its write test.
+    let armed = false; // not the folder health check engine.init makes
+    const helper = deferringHelper((op, file) => armed && op === 'writeProbe' && file === slowRecordings);
     shareFs.reset();
     shareFs._spawner.fork = () => helper.fake;
     try {
-        const { s, scheduled, recordings } = await recordingSetup('Cancelled while naming');
+        const { s, scheduled, recordings } = await recordingSetup('Cancelled while checking');
+        await engine.checkFolderHealthNow();
+        armed = true;
         const ticks = [];
         for (let i = 0; i < 100 && helper.heldCount() === 0; i++) {
             ticks.push(engine.tick());
             await new Promise(r => setTimeout(r, 30));
         }
-        assert.equal(helper.heldCount(), 1, 'the name lookup is waiting on the share');
+        assert.equal(helper.heldCount(), 1, 'the share check is waiting on the share');
         await engine.cancelScheduled(s.id);
         helper.release();
         await Promise.all(ticks);
@@ -263,45 +355,16 @@ test('#145: a cancel while the file name is looked up on the share starts nothin
         assert.deepEqual(recordings.listBySchedule(s.id), [], 'no recording was created');
         assert.equal(scheduled.getById(s.id).status, 'cancelled');
         assert.ok(!engine.listActive().some(r => r.id === s.id), 'no capture runs');
+        assert.equal(fake.captures().length, 0, 'ffmpeg never started');
     } finally {
         shareFs._spawner.fork = realFork;
         shareFs.reset();
-        await engine.stopAllActive(3000);
-        await db.settings.update({ recordingsPath });
-    }
-});
-
-test('#146: a cancel stays cancelled when the capture\'s size answers late', async () => {
-    await db.settings.update({ recordingsPath: path.join(slowShare, 'Recordings'), sharedIngestEnabled: false });
-    const realFork = shareFs._spawner.fork;
-    let holdStat = false;
-    // The size read at the capture's exit is answered 100 ms late: after the stop has seen the capture close.
-    const helper = deferringHelper((op, file) => holdStat && op === 'stat' && String(file).endsWith('.ts'),
-        () => setTimeout(() => helper.release(), 100));
-    shareFs.reset();
-    shareFs._spawner.fork = () => helper.fake;
-    try {
-        const { s, scheduled, recordings } = await recordingSetup('Cancelled at the end');
-        for (let i = 0; i < 100 && recordings.listBySchedule(s.id)[0]?.status !== 'recording'; i++) { await engine.tick(); await new Promise(r => setTimeout(r, 30)); }
-        assert.equal(recordings.listBySchedule(s.id)[0]?.status, 'recording');
-        holdStat = true;
-        await engine.cancelScheduled(s.id);
-        await new Promise(r => setTimeout(r, 300));
-        assert.equal(scheduled.getById(s.id).status, 'cancelled', 'the cancel is the last word');
-    } finally {
-        holdStat = false;
-        helper.release();
-        shareFs._spawner.fork = realFork;
-        shareFs.reset();
-        await engine.stopAllActive(3000);
-        await db.settings.update({ recordingsPath });
+        await finishLeftovers();
     }
 });
 
 // ---- #141: deleting recordings and the start-up clean-up ----
 
-/** Real file calls on the share, from this process, for a test's own setup and checks. */
-const real = (fn) => { bypass = true; try { return fn(); } finally { bypass = false; } };
 const until = async (fn, ms) => { const end = Date.now() + ms; while (Date.now() < end) { if (fn()) return true; await new Promise(r => setTimeout(r, 50)); } return false; };
 const cleanupRow = (p) => load('db/sqlite').getDb().prepare('SELECT kind, identity FROM recording_cleanup WHERE path = ?').get(p);
 

@@ -1,5 +1,4 @@
 const { test, before, after, afterEach } = require('node:test');
-process.env.PIGTV_PART_RECORDINGS = '1'; // 0494: the part-based path, for its tests
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -8,12 +7,13 @@ const http = require('node:http');
 const { once } = require('node:events');
 
 // Wave 5 (R2, phase 5a): recordings are the shared ingest's first consumer, behind
-// `sharedIngestEnabled` (off by default). The real engine, coordinator and ingest over a sandboxed
-// database and a fake MPEG-TS provider on local HTTP; ffmpeg is a script that writes its stdin to
-// the output (so the file is exactly the bytes it was fed). With the switch on: the capture reads
-// pipe:0 with today's output arguments, the file is the provider's own bytes, two recordings of
-// one channel share ONE connection (even at a limit of 1), a different channel still waits, a
-// stream that is not MPEG-TS falls back to today's path. With it off: nothing changes.
+// `sharedIngestEnabled`. The real engine, coordinator and ingest over a sandboxed database and a
+// fake MPEG-TS provider on local HTTP. Every recording is segmented (D-48); ffmpeg is a script that,
+// reading pipe:0, writes its stdin into its segment (so the segment is exactly the bytes it was fed).
+// With the switch on: the capture reads pipe:0 with the segmented output arguments, the segment is
+// the provider's own bytes, two recordings of one channel share ONE connection (even at a limit of
+// 1), a different channel still waits, a stream that is not MPEG-TS falls back to its own
+// connection. With it off: its own connection, no ingest.
 const sandbox = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-ingest-rec-')));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
 fs.cpSync(path.join(__dirname, '../package.json'), path.join(sandbox, 'package.json'));
@@ -27,7 +27,9 @@ const engine = load('services/recordingEngine');
 engine._setPrepareQueue(false);
 const ingest = load('services/ingest');
 const coordinator = load('services/streamCoordinator');
+const segments = load('services/recordingSegments');
 const { scheduled, recordings } = load('db/recordingsDb');
+const { stubNativeTools, drainSegmentQueue } = require('./helpers/fakeSegmentFfmpeg');
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 async function until(cond, label, ms = 10000) {
@@ -48,26 +50,50 @@ function packet(pid, n) {
 }
 let server, base;
 
-// ---- ffmpeg: stdin to the output file when reading pipe:0; else a growing file -----------
+// ---- ffmpeg: a segmented capture (-f hls) like ffmpeg's; from pipe:0 every byte of stdin goes into its segment ----
 const argsLog = path.join(sandbox, 'ffmpeg-args.log');
+const stallFlag = path.join(sandbox, 'ffmpeg-stall'); // while it exists, the fake reads nothing: its input queues up
 const FFMPEG = path.join(sandbox, 'ffmpeg-fake');
 fs.writeFileSync(FFMPEG, `#!${process.execPath}
 const fs = require('fs');
+const path = require('path');
 const args = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(argsLog)}, JSON.stringify(args) + '\\n');
 const out = args[args.length - 1];
+const dir = path.dirname(out);
+const putPlaylist = (text) => { fs.writeFileSync(out + '.tmp', text); fs.renameSync(out + '.tmp', out); };
+// The watch copy (-live_start_index) is not a capture: it idles until it is stopped.
+if (args.includes('-live_start_index')) { setInterval(() => {}, 1000); return; }
+let pl = '#EXTM3U\\n#EXT-X-VERSION:3\\n#EXT-X-TARGETDURATION:4\\n#EXT-X-MEDIA-SEQUENCE:0\\n#EXT-X-PLAYLIST-TYPE:EVENT\\n';
 if (args[args.indexOf('-i') + 1] === 'pipe:0') {
-  const file = fs.createWriteStream(out);
-  process.stdin.pipe(file);
-  process.stdin.on('end', () => file.end(() => process.exit(0)));
+  // The shared feed: its bytes, exactly as fed, in one segment; the end of input ends the capture (exit 0).
+  const file = fs.createWriteStream(path.join(dir, 'a000000.ts'));
+  let listed = false;
+  const stall = ${JSON.stringify(stallFlag)};
+  const reading = () => { if (fs.existsSync(stall)) { process.stdin.pause(); setTimeout(reading, 50); } else process.stdin.resume(); };
+  process.stdin.on('data', (d) => {
+    file.write(d);
+    if (!listed) { listed = true; pl += '#EXTINF:4.000000,\\na000000.ts\\n'; putPlaylist(pl); }
+    if (fs.existsSync(stall)) reading();
+  });
+  process.stdin.on('end', () => file.end(() => { putPlaylist(pl + '#EXT-X-ENDLIST\\n'); process.exit(0); }));
 } else {
-  fs.writeFileSync(out, Buffer.alloc(4000));
-  setInterval(() => fs.appendFileSync(out, Buffer.alloc(500)), 50);
-  process.stdin.on('data', d => { if (String(d).includes('q')) process.exit(0); });
+  // Its own connection: a segment every 60 ms; "q" ends it.
+  let n = 0;
+  const segment = () => {
+    const name = 'a' + String(n++).padStart(6, '0') + '.ts';
+    fs.writeFileSync(path.join(dir, name), Buffer.alloc(3000));
+    pl += '#EXTINF:4.000000,\\n' + name + '\\n';
+    putPlaylist(pl);
+  };
+  segment();
+  setInterval(segment, 60);
+  process.stdin.on('data', (d) => { if (String(d).includes('q')) { putPlaylist(pl + '#EXT-X-ENDLIST\\n'); process.exit(0); } });
 }
 `);
 fs.chmodSync(FFMPEG, 0o755);
-const captures = () => (fs.existsSync(argsLog) ? fs.readFileSync(argsLog, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)) : []);
+const captures = () => (fs.existsSync(argsLog) ? fs.readFileSync(argsLog, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)) : [])
+    .filter(a => !a.includes('-live_start_index')); // not the watch copy
 
 let A;
 before(async () => {
@@ -99,17 +125,17 @@ before(async () => {
     item.run(`${A.id}:pos_2`, A.id, 'pos_2', 'Fox League', 2, 'fl', `${base}/fl.ts`);
     item.run(`${A.id}:pos_3`, A.id, 'pos_3', 'Odd', 3, 'odd', `${base}/html`);
     item.run(`${A.id}:pos_4`, A.id, 'pos_4', 'Shaky', 4, 'shaky', `${base}/dies.ts`);
-    // 0494: recordings are always segmented; these tests cover the part-based (.ts) path, so they ask for it
-    // (PIGTV_PART_RECORDINGS, set at the top of this file).
-    await db.settings.update({ segmentedRecordings: false, recordingsPath: path.join(sandbox, 'recordings'), minFreeSpaceGB: 0, maxConcurrentRecordings: 5,
+    await db.settings.update({ recordingsPath: path.join(sandbox, 'recordings'), minFreeSpaceGB: 0, maxConcurrentRecordings: 5,
         maxProviderStreams: 1, sharedIngestEnabled: true });
     engine.init({ ffmpegPath: FFMPEG, ffprobePath: 'ffprobe' });
     engine.shutdown();
+    stubNativeTools(engine); // the remux and its checks at the end of a recording are stood in for
 });
 
 afterEach(async () => {
     await engine.stopAllActive(3000);
     for (const s of scheduled.listUpcoming()) { await engine.cancelScheduled(s.id); scheduled.setStatus(s.id, 'cancelled'); }
+    await drainSegmentQueue(segments, recordings); // what a test left to finish is finished before the next
     for (const id of [...coordinator._prompts.keys()]) coordinator.clearPrompt(id);
     ingest.closeAll('test over');
     connections = {};
@@ -132,24 +158,39 @@ function due(item = 'pos_1', stable = 'ff', windowMs = 60000) {
         channel_name: item, channel_logo: null, program_start: now - 1000, program_end: now + windowMs,
         pre_buffer_min: 0, post_buffer_min: 0, created_by: 1, created_at: now });
 }
-const fileOf = (s) => recordings.listBySchedule(s.id)[0]?.file_path;
+const rowOf = (s) => recordings.listBySchedule(s.id)[0];
+/** The segment the fake writes the feed into, for the recording's epoch `e` (1: its first run). */
+const segmentOf = (s, e = 1) => (rowOf(s)?.work_dir ? path.join(rowOf(s).work_dir, `e${e}`, 'a000000.ts') : '');
+const sizeOf = (file) => { try { return fs.statSync(file).size; } catch { return 0; } };
+/** The MP4 is made right after a capture ends (and the work folder removed): held while a test reads the segments. */
+async function holdingTheMp4(work) {
+    const realQueue = segments.processQueue;
+    segments.processQueue = async () => {};
+    try { return await work(); } finally { segments.processQueue = realQueue; }
+}
 
-test('switch on: the capture reads pipe:0 with today\'s output arguments, and the file is the provider\'s own bytes', async () => {
+test('switch on: the capture reads pipe:0 with the segmented output arguments, exactly these, and the segment is the provider\'s own bytes', async () => {
     const s = due();
-    await until(() => captures().length === 1 && fs.existsSync(fileOf(s) || '') && fs.statSync(fileOf(s)).size > 20000, 'recording');
-    const args = captures()[0];
-    assert.deepEqual(args.slice(0, 3), ['-y', '-i', 'pipe:0']);
-    assert.ok(!args.includes('-user_agent') && !args.includes('-reconnect'), 'the ingest connects, not ffmpeg');
-    assert.deepEqual(args.slice(3, -1), ['-map', '0:v?', '-map', '0:a?', '-ignore_unknown', '-sn', '-dn', '-c', 'copy',
-        '-avoid_negative_ts', 'make_zero', '-f', 'mpegts'], 'the output arguments are today\'s');
-    await engine.cancelScheduled(s.id);
-    await until(() => recordings.listBySchedule(s.id)[0]?.status === 'completed', 'finished by end of input');
-    const file = fs.readFileSync(fileOf(s));
-    assert.equal(file.length % 188, 0);
+    await until(() => captures().length === 1 && sizeOf(segmentOf(s)) > 20000, 'recording');
+    const epoch = path.join(rowOf(s).work_dir, 'e1');
+    // The URL form, less the provider-facing input options (the ingest connects and reconnects): pinned whole, so a
+    // refactor of the capture arguments is provably identical (recording-segments.test.js pins the URL form).
+    assert.deepEqual(captures()[0], ['-y', '-i', 'pipe:0', '-map', '0:v?', '-map', '0:a?', '-ignore_unknown', '-sn', '-dn', '-c', 'copy',
+        '-avoid_negative_ts', 'make_non_negative', '-output_ts_offset', '0.000', '-f', 'hls', '-hls_time', '4',
+        '-hls_list_size', '0', '-hls_playlist_type', 'event', '-hls_flags', 'independent_segments+temp_file',
+        '-hls_segment_type', 'mpegts', '-hls_segment_filename', path.join(epoch, 'a%06d.ts'), path.join(epoch, 'archive.m3u8')]);
+    const segment = await holdingTheMp4(async () => {
+        await engine.cancelScheduled(s.id);
+        await until(() => rowOf(s).segment_state === 'finishing', 'the capture ended by end of input');
+        return fs.readFileSync(segmentOf(s));
+    });
+    assert.equal(segment.length % 188, 0);
     const provider = Buffer.concat(sent['/ff.ts']);
-    assert.ok(provider.indexOf(file.subarray(0, 188 * 50)) >= 0, 'the file\'s bytes are the provider\'s, in order');
-    assert.equal(((file[1] & 0x1f) << 8) | file[2], 0, 'it starts at a PAT');
+    assert.ok(provider.indexOf(segment.subarray(0, 188 * 50)) >= 0, 'the segment\'s bytes are the provider\'s, in order');
+    assert.ok(provider.indexOf(segment.subarray(-188 * 50)) >= 0, 'to its end');
+    assert.equal(((segment[1] & 0x1f) << 8) | segment[2], 0, 'it starts at a PAT');
     assert.equal(connections['/ff.ts'], 1);
+    await until(() => rowOf(s).status === 'completed', 'its MP4 made');
 });
 
 test('two recordings of one channel share one connection, even at a limit of 1; a different channel is another connection', async () => {
@@ -172,16 +213,16 @@ test('two recordings of one channel share one connection, even at a limit of 1; 
     assert.equal(connections['/ff.ts'], 1, 'still one for the shared channel');
 });
 
-test('a stream that is not MPEG-TS falls back to today\'s path', async () => {
+test('a stream that is not MPEG-TS falls back to its own connection', async () => {
     const s = due('pos_3', 'odd');
     await until(() => captures().length === 1, 'started');
     const args = captures()[0];
-    assert.equal(args[args.indexOf('-i') + 1], `${base}/html`, 'its own connection, as today');
+    assert.equal(args[args.indexOf('-i') + 1], `${base}/html`, 'its own connection');
     assert.ok(args.includes('-reconnect'));
     await engine.cancelScheduled(s.id);
 });
 
-test('switch off: today\'s arguments, no ingest', async () => {
+test('switch off: its own connection, no ingest', async () => {
     await db.settings.update({ sharedIngestEnabled: false });
     const s = due();
     await until(() => captures().length === 1, 'started');
@@ -199,15 +240,29 @@ test('the pool counts recordings on one ingest as one connection', async () => {
     assert.equal(coordinator.canRecordFreely(A.id, settings, [row(1), row(2)]), false, 'without an ingest, as today');
 });
 
-test('a provider that dies for good: the ingest gives up and the recording ends with what it captured', async () => {
+test('a provider that dies for good: the ingest gives up, the recording goes on in the same row on its own connection, and what it captured is kept', async () => {
     ingest.tuning.reconnectMs = 1500;
     try {
         const s = due('pos_4', 'shaky');
-        await until(() => recordings.listBySchedule(s.id)[0]?.status === 'completed', 'ended', 15000);
-        const rec = recordings.listBySchedule(s.id)[0];
-        assert.ok(fs.statSync(rec.file_path).size > 1024, 'what it recorded is kept');
+        await until(() => sizeOf(segmentOf(s)) > 1024, 'some data');
+        const rec = rowOf(s);
+        // 0499 (#260): a capture that ends early continues in a second run of the same recording; with the shared feed
+        // gone for good it connects by itself (a provider that keeps failing is retried up to 20 times).
+        await until(() => captures().length === 2, 'its second run', 15000);
         assert.ok(connections['/dies.ts'] >= 2, 'the ingest tried to reconnect');
-        assert.deepEqual(ingest.list(), []);
+        assert.deepEqual(ingest.list(), [], 'and gave up');
+        const second = captures()[1];
+        assert.equal(second[second.indexOf('-i') + 1], `${base}/dies.ts`, 'its own connection');
+        assert.equal(second[second.length - 1], path.join(rec.work_dir, 'e2', 'archive.m3u8'), 'into the same recording');
+        assert.deepEqual(recordings.listBySchedule(s.id).map(r => r.id), [rec.id], 'one row');
+        await holdingTheMp4(async () => {
+            await engine.cancelScheduled(s.id);
+            await until(() => !engine.listActive().some(r => r.id === s.id), 'nothing captures');
+            assert.equal(recordings.getById(rec.id).segment_state, 'finishing', 'not lost: it waits for its MP4');
+            assert.ok(sizeOf(segmentOf(s, 1)) > 1024, 'what the shared feed gave is kept');
+        });
+        await until(() => recordings.getById(rec.id).status === 'completed', 'finished with it');
+        assert.equal(recordings.getById(rec.id).segment_state, 'done');
     } finally {
         ingest.tuning.reconnectMs = 10000;
     }
@@ -216,14 +271,30 @@ test('a provider that dies for good: the ingest gives up and the recording ends 
 test('a feed that ends hands ffmpeg every byte it had queued before stdin closes', async () => {
     const s = due();
     await until(() => engine.listActive().some(r => r.id === s.id && r.ingestKey), 'on the ingest');
-    await until(() => fs.existsSync(fileOf(s) || '') && fs.statSync(fileOf(s)).size > 50000, 'some data');
+    await until(() => sizeOf(segmentOf(s)) > 50000, 'some data');
     const [live] = ingest.list();
-    const sub = ingest._registry.values().next().value;
-    sub.close('test: upstream gone', { providerReason: true, reason: 'upstream-lost' });
-    await until(() => recordings.listBySchedule(s.id)[0]?.status === 'completed', 'ended');
-    const file = fs.readFileSync(fileOf(s));
-    assert.equal(file.length % 188, 0, 'whole packets: nothing cut mid-stream');
+    const reader = ingest._registry.values().next().value;
+    const [feed] = reader.subs; // the recording's subscription
+    const segment = await holdingTheMp4(async () => {
+        // ffmpeg falls behind (0224: what is queued when the feed ends must still reach it), then the feed ends.
+        fs.writeFileSync(stallFlag, '1');
+        try {
+            await sleep(1000);
+            assert.ok(feed.readableLength > 0, 'bytes are queued for ffmpeg');
+            reader.close('test: upstream gone', { providerReason: true, reason: 'upstream-lost' });
+        } finally {
+            fs.unlinkSync(stallFlag);
+        }
+        // Its first run's ffmpeg ends with its input (the recording then goes on in a second run).
+        await until(() => fs.readFileSync(path.join(rowOf(s).work_dir, 'e1', 'archive.m3u8'), 'utf8').includes('#EXT-X-ENDLIST'), 'the first run ended');
+        const bytes = fs.readFileSync(segmentOf(s));
+        await engine.cancelScheduled(s.id);
+        return bytes;
+    });
+    assert.equal(segment.length, feed.bytesOut, 'every byte the feed was given reached ffmpeg');
+    assert.equal(segment.length % 188, 0, 'whole packets: nothing cut mid-stream');
     assert.ok(live.subscribers.length >= 1);
+    await until(() => rowOf(s).status === 'completed', 'its MP4 made');
 });
 
 // ---- DVR-4 (0232): a start that awaits its feed can be overtaken, and must then start nothing ----
@@ -250,32 +321,27 @@ async function startsWaiting(s, held) {
     return { ticking };
 }
 
-for (const segmented of [false, true]) {
-    const kind = segmented ? 'segmented' : 'ordinary';
-    test(`DVR-4 (${kind}): cancelled while its feed is awaited - no ffmpeg, the feed is given back, the cancel stands`, async () => {
-        await db.settings.update({ segmentedRecordings: segmented });
-        const held = holdSubscribe();
-        try {
-            const s = due();
-            const { ticking } = await startsWaiting(s, held);
-            await engine.cancelScheduled(s.id);
-            assert.equal(scheduled.getById(s.id).status, 'cancelled');
-            const feed = fakeFeed();
-            held.resolve(feed);
-            await ticking;
-            await sleep(200);
-            assert.equal(captures().length, 0, 'no capture started');
-            assert.equal(feed.left, 1, 'the late subscription is released');
-            assert.equal(scheduled.getById(s.id).status, 'cancelled', 'not overwritten with recording');
-            assert.equal(recordings.listBySchedule(s.id).length, 0, 'no recording row');
-            assert.ok(!engine.listActive().some(r => r.id === s.id));
-            assert.equal([...coordinator._leases.values()].filter(l => l.scheduleId === s.id).length, 0, 'its lease is released');
-        } finally {
-            held.restore();
-            await db.settings.update({ segmentedRecordings: false });
-        }
-    });
-}
+test('DVR-4: cancelled while its feed is awaited - no ffmpeg, the feed is given back, the cancel stands', async () => {
+    const held = holdSubscribe();
+    try {
+        const s = due();
+        const { ticking } = await startsWaiting(s, held);
+        await engine.cancelScheduled(s.id);
+        assert.equal(scheduled.getById(s.id).status, 'cancelled');
+        const feed = fakeFeed();
+        held.resolve(feed);
+        await ticking;
+        await sleep(200);
+        assert.equal(captures().length, 0, 'no capture started');
+        assert.equal(feed.left, 1, 'the late subscription is released');
+        assert.equal(scheduled.getById(s.id).status, 'cancelled', 'not overwritten with recording');
+        assert.equal(recordings.listBySchedule(s.id).length, 0, 'no recording row');
+        assert.ok(!engine.listActive().some(r => r.id === s.id));
+        assert.equal([...coordinator._leases.values()].filter(l => l.scheduleId === s.id).length, 0, 'its lease is released');
+    } finally {
+        held.restore();
+    }
+});
 
 test('DVR-4: a viewer takes the connection while the feed is awaited - the recording waits, it does not start', async () => {
     const held = holdSubscribe();

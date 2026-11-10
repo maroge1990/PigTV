@@ -1,5 +1,4 @@
-const { test, before, after } = require('node:test');
-process.env.PIGTV_PART_RECORDINGS = '1'; // 0494: the part-based path, for its tests
+const { test, before, after, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -20,17 +19,14 @@ const sqlite = load('db/sqlite');
 const engine = load('services/recordingEngine');
 engine._setPrepareQueue(false);
 const guideEnd = load('services/recordingGuideEnd');
-const { scheduled } = load('db/recordingsDb');
+const segments = load('services/recordingSegments');
+const { scheduled, recordings } = load('db/recordingsDb');
+const { createFakeSegmentFfmpeg, stubNativeTools, drainSegmentQueue } = require('./helpers/fakeSegmentFfmpeg');
 
-const FFMPEG = path.join(sandbox, 'ffmpeg-fake');
-fs.writeFileSync(FFMPEG, `#!${process.execPath}
-const fs = require('fs');
-const out = process.argv[process.argv.length - 1];
-fs.writeFileSync(out, Buffer.alloc(4000));
-setInterval(() => fs.appendFileSync(out, Buffer.alloc(500)), 50);
-process.stdin.on('data', (d) => { if (String(d).includes('q')) process.exit(0); });
-`);
-fs.chmodSync(FFMPEG, 0o755);
+// The fake ffmpeg writes segments and ends the playlist on "q", as a segmented capture needs; the remux is stood in for.
+const fake = createFakeSegmentFfmpeg(sandbox);
+const FFMPEG = fake.path;
+stubNativeTools(engine);
 
 const realConsole = { log: console.log, warn: console.warn };
 console.log = () => {}; console.warn = () => {};
@@ -43,11 +39,14 @@ before(async () => {
     const d = sqlite.getDb();
     d.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, is_hidden, sort_order, stable_id, tvg_id, stream_url)
                VALUES (?, ?, 'pos_1', 'live', 'Fox Cricket 501', 'Sport', 0, 1, 's501', 'fox.au', 'http://strong.invalid/live/u/p/501.ts')`).run(`${A.id}:pos_1`, A.id);
-    // 0494: recordings are always segmented; these tests cover the part-based (.ts) path, so they ask for it
-    // (PIGTV_PART_RECORDINGS, set at the top of this file).
-    await db.settings.update({ segmentedRecordings: false, recordingsPath: path.join(sandbox, 'recordings'), minFreeSpaceGB: 0, maxConcurrentRecordings: 5 });
+    await db.settings.update({ recordingsPath: path.join(sandbox, 'recordings'), minFreeSpaceGB: 0, maxConcurrentRecordings: 5 });
     engine.init({ ffmpegPath: FFMPEG, ffprobePath: 'ffprobe' });
     engine.shutdown(); // the test drives tick() itself
+});
+
+afterEach(async () => {
+    await engine.stopAllActive(3000);
+    await drainSegmentQueue(segments, recordings);
 });
 
 after(async () => {
@@ -66,6 +65,16 @@ function guide(rows) {
     const ins = d.prepare('INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, gen) VALUES (?, ?, ?, ?, ?, 0)');
     for (const r of rows) ins.run(r.channel || 'fox.au', A.id, r.start, r.end, r.title);
 }
+
+// The segmented life cycle: the schedule completes at the stop, the recording is finished once its MP4 exists.
+async function finishedSegmented(scheduleId) {
+    await drainSegmentQueue(segments, recordings);
+    const rows = recordings.listBySchedule(scheduleId);
+    assert.equal(rows.length, 1, 'one recording for the schedule');
+    assert.equal(rows[0].status, 'completed');
+    assert.equal(rows[0].segment_state, 'done', 'a segmented recording');
+}
+
 let n = 0;
 function schedule({ start, end, title = 'Australia v South Africa - 1st Test, Day 1' }) {
     return scheduled.create({ title: `${title}`, description: null, source_id: A.id, channel_item_id: 'pos_1', channel_stable_id: 's501',
@@ -146,6 +155,7 @@ test('a running recording outlives its old end when the guide extends it, and st
     assert.equal(scheduled.getById(s.id).status, 'recording', 'still recording past the old end');
     for (let i = 0; i < 60 && scheduled.getById(s.id).status === 'recording'; i++) await sleep(50);
     assert.equal(scheduled.getById(s.id).status, 'completed', 'stopped at the new end');
+    await finishedSegmented(s.id);
 });
 
 test('the hard stop re-reads the end when it fires (an end moved without a re-arm still counts)', async () => {
@@ -157,6 +167,7 @@ test('the hard stop re-reads the end when it fires (an end moved without a re-ar
     assert.equal(scheduled.getById(s.id).status, 'recording');
     for (let i = 0; i < 60 && scheduled.getById(s.id).status === 'recording'; i++) await sleep(50);
     assert.equal(scheduled.getById(s.id).status, 'completed');
+    await finishedSegmented(s.id);
 });
 
 // 0442 (0440 Codex round 1, medium): an event stop decided against a later guide end was read uncapped after the guide

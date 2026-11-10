@@ -1,5 +1,4 @@
 const { test, before, after, afterEach } = require('node:test');
-process.env.PIGTV_PART_RECORDINGS = '1'; // 0494: the part-based path, for its tests
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -21,6 +20,8 @@ const db = load('db'), sql = load('db/sqlite');
 const sessions = load('services/transcodeSession'), ingest = load('services/ingest'), c = load('services/streamCoordinator');
 const engine = load('services/recordingEngine'); engine._setPrepareQueue(false);
 const { scheduled, recordings } = load('db/recordingsDb');
+const segments = load('services/recordingSegments');
+const { drainSegmentQueue } = require('./helpers/fakeSegmentFfmpeg');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function until(fn) { const end = Date.now() + 8000; while (Date.now() < end) { if (fn()) return; await sleep(50); } assert.fail('accounting timeout'); }
 let provider, api, base, apiBase, A, settings, token, connections = 0;
@@ -39,9 +40,7 @@ before(async () => {
     A = await db.sources.create({ type: 'm3u', name: 'A', url: 'http://a.invalid/list.m3u' });
     await db.sources.create({ type: 'm3u', name: 'B', role: 'backup', url: 'http://b.invalid/list.m3u' });
     sql.getDb().prepare(`INSERT INTO playlist_items (id,source_id,item_id,stable_id,type,name,stream_url) VALUES (?,?,? ,?,'live','Test',?)`).run(`${A.id}:pos_1`, A.id, 'pos_1', 's1', base);
-    // 0494: recordings are always segmented; these tests cover the part-based (.ts) path, so they ask for it
-    // (PIGTV_PART_RECORDINGS, set at the top of this file).
-    await db.settings.update({ segmentedRecordings: false, sharedIngestEnabled: true, maxProviderStreams: 1, recordingsPath: path.join(tmp, 'recordings'), minFreeSpaceGB: 0 });
+    await db.settings.update({ sharedIngestEnabled: true, maxProviderStreams: 1, recordingsPath: path.join(tmp, 'recordings'), minFreeSpaceGB: 0 });
     settings = await db.settings.get();
     const user = await db.users.create({ username: 'admin', role: 'admin' });
     token = jwt.sign({ id: user.id, username: 'admin', role: 'admin' }, process.env.JWT_SECRET);
@@ -52,6 +51,7 @@ before(async () => {
 });
 afterEach(async () => {
     await engine.stopAllActive(3000);
+    await drainSegmentQueue(segments, recordings); // a recording's MP4 (real remux) is made before the next test
     for (const x of sessions.getAllSessions()) await sessions.removeSession(x.id);
     ingest.closeAll('test over'); connections = 0;
 });
@@ -93,7 +93,11 @@ test('R1-M1: real viewer riding a real recording adds no connection and forced t
     const now = Date.now();
     const sch = scheduled.create({ title: 'Offline', description: null, channel_logo: null, source_id: A.id, channel_item_id: 'pos_1', channel_stable_id: 's1', channel_name: 'Test', program_start: now - 1000, program_end: now + 60000, pre_buffer_min: 0, post_buffer_min: 0, created_by: 1, created_at: now });
     await engine.tick(); await until(() => engine.listActive().some(r => r.ingestKey === one.ingestKey));
-    await until(() => { const r = recordings.listBySchedule(sch.id)[0]; return r?.file_path && fs.existsSync(r.file_path) && fs.statSync(r.file_path).size > 0; });
+    // Every recording is segmented (D-48): real ffmpeg writes HLS segments from the shared feed on pipe:0 into appdata.
+    const rec = () => recordings.listBySchedule(sch.id)[0];
+    await until(() => rec()?.work_dir && segments.archiveSegmentCount(rec().work_dir) >= 1);
+    const capture = engine.listActive().find(r => r.ingestKey === one.ingestKey);
+    assert.ok(capture, 'the recording reads the viewer\'s shared feed');
     assert.equal(connections, 1); assert.equal(await used(), 1);
     const source = one.feed.ingest;
     const response = await fetch(`${apiBase}/api/playback/resolve`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -101,7 +105,9 @@ test('R1-M1: real viewer riding a real recording adds no connection and forced t
     const next = await response.json(); assert.equal(response.status, 200, JSON.stringify(next));
     await until(() => source.closed && sessions.getAllSessions().length === 1 && ingest.list().length === 1);
     assert.equal(one.stopRequested, true);
-    assert.notEqual(recordings.listBySchedule(sch.id)[0]?.status, 'recording');
+    await until(() => !engine.listActive().some(r => r.ingestKey === one.ingestKey));
+    assert.notEqual(rec().segment_state, 'capturing', 'the recording stopped too');
+    assert.notEqual(rec().status, 'failed', 'and keeps what it captured (its MP4 is made from it)');
     assert.equal(connections, 2, 'one old shared connection, one replacement');
     assert.equal(await used(), 1);
 });
