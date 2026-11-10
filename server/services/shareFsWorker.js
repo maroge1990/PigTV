@@ -12,8 +12,11 @@ const identityOfStat = (st) => `${st.dev}:${st.ino}:${st.size}:${st.mtimeNs}:${s
 // Tests only: any call under this folder waits (a hung share).
 const HANG = process.env.PIGTV_TEST_SHARE_HANG || null;
 
-function run(op, file) {
-    if (HANG && (file === HANG || file.startsWith(HANG + path.sep))) {
+const under = (f, dir) => f === dir || f.startsWith(dir + path.sep);
+
+/** `extra`: a call's further arguments ({ to } for link). */
+function run(op, file, extra = {}) {
+    if (HANG && (under(file, HANG) || (extra && extra.to && under(String(extra.to), HANG)))) {
         const view = new Int32Array(new SharedArrayBuffer(4));
         for (;;) Atomics.wait(view, 0, 0, 60000);
     }
@@ -35,6 +38,12 @@ function run(op, file) {
             // #141: true when removed, false when it was not there.
             try { fs.unlinkSync(file); return true; } catch (e) { if (e.code === 'ENOENT') return false; throw e; }
         }
+        case 'nlink': {
+            // #287: how many names the file has (a hard link made), or null when nothing is there.
+            try { return Number(fs.statSync(file).nlink); } catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+        }
+        // #287: a second name for `file`, never over an existing one (EEXIST is the caller's to see).
+        case 'link': fs.linkSync(file, String(extra.to)); return true;
         case 'mkdir': fs.mkdirSync(file); return true;
         case 'writeProbe': {
             const probe = path.join(file, `.pigtv-write-test-${process.pid}-${Date.now()}`);
@@ -50,7 +59,8 @@ if (require.main !== module || !process.send) return; // required in-process (te
 process.on('message', (msg) => {
     if (!msg || typeof msg.id !== 'number') return;
     try {
-        process.send({ id: msg.id, result: run(msg.op, String(msg.file)) });
+        const { id, op, file, ...extra } = msg;
+        process.send({ id, result: run(op, String(file), extra) });
     } catch (err) {
         process.send({ id: msg.id, error: err.message, code: err.code || 'SHARE_ERROR' });
     }

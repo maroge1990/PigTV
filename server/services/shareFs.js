@@ -9,8 +9,10 @@
  * counts as unresponsive until a call succeeds again.
  *
  * Calls: exists, stat ({size, mtimeMs} or null), statfs ({freeBytes, totalBytes}), mkdir, writeProbe (write and
- * remove a small file: true or false), identity (which file is there, or null; #141) and unlink (true, or false when
- * nothing was there; #141). Paths only; nothing here knows what the share holds.
+ * remove a small file: true or false), identity (which file is there, or null; #141), unlink (true, or false when
+ * nothing was there; #141), link (a second name, never over an existing file: an errno answer such as EEXIST keeps its
+ * code; #287) and nlink (how many names a file has, or null; #287). Paths only; nothing here knows what the share holds.
+ * `local` makes the same calls in this process, for a path on a local disk (appdata).
  */
 const { fork } = require('child_process');
 const path = require('path');
@@ -74,10 +76,9 @@ function abandon(which) {
 // Tests that fake the filesystem in this process (a patched fs.statfsSync) run the calls here instead.
 let inProcess = false;
 
-function call(op, file, { timeoutMs = tuning.timeoutMs } = {}) {
-    if (inProcess) {
-        try { return Promise.resolve(require('./shareFsWorker').run(op, String(file))); } catch (err) { return Promise.reject(err); }
-    }
+/** `extra`: further arguments, sent with the call ({ to } for link). */
+function call(op, file, { timeoutMs = tuning.timeoutMs } = {}, extra = {}) {
+    if (inProcess) return runHere(op, file, extra);
     if (!(child && child.connected) && stuck.size >= MAX_STUCK) {
         return Promise.reject(Object.assign(new Error('The recordings share is not answering (earlier calls are still stuck)'), { code: 'SHARE_UNRESPONSIVE' }));
     }
@@ -94,7 +95,7 @@ function call(op, file, { timeoutMs = tuning.timeoutMs } = {}) {
         pending.set(id, { resolve, reject, timer, child: worker });
         try { worker.channel?.ref?.(); } catch (e) { /* gone */ }
         try {
-            worker.send({ id, op, file });
+            worker.send({ ...extra, id, op, file });
         } catch (err) {
             pending.delete(id);
             clearTimeout(timer);
@@ -111,10 +112,22 @@ const mkdir = (file, opts) => call('mkdir', file, opts);
 const writeProbe = (file, opts) => call('writeProbe', file, opts);
 const identity = (file, opts) => call('identity', file, opts);
 const unlink = (file, opts) => call('unlink', file, opts);
+const link = (file, to, opts) => call('link', file, opts, { to: String(to) });
+const nlink = (file, opts) => call('nlink', file, opts);
 /** The size of `file`: 0 when it is missing, null when the share does not say (#143: unknown is not "no growth"). */
 async function sizeOf(file, opts) {
     try { const s = await stat(file, opts); return s ? s.size : 0; } catch (e) { return null; }
 }
+
+function runHere(op, file, extra) {
+    try { return Promise.resolve(require('./shareFsWorker').run(op, String(file), extra)); } catch (err) { return Promise.reject(err); }
+}
+/** #287: the same calls, made in this process: for a path on a local disk (appdata), which never hangs. */
+const local = {
+    exists: (f) => runHere('exists', f), stat: (f) => runHere('stat', f), identity: (f) => runHere('identity', f),
+    unlink: (f) => runHere('unlink', f), link: (f, to) => runHere('link', f, { to: String(to) }), nlink: (f) => runHere('nlink', f),
+    async sizeOf(f) { try { const s = await runHere('stat', f); return s ? s.size : 0; } catch (e) { return null; } }
+};
 
 // ---- the Status page's disk line: cached, refreshed in the background, never awaited by a request ----
 const DISK_MAX_AGE_MS = 30 * 1000;
@@ -161,4 +174,4 @@ function reset() {
 /** Tests: run calls in this process (true) or in the helper (false). */
 function _inProcess(on) { inProcess = !!on; }
 
-module.exports = { _inProcess, _spawner: spawner, _stuck: stuck, call, exists, stat, statfs, mkdir, writeProbe, identity, unlink, sizeOf, diskInfo, unresponsive, reset, tuning };
+module.exports = { _inProcess, _spawner: spawner, _stuck: stuck, call, exists, stat, statfs, mkdir, writeProbe, identity, unlink, link, nlink, sizeOf, local, diskInfo, unresponsive, reset, tuning };
