@@ -314,6 +314,26 @@ test('stop, a viewer taking the stream, and low disk space never start a continu
     assert.ok(!routing.isQuarantined(A.id, 's101'), 'and nothing was held against the provider');
 });
 
+test('low disk space in appdata stops a recording while the recordings share is down, as with it up', async () => {
+    const recordingsPath = path.join(sandbox, 'recordings');
+    const c = due();
+    await until(() => scheduled.getById(c.id).status === 'recording' && captures().length === 1, 'c records');
+    await sleep(100);
+    try {
+        // The share is not mounted: its parent is gone, so getRecordingsRoot() throws (nothing on the share is needed here).
+        await db.settings.update({ recordingsPath: path.join(sandbox, 'unmounted', 'recordings'), minFreeSpaceGB: 1e9 });
+        await engine.tick();
+        assert.equal(scheduled.getById(c.id).status, 'completed', 'stopped by the appdata check');
+        assert.ok(!activeFor(c.id));
+        assert.equal(rowsOf(c.id).length, 1);
+        assert.notEqual(rowsOf(c.id)[0].segment_state, 'capturing', 'its capture is over');
+        assert.notEqual(rowsOf(c.id)[0].status, 'failed', 'what it recorded is kept');
+        assert.equal(captures().length, 1, 'nothing restarted');
+    } finally {
+        await db.settings.update({ recordingsPath, minFreeSpaceGB: 0 }); // the share is back: its MP4 can move
+    }
+});
+
 // ------------------------------------------------------------ no backup --
 // One provider refusing waits for the next tick each time (not at once): recording-segments.test.js's "#284: a
 // single-provider route that refuses at the start"; one dropping mid-recording continues (0499): its "0499" test.

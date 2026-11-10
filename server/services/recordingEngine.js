@@ -1209,7 +1209,7 @@ function spawnPart(schedule, settings, { recordingId, outputPath, route, index, 
     });
 
     proc.on('close', (code) => {
-        // #146: kept, so a stop can wait for the part's finalisation (it awaits the share since 0328).
+        // #146: kept, so a stop can wait for the capture's exit handling (onPartExit).
         entry.exited = onPartExit(schedule, entry, code).catch(err =>
             console.error(`[Recordings] Error ending recording #${recordingId}:`, err.message));
     });
@@ -1493,8 +1493,7 @@ async function stopRecording(scheduledId, reasonStatus = 'completed') {
 
         setTimeout(done, 9000); // safety net so callers never hang forever
     });
-    // #146: onPartExit reads the file's size through shareFs before finalising; wait for it (bounded by the share
-    // deadline), so the cancel below is the last word.
+    // #146: wait for the capture's exit handling (onPartExit; bounded), so the cancel below is the last word.
     if (entry.exited) await Promise.race([entry.exited, new Promise(r => setTimeout(r, shareFs.tuning.timeoutMs + 1000))]);
 
     // The proc's 'close' handler registered in spawnPart (onPartExit -> onSegmentExit) runs
@@ -1644,14 +1643,7 @@ async function enforceFreeSpaceDuringRecording() {
     const minFreeGB = Number.isFinite(settings.minFreeSpaceGB) ? settings.minFreeSpaceGB : 10;
     if (minFreeGB <= 0) return;
 
-    try {
-        await getRecordingsRoot();
-    } catch (err) {
-        // The folder health check (below) already logs this state on its own
-        // timer; here there is nothing to enforce against, so skip this tick.
-        return;
-    }
-    // R3: segmented recordings fill appdata, not the share.
+    // R3: segmented recordings fill appdata, not the share (so a share that is down changes nothing here).
     const segmented = [...active.entries()].filter(([, e]) => e.segmented).map(([id]) => id);
     if (segmented.length) {
         const work = hasFreeSpace(segments.workRoot(), minFreeGB, 0.5);

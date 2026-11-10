@@ -55,12 +55,10 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   synchronous call (and fills libuv's thread pool for an asynchronous one), which froze every stream. File calls on it go
   to one helper process (`shareFs.js`, `shareFsWorker.js`) with a 5 s deadline; a miss kills the helper, a new one starts
   on the next call, and the folder reads `unresponsive` ("The recordings folder is not responding"). Killed helpers that
-  have not exited (stuck in the kernel) are counted; with two, calls fail at once without forking more (0328, #142). A
-  size the share did not give is unknown, never "no growth": it restarts the stall clock instead of ending a part as a
-  provider stall (#143). Through it: the
-  folder health check and the start pre-flight (`checkRecordingsFolderAsync`), `getRecordingsRoot`, the channel folder,
-  segmented recordings' share folder, choosing a capture's file name and reading its size when it ends (#144), and each
-  tick's growth and free-space checks. `/api/status`
+  have not exited (stuck in the kernel) are counted; with two, calls fail at once without forking more (0328, #142).
+  Through it: the folder health check and the start pre-flight (`checkRecordingsFolderAsync`), `getRecordingsRoot`, a
+  segmented recording's channel folder on the share, and the size of an older recording found in progress at a start.
+  A capture's growth and the free-space check while recording read appdata, never the share. `/api/status`
   shows a cached free-space line refreshed in the background (`shareFs.diskInfo`) and never touches the share. Deleting
   a recording (0330, #141): a share that is not answering refuses it before it is retired ("The recordings folder is not
   responding…"; it stays as it was, its jobs still its own: 0331, #149). A second delete of the same recording joins the
