@@ -64,9 +64,10 @@ const live = (scores = ['7', '3']) => ({ state: 'live', progress: { clock: '5:00
 const scheduled = { state: 'scheduled', progress: {}, scores: null, situation: null };
 const front = async () => { const r = await call('/api/sports/front'); assert.equal(r.status, 200, JSON.stringify(r.body)); assert.match(r.cache, /private.*no-store/); return r.body; };
 
-test('prefs: the owner\'s migrated once from the follow list; another account starts empty; following still writes; bad sports or teams are a 400', async () => {
-    const ins = sql().prepare('INSERT INTO sports_follow (position, keyword) VALUES (?, ?)');
-    ['NFL', 'NFL: Green Bay Packers', 'F1'].forEach((k, i) => ins.run(i, k));
+test('prefs: the owner\'s migrated once from the household\'s; another account starts empty; following still writes; bad sports or teams are a 400', async () => {
+    // The 0381 household store (meta sport_page_prefs), what the owner takes over.
+    sql().prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('sport_page_prefs', ?)`)
+        .run(JSON.stringify({ sports: ['NFL', 'F1'], teams: { NFL: ['Green Bay Packers'] } }));
     const got = (await call('/api/sports/pages/preferences')).body;
     assert.deepEqual(got.sports, ['NFL', 'F1']);
     assert.deepEqual(got.teams, { NFL: ['Green Bay Packers'] });
@@ -80,8 +81,8 @@ test('prefs: the owner\'s migrated once from the follow list; another account st
     assert.equal((await call('/api/sports/pages/preferences', { sports: ['Bogus'] })).status, 400);
     assert.equal((await call('/api/sports/pages/preferences', { teams: { NBA: ['x'] } })).status, 400);
     assert.deepEqual((await call('/api/sports/pages/preferences')).body, put.body, 'a refused change changes nothing');
-    // Written back once: a later change to the follow list does not re-migrate.
-    sql().prepare('DELETE FROM sports_follow').run();
+    // Written back once: a later change to the household's does not re-migrate.
+    sql().prepare(`DELETE FROM meta WHERE key = 'sport_page_prefs'`).run();
     assert.deepEqual((await call('/api/sports/pages/preferences')).body.sports, ['NFL', 'F1']);
     assert.ok(load('services/sportsFixtures').neededLeagues().has('NFL'), 'the collector fetches what the household follows');
 });

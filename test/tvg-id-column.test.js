@@ -1,4 +1,4 @@
-const { test, before, after } = require('node:test');
+const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -6,7 +6,8 @@ const path = require('node:path');
 
 // 0111 (roadmap S1.3): the guide used to JSON.parse `data` for every row on
 // every page just to find its tvg-id. tvg_id is now its own indexed column,
-// filled at ingest and backfilled once at startup for rows that predate it.
+// filled at ingest. (The start-up backfill for rows older than the column went
+// with D-57: every database still opened has had it.)
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-tvgid-col-'));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
 fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'node_modules'), 'junction');
@@ -21,36 +22,7 @@ after(() => {
     try { fs.rmSync(sandbox, { recursive: true, force: true }); } catch { /* leave it to the OS temp cleaner */ }
 });
 
-test('backfillTvgIds fills the column from the data blob for pre-existing rows', () => {
-    const db = sqlite.getDb();
-    db.prepare('DELETE FROM playlist_items').run();
-    db.prepare(`
-        INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, sort_order, data)
-        VALUES ('2:pos_1', 2, 'pos_1', 'live', 'One', 'All', 1, ?)
-    `).run(JSON.stringify({ tvgId: 'ch1' }));
-    // Simulate a row that predates the column.
-    db.prepare("UPDATE playlist_items SET tvg_id = NULL").run();
-
-    sqlite.backfillTvgIds();
-
-    assert.equal(db.prepare('SELECT tvg_id FROM playlist_items').get().tvg_id, 'ch1');
-});
-
-test('backfillTvgIds falls back to epg_channel_id when tvgId is absent (Xtream shape)', () => {
-    const db = sqlite.getDb();
-    db.prepare('DELETE FROM playlist_items').run();
-    db.prepare(`
-        INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, sort_order, data)
-        VALUES ('2:pos_2', 2, 'pos_2', 'live', 'Two', 'All', 2, ?)
-    `).run(JSON.stringify({ epg_channel_id: 'ch2' }));
-    db.prepare("UPDATE playlist_items SET tvg_id = NULL").run();
-
-    sqlite.backfillTvgIds();
-
-    assert.equal(db.prepare('SELECT tvg_id FROM playlist_items').get().tvg_id, 'ch2');
-});
-
-test('an M3U sync fills tvg_id at ingest, not only at the startup backfill', async () => {
+test('an M3U sync fills tvg_id at ingest', async () => {
     const source = await require(path.join(sandbox, 'server/db')).sources.create({
         type: 'm3u', name: 'Household', url: 'https://provider.invalid/list.m3u'
     });
@@ -63,4 +35,9 @@ test('an M3U sync fills tvg_id at ingest, not only at the startup backfill', asy
         "SELECT tvg_id FROM playlist_items WHERE source_id = ? AND name = 'Nine'"
     ).get(source.id);
     assert.equal(row.tvg_id, 'ch9', 'tvg_id must be set by the sync itself, without needing a restart');
+});
+
+test('an Xtream sync fills tvg_id at ingest from epg_channel_id', async () => {
+    await sync.saveStreams(8, 'live', [{ stream_id: 501, name: 'Five', category_id: '1', epg_channel_id: 'five.uk' }], { skipPurge: true });
+    assert.equal(sqlite.getDb().prepare(`SELECT tvg_id FROM playlist_items WHERE id = '8:501'`).get().tvg_id, 'five.uk');
 });

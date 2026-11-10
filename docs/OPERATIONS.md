@@ -110,6 +110,11 @@ exclude `recordings-work/` from any appdata backup: it is large, short-lived, an
 3. Make sure the owner matches (`chown 99:100 content.db`; the entrypoint also corrects this at start).
 4. Start the container and check the log and Status page.
 
+**Oldest database (D-57):** this version opens a database last opened by build 0476 or later. An older backup, or a
+data folder from before 0213 or with a `db.json` from before 0135, stops the start with "[Database] Not started" and is
+left untouched. The way through: run the `v0502` image once with that data folder until the Status page loads (it
+upgrades the database), stop it, then start this version again.
+
 ## Media toolchain
 
 0306 prepares a pinned FFmpeg/ffprobe 9.0.2 image and matching Linux CI recipe. Require its final-candidate tests before

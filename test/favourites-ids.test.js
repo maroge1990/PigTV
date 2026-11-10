@@ -32,6 +32,8 @@ fs.mkdirSync(path.join(sandbox, 'data'));
     ins.run(2, 5, 'm3u_5_pos_9', 'channel');      // another user's, independent
     ins.run(1, 5, 'm3u_5_movie', 'movie');        // not a channel: must not be touched
     ins.run(1, 5, 'pos_1', 'channel');            // already bare
+    // D-57: a database PigTV still opens was last opened by 0476 or later.
+    legacy.exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT); INSERT OR REPLACE INTO meta VALUES ('schema_build', '0476')`);
     legacy.close();
 }
 

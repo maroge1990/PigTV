@@ -35,6 +35,8 @@ fs.mkdirSync(path.join(sandbox, 'data'));
             WHERE p.gen = COALESCE(s.active_gen, 0);`);
     legacy.prepare('INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title) VALUES (?, ?, ?, ?, ?)')
         .run('old.1', 99, 1000, 2000, 'Old programme');
+    // D-57: a database PigTV still opens was last opened by 0476 or later.
+    legacy.exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT); INSERT OR REPLACE INTO meta VALUES ('schema_build', '0476')`);
     legacy.close();
 }
 

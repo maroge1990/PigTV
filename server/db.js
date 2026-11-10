@@ -16,9 +16,9 @@ const path = require('path');
  * plus `next_id` in the meta table (sources and users share one id counter,
  * as they did in db.json).
  *
- * The first time this module touches the database, a data/db.json left by an
- * older version is copied in (one transaction) and renamed db.json.migrated,
- * which stays as the backup. A fresh install starts with the default settings.
+ * A fresh install starts with the default settings. A data/db.json from before
+ * 0135 is no longer imported: the server refuses to start beside one whose
+ * contents were never moved in (D-57, services/dbMinimum.js).
  *
  * The API is unchanged: db.sources / db.settings / db.users, all async.
  *
@@ -35,8 +35,6 @@ const path = require('path');
 
 const dataDir = path.join(__dirname, '..', 'data');
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-const legacyPath = path.join(dataDir, 'db.json');
-const migratedPath = legacyPath + '.migrated';
 
 // Default settings
 function getDefaultSettings() {
@@ -119,14 +117,8 @@ function getUserAgent(settings) {
 
 let ready = false;
 
-/** The SQLite handle, with the one-time db.json migration done. */
-// 0285: settings no code reads any more (retiredSettings.js): dropped from the store at start, never saved again.
+// 0285: settings no code reads any more (retiredSettings.js): never saved again (an older client may still send them).
 const RETIRED_SETTINGS = require('./retiredSettings');
-
-function retireSettings(db) {
-  const gone = db.prepare(`DELETE FROM app_settings WHERE key IN (${RETIRED_SETTINGS.map(() => '?').join(',')})`).run(...RETIRED_SETTINGS).changes;
-  if (gone) console.log(`[Settings] Removed ${gone} retired setting${gone === 1 ? '' : 's'} no code reads`);
-}
 
 // 0494 (Mark, 8 Nov): every recording is segmented (it resumes after a restart or failover, and can be watched from the
 // start). Once per database, a stored "off" is dropped so the default (on) applies; the web no longer offers the switch.
@@ -138,11 +130,11 @@ function segmentedAlways(db) {
   if (gone) console.log('[Settings] Segmented recordings are always on now (the stored switch was removed)');
 }
 
+/** The SQLite handle, with the first start's setup done. */
 function store() {
   const db = require('./db/sqlite').getDb();
   if (!ready) {
-    migrateLegacy(db);
-    retireSettings(db);
+    firstStart(db);
     segmentedAlways(db);
     ready = true;
   }
@@ -155,64 +147,19 @@ const metaSet = (db, key, value) => db.prepare(`
 `).run(key, String(value));
 
 /**
- * Copy an older data/db.json into SQLite once, then rename it db.json.migrated
- * (kept as the backup). `app_data_migrated` in meta records that it happened,
- * so a db.json that reappears later (a restored backup) is never merged in on
- * top of what the server has since saved; it is reported instead.
+ * A new database's first start: the default settings are stored and the id counter starts at 1, once
+ * (meta `app_data_migrated`, the name it has had since 0135, when this step also imported db.json).
  */
-function migrateLegacy(db) {
-  if (metaGet(db, 'app_data_migrated')) {
-    if (fs.existsSync(legacyPath)) {
-      console.warn('[DB] data/db.json is present but its contents were moved into SQLite before; it is ignored');
-    }
-    return;
-  }
-
-  let legacy = null;
-  if (fs.existsSync(legacyPath)) {
-    // A file that cannot be read or parsed stops the server here rather than
-    // starting it with no sources and no users, which would look like data loss.
-    legacy = JSON.parse(fs.readFileSync(legacyPath, 'utf8'));
-  }
-
-  const sources = Array.isArray(legacy?.sources) ? legacy.sources : [];
-  const users = Array.isArray(legacy?.users) ? legacy.users : [];
-  const settings = legacy?.settings && typeof legacy.settings === 'object' ? legacy.settings : getDefaultSettings();
-  const maxId = Math.max(0, ...sources.map(s => Number(s.id) || 0), ...users.map(u => Number(u.id) || 0));
-  const nextId = Math.max(Number(legacy?.nextId) || 1, maxId + 1);
-
-  const insertSource = db.prepare('INSERT OR REPLACE INTO app_sources (id, data) VALUES (?, ?)');
-  const insertUser = db.prepare('INSERT OR REPLACE INTO app_users (id, username, data) VALUES (?, ?, ?)');
+function firstStart(db) {
+  if (metaGet(db, 'app_data_migrated')) return;
   const insertSetting = db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)');
   db.transaction(() => {
-    for (const s of sources) {
-      const id = Number(s.id);
-      if (!Number.isInteger(id)) continue;
-      insertSource.run(id, JSON.stringify({ ...s, id }));
-    }
-    for (const u of users) {
-      const id = Number(u.id);
-      if (!Number.isInteger(id)) continue;
-      insertUser.run(id, String(u.username ?? ''), JSON.stringify({ ...u, id }));
-    }
-    for (const [key, value] of Object.entries(settings)) {
+    for (const [key, value] of Object.entries(getDefaultSettings())) {
       if (value !== undefined) insertSetting.run(key, JSON.stringify(value));
     }
-    metaSet(db, 'next_id', nextId);
-    metaSet(db, 'app_data_migrated', legacy ? `db.json ${new Date().toISOString()}` : `fresh ${new Date().toISOString()}`);
+    metaSet(db, 'next_id', 1);
+    metaSet(db, 'app_data_migrated', `fresh ${new Date().toISOString()}`);
   })();
-
-  if (legacy) {
-    // The hidden-items / favourites arrays of very old files are not copied:
-    // nothing has read them for a long time (both live in SQLite already).
-    try {
-      fs.renameSync(legacyPath, migratedPath);
-    } catch (err) {
-      console.warn('[DB] Moved db.json into SQLite but could not rename it:', err.message);
-    }
-    console.log(`[DB] Moved db.json into SQLite: ${sources.length} source(s), ${users.length} user(s), ` +
-      `${Object.keys(settings).length} setting(s); the old file is kept as db.json.migrated`);
-  }
 }
 
 /** Run `fn` in a transaction; a failure becomes the plain sentence a client may be shown. */

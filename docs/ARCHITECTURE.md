@@ -203,9 +203,10 @@ Client events carry no session id, so the mapping is owner → last resolve (as 
 - Unknown `/api/*` → `404 {"error":"No such API endpoint"}`. **A new Apple-client endpoint goes into `APPLE_CLIENT_ROUTES` in
   `test/api-404.test.js`.**
 - Sources, settings and users live in SQLite since 0135 (`app_sources`, `app_users`, `app_settings`, `meta.next_id`; objects
-  kept as JSON). The first start on 0135 migrates `data/db.json` once and renames it **`db.json.migrated`** (the backup; a
-  `db.json` that reappears later is ignored and logged). **Rolling back past 0135:** rename `db.json.migrated` to `db.json`
-  (anything changed since is not in it). `settings.get()` returns one deep-frozen object, rebuilt only after a write: copy
+  kept as JSON). A `db.json` is no longer imported: beside a database it was moved into it is ignored and logged, else
+  the start is refused. **Oldest database (D-57):** `services/dbMinimum.js` reads meta `schema_build` (written at every open
+  since 0213) first thing in `index.js` and in `getDb()`, before the pre-migration copy, and refuses one below 0476, data
+  with no build, or an unmoved `db.json`, leaving the folder untouched. `settings.get()` returns one deep-frozen object, rebuilt only after a write: copy
   it before adding to it. A failed write is one rolled-back transaction and a plain "could not save its data" error.
 - Auth is `jsonwebtoken` + `bcryptjs` directly (0136; passport removed): `requireAuth` (bearer, 401 "Unauthorized"),
   `streamAuth` (bearer or `?token=`), role always from the user store, revoked devices refused.

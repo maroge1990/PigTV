@@ -10,14 +10,15 @@ const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-recstable-'));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
 fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'node_modules'), 'junction');
 process.chdir(sandbox);
-// resolveStreamUrl reads the source to decide Xtream vs M3U, so the sandbox needs
-// one. M3U is the case that has positions to lose.
-fs.mkdirSync(path.join(sandbox, 'data'), { recursive: true });
-fs.writeFileSync(path.join(sandbox, 'data/db.json'), JSON.stringify({
-    sources: [{ id: 2, name: 'Test M3U', type: 'm3u', url: 'http://provider.invalid/list.m3u' }],
-    settings: {}, users: []
-}));
 const sqlite = require(path.join(sandbox, 'server/db/sqlite'));
+// resolveStreamUrl reads the source to decide Xtream vs M3U, so the sandbox needs
+// one, with id 2 (the rows below name it). M3U is the case that has positions to lose.
+{
+    const { sources } = require(path.join(sandbox, 'server/db'));
+    sources.create({ name: 'Placeholder', type: 'm3u', url: 'http://provider.invalid/0.m3u' }); // id 1 (a write is synchronous)
+    sources.create({ name: 'Test M3U', type: 'm3u', url: 'http://provider.invalid/list.m3u' }); // id 2
+    sources.delete(1);
+}
 const recordingsDb = require(path.join(sandbox, 'server/db/recordingsDb'));
 
 after(() => {

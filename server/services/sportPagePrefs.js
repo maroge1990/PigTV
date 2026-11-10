@@ -15,7 +15,7 @@
  * Kept apart from the settings object: the web saves that whole object back from a copy (#9).
  */
 const { getDb } = require('../db/sqlite');
-const { canonicalLeague, teamFollow } = require('./sportsClassify');
+const { canonicalLeague } = require('./sportsClassify');
 const catalog = require('./sportCatalog');
 
 const HOUSEHOLD_KEY = 'sport_page_prefs'; // the 0381 household store, read once for the owner's migration
@@ -101,7 +101,7 @@ function sanitise(stored) {
     return state;
 }
 
-/** The household's follows before 0391 (the 0381 store, else the admin follow list), as the owner's first state. */
+/** The household's follows before 0391 (the 0381 store, else the names followed before it), as the owner's first state. */
 function fromHousehold(db) {
     let stored = null;
     try { stored = JSON.parse(db.prepare('SELECT value FROM meta WHERE key = ?').get(HOUSEHOLD_KEY)?.value ?? 'null'); } catch { stored = null; }
@@ -121,17 +121,11 @@ function fromHousehold(db) {
         }
         return state;
     }
-    // Before 0381: the legacy followed names, then the admin follow list in its order.
+    // Before 0381: the legacy followed names. (The admin keyword list, sports_follow, was handed to the owner once by
+    // 0394-0521 and emptied; D-57 left it unread.)
     for (const page of PAGES) {
         const name = stored?.following?.[page];
         if (typeof name === 'string' && name) { addLeague(state, page); addTeam(page, name); }
-    }
-    let rows = [];
-    try { rows = db.prepare('SELECT keyword FROM sports_follow ORDER BY position').all(); } catch { rows = []; }
-    for (const { keyword } of rows) {
-        const team = teamFollow(keyword);
-        const leagues = team ? [team.league] : leaguesOf(keyword);
-        for (const league of leagues) if (addLeague(state, league) && team) addTeam(team.league, team.team);
     }
     return state;
 }
@@ -149,28 +143,6 @@ function readState(db, userId, migrate = true) {
         return state;
     }
     return empty();
-}
-
-/**
- * D-42 (#195): the admin keyword list is retired. Once, at server start: the owner takes over the household's follows
- * (if not yet), then `sports_follow` is emptied, so only the leagues accounts follow decide what is sport.
- */
-function retireKeywordList(db = getDb()) {
-    const DONE = 'sports_follow_retired';
-    try {
-        if (db.prepare('SELECT value FROM meta WHERE key = ?').get(DONE)) return false;
-        db.transaction(() => {
-            const owner = ownerId(db);
-            if (owner !== null) readState(db, owner);
-            db.prepare('DELETE FROM sports_follow').run();
-            db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(DONE, '1');
-        })();
-        try { require('./sportsEvents').followsChanged(); } catch { /* not loaded */ }
-        return true;
-    } catch (err) {
-        console.warn('[Sport] retiring the keyword list:', err.message);
-        return false;
-    }
 }
 
 const copy = (state) => ({ spoilerFree: state.spoilerFree,
@@ -347,4 +319,4 @@ function update(userId, patch, db = getDb()) {
     })();
 }
 
-module.exports = { get, follows, update, setFollows, allLeagues, allTeams, retireKeywordList, view, PAGES, MAX_TEAMS };
+module.exports = { get, follows, update, setFollows, allLeagues, allTeams, view, PAGES, MAX_TEAMS };

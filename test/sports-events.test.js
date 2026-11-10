@@ -490,20 +490,6 @@ test('D-42 (#195): the follow list is retired: read-only for the admin, the foll
     assert.deepEqual(load('services/sportsEvents').getFollow(), ['NBA']);
     prefs.setFollows(viewer.id, { sports: [] });
     assert.deepEqual(load('services/sportsEvents').getFollow(), [], 'an unfollowed league stops counting');
-    // Once at start: the owner takes the old list over and it is emptied.
-    const d = sqlite.getDb();
-    d.prepare('DELETE FROM sports_follow').run();
-    const old = d.prepare('INSERT INTO sports_follow (position, keyword) VALUES (?, ?)');
-    old.run(0, 'AFL'); old.run(1, 'NFL: Green Bay Packers');
-    d.prepare("DELETE FROM meta WHERE key IN ('sport_page_prefs', 'sports_follow_retired')").run();
-    d.prepare('DELETE FROM sport_follows').run();
-    assert.equal(prefs.retireKeywordList(), true);
-    assert.equal(prefs.retireKeywordList(), false, 'only once');
-    assert.equal(d.prepare('SELECT COUNT(*) AS n FROM sports_follow').get().n, 0);
-    assert.deepEqual(prefs.follows(adminUser.id).sports.map(s => [s.sport, s.leagues, s.teams]),
-        [['Australian football', ['AFL'], []], ['American football', ['NFL'], ['Green Bay Packers']]]);
-    assert.deepEqual(load('services/sportsEvents').getFollow(), ['AFL', 'NFL']);
-    prefs.setFollows(adminUser.id, { sports: [] });
 });
 
 test('#270: rows left in sports_follow count for nothing; only the leagues accounts follow do', async () => {
@@ -511,10 +497,16 @@ test('#270: rows left in sports_follow count for nothing; only the leagues accou
     const ev = load('services/sportsEvents');
     const prefs = load('services/sportPagePrefs');
     prefs.setFollows(adminUser.id, { sports: [] });
+    // A database from before D-57 still has the table (new ones do not).
+    d.exec('CREATE TABLE IF NOT EXISTS sports_follow (position INTEGER PRIMARY KEY, keyword TEXT NOT NULL)');
     d.prepare('DELETE FROM sports_follow').run();
     const old = d.prepare('INSERT INTO sports_follow (position, keyword) VALUES (?, ?)');
     old.run(0, 'NFL'); old.run(1, 'F1'); old.run(2, 'NFL: Green Bay Packers');
     try {
+        // D-57: nor does the owner take them over when the owner has no follows of their own yet.
+        d.prepare('DELETE FROM sport_follows WHERE user_id = ?').run(adminUser.id);
+        d.prepare(`DELETE FROM meta WHERE key = 'sport_page_prefs'`).run();
+        assert.deepEqual(prefs.follows(adminUser.id).sports, [], 'the owner starts from nothing, not from the keyword rows');
         ev.followsChanged();
         assert.deepEqual(ev.getFollow(), [], 'an un-retired keyword row is not a follow');
         assert.deepEqual([...load('services/sportsFixtures').neededLeagues()], [], 'and fetches no fixtures');

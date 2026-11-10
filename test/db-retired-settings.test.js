@@ -4,22 +4,14 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-// 0285: settings left behind by removed features (12 on the live server, 27 Oct) are dropped at
-// start and never saved again. A copy of the server with its own data/ folder; the rows are put in
-// the store the way the live database has them, before the settings module first opens it.
+// 0285: settings left behind by removed features (12 on the live server, 27 Oct) are never saved
+// again. (The start-up delete of stored ones went with D-57: every database still opened has had it.)
+// A copy of the server with its own data/ folder.
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-retired-'));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
 fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'node_modules'), 'junction');
 fs.mkdirSync(path.join(sandbox, 'data'), { recursive: true });
 const sqlite = require(path.join(sandbox, 'server', 'db', 'sqlite'));
-const LEFTOVERS = { forceProxy: false, requireStreamAuth: false, streamFormat: 'm3u8', showMovies: false, probeCacheTTL: 300 };
-{
-    const d = sqlite.getDb();
-    // As on a server running for a while: the one-time first start (which seeds the defaults) is done.
-    d.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('app_data_migrated', ?)").run(new Date().toISOString());
-    const put = d.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)');
-    for (const [k, v] of Object.entries({ ...LEFTOVERS, quality: 'high' })) put.run(k, JSON.stringify(v));
-}
 const db = require(path.join(sandbox, 'server', 'db'));
 const quiet = async (fn) => { const log = console.log; console.log = () => {}; try { return await fn(); } finally { console.log = log; } };
 
@@ -30,15 +22,6 @@ after(() => {
 });
 
 const storedKeys = () => sqlite.getDb().prepare('SELECT key FROM app_settings').all().map(r => r.key);
-
-test('retired settings are removed from the store at start; the rest are kept', async () => {
-    const s = await quiet(() => db.settings.get());
-    for (const k of Object.keys(LEFTOVERS)) {
-        assert.equal(k in s, false, `${k} is not handed out`);
-        assert.equal(storedKeys().includes(k), false, `${k} is not stored`);
-    }
-    assert.equal(s.quality, 'high', 'a setting in use is untouched');
-});
 
 test('a save that still carries a retired setting does not bring it back', async () => {
     await quiet(() => db.settings.update({ forceProxy: true, requireStreamAuth: true, quality: 'low' }));

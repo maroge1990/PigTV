@@ -1,5 +1,7 @@
 const express = require('express');
 require('dotenv').config();
+// D-57: a database older than this version supports stops the start here, before anything touches the data folder.
+require('./services/dbMinimum').exitIfUnsupported(require('./db/sqlite').databasePath());
 const path = require('path');
 const compression = require('compression');
 const { shouldCompress } = require('./services/compressionFilter');
@@ -249,8 +251,6 @@ app.listen(PORT, async (err) => {
     // the event loop it would block also serves live HLS segments.
     // R09: the build itself runs on a worker thread (services/sportsEventsWorker.js), so
     // it no longer blocks that loop at all.
-    // D-42 (#195): the admin keyword list is retired, once: the owner takes it over, then it is emptied.
-    require('./services/sportPagePrefs').retireKeywordList();
     try {
         require('./services/sportsEvents').startBackgroundRebuilds();
     } catch (err) {
@@ -307,9 +307,7 @@ app.listen(PORT, async (err) => {
 
     // Sync runs independently and may take a long time on a stale EPG source.
     setTimeout(() => {
-        // 0182: one card per provider (roles from the order, the guide on the primary), once.
-        require('./services/providerMigration').run()
-            .catch(err => console.warn('Provider consolidation failed:', err.message))
+        Promise.resolve()
             .then(() => syncService.syncIfStale())
             .catch(console.error)
             .finally(() => syncService.startSyncTimer().catch(console.error));

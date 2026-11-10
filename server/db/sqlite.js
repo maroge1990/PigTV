@@ -28,6 +28,12 @@ function getDb() {
         return db;
     }
     if (!db) {
+        // D-57: a database older than this version supports is refused before anything touches it (the copy
+        // below included). Every opener comes through here; server/index.js also runs it first thing, to exit.
+        const minimum = require('../services/dbMinimum');
+        const verdict = minimum.check(dbPath);
+        if (!verdict.ok) throw Object.assign(new Error(minimum.message(verdict)), { code: 'PIGTV_DB_UNSUPPORTED' });
+        if (verdict.warning) console.warn(verdict.warning);
         // R12: a copy before this build's migrations touch a database another build left.
         // Best effort: nothing here may stop the database opening.
         let dbBackup = null, build = null;
@@ -149,8 +155,7 @@ function initSchema() {
     // `data` JSON blob. The guide (0111) reads it for every row on every page,
     // and JSON.parse-ing `data` per row does not scale to the several thousand
     // channels a page can now ask for. Filled at ingest (syncService.js, both
-    // the M3U and Xtream paths) and backfilled once at startup below for rows
-    // that predate the column.
+    // the M3U and Xtream paths).
     try {
         db.exec('ALTER TABLE playlist_items ADD COLUMN tvg_id TEXT');
     } catch (e) {
@@ -224,7 +229,7 @@ function initSchema() {
 
     // Sources, settings and users (0135, roadmap S4.3a), formerly data/db.json.
     // Objects are kept as JSON so their shape stays exactly what db.json held;
-    // server/db.js owns them (and the one-time migration from db.json).
+    // server/db.js owns them.
     // `username` is a column only for the lookup.
     db.exec(`
         CREATE TABLE IF NOT EXISTS app_sources (
@@ -427,15 +432,6 @@ function initSchema() {
             category_id TEXT NOT NULL,
             updated_at INTEGER NOT NULL,
             PRIMARY KEY (source_id, category_id)
-        );
-    `);
-
-    // The retired admin Sports keyword list (D-42). Nothing writes it; start-up empties it
-    // (sportPagePrefs.retireKeywordList) after handing it to the account follows.
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS sports_follow (
-            position INTEGER PRIMARY KEY,
-            keyword TEXT NOT NULL
         );
     `);
 
@@ -656,25 +652,12 @@ function initSchema() {
 
     normalizeFavoriteIds();
     dropFilmsAndSeries();
-    stripStoredBadges();
     backfillStableIds();
-    backfillTvgIds();
     backfillFavoriteIdentities();
     backfillHistoryIdentities();
 
     console.log('[SQLite] Schema initialized');
 }
-
-// Where a name or title was stored before 0099 stripped the badge at ingest.
-const BADGE_COLUMNS = [
-    ['playlist_items', 'name'],
-    ['epg_programs', 'title'],
-    ['channel_history', 'channel_name'],
-    ['scheduled_recordings', 'title'],
-    ['scheduled_recordings', 'channel_name'],
-    ['recordings', 'title'],
-    ['recordings', 'channel_name']
-];
 
 /**
  * #270: films and series are no longer downloaded, and nothing read what earlier syncs stored. Once per
@@ -698,60 +681,6 @@ function dropFilmsAndSeries() {
 }
 
 /**
- * 0138: strip the small-caps "ᴸɪᴠᴇ" / "ɴᴇᴡ" badge (services/textCleanup.js,
- * 0099) from names and titles stored before ingest stripped it. Once per
- * database (meta `badge_cleanup`): everything written since is stripped on the
- * way in, and a sync replaces most of it anyway. Tables that do not exist yet
- * (the recording tables, before the engine first starts) are skipped; they are
- * only ever written by code that strips. A name that is ONLY a badge is kept.
- */
-function stripStoredBadges() {
-    if (db.prepare(`SELECT 1 FROM meta WHERE key = 'badge_cleanup'`).get()) return 0;
-    const { stripBadgeSuffix } = require('../services/textCleanup');
-    db.function('pigtv_strip_badge', { deterministic: true }, (v) => (typeof v === 'string' ? (stripBadgeSuffix(v) || v) : v));
-    const tables = new Set(db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`).all().map(r => r.name));
-    let changed = 0;
-    db.transaction(() => {
-        for (const [table, column] of BADGE_COLUMNS) {
-            if (!tables.has(table)) continue;
-            changed += db.prepare(`UPDATE ${table} SET ${column} = pigtv_strip_badge(${column})
-                                   WHERE ${column} IS NOT NULL AND ${column} <> pigtv_strip_badge(${column})`).run().changes;
-        }
-        db.prepare(`INSERT INTO meta (key, value) VALUES ('badge_cleanup', ?)`).run(String(Date.now()));
-    })();
-    if (changed) console.log(`[SQLite] Removed the small-caps badge from ${changed} stored name(s) and title(s)`);
-    return changed;
-}
-
-/**
- * Fill tvg_id for rows that predate the column, from the same `data` JSON the
- * guide used to JSON.parse on every request (0111). Only touches rows where
- * the column is still NULL, so it is a cheap indexed scan on an
- * already-migrated database and runs on every start rather than being
- * tracked as a one-off.
- */
-function backfillTvgIds() {
-    const rows = db.prepare("SELECT id, data FROM playlist_items WHERE tvg_id IS NULL AND data IS NOT NULL").all();
-    if (!rows.length) return;
-
-    const update = db.prepare('UPDATE playlist_items SET tvg_id = ? WHERE id = ?');
-    let filled = 0;
-    db.transaction(() => {
-        for (const r of rows) {
-            let tvgId = null;
-            try {
-                const d = JSON.parse(r.data);
-                tvgId = d.tvgId || d.epg_channel_id || null;
-            } catch { tvgId = null; }
-            if (!tvgId) continue;
-            update.run(tvgId, r.id);
-            filled++;
-        }
-    })();
-    if (filled) console.log(`[SQLite] Backfilled tvg_id for ${filled} of ${rows.length} playlist item(s)`);
-}
-
-/**
  * Fill stable_id for rows that predate the column, so the identity is available
  * without waiting for the next provider sync.
  *
@@ -759,6 +688,9 @@ function backfillTvgIds() {
  * already-migrated database and runs on every start rather than being tracked
  * as a one-off. It derives from stream_url and the data blob exactly as the
  * sync does - an M3U sync leaves stream_url empty and keeps the URL in the blob.
+ *
+ * Kept by D-57 (#270): not one-time. An EPG sync writes its `epg_channel` rows with no stable_id and the
+ * XMLTV <url> in the blob, and this fills them at the next start.
  */
 function backfillStableIds() {
     const { stableChannelId } = require('../services/stableIds');
@@ -788,6 +720,9 @@ function backfillStableIds() {
  * The same for watch history. A stale row here is less harmful than a stale
  * favourite - it shows the wrong name in "recently watched" and plays the wrong
  * channel if tapped - but it is the same fault and the same fix.
+ *
+ * Kept by D-57 (#270): not one-time. A play of a channel the playlist does not (yet) list writes a row with
+ * no identity (routes/playback.js recordHistory), which this fills once the channel is there.
  */
 function backfillHistoryIdentities() {
     const rows = db.prepare(`
@@ -813,6 +748,8 @@ function backfillHistoryIdentities() {
  * first runs.
  *
  * Only touches rows where stable_id is still NULL, so it is cheap on every start.
+ * Kept by D-57 (#270): not one-time. favorites.add() writes NULL for a channel the playlist does not (yet)
+ * list with an identity, which this fills once it does.
  */
 function backfillFavoriteIdentities() {
     const rows = db.prepare(`
@@ -835,6 +772,7 @@ function backfillFavoriteIdentities() {
  * (m3u_<src>_<item>) to the canonical bare id, merging with a bare row that
  * already exists. Idempotent and cheap - it only looks at rows that still carry
  * a prefix - so it runs on every start rather than being tracked as a one-off.
+ * Kept by D-57 (#270): favorites.add() strips one prefix, so an id sent with two still arrives with one.
  */
 function normalizeFavoriteIds() {
     const rows = db.prepare(`
@@ -935,10 +873,8 @@ module.exports = {
     initSchema,
     // Exported so the migrations can be exercised directly; initSchema calls them.
     backfillStableIds,
-    backfillTvgIds,
     backfillFavoriteIdentities,
     backfillHistoryIdentities,
-    stripStoredBadges,
     dropFilmsAndSeries,
     favorites
 };

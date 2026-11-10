@@ -5,35 +5,30 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-// 0135 (roadmap S4.3a): sources, settings and users move from data/db.json into
-// SQLite. On the first start a db.json is migrated once and kept as
-// db.json.migrated; the db.sources/settings/users API is unchanged; and
+// 0135 (roadmap S4.3a): sources, settings and users live in SQLite (they were in
+// data/db.json); the db.sources/settings/users API is unchanged; and
 // settings.get() - read on every media request - hands out one frozen object
-// instead of a structuredClone of the whole database per call. On the old code
-// there is no migration (db.json stays, no SQLite tables) and every get() clones.
+// instead of a structuredClone of the whole database per call. (The one-time
+// import of a db.json went with D-57; the data here is saved through the API.)
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-dbstore-'));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
 fs.cpSync(path.join(__dirname, '../package.json'), path.join(sandbox, 'package.json'));
 fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'node_modules'), 'junction');
 fs.mkdirSync(path.join(sandbox, 'data'), { recursive: true });
 
-const SAMPLE = {
-    sources: [
-        { id: 1, type: 'xtream', name: 'Provider', url: 'http://p.invalid', username: 'u', password: 'p', enabled: true, created_at: '2026-01-01T00:00:00.000Z' },
-        { id: 4, type: 'epg', name: 'Guide', url: 'http://g.invalid/epg.xml', enabled: false }
-    ],
-    settings: { quality: 'high', requireStreamAuth: false, recordingsPath: '/mnt/rec', nested: { a: [1, 2] } },
-    users: [
-        { id: 2, username: 'owner', passwordHash: '$2a$10$hash', role: 'admin', email: null, createdAt: '2026-01-01T00:00:00.000Z' },
-        { id: 3, username: 'kid', passwordHash: '$2a$10$other', role: 'viewer', email: 'k@x.invalid' }
-    ],
-    nextId: 5
-};
 const dbFile = path.join(sandbox, 'data', 'db.json');
-fs.writeFileSync(dbFile, JSON.stringify(SAMPLE, null, 2));
-
 const db = require(path.join(sandbox, 'server', 'db'));
 const sqlite = require(path.join(sandbox, 'server', 'db', 'sqlite'));
+
+// Saved the way the server saves them: sources and users share one id counter (ids 1-4).
+const saved = (async () => {
+    const provider = await db.sources.create({ type: 'xtream', name: 'Provider', url: 'http://p.invalid', username: 'u', password: 'p' });
+    const owner = await db.users.create({ username: 'owner', passwordHash: '$2a$10$hash', role: 'admin' });
+    const kid = await db.users.create({ username: 'kid', passwordHash: '$2a$10$other', role: 'viewer', email: 'k@x.invalid' });
+    const guide = await db.sources.toggleEnabled((await db.sources.create({ type: 'epg', name: 'Guide', url: 'http://g.invalid/epg.xml' })).id);
+    await db.settings.update({ quality: 'high', recordingsPath: '/mnt/rec', nested: { a: [1, 2] } });
+    return { provider, owner, kid, guide };
+})();
 
 after(() => {
     try { sqlite.getDb().close(); } catch { /* already closed */ }
@@ -51,24 +46,25 @@ function readInChild(expr) {
     return result(execFileSync(process.execPath, ['-e', code], { cwd: sandbox, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
 }
 
-test('the first start migrates a sample db.json and keeps it as db.json.migrated', async () => {
+test('what was saved is read back, every field', async () => {
+    const { provider, owner, kid, guide } = await saved;
+    assert.deepEqual([provider.id, owner.id, kid.id, guide.id], [1, 2, 3, 4]);
     // 0168: a non-EPG source stored with no role reads as a primary (stored rows are not rewritten).
-    assert.deepEqual(await db.sources.getAll(), SAMPLE.sources.map(s => (s.type === 'epg' ? s : { ...s, role: 'primary' })), 'sources, every field');
-    assert.deepEqual(await db.users.getAll(), SAMPLE.users, 'users, password hashes included');
+    assert.deepEqual(await db.sources.getAll(), [provider, guide], 'sources, every field');
+    assert.equal(guide.enabled, false);
+    assert.deepEqual((await db.users.getAll()).map(u => [u.id, u.username, u.passwordHash, u.role, u.email]),
+        [[2, 'owner', '$2a$10$hash', 'admin', null], [3, 'kid', '$2a$10$other', 'viewer', 'k@x.invalid']], 'users, password hashes included');
     const settings = await db.settings.get();
     assert.equal(settings.quality, 'high');
     assert.equal(settings.recordingsPath, '/mnt/rec');
     assert.deepEqual(settings.nested, { a: [1, 2] });
-    assert.equal(settings.maxProviderStreams, 1, 'defaults fill what the file did not have');
-
-    assert.ok(!fs.existsSync(dbFile), 'db.json is moved aside');
-    assert.deepEqual(JSON.parse(fs.readFileSync(dbFile + '.migrated', 'utf8')), SAMPLE, 'the backup is the old file, untouched');
+    assert.equal(settings.maxProviderStreams, 1, 'defaults fill what was not saved');
 
     const created = await db.users.create({ username: 'guest', role: 'viewer' });
-    assert.equal(created.id, 5, 'ids continue from nextId');
+    assert.equal(created.id, 5, 'ids continue from the counter');
 });
 
-test('the migration runs once: a db.json that reappears is not merged in again', () => {
+test('a db.json beside a database it was moved into before is ignored', () => {
     fs.writeFileSync(dbFile, JSON.stringify({ sources: [{ id: 99, name: 'Restored' }], settings: { quality: 'low' }, users: [], nextId: 100 }));
     try {
         assert.deepEqual(readInChild('db.sources.getAll()').map(s => s.id), [1, 4]);

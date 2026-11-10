@@ -9,16 +9,16 @@ const express = require('express');
 
 // 0138: the items carried over from the old blueprint ((a), /api/info surviving a throwing
 // feature check, went with the last switchable flag that had one).
-//   (b) the small-caps badge is stripped from names and titles stored before 0099, once,
-//       and from channel names on the Xtream ingest path (the M3U parser already did).
+//   (b) the small-caps badge is stripped from channel names on the Xtream ingest path (the
+//       M3U parser already did). (The one-time strip of names stored before 0099 went with
+//       D-57: every database still opened has had it.)
 //   (c) P2-8 tests not covered elsewhere: the EPG parser under bursty input; the token
 //       carried onto the fMP4 init segment and .m4s segments of an ffmpeg-written
 //       playlist; Range requests
 //       on a recording. "A viewer that already holds the slot re-resolves" is covered by
 //       playback-arbitration.test.js ("a device changing channel replaces its own old
 //       stream without a prompt") and stream-coordinator.test.js, so is not repeated.
-// On the old code: stored badges stay, an Xtream
-// channel keeps its badge, and a suffix or over-long Range is a 416.
+// On the old code: an Xtream channel keeps its badge, and a suffix or over-long Range is a 416.
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-0138-'));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
 fs.cpSync(path.join(__dirname, '../package.json'), path.join(sandbox, 'package.json'));
@@ -28,25 +28,6 @@ process.chdir(sandbox);
 
 const BADGE = 'ᴸɪᴠᴇ';
 const load = p => require(path.join(sandbox, 'server', p));
-
-// Rows stored before 0099, written straight into a database that has never been opened
-// by this build: the clean-up must find them when the server first opens it.
-fs.mkdirSync(path.join(sandbox, 'data'), { recursive: true });
-{
-    const Database = require('better-sqlite3');
-    const raw = new Database(path.join(sandbox, 'data', 'content.db'));
-    raw.exec(`CREATE TABLE playlist_items (id TEXT PRIMARY KEY, source_id INTEGER NOT NULL, item_id TEXT NOT NULL, type TEXT NOT NULL,
-                name TEXT NOT NULL, category_id TEXT, parent_id TEXT, stream_icon TEXT, stream_url TEXT, container_extension TEXT,
-                rating REAL, year TEXT, added_at TEXT, is_hidden INTEGER DEFAULT 0, is_favorite INTEGER DEFAULT 0, data JSON);
-              CREATE TABLE epg_programs (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id TEXT NOT NULL, source_id INTEGER NOT NULL,
-                start_time INTEGER NOT NULL, end_time INTEGER NOT NULL, title TEXT, description TEXT, data JSON);`);
-    raw.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name) VALUES ('1:pos_1', 1, 'pos_1', 'live', ?)`).run(`Fox Sports 505 ${BADGE}`);
-    raw.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name) VALUES ('1:pos_2', 1, 'pos_2', 'live', 'Plain Channel')`).run();
-    raw.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name) VALUES ('1:pos_3', 1, 'pos_3', 'live', ?)`).run(BADGE);
-    raw.prepare(`INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, description) VALUES ('c', 1, 1, 2, ?, ?)`)
-        .run(`NFL 16 ${BADGE}`, `Described ${BADGE}`);
-    raw.close();
-}
 
 const db = load('db');
 const auth = load('auth');
@@ -80,19 +61,6 @@ after(async () => {
 });
 
 // ---------------------------------------------------------------- (b) --
-
-test('(b) names and titles stored before 0099 lose the badge when the database is first opened, once', () => {
-    const d = sqlite.getDb();
-    const names = d.prepare(`SELECT item_id, name FROM playlist_items WHERE source_id = 1 ORDER BY item_id`).all();
-    assert.deepEqual(names.map(r => r.name), ['Fox Sports 505', 'Plain Channel', BADGE], 'a name that is only a badge is kept');
-    const prog = d.prepare(`SELECT title, description FROM epg_programs`).get();
-    assert.equal(prog.title, 'NFL 16');
-    assert.equal(prog.description, `Described ${BADGE}`, 'descriptions were never stripped at ingest either');
-    assert.ok(d.prepare(`SELECT value FROM meta WHERE key = 'badge_cleanup'`).get(), 'recorded as done');
-
-    d.prepare(`UPDATE playlist_items SET name = ? WHERE item_id = 'pos_2'`).run(`Plain Channel ${BADGE}`);
-    assert.equal(sqlite.stripStoredBadges(), 0, 'it does not run again');
-});
 
 test('(b) the Xtream ingest path strips the badge from channel names', async () => {
     const sync = load('services/syncService');

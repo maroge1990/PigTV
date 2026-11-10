@@ -21,6 +21,8 @@ fs.mkdirSync(path.join(sandbox, 'data'));
         start_time INTEGER NOT NULL, end_time INTEGER NOT NULL, title TEXT, description TEXT, data JSON)`);
     const ins = legacy.prepare('INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, data) VALUES (?, ?, ?, ?, ?, ?)');
     for (let i = 0; i < 3; i++) ins.run('bbc1', 1, 1000 + i, 2000 + i, `Legacy ${i}`, '{"big":"blob"}');
+    // D-57: a database PigTV still opens was last opened by 0476 or later.
+    legacy.exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT); INSERT OR REPLACE INTO meta VALUES ('schema_build', '0476')`);
     legacy.close();
 }
 

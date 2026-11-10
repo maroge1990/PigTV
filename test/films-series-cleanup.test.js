@@ -46,6 +46,8 @@ fs.mkdirSync(path.join(sandbox, 'data'), { recursive: true });
     cat.run('2:7', 2, '7', 'series', 'Series');
     raw.prepare(`INSERT INTO favorites (user_id, source_id, item_id, item_type) VALUES (1, 1, '20', 'movie')`).run();
     raw.prepare(`INSERT INTO watch_history (id, user_id, item_type, item_id, updated_at) VALUES ('1:20', 1, 'movie', '20', 1)`).run();
+    // D-57: a database PigTV still opens was last opened by 0476 or later.
+    raw.exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT); INSERT OR REPLACE INTO meta VALUES ('schema_build', '0476')`);
     raw.close();
 }
 

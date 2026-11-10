@@ -16,8 +16,6 @@ const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-dbfail-'));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
 fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'node_modules'), 'junction');
 fs.mkdirSync(path.join(sandbox, 'data'), { recursive: true });
-fs.writeFileSync(path.join(sandbox, 'data', 'db.json'),
-    JSON.stringify({ sources: [], settings: { quality: 'medium' }, users: [], nextId: 1 }));
 
 const db = require(path.join(sandbox, 'server', 'db'));
 const sqlite = require(path.join(sandbox, 'server', 'db', 'sqlite'));
@@ -52,7 +50,8 @@ const onDisk = (key) => {
 };
 
 test('a write that fails is reported to the caller, not passed off as saved', async () => {
-    assert.equal((await db.settings.get()).quality, 'medium', 'migrated from db.json');
+    await db.settings.update({ quality: 'medium' });
+    assert.equal((await db.settings.get()).quality, 'medium', 'saved before the disk fails');
     breakDisk();
     try {
         await quietly(async () => {
