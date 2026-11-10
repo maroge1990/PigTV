@@ -47,6 +47,8 @@ The source of truth is the PigBrand kit: guide 1.8.0, token files 1.7.0 (`PigBra
 | `public/css/pig-radiance.css`, `public/css/pig-glass.css` | `tokens/pig-radiance.css`, `tokens/pig-glass.css`, copied verbatim. Do not edit them. |
 | `public/img/brand/` | `assets/products/pigtv/`: `mark.svg`, `wordmark-{light,dark}.svg`, `lockup-{horizontal,stacked}-{light,dark}.svg`, and from `icons/`: `favicon-{light,dark}.ico`, `web-small-{light,dark}.svg`, `web-{light,dark}-{180,192,512}.png`. |
 | `public/site.webmanifest` | Based on `web-manifest.example.json`, with real URLs (`start_url` and `scope` are `/`). |
+| `public/js/vendor/hls-1.5.7.min.js`, `hls.js-LICENSE` | hls.js 1.5.7, `dist/hls.min.js` from the npm package (sha256 `a78b3603…360b`, checked by `test/web-vendored-assets.test.js`); Apache-2.0. Bundled so the web player needs no internet. Not in `package.json`. |
+| `public/css/fonts/Inter-latin-wght-normal.woff2`, `Inter-latin-ext-wght-normal.woff2`, `OFL.txt` | Inter 4 variable, Latin and Latin Extended subsets (the package's own `unicode-range`s), from npm `@fontsource-variable/inter` 5.3.0; SIL OFL 1.1. One file covers weights 400-700 (two `@font-face` rules at the top of `main.css`). |
 
 `*-light` files are for light backgrounds (dark text), `*-dark` files for dark backgrounds. The palette is the same as 1.0 and lives in `public/css/main.css` as `--color-*` tokens (dark in `:root`, light in `[data-theme="light"]`). `public/js/theme.js` always writes the resolved `data-theme` on `<html>`. A small alias block in `main.css` defines every `--pig-*` role the vendored CSS reads as `var(--color-...)`, so it follows the theme.
 
