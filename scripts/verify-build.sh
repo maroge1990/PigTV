@@ -311,11 +311,13 @@ check public/index.html "dvr-setting-addetect" "detection setting"
 echo "=== compression is request-only ==="
 python3 - <<'PYCHK'
 import re, sys
-src = open('server/services/recordingEngine.js').read()
-i = src.index('function finalizeRecording')
-fin = src[i:i+3000]
-auto_compress = "setCompressStatus(recordingId, 'pending')" in fin
-auto_detect = "setAdDetectStatus(recordingId, 'pending')" in fin
+# 0507: a recording is finished by recordingSegments.completed() (every recording is segmented).
+seg = open('server/services/recordingSegments.js').read()
+src = open('server/services/recordingEngine.js').read() + seg
+i = seg.index('function completed(')
+fin = seg[i:i+800]
+auto_compress = "setCompressStatus(rec.id, 'pending')" in fin
+auto_detect = "setAdDetectStatus(rec.id, 'pending')" in fin
 gated = 'postRecordCompress' in src
 ok = (not auto_compress) and auto_detect and (not gated)
 if ok:
@@ -1543,6 +1545,14 @@ if grep -rn "detectLive\|startLiveDetection\|liveCaptureEnded" server | grep -q 
     echo "  ✗ STILL PRESENT: live break detection is referred to under server/"; FAIL=1
 else
     echo "  ✓ no live break detection under server/"
+fi
+
+echo "=== 0507: no part-based capture path (#271) ==="
+# Every recording is segmented; recordings the old path made are still read, never made.
+if grep -rn "PIGTV_PART_RECORDINGS\|finalizeRecording\|waitForNextPart" server test | grep -q .; then
+    echo "  ✗ STILL PRESENT: the part-based capture path is referred to under server/ or test/"; FAIL=1
+else
+    echo "  ✓ no part-based capture path under server/ or test/"
 fi
 
 # Documentation size budgets (30 Oct reset, decision D-22): warnings only, never a failure. A warning means

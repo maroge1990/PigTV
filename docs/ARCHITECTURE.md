@@ -235,8 +235,9 @@ Client events carry no session id, so the mapping is owner → last resolve (as 
   5 min → down; half-open after 3 min (doubling to 15). **Quarantine:** 10 min per provider + channel, also set when a
   session ends unrequested, so a player's single re-resolve lands elsewhere. Connections are **leased before the probe**
   (0198), so two starts can't double-book one.
-- **Recordings** take the first candidate with a free connection (else the prompt flow on the first), fail over at start,
-  and continue as part N+1 on a mid-recording death or a 30 s stall (at most 3 parts).
+- **Recordings** take the first candidate with a free connection (else the prompt flow on the first). A capture that dies
+  or stalls for 30 s continues in the same recording, in a new epoch on the next free provider
+  ([`architecture/recording.md`](architecture/recording.md) › Segmented recordings).
 
 - A sibling-link decision that changes what is listed bumps the guide version (0250).
 - **Making a backup the primary keeps the lineup** (#15, 0372–0378, `providerPromotion.js`). The lineup is keyed on the

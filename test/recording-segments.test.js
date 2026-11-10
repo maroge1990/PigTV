@@ -60,7 +60,7 @@ before(async () => {
     d.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, is_hidden, sort_order, stable_id, stream_url)
                VALUES (?, ?, 'pos_1', 'live', 'Fox Sports 505', 'Sport', 0, 1, 's101', ?)`).run(`${A.id}:pos_1`, A.id, url.A);
     fs.mkdirSync(share, { recursive: true });
-    await db.settings.update({ recordingsPath: share, minFreeSpaceGB: 0, maxConcurrentRecordings: 5, segmentedRecordings: true });
+    await db.settings.update({ recordingsPath: share, minFreeSpaceGB: 0, maxConcurrentRecordings: 5 });
     engine.init({ ffmpegPath: FFMPEG, ffprobePath: path.join(sandbox, 'no-ffprobe') });
     engine.shutdown(); // the test drives tick() itself
 
@@ -91,7 +91,7 @@ afterEach(async () => {
     fake.reset();
     remuxed.length = 0;
     fs.mkdirSync(share, { recursive: true });
-    await db.settings.update({ recordingsPath: share, segmentedRecordings: true });
+    await db.settings.update({ recordingsPath: share });
 });
 
 after(() => {
@@ -743,7 +743,6 @@ test('provider dies mid-recording with a backup: the same recording continues in
                    VALUES (?, 's101', ?, '5001', 'exact', 'auto', 1, 100, ?)`).run(A.id, B.id, Date.now());
     }
     try {
-        tuning.startFailoverMs = 200;
         tuning.endGraceMs = 0;
         setBehaviour(url.A, 'dies');
         const s = due({ windowMs: 3000 });

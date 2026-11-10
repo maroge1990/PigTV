@@ -1,9 +1,7 @@
 /**
- * Segmented recordings (R3, Wave 4; approved by Mark on 16 Oct). Every recording since 0494 (D-48,
- * `segmentedRecordings` on with no switch); `false`, set only by tests, records the old way (one .ts per
- * part on the share, recordingEngine.spawnPart).
+ * Segmented recordings (R3, Wave 4; approved by Mark on 16 Oct). Every recording since 0494 (D-48).
  *
- * With it on, a new recording is captured as HLS segments in appdata
+ * A new recording is captured as HLS segments in appdata
  * (/app/data/recordings-work/rec-<id>/), never on the share, which has a history of going stale:
  *
  *   e1/archive.m3u8 + a000000.ts …   what the recording ffmpeg writes (MPEG-TS, stream copy)

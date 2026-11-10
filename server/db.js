@@ -130,8 +130,6 @@ function retireSettings(db) {
 
 // 0494 (Mark, 8 Nov): every recording is segmented (it resumes after a restart or failover, and can be watched from the
 // start). Once per database, a stored "off" is dropped so the default (on) applies; the web no longer offers the switch.
-// Tests of the part-based (.ts) path set PIGTV_PART_RECORDINGS=1; nothing else can turn segmenting off.
-const partRecordingsForTests = () => process.env.PIGTV_PART_RECORDINGS === '1';
 
 function segmentedAlways(db) {
   if (metaGet(db, 'segmented_always')) return;
@@ -339,8 +337,8 @@ const settings = {
   async get() {
     if (!settingsCache) {
       const merged = { ...getDefaultSettings(), ...storedSettings(store()) };
-      // 0494 Codex round 1 (high): always on; a stored or restored "off" never counts (tests of the old path only).
-      if (!partRecordingsForTests()) merged.segmentedRecordings = true;
+      // 0494 Codex round 1 (high): always on; a stored or restored "off" never counts.
+      merged.segmentedRecordings = true;
       settingsCache = deepFreeze(merged);
     }
     return settingsCache;
@@ -353,7 +351,7 @@ const settings = {
           INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value
         `);
         for (const [key, value] of Object.entries(newSettings || {})) {
-          if (key === 'segmentedRecordings' && !partRecordingsForTests()) continue; // 0494: not a setting any more
+          if (key === 'segmentedRecordings') continue; // 0494: not a setting any more
           if (value !== undefined && !RETIRED_SETTINGS.includes(key)) upsert.run(key, JSON.stringify(value));
         }
         return storedSettings(db);

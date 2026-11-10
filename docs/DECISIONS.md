@@ -610,3 +610,12 @@ reviews.
 - **Choice:** no warming when a live card has focus (brand 1.8: focus never takes a stream). The warming-on-focus code
   goes with generation 1; only the player's channel-up/down target warms.
 - **Consequence:** the Apple repo's `docs/ARCHITECTURE.md` › Performance and its `ChannelWarmer`.
+
+### D-56. The part-based recording path is retired (10 Nov 2026; Mark)
+
+- **Context:** #271: after D-48 the part-based (`.ts`) capture path could be reached only by tests, yet failover, guide
+  end, event end, schedule edits and share hangs were proven on it, not on the segmented path production runs.
+- **Choice:** Mark: retire the path, after moving across the tests that have no segmented twin. Ad detection during
+  capture, reachable only from that path, goes with it. Amends D-48.
+- **Consequence:** `recordingEngine.js` captures segmented only and `PIGTV_PART_RECORDINGS` is gone; recordings already
+  on disk from the old path still play, list and delete; [`architecture/recording.md`](architecture/recording.md).
