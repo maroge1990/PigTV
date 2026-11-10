@@ -129,4 +129,4 @@ function pcrOf(buf, i) {
     return buf[i + 6] * 33554432 + buf[i + 7] * 131072 + buf[i + 8] * 512 + buf[i + 9] * 2 + (buf[i + 10] >> 7);
 }
 
-module.exports = { FeedPace, pcrOf, QUIET_MS, PEAK_DECAY };
+module.exports = { FeedPace, pcrOf, PEAK_DECAY };

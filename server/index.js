@@ -67,12 +67,7 @@ function findFFmpeg() {
 
     // Try ffmpeg-static npm package
     try {
-        let ffmpegPath = require('ffmpeg-static');
-        // In packaged Electron apps, ffmpeg-static returns path inside .asar archive
-        // but the binary is actually unpacked to app.asar.unpacked
-        if (ffmpegPath && ffmpegPath.includes('app.asar')) {
-            ffmpegPath = ffmpegPath.replace('app.asar', 'app.asar.unpacked');
-        }
+        const ffmpegPath = require('ffmpeg-static');
         console.log('FFmpeg binary configured at:', ffmpegPath);
         return ffmpegPath;
     } catch (err) {

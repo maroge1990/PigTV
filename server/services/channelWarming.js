@@ -272,5 +272,5 @@ function _reset() {
 
 module.exports = {
     WARM_TTL_MS, enabled, keyFor, warm, forResolve, claim, unclaim, adopt, end, endAll, noteReclaimed, noteWatching, isWatching, status,
-    _entries: entries, _reset, _setTtl
+    _reset, _setTtl
 };

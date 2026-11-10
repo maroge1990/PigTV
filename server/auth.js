@@ -140,14 +140,6 @@ function requireAuth(req, res, next) {
     }, next);
 }
 
-/** Middleware: set req.user when a valid bearer token is present; never refuses. */
-function optionalAuth(req, res, next) {
-    userFromBearer(req).then((user) => {
-        if (user) req.user = user;
-        next();
-    }, () => next());
-}
-
 /**
  * Authenticate a stream request. Always enforced (R01): the media endpoints
  * (/api/proxy, /api/transcode, the recordings' media routes) serve only PigTV's
@@ -194,7 +186,6 @@ module.exports = {
     configureJwtStrategy,
     authenticateCredentials,
     requireAuth,
-    optionalAuth,
     streamAuth,
     requireAdmin,
 };

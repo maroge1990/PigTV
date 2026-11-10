@@ -208,7 +208,7 @@ Client events carry no session id, so the mapping is owner → last resolve (as 
   (anything changed since is not in it). `settings.get()` returns one deep-frozen object, rebuilt only after a write: copy
   it before adding to it. A failed write is one rolled-back transaction and a plain "could not save its data" error.
 - Auth is `jsonwebtoken` + `bcryptjs` directly (0136; passport removed): `requireAuth` (bearer, 401 "Unauthorized"),
-  `optionalAuth`, `streamAuth` (bearer or `?token=`), role always from the user store, revoked devices refused.
+  `streamAuth` (bearer or `?token=`), role always from the user store, revoked devices refused.
 - Express 5 (0137): wildcards are `/{*splat}`; `req.body` is forced to `{}` when absent; query parser `extended`;
   `res.sendFile` needs `dotfiles: 'allow'` for anything under a dot-folder.
 

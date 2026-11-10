@@ -44,7 +44,6 @@ before(async () => {
     const a = express();
     a.get('/me', auth.requireAuth, (req, res) => res.json(req.user));
     a.get('/admin', auth.requireAuth, auth.requireAdmin, (req, res) => res.json({ ok: true }));
-    a.get('/maybe', auth.optionalAuth, (req, res) => res.json({ user: req.user || null }));
     a.use((err, req, res, next) => res.status(500).json({ error: 'Internal server error' }));
     bare = await listen(a);
 
@@ -109,13 +108,6 @@ test('device tokens: valid while the device is, refused once it is revoked', asy
     assert.equal((await ok.json()).deviceId, 'dev1');
     d.prepare(`UPDATE devices SET revoked_at = ? WHERE id = 'dev1'`).run(Date.now());
     assert.equal((await getWith(`${bare.base}/me`, `Bearer ${token}`)).status, 401);
-    assert.deepEqual(await (await getWith(`${bare.base}/maybe`, `Bearer ${token}`)).json(), { user: null });
-});
-
-test('optionalAuth never refuses: a user when the token is good, none otherwise', async () => {
-    assert.equal((await (await getWith(`${bare.base}/maybe`, `Bearer ${auth.generateToken(viewer)}`)).json()).user.username, 'viewer');
-    assert.deepEqual(await (await getWith(`${bare.base}/maybe`, 'Bearer junk')).json(), { user: null });
-    assert.deepEqual(await (await getWith(`${bare.base}/maybe`)).json(), { user: null });
 });
 
 test('a user lookup that fails is a 500 through the error handler, not a 401', async () => {
