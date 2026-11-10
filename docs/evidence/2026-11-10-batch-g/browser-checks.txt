@@ -1,0 +1,251 @@
+{
+ "a_hosts": {
+  "requestsByHost": {
+   "http://localhost:13100": 318
+  },
+  "foreign": [],
+  "pass": true
+ },
+ "b_fonts": {
+  "faces": [
+   {
+    "family": "Inter",
+    "status": "loaded",
+    "weight": "400 700"
+   },
+   {
+    "family": "Inter",
+    "status": "unloaded",
+    "weight": "400 700"
+   }
+  ],
+  "woff2": [
+   "/css/fonts/Inter-latin-wght-normal.woff2"
+  ],
+  "body": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif",
+  "usesInter": true,
+  "pass": true
+ },
+ "c_player": {
+  "hlsVersion": "1.5.7",
+  "t0": 1.894032,
+  "t10": 11.926487,
+  "advanced": 10.03,
+  "consoleErrors": [],
+  "statusKeysAfterStop": [
+   "generatedAt",
+   "mediaTools",
+   "build",
+   "providers",
+   "sessions",
+   "recordings",
+   "recentProblems",
+   "recordingsFolder",
+   "events",
+   "startTiming",
+   "leastReliable",
+   "interruptions",
+   "warming",
+   "relay",
+   "ingest",
+   "feedLag",
+   "sportFixtures",
+   "sportEvents",
+   "preparation",
+   "segmentedRecordings",
+   "loopDelay",
+   "sportCollector",
+   "sync",
+   "catchup",
+   "backups",
+   "disk"
+  ],
+  "playingAfterStop": "[{\"id\":\"fd2d582ec78f6e66\",\"channel\":\"UK| BBC ONE HD\",\"owner\":\"user:1\",\"providerId\":2,\"provider\":null,\"video\":\"copy\",\"audio\":\"copy\",\"segmentType\":\"fmp4\",\"uptimeSec\":100,\"idleSec\":58,\"status\":\"running\",\"ffmpeg\":\"running\",\"error\":null,\"ownerName\":\"rig-admin\"}]"
+ },
+ "d_dialogs": {
+  "edit-user-desktop": {
+   "rect": {
+    "x": 496,
+    "y": 245,
+    "w": 448,
+    "h": 410,
+    "cx": 720,
+    "cy": 450,
+    "vw": 1440,
+    "vh": 900
+   },
+   "scrollBefore": "HTML:0|settings-container:457",
+   "scrollAfter": "HTML:0|settings-container:457",
+   "pageScrollLocked": true,
+   "escClosed": true,
+   "focusAfterEsc": "BUTTON.btn btn-sm btn-secondary|edit",
+   "focusIsOpener": true,
+   "backdropClosed": true,
+   "focusAfterBackdrop": "BUTTON.btn btn-sm btn-secondary|edit",
+   "focusIsOpenerBackdrop": true
+  },
+  "guide-programme-desktop": {
+   "rect": {
+    "x": 496,
+    "y": 301,
+    "w": 448,
+    "h": 297,
+    "cx": 720,
+    "cy": 450,
+    "vw": 1440,
+    "vh": 900
+   },
+   "scrollBefore": "HTML:0|epg-scroll-container:0",
+   "scrollAfter": "HTML:0|epg-scroll-container:0",
+   "pageScrollLocked": true,
+   "escClosed": true,
+   "focusAfterEsc": "DIV.epg-program current|",
+   "focusIsOpener": true,
+   "backdropClosed": true,
+   "focusAfterBackdrop": "DIV.epg-program current|",
+   "focusIsOpenerBackdrop": true
+  },
+  "sport-event-desktop": {
+   "rect": {
+    "x": 370,
+    "y": 124,
+    "w": 700,
+    "h": 651,
+    "cx": 720,
+    "cy": 450,
+    "vw": 1440,
+    "vh": 900
+   },
+   "scrollBefore": "HTML:0",
+   "scrollAfter": "HTML:0",
+   "pageScrollLocked": true,
+   "escClosed": true,
+   "focusAfterEsc": "BUTTON.btn btn-secondary sports-options|",
+   "focusIsOpener": true,
+   "backdropClosed": true,
+   "focusAfterBackdrop": "BUTTON.btn btn-secondary sports-options|",
+   "focusIsOpenerBackdrop": true
+  },
+  "edit-user-phone": {
+   "rect": {
+    "x": 15,
+    "y": 256,
+    "w": 360,
+    "h": 332,
+    "cx": 195,
+    "cy": 422,
+    "vw": 390,
+    "vh": 844
+   },
+   "scrollBefore": "HTML:0|settings-container:0",
+   "scrollAfter": "HTML:0|settings-container:0",
+   "pageScrollLocked": true,
+   "escClosed": true,
+   "focusAfterEsc": "BUTTON.btn btn-sm btn-secondary|edit",
+   "focusIsOpener": true,
+   "backdropClosed": true,
+   "focusAfterBackdrop": "BUTTON.btn btn-sm btn-secondary|edit",
+   "focusIsOpenerBackdrop": true
+  },
+  "guide-programme-phone": {
+   "rect": {
+    "x": 15,
+    "y": 296,
+    "w": 360,
+    "h": 251,
+    "cx": 195,
+    "cy": 422,
+    "vw": 390,
+    "vh": 844
+   },
+   "scrollBefore": "HTML:0|epg-scroll-container:0",
+   "scrollAfter": "HTML:0|epg-scroll-container:0",
+   "pageScrollLocked": true,
+   "escClosed": true,
+   "focusAfterEsc": "DIV.epg-program current|",
+   "focusIsOpener": true,
+   "backdropClosed": true,
+   "focusAfterBackdrop": "DIV.epg-program current|",
+   "focusIsOpenerBackdrop": true
+  },
+  "sport-event-phone": {
+   "rect": {
+    "x": 15,
+    "y": 145,
+    "w": 360,
+    "h": 554,
+    "cx": 195,
+    "cy": 422,
+    "vw": 390,
+    "vh": 844
+   },
+   "scrollBefore": "HTML:0",
+   "scrollAfter": "HTML:0",
+   "pageScrollLocked": true,
+   "escClosed": true,
+   "focusAfterEsc": "BUTTON.btn btn-secondary sports-options|",
+   "focusIsOpener": true,
+   "backdropClosed": true,
+   "focusAfterBackdrop": "BUTTON.btn btn-secondary sports-options|",
+   "focusIsOpenerBackdrop": true
+  }
+ },
+ "e_recording": {
+  "playButtons": 6,
+  "resumePrompt": 0,
+  "open": 1,
+  "video": {
+   "t": 6.142178,
+   "paused": false,
+   "ready": 4,
+   "err": null
+  },
+  "video2": 9.243639,
+  "fullscreen": true,
+  "afterEscFullscreen": {
+   "fs": false,
+   "overlay": false
+  },
+  "overlayAfterEsc": 0,
+  "anyPlaying": 0,
+  "status": 6793,
+  "consoleErrors": []
+ },
+ "f_phone": {
+  "nav-light": {
+   "navHeight": 48,
+   "menuTop": 48,
+   "navBottom": 48,
+   "gap": 0
+  },
+  "sport-light": {
+   "cardBg": "rgb(255, 255, 255)",
+   "cardColor": "rgb(28, 22, 32)",
+   "optionsBg": "rgb(242, 236, 240)",
+   "optionsColor": "rgb(28, 22, 32)",
+   "bodyBg": "rgb(251, 248, 250)",
+   "canvasDefaults": "rgb(255, 255, 255)/rgb(0, 0, 0)"
+  },
+  "nav-dark": {
+   "navHeight": 48,
+   "menuTop": 48,
+   "navBottom": 48,
+   "gap": 0
+  },
+  "sport-dark": {
+   "cardBg": "rgb(30, 25, 37)",
+   "cardColor": "rgb(245, 241, 244)",
+   "optionsBg": "rgb(37, 30, 46)",
+   "optionsColor": "rgb(245, 241, 244)",
+   "bodyBg": "rgb(21, 17, 26)",
+   "canvasDefaults": "rgb(255, 255, 255)/rgb(0, 0, 0)"
+  }
+ },
+ "g_timer": {
+  "onLive": 1,
+  "onGuide": 1,
+  "onSettings": 0,
+  "backOnLive": 1,
+  "pass": false
+ }
+}

@@ -5,28 +5,34 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 10 Nov 2026 (audit batch B: unused server code removed, #270).*
+*Overwritten at the end of every session. 10 Nov 2026 (audit batch G: the web clean-up, #275).*
 
 - **Released:** server **v0502** (`:release`, 9 Nov) and Apple **191** on TestFlight (tvOS and iOS). A release runs on
-  Mark's go-ahead (D-45). Pushed since, not released: server **0503 to 0523**, Apple **192 to 197**. Next builds: server
-  **0524**, Apple **198**.
+  Mark's go-ahead (D-45). Pushed since, not released: server **0503 to 0533**, Apple **192 to 197**. Next builds: server
+  **0534**, Apple **198**.
 - **10 Nov, audit:** filed as batch issues #269–#280 and bug #281; each issue's first comment holds the detail and a
-  later comment Mark's decisions. Batches A (#269), I (#277), C (#271) and B (#270) are pushed, and #287 after C.
-  Order from here: G (#275), K (#279), H (#276), L (#280), D (#272, with #281), E (#273), J (#278), F (#274).
+  later comment Mark's decisions. Batches A (#269), I (#277), C (#271), B (#270) and G (#275) are pushed, and #287
+  after C. Order from here: K (#279), H (#276), L (#280), D (#272, with #281), E (#273), J (#278), F (#274).
 - **10 Nov, batch C pushed with CI green (#271; D-56), server 0504 to 0509:** every recording is captured segmented and
   nothing else (the part-based path, its switch and break detection during capture are gone); #284, #285 and the
   low-disk check fixed on the way. Evidence: `docs/evidence/2026-11-10-batch-c/`.
 - **10 Nov, #287 pushed with CI green, server 0510 to 0515 (closed):** publishing a finished recording makes no
   synchronous call on the share; a share that stalls mid-publish no longer freezes the server. T3 on the rig passed
   (worst API call 40 ms with the share frozen). Evidence: `docs/evidence/2026-11-10-share-publish/`. Filed: #289, #290.
-- **10 Nov, batch B pushed with CI green, server 0516 to 0523 (#270, closed; D-57):**
-  - Removed: thirteen routes no client calls, six unused `/api/info` flags, the films and series download in every
-    Xtream sync (with a one-time delete of the stored rows), the remains of the admin Sports keyword list, small dead
-    helpers; the bundled ffmpeg packages are out of the image. The server is about 800 lines smaller.
-  - D-57 (Mark, 10 Nov): the oldest database PigTV opens is one from build 0476 (v0476, 5 Nov). An older one is
-    refused at start, untouched, with the way through (start v0502 once). Six one-time migrations went with it.
-  - Codex: approve, no findings. Opus: no high; two mediums in the new check fixed in 0523. The rig's `check` passed
-    on 0523 on its existing database. Evidence: `docs/evidence/2026-11-10-batch-b/`. Filed: #291 (what was left).
+- **10 Nov, batch B pushed with CI green, server 0516 to 0523 (#270, closed; D-57):** unused server code removed
+  (thirteen routes, six `/api/info` flags, the films and series download, the Sports keyword remains; about 800
+  lines). D-57: the oldest database PigTV opens is one from build 0476; an older one is refused at start, untouched
+  (start v0502 once). Evidence: `docs/evidence/2026-11-10-batch-b/`. Filed: #291.
+- **10 Nov, batch G pushed with CI green, server 0524 to 0533 (#275, closed):**
+  - The web app needs no internet: Inter and hls.js 1.5.7 (byte-identical) are served by the app.
+  - Notices are a pill at the bottom (Mark's pick) instead of 23 browser alerts, with Undo on hiding a channel; four
+    dialogs share one implementation (Escape, click outside, focus back). The recording player's overlay is not moved.
+  - Fixed: the phone menu's 4 px gap and the Sport page's undefined colours. Removed: 55 dead CSS blocks, dead JS, the
+    always-empty Email column. One escape, time format and debounce. Redraw timers stop when hidden.
+  - 189 web string checks moved from `verify-build.sh` to `test/web-static-strings.test.js`.
+  - Opus and Codex: no high; three findings fixed in 0533. T3 on the rig: 70 before and after shots, and browser
+    checks (no foreign request, the player plays, dialogs centred). Evidence: `docs/evidence/2026-11-10-batch-g/`.
+    Filed: #292.
 - **Waiting on Mark:**
   - T5 device checks: #271 (one real recording end to end, on a build from 0509), #277 (open Sport once on Apple TV,
     iPad and iPhone, on a build from 197), #246 (stop the container mid-recording), #260, the iPhone and iPad fixes in
@@ -36,7 +42,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   - #240.
 - **Open investigation:** #3 (sound out of step on the iPad): the relay join measured clean; the device meter (#267)
   and the marker (#268) are filed, not built (Mark).
-- **Next:** batch G (#275); then K (#279); then #262 (iPadOS/iOS 17+, three sites need fallbacks).
+- **Next:** batch K (#279: Apple TV brand 1.8; focus mock-ups for Mark first); then H (#276); then #262 (iPadOS/iOS 17+, three sites need fallbacks).
 
 ## Now
 

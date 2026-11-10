@@ -1,0 +1,4 @@
+g: 60 s intervals armed, by creator (setInterval instrumented before load); Guide's own now-line timer is a different interval
+start on live: ChannelList.syncEpgRefreshTimer | -> guide: EpgGuide.syncNowIndicatorTimer only | -> settings: none | -> live: ChannelList.syncEpgRefreshTimer
+start on guide: EpgGuide only | -> live: ChannelList only | -> guide: EpgGuide only | -> settings: none | -> live: ChannelList only
+c: stop button on the Live page: one new session listed while playing, gone 2.5 s after the click (session list polled every 2.5 s for 20 s)
