@@ -1495,6 +1495,35 @@ test('#287: a move whose copy fails leaves neither its partial nor its journal r
     await engine.deleteRecording(rec.id);
 });
 
+test('#287: a deletion while a failed MP4\'s partial is being removed returns only once it is gone, and leaves no journal row', async () => {
+    const { rec, mp4 } = finishingRow();
+    const shareFs = load('services/shareFs');
+    const realUnlink = shareFs.unlink;
+    let unlinking;
+    const atUnlink = new Promise(r => { unlinking = r; });
+    // The share is slow to answer the removal of the partial (1 s).
+    shareFs.unlink = async (f, ...r) => {
+        if (/\.mp4\.\d+-[0-9a-f]+\.partial$/.test(String(f))) { unlinking(); await sleep(1000); }
+        return realUnlink(f, ...r);
+    };
+    let left = null;
+    try {
+        await withTools({ ffmpeg: async (args) => { fs.writeFileSync(args[args.length - 1], Buffer.alloc(5000)); return { code: 1, tail: ['broken output'] }; } }, async () => {
+            const finishing = segments.finishOne(recordings.getById(rec.id)).catch(() => {});
+            await atUnlink; // the remux failed; its partial is being removed
+            await engine.deleteRecording(rec.id);
+            left = fs.readdirSync(path.dirname(mp4)).filter(n => n.startsWith(path.basename(mp4)));
+            await finishing;
+        });
+    } finally {
+        shareFs.unlink = realUnlink;
+    }
+    assert.deepEqual(left, [], 'the deletion returned only once the partial was gone');
+    await sleep(100);
+    assert.deepEqual(cleanupRows().filter(p => p.startsWith(mp4)), [], 'no journal row is left');
+    assert.equal(recordings.getById(rec.id), null);
+});
+
 test('P1: a server stopped between publishing an MP4 and recording it leaves nothing the next start does not remove', async () => {
     const { rec, mp4 } = finishingRow();
     const folder = path.dirname(mp4);

@@ -926,9 +926,14 @@ test('#287: a recording deleted while its MP4 waits on the link to the share lea
     try {
         const finishing = segments.processQueue();
         assert.ok(await until(() => helper.heldCount() === 1, 10000), 'the link is out');
-        await engine.deleteRecording(rec.id);
-        helper.release();
+        const owners = load('services/recordingOwners');
+        let leftWhenDeleted = null;
+        const deleting = engine.deleteRecording(rec.id).then(() => { leftWhenDeleted = filesOf(rec); });
+        assert.ok(await until(() => !owners.owned(rec.id), 5000), 'the deletion has begun');
+        helper.release(); // the link answers; the publication sees the deletion and withdraws its MP4
+        await deleting;
         await finishing;
+        assert.deepEqual(leftWhenDeleted, [], 'the deletion returned only once nothing of it was left (it waits for the publication)');
         assert.ok(!recordings.getById(rec.id), 'the recording is gone');
         assert.deepEqual(filesOf(rec), [], 'and nothing of it is on the share');
         assert.deepEqual(journalOf(rec.id), [], 'nor in the journal');

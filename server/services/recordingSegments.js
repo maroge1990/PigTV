@@ -717,48 +717,56 @@ async function finishAttempt(rec, stitched, attempts) {
 
     const codecs = await media.nativeTools.codecs(stitched.file);
     console.log(`[Recordings] Making the MP4 of #${rec.id} from ${stitched.segments} segments -> ${dir ? target : 'the work folder (the share is not usable now)'}`);
-    // 0264: the remux and its check are a writer of the recording: a deletion stops it and waits until
-    // its partial is gone.
-    const { problem, keep, removed } = await write(rec.id, async (signal, made) => {
+    // 0264: the remux, its check and (#287) the publication are a writer of the recording: a deletion stops it and waits
+    // until it has ended - its partial removed (a problem, or deleted meanwhile) or its MP4 published or withdrawn.
+    const mp4Name = path.basename(target, '.mp4');
+    const outcome = await write(rec.id, async (signal, made) => {
         made(partial);
-        const result = await media.nativeTools.ffmpeg(media.buildNativeRemuxArgs(stitched.file, partial, codecs), { watchFile: partial, signal, sizeOf: io.sizeOf });
-        let problem = null;
-        let keep = null;
-        if (result.code !== 0 || !(await io.exists(partial))) {
-            problem = result.tail.slice(-3).join(' | ') || `ffmpeg exited with code ${result.code}`;
-        } else {
-            const check = await media.checkPrepared(stitched.file, partial, { signal });
-            if (!check.ok) problem = `the MP4 failed its check: ${check.reason}`;
-            // DVR-1 (0227): it plays, but could not be compared with the segments (their length or the
-            // audio could not be read): the segments are its original and are kept, as preparation keeps one.
-            else if (check.keepOriginal) keep = check.reason;
+        try {
+            const result = await media.nativeTools.ffmpeg(media.buildNativeRemuxArgs(stitched.file, partial, codecs), { watchFile: partial, signal, sizeOf: io.sizeOf });
+            let problem = null;
+            let keep = null;
+            if (result.code !== 0 || !(await io.exists(partial))) {
+                problem = result.tail.slice(-3).join(' | ') || `ffmpeg exited with code ${result.code}`;
+            } else {
+                const check = await media.checkPrepared(stitched.file, partial, { signal });
+                if (!check.ok) problem = `the MP4 failed its check: ${check.reason}`;
+                // DVR-1 (0227): it plays, but could not be compared with the segments (their length or the
+                // audio could not be read): the segments are its original and are kept, as preparation keeps one.
+                else if (check.keepOriginal) keep = check.reason;
+            }
+            if (problem || !owned(rec.id)) { await removeMade(partial); return { problem }; }
+            // F1: published without replacing a file that appeared at its name meanwhile.
+            const published = await publishNoReplace(partial, path.dirname(target), `${mp4Name}.mp4`, n => `${mp4Name} (${n}).mp4`, rec.id);
+            const size = await sizeOn(published);
+            // #287: deleted while it was published (the link is awaited): that copy goes, nothing is recorded.
+            if (!owned(rec.id)) {
+                try { await owners.withdrawBounded(published, rec.id, 'MP4', ioFor(published)); } finally { owners.release(published); }
+                return {};
+            }
+            return { target: published, size, keep };
+        } catch (err) {
+            // A stall keeps it (taken back by the next attempt); any other failure removes it before the writer ends.
+            if (!err.keepPartial && !unresponsive(err)) await removeMade(partial);
+            throw err;
         }
-        if (!owned(rec.id)) { await removeMade(partial); return { problem, keep, removed: true }; }
-        return { problem, keep, removed: false };
     });
-    if (!owned(rec.id)) { // deleted (or being deleted) meanwhile
-        if (!removed) await removeMade(partial);
-        return;
-    }
-    if (problem) {
-        await removeMade(partial);
+    const { problem, keep } = outcome;
+    if (problem && owned(rec.id)) {
         console.error(`[Recordings] Could not make the MP4 of #${rec.id} (attempt ${attempts}): ${problem}`);
         if (attempts < MAX_FINISH_ATTEMPTS) return;
         await deliverLastResort(rec, stitched); // the attempt stays counted: the remux did fail
         return;
     }
-
-    // F1: published without replacing a file that appeared at its name meanwhile.
-    const mp4Name = path.basename(target, '.mp4');
-    target = await publishNoReplace(partial, path.dirname(target), `${mp4Name}.mp4`, n => `${mp4Name} (${n}).mp4`, rec.id);
+    if (!outcome.target) return; // deleted (or being deleted) meanwhile: nothing of it is left
+    target = outcome.target;
     try {
-        const size = await sizeOn(target);
-        // #287: deleted while it was published (the link is awaited now): that copy goes, nothing is recorded.
+        // Deleted in the moment between the writer's end and this (no call in between): withdrawn, as above.
         if (!owned(rec.id)) { await owners.withdrawBounded(target, rec.id, 'MP4', ioFor(target)); return; }
         media.verifiedNativeFiles.add(target);
         // F2 (0243): with an original to keep the row says 'moving' until that original is published,
         // so a restart mid-copy finds it in findSegmentWork() and finishes the move.
-        completed(rec, target, size, { duration_sec: Math.round(stitched.durationSec), segment_state: dir && !keep ? 'done' : 'moving', segment_keep: keep });
+        completed(rec, target, outcome.size, { duration_sec: Math.round(stitched.durationSec), segment_state: dir && !keep ? 'done' : 'moving', segment_keep: keep });
         owners.committed(target);
     } finally {
         owners.release(target); // #287: recorded or withdrawn: takeBack may see it again
