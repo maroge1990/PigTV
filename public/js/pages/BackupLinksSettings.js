@@ -106,11 +106,7 @@ class BackupLinksSettings {
             const button = e.target?.closest?.('button[data-links-action]');
             if (button) this.act(button.dataset.linksAction, button);
         });
-        let timer;
-        document.getElementById('links-search')?.addEventListener('input', (e) => {
-            clearTimeout(timer);
-            timer = setTimeout(() => { this.filters.search = e.target.value; this.reload(0); }, 300);
-        });
+        document.getElementById('links-search')?.addEventListener('input', UI.debounce((e) => { this.filters.search = e.target.value; this.reload(0); }, 300));
         for (const [id, key] of [['links-category', 'categoryId'], ['links-status', 'status'], ['links-provider', 'backupSourceId']]) {
             document.getElementById(id)?.addEventListener('change', (e) => { this.filters[key] = e.target.value; this.reload(0); });
         }
@@ -347,8 +343,7 @@ class BackupLinksSettings {
         modal.querySelector('.modal-close').onclick = close;
         document.getElementById('modal-cancel').onclick = close;
         const input = document.getElementById('links-pick-search');
-        let timer;
-        input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => this.searchPick(input.value), 300); });
+        input.addEventListener('input', UI.debounce(() => this.searchPick(input.value), 300));
         document.getElementById('links-pick-results').addEventListener('click', (e) => {
             const b = e.target?.closest?.('button[data-stream]');
             if (b) this.choose(b.dataset.stream);

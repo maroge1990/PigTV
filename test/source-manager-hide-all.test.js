@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { loadUi } = require('./helpers/webUi');
 
 // Settings → Manage content (the real SourceManager script, API stubbed, no DOM).
 // #16 (0357): Show all / Hide all act on what the filter shows, as pending edits that Save applies (asking with counts
@@ -32,6 +33,7 @@ function makeManager({ groups, confirmAnswer = true, newGroups = [] } = {}) {
             dismissNewGroups: async (sourceId) => { calls.push(['dismiss', sourceId]); listed = []; }
         } }
     });
+    loadUi(context);
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/components/SourceManager.js'), 'utf8'), context);
     const manager = Object.create(context.window.SourceManager.prototype);
     Object.assign(manager, {

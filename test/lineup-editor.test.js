@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { loadUi } = require('./helpers/webUi');
 
 // 0123: Settings -> "Channel numbers". The real Settings.js and api.js against a
 // recorded fetch: GET /api/lineup fills the list, a search narrows it, an edited
@@ -42,7 +43,9 @@ function page(putReplies) {
         }
     });
     context.window = context;
+    loadUi(context);
     vm.runInContext(js('api.js'), context);
+    loadUi(context);
     vm.runInContext(js('pages/Settings.js'), context);
     const settings = Object.create(context.SettingsPage.prototype);
     Object.assign(settings, { lineup: [], lineupEdits: new Map(), lineupQuery: '', lineupCategoryNames: new Map() });

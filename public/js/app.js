@@ -199,7 +199,7 @@ class App {
 
         const first = activeRecordings[0];
         const until = new Date(first.program_end + ((first.post_buffer_min || 0) * 60000));
-        const untilStr = until.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const untilStr = UI.time(until);
         const extra = activeRecordings.length > 1 ? ` (+${activeRecordings.length - 1} more)` : '';
 
         // Bug 9 (0226): a recording on a shared provider connection (Wave 5) leaves room for watching,
@@ -223,7 +223,7 @@ class App {
         try {
             const reminders = await API.request('GET', '/providers/reminders');
             if (!Array.isArray(reminders) || reminders.length === 0) return;
-            text.innerHTML = R.lines(reminders).map(l => `<div>${this.escape(l)}</div>`).join('');
+            text.innerHTML = R.lines(reminders).map(l => `<div>${UI.escape(l)}</div>`).join('');
             // Assigned, not added: a second sign-in must not stack listeners.
             closeBtn.onclick = (e) => {
                 e.preventDefault();
@@ -234,12 +234,6 @@ class App {
         } catch (err) {
             console.warn('Could not fetch provider reminders:', err.message);
         }
-    }
-
-    escape(text) {
-        return String(text ?? '').replace(/[&<>"']/g, ch => ({
-            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-        })[ch]);
     }
 
     async checkAuth() {

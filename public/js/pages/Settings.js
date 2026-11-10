@@ -198,7 +198,7 @@ class SettingsPage {
                 list.innerHTML = '<span class="setting-hint">No devices paired yet</span>';
                 return;
             }
-            const e = (v) => this.escapeLineup(v);
+            const e = (v) => UI.escape(v);
             list.innerHTML = active.map(d => {
                 const seen = d.last_seen_at ? new Date(d.last_seen_at).toLocaleString() : 'never';
                 return `
@@ -352,14 +352,10 @@ class SettingsPage {
         this.lineupCategoryNames = new Map();
 
         const search = document.getElementById('lineup-search');
-        let timer;
-        search?.addEventListener('input', () => {
-            clearTimeout(timer);
-            timer = setTimeout(() => {
-                this.lineupQuery = search.value;
-                this.renderLineup();
-            }, 200);
-        });
+        search?.addEventListener('input', UI.debounce(() => {
+            this.lineupQuery = search.value;
+            this.renderLineup();
+        }, 200));
 
         document.getElementById('lineup-save')?.addEventListener('click', () => this.saveLineup());
 
@@ -374,12 +370,6 @@ class SettingsPage {
 
     lineupKey(row) {
         return `${row.sourceId}:${row.id}`;
-    }
-
-    escapeLineup(text) {
-        return String(text ?? '').replace(/[&<>"']/g, ch => ({
-            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-        })[ch]);
     }
 
     setLineupStatus(text, isError = false) {
@@ -402,7 +392,7 @@ class SettingsPage {
             this.renderLineup();
             this.updateLineupSaveState();
         } catch (err) {
-            if (list) list.innerHTML = `<tr><td colspan="3" class="hint">Could not load the channel numbers: ${this.escapeLineup(err.message)}</td></tr>`;
+            if (list) list.innerHTML = `<tr><td colspan="3" class="hint">Could not load the channel numbers: ${UI.escape(err.message)}</td></tr>`;
         }
     }
 
@@ -435,10 +425,10 @@ class SettingsPage {
             return `
                 <tr class="lineup-row${edited ? ' changed' : ''}">
                     <td><input type="text" inputmode="numeric" class="form-input lineup-number-input"
-                               data-key="${this.escapeLineup(key)}" value="${this.escapeLineup(value)}"
-                               aria-label="Number for ${this.escapeLineup(row.name)}"></td>
-                    <td>${this.escapeLineup(row.name)}</td>
-                    <td>${this.escapeLineup(this.lineupCategory(row))}</td>
+                               data-key="${UI.escape(key)}" value="${UI.escape(value)}"
+                               aria-label="Number for ${UI.escape(row.name)}"></td>
+                    <td>${UI.escape(row.name)}</td>
+                    <td>${UI.escape(this.lineupCategory(row))}</td>
                 </tr>`;
         }).join('');
     }
@@ -507,18 +497,10 @@ class SettingsPage {
         this.epgSearchResults = [];
 
         const filter = document.getElementById('epg-match-filter');
-        let filterTimer;
-        filter?.addEventListener('input', () => {
-            clearTimeout(filterTimer);
-            filterTimer = setTimeout(() => { this.epgFilter = filter.value; this.renderEpgMatching(); }, 200);
-        });
+        filter?.addEventListener('input', UI.debounce(() => { this.epgFilter = filter.value; this.renderEpgMatching(); }, 200));
 
         const search = document.getElementById('epg-match-search');
-        let searchTimer;
-        search?.addEventListener('input', () => {
-            clearTimeout(searchTimer);
-            searchTimer = setTimeout(() => this.searchEpgChannels(search.value), 300);
-        });
+        search?.addEventListener('input', UI.debounce(() => this.searchEpgChannels(search.value), 300));
 
         document.getElementById('epg-automap-preview')?.addEventListener('click', () => this.previewAutoMap());
         document.getElementById('epg-automap-apply')?.addEventListener('click', () => this.applyAutoMap());
@@ -562,7 +544,7 @@ class SettingsPage {
             const rows = preview.channels || [];
             list.innerHTML = rows.length
                 ? `<p class="setting-hint">${rows.length} channel${rows.length === 1 ? '' : 's'} would be mapped:</p><ul>${rows.map(r =>
-                    `<li>${this.escapeLineup(r.name)} → ${this.escapeLineup(r.epgName)} <span class="pig-amount">${Math.round(r.score * 100)}%</span></li>`).join('')}</ul>`
+                    `<li>${UI.escape(r.name)} → ${UI.escape(r.epgName)} <span class="pig-amount">${Math.round(r.score * 100)}%</span></li>`).join('')}</ul>`
                 : '<p class="setting-hint">Nothing is a clear enough match to map automatically.</p>';
             if (apply) apply.hidden = rows.length === 0;
             this.renderAutoMapBatches(preview.batches || []);
@@ -576,7 +558,7 @@ class SettingsPage {
         if (!el) return;
         el.innerHTML = batches.length ? `<h4>Automatic mappings in force</h4>${batches.map(b =>
             `<p>${new Date(b.at).toLocaleString()}: ${b.count} channel${b.count === 1 ? '' : 's'}
-             <button type="button" class="btn btn-sm btn-secondary" data-batch="${this.escapeLineup(b.batch)}">Undo</button></p>`).join('')}` : '';
+             <button type="button" class="btn btn-sm btn-secondary" data-batch="${UI.escape(b.batch)}">Undo</button></p>`).join('')}` : '';
     }
 
     async applyAutoMap() {
@@ -612,7 +594,7 @@ class SettingsPage {
             this.setEpgStatus(`${total} channel${total === 1 ? '' : 's'} without programme information`);
             this.renderEpgMatching();
         } catch (err) {
-            if (list) list.innerHTML = `<tr><td colspan="3" class="hint">Could not load the EPG matching list: ${this.escapeLineup(err.message)}</td></tr>`;
+            if (list) list.innerHTML = `<tr><td colspan="3" class="hint">Could not load the EPG matching list: ${UI.escape(err.message)}</td></tr>`;
         }
     }
 
@@ -623,14 +605,14 @@ class SettingsPage {
     }
 
     epgCandidateButton(key, c) {
-        const e = (v) => this.escapeLineup(v);
+        const e = (v) => UI.escape(v);
         const score = typeof c.score === 'number' ? `<span class="epg-score">${Math.round(c.score * 100)}%</span>` : '';
         return `<button type="button" class="btn btn-secondary epg-candidate" data-epg-action="map" data-key="${e(key)}"
                     data-tvg="${e(c.tvgId)}" title="${e(c.tvgId)}">${e(c.name)}${score}</button>`;
     }
 
     renderEpgMatching() {
-        const e = (v) => this.escapeLineup(v);
+        const e = (v) => UI.escape(v);
         const list = document.getElementById('epg-match-list');
         if (list) {
             const rows = this.filteredEpgUnmatched();
@@ -770,12 +752,12 @@ class SettingsPage {
             this.sportsEvents = preview?.events || [];
             this.renderSportsPreview();
         } catch (err) {
-            if (list) list.innerHTML = `<tr><td colspan="5" class="hint">Could not load the preview: ${this.escapeLineup(err.message)}</td></tr>`;
+            if (list) list.innerHTML = `<tr><td colspan="5" class="hint">Could not load the preview: ${UI.escape(err.message)}</td></tr>`;
         }
     }
 
     renderSportsFollow() {
-        const e = (v) => this.escapeLineup(v);
+        const e = (v) => UI.escape(v);
         const chips = document.getElementById('sports-follow-chips');
         if (chips) {
             chips.innerHTML = this.sportsKeywords.length
@@ -785,14 +767,14 @@ class SettingsPage {
     }
 
     sportsTime(ev) {
-        const t = (ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const t = (ms) => UI.time(ms);
         const day = new Date(ev.start).toDateString() === new Date().toDateString()
             ? '' : `${new Date(ev.start).toLocaleDateString([], { weekday: 'short' })} `;
         return `${day}${t(ev.start)} – ${t(ev.end)}`;
     }
 
     renderSportsPreview() {
-        const e = (v) => this.escapeLineup(v);
+        const e = (v) => UI.escape(v);
         const list = document.getElementById('sports-preview-list');
         if (!list) return;
         if (this.sportsEvents.length === 0) {
@@ -1010,7 +992,7 @@ class SettingsPage {
         try {
             // #61 (0367): "Re-detect GPU" probes again (a device passed through after the container started).
             const hwInfo = await API.request(redetect ? 'POST' : 'GET', redetect ? '/settings/hw-info/refresh' : '/settings/hw-info');
-            const e = (v) => this.escapeLineup(v);
+            const e = (v) => UI.escape(v);
 
             const detected = [];
 
@@ -1112,7 +1094,7 @@ class SettingsPage {
                 return;
             }
 
-            const e = (v) => this.escapeLineup(v);
+            const e = (v) => UI.escape(v);
             userList.innerHTML = users.map(user => {
                 const typeBadge = '<span class="user-badge user-badge-local">Local</span>';
 
@@ -1305,7 +1287,7 @@ class SettingsPage {
         try {
             const providers = await API.sources.providers();
             const current = select.value;
-            select.innerHTML = providers.map(p => `<option value="${p.id}">${this.escapeLineup(p.name)}</option>`).join('');
+            select.innerHTML = providers.map(p => `<option value="${p.id}">${UI.escape(p.name)}</option>`).join('');
             if (current && providers.some(p => String(p.id) === current)) select.value = current;
             if (select.value) await this.renderImportExclusions(select.value);
         } catch (err) {
@@ -1325,12 +1307,12 @@ class SettingsPage {
                     ? (g.skippedAtLastSync == null ? 'excluded from the next sync' : `${g.skippedAtLastSync} skipped at the last sync`)
                     : `${g.imported} channels`;
                 return `<label class="setting-item import-exclusion">
-                    <input type="checkbox" value="${this.escapeLineup(g.id)}" ${g.excluded ? 'checked' : ''}>
-                    <span>${this.escapeLineup(g.name)}</span> <span class="hint">${this.escapeLineup(size)}</span>
+                    <input type="checkbox" value="${UI.escape(g.id)}" ${g.excluded ? 'checked' : ''}>
+                    <span>${UI.escape(g.name)}</span> <span class="hint">${UI.escape(size)}</span>
                 </label>`;
             }).join('');
         } catch (err) {
-            list.innerHTML = `<p class="hint">Could not load the groups: ${this.escapeLineup(err.message)}</p>`;
+            list.innerHTML = `<p class="hint">Could not load the groups: ${UI.escape(err.message)}</p>`;
         }
     }
 

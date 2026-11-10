@@ -19,6 +19,7 @@ process.env.JWT_SECRET = 'test-only-signing-key-not-used-outside-fixtures-12345'
 process.chdir(sandbox);
 
 const load = p => require(path.join(sandbox, 'server', p));
+const { loadUi } = require('./helpers/webUi');
 const db = load('db');
 const auth = load('auth');
 const sqlite = load('db/sqlite');
@@ -221,6 +222,7 @@ test('the web Status page shows the least reliable channels', () => {
     const vm = require('node:vm');
     const context = vm.createContext({ console, document: { getElementById: () => null } });
     context.window = context;
+    loadUi(context);
     vm.runInContext(js, context);
     const page = new context.StatusPage({});
     const html = page.render({ leastReliable: [{ name: 'Seven <Flix>', attempts: 5, failures: 3, stalls: 4, watchedMin: 62, stallsPerHour: 3.9, medianFirstPictureSec: 8.25, health: 'flaky' }] });

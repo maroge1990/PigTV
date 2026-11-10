@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { loadUi } = require('./helpers/webUi');
 
 // Names that come from the server (paired device names, usernames and emails,
 // provider names, detected hardware names, recording artwork and status) are
@@ -65,12 +66,14 @@ function context(elements, routes) {
         }
     });
     ctx.window = ctx;
+    loadUi(ctx);
     vm.runInContext(js('api.js'), ctx);
     return ctx;
 }
 
 function settingsPage(elements, routes) {
     const ctx = context(elements, routes);
+    loadUi(ctx);
     vm.runInContext(js('pages/Settings.js'), ctx);
     return Object.create(ctx.SettingsPage.prototype);
 }
@@ -136,6 +139,7 @@ test('provider names are escaped in the Manage content picker', async () => {
         'GET /api/sources': [{ id: 3, type: 'xtream', name: `Main ${MARKUP}` }, { id: 4, type: 'm3u', name: 'Backup & co' }]
     });
     ctx.Icons = { chevronDown: '' };
+    loadUi(ctx);
     vm.runInContext(js('components/SourceManager.js'), ctx);
     const manager = Object.create(ctx.window.SourceManager.prototype);
     await manager.loadContentSources();
@@ -147,6 +151,7 @@ test('provider names are escaped in the Manage content picker', async () => {
 test('recording artwork, status and error text are escaped in the Recordings lists', () => {
     const elements = { 'scheduled-recordings-list': container(), 'recordings-list': container() };
     const ctx = context(elements, {});
+    loadUi(ctx);
     vm.runInContext(js('pages/RecordingsPage.js'), ctx);
     const page = new ctx.RecordingsPage({});
     const art = 'http://x.invalid/a.png" data-injected="1';
@@ -165,6 +170,7 @@ test('the channel menu offers Hide only to an admin', () => {
     const menu = { dataset: {}, style: {}, classList: { add() {} }, querySelector: (s) => (s === '[data-action="hide"]' ? hideItem : null) };
     const ctx = context({}, {});
     ctx.Icons = { favorite: '', favoriteOutline: '' };
+    loadUi(ctx);
     vm.runInContext(js('components/ChannelList.js'), ctx);
     const list = Object.create((ctx.window.ChannelList || ctx.ChannelList).prototype);
     list.contextMenu = menu;

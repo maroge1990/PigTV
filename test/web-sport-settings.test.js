@@ -7,6 +7,8 @@ const vm = require('node:vm');
 // #199 (D-41, C-U): Settings › Sports › "Your sport", a panel of its own (public/js/pages/SportSettings.js). The model
 // is pure; the panel is driven here through a fake root and a fake API. The old web has no such panel.
 const source = fs.readFileSync(path.join(__dirname, '../public/js/pages/SportSettings.js'), 'utf8');
+const { loadUi, globalUi } = require('./helpers/webUi');
+globalUi();
 const { SportFollowModel: M } = require('../public/js/pages/SportSettings.js');
 const catalog = [
     { sport: 'Football', leagues: [{ league: 'EPL', label: 'EPL', heading: 'Domestic leagues' }, { league: 'FA Cup', label: 'FA Cup', heading: 'Domestic cups' },
@@ -53,6 +55,7 @@ function panel(responses, { answer = true } = {}) {
             if (r instanceof Error) throw r;
             return JSON.parse(JSON.stringify(r ?? {}));
         } } });
+    loadUi(ctx);
     vm.runInContext(`${source}\nthis.SportFollowSettings = SportFollowSettings;`, ctx);
     const settings = new ctx.SportFollowSettings(root, { currentUser: () => ({ username: 'mark' }) });
     return { settings, root, calls };

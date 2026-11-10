@@ -13,11 +13,7 @@
  */
 
 const ProviderFormat = {
-    esc(value) {
-        return String(value ?? '').replace(/[&<>"']/g, ch => ({
-            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-        })[ch]);
-    },
+    esc(value) { return UI.escape(value); },
 
     /** Server text is client-safe already; this is belt and braces so no address or login is ever shown. */
     safeText(value) {

@@ -55,12 +55,6 @@ class EpgGuide {
         return `${channel.sourceId}:${channel.stableId || channel.id}`;
     }
 
-    escapeHtml(text) {
-        if (text === null || text === undefined || text === '') return '';
-        return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-    }
-
     init() {
         this.prevBtn.addEventListener('click', () => this.navigate(-2));
         this.nextBtn.addEventListener('click', () => this.navigate(2));
@@ -73,7 +67,7 @@ class EpgGuide {
 
         // Search input
         if (this.searchInput) {
-            this.searchInput.addEventListener('input', this.debounce(() => {
+            this.searchInput.addEventListener('input', UI.debounce(() => {
                 this.render();
             }, 300));
         }
@@ -228,7 +222,7 @@ class EpgGuide {
             this.container.innerHTML = `
         <div class="empty-state">
           <p>Error loading EPG</p>
-          <p class="hint">${this.escapeHtml(err.message)}</p>
+          <p class="hint">${UI.escape(err.message)}</p>
         </div>
       `;
         }
@@ -438,7 +432,7 @@ class EpgGuide {
             }
 
             optionsHtml += `<option value="" ${currentValue === '' ? 'selected' : ''}>All Groups</option>`;
-            optionsHtml += groups.map(g => `<option value="${this.escapeHtml(g)}" ${g === currentValue ? 'selected' : ''}>${this.escapeHtml(g)}</option>`).join('');
+            optionsHtml += groups.map(g => `<option value="${UI.escape(g)}" ${g === currentValue ? 'selected' : ''}>${UI.escape(g)}</option>`).join('');
 
             this.groupSelect.innerHTML = optionsHtml;
         } else if (this.groupSelect) {
@@ -479,7 +473,7 @@ class EpgGuide {
             <div class="epg-time-slots">
               ${timeSlots.map(slot => `
                 <div class="epg-time-slot pig-amount" style="width: ${30 * this.pixelsPerMinute}px;">
-                  ${slot.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  ${UI.time(slot)}
                 </div>
               `).join('')}
             </div>
@@ -510,7 +504,7 @@ class EpgGuide {
         this.timeSlotsContainer = this.container.querySelector('.epg-time-slots');
 
         // Set up scroll handler for virtual scrolling (debounced for performance)
-        this._scrollHandler = this.debounce(() => this.updateVisibleRows(), 16); // ~60fps
+        this._scrollHandler = UI.debounce(() => this.updateVisibleRows(), 16); // ~60fps
         this.scrollContainer.addEventListener('scroll', this._scrollHandler);
 
         // Initial render of visible rows
@@ -653,19 +647,19 @@ class EpgGuide {
         row.style.height = `${this.rowHeight}px`;
 
         const number = channel.number !== null && channel.number !== undefined
-            ? `<span class="epg-channel-number pig-amount">${this.escapeHtml(channel.number)}</span>` : '';
+            ? `<span class="epg-channel-number pig-amount">${UI.escape(channel.number)}</span>` : '';
 
         row.innerHTML = `
           <div class="epg-channel-info">
             <button class="favorite-btn ${isFavorite ? 'active' : ''}" title="${isFavorite ? 'Remove from favourites' : 'Add to favourites'}"
-                    aria-label="Favourite ${this.escapeHtml(channel.name)}" aria-pressed="${isFavorite}">
+                    aria-label="Favourite ${UI.escape(channel.name)}" aria-pressed="${isFavorite}">
               ${isFavorite ? Icons.favorite : Icons.favoriteOutline}
             </button>
             ${number}
-            <img class="epg-channel-logo" src="${this.escapeHtml(this.logoUrl(channel.tvgLogo))}"
+            <img class="epg-channel-logo" src="${UI.escape(this.logoUrl(channel.tvgLogo))}"
                  alt="" onerror="this.onerror=null;this.src='/img/placeholder.png'">
             <span class="epg-channel-name" role="button" tabindex="0" data-key-activate
-                  aria-label="Play ${this.escapeHtml(channel.name)}">${this.escapeHtml(channel.name)}</span>
+                  aria-label="Play ${UI.escape(channel.name)}">${UI.escape(channel.name)}</span>
             <div class="resize-handle"></div>
           </div>
           <div class="epg-programs">
@@ -802,7 +796,7 @@ class EpgGuide {
         // Recordable channels must actually map to a playable stream (source + bare id)
         const canRecord = !!(channel && channel.sourceId && channel.id);
         const channelAttrs = canRecord
-            ? `data-source-id="${this.escapeHtml(channel.sourceId)}" data-channel-id="${this.escapeHtml(channel.id)}" data-channel-name="${this.escapeHtml(channel.name || '')}" data-channel-logo="${this.escapeHtml(channel.tvgLogo || '')}"`
+            ? `data-source-id="${UI.escape(channel.sourceId)}" data-channel-id="${UI.escape(channel.id)}" data-channel-name="${UI.escape(channel.name || '')}" data-channel-logo="${UI.escape(channel.tvgLogo || '')}"`
             : '';
 
         if (programmes.length === 0) {
@@ -831,17 +825,17 @@ class EpgGuide {
             html += `
         <div class="epg-program ${isCurrent ? 'current' : ''}"
              role="button" tabindex="0" data-key-activate
-             aria-label="${this.escapeHtml(prog.title || 'Unknown')}, ${new Date(prog.startMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}: details"
+             aria-label="${UI.escape(prog.title || 'Unknown')}, ${UI.time(prog.startMs)}: details"
              style="width: ${width}px;"
-             data-title="${this.escapeHtml(prog.title || '')}"
-             data-description="${this.escapeHtml(prog.description || '')}"
+             data-title="${UI.escape(prog.title || '')}"
+             data-description="${UI.escape(prog.description || '')}"
              data-start="${prog.start}"
              data-stop="${prog.stop}"
              data-recordable="${isRecordable}"
              ${channelAttrs}>
-          <div class="epg-program-title">${this.escapeHtml(prog.title || 'Unknown')}</div>
+          <div class="epg-program-title">${UI.escape(prog.title || 'Unknown')}</div>
           <div class="epg-program-time pig-amount">
-            ${new Date(prog.startMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            ${UI.time(prog.startMs)}
           </div>
         </div>
       `;
@@ -867,21 +861,6 @@ class EpgGuide {
         } else {
             this.dateDisplay.textContent = date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
         }
-    }
-
-    /**
-     * Debounce utility
-     */
-    debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
     }
 
     updateNowIndicator() {
@@ -937,9 +916,9 @@ class EpgGuide {
         } catch (e) { /* use defaults */ }
 
         body.innerHTML = `
-      <p><strong>Time:</strong> <span class="pig-amount">${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${stop.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></p>
+      <p><strong>Time:</strong> <span class="pig-amount">${UI.time(start)} - ${UI.time(stop)}</span></p>
       <p><strong>Description:</strong></p>
-      <p>${this.escapeHtml(data.description || 'No description available')}</p>
+      <p>${UI.escape(data.description || 'No description available')}</p>
       ${canRecord ? `
         <div class="record-options">
           <label>Start recording (min before): <input type="number" id="record-pre-buffer" min="0" max="60" value="${defaultPre}" style="width: 60px;"></label>

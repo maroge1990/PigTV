@@ -20,6 +20,7 @@ const db = require(path.join(sandbox, 'server/db'));
 const sqlite = require(path.join(sandbox, 'server/db/sqlite'));
 const auth = require(path.join(sandbox, 'server/auth'));
 const devices = require(path.join(sandbox, 'server/services/deviceAuth'));
+const { loadUi } = require('./helpers/webUi');
 
 const TV = 'PigTV/84 (tvOS 26.1; AppleTV14,1)';
 let server, base, owner;
@@ -102,7 +103,9 @@ test('Settings → Devices shows the device kind, OS and app build, and says whe
             { id: 'b', name: 'PigTV iOS', platform: 'iOS', created_at: 1, last_seen_at: 2, revoked_at: null, app: null }] })
     });
     ctx.window = ctx;
+    loadUi(ctx);
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/api.js'), 'utf8'), ctx);
+    loadUi(ctx);
     vm.runInContext(js, ctx);
     await Object.create(ctx.SettingsPage.prototype).loadDevices();
     assert.ok(list.innerHTML.includes('Apple TV · tvOS 26.1 · PigTV 84'), list.innerHTML);
@@ -147,7 +150,9 @@ test('Settings → Devices names the asking device once a whole code is typed', 
             json: async () => ({ name: 'PigTV tvOS', platform: 'tvOS', app: devices.describeClient(TV), askedAt: Date.now() - 120000 }) }; }
     });
     ctx.window = ctx;
+    loadUi(ctx);
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/api.js'), 'utf8'), ctx);
+    loadUi(ctx);
     vm.runInContext(js, ctx);
     const page = Object.create(ctx.SettingsPage.prototype);
     await page.lookUpPairing();

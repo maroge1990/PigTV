@@ -166,24 +166,18 @@ class HomePage {
         this.updateScrollArrows();
     }
 
-    escapeHtml(text) {
-        if (text === null || text === undefined || text === '') return '';
-        return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-    }
-
     /** A tile for a /api/library/favourites row (its logo is our own /api/logo/ path). */
     createChannelTile(channel) {
         const logoUrl = channel.logo || '/img/placeholder.png';
-        const name = this.escapeHtml(channel.name || 'Unknown');
+        const name = UI.escape(channel.name || 'Unknown');
         const number = channel.number !== null && channel.number !== undefined
-            ? `<span class="tile-number pig-amount">${this.escapeHtml(channel.number)}</span> ` : '';
+            ? `<span class="tile-number pig-amount">${UI.escape(channel.number)}</span> ` : '';
 
         return `
-            <div class="channel-tile" data-channel-id="${this.escapeHtml(channel.id)}" data-source-id="${this.escapeHtml(channel.sourceId)}"
+            <div class="channel-tile" data-channel-id="${UI.escape(channel.id)}" data-source-id="${UI.escape(channel.sourceId)}"
                  role="button" tabindex="0" data-key-activate aria-label="Play ${name}">
                 <div class="tile-logo">
-                    <img src="${this.escapeHtml(logoUrl)}" alt="${name}" loading="lazy" onerror="this.onerror=null;this.src='/img/placeholder.png'">
+                    <img src="${UI.escape(logoUrl)}" alt="${name}" loading="lazy" onerror="this.onerror=null;this.src='/img/placeholder.png'">
                 </div>
                 <div class="tile-name" title="${name}">${number}${name}</div>
             </div>

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { loadUi } = require('./helpers/webUi');
 
 // 0209: the web app's three navigation/refresh races from the 15 Oct review (F1-F3), run on the
 // real page scripts. On 0208 each test fails: an older guide response replaced the newer window,
@@ -17,6 +18,7 @@ function load(files, globals = {}) {
         document: { addEventListener() {}, querySelectorAll: () => [], getElementById: () => null },
         ...globals
     });
+    loadUi(context);
     for (const f of files) vm.runInContext(js(f), context);
     return context;
 }
@@ -175,6 +177,7 @@ test('F3: Back/Forward (popstate) changes page without writing history; clicks p
     const c = load(['app.js'], {
         history: { pushState: (s) => calls.push(['push', s.page]), replaceState: (s) => calls.push(['replace', s.page]) }
     });
+    loadUi(c);
     const app = vm.runInContext('Object.create(App.prototype)', c);
     Object.assign(app, { currentPage: 'home', currentUser: { role: 'admin' }, pages: {} });
 
@@ -225,6 +228,7 @@ test('F4: live rows, group headers, guide names and programmes, and Home tiles a
 
 test('F4: Enter and Space click a keyboard button; other keys and other targets are left alone', () => {
     const c = load(['app.js'], { history: { pushState() {}, replaceState() {} } });
+    loadUi(c);
     const app = vm.runInContext('Object.create(App.prototype)', c);
     let clicks = 0, prevented = 0;
     const el = { hasAttribute: (a) => a === 'data-key-activate', click: () => clicks++ };

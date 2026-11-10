@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { loadUi } = require('./helpers/webUi');
 
 // 0121 (W2.1): the web app reads /api/library - the API the Apple client uses -
 // instead of the Xtream-emulation routes (/api/proxy/xtream/...) and the whole-EPG
@@ -49,6 +50,7 @@ function browser(files, routes, extra = {}) {
         ...extra
     });
     context.window = context;
+    loadUi(context);
     for (const f of files) vm.runInContext(js(f), context);
     return { context, requests };
 }

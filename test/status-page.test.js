@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { loadUi } = require('./helpers/webUi');
 
 // 0124: the web Status page reads GET /api/status and refreshes every 5 s while shown.
 const js = (file) => fs.readFileSync(path.join(__dirname, '../public/js', file), 'utf8');
@@ -33,7 +34,9 @@ test('the Status page renders /api/status and refreshes every 5 seconds only whi
         fetch: async (url, opts = {}) => { requests.push(opts.method && opts.method !== 'GET' ? `${opts.method} ${url}` : url); return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => status }; }
     });
     context.window = context;
+    loadUi(context);
     vm.runInContext(js('api.js'), context);
+    loadUi(context);
     vm.runInContext(js('pages/StatusPage.js'), context);
     const page = new context.StatusPage({});
     page.showDetails = true; // 0288: plays, disk and the rest are details
@@ -90,7 +93,9 @@ function pageHarness(opts = {}) {
         fetch: async () => { state.fetches++; return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => status }; }
     });
     context.window = context;
+    loadUi(context);
     vm.runInContext(js('api.js'), context);
+    loadUi(context);
     vm.runInContext(js('pages/StatusPage.js'), context);
     return { page: new context.StatusPage({}), state, content, sections, status };
 }
@@ -155,6 +160,7 @@ test('bug 9: a shared use reads "· shared"; the recording banner drops its one-
         const context = vm.createContext({ console, document: { getElementById: (id) => id === 'recording-conflict-banner' ? el.banner
             : id === 'recording-banner-text' ? el.text : null, addEventListener: () => {} }, API: { recordings: { getActive: async () => active } } });
         context.window = context;
+        loadUi(context);
         vm.runInContext(js('app.js') + '\nglobalThis.App = App;', context);
         // #239 (0485): the banner is drawn from the shared feed's rows
         context.App.prototype.updateRecordingBanner.call({}, active);
@@ -226,6 +232,7 @@ test('0288: the details choice is read from and written to localStorage, and a b
     const load = (storage) => {
         const context = vm.createContext({ console, localStorage: storage, document: { getElementById: () => null, addEventListener() {} } });
         context.window = context;
+        loadUi(context);
         vm.runInContext(js('pages/StatusPage.js'), context);
         return new context.StatusPage({});
     };
@@ -288,7 +295,9 @@ test('#129: Status asks for details only while they are shown', async () => {
             json: async () => ({ generatedAt: 1, build: {}, providers: [], sessions: [], recordings: { active: [], upcoming: [] } }) }; }
     });
     context.window = context;
+    loadUi(context);
     vm.runInContext(js('api.js'), context);
+    loadUi(context);
     vm.runInContext(js('pages/StatusPage.js'), context);
     const page = new context.StatusPage({});
     page.show();
@@ -309,6 +318,7 @@ test('#129: the recordings banner does not poll while the tab is hidden, and cat
         API: { recordings: { getActive: async () => { asked++; return []; } } },
         setInterval: () => ++timers.set, clearInterval: () => { timers.cleared++; } });
     context.window = context;
+    loadUi(context);
     vm.runInContext(js('recordingsFeed.js') + '\n' + js('app.js') + '\nglobalThis.App = App;', context);
     let updates = 0;
     const app = { updateRecordingBanner: () => { updates++; } };

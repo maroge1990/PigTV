@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { loadUi } = require('./helpers/webUi');
 
 // 0176 (multi-provider P8): the admin licence banner's day rule and wording, and the
 // Status page's Providers panel.
@@ -10,6 +11,7 @@ const js = (file) => fs.readFileSync(path.join(__dirname, '../public/js', file),
 
 function reminders() {
     const context = vm.createContext({});
+    loadUi(context);
     vm.runInContext(js('providerReminders.js'), context);
     return context.ProviderReminders;
 }
@@ -72,7 +74,9 @@ test('the Status page shows a Providers panel with state, connections, expiry an
         fetch: async () => ({ ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => status })
     });
     context.window = context;
+    loadUi(context);
     vm.runInContext(js('api.js'), context);
+    loadUi(context);
     vm.runInContext(js('pages/StatusPage.js'), context);
     const page = new context.StatusPage({});
     page.show();

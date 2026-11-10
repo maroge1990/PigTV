@@ -142,7 +142,7 @@ class StatusPage {
             if (updated) updated.textContent = `Could not refresh: ${err.message}`;
             if (content && !content.querySelector('.status-section')) {
                 this.rendered = new Map();
-                content.innerHTML = `<p class="hint">Could not load the server status: ${this.escape(err.message)}</p>`;
+                content.innerHTML = `<p class="hint">Could not load the server status: ${UI.escape(err.message)}</p>`;
             }
         }
     }
@@ -160,12 +160,12 @@ class StatusPage {
             const rows = await API.sports.categories();
             panel.innerHTML = this.renderEpgCategories(Array.isArray(rows) ? rows : []);
         } catch (err) {
-            panel.innerHTML = this.section('EPG categories', `<p class="setting-hint">Could not load the EPG categories: ${this.escape(err.message)}</p>`);
+            panel.innerHTML = this.section('EPG categories', `<p class="setting-hint">Could not load the EPG categories: ${UI.escape(err.message)}</p>`);
         }
     }
 
     renderEpgCategories(rows) {
-        const e = (v) => this.escape(v);
+        const e = (v) => UI.escape(v);
         if (!rows.length) {
             return this.section('EPG categories', '<p class="setting-hint">The guide has no programme categories (or has not synced since the server was updated).</p>');
         }
@@ -173,12 +173,6 @@ class StatusPage {
         return this.section('EPG categories',
             `<p class="setting-hint">The categories your provider's guide gives its programmes, most used first: one of the ways sport is recognised.</p>` +
             `<details class="status-epg-categories"><summary>${rows.length} categor${rows.length === 1 ? 'y' : 'ies'}</summary>${table}</details>`);
-    }
-
-    escape(text) {
-        return String(text ?? '').replace(/[&<>"']/g, ch => ({
-            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-        })[ch]);
     }
 
     /** Rounded tabular numerals for a figure (guide section 5). `html` must already be escaped. */
@@ -213,7 +207,7 @@ class StatusPage {
         const d = new Date(ms);
         const today = new Date();
         return this.amt(d.toDateString() === today.toDateString()
-            ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            ? UI.time(d)
             : d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }));
     }
 
@@ -225,7 +219,7 @@ class StatusPage {
 
     /** R12: what in-stream recovery and the hot standby are doing, and each followed stream. */
     renderRelay(relay) {
-        const e = (v) => this.escape(v);
+        const e = (v) => UI.escape(v);
         if (!relay) return '';
         const mode = `In-stream recovery is ${relay.enabled ? 'on' : 'off'}; hot standby is ${relay.enabled && relay.standby ? 'on' : 'off'}. `
             + '<span class="setting-hint">(Settings → Playback. A change applies to plays started afterwards.)</span>';
@@ -243,13 +237,13 @@ class StatusPage {
     }
 
     section(title, body) {
-        return `<div class="settings-section status-section"><h3>${this.escape(title)}</h3>${body}</div>`;
+        return `<div class="settings-section status-section"><h3>${UI.escape(title)}</h3>${body}</div>`;
     }
 
     table(headers, rows, empty) {
-        if (!rows.length) return `<p class="setting-hint">${this.escape(empty)}</p>`;
+        if (!rows.length) return `<p class="setting-hint">${UI.escape(empty)}</p>`;
         return `<div class="user-list-container"><table class="user-table status-table">
-            <thead><tr>${headers.map(h => `<th>${this.escape(h)}</th>`).join('')}</tr></thead>
+            <thead><tr>${headers.map(h => `<th>${UI.escape(h)}</th>`).join('')}</tr></thead>
             <tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
         </table></div>`;
     }
@@ -259,7 +253,7 @@ class StatusPage {
     // unmounted network share reading back as a near-empty filesystem.
     renderRecordingsFolderWarning(folder) {
         if (!folder || folder.ok !== false) return '';
-        const e = (v) => this.escape(v);
+        const e = (v) => UI.escape(v);
         const reasons = {
             missing: `does not exist: ${e(folder.root)}`,
             'not-writable': `is not writable: ${e(folder.root)}`,
@@ -275,7 +269,7 @@ class StatusPage {
 
     /** Sport fixtures (0161): per league, last successful fetch, fixture count, last error. */
     renderSportFixtures(fx) {
-        const e = (v) => this.escape(v);
+        const e = (v) => UI.escape(v);
         if (!fx || !fx.enabled) {
             return this.section('Sport fixtures', '<p class="setting-hint">Off (PIGTV_SPORT_FIXTURES=0): live/replay relies on the heuristics only.</p>');
         }
@@ -288,7 +282,7 @@ class StatusPage {
     /** R16: what each connection is for. The purpose is shown as the server sent it, so a new one (warm) just appears. */
     renderUses(uses) {
         if (!Array.isArray(uses) || !uses.length) return '<span class="setting-hint">idle</span>';
-        const e = (v) => this.escape(v);
+        const e = (v) => UI.escape(v);
         const cls = (v) => String(v).toLowerCase().replace(/[^a-z0-9]+/g, '-');
         return `<span class="status-uses">${uses.map(u =>
             `<span class="status-use status-use-${e(cls(u.purpose))}" title="${e(u.channel || '')}">${e(u.purpose)}${u.channel ? ` · ${e(u.channel)}` : ''}${u.shared ? ' · shared' : ''}</span>`).join('')}</span>`;
@@ -296,7 +290,7 @@ class StatusPage {
 
     /** R16: preparation queue (0193), sport event builds (0195) and the server's event-loop lateness. */
     renderHealth(status) {
-        const e = (v) => this.escape(v);
+        const e = (v) => UI.escape(v);
         const ms = (v) => (v === null || v === undefined || !Number.isFinite(Number(v)) ? '–' : `${Math.round(Number(v) * 10) / 10} ms`);
         const metric = (label, value) => `<span class="status-metric">${e(label)} <b class="pig-amount">${value}</b></span>`;
         const html = [];
@@ -349,7 +343,7 @@ class StatusPage {
     }
 
     renderProviders(providers) {
-        const e = (v) => this.escape(v);
+        const e = (v) => UI.escape(v);
         if (!providers || !providers.length) {
             return this.section('Providers', '<p class="setting-hint">No providers configured.</p>');
         }
@@ -385,7 +379,7 @@ class StatusPage {
 
     /** R16: the page as [key, html] pairs, one per section, so an unchanged one is not redrawn. */
     parts(status) {
-        const e = (v) => this.escape(v);
+        const e = (v) => UI.escape(v);
         const out = [];
         const add = (key, html) => out.push([key, html]);
 
@@ -427,7 +421,7 @@ class StatusPage {
     /** #61 (0366): the ffmpeg and ffprobe the server runs, after the build (" · ffmpeg 9.0.2 · ffprobe 9.0.2 (system)"). */
     mediaToolsText(tools) {
         if (!tools) return '';
-        const e = (v) => this.escape(v);
+        const e = (v) => UI.escape(v);
         const one = (name) => `${name} ${e(tools[name]?.version || 'unknown')}`;
         const origins = [...new Set(['ffmpeg', 'ffprobe'].map(t => tools[t]?.origin).filter(Boolean))];
         return ` · ${one('ffmpeg')} · ${one('ffprobe')}${origins.length ? ` (${e(origins.join(', '))})` : ''}`;
@@ -435,7 +429,7 @@ class StatusPage {
 
     /** 0288: things wrong right now that are not in a table above (a source that failed to sync, recordings stuck in appdata). */
     renderAttention(status) {
-        const e = (v) => this.escape(v);
+        const e = (v) => UI.escape(v);
         const lines = [];
         const now = Date.now();
         for (const src of status.sync || []) {
@@ -466,7 +460,7 @@ class StatusPage {
 
     /** 0288: the last 7 days in a line, and the lists only when they have something in them. */
     renderWeek(status) {
-        const e = (v) => this.escape(v);
+        const e = (v) => UI.escape(v);
         const ix = status.interruptions;
         const problems = status.recentProblems || [];
         const flaky = status.leastReliable || [];
@@ -504,7 +498,7 @@ class StatusPage {
 
     /** 0288: the troubleshooting sections, shown under "Show details". */
     detailParts(status, add) {
-        const e = (v) => this.escape(v);
+        const e = (v) => UI.escape(v);
 
         // Recent plays
         const label = { 'play-start': 'Started', 'play-end': 'Ended', failure: 'Failed', relay: 'Recovery' };
@@ -587,7 +581,7 @@ class StatusPage {
 
     /** R7 data (0287): per channel and provider over 30 days, worst lag first, against the reconnect limit. */
     renderFeedLag(lag) {
-        const e = (v) => this.escape(v);
+        const e = (v) => UI.escape(v);
         const rows = lag && Array.isArray(lag.channels) ? lag.channels : null;
         if (!rows) return '';
         return this.section('Feed lag (30 days)',

@@ -32,7 +32,7 @@ const shootout=(state,completed,name,at)=>({events:[{date:new Date(at-3*H).toISO
     competitors:[{team:{id:'1',displayName:'Arsenal'},score:'1'},{team:{id:'2',displayName:'Chelsea'},score:'1'}]}]}]});
 test('hidden football never projects the penalties period, live or final',()=>{
     const NOW=Date.parse('2026-10-29T10:00Z');
-    global.window={};require('../public/js/pages/SportsPage.js');
+    global.window={};require('./helpers/webUi').globalUi();require('../public/js/pages/SportsPage.js');
     for(const [state,completed,name] of [['in',false,'STATUS_SHOOTOUT'],['post',true,'STATUS_FINAL_PEN']]) {
         const s=store();
         s.ingest(espn.normalize(shootout('in',false,'STATUS_IN_PROGRESS',NOW),'EPL','soccer/eng.1'),NOW-200000);

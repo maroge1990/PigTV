@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { loadUi } = require('./helpers/webUi');
 
 // 0156: the web Recordings page gets a "Recent problems" section (missed/failed
 // schedules from the last 7 days), shown only when there is something to show -
@@ -43,7 +44,9 @@ function makeContext(elements, respond) {
         fetch: async (url) => { requests.push(String(url)); return respond(String(url)); }
     });
     context.window = context;
+    loadUi(context);
     vm.runInContext(js('api.js'), context);
+    loadUi(context);
     vm.runInContext(js('pages/RecordingsPage.js'), context);
     return { context, requests };
 }
@@ -170,7 +173,9 @@ test('R5: rules are listed with their state, and the box adds a sport rule then 
         }
     });
     context.window = context;
+    loadUi(context);
     vm.runInContext(js('api.js'), context);
+    loadUi(context);
     vm.runInContext(js('pages/RecordingsPage.js'), context);
     const page = new context.RecordingsPage({});
     page.renderRules([

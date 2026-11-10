@@ -42,6 +42,7 @@ fs.mkdirSync(path.join(sandbox, 'data'));
 }
 
 const load = p => require(path.join(sandbox, 'server', p));
+const { loadUi } = require('./helpers/webUi');
 const db = load('db');
 const auth = load('auth');
 const sqlite = load('db/sqlite');
@@ -161,6 +162,7 @@ test('the Status page shows an "EPG categories" panel', async () => {
         document: { getElementById: (id) => elements[id] || null },
         API: { status: { get: async () => ({}) }, sports: { categories: async () => [{ category: 'Sport', programmes: 4 }, { category: 'A <b>', programmes: 1 }] } }
     });
+    loadUi(context);
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/pages/StatusPage.js'), 'utf8'), context);
     const page = new context.window.StatusPage({});
     await page.loadEpgCategories();

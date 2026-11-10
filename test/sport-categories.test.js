@@ -20,6 +20,7 @@ process.env.JWT_SECRET = 'test-only-signing-key-not-used-outside-fixtures-12345'
 process.chdir(sandbox);
 
 const load = p => require(path.join(sandbox, 'server', p));
+const { loadUi } = require('./helpers/webUi');
 const db = load('db');
 const auth = load('auth');
 const sqlite = load('db/sqlite');
@@ -148,6 +149,7 @@ test('the web Sources picker shows a Sport toggle per category and saves it', as
         Icons: { chevronDown: '' },
         API: { library: { setCategorySport: async (...a) => { calls.push(a); return { success: true, sport: a[2] }; } } }
     });
+    loadUi(context);
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/components/SourceManager.js'), 'utf8'), context);
     const manager = Object.create(context.window.SourceManager.prototype);
     const group = { id: '10', name: 'Sport', categoryId: '10', sport: false, type: 'group', items: [{ type: 'channel', id: 'a', name: 'A' }] };

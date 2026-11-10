@@ -153,13 +153,7 @@ class ChannelList {
 
     init() {
         // Search handler (debounced)
-        let searchTimeout;
-        this.searchInput.addEventListener('input', () => {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                this.render();
-            }, 300);
-        });
+        this.searchInput.addEventListener('input', UI.debounce(() => this.render(), 300));
 
         // Source filter handler
         this.sourceSelect.addEventListener('change', () => this.loadChannels());
@@ -277,16 +271,6 @@ class ChannelList {
         }
     }
 
-    escapeHtml(text) {
-        if (text === null || text === undefined || text === '') return '';
-        return String(text)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
-
     /**
      * The markup of one channel row. `renderId`/`renderGroup` tie it to its place
      * in renderedChannels (for up/down navigation).
@@ -294,24 +278,24 @@ class ChannelList {
     channelItemHtml(channel, { isActive = false, isNavActive = false, renderId = '', renderGroup = '' } = {}) {
         const isFavorite = this.favoriteKeys.has(this.favKey(channel));
         const number = channel.number !== null && channel.number !== undefined
-            ? `<span class="channel-number pig-amount">${this.escapeHtml(channel.number)}</span>` : '';
+            ? `<span class="channel-number pig-amount">${UI.escape(channel.number)}</span>` : '';
         return `
           <div class="channel-item ${isActive ? 'active' : ''} ${isNavActive ? 'nav-active' : ''}"
-               data-channel-id="${this.escapeHtml(channel.id)}"
-               data-source-id="${this.escapeHtml(channel.sourceId)}"
-               data-fav-key="${this.escapeHtml(this.favKey(channel))}"
+               data-channel-id="${UI.escape(channel.id)}"
+               data-source-id="${UI.escape(channel.sourceId)}"
+               data-fav-key="${UI.escape(this.favKey(channel))}"
                data-render-id="${renderId}"
-               data-render-group="${this.escapeHtml(renderGroup)}">
+               data-render-group="${UI.escape(renderGroup)}">
             ${number}
-            <img class="channel-logo" src="${this.escapeHtml(this.logoUrl(channel.tvgLogo))}"
+            <img class="channel-logo" src="${UI.escape(this.logoUrl(channel.tvgLogo))}"
                  alt="" onerror="this.onerror=null;this.src='/img/placeholder.png'">
             <div class="channel-info" role="button" tabindex="0" data-key-activate
-                 aria-label="Play ${this.escapeHtml(channel.name)}">
-              <div class="channel-name">${this.escapeHtml(channel.name)}</div>
-              <div class="channel-program">${this.escapeHtml(this.getProgramInfo(channel) || '')}</div>
+                 aria-label="Play ${UI.escape(channel.name)}">
+              <div class="channel-name">${UI.escape(channel.name)}</div>
+              <div class="channel-program">${UI.escape(this.getProgramInfo(channel) || '')}</div>
             </div>
             <button class="favorite-btn ${isFavorite ? 'active' : ''}" title="${isFavorite ? 'Remove from favourites' : 'Add to favourites'}"
-                    aria-label="Favourite ${this.escapeHtml(channel.name)}" aria-pressed="${isFavorite}">
+                    aria-label="Favourite ${UI.escape(channel.name)}" aria-pressed="${isFavorite}">
               ${isFavorite ? Icons.favorite : Icons.favoriteOutline}
             </button>
           </div>
@@ -552,10 +536,10 @@ class ChannelList {
 
             html += `
         <div class="channel-group">
-          <div class="group-header ${this.collapsedGroups.has(groupName) ? 'collapsed' : ''} ${isFavoritesGroup ? 'favorites-group' : ''}" data-group="${this.escapeHtml(groupName)}"
+          <div class="group-header ${this.collapsedGroups.has(groupName) ? 'collapsed' : ''} ${isFavoritesGroup ? 'favorites-group' : ''}" data-group="${UI.escape(groupName)}"
                role="button" tabindex="0" data-key-activate aria-expanded="${!this.collapsedGroups.has(groupName)}">
             <span class="group-toggle">${Icons.chevronDown}</span>
-            <span class="group-name">${this.escapeHtml(groupName === 'Favorites' ? 'Favourites' : groupName)}</span>
+            <span class="group-name">${UI.escape(groupName === 'Favorites' ? 'Favourites' : groupName)}</span>
             <span class="group-count">${channels.length}</span>
           </div>
           <div class="group-channels">
@@ -755,7 +739,7 @@ class ChannelList {
             this.render();
         } catch (err) {
             console.error('Error loading channels:', err);
-            this.container.innerHTML = `<div class="empty-state"><p>Error loading channels</p><p class="hint">${this.escapeHtml(err.message)}</p></div>`;
+            this.container.innerHTML = `<div class="empty-state"><p>Error loading channels</p><p class="hint">${UI.escape(err.message)}</p></div>`;
         } finally {
             this.isLoading = false;
         }

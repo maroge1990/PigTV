@@ -14,10 +14,6 @@
 const SportFollowModel = {
     MAX_NAMES: 20,
 
-    esc(value) {
-        return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
-    },
-
     same(a, b) { return String(a).trim().toLowerCase() === String(b).trim().toLowerCase(); },
 
     copy(state) { return { spoilerFree: !!state.spoilerFree, sports: state.sports.map(s => ({ sport: s.sport, leagues: [...s.leagues], teams: [...s.teams] })) }; },
@@ -289,7 +285,7 @@ class SportFollowSettings {
 
     render() {
         if (!this.root) return;
-        const e = SportFollowModel.esc, M = SportFollowModel;
+        const e = UI.escape, M = SportFollowModel;
         const me = this.currentUser()?.username;
         const unfollowed = this.catalog.filter(c => !this.state.sports.some(s => s.sport === c.sport));
         const suggestions = this.suggestions.map(s => `<li class="sport-follow-suggestion"><span>${e(s.label)} has <b>${e(s.team)}</b> games too

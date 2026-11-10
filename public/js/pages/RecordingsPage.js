@@ -58,8 +58,8 @@ class RecordingsPage {
         }
         this.rulesList.innerHTML = rules.map(rule => {
             const what = rule.kind === 'series'
-                ? `Series: ${this.escape(rule.match)} on ${this.escape(rule.channelName || 'its channel')}${rule.newOnly ? ' (new episodes only)' : ''}`
-                : `Every game: ${this.escape(rule.match)}`;
+                ? `Series: ${UI.escape(rule.match)} on ${UI.escape(rule.channelName || 'its channel')}${rule.newOnly ? ' (new episodes only)' : ''}`
+                : `Every game: ${UI.escape(rule.match)}`;
             const upcoming = rule.upcoming === 1 ? '1 recording scheduled' : `${rule.upcoming} recordings scheduled`;
             return `
             <div class="recording-item" data-rule-id="${rule.id}">
@@ -158,7 +158,7 @@ class RecordingsPage {
         // #12: a clash is shown on each schedule involved, never silent (D-28). D-42: the one scheduled first records
         // (`beatenBy` names who wins); the other waits until someone chooses it instead or cancels the winner.
         const titles = new Map(items.map(i => [i.id, `${i.title} (${i.channel_name || 'unknown channel'})`]));
-        const names = (ids) => this.escape(ids.map(id => titles.get(id) || `schedule #${id}`).join(', '));
+        const names = (ids) => UI.escape(ids.map(id => titles.get(id) || `schedule #${id}`).join(', '));
         const clash = (item) => {
             if (!Array.isArray(item.conflictsWith) || !item.conflictsWith.length) return '';
             if (Array.isArray(item.beatenBy) && item.beatenBy.length) {
@@ -168,12 +168,12 @@ class RecordingsPage {
         };
         this.scheduledList.innerHTML = items.map(item => `
             <div class="recording-item" data-id="${item.id}">
-                <img class="recording-thumb" src="${this.escape(this.proxiedLogo(item.image || item.channel_logo))}" alt=""
+                <img class="recording-thumb" src="${UI.escape(this.proxiedLogo(item.image || item.channel_logo))}" alt=""
                      onerror="this.onerror=null;this.src='/img/placeholder.png'">
                 <div class="recording-info">
-                    <div class="recording-title">${this.escape(item.title)}</div>
-                    <div class="recording-meta">${this.escape(item.channel_name || '')} &middot; <span class="pig-amount">${this.formatRange(item.program_start, item.program_end)}</span></div>
-                    <div class="recording-status status-${this.escape(item.status)}">${this.escape(item.status === 'waiting' && item.error ? `Waiting: ${item.error}` : this.statusLabel(item.status))}</div>
+                    <div class="recording-title">${UI.escape(item.title)}</div>
+                    <div class="recording-meta">${UI.escape(item.channel_name || '')} &middot; <span class="pig-amount">${this.formatRange(item.program_start, item.program_end)}</span></div>
+                    <div class="recording-status status-${UI.escape(item.status)}">${UI.escape(item.status === 'waiting' && item.error ? `Waiting: ${item.error}` : this.statusLabel(item.status))}</div>
                     ${clash(item)}
                 </div>
                 <div class="recording-actions">
@@ -206,13 +206,13 @@ class RecordingsPage {
         this.recentProblemsSection.hidden = false;
         this.recentProblemsList.innerHTML = items.map(item => `
             <div class="recording-item" data-id="${item.id}">
-                <img class="recording-thumb" src="${this.escape(this.proxiedLogo(item.image || item.channel_logo))}" alt=""
+                <img class="recording-thumb" src="${UI.escape(this.proxiedLogo(item.image || item.channel_logo))}" alt=""
                      onerror="this.onerror=null;this.src='/img/placeholder.png'">
                 <div class="recording-info">
-                    <div class="recording-title">${this.escape(item.title)}</div>
-                    <div class="recording-meta">${this.escape(item.channel_name || '')} &middot; <span class="pig-amount">${this.formatRange(item.program_start, item.program_end)}</span></div>
-                    <div class="recording-status status-${this.escape(item.status)}">${this.escape(this.statusLabel(item.status))}</div>
-                    ${item.error ? `<div class="recording-error">${this.escape(item.error)}</div>` : ''}
+                    <div class="recording-title">${UI.escape(item.title)}</div>
+                    <div class="recording-meta">${UI.escape(item.channel_name || '')} &middot; <span class="pig-amount">${this.formatRange(item.program_start, item.program_end)}</span></div>
+                    <div class="recording-status status-${UI.escape(item.status)}">${UI.escape(this.statusLabel(item.status))}</div>
+                    ${item.error ? `<div class="recording-error">${UI.escape(item.error)}</div>` : ''}
                 </div>
                 <div class="recording-actions">
                     <button class="btn btn-sm btn-danger" data-action="delete-scheduled" data-id="${item.id}">Delete</button>
@@ -233,18 +233,18 @@ class RecordingsPage {
 
         this.recordingsList.innerHTML = items.map(item => `
             <div class="recording-item" data-id="${item.id}">
-                <img class="recording-thumb" src="${this.escape(this.proxiedLogo(item.image || item.channel_logo))}" alt=""
+                <img class="recording-thumb" src="${UI.escape(this.proxiedLogo(item.image || item.channel_logo))}" alt=""
                      onerror="this.onerror=null;this.src='/img/placeholder.png'">
                 <div class="recording-info">
-                    <div class="recording-title">${this.escape(item.title)}</div>
+                    <div class="recording-title">${UI.escape(item.title)}</div>
                     <div class="recording-meta">
-                        ${this.escape(item.channel_name || '')} &middot;
-                        ${item.part > 1 ? `Part ${Number(item.part)}${item.provider_name ? ` (${this.escape(item.provider_name)})` : ''} &middot;` : ''}
+                        ${UI.escape(item.channel_name || '')} &middot;
+                        ${item.part > 1 ? `Part ${Number(item.part)}${item.provider_name ? ` (${UI.escape(item.provider_name)})` : ''} &middot;` : ''}
                         ${item.started_at ? `<span class="pig-amount">${new Date(item.started_at).toLocaleString()}</span>` : ''} &middot;
                         <span class="pig-amount">${this.formatSize(item.file_size_bytes)}</span>
                     </div>
-                    <div class="recording-status status-${this.escape(item.status)}">${this.escape(this.statusLabel(item.status))}</div>
-                    ${item.status === 'failed' && item.error ? `<div class="recording-error">${this.escape(item.error)}</div>` : ''}
+                    <div class="recording-status status-${UI.escape(item.status)}">${UI.escape(this.statusLabel(item.status))}</div>
+                    ${item.status === 'failed' && item.error ? `<div class="recording-error">${UI.escape(item.error)}</div>` : ''}
                     ${this.progressHtml(item)}
                 </div>
                 <div class="recording-actions">
@@ -255,11 +255,11 @@ class RecordingsPage {
                     }">Partial</span>` : ''}
                     ${item.ad_detect_status === 'running' ? '<span class="small muted recording-note">Finding breaks…</span>' : ''}
                     ${item.ad_detect_status === 'done' ? '<span class="small muted recording-note">Breaks marked</span>' : ''}
-                    ${item.ad_detect_status === 'failed' ? `<span class="small muted recording-note" title="${this.escape(item.ad_detect_error || '')}">Break detection failed</span>` : ''}
+                    ${item.ad_detect_status === 'failed' ? `<span class="small muted recording-note" title="${UI.escape(item.ad_detect_error || '')}">Break detection failed</span>` : ''}
                     ${item.compress_status === 'running' ? '<span class="small muted recording-note">Compressing…</span>' : ''}
                     ${item.compress_status === 'pending' ? '<span class="small muted recording-note">Queued to compress</span>' : ''}
                     ${item.compress_status === 'done' ? '<span class="small muted recording-note">Compressed</span>' : ''}
-                    ${item.compress_status === 'failed' ? `<span class="small muted recording-note" title="${this.escape(item.compress_error || '')}">Compression failed</span>` : ''}
+                    ${item.compress_status === 'failed' ? `<span class="small muted recording-note" title="${UI.escape(item.compress_error || '')}">Compression failed</span>` : ''}
                     ${item.status === 'completed' && !['running', 'pending', 'done'].includes(item.compress_status)
                         ? `<button class="btn btn-sm btn-secondary" data-action="compress" data-id="${item.id}">Compress</button>` : ''}
                     ${item.status === 'completed' ? `<button class="btn btn-sm btn-primary" data-action="play" data-id="${item.id}">Play</button>` : ''}
@@ -560,8 +560,8 @@ class RecordingsPage {
         const start = new Date(startMs);
         const end = new Date(endMs);
         const dateStr = start.toLocaleDateString([], { month: 'short', day: 'numeric' });
-        const startStr = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const endStr = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const startStr = UI.time(start);
+        const endStr = UI.time(end);
         return `${dateStr}, ${startStr} - ${endStr}`;
     }
 
@@ -586,12 +586,6 @@ class RecordingsPage {
         return labels[status] || status;
     }
 
-    /** Safe in text and in a quoted attribute (a div's innerHTML leaves quotes as they are). */
-    escape(str) {
-        return String(str || '').replace(/[&<>"']/g, ch => ({
-            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-        })[ch]);
-    }
 }
 
 window.RecordingsPage = RecordingsPage;

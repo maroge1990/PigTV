@@ -141,7 +141,7 @@ class SourceManager {
         this.newGroups = Array.isArray(groups) ? groups : [];
         box.hidden = this.newGroups.length === 0;
         if (box.hidden) { box.innerHTML = ''; return; }
-        const e = (v) => this.escapeHtml(String(v ?? ''));
+        const e = (v) => UI.escape(String(v ?? ''));
         box.innerHTML = `<h3>New on the provider</h3>
             <p class="setting-hint">New groups arrive hidden, so the guide and the Apple TV do not fill up with thousands of channels. Show the ones you want.</p>
             ${this.newGroups.map(g => `<div class="setting-item new-group">
@@ -214,7 +214,7 @@ class SourceManager {
             select.innerHTML = '<option value="">Select a source...</option>';
 
             sources.filter(s => s.type === 'xtream' || s.type === 'm3u').forEach(source => {
-                select.innerHTML += `<option value="${this.escapeHtml(source.id)}">${this.escapeHtml(source.name)} (${this.escapeHtml(source.type)})</option>`;
+                select.innerHTML += `<option value="${UI.escape(source.id)}">${UI.escape(source.name)} (${UI.escape(source.type)})</option>`;
             });
             // #128: coming back to this tab keeps the provider (and any unsaved ticks) on screen.
             if (this.treeData?.sourceId) select.value = String(this.treeData.sourceId);
@@ -351,29 +351,29 @@ class SourceManager {
                 ${group.items.map(item => {
                 const itemHidden = this.hiddenSet.has(`${item.type}:${item.id}`);
                 return `
-                    <label class="checkbox-label channel-item" title="${this.escapeHtml(item.name)}">
+                    <label class="checkbox-label channel-item" title="${UI.escape(item.name)}">
                         <input type="checkbox" class="channel-checkbox" 
-                               data-type="${this.escapeHtml(String(item.type))}" 
-                               data-id="${this.escapeHtml(String(item.id))}" 
+                               data-type="${UI.escape(String(item.type))}" 
+                               data-id="${UI.escape(String(item.id))}" 
                                data-source-id="${this.treeData.sourceId}" 
                                ${!itemHidden ? 'checked' : ''}>
-                        <span class="channel-name">${item.number !== null && item.number !== undefined ? `<span class="channel-number pig-amount">${this.escapeHtml(item.number)}</span> ` : ''}${this.escapeHtml(item.name)}</span>
+                        <span class="channel-name">${item.number !== null && item.number !== undefined ? `<span class="channel-number pig-amount">${UI.escape(item.number || '')}</span> ` : ''}${UI.escape(item.name)}</span>
                     </label>`;
             }).join('')}
             </div>`;
         }
 
         return `
-            <div class="content-group ${isExpanded ? '' : 'collapsed'}" data-group-id="${this.escapeHtml(group.id)}">
+            <div class="content-group ${isExpanded ? '' : 'collapsed'}" data-group-id="${UI.escape(group.id)}">
                 <div class="content-group-header">
                     <span class="group-expander">${Icons.chevronDown}</span>
                     <label class="checkbox-label" onclick="event.stopPropagation()">
                         <input type="checkbox" class="group-checkbox" 
                                data-type="group" 
-                               data-id="${this.escapeHtml(group.id)}" 
+                               data-id="${UI.escape(group.id)}" 
                                data-source-id="${this.treeData.sourceId}" 
                                ${checked ? 'checked' : ''}>
-                        <span class="group-name">${this.escapeHtml(group.name)} (${group.items.length})</span>
+                        <span class="group-name">${UI.escape(group.name)} (${group.items.length})</span>
                     </label>
                     ${group.categoryId !== null && group.categoryId !== undefined ? this.sportToggleHtml(group) : ''}
                 </div>
@@ -390,7 +390,7 @@ class SourceManager {
      */
     sportToggleHtml(group) {
         return `<button type="button" class="btn btn-sm btn-ghost sport-toggle${group.sport ? ' active' : ''}"
-                        data-category-id="${this.escapeHtml(group.categoryId)}"
+                        data-category-id="${UI.escape(group.categoryId || '')}"
                         aria-pressed="${group.sport ? 'true' : 'false'}"
                         title="Sport category: a live-looking programme on its channels (Live, vs, v) counts as sport (Settings → Sports)">Sport</button>`;
     }
@@ -411,16 +411,6 @@ class SourceManager {
         button.classList.toggle('active', group.sport);
         button.setAttribute('aria-pressed', group.sport ? 'true' : 'false');
         button.textContent = 'Sport';
-    }
-
-    escapeHtml(text) {
-        if (!text) return '';
-        return String(text)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
     }
 
     attachTreeListeners(container) {

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { loadUi } = require('./helpers/webUi');
 
 // 0172 (multi-provider P4): the API client's provider and link calls, the pure helpers behind Settings ->
 // Providers and Settings -> Backup links, and the two panels' rendering and error handling, with a stub DOM.
@@ -29,6 +30,7 @@ function harness(replies = {}) {
         }
     });
     context.window = context;
+    loadUi(context);
     for (const f of ['api.js', 'pages/ProvidersSettings.js', 'pages/BackupLinksSettings.js']) vm.runInContext(js(f), context);
     return { context, elements, requests, F: context.ProviderFormat, L: context.LinkFormat };
 }

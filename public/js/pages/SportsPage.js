@@ -1,6 +1,6 @@
 /* C-O: render only server-projected whole snapshots. No score cache, ticking clock or provider probe. */
 const SportsDashboardPolicy = {
-    escape(value) { return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); },
+    escape(value) { return UI.escape(value); },
     family(league) {
         return ({AFL:'australianFootball',AFLW:'australianFootball',NBA:'basketball',NFL:'americanFootball',
             MLB:'baseball',Cricket:'cricket',F1:'motorsport',EPL:'football','FA Cup':'football',UEFA:'football',Championship:'football'})[league] || 'guide';

@@ -2,10 +2,12 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { loadUi } = require('./helpers/webUi');
 function load(api = {}) {
     const context = vm.createContext({ window: {}, API: api, performance: { now: () => 0 },
         localStorage: { getItem: () => 'account-token' }, setTimeout, clearTimeout,
         document: { hidden: false, addEventListener() {} } });
+    loadUi(context);
     vm.runInContext(fs.readFileSync('public/js/pages/SportsPage.js', 'utf8'), context);
     return context.window;
 }
@@ -177,6 +179,7 @@ test('global recording banner cannot expose raw programme result prose over the 
     const text={textContent:''}, banner={style:{}};
     const c=vm.createContext({window:{},document:{addEventListener(){},getElementById:id=>id==='recording-banner-text'?text:banner},
         API:{recordings:{getActive:async()=>[{title:'A defeats B 101-99',channel_name:'Sports',program_end:1000}]}}});
+    loadUi(c);
     vm.runInContext(fs.readFileSync('public/js/app.js','utf8'),c);
     const app=Object.create(vm.runInContext('App.prototype',c)); app.currentPage='sports';
     app.updateRecordingBanner([{title:'A defeats B 101-99',channel_name:'Sports',program_end:1000}]); // #239: the feed's rows
@@ -186,6 +189,7 @@ test('global recording banner cannot expose raw programme result prose over the 
 test('entering Sport masks an already visible raw recording title synchronously', () => {
     const text={textContent:'Recording A defeats B 101-99'};
     const c=vm.createContext({window:{},history:{pushState(){}},document:{addEventListener(){},querySelectorAll:()=>[],getElementById:()=>text}});
+    loadUi(c);
     vm.runInContext(fs.readFileSync('public/js/app.js','utf8'),c);
     const app=Object.create(vm.runInContext('App.prototype',c)); Object.assign(app,{currentPage:'home',pages:{},currentUser:{role:'admin'}});
     app.navigateTo('sports');

@@ -1550,8 +1550,8 @@ class VideoPlayer {
 
         if (epgData && epgData.current) {
             programTitle.textContent = epgData.current.title;
-            const start = new Date(epgData.current.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const end = new Date(epgData.current.stop).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const start = UI.time(epgData.current.start);
+            const end = UI.time(epgData.current.stop);
             programTime.textContent = `${start} - ${end}`;
         } else {
             programTitle.textContent = '';
@@ -1563,7 +1563,7 @@ class VideoPlayer {
         if (epgData && epgData.upcoming) {
             epgData.upcoming.slice(0, 3).forEach(prog => {
                 const li = document.createElement('li');
-                const time = new Date(prog.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const time = UI.time(prog.start);
                 li.textContent = `${time} - ${prog.title}`;
                 upNextList.appendChild(li);
             });
