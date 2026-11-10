@@ -77,11 +77,6 @@ async function primeDirectProbe(url, capabilities) {
     probeCache.set(key, { result: info, timestamp: Date.now() });
 }
 
-test('/api/info advertises playbackHandles', async () => {
-    const info = await (await fetch(`${base}/api/info`)).json();
-    assert.equal(info.features.playbackHandles, true);
-});
-
 test('a direct resolve returns ?h=<32 hex> and no provider URL anywhere in the JSON', async () => {
     const capabilities = { segmentedDelivery: true };
     await primeDirectProbe(STREAM, capabilities);
@@ -162,18 +157,11 @@ test('the registry: 32 hex, one handle per live URL, 12 h expiry, bounded size',
     assert.equal(handles.resolveHandle(first), null, 'the least recently used went first');
 });
 
-test('handles are always on: the flag is advertised and PIGTV_PLAYBACK_HANDLES=0 no longer changes anything', async () => {
-    process.env.PIGTV_PLAYBACK_HANDLES = '0';
-    try {
-        const info = await (await fetch(`${base}/api/info`)).json();
-        assert.equal(info.features.playbackHandles, true);
-        const capabilities = { segmentedDelivery: true };
-        await primeDirectProbe(STREAM, capabilities);
-        const decision = await strategy.resolve({ url: STREAM, capabilities, settings: await db.settings.get() });
-        assert.match(decision.url, /^\/api\/proxy\/stream\?h=[0-9a-f]{32}$/);
-    } finally {
-        delete process.env.PIGTV_PLAYBACK_HANDLES;
-    }
+test('a direct resolve always hands out an opaque handle', async () => {
+    const capabilities = { segmentedDelivery: true };
+    await primeDirectProbe(STREAM, capabilities);
+    const decision = await strategy.resolve({ url: STREAM, capabilities, settings: await db.settings.get() });
+    assert.match(decision.url, /^\/api\/proxy\/stream\?h=[0-9a-f]{32}$/);
 });
 
 test('the proxy\'s log lines pass the provider URL through redact()', async () => {

@@ -17,8 +17,8 @@
  *
  * A server restart forgets every handle: the client re-resolves, as it does
  * after any failed start. Handles are the only way to name a proxy target
- * (R01): the `PIGTV_PLAYBACK_HANDLES=0` rollback and the proxy's `?url=` form
- * are gone, so the proxy cannot be pointed at an address a caller chose.
+ * (R01): the proxy has no `?url=` form, so it cannot be pointed at an
+ * address a caller chose.
  */
 const crypto = require('crypto');
 

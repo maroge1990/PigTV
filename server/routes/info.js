@@ -48,11 +48,6 @@ async function sendInfo(req, res) {
             guide: true,             // /api/library/guide
             devicePairing: true,     // /api/devices/pair/*
             recordings: true,        // DVR
-            recordingCompression: true,
-            channelHistory: true,
-            adDetection: true,       // endpoints exist; comskipAvailable says whether it can run
-            streamCoordination: true,
-            streamTokenAuth: true,   // stream endpoints accept ?token=
 
             // Behaviours a client may want to switch on, added after the flags above. A client
             // asks for the flag rather than guessing from a version number; an older server
@@ -70,9 +65,6 @@ async function sendInfo(req, res) {
             logoCache: true,                 // library `logo` fields are /api/logo/<key>, fetched and cached server-side
             // 0117 (C-A): library rows carry `number` (labels only; 0139 disabled number ordering).
             channelNumbers: true,
-            // 0119 (C-D): a `direct` resolve's url is /api/proxy/stream?h=<opaque handle>.
-            // Always on since R01 (the PIGTV_PLAYBACK_HANDLES=0 rollback is gone); the flag stays for clients that read it.
-            playbackHandles: true,
             // 0133 (C-G): library/guide and library/channels rows carry `health`
             // ("ok" | "flaky" | null) from the last 7 days' starts.
             channelHealth: true,

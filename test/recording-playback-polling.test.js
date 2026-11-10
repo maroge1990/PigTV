@@ -181,7 +181,11 @@ test('/api/info advertises what a client can now rely on, as flags it can ask fo
         assert.equal(info.body.features[flag], true, flag);
     }
     // and the flags a client already reads are still there
-    for (const flag of ['playbackResolve', 'library', 'guide', 'devicePairing', 'recordings', 'streamCoordination', 'streamTokenAuth']) {
+    for (const flag of ['playbackResolve', 'library', 'guide', 'devicePairing', 'recordings']) {
         assert.equal(info.body.features[flag], true, flag);
+    }
+    // flags no client reads are not advertised
+    for (const flag of ['recordingCompression', 'channelHistory', 'adDetection', 'streamCoordination', 'streamTokenAuth', 'playbackHandles']) {
+        assert.equal(flag in info.body.features, false, flag);
     }
 });

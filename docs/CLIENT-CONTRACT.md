@@ -30,7 +30,7 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 | Flag | Since | Means | Apple client |
 |---|---|---|---|
 | `playbackResolve`, `library` | early | Resolve and `/api/library` exist | **Required** (with `apiVersion` 1), else the server is refused |
-| `guide`, `devicePairing`, `recordings`, `recordingCompression`, `channelHistory`, `adDetection`, `streamCoordination`, `streamTokenAuth` | early | Base features (`comskipAvailable` says whether ad detection can run) | `devicePairing` gates pairing; the rest are not read |
+| `guide`, `devicePairing`, `recordings` | early | Base features | `devicePairing` gates pairing; the rest are not read |
 | `viewerConflict` | 0083 | Resolve may answer 409 `viewer-in-progress` | The 409 is handled by `conflict.type` either way |
 | `epgLogoFallback` | 0083 | Library rows fill a missing `logo` from the EPG | Skips its own artwork index |
 | `clientEvents` | 0083 | `POST /api/playback/client-event` | Sends `media-error`, `play-start`, `play-end` (`watchedSec`, `stalls`, …); since Apple 64 also `start-timeout` (`waitedSec`, nothing played 20 s after the item was installed) and `media-error` with `codeName` `StallTimeout` (a 35 s wait mid-play). Since 0487 (#36) `play-start` may carry `phases`: `{resolveMs, readyMs, modeMs, frameMs}`, each optional, ms since the press (answer arrived; item ready to play; tvOS display-mode switch done; first picture); the server logs and keeps them for Status and `playback-report.js`, and ignores anything else |
@@ -41,7 +41,6 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 | `guideVersion` | 0111 | `GET /api/library/guide/version` (includes the build, so a deploy reloads once) | Skips a reload when unchanged |
 | `logoCache` | 0112 | `logo` fields are `/api/logo/<key>`; `?size=full` / `?size=640` | Top Shelf asks `size=full` |
 | `channelNumbers` | 0117 | Rows carry `number` (labels only, C-A) | Muted number after the name; iOS "Go to number" |
-| `playbackHandles` | 0119 | `direct` resolves use `/api/proxy/stream?h=<handle>` (always, since 0196) | Not read; a 404 leads to a re-resolve |
 | `channelHealth` | 0133 | Rows carry `health` `ok`/`flaky`/null (C-G) | Amber dot on flaky channels |
 | `sportCategories` | 0146 | `library/categories` rows carry `sport` (C-H) | Not read any more (decoded) |
 | `sportsDashboard` | 0309 | Opt-in dashboard/catalog and per-user preferences (C-O); false unless `PIGTV_SPORTS_DASHBOARD=1` | Apple 59: gated dashboard; absent/404 retains C-I |
@@ -144,7 +143,7 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 | C-A Channel numbers | `channelNumbers` | 0117, 0139 labels only | 19, 29 |
 | C-B Resolve errors | none (text match) | 0113, 0118 | 19 |
 | C-C HE-AAC passthrough | none (capability) | 0116 | 27 always on |
-| C-D Opaque playback handle | `playbackHandles` | 0119, 0196 always | none needed |
+| C-D Opaque playback handle | none | 0119, 0196 always | none needed |
 | C-E Tuner model | `timeshift`, `recordingHls` | **removed in 0204** | removed |
 | C-F Labs | Apple only | none | Stream info is the only switch left |
 | C-G Channel health | `channelHealth` | 0133, 0142 | 19 |
@@ -196,7 +195,7 @@ copy): it is re-encoded to AAC-LC for every client, so those channels no longer 
 track the session maps, only when the probe goes through the shared ingest; a direct probe or an older stored channel profile copies as before, and the
 `fmt?` fallback still covers it. Request and response shapes are unchanged.
 
-### C-D. Opaque playback handle. Flag: `playbackHandles`
+### C-D. Opaque playback handle
 
 A `direct` resolve returns `/api/proxy/stream?h=<32 hex>` (in memory, 12 h, LRU 10,000; a restart forgets them, unknown → 404;
 a manifest fetched by handle hands out handles for its URIs). `?url=` is refused (400) since 0196. No provider URL appears in
