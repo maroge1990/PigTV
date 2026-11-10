@@ -6,8 +6,17 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 
 **Rules**
 - Ask the server, don't guess. `GET /api/info` (no token) returns `name`, `version`, `build`, `display`, `apiVersion` and `features`. New
-  behaviour is announced with a flag; an older server lacks it, so **gate on the flag** and treat a missing flag as off.
-  `/api/info` still answers if a feature check fails: the same identity fields (`version` too since 0432; null if unreadable) with only the base flags (`library`, `playbackResolve`, `guide`, `devicePairing`: since 0474, #47) and no optional ones.
+  behaviour is announced with a flag; an older server lacks it, so **gate on the flag** and treat a missing flag as off (the web app does).
+  `/api/info` still answers if a feature check fails: the same identity fields (`version` too since 0432; null if unreadable) with only the base flags (`library`, `playbackResolve`, `guide`, `devicePairing`: since 0474, #47) and no optional ones. The web app then turns the optional features off; the Apple app from build 196 (below) uses them anyway and tolerates a failure of each.
+- **Minimum server for the Apple app: 0476 (from Apple 196, D-53).** The app refuses a server whose `build` parses as an integer below 476
+  ("This PigTV server is too old for this app. Update the server, then try again."); a build that does not parse is accepted. From 196
+  it assumes these flags are on and no longer reads them, so they must stay `true`, and their routes stay, while any Apple build from 196
+  on is supported: `guideCursor`, `guideVersion`, `channelNumbers`, `channelHealth`, `scheduleHistory`, `devicePairing`,
+  `providerReminders`, `clientEvents`, `livePause`, `playbackTerminalStatus`, `recordingPlaybackPolling`, `recordingPositions`,
+  `recordingWatchLive`, `recordingRules`, `recordGameRules`, `warming`, `epgLogoFallback`. It still reads `channelQuality`,
+  `sportsEvents`, `sportFollows` and the computed sport flags. It no longer reads `sportFront` or `sportsDashboard` (the Sport tab is
+  always the front page, D-54) and, from Apple 193, never calls `GET /api/sports/dashboard`, `GET /api/library/recent`,
+  `GET /api/sources` or `proxy/epg/<id>`. On servers 0476 to 0502 with scores off its Sport tab shows the front page's error state.
 - Every change is **additive** unless both sides change together. Anything in §2 changes only with a matching client change.
 - A change the client can see (including anything in `transcodeSession.js` / `playbackStrategy.js`) is written into this
   file in the same commit.

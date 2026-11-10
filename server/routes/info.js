@@ -56,7 +56,8 @@ async function sendInfo(req, res) {
 
             // Behaviours a client may want to switch on, added after the flags above. A client
             // asks for the flag rather than guessing from a version number; an older server
-            // simply does not list it.
+            // simply does not list it. The Apple app from build 196 (server 0476 or newer) no longer
+            // reads most of them and assumes they are on: keep them true (CLIENT-CONTRACT Rules).
             recordingPositions: true,        // 0207: GET/PUT /api/recordings/:id/position; /api/recordings rows carry position_sec + watched
             recordingPlaybackPolling: true,  // GET /api/recordings/:id/playback?async=1 may answer 202 {status:'preparing'}
             scheduledWaiting: true,          // /api/recordings/scheduled includes status 'waiting' and it can be cancelled
@@ -146,8 +147,9 @@ router.get('/', async (req, res) => {
     } catch (err) {
         // 0138: a client checks this before anything else, so it must get an
         // answer that identifies the server even when a feature check (a
-        // settings or database read behind it) failed. Only the base flags: a client
-        // then uses none of the optional features, which is the safe reading.
+        // settings or database read behind it) failed. Only the base flags: the web app then
+        // turns the optional features off, which is the safe reading. The Apple app from build 196
+        // assumes them on and tolerates a failure of each (CLIENT-CONTRACT Rules).
         console.error('[Info] failed:', err.message);
         if (res.headersSent) return;
         let build = {};
@@ -155,7 +157,7 @@ router.get('/', async (req, res) => {
         try { build = require('../version'); } catch { /* identity unknown */ }
         try { version = require('../../package.json').version; } catch { /* identity unknown */ }
         // #47 (AUD-APL-5): the flags that are always on stay (the Apple client refuses a server without library and
-        // playbackResolve); every optional flag is absent, which a client reads as off.
+        // playbackResolve); every optional flag is absent, which the web app reads as off (the Apple app from 196 ignores that).
         res.json({ name: 'PigTV', version, build: build.build || null, display: build.display || null, apiVersion: API_VERSION,
             features: { library: true, playbackResolve: true, guide: true, devicePairing: true } });
     }

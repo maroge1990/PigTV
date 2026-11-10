@@ -200,6 +200,8 @@ Problems a user would notice. Technical limits are on each area's page under ARC
 
 ### Live TV
 
+- On servers 0476 to 0502 with scores switched off, the Apple app's Sport tab shows the front page's error state; from 0503 the front page is served without game cards.
+
 - **The provider cuts the connection about 38 s into a play on some channels and resends ~19 s of old content** (§2). ffmpeg
   rebases the timestamps, so the player neither freezes nor rewinds, but the viewer sees a short repeat and the stream sits
   ~19 s further behind live. When the rebase goes wrong instead (a timestamp loop, Fox Footy 3 Oct) the session is ended and
