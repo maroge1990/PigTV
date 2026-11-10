@@ -90,8 +90,9 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   A failover or a restart continues the **same row** in a new epoch (no part 2; ≤ 20 resumes; gaps noted in `error`); a
   restart after the window finishes it. A container stop (SIGTERM) before the end leaves it to resume, not finished
   (0490). A capture that ends before its stop time unasked, for any reason and with one provider too, continues
-  the same way (0499, #260): at once after a minute's run or a provider's failure with a backup, else on the next tick;
-  why each capture ended is logged. Not `append_list`: each run's playlist is ffmpeg's own and the server joins them.
+  the same way (0499, #260): at once after a minute's run, else on the next tick. A provider's failure with a backup
+  also continues at once, but captures that fail that way within a minute, in a row, get one immediate try per provider
+  of the route the run began on, then wait for the tick (#284); why each capture ended is logged. Not `append_list`: each run's playlist is ffmpeg's own and the server joins them.
   The Apple TV's watch copy (fMP4, `hvc1`) is made by a **local follower ffmpeg** per epoch, only when someone asks
   (`GET /:id/watch`); it never touches the provider. At the end the joined playlist is remuxed with preparation's own
   arguments straight onto the share under `.partial`, checked (`checkPrepared`), renamed, `native_status` ready; then the

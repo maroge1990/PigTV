@@ -1299,11 +1299,11 @@ async function startSegmented(schedule, settings, route, index, { refuse, lease,
 }
 
 /** R3: one epoch of a segmented recording (its first run, or a run after a failover or restart). */
-function spawnSegment(schedule, settings, { recordingId, workDir, route, index, lease = null, resumes = 0, feed = null }) {
+function spawnSegment(schedule, settings, { recordingId, workDir, route, index, lease = null, resumes = 0, shortRun = null, feed = null }) {
     const epoch = segments.nextEpoch(workDir);
     spawnPart(schedule, settings, {
         recordingId, outputPath: epoch.dir, route, index, part: 1, lease, feed,
-        segmented: { workDir, epoch: epoch.n, offsetSec: epoch.offsetSec, resumes }
+        segmented: { workDir, epoch: epoch.n, offsetSec: epoch.offsetSec, resumes, shortRun }
     });
 }
 
@@ -1574,6 +1574,13 @@ async function onSegmentExit(schedule, entry, exitCode) {
         // next tick, so a capture that keeps ending cannot spin.
         const failover = entry.route.multi && providerReason;
         const ranLong = now - entry.spawnedAt >= RESUME_AT_ONCE_AFTER_MS;
+        // #284: short captures that failed over in a row, and the candidate count of the route the run started on: each
+        // provider gets one immediate try (one pass round that route), then a short capture waits for the tick.
+        const prior = entry.segmented.shortRun;
+        const shortRun = failover && !ranLong
+            ? { count: (prior?.count || 0) + 1, of: prior?.of || entry.route.candidates.length }
+            : null;
+        const atOnce = ranLong || (shortRun && shortRun.count < shortRun.of);
         const candidate = entry.route.candidates[entry.index];
         if (failover) providerRouting.noteFailure(candidate, entry.route.primaryKey);
         console.warn(`[Recordings] #${entry.recordingId} ended early (${why})` +
@@ -1581,10 +1588,10 @@ async function onSegmentExit(schedule, entry, exitCode) {
             '; it continues in the same recording');
         continuations.set(schedule.id, {
             schedule, nextPart: 1, lostAt: now, starting: false, waitingLogged: false,
-            resume: { recordingId: entry.recordingId, workDir: entry.segmented.workDir, resumes: entry.segmented.resumes + 1,
+            resume: { recordingId: entry.recordingId, workDir: entry.segmented.workDir, resumes: entry.segmented.resumes + 1, shortRun,
                 why: failover ? 'the provider dropped out' : `the capture ended (${why})` }
         });
-        if (!failover && !ranLong) return;
+        if (!atOnce) return;
         return continuePart(schedule.id).catch(err =>
             console.error(`[Recordings] Could not continue schedule #${schedule.id}:`, err.message));
     }
@@ -1687,7 +1694,7 @@ async function continuePart(scheduleId, now = Date.now()) {
             const feed = await feedFor(settings, route.candidates[index]); // Wave 5
             if (!ours()) return abandonStart(schedule, feed);
             continuations.delete(scheduleId);
-            spawnSegment(schedule, settings, { recordingId: rec.id, workDir: rec.work_dir, route, index, resumes: cont.resume.resumes, feed });
+            spawnSegment(schedule, settings, { recordingId: rec.id, workDir: rec.work_dir, route, index, resumes: cont.resume.resumes, shortRun: cont.resume.shortRun, feed });
             return;
         }
         await startPart(schedule, route, index, cont.nextPart, {

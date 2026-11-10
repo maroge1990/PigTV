@@ -1,11 +1,11 @@
 const { test, before, after, afterEach } = require('node:test');
-process.env.PIGTV_PART_RECORDINGS = '1'; // 0494: lets these tests switch segmenting off to compare with the part-based path
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { once } = require('node:events');
 const express = require('express');
+const { createFakeSegmentFfmpeg, stubNativeTools, drainSegmentQueue, until: untilWith } = require('./helpers/fakeSegmentFfmpeg');
 
 // R3 (Wave 4): segmented recordings in the real engine, coordinator and routing over a sandboxed
 // database. ffmpeg is a node script: as a capture (-f hls) it writes MPEG-TS segments and an
@@ -41,107 +41,10 @@ const workRoot = path.join(sandbox, 'data', 'recordings-work');
 const mount = path.join(sandbox, 'mnt');
 const share = path.join(mount, 'Recordings');
 
-// ---- fake ffmpeg -----------------------------------------------------------------
-// ok    writes a segment every 60 ms; "q" ends its playlist (ffmpeg's graceful stop) and exits
-//       with a provider-looking error, so a requested stop taken for a failure would show.
-// dies  writes a few segments, then the connection is reset.
-const behaviourFile = path.join(sandbox, 'ffmpeg-behaviour.json');
-const startsFile = path.join(sandbox, 'ffmpeg-starts.log');
-const behaviour = {};
-const setBehaviour = (u, kind) => { behaviour[u] = kind; fs.writeFileSync(behaviourFile, JSON.stringify(behaviour)); };
-const FFMPEG = path.join(sandbox, 'ffmpeg-fake');
-fs.writeFileSync(FFMPEG, `#!${process.execPath}
-const fs = require('fs');
-const path = require('path');
-const args = process.argv.slice(2);
-const input = args[args.indexOf('-i') + 1];
-const out = args[args.length - 1];
-// #150: playlists are replaced whole, as ffmpeg's temp_file does (a temporary file renamed into place): a plain
-// rewrite empties the file first, and a reader caught there saw no segments ("cannot be watched while it records").
-const putPlaylist = (text) => { fs.writeFileSync(out + '.tmp', text); fs.renameSync(out + '.tmp', out); };
-fs.appendFileSync(${JSON.stringify(startsFile)}, JSON.stringify(args) + '\\n');
-if (args.includes('-live_start_index')) {
-  // The watch copy: one piece per archive segment from -live_start_index, named as asked (-hls_segment_filename,
-  // -hls_fmp4_init_filename), ended when the archive is. #34: behaviour "follower" = "dies-after-3" exits 1 after three.
-  const dir = path.dirname(out);
-  const from = Number(args[args.indexOf('-live_start_index') + 1]) || 0;
-  const initName = args[args.indexOf('-hls_fmp4_init_filename') + 1];
-  const segPattern = path.basename(args[args.indexOf('-hls_segment_filename') + 1]);
-  let behave = {};
-  try { behave = JSON.parse(fs.readFileSync(${JSON.stringify(behaviourFile)}, 'utf8')); } catch (e) {}
-  let made = 0;
-  const pieces = () => {
-    const text = fs.existsSync(input) ? fs.readFileSync(input, 'utf8') : '';
-    const listed = text.match(/^a\\d+\\.ts$/mg) || [];
-    const n = listed.length;
-    fs.writeFileSync(path.join(dir, initName), 'init:' + initName);
-    let pl = '#EXTM3U\\n#EXT-X-VERSION:7\\n#EXT-X-TARGETDURATION:4\\n#EXT-X-MEDIA-SEQUENCE:0\\n#EXT-X-PLAYLIST-TYPE:EVENT\\n#EXT-X-MAP:URI="' + initName + '"\\n';
-    for (let i = 0; i < Math.max(0, n - from); i++) {
-      if (behave.follower === 'dies-after-3' && i >= 3) { putPlaylist(pl); process.exit(1); }
-      const name = segPattern.replace('%06d', String(i).padStart(6, '0'));
-      if (!fs.existsSync(path.join(dir, name))) fs.writeFileSync(path.join(dir, name), 'copy of ' + listed[from + i]);
-      pl += '#EXTINF:4.000000,\\n' + name + '\\n';
-    }
-    if (text.includes('#EXT-X-ENDLIST')) { putPlaylist(pl + '#EXT-X-ENDLIST\\n'); process.exit(0); }
-    putPlaylist(pl);
-  };
-  pieces();
-  setInterval(pieces, 40);
-  return;
-}
-let map = {};
-try { map = JSON.parse(fs.readFileSync(${JSON.stringify(behaviourFile)}, 'utf8')); } catch (e) {}
-const kind = map[input] || 'ok';
-if (args.includes('hls')) {
-  const dir = path.dirname(out);
-  let n = 0;
-  let pl = '#EXTM3U\\n#EXT-X-VERSION:3\\n#EXT-X-TARGETDURATION:4\\n#EXT-X-MEDIA-SEQUENCE:0\\n#EXT-X-PLAYLIST-TYPE:EVENT\\n';
-  const segment = () => {
-    const name = 'a' + String(n++).padStart(6, '0') + '.ts';
-    fs.writeFileSync(path.join(dir, name), Buffer.alloc(3000));
-    pl += '#EXTINF:4.000000,\\n' + name + '\\n';
-    putPlaylist(pl);
-  };
-  segment();
-  setInterval(segment, 60);
-  process.stdin.on('data', (d) => {
-    if (!String(d).includes('q')) return;
-    putPlaylist(pl + '#EXT-X-ENDLIST\\n');
-    process.stderr.write('[tcp @ 0x1] Connection reset by peer\\n');
-    process.exit(1);
-  });
-  // #260: the São Paulo GP's capture ended by itself mid-race, with nothing that looks like the provider's fault.
-  const endedMarker = ${JSON.stringify(path.join(sandbox, 'ffmpeg-ended-once'))};
-  if (kind === 'ends-once' && !fs.existsSync(endedMarker)) setTimeout(() => {
-    fs.writeFileSync(endedMarker, '1');
-    putPlaylist(pl + '#EXT-X-ENDLIST\\n');
-    process.exit(0);
-  }, 400);
-  if (kind === 'dies') setTimeout(() => {
-    process.stderr.write('[tcp @ 0x1] Connection reset by peer\\nError during demuxing: Connection reset by peer\\n');
-    process.exit(1);
-  }, 400);
-  return;
-}
-// Today's capture: one growing .ts file.
-fs.writeFileSync(out, Buffer.alloc(4000));
-setInterval(() => fs.appendFileSync(out, Buffer.alloc(500)), 50);
-process.stdin.on('data', (d) => { if (String(d).includes('q')) process.exit(0); });
-`);
-fs.chmodSync(FFMPEG, 0o755);
-const starts = () => (fs.existsSync(startsFile) ? fs.readFileSync(startsFile, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)) : []);
-const captures = () => starts().filter(a => !a.includes('-live_start_index'));
-
-// The remux and the preparation checks: the output is written, and as long as the input.
-const remuxed = [];
-engine._nativeTools.codecs = async () => ({ video: 'hevc', audio: 'aac', audioChannels: 2 });
-engine._nativeTools.duration = async () => 120;
-engine._nativeTools.audioErrors = async () => 0;
-engine._nativeTools.ffmpeg = async (args) => {
-    remuxed.push(args);
-    fs.writeFileSync(args[args.length - 1], Buffer.alloc(5000));
-    return { code: 0, tail: [] };
-};
+const fake = createFakeSegmentFfmpeg(sandbox);
+const FFMPEG = fake.path;
+const { setBehaviour, starts, captures } = fake;
+const remuxed = stubNativeTools(engine); // the remux and the preparation checks are stood in for
 
 const logLines = [];
 const realConsole = { log: console.log, warn: console.warn, error: console.error };
@@ -180,18 +83,12 @@ afterEach(async () => {
         scheduled.setStatus(s.id, 'cancelled');
     }
     // Whatever the test left to finish is finished (or moved) before the next one starts.
-    for (let i = 0; i < 200 && recordings.findSegmentWork().length; i++) {
-        await segments.processQueue(Date.now() + 3600e3);
-        await sleep(25);
-    }
+    await drainSegmentQueue(segments, recordings);
     for (const s of transcodeSession.getAllSessions()) await transcodeSession.removeSession(s.id);
     for (const id of [...coordinator._prompts.keys()]) coordinator.clearPrompt(id);
     routing.reset();
     Object.assign(tuning, TUNING);
-    for (const k of Object.keys(behaviour)) delete behaviour[k];
-    fs.writeFileSync(behaviourFile, '{}');
-    try { fs.unlinkSync(startsFile); } catch { /* none */ }
-    try { fs.unlinkSync(path.join(sandbox, 'ffmpeg-ended-once')); } catch { /* none */ }
+    fake.reset();
     remuxed.length = 0;
     fs.mkdirSync(share, { recursive: true });
     await db.settings.update({ recordingsPath: share, segmentedRecordings: true });
@@ -215,15 +112,7 @@ function due({ windowMs = 60000, startedAgoMs = 1000 } = {}) {
         channel_name: 'Fox Sports 505', channel_logo: null, program_start: now - startedAgoMs, program_end: now + windowMs,
         pre_buffer_min: 0, post_buffer_min: 0, created_by: 1, created_at: now });
 }
-async function until(cond, label, ms = 8000) {
-    const end = Date.now() + ms;
-    while (Date.now() < end) {
-        if (await cond()) return;
-        await engine.tick();
-        await sleep(40);
-    }
-    assert.fail(`timed out waiting for: ${label}`);
-}
+const until = (cond, label, ms) => untilWith(engine, cond, label, ms);
 const rowsOf = (scheduleId) => recordings.listBySchedule(scheduleId);
 async function get(route, { auth: withAuth = 'bearer' } = {}) {
     const headers = withAuth === 'bearer' ? { Authorization: `Bearer ${token}` } : {};
@@ -236,19 +125,17 @@ async function get(route, { auth: withAuth = 'bearer' } = {}) {
 
 // ------------------------------------------------------------------ the switch --
 
-test('switch off: a recording is made exactly as before (one .ts on the share, today\'s ffmpeg arguments)', async () => {
-    await db.settings.update({ segmentedRecordings: false });
+test('the capture arguments of a segmented recording are exactly these (a refactor must leave them identical)', async () => {
     const s = due();
     await until(() => captures().length === 1 && rowsOf(s.id).length === 1, 'recording');
     const [rec] = rowsOf(s.id);
-    assert.equal(rec.work_dir, null);
-    assert.equal(rec.segment_state, null);
-    assert.equal(path.dirname(path.dirname(rec.file_path)), share);
-    assert.deepEqual(captures()[0], ['-y', '-user_agent', captures()[0][2], '-reconnect', '1', '-reconnect_streamed', '1',
+    const epoch = path.join(rec.work_dir, 'e1');
+    const ua = captures()[0][2];
+    assert.deepEqual(captures()[0], ['-y', '-user_agent', ua, '-reconnect', '1', '-reconnect_streamed', '1',
         '-reconnect_delay_max', '5', '-i', url.A, '-map', '0:v?', '-map', '0:a?', '-ignore_unknown', '-sn', '-dn', '-c', 'copy',
-        '-avoid_negative_ts', 'make_zero', '-f', 'mpegts', rec.file_path]);
-    assert.equal(engine.listRecordings().find(r => r.id === rec.id).watch_live, false);
-    assert.equal(fs.existsSync(workRoot) ? fs.readdirSync(workRoot).length : 0, 0, 'nothing in appdata');
+        '-avoid_negative_ts', 'make_non_negative', '-output_ts_offset', '0.000', '-f', 'hls', '-hls_time', '4',
+        '-hls_list_size', '0', '-hls_playlist_type', 'event', '-hls_flags', 'independent_segments+temp_file',
+        '-hls_segment_type', 'mpegts', '-hls_segment_filename', path.join(epoch, 'a%06d.ts'), path.join(epoch, 'archive.m3u8')]);
 });
 
 // ---------------------------------------------------------- recording and finishing --
@@ -880,6 +767,115 @@ test('provider dies mid-recording with a backup: the same recording continues in
     }
 });
 
+// #284: a recording on a multi-provider route whose providers all refuse at the start started a new capture back to back,
+// with no pause, up to 20 times. Each provider now gets one immediate try (one pass round the route the run of short
+// captures started on); after that a short capture waits for the next tick, as on a single-provider route.
+url.C = 'http://third.invalid/live/u/p/7001.ts';
+url.Bx = 'http://trex.invalid/live/u/p/5001.ts';
+let C;
+/** Strong8K (primary) with two backups, Trex then Third, both linked to the channel; disabled again by the returned function. */
+async function threeProviders() {
+    B = B || await db.sources.create({ type: 'xtream', name: 'Trex', url: 'http://trex.invalid', username: 'u', password: 'p', role: 'backup', priority: 1 });
+    C = C || await db.sources.create({ type: 'xtream', name: 'Third', url: 'http://third.invalid', username: 'u', password: 'p', role: 'backup', priority: 2 });
+    const d = sqlite.getDb();
+    for (const [src, stream, name] of [[B, '5001', 'Trex 5001'], [C, '7001', 'Third 7001']]) {
+        await db.sources.update(src.id, { enabled: true });
+        if (d.prepare('SELECT 1 FROM backup_channels WHERE source_id = ?').get(src.id)) continue;
+        d.prepare('INSERT INTO backup_channels (source_id, stream_id, name, url_data) VALUES (?, ?, ?, ?)').run(src.id, stream, name, null);
+        d.prepare(`INSERT INTO channel_links (primary_source_id, primary_key, backup_source_id, backup_stream_id, method, status, rank, score, updated_at)
+                   VALUES (?, 's101', ?, ?, 'exact', 'auto', 1, 100, ?)`).run(A.id, src.id, stream, Date.now());
+    }
+    return async () => { await db.sources.update(B.id, { enabled: false }); await db.sources.update(C.id, { enabled: false }); };
+}
+const inputs = () => captures().map(a => a[a.indexOf('-i') + 1]);
+/** Poll without ticking (a tick would start the next capture itself). */
+async function settle(cond, label, ms = 8000) {
+    const end = Date.now() + ms;
+    while (Date.now() < end) { if (await cond()) return; await sleep(40); }
+    assert.fail(`timed out waiting for: ${label}`);
+}
+/** Its capture has ended and the next waits for a tick: nothing active for the schedule. */
+const waiting = (id) => !engine.listActive().some(r => r.id === id);
+
+/** Every provider fails each capture early; returns the schedule after the cap, having checked the pace on the way. */
+async function failingEverywhere(kind) {
+    tuning.endGraceMs = 0;
+    for (const u of [url.A, url.Bx, url.C]) setBehaviour(u, kind);
+    const s = due({ windowMs: 120000 });
+    await engine.tick(); // starts it
+    await settle(() => captures().length >= 3 && waiting(s.id), 'one capture per provider');
+    await sleep(1200);
+    assert.deepEqual(inputs(), [url.A, url.Bx, url.C], 'one immediate try per provider, in the route\'s order, then no more until a tick');
+    // Then one capture per tick, up to the cap (20 continuations: 21 captures in all).
+    for (let n = 4; n <= 21; n++) {
+        await engine.tick();
+        await settle(() => captures().length >= n && (waiting(s.id) || scheduled.getById(s.id).status !== 'recording'), `capture ${n}`);
+        await sleep(n === 21 ? 1200 : 300);
+        assert.equal(captures().length, n, `tick ${n - 3} started one capture, not more`);
+    }
+    await engine.tick();
+    await sleep(300);
+    assert.equal(captures().length, 21, 'none after the cap');
+    return s;
+}
+
+test('#284: every provider of a multi-provider route refuses at the start: one immediate try each, then one per tick; failed at the cap', async () => {
+    const done = await threeProviders();
+    try {
+        const s = await failingEverywhere('refuses');
+        logLines.push(`#284 order: ${inputs().map(u => u.split('/')[2]).join(', ')}`);
+        assert.deepEqual(inputs().slice(3), Array(18).fill(url.A), 'with every provider quarantined the route falls back to the primary');
+        const rec = rowsOf(s.id)[0];
+        assert.equal(rowsOf(s.id).length, 1, 'one recording');
+        await settle(() => recordings.getById(rec.id).status === 'failed', 'failed at the cap');
+        assert.equal(scheduled.getById(s.id).status, 'failed');
+        assert.match(scheduled.getById(s.id).error, /^Recording failed/);
+        assert.ok(logLines.some(l => l.includes(`#${rec.id} ended early`) && l.includes('has been continued 20 times; it ends here')), 'the cap is logged');
+    } finally { await done(); }
+});
+
+test('#284: the same pause when each provider drops after writing a segment; completed with its segments at the cap', async () => {
+    const done = await threeProviders();
+    try {
+        const s = await failingEverywhere('dies');
+        const rec = rowsOf(s.id)[0];
+        assert.equal(rowsOf(s.id).length, 1, 'one recording');
+        await until(() => recordings.getById(rec.id).status === 'completed', 'completed with its segments', 15000);
+        assert.equal(scheduled.getById(s.id).status, 'completed');
+    } finally { await done(); }
+});
+
+test('#284: a capture that ran a minute or more and then lost its provider fails over at once (no tick)', async () => {
+    const done = await threeProviders();
+    const realNow = Date.now;
+    try {
+        tuning.endGraceMs = 0;
+        setBehaviour(url.A, 'dies'); // drops after 400 ms; the clock below says it ran over a minute
+        const s = due({ windowMs: 600000 });
+        await engine.tick();
+        await settle(() => captures().length === 1, 'the first capture');
+        const shift = 61 * 1000;
+        Date.now = () => realNow() + shift;
+        await settle(() => captures().length === 2, 'continued at once on the next provider');
+        assert.deepEqual(inputs(), [url.A, url.Bx]);
+        await engine.cancelScheduled(s.id);
+    } finally { Date.now = realNow; await done(); }
+});
+
+test('#284: a single-provider route that refuses at the start waits for the next tick each time (unchanged)', async () => {
+    tuning.endGraceMs = 0;
+    setBehaviour(url.A, 'refuses');
+    const s = due({ windowMs: 60000 });
+    await engine.tick();
+    await settle(() => captures().length === 1 && waiting(s.id), 'the first capture ended');
+    await sleep(1200);
+    assert.equal(captures().length, 1, 'not continued at once');
+    await engine.tick();
+    await settle(() => captures().length === 2, 'continued on the tick');
+    assert.deepEqual(inputs(), [url.A, url.A]);
+    await engine.cancelScheduled(s.id);
+});
+
 // #260 (0499): on 8 Nov the São Paulo GP's capture ended 37 minutes into the race, during a guide sync, with no provider
 // error and no backup provider configured. The recording was completed with what it had; nothing said why.
 test('0499: a capture that ends early for no provider reason, with one provider: the same recording continues, and why is logged', async () => {
@@ -1256,13 +1252,19 @@ test('watch from the start: auth, the master and media playlists (token on every
     assert.equal((await fetch(`${base}/api/recordings/${rec.id}/live/e1/init.mp4`)).status, 401, 'no token, no piece');
 
     // A recording made the usual way cannot be watched like this.
-    await db.settings.update({ segmentedRecordings: false });
+    // (an old-style row, written directly: one .ts file on the share, no work folder, still marked recording)
     const plain = due();
-    await until(() => rowsOf(plain.id).length === 1, 'a plain recording');
-    const no = await get(`/api/recordings/${rowsOf(plain.id)[0].id}/watch`);
+    const plainFile = path.join(share, 'Match', 'Match.ts');
+    fs.mkdirSync(path.dirname(plainFile), { recursive: true });
+    fs.writeFileSync(plainFile, Buffer.alloc(4000));
+    const old = recordings.create({ scheduled_id: plain.id, title: plain.title, channel_name: plain.channel_name, channel_logo: null,
+        source_id: A.id, channel_item_id: 'pos_1', file_path: plainFile, started_at: Date.now() - 1000, part: 1 });
+    assert.equal(old.work_dir, null);
+    const no = await get(`/api/recordings/${old.id}/watch`);
     assert.equal(no.status, 409);
     assert.equal(no.body.finished, false);
-    assert.equal((await get(`/api/recordings/${rowsOf(plain.id)[0].id}/live/stream.m3u8?token=${token}`, { auth: 'none' })).status, 404);
+    assert.equal((await get(`/api/recordings/${old.id}/live/stream.m3u8?token=${token}`, { auth: 'none' })).status, 404);
+    recordings.setSegmentFields(old.id, { status: 'completed', ended_at: Date.now() });
 
     // Finished: the playlist answers 404 and /watch says to play the recording instead.
     await engine.cancelScheduled(s.id);
