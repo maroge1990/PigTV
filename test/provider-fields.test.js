@@ -72,7 +72,6 @@ test('an existing source with no role reads as primary, an EPG source has none, 
     const epg = await db.sources.create({ type: 'epg', name: 'Guide', url: 'http://g.invalid/x.xml' });
     assert.equal((await db.sources.getById(old.id)).role, 'primary');
     assert.equal((await db.sources.getAll()).find(s => s.id === old.id).role, 'primary');
-    assert.equal((await db.sources.getByType('xtream'))[0].role, 'primary');
     assert.equal((await db.sources.getById(epg.id)).role, undefined);
     const raw = JSON.parse(sqlite.getDb().prepare('SELECT data FROM app_sources WHERE id = ?').get(old.id).data);
     assert.equal('role' in raw, false, 'the stored row is untouched');
@@ -219,7 +218,7 @@ test('a non-admin sees only id, type, name and enabled; no provider field, login
         role: 'backup', priority: 2, epgUrl: GUIDE, idOverlayUrl: OVERLAY
     });
     const id = r.body.id;
-    for (const route of ['/api/sources', '/api/sources/type/xtream']) {
+    for (const route of ['/api/sources']) {
         const v = await call('GET', route, null, viewerToken);
         assert.equal(v.status, 200, route);
         assert.deepEqual(Object.keys(v.body[0]).sort(), ['enabled', 'id', 'name', 'type'], route);

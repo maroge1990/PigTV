@@ -252,10 +252,6 @@ const sources = {
     return parseSource(store().prepare('SELECT data FROM app_sources WHERE id = ?').get(parseInt(id)));
   },
 
-  async getByType(type) {
-    return (await sources.getAll()).filter(s => s.type === type && s.enabled);
-  },
-
   async create(source) {
     return write((db) => {
       const newSource = {
@@ -355,20 +351,6 @@ const settings = {
           if (value !== undefined && !RETIRED_SETTINGS.includes(key)) upsert.run(key, JSON.stringify(value));
         }
         return storedSettings(db);
-      });
-    } finally {
-      settingsCache = null;
-    }
-  },
-
-  async reset() {
-    try {
-      return write((db) => {
-        db.prepare('DELETE FROM app_settings').run();
-        const insert = db.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)');
-        const defaults = getDefaultSettings();
-        for (const [key, value] of Object.entries(defaults)) insert.run(key, JSON.stringify(value));
-        return defaults;
       });
     } finally {
       settingsCache = null;

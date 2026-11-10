@@ -121,30 +121,26 @@ test('a favourite the web app adds shows up in the library API the native client
     assert.equal(flagged.favourite, true, 'and the channel list flags it');
 });
 
-test('a favourite the native client adds shows up in the web app, in the id form it uses', async () => {
+test('a favourite the native client adds is stored under the bare id and listed by the library API', async () => {
     const channels = (await request('GET', '/api/library/channels')).data.channels;
     const target = channels[0];
     // The native client writes the bare id.
     assert.equal((await request('POST', '/api/favorites', { sourceId: source.id, itemId: target.id })).status, 200);
 
-    const web = (await request('GET', '/api/favorites')).data.filter(f => f.source_id === source.id);
-    assert.ok(web.some(f => f.item_id === `m3u_${source.id}_${target.id}`),
-        'the web app matches favourites against its composite channel id');
-    const raw = (await request('GET', '/api/favorites?format=bare')).data.filter(f => f.source_id === source.id);
-    assert.ok(raw.some(f => f.item_id === target.id), 'the stored form is available on request');
+    assert.ok(favs(1).some(f => f.source_id === source.id && f.item_id === target.id), 'stored under the bare id');
+    const listed = (await request('GET', '/api/library/favourites')).data;
+    assert.ok(listed.some(c => c.id === target.id), 'the library lists it, which is what the web app reads');
 });
 
-test('check and remove accept either spelling and hit the same row', async () => {
+test('remove accepts either spelling and hits the same row', async () => {
     const channels = (await request('GET', '/api/library/channels')).data.channels;
     const target = channels[0];
     const composite = `m3u_${source.id}_${target.id}`;
-    for (const id of [target.id, composite]) {
-        const check = await request('GET', `/api/favorites/check?sourceId=${source.id}&itemId=${encodeURIComponent(id)}`);
-        assert.equal(check.data.isFavorite, true, `${id} is a favourite`);
-    }
+    const flagged = async () => (await request('GET', '/api/library/channels')).data.channels.find(c => c.id === target.id).favourite;
+    assert.equal(await flagged(), true, 'the bare-id favourite is flagged');
     await request('DELETE', '/api/favorites', { sourceId: source.id, itemId: composite });
-    const after = await request('GET', `/api/favorites/check?sourceId=${source.id}&itemId=${encodeURIComponent(target.id)}`);
-    assert.equal(after.data.isFavorite, false, 'removing by the web spelling removes the native one');
+    assert.equal(await flagged(), false, 'removing by the web spelling removes the native one');
+    assert.ok(!(await request('GET', '/api/library/favourites')).data.some(c => c.id === target.id));
 });
 
 test('movie and series favourites keep whatever id they were given', async () => {

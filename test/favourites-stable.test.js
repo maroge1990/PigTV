@@ -30,6 +30,17 @@ function channel(pos, name, url, stableId) {
         ON CONFLICT(id) DO UPDATE SET item_id = excluded.item_id, name = excluded.name, stable_id = excluded.stable_id
     `).run(`2:${pos}`, pos, name, JSON.stringify({ url }), Number(String(pos).replace(/\D/g, '')) || 1, stableId);
 }
+// The channels /api/library/favourites lists for this user: the same join as that route (the channel's
+// identity, else the stored item_id for a row that has none), so these tests read favourites as the
+// product does.
+const listed = (sourceId) => sqlite.getDb().prepare(`
+    SELECT p.item_id FROM favorites f
+    JOIN playlist_items p
+      ON p.source_id = f.source_id AND p.type = 'live'
+     AND ((f.stable_id IS NOT NULL AND p.stable_id = f.stable_id)
+          OR (f.stable_id IS NULL AND p.item_id = f.item_id))
+    WHERE f.user_id = ? AND f.item_type = 'channel' AND f.source_id = ?
+`).all(USER, sourceId).map(r => r.item_id);
 const clear = () => {
     sqlite.getDb().prepare('DELETE FROM favorites').run();
     sqlite.getDb().prepare('DELETE FROM playlist_items').run();
@@ -56,8 +67,9 @@ test('after a reorder the favourite still finds the right channel', () => {
     channel('pos_1185', 'Fox Sports 505', URL_505, 's441360');
     channel('pos_1187', 'Shopping Channel', 'http://pro.speed8k.top/live/u/p/999999.ts', 's999999');
 
-    assert.equal(favorites.isFavorite(USER, 2, 'pos_1185'), true, 'the channel is still favourited at its new position');
-    assert.equal(favorites.isFavorite(USER, 2, 'pos_1187'), false,
+    const found = listed(2);
+    assert.ok(found.includes('pos_1185'), 'the channel is still favourited at its new position');
+    assert.ok(!found.includes('pos_1187'),
         'and whatever moved into the old position is NOT - this is the bug being fixed');
 });
 
@@ -68,10 +80,10 @@ test('a channel listed in two categories is one favourite, and unstarring clears
     channel('pos_28282', 'Fox Sports 505', URL_505, 's441360');
 
     favorites.add(USER, 2, 'pos_1185');
-    assert.equal(favorites.isFavorite(USER, 2, 'pos_28282'), true, 'favouriting one listing favourites the channel');
+    assert.deepEqual(listed(2).sort(), ['pos_1185', 'pos_28282'], 'favouriting one listing favourites the channel under both');
 
     favorites.remove(USER, 2, 'pos_28282');
-    assert.equal(favorites.isFavorite(USER, 2, 'pos_1185'), false, 'and unstarring either clears it everywhere');
+    assert.deepEqual(listed(2), [], 'and unstarring either clears it everywhere');
     assert.equal(sqlite.getDb().prepare('SELECT COUNT(*) n FROM favorites').get().n, 0);
 });
 
@@ -94,7 +106,7 @@ test('a favourite whose channel is not in the playlist still works the old way',
     // use, so matching falls back to the stored item_id rather than failing.
     assert.equal(favorites.add(USER, 9, 'pos_777'), true);
     assert.equal(sqlite.getDb().prepare('SELECT stable_id FROM favorites').get().stable_id, null);
-    assert.equal(favorites.isFavorite(USER, 9, 'pos_777'), true);
+    assert.equal(sqlite.getDb().prepare("SELECT COUNT(*) n FROM favorites WHERE source_id = 9 AND item_id = 'pos_777'").get().n, 1);
     assert.equal(favorites.remove(USER, 9, 'pos_777'), true);
 });
 
@@ -103,7 +115,7 @@ test('the composite id the web app sends still works', () => {
     channel('pos_463', 'TSN', URL_TSN, 's1239048');
     assert.equal(favorites.add(USER, 2, 'm3u_2_pos_463'), true);
     assert.equal(sqlite.getDb().prepare('SELECT stable_id FROM favorites').get().stable_id, 's1239048');
-    assert.equal(favorites.isFavorite(USER, 2, 'pos_463'), true, 'and matches the bare form, as 0059 requires');
+    assert.deepEqual(listed(2), ['pos_463'], 'and is listed under the bare form, as 0059 requires');
 });
 
 test('movies and series are untouched - identities are a channel concern', () => {
@@ -112,5 +124,4 @@ test('movies and series are untouched - identities are a channel concern', () =>
     const row = sqlite.getDb().prepare("SELECT item_id, stable_id FROM favorites WHERE item_type = 'movie'").get();
     assert.equal(row.item_id, '900');
     assert.equal(row.stable_id, null);
-    assert.equal(favorites.isFavorite(USER, 2, '900', 'movie'), true);
-});
+    });

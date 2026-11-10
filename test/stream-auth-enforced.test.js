@@ -84,7 +84,7 @@ test('no token: every media route is a 401, with no setting to change that', asy
     // The old opt-in setting is simply ignored: switching it off (or leaving a stored value) changes nothing.
     assert.equal((await fetch(`${base}/api/settings`, { method: 'PUT', ...json(adminToken, { requireStreamAuth: false }) })).status, 200);
     assert.equal((await fetch(`${base}/api/recordings/1/media.mp4`)).status, 401);
-    const defaults = await (await fetch(`${base}/api/settings/defaults`, json(adminToken))).json();
+    const defaults = load('db').getDefaultSettings();
     assert.equal('requireStreamAuth' in defaults, false, 'the setting is gone from the defaults');
 });
 
@@ -121,16 +121,12 @@ test('a deleted user\'s token stops working at once, on every media route', asyn
     for (const route of MEDIA_ROUTES) assert.equal((await fetch(`${base}${route}${route.includes('?') ? '&' : '?'}token=${encodeURIComponent(deletedToken)}`)).status, 401, route);
 });
 
-test('session control is admin only: 403 for a viewer, 200 for an admin; releasing one session stays open to a viewer', async () => {
-    assert.equal((await fetch(`${base}/api/transcode/sessions`)).status, 401);
-    assert.equal((await fetch(`${base}/api/transcode/sessions`, { method: 'DELETE' })).status, 401);
-    assert.equal((await fetch(`${base}/api/transcode/sessions`, json(viewerToken))).status, 403);
-    assert.equal((await fetch(`${base}/api/transcode/sessions/all`, { method: 'DELETE', ...json(viewerToken) })).status, 403);
-    assert.equal((await fetch(`${base}/api/transcode/sessions?token=${encodeURIComponent(viewerToken)}`)).status, 403);
-    const list = await fetch(`${base}/api/transcode/sessions`, json(adminToken));
-    assert.equal(list.status, 200);
-    assert.ok(Array.isArray(await list.json()));
-    const all = await fetch(`${base}/api/transcode/sessions/all`, { method: 'DELETE', ...json(adminToken) });
+test('session control is admin only: 401 without a token, 403 for a viewer, 200 for an admin; releasing one session stays open to a viewer', async () => {
+    const killAll = (opts = {}, query = '') => fetch(`${base}/api/transcode/sessions/all${query}`, { method: 'DELETE', ...opts });
+    assert.equal((await killAll()).status, 401);
+    assert.equal((await killAll(json(viewerToken))).status, 403);
+    assert.equal((await killAll({}, `?token=${encodeURIComponent(viewerToken)}`)).status, 403);
+    const all = await killAll(json(adminToken));
     assert.equal(all.status, 200);
     assert.equal((await all.json()).success, true);
     assert.equal((await fetch(`${base}/api/transcode/some-session`, { method: 'DELETE', ...json(viewerToken) })).status, 200, 'players release their own sessions');
@@ -140,8 +136,8 @@ test('session control is admin only: 403 for a viewer, 200 for an admin; releasi
 test('the role comes from the user store, not the token: a viewer holding admin claims is still a viewer', async () => {
     const viewerId = JSON.parse(Buffer.from(viewerToken.split('.')[1], 'base64url')).id;
     const promoted = require('jsonwebtoken').sign({ id: viewerId, username: 'viewer', role: 'admin' }, SECRET);
-    assert.equal((await fetch(`${base}/api/transcode/sessions`, json(promoted))).status, 403);
-    assert.equal((await fetch(`${base}/api/transcode/sessions?token=${encodeURIComponent(promoted)}`)).status, 403);
+    assert.equal((await fetch(`${base}/api/transcode/sessions/all`, { method: 'DELETE', ...json(promoted) })).status, 403);
+    assert.equal((await fetch(`${base}/api/transcode/sessions/all?token=${encodeURIComponent(promoted)}`, { method: 'DELETE' })).status, 403);
 });
 
 test('every response carries Referrer-Policy: no-referrer, errors and the web app included', async () => {

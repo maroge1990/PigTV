@@ -438,12 +438,6 @@ const recordings = {
         `).all(recordingId);
     },
 
-    deleteMarkers(recordingId) {
-        const db = getDb();
-        initSchema();
-        db.prepare('DELETE FROM recording_markers WHERE recording_id = ?').run(recordingId);
-    },
-
     /**
      * 0177: this part stopped before the programme did (its provider died and the
      * recording continued in the next part). Partial, with a note saying so; the

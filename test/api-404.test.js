@@ -108,7 +108,7 @@ const APPLE_CLIENT_ROUTES = [
     ['GET', '/api/library/categories'], ['GET', '/api/library/channels'],
     ['GET', '/api/library/favourites'], ['GET', '/api/library/guide'], ['GET', '/api/library/guide/version'],
     ['GET', '/api/logo/0123456789abcdef0123456789abcdef'],
-    ['POST', '/api/favorites'], ['DELETE', '/api/favorites'], ['GET', '/api/favorites/check'],
+    ['POST', '/api/favorites'], ['DELETE', '/api/favorites'],
     ['POST', '/api/playback/resolve'], ['GET', '/api/playback/conflict'], ['POST', '/api/playback/conflict/decline'],
     ['POST', '/api/playback/client-event'],
     ['GET', '/api/playback/some-session-id/terminal-status'],
@@ -121,7 +121,7 @@ const APPLE_CLIENT_ROUTES = [
     // #37 (0468): the player says a live play is paused or resumed.
     ['POST', '/api/playback/abc/pause'],
     ['GET', '/api/proxy/stream'],
-    ['GET', '/api/transcode/abc/stream.m3u8'], ['GET', '/api/transcode/abc/master.m3u8'],
+    ['GET', '/api/transcode/abc/stream.m3u8'], ['GET', '/api/transcode/abc/master.m3u8'], ['GET', '/api/transcode/abc/seg_0.ts'],
     ['DELETE', '/api/playback/abc'],
     // 0148 (C-I): the Sport tab and the Home screen's "Sport now & next" row.
     ['GET', '/api/sports/events'],
@@ -171,7 +171,14 @@ const REMOVED_ROUTES = [
     ['GET', '/api/proxy/m3u/1'], ['DELETE', '/api/proxy/cache/1'], ['GET', '/api/proxy/image?url=http%3A%2F%2Fx%2Fa.png'],
     // what only the movie/series pages used
     ['POST', '/api/transcode/session'], ['GET', '/api/probe?url=http%3A%2F%2Fx%2F1.ts'], ['GET', '/api/subtitle?url=http%3A%2F%2Fx%2F1.ts&index=0'],
-    ['GET', '/api/history'], ['POST', '/api/history'], ['DELETE', '/api/history/1'], ['GET', '/api/channels/recent?type=movie']
+    ['GET', '/api/history'], ['POST', '/api/history'], ['DELETE', '/api/history/1'], ['GET', '/api/channels/recent?type=movie'],
+    // #270: routes no client called (the web's wrappers went with them)
+    ['GET', '/api/channels/hidden'], ['GET', '/api/channels/hidden/check?sourceId=1&itemType=channel&itemId=x'],
+    ['POST', '/api/channels/show/all'], ['POST', '/api/channels/hide/all'],
+    ['GET', '/api/favorites'], ['GET', '/api/favorites/check?sourceId=1&itemId=x'],
+    ['GET', '/api/sources/type/m3u'], ['GET', '/api/sources/1/estimate'], ['POST', '/api/sources/sync-all'],
+    ['DELETE', '/api/settings'], ['GET', '/api/settings/defaults'],
+    ['GET', '/api/transcode/sessions'], ['DELETE', '/api/recordings/1/markers']
 ];
 
 test('the removed fork routes answer the generic 404, even with a token (0122)', async () => {
@@ -188,6 +195,23 @@ test('the removed fork routes answer the generic 404, even with a token (0122)',
     const stream = await fetch(`${base}/api/proxy/stream?h=${'0'.repeat(32)}`, { headers: { Authorization: `Bearer ${token}` } });
     assert.equal(stream.status, 404, 'an unknown handle');
     assert.equal((await stream.json()).error, 'Unknown or expired playback handle', 'but /api/proxy/stream itself is still there');
+});
+
+// The neighbours of the routes above stay: each answers with its own handler (a 400, a 200, its own not-found),
+// never the generic reply.
+test('the routes next to the removed ones are still there (#270)', async () => {
+    const token = await adminToken();
+    const gone = [];
+    for (const [method, route] of [
+        ['POST', '/api/favorites'], ['DELETE', '/api/favorites'], ['POST', '/api/sources/estimate'], ['GET', '/api/recordings/1/markers'],
+        ['GET', '/api/settings'], ['POST', '/api/channels/hide'], ['POST', '/api/channels/show'],
+        ['POST', '/api/channels/hide/bulk'], ['POST', '/api/channels/show/bulk'], ['DELETE', '/api/transcode/sessions/all']]) {
+        const r = await fetch(`${base}${route}`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: method === 'GET' ? undefined : '{}' });
+        const body = await r.json().catch(() => null);
+        if (r.status === 404 && body?.error === 'No such API endpoint') gone.push(`${method} ${route}`);
+    }
+    assert.deepEqual(gone, []);
 });
 
 test('nothing in the web app still calls a removed route (0122)', () => {

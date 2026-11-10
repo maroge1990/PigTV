@@ -72,13 +72,12 @@ after(async () => {
 
 test('anonymous requests cannot read sources/settings or invoke administration', async () => {
     const endpoints = [
-        ['GET', '/api/sources'], ['GET', '/api/sources/type/m3u'], ['GET', `/api/sources/${source.id}`],
+        ['GET', '/api/sources'], ['GET', `/api/sources/${source.id}`],
         ['GET', '/api/sources/status'], ['POST', '/api/sources'], ['PUT', `/api/sources/${source.id}`],
         ['DELETE', `/api/sources/${source.id}`], ['POST', `/api/sources/${source.id}/toggle`],
         ['POST', `/api/sources/${source.id}/test`], ['POST', `/api/sources/${source.id}/sync`],
-        ['POST', '/api/sources/estimate'], ['GET', `/api/sources/${source.id}/estimate`],
-        ['POST', '/api/sources/sync-all'], ['GET', '/api/settings'], ['PUT', '/api/settings'],
-        ['DELETE', '/api/settings'], ['GET', '/api/settings/defaults'],
+        ['POST', '/api/sources/estimate'],
+        ['GET', '/api/settings'], ['PUT', '/api/settings'],
         ['GET', '/api/settings/sync-status'], ['GET', '/api/settings/hw-info'],
         ['POST', '/api/settings/hw-info/refresh']
     ];
@@ -90,11 +89,12 @@ test('anonymous requests cannot read sources/settings or invoke administration',
 
 test('viewers can discover M3U and separate EPG sources without configuration secrets', async () => {
     for (const token of [viewerToken, adminToken]) {
-        for (const route of ['/api/sources', '/api/sources/type/m3u', '/api/sources/type/epg']) {
+        for (const route of ['/api/sources']) {
             const result = await request('GET', route, token);
             assert.equal(result.status, 200);
             assert.equal(result.headers.get('cache-control'), 'no-store');
             assert(result.data.length > 0);
+            assert.deepEqual([...new Set(result.data.map(item => item.type))].sort(), ['epg', 'm3u']);
             for (const item of result.data) {
                 assert.deepEqual(Object.keys(item).sort(), ['enabled', 'id', 'name', 'type']);
             }
@@ -116,9 +116,9 @@ test('viewers cannot mutate sources/settings, inspect edit credentials or initia
         ['GET', `/api/sources/${source.id}`], ['GET', '/api/sources/status'], ['POST', '/api/sources'],
         ['PUT', `/api/sources/${source.id}`], ['DELETE', `/api/sources/${source.id}`],
         ['POST', `/api/sources/${source.id}/toggle`], ['POST', `/api/sources/${source.id}/sync`],
-        ['POST', `/api/sources/${source.id}/test`], ['GET', `/api/sources/${source.id}/estimate`],
-        ['POST', '/api/sources/estimate'], ['POST', '/api/sources/sync-all'],
-        ['PUT', '/api/settings'], ['DELETE', '/api/settings'], ['GET', '/api/settings/hw-info'],
+        ['POST', `/api/sources/${source.id}/test`],
+        ['POST', '/api/sources/estimate'],
+        ['PUT', '/api/settings'], ['GET', '/api/settings/hw-info'],
         ['POST', '/api/settings/hw-info/refresh']
     ]) {
         assert.equal((await request(method, route, viewerToken, method === 'PUT' ? { requireStreamAuth: false } : undefined)).status, 403, `${method} ${route}`);
@@ -166,7 +166,6 @@ test('admin create/toggle/delete and settings writes remain usable', async () =>
     assert.equal((await request('GET', '/api/settings', viewerToken)).data.upscaleEnabled, true);
     assert.equal((await request('GET', '/api/settings/hw-info', adminToken)).status, 200);
     assert.equal((await request('POST', '/api/settings/hw-info/refresh', adminToken)).status, 200);
-    assert.equal((await request('POST', '/api/sources/sync-all', adminToken)).status, 200);
 });
 
 test('paired device tokens share the signing key and revocation still works', async () => {
@@ -225,7 +224,7 @@ test('HE-AAC still requires audio conversion and HEVC compatibility follows the 
     assert.equal(analyzeProbeResult(media('LC'), 'https://fixture.invalid/live.ts', { hevc: false }).videoOk, false);
 });
 
-test('lineup changes under /api/channels require an admin; reading the hidden list does not', async () => {
+test('lineup changes under /api/channels require an admin', async () => {
     const devices = require(path.join(sandbox, 'server/services/deviceAuth'));
     const pairing = devices.startPairing({ name: 'PigTV tvOS', platform: 'tvOS' });
     devices.approvePairing(pairing.code, viewer);
@@ -233,9 +232,7 @@ test('lineup changes under /api/channels require an admin; reading the hidden li
     const item = { sourceId: source.id, itemType: 'channel', itemId: 'pos_1' };
     const mutations = [
         ['POST', '/api/channels/hide', item], ['POST', '/api/channels/show', item],
-        ['POST', '/api/channels/hide/bulk', { items: [item] }], ['POST', '/api/channels/show/bulk', { items: [item] }],
-        ['POST', '/api/channels/hide/all', { sourceId: source.id, contentType: 'channels' }],
-        ['POST', '/api/channels/show/all', { sourceId: source.id, contentType: 'channels' }]
+        ['POST', '/api/channels/hide/bulk', { items: [item] }], ['POST', '/api/channels/show/bulk', { items: [item] }]
     ];
     const sql = sqlite.getDb();
     const hiddenRows = () => sql.prepare('SELECT COUNT(*) AS n FROM playlist_items WHERE source_id = ? AND is_hidden = 1').get(source.id).n
@@ -250,7 +247,6 @@ test('lineup changes under /api/channels require an admin; reading the hidden li
     for (const [method, route, body] of mutations) {
         assert.equal((await request(method, route)).status, 401, `${method} ${route} anonymous`);
     }
-    assert.equal((await request('GET', '/api/channels/hidden', viewerToken)).status, 200);
 
     for (const [method, route, body] of mutations) {
         const r = await request(method, route, adminToken, body);

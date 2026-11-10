@@ -84,7 +84,6 @@ const API = {
     // Sources
     sources: {
         getAll: () => API.request('GET', '/sources'),
-        getByType: (type) => API.request('GET', `/sources/type/${type}`),
         getById: (id) => API.request('GET', `/sources/${id}`),
         create: (data) => API.request('POST', '/sources', data),
         update: (id, data) => API.request('PUT', `/sources/${id}`, data),
@@ -93,7 +92,6 @@ const API = {
         test: (id) => API.request('POST', `/sources/${id}/test`),
         sync: (id, options) => API.request('POST', `/sources/${id}/sync`, options), // Manual sync (#42: { acceptSmaller })
         getStatus: () => API.request('GET', '/sources/status'), // Get all statuses
-        estimate: (id) => API.request('GET', `/sources/${id}/estimate`), // Estimate M3U size
         estimateByUrl: (url, type) => API.request('POST', '/sources/estimate', { url, type }), // Estimate by URL (before creation)
         catalogue: (id) => API.request('GET', `/sources/${id}/catalogue?type=live`), // Sources picker (0120)
         // Providers (0172; admin): settings, account info and a backup's channels for the manual pick
@@ -201,15 +199,10 @@ const API = {
 
     // Channels (hidden items)
     channels: {
-        getHidden: (sourceId = null) => API.request('GET', `/channels/hidden${sourceId ? `?sourceId=${sourceId}` : ''}`),
         hide: (sourceId, itemType, itemId) => API.request('POST', '/channels/hide', { sourceId, itemType, itemId }),
         show: (sourceId, itemType, itemId) => API.request('POST', '/channels/show', { sourceId, itemType, itemId }),
-        isHidden: (sourceId, itemType, itemId) => API.request('GET', `/channels/hidden/check?sourceId=${sourceId}&itemType=${itemType}&itemId=${itemId}`),
         bulkHide: (items) => API.request('POST', '/channels/hide/bulk', { items }),
         bulkShow: (items) => API.request('POST', '/channels/show/bulk', { items }),
-        // Fast bulk operations - single SQL statement
-        showAll: (sourceId, contentType) => API.request('POST', '/channels/show/all', { sourceId, contentType }),
-        hideAll: (sourceId, contentType) => API.request('POST', '/channels/hide/all', { sourceId, contentType }),
         // #10 (0347): groups a provider added since the last sync, which arrive hidden
         newGroups: (sourceId) => API.request('GET', `/channels/new-groups?sourceId=${encodeURIComponent(sourceId)}`),
         dismissNewGroups: (sourceId, categoryIds) => API.request('POST', '/channels/new-groups/dismiss', { sourceId, categoryIds })
@@ -217,36 +210,23 @@ const API = {
 
     // Favorites
     favorites: {
-        getAll: (sourceId = null, itemType = null) => {
-            let url = '/favorites';
-            const params = [];
-            if (sourceId) params.push(`sourceId=${sourceId}`);
-            if (itemType) params.push(`itemType=${itemType}`);
-            if (params.length) url += '?' + params.join('&');
-            return API.request('GET', url);
-        },
         add: (sourceId, itemId, itemType = 'channel') =>
             API.request('POST', '/favorites', { sourceId, itemId, itemType }),
         remove: (sourceId, itemId, itemType = 'channel') =>
-            API.request('DELETE', '/favorites', { sourceId, itemId, itemType }),
-        check: (sourceId, itemId, itemType = 'channel') =>
-            API.request('GET', `/favorites/check?sourceId=${sourceId}&itemId=${itemId}&itemType=${itemType}`)
+            API.request('DELETE', '/favorites', { sourceId, itemId, itemType })
     },
 
     // Settings
     settings: {
         get: () => API.request('GET', '/settings'),
-        update: (data) => API.request('PUT', '/settings', data),
-        reset: () => API.request('DELETE', '/settings'),
-        getDefaults: () => API.request('GET', '/settings/defaults')
+        update: (data) => API.request('PUT', '/settings', data)
     },
 
     // DVR / Recordings
     transcode: {
         // Mounted behind the same streamAuth middleware as every other
         // /api/transcode route (segments, playlists), which is always on (R01).
-        // getSessions and killAllSessions also need an admin.
-        getSessions: () => API.streamFetch('/api/transcode/sessions').then(r => r.json()),
+        // killAllSessions also needs an admin.
         killSession: (id) => API.streamFetch(`/api/transcode/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(r => r.json()),
         killAllSessions: () => API.streamFetch('/api/transcode/sessions/all', { method: 'DELETE' }).then(r => r.json())
     },
@@ -260,7 +240,6 @@ const API = {
         compress: (id) => API.request('POST', `/recordings/${id}/compress`),
         getMarkers: (id) => API.request('GET', `/recordings/${id}/markers`),
         detectAds: (id) => API.request('POST', `/recordings/${id}/detect-ads`),
-        clearMarkers: (id) => API.request('DELETE', `/recordings/${id}/markers`),
         // Cancels an upcoming/running schedule; for a failed or missed one (0207) deletes it
         // with its failed recordings, answering { deleted: true }.
         cancelScheduled: (id) => API.request('DELETE', `/recordings/scheduled/${id}`),

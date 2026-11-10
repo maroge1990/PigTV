@@ -7,14 +7,12 @@ const { once } = require('node:events');
 const express = require('express');
 
 // 0110: Mark's live test showed the Apple TV starring "Fox Footy 504" while the
-// web app starred "Fox Footy 502" for the very same favourite. Cause: GET
-// /api/favorites returned the favourite's STORED item_id (the playlist
+// web app starred "Fox Footy 502" for the very same favourite. Cause: the
+// favourites list returned the favourite's STORED item_id (the playlist
 // position it sat on when it was starred), and the provider had since
-// reordered - that position now names a different channel. GET
-// /library/favourites already joins on stable_id and was correct; this test
-// exercises /api/favorites the same way favourites-stable.test.js exercises
-// the db layer, but through the actual route so the bug (in routes/favorites.js,
-// not db/sqlite.js) is caught.
+// reordered - that position now names a different channel. This test reads
+// favourites through /api/library, which joins on stable_id, the way
+// favourites-stable.test.js exercises the db layer.
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-fav-currentid-'));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
 fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(sandbox, 'node_modules'), 'junction');
@@ -65,7 +63,7 @@ after(() => {
     try { fs.rmSync(sandbox, { recursive: true, force: true }); } catch { /* leave it to the OS temp cleaner */ }
 });
 
-test('GET /api/favorites follows the channel after a provider reorder, not the stored position', async () => {
+test('the library favourites follow the channel after a provider reorder, not the stored position', async () => {
     const URL_FOOTY = 'http://provider.invalid/live/u/p/504504.ts';
     channel('pos_A', 'Fox Footy 502', URL_FOOTY, 'sFootyStable', source.id);
 
@@ -82,18 +80,15 @@ test('GET /api/favorites follows the channel after a provider reorder, not the s
     channel('pos_B', 'Fox Footy 502', URL_FOOTY, 'sFootyStable', source.id);
     channel('pos_A', 'Some Other Channel', 'http://provider.invalid/live/u/p/999999.ts', 'sOtherStable', source.id);
 
-    const bare = await get('/api/favorites?format=bare');
-    assert.equal(bare.length, 1);
-    assert.equal(bare[0].item_id, 'pos_B',
-        'the stored form should still resolve to the CURRENT position, not the stale pos_A (this is the bug)');
-
-    const composite = await get('/api/favorites');
-    assert.equal(composite.length, 1);
-    assert.equal(composite[0].item_id, `m3u_${source.id}_pos_B`,
-        'the web app must see the channel at its current position, matching /library/favourites');
+    const library = await get('/api/library/favourites');
+    assert.deepEqual(library.map(c => c.id), ['pos_B'],
+        'the favourite resolves to the CURRENT position, not the stale pos_A (this is the bug)');
+    const flagged = (await get('/api/library/channels')).channels;
+    assert.equal(flagged.find(c => c.id === 'pos_B').favourite, true);
+    assert.equal(flagged.find(c => c.id === 'pos_A').favourite, false, 'whatever took the old position is not starred');
 });
 
-test('a channel cross-listed in two categories shows a star in both current listings', async () => {
+test('a channel cross-listed in two categories shows a star in both current listings and one favourite', async () => {
     sqlite.getDb().prepare('DELETE FROM favorites').run();
     sqlite.getDb().prepare('DELETE FROM playlist_items').run();
 
@@ -106,9 +101,9 @@ test('a channel cross-listed in two categories shows a star in both current list
         body: JSON.stringify({ sourceId: source.id, itemId: 'pos_C1', itemType: 'channel' })
     });
 
-    const bare = await get('/api/favorites?format=bare');
-    const ids = bare.map(f => f.item_id).sort();
-    assert.deepEqual(ids, ['pos_C1', 'pos_C2'], 'one entry per current listing of the same channel');
+    const flagged = (await get('/api/library/channels')).channels;
+    assert.deepEqual(flagged.filter(c => c.favourite).map(c => c.id).sort(), ['pos_C1', 'pos_C2'], 'both listings are starred');
+    assert.equal((await get('/api/library/favourites')).length, 1, 'and the favourites list shows the one channel once');
 });
 
 test('a favourite without a stable_id keeps its stored item_id (no identity to fall back to)', async () => {
@@ -124,12 +119,11 @@ test('a favourite without a stable_id keeps its stored item_id (no identity to f
     });
     assert.equal(addResp.status, 200, await addResp.text());
 
-    const bare = await get('/api/favorites?format=bare');
-    assert.equal(bare.length, 1);
-    assert.equal(bare[0].item_id, 'pos_orphan');
+    const rows = sqlite.getDb().prepare('SELECT item_id, stable_id FROM favorites').all();
+    assert.deepEqual(rows, [{ item_id: 'pos_orphan', stable_id: null }]);
 });
 
-test('a favourite whose channel has vanished is listed without a playable position, even when that position is reused', async () => {
+test('a favourite whose channel has vanished never lands on the channel that reuses its position, and is removed by identity', async () => {
     sqlite.getDb().prepare('DELETE FROM favorites').run();
     sqlite.getDb().prepare('DELETE FROM playlist_items').run();
     channel('pos_V', 'Fox Footy 502', 'http://provider.invalid/live/u/p/504504.ts', 'sVanished', source.id);
@@ -142,15 +136,11 @@ test('a favourite whose channel has vanished is listed without a playable positi
     sqlite.getDb().prepare('DELETE FROM playlist_items').run();
     channel('pos_V', 'Shopping Channel', 'http://provider.invalid/live/u/p/999999.ts', 'sReplacement', source.id);
 
-    for (const route of ['/api/favorites?format=bare', '/api/favorites']) {
-        const list = await get(route);
-        assert.equal(list.length, 1, 'still listed: it can be removed, and returns if the provider restores it');
-        assert.equal(list[0].item_id, null, `${route}: never the reused position`);
-        assert.equal(list[0].available, false);
-        assert.equal(list[0].stable_id, 'sVanished');
-    }
-    const check = await get(`/api/favorites/check?sourceId=${source.id}&itemId=pos_V&itemType=channel`);
-    assert.equal(check.isFavorite, false, 'the replacement channel is not starred');
+    const stored = sqlite.getDb().prepare('SELECT item_id, stable_id FROM favorites').all();
+    assert.equal(stored.length, 1, 'still stored: it can be removed, and returns if the provider restores it');
+    assert.equal(stored[0].stable_id, 'sVanished');
+    const flagged = (await get('/api/library/channels')).channels;
+    assert.equal(flagged.find(c => c.id === 'pos_V').favourite, false, 'the replacement channel is not starred');
     const library = await get('/api/library/favourites');
     assert.equal((library.channels || library).length, 0, 'library/favourites (the Apple list) shows nothing for it');
 
@@ -160,5 +150,5 @@ test('a favourite whose channel has vanished is listed without a playable positi
         body: JSON.stringify({ sourceId: source.id, stableId: 'sVanished', itemType: 'channel' })
     });
     assert.equal(removed.status, 200);
-    assert.deepEqual(await get('/api/favorites?format=bare'), []);
+    assert.equal(sqlite.getDb().prepare('SELECT COUNT(*) n FROM favorites').get().n, 0);
 });

@@ -883,24 +883,6 @@ function identityOf(sourceId, itemId, itemType = 'channel') {
 }
 
 const favorites = {
-    getAll(userId, sourceId = null, itemType = null) {
-        const db = getDb();
-        let sql = 'SELECT * FROM favorites WHERE user_id = ?';
-        const params = [userId];
-
-        if (sourceId) {
-            sql += ' AND source_id = ?';
-            params.push(sourceId);
-        }
-        if (itemType) {
-            sql += ' AND item_type = ?';
-            params.push(itemType);
-        }
-
-        sql += ' ORDER BY created_at DESC';
-        return db.prepare(sql).all(...params);
-    },
-
     add(userId, sourceId, itemId, itemType = 'channel') {
         const db = getDb();
         if (itemType === 'channel') itemId = bareChannelId(itemId);
@@ -936,21 +918,6 @@ const favorites = {
     removeByIdentity(userId, sourceId, stableId, itemType = 'channel') {
         return getDb().prepare('DELETE FROM favorites WHERE user_id = ? AND source_id = ? AND item_type = ? AND stable_id = ?')
             .run(userId, sourceId, itemType, stableId).changes > 0;
-    },
-
-    isFavorite(userId, sourceId, itemId, itemType = 'channel') {
-        const db = getDb();
-        if (itemType === 'channel') itemId = bareChannelId(itemId);
-        const stable = identityOf(sourceId, itemId, itemType);
-        // Either spelling counts: the identity for anything favourited since this
-        // shipped, the stored item_id for rows that predate it or have no identity.
-        const row = stable
-            ? db.prepare(`SELECT 1 FROM favorites WHERE user_id = ? AND source_id = ? AND item_type = ?
-                            AND ((stable_id IS NOT NULL AND stable_id = ?) OR (stable_id IS NULL AND item_id = ?))`)
-                .get(userId, sourceId, itemType, stable, itemId)
-            : db.prepare('SELECT 1 FROM favorites WHERE user_id = ? AND source_id = ? AND item_type = ? AND stable_id IS NULL AND item_id = ?')
-                .get(userId, sourceId, itemType, itemId);
-        return !!row;
     },
 
     // Get all favorites for a user, grouped by type (for bulk checks)

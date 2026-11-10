@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { settings, getDefaultSettings } = require('../db');
+const { settings } = require('../db');
 const syncService = require('../services/syncService');
 const { requireAuth, requireAdmin } = require('../auth');
 
@@ -66,28 +66,6 @@ router.put('/', requireAdmin, async (req, res) => {
         console.error('Error updating settings:', err);
         res.status(500).json({ error: err.message });
     }
-});
-
-/**
- * Reset settings to defaults
- * DELETE /api/settings
- */
-router.delete('/', requireAdmin, async (req, res) => {
-    try {
-        const defaultSettings = await settings.reset();
-        res.json(defaultSettings);
-    } catch (err) {
-        console.error('Error resetting settings:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-/**
- * Get default settings (for reference)
- * GET /api/settings/defaults
- */
-router.get('/defaults', (req, res) => {
-    res.json(getDefaultSettings());
 });
 
 /**

@@ -146,8 +146,7 @@ test('#167: a hide or show while the source is syncing is refused, so nothing is
         await new Promise(r => setTimeout(r, 100));
         for (const [url, body] of [['/api/channels/hide', { sourceId: busy.id, itemType: 'channel', itemId: 'pos_0' }],
             ['/api/channels/show', { sourceId: busy.id, itemType: 'group', itemId: 'News' }],
-            ['/api/channels/hide/bulk', { items: [{ sourceId: busy.id, itemType: 'channel', itemId: 'pos_1' }] }],
-            ['/api/channels/hide/all', { sourceId: busy.id }]]) {
+            ['/api/channels/hide/bulk', { items: [{ sourceId: busy.id, itemType: 'channel', itemId: 'pos_1' }] }]]) {
             const r = await post(url, body);
             assert.equal(r.status, 409, url);
             assert.match(r.body.error, /being updated from the provider/);

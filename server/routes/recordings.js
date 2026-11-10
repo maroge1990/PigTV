@@ -497,19 +497,6 @@ router.post('/:id/detect-ads', async (req, res) => {
     }
 });
 
-// Discard the detected breaks for a recording, when detection got it wrong.
-router.delete('/:id/markers', (req, res) => {
-    try {
-        const rec = recordingsDb.getById(parseInt(req.params.id));
-        if (!rec) return res.status(404).json({ error: 'Recording not found' });
-        recordingsDb.deleteMarkers(rec.id);
-        recordingsDb.setAdDetectStatus(rec.id, null, null);
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
 // Queue a completed recording for compression, or run it now.
 // Automatic compression only marks recordings finished after the feature was
 // enabled, so anything already on disk needs an explicit nudge.

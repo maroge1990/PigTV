@@ -79,17 +79,6 @@ router.get('/providers', requireAdmin, async (req, res) => {
     }
 });
 
-// Get sources by type
-router.get('/type/:type', async (req, res) => {
-    try {
-        const typeSources = await sources.getByType(req.params.type);
-        res.json(typeSources.map(sourceSummary));
-    } catch (err) {
-        console.error('Error getting sources by type:', err);
-        res.status(500).json({ error: 'Failed to get sources' });
-    }
-});
-
 // Get single source
 router.get('/:id', requireAdmin, async (req, res) => {
     try {
@@ -565,45 +554,6 @@ router.post('/estimate', async (req, res) => {
     }
 });
 
-// Estimate by source ID (for existing sources)
-router.get('/:id/estimate', async (req, res) => {
-    try {
-        const source = await sources.getById(req.params.id);
-        if (!source) {
-            return res.status(404).json({ error: 'Source not found' });
-        }
-
-        // Only M3U sources need estimation
-        if (source.type !== 'm3u') {
-            return res.json({ count: 0, needsWarning: false, threshold: M3U_LARGE_THRESHOLD });
-        }
-
-        console.log(`[Sources] Estimating M3U size for ${source.name}...`);
-        const count = await m3uParser.countEntries(source.url);
-        console.log(`[Sources] M3U estimate: ${count} entries`);
-
-        res.json({
-            count,
-            needsWarning: count > M3U_LARGE_THRESHOLD,
-            threshold: M3U_LARGE_THRESHOLD
-        });
-    } catch (err) {
-        console.error('Error estimating M3U size:', err);
-        res.status(500).json({ error: 'Failed to estimate playlist size', message: err.message });
-    }
-});
-
-// Global Sync - sync all enabled sources
-router.post('/sync-all', async (req, res) => {
-    try {
-        // Trigger global sync (async - don't wait for completion)
-        syncService.syncAll().catch(console.error);
-        res.json({ success: true, message: 'Global sync started' });
-    } catch (err) {
-        console.error('Error starting global sync:', err);
-        res.status(500).json({ error: 'Failed to start global sync' });
-    }
-});
-
 module.exports = router;
 
+module.exports = router;

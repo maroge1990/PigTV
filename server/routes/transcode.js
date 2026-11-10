@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const { redact } = require('../redact');
 const { requireAdmin } = require('../auth');
 const transcodeSession = require('../services/transcodeSession');
 const sessionAccess = require('../services/sessionAccess');
@@ -184,17 +183,6 @@ router.delete('/:sessionId', async (req, res) => {
     } catch (err) {
         res.status(500).json({ error: 'Failed to remove session', details: err.message });
     }
-});
-
-/**
- * List all active sessions (for debugging)
- * GET /api/transcode/sessions
- */
-router.get('/sessions', requireAdmin, (req, res) => {
-    // Everything holding an ffmpeg process and a provider connection. Since 0103
-    // that is only HLS sessions: the piped remux is gone.
-    const sessions = transcodeSession.getAllSessions().map(s => ({ ...s, type: s.type || 'transcode' }));
-    res.json(sessions.map(x => (x && x.url ? { ...x, url: redact(x.url) } : x)));
 });
 
 /**

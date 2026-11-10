@@ -794,11 +794,11 @@ fi
 
 echo "=== 0059: Favourites id normalisation (P1-3 server half) ==="
 # The bug: web and native wrote different spellings, so favourites never crossed.
-# Each of add/remove/isFavorite must normalise, or one of them silently misses.
-if [ "$(grep -c "if (itemType === 'channel') itemId = bareChannelId(itemId);" server/db/sqlite.js)" = "3" ]; then
-  echo "  ✓ add, remove and isFavorite all normalise channel ids"
+# Each of add/remove must normalise, or one of them silently misses.
+if [ "$(grep -c "if (itemType === 'channel') itemId = bareChannelId(itemId);" server/db/sqlite.js)" = "2" ]; then
+  echo "  ✓ add and remove both normalise channel ids"
 else
-  echo "  ✗ MISSING: favorites add/remove/isFavorite must each normalise channel ids"; FAIL=1
+  echo "  ✗ MISSING: favorites add/remove must each normalise channel ids"; FAIL=1
 fi
 
 echo "=== 0060: Guide query bounds + item index (P2-3) ==="
