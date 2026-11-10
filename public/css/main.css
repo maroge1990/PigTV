@@ -1369,6 +1369,7 @@ kbd {
    Dialog (UI.dialog: a native <dialog> opened with showModal) and notice (UI.toast)
    ===================================================== */
 .ui-dialog {
+  margin: auto; /* the global reset removes the native centring */
   padding: 0;
   width: min(32rem, calc(100vw - var(--space-lg)));
   max-height: calc(100dvh - var(--space-lg));
@@ -4074,6 +4075,7 @@ body.ui-dialog-open {
 .sports-options { margin-top: var(--space-sm); width: 100%; min-height: 44px; }
 .sports-card:focus-visible, #page-sports button:focus-visible { outline: 3px solid var(--color-accent); outline-offset: 3px; }
 .sports-dialog { border-radius: 20px; padding: clamp(var(--space-md), 4vw, var(--space-2xl)); width: min(700px, calc(100vw - var(--space-lg))); overflow: auto; }
+.sports-dialog[open] { display: block; } /* its content is plain blocks and buttons, not a header/body/footer column */
 .sports-dialog label { display: block; margin-block: var(--space-lg); }
 .sports-dialog input[type=number] { display: block; width: 7em; min-height: 44px; }
 .sports-dialog button { min-height: 44px; margin: var(--space-sm); }

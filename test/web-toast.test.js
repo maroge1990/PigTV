@@ -144,32 +144,70 @@ test('the message is set as text: markup in it creates no element', () => {
     assert.equal(open()[0].querySelector('.ui-toast-text').children.length, 0);
 });
 
-test('hiding a channel says so with Undo, Undo shows the same channel again, and a failed hide is an error', async () => {
+function hidingBrowser() {
     const calls = [];
     const b = browser(['components/ChannelList.js']);
+    const gate = {};
     b.context.API = { channels: {
         hide: async (...a) => { calls.push(['hide', ...a]); if (b.context.failHide) throw new Error('not allowed'); },
-        show: async (...a) => { calls.push(['show', ...a]); }
+        show: async (...a) => { calls.push(['show', ...a]); if (gate.hold) await gate.hold; }
     } };
     const list = Object.create(b.context.window.ChannelList.prototype);
+    list.sourceSelect = { value: 'x:1' };
     list.channels = [{ id: 'a', sourceId: 1 }, { id: 'b', sourceId: 1 }, { id: 'c', sourceId: 1 }];
     let renders = 0; list.render = () => { renders++; };
+    // What the selector change does: replace the list with the chosen provider's rows.
+    const reloads = [];
+    list.loadChannels = async () => { reloads.push(list.sourceSelect.value); list.channels = list.sourceSelect.value === 'x:2' ? [{ id: 'z', sourceId: 2 }] : [{ id: 'a', sourceId: 1 }, { id: 'b', sourceId: 1 }, { id: 'c', sourceId: 1 }]; };
+    return { b, calls, gate, list, reloads, renders: () => renders };
+}
+const undoButton = (b) => b.open()[0].querySelector('.ui-toast-action');
+
+test('hiding a channel says so with Undo, and Undo (same provider, list unchanged) puts the row back in its place', async () => {
+    const { b, calls, list, reloads, renders } = hidingBrowser();
     await list.hideChannel('1', 'b');
     assert.deepEqual(list.channels.map(c => c.id), ['a', 'c']);
     assert.deepEqual(b.text(), ['Channel hidden']);
-    const undo = b.open()[0].querySelector('.ui-toast-action');
-    assert.equal(undo.textContent, 'Undo');
-    undo.click();
+    assert.equal(undoButton(b).textContent, 'Undo');
+    undoButton(b).click();
     await new Promise(setImmediate);
     assert.deepEqual(calls, [['hide', 1, 'channel', 'b'], ['show', 1, 'channel', 'b']]);
     assert.deepEqual(list.channels.map(c => c.id), ['a', 'b', 'c'], 'the row is back where it was');
-    assert.ok(renders >= 2);
+    assert.deepEqual(reloads, [], 'no reload was needed');
+    assert.ok(renders() >= 2);
+});
 
+test('a failed hide is an error notice and leaves the list alone', async () => {
+    const { b, list } = hidingBrowser();
     b.context.failHide = true;
     await list.hideChannel('1', 'a');
-    assert.deepEqual(list.channels.map(c => c.id), ['a', 'b', 'c'], 'a failed hide leaves the list alone');
+    assert.deepEqual(list.channels.map(c => c.id), ['a', 'b', 'c']);
     assert.deepEqual(b.text(), ['Could not hide the channel: not allowed']);
     assert.equal(b.open()[0].getAttribute('role'), 'alert');
+});
+
+test('Undo after the provider was switched reloads the list for the chosen provider: the old row is not spliced in', async () => {
+    const { b, list, reloads } = hidingBrowser();
+    await list.hideChannel('1', 'b');
+    list.sourceSelect.value = 'x:2';
+    await list.loadChannels(); // the selector change
+    undoButton(b).click();
+    await new Promise(setImmediate);
+    assert.deepEqual(list.channels.map(c => c.id), ['z'], 'only the selected provider\'s channels');
+    assert.deepEqual(reloads, ['x:2', 'x:2']);
+});
+
+test('Undo whose show request is still pending when the provider is switched ends with the chosen provider\'s list only', async () => {
+    const { b, gate, list } = hidingBrowser();
+    await list.hideChannel('1', 'b');
+    let release; gate.hold = new Promise(r => { release = r; });
+    undoButton(b).click();
+    await new Promise(setImmediate);
+    list.sourceSelect.value = 'x:2';
+    await list.loadChannels(); // the selector change while the show request is pending
+    release();
+    await new Promise(setImmediate);
+    assert.deepEqual(list.channels.map(c => c.id), ['z']);
 });
 
 test('Sport: a scheduled watch cancelled by closing the page is told once, when Sport is next shown, and only then', async () => {

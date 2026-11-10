@@ -1014,6 +1014,7 @@ class ChannelList {
         const same = (c) => c.id === itemId && String(c.sourceId) === String(sourceId);
         const index = this.channels.findIndex(same);
         const channel = this.channels[index];
+        const source = this.sourceSelect.value;
         try {
             await API.channels.hide(parseInt(sourceId), 'channel', itemId);
         } catch (err) {
@@ -1022,13 +1023,19 @@ class ChannelList {
             return;
         }
         // The library lists only visible channels: drop it here too.
-        this.channels = this.channels.filter(c => !same(c));
+        const afterHide = this.channels.filter(c => !same(c));
+        this.channels = afterHide;
         this.render();
         UI.toast('Channel hidden', { action: { label: 'Undo', run: async () => {
             await API.channels.show(parseInt(sourceId), 'channel', itemId);
-            if (channel && !this.channels.some(same)) {
+            if (channel && this.channels === afterHide && this.sourceSelect.value === source) {
+                // Nothing changed since the hide (same list, same source filter): the row goes back where it was.
                 this.channels.splice(Math.min(index, this.channels.length), 0, channel);
                 this.render();
+            } else {
+                // The list was replaced meanwhile (another source chosen): reload it for the current selection,
+                // never put this row into someone else's list.
+                await this.loadChannels();
             }
         } } });
     }

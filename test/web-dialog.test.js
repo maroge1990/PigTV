@@ -261,3 +261,15 @@ test('index.html has no .modal-overlay and no #modal; its Edit user dialog is a 
     const css = fs.readFileSync(path.join(root, 'public/css/main.css'), 'utf8');
     assert.doesNotMatch(css, /\.modal-overlay|\.modal-content|\.modal-header|\.modal-footer/);
 });
+
+// The global reset (`* { margin: 0 }`) removes a <dialog>'s native centring, so the dialog's own rule must restore it.
+// A CSS-text check: the vm tests have no layout. The real proof is a browser (Chromium, 1280x800 and 390x844: the
+// Edit user dialog was at [0,0] before and is centred after).
+test('.ui-dialog centres itself (margin: auto, outside any media query); a Sport dialog is not a flex column', () => {
+    const css = fs.readFileSync(path.join(root, 'public/css/main.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const topLevel = css.replace(/@media[^{]*\{(?:[^{}]|\{[^{}]*\})*\}/g, '').replace(/@keyframes[^{]*\{(?:[^{}]|\{[^{}]*\})*\}/g, '');
+    const rule = topLevel.match(/(?:^|\})\s*\.ui-dialog\s*\{([^}]*)\}/);
+    assert.ok(rule, 'a top-level .ui-dialog rule');
+    assert.match(rule[1], /(^|;|\s)margin:\s*auto\s*;/);
+    assert.match(topLevel, /\.sports-dialog\[open\]\s*\{\s*display:\s*block;/);
+});
