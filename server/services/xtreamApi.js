@@ -68,72 +68,11 @@ class XtreamApi {
     }
 
     /**
-     * Get VOD categories
-     */
-    async getVodCategories() {
-        return this.request('get_vod_categories');
-    }
-
-    /**
-     * Get VOD streams, optionally filtered by category
-     */
-    async getVodStreams(categoryId = null) {
-        return this.request('get_vod_streams', { category_id: categoryId });
-    }
-
-    /**
-     * Get VOD info
-     */
-    async getVodInfo(vodId) {
-        return this.request('get_vod_info', { vod_id: vodId });
-    }
-
-    /**
-     * Get series categories
-     */
-    async getSeriesCategories() {
-        return this.request('get_series_categories');
-    }
-
-    /**
-     * Get series, optionally filtered by category
-     */
-    async getSeries(categoryId = null) {
-        return this.request('get_series', { category_id: categoryId });
-    }
-
-    /**
-     * Get series info
-     */
-    async getSeriesInfo(seriesId) {
-        return this.request('get_series_info', { series_id: seriesId });
-    }
-
-    /**
-     * Get short EPG for a stream
-     */
-    async getShortEpg(streamId, limit = 10) {
-        return this.request('get_short_epg', { stream_id: streamId, limit });
-    }
-
-    /**
-     * Get full EPG for a stream
-     */
-    async getSimpleDateTable(streamId) {
-        return this.request('get_simple_data_table', { stream_id: streamId });
-    }
-
-    /**
      * Build stream URL for playback
      */
     buildStreamUrl(streamId, type = 'live', container = 'ts') {
-        const typeMap = {
-            live: 'live',
-            vod: 'movie',
-            series: 'series'
-        };
-        const streamType = typeMap[type] || 'live';
-        return `${this.baseUrl}/${streamType}/${this.username}/${this.password}/${streamId}.${container}`;
+        // Only live channels are played: `type` is accepted for the callers that pass 'live'.
+        return `${this.baseUrl}/live/${this.username}/${this.password}/${streamId}.${container}`;
     }
 
     /**

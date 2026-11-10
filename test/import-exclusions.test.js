@@ -125,8 +125,7 @@ test('S1 (Xtream): every live stream in an excluded group empties the live lineu
     let live = [{ stream_id: 11, name: 'One', category_id: '1' }, { stream_id: 12, name: 'Two', category_id: '2' }];
     xtream.createFromSource = () => ({
         getLiveCategories: async () => [{ category_id: '1', category_name: 'A' }, { category_id: '2', category_name: 'B' }],
-        getLiveStreams: async () => live, getVodCategories: async () => [], getVodStreams: async () => [],
-        getSeriesCategories: async () => [], getSeries: async () => [], getXmltvUrl: () => null
+        getLiveStreams: async () => live, getXmltvUrl: () => null
     });
     try {
         const x = await db.sources.create({ type: 'xtream', name: 'Trex', url: 'http://x.invalid', username: 'u', password: 'p' });

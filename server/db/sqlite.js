@@ -105,8 +105,7 @@ function initSchema() {
             
             -- App State
             is_hidden INTEGER DEFAULT 0,
-            is_favorite INTEGER DEFAULT 0,
-            
+
             sort_order INTEGER, -- Position in source file (M3U line number); NULL for Xtream
             
             data JSON -- Full original JSON object
@@ -606,10 +605,8 @@ function initSchema() {
 
     // Recently watched channels.
     //
-    // Distinct from watch_history, which tracks resume positions for movies
-    // and episodes. Live TV has no position to resume — what matters is which
-    // channels were on recently — so this is its own table rather than more
-    // nullable columns on that one.
+    // Live TV has no position to resume — what matters is which channels were
+    // on recently.
     //
     // One row per user per channel, updated in place: the screen that uses
     // this wants the last dozen channels, not a log of every tune-in.
@@ -658,33 +655,8 @@ function initSchema() {
         // Column already exists.
     }
 
-    // Watch History (per-user)
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS watch_history (
-            id TEXT PRIMARY KEY, -- Composite key: user_id:item_id
-            user_id INTEGER NOT NULL,
-            source_id INTEGER, -- Source ID for Xtream/M3U
-            item_type TEXT NOT NULL, -- 'movie', 'episode'
-            item_id TEXT NOT NULL, -- The original item ID (stream_id or composite)
-            parent_id TEXT, -- For episodes (series ID)
-            progress INTEGER DEFAULT 0, -- Current position in seconds
-            duration INTEGER DEFAULT 0, -- Total duration in seconds
-            updated_at INTEGER NOT NULL, -- Timestamp
-            data JSON -- Snapshot of item data (title, poster, etc)
-        );
-        CREATE INDEX IF NOT EXISTS idx_history_user_updated ON watch_history(user_id, updated_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_history_user_item ON watch_history(user_id, item_id);
-    `);
-
-    // Migration: Add source_id column if missing (for existing databases)
-    try {
-        db.exec(`ALTER TABLE watch_history ADD COLUMN source_id INTEGER`);
-        console.log('[SQLite] Added source_id column to watch_history');
-    } catch (e) {
-        // Column already exists, ignore
-    }
-
     normalizeFavoriteIds();
+    dropFilmsAndSeries();
     stripStoredBadges();
     backfillStableIds();
     backfillTvgIds();
@@ -704,6 +676,27 @@ const BADGE_COLUMNS = [
     ['recordings', 'title'],
     ['recordings', 'channel_name']
 ];
+
+/**
+ * #270: films and series are no longer downloaded, and nothing read what earlier syncs stored. Once per
+ * database (meta `films_series_cleanup`): their rows, their category rows and the unused watch_history table
+ * go. Favourites are left alone. (playlist_items.is_favorite stays on a database that already has it.)
+ */
+function dropFilmsAndSeries() {
+    if (db.prepare(`SELECT 1 FROM meta WHERE key = 'films_series_cleanup'`).get()) return 0;
+    let removed = 0;
+    db.transaction(() => {
+        // Per source, so the (source_id, type) indexes serve each delete on a large table.
+        const items = db.prepare(`DELETE FROM playlist_items WHERE source_id = ? AND type IN ('movie', 'series')`);
+        const cats = db.prepare(`DELETE FROM categories WHERE source_id = ? AND type IN ('movie', 'series')`);
+        for (const { source_id: sourceId } of db.prepare('SELECT DISTINCT source_id FROM playlist_items').all()) removed += items.run(sourceId).changes;
+        for (const { source_id: sourceId } of db.prepare('SELECT DISTINCT source_id FROM categories').all()) removed += cats.run(sourceId).changes;
+        db.exec('DROP INDEX IF EXISTS idx_history_user_updated; DROP INDEX IF EXISTS idx_history_user_item; DROP TABLE IF EXISTS watch_history;');
+        db.prepare(`INSERT INTO meta (key, value) VALUES ('films_series_cleanup', ?)`).run(String(Date.now()));
+    })();
+    if (removed) console.log(`[SQLite] Removed ${removed} stored film and series row(s)`);
+    return removed;
+}
 
 /**
  * 0138: strip the small-caps "ᴸɪᴠᴇ" / "ɴᴇᴡ" badge (services/textCleanup.js,
@@ -947,5 +940,6 @@ module.exports = {
     backfillFavoriteIdentities,
     backfillHistoryIdentities,
     stripStoredBadges,
+    dropFilmsAndSeries,
     favorites
 };

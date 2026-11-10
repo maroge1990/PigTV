@@ -44,6 +44,8 @@ before(async () => {
             const a = u.searchParams.get('action');
             if (a === 'get_live_categories') return json(mode.cats || RAW.categories);
             if (a === 'get_live_streams') return json(mode.streams || RAW.streams);
+            if (/^get_(vod|series)/.test(a) && mode.vodFail) { res.statusCode = 500; return res.end('{}'); }
+            if (mode.films && a in mode.films) return json(mode.films[a]);
             if (!a) return json({ user_info: { auth: 1, status: 'Active', max_connections: '1' }, server_info: {} });
             return json([]);
         }
@@ -269,8 +271,8 @@ test('with no backup configured a primary syncs exactly as before', async () => 
     assert.equal(count('playlist_items', s.id), RAW.streams.length);
     assert.equal(count('backup_channels', s.id), 0);
     assert.equal(before, 0);
-    assert.ok(hits.includes('/player_api.php?get_vod_streams'), 'the VOD and series calls still happen');
-    assert.ok(hits.some(h => h.startsWith('/xmltv.php')), 'and the guide');
+    assert.deepEqual(hits.filter(h => /get_(vod|series)/.test(h)), [], '#270: no film or series request is made');
+    assert.ok(hits.some(h => h.startsWith('/xmltv.php')), 'and the guide is still fetched');
     await db.sources.delete(s.id);
 });
 
@@ -326,4 +328,37 @@ test('the relink hook runs after a backup sync, and a missing hook is a no-op', 
         forget();
         if (original) fs.writeFileSync(file, original); else fs.rmSync(file);
     }
+});
+
+test('#270: a provider whose film and series endpoints fail syncs cleanly and its guide is fetched', async () => {
+    mode.vodFail = true;
+    const s = await xtream({ name: 'Films down' });
+    await silently(() => sync.syncSource(s.id));
+    assert.equal(count('playlist_items', s.id), RAW.streams.length);
+    assert.equal(sqlite.getDb().prepare(`SELECT status FROM sync_status WHERE source_id = ? AND type = 'all'`).get(s.id).status, 'success');
+    assert.ok(hits.some(h => h.startsWith('/xmltv.php')), 'the guide was fetched');
+    await db.sources.delete(s.id);
+});
+
+test('#270: a film, a series and a film category that share an id with a live channel and group change nothing of theirs', async () => {
+    const live = RAW.streams[0];
+    const group = RAW.categories.find(c => c.category_id === String(live.category_id)) || RAW.categories[0];
+    mode.films = {
+        get_vod_streams: [{ stream_id: live.stream_id, name: 'A Film', category_id: group.category_id, stream_icon: 'film.png', container_extension: 'mkv' }],
+        get_series: [{ series_id: live.stream_id, name: 'A Series', category_id: group.category_id, cover: 'series.png' }],
+        get_vod_categories: [{ category_id: group.category_id, category_name: 'Films With The Same Id' }],
+        get_series_categories: [{ category_id: group.category_id, category_name: 'Series With The Same Id' }]
+    };
+    const s = await xtream({ name: 'Colliding ids' });
+    await silently(() => sync.syncSource(s.id));
+    const item = sqlite.getDb().prepare('SELECT name, stream_icon, type FROM playlist_items WHERE id = ?').get(`${s.id}:${live.stream_id}`);
+    assert.equal(item.type, 'live');
+    assert.notEqual(item.name, 'A Film');
+    assert.notEqual(item.name, 'A Series');
+    assert.notEqual(item.stream_icon, 'film.png');
+    const cat = sqlite.getDb().prepare('SELECT name, type FROM categories WHERE id = ?').get(`${s.id}:${group.category_id}`);
+    assert.equal(cat.type, 'live');
+    assert.equal(cat.name, group.category_name);
+    assert.equal(sqlite.getDb().prepare(`SELECT COUNT(*) c FROM playlist_items WHERE source_id = ? AND type <> 'live'`).get(s.id).c, 0);
+    await db.sources.delete(s.id);
 });

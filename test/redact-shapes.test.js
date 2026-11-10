@@ -44,8 +44,6 @@ test('redact covers every URL the Xtream client builds', () => {
         api.buildApiUrl('get_live_streams', { category_id: 4 }),
         api.buildStreamUrl(123, 'live', 'ts'),
         api.buildStreamUrl(123, 'live', 'm3u8'),
-        api.buildStreamUrl(77, 'vod', 'mkv'),
-        api.buildStreamUrl(88, 'series', 'mp4'),
         api.getXmltvUrl()
     ];
     for (const url of urls) {

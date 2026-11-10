@@ -521,30 +521,8 @@ class SyncService {
         importFilters.recordSkipped(source.id, excluded, skipped);
     }
 
-    /** The rest of an Xtream sync: films, series, then the guide. */
+    /** The rest of an Xtream sync: the guide. Films and series are not downloaded: nothing in PigTV plays them. */
     async syncXtreamRest(source, api, options = {}) {
-
-        // 3. VOD Categories
-        console.log(`[Sync] Fetching VOD Categories for ${source.name}`);
-        const vodCats = await api.getVodCategories();
-        await this.saveCategories(source.id, 'movie', vodCats);
-
-        // 4. VOD Streams
-        console.log(`[Sync] Fetching VOD Streams for ${source.name}`);
-        const vodStreams = await api.getVodStreams();
-        await this.saveStreams(source.id, 'movie', vodStreams);
-
-        // 5. Series Categories
-        console.log(`[Sync] Fetching Series Categories for ${source.name}`);
-        const seriesCats = await api.getSeriesCategories();
-        await this.saveCategories(source.id, 'series', seriesCats);
-
-        // 6. Series
-        console.log(`[Sync] Fetching Series for ${source.name}`);
-        const series = await api.getSeries();
-        await this.saveStreams(source.id, 'series', series);
-
-        // 7. EPG (Xmltv)
         // Try to fetch XMLTV if available
         // 0182: the guide address on the provider's card wins; with none, the provider's own XMLTV.
         let ownUrl = null;
@@ -794,8 +772,8 @@ class SyncService {
         console.log(`[Sync] Saving ${categories.length} ${type} categories for source ${sourceId}...`);
         const db = getDb();
         const stmt = db.prepare(`
-            INSERT INTO categories (id, source_id, category_id, type, name, parent_id, sort_order, data)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO categories (id, source_id, category_id, type, name, sort_order, data)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 sort_order = excluded.sort_order,
@@ -807,7 +785,7 @@ class SyncService {
                 const catId = cat.category_id; // standard xtream field
                 const name = cat.category_name;
                 const id = `${sourceId}:${catId}`;
-                stmt.run(id, sourceId, String(catId), type, name, cat.parent_id || null,
+                stmt.run(id, sourceId, String(catId), type, name,
                     Number.isFinite(cat.sort_order) ? cat.sort_order : null, JSON.stringify(cat));
             }
         });
@@ -824,10 +802,10 @@ class SyncService {
     }
 
     /**
-     * Batch save streams (channels, vod, series)
+     * Batch save live streams
      * Also purges stale entries that no longer exist in the source (unless skipPurge is true)
      * @param {number} sourceId - Source ID
-     * @param {string} type - Type of items (live, movie, series)
+     * @param {string} type - Type of items (always 'live')
      * @param {Array} items - Items to save
      * @param {Object} options - Options { skipPurge: boolean }
      * @returns {Set} Set of synced IDs (for external purge if skipPurge was true)
@@ -843,15 +821,13 @@ class SyncService {
         const stmt = db.prepare(`
             INSERT INTO playlist_items (
                 id, source_id, item_id, type, name, category_id,
-                stream_icon, stream_url, container_extension,
-                rating, year, added_at, sort_order, data, stable_id, tvg_id
+                stream_icon, stream_url, sort_order, data, stable_id, tvg_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 category_id = excluded.category_id,
                 stream_icon = excluded.stream_icon,
-                container_extension = excluded.container_extension,
                 sort_order = excluded.sort_order,
                 data = excluded.data,
                 -- Rewritten every sync: the position moves, the identity does not,
@@ -862,34 +838,11 @@ class SyncService {
 
         const insertBatch = db.transaction((batch) => {
             for (const item of batch) {
-                // Map fields based on type
-                let itemId, name, catId, icon, container;
-                let rating = null, year = null, added = null;
-
-                if (type === 'live') {
-                    itemId = item.stream_id;
-                    // 0138: the Xtream path too (the M3U parser already strips it).
-                    name = stripBadgeSuffix(item.name) || `Channel ${item.stream_id}`;
-                    catId = item.category_id;
-                    icon = item.stream_icon;
-                    added = item.added;
-                } else if (type === 'movie') {
-                    itemId = item.stream_id;
-                    name = item.name || `Movie ${item.stream_id}`;
-                    catId = item.category_id;
-                    icon = item.stream_icon; // or cover
-                    container = item.container_extension;
-                    rating = item.rating;
-                    added = item.added;
-                } else if (type === 'series') {
-                    itemId = item.series_id;
-                    name = item.name || `Series ${item.series_id}`;
-                    catId = item.category_id;
-                    icon = item.cover;
-                    rating = item.rating;
-                    year = item.releaseDate;
-                    added = item.last_modified;
-                }
+                const itemId = item.stream_id;
+                // 0138: the Xtream path too (the M3U parser already strips it).
+                const name = stripBadgeSuffix(item.name) || `Channel ${item.stream_id}`;
+                const catId = item.category_id;
+                const icon = item.stream_icon;
 
                 const id = `${sourceId}:${itemId}`;
                 syncedIds.add(id);
@@ -903,10 +856,6 @@ class SyncService {
                     String(catId),
                     icon,
                     null, // Direct URL not stored for Xtream usually, built on fly
-                    container,
-                    rating,
-                    year,
-                    added,
                     item.sort_order || null,
                     JSON.stringify(item),
                     // What this channel is, as opposed to where it sits. From the

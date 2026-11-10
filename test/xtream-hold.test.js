@@ -28,7 +28,7 @@ const guide = (per, title) => {
     }
     return out.concat('</tv>').join('\n');
 };
-const state = { channels: 100, xml: guide(100, 'First guide'), extraGroup: false, filmsFail: false };
+const state = { channels: 100, xml: guide(100, 'First guide'), extraGroup: false };
 const provider = http.createServer((req, res) => {
     const u = new URL(req.url, 'http://x');
     res.setHeader('content-type', 'application/json');
@@ -44,8 +44,7 @@ const provider = http.createServer((req, res) => {
             stream_id: 1000 + i, name: `Channel ${i}`, category_id: '1', epg_channel_id: `ch${i % 40}` })),
         ...(state.extraGroup ? [{ stream_id: 9001, name: 'Kayo 1', category_id: '9' }, { stream_id: 9002, name: 'Kayo 2', category_id: '9' }] : [])]));
     }
-    if (action === 'get_vod_categories' && state.filmsFail) { res.statusCode = 500; return res.end('{}'); }
-    return res.end('[]'); // films and series: none
+    return res.end('[]');
 });
 let source;
 const realLog = console.log, realWarn = console.warn;
@@ -90,18 +89,20 @@ test('#170: accepting the smaller list accepts the smaller guide too', async () 
     assert.equal(status('epg'), 'success');
 });
 
-test('#173: a new group stays hidden and listed when the films download fails after it, and after the retry', async () => {
+// No real step after the live rows are published can fail the sync now that films and series are not downloaded (the
+// guide's failures are recorded and never fail it), so the failure is injected where the rest of the sync begins.
+test('#173: a new group stays hidden and listed when the sync fails after its live rows, and after the retry', async () => {
     state.extraGroup = true;
-    state.filmsFail = true;
-    await sync.syncSource(source.id);
-    assert.equal(status('all'), 'error', 'the sync failed on the films');
+    const realRest = sync.syncXtreamRest;
+    sync.syncXtreamRest = async () => { throw new Error('the rest of the sync failed'); };
+    try { await sync.syncSource(source.id); } finally { sync.syncXtreamRest = realRest; }
+    assert.equal(status('all'), 'error', 'the sync failed after its live rows');
     const shown = () => d().prepare(`SELECT p.name FROM playlist_items p JOIN categories c ON c.source_id = p.source_id
         AND c.type = p.type AND c.category_id = p.category_id WHERE p.source_id = ? AND p.type = 'live' AND p.is_hidden = 0
         AND c.is_hidden = 0 AND p.category_id = '9'`).all(source.id);
     const listed = () => load('services/hiddenChannels').newGroups(d(), source.id).map(g => g.name);
     assert.deepEqual(shown(), [], 'not on screen');
     assert.deepEqual(listed(), ['New: Kayo Events']);
-    state.filmsFail = false;
     await sync.syncSource(source.id);
     assert.equal(status('all'), 'success');
     assert.deepEqual(shown(), []);

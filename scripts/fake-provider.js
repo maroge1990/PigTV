@@ -10,7 +10,7 @@
  *
  * Serves what server/services/xtreamApi.js, m3uParser.js and epgParser.js read:
  *   /player_api.php            account (no action), get_live_categories, get_live_streams,
- *                              get_short_epg; VOD and series actions answer [] (none carried)
+ *                              get_short_epg; any other action (VOD, series) answers [] (the server does not request them)
  *   /get.php                   the M3U (type=m3u|m3u_plus, output=ts|m3u8)
  *   /xmltv.php                 XMLTV, the 24 h before now to 72 h after, sport included
  *   /epgenius.m3u              an EPGenius-style curated M3U with #EXT-X-CREDENTIALS (a backup's id overlay)
@@ -564,7 +564,7 @@ function createFakeProvider(options = {}) {
                 .map(k => ({ category_id: lineup.find(c => c.catKey === k).catId, category_name: profile.categories[k], parent_id: 0 })));
             case 'get_live_streams': return json(res, liveStreams(base, q.get('category_id')));
             case 'get_short_epg': return json(res, shortEpg(q.get('stream_id'), Math.max(1, Math.min(50, Number(q.get('limit')) || 4))));
-            default: return json(res, []); // VOD, series, anything else: none carried
+            default: return json(res, []); // anything else (VOD, series: the server does not ask): none carried
         }
     }
 
