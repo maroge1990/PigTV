@@ -33,6 +33,8 @@ const UI = {
      */
     toast(message, options = {}) { return Toast.show(message, options); },
 
+    /** Native <dialog> modals: Escape, a backdrop click and the close button close; focus returns to the opener. */
+    dialog: null
 };
 
 const Toast = (() => {
@@ -146,7 +148,7 @@ const Toast = (() => {
             part.action.onclick = null;
         }
         current = { kind, part, timer: null, remaining: 0, startedAt: 0 };
-        place(null);
+        place(Dialogs.top());
         part.pill.classList.add('is-open');
         if (kind === 'info') arm(act ? ACTION_MS : INFO_MS);
         const mine = current;
@@ -159,6 +161,97 @@ const Toast = (() => {
     return { show, place, ensure };
 })();
 
+const Dialogs = (() => {
+    const open = [];
+    let seq = 0;
+
+    const top = () => open.length ? open[open.length - 1] : null;
+
+    function lock(on) {
+        if (typeof document === 'undefined' || !document.body || !document.body.classList) return;
+        document.body.classList.toggle('ui-dialog-open', on);
+    }
+
+    /** Make an existing <dialog> behave: Escape (the native cancel) and the backdrop and any close button close it. */
+    function attach(el, options = {}) {
+        if (el._uiDialog) { Object.assign(el._uiDialog.options, options); return el._uiDialog; }
+        const ctl = { el, options: { ...options }, opener: null, isOpen: () => !!el.open,
+            open(opener) {
+                if (el.open) return ctl;
+                if (options.parent !== false && !el.isConnected && typeof document !== 'undefined') document.body.appendChild(el);
+                ctl.opener = opener !== undefined ? opener : (ctl.opener || (typeof document !== 'undefined' ? document.activeElement : null));
+                el.showModal();
+                open.push(el);
+                lock(true);
+                Toast.place(el);
+                const first = el.querySelector('[autofocus]')
+                    || el.querySelector('input:not([type=hidden]), select, textarea, .ui-dialog-body button, .ui-dialog-footer button')
+                    || el.querySelector('.ui-dialog-close') || el;
+                if (first.focus) first.focus();
+                return ctl;
+            },
+            close() { if (el.open) el.close(); }
+        };
+        let downOn = null;
+        el.addEventListener('mousedown', (e) => { downOn = e.target; });
+        el.addEventListener('click', (e) => {
+            const hit = e.target;
+            if (hit && hit.closest && hit.closest('.ui-dialog-close, [data-dialog-close]')) { ctl.close(); return; }
+            if (hit !== el || downOn !== el) return;
+            downOn = null;
+            const r = el.getBoundingClientRect();
+            if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) ctl.close();
+        });
+        el.addEventListener('close', () => {
+            const i = open.lastIndexOf(el);
+            if (i >= 0) open.splice(i, 1);
+            if (!open.length) lock(false);
+            Toast.place(top());
+            const opener = ctl.opener;
+            ctl.opener = null;
+            if (opener && opener.focus && opener.isConnected !== false) opener.focus();
+            if (ctl.options.onClose) ctl.options.onClose(ctl);
+            if (ctl.options.removeOnClose) el.remove();
+        });
+        el._uiDialog = ctl;
+        return ctl;
+    }
+
+    /** A new dialog with a title, a close button, a body and a footer. Its element goes when it closes. */
+    function create({ title = '', label = '', className = '', onClose } = {}) {
+        const el = document.createElement('dialog');
+        el.className = `ui-dialog ${className}`.trim();
+        const header = document.createElement('div');
+        header.className = 'ui-dialog-header';
+        const titleEl = document.createElement('h2');
+        titleEl.className = 'ui-dialog-title';
+        titleEl.id = `ui-dialog-title-${++seq}`;
+        titleEl.textContent = title;
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'ui-dialog-close';
+        closeBtn.setAttribute('aria-label', 'Close');
+        closeBtn.textContent = '\u00d7';
+        header.appendChild(titleEl);
+        header.appendChild(closeBtn);
+        const body = document.createElement('div');
+        body.className = 'ui-dialog-body';
+        const footer = document.createElement('div');
+        footer.className = 'ui-dialog-footer';
+        el.appendChild(header);
+        el.appendChild(body);
+        el.appendChild(footer);
+        if (label) el.setAttribute('aria-label', label);
+        else el.setAttribute('aria-labelledby', titleEl.id);
+        const ctl = attach(el, { onClose, removeOnClose: true });
+        Object.assign(ctl, { titleEl, body, footer, setTitle: (t) => { titleEl.textContent = t; } });
+        return ctl;
+    }
+
+    return { attach, create, top };
+})();
+
+UI.dialog = { attach: Dialogs.attach, create: Dialogs.create };
 
 if (typeof window !== 'undefined') window.UI = UI;
 if (typeof module !== 'undefined' && module.exports) module.exports = UI;

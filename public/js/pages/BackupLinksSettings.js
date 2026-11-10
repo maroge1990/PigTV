@@ -330,18 +330,15 @@ class BackupLinksSettings {
         const col = LinkFormat.columns(this.summary).find(p => p.backupSourceId === backupSourceId);
         if (!channel || !col) return;
         this.pick = { channel, provider: col, token: 0 };
-        const modal = document.getElementById('modal');
-        document.getElementById('modal-title').textContent = `Link ${channel.name} to a ${col.name} channel`;
-        document.getElementById('modal-body').innerHTML = `
+        const dialog = UI.dialog.create({ title: `Link ${channel.name} to a ${col.name} channel`, onClose: () => { this.pick = null; this.pickDialog = null; } });
+        this.pickDialog = dialog;
+        dialog.body.innerHTML = `
             <p class="setting-hint">Search ${ProviderFormat.esc(col.name)}'s channels by name, category or guide id, then pick the one that is the same channel. Your pick is used at once and kept across syncs.</p>
             <div class="search-wrapper"><input type="text" id="links-pick-search" class="search-input" placeholder="Search ${ProviderFormat.esc(col.name)}..." value="${ProviderFormat.esc(channel.name)}"></div>
             <div id="links-pick-results" class="links-pick-results"><span class="setting-hint">Searching...</span></div>
             <div id="links-pick-error" class="lineup-status error"></div>`;
-        document.getElementById('modal-footer').innerHTML = '<button class="btn btn-secondary" id="modal-cancel">Cancel</button>';
-        modal.classList.add('active');
-        const close = () => { modal.classList.remove('active'); this.pick = null; };
-        modal.querySelector('.modal-close').onclick = close;
-        document.getElementById('modal-cancel').onclick = close;
+        dialog.footer.innerHTML = '<button class="btn btn-secondary" id="modal-cancel" data-dialog-close>Cancel</button>';
+        dialog.open();
         const input = document.getElementById('links-pick-search');
         input.addEventListener('input', UI.debounce(() => this.searchPick(input.value), 300));
         document.getElementById('links-pick-results').addEventListener('click', (e) => {
@@ -377,7 +374,7 @@ class BackupLinksSettings {
         if (error) error.textContent = '';
         try {
             await API.links.addManual(pick.channel.sourceId, pick.channel.key, pick.provider.backupSourceId, streamId);
-            document.getElementById('modal')?.classList.remove('active');
+            this.pickDialog?.close();
             this.pick = null;
             await this.refreshAfterChange();
             this.setStatus(`Linked ${pick.channel.name} to ${pick.provider.name}`);

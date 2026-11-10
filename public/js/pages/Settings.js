@@ -1147,7 +1147,6 @@ class SettingsPage {
         console.log('User found:', user);
 
         const modal = document.getElementById('edit-user-modal');
-        console.log('Modal element:', modal);
         if (!modal) {
             console.error('CRITICAL: Modal element #edit-user-modal not found in DOM!');
             UI.toast('The edit window is missing. Refresh the page and try again.', { kind: 'error' });
@@ -1176,14 +1175,8 @@ class SettingsPage {
             }
             if (passwordHint) passwordHint.textContent = "Optional. Leave blank to keep unchanged.";
 
-            // Show modal
-            console.log('Adding active class to modal...');
-            modal.classList.add('active');
-            console.log('Modal classes after add:', modal.classList.toString());
-
-            // Setup Close/Cancel handlers (once)
-            this.setupModalHandlers(modal);
-            console.log('Modal should now be visible!');
+            // Show it: Escape, the backdrop, the close button and Cancel close it; focus returns to the Edit button.
+            this.setupModalHandlers(modal).open();
         } catch (err) {
             console.error('Error populating modal:', err);
             UI.toast('Could not open the edit window: ' + err.message, { kind: 'error' });
@@ -1191,21 +1184,11 @@ class SettingsPage {
     }
 
     setupModalHandlers(modal) {
-        if (this.modalHandlersSetup) return;
+        const dialog = UI.dialog.attach(modal);
+        if (this.modalHandlersSetup) return dialog;
 
-        const closeBtn = document.getElementById('edit-user-close');
-        const cancelBtn = document.getElementById('edit-user-cancel');
         const saveBtn = document.getElementById('edit-user-save');
-
-        const closeModal = () => modal.classList.remove('active');
-
-        closeBtn.onclick = closeModal;
-        cancelBtn.onclick = closeModal;
-
-        // Click outside to close
-        modal.onclick = (e) => {
-            if (e.target === modal) closeModal();
-        };
+        const closeModal = () => dialog.close();
 
         // Save Handler
         saveBtn.onclick = async () => {
@@ -1230,6 +1213,7 @@ class SettingsPage {
         };
 
         this.modalHandlersSetup = true;
+        return dialog;
     }
 
 

@@ -310,13 +310,17 @@ class SportsPage {
         } else if(this.dialog && this.selection!=='settings') this.renderDetails();
         if(this.dialog && this.selection==='settings' && this.settingsRevision!==response.preferences.revision) this.settings(true);
     }
-    closeDialog() { this.dialog?.close(); this.dialog?.remove(); this.dialog=null; this.selection=null; }
+    closeDialog() { const d=this.dialog; this.dialog=null; this.selection=null; d?.close(); d?.remove(); }
     openDialog(selection) {
         this.closeDialog(); this.selection=selection;
-        this.dialog=document.createElement('dialog'); this.dialog.className='sports-dialog';
+        const opener=document.activeElement;
+        this.dialog=document.createElement('dialog'); this.dialog.className='ui-dialog sports-dialog';
         this.dialog.setAttribute('aria-label',selection==='settings'?'Sports account settings':selection==='recording'?'Confirm sports recording':'Sports event details');
-        this.dialog.addEventListener('cancel',e=> {e.preventDefault();this.closeDialog();});
-        this.root.append(this.dialog); return this.dialog;
+        // Escape (the native cancel), a click on the backdrop and the dialog's own close buttons close it (UI.dialog);
+        // focus goes back to the card that opened it.
+        const el=this.dialog;
+        UI.dialog.attach(el,{onClose:()=> { if(this.dialog===el) this.closeDialog(); }}).opener=opener;
+        this.root.append(el); return el;
     }
     settings(replace=false) {
         const prefs=this.state.response?.preferences;
@@ -331,9 +335,9 @@ class SportsPage {
             this.closeDialog(); await this.state.save(values,prefs.revision);
         };
         form.querySelector('[type=button]').onclick=()=>this.closeDialog();
-        if(!replace) dialog.showModal();
+        if(!replace) UI.dialog.attach(dialog).open();
     }
-    details(id) { this.openDialog(id); this.renderDetails(); this.dialog?.showModal(); }
+    details(id) { this.openDialog(id); this.renderDetails(); if(this.dialog) UI.dialog.attach(this.dialog).open(); }
     renderDetails() {
         const response=this.state.response, g=response?.games.find(g=>g.id===this.selection), dialog=this.dialog;
         if(!dialog) return;
@@ -423,7 +427,7 @@ class SportsPage {
                 this.notice(!rule ? 'Recording request saved.' : made>0 ? `Rule saved · ${made} scheduled.` : 'Rule saved · nothing scheduled yet: no upcoming airing matched.');
             } catch { this.notice('Recording request failed. Review Recordings before trying again.'); }
         };
-        dialog.showModal();
+        UI.dialog.attach(dialog).open();
     }
     notice(message) { this.state.message=message; this.render(); }
 }

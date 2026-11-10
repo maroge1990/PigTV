@@ -918,12 +918,9 @@ class EpgGuide {
     async showProgramDetails(data) {
         // W2: where keyboard focus goes back to when the details close (the programme, by identity).
         const origin = this.focusIdentity();
-        const modal = document.getElementById('modal');
-        const title = document.getElementById('modal-title');
-        const body = document.getElementById('modal-body');
-        const footer = document.getElementById('modal-footer');
-
-        title.textContent = data.title || 'Programme details';
+        const opener = document.activeElement;
+        const dialog = UI.dialog.create({ title: data.title || 'Programme details', onClose: () => this.restoreFocus(origin) });
+        const { body, footer } = dialog;
 
         const start = new Date(data.start);
         const stop = new Date(data.stop);
@@ -952,25 +949,23 @@ class EpgGuide {
         footer.innerHTML = `
       ${canRecord ? '<button class="btn btn-primary" id="modal-record">Record</button>' : ''}
       ${canRecord ? '<button class="btn btn-secondary" id="modal-record-series">Record series</button>' : ''}
-      <button class="btn btn-secondary" id="modal-close">Close</button>
+      <button class="btn btn-secondary" id="modal-close" data-dialog-close>Close</button>
     `;
 
-        modal.classList.add('active');
-        const close = () => { modal.classList.remove('active'); this.restoreFocus(origin); };
-        document.getElementById('modal-close').onclick = close;
-        modal.querySelector('.modal-close').onclick = close;
+        const close = () => dialog.close();
+        dialog.open(opener);
 
         if (canRecord) {
-            document.getElementById('modal-record').onclick = async () => {
-                const preBufferMin = parseInt(document.getElementById('record-pre-buffer').value, 10) || 0;
-                const postBufferMin = parseInt(document.getElementById('record-post-buffer').value, 10) || 0;
+            footer.querySelector('#modal-record').onclick = async () => {
+                const preBufferMin = parseInt(body.querySelector('#record-pre-buffer').value, 10) || 0;
+                const postBufferMin = parseInt(body.querySelector('#record-post-buffer').value, 10) || 0;
                 await this.scheduleRecording({ ...data, preBufferMin, postBufferMin });
                 close();
             };
             // R5: every airing of this title on this channel.
-            document.getElementById('modal-record-series').onclick = async () => {
-                const preBufferMin = parseInt(document.getElementById('record-pre-buffer').value, 10) || 0;
-                const postBufferMin = parseInt(document.getElementById('record-post-buffer').value, 10) || 0;
+            footer.querySelector('#modal-record-series').onclick = async () => {
+                const preBufferMin = parseInt(body.querySelector('#record-pre-buffer').value, 10) || 0;
+                const postBufferMin = parseInt(body.querySelector('#record-post-buffer').value, 10) || 0;
                 try {
                     const rule = await API.recordings.addRule({ kind: 'series', match: data.title, sourceId: parseInt(data.sourceId, 10),
                         channelId: data.channelId, channelName: data.channelName, preBufferMin, postBufferMin });

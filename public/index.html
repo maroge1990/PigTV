@@ -1143,18 +1143,6 @@
     </main>
   </div>
 
-  <!-- Modal Template -->
-  <div id="modal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 id="modal-title">Modal</h3>
-        <button class="modal-close" aria-label="Close">&times;</button>
-      </div>
-      <div id="modal-body" class="modal-body"></div>
-      <div id="modal-footer" class="modal-footer"></div>
-    </div>
-  </div>
-
   <!-- Context Menu Template -->
   <div id="context-menu" class="context-menu">
     <button class="context-item" data-action="play"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
@@ -1168,45 +1156,43 @@
       </svg> Hide</button>
   </div>
 
-  <!-- Edit User Modal -->
-  <div class="modal-overlay" id="edit-user-modal">
-    <div class="modal">
-      <div class="modal-header">
-        <h3 class="modal-title">Edit User</h3>
-        <button class="modal-close" id="edit-user-close" aria-label="Close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <form id="edit-user-form">
-          <input type="hidden" id="edit-user-id">
-
-          <div class="modal-form-group">
-            <label for="edit-username">Username</label>
-            <input type="text" id="edit-username" name="username" class="form-input" required>
-          </div>
-
-          <div class="modal-form-group">
-            <label for="edit-role">Role</label>
-            <select id="edit-role" name="role" class="form-input" required>
-              <option value="viewer">Viewer</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-
-          <div class="modal-form-group">
-            <label for="edit-password">New Password</label>
-            <input type="password" id="edit-password" name="password" class="form-input"
-              placeholder="Leave blank to keep current">
-            <p class="hint" id="edit-password-hint" style="margin-top: var(--space-xs);">Optional. Leave blank to keep unchanged.
-            </p>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" id="edit-user-cancel">Cancel</button>
-        <button class="btn btn-primary" id="edit-user-save">Save Changes</button>
-      </div>
+  <!-- Edit User dialog (UI.dialog.attach in Settings.js) -->
+  <dialog class="ui-dialog" id="edit-user-modal" aria-labelledby="edit-user-title">
+    <div class="ui-dialog-header">
+      <h2 class="ui-dialog-title" id="edit-user-title">Edit User</h2>
+      <button type="button" class="ui-dialog-close" aria-label="Close">&times;</button>
     </div>
-  </div>
+    <div class="ui-dialog-body">
+      <form id="edit-user-form">
+        <input type="hidden" id="edit-user-id">
+
+        <div class="ui-dialog-field">
+          <label for="edit-username">Username</label>
+          <input type="text" id="edit-username" name="username" class="form-input" required>
+        </div>
+
+        <div class="ui-dialog-field">
+          <label for="edit-role">Role</label>
+          <select id="edit-role" name="role" class="form-input" required>
+            <option value="viewer">Viewer</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+
+        <div class="ui-dialog-field">
+          <label for="edit-password">New Password</label>
+          <input type="password" id="edit-password" name="password" class="form-input"
+            placeholder="Leave blank to keep current">
+          <p class="hint" id="edit-password-hint" style="margin-top: var(--space-xs);">Optional. Leave blank to keep unchanged.
+          </p>
+        </div>
+      </form>
+    </div>
+    <div class="ui-dialog-footer">
+      <button type="button" class="btn btn-ghost" id="edit-user-cancel" data-dialog-close>Cancel</button>
+      <button type="button" class="btn btn-primary" id="edit-user-save">Save Changes</button>
+    </div>
+  </dialog>
 
   <!-- JavaScript -->
   <script src="/js/icons.js"></script>

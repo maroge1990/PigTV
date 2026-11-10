@@ -392,9 +392,12 @@ class RecordingsPage {
 
         const overlay = document.createElement('div');
         overlay.className = 'recording-player-overlay';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-label', 'Recording player');
         overlay.innerHTML = `
             <div class="recording-player-box">
-                <button class="recording-player-close">&times;</button>
+                <button class="recording-player-close" aria-label="Close player">&times;</button>
                 <video controls></video>
                 <div class="ad-markers" aria-hidden="true"></div>
                 <button class="skip-ad-btn" hidden>Skip ad</button>
@@ -407,6 +410,11 @@ class RecordingsPage {
 
         document.body.appendChild(overlay);
         this._playerOverlay = overlay;
+        // Escape closes it, and focus returns to what opened it when it closes.
+        this._playerOpener = document.activeElement;
+        this._onPlayerKey = (e) => { if (e.key === 'Escape') this.closePlayer(); };
+        document.addEventListener('keydown', this._onPlayerKey);
+        overlay.querySelector('.recording-player-close').focus?.();
 
         // 0207: where this login stopped last time. Asked before anything plays; a failure
         // to read it just means playing from the start.
@@ -541,11 +549,15 @@ class RecordingsPage {
             this._positionTracker.close();
             this._positionTracker = null;
         }
+        if (this._onPlayerKey) { document.removeEventListener('keydown', this._onPlayerKey); this._onPlayerKey = null; }
         if (this._playerOverlay) {
             const video = this._playerOverlay.querySelector('video');
             if (video) { video.pause(); video.src = ''; }
             this._playerOverlay.remove();
             this._playerOverlay = null;
+            const opener = this._playerOpener;
+            this._playerOpener = null;
+            if (opener && opener.focus && opener.isConnected !== false) opener.focus();
         }
     }
 
