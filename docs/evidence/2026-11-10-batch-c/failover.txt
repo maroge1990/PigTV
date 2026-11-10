@@ -1,0 +1,80 @@
+# C: provider failover mid-recording, then both providers down for 70 s. Unraid rig, build 0509 (rig-01a666f), fakes only.
+# Channel: Fake A (source 2) "UK| BBC ONE HD" stream 1016, backup Fake B (source 3) "UK: BBC ONE HD" stream 5016.
+# Route: the start line says "on Fake A", printed only when the route has backups (route.multi); the failover went to Fake B.
+# Failures injected with the fake's POST /fake/fail?stream=<id>&mode=404|ok (drops the connection, refuses new ones).
+# (An earlier schedule #4 at 04:49Z clashed with A's #3, staging records one at a time here; it was cancelled, no row made.)
+
+## driver and API (UTC)
+05:20:35Z scheduled #5 on "UK| BBC ONE HD" (source 2) 05:20:35Z..05:30:35Z status=scheduled endsWith=guide
+05:21:38.522489220Z POST fake A /fake/fail stream=1016 mode=404 -> {"stream":1016,"mode":"404","overrides":{"1016":"404"}}
+05:21:56Z schedule #5: recording; recording rows: 1
+   rec #4 status=recording segment_state=capturing native=null provider=3 05:20:41Z..null duration_sec=null MB=0.0 file=recording.m3u8 error="Gaps: 1, 0 s in all (the last: the provider dropped out)."
+05:22:03.604554525Z POST fake B /fake/fail stream=5016 mode=404 (fake A 1016 still 404) -> {"stream":5016,"mode":"404","overrides":{"5016":"404"}}
+05:23:13.658777520Z POST fake A stream=1016 mode=ok -> {"stream":1016,"mode":"ok","overrides":{}}
+05:23:13.673675173Z POST fake B stream=5016 mode=ok -> {"stream":5016,"mode":"ok","overrides":{}}
+05:23:51Z schedule #5: recording; recording rows: 1
+   rec #4 status=recording segment_state=capturing native=null provider=2 05:20:41Z..null duration_sec=null MB=0.0 file=recording.m3u8 error="Gaps: 6, 73 s in all (the last: the provider dropped out)."
+
+## after the stop (API)
+05:30:38Z schedule #5: not listed (finished); recording rows: 1
+   rec #4 status=recording segment_state=finishing native=null provider=2 05:20:41Z..05:30:35Z duration_sec=502 MB=0.0 file=recording.m3u8 error="Gaps: 6, 73 s in all (the last: the provider dropped out)."
+   recording #4: segment_state done, status completed
+   waited 20 s; fail list: []
+05:30:59Z schedule #5: not listed (finished); recording rows: 1
+   rec #4 status=completed segment_state=done native=ready provider=2 05:20:41Z..05:30:35Z duration_sec=502 MB=35.0 file=T3 C failover - 2026-11-10 16-20.mp4 error="Gaps: 6, 73 s in all (the last: the provider dropped out)."
+## work folder at 05:23:51Z: rec-4/e1 .. e7 (7 epochs, one row)
+
+## staging [Recordings] log, schedule #5 / recording #4
+2026-11-10T05:20:41.798060190Z [Recordings] Schedule #5 "T3 C failover" (UK| BBC ONE HD): scheduled -> recording
+2026-11-10T05:20:41.800735428Z [Recordings] Starting recording #4 for schedule #5: "T3 C failover" on Fake A (shared ingest) -> segments in appdata (part 1)
+2026-11-10T05:21:48.543490547Z [Recordings] #4 ended early (the shared feed ended: upstream-lost; ffmpeg exit 0; "frame=  858 fps= 14 q=-1.0 Lsize=N/A time=00:00:57.22 bitrate=N/A speed=0.924x elapsed=0:01:01.94") on Fake A; it continues in the same recording
+2026-11-10T05:21:48.545616575Z [Recordings] #4 continues after 0s on Fake B
+2026-11-10T05:21:48.585108879Z [Recordings] Starting recording #4 for schedule #5: "T3 C failover" on Fake B (shared ingest) -> segments in appdata (part 2)
+2026-11-10T05:22:13.623475327Z [Recordings] #4 ended early (the shared feed ended: upstream-lost; ffmpeg exit 0; "frame=  233 fps= 12 q=-1.0 Lsize=N/A time=00:00:15.55 bitrate=N/A speed=0.769x elapsed=0:00:20.23") on Fake B; it continues in the same recording
+2026-11-10T05:22:26.757080564Z [Recordings] #4 continues after 13s on Fake A
+2026-11-10T05:22:26.762105386Z [Recordings] Starting recording #4 for schedule #5: "T3 C failover" on Fake A -> segments in appdata (part 3)
+2026-11-10T05:22:26.777270317Z [Recordings] #4 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake A; it continues in the same recording
+2026-11-10T05:22:41.755535510Z [Recordings] #4 continues after 15s on Fake A
+2026-11-10T05:22:41.760388329Z [Recordings] Starting recording #4 for schedule #5: "T3 C failover" on Fake A -> segments in appdata (part 4)
+2026-11-10T05:22:41.775611542Z [Recordings] #4 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake A; it continues in the same recording
+2026-11-10T05:22:56.756024186Z [Recordings] #4 continues after 15s on Fake A
+2026-11-10T05:22:56.760802722Z [Recordings] Starting recording #4 for schedule #5: "T3 C failover" on Fake A -> segments in appdata (part 5)
+2026-11-10T05:22:56.776180067Z [Recordings] #4 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake A; it continues in the same recording
+2026-11-10T05:23:11.755692891Z [Recordings] #4 continues after 15s on Fake A
+2026-11-10T05:23:11.760524877Z [Recordings] Starting recording #4 for schedule #5: "T3 C failover" on Fake A -> segments in appdata (part 6)
+2026-11-10T05:23:11.775268804Z [Recordings] #4 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake A; it continues in the same recording
+2026-11-10T05:23:26.756588247Z [Recordings] #4 continues after 15s on Fake A
+2026-11-10T05:23:26.796478190Z [Recordings] Starting recording #4 for schedule #5: "T3 C failover" on Fake A (shared ingest) -> segments in appdata (part 7)
+2026-11-10T05:30:35.699467171Z [Recordings] Scheduled stop time reached for schedule 5
+2026-11-10T05:30:35.763790833Z [Recordings] Schedule #5 "T3 C failover" (UK| BBC ONE HD): recording -> completed
+2026-11-10T05:30:35.763817426Z [Recordings] Recording #4 captured 127 segments in 594s; making its MP4
+2026-11-10T05:30:35.799574925Z [Recordings] Making the MP4 of #4 from 127 segments -> /app/recordings/UK_ BBC ONE HD/T3 C failover - 2026-11-10 16-20.mp4
+2026-11-10T05:30:55.182169464Z [Recordings] #4 is finished: /app/recordings/UK_ BBC ONE HD/T3 C failover - 2026-11-10 16-20.mp4
+2026-11-10T05:31:11.805790420Z [Recordings] Starting recording #5 for schedule #6: "T3 B restart" on Fake A (shared ingest) -> segments in appdata (part 1)
+
+## staging [Ingest] log
+2026-11-10T05:21:38.534330464Z [Ingest 3] lost the stream (ECONNRESET); reconnecting
+2026-11-10T05:21:48.535241176Z [Ingest 3] gave up: HTTP 404
+2026-11-10T05:21:48.535601103Z [Ingest 3] closed (HTTP 404); most behind real time 9.9s
+2026-11-10T05:21:48.580119422Z [Ingest 4] reading 00dcac057683 for pool 3
+2026-11-10T05:22:03.615675736Z [Ingest 4] lost the stream (ECONNRESET); reconnecting
+2026-11-10T05:22:13.616246998Z [Ingest 4] gave up: HTTP 404
+2026-11-10T05:22:13.616420360Z [Ingest 4] closed (HTTP 404); most behind real time 9.9s
+2026-11-10T05:22:26.758256580Z [Ingest 5] not used: HTTP 404
+2026-11-10T05:22:26.758631939Z [Ingest 5] closed (HTTP 404); most behind real time not measured
+2026-11-10T05:22:41.756737466Z [Ingest 6] not used: HTTP 404
+2026-11-10T05:22:41.757026083Z [Ingest 6] closed (HTTP 404); most behind real time not measured
+2026-11-10T05:22:56.757119796Z [Ingest 7] not used: HTTP 404
+2026-11-10T05:22:56.757422110Z [Ingest 7] closed (HTTP 404); most behind real time not measured
+2026-11-10T05:23:11.756818930Z [Ingest 8] not used: HTTP 404
+2026-11-10T05:23:11.757030061Z [Ingest 8] closed (HTTP 404); most behind real time not measured
+2026-11-10T05:23:26.789983240Z [Ingest 9] reading e8def516b34b for pool primary
+
+## both down 05:22:03Z (B; A already down since 05:21:38Z) .. 05:23:13Z: capture starts
+# 05:21:48 Fake B (failover from A, immediate) - B fails 05:22:03, capture ends 05:22:13 (ingest gives up after 10 s)
+# 05:22:26 Fake A (13 s later, on the tick: no immediate try)   404
+# 05:22:41 Fake A (+15 s)   404
+# 05:22:56 Fake A (+15 s)   404
+# 05:23:11 Fake A (+15 s)   404
+# 05:23:26 Fake A (+15 s)   recording again (both restored 05:23:13)
+# Fake B was not tried again after 05:22:13; no start in the both-down minute was immediate (expected by #284: one immediate try per provider).

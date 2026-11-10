@@ -450,7 +450,14 @@ async function overrunT3() {
         if (row ? !['scheduled', 'waiting', 'recording'].includes(row.status) : samples.some(x => x.status === 'recording')) break;
         await sleep(30000);
     }
-    const rec = (await api('GET', '/api/recordings')).find(r => r.scheduled_id === made.id);
+    // A segmented recording stays 'recording' (segment_state 'finishing') while its MP4 is made: wait for it, up to 5 min.
+    let rec;
+    for (const until = Date.now() + 5 * 60000; ;) {
+        rec = (await api('GET', '/api/recordings')).find(r => r.scheduled_id === made.id);
+        if (!rec || !rec.segment_state || ['done', 'failed'].includes(rec.segment_state) || Date.now() >= until) break;
+        await sleep(10000);
+    }
+    if (rec) console.log(`   recording #${rec.id}: segment_state ${rec.segment_state}, status ${rec.status}`);
     const fg = await fakeGame();
     const stopTarget = fg.finalAt + POST_MIN * 60000;
     console.log(`   schedule #${made.id} ended ${row ? row.status : '(no longer listed)'}; recording #${rec?.id} ${rec?.status}: +${rel(rec?.started_at)} to +${rel(rec?.ended_at)},`

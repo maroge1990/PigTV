@@ -5,31 +5,36 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 10 Nov 2026 (audit batch I: Sport generations 1 and 2 and unused Apple code, #277).*
+*Overwritten at the end of every session. 10 Nov 2026 (audit batch C: the part-based recording path retired, #271).*
 
 - **Released:** server **v0502** (`:release`, 9 Nov) and Apple **191** on TestFlight (tvOS and iOS). A release runs on
-  Mark's go-ahead (D-45). Pushed since, not released: server **0503**, Apple **192 to 197**. Next builds: server
-  **0504**, Apple **198**.
-- **10 Nov, audit:** the simplification, brand 1.8, UX and testing audit is filed as batch issues #269–#280 and bug #281;
-  each issue's first comment holds the detail and a later comment Mark's decisions. Batch A (#269) is closed. Batch order
-  after I: C (#271), B (#270), G (#275), K (#279), H (#276), L (#280), D (#272, with #281), E (#273), J (#278), F (#274).
-- **10 Nov, batch I pushed with CI green (#277; D-53 to D-55):**
-  - Apple: the Sport front page is the only Sport tab (generations 1 and 2 and warming on focus removed); the app
-    requires server 0476 and has no second path for 16 always-on flags; the EPG artwork index, dead declarations, launch
-    migrations and two colour sets removed; catalogue colours read by symbol. The app is about 2,650 lines smaller and
-    the tests about 1,600.
-  - Server 0503: the Sport front page is served with scores off, without game cards.
-  - Codex: approve with no findings in both repos. Evidence: `docs/evidence/2026-11-10-batch-i/`.
-  - CI: server 4 min 6 s, Apple 10 min 1 s.
-  - Split out: #282 (future-style cards with scores off), #283 (test-only fixture flags in release models).
+  Mark's go-ahead (D-45). Pushed since, not released: server **0503 to 0509**, Apple **192 to 197**. Next builds: server
+  **0510**, Apple **198**.
+- **10 Nov, audit:** filed as batch issues #269–#280 and bug #281; each issue's first comment holds the detail and a
+  later comment Mark's decisions. Batches A (#269) and I (#277) are pushed. Order after C: #287 (Mark, 10 Nov: its own
+  batch, ahead of B), then B (#270), G (#275), K (#279), H (#276), L (#280), D (#272, with #281), E (#273), J (#278),
+  F (#274).
+- **10 Nov, batch C pushed with CI green (#271; D-56), server 0504 to 0509:**
+  - Every recording is captured segmented and nothing else: the part-based path, its switch and break detection during
+    capture are gone (the server is about 570 lines smaller), and the capture input is built in one place. Recordings
+    the old path left on disk still play, list and delete.
+  - Its tests (failover, guide end, event end, schedule edits, share hangs, ingest-fed recordings) now run on the
+    segmented path.
+  - Fixed on the way: #284 (every provider failing at the start: no pause between tries), #285 (a delete while waiting
+    to continue listed as failed), and the low-disk check that gave up when the share was down.
+  - Opus review: no high. Codex: approve, no findings. T3 on the rig passed (past the guide end, across a restart,
+    failover). Evidence: `docs/evidence/2026-11-10-batch-c/`. CI: 4 min 16 s.
+  - Filed, not fixed: #287 (P1: publishing to the share can freeze the server if the share stalls), #286, #288.
 - **Waiting on Mark:**
-  - T5 device checks: #277 (open Sport once on Apple TV, iPad and iPhone, on a build from 197), #246 (stop the container
-    mid-recording), #260, the iPhone and iPad fixes in 176–191, Watch on…, and T4 for #259 at the next race.
+  - T5 device checks: #271 (one real recording end to end, on a build from 0509), #277 (open Sport once on Apple TV,
+    iPad and iPhone, on a build from 197), #246 (stop the container mid-recording), #260, the iPhone and iPad fixes in
+    176–191, Watch on…, and T4 for #259 at the next race.
+  - #288: how long a recording keeps trying when every provider is down (today about 5 minutes).
   - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00.
   - #240.
 - **Open investigation:** #3 (sound out of step on the iPad): the relay join measured clean; the device meter (#267)
   and the marker (#268) are filed, not built (Mark).
-- **Next:** batch C (#271); then #262 (iPadOS/iOS 17+, three sites need fallbacks).
+- **Next:** #287; then batch B (#270); then #262 (iPadOS/iOS 17+, three sites need fallbacks).
 
 ## Now
 

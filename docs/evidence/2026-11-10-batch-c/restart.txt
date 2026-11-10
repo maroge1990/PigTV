@@ -1,0 +1,37 @@
+# B: a recording across a container restart. Unraid rig, build 0509 (rig-01a666f), fakes only.
+# Fake A (source 2) "AU| CHANNEL 9 HD" stream 1020, schedule #6 for 05:31:08..05:41:08Z, then docker restart pigtv-test-staging at 05:32:46Z.
+# At start-up the guide follower moved the schedule's end 05:41:08 -> 06:00:00 (documented "same slot renamed" match: the test
+# schedule started 68 s after the guide's 05:30 programme on that channel, within 2 min). The test stopped it at its original end with
+# DELETE /api/recordings/scheduled/6 (the schedule then shows cancelled; the recording completed).
+
+## driver and API (UTC)
+05:31:08Z scheduled #6 on "AU| CHANNEL 9 HD" (source 2) 05:31:08Z..05:41:08Z status=scheduled endsWith=guide
+05:32:46Z schedule #6: recording; recording rows: 1
+   rec #5 status=recording segment_state=capturing native=null provider=2 05:31:11Z..null duration_sec=null MB=0.0 file=recording.m3u8 error=null
+05:32:46.572232075Z docker restart pigtv-test-staging
+05:32:47.407463808Z restart returned
+05:32:51Z schedule #6: recording; recording rows: 1
+   rec #5 status=recording segment_state=capturing native=null provider=2 05:31:11Z..null duration_sec=null MB=0.0 file=recording.m3u8 error="Gaps: 1, 3 s in all (the last: the server restarted)."
+05:41:09Z schedule #6: recording; recording rows: 1
+   rec #5 status=recording segment_state=capturing native=null provider=2 05:31:11Z..null duration_sec=null MB=0.0 file=recording.m3u8 error="Gaps: 1, 3 s in all (the last: the server restarted)."
+05:41:09Z DELETE schedule #6: {"id":6,"title":"T3 B restart","description":null,"source_id":2,"channel_item_id":"1020","channel_name":"AU| CHANNEL 9 HD",... "status":"cancelled","recording_id":5,"created_by":1,"created_at":1794288668280,"error":null,"channel_stable_id":"s1020","program_end_original":1794289268277,"rule_id":null,"chosen_at":null,"clash_winner":null,"image":null}
+05:41:41Z schedule #6: not listed (finished); recording rows: 1
+   rec #5 status=completed segment_state=done native=ready provider=2 05:31:11Z..05:41:09Z duration_sec=594 MB=40.8 file=T3 B restart - 2026-11-10 16-31.mp4 error="Gaps: 1, 3 s in all (the last: the server restarted)."
+## work folder after the restart: rec-5/e1, e2 (2 epochs, one row)
+
+## staging log (UTC)
+2026-11-10T05:31:11.803642416Z [Recordings] Schedule #6 "T3 B restart" (AU| CHANNEL 9 HD): scheduled -> recording
+2026-11-10T05:31:11.805790420Z [Recordings] Starting recording #5 for schedule #6: "T3 B restart" on Fake A (shared ingest) -> segments in appdata (part 1)
+2026-11-10T05:32:46.744284599Z SIGTERM received, stopping active recordings...
+2026-11-10T05:32:46.751038878Z [Recordings] #5: the server is stopping; it continues in the same recording when the server is back
+2026-11-10T05:32:49.916529315Z [Recordings] Schema initialized
+2026-11-10T05:32:49.922086128Z [Recordings] Schedule #6 was recording when the server stopped; it continues in the same recording (#5)
+2026-11-10T05:32:49.927478187Z [Recordings] Schedule #6 "T3 B restart": the guide moved its end 2026-11-10T05:41:08.277Z -> 2026-11-10T06:00:00.000Z
+2026-11-10T05:32:49.927597369Z [Recordings] Recording engine initialized
+2026-11-10T05:32:49.939651367Z [Recordings] #5 continues after 3s on Fake A
+2026-11-10T05:32:49.981652252Z [Recordings] Starting recording #5 for schedule #6: "T3 B restart" on Fake A (shared ingest) -> segments in appdata (part 2)
+2026-11-10T05:41:09.884272824Z [Recordings] Schedule #6 "T3 B restart" (AU| CHANNEL 9 HD): recording -> completed
+2026-11-10T05:41:09.884297954Z [Recordings] Recording #5 captured 149 segments in 598s; making its MP4
+2026-11-10T05:41:09.885206633Z [Recordings] Schedule #6 "T3 B restart" (AU| CHANNEL 9 HD): completed -> cancelled
+2026-11-10T05:41:09.917126492Z [Recordings] Making the MP4 of #5 from 149 segments -> /app/recordings/AU_ CHANNEL 9 HD/T3 B restart - 2026-11-10 16-31.mp4
+2026-11-10T05:41:34.096187913Z [Recordings] #5 is finished: /app/recordings/AU_ CHANNEL 9 HD/T3 B restart - 2026-11-10 16-31.mp4

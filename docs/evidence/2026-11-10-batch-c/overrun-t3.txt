@@ -1,0 +1,86 @@
+# #217 overrun T3 on the Unraid rig, build 0509 (rig-01a666f), fake scores and fake providers only.
+# NOTE: the driver's "T3 FAILED: recording not completed (recording)" below is the driver's own premature check:
+# it read the status once, 25 s after the stop, while the MP4 was being made (segment_state finishing).
+# The recording completed at 05:20:07Z (after-status at the end). The check now waits for the MP4 (up to 5 min).
+
+## up (PIGTV_RIG_SCORES=fake), 04:47:31Z
+   synced in 3 s (01a666f)
+== fake scores (pigtv-test-scores on pigtv-test-net): Premier League: Everton v Fulham on ITV1, kick-off 2026-11-10T04:55:35Z,
+   guide slot 8 min, final 20 min after kick-off
+== fake provider a on <box>:8290
+== fake provider b on <box>:8291
+== staging server on <box>:3100 (01a666f)
+   WARNING: package-lock.json differs from the image: staging runs the image node_modules
+== seed staging (via localhost inside the container)
+   re-syncing Fake A
+   re-syncing Fake B
+   source 2 all: success
+   source 3 all: success
+   source 2 epg: success
+== check staging
+   version: v3.7.0 · build 0509 (rig-01a666f)
+   channels: 30
+   guide (next 3 h): 117 programmes on 28 of 30 channels
+   sport events (72 h): 16, live now 3: Cricket "Australia v India", Formula 1 "Mexico City Grand Prix", Australian Rules Football "Collingwood v Carlton"
+   play "UK| BBC ONE HD": transcode in 4879 ms -> /api/transcode/e0f7975856959f39/master.m3u8
+   HLS: 1 segments listed, last one 257607 bytes
+   check passed
+
+## check
+== check staging
+   version: v3.7.0 · build 0509 (rig-01a666f)
+   channels: 30
+   guide (next 3 h): 117 programmes on 28 of 30 channels
+   sport events (72 h): 16, live now 3: Cricket "Australia v India", Formula 1 "Mexico City Grand Prix", Australian Rules Football "Collingwood v Carlton"
+   play "UK| BBC ONE HD": transcode in 5628 ms -> /api/transcode/b2bb3eb11242da89/master.m3u8
+   HLS: 1 segments listed, last one 249970 bytes
+   check passed
+
+## overrun-t3 driver output (started 04:48:02Z)
+2026-11-10T04:48:02Z
+== #217 T3: a recording follows its game past the guide end
+   game "Premier League: Everton v Fulham" espn:soccer/eng.1:9917001: kick-off 2026-11-10T04:55:35.000Z, guide end +8, final +20 (minutes from kick-off)
+   guide: "Premier League: Everton v Fulham" on UK| ITV1 HD, +0 to +8
+   scheduled #3: answer endsWith=event stopsAt=+10 (post-padding 2 min)
+   +-7.5: espn pre, scheduled, endsWith event, overrun false, stopsAt +10
+   +-6.0: espn pre, scheduled, endsWith event, overrun false, stopsAt +10
+   +-4.0: espn pre, scheduled, endsWith event, overrun false, stopsAt +10
+   +-2.0: espn pre, scheduled, endsWith event, overrun false, stopsAt +10
+   +-0.0: espn pre, scheduled, endsWith event, overrun false, stopsAt +10
+   +0.5: espn in, recording, endsWith event, overrun false, stopsAt +10
+   +2.0: espn in, recording, endsWith event, overrun false, stopsAt +10
+   +4.0: espn in, recording, endsWith event, overrun false, stopsAt +10
+   +6.0: espn in, recording, endsWith event, overrun false, stopsAt +10
+   +8.0: espn in, recording, endsWith event, overrun false, stopsAt +10
+   +9.5: espn in, recording, endsWith event, overrun true, stopsAt +20
+   +10.0: espn in, recording, endsWith event, overrun true, stopsAt +20
+   +12.0: espn in, recording, endsWith event, overrun true, stopsAt +21.86
+   +14.0: espn in, recording, endsWith event, overrun true, stopsAt +23.86
+   +16.0: espn in, recording, endsWith event, overrun true, stopsAt +25.86
+   +18.0: espn in, recording, endsWith event, overrun true, stopsAt +27.86
+   +20.0: espn in, recording, endsWith event, overrun true, stopsAt +29.86
+   +20.5: espn post, recording, endsWith event, overrun true, stopsAt +30.36
+   +22.0: espn post, recording, endsWith event, overrun true, stopsAt +22.58
+   +23.0: espn post, not listed, endsWith undefined, overrun false, stopsAt +null
+   schedule #3 ended (no longer listed); recording #3 recording: +0.11 to +22.58, 1348 s, 0 MB; final + post-padding = +22, floor +10
+   stopped 35 s after final + post-padding (the collector polls a hot game every 30 s)
+{"game":{"start":"2026-11-10T04:55:35.000Z","guideEndMin":8,"finalMin":20},"postMin":2,"floorMin":10,"stopTargetMin":22,"recording":{"status":"recording","startMin":0.11,"endMin":22.58,"durationSec":1348},"samples":[{"at":-7.54,"espn":"pre","status":"scheduled","endsWith":"event","overrun":false,"stopsAt":10},{"at":-7.03,"espn":"pre","status":"scheduled","endsWith":"event","overrun":false,"stopsAt":10},{"at":-6.53,"espn":"pre","status":"scheduled","endsWith":"event","overrun":false,"stopsAt":10},{"at":-6.03,"espn":"pre","status":"scheduled","endsWith":"event","overrun":false,"stopsAt":10},{"at":-5.53,"espn":"pre","status":"scheduled","endsWith":"event","overrun":false,"stopsAt":10},{"at":-5.03,"espn":"pre","status":"scheduled","endsWith":"event","overrun":false,"stopsAt":10},{"at":-4.53,"espn":"pre","status":"scheduled","endsWith":"event","overrun":false,"stopsAt":10},{"at":-4.03,"espn":"pre","status":"scheduled","endsWith":"event","overrun":false,"stopsAt":10},{"at":-3.53,"espn":"pre","status":"scheduled","endsWith":"event","overrun":false,"stopsAt":10},{"at":-3.03,"espn":"pre","status":"scheduled","endsWith":"event","overrun":false,"stopsAt":10},{"at":-2.53,"espn":"pre","status":"scheduled","endsWith":"event","overrun":false,"stopsAt":10},{"at":-2.03,"espn":"pre","status":"scheduled","endsWith":"event","overrun":false,"stopsAt":10},{"at":-1.53,"espn":"pre","status":"scheduled","endsWith":"event","overrun":false,"stopsAt":10},{"at":-1.03,"espn":"pre","status":"scheduled","endsWith":"event","overrun":false,"stopsAt":10},{"at":-0.53,"espn":"pre","status":"scheduled","endsWith":"event","overrun":false,"stopsAt":10},{"at":-0.03,"espn":"pre","status":"scheduled","endsWith":"event","overrun":false,"stopsAt":10},{"at":0.47,"espn":"in","status":"recording","endsWith":"event","overrun":false,"stopsAt":10},{"at":0.97,"espn":"in","status":"recording","endsWith":"event","overrun":false,"stopsAt":10},{"at":1.47,"espn":"in","status":"recording","endsWith":"event","overrun":false,"stopsAt":10},{"at":1.97,"espn":"in","status":"recording","endsWith":"event","overrun":false,"stopsAt":10},{"at":2.48,"espn":"in","status":"recording","endsWith":"event","overrun":false,"stopsAt":10},{"at":2.98,"espn":"in","status":"recording","endsWith":"event","overrun":false,"stopsAt":10},{"at":3.48,"espn":"in","status":"recording","endsWith":"event","overrun":false,"stopsAt":10},{"at":3.98,"espn":"in","status":"recording","endsWith":"event","overrun":false,"stopsAt":10},{"at":4.48,"espn":"in","status":"recording","endsWith":"event","overrun":false,"stopsAt":10},{"at":4.98,"espn":"in","status":"recording","endsWith":"event","overrun":false,"stopsAt":10},{"at":5.48,"espn":"in","status":"recording","endsWith":"event","overrun":false,"stopsAt":10},{"at":5.98,"espn":"in","status":"recording","endsWith":"event","overrun":false,"stopsAt":10},{"at":6.48,"espn":"in","status":"recording","endsWith":"event","overrun":false,"stopsAt":10},{"at":6.98,"espn":"in","status":"recording","endsWith":"event","overrun":false,"stopsAt":10},{"at":7.48,"espn":"in","status":"recording","endsWith":"event","overrun":false,"stopsAt":10},{"at":7.98,"espn":"in","status":"recording","endsWith":"event","overrun":false,"stopsAt":10},{"at":8.48,"espn":"in","status":"recording","endsWith":"event","overrun":false,"stopsAt":10},{"at":8.98,"espn":"in","status":"recording","endsWith":"event","overrun":false,"stopsAt":10},{"at":9.48,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":20},{"at":9.98,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":20},{"at":10.48,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":20.36},{"at":10.99,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":20.86},{"at":11.49,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":21.36},{"at":11.99,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":21.86},{"at":12.49,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":22.36},{"at":12.99,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":22.86},{"at":13.49,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":23.36},{"at":13.99,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":23.86},{"at":14.49,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":24.36},{"at":14.99,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":24.86},{"at":15.49,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":25.36},{"at":15.99,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":25.86},{"at":16.49,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":26.36},{"at":16.99,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":26.86},{"at":17.49,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":27.36},{"at":17.99,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":27.86},{"at":18.49,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":28.36},{"at":18.99,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":28.86},{"at":19.5,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":29.36},{"at":20,"espn":"in","status":"recording","endsWith":"event","overrun":true,"stopsAt":29.86},{"at":20.5,"espn":"post","status":"recording","endsWith":"event","overrun":true,"stopsAt":30.36},{"at":21,"espn":"post","status":"recording","endsWith":"event","overrun":true,"stopsAt":22.58},{"at":21.5,"espn":"post","status":"recording","endsWith":"event","overrun":true,"stopsAt":22.58},{"at":22,"espn":"post","status":"recording","endsWith":"event","overrun":true,"stopsAt":22.58},{"at":22.5,"espn":"post","status":"recording","endsWith":"event","overrun":true,"stopsAt":22.58},{"at":23,"espn":"post","status":"not listed","overrun":false,"stopsAt":null}]}
+   T3 FAILED: recording not completed (recording)
+exit 1
+2026-11-10T05:18:34Z
+
+## after-status
+# after the driver exited: recording #3 polled through the staging API
+05:20:22Z schedule #3: not listed (finished); recording rows: 1
+   rec #3 status=completed segment_state=done native=ready provider=2 04:55:41Z..05:18:09Z duration_sec=1348 MB=76.4 file=Premier League_ Everton v Fulham - 2026-11-10 15-55.mp4 error=null
+
+# staging log, schedule/recording #3
+2026-11-10T04:55:41.778509937Z [Recordings] Schedule #3 "Premier League: Everton v Fulham" (UK| ITV1 HD): scheduled -> recording
+2026-11-10T04:55:41.781106098Z [Recordings] Starting recording #3 for schedule #3: "Premier League: Everton v Fulham" on Fake A (shared ingest) -> segments in appdata (part 1)
+2026-11-10T05:04:41.740891417Z [Recordings] Schedule #3 "Premier League: Everton v Fulham": its event is still on; recording past the guide end, until 2026-11-10T05:15:35.000Z
+2026-11-10T05:16:11.751841830Z [Recordings] Schedule #3 "Premier League: Everton v Fulham": its event has ended; stopping at 2026-11-10T05:18:09.732Z
+2026-11-10T05:18:09.734050307Z [Recordings] Scheduled stop time reached for schedule 3
+2026-11-10T05:18:09.751880176Z [Recordings] Schedule #3 "Premier League: Everton v Fulham" (UK| ITV1 HD): recording -> completed
+2026-11-10T05:18:09.751926982Z [Recordings] Recording #3 captured 338 segments in 1348s; making its MP4
+2026-11-10T05:18:09.781504295Z [Recordings] Making the MP4 of #3 from 338 segments -> /app/recordings/UK_ ITV1 HD/Premier League_ Everton v Fulham - 2026-11-10 15-55.mp4
+2026-11-10T05:20:07.993599594Z [Recordings] #3 is finished: /app/recordings/UK_ ITV1 HD/Premier League_ Everton v Fulham - 2026-11-10 15-55.mp4
