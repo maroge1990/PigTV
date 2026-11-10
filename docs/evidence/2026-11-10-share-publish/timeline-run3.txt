@@ -1,0 +1,28 @@
+ 08:56:22 server v3.7.0 · build 0515 (rig-3307801)
+ 08:56:22 channels: play "UK| BBC ONE HD" (A), record "UK| ITV1 HD", third "UK| CHANNEL 4 SD"
+ 08:56:27 playback: "UK| BBC ONE HD" transcode
+ 08:56:30 scheduled rec4-delete (#s12) on "UK| ITV1 HD" for 90 s, stops 08:58:00
+ 08:56:30 rec4-delete: undefined
+ 08:56:42 rec4-delete: {"id":11,"status":"recording","segment_state":"capturing","native_status":null,"file_path":"/app/data/recordings-work/rec-11/recording.m3u8","size":null,"started":"08:56:42","ended":null}
+ 08:58:01 D: partial seen: 48 /tmp/pigtv-test-share/UK_ ITV1 HD/T3 287 rec4-delete - 2026-11-10 19-56.mp4.1-b3a66ee7.partial
+ 08:58:01 D: share FROZEN at 08:58:00
+ 08:58:01 rec4-delete: {"id":11,"status":"recording","segment_state":"finishing","native_status":null,"file_path":"/app/data/recordings-work/rec-11/recording.m3u8","size":null,"started":"08:56:42","ended":"08:58:00"}
+ 08:58:51 D: delete #11 while publish stalled -> refused: The operation was aborted due to timeout in 30001 ms
+ 08:58:53 rec4-delete: undefined
+ 08:59:31 D: THAWED (thawed)
+ 08:59:51 D: delete again -> DELETE /api/recordings/11 -> 404 Recording not found
+ 09:00:51 share after D (80 s after thaw):
+ f 0 ./.pigtv-write-test-1013-1794301122145
+ f 0 ./.pigtv-write-test-315-1794299667197
+ f 0 ./.pigtv-write-test-408-1794300792169
+ f 0 ./.pigtv-write-test-50-1794299653426
+ d 4096 ./UK_ CHANNEL 4 SD
+ f 6790144 ./UK_ CHANNEL 4 SD/T3 287 rec3-during-freeze - 2026-11-10 19-34.mp4
+ f 6651618 ./UK_ CHANNEL 4 SD/T3 287 rec3-during-freeze - 2026-11-10 19-53.mp4
+ d 4096 ./UK_ ITV1 HD
+ f 6637380 ./UK_ ITV1 HD/T3 287 rec1-baseline - 2026-11-10 19-29.mp4
+ f 8168100 ./UK_ ITV1 HD/T3 287 rec2-hung - 2026-11-10 19-31.mp4
+ f 8635830 ./UK_ ITV1 HD/T3 287 rec2-hung - 2026-11-10 19-50.mp4
+ d 16384 ./lost+found
+ 09:00:51 D: rec #11 rows left: 0
+ 09:00:54 SUMMARY {"phase":"delete","play":{"segments":67,"MB":15,"maxGapMs":5043,"maxGapFrozenMs":5034,"playlistMaxMs":12,"playlistMaxFrozenMs":10,"errors":[]},"worstLatencyMs":{"thawed:health":18,"thawed:status":27,"thawed:channels":30,"thawed:guide":29,"thawed:recordings":29,"frozen:health":17,"frozen:status":20,"frozen:channels":20,"frozen:guide":20,"frozen:recordings":20}}

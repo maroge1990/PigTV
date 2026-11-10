@@ -5,26 +5,28 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 10 Nov 2026 (audit batch C: the part-based recording path retired, #271).*
+*Overwritten at the end of every session. 10 Nov 2026 (#287: publishing a recording no longer waits on the share).*
 
 - **Released:** server **v0502** (`:release`, 9 Nov) and Apple **191** on TestFlight (tvOS and iOS). A release runs on
-  Mark's go-ahead (D-45). Pushed since, not released: server **0503 to 0509**, Apple **192 to 197**. Next builds: server
-  **0510**, Apple **198**.
+  Mark's go-ahead (D-45). Pushed since, not released: server **0503 to 0515**, Apple **192 to 197**. Next builds: server
+  **0516**, Apple **198**.
 - **10 Nov, audit:** filed as batch issues #269–#280 and bug #281; each issue's first comment holds the detail and a
-  later comment Mark's decisions. Batches A (#269) and I (#277) are pushed. Order after C: #287 (Mark, 10 Nov: its own
-  batch, ahead of B), then B (#270), G (#275), K (#279), H (#276), L (#280), D (#272, with #281), E (#273), J (#278),
-  F (#274).
-- **10 Nov, batch C pushed with CI green (#271; D-56), server 0504 to 0509:**
-  - Every recording is captured segmented and nothing else: the part-based path, its switch and break detection during
-    capture are gone (the server is about 570 lines smaller), and the capture input is built in one place. Recordings
-    the old path left on disk still play, list and delete.
-  - Its tests (failover, guide end, event end, schedule edits, share hangs, ingest-fed recordings) now run on the
-    segmented path.
-  - Fixed on the way: #284 (every provider failing at the start: no pause between tries), #285 (a delete while waiting
-    to continue listed as failed), and the low-disk check that gave up when the share was down.
-  - Opus review: no high. Codex: approve, no findings. T3 on the rig passed (past the guide end, across a restart,
-    failover). Evidence: `docs/evidence/2026-11-10-batch-c/`. CI: 4 min 16 s.
-  - Filed, not fixed: #287 (P1: publishing to the share can freeze the server if the share stalls), #286, #288.
+  later comment Mark's decisions. Batches A (#269), I (#277) and C (#271) are pushed, and #287 after C. Order from
+  here: B (#270), G (#275), K (#279), H (#276), L (#280), D (#272, with #281), E (#273), J (#278), F (#274).
+- **10 Nov, batch C pushed with CI green (#271; D-56), server 0504 to 0509:** every recording is captured segmented and
+  nothing else (the part-based path, its switch and break detection during capture are gone); #284, #285 and the
+  low-disk check fixed on the way. Evidence: `docs/evidence/2026-11-10-batch-c/`.
+- **10 Nov, #287 pushed with CI green, server 0510 to 0515 (closed):**
+  - Publishing a finished recording makes no synchronous call on the share: every share call on that path runs in the
+    share helper with a deadline. A share that stalls mid-publish no longer freezes the server; the recording is
+    published once when the share answers, and a stall is not counted as a failed attempt.
+  - Opus review: one high (two runs finishing one recording) and three mediums, fixed before the commit. Codex: one
+    high and one medium on 0511, one high on 0514, each fixed and signed off (0512, 0513, 0515). CI's red run on 0513
+    was a real ordering fault, fixed in 0514.
+  - T3 on the rig passed: with the share frozen mid-publish the worst API call took 40 ms, a playing channel carried
+    on and another recording started. Evidence: `docs/evidence/2026-11-10-share-publish/`.
+  - Filed, not fixed: #289 (P2: compression, native-playback preparation and the publish copies still wait on the
+    share), #290 (P3: small leftovers after a stall), #286, #288.
 - **Waiting on Mark:**
   - T5 device checks: #271 (one real recording end to end, on a build from 0509), #277 (open Sport once on Apple TV,
     iPad and iPhone, on a build from 197), #246 (stop the container mid-recording), #260, the iPhone and iPad fixes in
@@ -34,7 +36,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   - #240.
 - **Open investigation:** #3 (sound out of step on the iPad): the relay join measured clean; the device meter (#267)
   and the marker (#268) are filed, not built (Mark).
-- **Next:** #287; then batch B (#270); then #262 (iPadOS/iOS 17+, three sites need fallbacks).
+- **Next:** batch B (#270); then G (#275); then #262 (iPadOS/iOS 17+, three sites need fallbacks).
 
 ## Now
 

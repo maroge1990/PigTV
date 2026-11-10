@@ -1,0 +1,19 @@
+== production container before (read only)
+2026-11-10T08:25:39Z
+bfef98543ca4 PigTV Up 5 hours (healthy)
+bfef98543ca4a931bcfc4f531942faa6fa0ae7ad09ea188d86e6122f9fc3a9ea started 2026-11-10T03:35:29.84851813Z image sha256:7d3d9c8a976652a263c0a3654234385afd7835dcc403fedb575bbd4a7ec5b50f
+rig image :latest sha256:29e5f113e8927ae0906aecf10360cc5c441fa05c6624188d9bfaea354883d030 2026-11-04T15:02:24.556960318Z
+01a666f
+
+== cleanup and production after
+--- after
+mount gone
+no pigtv loop
+ls: cannot access '/tmp/pigtv-test-share.img': No such file or directory
+3358540 sleep 240
+/mnt/user/appdata/pigtv-test/staging/recordings -> /app/recordings
+2026-11-10T09:01:36Z
+bfef98543ca4a931bcfc4f531942faa6fa0ae7ad09ea188d86e6122f9fc3a9ea started 2026-11-10T03:35:29.84851813Z image sha256:7d3d9c8a976652a263c0a3654234385afd7835dcc403fedb575bbd4a7ec5b50f
+bfef98543ca4 PigTV Up 5 hours (healthy)
+3366075 bash -c kill 3358540 2>/dev/null; sleep 1; pgrep -af 'sleep 240' || echo no-sleepers; findmnt -t ext4 | grep -i pigtv || echo no-pigtv-mounts
+no-pigtv-mounts

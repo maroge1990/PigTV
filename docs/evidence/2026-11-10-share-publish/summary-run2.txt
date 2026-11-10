@@ -1,0 +1,24 @@
+{
+ "phase": "mid",
+ "play": {
+  "segments": 88,
+  "MB": 19.7,
+  "maxGapMs": 5043,
+  "maxGapFrozenMs": 5035,
+  "playlistMaxMs": 110,
+  "playlistMaxFrozenMs": 23,
+  "errors": []
+ },
+ "worstLatencyMs": {
+  "thawed:health": 106,
+  "thawed:status": 118,
+  "thawed:channels": 118,
+  "thawed:guide": 118,
+  "thawed:recordings": 118,
+  "frozen:health": 18,
+  "frozen:status": 40,
+  "frozen:channels": 39,
+  "frozen:guide": 39,
+  "frozen:recordings": 39
+ }
+}

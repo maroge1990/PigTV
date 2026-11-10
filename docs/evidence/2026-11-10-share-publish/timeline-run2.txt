@@ -1,0 +1,33 @@
+ 08:49:58 server v3.7.0 · build 0515 (rig-3307801)
+ 08:49:58 channels: play "UK| BBC ONE HD" (A), record "UK| ITV1 HD", third "UK| CHANNEL 4 SD"
+ 08:50:03 playback: "UK| BBC ONE HD" transcode
+ 08:50:06 scheduled rec2-hung (#s10) on "UK| ITV1 HD" for 150 s, stops 08:52:36
+ 08:50:06 rec2-hung: undefined
+ 08:50:12 rec2-hung: {"id":9,"status":"recording","segment_state":"capturing","native_status":null,"file_path":"/app/data/recordings-work/rec-9/recording.m3u8","size":null,"started":"08:50:12","ended":null}
+ 08:52:17 B: safety-thaw-armed
+ 08:52:17 B: watcher armed: freezes when the partial appears
+ 08:52:36 B: partial seen: 48 /tmp/pigtv-test-share/UK_ ITV1 HD/T3 287 rec2-hung - 2026-11-10 19-50.mp4.1-fff118d6.partial
+ 08:52:36 B: share FROZEN at 08:52:36 (capture of rec2 ends 08:52:36)
+ 08:52:36 rec2-hung: {"id":9,"status":"recording","segment_state":"finishing","native_status":null,"file_path":"/app/data/recordings-work/rec-9/recording.m3u8","size":null,"started":"08:50:12","ended":"08:52:36"}
+ 08:53:06 scheduled rec3-during-freeze (#s11) on "UK| CHANNEL 4 SD" for 120 s, stops 08:55:06
+ 08:53:07 rec3-during-freeze: undefined
+ 08:53:19 rec3-during-freeze: {"id":10,"status":"recording","segment_state":"capturing","native_status":null,"file_path":"/app/data/recordings-work/rec-10/recording.m3u8","size":null,"started":"08:53:17","ended":null}
+ 08:53:37 B: rec3 #10 capturing to appdata while frozen: 5 segments in its work folder
+ 08:54:48 C: share THAWED after 132 s (thawed)
+ 08:55:02 rec2-hung: {"id":9,"status":"completed","segment_state":"done","native_status":"ready","file_path":"/app/recordings/UK_ ITV1 HD/T3 287 rec2-hung - 2026-11-10 19-50.mp4","size":8635830,"started":"08:50:12","ended":"08:52:36"}
+ 08:55:02 C: rec2 done at 08:55:02 (14.1 s after thaw)
+ 08:55:08 rec3-during-freeze: {"id":10,"status":"recording","segment_state":"finishing","native_status":null,"file_path":"/app/data/recordings-work/rec-10/recording.m3u8","size":null,"started":"08:53:17","ended":"08:55:06"}
+ 08:55:18 rec3-during-freeze: {"id":10,"status":"completed","segment_state":"done","native_status":"ready","file_path":"/app/recordings/UK_ CHANNEL 4 SD/T3 287 rec3-during-freeze - 2026-11-10 19-53.mp4","size":6651618,"started":"08:53:17","ended":"08:55:06"}
+ 08:55:53 share after C:
+ f 0 ./.pigtv-write-test-315-1794299667197
+ f 0 ./.pigtv-write-test-408-1794300792169
+ f 0 ./.pigtv-write-test-50-1794299653426
+ d 4096 ./UK_ CHANNEL 4 SD
+ f 6790144 ./UK_ CHANNEL 4 SD/T3 287 rec3-during-freeze - 2026-11-10 19-34.mp4
+ f 6651618 ./UK_ CHANNEL 4 SD/T3 287 rec3-during-freeze - 2026-11-10 19-53.mp4
+ d 4096 ./UK_ ITV1 HD
+ f 6637380 ./UK_ ITV1 HD/T3 287 rec1-baseline - 2026-11-10 19-29.mp4
+ f 8168100 ./UK_ ITV1 HD/T3 287 rec2-hung - 2026-11-10 19-31.mp4
+ f 8635830 ./UK_ ITV1 HD/T3 287 rec2-hung - 2026-11-10 19-50.mp4
+ d 16384 ./lost+found
+ 08:55:56 SUMMARY {"phase":"mid","play":{"segments":88,"MB":19.7,"maxGapMs":5043,"maxGapFrozenMs":5035,"playlistMaxMs":110,"playlistMaxFrozenMs":23,"errors":[]},"worstLatencyMs":{"thawed:health":106,"thawed:status":118,"thawed:channels":118,"thawed:guide":118,"thawed:recordings":118,"frozen:health":18,"frozen:status":40,"frozen:channels":39,"frozen:guide":39,"frozen:recordings":39}}

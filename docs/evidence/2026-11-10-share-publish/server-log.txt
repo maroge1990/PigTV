@@ -1,0 +1,49 @@
+== server log, runs 1-2 (UTC, docker logs -t)
+08:29:42.186 [Recordings] Schedule #7 "T3 287 rec1-baseline" (UK| ITV1 HD): scheduled -> recording
+08:29:42.192 [Recordings] Starting recording #6 for schedule #7: "T3 287 rec1-baseline" on Fake A (shared ingest) -> segments in appdata (part 1)
+08:31:32.701 [Recordings] Scheduled stop time reached for schedule 7
+08:31:32.714 [Recordings] Schedule #7 "T3 287 rec1-baseline" (UK| ITV1 HD): recording -> completed
+08:31:32.714 [Recordings] Recording #6 captured 28 segments in 111s; making its MP4
+08:31:32.748 [Recordings] Making the MP4 of #6 from 28 segments -> /app/recordings/UK_ ITV1 HD/T3 287 rec1-baseline - 2026-11-10 19-29.mp4
+08:31:42.836 [Recordings] #6 is finished: /app/recordings/UK_ ITV1 HD/T3 287 rec1-baseline - 2026-11-10 19-29.mp4
+08:31:57.190 [Recordings] Schedule #8 "T3 287 rec2-hung" (UK| ITV1 HD): scheduled -> recording
+08:31:57.193 [Recordings] Starting recording #7 for schedule #8: "T3 287 rec2-hung" on Fake A (shared ingest) -> segments in appdata (part 1)
+08:34:13.411 [Recordings] Scheduled stop time reached for schedule 8
+08:34:13.423 [Recordings] Schedule #8 "T3 287 rec2-hung" (UK| ITV1 HD): recording -> completed
+08:34:13.423 [Recordings] Recording #7 captured 35 segments in 136s; making its MP4
+08:34:18.452 [Recordings] Making the MP4 of #7 from 35 segments -> the work folder (the share is not usable now)
+08:34:30.783 [Recordings] #7 is finished but waits in appdata: the recordings folder is not usable
+08:34:32.198 [Recordings] Schedule #9 records into appdata; The recordings folder is not responding: /app/recordings. Is the network share's server up? (the MP4 waits until it is usable)
+08:34:32.238 [Recordings] Schedule #9 "T3 287 rec3-during-freeze" (UK| CHANNEL 4 SD): scheduled -> recording
+08:34:32.243 [Recordings] Starting recording #8 for schedule #9: "T3 287 rec3-during-freeze" on Fake A (shared ingest) -> segments in appdata (part 1)
+08:36:24.293 [Recordings] Scheduled stop time reached for schedule 9
+08:36:24.305 [Recordings] Schedule #9 "T3 287 rec3-during-freeze" (UK| CHANNEL 4 SD): recording -> completed
+08:36:24.305 [Recordings] Recording #8 captured 29 segments in 112s; making its MP4
+08:36:24.333 [Recordings] Making the MP4 of #8 from 29 segments -> /app/recordings/UK_ CHANNEL 4 SD/T3 287 rec3-during-freeze - 2026-11-10 19-34.mp4
+08:36:34.707 [Recordings] #8 is finished: /app/recordings/UK_ CHANNEL 4 SD/T3 287 rec3-during-freeze - 2026-11-10 19-34.mp4
+08:49:42.208 [Recordings] #7 moved to the recordings folder: /app/recordings/UK_ ITV1 HD/T3 287 rec2-hung - 2026-11-10 19-31.mp4
+08:50:12.205 [Recordings] Schedule #10 "T3 287 rec2-hung" (UK| ITV1 HD): scheduled -> recording
+08:50:12.209 [Recordings] Starting recording #9 for schedule #10: "T3 287 rec2-hung" on Fake A (shared ingest) -> segments in appdata (part 1)
+08:52:36.386 [Recordings] Scheduled stop time reached for schedule 10
+08:52:36.397 [Recordings] Schedule #10 "T3 287 rec2-hung" (UK| ITV1 HD): recording -> completed
+08:52:36.397 [Recordings] Recording #9 captured 37 segments in 144s; making its MP4
+08:52:36.435 [Recordings] Making the MP4 of #9 from 37 segments -> /app/recordings/UK_ ITV1 HD/T3 287 rec2-hung - 2026-11-10 19-50.mp4
+08:53:17.171 [Recordings] Schedule #11 records into appdata; The recordings folder is not responding: /app/recordings. Is the network share's server up? (the MP4 waits until it is usable)
+08:53:17.213 [Recordings] Schedule #11 "T3 287 rec3-during-freeze" (UK| CHANNEL 4 SD): scheduled -> recording
+08:53:17.216 [Recordings] Starting recording #10 for schedule #11: "T3 287 rec3-during-freeze" on Fake A (shared ingest) -> segments in appdata (part 1)
+08:55:01.171 [Recordings] #9 is finished: /app/recordings/UK_ ITV1 HD/T3 287 rec2-hung - 2026-11-10 19-50.mp4
+08:55:06.988 [Recordings] Scheduled stop time reached for schedule 11
+08:55:06.997 [Recordings] Schedule #11 "T3 287 rec3-during-freeze" (UK| CHANNEL 4 SD): recording -> completed
+08:55:06.997 [Recordings] Recording #10 captured 28 segments in 110s; making its MP4
+08:55:07.029 [Recordings] Making the MP4 of #10 from 28 segments -> /app/recordings/UK_ CHANNEL 4 SD/T3 287 rec3-during-freeze - 2026-11-10 19-53.mp4
+08:55:17.104 [Recordings] #10 is finished: /app/recordings/UK_ CHANNEL 4 SD/T3 287 rec3-during-freeze - 2026-11-10 19-53.mp4
+
+== server log, run 3 (delete during a stalled publish)
+08:58:00.681 [Recordings] Scheduled stop time reached for schedule 12
+08:58:00.691 [Recordings] Schedule #12 "T3 287 rec4-delete" (UK| ITV1 HD): recording -> completed
+08:58:00.691 [Recordings] Recording #11 captured 20 segments in 78s; making its MP4
+08:58:00.722 [Recordings] Making the MP4 of #11 from 20 segments -> /app/recordings/UK_ ITV1 HD/T3 287 rec4-delete - 2026-11-10 19-56.mp4
+08:58:47.145 [Recordings] The recordings folder is not responding: /app/recordings. Is the network share's server up?
+08:58:51.403 [Recordings] #11: 1 writer(s) did not stop within 30 s (the share may not be answering); the deletion goes on and their files are removed when they end or at the next start
+08:58:51.412 [Recordings] Could not delete the work folder of #11: ENOTEMPTY: directory not empty, rmdir '/app/data/recordings-work/rec-11/e1'
+08:59:31.660 [Recordings] #11: a stopped writer ended; what it made is removed

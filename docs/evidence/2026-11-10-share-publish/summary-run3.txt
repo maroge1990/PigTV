@@ -1,0 +1,24 @@
+{
+ "phase": "delete",
+ "play": {
+  "segments": 67,
+  "MB": 15,
+  "maxGapMs": 5043,
+  "maxGapFrozenMs": 5034,
+  "playlistMaxMs": 12,
+  "playlistMaxFrozenMs": 10,
+  "errors": []
+ },
+ "worstLatencyMs": {
+  "thawed:health": 18,
+  "thawed:status": 27,
+  "thawed:channels": 30,
+  "thawed:guide": 29,
+  "thawed:recordings": 29,
+  "frozen:health": 17,
+  "frozen:status": 20,
+  "frozen:channels": 20,
+  "frozen:guide": 20,
+  "frozen:recordings": 20
+ }
+}
