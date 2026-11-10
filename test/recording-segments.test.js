@@ -1469,6 +1469,32 @@ test('H: a deletion whose share copy cannot be stopped completes after its wait,
 
 const cleanupRows = () => sqlite.getDb().prepare('SELECT path FROM recording_cleanup').all().map(x => x.path);
 
+test('#287: a move whose copy fails leaves neither its partial nor its journal row, before the move returns', async () => {
+    const { rec, mp4 } = finishingRow();
+    const away = `${mount}-away`;
+    fs.renameSync(mount, away);
+    try { await segments.finishOne(rec); } finally { fs.renameSync(away, mount); }
+    assert.equal(recordings.getById(rec.id).segment_state, 'moving');
+    const shareFs = load('services/shareFs');
+    const realStat = shareFs.stat;
+    const realUnlink = shareFs.unlink;
+    // The copy comes out the wrong size; the share is slow to answer the removal of its partial (well past the writer's end).
+    shareFs.stat = async (f, ...r) => (String(f).endsWith('.partial') ? { size: 1, mtimeMs: 0 } : realStat(f, ...r));
+    shareFs.unlink = async (f, ...r) => { if (String(f).endsWith('.partial')) await sleep(1000); return realUnlink(f, ...r); };
+    try {
+        await segments.moveOne(recordings.getById(rec.id));
+    } finally {
+        shareFs.stat = realStat;
+        shareFs.unlink = realUnlink;
+    }
+    const folder = path.dirname(mp4);
+    assert.deepEqual(fs.readdirSync(folder).filter(n => n.startsWith(path.basename(mp4))), [], 'its partial is gone');
+    await sleep(100);
+    assert.deepEqual(cleanupRows().filter(p => p.startsWith(mp4)), [], 'and so is its journal row');
+    assert.equal(recordings.getById(rec.id).segment_state, 'moving', 'it waits for the next move');
+    await engine.deleteRecording(rec.id);
+});
+
 test('P1: a server stopped between publishing an MP4 and recording it leaves nothing the next start does not remove', async () => {
     const { rec, mp4 } = finishingRow();
     const folder = path.dirname(mp4);

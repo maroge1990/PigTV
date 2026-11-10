@@ -472,7 +472,8 @@ async function sizeOn(file) {
 }
 /** Remove a file this job made; one that cannot be removed now stays journalled (the next attempt or the sweep). */
 async function removeMade(file) {
-    try { await ioFor(file).unlink(file); } catch (e) { /* stays listed */ }
+    // An answer (removed, or nothing there) ends its journal row; no answer keeps it listed.
+    try { await ioFor(file).unlink(file); owners.forget(file); } catch (e) { /* stays listed */ }
 }
 
 /** The share's channel folder for this recording ({ dir }), or { dir: null, problem } when the share cannot take it now. */
@@ -854,10 +855,18 @@ async function moveNow(rec) {
             target = await write(rec.id, async (signal, made) => {
                 if (signal.aborted) return null;
                 made(partial);
-                await pipeline(fs.createReadStream(source), fs.createWriteStream(partial, { flags: 'wx' }), { signal });
-                const copied = await ioFor(partial).stat(partial); // #287
-                if (!copied || copied.size !== fs.statSync(source).size) throw new Error('the copy is not the same size');
-                const t = await publishNoReplace(partial, dir, `${name}.mp4`, n => `${name} (${n}).mp4`, rec.id); // F1
+                let t;
+                try {
+                    await pipeline(fs.createReadStream(source), fs.createWriteStream(partial, { flags: 'wx' }), { signal });
+                    const copied = await ioFor(partial).stat(partial); // #287
+                    if (!copied || copied.size !== fs.statSync(source).size) throw new Error('the copy is not the same size');
+                    t = await publishNoReplace(partial, dir, `${name}.mp4`, n => `${name} (${n}).mp4`, rec.id); // F1
+                } catch (err) {
+                    // Removed while this is still its writer (#287: the call is awaited now), so a deletion waiting
+                    // for it returns only once the partial is gone (0264).
+                    if (!err.keepPartial && !unresponsive(err)) await removeMade(partial);
+                    throw err;
+                }
                 if (!owned(rec.id)) {
                     try { await owners.withdrawBounded(t, rec.id, 'MP4', ioFor(t)); } finally { owners.release(t); }
                     return null;
@@ -866,7 +875,6 @@ async function moveNow(rec) {
             });
             if (!target) return;
         } catch (err) {
-            if (!err.keepPartial && !unresponsive(err)) await removeMade(partial);
             console.warn(`[Recordings] #${rec.id} could not move to the recordings folder yet: ${err.message}`);
             return;
         }
