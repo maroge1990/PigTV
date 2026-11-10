@@ -13,7 +13,7 @@ button at the end of a category's row (saved at once) = `PUT /api/library/catego
 `sport`. No sync writes the table; a change bumps `library_rev`. Since 0148 it is **one signal** of sport recognition (below),
 not a row of its own (C-I replaces the C-H Home row).
 
-**Sport events** (0148, C-I, `sportsEvents.js`, `routes/sports.js`, table `sports_follow`): per programme, sport = (a) a category
+**Sport events** (0148, C-I, `sportsEvents.js`, `routes/sports.js`): per programme, sport = (a) a category
 in the vocabulary, (b) a followed keyword in the title/categories or a match-up of two distinct teams in a followed
 league's stored ESPN roster (0295: exact informative full names, nicknames or stored abbreviations; no city-only
 or subset inference; unique teams and league across every stored roster, followed or not, and the league followed, 0335; not

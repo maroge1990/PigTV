@@ -15,7 +15,7 @@ before(async()=>{
     first=await db.users.create({username:'first',role:'viewer'});
     const second=await db.users.create({username:'second',role:'viewer'});
     one=auth.generateToken(first);two=auth.generateToken(second);
-    load('db/sqlite').getDb().prepare('INSERT INTO sports_follow (position,keyword) VALUES(0,?)').run('NFL');
+    load('services/sportPagePrefs').setFollows(first.id,{sports:[{sport:'American football',leagues:['NFL']}]});
     load('services/sportsEvents').eventsFor=async()=>{throw new Error('H1: reference eventsFor must not run on the serving loop');};
     dashboard.buildDashboard=()=>{throw new Error('H1: projection must run on its worker');};
     load('services/sportsEvents').eventsResponse=async()=>({body:Buffer.from(JSON.stringify({events:[{id:'real-join',league:'NFL',title:'Chiefs v Bills',kind:'event',start:now-3600000,end:now+3600000,live:true,channels:[{sourceId:1,id:'pos_7',stableId:'stable7',name:'Sports HD',quality:'HD',providerPassword:'must-not-project'}]}]}))});

@@ -9,13 +9,13 @@ fs.copyFileSync(path.join(__dirname,'../package.json'),path.join(sandbox,'packag
 fs.symlinkSync(path.resolve(__dirname,'../node_modules'),path.join(sandbox,'node_modules'),'junction');
 process.env.PIGTV_DB_BACKUPS='0';
 const load=p=>require(path.join(sandbox,'server',p));
-const fixtures=load('services/sportsFixtures'),policy=load('services/espnRequestPolicy');
+const fixtures=load('services/sportsFixtures'),policy=load('services/espnRequestPolicy'),prefs=load('services/sportPagePrefs');
 const dashboard=load('services/sportsDashboard'),{createStore}=load('services/sportsDashboardStore');
 const db=load('db/sqlite').getDb(),memory=[];
 const H=3600000,NOW=Date.parse('2026-10-29T01:00Z');
 afterEach(()=>{fixtures.stopBackgroundRefresh();policy.reset();});
 after(()=>{fixtures.stopBackgroundRefresh();db.close();memory.forEach(d=>d.close());fs.rmSync(sandbox,{recursive:true,force:true});});
-function follows(){db.prepare('DELETE FROM sports_follow').run();db.prepare('DELETE FROM sport_fixture_status').run();for(const [i,name] of ['NFL','NBA','MLB'].entries())db.prepare('INSERT INTO sports_follow(position,keyword) VALUES(?,?)').run(i,name);}
+function follows(){db.prepare('DELETE FROM sport_fixture_status').run();prefs.setFollows(1,{sports:[{sport:'American football',leagues:['NFL']},{sport:'Basketball',leagues:['NBA']},{sport:'Baseball',leagues:['MLB']}]},db);}
 function fixtureFetch(calls){let failed=false;return async url=>{calls.push(String(url));if(!failed){failed=true;return {ok:false,status:503,headers:{get:()=>null}};}return {ok:true,status:200,headers:{get:()=>null},json:async()=>({events:[],sports:[]})};};}
 
 test('N1: dashboard off preserves legacy sequential fixture refresh after the first league gets a 503',async()=>{

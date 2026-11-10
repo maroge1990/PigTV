@@ -252,7 +252,7 @@ work is in `docs/architecture/sports.md` › Recognition; the shape the client r
     fixture span. Wholly overnight blocks are replays. Response shapes are unchanged.
   - Since 0221 (R9) an event can also come from an event slot's own **name** ("NHL: Pittsburgh vs Philadelphia @ Sep 30
     7:30 PM :Sportsnet+ 12") where the slot's guide shows nothing real; same shape, nothing for the client to change.
-- Admin (web only): `GET /api/sports/follow` (`{keywords, leagues}`; since 0394 the leagues any account follows, read-only, and `PUT` is 410: the keyword list is retired, D-42), `GET /api/sports/preview` (72 h, every kind, with
+- Admin (web only): `GET /api/sports/follow` (`{keywords, leagues}`; since 0394 the leagues any account follows, read-only: the keyword list is retired, D-42), `GET /api/sports/preview` (72 h, every kind, with
   the rule and `kindRule`), `GET /api/sports/categories`.
 - Apple: a Sport tab (On now, Starting soon, Later today, Tomorrow, one section per later weekday, Replays) with league
   chips; select plays the best channel, a secondary action picks another; upcoming events open an event page (Watch when it

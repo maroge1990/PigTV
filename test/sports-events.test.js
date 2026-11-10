@@ -11,7 +11,7 @@ const express = require('express');
 // channel with a live-looking title - minus common non-events unless a keyword matches.
 // Programmes with the same normalised title at overlapping times are one event; channels
 // are ordered by quality, health, favourite, guide order. GET /api/sports/events (any user),
-// GET/PUT /api/sports/follow and GET /api/sports/preview (admin), flag sportsEvents.
+// GET /api/sports/follow and GET /api/sports/preview (admin), flag sportsEvents.
 // The old code has none of it (no flag, and every route is a 404).
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-sports-'));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
@@ -114,8 +114,14 @@ const events = async (query = '', token = adminToken) => {
 const titles = (body) => body.events.map(e => e.title);
 // 0150: an event's title is its cleanest form ("Chiefs v Bills"); the raw titles are its aliases.
 const find = (body, prefix) => body.events.filter(e => [e.title, ...(e.aliases || [])].some(t => t.startsWith(prefix)));
-// D-42 (#195): the admin keyword list is retired; tests still set it directly (it stands for the followed leagues).
-const follow = async (keywords) => ({ status: 200, body: { keywords: load('services/sportsEvents').setFollow(keywords) } });
+// D-42 (#195): the leagues an account follows decide what is sport. `follow(['F1', 'NFL'])` makes the owner follow
+// those leagues (each under its own sport); `follow([])` unfollows everything.
+const SPORT_OF = { F1: 'Motorsport', NFL: 'American football', AFL: 'Australian football' };
+const follow = async (leagues) => {
+    const sports = [...new Set(leagues.map(l => SPORT_OF[l]))].map(sport => ({ sport, leagues: leagues.filter(l => SPORT_OF[l] === sport) }));
+    load('services/sportPagePrefs').setFollows(adminUser.id, { sports });
+    return { status: 200 };
+};
 
 before(async () => {
     const admin = adminUser = await db.users.create({ username: 'owner', role: 'admin' });
@@ -349,7 +355,7 @@ test('non-events are excluded; hidden channels and categories never count', asyn
     assert.equal(find(body, 'F1').length, 0, 'no category and not followed yet');
 });
 
-test('(b) a followed keyword makes a programme sport and names the league; highlights stay a show', async () => {
+test('(b) a followed league makes a programme sport and names the league; highlights stay a show', async () => {
     assert.equal((await follow(['F1', 'NFL'])).status, 200);
     try {
         const body = await events('?hours=24');
@@ -451,8 +457,8 @@ test('0185: a followed team ("NFL: Arizona Cardinals") follows its games by full
         { displayName: 'New York Jets', shortDisplayName: 'Jets', name: 'Jets', location: 'New York', abbreviation: 'NYJ' }
     ];
     sqlite.getDb().prepare('INSERT OR REPLACE INTO sport_fixture_teams (league, data, updated_at) VALUES (?, ?, ?)').run('NFL', JSON.stringify(roster), Date.now());
-    const follow = ev.compileFollow(['NFL: Arizona Cardinals', 'nfl: New York Jets']);
-    const hit = (title, categories = []) => ev.classify({ title, categories }, follow);
+    const compiled = ev.compileFollow(['NFL: Arizona Cardinals', 'nfl: New York Jets']);
+    const hit = (title, categories = []) => ev.classify({ title, categories }, compiled);
     assert.deepEqual(hit('Arizona Cardinals at Seattle Seahawks'), { rule: 'keyword', match: 'NFL: Arizona Cardinals', league: 'NFL' }, 'the full name needs no league');
     assert.equal(hit('NFL: Cardinals @ Seahawks').match, 'NFL: Arizona Cardinals', 'the nickname, in an NFL programme');
     assert.equal(hit('Arizona at Seattle', ['NFL']).match, 'NFL: Arizona Cardinals', 'the place, when one team has it');
@@ -464,25 +470,19 @@ test('0185: a followed team ("NFL: Arizona Cardinals") follows its games by full
     // With no roster yet, the name as written still works.
     const bare = ev.compileFollow(['EPL: Arsenal']);
     assert.equal(ev.classify({ title: 'Premier League: Arsenal v Leeds United', categories: [] }, bare).league, 'EPL');
-    // The team's league gets its fixtures fetched, and the team list is served to the admin.
-    ev.setFollow(['NFL: Arizona Cardinals']);
+    // The followed team's league gets its fixtures fetched.
+    await follow(['NFL']);
     assert.deepEqual([...load('services/sportsFixtures').neededLeagues()], ['NFL']);
-    const teams = await call('GET', '/api/sports/teams?league=nfl');
-    assert.deepEqual(teams.body, { league: 'NFL', teams: ['Arizona Cardinals', 'New York Giants', 'New York Jets', 'Seattle Seahawks'] });
-    assert.equal((await call('GET', '/api/sports/teams?league=Quidditch')).status, 400);
-    assert.equal((await call('GET', '/api/sports/teams?league=NFL', { token: viewerToken })).status, 403);
-    ev.setFollow([]);
+    await follow([]);
     sqlite.getDb().prepare('DELETE FROM sport_fixture_teams').run();
 });
 
-test('D-42 (#195): the follow list is retired: read-only for the admin, PUT is 410, the followed leagues count', async () => {
-    await follow(['NFL', 'Chiefs']);
+test('D-42 (#195): the follow list is retired: read-only for the admin, the followed leagues count', async () => {
+    await follow(['NFL']);
     const read = (await call('GET', '/api/sports/follow')).body;
-    assert.deepEqual(read.keywords, ['NFL', 'Chiefs']);
+    assert.deepEqual(read.keywords, ['NFL']);
     assert.deepEqual(read.leagues.find(l => l.name === 'EPL'), { name: 'EPL', fixtures: true, teams: true });
-    assert.equal((await call('PUT', '/api/sports/follow', { body: { keywords: ['F1'] } })).status, 410);
     assert.equal((await call('GET', '/api/sports/follow', { token: viewerToken })).status, 403);
-    assert.equal((await call('PUT', '/api/sports/follow', { token: viewerToken, body: { keywords: [] } })).status, 403);
     // An account following a league makes it count, without any keyword (D-42).
     await follow([]);
     const prefs = load('services/sportPagePrefs');
@@ -492,7 +492,9 @@ test('D-42 (#195): the follow list is retired: read-only for the admin, PUT is 4
     assert.deepEqual(load('services/sportsEvents').getFollow(), [], 'an unfollowed league stops counting');
     // Once at start: the owner takes the old list over and it is emptied.
     const d = sqlite.getDb();
-    await follow(['AFL', 'NFL: Green Bay Packers']);
+    d.prepare('DELETE FROM sports_follow').run();
+    const old = d.prepare('INSERT INTO sports_follow (position, keyword) VALUES (?, ?)');
+    old.run(0, 'AFL'); old.run(1, 'NFL: Green Bay Packers');
     d.prepare("DELETE FROM meta WHERE key IN ('sport_page_prefs', 'sports_follow_retired')").run();
     d.prepare('DELETE FROM sport_follows').run();
     assert.equal(prefs.retireKeywordList(), true);
@@ -502,6 +504,29 @@ test('D-42 (#195): the follow list is retired: read-only for the admin, PUT is 4
         [['Australian football', ['AFL'], []], ['American football', ['NFL'], ['Green Bay Packers']]]);
     assert.deepEqual(load('services/sportsEvents').getFollow(), ['AFL', 'NFL']);
     prefs.setFollows(adminUser.id, { sports: [] });
+});
+
+test('#270: rows left in sports_follow count for nothing; only the leagues accounts follow do', async () => {
+    const d = sqlite.getDb();
+    const ev = load('services/sportsEvents');
+    const prefs = load('services/sportPagePrefs');
+    prefs.setFollows(adminUser.id, { sports: [] });
+    d.prepare('DELETE FROM sports_follow').run();
+    const old = d.prepare('INSERT INTO sports_follow (position, keyword) VALUES (?, ?)');
+    old.run(0, 'NFL'); old.run(1, 'F1'); old.run(2, 'NFL: Green Bay Packers');
+    try {
+        ev.followsChanged();
+        assert.deepEqual(ev.getFollow(), [], 'an un-retired keyword row is not a follow');
+        assert.deepEqual([...load('services/sportsFixtures').neededLeagues()], [], 'and fetches no fixtures');
+        assert.deepEqual((await call('GET', '/api/sports/follow')).body.keywords, []);
+        prefs.setFollows(adminUser.id, { sports: [{ sport: 'Basketball', leagues: ['NBA'] }] });
+        assert.deepEqual(ev.getFollow(), ['NBA']);
+        assert.deepEqual((await call('GET', '/api/sports/follow')).body.keywords, ['NBA'], 'the account follows only');
+        assert.deepEqual([...load('services/sportsFixtures').neededLeagues()], ['NBA']);
+    } finally {
+        d.prepare('DELETE FROM sports_follow').run();
+        prefs.setFollows(adminUser.id, { sports: [] });
+    }
 });
 
 test('the preview is admin only and says which rule matched', async () => {
@@ -541,10 +566,9 @@ test('the list is built once per 5 minutes (0153; a minute before) and guide ver
     await call('GET', '/api/sports/events?hours=24');
     await call('GET', '/api/sports/events', { token: viewerToken });
     assert.equal(svc.stats.builds, builds, 'served from the cache');
-    await follow(['Chiefs']);
+    svc.followsChanged();
     await call('GET', '/api/sports/events');
     assert.equal(svc.stats.builds, builds + 1, 'a new follow list rebuilds it');
-    await follow([]);
 });
 
 test('normalisation: case, live, channel tags, quality markers, punctuation and vs', () => {

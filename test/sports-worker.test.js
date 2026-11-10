@@ -98,7 +98,7 @@ test('a background rebuild of a warm 1,000-channel cache never blocks the event 
     let stall = Infinity; // best of three, as above
     for (let attempt = 0; attempt < 3 && !(stall < MAX_STALL_MS); attempt++) {
         stall = Math.min(stall, await worstStall(async () => {
-            svc.setFollow(attempt % 2 ? [] : ['Zzyzx Open']); // the key changes: a rebuild starts
+            svc.followsChanged(); // the key changes: a rebuild starts
             await svc.idle();
         }));
     }
@@ -124,7 +124,7 @@ test('the worker\'s events are the ones an inline build gives', async () => {
 });
 
 test('a stale cache is served at once while the rebuild runs, then the fresh result is served', async () => {
-    // The requests ask for NOW while setFollow rebuilds for Date.now(): a 5-minute build bucket ending
+    // The requests ask for NOW while followsChanged rebuilds for Date.now(): a 5-minute build bucket ending
     // between this file's start and here made those two keys and so two builds (revision +2, seen
     // in a full run, 25 Oct). The clock is held at NOW, so both ask for one key.
     const realNow = Date.now;
@@ -134,7 +134,7 @@ test('a stale cache is served at once while the rebuild runs, then the fresh res
         const before = await svc.eventsFor({ hours: 72, now: NOW });
         const { revision, builds } = svc.stats;
 
-        svc.setFollow(['Zzyzx Open']); // stale: the follow list is part of the key
+        svc.followsChanged(); // stale: the follow list is part of the key
         const t0 = performance.now();
         const during = await svc.eventsFor({ hours: 72, now: NOW });
         const waited = performance.now() - t0;
@@ -153,7 +153,7 @@ test('a stale cache is served at once while the rebuild runs, then the fresh res
         const after = await svc.eventsFor({ hours: 72, now: NOW });
         assert.ok(after.events.length > 0);
         assert.equal(svc.stats.revision, revision + 1, 'no further build');
-        svc.setFollow([]);
+        svc.followsChanged();
         await svc.idle();
     } finally {
         Date.now = realNow;
@@ -258,13 +258,13 @@ test('a second request in the same minute is the cached buffer; the minute rolli
     } finally { clearFavourites('amy'); }
 
     const revision = svc.stats.revision;
-    svc.setFollow(['Zzyzx Open']);
+    svc.followsChanged();
     await svc.idle();
     assert.ok(svc.stats.revision > revision, 'rebuilt (more than once if the request is in a later 5-minute bucket than the clock)');
     const rebuilt = await svc.eventsResponse({ hours: 72, userId: 'amy', now: MINUTE + MIN });
     assert.equal(rebuilt.cached, false, 'a new build');
     assert.notEqual(rebuilt.etag, next.etag);
-    svc.setFollow([]);
+    svc.followsChanged();
     await svc.idle();
 });
 

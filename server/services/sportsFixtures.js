@@ -113,17 +113,10 @@ function enabled() {
 
 // ---- which leagues matter right now -------------------------------------------------------
 
-/** The follow list's own canonical leagues (sportsClassify.canonicalLeague of each keyword), and the household's sports. */
+/** The leagues followed on the Sport front page, by any account (#193, D-41). */
 function followedLeagues(db) {
-    const rows = db.prepare('SELECT keyword FROM sports_follow').all();
     const out = new Set();
-    for (const r of rows) {
-        // a league by name, or the league of a followed team ("NFL: Arizona Cardinals", 0185)
-        const l = sportsClassify.canonicalLeague(r.keyword) || sportsClassify.teamFollow(r.keyword)?.league;
-        if (l) out.add(l);
-    }
-    // 0381 (D-39): and the leagues followed on the Sport front page, by any account since 0391 (#193, D-41).
-    try { for (const l of require('./sportPagePrefs').allLeagues(db)) out.add(l); } catch { /* the follow list alone */ }
+    try { for (const l of require('./sportPagePrefs').allLeagues(db)) out.add(l); } catch { /* none */ }
     return out;
 }
 

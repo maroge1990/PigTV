@@ -151,17 +151,13 @@ test('discoverCricketSeries: today\'s active series and their league ids, from t
 
 // ---- sportsFixtures.js: fetching only what matters, storage, failures, the kill switch -------
 
-function setFollow(...keywords) {
-    const d = sqlite.getDb();
-    d.prepare('DELETE FROM sports_follow').run();
-    // 0381: the household's followed sports also count (sportPagePrefs, migrated once from this list); start each from none.
-    d.prepare("DELETE FROM meta WHERE key = 'sport_page_prefs'").run();
-    const ins = d.prepare('INSERT INTO sports_follow (position, keyword) VALUES (?, ?)');
-    keywords.forEach((k, i) => ins.run(i, k));
+// What accounts follow decides the leagues (D-42): one account, its sports and their leagues. No arguments: none.
+function setFollow(...sports) {
+    load('services/sportPagePrefs').setFollows(1, { sports });
 }
 
-test('neededLeagues: only the follow list\'s own leagues that have a feed (ESPN, or #196 their own: AFLW) - never an unfollowed one', () => {
-    setFollow('NFL', 'AFLW', 'Chiefs', 'Cricket', 'VFLW');
+test('neededLeagues: only the followed leagues that have a feed (ESPN, or #196 their own: AFLW) - never an unfollowed one', () => {
+    setFollow({ sport: 'American football', leagues: ['NFL'] }, { sport: 'Australian football', leagues: ['AFLW'] }, { sport: 'Cricket', leagues: ['Cricket'] });
     assert.deepEqual([...fixtures.neededLeagues()].sort(), ['AFLW', 'Cricket', 'NFL']);
     setFollow();
     assert.deepEqual([...fixtures.neededLeagues()], []);

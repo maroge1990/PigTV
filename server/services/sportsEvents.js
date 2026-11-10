@@ -66,8 +66,6 @@ const WINDOW_MS = REACH_HOURS * HOUR_MS + BUILD_EVERY_MS;
 const LOOKBACK_MS = 36 * HOUR_MS;
 const DEFAULT_HOURS = 6;
 const MAX_HOURS = 72; // 0153 (was 24); the default stays 6 for older clients
-const MAX_KEYWORDS = 100;
-const MAX_KEYWORD_LENGTH = 60;
 
 // ---- matching ----------------------------------------------------------------
 
@@ -317,16 +315,13 @@ let followVersion = 0;
 
 /**
  * D-42 (#195): what decides which guide programmes are sport is the leagues any account follows (sportPagePrefs), not
- * an admin keyword list. `sports_follow` is read only until the owner's first read takes it over and empties it
- * (sportPagePrefs.fromHousehold); tests still fill it through setFollow.
+ * an admin keyword list. Returns those leagues, sorted.
  */
 function getFollow() {
     if (!followCache) {
-        const stored = getDb().prepare('SELECT keyword FROM sports_follow ORDER BY position').all().map(r => r.keyword);
         let leagues = [];
         try { leagues = [...require('./sportPagePrefs').allLeagues()].sort(); } catch { leagues = []; }
-        const named = new Set(stored.map(k => sportsClassify.canonicalLeague(k)).filter(Boolean));
-        followCache = [...stored, ...leagues.filter(l => !named.has(l))];
+        followCache = leagues;
     }
     return followCache;
 }
@@ -336,44 +331,6 @@ function followsChanged() {
     followCache = null;
     followVersion++;
     scheduleRebuild();
-}
-
-/**
- * Validate an admin's list: strings, trimmed (inner whitespace collapsed),
- * empties dropped, de-duplicated case-insensitively (first spelling kept).
- * -> { keywords } or { error }.
- */
-function cleanFollow(keywords) {
-    if (!Array.isArray(keywords)) return { error: 'keywords must be a list' };
-    const out = [];
-    const seen = new Set();
-    for (const k of keywords) {
-        if (typeof k !== 'string') return { error: 'every keyword must be text' };
-        const text = k.replace(/\s+/g, ' ').trim();
-        if (!text) continue;
-        if (text.length > MAX_KEYWORD_LENGTH) return { error: `a keyword is at most ${MAX_KEYWORD_LENGTH} characters` };
-        if (seen.has(text.toLowerCase())) continue;
-        seen.add(text.toLowerCase());
-        out.push(text);
-    }
-    if (out.length > MAX_KEYWORDS) return { error: `at most ${MAX_KEYWORDS} keywords` };
-    return { keywords: out };
-}
-
-/** Replace the list (already cleaned). */
-function setFollow(keywords) {
-    const db = getDb();
-    const insert = db.prepare('INSERT INTO sports_follow (position, keyword) VALUES (?, ?)');
-    db.transaction(() => {
-        db.prepare('DELETE FROM sports_follow').run();
-        keywords.forEach((k, i) => insert.run(i, k));
-    })();
-    followCache = null;
-    followVersion++;
-    // 0159: rebuild in the background (R09: on the worker) rather than leaving it for the
-    // next request to wait on (see cachedEvents() below).
-    scheduleRebuild();
-    return getFollow();
 }
 
 // ---- building the events --------------------------------------------------------
@@ -1202,13 +1159,13 @@ module.exports = {
     classify, compileFollow, followedKeyword, normaliseTitle, qualityFromName: qualityLabel, leagueFromCategories,
     // R5: recording rules match events the way the follow list does, and find a series' channel
     visibleChannels,
-    getFollow, setFollow, cleanFollow, followsChanged, eventsFor, leagueEvents, endedEvents, buildEvents, clampHours, stats, eventsResponse,
+    getFollow, followsChanged, eventsFor, leagueEvents, endedEvents, buildEvents, clampHours, stats, eventsResponse,
     // for tests: what the response cache holds, and an empty one
     responseCacheSize: () => ({ entries: responses.size, bytes: responseBytes }),
     clearResponses: () => { responses.clear(); responseBytes = 0; },
     // 0150
     eventsFromProgrammes,
-    DEFAULT_HOURS, MAX_HOURS, REACH_HOURS, MAX_KEYWORDS,
+    DEFAULT_HOURS, MAX_HOURS, REACH_HOURS,
     reset,
     // 0159: builds run in the background instead of blocking a request
     scheduleRebuild, startBackgroundRebuilds, stopBackgroundRebuilds,

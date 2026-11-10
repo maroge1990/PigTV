@@ -430,9 +430,8 @@ function initSchema() {
         );
     `);
 
-    // Sport follow list (0148, contract C-I): the admin's keywords ("NFL", "F1",
-    // "Chiefs"), in the admin's order (the first that matches names the league).
-    // Only services/sportsEvents.js writes it; no sync touches it.
+    // The retired admin Sports keyword list (D-42). Nothing writes it; start-up empties it
+    // (sportPagePrefs.retireKeywordList) after handing it to the account follows.
     db.exec(`
         CREATE TABLE IF NOT EXISTS sports_follow (
             position INTEGER PRIMARY KEY,

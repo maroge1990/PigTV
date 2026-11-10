@@ -41,16 +41,16 @@ test('a request during a background rebuild is served the previous result, not a
     const first = await sportsEvents.eventsFor({ hours: 72, now });
     const builds = sportsEvents.stats.builds;
 
-    // Exactly what setFollow() does: bumps the cache key and starts a background
+    // Exactly what followsChanged() does: bumps the cache key and starts a background
     // rebuild - on the worker, so it cannot have been published yet.
-    sportsEvents.setFollow(['Chiefs']);
+    sportsEvents.followsChanged();
     const duringRebuild = await sportsEvents.eventsFor({ hours: 72, now });
 
     assert.deepEqual(duringRebuild, first, 'the previous result, not a fresh (blocking) build');
     assert.equal(sportsEvents.stats.builds, builds, 'no synchronous rebuild for this request');
 
     await settle();
-    sportsEvents.setFollow([]); // cleanup
+    sportsEvents.followsChanged(); // cleanup
     await settle();
 });
 
@@ -60,14 +60,14 @@ test('once the background rebuild finishes, the next request sees the fresh resu
     await sportsEvents.eventsFor({ hours: 72, now });
     const builds = sportsEvents.stats.builds;
 
-    sportsEvents.setFollow(['Chiefs']);
+    sportsEvents.followsChanged();
     await settle();
     assert.equal(sportsEvents.stats.builds, builds + 1, 'the background build ran exactly once');
 
     await sportsEvents.eventsFor({ hours: 72, now });
     assert.equal(sportsEvents.stats.builds, builds + 1, 'the request found it already fresh; no second build');
 
-    sportsEvents.setFollow([]);
+    sportsEvents.followsChanged();
     await settle();
 });
 
@@ -117,14 +117,14 @@ test('startBackgroundRebuilds/stopBackgroundRebuilds: the timer can be armed and
 test('reset() still clears everything, including any in-flight background rebuild marker', async () => {
     sportsEvents.reset();
     await sportsEvents.eventsFor({ hours: 72 });
-    sportsEvents.setFollow(['Chiefs']);
+    sportsEvents.followsChanged();
     sportsEvents.reset(); // right on top of the still-in-flight rebuild above
     const builds = sportsEvents.stats.builds;
     await sportsEvents.eventsFor({ hours: 72 }); // nothing cached after reset(): waits for a build
     assert.equal(sportsEvents.stats.builds, builds + 1, 'the orphaned rebuild did not publish into the fresh state');
 
-    await settle(); // let the earlier, now-orphaned 'Chiefs' rebuild land and get out of the way
-    sportsEvents.setFollow([]);
+    await settle(); // let the earlier, now-orphaned rebuild land and get out of the way
+    sportsEvents.followsChanged();
     await settle();
 });
 
@@ -132,12 +132,12 @@ test('many triggers while a build runs coalesce: one running, the latest key wai
     sportsEvents.reset();
     await sportsEvents.eventsFor({ hours: 72 });
     const builds = sportsEvents.stats.builds;
-    sportsEvents.setFollow(['A']);
-    sportsEvents.setFollow(['A', 'B']);
-    sportsEvents.setFollow(['A', 'B', 'C']);
-    sportsEvents.setFollow(['A', 'B', 'C', 'D']);
+    sportsEvents.followsChanged();
+    sportsEvents.followsChanged();
+    sportsEvents.followsChanged();
+    sportsEvents.followsChanged();
     await sportsEvents.idle();
     assert.equal(sportsEvents.stats.builds, builds + 2, 'the first (already running) and the latest only');
-    sportsEvents.setFollow([]);
+    sportsEvents.followsChanged();
     await sportsEvents.idle();
 });

@@ -10,7 +10,6 @@
  *          rest; channels best first
  *          Answered from a per-minute cache with an ETag (If-None-Match -> 304); `now` is the minute's start
  *   GET /api/sports/follow           (admin; 0148) -> { keywords, leagues }: since D-42 (0394) the leagues accounts follow, read-only
- *   PUT /api/sports/follow           (admin) -> 410 since 0394: the keyword list is retired (D-42)
  *   GET /api/sports/preview          (admin; 0148)
  *       -> { now, events } for the next 72 hours (0153), every kind, each also with `rule`
  *          ("keyword" | "category" | "sportChannel"), `match` (what matched) and
@@ -354,29 +353,6 @@ router.get('/follow', requireAdmin, (req, res) => {
     } catch (err) {
         console.error('[Sports] follow list failed:', err.message);
         res.status(500).json({ error: 'Could not read the follow list' });
-    }
-});
-
-// D-42 (#195): the admin keyword list is retired; the leagues accounts follow decide what is sport.
-router.put('/follow', requireAdmin, (req, res) => {
-    res.status(410).json({ error: 'The Sports follow list is retired: each account follows its own sports and leagues' });
-});
-
-/**
- * GET /api/sports/teams?league=NFL   (admin; 0185) -> { league, teams: ['Arizona Cardinals', ...] }
- * The teams of a league, for the Sports tab's team list. A team is followed as the keyword
- * "<league>: <team>".
- */
-router.get('/teams', requireAdmin, async (req, res) => {
-    try {
-        const league = require('../services/sportsClassify').canonicalLeague(req.query.league);
-        if (!league) return res.status(400).json({ error: 'league must be one the server knows (see GET /api/sports/follow)' });
-        const roster = await require('../services/sportsFixtures').rosterFor(league);
-        const teams = [...new Set(roster.map(t => t.displayName).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-        res.json({ league, teams });
-    } catch (err) {
-        console.error('[Sports] teams failed:', err.message);
-        res.status(500).json({ error: 'Could not list the teams' });
     }
 });
 

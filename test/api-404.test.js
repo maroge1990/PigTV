@@ -178,7 +178,9 @@ const REMOVED_ROUTES = [
     ['GET', '/api/favorites'], ['GET', '/api/favorites/check?sourceId=1&itemId=x'],
     ['GET', '/api/sources/type/m3u'], ['GET', '/api/sources/1/estimate'], ['POST', '/api/sources/sync-all'],
     ['DELETE', '/api/settings'], ['GET', '/api/settings/defaults'],
-    ['GET', '/api/transcode/sessions'], ['DELETE', '/api/recordings/1/markers']
+    ['GET', '/api/transcode/sessions'], ['DELETE', '/api/recordings/1/markers'],
+    // the retired admin Sports keyword list and its team picker
+    ['PUT', '/api/sports/follow'], ['GET', '/api/sports/teams?league=NFL']
 ];
 
 test('the removed fork routes answer the generic 404, even with a token (0122)', async () => {
