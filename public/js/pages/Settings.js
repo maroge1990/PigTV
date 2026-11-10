@@ -1128,7 +1128,6 @@ class SettingsPage {
                             ${typeBadge}
                         </div>
                     </td>
-                    <td>${user.email ? e(user.email) : '<span class="hint">-</span>'}</td>
                     <td>${roleBadge}</td>
                     <td>${user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</td>
                     <td>
@@ -1177,15 +1176,13 @@ class SettingsPage {
         try {
             const editId = document.getElementById('edit-user-id');
             const editUsername = document.getElementById('edit-username');
-            const editEmail = document.getElementById('edit-email');
             const editRole = document.getElementById('edit-role');
             const editPassword = document.getElementById('edit-password');
 
-            console.log('Form elements found:', { editId, editUsername, editEmail, editRole, editPassword });
+            console.log('Form elements found:', { editId, editUsername, editRole, editPassword });
 
             if (editId) editId.value = user.id;
             if (editUsername) editUsername.value = user.username;
-            if (editEmail) editEmail.value = user.email || '';
             if (editRole) editRole.value = user.role;
             if (editPassword) editPassword.value = '';
 

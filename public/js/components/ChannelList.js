@@ -761,11 +761,6 @@ class ChannelList {
         }
     }
 
-    /** Kept for callers from before 0121: every load is now a full one. */
-    async loadAllChannels() {
-        return this.loadChannels();
-    }
-
     /**
      * Load favorites (one row per channel, from /api/library/favourites)
      */

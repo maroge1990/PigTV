@@ -163,15 +163,6 @@ class EpgGuide {
         document.addEventListener?.('visibilitychange', this._onVisibility);
     }
 
-    stopBackgroundRefresh() {
-        if (this._backgroundRefreshTimer) {
-            clearInterval(this._backgroundRefreshTimer);
-            this._backgroundRefreshTimer = null;
-        }
-        if (this._onVisibility) document.removeEventListener?.('visibilitychange', this._onVisibility);
-        this._onVisibility = null;
-    }
-
     /** Whether guide data is on screen now (a hidden tab or another page needs none). */
     guideOnScreen() {
         if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') return false;
@@ -211,16 +202,8 @@ class EpgGuide {
         const published = await this.fetchEpgData();
         if (published) {
             this.loadedVersion = version;
-            this.lastRefreshTime = new Date();
         }
         return published;
-    }
-
-    /**
-     * Get last refresh time for display
-     */
-    getLastRefreshTime() {
-        return this.lastRefreshTime || null;
     }
 
     /**

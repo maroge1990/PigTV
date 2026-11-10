@@ -240,7 +240,6 @@ class SportsPage {
             this.recordings=Array.isArray(rows)?rows:[]; this.render();
         });
     }
-    async refreshRecordings() { await this.app.recordingsFeed?.refresh(); }
     changeLeague(league) {
         this.closeDialog(); this.state.league=league; this.orders.clear(); this.cards.clear(); this.shelves.clear();
         this.root.querySelector('.sports-shelves').replaceChildren();

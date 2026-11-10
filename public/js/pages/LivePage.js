@@ -8,25 +8,6 @@ class LivePage {
         this.handleKeydown = this.handleKeydown.bind(this);
     }
 
-    async init() {
-        // Load sources and channels on initial page load
-        await this.app.channelList.loadSources();
-        await this.app.channelList.loadChannels();
-
-        // Silently fetch EPG data for sidebar info
-        try {
-            await this.app.epgGuide.fetchEpgData();
-
-            // Clear cache so we don't get stale "null" results from initial render
-            this.app.channelList.clearProgramInfoCache();
-
-            // Update program info in existing DOM elements without re-rendering
-            this.updateProgramInfo();
-        } catch (err) {
-            console.warn('Background EPG fetch failed:', err);
-        }
-    }
-
     /**
      * Update "Now Playing" info in existing channel elements without blocking UI
      */
