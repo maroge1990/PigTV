@@ -4,7 +4,8 @@
  * #272 (I-3, 0549): a history row is written only when a game's observed state changes (the snapshot: status, break,
  * clock/period, scores, situation, and its final time), or when an answer comes after more than CONFIRM_GAP_MS of
  * silence; an unchanged answer moves only the catalogue row's `observed_at`, the game's last-confirmed time. A row a newer
- * one supersedes keeps `confirmed_at`, the last fetch that still saw it. Readers credit a snapshot with its last
+ * one supersedes keeps its `confirmed_at`, the last fetch that still saw it, in `sports_score_confirmed` (0553: a side table,
+ * so `sports_score_history` keeps the three columns every earlier build writes positionally, and a rollback works). Readers credit a snapshot with its last
  * confirmation (never later than the delayed time asked for), so freshness reads as it did with a row per fetch: a quiet
  * game stays fresh, one ESPN stops answering for goes stale on time. The gap rule keeps that exact: a confirmation after a
  * silence of more than two minutes (the freshness allowance) is its own row, so it never vouches for the silence.
@@ -19,18 +20,28 @@ function initSchema(db) {
         id TEXT PRIMARY KEY, league TEXT NOT NULL, start INTEGER NOT NULL, data TEXT NOT NULL, observed_at INTEGER NOT NULL, finished_at INTEGER);
         CREATE INDEX IF NOT EXISTS sports_dashboard_start ON sports_dashboard_catalog(start);
         CREATE TABLE IF NOT EXISTS sports_score_history (
-        game_id TEXT NOT NULL, observed_at INTEGER NOT NULL, data TEXT NOT NULL, confirmed_at INTEGER, PRIMARY KEY(game_id, observed_at));
+        game_id TEXT NOT NULL, observed_at INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY(game_id, observed_at));
+        CREATE TABLE IF NOT EXISTS sports_score_confirmed (
+        game_id TEXT NOT NULL, observed_at INTEGER NOT NULL, confirmed_at INTEGER NOT NULL, PRIMARY KEY(game_id, observed_at));
         CREATE INDEX IF NOT EXISTS sports_score_age ON sports_score_history(observed_at);
         CREATE TABLE IF NOT EXISTS sports_user_preferences (
         user_id TEXT PRIMARY KEY, avoid_spoilers INTEGER NOT NULL, delay_seconds INTEGER NOT NULL, revision INTEGER NOT NULL);
         CREATE TABLE IF NOT EXISTS sports_dashboard_coverage (
         league TEXT PRIMARY KEY, covered_from INTEGER NOT NULL, covered_to INTEGER NOT NULL, observed_at INTEGER NOT NULL, listed TEXT NOT NULL,
         teams TEXT);`);
-    // #272 (0549): a history table from before 0549 (one row per fetch) gains confirmed_at; its rows keep NULL (their own time).
-    if (!hasConfirmed(db)) db.exec('ALTER TABLE sports_score_history ADD COLUMN confirmed_at INTEGER');
+    // #272 (0553, review H1): sports_score_history never changes shape: every build before 0549 prepares
+    // `INSERT INTO sports_score_history VALUES(?,?,?)`. A database 0549-0552 gave a confirmed_at column moves its values to
+    // sports_score_confirmed and drops the column, in one transaction (SQLite >= 3.35; the column has no index or constraint).
+    if (db.prepare("SELECT 1 FROM pragma_table_info('sports_score_history') WHERE name='confirmed_at'").get()) {
+        db.transaction(() => {
+            db.exec(`INSERT OR REPLACE INTO sports_score_confirmed (game_id, observed_at, confirmed_at)
+                SELECT game_id, observed_at, confirmed_at FROM sports_score_history WHERE confirmed_at IS NOT NULL;
+                ALTER TABLE sports_score_history DROP COLUMN confirmed_at;`);
+        })();
+    }
     if (!db.prepare("SELECT 1 FROM pragma_table_info('sports_dashboard_coverage') WHERE name='teams'").get()) db.exec('ALTER TABLE sports_dashboard_coverage ADD COLUMN teams TEXT');
 }
-const hasConfirmed = (db) => !!db.prepare("SELECT 1 FROM pragma_table_info('sports_score_history') WHERE name='confirmed_at'").get();
+const hasConfirmed = (db) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='sports_score_confirmed'").get();
 function createStore(db, { readOnly = false } = {}) {
     if (!readOnly) {
         initSchema(db);
@@ -63,7 +74,9 @@ function createStore(db, { readOnly = false } = {}) {
     // #272 (0549): a row's last confirmation: its confirmed_at once superseded; the newest row's is the catalogue's
     // last-confirmed time; a row from before 0549 (a row per fetch) its own time. A read-only connection to a database not
     // yet upgraded (the worker's) reads every row as before 0549.
-    const confirmed = `MAX(h.observed_at, COALESCE(${hasConfirmed(db) ? 'h.confirmed_at' : 'NULL'},
+    const confirmedOf = hasConfirmed(db)
+        ? '(SELECT k.confirmed_at FROM sports_score_confirmed k WHERE k.game_id=h.game_id AND k.observed_at=h.observed_at)' : 'NULL';
+    const confirmed = `MAX(h.observed_at, COALESCE(${confirmedOf},
         CASE WHEN h.observed_at=(SELECT MAX(x.observed_at) FROM sports_score_history x WHERE x.game_id=h.game_id)
             THEN (SELECT c.observed_at FROM sports_dashboard_catalog c WHERE c.id=h.game_id) END, h.observed_at)) AS confirmed`;
     const latestStmt = db.prepare(`SELECT h.observed_at,h.data,${confirmed} FROM sports_score_history h WHERE h.game_id=? ORDER BY h.observed_at DESC LIMIT 1`);
@@ -96,8 +109,8 @@ function createStore(db, { readOnly = false } = {}) {
     const previousStmt = db.prepare('SELECT observed_at,finished_at FROM sports_dashboard_catalog WHERE id=?');
     const putCatalog = db.prepare('INSERT OR REPLACE INTO sports_dashboard_catalog VALUES(?,?,?,?,?,?)');
     const putHistory = db.prepare('INSERT INTO sports_score_history(game_id,observed_at,data) VALUES(?,?,?)');
-    const newestStmt = db.prepare('SELECT observed_at,data,confirmed_at FROM sports_score_history WHERE game_id=? ORDER BY observed_at DESC LIMIT 1');
-    const confirmStmt = db.prepare('UPDATE sports_score_history SET confirmed_at=? WHERE game_id=? AND observed_at=?');
+    const newestStmt = db.prepare(`SELECT h.observed_at,h.data,${confirmedOf} AS confirmed_at FROM sports_score_history h WHERE h.game_id=? ORDER BY h.observed_at DESC LIMIT 1`);
+    const confirmStmt = db.prepare('INSERT OR REPLACE INTO sports_score_confirmed (confirmed_at, game_id, observed_at) VALUES (?, ?, ?)');
     result.updatePreferences = db.transaction((userId, patch) => {
         if (!patch || typeof patch !== 'object' || Array.isArray(patch) || Object.keys(patch).some(k => !['avoidSpoilers','scoreDelaySeconds','revision'].includes(k)) ||
             !Number.isSafeInteger(patch.revision) || patch.revision < 0 ||
@@ -146,7 +159,8 @@ function createStore(db, { readOnly = false } = {}) {
     // #212: cards that turned out not to be their league's (sportsDashboard's collector), with their history.
     const forgetHistory = db.prepare('DELETE FROM sports_score_history WHERE game_id=?');
     const forgetCatalog = db.prepare('DELETE FROM sports_dashboard_catalog WHERE id=?');
-    result.forget = db.transaction(ids => { for (const id of ids) { forgetHistory.run(id); forgetCatalog.run(id); } });
+    const forgetConfirmed = db.prepare('DELETE FROM sports_score_confirmed WHERE game_id=?');
+    result.forget = db.transaction(ids => { for (const id of ids) { forgetHistory.run(id); forgetConfirmed.run(id); forgetCatalog.run(id); } });
     // Also keep each game's newest row at or before now - max delay: a slowly polled game's only
     // delayed-eligible snapshot can be older than the window, and losing it buffers or revives a final.
     const pruneHistory = db.prepare(`DELETE FROM sports_score_history WHERE observed_at<? AND (game_id,observed_at) NOT IN
@@ -154,10 +168,14 @@ function createStore(db, { readOnly = false } = {}) {
         (SELECT game_id,MAX(observed_at) FROM sports_score_history WHERE observed_at<=? GROUP BY game_id)`);
     const pruneOrphans = db.prepare('DELETE FROM sports_score_history WHERE game_id IN (SELECT id FROM sports_dashboard_catalog WHERE start<? AND observed_at<?)');
     const pruneCatalog = db.prepare('DELETE FROM sports_dashboard_catalog WHERE start<? AND observed_at<?');
+    // A confirmation whose row is gone (pruned here, or by an earlier build after a rollback) goes too.
+    const pruneConfirmed = db.prepare(`DELETE FROM sports_score_confirmed WHERE NOT EXISTS
+        (SELECT 1 FROM sports_score_history h WHERE h.game_id=sports_score_confirmed.game_id AND h.observed_at=sports_score_confirmed.observed_at)`);
     result.prune = db.transaction(now => {
         pruneHistory.run(now - HISTORY_MS, now - MAX_DELAY_MS);
         pruneOrphans.run(now - 8 * 86400000, now - 86400000);
         pruneCatalog.run(now - 8 * 86400000, now - 86400000);
+        pruneConfirmed.run();
     });
     return result;
 }

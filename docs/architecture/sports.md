@@ -138,7 +138,7 @@ scoreboards and `sports_dashboard_catalog` the only store of a game's identity, 
 | `sport_fixtures` | the fixture refresh, only with the collector off | `snapshot` with the collector off, and for a league the collector has not wholly answered yet |
 
 The 30-minute pass (`refreshAll`, same demand rule and EPG-sync kick) keeps only the rosters while the collector is on; a
-league's first whole window after start runs it at once (a cricket roster comes only from the window). `sport_fixtures` is left in place, unread and unwritten with the collector on, so a rollback to 0549 or earlier finds
+league's first whole window after start runs it at once (a cricket roster comes only from the window). `sport_fixtures` is left in place, unread and unwritten with the collector on, so a rollback (from 0553 or later: OPERATIONS.md › Rollback) finds
 its last rows (that build's own coverage then bounds them, and its first pass replaces them). With
 `PIGTV_SPORTS_DASHBOARD=0` the fixture refresh fetches scoreboards and feeds the classifier as before 0551. Request count
 over a simulated day (test/sport-espn-requests.test.js, NFL and EPL followed): idle 1048 scoreboard requests before and
@@ -332,10 +332,11 @@ match availability/event reference, observed/effective timestamps and freshness;
 History is bounded by time/count, persisted through server restart for the delay horizon, and never stores credentials.
 **History rows only on change (#272, 0549, `sportsDashboardStore.js`):** a row is written when a game's snapshot changes or
 an answer follows more than two minutes of silence (`CONFIRM_GAP_MS`, the freshness allowance); an unchanged answer moves
-only the catalogue's `observed_at` (the last-confirmed time), and a superseded row keeps `confirmed_at`, its last fetch.
+only the catalogue's `observed_at` (the last-confirmed time), and a superseded row's last fetch is kept in
+`sports_score_confirmed` (0553: a side table; the history table keeps the three columns earlier builds write, so rollback works).
 Readers credit the snapshot at or before the delayed time with its last confirmation, capped at that time, so freshness and
 the delayed state read exactly as with a row per fetch (`test/sports-history-on-change.test.js` replays both rules; a
-scripted match polled every 30 s wrote 53 rows instead of 285). A table from before 0549 gains the column at open.
+scripted match polled every 30 s wrote 53 rows instead of 285). A database 0549–0552 gave a `confirmed_at` column moves it to the side table and drops it at open.
 ETags/caches must incorporate authenticated profile, preference revision, delayed snapshot identity and visibility.
 No shared response can expose another person's revealed scores.
 

@@ -22,6 +22,9 @@ Force Update; `git revert` the bad commits on `main`. In a hurry, the template c
 Since 0552 the fixture refresh no longer writes `sport_fixtures` while the score collector is on (#272, the table is kept):
 a build from before 0552 then classifies live/replay from that table's last rows, bounded by their own stored window and
 age, until its first fixture pass (the first look at Sport, or a sport recording rule, runs it).
+A table an earlier build writes never changes shape (#272: 0549–0552 added a column to `sports_score_history`, which every
+earlier build inserts into positionally, so a rollback from those builds loses the score store; 0553 moves the column to
+`sports_score_confirmed` and drops it at open). Roll back from 0553 or later, never from 0549–0552 straight to an older build.
 
 **Sync interval (Mark's setting, Settings → "Sync channels and guide every"):** 12 h is enough. A scheduled sync skips a
 playlist or guide that has not changed (#237), so a shorter interval mostly costs downloads; `PIGTV_DEBUG_SYNC=1` brings

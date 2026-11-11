@@ -158,7 +158,9 @@ test('a database from before 0549 is upgraded; a read-only one without the colum
     assert.equal(ro.delayed(base.id, NOW + 60 * S, 30).observedAt, NOW + 30 * S);
     assert.equal(ro.latest(base.id).observedAt, NOW + 30 * S);
     const s = createStore(db);
-    assert.ok(db.prepare("SELECT 1 FROM pragma_table_info('sports_score_history') WHERE name='confirmed_at'").get(), 'column added');
+    // 0553 (review H1): the history table keeps its three columns (earlier builds write it positionally); a side table holds the times
+    assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE name='sports_score_confirmed'").get(), 'side table added');
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM pragma_table_info('sports_score_history')").get().n, 3);
     s.ingest([snap('live', ['1', '0'], { clock: "5'", period: 1 })], NOW + 60 * S);
     assert.equal(historyRows(db, base.id), 2, 'an unchanged answer after the upgrade adds no row');
     assert.equal(s.delayed(base.id, NOW + 70 * S, 0).observedAt, NOW + 60 * S);
