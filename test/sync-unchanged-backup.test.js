@@ -166,3 +166,129 @@ test('a backup list that shrinks past the threshold is held; acceptSmaller write
     assert.equal(status(backupXt.id).status, 'success');
     assert.equal(c.runs(BACKUP_WRITES), 0);
 });
+
+// I-7 review: the fingerprint is remembered before the relink, and a scheduled sync of unchanged lists relinks nothing.
+// A relink that failed (or a restart before a global sync's deferred relink) must still be retried by the next sync:
+// a durable "relink owed" marker. The backup lists the primary's own names from here on, so the links can be counted.
+const links = load('services/channelLinks');
+const importFilters = load('services/importFilters');
+const linked = (backupId) => d().prepare(`SELECT COUNT(*) AS n FROM channel_links WHERE backup_source_id = ?
+    AND status IN ('auto', 'approved', 'manual')`).get(backupId).n;
+const owed = () => d().prepare('SELECT value FROM meta WHERE key = ?').get(sync.RELINK_OWED_KEY ?? 'relink_owed');
+function failRelinkOnce(name) {
+    const real = links[name];
+    links[name] = async () => { links[name] = real; throw new Error('SQLITE_BUSY (test)'); };
+    return () => { links[name] = real; };
+}
+
+test('I-7: a global relink that failed after the backup changed is retried by the next scheduled sync, once', async () => {
+    state.own.xb = streamsOf('Main', range(1, 101)); // the primary's 101 channels, under the same names
+    const restore = failRelinkOnce('relinkAll');
+    try { await scheduled(); } finally { restore(); }
+    assert.equal(backupRows(backupXt.id), 101, 'the backup was written');
+    assert.equal(linked(backupXt.id), 0, 'its relink failed: no link yet');
+    await scheduled(); // nothing changed since
+    assert.equal(relinks(), 1, lines.join('\n'));
+    assert.equal(linked(backupXt.id), 101, 'every primary channel has its backup');
+    assert.equal(owed(), undefined, 'nothing owed any more');
+    await scheduled();
+    assert.equal(relinks(), 0, 'paid: the saving of 0561 stays');
+});
+
+test('I-7: a single-source scheduled sync of a backup retries its own failed relink', async () => {
+    state.own.main = streamsOf('Main', range(1, 102));
+    await sync.syncSource(main.id); // the primary gains channel 102 (relinked: the backup has no partner yet)
+    state.own.xb = streamsOf('Main', range(1, 102));
+    lines = [];
+    const restore = failRelinkOnce('relinkSource');
+    try { await sync.syncSource(backupXt.id, { ifChanged: true }); } finally { restore(); }
+    assert.equal(backupRows(backupXt.id), 102);
+    assert.equal(linked(backupXt.id), 101, 'its relink failed: channel 102 has no backup');
+    assert.equal(relinks(), 0);
+    lines = [];
+    await sync.syncSource(backupXt.id, { ifChanged: true }); // unchanged
+    assert.ok(lines.some(l => /Backup Backup Xt unchanged/.test(l)), lines.join('\n'));
+    assert.equal(relinks(), 1, lines.join('\n'));
+    assert.equal(linked(backupXt.id), 102);
+    lines = [];
+    await sync.syncSource(backupXt.id, { ifChanged: true });
+    assert.equal(relinks(), 0);
+});
+
+test('I-7: a restart between the backup\'s write and the deferred relink is repaired by the next scheduled sync', async () => {
+    state.own.main = streamsOf('Main', range(1, 103));
+    await sync.syncSource(main.id);
+    state.own.xb = streamsOf('Main', range(1, 103));
+    sync.relink = async () => {}; // the server stops before the relink: it neither runs nor pays
+    try { await scheduled(); } finally { delete sync.relink; }
+    assert.equal(backupRows(backupXt.id), 103);
+    assert.equal(linked(backupXt.id), 102);
+    await scheduled();
+    assert.equal(relinks(), 1, lines.join('\n'));
+    assert.equal(linked(backupXt.id), 103);
+    await scheduled();
+    assert.equal(relinks(), 0);
+});
+
+test('I-7: a changed Xtream primary whose relink failed is relinked by the next scheduled sync', async () => {
+    state.own.xb = streamsOf('Main', range(1, 104)); // the backup has 104 first
+    await sync.syncSource(backupXt.id);
+    state.own.main = streamsOf('Main', range(1, 104));
+    const restore = failRelinkOnce('relinkAll');
+    try { await scheduled(); } finally { restore(); }
+    assert.equal(linked(backupXt.id), 103, 'the primary\'s channel 104 is not linked yet');
+    await scheduled();
+    assert.equal(relinks(), 1, lines.join('\n'));
+    assert.equal(linked(backupXt.id), 104);
+    await scheduled();
+    assert.equal(relinks(), 0);
+});
+
+test('I-7: an Xtream sync reads the groups never imported once: the set hashed is the set written', async () => {
+    const real = importFilters.excludedFor;
+    let calls = 0;
+    importFilters.excludedFor = async (...a) => { if (Number(a[0]) === main.id) calls++; return real.apply(importFilters, a); };
+    try { await sync.syncSource(main.id); } finally { importFilters.excludedFor = real; }
+    assert.equal(calls, 1);
+});
+
+test('I-7: a change in how rows are derived (the fingerprint version) rewrites an otherwise unchanged list', async () => {
+    await scheduled();
+    assert.equal(c.runs(MAIN_WRITES) + c.runs(BACKUP_WRITES), 0, 'unchanged');
+    const was = sync.resultFingerprintVersion;
+    sync.resultFingerprintVersion = (was ?? 1) + 1;
+    try {
+        await scheduled();
+        assert.ok(c.runs(BACKUP_WRITES) >= 104, `backup wrote ${c.runs(BACKUP_WRITES)}`);
+        assert.ok(c.runs(/INSERT INTO playlist_items/) >= 104, 'the Xtream primary wrote its channels');
+    } finally { sync.resultFingerprintVersion = was; }
+    await scheduled(); // back to the build's version: written once more, then settled
+    await scheduled();
+    assert.equal(c.runs(MAIN_WRITES) + c.runs(BACKUP_WRITES), 0);
+});
+
+test('I-7: a backup that became a primary forgets its size: back as a backup, a smaller list is not held', async () => {
+    sync.dropBackupRows(backupXt.id);
+    assert.equal(d().prepare('SELECT value FROM meta WHERE key = ?').get(`backup_lines:${backupXt.id}`), undefined);
+    state.own.xb = streamsOf('Main', range(1, 60));
+    await sync.syncSource(backupXt.id, { ifChanged: true });
+    assert.equal(status(backupXt.id).status, 'success', status(backupXt.id).error || '');
+    assert.equal(backupRows(backupXt.id), 60);
+});
+
+test('I-7: a changed M3U primary whose relink failed is relinked by the next scheduled sync of it', async () => {
+    const base = `http://127.0.0.1:${provider.address().port}`;
+    const p = await db.sources.create({ type: 'm3u', name: 'Main M3U', url: `${base}/bk.m3u` });
+    lines = [];
+    const restore = failRelinkOnce('relinkAll');
+    try { await sync.syncSource(p.id, { ifChanged: true }); } finally { restore(); }
+    assert.ok(owed(), 'a relink is owed');
+    lines = [];
+    await sync.syncSource(p.id, { ifChanged: true }); // the same bytes
+    assert.ok(lines.some(l => /Playlist for Main M3U unchanged/.test(l)), lines.join('\n'));
+    assert.equal(relinks(), 1, lines.join('\n'));
+    assert.equal(owed(), undefined);
+    lines = [];
+    await sync.syncSource(p.id, { ifChanged: true });
+    assert.equal(relinks(), 0);
+});

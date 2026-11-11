@@ -23,6 +23,53 @@ const UNCHANGED = Object.freeze({ unchanged: true });
 // Sync tracking
 const activeSyncs = new Set(); // sourceId
 
+// I-7 (#273): mixed into the result fingerprints (a backup's rows, an Xtream primary's answers). Bump it when the way
+// channel rows are derived from a provider's answer changes (names, stream ids, guide ids...), so the next scheduled
+// sync rewrites an otherwise unchanged list instead of keeping rows the old code derived. Not used by the M3U
+// primary's byte fingerprint (feedCheck.fetchFeed).
+const RESULT_FINGERPRINT_VERSION = 1;
+
+/**
+ * I-7 (#273): channel rows written whose failover links have not yet been rebuilt. Since a scheduled sync skips an
+ * unchanged list, a relink that failed (or a restart before a global sync's deferred relink) would otherwise never be
+ * retried. Stored in `meta` as { seq, all, ids: { backupId: seq } }: `all` is owed by a primary's write (relinkAll),
+ * `ids` by a backup's (relinkSource). Set before the write and again after it (so a relink that started in between
+ * cannot pay for it); paid only by a relink that ran to the end and started after it was owed.
+ */
+const RELINK_OWED_KEY = 'relink_owed';
+function readRelinkOwed() {
+    try {
+        const row = getDb().prepare('SELECT value FROM meta WHERE key = ?').get(RELINK_OWED_KEY);
+        const v = row ? JSON.parse(row.value) : null;
+        return v && typeof v === 'object' ? { seq: Number(v.seq) || 0, all: Number(v.all) || 0, ids: v.ids && typeof v.ids === 'object' ? v.ids : {} } : { seq: 0, all: 0, ids: {} };
+    } catch { return { seq: 0, all: 0, ids: {} }; }
+}
+function writeRelinkOwed(owed) {
+    const db = getDb();
+    if (!owed.all && !Object.keys(owed.ids).length) db.prepare('DELETE FROM meta WHERE key = ?').run(RELINK_OWED_KEY);
+    else db.prepare(`INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+        .run(RELINK_OWED_KEY, JSON.stringify(owed));
+}
+/** A relink is owed: of every backup (`backupId` null, a primary's channels moved) or of one backup (its rows moved). */
+function oweRelink(backupId) {
+    const owed = readRelinkOwed();
+    owed.seq++;
+    if (backupId == null) owed.all = owed.seq; else owed.ids[String(backupId)] = owed.seq;
+    writeRelinkOwed(owed);
+}
+const relinkIsOwed = () => { const o = readRelinkOwed(); return !!o.all || Object.keys(o.ids).length > 0; };
+/** A relink that started at `seq` ran to the end: relinkAll (`backupId` null) pays everything, one backup's its own. */
+function payRelink(backupId, seq) {
+    const owed = readRelinkOwed();
+    if (backupId == null) {
+        if (owed.all && owed.all <= seq) owed.all = 0;
+        for (const [id, s] of Object.entries(owed.ids)) if (s <= seq) delete owed.ids[id];
+    } else if (owed.ids[String(backupId)] && owed.ids[String(backupId)] <= seq) {
+        delete owed.ids[String(backupId)];
+    }
+    writeRelinkOwed(owed);
+}
+
 // 0147: a programme's XMLTV <category> values as stored in epg_programs.categories:
 // a JSON array of the provider's strings, trimmed and de-duplicated (case aside),
 // at most 12 of up to 100 characters; NULL when there are none.
@@ -144,6 +191,13 @@ class SyncService {
         this._guideTimer = null;
         this._guideAhead = new Map(); // #11: sourceId -> the active guide's last end (ms)
         this._guideAlerted = new Set();
+        this.resultFingerprintVersion = RESULT_FINGERPRINT_VERSION; // I-7: a test may change it
+        this._relinkRuns = 0; // I-7: relinks attempted, so a sync knows whether it already tried one
+    }
+
+    /** I-7: a result fingerprint (backup rows, Xtream answers), carrying the version of how rows are derived. */
+    resultFingerprint(value) {
+        return feedCheck.fingerprint({ v: this.resultFingerprintVersion, ...value });
     }
 
     /**
@@ -290,7 +344,9 @@ class SyncService {
             } finally {
                 if (outer) {
                     this._relinkDeferred = null;
-                    if (deferred.pending) await this.relink(null);
+                    // I-7: a relink still owed from an earlier run (it failed, or the server stopped before it) runs
+                    // too, though every list was unchanged this time.
+                    if (deferred.pending || relinkIsOwed()) await this.relink(null);
                 }
             }
         } finally {
@@ -306,13 +362,33 @@ class SyncService {
     /** Relink one backup (`backupId`) or every one (null) now, or once at the end of a global sync. */
     async relink(backupId) {
         if (this._relinkDeferred) { this._relinkDeferred.pending = true; return; }
+        this._relinkRuns++;
+        let seq = 0;
         try {
+            seq = readRelinkOwed().seq; // only what was owed before this relink started is paid by it
             const links = require('./channelLinks');
             if (backupId == null && typeof links.relinkAll === 'function') await links.relinkAll();
             else if (backupId != null && typeof links.relinkSource === 'function') await links.relinkSource(backupId);
+            payRelink(backupId, seq); // I-7: ran to the end
         } catch (e) {
-            if (e && e.code !== 'MODULE_NOT_FOUND') console.warn('[Sync] Relink failed:', redact(e.message));
+            if (e && e.code !== 'MODULE_NOT_FOUND') {
+                console.warn('[Sync] Relink failed:', redact(e.message));
+                // I-7: the debt stays recorded; the next sync, scheduled or not, relinks even if nothing changed.
+                try { if (relinkIsOwed()) console.warn('[Sync] Failover links are owed: the next sync relinks'); } catch { /* best-effort */ }
+            }
         }
+    }
+
+    /**
+     * I-7: a sync that relinked nothing itself (its list was unchanged) pays a relink still owed from an earlier run.
+     * In a global sync this only asks for the one relink at the end.
+     */
+    async settleRelinkDebt(runsBefore) {
+        if (this._relinkRuns !== runsBefore) return; // it tried one already: a failure waits for the next sync
+        const owed = readRelinkOwed();
+        const ids = Object.keys(owed.ids);
+        if (!owed.all && !ids.length) return;
+        await this.relink(!owed.all && ids.length === 1 ? Number(ids[0]) : null);
     }
 
     /**
@@ -410,6 +486,8 @@ class SyncService {
         }
 
         activeSyncs.add(sourceId);
+        const relinkRunsBefore = this._relinkRuns;
+        let ran = false; // I-7: the sync got past its checks (a missing or disabled source settles nothing)
 
         try {
             const db = getDb();
@@ -429,6 +507,7 @@ class SyncService {
 
             // Update status
             this.updateSyncStatus(sourceId, 'all', 'syncing');
+            ran = true;
 
             const isBackup = source.role === 'backup' && source.type !== 'epg';
             // #42: a held playlist keeps the last good one; the rest of the sync (the guide) still runs.
@@ -480,6 +559,10 @@ class SyncService {
             console.error(`[Sync] Failed sync for source ${sourceId}:`, err);
             this.updateSyncStatus(sourceId, 'all', 'error', err.message);
         } finally {
+            // I-7: a relink owed from an earlier sync runs now if this one relinked nothing (held, failed or unchanged).
+            if (ran) {
+                try { await this.settleRelinkDebt(relinkRunsBefore); } catch (e) { console.warn('[Sync] Owed relink failed:', redact(e && e.message)); }
+            }
             activeSyncs.delete(sourceId);
         }
     }
@@ -530,15 +613,18 @@ class SyncService {
         let same = false;
         if (!held) {
             const importFilters = require('./importFilters');
+            // Evaluated once: the set hashed is the set written (a favourite added mid-sync cannot split them).
             const { excluded } = importFilters.applicable(source.id, await importFilters.excludedFor(source.id));
-            const hash = feedCheck.fingerprint({ cats: liveCats, streams: liveStreams, excluded: [...(excluded || [])].sort() });
+            const hash = this.resultFingerprint({ cats: liveCats, streams: liveStreams, excluded: [...(excluded || [])].sort() });
             const hasRows = !!db.prepare(`SELECT 1 FROM playlist_items WHERE source_id = ? AND type = 'live' LIMIT 1`).get(source.id);
             if (options.ifChanged && hasRows && (liveStreams || []).length > 0 && feedCheck.matches(source.id, 'playlist', hash)) {
                 same = true;
                 console.log(`[Sync] Playlist for ${source.name} unchanged (the same answers as the last good sync): nothing rewritten`);
             } else {
                 feedCheck.forget(source.id, 'playlist'); // a write that dies part-way is never the last good one
-                await this.syncXtreamLive(source, liveCats, liveStreams);
+                oweRelink(null); // I-7: the channels may move; owed until a relinkAll runs to the end
+                await this.syncXtreamLive(source, liveCats, liveStreams, excluded);
+                oweRelink(null); // again after the write: a relink that started during it does not pay for it
                 if ((liveStreams || []).length > 0) feedCheck.remember(source.id, 'playlist', hash);
             }
         }
@@ -549,13 +635,14 @@ class SyncService {
     }
 
     /** The live part of an Xtream sync: groups, channels (R8: minus excluded groups), then stale rows out. */
-    async syncXtreamLive(source, liveCats, liveStreams) {
+    async syncXtreamLive(source, liveCats, liveStreams, excludedGroups = undefined) {
         const db = getDb();
         await this.saveCategories(source.id, 'live', liveCats);
 
-        // 2. Live Streams (R8: minus any group the admin never imports)
+        // 2. Live Streams (R8: minus any group the admin never imports); `excludedGroups`: the set the caller hashed
         const importFilters = require('./importFilters');
-        const { excluded } = importFilters.applicable(source.id, await importFilters.excludedFor(source.id));
+        const excluded = excludedGroups !== undefined ? excludedGroups
+            : importFilters.applicable(source.id, await importFilters.excludedFor(source.id)).excluded;
         const skipped = new Map();
         const keptLive = importFilters.filterItems(liveStreams || [], excluded, skipped);
         const liveIds = await this.saveStreams(source.id, 'live', keptLive, { skipPurge: true });
@@ -643,6 +730,8 @@ class SyncService {
     dropBackupRows(sourceId) {
         const n = backupChannels.removeFor(sourceId);
         feedCheck.forget(sourceId, 'backup'); // I-7
+        // I-7: and its size, so a later return as a backup is not held against the list it had before
+        getDb().prepare('DELETE FROM meta WHERE key = ?').run(backupLinesKey(sourceId));
         if (n > 0) console.log(`[Sync] Removed ${n} backup channels of source ${sourceId} (it is a primary now)`);
     }
 
@@ -733,14 +822,16 @@ class SyncService {
         // unchanged playlist must not hide channels the provider's own list newly adds. On a scheduled run, the same
         // result as the last good write is not written, refetched or relinked.
         const db = getDb();
-        const hash = feedCheck.fingerprint({ rows, overlay: overlay ? [...overlay.entries()].sort() : null, rawList });
+        const hash = this.resultFingerprint({ rows, overlay: overlay ? [...overlay.entries()].sort() : null, rawList });
         if (options.ifChanged && backupChannels.count(source.id) > 0 && feedCheck.matches(source.id, 'backup', hash)) {
             console.log(`[Sync] Backup ${source.name} unchanged (the same ${rows.length} channels as the last good sync): nothing rewritten`);
             return UNCHANGED;
         }
         checkBackupSize(db, source.id, rows.length, options); // held: the last good rows stay, nothing is relinked
         feedCheck.forget(source.id, 'backup'); // a write that dies part-way is never the last good one
+        oweRelink(source.id); // I-7: owed until this backup's relink runs to the end (a restart before it included)
         backupChannels.replaceAll(source.id, rows, overlay);
+        oweRelink(source.id); // again after the write: a relink that started during it does not pay for it
         rememberBackupSize(db, source.id, rows.length);
         console.log(`[Sync] Backup ${source.name}: ${rows.length} channels${overlay ? `, ${overlay.size} overlay ids` : ''}`);
 
@@ -1280,7 +1371,8 @@ class SyncService {
             return UNCHANGED;
         }
         try {
-            await this.loadM3uFile(source, options, feed, { excluded, skipped, importFilters });
+            await this.loadM3uFile(source, options, feed, { excluded, skipped, importFilters }); // owes a relink (I-7)
+            oweRelink(null); // again after the write: a relink that started during it does not pay for it
             feed.commit();
         } finally {
             feed.discard();
@@ -1336,6 +1428,7 @@ class SyncService {
         }
 
         checkPlaylistSize(getDb(), source.id, totalChannels, options);
+        oweRelink(null); // I-7: the channels may move; owed until a relinkAll runs to the end
         for (const imported of pending) {
             const batchIds = await this.saveStreams(source.id, 'live', imported, { skipPurge: true });
             batchIds.forEach(id => allSyncedIds.add(id));
@@ -1397,3 +1490,5 @@ module.exports.programmeData = programmeData; // R5, for tests
 module.exports.SHRINK = SHRINK; // #42, for tests
 module.exports.nextRunAt = nextRunAt; // #11, for tests
 module.exports.SCHEDULE = SCHEDULE;
+module.exports.RESULT_FINGERPRINT_VERSION = RESULT_FINGERPRINT_VERSION; // I-7, for tests
+module.exports.RELINK_OWED_KEY = RELINK_OWED_KEY; // I-7, for tests
