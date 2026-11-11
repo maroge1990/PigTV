@@ -495,7 +495,7 @@ class RecordingsPage {
         this.draw();
         UI.undoable(message, {
             undo: () => this.undo(key),
-            commit: ({ keepalive } = {}) => this.commitPending(key, { keepalive }),
+            commit: (ctl) => this.commitPending(key, ctl),
             focus: { undo: () => this.controlOf(key), end: () => (near && this.controlOf(near)) || this.landingOf(key) }
         });
     }
@@ -546,20 +546,33 @@ class RecordingsPage {
         this.draw();
     }
 
-    /** Sent once by UI.undoable. With keepalive the request starts before anything is awaited (the page is going). */
-    async commitPending(key, { keepalive = false } = {}) {
+    /**
+     * Sent once by UI.undoable (`ctl`: its control object; a plain `{ keepalive }` from a test). The DELETE always goes
+     * with keepalive, so a page left while it is on its way does not drop it. A cancel first checks the recording has
+     * not started; it holds its request meanwhile and stops waiting for a fresh read once the page is going.
+     */
+    async commitPending(key, ctl = {}) {
+        const leaving = () => !!(ctl.leaving ?? ctl.keepalive);
         const entry = this.pending.get(key);
-        if (!entry || entry.committing) return;
+        if (!entry || entry.committing) { ctl.dispatched?.(); return; }
         entry.committing = true;
         // A cancel whose recording has started in the 10 s is not sent: Stop, which asks first, is the way to end it.
-        if (entry.cancel && await this.hasStarted(entry.id, { fresh: !keepalive })) {
-            this.pending.delete(key);
-            this.draw();
-            UI.toast(`${entry.title ? `${entry.title} has` : 'It has'} started recording, so it was not cancelled. Use Stop to end it.`);
-            return;
+        if (entry.cancel) {
+            ctl.hold?.();
+            let started;
+            try { started = await this.hasStarted(entry.id, { fresh: !leaving(), left: ctl.left }); } catch { started = true; }
+            if (started) {
+                ctl.dispatched?.();
+                this.pending.delete(key);
+                this.draw();
+                UI.toast(`${entry.title ? `${entry.title} has` : 'It has'} started recording, so it was not cancelled. Use Stop to end it.`);
+                return;
+            }
         }
+        const request = API.request('DELETE', entry.path, null, { keepalive: true });
+        ctl.dispatched?.();
         try {
-            await API.request('DELETE', entry.path, null, { keepalive });
+            await request;
         } catch (err) {
             this.pending.delete(key);
             this.draw();
@@ -569,19 +582,21 @@ class RecordingsPage {
         this.forget(key);
         this.pending.delete(key);
         this.draw();
-        if (!keepalive) await this.refresh();
+        if (!leaving()) await this.refresh();
     }
 
     /**
      * Whether schedule `id` is recording now, from the freshest the page has: the scheduled list asked again (`fresh`,
-     * when there is time to wait for an answer), else the list it holds, the shared feed of recordings in progress, and
-     * its start (less its lead-in) having passed.
+     * when there is time to wait for an answer, and only until `left` resolves), else the list it holds, the shared feed
+     * of recordings in progress, and its start (less its lead-in) having passed.
      */
-    async hasStarted(id, { fresh = false } = {}) {
+    async hasStarted(id, { fresh = false, left = null } = {}) {
         const find = () => (this.data.upcoming || []).find(x => String(x.id) === String(id));
         if (fresh) {
-            await this.fetchScheduled();
-            if (!this.failed.scheduled) return !!find() && find().status === 'recording';
+            // The page going (or sign-out) while the list is read: decide at once from what is held (below).
+            const read = this.fetchScheduled().then(() => 'read');
+            const how = left ? await Promise.race([read, left.then(() => 'left')]) : await read;
+            if (how === 'read' && !this.failed.scheduled) return !!find() && find().status === 'recording';
         }
         const item = find();
         if (item && item.status === 'recording') return true;

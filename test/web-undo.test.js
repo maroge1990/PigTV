@@ -153,3 +153,85 @@ test('every script and stylesheet the two pages load carries a ?v= (a file named
         for (const ref of refs.filter(r => !r.includes('/vendor/') && !/^https?:/.test(r))) assert.match(ref, /\?v=\d+$/, `${page}: ${ref}`);
     }
 });
+
+// Codex sign-off (high): an entry left the registry when it started, before its request was sent or answered, so
+// sign-out and pagehide could neither see nor await it. It stays tracked until its commit settles.
+test('sign-out while a commit is still reading before it sends: it sends at once (sign-in still good), then logout', async () => {
+    const { context, UI } = browser();
+    let token = 'tok';
+    const log = [];
+    context.localStorage = { getItem: () => token, removeItem: () => { token = null; log.push('token removed'); } };
+    context.location = { replace: (u) => log.push(`to ${u}`) };
+    context.fetch = async (url) => { log.push(`fetch ${url}`); return { ok: true }; };
+    vm.runInContext(read('public/js/app.js'), context);
+    UI.undoable('Recording cancelled', { commit: async (ctl) => {
+        ctl.hold();
+        await Promise.race([new Promise(() => {}), ctl.left]); // a fresh read that never answers
+        log.push(`DELETE token=${context.localStorage.getItem()} leaving=${ctl.leaving}`);
+        ctl.dispatched();
+    } });
+    mock.timers.tick(10100); // the notice ends: the commit starts and waits on its read
+    await new Promise(setImmediate);
+    assert.deepEqual(log, []);
+    const app = vm.runInContext('Object.create(App.prototype)', context);
+    await app.signOut();
+    assert.deepEqual(log, ['DELETE token=tok leaving=true', 'fetch /api/auth/logout', 'token removed', 'to /login.html']);
+});
+
+test('sign-out while a request is on its way: not sent again, and logout waits for its answer', async () => {
+    const { context, UI } = browser();
+    const log = [];
+    context.localStorage = { getItem: () => 'tok', removeItem: () => log.push('token removed') };
+    context.location = { replace: () => {} };
+    context.fetch = async (url) => { log.push(`fetch ${url}`); return { ok: true }; };
+    vm.runInContext(read('public/js/app.js'), context);
+    let sends = 0, answer;
+    UI.undoable('Recording deleted', { commit: () => { sends++; log.push('DELETE'); return new Promise(r => { answer = r; }); } });
+    mock.timers.tick(10100);
+    const out = vm.runInContext('Object.create(App.prototype)', context).signOut();
+    await new Promise(setImmediate);
+    assert.deepEqual(log, ['DELETE'], 'logout waits');
+    answer();
+    await out;
+    assert.equal(sends, 1);
+    assert.deepEqual(log, ['DELETE', 'fetch /api/auth/logout', 'token removed']);
+});
+
+test('pagehide and a hidden tab while a commit is on its way never run it again', async () => {
+    const { UI, fire, document } = browser();
+    let sends = 0, answer;
+    UI.undoable('Rule deleted', { commit: () => { sends++; return new Promise(r => { answer = r; }); } });
+    mock.timers.tick(10100);
+    fire('pagehide'); document.hidden = true; fire('visibilitychange');
+    const flushed = UI.flushPending();
+    let done = false; flushed.then(() => { done = true; });
+    await new Promise(setImmediate);
+    assert.equal(done, false, 'flush awaits the one in flight');
+    answer(); await flushed;
+    assert.equal(sends, 1);
+});
+
+test('Undo after the notice has ended does nothing: the change is not put back and nothing is sent twice', async () => {
+    const { UI, undoButton } = browser();
+    let sends = 0, undone = 0;
+    UI.undoable('Recording deleted', { commit: () => { sends++; }, undo: () => { undone++; } });
+    mock.timers.tick(10100);
+    undoButton().click();
+    await UI.flushPending();
+    assert.deepEqual([sends, undone], [1, 0]);
+});
+
+test('one commit that throws, or never settles, does not stop the others; sign-out gives up waiting at its bound', async () => {
+    const { UI } = browser();
+    const sent = [];
+    UI.undoable('a', { commit: () => { throw new Error('boom'); } });
+    UI.undoable('b', { commit: () => { sent.push('b'); return new Promise(() => {}); } }); // never answers
+    UI.undoable('c', { commit: () => { sent.push('c'); } });
+    const out = UI.flushPending(5000);
+    let done = false; out.then(() => { done = true; });
+    assert.deepEqual(sent, ['b', 'c'], 'all sent at once despite the throw');
+    await new Promise(setImmediate);
+    assert.equal(done, false);
+    mock.timers.tick(5100); await new Promise(setImmediate);
+    assert.equal(done, true, 'past the bound, sign-out goes on (its request was sent, keepalive)');
+});

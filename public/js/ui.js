@@ -129,19 +129,20 @@ const UI = {
      *       failText: 'Could not ...', focus: { undo: () => restoredButton, end: () => nextItemButton } })
      * The caller has already made the change (or, when the server call is the thing to hold back, not yet: `commit` is
      * that call). `undo` puts it back when Undo is chosen; `commit` is sent exactly once, never after Undo: when the
-     * notice ends otherwise (timeout, a newer notice, closed), or earlier, with `{ keepalive: true }`, when the browser
-     * page is left or hidden or before signing out (UI.flushPending). With keepalive, `commit` must start its requests
-     * before it first waits (the page may be gone after that) and pass keepalive on (API.request's fourth argument).
+     * notice ends otherwise (timeout, a newer notice, closed), or earlier when the browser page is left or hidden or
+     * before signing out (UI.flushPending). `commit(ctl)` gets the control object described at Pending: it sends its
+     * request with keepalive (API.request's fourth argument), starts it before it first waits unless it calls
+     * ctl.hold() (then ctl.dispatched() once sent or decided against), and stops waiting when ctl.left resolves.
      * A failed `commit` is a plain notice (`failText` + the server's sentence when it is one for people), unless `commit`
      * handles its own failure. Focus never falls to the page: an action made with the keyboard puts it on Undo; after
      * Undo it goes to `focus.undo()`, after the notice ends to `focus.end()` (else the page's heading), but only when it
      * was in the notice or had fallen, never away from where a pointer user has moved on. Returns the notice.
      */
     undoable(message, { undo, commit, failText, focus = {} } = {}) {
-        const send = (opts) => {
+        const send = (ctl) => {
             if (!commit) return Promise.resolve();
             let result;
-            try { result = commit(opts); } catch (err) { result = Promise.reject(err); }
+            try { result = commit(ctl); } catch (err) { result = Promise.reject(err); }
             return Promise.resolve(result).catch((err) => { UI.toast(UI.errorText(err, failText || 'Could not finish that.'), { kind: 'error' }); });
         };
         const byKeyboard = Focus.byKeyboard();
@@ -176,10 +177,11 @@ const UI = {
 
     /**
      * #276: send every change still waiting for its Undo notice now, with keepalive, and close its notice (its Undo is
-     * gone). Done by itself when the browser page is left or hidden; sign-out waits for it while the sign-in is still
-     * good. Resolves when every request has an answer (or failed).
+     * gone); those already being sent are told the page is going and awaited, never sent twice. Done by itself when the
+     * browser page is left or hidden; sign-out waits for it while the sign-in is still good (`ms`: the bound, past which
+     * it waits only for the requests to have been sent, and logs). Resolves when every commit has settled.
      */
-    flushPending() { return Pending.flush(); },
+    flushPending(ms) { return ms ? Pending.flushFor(ms) : Pending.flush(); },
 
     /**
      * #276: the one way an area says it is loading, has nothing to show yet, or could not be loaded.
@@ -452,39 +454,92 @@ const Toast = (() => {
 
 /**
  * #276: the changes waiting for their Undo notice to end (UI.undoable), each sent exactly once: when its notice ends
- * without Undo, or all at once, with keepalive, when the page goes (pagehide), the tab is hidden, or before sign-out.
+ * without Undo, or all at once when the page goes (pagehide), the tab is hidden, or before sign-out.
+ * An entry is "waiting" until it is run, then "in flight" until its commit settles, so a flush (sign-out, pagehide)
+ * still sees and awaits it, and never runs it a second time. Each commit gets a control object:
+ *   keepalive   true when a flush started it (the page is going)
+ *   leaving     (getter) true once the page is going or sign-out has begun, even if that happened after it started
+ *   left        a promise that resolves at that moment: a commit waiting on something (a fresh read) stops waiting
+ *   hold()      the commit will dispatch its request later (after an await): it then calls dispatched()
+ *   dispatched() the request has been handed to the browser, or the commit decided not to send one
+ * Mutations are sent with keepalive always, so a page left mid-request does not drop them.
  */
 const Pending = (() => {
     const waiting = new Map();
+    const inFlight = new Map();
     let seq = 0;
 
     function add(send) { const id = ++seq; waiting.set(id, { send, notice: null }); return id; }
     function setNotice(id, notice) { const entry = waiting.get(id); if (entry) entry.notice = notice; }
-    /** Undo: it will never be sent. False when it has been sent already. */
+    /** Undo: it will never be sent. False when it has been run already (in flight or done). */
     function drop(id) { return waiting.delete(id); }
-    /** Send it now (once): the requests start before this returns. */
-    function run(id, opts) {
+
+    /** Run it now (once): its requests start before this returns unless the commit holds them. */
+    function run(id, { keepalive = false } = {}) {
         const entry = waiting.get(id);
-        if (!entry) return Promise.resolve();
+        if (!entry) return inFlight.has(id) ? inFlight.get(id).settled : Promise.resolve();
         waiting.delete(id);
-        return entry.send(opts);
+        let leaving = keepalive, signal, held = false, markDispatched;
+        const left = new Promise((r) => { signal = r; });
+        if (keepalive) signal();
+        const dispatchedP = new Promise((r) => { markDispatched = r; });
+        const ctl = {
+            keepalive,
+            get leaving() { return leaving; },
+            left,
+            hold() { held = true; },
+            dispatched() { markDispatched(); }
+        };
+        const flight = { leave() { if (!leaving) { leaving = true; signal(); } }, dispatched: dispatchedP, settled: null };
+        inFlight.set(id, flight);
+        let result;
+        try { result = entry.send(ctl); } catch (err) { result = Promise.reject(err); }
+        if (!held) markDispatched();
+        flight.settled = Promise.resolve(result).catch(() => {}).finally(() => { markDispatched(); inFlight.delete(id); });
+        return flight.settled;
     }
-    function flush() {
+
+    /**
+     * Run every waiting entry as the page goes, tell those in flight that it is going, close the notices (their Undo
+     * is gone). -> { settled, dispatched }: all commits settled; all requests handed to the browser (or decided not).
+     */
+    function leave() {
         const ids = [...waiting.keys()];
         const notices = ids.map(id => waiting.get(id).notice).filter(Boolean);
-        const sent = ids.map(id => run(id, { keepalive: true }));
-        notices.forEach(n => n.close()); // their Undo is gone: the change has been sent
-        return Promise.all(sent);
+        inFlight.forEach(f => f.leave());
+        ids.forEach(id => { try { run(id, { keepalive: true }); } catch (err) { console.error('A waiting change failed to start:', err); } });
+        notices.forEach(n => { try { n.close(); } catch { /* the notice is going anyway */ } });
+        const flights = [...inFlight.values()];
+        return {
+            settled: Promise.all(flights.map(f => f.settled)),
+            dispatched: Promise.all(flights.map(f => f.dispatched)),
+            count: flights.length
+        };
     }
-    const size = () => waiting.size;
+    function flush() { return leave().settled; }
+
+    /**
+     * Sign-out: everything sent while the sign-in still works. Waits for every commit to settle, at most `ms`; past
+     * that, waits (at most `ms` more) for those still open to have handed their request to the browser (keepalive, so it
+     * outlives the page) and logs them: none is dropped silently.
+     */
+    async function flushFor(ms) {
+        const { settled, dispatched, count } = leave();
+        if (!count) return;
+        const bound = (p, t) => { let timer; return Promise.race([p.then(() => true), new Promise(r => { timer = setTimeout(() => r(false), t); })]).finally(() => clearTimeout(timer)); };
+        if (await bound(settled, ms)) return;
+        const sent = await bound(dispatched, ms);
+        console.error(`Sign-out: ${inFlight.size} change(s) still had no answer after ${ms} ms; ${sent ? 'their requests were sent (keepalive)' : 'some could not be confirmed as sent'}.`);
+    }
+    const size = () => waiting.size + inFlight.size;
 
     // On the window (visibilitychange bubbles to it from the document), so the document's own listeners stay the pages'.
     const win = typeof window !== 'undefined' ? window : null;
     if (win && typeof win.addEventListener === 'function') {
-        win.addEventListener('pagehide', () => { flush(); });
-        win.addEventListener('visibilitychange', () => { if (typeof document !== 'undefined' && document.hidden) flush(); });
+        win.addEventListener('pagehide', () => { leave(); });
+        win.addEventListener('visibilitychange', () => { if (typeof document !== 'undefined' && document.hidden) leave(); });
     }
-    return { add, setNotice, drop, run, flush, size };
+    return { add, setNotice, drop, run, flush, flushFor, size };
 })();
 
 /** #276: where focus goes around a notice, and whether the last thing the person did was with the keyboard. */

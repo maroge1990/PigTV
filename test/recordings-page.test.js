@@ -454,6 +454,61 @@ test('#276 review: leaving the page decides from what the page holds: the shared
     assert.deepEqual(calls.filter(c => c[0] === 'DELETE'), [['DELETE', '/api/recordings/scheduled/5', true]]);
 });
 
+// Codex sign-off (high): a cancel reading the list fresh before it sends was invisible to sign-out and pagehide.
+test('sign-out while a cancel is still reading the list: the DELETE is sent at once with the sign-in, and awaited', async () => {
+    const elements = makeElements();
+    const start = Date.now() + 3600e3;
+    let reads = 0;
+    const { context, calls } = makeContext(elements, (url, method) => {
+        if (method === 'GET' && url.includes('/scheduled')) { reads++; return reads === 1 ? jsonResponse([{ id: 5, title: 'Later', status: 'scheduled', program_start: start, program_end: start + 1 }]) : new Promise(() => {}); }
+        return jsonResponse([]);
+    });
+    Object.assign(context, { setTimeout, clearTimeout }); // the bound sign-out keeps
+    const headers = [];
+    const fetch = context.fetch;
+    context.fetch = (url, opts = {}) => { if (opts.method === 'DELETE') headers.push(opts.headers.Authorization); return fetch(url, opts); };
+    const page = new context.RecordingsPage({ recordingsFeed: { latest: [] } });
+    await page.loadScheduled();
+    page.cancelScheduled('5');
+    lastToast(context)[1].onEnd('timeout'); // the commit starts its fresh read, which never answers
+    await new Promise(setImmediate);
+    assert.deepEqual(deletes(calls), []);
+    await vm.runInContext('UI.flushPending(5000)', context); // what sign-out awaits
+    assert.deepEqual(calls.filter(c => c[0] === 'DELETE'), [['DELETE', '/api/recordings/scheduled/5', true]]);
+    assert.deepEqual(headers, ['Bearer tok'], 'with the sign-in, before it is revoked');
+});
+
+test('pagehide while a cancel is reading the list: one keepalive DELETE, or none when it has started recording', async () => {
+    for (const started of [false, true]) {
+        const elements = makeElements();
+        const start = Date.now() + 3600e3;
+        let reads = 0;
+        const { context, calls, fire } = makeContext(elements, (url, method) => {
+            if (method === 'GET' && url.includes('/scheduled')) { reads++; return reads === 1 ? jsonResponse([{ id: 5, title: 'Later', status: 'scheduled', program_start: start, program_end: start + 1 }]) : new Promise(() => {}); }
+            return jsonResponse([]);
+        });
+        const page = new context.RecordingsPage({ recordingsFeed: { latest: started ? [{ id: 5 }] : [] } });
+        await page.loadScheduled();
+        page.cancelScheduled('5');
+        lastToast(context)[1].onEnd('timeout');
+        await new Promise(setImmediate);
+        fire('window', 'pagehide');
+        fire('window', 'pagehide');
+        for (let i = 0; i < 5; i++) await new Promise(setImmediate);
+        assert.deepEqual(calls.filter(c => c[0] === 'DELETE'), started ? [] : [['DELETE', '/api/recordings/scheduled/5', true]], `started=${started}`);
+    }
+});
+
+test('the normal delete goes with keepalive too, so leaving while it is on its way does not drop it', async () => {
+    const elements = makeElements();
+    const { context, calls } = makeContext(elements, () => jsonResponse([]));
+    const page = new context.RecordingsPage({});
+    page.renderRecordings(LIBRARY);
+    page.deleteRecording('2');
+    await lastToast(context)[1].onEnd('timeout');
+    assert.deepEqual(calls.filter(c => c[0] === 'DELETE'), [['DELETE', '/api/recordings/2', true]]);
+});
+
 test('#276: declining the Stop confirmation stops nothing', async () => {
     const elements = makeElements();
     const { context, calls } = makeContext(elements, () => jsonResponse([]), { confirmAnswer: false });

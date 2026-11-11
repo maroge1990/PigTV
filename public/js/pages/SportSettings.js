@@ -309,14 +309,15 @@ class SportFollowSettings {
     }
 
     /**
-     * Delete the rules found (already switched off), all requests started at once (with keepalive while the page goes).
+     * Delete the rules found (already switched off), all requests started at once, with keepalive (a page left while
+     * they are on their way does not drop them).
      * -> the names whose rule could not be deleted. A rule already gone counts as deleted.
      */
-    async stopRules(found, { keepalive = false } = {}) {
+    async stopRules(found, { leaving = false } = {}) {
         const failed = [];
-        await Promise.all(found.map(({ name, rule }) => API.request('DELETE', `/recordings/rules/${rule.id}`, null, { keepalive })
+        await Promise.all(found.map(({ name, rule }) => API.request('DELETE', `/recordings/rules/${rule.id}`, null, { keepalive: true })
             .catch((err) => { if (!(err && err.status === 404)) { console.error('A recording rule was not deleted:', err); failed.push(name); } })));
-        if (!keepalive) await this.loadRules();
+        if (!leaving) await this.loadRules();
         return failed;
     }
 
@@ -349,12 +350,27 @@ class SportFollowSettings {
         }
         await this.save(next, '');
         if (!this.lastSaveOk) {
-            // Still followed (the panel says why it was not saved): its rules record again.
-            const back = await this.setRules(found.rules, true);
+            // Codex sign-off (high): a rule goes back on only for a team the server is CONFIRMED to follow still. The
+            // save may have been kept with its answer lost: then the read-back shows the team unfollowed, and the
+            // unfollow stands. If the read-back failed too, nothing is known: the rules stay off and the page says so.
+            if (this.unknown) {
+                const off = found.rules.map(x => x.name);
+                if (off.length) this.message = `Could not confirm whether ${off.join(', ')} ${off.length === 1 ? 'is' : 'are'} still followed, so recording every ${off.join(', ')} game is off for now. Reload this page.`;
+                this.render();
+                return;
+            }
+            const still = found.rules.filter(x => M.follows(this.state, sport, x.name));
+            const back = await this.setRules(still, true);
             if (back.failed.length) this.message += ` Recording every ${back.failed.map(x => x.name).join(', ')} game is now off: switch it on again below.`;
-            await this.loadRules();
-            this.render();
-            return;
+            const landed = names.length > 0 && names.every(n => !M.follows(this.state, sport, n));
+            if (!landed) {
+                await this.loadRules();
+                this.render();
+                return;
+            }
+            // The unfollow was kept: go on as a saved one, for the rules of the teams no longer followed.
+            this.message = '';
+            found.rules = found.rules.filter(x => !still.includes(x));
         }
         await this.loadRules();
         const stops = found.rules.map(x => x.name);
@@ -364,26 +380,48 @@ class SportFollowSettings {
         UI.undoable(stops.length ? `${message} Recording every ${stops.join(', ')} game stops too.` : message, {
             undo: async () => {
                 await this.save(st => M.restore(st, removed), '');
-                if (!this.lastSaveOk) return; // still unfollowed: its rules stay off
-                const back = await this.setRules(found.rules, true);
+                // Back on only for a team the server confirms is followed again (a kept save whose answer was lost
+                // reads back as followed); unknown: they stay off and the page says so.
+                if (this.unknown) {
+                    const off = found.rules.map(x => x.name);
+                    if (off.length) this.message = `Could not confirm whether ${off.join(', ')} ${off.length === 1 ? 'is' : 'are'} followed again, so recording every ${off.join(', ')} game is off for now. Reload this page.`;
+                    this.render();
+                    return;
+                }
+                const back = await this.setRules(found.rules.filter(x => M.follows(this.state, sport, x.name)), true);
                 if (back.failed.length) this.message = `Following again, but recording every ${back.failed.map(x => x.name).join(', ')} game could not be switched back on: switch it on below.`;
                 await this.loadRules();
                 this.render();
             },
-            commit: async ({ keepalive } = {}) => {
+            commit: async (ctl = {}) => {
+                const leaving = () => !!(ctl.leaving ?? ctl.keepalive);
+                // Decide on the confirmed list: wait for a save still on its way, unless the page is going.
+                ctl.hold?.();
+                if (!leaving()) await Promise.race([this.queue, ctl.left || new Promise(() => {})].filter(Boolean));
+                if (this.unknown) {
+                    // Whether these teams are followed is not known: their rules stay off, neither deleted nor back on.
+                    ctl.dispatched?.();
+                    if (!leaving()) {
+                        this.message = `Could not confirm whether ${stops.join(', ')} ${stops.length === 1 ? 'is' : 'are'} still followed, so recording every ${stops.join(', ')} game is off for now. Reload this page.`;
+                        this.render();
+                    }
+                    return;
+                }
                 // A team followed again in the 10 s is Undo by another route: its rule is kept and switched back on.
                 const again = found.rules.filter(x => M.follows(this.state, sport, x.name));
                 const gone = found.rules.filter(x => !again.includes(x));
-                const back = Promise.all(again.map(x => API.request('PUT', `/recordings/rules/${x.rule.id}`, { enabled: true }, { keepalive })
+                const back = Promise.all(again.map(x => API.request('PUT', `/recordings/rules/${x.rule.id}`, { enabled: true }, { keepalive: true })
                     .then(() => null, (err) => { console.error('A recording rule was not switched back on:', err); return x.name; })));
-                const failed = await this.stopRules(gone, { keepalive });
+                const stopping = this.stopRules(gone, { leaving: leaving() });
+                ctl.dispatched?.();
+                const failed = await stopping;
                 const notOn = (await back).filter(Boolean);
-                if (notOn.length && !keepalive) {
+                if (leaving()) return;
+                if (notOn.length) {
                     UI.toast(`Following ${notOn.join(', ')} again, but recording every ${notOn.join(', ')} game could not be switched back on: switch it on in Settings › Sport.`, { kind: 'error' });
-                    await this.loadRules();
-                    this.render();
-                } else if (again.length && !keepalive) { await this.loadRules(); this.render(); }
-                if (failed.length && !keepalive) {
+                }
+                if (again.length || notOn.length) { await this.loadRules(); this.render(); }
+                if (failed.length) {
                     this.message = `Recording every ${failed.join(', ')} game is off, but the rule could not be deleted: delete it in Recordings › Recording rules.`;
                     this.render();
                 }
@@ -416,13 +454,13 @@ class SportFollowSettings {
                 const box = () => this.root?.querySelector?.(`input[data-record-every="${CSS.escape(name)}"][data-sport="${CSS.escape(sport)}"]`);
                 UI.undoable(`Stopped recording every ${name} game. Recordings already made stay.`, {
                     undo: () => { this.pendingRules.delete(rule.id); this.render(); },
-                    // Sent once (UI.undoable), with keepalive when the page goes first.
-                    commit: async ({ keepalive } = {}) => {
+                    // Sent once (UI.undoable), always with keepalive.
+                    commit: async (ctl = {}) => {
                         if (!this.pendingRules.has(rule.id)) return;
-                        try { await API.request('DELETE', `/recordings/rules/${rule.id}`, null, { keepalive }); }
+                        try { await API.request('DELETE', `/recordings/rules/${rule.id}`, null, { keepalive: true }); }
                         catch (err) { this.message = UI.errorText(err, `Every ${name} game is still being recorded.`); }
                         this.pendingRules.delete(rule.id);
-                        if (keepalive) return;
+                        if (ctl.leaving ?? ctl.keepalive) return;
                         await this.loadRules();
                         this.render();
                     },

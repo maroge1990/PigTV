@@ -321,14 +321,12 @@ class App {
 
     /**
      * Sign out. #276 review: a change still waiting for its Undo notice (a delete, a cancel, a rule stopped) is sent
-     * first, while the sign-in still works, and waited for (at most 5 s); after sign-out it would be refused.
+     * first, while the sign-in still works, and waited for (at most 5 s, then only until it has been sent); after
+     * sign-out it would be refused.
      */
     async signOut() {
-        if (typeof UI !== 'undefined' && UI.flushPending) {
-            let timer;
-            await Promise.race([UI.flushPending().catch(() => {}), new Promise(r => { timer = setTimeout(r, 5000); })]);
-            clearTimeout(timer);
-        }
+        // At most 5 s for the answers; past that, only until the requests (keepalive) have been sent, and logged.
+        if (typeof UI !== 'undefined' && UI.flushPending) await UI.flushPending(5000).catch(() => {});
         const token = localStorage.getItem('authToken');
         if (token) {
             await fetch('/api/auth/logout', {

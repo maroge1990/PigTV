@@ -367,3 +367,72 @@ test('#208: a lost answer that cannot be read again stops queued changes until t
     await change('Champions League');
     assert.deepEqual(stored.sports[0].leagues, ['EPL', 'FA Cup', 'Champions League'], 'after a load, changes save again');
 });
+
+// Codex sign-off (high): a save kept by the server whose answer was lost was taken as failed, and the rule switched
+// back on for a team no longer followed. A rule goes back on only for a team the server confirms is still followed.
+test('sign-off: the list saved but its answer lost, read back unfollowed: the unfollow stands, rule off, its deletion waits for the notice', async () => {
+    const { server, responses } = ruleServer({ spoilerFree: false, sports: [{ sport: 'Football', leagues: ['EPL'], teams: ['Arsenal'] }] });
+    const put = responses['PUT /sports/follows'];
+    responses['PUT /sports/follows'] = (body) => { put(body); return new Error('the answer was lost'); };
+    const { settings, root, calls, ctx } = panel(responses);
+    await settings.load();
+    await root.listeners.click({ target: { closest: () => ({ dataset: { act: 'name-remove', sport: 'Football', name: 'Arsenal' } }) } });
+    assert.deepEqual(server.stored.sports[0].teams, []);
+    assert.equal(server.rules[0].enabled, false, 'not switched back on');
+    assert.equal(ctx.toasts.at(-1)[0], 'Unfollowed Arsenal. Recording every Arsenal game stops too.');
+    assert.doesNotMatch(root.innerHTML, /Not saved/);
+    ctx.toasts.at(-1)[1].onEnd('timeout'); await settle();
+    assert.equal(calls.filter(c => c[0] === 'DELETE' && c[1] === '/recordings/rules/9').length, 1, 'its deletion was registered');
+});
+
+test('sign-off: the answer lost and the list cannot be read again: the rule stays off, the page says so, nothing more', async () => {
+    const { server, responses } = ruleServer({ spoilerFree: false, sports: [{ sport: 'Football', leagues: ['EPL'], teams: ['Arsenal'] }] });
+    const put = responses['PUT /sports/follows'];
+    let readable = true;
+    const get = responses['GET /sports/follows'];
+    responses['GET /sports/follows'] = () => (readable ? get() : new Error('offline'));
+    responses['PUT /sports/follows'] = (body) => { put(body); readable = false; return new Error('the answer was lost'); };
+    const { settings, root, calls, ctx } = panel(responses);
+    await settings.load();
+    const toasts = ctx.toasts.length;
+    await root.listeners.click({ target: { closest: () => ({ dataset: { act: 'name-remove', sport: 'Football', name: 'Arsenal' } }) } });
+    assert.equal(server.rules[0].enabled, false, 'off');
+    assert.ok(!calls.some(c => c[0] === 'PUT' && c[1] === '/recordings/rules/9' && c[2].enabled === true), 'never switched back on');
+    assert.ok(!calls.some(c => c[0] === 'DELETE'));
+    assert.equal(ctx.toasts.length, toasts, 'no Undo notice');
+    assert.match(root.innerHTML, /Could not confirm whether Arsenal is still followed, so recording every Arsenal game is off for now\. Reload this page\./);
+});
+
+test('sign-off: Undo whose save was kept but whose answer was lost switches the rule on (read back as followed); unknown keeps it off', async () => {
+    for (const readable of [true, false]) {
+        const { server, responses } = ruleServer({ spoilerFree: false, sports: [{ sport: 'Football', leagues: ['EPL'], teams: ['Arsenal'] }] });
+        const put = responses['PUT /sports/follows'];
+        const get = responses['GET /sports/follows'];
+        let lose = false, canRead = true;
+        responses['PUT /sports/follows'] = (body) => { const r = put(body); if (!lose) return r; canRead = readable; return new Error('the answer was lost'); };
+        responses['GET /sports/follows'] = () => (canRead ? get() : new Error('offline'));
+        const { settings, root, calls, ctx } = panel(responses);
+        await settings.load();
+        await root.listeners.click({ target: { closest: () => ({ dataset: { act: 'name-remove', sport: 'Football', name: 'Arsenal' } }) } });
+        const [, notice] = ctx.toasts.at(-1);
+        lose = true;
+        notice.onEnd('action'); await notice.action.run(); await settle();
+        assert.deepEqual(server.stored.sports[0].teams, ['Arsenal']);
+        assert.equal(server.rules[0].enabled, readable, `readable=${readable}`);
+        if (!readable) assert.match(root.innerHTML, /Could not confirm whether Arsenal is followed again/);
+        assert.ok(!calls.some(c => c[0] === 'DELETE'));
+    }
+});
+
+test('sign-off: when the notice ends with the list unknown, the rule is neither deleted nor switched on', async () => {
+    const { server, responses } = ruleServer({ spoilerFree: false, sports: [{ sport: 'Football', leagues: ['EPL', 'FA Cup'], teams: ['Arsenal'] }] });
+    const { settings, root, calls, ctx } = panel(responses);
+    await settings.load();
+    await root.listeners.click({ target: { closest: () => ({ dataset: { act: 'name-remove', sport: 'Football', name: 'Arsenal' } }) } });
+    const [, notice] = ctx.toasts.at(-1);
+    settings.unknown = true; // a later change's answer was lost and could not be read again (#208)
+    notice.onEnd('timeout'); await settle();
+    assert.ok(!calls.some(c => c[0] === 'DELETE'));
+    assert.equal(server.rules[0].enabled, false);
+    assert.match(root.innerHTML, /Could not confirm whether Arsenal is still followed/);
+});
