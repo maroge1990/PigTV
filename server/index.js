@@ -128,6 +128,7 @@ process.on('SIGTERM', async () => {
         console.error('Error stopping active recordings:', err.message);
     }
     try { require('./services/ingest').closeAll('shutdown'); } catch (err) { /* best-effort (Wave 5) */ }
+    try { require('./services/deviceAuth').flushPending(); } catch (err) { /* best-effort: last seen kept in memory (#273) */ }
     process.exit(0);
 });
 

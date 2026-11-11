@@ -165,6 +165,7 @@ function pendingPairing(code) {
 }
 
 function listDevices(userId) {
+    flushPending(); // last_seen_at as of the latest request, not the latest write
     return getDb().prepare(`
         SELECT id, name, platform, created_at, last_seen_at, revoked_at, app_client
         FROM devices WHERE user_id = ? ORDER BY created_at DESC
@@ -172,10 +173,47 @@ function listDevices(userId) {
 }
 
 function revokeDevice(userId, deviceId) {
+    flushPending(); // the row keeps the device's true last request
     const result = getDb().prepare(`
         UPDATE devices SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL
     `).run(Date.now(), deviceId, String(userId));
+    touches.delete(deviceId);
     return result.changes > 0;
+}
+
+// I-1 (#273): the two statements every request from a paired device runs are prepared once per
+// database handle, and "last seen" is written at most once a minute per device. Nothing about the
+// auth answer is cached: isDeviceValid reads the row on every request, so a revocation (through
+// revokeDevice or straight in SQL) refuses the very next request.
+const TOUCH_WRITE_MS = 60 * 1000;          // a device's last_seen_at is written at most this often
+const TOUCH_FORGET_MS = 24 * 60 * 60 * 1000; // an entry untouched this long is dropped at a flush
+const TOUCH_MAX = 10000;                    // and the map is cleared after a flush beyond this size
+
+let clock = () => Date.now();
+/** Tests: replace the clock touchDevice and flushPending read (no argument restores Date.now). */
+function _setClock(fn) { clock = typeof fn === 'function' ? fn : () => Date.now(); }
+
+let hotDb = null;
+let hotStmts = null;
+// deviceId -> { lastSeenAt, client, flushedAt, written }: `written` is the last_seen_at last
+// written to the row, `client` the non-empty app_client last written (null when not known).
+let touches = new Map();
+
+/** The statements, prepared once per handle; a new handle (tests re-open) drops them and the map. */
+function hot() {
+    const db = getDb();
+    if (hotDb !== db) {
+        const stmts = {
+            valid: db.prepare('SELECT revoked_at FROM devices WHERE id = ?'),
+            // revoked_at IS NULL: a touch never lands on a revoked row (none reaches here today,
+            // since isDeviceValid runs first, but a pending flush could).
+            touch: db.prepare('UPDATE devices SET last_seen_at = ?, app_client = COALESCE(?, app_client) WHERE id = ? AND revoked_at IS NULL')
+        };
+        hotDb = db;
+        hotStmts = stmts;
+        touches = new Map();
+    }
+    return hotStmts;
 }
 
 /**
@@ -185,17 +223,58 @@ function revokeDevice(userId, deviceId) {
  */
 function isDeviceValid(deviceId) {
     if (!deviceId) return true; // an ordinary user token, not a device
-    const row = getDb().prepare('SELECT revoked_at FROM devices WHERE id = ?').get(deviceId);
+    const row = hot().valid.get(deviceId);
     return !!row && !row.revoked_at;
 }
 
-/** Last seen now; `client` (the request's X-PigTV-Client) replaces the one kept, and a request without one keeps it. */
+/**
+ * Last seen now; `client` (the request's X-PigTV-Client) replaces the one kept, and a request without one keeps it.
+ * Written to the row on a device's first touch in this process, when a minute has passed since its last write, or
+ * when its client string changes; otherwise kept in memory until the next write or flushPending.
+ */
 function touchDevice(deviceId, client = null) {
     if (!deviceId) return;
     try {
-        getDb().prepare('UPDATE devices SET last_seen_at = ?, app_client = COALESCE(?, app_client) WHERE id = ?')
-            .run(Date.now(), cleanLabel(client, CLIENT_MAX), deviceId);
+        const stmts = hot();
+        const now = clock();
+        const label = cleanLabel(client, CLIENT_MAX);
+        const entry = touches.get(deviceId);
+        if (entry && now - entry.flushedAt < TOUCH_WRITE_MS && (label === null || label === entry.client)) {
+            if (now > entry.lastSeenAt) entry.lastSeenAt = now;
+            return;
+        }
+        const lastSeenAt = entry && entry.lastSeenAt > now ? entry.lastSeenAt : now;
+        const result = stmts.touch.run(lastSeenAt, label, deviceId);
+        if (result.changes === 0) { touches.delete(deviceId); return; } // gone or revoked
+        touches.set(deviceId, { lastSeenAt, client: label ?? entry?.client ?? null, flushedAt: now, written: lastSeenAt });
+        if (touches.size > TOUCH_MAX) flushPending();
     } catch (e) { /* last seen is a nicety, never worth failing a request over */ }
+}
+
+/**
+ * Writes every last_seen_at kept only in memory, so a reader (listDevices) or a revocation sees the latest
+ * request. Safe at any time, shutdown included: it never throws and never opens a database that is not open.
+ * Returns how many rows it wrote.
+ */
+function flushPending() {
+    if (!touches.size || !hotDb || !hotDb.open) return 0;
+    let wrote = 0;
+    try {
+        const stmts = hot();
+        const now = clock();
+        for (const [deviceId, entry] of touches) {
+            if (entry.lastSeenAt > entry.written) {
+                const result = stmts.touch.run(entry.lastSeenAt, null, deviceId);
+                if (result.changes === 0) { touches.delete(deviceId); continue; } // gone or revoked
+                entry.written = entry.lastSeenAt;
+                entry.flushedAt = now;
+                wrote++;
+            }
+            if (now - entry.lastSeenAt >= TOUCH_FORGET_MS) touches.delete(deviceId);
+        }
+        if (touches.size > TOUCH_MAX) touches.clear();
+    } catch (e) { /* as touchDevice: never worth failing over */ }
+    return wrote;
 }
 
 module.exports = {
@@ -207,6 +286,8 @@ module.exports = {
     revokeDevice,
     isDeviceValid,
     touchDevice,
+    flushPending,
+    _setClock,
     clientHeader,
     describeClient
 };

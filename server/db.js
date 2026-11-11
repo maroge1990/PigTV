@@ -309,13 +309,25 @@ const settings = {
 
 const withoutHash = ({ passwordHash, ...rest }) => rest;
 
+// I-1 (#273): every authenticated request looks its user up, so that statement is prepared once
+// per database handle (a re-opened handle gets its own). Still a live read every time.
+let byIdStmt = null;
+let byIdDb = null;
+function userByIdStatement(db) {
+  if (byIdDb !== db) {
+    byIdStmt = db.prepare('SELECT data FROM app_users WHERE id = ?');
+    byIdDb = db;
+  }
+  return byIdStmt;
+}
+
 const users = {
   async getAll() {
     return store().prepare('SELECT data FROM app_users ORDER BY id').all().map(parseRow);
   },
 
   async getById(id) {
-    return parseRow(store().prepare('SELECT data FROM app_users WHERE id = ?').get(parseInt(id)));
+    return parseRow(userByIdStatement(store()).get(parseInt(id)));
   },
 
   async getByUsername(username) {
