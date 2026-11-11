@@ -111,3 +111,23 @@ test('a card keeps what the classifier reads of it: ESPN\'s own end, each side\'
     const nfl = espn.normalize(readFx('nfl-20260927'), 'NFL', 'football/nfl').find(g => g.id.endsWith('401872953'));
     assert.deepEqual(nfl.fixture, { end: null, locations: ['Buffalo', 'Los Angeles'] });
 });
+
+// 0555 (batch D review M2): whether a group's series list is whole was judged from the cached list, but its series were taken
+// only from this tick's answer. In a cooldown (or past the tick's deadline) after the list's 15 minutes, a series with no card
+// yet dropped out, and the group's coverage was written without it: the classifier could then say "ESPN has no such game"
+// for a real match of that series for up to 6 hours.
+test('International cricket: a series the held list names but whose window has not answered keeps the coverage back during a cooldown', async () => {
+    const klass = [{ competitions: [{ class: { internationalClassId: '3' } }] }];
+    const panel = { scores: [{ leagues: [{ id: '24377', name: 'Tour' }], events: klass }, { leagues: [{ id: '99999', name: 'Second tour' }], events: klass }] };
+    let failing = true;
+    const r = run({ now: '2026-09-27T12:00Z', league: 'Cricket', path: 'cricket/24377', days: { 20260927: 'cricket-24377-20260927' }, panel,
+        fail: u => failing && u.includes('cricket/99999') });
+    await r.refresh(6);
+    assert.equal(r.coverage(), undefined, 'the second series has not answered: no coverage');
+    r.clock.now += 16 * 60000; // the series list is past its 15 minutes...
+    requestPolicy.observe(429, '600', r.clock.now); // ...and ESPN asks us to wait: nothing is fetched this tick
+    failing = false;
+    await r.refresh(1);
+    r.c.stop();
+    assert.equal(r.coverage(), undefined, 'written without the second series\' matches');
+});

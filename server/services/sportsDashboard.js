@@ -548,10 +548,13 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                 if (!Array.isArray(held?.json.scores) || held.json.scores.some(block => !Array.isArray(block?.leagues)
                     || block.leagues.some(l => !/^\d{1,12}$/.test(String(l?.id))) || cricketGroupOf(block.events) === undefined)) discoveryWhole = false;
                 else discoveryAt = Math.min(discoveryAt, held.observedAt);
-                if (!Array.isArray(panel?.json.scores)) continue;
-                for (const block of panel.json.scores) for (const l of Array.isArray(block?.leagues) ? block.leagues : []) {
+                // 0555 (batch D review M2): the series come from the same list the wholeness was judged from (the held one,
+                // this tick's answer when there is one): a series it names must never drop out of a group's coverage because
+                // this tick could not ask again (a cooldown, the deadline, the budget).
+                if (Array.isArray(held?.json.scores)) for (const block of held.json.scores) for (const l of Array.isArray(block?.leagues) ? block.leagues : []) {
                     if (/^\d{1,12}$/.test(String(l?.id))) take(String(l.id), cricketGroupOf(block.events));
                 }
+                if (!Array.isArray(panel?.json.scores)) continue;
                 if (wanted.has(OTHER_CRICKET)) for (const block of panel.json.scores) {
                     const id = String(block?.leagues?.[0]?.id ?? '');
                     if (!/^\d{1,12}$/.test(id) || fixed.has(id) || !Array.isArray(block.events)) continue;
