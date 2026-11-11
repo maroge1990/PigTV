@@ -296,6 +296,12 @@ future work. The capability-gated dashboard and authenticated preference routes 
 A normalized game has catalog identity/start/day/session, competitors/artwork, structured sport-specific state,
 match availability/event reference, observed/effective timestamps and freshness; score output is profile-filtered.
 History is bounded by time/count, persisted through server restart for the delay horizon, and never stores credentials.
+**History rows only on change (#272, 0549, `sportsDashboardStore.js`):** a row is written when a game's snapshot changes or
+an answer follows more than two minutes of silence (`CONFIRM_GAP_MS`, the freshness allowance); an unchanged answer moves
+only the catalogue's `observed_at` (the last-confirmed time), and a superseded row keeps `confirmed_at`, its last fetch.
+Readers credit the snapshot at or before the delayed time with its last confirmation, capped at that time, so freshness and
+the delayed state read exactly as with a row per fetch (`test/sports-history-on-change.test.js` replays both rules; a
+scripted match polled every 30 s wrote 53 rows instead of 285). A table from before 0549 gains the column at open.
 ETags/caches must incorporate authenticated profile, preference revision, delayed snapshot identity and visibility.
 No shared response can expose another person's revealed scores.
 

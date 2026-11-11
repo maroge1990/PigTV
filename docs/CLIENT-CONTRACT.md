@@ -532,7 +532,11 @@ Catalog/history writes are batched once per tick, retaining each response's obse
 hints are not treated as actual match ends; joins use format-bounded windows and retain ambiguous ties as unmatched. Failure leaves catalog/history
 intact and does not label old cached data as newly observed. History keeps a 15-minute window plus, per game, the last-known
 snapshot and the newest snapshot at or before now − 300 s (the maximum delay), so a slowly polled game stays eligible
-(and stale) rather than buffering, and a pruned final cannot regain Watch; catalog entries expire after eight days without a recent observation. New tables are
+(and stale) rather than buffering, and a pruned final cannot regain Watch; catalog entries expire after eight days without a recent observation.
+Since 0549 (#272) history holds a row per change of a game's snapshot (and per answer after more than two minutes of
+silence), not per fetch; an unchanged answer moves only the game's last-confirmed time. A card's `observedAt` is its
+snapshot's last confirmation at or before the delayed time (up to one poll later than before, never past it); what is
+shown and its `freshness` are unchanged. New tables are
 `sports_dashboard_catalog`, `sports_score_history`, `sports_user_preferences`. F1 is session-only; AFL goals/behinds
 summary enrichment and richer optional situations are not promised by this first server slice. Since 0316, unmatched C-I event listings also produce `guide:<event-id>` cards with `dataSource: "guide"`,
 empty competitors/progress, no scores/situation, and `freshness: "unavailable"`. Their state is scheduled or unknown;

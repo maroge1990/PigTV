@@ -1,16 +1,30 @@
-/** Isolated persisted catalog/history/preferences for the opt-in sports dashboard. */
+/**
+ * Isolated persisted catalog/history/preferences for the opt-in sports dashboard.
+ *
+ * #272 (I-3, 0549): a history row is written only when a game's observed state changes (the snapshot: status, break,
+ * clock/period, scores, situation, and its final time), or when an answer comes after more than CONFIRM_GAP_MS of
+ * silence; an unchanged answer moves only the catalogue row's `observed_at`, the game's last-confirmed time. A row a newer
+ * one supersedes keeps `confirmed_at`, the last fetch that still saw it. Readers credit a snapshot with its last
+ * confirmation (never later than the delayed time asked for), so freshness reads as it did with a row per fetch: a quiet
+ * game stays fresh, one ESPN stops answering for goes stale on time. The gap rule keeps that exact: a confirmation after a
+ * silence of more than two minutes (the freshness allowance) is its own row, so it never vouches for the silence.
+ */
 const HISTORY_MS = 15 * 60000;
 const MAX_DELAY_MS = 300000; // scoreDelaySeconds is at most 300
+const CONFIRM_GAP_MS = 120000; // sportsDashboard's freshness allowance: an answer after a longer silence is a row
 function initSchema(db) {
     db.exec(`CREATE TABLE IF NOT EXISTS sports_dashboard_catalog (
         id TEXT PRIMARY KEY, league TEXT NOT NULL, start INTEGER NOT NULL, data TEXT NOT NULL, observed_at INTEGER NOT NULL, finished_at INTEGER);
         CREATE INDEX IF NOT EXISTS sports_dashboard_start ON sports_dashboard_catalog(start);
         CREATE TABLE IF NOT EXISTS sports_score_history (
-        game_id TEXT NOT NULL, observed_at INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY(game_id, observed_at));
+        game_id TEXT NOT NULL, observed_at INTEGER NOT NULL, data TEXT NOT NULL, confirmed_at INTEGER, PRIMARY KEY(game_id, observed_at));
         CREATE INDEX IF NOT EXISTS sports_score_age ON sports_score_history(observed_at);
         CREATE TABLE IF NOT EXISTS sports_user_preferences (
         user_id TEXT PRIMARY KEY, avoid_spoilers INTEGER NOT NULL, delay_seconds INTEGER NOT NULL, revision INTEGER NOT NULL);`);
+    // #272 (0549): a history table from before 0549 (one row per fetch) gains confirmed_at; its rows keep NULL (their own time).
+    if (!hasConfirmed(db)) db.exec('ALTER TABLE sports_score_history ADD COLUMN confirmed_at INTEGER');
 }
+const hasConfirmed = (db) => !!db.prepare("SELECT 1 FROM pragma_table_info('sports_score_history') WHERE name='confirmed_at'").get();
 function createStore(db, { readOnly = false } = {}) {
     if (!readOnly) {
         initSchema(db);
@@ -40,16 +54,23 @@ function createStore(db, { readOnly = false } = {}) {
     }
     // Prepared once per connection, including the worker's read-only connection.
     const prefStmt = db.prepare('SELECT * FROM sports_user_preferences WHERE user_id=?');
-    const latestStmt = db.prepare('SELECT observed_at,data FROM sports_score_history WHERE game_id=? ORDER BY observed_at DESC LIMIT 1');
-    const delayedStmt = db.prepare('SELECT observed_at,data FROM sports_score_history WHERE game_id=? AND observed_at<=? ORDER BY observed_at DESC LIMIT 1');
+    // #272 (0549): a row's last confirmation: its confirmed_at once superseded; the newest row's is the catalogue's
+    // last-confirmed time; a row from before 0549 (a row per fetch) its own time. A read-only connection to a database not
+    // yet upgraded (the worker's) reads every row as before 0549.
+    const confirmed = `MAX(h.observed_at, COALESCE(${hasConfirmed(db) ? 'h.confirmed_at' : 'NULL'},
+        CASE WHEN h.observed_at=(SELECT MAX(x.observed_at) FROM sports_score_history x WHERE x.game_id=h.game_id)
+            THEN (SELECT c.observed_at FROM sports_dashboard_catalog c WHERE c.id=h.game_id) END, h.observed_at)) AS confirmed`;
+    const latestStmt = db.prepare(`SELECT h.observed_at,h.data,${confirmed} FROM sports_score_history h WHERE h.game_id=? ORDER BY h.observed_at DESC LIMIT 1`);
+    const delayedStmt = db.prepare(`SELECT h.observed_at,h.data,${confirmed} FROM sports_score_history h WHERE h.game_id=? AND h.observed_at<=? ORDER BY h.observed_at DESC LIMIT 1`);
     const catalogStmt = db.prepare('SELECT * FROM sports_dashboard_catalog ORDER BY start,id');
-    const selectedStmt = db.prepare(`SELECT h.game_id,h.observed_at,h.data FROM sports_score_history h
+    const selectedStmt = db.prepare(`SELECT h.game_id,h.observed_at,h.data,${confirmed} FROM sports_score_history h
         JOIN (SELECT game_id,MAX(observed_at) AS at FROM sports_score_history WHERE observed_at<=? GROUP BY game_id) s
         ON s.game_id=h.game_id AND s.at=h.observed_at`);
-    const decode = row => {
+    // `observedAt`: when the snapshot was last confirmed, at most `asOf` (the delayed time) when one is asked for.
+    const decode = (row, asOf = Infinity) => {
         if (!row) return null;
         const { finishedAt, ...data } = JSON.parse(row.data);
-        return { observedAt: row.observed_at, finishedAt: finishedAt ?? null, data };
+        return { observedAt: Math.min(row.confirmed ?? row.observed_at, asOf), finishedAt: finishedAt ?? null, data };
     };
     const preferences = userId => {
         const row = prefStmt.get(String(userId));
@@ -60,15 +81,17 @@ function createStore(db, { readOnly = false } = {}) {
     const catalog = () => catalogStmt.all().map(r => ({ ...JSON.parse(r.data), observedAt: r.observed_at, finishedAt: r.finished_at }));
     const result = {
         preferences, latest, catalog,
-        delayed: (gameId, now, delay) => decode(delayedStmt.get(gameId, now - delay * 1000)),
+        delayed: (gameId, now, delay) => decode(delayedStmt.get(gameId, now - delay * 1000), now - delay * 1000),
         view: db.transaction((now, delay) => ({ catalog: catalog(), selected: new Map(selectedStmt.all(now - delay * 1000)
-            .map(row => [row.game_id, decode(row)])) }))
+            .map(row => [row.game_id, decode(row, now - delay * 1000)])) }))
     };
     if (readOnly) return result;
     const updatePref = db.prepare('INSERT OR REPLACE INTO sports_user_preferences VALUES(?,?,?,?)');
     const previousStmt = db.prepare('SELECT observed_at,finished_at FROM sports_dashboard_catalog WHERE id=?');
     const putCatalog = db.prepare('INSERT OR REPLACE INTO sports_dashboard_catalog VALUES(?,?,?,?,?,?)');
-    const putHistory = db.prepare('INSERT INTO sports_score_history VALUES(?,?,?)');
+    const putHistory = db.prepare('INSERT INTO sports_score_history(game_id,observed_at,data) VALUES(?,?,?)');
+    const newestStmt = db.prepare('SELECT observed_at,data,confirmed_at FROM sports_score_history WHERE game_id=? ORDER BY observed_at DESC LIMIT 1');
+    const confirmStmt = db.prepare('UPDATE sports_score_history SET confirmed_at=? WHERE game_id=? AND observed_at=?');
     result.updatePreferences = db.transaction((userId, patch) => {
         if (!patch || typeof patch !== 'object' || Array.isArray(patch) || Object.keys(patch).some(k => !['avoidSpoilers','scoreDelaySeconds','revision'].includes(k)) ||
             !Number.isSafeInteger(patch.revision) || patch.revision < 0 ||
@@ -93,8 +116,15 @@ function createStore(db, { readOnly = false } = {}) {
             const finishedAt = game.snapshot.state === 'finished'
                 ? previous?.finished_at ?? (old && old.data.state !== 'finished' ? at : null) : null;
             const { snapshot, ...metadata } = game;
+            const record = JSON.stringify({ ...snapshot, finishedAt });
+            // #272 (0549): a row only when the state changed, or after a silence longer than the freshness allowance; the
+            // superseded row keeps the last fetch that saw it (the catalogue's time until now).
+            const newest = newestStmt.get(game.id);
+            if (!newest || newest.data !== record || !previous || at - previous.observed_at > CONFIRM_GAP_MS) {
+                if (newest && previous && newest.confirmed_at === null && previous.observed_at >= newest.observed_at) confirmStmt.run(previous.observed_at, game.id, newest.observed_at);
+                putHistory.run(game.id, at, record);
+            }
             putCatalog.run(game.id, game.league, game.start, JSON.stringify(metadata), at, finishedAt);
-            putHistory.run(game.id, at, JSON.stringify({ ...snapshot, finishedAt }));
         }
     });
     result.ingest = (games, at) => result.ingestBatch(games.map(game => ({ game, observedAt: at })));
@@ -116,4 +146,4 @@ function createStore(db, { readOnly = false } = {}) {
     });
     return result;
 }
-module.exports = { initSchema, createStore, HISTORY_MS };
+module.exports = { initSchema, createStore, HISTORY_MS, CONFIRM_GAP_MS };
