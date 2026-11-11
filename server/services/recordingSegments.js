@@ -965,11 +965,24 @@ async function processQueue(now = Date.now()) {
     }
 }
 
+// I-6 (#273): the Status page polls every 5 s; free space is read from the disk at most once a minute.
+const FREE_BYTES_TTL_MS = 60000;
+let freeBytesCache = null;
+let freeBytesNow = Date.now; // a test may replace it through _resetFreeBytes
+function _resetFreeBytes(clock) { freeBytesCache = null; freeBytesNow = clock || Date.now; }
+function readFreeBytes() {
+    const t = freeBytesNow();
+    if (freeBytesCache && t - freeBytesCache.at < FREE_BYTES_TTL_MS && t >= freeBytesCache.at) return freeBytesCache.value;
+    let freeBytes = null;
+    try { fs.mkdirSync(workRoot(), { recursive: true }); const st = fs.statfsSync(workRoot()); freeBytes = st.bavail * st.bsize; } catch (e) { /* unknown */ }
+    freeBytesCache = { at: t, value: freeBytes };
+    return freeBytes;
+}
+
 /** For the Status page: the appdata folder and what is still in it. */
 function status() {
     const rows = recordingsDb.findWithWorkDir();
-    let freeBytes = null;
-    try { fs.mkdirSync(workRoot(), { recursive: true }); const st = fs.statfsSync(workRoot()); freeBytes = st.bavail * st.bsize; } catch (e) { /* unknown */ }
+    const freeBytes = readFreeBytes();
     const pick = (state) => rows.filter(r => r.segment_state === state).map(r => ({ id: r.id, title: r.title }));
     return {
         freeBytes,
@@ -983,7 +996,7 @@ function status() {
 module.exports = {
     SEGMENT_SEC, workRoot, workDirFor, isWorkDir, epochs, nextEpoch, captureInput, captureArgs, captureBytes,
     sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount,
-    viewArgs,
+    viewArgs, _resetFreeBytes,
     _partInput: partInput,
     _refreshPartInput: refreshPartInput,
     _nextPart: nextPart, ensureView, stopFollowers, viewPlaylist, probeVideoInfo, isWatchable,

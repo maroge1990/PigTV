@@ -209,6 +209,7 @@ test('the status document lists the least reliable channels with attempts, failu
     insertAttempt('s1002', { ok: false, name: 'Bravo' });
     insertAttempt('s1003', { ok: true, fps: 3, name: 'Charlie' }); // never failed: not listed
 
+    load('routes/status')._resetMemo(); // I-6: the Status page memoises leastReliable for 60 s
     const { status, body } = await call('GET', '/api/status');
     assert.equal(status, 200);
     assert.deepEqual(body.leastReliable, [
@@ -250,6 +251,7 @@ test('play-end stores watched time and stalls on the owner\'s last attempt, once
     } finally { strategy.resolve = real; }
     assert.deepEqual(attempts().map(r => [r.channel_key, r.ok, r.watched_sec, r.stalls]), [['s1003', 1, 1800, 4]]);
 
+    load('routes/status')._resetMemo(); // I-6: the Status page memoises leastReliable for 60 s
     const { body } = await call('GET', '/api/status');
     assert.deepEqual(body.leastReliable.map(c => [c.name, c.failures, c.stalls, c.watchedMin, c.stallsPerHour, c.health]),
         [['Charlie', 0, 4, 30, 8, 'flaky']], 'a channel that only stalls is listed');

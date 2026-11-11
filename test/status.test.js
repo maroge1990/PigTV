@@ -255,6 +255,7 @@ test('#19: live sessions and recent plays name the paired device (and what its a
         .run('tv-1', String(admin.id), 'PigTV tvOS', 'tvOS', 1, 2, 'PigTV/84 (tvOS 26.1; AppleTV14,1)');
     d.prepare(`INSERT INTO devices (id, user_id, name, platform, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)`)
         .run('pad-1', String(admin.id), 'PigTV iOS', 'iOS', 1, 2);
+    load('routes/status')._resetMemo(); // I-6: owner names are memoised for 10 s; these devices were inserted straight into the table
     playbackEvents.reset();
     playbackEvents.record({ type: 'play-start', owner: 'device:tv-1', channel: 'Seven' });
     playbackEvents.record({ type: 'play-start', owner: 'device:pad-1', channel: 'Nine' });

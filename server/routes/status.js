@@ -92,7 +92,7 @@ function providerName(providerId) {
  * #19 (0364): who an owner key (streamCoordinator.ownerKey) is: a paired device by its name and what its app last said
  * it was ("PigTV tvOS (Apple TV, PigTV 84)"), a password login by its username. Read once per status request.
  */
-function ownerNames() {
+function ownerNamesRead() {
     const names = new Map();
     try {
         const { describeClient } = require('../services/deviceAuth');
@@ -105,6 +105,25 @@ function ownerNames() {
     } catch (e) { /* the raw key is shown instead */ }
     return names;
 }
+
+/**
+ * I-6 (#273): the collapsed Status page polls every 5 s; these answers change slowly, so each runs at most once per TTL.
+ * `now` is injectable so a test can expire a memo; `.clear()` drops the stored answer.
+ */
+let memoClock = Date.now;
+function memo(fn, ttlMs) {
+    let at = -Infinity, value;
+    const wrapped = () => {
+        const t = memoClock();
+        if (t - at >= ttlMs || t < at) { value = fn(); at = t; }
+        return value;
+    };
+    wrapped.clear = () => { at = -Infinity; value = undefined; };
+    return wrapped;
+}
+const OWNER_NAMES_TTL_MS = 10000; // short on purpose: a newly paired device should show its name quickly
+const SLOW_TTL_MS = 60000;
+const ownerNames = memo(ownerNamesRead, OWNER_NAMES_TTL_MS);
 
 const withOwnerName = (names) => (row) => ({ ...row, ownerName: (row.owner && names.get(row.owner)) || null });
 
@@ -207,12 +226,21 @@ function diskAt(dir) {
     }
 }
 
-function leastReliable() {
+const leastReliable = memo(() => {
     try {
         return channelHealth.leastReliable({ limit: 10 });
     } catch (e) {
         return [];
     }
+}, SLOW_TTL_MS);
+const interruptionsSummary = memo(() => require('../services/playbackInterruptions').summary(), SLOW_TTL_MS);
+const memos = [ownerNames, leastReliable, interruptionsSummary];
+
+/** For tests: drop every memo (and the clock override). */
+function _resetMemo(clock) {
+    memoClock = clock || Date.now;
+    for (const m of memos) m.clear();
+    try { require('../services/recordingSegments')._resetFreeBytes?.(clock); } catch (e) { /* not loaded */ }
 }
 
 /** A recording's provider: the one it was started on, else its schedule's source. */
@@ -322,7 +350,7 @@ router.get('/', async (req, res) => {
             // 0133 (C-G): the channels that failed to start most in the last 7 days.
             leastReliable: leastReliable(),
             // 0188: streams lost mid-play in the last 7 days, and how long they took to come back.
-            interruptions: require('../services/playbackInterruptions').summary(),
+            interruptions: interruptionsSummary(),
             // R11: channels warmed ahead (the warmNextChannel setting).
             warming: detail(() => require('../services/channelWarming').status(settings)),
             // 0189: streams a relay is keeping going (Settings: In-stream recovery), and their standbys.
@@ -382,5 +410,6 @@ router.get('/', async (req, res) => {
 });
 
 router._scrubUrls = scrubUrls;
+router._resetMemo = _resetMemo;
 
 module.exports = router;

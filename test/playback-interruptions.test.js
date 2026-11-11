@@ -88,6 +88,6 @@ test('the resolve route records both ends, and Status shows it', () => {
     const route = fs.readFileSync(path.join(sandbox, 'server/routes/playback.js'), 'utf8');
     assert.match(route, /interruptions\.noteResolved\(\{ owner, channel: channelLabel, provider: providerLabel \}\)/);
     assert.match(route, /played\.once\('lost',[\s\S]{0,200}interruptions\.noteLost\(/);
-    assert.match(fs.readFileSync(path.join(sandbox, 'server/routes/status.js'), 'utf8'), /interruptions: require\('\.\.\/services\/playbackInterruptions'\)\.summary\(\)/);
+    assert.match(fs.readFileSync(path.join(sandbox, 'server/routes/status.js'), 'utf8'), /interruptionsSummary = memo\(\(\) => require\('\.\.\/services\/playbackInterruptions'\)\.summary\(\)[\s\S]*interruptions: interruptionsSummary\(\)/);
     assert.match(fs.readFileSync(path.join(__dirname, '../public/js/pages/StatusPage.js'), 'utf8'), /this\.section\('Interruptions'/);
 });
