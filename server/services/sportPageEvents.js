@@ -25,7 +25,8 @@
 const { createPageCache } = require('./sportPageCache');
 const individual = require('./sportIndividual');
 const { stateOf, place, text, time, personKey } = individual;
-const { BASE, fetchJson } = require('./sportsScoresEspn');
+const { BASE } = require('./sportsScoresEspn');
+const { fetchFeed } = require('./sportFetch');
 
 const KINDS = Object.freeze(Object.fromEntries(Object.entries(individual.LEAGUES).map(([l, s]) => [l, s.kind])));
 const LEAGUES = Object.keys(KINDS);
@@ -39,12 +40,8 @@ const MAX_MATCHES = 1500, MAX_FIELD = 300, MAX_BOUTS = 40, MAX_ENTRIES = 80;
 const TUNING = Object.freeze({ coldWaitMs: 8000 });
 const tuning = { ...TUNING };
 // Test seam: `get(url) -> { ok, json } | { ok: false, error }`.
-const fetcher = {
-    get: async (url) => {
-        try { return { ok: true, json: await fetchJson(url, { maxBytes: individual.MAX_BYTES }) }; }
-        catch (err) { return { ok: false, error: err.message }; }
-    }
-};
+// The one sport fetch (sportFetch.js, #272), with the collector's 8 s and the individual leagues' 6 MB.
+const fetcher = { get: (url) => fetchFeed(url, { timeoutMs: 8000, maxBytes: individual.MAX_BYTES }) };
 
 const caches = createPageCache({ label: 'events', coldWaitMs: () => tuning.coldWaitMs, ttlOf: (value, now) => ttlOf(value, now) });
 

@@ -23,27 +23,11 @@
 
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 const TIMEOUT_MS = 10000;
-const requestPolicy = require('./espnRequestPolicy');
+const { fetchFeed } = require('./sportFetch');
 
-async function getJson(url, timeoutMs) {
-    // One rule with the collector (sportsDashboard.collectorEnabled, loaded late: it requires sportsFixtures, which requires this).
-    const sharedCooldown = require('./sportsDashboard').collectorEnabled();
-    if (sharedCooldown && requestPolicy.blocked()) return { ok: false, error: 'Score host cooling down' };
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-        const res = await fetch(url, { signal: controller.signal });
-        if (sharedCooldown && res) requestPolicy.observe(res.status, res.headers?.get?.('retry-after'));
-        if (!res || !res.ok) return { ok: false, error: `HTTP ${res ? res.status : '?'}` };
-        let json;
-        try { json = await res.json(); } catch { return { ok: false, error: 'not JSON' }; }
-        return { ok: true, json };
-    } catch (err) {
-        return { ok: false, error: err && err.name === 'AbortError' ? 'timed out' : (err && err.message) || 'request failed' };
-    } finally {
-        clearTimeout(timer);
-    }
-}
+/** `{ ok, json }` | `{ ok: false, error }`: the one sport fetch (sportFetch.js, #272): allow-list, size cap, no redirect,
+ * the shared ESPN cooldown while the collector is on. The fixture refresh and the four page builders ask through it. */
+const getJson = (url, timeoutMs = TIMEOUT_MS) => fetchFeed(url, { timeoutMs });
 
 const pad2 = (n) => String(n).padStart(2, '0');
 /** YYYYMMDD (UTC) for every day a [fromMs, toMs] window touches, ESPN's ?dates= unit. */

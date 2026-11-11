@@ -2,7 +2,7 @@ const { isCricket, CRICKET_GROUPS } = require('./sportCatalog'); // #195: every 
 const { cricketGroupOf } = require('./sportsFixturesEspn');
 /** Dashboard-only ESPN adapter. Never changes the fixture/live-replay classifier. */
 const { f1Session } = require('./sportsFixtures');
-const requestPolicy = require('./espnRequestPolicy');
+const { fetchFeed } = require('./sportFetch');
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports/';
 const text = (v, max = 160) => typeof v === 'string' ? v.trim().slice(0, max) : '';
 const id = v => /^(?:[A-Za-z0-9_-]{1,80})$/.test(String(v ?? '')) ? String(v) : null;
@@ -122,28 +122,17 @@ function normalize(json, league, source) {
     }
     return out;
 }
+// The collector's words for the one fetch's refusals (its throw shape, sportsDashboard.fetchOnce).
+const WORDS = { 'host not allowed': 'Invalid score source', 'answer too large': 'Score response too large' };
+/**
+ * The score collector's (and follow suggestions') way of asking: the JSON, or a throw with `.status`, `.retryAfter` and
+ * `.hostBackoffRecorded` (the cooldown already saw the answer, so the collector does not record it twice). The request
+ * itself is the one sport fetch (sportFetch.js, #272); 8 s and 2 MB unless the caller says (individual leagues: 6 MB).
+ */
 async function fetchJson(url, { signal, maxBytes = 2 * 1024 * 1024, onParsed } = {}) {
-    const u = new URL(url);
-    if (u.origin !== 'https://site.api.espn.com' || !u.pathname.startsWith('/apis/site/v2/sports/')) throw new Error('Invalid score source');
-    if (requestPolicy.blocked()) throw new Error('Score host cooling down');
-    const response = await fetch(u, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(8000)]) : AbortSignal.timeout(8000), redirect:'error' });
-    requestPolicy.observe(response.status, response.headers.get('retry-after'));
-    if (!response.ok) throw Object.assign(new Error('Score source unavailable'), { status: response.status, retryAfter: response.headers.get('retry-after'), hostBackoffRecorded: true });
-    const reader=response.body.getReader(),chunks=[];
-    let bytes=0;
-    try {
-        for(;;) {
-            const {value,done}=await reader.read();
-            if(done) break;
-            bytes+=value.byteLength;
-            if(bytes>maxBytes) { await reader.cancel();throw new Error('Score response too large'); }
-            chunks.push(Buffer.from(value));
-        }
-    } finally { reader.releaseLock(); }
-    // #29: the parse is one uninterrupted block of the event loop; onParsed(bytes, ms) reports it (sportCollectorCost.js)
-    const started = performance.now();
-    const json = JSON.parse(Buffer.concat(chunks,bytes).toString('utf8'));
-    onParsed?.(bytes, performance.now() - started);
-    return json;
+    const r = await fetchFeed(url, { signal, maxBytes, onParsed, timeoutMs: 8000 });
+    if (r.ok) return r.json;
+    if (r.status) throw Object.assign(new Error('Score source unavailable'), { status: r.status, retryAfter: r.retryAfter, hostBackoffRecorded: r.recorded });
+    throw new Error(WORDS[r.error] || r.error);
 }
 module.exports = { BASE, normalize, misfiledIds, fetchJson, teamAliases };

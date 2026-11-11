@@ -389,7 +389,7 @@ test('network adapter bounds response bodies, refuses redirects/other origins, a
     try {
         global.fetch=async(url,options)=>{seen=options;return new Response(JSON.stringify(sample('NFL-final')));};
         assert.ok(Array.isArray((await espn.fetchJson(espn.BASE+'football/nfl/scoreboard?dates=20261026')).events));
-        assert.equal(seen.redirect,'error');
+        assert.equal(seen.redirect,'manual'); // 0547: the one sport fetch refuses a 3xx itself (sport-fetch.test.js)
         await assert.rejects(()=>espn.fetchJson('https://provider.invalid/password'),/Invalid score source/);
         global.fetch=async()=>new Response(new ReadableStream({start(c){c.enqueue(new Uint8Array(2*1024*1024+1));c.close();}}));
         await assert.rejects(()=>espn.fetchJson(espn.BASE+'football/nfl/scoreboard'),/too large/);

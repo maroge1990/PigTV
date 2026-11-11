@@ -16,45 +16,12 @@ const TIMEOUT_MS = 10000;
 const MAX_BYTES = 5 * 1024 * 1024; // 0403 (Codex round 1): the largest answer read (the Supercars page is ~150 KB)
 const LIVE_TTL = 60 * 1000;
 const QUIET_TTL = 15 * 60 * 1000;
-const HOSTS = new Set(['aflapi.afl.com.au', 'mc.championdata.com', 'api.motogp.pulselive.com', 'www.supercars.com', 'site.api.espn.com']);
+const { fetchFeed } = require('./sportFetch'); // #272: the allowed hosts are sportFetch.ALLOWED
 const H = 3600 * 1000;
 
-/** 0403 (Codex round 1, high): the body as text, read up to MAX_BYTES (whatever Content-Length says); null past it. */
-async function readCapped(res, controller) {
-    if (!res.body) return '';
-    const reader = res.body.getReader();
-    const chunks = [];
-    let total = 0;
-    for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        total += value.byteLength;
-        if (total > MAX_BYTES) { controller.abort(); try { await reader.cancel(); } catch { /* aborted */ } return null; }
-        chunks.push(value);
-    }
-    return Buffer.concat(chunks.map(c => Buffer.from(c))).toString('utf8');
-}
-
-/** A feed's answer: `{ ok, json }`, `{ ok, text }` (as: 'text'), or `{ ok: false, error }`. Only the hosts above. */
-async function getUrl(url, { as = 'json' } = {}) {
-    let host;
-    try { host = new URL(url).host; } catch { return { ok: false, error: 'bad URL' }; }
-    if (!HOSTS.has(host)) return { ok: false, error: 'host not allowed' };
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-    try {
-        // 0403 (Codex round 1, high): never follow a redirect, which could lead off the allowed hosts.
-        const res = await fetch(url, { signal: controller.signal, redirect: 'manual', headers: { 'user-agent': 'PigTV (self-hosted; fixtures)' } });
-        if (res.status >= 300 && res.status < 400) return { ok: false, error: 'redirected' };
-        if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
-        const body = await readCapped(res, controller);
-        if (body === null) return { ok: false, error: 'answer too large' };
-        if (as === 'text') return { ok: true, text: body };
-        try { return { ok: true, json: JSON.parse(body) }; } catch { return { ok: false, error: 'not JSON' }; }
-    } catch (err) {
-        return { ok: false, error: err?.name === 'AbortError' ? 'timed out' : err?.message || 'request failed' };
-    } finally { clearTimeout(timer); }
-}
+/** A feed's answer: `{ ok, json }`, `{ ok, text }` (as: 'text'), or `{ ok: false, error }`, through the one sport fetch
+ * (sportFetch.js, #272: its host list, no redirect, read up to MAX_BYTES, the ESPN cooldown for ESPN's AFL badges). */
+const getUrl = (url, { as = 'json' } = {}) => fetchFeed(url, { as, timeoutMs: TIMEOUT_MS, maxBytes: MAX_BYTES, headers: { 'user-agent': 'PigTV (self-hosted; fixtures)' } });
 // Test seam: `get(url, { as })`, as getUrl.
 const fetcher = { get: getUrl };
 

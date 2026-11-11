@@ -110,6 +110,14 @@ cricket "scorepanel" and merged under the canonical league `Cricket` (`sportsCla
 leagues). AFLW has no ESPN feed and stays on the heuristics above. `PIGTV_SPORT_FIXTURES=0` turns fixtures off completely
 (`.env.example`); the web Status page's "Sport fixtures" panel shows per-league last fetch, fixture count and last error.
 
+**One fetch (#272, 0547).** Every sport feed request (fixtures, the collector, the five pages, suggestions, the leagues' own
+feeds) goes through `services/sportFetch.js`: only the hosts and path prefixes it lists (`ALLOWED`: ESPN's `/apis/site/v2/sports/`
+and `/apis/v2/sports/` standings, the F1 core lookups, and each own feed's path), https, no redirect followed, the body read up to
+a cap (6 MB unless the caller says: the collector 2 MB, the feeds 5 MB), a timeout (10 s; the collector and Events page 8 s),
+`{ ok, json | text }` or `{ ok: false, error }` and never a URL in an error. ESPN's hosts honour and record the shared cooldown
+(`espnRequestPolicy`) while the collector is on. `sportsFixturesEspn.getJson`, `sportsScoresEspn.fetchJson` (the collector's
+throw shape) and `sportFeeds.getUrl` are one-line adapters over it.
+
 - ESPN coverage is renewed only by a complete refresh (0248). Cricket discovery is a failure unless it is a scores list
   (0255), and partial when an entry cannot name its series (0258) or series exceed the 20-series cap (0255). Logo
   downloads have one deadline to the last byte (0249).
