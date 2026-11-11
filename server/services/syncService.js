@@ -81,6 +81,22 @@ function heldError(message) {
 /** Throws a held error when `count` lines is a shrink against the last good sync's; remembers nothing itself. */
 function checkPlaylistSize(db, sourceId, count, { acceptSmaller = false } = {}) {
     const previous = Number(db.prepare('SELECT value FROM meta WHERE key = ?').get(linesKey(sourceId))?.value) || storedLines(db, sourceId);
+    shrinkCheck(previous, count, acceptSmaller);
+}
+
+/** I-7: a backup's assembled list against the size it had at its last good sync (its own key, else its rows). */
+const backupLinesKey = (sourceId) => `backup_lines:${sourceId}`;
+function checkBackupSize(db, sourceId, count, { acceptSmaller = false } = {}) {
+    const previous = Number(db.prepare('SELECT value FROM meta WHERE key = ?').get(backupLinesKey(sourceId))?.value)
+        || backupChannels.count(sourceId);
+    shrinkCheck(previous, count, acceptSmaller);
+}
+function rememberBackupSize(db, sourceId, count) {
+    db.prepare(`INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+        .run(backupLinesKey(sourceId), String(count));
+}
+
+function shrinkCheck(previous, count, acceptSmaller) {
     if (acceptSmaller || previous < SHRINK.minPlaylist || count >= previous * SHRINK.playlist) return;
     throw heldError(`Held: the provider's list had ${count.toLocaleString('en-AU')} of the usual `
         + `${previous.toLocaleString('en-AU')} channels; the last good list is kept`);
@@ -409,7 +425,7 @@ class SyncService {
                 try { unchanged = (await work()) === UNCHANGED; } catch (e) { if (!e || !e.held) throw e; held = e.message; }
             };
             if (isBackup) {
-                await this.syncBackup(source);
+                await holding(() => this.syncBackup(source, options));
             } else if (source.type === 'xtream') {
                 this.dropBackupRows(source.id);
                 await holding(() => this.syncXtream(source, options));
@@ -496,10 +512,27 @@ class SyncService {
         // reported at the end.
         let held = null;
         try { checkPlaylistSize(db, source.id, (liveStreams || []).length, options); } catch (e) { if (!e.held) throw e; held = e; }
-        if (!held) await this.syncXtreamLive(source, liveCats, liveStreams);
+        // I-7 (#273): on a scheduled run, the same answers (and the same groups never imported) as the last good write
+        // leave the channel rows as they are; the guide below still syncs, as it does for an M3U playlist.
+        let same = false;
+        if (!held) {
+            const importFilters = require('./importFilters');
+            const { excluded } = importFilters.applicable(source.id, await importFilters.excludedFor(source.id));
+            const hash = feedCheck.fingerprint({ cats: liveCats, streams: liveStreams, excluded: [...(excluded || [])].sort() });
+            const hasRows = !!db.prepare(`SELECT 1 FROM playlist_items WHERE source_id = ? AND type = 'live' LIMIT 1`).get(source.id);
+            if (options.ifChanged && hasRows && (liveStreams || []).length > 0 && feedCheck.matches(source.id, 'playlist', hash)) {
+                same = true;
+                console.log(`[Sync] Playlist for ${source.name} unchanged (the same answers as the last good sync): nothing rewritten`);
+            } else {
+                feedCheck.forget(source.id, 'playlist'); // a write that dies part-way is never the last good one
+                await this.syncXtreamLive(source, liveCats, liveStreams);
+                if ((liveStreams || []).length > 0) feedCheck.remember(source.id, 'playlist', hash);
+            }
+        }
         publish(!held); // #173: hidden channels and new groups settled before the rest downloads (#181: a held list is not new)
         await this.syncXtreamRest(source, api, options);
         if (held) throw held;
+        return same ? UNCHANGED : undefined;
     }
 
     /** The live part of an Xtream sync: groups, channels (R8: minus excluded groups), then stale rows out. */
@@ -596,6 +629,7 @@ class SyncService {
      */
     dropBackupRows(sourceId) {
         const n = backupChannels.removeFor(sourceId);
+        feedCheck.forget(sourceId, 'backup'); // I-7
         if (n > 0) console.log(`[Sync] Removed ${n} backup channels of source ${sourceId} (it is a primary now)`);
     }
 
@@ -619,7 +653,7 @@ class SyncService {
      * backup_channels alone, replaced in one transaction after everything has been fetched,
      * so a failed fetch leaves the previous rows. Then the optional id overlay, then the linker.
      */
-    async syncBackup(source) {
+    async syncBackup(source, options = {}) {
         await this.dropGuide(source.id); // 0182: only the primary's guide is shown
         if (this.dropLibraryRows(source.id)) {
             refreshChannelNumbers();
@@ -681,20 +715,36 @@ class SyncService {
         if (!rows.length) throw new Error('The backup provider listed no channels');
 
         const overlay = source.idOverlayUrl ? await this.fetchOverlay(source) : null;
+
+        // I-7 (#273): fingerprint the assembled result (rows, overlay ids, raw rows), after the download on purpose: an
+        // unchanged playlist must not hide channels the provider's own list newly adds. On a scheduled run, the same
+        // result as the last good write is not written, refetched or relinked.
+        const db = getDb();
+        const hash = feedCheck.fingerprint({ rows, overlay: overlay ? [...overlay.entries()].sort() : null, rawList });
+        if (options.ifChanged && backupChannels.count(source.id) > 0 && feedCheck.matches(source.id, 'backup', hash)) {
+            console.log(`[Sync] Backup ${source.name} unchanged (the same ${rows.length} channels as the last good sync): nothing rewritten`);
+            return UNCHANGED;
+        }
+        checkBackupSize(db, source.id, rows.length, options); // held: the last good rows stay, nothing is relinked
+        feedCheck.forget(source.id, 'backup'); // a write that dies part-way is never the last good one
         backupChannels.replaceAll(source.id, rows, overlay);
+        rememberBackupSize(db, source.id, rows.length);
         console.log(`[Sync] Backup ${source.name}: ${rows.length} channels${overlay ? `, ${overlay.size} overlay ids` : ''}`);
 
         // 0178 (P9): the raw rows of every provider, written the same way whatever its role. An
         // Xtream backup's come from the fetch above; an M3U backup's are fetched; the other
         // providers get theirs now if this is the first backup (they were not fetched before).
+        let rawOk = false;
         try {
             const rawChannels = require('./rawChannels');
             if (rawList) rawChannels.replaceAll(source.id, rawList);
             else await rawChannels.fetchFor(source);
             await rawChannels.fetchMissing(await sources.getAll(), source.id);
+            rawOk = true;
         } catch (e) {
             console.warn('[Sync] Raw rows after backup sync failed:', redact(e && e.message));
         }
+        if (rawOk) feedCheck.remember(source.id, 'backup', hash); // only a write that finished whole is the last good one
 
         await this.relink(source.id);
     }

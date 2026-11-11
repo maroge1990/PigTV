@@ -70,5 +70,5 @@ test('a provider that became a backup keeps no guide', async () => {
     assert.equal(liveGuide(73), 1, 'another provider\'s guide is untouched');
     await syncService.dropGuide(72); // nothing left: a no-op
     const source = fs.readFileSync(path.join(sandbox, 'server/services/syncService.js'), 'utf8');
-    assert.match(source, /async syncBackup\(source\) \{\s*await this\.dropGuide\(source\.id\);/);
+    assert.match(source, /async syncBackup\(source, options = \{\}\) \{\s*await this\.dropGuide\(source\.id\);/);
 });

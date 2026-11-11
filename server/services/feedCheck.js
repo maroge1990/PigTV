@@ -36,6 +36,22 @@ function forget(sourceId, kind) {
 }
 
 /**
+ * I-7 (#273): a fingerprint of a RESULT (the channel rows a sync is about to write) rather than of a download: the
+ * Xtream primary and the backups have no single file to hash. `matches` is true when the last good write of this
+ * `kind` had the same hash; `remember` is called only after that write succeeded (and `forget` before it starts, so
+ * a write that dies part-way is never taken for the last good one).
+ */
+const fingerprint = (value) => sha(JSON.stringify(value));
+function matches(sourceId, kind, hash) {
+    const last = stored(sourceId, kind);
+    return !!last && last.sha256 === hash;
+}
+function remember(sourceId, kind, hash) {
+    getDb().prepare(`INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+        .run(metaKey(sourceId, kind), JSON.stringify({ sha256: hash }));
+}
+
+/**
  * Download `url` (`kind`: 'playlist' | 'guide') for source `sourceId`.
  * `scope`: whatever besides the bytes decides what the sync writes (hashed with the address).
  * `compare`: true for a scheduled or start-up sync, which may skip; false for "Sync now", which never does.
@@ -98,4 +114,4 @@ async function fetchFeed({ sourceId, kind, url, scope = '', compare = false, has
     };
 }
 
-module.exports = { fetchFeed, forget, metaKey };
+module.exports = { fetchFeed, forget, metaKey, fingerprint, matches, remember };
