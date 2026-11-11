@@ -54,6 +54,8 @@ const HOUR_MS = 60 * 60 * 1000;
 // takes about a second), and covers 72 h (a whole weekend) plus those 5 minutes, so a request
 // late in the bucket still sees its full `hours`. `live` and the time filter are per request.
 const BUILD_EVERY_MS = 5 * 60 * 1000;
+// #272: a list more than two buckets old is not served while a rebuild runs: the timer must have skipped passes.
+const STALE_SERVE_MS = 2 * BUILD_EVERY_MS;
 // 0459 (Mark, 4 Nov): the build reads as far ahead as a provider's guide runs (about a week), so the Sport front page can
 // show the channels of a followed game days away (the Cardinals, 4.5 days ahead, said "No TV listing found" though ten
 // channels listed it). C-I's own answers stay within MAX_HOURS; only the front page asks for `reach`. On production's
@@ -551,7 +553,7 @@ function finishEvent(item, keywordOrder) {
 // If the worker cannot be used (it will not start or dies) the build
 // runs inline as it did before R09 - correct, but it blocks the loop - and a warning says so.
 
-let cache = null; // { key, built }, replaced whole: a reader sees the old result or the new, never a mix
+let cache = null; // { key, bucket, built }, replaced whole: a reader sees the old result or the new, never a mix
 let running = null; // the job being built
 let queued = null; // the job waiting for it: only the latest key is kept
 let generation = 0; // bumped by reset(): a result from before it is not published
@@ -702,7 +704,7 @@ async function runJob(job) {
         await decorateBuilt(built, lastDecorateChannels);
         await prepareBuilt(built); // after the logos: the serialised channels carry them
         if (job.generation === generation) { // not reset() meanwhile
-            cache = { key: job.key, built }; // atomically replaces the previous result
+            cache = { key: job.key, bucket: job.bucket, built }; // atomically replaces the previous result
             stats.builds++;
             stats.revision++;
             built.rev = stats.revision;
@@ -760,6 +762,13 @@ function cachedEvents(now, decorateChannels) {
     const { key } = buildKeyFor(now);
     if (cache && cache.key === key) return Promise.resolve(cache.built);
     if (cache) {
+        // #272: the 5-minute timer keeps the served list at most a bucket or two old; after an idle spell (passes
+        // skipped) it can be hours old, and a request must not be answered with that as if it were current: wait for
+        // the build, as the very first request does (if it fails, the old list is still better than none).
+        if (Number.isFinite(cache.bucket) && buildKeyFor(now).bucket - cache.bucket > STALE_SERVE_MS) {
+            const old = cache;
+            return buildFor(now).catch((err) => { console.error('[Sport] Rebuild after an idle spell failed:', err.message); return old.built; });
+        }
         scheduleRebuild(now);
         return Promise.resolve(cache.built);
     }
@@ -797,9 +806,21 @@ function msUntilNextBucket(now = Date.now()) {
     return (rem <= 0 ? BUILD_EVERY_MS : rem) + 1000; // a second past the boundary
 }
 
+// #272 (I-5): the pass runs only while someone asked for sport in the last 5 minutes, a recording runs, or a sport
+// recording rule is on (it schedules future games from this list); otherwise it is skipped, and the next ask runs it.
+const sportDemand = require('./sportDemand');
+const rebuildLoop = sportDemand.createLoop('eventList', 'The sport event list rebuild');
+rebuildLoop.onWake(() => scheduleRebuild());
+/** One scheduled pass of the 5-minute timer. -> whether it ran. */
+function rebuildPass(now = Date.now()) {
+    if (!rebuildLoop.gate(now)) return false;
+    scheduleRebuild();
+    return true;
+}
+
 function armRebuildTimer() {
     rebuildTimer = setTimeout(() => {
-        scheduleRebuild();
+        rebuildPass();
         armRebuildTimer();
     }, msUntilNextBucket());
     if (rebuildTimer.unref) rebuildTimer.unref(); // never keeps the process alive on its own
@@ -1168,7 +1189,7 @@ module.exports = {
     DEFAULT_HOURS, MAX_HOURS, REACH_HOURS,
     reset,
     // 0159: builds run in the background instead of blocking a request
-    scheduleRebuild, startBackgroundRebuilds, stopBackgroundRebuilds,
+    scheduleRebuild, startBackgroundRebuilds, stopBackgroundRebuilds, rebuildPass,
     // R09: builds run on a worker thread
     status, idle, shutdown, stopWorker, _buildInline
 };

@@ -54,7 +54,8 @@ default 6, 1–72 since 0153; Apple route; events + replays, all kinds with `inc
 kind since 0151). **Built off the request path (0159), on a worker thread since 0195 (`sportsEventsWorker.js`, with an automatic inline fallback):** a request is always served the last built result; a stale cache key
 triggers a background rebuild (`scheduleRebuild()`, `setImmediate`, never inline in a request) after an EPG sync, on a
 follow-list change, and from a timer aligned to the 5-minute bucket (`startBackgroundRebuilds()`, started once at server
-startup); a request that lands mid-rebuild gets the previous result rather than racing it. Only the very first request ever
+startup); a request that lands mid-rebuild gets the previous result rather than racing it, unless that result is more than two
+buckets (10 min) old, which only an idle spell can cause (see **When the loops run**): then it waits for the build, like the first request. Only the very first request ever
 (nothing cached at all) still builds synchronously. Output is unchanged either way. Direct DB
 edits don't move the cache key: tests call `sportsEvents.reset()`. The fixture `test/fixtures/sports-export.json` is Mark's
 25 Sept export (titles). **Live or replay (0152, `sportsClassify.resolveLive`):** an event naming a game is checked across
@@ -89,6 +90,16 @@ asked about recently. The matched-fixture branch may still use an older but in-w
 moves); the "no such game" branch (an absence, not a presence) additionally needs the fetch to be recent (≤ 6 h,
 `NO_GAME_MAX_AGE_MS`) and the window to reach a full 12 h either side of the airing (`NO_GAME_HALF_WINDOW_MS`) - a day of ESPN
 being unreachable falls straight back to (a)-(d) instead of quietly turning an unlisted live game into a replay.
+**When the loops run (#272, 0545):** the 5-minute event-list rebuild and the 30-minute fixture refresh run only while
+`sportDemand.loopDemand()` finds a reason: a client asked for a score page or `/api/sports/events` in the last 5 minutes, a
+recording is running, or an enabled sport/team/game recording rule exists (rules schedule future games from exactly these two
+outputs, with nobody looking; a series rule or a disabled one does not count). Otherwise the pass is skipped: no ESPN request,
+no rebuild, one log line when a loop goes idle and one when it resumes. The first ask after an idle spell, and creating or
+enabling a rule, run the skipped pass at once (`sportDemand.wake`). Passes triggered by an EPG sync, a follow-list change or
+the ESPN cooldown retry are not part of the timers and still run. Status: `/api/status` `sportLoops` ({ eventList, fixtures }:
+`running`, `why`, `idleSince`). The score collector uses the same module (`demand()`, unchanged; a rule alone does not give it
+the busy pace). Freshness while idle: stored fixtures keep their `coverage.at`, which `fixtureVerdict` already ages (a "no such
+game" answer is trusted only for 6 h); the event list is rebuilt before it is served once it is more than 10 min old.
 Fixtures are fetched only for the leagues that matter (the follow list, or a marked sport category's name), refreshed every
 30 min and after an EPG sync, kept in SQLite (`sport_fixtures`, `sport_fixture_teams`, `sport_fixture_status`) so a restart or
 an ESPN outage does not lose them, and never block a request - `sportsEvents.buildEvents()` reads the last stored snapshot.

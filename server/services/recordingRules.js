@@ -113,6 +113,9 @@ function validate(body = {}) {
     return { rule };
 }
 
+/** #272: a rule schedules from the sport event list and fixtures: if they sat idle, refresh them now. */
+function wakeSportLoops() { try { require('./sportDemand').wake('a recording rule is on'); } catch (e) { /* best-effort */ } }
+
 function create(body, userId = null) {
     const { rule, error } = validate(body);
     if (error) return { error };
@@ -130,6 +133,7 @@ function create(body, userId = null) {
             pre_buffer_min, post_buffer_min, new_only, enabled, created_by, created_at, sport, game_id)
         VALUES (@kind, @match, @source_id, @channel_item_id, @channel_stable_id, @channel_name, @pre_buffer_min, @post_buffer_min,
             @new_only, 1, @created_by, @created_at, @sport, @game_id)`).run({ ...rule, created_by: userId, created_at: Date.now() });
+    wakeSportLoops();
     console.log(`[Rules] Rule #${info.lastInsertRowid} added: ${rule.kind} "${rule.match}"${rule.channel_name ? ` on ${rule.channel_name}` : ''}`);
     return { rule: get(info.lastInsertRowid) };
 }
@@ -146,6 +150,7 @@ function update(id, body = {}) {
     db().prepare('UPDATE recording_rules SET enabled = ?, new_only = ?, pre_buffer_min = ?, post_buffer_min = ? WHERE id = ?').run(
         'enabled' in body ? (body.enabled ? 1 : 0) : current.enabled,
         'newOnly' in body ? (body.newOnly ? 1 : 0) : current.new_only, pre, post, current.id);
+    if (body.enabled === true && !current.enabled) wakeSportLoops();
     return { rule: get(current.id) };
 }
 

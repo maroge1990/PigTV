@@ -412,25 +412,16 @@ const CATALOG_RESERVE = 3;
 // #238: the collector fetched every 30 s day and night (~1.9 GB a day on production) whether or not anyone looked. It
 // keeps that pace only while someone has asked for a sport page in the last 5 minutes, or a recording is running (its
 // end can follow the game's, #217); otherwise it fetches every 5 minutes, enough for Top Shelf and the first request.
-const BUSY_TICK_MS = 30000, QUIET_TICK_MS = 5 * 60000, LOOK_WINDOW_MS = 5 * 60000;
+const BUSY_TICK_MS = 30000, QUIET_TICK_MS = 5 * 60000;
 // #261 (0500): with nobody looking, a game in play or within an hour of its start is still fetched every minute, so the
 // first look after a quiet spell finds its score already older than the score delay (90 s by default) and shows it at
 // once. Only what is due is fetched (each URL keeps its own lifetime): the hot games' scoreboards, as at the busy pace.
 const LIVE_QUIET_TICK_MS = 60000;
-let lookedAt = -Infinity;
-function recordingNow() {
-    try { return !!require('../db/sqlite').getDb().prepare(`SELECT 1 FROM scheduled_recordings WHERE status = 'recording' LIMIT 1`).get(); }
-    catch { return false; }
-}
-/** Why the collector is at its busy pace now ('looking' | 'recording'), or null when nobody needs it. */
-function demand(now = Date.now()) {
-    if (now - lookedAt < LOOK_WINDOW_MS) return 'looking';
-    return recordingNow() ? 'recording' : null;
-}
+const sportDemand = require('./sportDemand'); // #272: the rule is shared with the event-list rebuild and the fixture refresh
+const demand = sportDemand.demand;
 /** A client asked for a sport page: the busy pace for 5 minutes, and after a quiet spell a fetch at once. */
 function noteLook(now = Date.now()) {
-    const quiet = now - lookedAt >= LOOK_WINDOW_MS && !recordingNow();
-    lookedAt = now;
+    const quiet = sportDemand.noteLook(now);
     if (quiet && runtime) runtime.refresh().catch(() => {});
 }
 /** For Status: how often the collector fetches now, and why. */

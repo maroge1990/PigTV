@@ -420,8 +420,21 @@ function scheduleRefresh() {
     setImmediate(() => { refreshAll().catch(err => console.warn('[SportFixtures] Refresh failed:', err.message)); });
 }
 
+// #272 (C-5): the 30-minute pass (and the one at start) runs only while someone asked for sport in the last 5 minutes,
+// a recording runs, or a sport recording rule is on (it schedules future games from these fixtures); otherwise it is
+// skipped, and the next ask runs it. The pass after an EPG sync and the cooldown retry are not this loop's.
+const sportDemand = require('./sportDemand');
+const refreshLoop = sportDemand.createLoop('fixtures', 'The sport fixture refresh');
+refreshLoop.onWake(() => scheduleRefresh());
+/** One scheduled pass of the timer. -> whether it ran. */
+function refreshPass(now = Date.now()) {
+    if (!refreshLoop.gate(now)) return false;
+    scheduleRefresh();
+    return true;
+}
+
 function armRefreshTimer() {
-    refreshTimer = setTimeout(() => { scheduleRefresh(); armRefreshTimer(); }, REFRESH_EVERY_MS);
+    refreshTimer = setTimeout(() => { refreshPass(); armRefreshTimer(); }, REFRESH_EVERY_MS);
     if (refreshTimer.unref) refreshTimer.unref();
 }
 
@@ -429,7 +442,7 @@ function armRefreshTimer() {
 function startBackgroundRefresh() {
     if (refreshTimer) return;
     if (!enabled()) { console.log('[SportFixtures] Off (PIGTV_SPORT_FIXTURES=0)'); return; }
-    scheduleRefresh();
+    refreshPass();
     armRefreshTimer();
 }
 
@@ -561,7 +574,7 @@ function reset() {
 }
 
 module.exports = {
-    enabled, neededLeagues, categoryLeagues, refreshAll, refreshLeague, refreshCricket, scheduleRefresh,
+    enabled, neededLeagues, categoryLeagues, refreshAll, refreshLeague, refreshCricket, scheduleRefresh, refreshPass,
     startBackgroundRefresh, stopBackgroundRefresh, snapshot, statusSummary, reset,
     ESPN_LEAGUE_PATHS, INTERNATIONAL_PATHS, teamsOf, rosterFor, recordFeed,
     // exposed for tests

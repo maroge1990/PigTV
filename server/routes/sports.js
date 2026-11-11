@@ -46,6 +46,8 @@ const dashboardEnabled = (req, res, next) => dashboard.dashboardEnabled() ? next
 const SCORE_PAGE = /^\/(front|dashboard|pages\/(?!preferences$)[^/]+(\/[^/]+)?)$/;
 router.use((req, res, next) => {
     if (req.method === 'GET' && SCORE_PAGE.test(req.path)) { try { dashboard.noteLook(); } catch { /* never fails a page */ } }
+    // #272: the events list keeps the event-list rebuild and the fixture refresh running for 5 minutes, not the score collector
+    else if (req.method === 'GET' && req.path === '/events') { try { require('../services/sportDemand').noteAsk(); } catch { /* never fails a page */ } }
     next();
 });
 const preferencesEnabled = (req, res, next) => dashboard.collectorEnabled() || dashboard.dashboardEnabled() ? next()
