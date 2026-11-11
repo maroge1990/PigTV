@@ -23,7 +23,7 @@ const espn = require('./sportsFixturesEspn');
 const { f1Session } = require('./sportsFixtures');
 const overrun = require('./sportOverrun');
 const onAir = require('./sportOnAir');
-const { espnState } = require('./espnState');
+const { espnState, edgeKey } = require('./espnState');
 
 const SITE = 'https://site.api.espn.com/apis/site/v2/sports/racing/f1';
 const STANDINGS = 'https://site.api.espn.com/apis/v2/sports/racing/f1/standings';
@@ -36,7 +36,7 @@ const QUIET_TTL_MS = 60 * 60 * 1000;
 const SESSION_MS = { 'practice 1': 3600e3, 'practice 2': 3600e3, 'practice 3': 3600e3, practice: 3600e3,
     'sprint qualifying': 2700e3, sprint: 2700e3, qualifying: 3600e3, race: 7200e3 };
 // #272 (0548): C-P's three words for espnState's (as C-Q's).
-const STATUS = { scheduled: 'scheduled', live: 'live', break: 'live', suspended: 'live', postponed: 'done', cancelled: 'done', finished: 'done',
+const STATUS = { scheduled: 'scheduled', live: 'live', break: 'live', suspended: 'live', 'suspended-over': 'done', postponed: 'done', cancelled: 'done', finished: 'done',
     unknown: 'scheduled' };
 const TOP_KIND = { qualifying: 'pole', 'sprint qualifying': 'pole', race: 'winner', sprint: 'winner' };
 
@@ -93,7 +93,7 @@ function sessionsOf(event) {
         const session = f1Session(c?.type?.abbreviation);
         const start = ms(c?.date);
         if (!session || !Number.isFinite(start)) continue;
-        const status = STATUS[espnState(c?.status).state];
+        const status = STATUS[edgeKey(espnState(c?.status))];
         const order = (c?.competitors || []).filter(x => Number.isFinite(num(x?.order))).sort((a, b) => a.order - b.order);
         out.push({ competitionId: str(String(c?.id ?? '')), id: session.id, name: session.label, start,
             end: ms(c?.endDate) ?? start + (SESSION_MS[session.id] || 3600e3), status, order });

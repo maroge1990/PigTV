@@ -23,7 +23,7 @@
 const { createPageCache } = require('./sportPageCache');
 const espn = require('./sportsFixturesEspn');
 const overrun = require('./sportOverrun');
-const { espnState } = require('./espnState');
+const { espnState, edgeKey } = require('./espnState');
 
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports/cricket';
 const TIMEOUT_MS = 10000;
@@ -72,16 +72,16 @@ function formatOf(c) {
 }
 
 // #272 (0548): C-S's words for espnState's. A break only with a label C-S lists (another pause is play); a postponed,
-// cancelled or abandoned match is over (`done`, its summary says why), never scheduled at its old time; a suspended one
-// is still on; unknown is shown by its start, as before.
-const WORD = { scheduled: 'scheduled', live: 'live', break: 'break', suspended: 'live', postponed: 'done', cancelled: 'done', finished: 'done',
+// cancelled or abandoned match is over (`done`, its summary says why), never scheduled at its old time; a match suspended
+// in play is still on, one ESPN has put in state post is `done` (0554); unknown is shown by its start, as before.
+const WORD = { scheduled: 'scheduled', live: 'live', break: 'break', suspended: 'live', 'suspended-over': 'done', postponed: 'done', cancelled: 'done', finished: 'done',
     unknown: 'scheduled' };
 const BREAKS = new Set(['Stumps', 'Lunch', 'Tea', 'Dinner', 'Innings break', 'Rain delay', 'Delayed']);
 /** { status: scheduled | live | break | done, breakLabel }. ESPN keeps a Test at stumps "in" play, described "Stumps". */
 function statusOf(c) {
-    const { state, breakLabel } = espnState(c?.status, { cricket: true });
-    if (state === 'break') return BREAKS.has(breakLabel) ? { status: 'break', breakLabel } : { status: 'live', breakLabel: null };
-    return { status: WORD[state], breakLabel: null };
+    const r = espnState(c?.status, { cricket: true });
+    if (r.state === 'break') return BREAKS.has(r.breakLabel) ? { status: 'break', breakLabel: r.breakLabel } : { status: 'live', breakLabel: null };
+    return { status: WORD[edgeKey(r)], breakLabel: null };
 }
 
 /** A competitor's innings in the order played: [{ runs, wickets, overs, declared, current }]. */

@@ -469,7 +469,8 @@ own differences as options: no channel numbering, 400 for a bad league.
 (with a label, only while ESPN says the game is on), suspended, postponed, cancelled, finished or unknown; the collector,
 the individual sports and the F1, NFL, League and Cricket pages each translate it at their edge with a small table to
 their contract's words (C-O `finished`, the pages `done`; a page without `postponed` or `cancelled` says `done`, without
-`suspended` says `live` or `break`, without `unknown` shows the start). Its table-driven test is `test/espn-state.test.js`.
+`suspended` says `live` or `break` while ESPN's state is in play and `done` once it is post (to be resumed another day,
+0554: never shown as being played), without `unknown` shows the start). Its table-driven test is `test/espn-state.test.js`.
 
 **Any other team league (0388, C-T).** `services/sportPageLeague.js` answers `GET /api/sports/pages/league/:league` for
 every `ESPN_LEAGUE_PATHS` league but F1, NFL, IPL and BBL (one cache entry per league, so leagues never evict each

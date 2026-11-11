@@ -28,13 +28,16 @@ const DETAIL_BREAKS = [[/suspend/i, 'Suspended'], [/half.?time|\bHT\b/i, 'Half-t
 const END_OF_PERIOD = /end.?period|end of (?:the )?(?:\d|first|second|third|fourth)/i;
 const STATES = Object.freeze(['scheduled', 'live', 'break', 'suspended', 'postponed', 'cancelled', 'finished', 'unknown']);
 
-/** -> { state, breakLabel } (breakLabel null unless state is 'break'). Never throws. */
+/**
+ * -> { state, breakLabel, over } (breakLabel null unless state is 'break'; `over` true when ESPN's state is `post`: a
+ * suspended game in state post is not being played, to be resumed another day). Never throws.
+ */
 function espnState(status, { cricket = false, baseball = false } = {}) {
     const s = status && typeof status === 'object' ? status : {};
     const t = s.type && typeof s.type === 'object' ? s.type : {};
     const said = `${t.name || ''} ${t.description || ''}`;
     const detail = `${t.shortDetail || ''} ${t.detail || ''}`;
-    const out = (state, breakLabel = null) => ({ state, breakLabel });
+    const out = (state, breakLabel = null) => ({ state, breakLabel, over: t.state === 'post' });
     if (/cancel|abandon/i.test(said)) return out('cancelled');
     if (/postpon/i.test(said)) return out('postponed');
     if (/suspend/i.test(said)) return out('suspended');
@@ -47,4 +50,10 @@ function espnState(status, { cricket = false, baseball = false } = {}) {
     return out('live');
 }
 
-module.exports = { espnState, STATES, BREAK_LABELS: Object.freeze([...new Set([...BREAKS.map(([, l]) => l), 'End of period'])]) };
+/**
+ * The key a page's word table is read by: the state, but `suspended-over` for a suspended game ESPN has put in state post
+ * (0554, review M1: the pages without a `suspended` word show it as over, `done`, as before 0548, never as being played).
+ */
+const edgeKey = (r) => (r.state === 'suspended' && r.over ? 'suspended-over' : r.state);
+
+module.exports = { espnState, edgeKey, STATES, BREAK_LABELS: Object.freeze([...new Set([...BREAKS.map(([, l]) => l), 'End of period'])]) };

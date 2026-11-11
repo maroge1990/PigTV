@@ -686,8 +686,9 @@ on a race weekend, 1 h otherwise; nothing is fetched unless the page is asked fo
 - Spoilers are the client's: the server always sends results, `top` and standings; with the global spoiler-free switch
   on, the client hides them (PRODUCT.md › Sport). Watch/Record on a session use its channel's own times (C-I, #20).
 - Since 0386 (#191): a `live` session's channels keep an airing that ended up to 4 h ago, `overrun: true`, as C-O.
-- Since 0548 (#272, the one ESPN status reading): a suspended session is `live` (it was `done` when ESPN's state said
-  post), and a postponed or cancelled one is `done` (it was `scheduled` when ESPN's state said pre). The words are unchanged.
+- Since 0548 (#272, the one ESPN status reading; the words are unchanged): a postponed or cancelled session is `done` (it
+  was `scheduled` when ESPN's state said pre). A suspended session is `live` while ESPN's state says in play, and `done`
+  when ESPN's state says post (to be resumed another day: not being played; 0554, as before 0548).
 - Since 0424 (#201): `info.map` is the whole path to fetch as given, `/api/logo/<key>?size=3840`: ESPN's circuit SVG
   drawn by the server to a PNG 3840 px wide on a transparent background (ESPN's own JPEG is 320 px; without an SVG,
   that raster, never upscaled). Additive `info.mapDark`: the same for ESPN's dark-theme map, or null. A map the server
@@ -737,7 +738,8 @@ The NFL page (mock-up "NFL · Apple TV", DESIGN.md › Sport pages), built like 
 - Since 0386 (#191): a `live` game's channels keep an airing that ended up to 4 h ago, `overrun: true`, as C-O.
 - Since 0548 (#272, the one ESPN status reading; the `status` words are unchanged): a postponed or cancelled game is `done`
   with `detail` `"Postponed"` or `"Cancelled"`, never `"Final"` (before, `"Final"`, or `scheduled` when ESPN's state said
-  pre); a suspended game is `live` (it was `done` when ESPN's state said post); a game ESPN marks completed is `done`.
+  pre); a game suspended in play (ESPN state in) is `live`, one ESPN has put in state post (resumed another day) is `done`
+  with `detail` `"Suspended"` (0554; before 0548 `done`, `"Final"`); a game ESPN marks completed is `done`.
 - Since 0379 the preferences (C-P) carry `following.NFL`: a team abbreviation ("GB") or null, the household's. `PUT`
   takes it like `F1` (≤ 80 characters); a server before 0379 answers 400 to it, so send it only with this flag.
 
@@ -857,7 +859,8 @@ on demand (kept 2 min while the lead is in play, 10 min on a match day, 1 h othe
 - Since 0386 (#191): a match whose day is in play (`live`, or a `break` other than stumps) keeps an airing that ended up
   to 4 h ago in its `channels`, `overrun: true`, as C-O.
 - Since 0548 (#272, the one ESPN status reading; the words are unchanged): a postponed match is `done` (its `summary`
-  says why), never `scheduled` at its old time; a suspended one is `live` (it was `done` when ESPN's state said post);
+  says why), never `scheduled` at its old time; a match suspended in play is `live`, one ESPN has put in state post is
+  `done` (0554, as before 0548);
   ESPN's detail saying "Delayed" is a `break`; a pause word with no ESPN state is `scheduled` (was `break`).
 - Since 0436 (#210): `lead` and each `others[]` entry carry `league`: the C-U catalogue league the match is on the page
   for (`Cricket`, `Women's Cricket`, `BBL`, `Sheffield Shield`...), always one of the account's followed cricket leagues;
@@ -909,8 +912,9 @@ Championship, FA Cup, UEFA, La Liga, Bundesliga, Serie A, Ligue 1, MLS, A-League
   `status`, `start` and the teams stay. Watch/Record use a channel's own times (C-I, #20).
 - A `live` or `break` game's channels keep an airing that ended up to 4 h ago, `overrun: true`, while the page's
   `updatedAt` is at most 15 min old (#191, as C-Q).
-- Since 0548 (#272, the one ESPN status reading; the words are unchanged): a suspended game is a `break` (it was `done`
-  when ESPN's state said post), and a forfeit is `done` (was `cancelled`: ESPN records a result).
+- Since 0548 (#272, the one ESPN status reading; the words are unchanged): a game suspended in play (ESPN state in) is a
+  `break`, one ESPN has put in state post (resumed another day) `done` (0554, as before 0548); a forfeit is `done` (was
+  `cancelled`: ESPN records a result).
 
 ### C-U. Following, per account: sport → leagues → teams. Flag: `sportFollows` (0391, #193, D-41)
 

@@ -6,7 +6,9 @@ const assert = require('node:assert/strict');
 // and every branch the six old copies had, with what each endpoint answers. Columns:
 //   internal | C-O collector (NFL) | C-O collector (a cricket league) | C-V/individual (stateOf) | C-T League | C-Q NFL | C-P F1 | C-S Cricket
 // Resolved disagreements (before 0548 -> now), each a rare raw status; no common status (scheduled, live, final) changed:
-//   suspended with state post: League done -> break, NFL/F1/Cricket done -> live (stopped, not over: as the "in" variant)
+//   suspended with state post: done on every page, as before 0548 (0554, review M1: it is not being played; 0548 had made it
+//   break/live, which the Apple client draws as live and whose channels then kept ended airings for 4 h); suspended in play
+//   (state in) stays a pause: League break, NFL/F1/Cricket live
 //   postponed or cancelled with state pre: NFL/F1 (and Cricket postponed) scheduled -> done (never at the old time)
 //   "HT"/"Delayed" only in shortDetail/detail: collector live -> break (the League page read the detail; now all do)
 //   a pause word with no ESPN state ("Stumps", "Delayed"): collector break -> unknown, Cricket break -> scheduled
@@ -43,7 +45,7 @@ const ROWS = [
     ["suspended (in)", {"type":{"id":"8","name":"STATUS_SUSPENDED","state":"in","completed":false,"description":"Suspended","shortDetail":"Suspended"}},
         ["suspended","suspended","suspended","suspended","break","live","live","live"]],
     ["suspended (post)", {"type":{"id":"8","name":"STATUS_SUSPENDED","state":"post","completed":false,"description":"Suspended","shortDetail":"Suspended"}},
-        ["suspended","suspended","suspended","suspended","break","live","live","live"]],
+        ["suspended","suspended","suspended","suspended","done","done","done","done"]],
     ["postponed (pre)", {"type":{"id":"6","name":"STATUS_POSTPONED","state":"pre","completed":false,"description":"Postponed","shortDetail":"Postponed"}},
         ["postponed","postponed","postponed","postponed","postponed","done","done","done"]],
     ["canceled (pre)", {"type":{"id":"5","name":"STATUS_CANCELED","state":"pre","completed":false,"description":"Canceled","shortDetail":"Canceled"}},
@@ -156,5 +158,7 @@ test('C-Q: a postponed or cancelled NFL game says so in its detail, never "Final
     const post = (name, description) => ({ type: { name, state: 'post', completed: false, description, shortDetail: description } });
     assert.deepEqual([nflGame(post('STATUS_POSTPONED', 'Postponed')).status, nflGame(post('STATUS_POSTPONED', 'Postponed')).detail], ['done', 'Postponed']);
     assert.deepEqual([nflGame(post('STATUS_CANCELED', 'Canceled')).status, nflGame(post('STATUS_CANCELED', 'Canceled')).detail], ['done', 'Cancelled']);
+    assert.deepEqual(['status', 'detail'].map(k => nflGame(post('STATUS_SUSPENDED', 'Suspended'))[k]), ['done', 'Suspended'], 'resumed another day');
+    assert.equal(nflGame({ type: { name: 'STATUS_SUSPENDED', state: 'in', description: 'Suspended', shortDetail: 'Suspended' } }).status, 'live', 'suspended in play');
     assert.equal(nflGame({ type: { name: 'STATUS_FINAL', state: 'post', completed: true, description: 'Final', shortDetail: 'Final/OT' } }).detail, 'Final · OT');
 });

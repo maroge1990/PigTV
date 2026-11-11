@@ -24,7 +24,7 @@ const espn = require('./sportsFixturesEspn');
 const overrun = require('./sportOverrun');
 const { ESPN_LEAGUE_PATHS } = require('./sportsFixtures');
 const { teamAliases } = require('./sportsScoresEspn');
-const { espnState } = require('./espnState');
+const { espnState, edgeKey } = require('./espnState');
 
 const SITE = 'https://site.api.espn.com/apis/site/v2/sports';
 const STANDINGS = 'https://site.api.espn.com/apis/v2/sports';
@@ -134,13 +134,14 @@ function dayLabel(key, { yesterday, today, tomorrow }) {
 
 // ---- one game ---------------------------------------------------------------------------------------------------
 
-// #272 (0548): C-T's words for espnState's (C-T has no `suspended` or `unknown`: a suspended game is stopped, a break; an
+// #272 (0548): C-T's words for espnState's (C-T has no `suspended` or `unknown`: a game suspended in play is a break, one ESPN has
+// put in state post (to be resumed another day, 0554) is `done`; an
 // unknown one is shown by its start, as before).
-const WORD = { scheduled: 'scheduled', live: 'live', break: 'break', suspended: 'break', postponed: 'postponed', cancelled: 'cancelled',
+const WORD = { scheduled: 'scheduled', live: 'live', break: 'break', suspended: 'break', 'suspended-over': 'done', postponed: 'postponed', cancelled: 'cancelled',
     finished: 'done', unknown: 'scheduled' };
 /** ESPN's status as the page's: scheduled, live, break, done, postponed or cancelled. */
 function statusOf(c, family) {
-    return WORD[espnState(c?.status, { baseball: family === 'baseball' }).state];
+    return WORD[edgeKey(espnState(c?.status, { baseball: family === 'baseball' }))];
 }
 
 const ordinal = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 10] || 'th'}`;
