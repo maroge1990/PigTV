@@ -139,10 +139,11 @@ class StatusPage {
             if (content) this.paint(content, status);
             if (updated) updated.textContent = `Updated ${new Date(status.generatedAt || Date.now()).toLocaleTimeString()} · every 5 s`;
         } catch (err) {
-            if (updated) updated.textContent = `Could not refresh: ${err.message}`;
+            console.error('Status refresh failed:', err);
+            if (updated) updated.textContent = 'Could not refresh: trying again every 5 s.';
             if (content && !content.querySelector('.status-section')) {
                 this.rendered = new Map();
-                content.innerHTML = `<p class="hint">Could not load the server status: ${UI.escape(err.message)}</p>`;
+                UI.setState(content, 'error', 'The server status could not be loaded.', { run: () => this.refresh() });
             }
         }
     }
@@ -156,18 +157,22 @@ class StatusPage {
     async loadEpgCategories() {
         const panel = document.getElementById('status-epg-categories');
         if (!panel) return;
+        if (!panel.querySelector?.('details')) panel.innerHTML = this.section('EPG categories', UI.stateBlock('loading'));
         try {
             const rows = await API.sports.categories();
             panel.innerHTML = this.renderEpgCategories(Array.isArray(rows) ? rows : []);
         } catch (err) {
-            panel.innerHTML = this.section('EPG categories', `<p class="setting-hint">Could not load the EPG categories: ${UI.escape(err.message)}</p>`);
+            console.error('Guide categories failed to load:', err);
+            panel.innerHTML = this.section('EPG categories', '<div class="status-epg-state"></div>');
+            UI.setState(panel.querySelector?.('.status-epg-state') || panel, 'error', 'The guide categories could not be loaded.', { run: () => this.loadEpgCategories() });
         }
     }
 
     renderEpgCategories(rows) {
         const e = (v) => UI.escape(v);
         if (!rows.length) {
-            return this.section('EPG categories', '<p class="setting-hint">The guide has no programme categories (or has not synced since the server was updated).</p>');
+            return this.section('EPG categories', UI.stateBlock('empty', { title: 'The guide has no programme categories yet',
+                detail: 'They appear after the next guide sync (Settings → Providers).' }));
         }
         const table = this.table(['Category', 'Programmes'], rows.map(r => [e(r.category), e(r.programmes)]), '');
         return this.section('EPG categories',
@@ -241,7 +246,7 @@ class StatusPage {
     }
 
     table(headers, rows, empty) {
-        if (!rows.length) return `<p class="setting-hint">${UI.escape(empty)}</p>`;
+        if (!rows.length) return empty ? UI.stateBlock('empty', empty) : '';
         return `<div class="user-list-container"><table class="user-table status-table">
             <thead><tr>${headers.map(h => `<th>${UI.escape(h)}</th>`).join('')}</tr></thead>
             <tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
@@ -345,7 +350,7 @@ class StatusPage {
     renderProviders(providers) {
         const e = (v) => UI.escape(v);
         if (!providers || !providers.length) {
-            return this.section('Providers', '<p class="setting-hint">No providers configured.</p>');
+            return this.section('Providers', UI.stateBlock('empty', { title: 'No providers yet', detail: 'Add one in Settings → Providers.' }));
         }
         const stateClass = (state) => {
             if (state === 'down') return 'status-failure';

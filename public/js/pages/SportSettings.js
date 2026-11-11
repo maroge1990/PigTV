@@ -118,14 +118,22 @@ class SportFollowSettings {
 
     async load() {
         if (!this.root) return;
+        // #276: nothing is drawn until what the account follows is known: first a loading block, and on a failed load an
+        // error with Try again, never the form (it showed "You follow no sport yet" and saved over the real list).
+        if (!this.loaded) UI.setState(this.root, 'loading', 'Loading what you follow…');
         try {
             const [catalog, follows] = await Promise.all([API.request('GET', '/sports/catalog'), API.request('GET', '/sports/follows')]);
             this.catalog = catalog.sports || [];
             this.state = follows;
             this.unknown = false; // #208: read again: changes save again
+            this.loaded = true;
+            this.loadFailed = false;
             this.message = '';
         } catch (err) {
-            this.message = `Could not load what you follow: ${err.message}`;
+            console.error('What you follow failed to load:', err);
+            this.loadFailed = true;
+            UI.setState(this.root, 'error', 'What you follow could not be loaded.', { run: () => this.load() });
+            return;
         }
         this.render();
         await Promise.all([this.loadRules(), this.loadSuggestions(), this.loadNames()]);
@@ -151,7 +159,7 @@ class SportFollowSettings {
      */
     save(next, done = '') {
         // #208: while what the server holds is unknown, a change (queued or new) is dropped, never built on a stale list.
-        if (this.unknown) { this.render(); return Promise.resolve(); }
+        if (this.unknown || this.loadFailed) { this.render(); return Promise.resolve(); }
         const run = this.queue.then(() => (this.unknown ? undefined : this.saveNow(typeof next === 'function' ? next(this.state) : next, done)));
         this.queue = run.catch(() => {});
         return run;
@@ -284,7 +292,7 @@ class SportFollowSettings {
     }
 
     render() {
-        if (!this.root) return;
+        if (!this.root || this.loadFailed) return;
         const e = UI.escape, M = SportFollowModel;
         const me = this.currentUser()?.username;
         const unfollowed = this.catalog.filter(c => !this.state.sports.some(s => s.sport === c.sport));
@@ -338,7 +346,7 @@ class SportFollowSettings {
             <div class="setting-item"><label class="setting-toggle"><input type="checkbox" id="sport-follow-spoilers" ${this.state.spoilerFree ? 'checked' : ''}><span class="toggle-slider"></span></label>
                 <div class="setting-info"><span class="setting-label">Spoiler-free</span><span class="setting-hint">Hide scores and results everywhere in Sport.</span></div></div>
             ${suggestions ? `<ul class="sport-follow-suggestions">${suggestions}</ul>` : ''}
-            ${cards || '<p class="setting-hint">You follow no sport yet.</p>'}
+            ${cards || UI.stateBlock('empty', { title: 'You follow no sport yet', detail: 'Choose one below to follow it.' })}
             ${unfollowed.length ? `<div class="sport-follow-add"><select id="sport-follow-add" class="sport-follow-select" aria-label="Add a sport">${unfollowed.map(c => `<option value="${e(c.sport)}">${e(c.sport)}</option>`).join('')}</select>
                 <button class="btn btn-sm btn-primary" data-act="sport-add">Follow this sport</button></div>` : ''}
             </fieldset>

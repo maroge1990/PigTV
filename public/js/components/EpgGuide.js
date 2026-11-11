@@ -208,7 +208,7 @@ class EpgGuide {
      */
     async loadEpg() {
         try {
-            this.container.innerHTML = '<div class="loading"></div>';
+            UI.setState(this.container, 'loading', 'Loading the TV Guide…');
             await this.refreshIfChanged({ force: true });
             this.render();
 
@@ -222,12 +222,7 @@ class EpgGuide {
             this.startBackgroundRefresh();
         } catch (err) {
             console.error('Error loading EPG:', err);
-            this.container.innerHTML = `
-        <div class="empty-state">
-          <p>Error loading EPG</p>
-          <p class="hint">${UI.escape(err.message)}</p>
-        </div>
-      `;
+            UI.setState(this.container, 'error', 'The TV Guide could not be loaded.', { run: () => this.loadEpg() });
         }
     }
 
@@ -402,12 +397,8 @@ class EpgGuide {
         const focus = this.focusIdentity();
 
         if (allChannels.length === 0) {
-            this.container.innerHTML = `
-                <div class="empty-state">
-                    <p>No visible channels available</p>
-                    <p class="hint">Check your content settings or add a source</p>
-                </div>
-            `;
+            UI.setState(this.container, 'empty', { title: 'No channels to show',
+                detail: 'Choose what to show under Settings → Channels → Manage content, or add a provider in Settings.' });
             return;
         }
 

@@ -408,25 +408,14 @@ class ChannelList {
             });
         });
 
-        // Empty State.
+        // Empty State (#276: what belongs here, and where to get it).
         if (this.sortedGroups.length === 0) {
-            let message, hint;
-            if (searchTerm) {
-                message = 'No channels match your search';
-                hint = 'Try a different search term';
-            } else if (this.sources.length > 0) {
-                message = 'No channels to show';
-                hint = 'Choose what to show under Settings → Manage Content';
-            } else {
-                message = 'No channels loaded';
-                hint = 'Add a source in Settings to get started';
-            }
-            this.container.innerHTML = `
-        <div class="empty-state">
-          <p>${message}</p>
-          <p class="hint">${hint}</p>
-        </div>
-      `;
+            const text = searchTerm
+                ? { title: 'No channels match your search', detail: 'Try a different search term.' }
+                : this.sources.length > 0
+                    ? { title: 'No channels to show', detail: 'Choose what to show under Settings → Channels → Manage content.' }
+                    : { title: 'No channels yet', detail: 'Add a provider in Settings to get started.' };
+            UI.setState(this.container, 'empty', text);
             return;
         }
 
@@ -438,7 +427,7 @@ class ChannelList {
         // Add loader element at bottom
         this.loader = document.createElement('div');
         this.loader.className = 'batch-loader';
-        this.loader.innerHTML = '<div class="loading-spinner"></div>';
+        this.loader.innerHTML = '<span class="state-block-spinner" aria-hidden="true"></span>';
         this.loader.style.opacity = '0'; // Hide initially
         this.container.appendChild(this.loader);
 
@@ -724,7 +713,7 @@ class ChannelList {
         const onlySource = sourceValue ? sourceValue.split(':')[1] : null;
 
         try {
-            this.container.innerHTML = '<div class="loading"></div>';
+            UI.setState(this.container, 'loading', 'Loading channels…');
 
             const [categories, rows] = await Promise.all([
                 API.library.categories(),
@@ -746,7 +735,7 @@ class ChannelList {
             this.render();
         } catch (err) {
             console.error('Error loading channels:', err);
-            this.container.innerHTML = `<div class="empty-state"><p>Error loading channels</p><p class="hint">${UI.escape(err.message)}</p></div>`;
+            UI.setState(this.container, 'error', 'The channel list could not be loaded.', { run: () => this.loadChannels() });
         } finally {
             this.isLoading = false;
         }

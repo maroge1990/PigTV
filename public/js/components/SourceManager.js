@@ -107,7 +107,7 @@ class SourceManager {
             return;
         }
         if (!sourceId) {
-            this.contentTree.innerHTML = '<p class="hint">Select a source to view groups and channels</p>';
+            UI.setState(this.contentTree, 'empty', 'Choose a provider to see its groups and channels.');
             return;
         }
         this.loadContentTree(parseInt(sourceId));
@@ -220,6 +220,9 @@ class SourceManager {
             if (this.treeData?.sourceId) select.value = String(this.treeData.sourceId);
         } catch (err) {
             console.error('Error loading content sources:', err);
+            if (!this.treeData?.groups?.length) {
+                UI.setState(this.contentTree, 'error', 'The providers could not be loaded.', { run: () => this.loadContentSources() });
+            }
         }
     }
 
@@ -239,7 +242,7 @@ class SourceManager {
             this.undoSnapshot = null;
             this.showUndo(false);
         }
-        this.contentTree.innerHTML = '<p class="hint">Loading...</p>';
+        UI.setState(this.contentTree, 'loading', 'Loading the groups and channels…');
         this.treeData = { type: 'channels', sourceId, groups: [] };
         this.expandedGroups.clear();
 
@@ -274,7 +277,7 @@ class SourceManager {
 
         } catch (err) {
             console.error('Error loading content tree:', err);
-            this.contentTree.innerHTML = '<p class="hint" style="color: var(--color-error);">Error loading content</p>';
+            UI.setState(this.contentTree, 'error', 'The groups and channels could not be loaded.', { run: () => this.loadContentTree(sourceId) });
         }
     }
 
@@ -311,8 +314,9 @@ class SourceManager {
         const groups = this.getFilteredGroups();
 
         if (!groups.length) {
-            const msg = this.searchQuery ? 'No matches found' : 'No content found';
-            this.contentTree.innerHTML = `<p class="hint">${msg}</p>`;
+            UI.setState(this.contentTree, 'empty', this.searchQuery
+                ? { title: 'No groups or channels match', detail: 'Try a different search term.' }
+                : { title: 'This provider has no live channels yet', detail: 'Sync it under Settings → Providers.' });
             return;
         }
 

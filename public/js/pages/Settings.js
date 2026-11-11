@@ -31,6 +31,9 @@ class SettingsPage {
 
         // Recording / UI tabs
         this.initHwDecodeSettings();
+        // #276: these panels show their controls only once the server's values are in them.
+        SettingsPage.lockPanel(document.getElementById('tab-transcode'), 'loading');
+        SettingsPage.lockPanel(document.getElementById('tab-recording'), 'loading');
         this.initDevices();
         this.initRecordingSettings();
         this.initUiSettings();
@@ -113,11 +116,34 @@ class SettingsPage {
         });
     }
 
-    async loadHwDecodeSettings() {
-        const hw = document.getElementById('setting-vaapi-hw-decode');
-        if (!hw) return;
+    /**
+     * #276: the Playback → transcoding panel's values (encoder, decoding, recovery, upscaling, User-Agent), from one
+     * GET. Its controls stay disabled until they arrive, and after a failed load, which says so with Try again.
+     */
+    async loadTranscodeSettings() {
+        const panel = document.getElementById('tab-transcode');
+        const state = document.getElementById('tab-transcode-state');
+        if (!panel) return;
+        SettingsPage.lockPanel(panel, 'loading');
+        UI.setState(state, 'loading', 'Loading the playback settings…');
+        let s;
         try {
-            const s = await API.settings.get();
+            s = await API.settings.get();
+        } catch (err) {
+            console.error('Failed to load the transcoding settings:', err);
+            SettingsPage.lockPanel(panel, 'failed');
+            UI.setState(state, 'error', 'The playback settings could not be loaded.', { run: () => this.loadTranscodeSettings() });
+            return;
+        }
+        SettingsPage.lockPanel(panel, 'ready');
+        if (state) state.innerHTML = '';
+        this.applyTranscodeSettings(s);
+        this.applyHwDecodeSettings(s);
+    }
+
+    applyHwDecodeSettings(s) {
+        const hw = document.getElementById('setting-vaapi-hw-decode');
+        if (hw) {
             hw.checked = s.vaapiHwDecode !== false;
             const cpu = document.getElementById('setting-vaapi-cpu-scale');
             if (cpu) cpu.checked = s.vaapiCpuScale !== false;
@@ -135,9 +161,27 @@ class SettingsPage {
             if (warm) warm.checked = s.warmNextChannel === true;
             const shared = document.getElementById('setting-shared-ingest');
             if (shared) shared.checked = s.sharedIngestEnabled === true;
-        } catch (err) {
-            console.error('Failed to load hardware decode settings:', err);
         }
+    }
+
+    /**
+     * #276: a panel whose controls a GET fills. 'loading': disabled and aria-busy; 'failed': still disabled (what they
+     * show is not what the server holds); 'ready': each control back to the state it had before.
+     */
+    static lockPanel(panel, phase) {
+        if (!panel) return;
+        panel.setAttribute?.('aria-busy', phase === 'loading' ? 'true' : 'false');
+        const controls = panel.querySelectorAll?.('[data-settings-values] input, [data-settings-values] select, '
+            + '[data-settings-values] textarea, [data-settings-values] button') || [];
+        controls.forEach(el => {
+            if (phase !== 'ready') {
+                if (el.dataset.lockedWas === undefined) el.dataset.lockedWas = el.disabled ? '1' : '0';
+                el.disabled = true;
+            } else if (el.dataset.lockedWas !== undefined) {
+                el.disabled = el.dataset.lockedWas === '1';
+                delete el.dataset.lockedWas;
+            }
+        });
     }
 
     // ---- Devices tab ---------------------------------------------------
@@ -195,7 +239,7 @@ class SettingsPage {
             const devices = await API.request('GET', '/devices');
             const active = devices.filter(d => !d.revoked_at);
             if (active.length === 0) {
-                list.innerHTML = '<span class="setting-hint">No devices paired yet</span>';
+                UI.setState(list, 'empty', { title: 'No devices signed in yet', detail: 'Enter the code a TV app shows to pair it.' });
                 return;
             }
             const e = (v) => UI.escape(v);
@@ -224,7 +268,8 @@ class SettingsPage {
                 });
             });
         } catch (err) {
-            list.innerHTML = '<span class="setting-hint">Could not load devices</span>';
+            console.error('Devices failed to load:', err);
+            UI.setState(list, 'error', 'The signed-in devices could not be loaded.', { run: () => this.loadDevices() });
         }
     }
 
@@ -267,8 +312,14 @@ class SettingsPage {
     async loadRecordingSettings() {
         const path = document.getElementById('dvr-setting-path');
         if (!path) return;
+        const panel = document.getElementById('tab-recording');
+        const state = document.getElementById('tab-recording-state');
+        SettingsPage.lockPanel(panel, 'loading');
+        UI.setState(state, 'loading', 'Loading the recording settings…');
         try {
             const s = await API.settings.get();
+            SettingsPage.lockPanel(panel, 'ready');
+            if (state) state.innerHTML = '';
             path.value = s.recordingsPath || '/app/recordings';
             document.getElementById('dvr-setting-pre').value = s.defaultPreBufferMin ?? 1;
             document.getElementById('dvr-setting-post').value = s.defaultPostBufferMin ?? 5;
@@ -286,6 +337,8 @@ class SettingsPage {
             if (notifyFormat) notifyFormat.value = s.notifyWebhookFormat === 'text' ? 'text' : 'json';
         } catch (err) {
             console.error('Failed to load recording settings:', err);
+            SettingsPage.lockPanel(panel, 'failed');
+            UI.setState(state, 'error', 'The recording settings could not be loaded.', { run: () => this.loadRecordingSettings() });
         }
     }
 
@@ -392,7 +445,8 @@ class SettingsPage {
             this.renderLineup();
             this.updateLineupSaveState();
         } catch (err) {
-            if (list) list.innerHTML = `<tr><td colspan="3" class="hint">Could not load the channel numbers: ${UI.escape(err.message)}</td></tr>`;
+            console.error('Channel numbers failed to load:', err);
+            UI.setState(list, 'error', 'The channel numbers could not be loaded.', { run: () => this.loadLineup() }, { colspan: 3 });
         }
     }
 
@@ -415,7 +469,9 @@ class SettingsPage {
         if (!list) return;
         const rows = this.filteredLineup();
         if (rows.length === 0) {
-            list.innerHTML = `<tr><td colspan="3" class="hint">${this.lineup.length ? 'No channels match' : 'No channels yet'}</td></tr>`;
+            UI.setState(list, 'empty', this.lineup.length
+                ? { title: 'No channels match', detail: 'Try a different number, name or category.' }
+                : { title: 'No channels yet', detail: 'Channels get their numbers once a provider has synced (Settings → Providers).' }, null, { colspan: 3 });
             return;
         }
         list.innerHTML = rows.map(row => {
@@ -538,18 +594,19 @@ class SettingsPage {
         const apply = document.getElementById('epg-automap-apply');
         if (!panel || !list) return;
         panel.classList.remove('hidden');
-        list.textContent = 'Loading…';
+        UI.setState(list, 'loading');
         try {
             const preview = await API.epg.autoMapPreview();
             const rows = preview.channels || [];
             list.innerHTML = rows.length
                 ? `<p class="setting-hint">${rows.length} channel${rows.length === 1 ? '' : 's'} would be mapped:</p><ul>${rows.map(r =>
                     `<li>${UI.escape(r.name)} → ${UI.escape(r.epgName)} <span class="pig-amount">${Math.round(r.score * 100)}%</span></li>`).join('')}</ul>`
-                : '<p class="setting-hint">Nothing is a clear enough match to map automatically.</p>';
+                : UI.stateBlock('empty', 'Nothing is a clear enough match to map automatically.');
             if (apply) apply.hidden = rows.length === 0;
             this.renderAutoMapBatches(preview.batches || []);
         } catch (err) {
-            list.textContent = 'Could not preview: ' + err.message;
+            console.error('Auto-map preview failed:', err);
+            UI.setState(list, 'error', 'The auto-map preview could not be loaded.', { run: () => this.previewAutoMap() });
         }
     }
 
@@ -594,7 +651,8 @@ class SettingsPage {
             this.setEpgStatus(`${total} channel${total === 1 ? '' : 's'} without programme information`);
             this.renderEpgMatching();
         } catch (err) {
-            if (list) list.innerHTML = `<tr><td colspan="3" class="hint">Could not load the EPG matching list: ${UI.escape(err.message)}</td></tr>`;
+            console.error('Guide matching failed to load:', err);
+            UI.setState(list, 'error', 'The guide matching list could not be loaded.', { run: () => this.loadEpgMatching() }, { colspan: 3 });
         }
     }
 
@@ -617,7 +675,8 @@ class SettingsPage {
         if (list) {
             const rows = this.filteredEpgUnmatched();
             list.innerHTML = rows.length === 0
-                ? `<tr><td colspan="3" class="hint">${this.epgUnmatched.length ? 'No channels match' : 'Every channel has programme information'}</td></tr>`
+                ? `<tr class="state-row"><td colspan="3">${UI.stateBlock('empty', this.epgUnmatched.length
+                    ? { title: 'No channels match', detail: 'Try a different filter.' } : 'Every channel has programme information')}</td></tr>`
                 : rows.map(row => {
                     const key = this.epgKey(row);
                     const candidates = (row.candidates || []).map(c => this.epgCandidateButton(key, c)).join('');
@@ -635,7 +694,7 @@ class SettingsPage {
         const mapped = document.getElementById('epg-mapping-list');
         if (mapped) {
             mapped.innerHTML = this.epgMappings.length === 0
-                ? '<tr><td class="hint">No channels are mapped</td></tr>'
+                ? `<tr class="state-row"><td>${UI.stateBlock('empty', { title: 'No channels are mapped', detail: 'Pick a suggestion above to map one.' })}</td></tr>`
                 : this.epgMappings.map(m => `
                 <tr>
                     <td>${e(m.name || m.id || '–')}</td>
@@ -740,7 +799,8 @@ class SettingsPage {
             this.sportsKeywords = [...(follow?.keywords || [])];
             this.renderSportsFollow();
         } catch (err) {
-            this.setSportsStatus(`Could not load the followed leagues: ${err.message}`, true);
+            console.error('Followed leagues failed to load:', err);
+            UI.setState(document.getElementById('sports-follow-chips'), 'error', 'The followed leagues could not be loaded.', { run: () => this.loadSports() });
         }
         await this.loadSportsPreview();
     }
@@ -752,7 +812,8 @@ class SettingsPage {
             this.sportsEvents = preview?.events || [];
             this.renderSportsPreview();
         } catch (err) {
-            if (list) list.innerHTML = `<tr><td colspan="5" class="hint">Could not load the preview: ${UI.escape(err.message)}</td></tr>`;
+            console.error('Sport preview failed to load:', err);
+            UI.setState(list, 'error', 'The sport preview could not be loaded.', { run: () => this.loadSportsPreview() }, { colspan: 5 });
         }
     }
 
@@ -762,7 +823,7 @@ class SettingsPage {
         if (chips) {
             chips.innerHTML = this.sportsKeywords.length
                 ? this.sportsKeywords.map(k => `<span class="btn btn-secondary epg-candidate sports-chip">${e(k)}</span>`).join('')
-                : '<span class="setting-hint">No account follows a league yet</span>';
+                : UI.stateBlock('empty', { title: 'No account follows a league yet', detail: 'Each account chooses its own under Your sport, above.' });
         }
     }
 
@@ -778,7 +839,7 @@ class SettingsPage {
         const list = document.getElementById('sports-preview-list');
         if (!list) return;
         if (this.sportsEvents.length === 0) {
-            list.innerHTML = '<tr><td colspan="5" class="hint">No sport recognised in the next 72 hours</td></tr>';
+            UI.setState(list, 'empty', 'No sport recognised in the next 72 hours', null, { colspan: 5 });
             return;
         }
         const rules = { keyword: 'Keyword', category: 'EPG category', sportChannel: 'Sport category, live title' };
@@ -870,7 +931,8 @@ class SettingsPage {
         this.updateEpgLastRefreshed();
     }
 
-    async initTranscodingSettings() {
+    /** The transcoding panel's change handlers; its values come from loadTranscodeSettings when it is shown. */
+    initTranscodingSettings() {
         // Encoder settings
         const hwEncoderSelect = document.getElementById('setting-hw-encoder');
         const maxResolutionSelect = document.getElementById('setting-max-resolution');
@@ -880,24 +942,6 @@ class SettingsPage {
         const userAgentSelect = document.getElementById('setting-user-agent-tc');
         const userAgentCustomInput = document.getElementById('setting-user-agent-custom-tc');
         const customUaContainer = document.getElementById('custom-user-agent-container-tc');
-
-        // Fetch settings directly from API to avoid race condition with VideoPlayer
-        let s;
-        try {
-            s = await API.settings.get();
-        } catch (err) {
-            console.warn('[Settings] Failed to load settings from API, using player defaults:', err);
-            s = this.app.player?.settings || {};
-        }
-
-        if (hwEncoderSelect) hwEncoderSelect.value = s.hwEncoder || 'auto';
-        if (maxResolutionSelect) maxResolutionSelect.value = s.maxResolution || '1080p';
-        if (qualitySelect) qualitySelect.value = s.quality || 'medium';
-        if (userAgentSelect) userAgentSelect.value = s.userAgentPreset || 'chrome';
-        if (userAgentCustomInput) userAgentCustomInput.value = s.userAgentCustom || '';
-        if (customUaContainer) {
-            customUaContainer.style.display = userAgentSelect?.value === 'custom' ? 'flex' : 'none';
-        }
 
         // Event listeners for encoder settings
         hwEncoderSelect?.addEventListener('change', () => {
@@ -918,7 +962,6 @@ class SettingsPage {
         // Audio Mix Preset
         const audioMixSelect = document.getElementById('setting-audio-mix');
         if (audioMixSelect) {
-            audioMixSelect.value = s.audioMixPreset || 'auto';
             audioMixSelect.addEventListener('change', () => {
                 this.app.player.settings.audioMixPreset = audioMixSelect.value;
                 this.savePlayerSetting('audioMixPreset');
@@ -937,14 +980,6 @@ class SettingsPage {
             if (upscaleMethodContainer) upscaleMethodContainer.style.display = enabled ? 'flex' : 'none';
             if (upscaleTargetContainer) upscaleTargetContainer.style.display = enabled ? 'flex' : 'none';
         };
-
-        // Load upscaling settings
-        if (upscaleEnabledToggle) {
-            upscaleEnabledToggle.checked = s.upscaleEnabled || false;
-            toggleUpscaleOptions(upscaleEnabledToggle.checked);
-        }
-        if (upscaleMethodSelect) upscaleMethodSelect.value = s.upscaleMethod || 'hardware';
-        if (upscaleTargetSelect) upscaleTargetSelect.value = s.upscaleTarget || '1080p';
 
         // Upscaling event handlers
         upscaleEnabledToggle?.addEventListener('change', () => {
@@ -980,6 +1015,27 @@ class SettingsPage {
             this.app.player.settings.userAgentCustom = userAgentCustomInput.value;
             this.savePlayerSetting('userAgentCustom');
         });
+    }
+
+    /** The transcoding panel's values from GET /api/settings (#276: was fetched at start, with defaults on failure). */
+    applyTranscodeSettings(s) {
+        const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value; };
+        set('setting-hw-encoder', s.hwEncoder || 'auto');
+        set('setting-max-resolution', s.maxResolution || '1080p');
+        set('setting-quality', s.quality || 'medium');
+        set('setting-user-agent-tc', s.userAgentPreset || 'chrome');
+        set('setting-user-agent-custom-tc', s.userAgentCustom || '');
+        set('setting-audio-mix', s.audioMixPreset || 'auto');
+        set('setting-upscale-method', s.upscaleMethod || 'hardware');
+        set('setting-upscale-target', s.upscaleTarget || '1080p');
+        const customUa = document.getElementById('custom-user-agent-container-tc');
+        if (customUa) customUa.style.display = (s.userAgentPreset || 'chrome') === 'custom' ? 'flex' : 'none';
+        const upscale = document.getElementById('setting-upscale-enabled');
+        if (upscale) upscale.checked = !!s.upscaleEnabled;
+        for (const id of ['upscale-method-container', 'upscale-target-container']) {
+            const el = document.getElementById(id);
+            if (el) el.style.display = s.upscaleEnabled ? 'flex' : 'none';
+        }
     }
 
     /**
@@ -1039,9 +1095,7 @@ class SettingsPage {
             this.wireHwRedetect(container);
         } catch (err) {
             console.error('Error loading hardware info:', err);
-            container.innerHTML = '<p class="hint error">Failed to load hardware info</p>'
-                + '<p><button type="button" class="btn btn-sm btn-secondary" data-hw-redetect>Re-detect GPU</button></p>';
-            this.wireHwRedetect(container);
+            UI.setState(container, 'error', 'The hardware information could not be loaded.', { run: () => this.loadHardwareInfo({ redetect }) });
         }
     }
 
@@ -1090,7 +1144,7 @@ class SettingsPage {
             this.users = users;
 
             if (users.length === 0) {
-                userList.innerHTML = '<tr><td colspan="5" class="hint">No users found</td></tr>';
+                UI.setState(userList, 'empty', { title: 'No users yet', detail: 'Add one below.' }, null, { colspan: 4 });
                 return;
             }
 
@@ -1130,7 +1184,7 @@ class SettingsPage {
             });
         } catch (err) {
             console.error('Error loading users:', err);
-            userList.innerHTML = '<tr><td colspan="5" class="hint">Error loading users</td></tr>';
+            UI.setState(userList, 'error', 'The users could not be loaded.', { run: () => this.loadUsers() }, { colspan: 4 });
         }
     }
 
@@ -1275,16 +1329,17 @@ class SettingsPage {
             if (select.value) await this.renderImportExclusions(select.value);
         } catch (err) {
             console.error('Failed to load import exclusions:', err);
+            UI.setState(document.getElementById('import-exclusions-list'), 'error', 'The providers could not be loaded.', { run: () => this.loadImportExclusions() });
         }
     }
 
     async renderImportExclusions(sourceId) {
         const list = document.getElementById('import-exclusions-list');
         if (!list || !sourceId) return;
-        list.innerHTML = '<p class="hint">Loading...</p>';
+        UI.setState(list, 'loading');
         try {
             const { groups } = await API.sources.importExclusions(sourceId);
-            if (!groups.length) { list.innerHTML = '<p class="hint">No live groups yet: sync this provider first.</p>'; return; }
+            if (!groups.length) { UI.setState(list, 'empty', { title: 'No live groups yet', detail: 'Sync this provider first (its card, above).' }); return; }
             list.innerHTML = groups.map(g => {
                 const size = g.excluded
                     ? (g.skippedAtLastSync == null ? 'excluded from the next sync' : `${g.skippedAtLastSync} skipped at the last sync`)
@@ -1295,7 +1350,8 @@ class SettingsPage {
                 </label>`;
             }).join('');
         } catch (err) {
-            list.innerHTML = `<p class="hint">Could not load the groups: ${UI.escape(err.message)}</p>`;
+            console.error('Import exclusion groups failed to load:', err);
+            UI.setState(list, 'error', 'The groups could not be loaded.', { run: () => this.renderImportExclusions(sourceId) });
         }
     }
 
@@ -1313,7 +1369,7 @@ class SettingsPage {
 
     /** What a panel needs fetched when it comes into view. */
     loadPanel(panel) {
-        if (panel === 'transcode') { this.loadHwDecodeSettings(); this.loadHardwareInfo(); }
+        if (panel === 'transcode') { this.loadTranscodeSettings(); this.loadHardwareInfo(); }
         if (panel === 'devices') this.loadDevices();
         if (panel === 'recording') this.loadRecordingSettings();
         if (panel === 'ui') this.loadUiSettings();
@@ -1401,8 +1457,8 @@ class SettingsPage {
             }
         } catch (err) {
             console.error('Error fetching sync status:', err);
-            display.textContent = 'Unknown';
-            display.title = 'Could not fetch sync status';
+            display.title = '';
+            UI.setState(display, 'error', 'The last sync time could not be loaded.', { run: () => this.updateEpgLastRefreshed() });
         }
     }
 

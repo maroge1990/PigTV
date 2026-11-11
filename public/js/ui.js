@@ -33,9 +33,72 @@ const UI = {
      */
     toast(message, options = {}) { return Toast.show(message, options); },
 
+    /**
+     * #276: the one way an area says it is loading, has nothing to show yet, or could not be loaded.
+     *   UI.stateBlock('loading')                                         spinner and "Loading…"
+     *   UI.stateBlock('empty', { title: 'No devices yet', detail: 'Pair one above.' })
+     *   UI.stateBlock('error', 'The channel list could not be loaded.', { run: () => this.load() })   "Try again"
+     * `text` is a string (the title) or { title, detail }; `action` is { label, run } or { label, href }. All text is
+     * escaped. Returns HTML, for pages that build markup; a `run` is bound by UI.setState, the usual way in.
+     * A load error is a fixed plain sentence: the raw error goes to the console, never into the block.
+     */
+    stateBlock(kind, text, action) { return StateBlock.html(kind, text, action); },
+
+    /**
+     * Empty `container`, put the block in and bind its action's `run`. `{ colspan }` wraps the block in one table row,
+     * for a <tbody>. Returns the action's button, or null.
+     */
+    setState(container, kind, text, action, options = {}) { return StateBlock.set(container, kind, text, action, options); },
+
     /** Native <dialog> modals: Escape, a backdrop click and the close button close; focus returns to the opener. */
     dialog: null
 };
+
+const StateBlock = (() => {
+    const KINDS = { loading: 'status', empty: null, error: 'alert' };
+    const DEFAULT_TITLE = { loading: 'Loading…', empty: 'Nothing here yet.', error: 'This could not be loaded.' };
+
+    function parts(kind, text) {
+        if (!(kind in KINDS)) throw new TypeError(`UI.stateBlock: unknown kind ${kind}`);
+        const t = text && typeof text === 'object' ? text : { title: text };
+        return { title: t.title == null || t.title === '' ? DEFAULT_TITLE[kind] : String(t.title), detail: t.detail == null ? '' : String(t.detail) };
+    }
+
+    function actionOf(kind, action) {
+        if (!action || (!action.run && !action.href)) return null;
+        const label = action.label || (kind === 'error' ? 'Try again' : '');
+        return label ? { label: String(label), run: action.run, href: action.href } : null;
+    }
+
+    function html(kind, text, action) {
+        const e = UI.escape;
+        const { title, detail } = parts(kind, text);
+        const act = actionOf(kind, action);
+        const role = KINDS[kind] ? ` role="${KINDS[kind]}"` : '';
+        const button = !act ? ''
+            : act.href ? `<a class="btn btn-secondary state-block-action" href="${e(act.href)}">${e(act.label)}</a>`
+                : `<button type="button" class="btn btn-secondary state-block-action" data-state-action>${e(act.label)}</button>`;
+        return `<div class="state-block state-${kind}"${role}>`
+            + (kind === 'loading' ? '<span class="state-block-spinner" aria-hidden="true"></span>' : '')
+            + `<p class="state-block-title">${e(title)}</p>`
+            + (detail ? `<p class="state-block-detail">${e(detail)}</p>` : '')
+            + button + '</div>';
+    }
+
+    function set(container, kind, text, action, { colspan } = {}) {
+        if (!container) return null;
+        const block = html(kind, text, action);
+        container.innerHTML = colspan ? `<tr class="state-row"><td colspan="${Number(colspan) || 1}">${block}</td></tr>` : block;
+        const act = actionOf(kind, action);
+        if (!act || !act.run) return null;
+        const button = container.querySelector ? container.querySelector('[data-state-action]') : null;
+        if (!button) return null;
+        button.addEventListener('click', () => { button.disabled = true; act.run(); });
+        return button;
+    }
+
+    return { html, set };
+})();
 
 const Toast = (() => {
     const INFO_MS = 5000, ACTION_MS = 10000;

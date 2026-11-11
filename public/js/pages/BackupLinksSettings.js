@@ -134,7 +134,8 @@ class BackupLinksSettings {
             this.stale = false;
             await this.reload(this.offset);
         } catch (err) {
-            if (table) table.innerHTML = `<tr><td class="hint">Could not load the backup links: ${ProviderFormat.esc(err.message)}</td></tr>`;
+            console.error('Backup links failed to load:', err);
+            UI.setState(table, 'error', 'The backup links could not be loaded.', { run: () => this.load() }, { colspan: LinkFormat.columns(this.summary).length + 1 });
         }
     }
 
@@ -154,7 +155,8 @@ class BackupLinksSettings {
             }
             this.renderTable();
         } catch (err) {
-            if (mine === this.token && table) table.innerHTML = `<tr><td class="hint">Could not load the channels: ${ProviderFormat.esc(err.message)}</td></tr>`;
+            console.error('Backup link channels failed to load:', err);
+            if (mine === this.token) UI.setState(table, 'error', 'The channels could not be loaded.', { run: () => this.reload(offset) }, { colspan: LinkFormat.columns(this.summary).length + 1 });
         }
     }
 
@@ -166,7 +168,8 @@ class BackupLinksSettings {
         if (!el) return;
         const providers = (this.summary && this.summary.providers) || [];
         if (providers.length === 0) {
-            el.innerHTML = '<p class="hint">No backup provider yet. Add one in Settings → Providers: the first card is the primary, every card below it is a backup.</p>';
+            UI.setState(el, 'empty', { title: 'No backup provider yet',
+                detail: 'Add one in Settings → Providers: the first card is the primary, every card below it is a backup.' });
             return;
         }
         el.innerHTML = `
@@ -243,9 +246,9 @@ class BackupLinksSettings {
         const cols = LinkFormat.columns(this.summary);
         head.innerHTML = `<tr><th>Channel</th>${cols.map(c => `<th>${e(c.role === 'sibling' ? 'Own backup feed' : c.name)}</th>`).join('')}</tr>`;
         if (cols.length === 0) {
-            list.innerHTML = '<tr><td class="hint">No backup provider to link to.</td></tr>';
+            UI.setState(list, 'empty', { title: 'No backup provider to link to', detail: 'Add a second provider in Settings → Providers.' }, null, { colspan: 1 });
         } else if (this.channels.length === 0) {
-            list.innerHTML = `<tr><td colspan="${cols.length + 1}" class="hint">No channels match</td></tr>`;
+            UI.setState(list, 'empty', { title: 'No channels match', detail: 'Try a different search or filter.' }, null, { colspan: cols.length + 1 });
         } else {
             list.innerHTML = this.channels.map((c, i) => `<tr class="links-row">
                 <td class="link-channel"><strong>${c.number ? `${e(c.number)} ` : ''}${e(c.name)}</strong>
@@ -335,7 +338,7 @@ class BackupLinksSettings {
         dialog.body.innerHTML = `
             <p class="setting-hint">Search ${ProviderFormat.esc(col.name)}'s channels by name, category or guide id, then pick the one that is the same channel. Your pick is used at once and kept across syncs.</p>
             <div class="search-wrapper"><input type="text" id="links-pick-search" class="search-input" placeholder="Search ${ProviderFormat.esc(col.name)}..." value="${ProviderFormat.esc(channel.name)}"></div>
-            <div id="links-pick-results" class="links-pick-results"><span class="setting-hint">Searching...</span></div>
+            <div id="links-pick-results" class="links-pick-results">${UI.stateBlock('loading', 'Searching…')}</div>
             <div id="links-pick-error" class="lineup-status error"></div>`;
         dialog.footer.innerHTML = '<button class="btn btn-secondary" id="modal-cancel" data-dialog-close>Cancel</button>';
         dialog.open();
@@ -361,9 +364,10 @@ class BackupLinksSettings {
             box.innerHTML = rows.length
                 ? rows.map(r => `<button type="button" class="links-pick-row" data-stream="${e(r.stream_id)}">
                     <span>${e(r.name)}</span><span class="setting-hint inline">${e(r.category_name || '')}${r.overlay_tvg_id || r.tvg_id ? ` · ${e(r.overlay_tvg_id || r.tvg_id)}` : ''}</span></button>`).join('')
-                : '<span class="setting-hint">No channels match. Try a shorter search, or part of the guide id.</span>';
+                : UI.stateBlock('empty', { title: 'No channels match', detail: 'Try a shorter search, or part of the guide id.' });
         } catch (err) {
-            if (box && this.pick === pick) box.innerHTML = `<span class="setting-hint">Could not search: ${ProviderFormat.esc(err.message)}</span>`;
+            console.error('Backup channel search failed:', err);
+            if (this.pick === pick) UI.setState(box, 'error', 'The search could not be finished.', { run: () => this.searchPick(query) });
         }
     }
 

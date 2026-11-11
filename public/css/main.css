@@ -1827,7 +1827,90 @@ body.ui-dialog-open {
 }
 
 /* =====================================================
-   Loading States
+   #276: one block for loading, empty and load-error (UI.stateBlock in ui.js). It sits in a list, a flex column or a
+   table cell without stretching to fill it.
+   ===================================================== */
+.state-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--space-lg) var(--space-md);
+  text-align: center;
+  font-size: var(--text-md);
+  color: var(--color-text-muted);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.state-block-title {
+  margin: 0;
+  color: var(--color-text-primary);
+}
+
+.state-block-detail {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.state-loading .state-block-title {
+  color: var(--color-text-muted);
+}
+
+.state-error {
+  border-color: var(--color-error);
+}
+
+.state-block-action {
+  margin-top: var(--space-xs);
+  font-size: var(--text-md);
+  text-decoration: none;
+}
+
+.state-block-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.state-row > td {
+  padding: var(--space-sm);
+}
+
+/* A Settings panel's own loading or load-error block, above its sections (Settings.js lockPanel). */
+.panel-state:not(:empty) {
+  margin-bottom: var(--space-md);
+}
+
+/* The spinner at the bottom of the channel list while more channels are drawn (ChannelList.js). */
+.batch-loader {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .state-block-spinner {
+    animation: none;
+    border-top-color: var(--color-border);
+  }
+}
+
+@media (pointer: coarse) {
+  .state-block-action {
+    min-height: 44px;
+  }
+}
+
+/* =====================================================
+   Loading States (Home and Recordings only: both are being rebuilt; new code uses .state-block)
    ===================================================== */
 .loading {
   display: inline-block;

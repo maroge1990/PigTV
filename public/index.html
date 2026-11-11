@@ -162,10 +162,7 @@
               </div>
             </div>
             <div id="channel-list" class="channel-list">
-              <div class="empty-state">
-                <p>No channels loaded</p>
-                <p class="hint">Add a source in Settings to get started</p>
-              </div>
+              <div class="state-block state-loading" role="status"><span class="state-block-spinner" aria-hidden="true"></span><p class="state-block-title">Loading channels…</p></div>
             </div>
           </aside>
 
@@ -328,10 +325,7 @@
           </div>
         </div>
         <div id="epg-grid" class="epg-grid">
-          <div class="empty-state">
-            <p>No EPG data available</p>
-            <p class="hint">Add a guide address to your provider in Settings</p>
-          </div>
+          <div class="state-block state-loading" role="status"><span class="state-block-spinner" aria-hidden="true"></span><p class="state-block-title">Loading the TV Guide…</p></div>
         </div>
       </div>
 
@@ -380,7 +374,7 @@
             <span id="status-updated" class="setting-hint"></span>
           </div>
           <div id="status-content">
-            <div class="loading-state">Loading...</div>
+            <div class="state-block state-loading" role="status"><span class="state-block-spinner" aria-hidden="true"></span><p class="state-block-title">Loading…</p></div>
           </div>
           <!-- 0147: EPG categories (GET /api/sports/categories), loaded when the page is shown, not every 5 s -->
           <div id="status-epg-categories"></div>
@@ -471,15 +465,16 @@
           </div>
 
           <!-- Transcoding Tab -->
-          <div id="tab-transcode" class="tab-content active">
+          <div id="tab-transcode" class="tab-content active" aria-busy="true">
+            <div id="tab-transcode-state" class="panel-state"></div>
             <div class="settings-section">
               <h3>Detected Hardware</h3>
               <div id="hw-info-container" class="hw-info-container">
-                <p class="hint">Loading hardware information...</p>
+                <div class="state-block state-loading" role="status"><span class="state-block-spinner" aria-hidden="true"></span><p class="state-block-title">Loading the hardware information…</p></div>
               </div>
             </div>
 
-            <div class="settings-section">
+            <div class="settings-section" data-settings-values>
               <h3>Only when re-encoding</h3>
               <p class="setting-hint" id="reencode-only-hint">PigTV copies the provider's video whenever the device can play it, so the
                 settings below apply only to the plays it has to re-encode (a format the browser cannot play).</p>
@@ -538,7 +533,7 @@
               </div>
             </div>
 
-            <div class="settings-section">
+            <div class="settings-section" data-settings-values>
               <h3>Stream recovery (experimental)</h3>
               <div class="setting-item">
                 <label class="setting-toggle">
@@ -602,12 +597,12 @@
               </div>
             </div>
 
-            <details class="settings-section settings-advanced">
+            <details class="settings-section settings-advanced" data-settings-values>
               <summary>Advanced: hardware decoding and how the provider is contacted</summary>
               <h3>Hardware Decoding</h3>
               <div class="setting-item">
                 <label class="setting-toggle">
-                  <input type="checkbox" id="setting-vaapi-hw-decode" checked>
+                  <input type="checkbox" id="setting-vaapi-hw-decode">
                   <span class="toggle-slider"></span>
                 </label>
                 <div class="setting-info">
@@ -618,7 +613,7 @@
               </div>
               <div class="setting-item">
                 <label class="setting-toggle">
-                  <input type="checkbox" id="setting-vaapi-cpu-scale" checked>
+                  <input type="checkbox" id="setting-vaapi-cpu-scale">
                   <span class="toggle-slider"></span>
                 </label>
                 <div class="setting-info">
@@ -652,7 +647,7 @@
               </div>
             </details>
 
-            <div class="settings-section">
+            <div class="settings-section" data-settings-values>
               <h3>Upscaling</h3>
               <div class="setting-item">
                 <label class="setting-toggle">
@@ -717,7 +712,7 @@
               <div id="content-new-groups" class="settings-section new-groups" hidden></div>
               <p class="hint" style="margin-bottom: var(--space-sm);">✓ Checked = Visible, ☐ Unchecked = Hidden</p>
               <div id="content-tree" class="content-tree">
-                <p class="hint">Select a source to view groups and channels</p>
+                <div class="state-block state-empty"><p class="state-block-title">Choose a provider to see its groups and channels.</p></div>
               </div>
             </div>
           </div>
@@ -732,7 +727,7 @@
                 them, in this order. Move a card up or down to change the order. The subscription end and the number of
                 connections are read from each provider's account.</p>
               <div class="lineup-toolbar"><span id="providers-status" class="lineup-status"></span></div>
-              <div id="providers-list" class="providers-list"><p class="hint">Loading...</p></div>
+              <div id="providers-list" class="providers-list"><div class="state-block state-loading" role="status"><span class="state-block-spinner" aria-hidden="true"></span><p class="state-block-title">Loading…</p></div></div>
               <div class="provider-footer">
                 <div class="setting-item">
                   <label for="epg-refresh-interval">Sync channels and guide every:</label>
@@ -747,7 +742,7 @@
                 </div>
                 <div class="setting-item">
                   <span class="setting-label">Last synced:</span>
-                  <span id="epg-last-refreshed" class="hint">Never</span>
+                  <div id="epg-last-refreshed" class="hint"><div class="state-block state-loading" role="status"><span class="state-block-spinner" aria-hidden="true"></span><p class="state-block-title">Loading…</p></div></div>
                 </div>
               </div>
             </div>
@@ -761,7 +756,7 @@
                 <label for="import-exclusions-provider">Provider</label>
                 <select id="import-exclusions-provider"></select>
               </div>
-              <div id="import-exclusions-list" class="import-exclusions-list"><p class="hint">Choose a provider.</p></div>
+              <div id="import-exclusions-list" class="import-exclusions-list"><div class="state-block state-loading" role="status"><span class="state-block-spinner" aria-hidden="true"></span><p class="state-block-title">Loading…</p></div></div>
               <button id="import-exclusions-save" class="btn btn-primary">Save</button>
               <span id="import-exclusions-status" role="status" class="inline-status"></span>
             </div>
@@ -800,7 +795,7 @@
               <div class="user-list-container links-table-container">
                 <table class="user-table links-table">
                   <thead id="links-head"><tr><th>Channel</th></tr></thead>
-                  <tbody id="links-list"><tr><td class="hint">Loading...</td></tr></tbody>
+                  <tbody id="links-list"><tr class="state-row"><td><div class="state-block state-loading" role="status"><span class="state-block-spinner" aria-hidden="true"></span><p class="state-block-title">Loading…</p></div></td></tr></tbody>
                 </table>
               </div>
               <div id="links-pager" class="lineup-toolbar"></div>
@@ -831,8 +826,8 @@
                     </tr>
                   </thead>
                   <tbody id="lineup-list">
-                    <tr>
-                      <td colspan="3" class="hint">Loading...</td>
+                    <tr class="state-row">
+                      <td colspan="3"><div class="state-block state-loading" role="status"><span class="state-block-spinner" aria-hidden="true"></span><p class="state-block-title">Loading…</p></div></td>
                     </tr>
                   </tbody>
                 </table>
@@ -879,8 +874,8 @@
                     </tr>
                   </thead>
                   <tbody id="epg-match-list">
-                    <tr>
-                      <td colspan="3" class="hint">Loading...</td>
+                    <tr class="state-row">
+                      <td colspan="3"><div class="state-block state-loading" role="status"><span class="state-block-spinner" aria-hidden="true"></span><p class="state-block-title">Loading…</p></div></td>
                     </tr>
                   </tbody>
                 </table>
@@ -923,8 +918,8 @@
                     </tr>
                   </thead>
                   <tbody id="sports-preview-list">
-                    <tr>
-                      <td colspan="5" class="hint">Loading...</td>
+                    <tr class="state-row">
+                      <td colspan="5"><div class="state-block state-loading" role="status"><span class="state-block-spinner" aria-hidden="true"></span><p class="state-block-title">Loading…</p></div></td>
                     </tr>
                   </tbody>
                 </table>
@@ -933,8 +928,9 @@
           </div>
 
           <!-- Users Tab (Admin Only) -->
-          <div id="tab-recording" class="tab-content">
-            <div class="settings-section">
+          <div id="tab-recording" class="tab-content" aria-busy="true">
+            <div id="tab-recording-state" class="panel-state"></div>
+            <div class="settings-section" data-settings-values>
               <h3>Storage</h3>
               <div class="form-group">
                 <label for="dvr-setting-path">Recordings path (inside container)</label>
@@ -948,7 +944,7 @@
               </div>
             </div>
 
-            <div class="settings-section">
+            <div class="settings-section" data-settings-values>
               <h3>Scheduling Defaults</h3>
               <div class="form-group">
                 <label for="dvr-setting-pre">Default pre-buffer (minutes)</label>
@@ -972,7 +968,7 @@
               </div>
             </div>
 
-            <div class="settings-section">
+            <div class="settings-section" data-settings-values>
               <h3>Commercial Breaks</h3>
               <div class="setting-item">
                 <label class="setting-toggle">
@@ -999,7 +995,7 @@
               </div>
             </div>
 
-            <div class="settings-section">
+            <div class="settings-section" data-settings-values>
               <h3>Compression</h3>
               <p class="setting-hint">Recordings are saved untouched at the broadcast bitrate, around 4 GB an hour.
                 Compressing typically cuts that by two thirds, and is started from the Recordings page for a
@@ -1033,7 +1029,7 @@
               <span id="dvr-settings-status" class="inline-status"></span>
             </div>
 
-            <div class="settings-section">
+            <div class="settings-section" data-settings-values>
               <h3>Notifications</h3>
               <p class="setting-hint">A message to this address when a provider goes down, a recording fails or a
                 subscription is about to end (at most once an hour each). For ntfy use the topic address and Text; for
@@ -1087,7 +1083,7 @@
             <div class="settings-section">
               <h3>Signed-in devices</h3>
               <p class="setting-hint">Removing a device signs it out immediately.</p>
-              <div id="devices-list"><span class="setting-hint">Loading...</span></div>
+              <div id="devices-list"><div class="state-block state-loading" role="status"><span class="state-block-spinner" aria-hidden="true"></span><p class="state-block-title">Loading…</p></div></div>
             </div>
           </div>
 
@@ -1107,8 +1103,8 @@
                     </tr>
                   </thead>
                   <tbody id="user-list">
-                    <tr>
-                      <td colspan="4" class="hint">Loading users...</td>
+                    <tr class="state-row">
+                      <td colspan="4"><div class="state-block state-loading" role="status"><span class="state-block-spinner" aria-hidden="true"></span><p class="state-block-title">Loading…</p></div></td>
                     </tr>
                   </tbody>
                 </table>

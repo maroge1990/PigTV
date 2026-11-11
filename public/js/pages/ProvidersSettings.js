@@ -181,7 +181,8 @@ class ProvidersSettings {
             this.accounts = new Map(this.providers.map((p, i) => [p.id, accounts[i]]));
             this.render();
         } catch (err) {
-            if (list) list.innerHTML = `<p class="hint">Could not load the providers: ${ProviderFormat.esc(err.message)}</p>`;
+            console.error('Providers failed to load:', err);
+            if (mine === this.token) UI.setState(list, 'error', 'The providers could not be loaded.', { run: () => this.load() });
         }
     }
 
