@@ -30,9 +30,7 @@ function normText(s) {
 }
 // #222: letters a guide spells plainly and ESPN with marks ("Bodo/Glimt" ~ "Bodø/Glimt", "Malmo" ~ "Malmö"). Team
 // names only (parseSide): normText itself is unchanged, since session keys are hashed from it.
-const FOLD = { ø: 'o', æ: 'ae', œ: 'oe', ß: 'ss', ł: 'l', đ: 'd', ð: 'd', þ: 'th', ı: 'i' };
-const foldText = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')
-    .replace(/[øæœßłđðþı]/g, c => FOLD[c]);
+const { foldText } = require('./textFold');
 const words = (list) => new RegExp(`(?:^| )(?:${list.join('|')})(?= |$)`);
 
 // ---- leagues ------------------------------------------------------------------------

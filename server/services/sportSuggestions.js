@@ -17,7 +17,7 @@ const H = 3600000;
 const SCHEDULE_TTL = 6 * H;
 const MAX_TEAMS = 40; // schedules asked for in one answer (an account follows at most 20 names per sport)
 
-const fold = (s) => String(s || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+const fold = require('./textFold').personKey;
 const schedules = new Map(); // ESPN team id -> { at, leagues: Map(league -> first start) }
 
 function ensureTable(db) {

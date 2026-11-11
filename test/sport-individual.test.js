@@ -183,3 +183,20 @@ test('0408: an IndyCar or NASCAR airing that names another session never joins t
     const ok = dashboard.matchBroadcasts([race], [ev('r', 'NASCAR Cup Series: Martinsville Race')]);
     assert.deepEqual(ok.get(race.id).map(e => e.id), ['r']);
 });
+
+// D-5 (#272): one fold for people's names, with the Nordic letters #222 added for team names.
+test('personKey: Nordic and accented spellings are one name; ASCII keys are exactly what they were', () => {
+    const k = individual.personKey;
+    assert.equal(k('Nicolai Højgaard'), k('Nicolai Hojgaard'));
+    assert.equal(k('Ludvig Åberg'), k('Ludvig Aberg'));
+    assert.equal(k('Thomas Müller'), k('Thomas Muller'));
+    assert.equal(k('Jonas Vingegaard'), 'jonas vingegaard');
+    assert.equal(require('../server/services/textFold').personKey('Højgaard'), 'hojgaard');
+    const before = [["Liam Lawson","liam lawson"],["George Russell","george russell"],["Max Verstappen","max verstappen"],["Lando Norris","lando norris"],
+        ["Scottie Scheffler","scottie scheffler"],["Rory McIlroy","rory mcilroy"],["Jon Rahm","jon rahm"],["Ben O'Brien","ben o brien"],
+        ["Mary-Jane Smith","mary jane smith"],["Novak Djokovic","novak djokovic"],["Carlos Alcaraz","carlos alcaraz"],["Iga Swiatek","iga swiatek"],
+        ["Jiří Lehečka","jiri lehecka"],["Jannik Sinner","jannik sinner"],["Brisbane Lions","brisbane lions"],["GWS GIANTS","gws giants"],
+        ["St Kilda","st kilda"],["  Lewis   Hamilton ","lewis hamilton"],["Man. City","man city"],["Zhang Wei Jr.","zhang wei jr"]];
+    for (const [name, key] of before) assert.equal(k(name), key, name);
+    assert.equal(classify.normText('Bodø'), 'bodø', 'stored session keys keep normText as it was');
+});

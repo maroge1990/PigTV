@@ -215,7 +215,7 @@ async function teamCandidates(rule, now, { games = null, events = null, only = n
         if (mine && mine.length) leagues = mine.filter(l => offered.includes(l));
     } catch (e) { /* every league of the sport */ }
     const dashboard = require('./sportsDashboard');
-    const person = (v) => String(v || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const person = require('./textFold').personKey;
     const wanted = person(rule.match);
     const mine = only ? (games || []).filter(g => g.start > now - 12 * 3600 * 1000)
         : (games || dashboard.store().catalog()).filter(g => leagues.includes(g.league) && g.start > now - 12 * 3600 * 1000 &&

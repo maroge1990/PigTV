@@ -42,10 +42,7 @@ const text = (v, max = 160) => typeof v === 'string' ? v.trim().slice(0, max) : 
 const id = (v) => /^[A-Za-z0-9_-]{1,80}$/.test(String(v ?? '')) ? String(v) : null;
 const time = (v) => { const t = Date.parse(v || ''); return Number.isFinite(t) ? t : null; };
 
-/** A person's name as follows compare it: no accents, case or punctuation ("Jiří Lehečka" is "jiri lehecka"). */
-function personKey(name) {
-    return String(name || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-}
+const { personKey } = require('./textFold'); // accents, case, punctuation and the Nordic letters ignored
 
 function stateOf(status) {
     const t = status?.type || {}, said = `${t.name || ''} ${t.description || ''}`;
