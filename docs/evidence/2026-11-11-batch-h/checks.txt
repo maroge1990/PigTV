@@ -1,0 +1,106 @@
+# Browser checks, build 0540, rig staging via tunnel. Rig address written as <rig>.
+
+## document.title per page, and console errors
+#live                               title="Live TV · PigTV"  now at #live
+#guide                              title="TV Guide · PigTV"  now at #guide
+#sports                             title="Sport · PigTV"  now at #sports
+#recordings                         title="Recordings · PigTV"  now at #recordings
+#status                             title="Status · PigTV"  now at #status
+#settings                           title="Settings · Providers · PigTV"  now at #settings
+#settings/providers                 title="Settings · Providers · PigTV"  now at #settings/providers
+#settings/providers/backup-links    title="Settings · Providers · Backup links · PigTV"  now at #settings/providers/backup-links
+#settings/channels                  title="Settings · Channels · Manage content · PigTV"  now at #settings/channels
+#settings/channels/content          title="Settings · Channels · Manage content · PigTV"  now at #settings/channels/content
+#settings/channels/lineup           title="Settings · Channels · Channel numbers · PigTV"  now at #settings/channels/lineup
+#settings/channels/epg              title="Settings · Channels · EPG matching · PigTV"  now at #settings/channels/epg
+#settings/playback                  title="Settings · Playback · PigTV"  now at #settings/playback
+#settings/recording                 title="Settings · Recording · PigTV"  now at #settings/recording
+#settings/sport                     title="Settings · Sport · PigTV"  now at #settings/sport
+#settings/system                    title="Settings · System · PigTV"  now at #settings/system
+#home                               title="Live TV · PigTV"  now at #home
+#nonsense                           title="Live TV · PigTV"  now at #nonsense
+login.html                           title="Sign in — PigTV"
+
+## Reload keeps the place
+reload on #settings/channels/lineup -> hash #settings/channels/lineup; shown: tab "Channels", subtab "Channel numbers"; title "Settings · Channels · Channel numbers · PigTV"
+
+## Back / Forward across three Settings tabs
+click Recording -> #settings/recording (tab Recording)
+click System -> #settings/system (tab System)
+Back -> #settings/recording (tab Recording)
+Back -> #settings/playback (tab Playback)
+Forward -> #settings/recording (tab Recording)
+Forward -> #settings/system (tab System)
+
+## Live channel from the fake provider
+channel rows visible: 30
+player after click: t=1.0 paused=false ready=4 480x270 (title "AU| ABC NEWS HD")
+overlay visible after mouse move: true
+captions button: visible 1216,810
+captions menu open: true
+overflow menu open: true
+
+## Requests to any host other than the rig while browsing every page above and playing a channel
+none (every request went to <rig>)
+
+## Console / page errors
+none
+
+# Build 0540 specific checks
+
+## 1. Focus after Delete, Cancel and Undo made by keyboard
+Enter on Delete: tiles 3 -> 2; focus now button.ui-toast-action "Undo"
+Enter on Undo: tiles 3; focus now button.btn "Play"
+Delete, focus moved off Undo, notice ended after 10 s: focus now button.btn "Delete"
+Enter on Cancel (scheduled): focus now button.ui-toast-action "Undo"
+Enter on Undo after Cancel: focus now button.btn "Cancel"
+RESULT PASS: focus moves to the notice Undo after a keyboard Delete - button.ui-toast-action "Undo"
+RESULT PASS: after Undo focus is on the restored item, not the page body - button.btn "Play"
+RESULT PASS: when the notice ends focus is not the page body - button.btn "Delete"
+RESULT PASS: Cancel then Undo by keyboard: focus on Undo, then not body
+
+## 2. Phone menu closes on Escape and on Tab out
+open: aria-expanded=true; after Escape: aria-expanded=false; focus button.mobile-menu-toggle "Menu"
+RESULT PASS: Escape closes the phone menu and returns focus to the button - button.mobile-menu-toggle "Menu"
+reopened: aria-expanded=true; 8 Tab presses until focus left the menu; focus button.channel-toggle-btn "Channels"; aria-expanded=false
+RESULT PASS: Tab out of the phone menu closes it
+Shift+Tab from the button with the menu open: aria-expanded=false; focus body.pig-canvas-bloom "v3.7.0 · build 0540 (rig"
+
+## 3. Provider cards do not wrap short values
+desktop: 2 cards, 12 values; short values (<28 chars) on more than one line: 0; values on >1 line (any length): 0; label column widths 136 px; page scrollWidth 1440
+RESULT PASS: provider cards, desktop
+phone: 2 cards, 12 values; short values (<28 chars) on more than one line: 0; values on >1 line (any length): 4; label column widths 136 px; page scrollWidth 390
+RESULT PASS: provider cards, phone
+
+## 4. Locked Settings controls look disabled (Playback tab while its settings load)
+while loading: {"toggles":11,"toggleSlider":{"op":"0.45","bs":"dashed","cur":"not-allowed","bg":"rgb(37, 30, 46)"},"selects":9,"select":{"op":"0.45","bs":"solid","cur":"not-allowed"},"inputs":9,"input":{"op":"0.45","bs":"solid","cur":"not-allowed"},"enabledRef":null}
+enabled select after load for comparison: {"disabled":false,"op":"1","bs":"solid","cur":"default"}
+RESULT PASS: locked controls (switch, select, input) are visibly different from enabled ones
+
+## 5. "Copy stream URL" on one line
+(menu open: true)
+desktop: {"vis":true,"h":36,"w":190,"ws":"nowrap","lh":"normal","tops":2,"text":"Copy stream URL"}
+RESULT PASS: Copy stream URL on one line, desktop
+(menu open: true)
+phone: {"vis":true,"h":44,"w":182,"ws":"nowrap","lh":"normal","tops":2,"text":"Copy stream URL"}
+RESULT PASS: Copy stream URL on one line, phone
+
+## 6. Add-rule example text fits a phone (Recordings, Recording rules)
+phone: {"placeholder":"Collingwood, AFL, NFL: Chiefs","textW":230,"inputInnerW":314,"inputRight":365,"viewport":390,"pageScrollW":390}
+RESULT PASS: add-rule example fits, phone
+desktop: {"placeholder":"Collingwood, AFL, NFL: Chiefs","textW":230,"inputInnerW":554,"inputRight":697,"viewport":1440,"pageScrollW":1440}
+RESULT PASS: add-rule example fits, desktop
+
+## 7. Unknown page names go to Live TV
+Back onto an old {page:"home"} entry (was at #recordings): {"hash":"#live","active":"page-live","title":"Live TV · PigTV"}
+Back onto {page:"nonsense"}: {"hash":"#live","active":"page-live","title":"Live TV · PigTV"}
+hash changed by hand to #nonsense: {"hash":"#nonsense","active":"page-live","title":"Live TV · PigTV"}
+RESULT PASS: an old/unknown page entry opens Live TV (not a blank app) - hand-edited hash: page-live
+
+## 8. Recordings Delete: requests that reach the server (logging proxy; the proxy answers DELETE itself, so nothing is deleted)
+(a) delete, reload inside the 10 s: DELETE requests seen: 1 ["/api/recordings/101"]
+RESULT PASS: delete then reload inside 10 s sends exactly one DELETE
+(b) delete, Undo, wait 13 s: DELETE requests seen: 0 []
+RESULT PASS: delete then Undo sends no DELETE
+(c) control: delete, nothing else, wait 12 s: DELETE requests seen: 1 ["/api/recordings/101"]
+(d) control: delete, then move to Status inside the 10 s (same page, no unload): DELETE requests seen: 0

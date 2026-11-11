@@ -1,0 +1,138 @@
+# Keyboard-only pass, build 0540, rig staging, desktop 1440x900 dark unless stated. No mouse. Non-GET /api calls were answered by Playwright, so nothing on the rig changed.
+## Live TV
+stops: 19 (focus left the page / wrapped: no trap)
+order: a"Live TV" > a"TV Guide" > a"Sport" > a"Recordings" > a"Status" > a"Settings" > a#logout-btn"Sign out" > input#channel-search"Search channels…" > button"Clear search" > button#sidebar-collapse-btn"Collapse sidebar" > select#source-select"All providers Fake A Fake B" > button#toggle-groups"Expand or collapse all groups" > div"AU| GENERAL 2" > div"AU| SPORTS 3" > div"EXTRA| FILLER 4" > div"TEST| DIAGNOSTICS 6" > div"UK| ENTERTAINMENT 3" > div"UK| SPORTS 9" > div"US| SPORTS 3"
+no visible ring (outline/box-shadow on control or its wrapper): none
+## TV Guide (toolbar and grid)
+stops: 80 (cap 80 reached, no wrap)
+order: a"Live TV" > a"TV Guide" > a"Sport" > a"Recordings" > a"Status" > a"Settings" > a#logout-btn"Sign out" > select#epg-group-select"All groups AU| GENERAL AU| SPORTS EXTRA|" > input#epg-search"Search channels…" > button"Clear search" > button#guide-prev"← Earlier" > button#guide-next"Later →" > button"Favourite ##### SKY SPORTS #####" > span"Play ##### SKY SPORTS #####" > button"Favourite AU| ABC NEWS HD" > span"Play AU| ABC NEWS HD" > div"The Interview, 04:00 pm: details" > div"Morning News, 04:30 pm: details" > div"World Report, 05:00 pm: details" > div"Weather Watch, 06:00 pm: details" > div"The Interview, 06:30 pm: details" > div"Weather Watch, 07:00 pm: details" > div"Morning News, 07:30 pm: details" > div"World Report, 08:30 pm: details" > div"Weather Watch, 09:30 pm: details" > div"Morning News, 10:00 pm: details" > div"The Interview, 11:00 pm: details" > div"Morning News, 12:00 am: details" > div"Business Today, 01:00 am: details" > div"Weather Watch, 01:30 am: details" > div"Business Today, 02:00 am: details" > div"The Interview, 02:30 am: details" > div"Business Today, 03:30 am: details" > div"Weather Watch, 04:00 am: details" > div"Business Today, 04:30 am: details" > div"The Interview, 05:00 am: details" > div"Weather Watch, 06:00 am: details" > div"The Interview, 06:30 am: details" > div"World Report, 07:00 am: details" > div"The Interview, 07:30 am: details" > div"World Report, 08:00 am: details" > div"Morning News, 08:30 am: details" > div"Weather Watch, 09:00 am: details" > div"The Interview, 09:30 am: details" > div"Morning News, 10:00 am: details" > div"Business Today, 10:30 am: details" > div"Weather Watch, 11:30 am: details" > div"Morning News, 12:00 pm: details" > div"Weather Watch, 12:30 pm: details" > div"The Interview, 01:00 pm: details" > div"Business Today, 02:00 pm: details" > div"The Interview, 02:30 pm: details" > div"Morning News, 03:00 pm: details" > div"Weather Watch, 03:30 pm: details" > button"Favourite AU| CHANNEL 9 HD" > span"Play AU| CHANNEL 9 HD" > div"Harbour Lights, 03:30 pm: details" > div"Comedy Hour, 04:30 pm: details" > div"Harbour Lights, 05:30 pm: details" > div"Movie: The Long Road, 06:00 pm: details" > div"Comedy Hour, 07:00 pm: details" > div"Gardening Australia, 08:00 pm: details" > div"The Cooking Hour, 08:30 pm: details" > div"Local News, 09:00 pm: details" > div"The Cooking Hour, 10:00 pm: details" > div"Harbour Lights, 10:30 pm: details" > div"Comedy Hour, 11:00 pm: details" > div"Harbour Lights, 11:30 pm: details" > div"Quiz Night, 12:00 am: details" > div"Harbour Lights, 12:30 am: details" > div"Gardening Australia, 01:30 am: details" > div"Movie: The Long Road, 02:30 am: details" > div"Local News, 03:00 am: details" > div"Comedy Hour, 04:00 am: details" > div"The Cooking Hour, 05:00 am: details" > div"Gardening Australia, 05:30 am: details" > div"The Cooking Hour, 06:30 am: details" > div"Gardening Australia, 07:30 am: details" > div"The Cooking Hour, 08:30 am: details" > div"Gardening Australia, 09:30 am: details"
+no visible ring (outline/box-shadow on control or its wrapper): none
+## Guide programme dialog
+reached a programme by Tab: true
+Enter opened: ui-dialog; focus now in: input#record-pre-buffer ""
+8 Tab presses inside the dialog: in:INPUT > in:Record > in:Record series > in:Close > OUT:v3.7.0 · build 0540  > in:Close > in:INPUT > in:INPUT
+Escape: dialog open=false; focus returned to: div.epg-program "Wildlife: Rivers of Life, 10:3" (was div.epg-program "Wildlife: Rivers of Life, 10:3")
+## Sport (rig data)
+stops: 47 (focus left the page / wrapped: no trap)
+order: a"Live TV" > a"TV Guide" > a"Sport" > a"Recordings" > a"Status" > a"Settings" > a#logout-btn"Sign out" > button"Refresh" > button"All · next 72 hours" > button"Cricket" > button"Formula 1" > button"Australian Rules Football" > button"EPL" > button"American Football" > button"Basketball" > button"Football" > button"Motor Racing" > button"On TV now Scores hidden Australia v Indi" > button"More options for Australia v India" > button"Status unavailable Scores hidden Austral" > button"More options for Australia v India" > button"On TV now Scores hidden Mexico City Gran" > button"More options for Mexico City Grand Prix" > button"Status unavailable Scores hidden Brazili" > button"More options for Brazilian GP · Practice" > button"On TV now Scores hidden Collingwood v Ca" > button"More options for Collingwood v Carlton" > button"Status unavailable Scores hidden Brisban" > button"More options for Brisbane Lions v Geelon" > button"Status unavailable Scores hidden Arsenal" > button"More options for Arsenal v Chelsea" > button"Status unavailable Scores hidden Liverpo" > button"More options for Liverpool v Manchester " > button"Status unavailable Scores hidden Arsenal" > button"More options for Arsenal v Chelsea" > button"Status unavailable Scores hidden Kansas " > button"More options for Kansas City Chiefs v Bu" > button"Status unavailable Scores hidden Green B" > button"More options for Green Bay Packers v Chi" > button"Status unavailable Scores hidden Dallas " > button"More options for Dallas Cowboys v Philad" > button"Status unavailable Scores hidden Boston " > button"More options for Boston Celtics v Los An" > button"Status unavailable Scores hidden Real Ma" > button"More options for Real Madrid v Bayern Mu" > button"Status unavailable Scores hidden Mexico " > button"More options for Mexico City Grand Prix"
+no visible ring (outline/box-shadow on control or its wrapper): none
+## Sport (rig data): card dialog
+reached a card: true (button.sports-card "On TV now
+Scores hidden
+Austra")
+Enter on card: dialog open=false; focus in: body.pig-canvas-bloom "v3.7.0 · build 0540 (rig-ce548"
+Escape: open=false; focus back on: body.pig-canvas-bloom "v3.7.0 · build 0540 (rig-ce548"
+reached a ⋯ button: true (button.sports-more "More options for Australia v I")
+Enter on ⋯: dialog open=true; focus in: dialog.ui-dialog "Sport event details"
+6 Tab presses: in:Watch > in:Record > in:Watch > in:Record > in:Record every game: C > in:Close
+Escape: open=false; focus back on: button.sports-more "More options for Australia v I"
+## Sport (filled fixture)
+stops: 20 (focus left the page / wrapped: no trap)
+order: a"Live TV" > a"TV Guide" > a"Sport" > a"Recordings" > a"Status" > a"Settings" > a#logout-btn"Sign out" > button"Spoilers & delay" > button"Refresh" > button"Today" > button"EPL" > button"AFL" > button"Live N Northgate 2 R Riverside 1 Second " > button"More options for Northgate v Riverside" > button"Final E Eastfield 0 W Westbridge 3 Wed 1" > button"More options for Eastfield v Westbridge" > button"Upcoming HH Harbour Hawks IL Inland Lion" > button"More options for Harbour Hawks v Inland " > button"Upcoming CS Coastal Sharks VR Valley Ram" > button"More options for Coastal Sharks v Valley"
+no visible ring (outline/box-shadow on control or its wrapper): none
+## Sport (filled fixture): card dialog
+reached a card: true (button.sports-card "Live
+N
+Northgate
+2
+R
+Riverside")
+Enter on card: dialog open=false; focus in: button.sports-card "Live
+N
+Northgate
+2
+R
+Riverside"
+Escape: open=false; focus back on: button.sports-card "Live
+N
+Northgate
+2
+R
+Riverside"
+reached a ⋯ button: true (button.sports-more "More options for Northgate v R")
+Enter on ⋯: dialog open=true; focus in: dialog.ui-dialog "Sport event details"
+6 Tab presses: in:Watch > in:Record > in:Record every game: E > in:Record every game: E > in:Record every game: E > in:Close
+Escape: open=false; focus back on: button.sports-more "More options for Northgate v R"
+## Recordings (filled fixture)
+stops: 24 (focus left the page / wrapped: no trap)
+order: a"Live TV" > a"TV Guide" > a"Sport" > a"Recordings" > a"Status" > a"Settings" > a#logout-btn"Sign out" > button"Play" > button"More for Harbour Rescue" > button"Play" > button"More for Evening Cricket: Final Session" > button"Play" > button"More for Garden Makeover" > button"Cancel" > button"Record this one instead" > button"Cancel" > button"Cancel" > input#rule-add-match"Collingwood, AFL, NFL: Chiefs" > button"Add rule" > button"Turn off" > button"Delete" > button"Turn on" > button"Delete" > button"Delete"
+no visible ring (outline/box-shadow on control or its wrapper): none
+## Recordings menu, Delete and Undo
+reached a Play button: true (button.btn "Play")
+next Tab stop: button.btn "More for Harbour Rescue"
+Enter on ⋯: menu open=true; focus in: a.ui-menu-item "Download"
+ArrowDown: button.ui-menu-item "Delete"
+ArrowDown: a.ui-menu-item "Download"
+ArrowUp: button.ui-menu-item "Delete"
+Escape: menu open=false; focus back on: button.btn "More for Harbour Rescue"
+on the Delete item: button.ui-menu-item "Delete"
+Enter on Delete: tiles 3 -> 2; Undo notice shown=true; focus now: button.ui-toast-action "Undo"
+Undo reached by Tab: true (button.ui-toast-action "Undo")
+Enter on Undo: tiles 3 (expect 3); focus now: button.btn "Play"
+## Status
+stops: 9 (focus left the page / wrapped: no trap)
+order: a"Live TV" > a"TV Guide" > a"Sport" > a"Recordings" > a"Status" > a"Settings" > a#logout-btn"Sign out" > button"Stop" > button"Show details"
+no visible ring (outline/box-shadow on control or its wrapper): none
+## Settings: Providers
+stops: 28 (focus left the page / wrapped: no trap)
+order: a"Live TV" > a"TV Guide" > a"Sport" > a"Recordings" > a"Status" > a"Settings" > a#logout-btn"Sign out" > button#providers-tab"Providers" > button"Move Fake A down" > button"Check account" > button"Sync now" > button"Edit" > button"Move Fake B up" > button"Check account" > button"Sync now" > button"Edit" > button"Review links" > button"Add a backup provider" > select#epg-refresh-interval"1 hour 2 hours 4 hours 12 hours 24 hours" > select#import-exclusions-provider"Fake A Fake B" > input"105" > input"102" > input"107" > input"106" > input"104" > input"101" > input"103" > button#import-exclusions-save"Save excluded groups"
+no visible ring (outline/box-shadow on control or its wrapper): none
+## Settings: Channels / Manage content
+stops: 15 (focus left the page / wrapped: no trap)
+order: a"Live TV" > a"TV Guide" > a"Sport" > a"Recordings" > a"Status" > a"Settings" > a#logout-btn"Sign out" > button"Channels" > button"Manage content" > select#content-source-select"Select a provider… Fake A (Xtream) Fake " > input#content-search"Search groups or channels…" > button"Clear search" > button#content-show-all"Show all" > button#content-hide-all"Hide all" > button#content-save"Save content changes"
+no visible ring (outline/box-shadow on control or its wrapper): none
+## Settings: Channels / Channel numbers
+stops: 41 (focus left the page / wrapped: no trap)
+order: a"Live TV" > a"TV Guide" > a"Sport" > a"Recordings" > a"Status" > a"Settings" > a#logout-btn"Sign out" > button"Channels" > button"Channel numbers" > input#lineup-search"Search number, channel or category…" > button"Clear search" > input"Number for ##### SKY SPORTS #####" > input"Number for AU| ABC NEWS HD" > input"Number for AU| CHANNEL 9 HD" > input"Number for AU| FOX CRICKET HD" > input"Number for AU| FOX FOOTY HD" > input"Number for AU| KAYO SPORTS 1 HD" > input"Number for EXTRA| FILLER 001 HD" > input"Number for EXTRA| FILLER 002 HD" > input"Number for EXTRA| FILLER 003 HD" > input"Number for EXTRA| FILLER 004 HD" > input"Number for UK| BBC ONE HD" > input"Number for UK| CHANNEL 4 SD" > input"Number for UK| ITV1 HD" > input"Number for UK| SKY SPORTS CRICKET HD" > input"Number for UK| SKY SPORTS F1 FHD" > input"Number for UK| SKY SPORTS F1 HD" > input"Number for UK| SKY SPORTS F1 SD" > input"Number for UK| SKY SPORTS F1 UHD/4K" > input"Number for UK| SKY SPORTS MAIN EVENT HD" > input"Number for UK| SKY SPORTS PREMIER LEAGUE" > input"Number for UK| TEST BLACK SCREEN HD" > input"Number for UK| TEST CLOSES AFTER 20S" > input"Number for UK| TEST HE-AAC AUDIO HD" > input"Number for UK| TEST HE-AAC LABELLED MAIN" > input"Number for UK| TEST OFFLINE 404" > input"Number for UK| TEST STALLS AFTER 20S" > input"Number for UK| TNT SPORTS 1 HD" > input"Number for US| ESPN HD" > input"Number for US| ESPN UHD" > input"Number for US| NFL NETWORK HD"
+no visible ring (outline/box-shadow on control or its wrapper): none
+## Settings: Channels / EPG matching
+stops: 23 (focus left the page / wrapped: no trap)
+order: a"Live TV" > a"TV Guide" > a"Sport" > a"Recordings" > a"Status" > a"Settings" > a#logout-btn"Sign out" > button"Channels" > button"EPG matching" > input#epg-match-filter"Filter channels…" > button#epg-automap-preview"Auto-map…" > button"Sky Sports F1 84%" > button"Sky Sports Cricket 76%" > button"Sky Sports Main Event 66%" > button"Sky Sports Premier League 62%" > button"TNT Sports 1 48%" > button"Search…" > button"TNT Sports 1 50%" > button"Sky Sports F1 25%" > button"Sky Sports Cricket 21%" > button"Sky Sports Main Event 17%" > button"Sky Sports Premier League 15%" > button"Search…"
+no visible ring (outline/box-shadow on control or its wrapper): none
+## Settings: Playback
+stops: 22 (focus left the page / wrapped: no trap)
+order: a"Live TV" > a"TV Guide" > a"Sport" > a"Recordings" > a"Status" > a"Settings" > a#logout-btn"Sign out" > button"Playback" > input#setting-arrow-keys"on" > input#setting-overlay-duration"5" > input#setting-default-volume"80" > input#setting-remember-volume"on" > button"Re-detect GPU" > select#setting-hw-encoder"Auto (recommended) NVIDIA NVENC AMD AMF " > select#setting-max-resolution"4K (2160p) 1080p (Full HD) 720p (HD) 480" > select#setting-quality"High Medium Low (fastest)" > select#setting-audio-mix"Auto (smart copy or ITU) ITU-R BS.775 (b" > input#setting-relay-enabled"on" > input#setting-shared-ingest"on" > input#setting-warm-next-channel"on" > summary"Advanced: hardware decoding and how the " > input#setting-upscale-enabled"on"
+no visible ring (outline/box-shadow on control or its wrapper): none
+stops off-screen/zero-size: input#setting-arrow-keys"on" 0x0; input#setting-remember-volume"on" 0x0; input#setting-relay-enabled"on" 0x0; input#setting-shared-ingest"on" 0x0; input#setting-warm-next-channel"on" 0x0; input#setting-upscale-enabled"on" 0x0
+## Settings: Recording
+stops: 24 (focus left the page / wrapped: no trap)
+order: a"Live TV" > a"TV Guide" > a"Sport" > a"Recordings" > a"Status" > a"Settings" > a#logout-btn"Sign out" > button"Recording" > input#dvr-setting-path"/app/recordings" > input#dvr-setting-minfree"10" > input#dvr-setting-pre"1" > input#dvr-setting-post"5" > input#dvr-setting-max"1" > input#dvr-setting-prompt-timeout"3" > input#dvr-setting-addetect"on" > input#dvr-setting-adautoskip"on" > select#dvr-setting-codec"H.264 — plays anywhere HEVC — smaller, n" > input#dvr-setting-bitrate"3000" > input#dvr-setting-keep-original"on" > button#dvr-settings-save"Save recording settings" > input#notify-url"https://ntfy.sh/your-topic" > select#notify-format"JSON (Home Assistant, most tools) Text w" > button#notify-save"Save notifications" > button#notify-test"Send a test"
+no visible ring (outline/box-shadow on control or its wrapper): none
+stops off-screen/zero-size: input#dvr-setting-addetect"on" 0x0; input#dvr-setting-adautoskip"on" 0x0; input#dvr-setting-keep-original"on" 0x0
+## Settings: Sport
+stops: 49 (focus left the page / wrapped: no trap)
+order: a"Live TV" > a"TV Guide" > a"Sport" > a"Recordings" > a"Status" > a"Settings" > a#logout-btn"Sign out" > button"Sport" > input#sport-follow-spoilers"on" > button"Stop following" > button"Remove EPL" > select"Add a league to Football" > input"Follow in Football" > button"Follow" > select#sport-follow-add"Add a sport" > button"Follow this sport" > button"▾ Events (12)" > summary"1 guide title" > summary"2 channels" > summary"2 guide titles" > summary"5 channels" > summary"1 guide title" > summary"1 channel" > summary"2 guide titles" > summary"2 channels" > summary"1 guide title" > summary"3 channels" > summary"1 guide title" > summary"2 channels" > summary"1 guide title" > summary"2 channels" > summary"1 guide title" > summary"1 channel" > summary"1 guide title" > summary"1 channel" > summary"1 guide title" > summary"1 channel" > summary"1 guide title" > summary"1 channel" > summary"1 guide title" > summary"5 channels" > button"▾ Replays (3)" > summary"1 guide title" > summary"1 channel" > summary"1 guide title" > summary"1 channel" > summary"1 guide title" > summary"4 channels" > button"▸ Shows (159)"
+no visible ring (outline/box-shadow on control or its wrapper): none
+stops off-screen/zero-size: input#sport-follow-spoilers"on" 0x0
+## Settings: System
+stops: 19 (focus left the page / wrapped: no trap)
+order: a"Live TV" > a"TV Guide" > a"Sport" > a"Recordings" > a"Status" > a"Settings" > a#logout-btn"Sign out" > button"System" > select#setting-theme"Match system Light Dark" > input#pair-code"7KMQ2X" > button#pair-approve"Approve device" > button"Remove" > button"Remove" > button"Edit" > button"Delete" > input#new-username"new-username" > input#new-password"new-password" > select#new-role"Viewer Admin" > button"Add user"
+no visible ring (outline/box-shadow on control or its wrapper): none
+## Settings tab list, toggle, input, select
+reached the selected tab by Tab: true (button.tab "Playback")
+ArrowRight: focus button.tab "Recording"; hash #settings/recording; shown tab Recording
+ArrowRight: focus button.tab "Sport"; hash #settings/sport; shown tab Sport
+ArrowLeft: focus button.tab "Recording"; hash #settings/recording; shown tab Recording
+End: focus button.tab "System"; hash #settings/system; shown tab System
+Home: focus button#providers-tab.tab "Providers"; hash #settings/providers; shown tab Providers
+toggle input#setting-arrow-keys "": Space flips true -> false
+select select#setting-hw-encoder.source-select "Auto (recommended)
+NVIDIA NVEN": ArrowDown auto -> auto
+text input input#pair-code "": typed abc -> value "abc"
+## Phone menu (390 px)
+reached the menu button: true (button#mobile-menu-toggle.mobile-menu-toggle "Menu")
+Enter: aria-expanded=true; focus: button#mobile-menu-toggle.mobile-menu-toggle "Menu"
+14 Tab presses after opening: a.nav-link "Live TV" > a.nav-link "TV Guide" > a.nav-link "Sport" > a.nav-link "Recordings" > a.nav-link "Status" > a.nav-link "Settings" > a#logout-btn.nav-link "Sign out" > button#channel-toggle-btn.channel-toggle-btn "Channels" > body.pig-canvas-bloom "v3.7.0 · build 0540 (rig-ce548" > button#mobile-menu-toggle.mobile-menu-toggle "Menu" > button#channel-toggle-btn.channel-toggle-btn "Channels" > body.pig-canvas-bloom "v3.7.0 · build 0540 (rig-ce548" > button#mobile-menu-toggle.mobile-menu-toggle "Menu" > button#channel-toggle-btn.channel-toggle-btn "Channels"
+Escape: aria-expanded=false; focus: button#channel-toggle-btn.channel-toggle-btn "Channels"
+## Live TV at 390 px (menu closed)
+stops: 2 (focus left the page / wrapped: no trap)
+order: button#mobile-menu-toggle"Menu" > button#channel-toggle-btn"Channels"
+no visible ring (outline/box-shadow on control or its wrapper): none
+## Sign-in
+stops: 3 (focus left the page / wrapped: no trap)
+order: input#username"Enter your username" > input#password"Enter your password" > button#submit-btn"Sign in"
+no visible ring (outline/box-shadow on control or its wrapper): none
+Enter on the last stop / empty form: body.pig-canvas-bloom "Sign in to continue
+
+Username
+"

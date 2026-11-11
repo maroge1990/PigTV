@@ -108,12 +108,14 @@ The Apple client was reviewed against guide 1.8.0 ([#279](https://github.com/mar
 the 1.7 to 1.8 upgrade note, 4 pass, 7 fail and 1 cannot be told. On Apple TV, all 10 custom focus treatments suppress the
 system effect and none uses the system lift. Loading is a bare spinner on 12 of 17 screens, and the splash shows on every
 cold launch. There are 81 tvOS uses of text under 23 pt, and no Increase Contrast fallback. Apple TV fails identity, states,
-words, focus and minimums; iPad and iPhone are partial on most. The web app has not been reviewed against 1.8.
+words, focus and minimums; iPad and iPhone are partial on most.
 
 Since Apple 198 to 203 (11 Nov 2026, #279) the Apple TV's focus is one shared treatment (a lift, the pink ring outside the
 control and the focus tint), no tvOS text is under 23 pt and every focus target is at least 56 pt, each held by
 `BrandRulesTests`; Settings shows a summary on focus and opens a page on a press. Loading, the splash, Increase Contrast
 and the other rows are unchanged.
+
+**Web, 11 Nov 2026 (#276).** The 12-point product review (brand guide section 16) was re-run on the web app on 11 Nov 2026 at build 0541, against the rig's screenshots, the keyboard pass and the code. Eight points pass (identity, hierarchy, words, figures, focus, glass and radiance, launch, icons), three pass with a note (states, because the guide and channel list load as a spinner block rather than the grid's shape; minimums, which carries Mark's recorded exceptions for the TV Guide grid, the Live TV channel list and the admin tables, all never under 12 px; accessibility settings, where 200% zoom and the Increase Contrast and forced-colours renderings were not shot), and one fails: colour, because the light theme's success and warning colours are under 4.5:1 as small text and on the status tags. Open leftovers: the off-switch edge and bare Settings fields are too faint or small, and the touch and phone items listed in the batch's issue. At build 0502 the result was 2 pass and 10 fail.
 
 ## Sport pages
 
