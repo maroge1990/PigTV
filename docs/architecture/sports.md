@@ -100,7 +100,8 @@ the ESPN cooldown retry are not part of the timers and still run. Status: `/api/
 `running`, `why`, `idleSince`). The score collector uses the same module (`demand()`, unchanged; a rule alone does not give it
 the busy pace). Freshness while idle: stored fixtures keep their `coverage.at`, which `fixtureVerdict` already ages (a "no such
 game" answer is trusted only for 6 h); the event list is rebuilt before it is served once it is more than 10 min old.
-Fixtures are fetched only for the leagues that matter (the follow list, or a marked sport category's name), refreshed every
+Since 0552 the score collector fetches the scoreboards and the 30-minute pass only rosters (One fetcher, one store, below);
+with the collector off: fixtures are fetched only for the leagues that matter (the follow list, or a marked sport category's name), refreshed every
 30 min and after an EPG sync, kept in SQLite (`sport_fixtures`, `sport_fixture_teams`, `sport_fixture_status`) so a restart or
 an ESPN outage does not lose them, and never block a request - `sportsEvents.buildEvents()` reads the last stored snapshot.
 A successful fetch fully replaces that league's stored fixtures (cricket included, since every refresh re-discovers and
@@ -124,6 +125,24 @@ end, an F1 session by its label, the place from the event's name). Coverage is `
 collector has not wholly answered yet reads `sport_fixtures` as before (bounded by its own window and age); with the
 collector off (`PIGTV_SPORTS_DASHBOARD=0`) everything does. Games are named by the collector's id (`espn:<path>:<id>`), the one
 recording rules, schedules and clients already hold; nothing ever referred to a fixture row's id.
+
+**One fetcher, one store (#272, 0552).** While the score collector is on (the default) it is the only fetcher of ESPN's
+scoreboards and `sports_dashboard_catalog` the only store of a game's identity, schedule and state. Who reads what:
+
+| Store | Written by | Read by |
+|---|---|---|
+| `sports_dashboard_catalog` (+ `sports_score_history`) | the collector | the front page, dashboard, league pages' joins, follows, suggestions, recording rules, recording ends, and (through `sportsFixtures.snapshot`) the guide's live/replay classifier |
+| `sports_dashboard_coverage` | the collector (0550; since 0552 also the teams its window's answers name) | `sportsFixtures.snapshot`, the Status page's fixtures panel, the roster pass |
+| `sport_fixture_teams` | the 30-minute pass: ESPN `/teams` once a day per league, else (cricket, or `/teams` not answering) the teams of the collector's last window; International cricket's every pass | rosters: classifier, follows, Settings, front-page logos |
+| `sport_fixture_status` | the leagues' own feeds (`recordFeed`); the fixture refresh with the collector off | the Status page |
+| `sport_fixtures` | the fixture refresh, only with the collector off | `snapshot` with the collector off, and for a league the collector has not wholly answered yet |
+
+The 30-minute pass (`refreshAll`, same demand rule and EPG-sync kick) keeps only the rosters while the collector is on; a
+league's first whole window after start runs it at once (a cricket roster comes only from the window). `sport_fixtures` is left in place, unread and unwritten with the collector on, so a rollback to 0549 or earlier finds
+its last rows (that build's own coverage then bounds them, and its first pass replaces them). With
+`PIGTV_SPORTS_DASHBOARD=0` the fixture refresh fetches scoreboards and feeds the classifier as before 0551. Request count
+over a simulated day (test/sport-espn-requests.test.js, NFL and EPL followed): idle 1048 scoreboard requests before and
+after; a viewer 18:00-21:00 UTC 1118 -> 1048; an enabled rule all day 1576 -> 1096.
 
 **One fetch (#272, 0547).** Every sport feed request (fixtures, the collector, the five pages, suggestions, the leagues' own
 feeds) goes through `services/sportFetch.js`: only the hosts and path prefixes it lists (`ALLOWED`: ESPN's `/apis/site/v2/sports/`

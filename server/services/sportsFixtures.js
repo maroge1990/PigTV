@@ -296,19 +296,32 @@ async function refreshLeague(league, { now = Date.now(), db = getDb() } = {}) {
         });
     }
 
+    await refreshRoster(league, { now, db, fallback: result.teams });
+}
+
+/**
+ * A league's roster from ESPN's /teams, read again once a day (#213/#223: at once when an older build saved it without
+ * team ids); when /teams gives none (a cricket path 404s there), the teams its scoreboards name: `fallback` (the fixture
+ * refresh's own, collector off) or, #272 (D-1), those of the collector's last whole window (sports_dashboard_coverage).
+ */
+async function refreshRoster(league, { now = Date.now(), db = getDb(), fallback = null } = {}) {
+    const paths = [].concat(ESPN_LEAGUE_PATHS[league] || []);
     const cachedTeams = loadTeams(db, league);
-    // #213/#223: a roster an older build saved (no team ids; before 0433 no badges either) is read again at once, not a
-    // day later: a follow's badge and its team's own schedule come from it.
     const olderBuild = cachedTeams && !cachedTeams.teams.some(t => t?.id);
-    if (!cachedTeams || olderBuild || now - cachedTeams.updatedAt >= TEAMS_MAX_AGE_MS) {
-        const rosters = [];
-        for (const path of paths) {
-            const teamsResult = await espn.fetchTeams(path);
-            if (teamsResult.ok) rosters.push(...teamsResult.teams);
-        }
-        if (rosters.length) saveTeams(db, league, rosters);
-        else if (result.teams && result.teams.length) saveTeams(db, league, result.teams); // cricket paths: no /teams endpoint
+    if (cachedTeams && !olderBuild && now - cachedTeams.updatedAt < TEAMS_MAX_AGE_MS) return;
+    const rosters = [];
+    for (const path of paths) {
+        const teamsResult = await espn.fetchTeams(path);
+        if (teamsResult.ok) rosters.push(...teamsResult.teams);
     }
+    if (rosters.length) saveTeams(db, league, rosters);
+    else saveTeams(db, league, fallback || windowTeams(db, league)); // cricket paths: no /teams endpoint
+}
+
+/** #272 (D-1): the teams the collector's last whole window of a league names, or []. */
+function windowTeams(db, league) {
+    try { return JSON.parse(db.prepare('SELECT teams FROM sports_dashboard_coverage WHERE league = ?').get(league)?.teams || '[]') || []; }
+    catch { return []; }
 }
 
 /**
@@ -386,10 +399,15 @@ function scheduleCooldownRetry() {
     cooldownRetryTimer.unref?.();
 }
 
-/** Refresh every league that currently matters. Never throws; never runs two at once. */
+/**
+ * Refresh every league that currently matters. Never throws; never runs two at once. #272 (D-1): while the score collector
+ * is on it is the one fetcher of ESPN's scoreboards (and so of what the classifier reads, snapshot()); this pass then only
+ * keeps each team league's /teams roster (once a day). With the collector off it fetches the scoreboards itself, as before.
+ */
 async function refreshAll(now = Date.now()) {
     if (!enabled()) return;
     if (refreshing) return refreshing;
+    const collector = require('./sportsDashboard').collectorEnabled();
     refreshing = (async () => {
         const db = getDb();
         const leagues = neededLeagues(db);
@@ -397,7 +415,12 @@ async function refreshAll(now = Date.now()) {
             if (sharedCooldown()) break;
             if (require('./sportFeeds').has(league)) continue; // #196: its own feed, read by the score collector
             try {
-                if (CRICKET_GROUPS.includes(league)) await refreshCricket({ now, db, league });
+                if (collector) {
+                    // International cricket's teams change with the series on: kept from every window, as refreshCricket did
+                    if (CRICKET_GROUPS.includes(league)) saveTeams(db, league, windowTeams(db, league));
+                    else if (ESPN_LEAGUE_PATHS[league]) await refreshRoster(league, { now, db });
+                }
+                else if (CRICKET_GROUPS.includes(league)) await refreshCricket({ now, db, league });
                 else await refreshLeague(league, { now, db });
             } catch (err) {
                 logStateChange(league, false, err.message);
@@ -615,7 +638,23 @@ function snapshotFromCatalog(db, leagues) {
 function statusSummary() {
     if (!enabled()) return { enabled: false, leagues: [] };
     try {
-        const rows = getDb().prepare('SELECT * FROM sport_fixture_status ORDER BY league').all();
+        const db = getDb();
+        const rows = db.prepare('SELECT * FROM sport_fixture_status ORDER BY league').all();
+        // #272 (D-1): with the collector on, a team league's or cricket group's last fetch is the collector's last whole window
+        if (require('./sportsDashboard').collectorEnabled()) {
+            let windows = [];
+            try { windows = db.prepare('SELECT league, observed_at, listed FROM sports_dashboard_coverage').all(); } catch { /* none yet */ }
+            for (const w of windows) {
+                let row = rows.find(r => r.league === w.league);
+                if (!row) rows.push(row = { league: w.league });
+                if (!(row.last_success_at > w.observed_at)) {
+                    row.last_success_at = w.observed_at;
+                    try { row.fixture_count = JSON.parse(w.listed).length; } catch { /* keep */ }
+                    if (!(row.last_error_at > w.observed_at)) row.last_error = null;
+                }
+            }
+            rows.sort((a, b) => a.league.localeCompare(b.league));
+        }
         return {
             enabled: true,
             leagues: rows.map(r => ({
@@ -639,7 +678,7 @@ function reset() {
 module.exports = {
     enabled, neededLeagues, categoryLeagues, refreshAll, refreshLeague, refreshCricket, scheduleRefresh, refreshPass,
     startBackgroundRefresh, stopBackgroundRefresh, snapshot, statusSummary, reset,
-    ESPN_LEAGUE_PATHS, INTERNATIONAL_PATHS, teamsOf, rosterFor, recordFeed,
+    ESPN_LEAGUE_PATHS, INTERNATIONAL_PATHS, teamsOf, rosterFor, recordFeed, refreshRoster,
     // exposed for tests
     toFixture, cardFixture, teamAliasSides, f1Session
 };

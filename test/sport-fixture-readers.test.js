@@ -92,8 +92,8 @@ function clearStores() {
     for (const t of ['sports_dashboard_catalog', 'sports_score_history']) db.prepare(`DELETE FROM ${t}`).run();
 }
 
-/** Run everything the server runs to fill its stores for one scenario at its time: the fixture refresh (while it
- * exists), then the score collector until its window is answered. */
+/** Run everything the server runs to fill its stores for one scenario at its time: the score collector until its window
+ * is answered, then the fixture refresh's pass. */
 async function fill(s) {
     clearStores();
     requestPolicy.reset();
@@ -101,13 +101,15 @@ async function fill(s) {
     const now = Date.parse(s.now);
     try {
         serve(s);
-        if (s.panel) await fixtures.refreshCricket({ now, league: s.league });
-        else await fixtures.refreshLeague(s.league, { now });
+        load('services/sportPagePrefs').setFollows(1, { sports: [{ sport: sportCatalog.sportOf(s.league), leagues: [s.league] }] });
         const c = dashboard.createCollector({ store: dashboard.store(), clock: () => now, enabled: () => true,
             leagues: () => new Set([s.league]), followed: () => new Map(), feedGames: async () => ({ ok: true, games: [] }),
             recordFeed: () => {}, busy: () => true, every: () => null });
         for (let i = 0; i < 6; i++) await c.refresh();
         c.stop();
+        // then the 30-minute pass as the server runs it, for this league followed (0552: with the collector on, rosters
+        // only; a league's first whole window runs it at once)
+        await fixtures.refreshAll(now);
     } finally {
         global.fetch = original;
         requestPolicy.reset();

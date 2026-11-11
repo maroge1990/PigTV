@@ -30,9 +30,8 @@ test('the scripted game is scheduled, then live past its guide slot, then final,
     assert.equal(at(K + 20 * MIN)[0].snapshot.state, 'live', 'still live after the guide end (the overrun)');
     assert.deepEqual(at(K + 20 * MIN)[0].snapshot.scores, ['1', '1']);
     assert.equal(at(K + 25 * MIN)[0].snapshot.state, 'finished');
-    // the fixtures side reads the same answer (its teams, its state)
+    // the fixtures side reads the same answer (its teams; 0552: it no longer keeps ESPN's raw state, which nothing read)
     const [rec] = fixturesEspn.recordsFromScoreboard(scoreboard(game, K + 5 * MIN));
-    assert.equal(rec.state, 'in');
     assert.deepEqual(rec.teams.map(t => t.displayName), ['Everton', 'Fulham']);
 });
 

@@ -6,7 +6,7 @@ const { createStore } = require('./sportsDashboardStore');
 const { overrunEnd } = require('./sportOverrun');
 const onAir = require('./sportOnAir');
 const { isCricket, CRICKET_GROUPS, OTHER_CRICKET } = require('./sportCatalog');
-const { cricketGroupOf } = require('./sportsFixturesEspn');
+const { cricketGroupOf, teamsFromScoreboard } = require('./sportsFixturesEspn');
 const { isTournament } = require('./sportGroups');
 // #196: motorsport follows riders and drivers, who race in every session; F1 and MotoGP cards are sessions (joined by
 // session and place), a Supercars card the event weekend. #197: a tennis or golf tournament, a UFC night and an IndyCar
@@ -435,7 +435,8 @@ function cadence(now = Date.now()) {
 function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.neededLeagues(),clock=Date.now,enabled:isEnabled=collectorEnabled,
     followed=()=>require('./sportPagePrefs').allTeams(),roster=league=>fixtures.teamsOf(league),
     feedGames=(league,o)=>feeds.games(league,{...o,registerImage:require('./logoCache').registerLogo}),recordFeed=fixtures.recordFeed,
-    busy=()=>demand(clock())!==null,every=(fn,ms)=>setInterval(fn,ms),windowDemand=()=>sportDemand.loopDemand(clock())!==null}={}) {
+    busy=()=>demand(clock())!==null,every=(fn,ms)=>setInterval(fn,ms),windowDemand=()=>sportDemand.loopDemand(clock())!==null,
+    onCoverage=()=>{}}={}) {
     let running = null, timer = null, stopped = false, remaining = 0, deadline = 0, coldRequests = 0, current = null, lastRun = -Infinity, liveGames = false;
     const cache = new Map(), controller = new AbortController(), recordedFeeds = new WeakSet();
     const coverageWritten = new Map(); // league -> the last coverage row written (#272: written only on a change)
@@ -529,7 +530,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         // series no fixed league owns whose own class is known and not international.
         const others = [];
         // #272: whether the series lists are whole (every day answered, every series readable and classed, none past the cap)
-        let discoveryWhole = true;
+        let discoveryWhole = true, discoveryAt = Infinity;
         const seriesCut = new Set();
         if (CRICKET_GROUPS.some(l => wanted.has(l)) || wanted.has(OTHER_CRICKET)) {
             const series = new Map(); // series id -> its group
@@ -546,6 +547,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                 const held = cache.get(url)?.data;
                 if (!Array.isArray(held?.json.scores) || held.json.scores.some(block => !Array.isArray(block?.leagues)
                     || block.leagues.some(l => !/^\d{1,12}$/.test(String(l?.id))) || cricketGroupOf(block.events) === undefined)) discoveryWhole = false;
+                else discoveryAt = Math.min(discoveryAt, held.observedAt);
                 if (!Array.isArray(panel?.json.scores)) continue;
                 for (const block of panel.json.scores) for (const l of Array.isArray(block?.leagues) ? block.leagues : []) {
                     if (/^\d{1,12}$/.test(String(l?.id))) take(String(l.id), cricketGroupOf(block.events));
@@ -682,7 +684,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                 const answers = own.map(j => cache.get(j.url)?.data);
                 if (answers.some(a => !a)) continue;
                 const listed = new Set();
-                let at = group && !own.length ? now : Infinity;
+                let at = group ? discoveryAt : Infinity;
                 answers.forEach((a, i) => {
                     at = Math.min(at, a.observedAt);
                     a.ids ||= new Map();
@@ -690,11 +692,18 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                     if (!a.ids.has(key)) a.ids.set(key, espn.normalize(a.json, league, own[i].source).map(g => g.id));
                     for (const id of a.ids.get(key)) listed.add(id);
                 });
+                if (!Number.isFinite(at)) continue;
                 const first = Math.min(...windowDays.map(dayStart)), last = Math.max(...windowDays.map(dayStart)) + 24 * H;
                 const row = { from: Math.max(first, at - 36 * H), to: Math.min(last, at + 72 * H), at, listed: [...listed].sort() };
                 const key = JSON.stringify(row);
                 if (coverageWritten.get(league) === key) continue;
-                try { store.putCoverage(league, row); coverageWritten.set(league, key); } catch { /* best-effort: the last row stays */ }
+                const teams = new Map(); // every team the answers name, day by day as the fixture refresh merged them
+                const byDay = own.map((j, i) => [j, answers[i]]).sort(([a], [b]) => a.source.localeCompare(b.source) || a.date.localeCompare(b.date));
+                for (const [, a] of byDay) for (const t of teamsFromScoreboard(a.json)) teams.set((t.displayName || t.abbreviation || '').toLowerCase(), t);
+                row.teams = [...teams.values()];
+                const firstWindow = !coverageWritten.has(league);
+                try { store.putCoverage(league, row); coverageWritten.set(league, key); } catch { continue; /* best-effort: the last row stays */ }
+                if (firstWindow) try { onCoverage(league); } catch { /* best-effort */ }
             }
         }
         async function runJobs(batch, maxCold = Infinity) {
@@ -788,6 +797,8 @@ function store() {
     if(!stores.has(db)) stores.set(db,createStore(db));
     return stores.get(db);
 }
-function start(options = {}) { if(collectorEnabled() && !runtime) {runtime=createCollector({store:store(),...options});runtime.start();} } // options: tests only
+// #272 (D-1): a league's first whole window after start runs the 30-minute pass soon, for a roster only its scoreboards
+// give (cricket; sportsFixtures.refreshRoster), rather than up to 30 minutes later.
+function start(options = {}) { if(collectorEnabled() && !runtime) {runtime=createCollector({store:store(),onCoverage:()=>fixtures.scheduleRefresh(),...options});runtime.start();} } // options: tests only
 function stop() {runtime?.stop();runtime=null;require('./sportsDashboardResponse').close();}
 module.exports={enabled,collectorEnabled,dashboardEnabled,localDay,timezone,matchBroadcasts,buildDashboard,createCollector,store,start,stop,noteLook,cadence,response: options => require('./sportsDashboardResponse').response(options)};

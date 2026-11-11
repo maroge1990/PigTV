@@ -19,6 +19,9 @@ Update changes nothing.
 
 **Rollback:** release the previous version again (`gh workflow run release.yml -f version=v0476 -f commit=v0476`), then
 Force Update; `git revert` the bad commits on `main`. In a hurry, the template can point at `:v<build>` directly.
+Since 0552 the fixture refresh no longer writes `sport_fixtures` while the score collector is on (#272, the table is kept):
+a build from before 0552 then classifies live/replay from that table's last rows, bounded by their own stored window and
+age, until its first fixture pass (the first look at Sport, or a sport recording rule, runs it).
 
 **Sync interval (Mark's setting, Settings → "Sync channels and guide every"):** 12 h is enough. A scheduled sync skips a
 playlist or guide that has not changed (#237), so a shorter interval mostly costs downloads; `PIGTV_DEBUG_SYNC=1` brings

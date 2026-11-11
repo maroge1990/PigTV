@@ -519,7 +519,9 @@ They answer `Cache-Control: private, no-store`; no shared response cache or clie
   channel `start`/`end`) has begun and not ended carries `onAir: true`. `status` stays `scheduled` and `start` is
   unchanged (the play start); `canWatch`/`broadcastStatus` follow the airing as before. Every sport. Absent otherwise.
 
-Collection is separate from C-I's 30-minute fixtures: at most 12 public ESPN network attempts per 30-second tick across
+Since 0552 (#272) the collector is also where C-I's live/replay classification takes ESPN's games from (the 30-minute
+fixture refresh then only keeps rosters; with `PIGTV_SPORTS_DASHBOARD=0` it fetches them as before); C-I's answers are
+unchanged. At most 12 public ESPN network attempts per 30-second tick across
 all dashboard sources/dates, with two in flight, including dated cricket discovery. Known in-play/near-start source
 dates poll at 30 seconds, including the date whose scoreboard actually listed the game (ESPN groups by US Eastern
 date, so a game after 00:00Z is usually listed under the previous UTC date); other catalog dates use 15 minutes and budget-deferred work rotates through later ticks.

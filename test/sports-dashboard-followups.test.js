@@ -20,7 +20,8 @@ function fixtureFetch(calls){let failed=false;return async url=>{calls.push(Stri
 
 test('N1: with the variable unset the collector is on, so a 503 on the first league defers the rest of the fixture pass',async()=>{
     const old=global.fetch,flag=process.env.PIGTV_SPORTS_DASHBOARD;delete process.env.PIGTV_SPORTS_DASHBOARD;follows();const calls=[];
-    try{global.fetch=fixtureFetch(calls);await fixtures.refreshAll(NOW);assert.ok(!calls.some(u=>u.includes('basketball/nba/scoreboard')),'NBA asked during the cooldown');assert.ok(!calls.some(u=>u.includes('baseball/mlb/scoreboard')),'MLB asked during the cooldown');}
+    try{global.fetch=fixtureFetch(calls);await fixtures.refreshAll(NOW);assert.ok(!calls.some(u=>u.includes('basketball/nba/')),'NBA asked during the cooldown');assert.ok(!calls.some(u=>u.includes('baseball/mlb/')),'MLB asked during the cooldown');
+        assert.ok(!calls.some(u=>u.includes('/scoreboard')),'0552 (#272): with the collector on the pass asks no scoreboard, only /teams rosters');}
     finally{global.fetch=old;if(flag===undefined)delete process.env.PIGTV_SPORTS_DASHBOARD;else process.env.PIGTV_SPORTS_DASHBOARD=flag;}
 });
 
@@ -33,10 +34,11 @@ test('N1: collector off (=0) preserves the legacy sequential fixture refresh aft
 test('N1: enabled shared cooldown retries deferred fixture leagues when it expires, not 30 minutes later',async t=>{
     const old=global.fetch,flag=process.env.PIGTV_SPORTS_DASHBOARD;process.env.PIGTV_SPORTS_DASHBOARD='1';follows();const calls=[];
     t.mock.timers.enable({apis:['setTimeout','Date'],now:NOW});
-    try{global.fetch=fixtureFetch(calls);await fixtures.refreshAll(NOW);assert.ok(!calls.some(u=>u.includes('basketball/nba/scoreboard')));
+    // 0552 (#272): with the collector on, the pass keeps only /teams rosters; the cooldown defers and retries them alike
+    try{global.fetch=fixtureFetch(calls);await fixtures.refreshAll(NOW);assert.ok(!calls.some(u=>u.includes('basketball/nba/')));
         const nbaBefore=db.prepare('SELECT last_error FROM sport_fixture_status WHERE league=?').get('NBA');assert.equal(nbaBefore,undefined,'deferred league must not be recorded as an upstream failure');
         t.mock.timers.tick(61000);await new Promise(r=>setImmediate(r));
-        assert.ok(calls.some(u=>u.includes('basketball/nba/scoreboard')),'no automatic NBA retry after cooldown');assert.ok(calls.some(u=>u.includes('baseball/mlb/scoreboard')));
+        assert.ok(calls.some(u=>u.includes('basketball/nba/teams')),'no automatic NBA retry after cooldown');assert.ok(calls.some(u=>u.includes('baseball/mlb/teams')));
     }finally{global.fetch=old;fixtures.stopBackgroundRefresh();if(flag===undefined)delete process.env.PIGTV_SPORTS_DASHBOARD;else process.env.PIGTV_SPORTS_DASHBOARD=flag;}
 });
 

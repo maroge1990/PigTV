@@ -142,3 +142,29 @@ test('a card stored before 0550 (no ESPN facts) is read with its own end; a leag
     assert.equal(snap.get('NBA').fixtures[0].end, null);
     assert.equal(snap.get('NBA').fixtures[0].start, Date.parse('2026-10-03T23:00Z'));
 });
+
+test('0552: a cricket league\'s roster is the teams of the collector\'s window, kept by the 30-minute pass, which asks no scoreboard', async () => {
+    clear();
+    load('services/sportPagePrefs').setFollows(1, { sports: [{ sport: 'Cricket', leagues: ['IPL'] }] });
+    const firstWindows = [];
+    requestPolicy.reset();
+    const clock = { now: Date.parse('2026-05-31T12:00Z') };
+    const c = dashboard.createCollector({ store: dashboard.store(), clock: () => clock.now, enabled: () => true,
+        leagues: () => new Set(['IPL']), followed: () => new Map(), feedGames: async () => ({ ok: true, games: [] }),
+        recordFeed: () => {}, busy: () => true, every: () => null, windowDemand: () => true, onCoverage: league => firstWindows.push(league),
+        fetchJson: async url => url.includes('cricket/8048/scoreboard') && url.includes('dates=20260531') ? readFx('ipl-scoreboard') : { events: [] } });
+    for (let i = 0; i < 4; i++) await c.refresh();
+    clock.now += 16 * M;
+    for (let i = 0; i < 2; i++) await c.refresh();
+    c.stop();
+    assert.deepEqual(firstWindows, ['IPL'], 'the first whole window runs the pass at once, once');
+    const asked = [];
+    const original = global.fetch;
+    global.fetch = async url => { asked.push(String(url)); return { ok: false, status: 404, headers: new Headers(), body: null }; };
+    try { await fixtures.refreshAll(clock.now); } finally { global.fetch = original; requestPolicy.reset(); }
+    assert.ok(!asked.some(u => u.includes('/scoreboard')), 'no scoreboard asked by the pass');
+    assert.equal(fixtures.teamsOf('IPL').length, 10, 'the teams the IPL window names');
+    const panel = fixtures.statusSummary().leagues.find(l => l.league === 'IPL');
+    assert.equal(panel.lastSuccessAt, Date.parse('2026-05-31T12:16Z'), 'the Status page\'s last fetch is the collector\'s last whole window');
+    assert.equal(panel.fixtureCount, 1);
+});

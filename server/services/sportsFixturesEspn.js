@@ -86,7 +86,6 @@ function competitionRecord(event, comp) {
         sessionAbbr: (comp.type && typeof comp.type === 'object' && typeof comp.type.abbreviation === 'string') ? comp.type.abbreviation : null,
         start,
         end: Number.isFinite(end) ? end : null,
-        state: (comp.status && comp.status.type && comp.status.type.state) || (event && event.status && event.status.type && event.status.type.state) || null,
         teams: teams.length === 2 ? teams : null
     };
 }

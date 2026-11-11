@@ -52,8 +52,6 @@ function disagreements(json, league, source) {
             const location = game.title ? require('../server/services/sportsClassify').parseTitle(game.title).location : [];
             if (JSON.stringify(location) !== JSON.stringify(fixture.location)) add('location', rec.id);
         }
-        if (rec.state === 'post' && game.snapshot.state !== 'finished' || rec.state === 'pre' && game.snapshot.state !== 'scheduled')
-            add('status (the fixture keeps ESPN\'s raw state, read by nothing)', `${rec.id}: ${rec.state} / ${game.snapshot.state}`);
     }
     for (const id of games.keys()) if (!seen.has(id)) add('only the catalogue keeps it', id);
     return out;
@@ -65,6 +63,7 @@ test('the same scoreboard in both stores: where the fixture record and the colle
         const json = JSON.parse(fs.readFileSync(path.join(FX, `${file}.json`), 'utf8'));
         for (const [field, examples] of Object.entries(disagreements(json, league, source))) (all[field] ||= []).push(`${file}: ${examples.length} (${examples.slice(0, 2).join('; ')})`);
     }
+    // (0552: the raw ESPN state the fixture kept, which nothing read, is no longer stored; it disagreed for a cancelled MLB game.)
     // The trimmed NFL week files have no competition id (real ESPN answers always carry one): the fixture store falls back to
     // the event id, the catalogue skips the competition.
     assert.deepEqual(all, {
@@ -75,7 +74,6 @@ test('the same scoreboard in both stores: where the fixture record and the colle
             'ipl-scoreboard: 2 (1535465: india; 1535465: india)', 'mlb-20260927: 8 (401817103: new york; 401817103: baltimore)',
             'nba-20261003: 2 (401902644: toronto; 401902644: miami)', 'nfl-20260927: 8 (401872953: buffalo; 401872953: los angeles)',
             'league/nba-scoreboard: 20 (401909277: washington; 401909277: charlotte)'],
-        "status (the fixture keeps ESPN's raw state, read by nothing)": ['mlb-20260927: 1 (401817103: post / cancelled)'],
         'only the fixture store keeps it (usable by the classifier)': ['nfl/scoreboard-week7: 14 (401873010; 401873011)', 'nfl/scoreboard-week8: 14 (401873023; 401873026)']
     });
 });
