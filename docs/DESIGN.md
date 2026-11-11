@@ -112,8 +112,9 @@ words, focus and minimums; iPad and iPhone are partial on most.
 
 Since Apple 198 to 203 (11 Nov 2026, #279) the Apple TV's focus is one shared treatment (a lift, the pink ring outside the
 control and the focus tint), no tvOS text is under 23 pt and every focus target is at least 56 pt, each held by
-`BrandRulesTests`; Settings shows a summary on focus and opens a page on a press. Loading, the splash, Increase Contrast
-and the other rows are unchanged.
+`BrandRulesTests`; Settings shows a summary on focus and opens a page on a press. The other rows were unchanged at 203.
+
+Since Apple 204 to 208 (11 Nov 2026, #280) every screen on Apple TV, iPad and iPhone draws loading (page-shaped placeholders that pulse, still under Reduce Motion), empty (the small pig, a title, one sentence, one button) and error (the pig in a retry ring with "Try again"; content stays under a slim notice when a refresh fails) from shared components; the splash shows only while loading; no code reaches the screen; figures are rounded and tabular; Increase Contrast, Reduce Transparency and Reduce Motion have fallbacks. Simulator only until Mark's device check.
 
 **Web, 11 Nov 2026 (#276).** The 12-point product review (brand guide section 16) was re-run on the web app on 11 Nov 2026 at build 0541, against the rig's screenshots, the keyboard pass and the code. Eight points pass (identity, hierarchy, words, figures, focus, glass and radiance, launch, icons), three pass with a note (states, because the guide and channel list load as a spinner block rather than the grid's shape; minimums, which carries Mark's recorded exceptions for the TV Guide grid, the Live TV channel list and the admin tables, all never under 12 px; accessibility settings, where 200% zoom and the Increase Contrast and forced-colours renderings were not shot), and one fails: colour, because the light theme's success and warning colours are under 4.5:1 as small text and on the status tags. Open leftovers: the off-switch edge and bare Settings fields are too faint or small, and the touch and phone items listed in the batch's issue. At build 0502 the result was 2 pass and 10 fail.
 

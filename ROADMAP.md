@@ -5,58 +5,56 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 11 Nov 2026 (audit batch K: Apple TV brand 1.8, #279).*
+*Overwritten at the end of every session. 11 Nov 2026 (audit batches H, L and D: #276, #280, #272).*
 
 - **Released:** server **v0502** (`:release`, 9 Nov) and Apple **191** on TestFlight (tvOS and iOS). A release runs on
-  Mark's go-ahead (D-45). Pushed since, not released: server **0503 to 0533**, Apple **192 to 203**. Next builds: server
-  **0534**, Apple **204**.
-- **10 Nov, audit:** filed as batch issues #269–#280 and bug #281; each issue's first comment holds the detail and a
-  later comment Mark's decisions. Batches A (#269), I (#277), C (#271), B (#270), G (#275) and K (#279) are pushed, and
-  #287 after C. Order from here: H (#276), L (#280), D (#272, with #281), E (#273), J (#278), F (#274).
-- **10 Nov, batch C pushed with CI green (#271; D-56), server 0504 to 0509:** every recording is captured segmented and
-  nothing else (the part-based path, its switch and break detection during capture are gone); #284, #285 and the
-  low-disk check fixed on the way. Evidence: `docs/evidence/2026-11-10-batch-c/`.
-- **10 Nov, #287 pushed with CI green, server 0510 to 0515 (closed):** publishing a finished recording makes no
-  synchronous call on the share; a share that stalls mid-publish no longer freezes the server. T3 on the rig passed
-  (worst API call 40 ms with the share frozen). Evidence: `docs/evidence/2026-11-10-share-publish/`. Filed: #289, #290.
-- **10 Nov, batch B pushed with CI green, server 0516 to 0523 (#270, closed; D-57):** unused server code removed
-  (thirteen routes, six `/api/info` flags, the films and series download, the Sports keyword remains; about 800
-  lines). D-57: the oldest database PigTV opens is one from build 0476; an older one is refused at start, untouched
-  (start v0502 once). Evidence: `docs/evidence/2026-11-10-batch-b/`. Filed: #291.
-- **10 Nov, batch G pushed with CI green, server 0524 to 0533 (#275, closed):**
-  - The web app needs no internet: Inter and hls.js 1.5.7 (byte-identical) are served by the app.
-  - Notices are a pill at the bottom (Mark's pick) instead of 23 browser alerts, with Undo on hiding a channel; four
-    dialogs share one implementation (Escape, click outside, focus back). The recording player's overlay is not moved.
-  - Fixed: the phone menu's 4 px gap and the Sport page's undefined colours. Removed: 55 dead CSS blocks, dead JS, the
-    always-empty Email column. One escape, time format and debounce. Redraw timers stop when hidden.
-  - 189 web string checks moved from `verify-build.sh` to `test/web-static-strings.test.js`.
-  - Opus and Codex: no high; three findings fixed in 0533. T3 on the rig: 70 before and after shots, and browser
-    checks (no foreign request, the player plays, dialogs centred). Evidence: `docs/evidence/2026-11-10-batch-g/`.
-    Filed: #292.
-- **11 Nov, batch K pushed with CI green, Apple 198 to 203 (#279, open for Mark's device check); PigBrand 1.8.1:**
-  - Apple TV focus is one treatment (Mark's pick B: a lift, the pink ring outside the control, the pink tint), used by
-    every focus style and the guide's cells. A followed game is marked by its star on the television.
-  - No Apple TV text under 23 pt; everything the remote lands on is at least 56 pt. Guide cells show a one-line
-    title; the Sport banner's Following list is three bigger rows.
-  - Settings on Apple TV: focus shows a read-only summary, a press opens the page and moves focus in, Menu returns
-    to the same row.
-  - PigBrand 1.8.1 (pushed to the kit's `main`, `c6af62d`): the app's larger Apple TV icon is the kit's source, so
-    `sync-brand.sh` changes nothing (pull the kit first); the pig mark is allowed beside a page title.
-  - Opus: 2 high and 2 medium (the batch had changed iPad and iPhone), fixed in 203. Codex: no high; two mediums
-    left on #293 with the lows. Simulator only. Evidence: `docs/evidence/2026-11-11-batch-k/`. Filed: #293, #294.
+  Mark's go-ahead (D-45). Pushed since, not released: server **0503 to 0558**, Apple **192 to 208**. Next builds: server
+  **0559**, Apple **209**.
+- **The 10 Nov audit** was filed as batch issues #269–#280; each issue's first comment holds the detail and later
+  comments Mark's decisions. Pushed: A (#269), I (#277), C (#271), B (#270), G (#275), K (#279), H (#276), L (#280),
+  D (#272, with #281). Left, in this order: **E (#273), J (#278), F (#274)**; the handover note is a comment on #273.
+- **11 Nov, batch H pushed with CI green, server 0534 to 0541 (#276, closed):** the web app under brand 1.8.
+  - Mark's picks: no Home page (the app opens on Live TV, favourites first); compact Sport cards; Recordings as
+    picture cards; text at 16 px with the guide grid, the channel list and the admin tables as recorded exceptions.
+  - One block for loading, empty and load-error on every page; one focus ring; 44 px touch targets; colour roles;
+    opaque surfaces under forms; reduced motion, transparency and contrast handled; one date format; one rose button
+    per screen; page titles and Settings tabs in the address; Undo (10 s) in place of a confirm where an action can
+    be undone, sent reliably when the page closes or you sign out.
+  - The 12-point review of the web (in `docs/DESIGN.md`): 8 pass, 3 pass with a note, 1 fail (status colours under
+    4.5:1 in the light theme: a brand-kit decision). Leftovers: #295. Evidence: `docs/evidence/2026-11-11-batch-h/`.
+- **11 Nov, batch D pushed with CI green, server 0542 to 0558 (#272 and #281, closed):** the server's sport code.
+  - The score collector is the only fetcher and store of ESPN's scoreboards; the guide's live/replay check and the
+    League and NFL pages read it, so they change with the front page (seen on the rig within one 10 s poll).
+  - One fetch for every sport feed request (allow-list, size cap, cooldown); one reading of ESPN's game status; one
+    page cache; the event list and fixture loops sleep when nobody is looking and no rule needs them; a score
+    history row only on change (the table keeps the shape older builds write to, so rollback is safe from 0553).
+  - #281: a club ESPN lists twice no longer gets another club's badge (Sydney Swans). 0556: the web says "Hide scores".
+  - Filed: #296 (the shared channel matcher misses foreign-language listings; the NFL page keeps its own), #297 (F1,
+    Cricket and Events pages still read ESPN themselves; the old path when the collector is off). Evidence:
+    `docs/evidence/2026-11-11-batch-d/`. The first CI run was red on one test that needed git; fixed in `e25e29f`.
+- **11 Nov, batch L pushed with CI green, Apple 204 to 208 (#280, open for Mark's device check):** the Apple apps.
+  - Mark's picks: loading is page-shaped placeholders that pulse; empty is the small pig with one button; an error is
+    the pig in a retry ring with "Try again", and content stays under a slim notice when a refresh fails.
+  - Every screen draws those states from shared components; league pages no longer spin for ever; sign-in errors are
+    on the form; no codes on screen; one name per thing ("Hide scores", "Try again", "Close player"); the splash only
+    while loading; rounded figures; iPhone sizes and the follow card; Increase Contrast; two named animations.
+  - Simulator only. Evidence and the numbered device steps: `docs/evidence/2026-11-11-batch-l/`. Filed: #298 (iPad
+    layout faults in the real F1 page and the Sport banner).
 - **Waiting on Mark:**
-  - T5 device checks: #279 (Apple TV focus, text, Settings and the Home-screen icon, on a build from 203; steps on
-    the issue), #271 (one real recording end to end, on a build from 0509), #277 (open Sport once on Apple TV,
-    iPad and iPhone, on a build from 197), #246 (stop the container mid-recording), #260, the iPhone and iPad fixes in
+  - A release: nothing since v0502 and Apple 191 is released.
+  - T5 device checks: #280 (on a TestFlight build from 208; steps in its evidence folder and on the issue), #279 (on a
+    build from 203), #271 (one real recording end to end, on a build from 0509), #277 (open Sport once on each
+    device, on a build from 197), #246 (stop the container mid-recording), #260, the iPhone and iPad fixes in
     176–191, Watch on…, and T4 for #259 at the next race.
   - #288: how long a recording keeps trying when every provider is down (today about 5 minutes).
   - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00.
-  - #240.
-  - Whether #293's missing focus tint is fixed before the next TestFlight build.
+  - #240. Whether #293's missing focus tint is fixed before the next TestFlight build.
+  - #295's colour point: darker status colours for small text are the brand kit's to decide.
+  - Batch F (#274): the two recommended items only, or all six.
 - **Open investigation:** #3 (sound out of step on the iPad): the relay join measured clean; the device meter (#267)
   and the marker (#268) are filed, not built (Mark).
-- **Next:** batch H (#276: web brand 1.8 and UX; mock-ups for Mark first; its handover note is a comment on the
-  issue); then L (#280); then #262 (iPadOS/iOS 17+, three sites need fallbacks).
+- **Next:** batch E (#273: server hot paths; no design choices; Codex round); then J (#278: scout first, batch L
+  moved its lines); then F (#274); then #262 (iPadOS/iOS 17+, three sites need fallbacks).
 
 ## Now
 

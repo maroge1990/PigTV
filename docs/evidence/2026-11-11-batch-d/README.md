@@ -35,6 +35,8 @@ Not done, by Mark's choice: the NFL page keeps its own channel matcher (#296); F
 
 `rig.md` holds the whole account: the agreement tables on 0552, the timings on 0556 and 0558, the rule and recording result, the idle and resume observations and what could not be shown. In short, on 0558 the front answer and the Premier League page answer changed state in the same 10-second poll at kick-off, at each goal and at the final (on 0556 the page was 50 seconds behind the front at kick-off and 80 seconds ahead at the final); the rule scheduled one recording on a channel showing the game, it overran to the final and completed; the database that 0552 had altered opened and served on 0556.
 
-Not shown on the rig: the cooldown (the fake feed cannot answer 429: T1 only), #281's badge (no AFL teams in the fake feed: T1 only), the NFL page (no NFL game in the fake feed: T1 only), history row counts.
+#281 was shown on the rig in its real-ESPN-feeds mode (no provider): for the listed AFLW game Geelong Cats v Sydney Swans the front answer gives Sydney Swans its own badge (`rig-281.md`, `shots/281-sydney-swans-badge.png`).
+
+Not shown on the rig: the cooldown (the fake feed cannot answer 429: T1 only), the NFL page (no NFL game in the fake feed: T1 only), history row counts.
 
 `shots/`: 16 JPGs of the web Sport page, the guide, Recordings and Status at the three moments, and the front and League answers rendered at kick-off and at the final.
