@@ -1,0 +1,903 @@
+{
+  "NFL": {
+    "snapshot": {
+      "NFL": {
+        "fixtures": [
+          {
+            "start": "2026-09-27T17:00:00.000Z",
+            "end": null,
+            "teams": [
+              [
+                "buffalo bills",
+                "bills",
+                "buffalo",
+                "buf"
+              ],
+              [
+                "los angeles chargers",
+                "chargers",
+                "los angeles",
+                "lac"
+              ]
+            ],
+            "session": null,
+            "location": []
+          },
+          {
+            "start": "2026-09-27T17:00:00.000Z",
+            "end": null,
+            "teams": [
+              [
+                "cleveland browns",
+                "browns",
+                "cleveland",
+                "cle"
+              ],
+              [
+                "carolina panthers",
+                "panthers",
+                "carolina",
+                "car"
+              ]
+            ],
+            "session": null,
+            "location": []
+          },
+          {
+            "start": "2026-09-27T17:00:00.000Z",
+            "end": null,
+            "teams": [
+              [
+                "detroit lions",
+                "lions",
+                "detroit",
+                "det"
+              ],
+              [
+                "new york jets",
+                "jets",
+                "new york",
+                "nyj"
+              ]
+            ],
+            "session": null,
+            "location": []
+          },
+          {
+            "start": "2026-09-27T17:00:00.000Z",
+            "end": null,
+            "teams": [
+              [
+                "indianapolis colts",
+                "colts",
+                "indianapolis",
+                "ind"
+              ],
+              [
+                "houston texans",
+                "texans",
+                "houston",
+                "hou"
+              ]
+            ],
+            "session": null,
+            "location": []
+          }
+        ],
+        "rosterTeams": 32,
+        "covered": true
+      }
+    },
+    "verdicts": [
+      "NFL: Buffalo Bills v Los Angeles Chargers @ 2026-09-27T17:00:00.000Z: event: a match-up, ESPN: the game started Sun 1:00 pm",
+      "NFL: Los Angeles Chargers v Buffalo Bills @ 2026-09-28T13:00:00.000Z: replay: ESPN: the game started Sun 1:00 pm; this airing is 20 h later",
+      "NFL: Buffalo Bills v Los Angeles Chargers @ 2026-09-26T11:00:00.000Z: replay: ESPN: the game started Sun 1:00 pm; this airing is 30 h earlier",
+      "NFL: Cleveland Browns v Carolina Panthers @ 2026-09-27T17:00:00.000Z: event: a match-up, ESPN: the game started Sun 1:00 pm",
+      "NFL: Carolina Panthers v Cleveland Browns @ 2026-09-28T13:00:00.000Z: replay: ESPN: the game started Sun 1:00 pm; this airing is 20 h later",
+      "NFL: Cleveland Browns v Carolina Panthers @ 2026-09-26T11:00:00.000Z: replay: ESPN: the game started Sun 1:00 pm; this airing is 30 h earlier",
+      "NFL: Detroit Lions v New York Jets @ 2026-09-27T17:00:00.000Z: event: a match-up, ESPN: the game started Sun 1:00 pm",
+      "NFL: New York Jets v Detroit Lions @ 2026-09-28T13:00:00.000Z: replay: ESPN: the game started Sun 1:00 pm; this airing is 20 h later",
+      "NFL: Detroit Lions v New York Jets @ 2026-09-26T11:00:00.000Z: replay: ESPN: the game started Sun 1:00 pm; this airing is 30 h earlier",
+      "NFL: Indianapolis Colts v Houston Texans @ 2026-09-27T17:00:00.000Z: event: a match-up, ESPN: the game started Sun 1:00 pm",
+      "NFL: Houston Texans v Indianapolis Colts @ 2026-09-28T13:00:00.000Z: replay: ESPN: the game started Sun 1:00 pm; this airing is 20 h later",
+      "NFL: Indianapolis Colts v Houston Texans @ 2026-09-26T11:00:00.000Z: replay: ESPN: the game started Sun 1:00 pm; this airing is 30 h earlier",
+      "NFL: Arizona Cardinals v Atlanta Falcons @ 2026-09-27T18:00:00.000Z: replay: ESPN has no such game at this time",
+      "NFL: Arizona Cardinals v Atlanta Falcons @ 2026-09-26T06:00:00.000Z: replay: outside NFL hours (02:00 America/New_York)"
+    ],
+    "catalog": [
+      {
+        "id": "espn:football/nfl:401872949",
+        "league": "NFL",
+        "start": "2026-09-27T17:00:00.000Z",
+        "title": "Cleveland Browns v Carolina Panthers",
+        "competitors": [
+          "Cleveland Browns",
+          "Carolina Panthers"
+        ],
+        "session": null
+      },
+      {
+        "id": "espn:football/nfl:401872951",
+        "league": "NFL",
+        "start": "2026-09-27T17:00:00.000Z",
+        "title": "Indianapolis Colts v Houston Texans",
+        "competitors": [
+          "Indianapolis Colts",
+          "Houston Texans"
+        ],
+        "session": null
+      },
+      {
+        "id": "espn:football/nfl:401872953",
+        "league": "NFL",
+        "start": "2026-09-27T17:00:00.000Z",
+        "title": "Buffalo Bills v Los Angeles Chargers",
+        "competitors": [
+          "Buffalo Bills",
+          "Los Angeles Chargers"
+        ],
+        "session": null
+      },
+      {
+        "id": "espn:football/nfl:401872954",
+        "league": "NFL",
+        "start": "2026-09-27T17:00:00.000Z",
+        "title": "Detroit Lions v New York Jets",
+        "competitors": [
+          "Detroit Lions",
+          "New York Jets"
+        ],
+        "session": null
+      }
+    ],
+    "rules": {
+      "sport": [
+        "Arizona Cardinals v Atlanta Falcons @ 2026-09-27T18:00:00.000Z on 1:12",
+        "Buffalo Bills v Los Angeles Chargers @ 2026-09-27T17:00:00.000Z on 1:0",
+        "Cleveland Browns v Carolina Panthers @ 2026-09-27T17:00:00.000Z on 1:3",
+        "Detroit Lions v New York Jets @ 2026-09-27T17:00:00.000Z on 1:6",
+        "Indianapolis Colts v Houston Texans @ 2026-09-27T17:00:00.000Z on 1:9"
+      ],
+      "team": [
+        "game:espn:football/nfl:401872949 @ 2026-09-27T17:00:00.000Z on 1:3"
+      ]
+    }
+  },
+  "MLB": {
+    "snapshot": {
+      "MLB": {
+        "fixtures": [
+          {
+            "start": "2026-09-27T17:05:00.000Z",
+            "end": null,
+            "teams": [
+              [
+                "new york yankees",
+                "yankees",
+                "new york",
+                "nyy"
+              ],
+              [
+                "baltimore orioles",
+                "orioles",
+                "baltimore",
+                "bal"
+              ]
+            ],
+            "session": null,
+            "location": []
+          },
+          {
+            "start": "2026-09-27T17:05:00.000Z",
+            "end": null,
+            "teams": [
+              [
+                "washington nationals",
+                "nationals",
+                "washington",
+                "wsh"
+              ],
+              [
+                "new york mets",
+                "mets",
+                "new york",
+                "nym"
+              ]
+            ],
+            "session": null,
+            "location": []
+          },
+          {
+            "start": "2026-09-27T18:30:00.000Z",
+            "end": null,
+            "teams": [
+              [
+                "philadelphia phillies",
+                "phillies",
+                "philadelphia",
+                "phi"
+              ],
+              [
+                "tampa bay rays",
+                "rays",
+                "tampa bay",
+                "tb"
+              ]
+            ],
+            "session": null,
+            "location": []
+          },
+          {
+            "start": "2026-09-27T19:05:00.000Z",
+            "end": null,
+            "teams": [
+              [
+                "boston red sox",
+                "red sox",
+                "boston",
+                "bos"
+              ],
+              [
+                "chicago cubs",
+                "cubs",
+                "chicago",
+                "chc"
+              ]
+            ],
+            "session": null,
+            "location": []
+          }
+        ],
+        "rosterTeams": 8,
+        "covered": true
+      }
+    },
+    "verdicts": [
+      "MLB: New York Yankees v Baltimore Orioles @ 2026-09-27T17:05:00.000Z: event: a match-up, ESPN: the game started Sun 1:05 pm",
+      "MLB: Baltimore Orioles v New York Yankees @ 2026-09-28T13:05:00.000Z: replay: ESPN: the game started Sun 1:05 pm; this airing is 20 h later",
+      "MLB: New York Yankees v Baltimore Orioles @ 2026-09-26T11:05:00.000Z: replay: ESPN: the game started Sun 1:05 pm; this airing is 30 h earlier",
+      "MLB: Washington Nationals v New York Mets @ 2026-09-27T17:05:00.000Z: event: a match-up, ESPN: the game started Sun 1:05 pm",
+      "MLB: New York Mets v Washington Nationals @ 2026-09-28T13:05:00.000Z: replay: ESPN: the game started Sun 1:05 pm; this airing is 20 h later",
+      "MLB: Washington Nationals v New York Mets @ 2026-09-26T11:05:00.000Z: replay: ESPN: the game started Sun 1:05 pm; this airing is 30 h earlier",
+      "MLB: Philadelphia Phillies v Tampa Bay Rays @ 2026-09-27T18:30:00.000Z: event: a match-up, ESPN: the game started Sun 2:30 pm",
+      "MLB: Tampa Bay Rays v Philadelphia Phillies @ 2026-09-28T14:30:00.000Z: replay: ESPN: the game started Sun 2:30 pm; this airing is 20 h later",
+      "MLB: Philadelphia Phillies v Tampa Bay Rays @ 2026-09-26T12:30:00.000Z: replay: ESPN: the game started Sun 2:30 pm; this airing is 30 h earlier",
+      "MLB: Boston Red Sox v Chicago Cubs @ 2026-09-27T19:05:00.000Z: event: a match-up, ESPN: the game started Sun 3:05 pm",
+      "MLB: Chicago Cubs v Boston Red Sox @ 2026-09-28T15:05:00.000Z: replay: ESPN: the game started Sun 3:05 pm; this airing is 20 h later",
+      "MLB: Boston Red Sox v Chicago Cubs @ 2026-09-26T13:05:00.000Z: replay: ESPN: the game started Sun 3:05 pm; this airing is 30 h earlier"
+    ],
+    "catalog": [
+      {
+        "id": "espn:baseball/mlb:401817103",
+        "league": "MLB",
+        "start": "2026-09-27T17:05:00.000Z",
+        "title": "New York Yankees v Baltimore Orioles",
+        "competitors": [
+          "New York Yankees",
+          "Baltimore Orioles"
+        ],
+        "session": null
+      },
+      {
+        "id": "espn:baseball/mlb:401817106",
+        "league": "MLB",
+        "start": "2026-09-27T17:05:00.000Z",
+        "title": "Washington Nationals v New York Mets",
+        "competitors": [
+          "Washington Nationals",
+          "New York Mets"
+        ],
+        "session": null
+      },
+      {
+        "id": "espn:baseball/mlb:401817108",
+        "league": "MLB",
+        "start": "2026-09-27T18:30:00.000Z",
+        "title": "Philadelphia Phillies v Tampa Bay Rays",
+        "competitors": [
+          "Philadelphia Phillies",
+          "Tampa Bay Rays"
+        ],
+        "session": null
+      },
+      {
+        "id": "espn:baseball/mlb:401817089",
+        "league": "MLB",
+        "start": "2026-09-27T19:05:00.000Z",
+        "title": "Boston Red Sox v Chicago Cubs",
+        "competitors": [
+          "Boston Red Sox",
+          "Chicago Cubs"
+        ],
+        "session": null
+      }
+    ],
+    "rules": {
+      "sport": [
+        "Boston Red Sox v Chicago Cubs @ 2026-09-27T19:05:00.000Z on 1:9",
+        "New York Yankees v Baltimore Orioles @ 2026-09-27T17:05:00.000Z on 1:0",
+        "Philadelphia Phillies v Tampa Bay Rays @ 2026-09-27T18:30:00.000Z on 1:6",
+        "Washington Nationals v New York Mets @ 2026-09-27T17:05:00.000Z on 1:3"
+      ],
+      "team": [
+        "game:espn:baseball/mlb:401817103 @ 2026-09-27T17:05:00.000Z on 1:0"
+      ]
+    }
+  },
+  "NBA": {
+    "snapshot": {
+      "NBA": {
+        "fixtures": [
+          {
+            "start": "2026-10-03T23:00:00.000Z",
+            "end": null,
+            "teams": [
+              [
+                "toronto raptors",
+                "raptors",
+                "toronto",
+                "tor"
+              ],
+              [
+                "miami heat",
+                "heat",
+                "miami",
+                "mia"
+              ]
+            ],
+            "session": null,
+            "location": []
+          }
+        ],
+        "rosterTeams": 2,
+        "covered": true
+      }
+    },
+    "verdicts": [
+      "NBA: Toronto Raptors v Miami Heat @ 2026-10-03T23:00:00.000Z: event: a match-up, ESPN: the game started Sat 7:00 pm",
+      "NBA: Miami Heat v Toronto Raptors @ 2026-10-04T19:00:00.000Z: replay: ESPN: the game started Sat 7:00 pm; this airing is 20 h later",
+      "NBA: Toronto Raptors v Miami Heat @ 2026-10-02T17:00:00.000Z: replay: ESPN: the game started Sat 7:00 pm; this airing is 30 h earlier"
+    ],
+    "catalog": [
+      {
+        "id": "espn:basketball/nba:401902644",
+        "league": "NBA",
+        "start": "2026-10-03T23:00:00.000Z",
+        "title": "Toronto Raptors v Miami Heat",
+        "competitors": [
+          "Toronto Raptors",
+          "Miami Heat"
+        ],
+        "session": null
+      }
+    ],
+    "rules": {
+      "sport": [
+        "Toronto Raptors v Miami Heat @ 2026-10-03T23:00:00.000Z on 1:0"
+      ],
+      "team": [
+        "game:espn:basketball/nba:401902644 @ 2026-10-03T23:00:00.000Z on 1:0"
+      ]
+    }
+  },
+  "AFL": {
+    "snapshot": {
+      "AFL": {
+        "fixtures": [
+          {
+            "start": "2026-09-26T04:30:00.000Z",
+            "end": null,
+            "teams": [
+              [
+                "fremantle",
+                "fre"
+              ],
+              [
+                "brisbane lions",
+                "bl"
+              ]
+            ],
+            "session": null,
+            "location": []
+          }
+        ],
+        "rosterTeams": 19,
+        "covered": true
+      }
+    },
+    "verdicts": [
+      "AFL: Fremantle v Brisbane Lions @ 2026-09-26T04:30:00.000Z: event: a match-up, ESPN: the game started Sat 2:30 pm",
+      "AFL: Brisbane Lions v Fremantle @ 2026-09-27T00:30:00.000Z: replay: ESPN: the game started Sat 2:30 pm; this airing is 20 h later",
+      "AFL: Fremantle v Brisbane Lions @ 2026-09-24T22:30:00.000Z: replay: outside AFL hours (08:30 Australia/Melbourne)",
+      "AFL: Adelaide Crows v Carlton @ 2026-09-26T18:00:00.000Z: replay: ESPN has no such game at this time",
+      "AFL: Adelaide Crows v Carlton @ 2026-09-25T06:00:00.000Z: event: a match-up"
+    ],
+    "catalog": [
+      {
+        "id": "espn:australian-football/afl:1133711",
+        "league": "AFL",
+        "start": "2026-09-26T04:30:00.000Z",
+        "title": "Fremantle v Brisbane Lions",
+        "competitors": [
+          "Fremantle",
+          "Brisbane Lions"
+        ],
+        "session": null
+      }
+    ],
+    "rules": {
+      "sport": [
+        "Adelaide Crows v Carlton @ 2026-09-25T06:00:00.000Z on 1:4",
+        "Fremantle v Brisbane Lions @ 2026-09-26T04:30:00.000Z on 1:0"
+      ],
+      "team": [
+        "game:espn:australian-football/afl:1133711 @ 2026-09-26T04:30:00.000Z on 1:0"
+      ]
+    }
+  },
+  "F1": {
+    "snapshot": {
+      "F1": {
+        "fixtures": [
+          {
+            "start": "2026-09-24T08:30:00.000Z",
+            "end": "2026-09-26T11:00:00.000Z",
+            "teams": null,
+            "session": {
+              "id": "practice 1",
+              "label": "Practice 1"
+            },
+            "location": [
+              "qatar",
+              "airways",
+              "azerbaijan"
+            ]
+          },
+          {
+            "start": "2026-09-24T12:00:00.000Z",
+            "end": "2026-09-26T11:00:00.000Z",
+            "teams": null,
+            "session": {
+              "id": "practice 2",
+              "label": "Practice 2"
+            },
+            "location": [
+              "qatar",
+              "airways",
+              "azerbaijan"
+            ]
+          },
+          {
+            "start": "2026-09-25T08:30:00.000Z",
+            "end": "2026-09-26T11:00:00.000Z",
+            "teams": null,
+            "session": {
+              "id": "practice 3",
+              "label": "Practice 3"
+            },
+            "location": [
+              "qatar",
+              "airways",
+              "azerbaijan"
+            ]
+          },
+          {
+            "start": "2026-09-25T12:00:00.000Z",
+            "end": "2026-09-26T11:00:00.000Z",
+            "teams": null,
+            "session": {
+              "id": "qualifying",
+              "label": "Qualifying"
+            },
+            "location": [
+              "qatar",
+              "airways",
+              "azerbaijan"
+            ]
+          },
+          {
+            "start": "2026-09-26T11:00:00.000Z",
+            "end": "2026-09-26T11:00:00.000Z",
+            "teams": null,
+            "session": {
+              "id": "race",
+              "label": "Race"
+            },
+            "location": [
+              "qatar",
+              "airways",
+              "azerbaijan"
+            ]
+          }
+        ],
+        "rosterTeams": 0,
+        "covered": true
+      }
+    },
+    "verdicts": [
+      "F1: Azerbaijan Grand Prix Practice 1 @ 2026-09-24T08:30:00.000Z: event: a session (Practice 1), ESPN: the session started Thu 8:30 am",
+      "F1: Azerbaijan Grand Prix Practice 1 @ 2026-09-25T10:30:00.000Z: replay: ESPN: the session started Thu 8:30 am; this airing is 26 h later",
+      "F1: Azerbaijan Grand Prix Practice 2 @ 2026-09-24T12:00:00.000Z: event: a session (Practice 2), ESPN: the session started Thu 12:00 pm",
+      "F1: Azerbaijan Grand Prix Practice 2 @ 2026-09-25T14:00:00.000Z: replay: ESPN: the session started Thu 12:00 pm; this airing is 26 h later",
+      "F1: Azerbaijan Grand Prix Practice 3 @ 2026-09-25T08:30:00.000Z: event: a session (Practice 3), ESPN: the session started Fri 8:30 am",
+      "F1: Azerbaijan Grand Prix Practice 3 @ 2026-09-26T10:30:00.000Z: replay: ESPN: the session started Fri 8:30 am; this airing is 26 h later",
+      "F1: Azerbaijan Grand Prix Qualifying @ 2026-09-25T12:00:00.000Z: event: a session (Qualifying), ESPN: the session started Fri 12:00 pm",
+      "F1: Azerbaijan Grand Prix Qualifying @ 2026-09-26T14:00:00.000Z: replay: ESPN: the session started Fri 12:00 pm; this airing is 26 h later",
+      "F1: Azerbaijan Grand Prix Race @ 2026-09-26T11:00:00.000Z: event: a session (Race), ESPN: the session started Sat 11:00 am",
+      "F1: Azerbaijan Grand Prix Race @ 2026-09-27T13:00:00.000Z: replay: ESPN: the session started Sat 11:00 am; this airing is 26 h later",
+      "F1: Azerbaijan Grand Prix Race @ 2026-09-28T02:00:00.000Z: replay: ESPN: the session started Sat 11:00 am; this airing is 39 h later",
+      "F1: Singapore Grand Prix Race @ 2026-09-24T18:00:00.000Z: event: a session (Race)",
+      "F1: Azerbaijan Grand Prix Practice 1 @ 2026-09-24T08:00:00.000Z: event: a session (Practice 1), ESPN: the session started Thu 8:30 am"
+    ],
+    "catalog": [
+      {
+        "id": "espn:racing/f1:401839108",
+        "league": "F1",
+        "start": "2026-09-24T08:30:00.000Z",
+        "title": "Qatar Airways Azerbaijan Grand Prix",
+        "competitors": [],
+        "session": "Practice 1"
+      },
+      {
+        "id": "espn:racing/f1:401839109",
+        "league": "F1",
+        "start": "2026-09-24T12:00:00.000Z",
+        "title": "Qatar Airways Azerbaijan Grand Prix",
+        "competitors": [],
+        "session": "Practice 2"
+      },
+      {
+        "id": "espn:racing/f1:401839110",
+        "league": "F1",
+        "start": "2026-09-25T08:30:00.000Z",
+        "title": "Qatar Airways Azerbaijan Grand Prix",
+        "competitors": [],
+        "session": "Practice 3"
+      },
+      {
+        "id": "espn:racing/f1:401839111",
+        "league": "F1",
+        "start": "2026-09-25T12:00:00.000Z",
+        "title": "Qatar Airways Azerbaijan Grand Prix",
+        "competitors": [],
+        "session": "Qualifying"
+      },
+      {
+        "id": "espn:racing/f1:401839112",
+        "league": "F1",
+        "start": "2026-09-26T11:00:00.000Z",
+        "title": "Qatar Airways Azerbaijan Grand Prix",
+        "competitors": [],
+        "session": "Race"
+      }
+    ],
+    "rules": {
+      "sport": [
+        "Azerbaijan GP · Practice 1 @ 2026-09-24T08:00:00.000Z on 1:12,1:0",
+        "Azerbaijan GP · Practice 2 @ 2026-09-24T12:00:00.000Z on 1:2",
+        "Azerbaijan GP · Practice 3 @ 2026-09-25T08:30:00.000Z on 1:4",
+        "Azerbaijan GP · Qualifying @ 2026-09-25T12:00:00.000Z on 1:6",
+        "Azerbaijan Grand Prix @ 2026-09-26T11:00:00.000Z on 1:8",
+        "Singapore Grand Prix @ 2026-09-24T18:00:00.000Z on 1:11"
+      ],
+      "team": []
+    }
+  },
+  "F1 morning": {
+    "snapshot": {
+      "F1": {
+        "fixtures": [
+          {
+            "start": "2026-09-24T08:30:00.000Z",
+            "end": "2026-09-26T11:00:00.000Z",
+            "teams": null,
+            "session": {
+              "id": "practice 1",
+              "label": "Practice 1"
+            },
+            "location": [
+              "qatar",
+              "airways",
+              "azerbaijan"
+            ]
+          },
+          {
+            "start": "2026-09-24T12:00:00.000Z",
+            "end": "2026-09-26T11:00:00.000Z",
+            "teams": null,
+            "session": {
+              "id": "practice 2",
+              "label": "Practice 2"
+            },
+            "location": [
+              "qatar",
+              "airways",
+              "azerbaijan"
+            ]
+          },
+          {
+            "start": "2026-09-25T08:30:00.000Z",
+            "end": "2026-09-26T11:00:00.000Z",
+            "teams": null,
+            "session": {
+              "id": "practice 3",
+              "label": "Practice 3"
+            },
+            "location": [
+              "qatar",
+              "airways",
+              "azerbaijan"
+            ]
+          },
+          {
+            "start": "2026-09-25T12:00:00.000Z",
+            "end": "2026-09-26T11:00:00.000Z",
+            "teams": null,
+            "session": {
+              "id": "qualifying",
+              "label": "Qualifying"
+            },
+            "location": [
+              "qatar",
+              "airways",
+              "azerbaijan"
+            ]
+          },
+          {
+            "start": "2026-09-26T11:00:00.000Z",
+            "end": "2026-09-26T11:00:00.000Z",
+            "teams": null,
+            "session": {
+              "id": "race",
+              "label": "Race"
+            },
+            "location": [
+              "qatar",
+              "airways",
+              "azerbaijan"
+            ]
+          }
+        ],
+        "rosterTeams": 0,
+        "covered": true
+      }
+    },
+    "verdicts": [
+      "F1: Azerbaijan Grand Prix Practice 1 @ 2026-09-24T08:30:00.000Z: event: a session (Practice 1)",
+      "F1: Azerbaijan Grand Prix Practice 1 @ 2026-09-25T10:30:00.000Z: replay: ESPN: the session started Thu 8:30 am; this airing is 26 h later",
+      "F1: Azerbaijan Grand Prix Practice 2 @ 2026-09-24T12:00:00.000Z: event: a session (Practice 2)",
+      "F1: Azerbaijan Grand Prix Practice 2 @ 2026-09-25T14:00:00.000Z: replay: ESPN: the session started Thu 12:00 pm; this airing is 26 h later",
+      "F1: Azerbaijan Grand Prix Practice 3 @ 2026-09-25T08:30:00.000Z: event: a session (Practice 3), ESPN: the session started Fri 8:30 am",
+      "F1: Azerbaijan Grand Prix Practice 3 @ 2026-09-26T10:30:00.000Z: replay: ESPN: the session started Fri 8:30 am; this airing is 26 h later",
+      "F1: Azerbaijan Grand Prix Qualifying @ 2026-09-25T12:00:00.000Z: event: a session (Qualifying), ESPN: the session started Fri 12:00 pm",
+      "F1: Azerbaijan Grand Prix Qualifying @ 2026-09-26T14:00:00.000Z: replay: ESPN: the session started Fri 12:00 pm; this airing is 26 h later",
+      "F1: Azerbaijan Grand Prix Race @ 2026-09-26T11:00:00.000Z: event: a session (Race), ESPN: the session started Sat 11:00 am",
+      "F1: Azerbaijan Grand Prix Race @ 2026-09-27T13:00:00.000Z: replay: ESPN: the session started Sat 11:00 am; this airing is 26 h later",
+      "F1: Azerbaijan Grand Prix Race @ 2026-09-28T20:00:00.000Z: replay: ESPN: the session started Sat 11:00 am; this airing is 57 h later",
+      "F1: Singapore Grand Prix Race @ 2026-09-25T12:00:00.000Z: event: a session (Race)",
+      "F1: Azerbaijan Grand Prix Practice 1 @ 2026-09-25T02:00:00.000Z: replay: ESPN: the session started Thu 8:30 am; this airing is 17 h 30 min later"
+    ],
+    "catalog": [
+      {
+        "id": "espn:racing/f1:401839108",
+        "league": "F1",
+        "start": "2026-09-24T08:30:00.000Z",
+        "title": "Qatar Airways Azerbaijan Grand Prix",
+        "competitors": [],
+        "session": "Practice 1"
+      },
+      {
+        "id": "espn:racing/f1:401839109",
+        "league": "F1",
+        "start": "2026-09-24T12:00:00.000Z",
+        "title": "Qatar Airways Azerbaijan Grand Prix",
+        "competitors": [],
+        "session": "Practice 2"
+      },
+      {
+        "id": "espn:racing/f1:401839110",
+        "league": "F1",
+        "start": "2026-09-25T08:30:00.000Z",
+        "title": "Qatar Airways Azerbaijan Grand Prix",
+        "competitors": [],
+        "session": "Practice 3"
+      },
+      {
+        "id": "espn:racing/f1:401839111",
+        "league": "F1",
+        "start": "2026-09-25T12:00:00.000Z",
+        "title": "Qatar Airways Azerbaijan Grand Prix",
+        "competitors": [],
+        "session": "Qualifying"
+      },
+      {
+        "id": "espn:racing/f1:401839112",
+        "league": "F1",
+        "start": "2026-09-26T11:00:00.000Z",
+        "title": "Qatar Airways Azerbaijan Grand Prix",
+        "competitors": [],
+        "session": "Race"
+      }
+    ],
+    "rules": {
+      "sport": [
+        "Azerbaijan GP · Practice 1 @ 2026-09-24T08:30:00.000Z on 1:0",
+        "Azerbaijan GP · Practice 2 @ 2026-09-24T12:00:00.000Z on 1:2",
+        "Azerbaijan GP · Practice 3 @ 2026-09-25T08:30:00.000Z on 1:4",
+        "Azerbaijan GP · Qualifying @ 2026-09-25T12:00:00.000Z on 1:6",
+        "Azerbaijan Grand Prix @ 2026-09-26T11:00:00.000Z on 1:8",
+        "Singapore Grand Prix @ 2026-09-25T12:00:00.000Z on 1:11"
+      ],
+      "team": []
+    }
+  },
+  "IPL": {
+    "snapshot": {
+      "IPL": {
+        "fixtures": [
+          {
+            "start": "2026-05-31T14:00:00.000Z",
+            "end": "2026-06-01T23:59:00.000Z",
+            "teams": [
+              [
+                "royal challengers bengaluru",
+                "rcb",
+                "india"
+              ],
+              [
+                "gujarat titans",
+                "gt",
+                "india"
+              ]
+            ],
+            "session": null,
+            "location": []
+          }
+        ],
+        "rosterTeams": 10,
+        "covered": true
+      }
+    },
+    "verdicts": [
+      "Royal Challengers Bengaluru v Gujarat Titans @ 2026-05-31T14:00:00.000Z: event: a match-up, ESPN: the game started Sun 2:00 pm",
+      "Gujarat Titans v Royal Challengers Bengaluru @ 2026-06-01T10:00:00.000Z: replay: ESPN: the game started Sun 2:00 pm; this airing is 20 h later",
+      "Royal Challengers Bengaluru v Gujarat Titans @ 2026-05-30T08:00:00.000Z: replay: ESPN: the game started Sun 2:00 pm; this airing is 30 h earlier",
+      "Chennai Super Kings v Delhi Capitals @ 2026-05-31T18:00:00.000Z: replay: ESPN has no such game at this time",
+      "Chennai Super Kings v Delhi Capitals @ 2026-05-30T06:00:00.000Z: event: a match-up"
+    ],
+    "catalog": [
+      {
+        "id": "espn:cricket/8048:1535465",
+        "league": "IPL",
+        "start": "2026-05-31T14:00:00.000Z",
+        "title": "Royal Challengers Bengaluru v Gujarat Titans",
+        "competitors": [
+          "Royal Challengers Bengaluru",
+          "Gujarat Titans"
+        ],
+        "session": null
+      }
+    ],
+    "rules": {
+      "sport": [
+        "Chennai Super Kings v Delhi Capitals @ 2026-05-30T06:00:00.000Z on 1:4",
+        "Royal Challengers Bengaluru v Gujarat Titans @ 2026-05-31T14:00:00.000Z on 1:0"
+      ],
+      "team": [
+        "game:espn:cricket/8048:1535465 @ 2026-05-31T14:00:00.000Z on 1:0"
+      ]
+    }
+  },
+  "BBL": {
+    "snapshot": {
+      "BBL": {
+        "fixtures": [
+          {
+            "start": "2026-12-12T09:10:00.000Z",
+            "end": "2026-12-13T23:59:00.000Z",
+            "teams": [
+              [
+                "melbourne renegades",
+                "mr",
+                "australia"
+              ],
+              [
+                "perth scorchers",
+                "ps",
+                "australia"
+              ]
+            ],
+            "session": null,
+            "location": []
+          }
+        ],
+        "rosterTeams": 8,
+        "covered": true
+      }
+    },
+    "verdicts": [
+      "Melbourne Renegades v Perth Scorchers @ 2026-12-12T09:10:00.000Z: event: a match-up, ESPN: the game started Sat 8:10 pm",
+      "Perth Scorchers v Melbourne Renegades @ 2026-12-13T05:10:00.000Z: replay: ESPN: the game started Sat 8:10 pm; this airing is 20 h later",
+      "Melbourne Renegades v Perth Scorchers @ 2026-12-11T03:10:00.000Z: replay: ESPN: the game started Sat 8:10 pm; this airing is 30 h earlier",
+      "Adelaide Strikers v Brisbane Heat @ 2026-12-12T18:00:00.000Z: replay: ESPN has no such game at this time",
+      "Adelaide Strikers v Brisbane Heat @ 2026-12-11T06:00:00.000Z: event: a match-up"
+    ],
+    "catalog": [
+      {
+        "id": "espn:cricket/8044:1545498",
+        "league": "BBL",
+        "start": "2026-12-12T09:10:00.000Z",
+        "title": "Melbourne Renegades v Perth Scorchers",
+        "competitors": [
+          "Melbourne Renegades",
+          "Perth Scorchers"
+        ],
+        "session": null
+      }
+    ],
+    "rules": {
+      "sport": [
+        "Adelaide Strikers v Brisbane Heat @ 2026-12-11T06:00:00.000Z on 1:4",
+        "Melbourne Renegades v Perth Scorchers @ 2026-12-12T09:10:00.000Z on 1:0"
+      ],
+      "team": [
+        "game:espn:cricket/8044:1545498 @ 2026-12-12T09:10:00.000Z on 1:0"
+      ]
+    }
+  },
+  "Cricket": {
+    "snapshot": {
+      "Cricket": {
+        "fixtures": [
+          {
+            "start": "2026-09-27T04:00:00.000Z",
+            "end": "2026-10-01T23:59:00.000Z",
+            "teams": [
+              [
+                "india under 19s",
+                "ind19",
+                "india"
+              ],
+              [
+                "australia under 19s",
+                "aus19",
+                "australia"
+              ]
+            ],
+            "session": null,
+            "location": []
+          }
+        ],
+        "rosterTeams": 2,
+        "covered": true
+      }
+    },
+    "verdicts": [
+      "India Under-19s v Australia Under-19s @ 2026-09-27T04:00:00.000Z: event: a match-up, ESPN: the game started Sun 4:00 am",
+      "Australia Under-19s v India Under-19s @ 2026-09-28T00:00:00.000Z: replay: ESPN: the game started Sun 4:00 am; this airing is 20 h later",
+      "India Under-19s v Australia Under-19s @ 2026-09-25T22:00:00.000Z: event: a match-up"
+    ],
+    "catalog": [
+      {
+        "id": "espn:cricket/24377:1535684",
+        "league": "Cricket",
+        "start": "2026-09-27T04:00:00.000Z",
+        "title": "India Under-19s v Australia Under-19s",
+        "competitors": [
+          "India Under-19s",
+          "Australia Under-19s"
+        ],
+        "session": null
+      }
+    ],
+    "rules": {
+      "sport": [
+        "India Under-19s v Australia Under-19s @ 2026-09-25T22:00:00.000Z on 1:2",
+        "India Under-19s v Australia Under-19s @ 2026-09-27T04:00:00.000Z on 1:0"
+      ],
+      "team": [
+        "game:espn:cricket/24377:1535684 @ 2026-09-27T04:00:00.000Z on 1:0"
+      ]
+    }
+  }
+}
