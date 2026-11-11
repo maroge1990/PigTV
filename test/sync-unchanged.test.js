@@ -35,7 +35,9 @@ const guide = (per) => {
 };
 const feeds = { m3u: playlist(200), xml: guide(100), backup: playlist(150, 'b'), etag: null };
 const hits = { m3u: 0, xml: 0, notModified: 0 };
+let probe = null; // #273 C-3: samples isSyncingAny() from inside a running sync
 const provider = http.createServer((req, res) => {
+    if (probe) probe.push(['feed', sync.isSyncingAny?.()]);
     const isGuide = req.url.startsWith('/xmltv');
     const isBackup = req.url.startsWith('/backup');
     if (isGuide) hits.xml++;
@@ -193,6 +195,28 @@ test('a global sync with two backups relinks once, after the last source', async
     const relinks = lines.filter(l => l.startsWith('[Links] Relinked'));
     assert.equal(relinks.length, 1, lines.join('\n'));
     assert.ok(lines.lastIndexOf(relinks[0]) > lines.findIndex(l => /Backup B: \d+ channels/.test(l)), 'after the last backup');
+});
+
+test('#273 C-3: isSyncingAny is true from the start of a global sync to the end of its relink, and false after, even after a failure', async () => {
+    assert.equal(sync.isSyncingAny?.(), false, 'idle before');
+    const links = load('services/channelLinks');
+    const relinkAll = links.relinkAll;
+    probe = [];
+    links.relinkAll = async (...a) => { probe.push(['relink', sync.isSyncingAny?.()]); return relinkAll.apply(links, a); };
+    feeds.m3u = playlist(202); // changed, so the deferred relink runs
+    try {
+        await sync.syncAll({ ifChanged: true });
+    } finally { links.relinkAll = relinkAll; }
+    const seen = probe; probe = null;
+    assert.ok(seen.some(([k]) => k === 'feed') && seen.some(([k]) => k === 'relink'), JSON.stringify(seen));
+    assert.ok(seen.every(([, v]) => v === true), 'busy at every sample: ' + JSON.stringify(seen));
+    assert.equal(sync.isSyncingAny?.(), false, 'idle after');
+
+    const syncSource = sync.syncSource;
+    sync.syncSource = async () => { throw new Error('boom (test)'); };
+    const err = console.error; console.error = () => {};
+    try { await sync.syncAll({ ifChanged: true }); } finally { sync.syncSource = syncSource; console.error = err; }
+    assert.equal(sync.isSyncingAny?.(), false, 'idle after a failed run');
 });
 
 test('no heap readings or "so far" lines without PIGTV_DEBUG_SYNC', async () => {

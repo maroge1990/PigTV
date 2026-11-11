@@ -70,6 +70,22 @@ test('the nightly check copies only when the newest backup is over a day old', a
     assert.ok(await dbBackup.nightlyCheck(dbPath, { now: now + DAY + 60000 }));
 });
 
+test('#273 C-3: the nightly check skips while a sync runs, and a failing busy() never stops backups', async () => {
+    const { dbPath } = fixture();
+    const now = Date.UTC(2026, 9, 10, 3);
+    const count = () => dbBackup.list(dbPath).length;
+    assert.ok(await dbBackup.nightlyCheck(dbPath, { now }));
+    const later = now + DAY + 60000;
+    assert.equal(count(), 1);
+    assert.equal(await dbBackup.nightlyCheck(dbPath, { now: later, busy: () => true }), null, 'busy: nothing done');
+    assert.equal(count(), 1, 'busy: a file was written');
+    assert.ok(await dbBackup.nightlyCheck(dbPath, { now: later, busy: () => { throw new Error('x'); } }), 'busy throws: copies');
+    assert.equal(count(), 2);
+    assert.ok(await dbBackup.nightlyCheck(dbPath, { now: later + DAY + 60000, busy: () => false }), 'not busy: copies');
+    assert.ok(await dbBackup.nightlyCheck(dbPath, { now: later + 2 * DAY + 120000 }), 'no busy given: copies');
+    assert.equal(count(), 4);
+});
+
 test('the server opens the database through the pre-migration copy and records its build', () => {
     const src = fs.readFileSync(path.join(__dirname, '../server/db/sqlite.js'), 'utf8');
     const open = src.slice(src.indexOf('function getDb()'), src.indexOf('function databasePath'));

@@ -283,14 +283,24 @@ class SyncService {
         const outer = !this._relinkDeferred;
         if (outer) this._relinkDeferred = { pending: false };
         const deferred = this._relinkDeferred;
+        this._batchDepth = (this._batchDepth || 0) + 1; // #273 C-3: counts the final relink too
         try {
-            return await work();
-        } finally {
-            if (outer) {
-                this._relinkDeferred = null;
-                if (deferred.pending) await this.relink(null);
+            try {
+                return await work();
+            } finally {
+                if (outer) {
+                    this._relinkDeferred = null;
+                    if (deferred.pending) await this.relink(null);
+                }
             }
+        } finally {
+            this._batchDepth--;
         }
+    }
+
+    /** #273 C-3: true while any sync runs: a multi-source run (gaps and final relink included) or a single source. */
+    isSyncingAny() {
+        return (this._batchDepth || 0) > 0 || (this._globalDepth || 0) > 0 || activeSyncs.size > 0;
     }
 
     /** Relink one backup (`backupId`) or every one (null) now, or once at the end of a global sync. */
@@ -311,6 +321,7 @@ class SyncService {
      */
     async syncAll({ retry = false, ifChanged = false } = {}) {
         console.log('[Sync] Starting global sync...');
+        this._globalDepth = (this._globalDepth || 0) + 1;
         try {
             const allSources = await sources.getAll();
             await this.withOneRelink(async () => {
@@ -327,6 +338,8 @@ class SyncService {
             console.log('[Sync] Global sync completed at', this.lastSyncTime.toISOString());
         } catch (err) {
             console.error('[Sync] Global sync failed:', err);
+        } finally {
+            this._globalDepth--;
         }
     }
 

@@ -207,12 +207,25 @@ function recordBuild(db, build) {
 
 let nightlyTimer = null;
 let nightlyRunning = null;
+let nightlySkipping = false;
 
-/** One nightly check: a backup when the newest is over a day old. Resolves the path or null. */
-async function nightlyCheck(dbPath, { now = Date.now() } = {}) {
+/**
+ * One nightly check: a backup when the newest is over a day old. Resolves the path or null.
+ * #273 C-3: `busy()` (a guide sync is running) skips the copy, which holds a read transaction that keeps the WAL from
+ * checkpointing; the next hourly check retries. One log line per skipped streak. A `busy` that throws counts as idle.
+ */
+async function nightlyCheck(dbPath, { now = Date.now(), busy } = {}) {
     if (nightlyRunning) return nightlyRunning;
     const newest = list(dbPath)[0];
     if (newest && now - newest.at < DAY_MS) return null;
+    let syncing = false;
+    try { syncing = typeof busy === 'function' && !!busy(); } catch { syncing = false; }
+    if (syncing) {
+        if (!nightlySkipping) console.log('[Backup] Nightly copy waits: a sync is running. Retrying at the next hourly check.');
+        nightlySkipping = true;
+        return null;
+    }
+    nightlySkipping = false;
     nightlyRunning = backup(dbPath, { reason: 'nightly', now })
         .then(file => { console.log(`[Backup] Nightly copy written: ${path.basename(file)}`); return file; })
         .catch(err => { console.error('[Backup] Nightly copy FAILED:', err.message); return null; })
@@ -220,12 +233,12 @@ async function nightlyCheck(dbPath, { now = Date.now() } = {}) {
     return nightlyRunning;
 }
 
-function startNightly(dbPath) {
+function startNightly(dbPath, { busy } = {}) {
     if (nightlyTimer || process.env.PIGTV_DB_BACKUPS === '0') return;
-    nightlyTimer = setInterval(() => nightlyCheck(dbPath), CHECK_EVERY_MS);
+    nightlyTimer = setInterval(() => nightlyCheck(dbPath, { busy }), CHECK_EVERY_MS);
     nightlyTimer.unref?.();
     // The first check a few minutes after start, not during it.
-    setTimeout(() => nightlyCheck(dbPath), 5 * 60 * 1000).unref?.();
+    setTimeout(() => nightlyCheck(dbPath, { busy }), 5 * 60 * 1000).unref?.();
 }
 
 module.exports = { KEEP, list, backup, backupSync, beforeMigrations, recordBuild, nightlyCheck, startNightly, prune };

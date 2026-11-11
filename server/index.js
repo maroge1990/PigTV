@@ -293,7 +293,7 @@ app.listen(PORT, async (err) => {
 
     // R12: a database copy once a day (the first check 5 min after start).
     try {
-        require('./services/dbBackup').startNightly(require('./db/sqlite').databasePath());
+        require('./services/dbBackup').startNightly(require('./db/sqlite').databasePath(), { busy: () => syncService.isSyncingAny() });
     } catch (err) {
         console.warn('Nightly database backups failed to start:', err.message);
     }
